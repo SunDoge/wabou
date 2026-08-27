@@ -746,11 +746,21 @@ export function App() {
           <SettingsPage
             value={defaults()}
             agent={active()}
+            state={active().state}
             update={(patch) =>
               setDefaults((current) => ({ ...current, ...patch }))
             }
             updateAgent={patchActive}
             deleteAgent={() => void deleteActiveAgent()}
+            setAutoCompaction={(enabled) =>
+              void api.setAutoCompaction(active().id, enabled)
+            }
+            setSteeringMode={(mode) =>
+              void api.setSteeringMode(active().id, mode)
+            }
+            setFollowUpMode={(mode) =>
+              void api.setFollowUpMode(active().id, mode)
+            }
             close={() => navigate({ to: `/agents/${activeId()}` })}
           />
         }

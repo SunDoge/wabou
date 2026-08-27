@@ -48,6 +48,9 @@ interface PiCapability extends NativeJsonCapability {
   setModel(request: string): string | PromiseLike<string>;
   getModelOptions(request: string): string | PromiseLike<string>;
   setThinking(request: string): string | PromiseLike<string>;
+  setAutoCompaction(request: string): string | PromiseLike<string>;
+  setSteeringMode(request: string): string | PromiseLike<string>;
+  setFollowUpMode(request: string): string | PromiseLike<string>;
   listSessions(request: string): string | PromiseLike<string>;
   getMessages(request: string): string | PromiseLike<string>;
   getSessionStats(request: string): string | PromiseLike<string>;
@@ -148,6 +151,12 @@ export function usePiApi() {
       call<void>("getModelOptions", { agentId }),
     setThinking: (agentId: string, level: string) =>
       call<void>("setThinking", { agentId, level }),
+    setAutoCompaction: (agentId: string, enabled: boolean) =>
+      call<void>("setAutoCompaction", { agentId, enabled }),
+    setSteeringMode: (agentId: string, mode: "all" | "one-at-a-time") =>
+      call<void>("setSteeringMode", { agentId, mode }),
+    setFollowUpMode: (agentId: string, mode: "all" | "one-at-a-time") =>
+      call<void>("setFollowUpMode", { agentId, mode }),
     subscribe: (
       listener: (events: readonly Record<string, unknown>[]) => void,
     ) => hostMessages.subscribeJson("pi.event", listener),

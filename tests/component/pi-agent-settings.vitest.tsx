@@ -2,8 +2,8 @@ import { renderComponent } from "@wabou/test/component";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 import {
-  SettingsPage,
   type AgentDefaults,
+  SettingsPage,
 } from "../../apps/pi-agent/ui/settings";
 import { createAgentWorkspace } from "../../apps/pi-agent/ui/workspace";
 
@@ -21,11 +21,19 @@ test("Pi Agent settings rename and explicitly confirm agent deletion", () => {
       value={defaults}
       update={() => {}}
       agent={agent()}
-      updateAgent={(patch) =>
-        setAgent((current) => ({ ...current, ...patch }))
-      }
+      state={{
+        ...agent().state,
+        connection: "ready",
+        autoCompactionEnabled: true,
+        steeringMode: "one-at-a-time",
+        followUpMode: "one-at-a-time",
+      }}
+      updateAgent={(patch) => setAgent((current) => ({ ...current, ...patch }))}
       close={() => {}}
       deleteAgent={() => deleted++}
+      setAutoCompaction={() => {}}
+      setSteeringMode={() => {}}
+      setFollowUpMode={() => {}}
     />
   ));
 

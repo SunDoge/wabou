@@ -45,6 +45,7 @@ import { ConversationItem } from "../../pi-agent/ui/conversation";
 import { ExtensionUiChrome } from "../../pi-agent/ui/extension-ui";
 import { ModelControls } from "../../pi-agent/ui/model-controls";
 import { SessionActions } from "../../pi-agent/ui/session-actions";
+import { SessionBehaviorSettings } from "../../pi-agent/ui/session-behavior-settings";
 import { TranscriptSearch } from "../../pi-agent/ui/transcript-search";
 import { MangaPageMock } from "./pages/image-viewport";
 import { MarkdownPreview } from "./pages/markdown";
@@ -116,6 +117,25 @@ export function PiModelControlsLayoutFixture() {
         thinkingLevels={["off", "medium", "high", "xhigh"]}
         chooseModel={() => {}}
         chooseThinking={() => {}}
+      />
+    </View>
+  );
+}
+
+export function PiSessionBehaviorLayoutFixture() {
+  return (
+    <View class="w-full min-w-0 p-5 bg-canvas">
+      <SessionBehaviorSettings
+        state={{
+          ...initialAgentState,
+          connection: "ready",
+          autoCompactionEnabled: true,
+          steeringMode: "one-at-a-time",
+          followUpMode: "all",
+        }}
+        setAutoCompaction={() => {}}
+        setSteeringMode={() => {}}
+        setFollowUpMode={() => {}}
       />
     </View>
   );

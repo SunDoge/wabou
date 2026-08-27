@@ -115,6 +115,24 @@ describe("Pi agent event projection", () => {
     expect(state.model).toBe("GPT-5.5");
   });
 
+  test("projects authoritative session behavior settings", () => {
+    const state = reducePiEvent(initialAgentState, {
+      type: "response",
+      command: "get_state",
+      success: true,
+      data: {
+        autoCompactionEnabled: true,
+        steeringMode: "all",
+        followUpMode: "one-at-a-time",
+      },
+    });
+    expect(state).toMatchObject({
+      autoCompactionEnabled: true,
+      steeringMode: "all",
+      followUpMode: "one-at-a-time",
+    });
+  });
+
   test("marks follow-ups as queued until the agent fully settles", () => {
     const running = reducePiEvent(initialAgentState, { type: "agent_start" });
     const queued = appendUserMessage(running, "user-1", "Next", true);

@@ -32,6 +32,9 @@ const CYCLE_THINKING: JsonMethod<AgentRequest, ()> = JsonMethod::new("cycleThink
 const SET_MODEL: JsonMethod<SetModelRequest, ()> = JsonMethod::new("setModel");
 const GET_MODEL_OPTIONS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getModelOptions");
 const SET_THINKING: JsonMethod<SetThinkingRequest, ()> = JsonMethod::new("setThinking");
+const SET_AUTO_COMPACTION: JsonMethod<ToggleRequest, ()> = JsonMethod::new("setAutoCompaction");
+const SET_STEERING_MODE: JsonMethod<QueueModeRequest, ()> = JsonMethod::new("setSteeringMode");
+const SET_FOLLOW_UP_MODE: JsonMethod<QueueModeRequest, ()> = JsonMethod::new("setFollowUpMode");
 const LIST_SESSIONS: JsonMethod<AgentRequest, Vec<PiSession>> = JsonMethod::new("listSessions");
 const GET_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getMessages");
 const GET_SESSION_STATS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getSessionStats");
@@ -307,6 +310,28 @@ struct SetModelRequest {
 struct SetThinkingRequest {
     agent_id: String,
     level: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ToggleRequest {
+    agent_id: String,
+    enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct QueueModeRequest {
+    agent_id: String,
+    mode: String,
+}
+
+fn validate_queue_mode(mode: &str) -> Result<(), String> {
+    if matches!(mode, "all" | "one-at-a-time") {
+        Ok(())
+    } else {
+        Err(format!("unsupported queue mode `{mode}`"))
+    }
 }
 
 fn validate_thinking_level(level: &str) -> Result<(), String> {
@@ -1065,6 +1090,50 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
             )
         }
     })?;
+    let auto_compaction = service.clone();
+    capability.method(SET_AUTO_COMPACTION, move |request: ToggleRequest| {
+        let service = auto_compaction.clone();
+        async move {
+            service.send(
+                &request.agent_id,
+                json!({"type":"set_auto_compaction","enabled":request.enabled}),
+            )?;
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-auto-compaction-state","type":"get_state"}),
+            )
+        }
+    })?;
+    let steering_mode = service.clone();
+    capability.method(SET_STEERING_MODE, move |request: QueueModeRequest| {
+        let service = steering_mode.clone();
+        async move {
+            validate_queue_mode(&request.mode)?;
+            service.send(
+                &request.agent_id,
+                json!({"type":"set_steering_mode","mode":request.mode}),
+            )?;
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-steering-mode-state","type":"get_state"}),
+            )
+        }
+    })?;
+    let follow_up_mode = service.clone();
+    capability.method(SET_FOLLOW_UP_MODE, move |request: QueueModeRequest| {
+        let service = follow_up_mode.clone();
+        async move {
+            validate_queue_mode(&request.mode)?;
+            service.send(
+                &request.agent_id,
+                json!({"type":"set_follow_up_mode","mode":request.mode}),
+            )?;
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-follow-up-mode-state","type":"get_state"}),
+            )
+        }
+    })?;
     capability.method(SET_MODEL, move |request: SetModelRequest| {
         let service = service.clone();
         async move {
@@ -1157,6 +1226,13 @@ mod tests {
             validate_thinking_level("ultra").unwrap_err(),
             "unsupported thinking level `ultra`"
         );
+    }
+
+    #[test]
+    fn queue_modes_are_restricted_to_pi_rpc_values() {
+        assert!(validate_queue_mode("all").is_ok());
+        assert!(validate_queue_mode("one-at-a-time").is_ok());
+        assert!(validate_queue_mode("parallel").is_err());
     }
 
     #[test]

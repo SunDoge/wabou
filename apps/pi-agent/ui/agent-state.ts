@@ -1,6 +1,7 @@
 import { match, P } from "ts-pattern";
 
 export type AgentConnection = "stopped" | "ready" | "running" | "failed";
+export type AgentQueueMode = "all" | "one-at-a-time";
 export type AgentActivity =
   | { kind: "responding" }
   | { kind: "compacting"; reason?: string }
@@ -104,6 +105,9 @@ export interface AgentViewState {
   modelProvider?: string;
   models: readonly AgentModel[];
   thinking?: AgentThinkingLevel;
+  autoCompactionEnabled?: boolean;
+  steeringMode?: AgentQueueMode;
+  followUpMode?: AgentQueueMode;
   availableThinkingLevels: readonly AgentThinkingLevel[];
   sessionId?: string;
   sessionFile?: string;
@@ -506,6 +510,18 @@ export function reducePiEvent(
           thinkingLevels.has(data.thinkingLevel as AgentThinkingLevel)
             ? (data.thinkingLevel as AgentThinkingLevel)
             : state.thinking,
+        autoCompactionEnabled:
+          typeof data?.autoCompactionEnabled === "boolean"
+            ? data.autoCompactionEnabled
+            : state.autoCompactionEnabled,
+        steeringMode:
+          data?.steeringMode === "all" || data?.steeringMode === "one-at-a-time"
+            ? data.steeringMode
+            : state.steeringMode,
+        followUpMode:
+          data?.followUpMode === "all" || data?.followUpMode === "one-at-a-time"
+            ? data.followUpMode
+            : state.followUpMode,
         sessionId:
           typeof data?.sessionId === "string"
             ? data.sessionId

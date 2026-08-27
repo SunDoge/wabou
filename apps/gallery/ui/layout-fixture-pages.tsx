@@ -22,6 +22,7 @@ import {
   PiConversationLayoutFixture,
   PiExtensionUiLayoutFixture,
   PiModelControlsLayoutFixture,
+  PiSessionBehaviorLayoutFixture,
   PiTranscriptSearchLayoutFixture,
   QRCodeLayoutFixture,
   ScrollAreaLayoutFixture,
@@ -166,6 +167,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 480,
         height: 100,
         render: PiModelControlsLayoutFixture,
+      },
+      "component/PiSessionBehavior": {
+        width: 520,
+        height: 360,
+        render: PiSessionBehaviorLayoutFixture,
       },
       "component/PiTranscriptSearch": {
         width: 480,

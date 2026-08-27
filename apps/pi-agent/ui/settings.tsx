@@ -22,7 +22,9 @@ import {
   Text,
   View,
 } from "@wabou/ui";
+import type { AgentQueueMode, AgentViewState } from "./agent-state";
 import { i18n, m } from "./i18n";
+import { SessionBehaviorSettings } from "./session-behavior-settings";
 import type { AgentWorkspace } from "./workspace";
 
 export interface AgentDefaults {
@@ -36,9 +38,13 @@ export function SettingsPage(props: {
   value: AgentDefaults;
   update: (patch: Partial<AgentDefaults>) => void;
   agent: AgentWorkspace;
+  state: AgentViewState;
   updateAgent: (patch: Partial<AgentWorkspace>) => void;
   close: () => void;
   deleteAgent: () => void;
+  setAutoCompaction: (enabled: boolean) => void;
+  setSteeringMode: (mode: AgentQueueMode) => void;
+  setFollowUpMode: (mode: AgentQueueMode) => void;
 }) {
   return (
     <PageViewport class="bg-canvas" contentClass="p-8">
@@ -112,6 +118,23 @@ export function SettingsPage(props: {
                 placeholder={i18n.message(m.proxy_placeholder, {})}
               />
             </Field>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{i18n.message(m.session_behavior, {})}</CardTitle>
+            <CardDescription>
+              {i18n.message(m.session_behavior_detail, {})}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SessionBehaviorSettings
+              state={props.state}
+              setAutoCompaction={props.setAutoCompaction}
+              setSteeringMode={props.setSteeringMode}
+              setFollowUpMode={props.setFollowUpMode}
+            />
           </CardContent>
         </Card>
 
