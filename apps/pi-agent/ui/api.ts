@@ -22,6 +22,16 @@ export interface PiSession {
   updatedAt: number;
 }
 
+export interface PersistedAgentProfile {
+  id: string;
+  name: string;
+  cwd: string;
+  proxy: string;
+  noProxy: string;
+  provider: string;
+  model: string;
+}
+
 interface PiCapability extends NativeJsonCapability {
   __wabouCapabilityVersion: number;
   getStatus(request: string): string | PromiseLike<string>;
@@ -35,6 +45,8 @@ interface PiCapability extends NativeJsonCapability {
   setModel(request: string): string | PromiseLike<string>;
   listSessions(request: string): string | PromiseLike<string>;
   getMessages(request: string): string | PromiseLike<string>;
+  listAgents(request?: string): string | PromiseLike<string>;
+  saveAgents(request: string): string | PromiseLike<string>;
 }
 
 interface PiHost extends Host {
@@ -48,6 +60,9 @@ export function usePiApi() {
     version: 1,
   });
   return {
+    listAgents: () => call<PersistedAgentProfile[]>("listAgents"),
+    saveAgents: (agents: readonly PersistedAgentProfile[]) =>
+      call<void>("saveAgents", agents),
     getStatus: (agentId: string) => call<PiStatus>("getStatus", { agentId }),
     start: (options: {
       agentId: string;

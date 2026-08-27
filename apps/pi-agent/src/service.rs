@@ -27,6 +27,8 @@ const CYCLE_THINKING: JsonMethod<AgentRequest, ()> = JsonMethod::new("cycleThink
 const SET_MODEL: JsonMethod<SetModelRequest, ()> = JsonMethod::new("setModel");
 const LIST_SESSIONS: JsonMethod<AgentRequest, Vec<PiSession>> = JsonMethod::new("listSessions");
 const GET_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getMessages");
+const LIST_AGENTS: JsonMethod<(), Vec<AgentProfile>> = JsonMethod::no_request("listAgents");
+const SAVE_AGENTS: JsonMethod<Vec<AgentProfile>, ()> = JsonMethod::new("saveAgents");
 
 #[derive(Clone)]
 pub struct PiService {
@@ -39,7 +41,22 @@ pub struct PiService {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SessionCatalog {
+    #[serde(default)]
     sessions: Vec<PiSession>,
+    #[serde(default)]
+    agents: Vec<AgentProfile>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AgentProfile {
+    id: String,
+    name: String,
+    cwd: String,
+    proxy: String,
+    no_proxy: String,
+    provider: String,
+    model: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -334,6 +351,40 @@ impl PiService {
         sessions.sort_by_key(|session| std::cmp::Reverse(session.updated_at));
         Ok(sessions)
     }
+
+    fn agents(&self) -> Result<Vec<AgentProfile>, String> {
+        self.sessions
+            .lock()
+            .map(|catalog| catalog.agents.clone())
+            .map_err(|_| "Pi session catalog lock poisoned".to_owned())
+    }
+
+    fn save_agents(&self, agents: Vec<AgentProfile>) -> Result<(), String> {
+        validate_agent_profiles(&agents)?;
+        let mut catalog = self
+            .sessions
+            .lock()
+            .map_err(|_| "Pi session catalog lock poisoned".to_owned())?;
+        catalog.agents = agents;
+        persist_catalog(&catalog)
+    }
+}
+
+fn validate_agent_profiles(agents: &[AgentProfile]) -> Result<(), String> {
+    if agents.len() > 32 {
+        return Err("at most 32 agent workspaces may be saved".to_owned());
+    }
+    let mut ids = std::collections::HashSet::with_capacity(agents.len());
+    for agent in agents {
+        validate_agent_id(&agent.id)?;
+        if agent.name.trim().is_empty() {
+            return Err(format!("agent `{}` must have a name", agent.id));
+        }
+        if !ids.insert(agent.id.as_str()) {
+            return Err(format!("duplicate agent id `{}`", agent.id));
+        }
+    }
+    Ok(())
 }
 
 fn session_catalog_path() -> Option<PathBuf> {
@@ -346,6 +397,17 @@ fn load_session_catalog() -> SessionCatalog {
         .and_then(|path| std::fs::read(path).ok())
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
         .unwrap_or_default()
+}
+
+fn persist_catalog(catalog: &SessionCatalog) -> Result<(), String> {
+    let Some(path) = session_catalog_path() else {
+        return Err("could not resolve Pi Agent data directory".to_owned());
+    };
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let bytes = serde_json::to_vec_pretty(catalog).map_err(|error| error.to_string())?;
+    std::fs::write(path, bytes).map_err(|error| error.to_string())
 }
 
 fn remember_session(
@@ -395,14 +457,7 @@ fn remember_session(
     } else {
         catalog.sessions.push(entry);
     }
-    if let Some(path) = session_catalog_path() {
-        if let Some(parent) = path.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        if let Ok(bytes) = serde_json::to_vec_pretty(&*catalog) {
-            let _ = std::fs::write(path, bytes);
-        }
-    }
+    let _ = persist_catalog(&catalog);
 }
 
 fn validate_agent_id(agent_id: &str) -> Result<(), String> {
@@ -433,6 +488,16 @@ impl Drop for PiProcess {
 }
 
 pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Result<()> {
+    let list_agents = service.clone();
+    capability.method(LIST_AGENTS, move |(): ()| {
+        let service = list_agents.clone();
+        async move { service.agents() }
+    })?;
+    let save_agents = service.clone();
+    capability.method(SAVE_AGENTS, move |agents: Vec<AgentProfile>| {
+        let service = save_agents.clone();
+        async move { service.save_agents(agents) }
+    })?;
     let status = service.clone();
     capability.method(GET_STATUS, move |request: AgentRequest| {
         let service = status.clone();
@@ -579,6 +644,31 @@ mod tests {
         assert_eq!(
             tag_event("agent-2", json!({"type":"agent_start"}))["agentId"],
             "agent-2"
+        );
+    }
+
+    #[test]
+    fn older_session_catalogs_default_to_no_saved_agents() {
+        let catalog: SessionCatalog =
+            serde_json::from_str(r#"{"sessions":[]}"#).expect("legacy catalog");
+        assert!(catalog.agents.is_empty());
+    }
+
+    #[test]
+    fn saved_agent_profiles_require_unique_stable_ids() {
+        let profile = AgentProfile {
+            id: "agent-1".to_owned(),
+            name: "Agent 1".to_owned(),
+            cwd: String::new(),
+            proxy: String::new(),
+            no_proxy: String::new(),
+            provider: String::new(),
+            model: String::new(),
+        };
+        assert!(validate_agent_profiles(std::slice::from_ref(&profile)).is_ok());
+        assert_eq!(
+            validate_agent_profiles(&[profile.clone(), profile]).unwrap_err(),
+            "duplicate agent id `agent-1`"
         );
     }
 }

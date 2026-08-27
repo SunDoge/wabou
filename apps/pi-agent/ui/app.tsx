@@ -36,7 +36,12 @@ import { ConversationItem } from "./conversation";
 import { i18n, m } from "./i18n";
 import { type AgentDefaults, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
-import { type AgentWorkspace, createAgentWorkspace } from "./workspace";
+import {
+  agentProfile,
+  type AgentWorkspace,
+  createAgentWorkspace,
+  restoreAgentWorkspace,
+} from "./workspace";
 
 export function App() {
   const api = usePiApi();
@@ -56,6 +61,33 @@ export function App() {
   const [lastActiveId, setLastActiveId] = createSignal("agent-1");
   const [draft, setDraft] = createSignal("");
   let nextMessage = 1;
+  let profilesHydrated = false;
+  let saveProfilesTimer: ReturnType<typeof setTimeout> | undefined;
+
+  void api
+    .listAgents()
+    .then((profiles) => {
+      if (profiles.length > 0) {
+        const restored = profiles.map(restoreAgentWorkspace);
+        setAgents(restored);
+        setLastActiveId(restored[0].id);
+      }
+    })
+    .finally(() => {
+      profilesHydrated = true;
+    });
+
+  createEffect(
+    () => JSON.stringify(agents().map(agentProfile)),
+    (serialized) => {
+      if (!profilesHydrated) return;
+      if (saveProfilesTimer !== undefined) clearTimeout(saveProfilesTimer);
+      saveProfilesTimer = setTimeout(() => {
+        saveProfilesTimer = undefined;
+        void api.saveAgents(JSON.parse(serialized));
+      }, 150);
+    },
+  );
 
   const activeId = () => {
     const routeId = params().agentId;
@@ -133,7 +165,10 @@ export function App() {
       }
     }
   });
-  onCleanup(unsubscribe);
+  onCleanup(() => {
+    unsubscribe();
+    if (saveProfilesTimer !== undefined) clearTimeout(saveProfilesTimer);
+  });
 
   createEffect(
     () =>

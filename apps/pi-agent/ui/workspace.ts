@@ -11,6 +11,20 @@ export interface AgentWorkspace {
   state: AgentViewState;
 }
 
+export type AgentProfile = Omit<AgentWorkspace, "state">;
+
+export function agentProfile(agent: AgentWorkspace): AgentProfile {
+  const { state: _state, ...profile } = agent;
+  return profile;
+}
+
+export function restoreAgentWorkspace(profile: AgentProfile): AgentWorkspace {
+  return {
+    ...profile,
+    state: { ...initialAgentState, items: [] },
+  };
+}
+
 export function createAgentWorkspace(index: number): AgentWorkspace {
   return {
     id: `agent-${index}`,
