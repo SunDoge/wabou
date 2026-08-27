@@ -1,4 +1,10 @@
-import type { Handle, WabouScrollEvent } from "@wabou/core/renderer";
+import {
+  type Handle,
+  type LayoutRect,
+  useHost,
+  type WabouScrollEvent,
+} from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
 import {
   createContext,
@@ -18,7 +24,6 @@ import {
   type ViewProps,
 } from "../primitives";
 import { Button, type ButtonProps } from "./button";
-import { mergeClasses } from "@wabou/core/style";
 
 export type MessageScrollDirection = "start" | "end";
 
@@ -41,11 +46,27 @@ export function isMessageScrollNearEnd(
   );
 }
 
+/** Smallest vertical delta that reveals a target without disturbing visible content. */
+export function messageScrollRevealDelta(
+  viewport: LayoutRect,
+  target: LayoutRect,
+  margin = 12,
+): number {
+  const inset = Math.max(0, margin);
+  const visibleTop = viewport.y + inset;
+  const visibleBottom = viewport.y + viewport.height - inset;
+  if (target.y < visibleTop) return target.y - visibleTop;
+  const targetBottom = target.y + target.height;
+  if (targetBottom > visibleBottom) return targetBottom - visibleBottom;
+  return 0;
+}
+
 export interface MessageScrollerControls {
   followingEnd(): boolean;
   canScrollStart(): boolean;
   canScrollEnd(): boolean;
   scrollTo(direction: MessageScrollDirection): void;
+  scrollIntoView(target: Handle, options?: { margin?: number }): void;
 }
 
 interface MessageScrollerContextValue extends MessageScrollerControls {
@@ -78,6 +99,7 @@ export interface MessageScrollerProps extends ViewProps {
 }
 
 export function MessageScroller(props: MessageScrollerProps): JSX.Element {
+  const host = useHost();
   const forwarded = omit(
     props,
     "followEnd",
@@ -121,6 +143,26 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
       viewport?.scrollTo({
         top: direction === "end" ? Number.MAX_SAFE_INTEGER : 0,
       });
+    },
+    scrollIntoView: (target, options) => {
+      if (!viewport) return;
+      const snapshot = host.layout.snapshot([viewport, target]);
+      const viewportMetrics = snapshot.nodes.find(
+        (node) =>
+          node.id.lo === viewport?.id.lo && node.id.hi === viewport?.id.hi,
+      );
+      const targetMetrics = snapshot.nodes.find(
+        (node) => node.id.lo === target.id.lo && node.id.hi === target.id.hi,
+      );
+      if (!viewportMetrics || !targetMetrics) return;
+      const delta = messageScrollRevealDelta(
+        viewportMetrics.rect,
+        targetMetrics.rect,
+        options?.margin,
+      );
+      if (delta === 0) return;
+      setFollowingEnd(false);
+      viewport.scrollBy({ top: delta });
     },
     setViewport: (node) => {
       viewport = node;
