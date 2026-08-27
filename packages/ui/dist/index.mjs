@@ -4925,6 +4925,7 @@ function AdaptiveSplitPaneDetail(props) {
 }
 //#endregion
 //#region src/components/markdown-model.ts
+const LINK_REFERENCE_DEFINITION = /^ {0,3}\[[^\]\n]+\]:/m;
 function sameRuns(left, right) {
 	return left.length === right.length && left.every((run, index) => run.text === right[index]?.text && sameStyle(run.style, right[index]?.style ?? {}));
 }
@@ -5156,14 +5157,88 @@ function blocks(tokens) {
 	}
 	return result;
 }
-/**
-* Parse GFM into Wabou-owned render data. Marked is deliberately kept behind
-* this adapter so native components never depend on a parser-specific AST.
-*/
-function parseMarkdown(source, streaming = false) {
-	const repaired = streaming ? remend(source) : source;
-	return blocks(lexer(repaired, { gfm: true }));
+function parseWithOffsets(source) {
+	const parsedBlocks = [];
+	const parsedTokens = [];
+	let offset = 0;
+	for (const token of lexer(source, { gfm: true })) {
+		const start = offset;
+		offset += token.raw.length;
+		const tokenBlocks = blocks([token]);
+		parsedBlocks.push(...tokenBlocks);
+		parsedTokens.push({
+			start,
+			end: offset,
+			blockCount: tokenBlocks.length
+		});
+	}
+	return {
+		blocks: parsedBlocks,
+		tokens: parsedTokens
+	};
 }
+/**
+* Stateful Markdown parse adapter for append-heavy streams.
+*
+* Like Waku's MarkdownView, it treats the last two top-level source tokens as
+* volatile. Appends retain everything before that boundary and only lex the
+* tail. Parser-specific tokens never escape this module.
+*/
+var MarkdownDocument = class {
+	#source = "";
+	#streaming = false;
+	#blocks = [];
+	#tokens = [];
+	#lastParse = {
+		incremental: false,
+		parsedBytes: 0,
+		sourceBytes: 0
+	};
+	get blocks() {
+		return this.#blocks;
+	}
+	/** Diagnostics for benchmarks and streaming regression tests. */
+	get lastParse() {
+		return this.#lastParse;
+	}
+	setSource(source, streaming = false) {
+		if (source === this.#source && streaming === this.#streaming) return this.#blocks;
+		const displaySource = streaming ? remend(source) : source;
+		const canAppend = streaming && this.#streaming && source.startsWith(this.#source) && !LINK_REFERENCE_DEFINITION.test(source) && this.#tokens.length > 2;
+		let next;
+		let parsedBytes = displaySource.length;
+		let incremental = false;
+		if (canAppend) {
+			const stableTokenCount = this.#tokens.length - 2;
+			const stableTokens = this.#tokens.slice(0, stableTokenCount);
+			const boundary = stableTokens.at(-1)?.end ?? 0;
+			if (boundary <= source.length && boundary <= displaySource.length) {
+				const stableBlockCount = stableTokens.reduce((count, token) => count + token.blockCount, 0);
+				const tail = parseWithOffsets(displaySource.slice(boundary));
+				parsedBytes = displaySource.length - boundary;
+				incremental = true;
+				next = {
+					blocks: [...this.#blocks.slice(0, stableBlockCount), ...tail.blocks],
+					tokens: [...stableTokens, ...tail.tokens.map((token) => ({
+						...token,
+						start: token.start + boundary,
+						end: token.end + boundary
+					}))]
+				};
+			} else next = parseWithOffsets(displaySource);
+		} else next = parseWithOffsets(displaySource);
+		this.#blocks = reconcileMarkdownBlocks(this.#blocks, next.blocks);
+		this.#tokens = next.tokens;
+		this.#source = source;
+		this.#streaming = streaming;
+		this.#lastParse = {
+			incremental,
+			parsedBytes,
+			sourceBytes: displaySource.length
+		};
+		return this.#blocks;
+	}
+};
 //#endregion
 //#region src/components/separator.tsx
 /** A visual divider with an opt-in semantic separator contract. */
@@ -5526,18 +5601,18 @@ function visitMarkdownRuns(blocks, visit) {
 }
 /** Parses GFM in JavaScript and renders native Wabou components, without HTML or a DOM. */
 function Markdown(props) {
-	let previous = [];
+	const document = new MarkdownDocument();
 	let initialized = false;
 	const knownRuns = /* @__PURE__ */ new WeakSet();
 	const blocks = createMemo(() => {
-		previous = reconcileMarkdownBlocks(previous, parseMarkdown(props.source, props.streaming));
+		const parsed = document.setSource(props.source, props.streaming);
 		if (!initialized) {
-			visitMarkdownRuns(previous, (run) => {
+			visitMarkdownRuns(parsed, (run) => {
 				knownRuns.add(run);
 			});
 			initialized = true;
 		}
-		return previous;
+		return parsed;
 	});
 	const variant = () => props.variant ?? "document";
 	const animateRun = (run) => {
