@@ -10120,6 +10120,7 @@ dependencies = [
  "anyrender",
  "bitflags 2.13.1",
  "bon",
+ "flume",
  "foyer",
  "futures-lite",
  "getrandom 0.4.3",

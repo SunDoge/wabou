@@ -6,13 +6,14 @@
 
 use std::collections::HashMap;
 use std::future::Future;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
 use wabou_shell::WakeCallback;
+
+use crate::ui_inbox::{UiInbox, UiInboxSender};
 
 #[derive(Default)]
 pub(crate) struct HostTaskTracker {
@@ -170,9 +171,7 @@ pub enum HostMessageError {
 /// Cloneable, thread-safe handle for enqueueing host messages.
 #[derive(Clone)]
 pub struct HostMessageHandle {
-    tx: SyncSender<HostMessage>,
-    pending: Arc<AtomicBool>,
-    wake: Arc<Mutex<Option<WakeCallback>>>,
+    tx: UiInboxSender<HostMessage>,
 }
 
 /// Thread-safe application router for sending events to a specific window.
@@ -390,31 +389,25 @@ impl HostMessageContext {
 impl HostMessageHandle {
     /// Non-blocking send. Safe from any thread.
     pub fn send(&self, msg: HostMessage) -> Result<(), HostMessageError> {
-        if msg.topic.len() > MAX_TOPIC_BYTES {
-            return Err(HostMessageError::TooLarge);
-        }
-        match &msg.payload {
-            HostMessagePayload::Str(s) if s.len() > MAX_STR_PAYLOAD_BYTES => {
-                return Err(HostMessageError::TooLarge);
-            }
-            HostMessagePayload::Bytes(b) if b.len() > MAX_BYTES_PAYLOAD => {
-                return Err(HostMessageError::TooLarge);
-            }
-            _ => {}
-        }
+        validate_message(&msg)?;
         match self.tx.try_send(msg) {
-            Ok(()) => {
-                self.pending.store(true, Ordering::Release);
-                if let Ok(slot) = self.wake.lock()
-                    && let Some(wake) = slot.as_ref()
-                {
-                    wake();
-                }
-                Ok(())
-            }
-            Err(TrySendError::Full(_)) => Err(HostMessageError::Full),
-            Err(TrySendError::Disconnected(_)) => Err(HostMessageError::Disconnected),
+            Ok(()) => Ok(()),
+            Err(flume::TrySendError::Full(_)) => Err(HostMessageError::Full),
+            Err(flume::TrySendError::Disconnected(_)) => Err(HostMessageError::Disconnected),
         }
+    }
+
+    /// Wait asynchronously for queue capacity, then wake the UI thread.
+    ///
+    /// This is intended for background tasks that must not drop messages when
+    /// the bounded queue is temporarily full. UI-thread callers should use
+    /// [`Self::send`] and handle backpressure explicitly.
+    pub async fn send_async(&self, msg: HostMessage) -> Result<(), HostMessageError> {
+        validate_message(&msg)?;
+        self.tx
+            .send_async(msg)
+            .await
+            .map_err(|_| HostMessageError::Disconnected)
     }
 
     /// Enqueue a topic-only message.
@@ -478,68 +471,53 @@ impl HostMessageHandle {
         msg: HostMessage,
         timeout: Duration,
     ) -> Result<(), HostMessageError> {
-        let start = std::time::Instant::now();
-        loop {
-            match self.send(msg.clone()) {
-                Ok(()) => return Ok(()),
-                Err(HostMessageError::Full) if start.elapsed() < timeout => {
-                    std::thread::sleep(Duration::from_millis(1));
-                }
-                Err(e) => return Err(e),
-            }
+        validate_message(&msg)?;
+        match self.tx.send_timeout(msg, timeout) {
+            Ok(()) => Ok(()),
+            Err(flume::SendTimeoutError::Timeout(_)) => Err(HostMessageError::Full),
+            Err(flume::SendTimeoutError::Disconnected(_)) => Err(HostMessageError::Disconnected),
         }
+    }
+}
+
+fn validate_message(msg: &HostMessage) -> Result<(), HostMessageError> {
+    if msg.topic.len() > MAX_TOPIC_BYTES {
+        return Err(HostMessageError::TooLarge);
+    }
+    match &msg.payload {
+        HostMessagePayload::Str(value) if value.len() > MAX_STR_PAYLOAD_BYTES => {
+            Err(HostMessageError::TooLarge)
+        }
+        HostMessagePayload::Bytes(value) if value.len() > MAX_BYTES_PAYLOAD => {
+            Err(HostMessageError::TooLarge)
+        }
+        _ => Ok(()),
     }
 }
 
 /// Receiver half owned by the applier (UI thread).
 pub(crate) struct HostMessageInbox {
-    rx: Receiver<HostMessage>,
-    pending: Arc<AtomicBool>,
-    wake: Arc<Mutex<Option<WakeCallback>>>,
+    inbox: UiInbox<HostMessage>,
 }
 
 impl HostMessageInbox {
     pub(crate) fn set_wake(&self, wake: WakeCallback) {
-        if let Ok(mut slot) = self.wake.lock() {
-            *slot = Some(wake);
-        }
+        self.inbox.set_wake(wake);
     }
 
     pub(crate) fn has_pending(&self) -> bool {
-        self.pending.load(Ordering::Acquire)
+        self.inbox.has_pending()
     }
 
     pub(crate) fn drain_batch(&self) -> Vec<HostMessage> {
-        // Clear before draining. A concurrent producer then restores pending
-        // and wakes the UI thread instead of having its signal overwritten.
-        self.pending.store(false, Ordering::Release);
-        let mut batch = Vec::new();
-        while batch.len() < MAX_HOST_MESSAGES_PER_FRAME {
-            match self.rx.try_recv() {
-                Ok(msg) => batch.push(msg),
-                Err(TryRecvError::Empty) | Err(TryRecvError::Disconnected) => break,
-            }
-        }
-        if batch.len() >= MAX_HOST_MESSAGES_PER_FRAME {
-            self.pending.store(true, Ordering::Release);
-        }
-        batch
+        self.inbox.drain_up_to(MAX_HOST_MESSAGES_PER_FRAME)
     }
 }
 
 pub(crate) fn host_message_channel(capacity: usize) -> (HostMessageHandle, HostMessageInbox) {
     let capacity = capacity.max(1);
-    let (tx, rx) = mpsc::sync_channel(capacity);
-    let pending = Arc::new(AtomicBool::new(false));
-    let wake = Arc::new(Mutex::new(None));
-    (
-        HostMessageHandle {
-            tx,
-            pending: pending.clone(),
-            wake: wake.clone(),
-        },
-        HostMessageInbox { rx, pending, wake },
-    )
+    let (tx, inbox) = crate::ui_inbox::bounded(capacity);
+    (HostMessageHandle { tx }, HostMessageInbox { inbox })
 }
 
 #[cfg(test)]
@@ -584,6 +562,32 @@ mod tests {
         tx.emit_i32("a", 1).unwrap();
         tx.emit_i32("a", 2).unwrap();
         assert_eq!(tx.emit_i32("a", 3), Err(HostMessageError::Full));
+        assert_eq!(
+            tx.send_timeout(HostMessage::i32("a", 4), Duration::ZERO),
+            Err(HostMessageError::Full)
+        );
+    }
+
+    #[tokio::test]
+    async fn async_sender_waits_for_sync_ui_drain() {
+        let (tx, rx) = host_message_channel(1);
+        tx.emit_i32("a", 1).unwrap();
+        let queued = tokio::spawn({
+            let tx = tx.clone();
+            async move { tx.send_async(HostMessage::i32("a", 2)).await }
+        });
+        tokio::task::yield_now().await;
+        assert!(!queued.is_finished());
+
+        let mut delivered = rx.drain_batch();
+        queued.await.unwrap().unwrap();
+        delivered.extend(rx.drain_batch());
+
+        assert_eq!(
+            delivered,
+            [HostMessage::i32("a", 1), HostMessage::i32("a", 2)]
+        );
+        assert!(!rx.has_pending());
     }
 
     #[test]

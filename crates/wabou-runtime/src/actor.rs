@@ -3,7 +3,7 @@
 use std::any::type_name;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Instant;
 
@@ -53,7 +53,7 @@ struct ActorInner<Message, Reply> {
     id: u64,
     name: Arc<str>,
     next_id: AtomicU64,
-    sender: Mutex<Option<mpsc::SyncSender<Envelope<Message, Reply>>>>,
+    sender: Mutex<Option<flume::Sender<Envelope<Message, Reply>>>>,
     thread: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -140,7 +140,7 @@ where
             }
         );
         let actor_name = name.clone();
-        let (sender, receiver) = mpsc::sync_channel(capacity);
+        let (sender, receiver) = flume::bounded(capacity);
         let thread = std::thread::Builder::new()
             .name(name.to_string())
             .spawn(move || {
@@ -237,7 +237,7 @@ where
         })
     }
 
-    fn sender(&self) -> Result<mpsc::SyncSender<Envelope<Message, Reply>>, ActorError> {
+    fn sender(&self) -> Result<flume::Sender<Envelope<Message, Reply>>, ActorError> {
         self.inner
             .sender
             .lock()
@@ -276,11 +276,11 @@ where
         self.sender()?
             .try_send(envelope)
             .map_err(|error| match error {
-                mpsc::TrySendError::Full(_) => FullSnafu {
+                flume::TrySendError::Full(_) => FullSnafu {
                     actor: self.inner.name.clone(),
                 }
                 .build(),
-                mpsc::TrySendError::Disconnected(_) => StoppedSnafu {
+                flume::TrySendError::Disconnected(_) => StoppedSnafu {
                     actor: self.inner.name.clone(),
                 }
                 .build(),
@@ -304,18 +304,12 @@ where
             message,
             reply,
         };
-        self.sender()?
-            .try_send(envelope)
-            .map_err(|error| match error {
-                mpsc::TrySendError::Full(_) => FullSnafu {
-                    actor: self.inner.name.clone(),
-                }
-                .build(),
-                mpsc::TrySendError::Disconnected(_) => StoppedSnafu {
-                    actor: self.inner.name.clone(),
-                }
-                .build(),
-            })?;
+        self.sender()?.send_async(envelope).await.map_err(|_| {
+            StoppedSnafu {
+                actor: self.inner.name.clone(),
+            }
+            .build()
+        })?;
         result.await.map_err(|_| {
             ReplyDroppedSnafu {
                 actor: self.inner.name.clone(),
@@ -362,6 +356,44 @@ mod tests {
         assert_eq!(runtime.block_on(actor.call(3)).unwrap(), 5);
         actor.shutdown().unwrap();
         assert!(actor.tell(1).is_err());
+    }
+
+    #[test]
+    fn async_call_waits_for_bounded_mailbox_capacity() {
+        let (entered_tx, entered_rx) = std::sync::mpsc::sync_channel(1);
+        let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+        let actor = ThreadActor::spawn(
+            "bounded-counter",
+            1,
+            move || Ok::<_, String>((0_u32, entered_tx, release_rx)),
+            |state, add| {
+                if add == 1 {
+                    state.1.send(()).unwrap();
+                    state.2.recv().unwrap();
+                }
+                state.0 += add;
+                Ok(state.0)
+            },
+        )
+        .unwrap();
+        actor.tell(1).unwrap();
+        entered_rx.recv().unwrap();
+        actor.tell(2).unwrap();
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let request = runtime.spawn({
+            let actor = actor.clone();
+            async move { actor.call(3).await }
+        });
+        runtime.block_on(tokio::task::yield_now());
+        assert!(!request.is_finished());
+
+        release_tx.send(()).unwrap();
+        assert_eq!(runtime.block_on(request).unwrap().unwrap(), 6);
+        actor.shutdown().unwrap();
     }
 
     #[test]

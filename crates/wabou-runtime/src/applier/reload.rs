@@ -1,7 +1,8 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::mpsc;
 
 use wabou_shell::WakeCallback;
+
+use crate::ui_inbox::{UiInbox, UiInboxSender};
 
 /// A Vite HMR signal forwarded from the background HMR client to the applier.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,22 +50,17 @@ pub enum HmrDrainResult {
 /// Sendable handle the HMR client holds to push [`ReloadMsg`]s into the applier.
 #[derive(Clone)]
 pub struct ReloadHandle {
-    tx: mpsc::Sender<ReloadMsg>,
-    pending: Arc<AtomicBool>,
-    wake: Arc<Mutex<Option<WakeCallback>>>,
+    tx: UiInboxSender<ReloadMsg>,
 }
 
 impl ReloadHandle {
     /// Enqueue an HMR signal and wake an otherwise idle render loop.
     pub fn send(&self, message: ReloadMsg) -> Result<(), mpsc::SendError<ReloadMsg>> {
-        self.tx.send(message)?;
-        self.pending.store(true, Ordering::Release);
-        if let Ok(wake) = self.wake.lock()
-            && let Some(wake) = wake.as_ref()
-        {
-            wake();
+        match self.tx.try_send(message) {
+            Ok(()) => Ok(()),
+            Err(flume::TrySendError::Full(message))
+            | Err(flume::TrySendError::Disconnected(message)) => Err(mpsc::SendError(message)),
         }
-        Ok(())
     }
 }
 
@@ -85,19 +81,18 @@ pub(super) struct HmrJsUpdate {
 }
 
 pub(super) struct ReloadState {
-    receiver: Option<mpsc::Receiver<ReloadMsg>>,
-    pending: Arc<AtomicBool>,
-    wake: Arc<Mutex<Option<WakeCallback>>>,
+    sender: UiInboxSender<ReloadMsg>,
+    inbox: UiInbox<ReloadMsg>,
     vite_entry: Option<String>,
     last_result: HmrDrainResult,
 }
 
 impl Default for ReloadState {
     fn default() -> Self {
+        let (sender, inbox) = crate::ui_inbox::unbounded();
         Self {
-            receiver: None,
-            pending: Arc::new(AtomicBool::new(false)),
-            wake: Arc::new(Mutex::new(None)),
+            sender,
+            inbox,
             vite_entry: None,
             last_result: HmrDrainResult::Idle,
         }
@@ -106,32 +101,22 @@ impl Default for ReloadState {
 
 impl ReloadState {
     pub(super) fn handle(&mut self) -> ReloadHandle {
-        let (tx, receiver) = mpsc::channel();
-        self.receiver = Some(receiver);
         ReloadHandle {
-            tx,
-            pending: self.pending.clone(),
-            wake: self.wake.clone(),
+            tx: self.sender.clone(),
         }
     }
 
     pub(super) fn drain(&self) -> Option<HmrBatch> {
-        let receiver = self.receiver.as_ref()?;
-        // Clear before draining. A concurrent send then sets `pending` again
-        // and wakes the event loop, rather than being hidden by a later clear.
-        self.pending.store(false, Ordering::Release);
-        let messages: Vec<_> = receiver.try_iter().collect();
+        let messages = self.inbox.drain();
         (!messages.is_empty()).then(|| plan_hmr_batch(messages))
     }
 
     pub(super) fn is_pending(&self) -> bool {
-        self.pending.load(Ordering::Acquire)
+        self.inbox.has_pending()
     }
 
     pub(super) fn set_wake(&self, wake: WakeCallback) {
-        if let Ok(mut slot) = self.wake.lock() {
-            *slot = Some(wake);
-        }
+        self.inbox.set_wake(wake);
     }
 
     pub(super) fn set_vite_entry(&mut self, entry: impl Into<String>) {
