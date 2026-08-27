@@ -2,7 +2,8 @@ import {
   Button,
   CodeBlock,
   CodeEditor,
-  PrimitiveLink,
+  RichText,
+  RichTextSpan,
   Separator,
   Text,
   TypographyBlockquote,
@@ -10,7 +11,6 @@ import {
   TypographyH2,
   TypographyH3,
   TypographyH4,
-  TypographyInlineCode,
   View,
 } from "@wabou/ui";
 import { lexer, type Token, type Tokens } from "marked";
@@ -67,136 +67,58 @@ function inlineText(tokens: Token[]): string {
     .join("");
 }
 
-type InlineSegment = {
-  text: string;
-  kind: "text" | "strong" | "em" | "code" | "link" | "break";
-  spaceBefore: boolean;
-  url?: string;
-};
-
-function inlineSegments(tokens: Token[]): InlineSegment[] {
-  const segments: InlineSegment[] = [];
-  let pendingSpace = false;
-  const append = (text: string, kind: InlineSegment["kind"], url?: string) => {
-    for (const part of text.match(/\s+|\S+/g) ?? []) {
-      if (/^\s+$/.test(part)) {
-        pendingSpace = true;
-        continue;
-      }
-      segments.push({
-        text: part,
-        kind,
-        spaceBefore: segments.length > 0 && pendingSpace,
-        url,
-      });
-      pendingSpace = false;
-    }
-  };
-  const visit = (
-    nested: Token[],
-    inherited: InlineSegment["kind"] = "text",
-    url?: string,
-  ) => {
-    for (const token of nested) {
-      switch (token.type) {
-        case "br":
-          segments.push({ text: "", kind: "break", spaceBefore: false });
-          pendingSpace = false;
-          break;
-        case "strong":
-          visit((token as Tokens.Strong).tokens, "strong");
-          break;
-        case "em":
-          visit((token as Tokens.Em).tokens, "em");
-          break;
-        case "codespan":
-          append(token.text, "code");
-          break;
-        case "link": {
-          const link = token as Tokens.Link;
-          visit(link.tokens, "link", link.href);
-          break;
-        }
-        default:
-          if ("tokens" in token && Array.isArray(token.tokens)) {
-            visit(token.tokens, inherited, url);
-          } else {
-            append(
-              "text" in token && typeof token.text === "string"
-                ? token.text
-                : token.raw,
-              inherited,
-              url,
-            );
-          }
-      }
-    }
-  };
-  visit(tokens);
-  return segments;
-}
-
 function InlineMarkdown(props: { tokens: Token[] }): JSX.Element {
-  const segments = () => inlineSegments(props.tokens);
-  const content = (segment: InlineSegment) =>
-    `${segment.spaceBefore ? " " : ""}${segment.text}`;
   return (
-    <View class="min-w-0 flex flex-row flex-wrap items-baseline">
-      <For each={segments()}>
-        {(segment) => {
-          const spacing = { "ml-1": segment.spaceBefore };
-          switch (segment.kind) {
-            case "strong":
+    <RichText class="min-w-0 text-secondary whitespace-normal">
+      <For each={props.tokens}>
+        {(token) => {
+          switch (token.type) {
+            case "strong": {
+              const strong = token as Tokens.Strong;
               return (
-                <Text
-                  class="font-semibold text-primary whitespace-normal"
-                  classList={spacing}
-                >
-                  {content(segment)}
-                </Text>
+                <RichTextSpan class="font-semibold text-primary">
+                  {inlineText(strong.tokens)}
+                </RichTextSpan>
               );
-            case "em":
+            }
+            case "em": {
+              const emphasis = token as Tokens.Em;
               return (
-                <Text
-                  class="text-primary whitespace-normal"
-                  classList={spacing}
-                >
-                  {content(segment)}
-                </Text>
+                <RichTextSpan class="text-primary">
+                  {inlineText(emphasis.tokens)}
+                </RichTextSpan>
               );
-            case "code":
+            }
+            case "codespan":
               return (
-                <TypographyInlineCode class="font-normal" classList={spacing}>
-                  {content(segment)}
-                </TypographyInlineCode>
+                <RichTextSpan class="font-mono text-sm font-normal text-primary">
+                  {token.text}
+                </RichTextSpan>
               );
-            case "link":
+            case "link": {
+              const link = token as Tokens.Link;
               return (
-                <PrimitiveLink
-                  unstyled
-                  selectable
-                  url={segment.url ?? ""}
-                  class="text-accent whitespace-normal"
-                  classList={spacing}
-                >
-                  {content(segment)}
-                </PrimitiveLink>
+                <RichTextSpan class="text-accent">
+                  {inlineText(link.tokens)}
+                </RichTextSpan>
               );
-            case "break":
-              return <View class="w-full h-0" />;
+            }
+            case "br":
+              return <RichTextSpan>{"\n"}</RichTextSpan>;
             default:
               return (
-                <Text
-                  class="text-secondary whitespace-normal"
-                  classList={spacing}
-                >
-                  {content(segment)}
-                </Text>
+                <RichTextSpan>
+                  {"tokens" in token && Array.isArray(token.tokens)
+                    ? inlineText(token.tokens)
+                    : "text" in token && typeof token.text === "string"
+                      ? token.text
+                      : token.raw}
+                </RichTextSpan>
               );
           }
         }}
       </For>
-    </View>
+    </RichText>
   );
 }
 

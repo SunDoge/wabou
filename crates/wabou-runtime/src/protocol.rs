@@ -22,7 +22,9 @@ pub use wabou_host_api::NodeKey;
 
 pub const TEXT_BEHAVIOR_AGGREGATE_DIRECT: u8 = 0x01;
 pub const TEXT_BEHAVIOR_SINGLE_LINE: u8 = 0x02;
-const TEXT_BEHAVIOR_MASK: u8 = TEXT_BEHAVIOR_AGGREGATE_DIRECT | TEXT_BEHAVIOR_SINGLE_LINE;
+pub const TEXT_BEHAVIOR_AGGREGATE_STYLED: u8 = 0x04;
+const TEXT_BEHAVIOR_MASK: u8 =
+    TEXT_BEHAVIOR_AGGREGATE_DIRECT | TEXT_BEHAVIOR_SINGLE_LINE | TEXT_BEHAVIOR_AGGREGATE_STYLED;
 pub const INTERACTION_POLICY_FOCUSABLE: u8 = 0x01;
 pub const INTERACTION_POLICY_BLOCK_SUBTREE: u8 = 0x02;
 pub const INTERACTION_POLICY_CONTAIN_FOCUS: u8 = 0x04;
@@ -839,8 +841,12 @@ mod tests {
             }
         ));
         assert!(matches!(
-            decode_frame(&frame_bytes(0x04)),
-            Err(DecodeError::BadTextBehavior { flags: 0x04 })
+            &decode_frame(&frame_bytes(0x07)).unwrap().ops[0],
+            Op::SetTextBehavior { flags: 0x07, .. }
+        ));
+        assert!(matches!(
+            decode_frame(&frame_bytes(0x08)),
+            Err(DecodeError::BadTextBehavior { flags: 0x08 })
         ));
     }
 

@@ -50,6 +50,11 @@ export interface TextProps extends PrimitiveProps {
   maxLines?: number;
 }
 
+export interface RichTextProps extends TextProps {}
+
+/** A styled text-only descendant of RichText. Layout-box styles are invalid. */
+export interface RichTextSpanProps extends PrimitiveProps {}
+
 export interface SvgProps extends Omit<PrimitiveProps, "children"> {
   /** Trusted inline SVG source parsed and cached by the native host. */
   source: string;
@@ -114,7 +119,6 @@ export interface ImageProps extends Omit<PrimitiveProps, "children"> {
   onResourceError?: (event: ImageResourceErrorEvent) => void;
 }
 
-
 export interface TextInputProps extends Omit<PrimitiveProps, "children"> {
   value?: string;
   placeholder?: string;
@@ -147,6 +151,7 @@ export interface CodeEditorProps extends Omit<PrimitiveProps, "children"> {
 type InternalPrimitiveTag =
   | "view"
   | "text"
+  | "text-span"
   | "svg"
   | "img"
   | "button"
@@ -170,6 +175,7 @@ function primitive(
   tag:
     | "view"
     | "text"
+    | "text-span"
     | "svg"
     | "img"
     | "input"
@@ -258,6 +264,38 @@ export function Text(props: TextProps): JSX.Element {
     false,
   );
   return node as unknown as JSX.Element;
+}
+
+/**
+ * One Parley paragraph assembled from explicitly styled text descendants.
+ *
+ * Unlike adjacent Text components, spans share wrapping, whitespace,
+ * selection, and copy semantics because the native host lays them out once.
+ */
+export function RichText(props: RichTextProps): JSX.Element {
+  resolvedTextBehavior(untrack(() => props.maxLines));
+  const node = createElement("text");
+  spread(node, omit(props, "maxLines"), false);
+  spread(
+    node,
+    {
+      role: props.role ?? "label",
+      get textBehavior() {
+        const behavior = resolvedTextBehavior(props.maxLines);
+        return {
+          ...behavior,
+          flags: behavior.flags | TEXT_BEHAVIOR.AggregateStyledText,
+        };
+      },
+    },
+    false,
+  );
+  return node as unknown as JSX.Element;
+}
+
+/** A text-style boundary inside RichText; it never creates a layout box. */
+export function RichTextSpan(props: RichTextSpanProps): JSX.Element {
+  return primitive("text-span", props);
 }
 
 /** A static SVG asset rendered through the native usvg/Vello pipeline. */

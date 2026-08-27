@@ -6,23 +6,16 @@ export * from "@wabou/core";
 export * from "@wabou/core/i18n";
 export * from "./animation";
 export * from "./components";
-export * from "./integrations";
 // Prefer the styled component where a high-level component and a host-service
 // type share a name. The lower-level host API remains available as `dialog`.
 export { Dialog } from "./components";
+export * from "./integrations";
 export * as primitives from "./primitives";
 
 // Foundational scene elements are common enough to belong at the main entry.
 // Headless controls with names shared by styled components stay available
 // from `@wabou/ui/primitives` and through the `primitives` namespace.
 export {
-  createFileImageResource,
-  createNetworkImageResource,
-  createOwnedImageResource,
-  type ImageResourceDescriptor,
-  type ImageResourceRequest,
-  type OwnedImageResource,
-  releaseImageResource,
   type ActiveResult,
   type AnimationFrameCallback,
   Button as PrimitiveButton,
@@ -39,15 +32,17 @@ export {
   createAnimationFrame,
   createButton,
   createContainerMatch,
+  createFileImageResource,
   createFocus,
   createFocusWithin,
   createFormDraft,
-  FORM_ERROR,
   createHover,
   createKeyedSelection,
   createMeasuredSize,
+  createNetworkImageResource,
   createNotifications,
   createOverlayLayer,
+  createOwnedImageResource,
   createPresence,
   createPress,
   createRetainedItems,
@@ -55,6 +50,7 @@ export {
   createShortcuts,
   createTabs,
   createTransitionPresence,
+  FORM_ERROR,
   type FocusResult,
   type FocusWithinResult,
   type FormDraft,
@@ -65,9 +61,11 @@ export {
   type IconProps,
   Image,
   type ImageProps,
+  type ImageResourceDescriptor,
   type ImageResourceErrorEvent,
   type ImageResourceHandle,
   type ImageResourceReadyEvent,
+  type ImageResourceRequest,
   type KeyedSelection,
   type KeyedSelectionOptions,
   type LayoutProps,
@@ -76,12 +74,13 @@ export {
   Modal,
   type ModalMotionOptions,
   type ModalProps,
-  NotificationRegion,
   type NotificationMotionOptions,
+  NotificationRegion,
   type NotificationRegionProps,
   type Notifications,
   type OverlayLayer,
   OverlayPlaneProvider,
+  type OwnedImageResource,
   PasswordInput as PrimitivePasswordInput,
   type PasswordInputProps as PrimitivePasswordInputProps,
   Path,
@@ -90,12 +89,17 @@ export {
   Popover as PrimitivePopover,
   type PopoverProps as PrimitivePopoverProps,
   type PressResult,
+  Pulse,
   type RetainedItem,
   type RetainedItems,
-  Pulse,
+  RichText,
+  type RichTextProps,
+  RichTextSpan,
+  type RichTextSpanProps,
   Ripple,
   type RippleProps,
   Row,
+  releaseImageResource,
   ScrollArea,
   type ScrollAreaProps,
   Spin,

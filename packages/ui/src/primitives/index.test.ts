@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { writer } from "@wabou/core/renderer";
 import { GRAPHIC_SOURCE } from "@wabou/core/protocol";
+import { writer } from "@wabou/core/renderer";
 import { createRoot, createSignal, flush } from "solid-js";
 import { resolveButtonFocusOrder } from "./button";
 import {
@@ -15,6 +15,7 @@ import {
   Icon,
   Image,
   PasswordInput,
+  RichText,
   Svg,
   Text,
   TextArea,
@@ -386,6 +387,7 @@ describe("host primitives", () => {
     try {
       Text({});
       Text({ maxLines: 2 });
+      RichText({});
       Svg({ source: "<svg/>" });
       Image({ resource: { lo: 2, hi: 1 } });
     } finally {
@@ -400,6 +402,9 @@ describe("host primitives", () => {
       ["role", "label"],
       ["textBehavior", "1"],
       ["textMaxLines", "2"],
+      ["role", "label"],
+      ["textBehavior", "7"],
+      ["textMaxLines", "0"],
       ["role", "img"],
       ["role", "img"],
     ]);

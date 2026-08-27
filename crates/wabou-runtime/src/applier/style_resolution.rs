@@ -198,6 +198,9 @@ impl Applier {
             text_container: decl.is_some_and(|declared| {
                 declared.text_behavior & crate::protocol::TEXT_BEHAVIOR_AGGREGATE_DIRECT != 0
             }),
+            styled_text_container: decl.is_some_and(|declared| {
+                declared.text_behavior & crate::protocol::TEXT_BEHAVIOR_AGGREGATE_STYLED != 0
+            }),
             text: tag.is_none().then_some(text).flatten(),
             display,
             display_explicit: decl.is_some_and(|d| d.display_explicit),

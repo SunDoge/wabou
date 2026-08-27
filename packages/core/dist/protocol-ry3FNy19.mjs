@@ -209,9 +209,10 @@ const OP = {
 };
 const TEXT_BEHAVIOR = {
 	AggregateDirectText: 1,
-	SingleLine: 2
+	SingleLine: 2,
+	AggregateStyledText: 4
 };
-const TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine;
+const TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine | TEXT_BEHAVIOR.AggregateStyledText;
 const INTERACTION_POLICY = {
 	Focusable: 1,
 	BlockSubtree: 2,
@@ -645,4 +646,4 @@ var Writer = class {
 //#endregion
 export { formatResourceKeyParts as C, createResourceKeyFamily as S, validateResourceKeyParts as T, isNodeKey as _, GRAPHIC_SOURCE as a, nodeKeyFromSlotMapFfi as b, HOST_RECORD_KIND as c, TEXT_BEHAVIOR as d, Writer as f, formatNodeKey as g, ROOT_NODE_KEY as h, GRAPHIC_DATA as i, INTERACTION_POLICY as l, NodeKeyTable as m, EVENT_DATA_LEN as n, HOST_FRAME as o, NodeKeyAllocator as p, EVENT_DATA_SLOT as r, HOST_NODE_PAYLOAD as s, EVENT_CODE as t, OP as u, nodeKey as v, isResourceKeyParts as w, ResourceKeyTable as x, nodeKeyEquals as y };
 
-//# sourceMappingURL=protocol-C3qFqoA0.mjs.map
+//# sourceMappingURL=protocol-ry3FNy19.mjs.map

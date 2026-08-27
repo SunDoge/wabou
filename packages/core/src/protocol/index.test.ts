@@ -194,7 +194,8 @@ describe("Writer limits", () => {
     expect(frame[8]).toBe(OP.SetTextBehavior);
     expect(view.getUint32(9, true)).toBe(42);
     expect(frame[17]).toBe(0x03);
-    expect(() => writer.setTextBehavior(k(42), 0x04)).toThrow(RangeError);
+    expect(() => writer.setTextBehavior(k(42), 0x08)).toThrow(RangeError);
+    expect(() => writer.setTextBehavior(k(42), 0x07)).not.toThrow();
   });
 
   test("encodes text line limits without changing the text behavior ABI", () => {
@@ -233,11 +234,7 @@ describe("Writer limits", () => {
 
   test("encodes graphic sources without attribute names or JSON", () => {
     const writer = new Writer();
-    writer.setGraphicSource(
-      k(42),
-      GRAPHIC_SOURCE.ResourceRaster,
-      "42:3",
-    );
+    writer.setGraphicSource(k(42), GRAPHIC_SOURCE.ResourceRaster, "42:3");
     writer.clearGraphicSource(k(42), GRAPHIC_SOURCE.ResourceRaster);
     const frame = writer.flush()!;
     const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);

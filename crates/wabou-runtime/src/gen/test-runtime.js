@@ -7428,9 +7428,10 @@
   };
   var TEXT_BEHAVIOR = {
     AggregateDirectText: 1,
-    SingleLine: 2
+    SingleLine: 2,
+    AggregateStyledText: 4
   };
-  var TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine;
+  var TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine | TEXT_BEHAVIOR.AggregateStyledText;
   var INTERACTION_POLICY = {
     Focusable: 1,
     BlockSubtree: 2,

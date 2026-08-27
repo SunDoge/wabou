@@ -237,24 +237,23 @@ const assertMessageLayout = (snapshot: LayoutSnapshot) => {
 };
 
 const assertMarkdownInlineLayout = (snapshot: LayoutSnapshot) => {
-  const before = getLayoutNode(snapshot, { text: "Before" });
-  const code = getLayoutNode(snapshot, { text: " code" });
-  const after = getLayoutNode(snapshot, { text: " after." });
-  for (const [left, right] of [
-    [before, code],
-    [code, after],
-  ] as const) {
-    if (
-      layoutRectBottom(left.rect) <= right.rect.y ||
-      layoutRectBottom(right.rect) <= left.rect.y
-    )
-      throw new Error("markdown inline nodes wrapped onto separate rows");
-  }
-  const beforeGap = code.rect.x - layoutRectRight(before.rect);
-  const afterGap = after.rect.x - layoutRectRight(code.rect);
-  if (beforeGap < 3 || afterGap < 3)
+  const candidates = snapshot.nodes.filter((node) => node.text != null);
+  const paragraph = candidates.find(
+    (node) => node.text === "Before code after.",
+  );
+  if (!paragraph)
     throw new Error(
-      `markdown inline spaces collapsed: before=${beforeGap}px after=${afterGap}px`,
+      `RichText text mismatch: ${JSON.stringify(candidates.map((node) => node.text))}`,
+    );
+  if (!paragraph.textMetrics)
+    throw new Error("RichText did not publish native text metrics");
+  if (paragraph.textMetrics.lineBox.height > 28)
+    throw new Error(
+      `RichText wrapped an inline paragraph: height=${paragraph.textMetrics.lineBox.height}px`,
+    );
+  if (paragraph.textMetrics.lineBox.width < 110)
+    throw new Error(
+      `RichText collapsed inline whitespace: width=${paragraph.textMetrics.lineBox.width}px`,
     );
 };
 

@@ -1015,3 +1015,84 @@ fn explicit_text_flow_does_not_absorb_a_nested_element() {
             .is_none()
     );
 }
+
+#[test]
+fn explicit_rich_text_flow_absorbs_styled_text_descendants_as_runs() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (text_tag, span_tag, font_weight, color) = {
+        let mut atoms = applier.document.atoms.borrow_mut();
+        (
+            atoms.intern("text"),
+            atoms.intern("text-span"),
+            atoms.intern("font-weight"),
+            atoms.intern("color"),
+        )
+    };
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: text_tag,
+    });
+    applier.apply_op(&Op::SetTextBehavior {
+        id: NodeKey::new(2, 1),
+        flags: crate::protocol::TEXT_BEHAVIOR_AGGREGATE_DIRECT
+            | crate::protocol::TEXT_BEHAVIOR_AGGREGATE_STYLED,
+    });
+    applier.apply_op(&Op::CreateText {
+        id: NodeKey::new(3, 1),
+        text: "Hello ",
+    });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(4, 1),
+        tag: span_tag,
+    });
+    applier.apply_op(&Op::SetStyle {
+        id: NodeKey::new(4, 1),
+        prop: font_weight,
+        value: "700",
+    });
+    applier.apply_op(&Op::SetStyle {
+        id: NodeKey::new(4, 1),
+        prop: color,
+        value: "#ff0000",
+    });
+    applier.apply_op(&Op::CreateText {
+        id: NodeKey::new(5, 1),
+        text: "world",
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: NodeKey::new(4, 1),
+        child: NodeKey::new(5, 1),
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: NodeKey::new(2, 1),
+        child: NodeKey::new(3, 1),
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: NodeKey::new(2, 1),
+        child: NodeKey::new(4, 1),
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
+    });
+
+    applier.rebuild_layout_boxes();
+    applier.inherit();
+
+    let parent = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
+    assert_eq!(applier.document.node_store.tree.child_count(parent), 0);
+    assert!(applier.document.node_store.inline_roots.contains(&parent));
+    let paint = applier
+        .document
+        .node_store
+        .tree
+        .get_node_context(parent)
+        .expect("rich text paint");
+    assert_eq!(paint.text.as_deref(), Some("Hello world"));
+    assert_eq!(paint.text_runs.len(), 2);
+    assert_eq!(paint.text_runs[0].range, 0..6);
+    assert_eq!(paint.text_runs[1].range, 6..11);
+    assert_eq!(paint.text_runs[1].font_weight, 700.0);
+    assert_eq!(paint.text_runs[1].color, [255, 0, 0, 255]);
+}

@@ -70,9 +70,12 @@ export type OpCode = (typeof OP)[keyof typeof OP];
 export const TEXT_BEHAVIOR = {
   AggregateDirectText: 0x01,
   SingleLine: 0x02,
+  AggregateStyledText: 0x04,
 } as const;
 const TEXT_BEHAVIOR_MASK =
-  TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine;
+  TEXT_BEHAVIOR.AggregateDirectText |
+  TEXT_BEHAVIOR.SingleLine |
+  TEXT_BEHAVIOR.AggregateStyledText;
 
 export const INTERACTION_POLICY = {
   Focusable: 0x01,
@@ -93,9 +96,7 @@ export const GRAPHIC_DATA = { VectorPath: 0x01 } as const;
 const MAX_GRAPHIC_DATA_BYTES = 16 * 1024 * 1024;
 
 function validGraphicSourceKind(kind: number): boolean {
-  return (
-    kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.ResourceRaster
-  );
+  return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.ResourceRaster;
 }
 
 export const EVENT_CODE = {

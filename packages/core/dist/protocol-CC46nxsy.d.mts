@@ -124,6 +124,7 @@ type OpCode = (typeof OP)[keyof typeof OP];
 declare const TEXT_BEHAVIOR: {
   readonly AggregateDirectText: 1;
   readonly SingleLine: 2;
+  readonly AggregateStyledText: 4;
 };
 declare const INTERACTION_POLICY: {
   readonly Focusable: 1;
@@ -300,4 +301,4 @@ declare class Writer {
 }
 //#endregion
 export { formatResourceKeyParts as A, nodeKeyEquals as C, ResourceKeyParts as D, ResourceKeyFamily as E, validateResourceKeyParts as M, ResourceKeyTable as O, nodeKey as S, ResourceKey as T, NodeKeyAllocator as _, EventType as a, formatNodeKey as b, HOST_FRAME as c, INTERACTION_POLICY as d, OP as f, NodeKey as g, Writer as h, EventDataSlot as i, isResourceKeyParts as j, createResourceKeyFamily as k, HOST_NODE_PAYLOAD as l, TEXT_BEHAVIOR as m, EVENT_DATA_LEN as n, GRAPHIC_DATA as o, OpCode as p, EVENT_DATA_SLOT as r, GRAPHIC_SOURCE as s, EVENT_CODE as t, HOST_RECORD_KIND as u, NodeKeyTable as v, nodeKeyFromSlotMapFfi as w, isNodeKey as x, ROOT_NODE_KEY as y };
-//# sourceMappingURL=protocol-DVoTIfu0.d.mts.map
+//# sourceMappingURL=protocol-CC46nxsy.d.mts.map
