@@ -185,11 +185,6 @@ type CodeEditorLanguage = "json";
 //#endregion
 //#region src/primitives/view.d.ts
 type WabouClassList = Record<string, boolean | undefined>;
-interface TextSelectionChangeEvent {
-  type: "textselectionchange";
-  text: string | null;
-  kind: "simple" | "word" | "line" | null;
-}
 interface PrimitiveProps extends Omit<WabouElementProps, "children" | "ref" | "style"> {
   /** Explicit reactive classes; use this for primitive interaction state. */
   classList?: WabouClassList;
@@ -203,8 +198,6 @@ interface PrimitiveProps extends Omit<WabouElementProps, "children" | "ref" | "s
   children?: JSX.Element;
   /** Native host node, useful for imperative primitives and measurement. */
   ref?: (node: Handle) => void;
-  /** Fires once when a native text selection gesture commits or changes asynchronously. */
-  onTextSelectionChange?: (event: TextSelectionChangeEvent) => void;
 }
 interface ViewProps extends PrimitiveProps {}
 interface TextProps extends PrimitiveProps {
@@ -321,7 +314,7 @@ declare function TextInput(props: TextInputProps): JSX.Element;
 declare function TextArea(props: TextAreaProps): JSX.Element;
 /** Native password editor whose value remains in a Rust SecretStore. */
 declare function PasswordInput(props: PasswordInputProps): JSX.Element;
-/** Experimental native editor for config and script-sized documents. */
+/** CodeMirror-owned config/Markdown editor rendered by a native viewport. */
 declare function CodeEditor(props: CodeEditorProps): JSX.Element;
 //#endregion
 //#region src/primitives/button.d.ts
@@ -1123,4 +1116,4 @@ declare namespace index_d_exports {
 }
 //#endregion
 export { shift as $, TextInputProps as $n, FormDraftFieldUpdater as $t, createPress as A, Icon as An, SweepOptions as Ar, ModalControls as At, ComputePositionReturn$1 as B, PathBuilder as Bn, createTransition as Br, MeasuredSizeOptions as Bt, RetainedItem as C, CreateButtonOptions as Cn, ReactiveTransition as Cr, Pulse as Ct, PressOptions as D, Affine2D$1 as Dn, SweepAnimation as Dr, Spin as Dt, ActiveResult as E, createButton as En, RotationOptions as Er, RippleProps as Et, PopoverMotionOptions as F, ImageResourceHandle as Fn, createKeyframeAnimation as Fr, ModalProps as Ft, PositionPlatform as G, RichTextSpan as Gn, useMotionConfig as Gr, LayoutProps as Gt, Middleware$1 as H, PrimitiveProps as Hn, MotionConfig as Hr, createMeasuredSize as Ht, PopoverProps as I, ImageResourceReadyEvent as In, createLoop as Ir, ModalTriggerProps as It, autoPlacement as J, SvgProps as Jn, KeyedSelectionOptions as Jt, Strategy$1 as K, RichTextSpanProps as Kn, useReducedMotion as Kr, Row as Kt, PopoverTriggerProps as L, PasswordInput as Ln, createPulse as Lr, ContainerMatch as Lt, PresencePhase as M, Image as Mn, animate as Mr, ModalKeyEvent as Mt, createPresence as N, ImageProps as Nn, animateKeyframes as Nr, ModalMotionOptions as Nt, PressResult as O, CodeEditor as On, SweepAxis as Or, SpinProps as Ot, Popover as P, ImageResourceErrorEvent as Pn, createInterpolation as Pr, ModalOpenChangeReason as Pt, offset as Q, TextInput as Qn, FormDraftErrors as Qt, ComputeFloatingPositionOptions as R, PasswordInputProps as Rn, createRotation as Rr, ContainerSizeQuery as Rt, ScrollAreaProps as S, ButtonState as Sn, ReactiveAnimation as Sr, createNotifications as St, createRetainedItems as T, LinkProps as Tn, RotationAnimation as Tr, Ripple as Tt, Placement$1 as U, RichText as Un, MotionConfigProvider as Ur, Center as Ut, LayoutRect$1 as V, PathProps as Vn, normalizeSweepGeometry as Vr, createContainerMatch as Vt, PointAnchor as W, RichTextProps as Wn, MotionConfigProviderProps as Wr, Column as Wt, computeHostFloatingPosition as X, TextArea as Xn, FORM_ERROR as Xt, computeFloatingPosition as Y, Text as Yn, createKeyedSelection as Yt, flip as Z, TextAreaProps as Zn, FormDraft as Zt, createShortcuts as _, Button as _n, EasingFunction as _r, NotificationPriority as _t, AddTabOptions as a, createFileImageResource as an, WabouClassList as ar, OverlayLayerOptions as at, createScrollReset as b, ButtonPrimitive as bn, MotionInterpolationOptions as br, Notifications as bt, TabKeyEvent as c, releaseImageResource as cn, translate2d$1 as cr, OverlayPlaneProviderProps as ct, createTabs as d, FocusResult as dn, AnimationControls as dr, NotificationControls as dt, FormDraftOptions as en, TextProps as er, size as et, ShortcutDefinition as f, FocusWithinResult as fn, AnimationOptions as fr, NotificationDismissReason as ft, ShortcutsResult as g, CollapsiblePresenceProps as gn, Easing as gr, NotificationPlacement as gt, ShortcutMap as h, CollapsiblePresence as hn, AnimationValue as hr, NotificationMotionOptions as ht, createTransitionPresence as i, OwnedImageResource as in, ViewProps as ir, OverlayLayer as it, Presence as j, IconProps as jn, TransitionOptions as jr, ModalEvent as jt, createActive as k, CodeEditorProps as kn, SweepGeometry as kr, Modal as kt, TabsOptions as l, HoverResult as ln, AnimationFrameCallback as lr, createOverlayLayer as lt, ShortcutHandler as m, createFocusWithin as mn, AnimationType as mr, NotificationItem as mt, TransitionPresence as n, ImageResourceDescriptor as nn, VectorPathPaint as nr, DismissKeyEvent as nt, FocusTarget as o, createNetworkImageResource as on, WabouStyle$1 as or, OverlayPlane as ot, ShortcutEvent as p, createFocus as pn, AnimationState as pr, NotificationInput as pt, arrow as q, Svg as qn, KeyedSelection as qt, TransitionPresenceOptions as r, ImageResourceRequest as rn, View as rr, OverlayDismissReason as rt, TabKey as s, createOwnedImageResource as sn, rotate2d$1 as sr, OverlayPlaneProvider as st, index_d_exports as t, createFormDraft as tn, VectorPath$1 as tr, DismissEvent as tt, TabsResult as u, createHover as un, createAnimationFrame as ur, useOverlayPlane as ut, ScrollResetOptions as v, ButtonEvent as vn, KeyframeAnimationOptions as vr, NotificationRegion as vt, RetainedItems as w, Link as wn, RepeatType as wr, PulseProps as wt, ScrollArea as x, ButtonProps as xn, PulseOptions as xr, NotificationsOptions as xt, ScrollResetTarget as y, ButtonKeyEvent as yn, LoopOptions as yr, NotificationRegionProps as yt, ComputeHostFloatingPositionOptions as z, Path as zn, createSweep as zr, MeasuredSize as zt };
-//# sourceMappingURL=index-CXuIeM7P.d.mts.map
+//# sourceMappingURL=index-DWCdzx4l.d.mts.map

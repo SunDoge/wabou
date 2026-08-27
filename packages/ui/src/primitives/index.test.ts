@@ -463,7 +463,7 @@ describe("host primitives", () => {
     expect(focusOrders).toEqual([0, 0, 4, -1]);
   });
 
-  test("feeds native edits through headless CodeMirror syntax state", () =>
+  test("feeds native selection and commits through CodeMirror syntax state", () =>
     createRoot((dispose) => {
       const configs: string[] = [];
       const setWidgetConfig = writer.setWidgetConfig.bind(writer);
@@ -472,13 +472,19 @@ describe("host primitives", () => {
         const editor = CodeEditor({
           "aria-label": "Config",
           value: '{"enabled":true}',
+          language: "json",
         }) as unknown as import("@wabou/core/renderer").Handle;
         flush();
-        dispatchEvent(
-          editor.id,
-          EVENT_CODE.input,
-          JSON.stringify({ value: '{"enabled":false,"port":9090}' }),
-        );
+        dispatchEvent(editor.id, EVENT_CODE.textselectionchange, JSON.stringify({
+          anchor: 0,
+          head: '{"enabled":true}'.length,
+          text: '{"enabled":true}',
+          kind: "simple",
+        }));
+        dispatchEvent(editor.id, EVENT_CODE.imecommit, JSON.stringify({
+          data: '{"enabled":false,"port":9090}',
+          source: "keyboard",
+        }));
         flush();
       } finally {
         writer.setWidgetConfig = setWidgetConfig;

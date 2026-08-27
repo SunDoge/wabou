@@ -338,6 +338,7 @@ interface WabouElementProps {
   onImeCommit?: EventHandler<WabouTextCommitEvent>;
   onImeDeleteSurrounding?: EventHandler<WabouImeDeleteSurroundingEvent>;
   onImeDisabled?: EventHandler<WabouNodeEvent>;
+  onTextSelectionChange?: EventHandler<WabouTextSelectionChangeEvent>;
   /** Preventing this event keeps the native window open. */
   onWindowCloseRequested?: EventHandler<WabouNodeEvent>;
 }
@@ -453,6 +454,12 @@ interface WabouImeDeleteSurroundingEvent extends WabouNodeEvent {
   readonly beforeBytes: number;
   readonly afterBytes: number;
 }
+interface WabouTextSelectionChangeEvent extends WabouNodeEvent {
+  readonly anchor?: number;
+  readonly head?: number;
+  readonly text: string | null;
+  readonly kind: "simple" | "word" | "line" | null;
+}
 interface NativeScrollbarStyle {
   visibility?: "auto" | "always" | "hidden";
   /** Idle time before an auto scrollbar fades, in milliseconds. */
@@ -535,5 +542,5 @@ declare function mount(code: () => JSX$1.Element): () => void;
  */
 declare function dispatchEvent(solidId: NodeKey$1, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
-export { runSweep as $, acquireOverlayRoot as A, PathLineJoin as At, insert as B, WabouScrollEvent as C, JSX$1 as Ct, WabouTextCommitEvent as D, PathBuilder as Dt, WabouSvgShapeProps as E, jsxs as Et, delegateEvents as F, mergeProps as G, isDirectEvent as H, dispatchEvent as I, ref as J, mount as K, effect as L, createComponent$1 as M, VectorPath as Mt, createElement as N, VectorPathPaint as Nt, WabouVectorPathProps as O, PathFillRule as Ot, createTextNode as P, isVectorPath as Pt, render as Q, getMountRoot as R, WabouPositionedEvent as S, Fragment as St, WabouSvgProps as T, jsxDEV as Tt, isServer as U, insertNode as V, memo as W, releaseOverlayRoot as X, registerRoot as Y, removeNode as Z, WabouKeyEvent as _, FrameStats as _t, WabouBuiltinIntrinsicElements as a, VirtualListProps as at, WabouNodeEvent as b, LayoutScrollMetrics as bt, WabouEventTarget as c, BuiltinHost as ct, WabouGlobalPointerListener as d, HostProvider as dt, setProp as et, WabouImageProps as f, HostProviderProps as ft, WabouInputProps as g, DebugOverlayPaintStats as gt, WabouInputEvent as h, useHost as ht, NativeScrollbarStyle as i, VirtualList as it, applyRef as j, PathPoint as jt, WabouWheelEvent as k, PathLineCap as kt, WabouExposedSemanticRole as l, DebugOverlayOptions as lt, WabouImePreeditEvent as m, defaultHost as mt, DynamicProps as n, spread as nt, WabouControlProps as o, Portal as ot, WabouImeDeleteSurroundingEvent as p, LayoutTarget as pt, observeGlobalPointerEvent as q, Handle as r, writer as rt, WabouElementProps as s, PortalProps as st, Dynamic as t, setTransform2D as tt, WabouGlobalPointerEventType as u, Host as ut, WabouNativeElements as v, LayoutNodeMetrics as vt, WabouSemanticRole as w, jsx as wt, WabouPointerEvent as x, LayoutSnapshot as xt, WabouNativeTag as y, LayoutRect as yt, getRequestEvent as z };
-//# sourceMappingURL=index-CY9caAU6.d.mts.map
+export { render as $, WabouWheelEvent as A, PathLineCap as At, getRequestEvent as B, WabouScrollEvent as C, Fragment as Ct, WabouTextCommitEvent as D, jsxs as Dt, WabouSvgShapeProps as E, jsxDEV as Et, createTextNode as F, isVectorPath as Ft, memo as G, insertNode as H, delegateEvents as I, observeGlobalPointerEvent as J, mergeProps as K, dispatchEvent as L, applyRef as M, PathPoint as Mt, createComponent$1 as N, VectorPath as Nt, WabouTextSelectionChangeEvent as O, PathBuilder as Ot, createElement as P, VectorPathPaint as Pt, removeNode as Q, effect as R, WabouPositionedEvent as S, LayoutSnapshot as St, WabouSvgProps as T, jsx as Tt, isDirectEvent as U, insert as V, isServer as W, registerRoot as X, ref as Y, releaseOverlayRoot as Z, WabouKeyEvent as _, DebugOverlayPaintStats as _t, WabouBuiltinIntrinsicElements as a, VirtualList as at, WabouNodeEvent as b, LayoutRect as bt, WabouEventTarget as c, PortalProps as ct, WabouGlobalPointerListener as d, Host as dt, runSweep as et, WabouImageProps as f, HostProvider as ft, WabouInputProps as g, useHost as gt, WabouInputEvent as h, defaultHost as ht, NativeScrollbarStyle as i, writer as it, acquireOverlayRoot as j, PathLineJoin as jt, WabouVectorPathProps as k, PathFillRule as kt, WabouExposedSemanticRole as l, BuiltinHost as lt, WabouImePreeditEvent as m, LayoutTarget as mt, DynamicProps as n, setTransform2D as nt, WabouControlProps as o, VirtualListProps as ot, WabouImeDeleteSurroundingEvent as p, HostProviderProps as pt, mount as q, Handle as r, spread as rt, WabouElementProps as s, Portal as st, Dynamic as t, setProp as tt, WabouGlobalPointerEventType as u, DebugOverlayOptions as ut, WabouNativeElements as v, FrameStats as vt, WabouSemanticRole as w, JSX$1 as wt, WabouPointerEvent as x, LayoutScrollMetrics as xt, WabouNativeTag as y, LayoutNodeMetrics as yt, getMountRoot as z };
+//# sourceMappingURL=index-D3-jT5Is.d.mts.map

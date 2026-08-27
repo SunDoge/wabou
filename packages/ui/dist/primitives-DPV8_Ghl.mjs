@@ -5,7 +5,7 @@ import { animateValue, interpolate } from "motion-dom";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, untrack, useContext } from "solid-js";
 import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, memo, mergeProps, observeGlobalPointerEvent, spread, useHost as useHost$1 } from "@wabou/core/renderer";
 import { match } from "ts-pattern";
-import { EditorState } from "@codemirror/state";
+import { EditorSelection, EditorState, findClusterBreak } from "@codemirror/state";
 import { TreeFragment } from "@lezer/common";
 import { highlightTree, tagHighlighter, tags } from "@lezer/highlight";
 import { parser } from "@lezer/json";
@@ -440,16 +440,19 @@ function changedRange(previous, next) {
 	};
 }
 /**
-* Headless CodeMirror document state used by the native CodeEditor viewport.
+* DOM-free CodeMirror document used by Wabou's config/Markdown editor.
 *
-* This deliberately has no DOM/View dependency. Native input may report the
-* complete value today, while this adapter turns it back into one incremental
-* CodeMirror transaction and an incremental Lezer parse.
+* CodeMirror owns text, selection, transactions and undo. The Rust widget is
+* only a controlled native viewport. A future Helix frontend deliberately
+* uses helix-core instead while reusing the viewport contract.
 */
 var CodeEditorDocument = class {
 	#state;
 	#tree = null;
 	#language;
+	#composition = null;
+	#undo = [];
+	#redo = [];
 	constructor(value = "", language) {
 		this.#state = EditorState.create({ doc: value });
 		this.setLanguage(language);
@@ -457,35 +460,173 @@ var CodeEditorDocument = class {
 	get value() {
 		return this.#state.doc.toString();
 	}
+	get selection() {
+		const { anchor, head } = this.#state.selection.main;
+		return {
+			anchor,
+			head
+		};
+	}
 	setLanguage(language) {
 		if (language === this.#language) return;
 		this.#language = language;
 		this.#tree = language === "json" ? parser.parse(this.value) : null;
 	}
-	update(value, language = this.#language) {
+	sync(value, language = this.#language) {
 		this.setLanguage(language);
-		if (value !== this.value) {
-			const previous = this.value;
-			const { prefix, previousEnd, nextEnd } = changedRange(previous, value);
-			const transaction = this.#state.update({ changes: {
-				from: prefix,
-				to: previousEnd,
-				insert: value.slice(prefix, nextEnd)
-			} });
-			const changedRanges = [];
-			transaction.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
-				changedRanges.push({
-					fromA,
-					toA,
-					fromB,
-					toB
-				});
-			});
-			const fragments = this.#tree ? TreeFragment.applyChanges(TreeFragment.addTree(this.#tree), changedRanges) : void 0;
-			this.#state = transaction.state;
-			this.#tree = this.#language === "json" ? parser.parse(this.value, fragments) : null;
+		if (value === this.value) return;
+		const { prefix, previousEnd, nextEnd } = changedRange(this.value, value);
+		this.#apply({ changes: {
+			from: prefix,
+			to: previousEnd,
+			insert: value.slice(prefix, nextEnd)
+		} }, false);
+		this.#undo = [];
+		this.#redo = [];
+	}
+	setSelection(anchor, head) {
+		const length = this.#state.doc.length;
+		anchor = Math.max(0, Math.min(anchor, length));
+		head = Math.max(0, Math.min(head, length));
+		const current = this.#state.selection.main;
+		if (current.anchor === anchor && current.head === head) return false;
+		this.#state = this.#state.update({ selection: EditorSelection.single(anchor, head) }).state;
+		return true;
+	}
+	setComposition(text, cursorStart, cursorEnd) {
+		const next = text ? {
+			text,
+			cursorStart,
+			cursorEnd
+		} : null;
+		if (JSON.stringify(next) === JSON.stringify(this.#composition)) return false;
+		this.#composition = next;
+		return true;
+	}
+	commitText(text) {
+		this.#composition = null;
+		const { from, to } = this.#state.selection.main;
+		return this.#apply({
+			changes: {
+				from,
+				to,
+				insert: text
+			},
+			selection: { anchor: from + text.length }
+		});
+	}
+	deleteSurrounding(beforeBytes, afterBytes) {
+		const head = this.#state.selection.main.head;
+		const before = this.#offsetByUtf8Bytes(head, -beforeBytes);
+		const after = this.#offsetByUtf8Bytes(head, afterBytes);
+		this.#composition = null;
+		if (before === after) return false;
+		return this.#apply({
+			changes: {
+				from: before,
+				to: after
+			},
+			selection: { anchor: before }
+		});
+	}
+	handleKey(event) {
+		const key = event.key;
+		if (event.primary && ["c", "v"].includes(key.toLowerCase())) return {
+			handled: false,
+			changed: false
+		};
+		if (event.primary && key.toLowerCase() === "a") {
+			this.setSelection(0, this.#state.doc.length);
+			return {
+				handled: true,
+				changed: false
+			};
 		}
-		if (!this.#tree || !this.#language) return { syntax: null };
+		if (event.primary && key.toLowerCase() === "z") {
+			if (event.readOnly) return {
+				handled: true,
+				changed: false
+			};
+			return {
+				handled: true,
+				changed: event.shift ? this.#restore(this.#redo, this.#undo) : this.#restore(this.#undo, this.#redo)
+			};
+		}
+		const range = this.#state.selection.main;
+		const collapseOrExtend = (head) => {
+			this.setSelection(event.shift ? range.anchor : head, head);
+			return {
+				handled: true,
+				changed: false
+			};
+		};
+		if (key === "ArrowLeft" || key === "ArrowRight") {
+			if (!event.shift && !range.empty) return collapseOrExtend(key === "ArrowLeft" ? range.from : range.to);
+			return collapseOrExtend(findClusterBreak(this.value, range.head, key === "ArrowRight"));
+		}
+		if (key === "ArrowUp" || key === "ArrowDown") {
+			const line = this.#state.doc.lineAt(range.head);
+			const column = range.head - line.from;
+			const number = Math.max(1, Math.min(this.#state.doc.lines, line.number + (key === "ArrowUp" ? -1 : 1)));
+			const target = this.#state.doc.line(number);
+			return collapseOrExtend(Math.min(target.from + column, target.to));
+		}
+		if (key === "Home" || key === "End") {
+			const line = this.#state.doc.lineAt(range.head);
+			return collapseOrExtend(key === "Home" ? line.from : line.to);
+		}
+		if (key === "Backspace" || key === "Delete") {
+			if (event.readOnly) return {
+				handled: true,
+				changed: false
+			};
+			let { from, to } = range;
+			if (range.empty) {
+				const moved = findClusterBreak(this.value, range.head, key === "Delete");
+				from = Math.min(range.head, moved);
+				to = Math.max(range.head, moved);
+			}
+			return {
+				handled: true,
+				changed: from !== to && this.#apply({
+					changes: {
+						from,
+						to
+					},
+					selection: { anchor: from }
+				})
+			};
+		}
+		if (key === "Enter") {
+			if (event.readOnly) return {
+				handled: true,
+				changed: false
+			};
+			const indentation = this.#state.doc.lineAt(range.head).text.match(/^\s*/)?.[0] ?? "";
+			return {
+				handled: true,
+				changed: this.commitText(`\n${indentation}`)
+			};
+		}
+		if (key === "Tab") return {
+			handled: true,
+			changed: !event.readOnly && this.#indent(event.shift)
+		};
+		return {
+			handled: false,
+			changed: false
+		};
+	}
+	config(language = this.#language) {
+		this.setLanguage(language);
+		const base = {
+			selection: this.selection,
+			composition: this.#composition
+		};
+		if (!this.#tree || !this.#language) return {
+			...base,
+			syntax: null
+		};
 		const ranges = [];
 		highlightTree(this.#tree, jsonHighlighter, (from, to, kind) => {
 			ranges.push({
@@ -494,12 +635,93 @@ var CodeEditorDocument = class {
 				kind
 			});
 		});
-		return { syntax: {
-			language: this.#language,
-			offsetEncoding: "utf16",
-			documentLength: this.#state.doc.length,
-			ranges
-		} };
+		return {
+			...base,
+			syntax: {
+				language: this.#language,
+				offsetEncoding: "utf16",
+				documentLength: this.#state.doc.length,
+				ranges
+			}
+		};
+	}
+	update(value, language = this.#language) {
+		this.sync(value, language);
+		return this.config(language);
+	}
+	#snapshot() {
+		return {
+			value: this.value,
+			...this.selection
+		};
+	}
+	#apply(spec, recordHistory = true) {
+		const before = this.#snapshot();
+		const transaction = this.#state.update(spec);
+		if (!transaction.docChanged && transaction.state.selection.eq(this.#state.selection)) return false;
+		if (recordHistory && transaction.docChanged) {
+			this.#undo.push(before);
+			this.#redo = [];
+		}
+		const changedRanges = [];
+		transaction.changes.iterChangedRanges((fromA, toA, fromB, toB) => changedRanges.push({
+			fromA,
+			toA,
+			fromB,
+			toB
+		}));
+		const fragments = this.#tree && transaction.docChanged ? TreeFragment.applyChanges(TreeFragment.addTree(this.#tree), changedRanges) : void 0;
+		this.#state = transaction.state;
+		if (this.#language === "json" && transaction.docChanged) this.#tree = parser.parse(this.value, fragments);
+		return transaction.docChanged;
+	}
+	#restore(source, destination) {
+		const snapshot = source.pop();
+		if (!snapshot) return false;
+		destination.push(this.#snapshot());
+		const previous = this.value;
+		this.#state = EditorState.create({
+			doc: snapshot.value,
+			selection: EditorSelection.single(snapshot.anchor, snapshot.head)
+		});
+		this.#tree = this.#language === "json" ? parser.parse(this.value) : null;
+		return previous !== snapshot.value;
+	}
+	#indent(outdent) {
+		const range = this.#state.selection.main;
+		if (range.empty && !outdent) return this.commitText("  ");
+		const startLine = this.#state.doc.lineAt(range.from);
+		const endLine = this.#state.doc.lineAt(range.to);
+		const changes = [];
+		for (let number = startLine.number; number <= endLine.number; number += 1) {
+			const line = this.#state.doc.line(number);
+			if (outdent) {
+				const count = line.text.startsWith("	") ? 1 : line.text.match(/^ {1,2}/)?.[0].length ?? 0;
+				if (count) changes.push({
+					from: line.from,
+					to: line.from + count
+				});
+			} else changes.push({
+				from: line.from,
+				insert: "  "
+			});
+		}
+		return changes.length > 0 && this.#apply({ changes });
+	}
+	#offsetByUtf8Bytes(start, delta) {
+		const forward = delta >= 0;
+		let offset = start;
+		let remaining = Math.abs(delta);
+		while (remaining > 0 && (forward ? offset < this.value.length : offset > 0)) {
+			const moved = findClusterBreak(this.value, offset, forward);
+			if (moved === offset) break;
+			const codePoint = this.value.slice(Math.min(offset, moved), Math.max(offset, moved)).codePointAt(0) ?? 0;
+			const bytes = codePoint <= 127 ? 1 : codePoint <= 2047 ? 2 : codePoint <= 65535 ? 3 : 4;
+			if (bytes > remaining) break;
+			remaining -= bytes;
+			offset = moved;
+		}
+		return offset;
 	}
 };
 //#endregion
@@ -677,23 +899,80 @@ function TextArea(props) {
 function PasswordInput(props) {
 	return editorPrimitive("password-input", props);
 }
-/** Experimental native editor for config and script-sized documents. */
+/** CodeMirror-owned config/Markdown editor rendered by a native viewport. */
 function CodeEditor(props) {
-	const initialValue = untrack(() => props.value ?? "");
-	const document = new CodeEditorDocument(initialValue, untrack(() => props.language ?? "json"));
-	const [nativeValue, setNativeValue] = createSignal(initialValue);
+	const document = new CodeEditorDocument(untrack(() => props.value ?? ""), untrack(() => props.language));
+	const [revision, setRevision] = createSignal(0);
+	const invalidate = () => setRevision((value) => value + 1);
+	const emitInput = () => props.onInput?.({ currentTarget: { value: document.value } });
 	createEffect(() => props.value, (controlledValue) => {
-		if (controlledValue !== void 0) setNativeValue(controlledValue);
+		if (controlledValue !== void 0 && controlledValue !== document.value) {
+			document.sync(controlledValue, props.language);
+			invalidate();
+		}
 	});
-	const widgetConfig = createMemo(() => document.update(nativeValue(), props.language ?? "json"));
-	const nativeProps = omit(props, "language", "onInput");
+	const widgetConfig = createMemo(() => {
+		revision();
+		return document.config(props.language);
+	});
+	const nativeProps = omit(props, "language", "onInput", "onKeyDown", "onImePreedit", "onImeCommit", "onImeDeleteSurrounding", "onImeDisabled", "onTextSelectionChange");
 	return editorPrimitive("code-editor", mergeProps(nativeProps, {
+		get value() {
+			revision();
+			return document.value;
+		},
 		get widgetConfig() {
 			return widgetConfig();
 		},
-		onInput(event) {
-			setNativeValue(event.currentTarget.value);
-			props.onInput?.(event);
+		onKeyDown(event) {
+			if (!props.disabled) {
+				const result = document.handleKey({
+					key: event.key,
+					shift: (event.mods & 1) !== 0,
+					primary: event.primary,
+					readOnly: props.readOnly
+				});
+				if (result.handled) {
+					event.preventDefault();
+					invalidate();
+					if (result.changed && !props.readOnly) emitInput();
+				}
+			}
+			props.onKeyDown?.(event);
+		},
+		onImePreedit(event) {
+			if (!props.disabled && !props.readOnly) {
+				document.setComposition(event.data, event.cursorStart, event.cursorEnd);
+				event.preventDefault();
+				invalidate();
+			}
+			props.onImePreedit?.(event);
+		},
+		onImeCommit(event) {
+			if (!props.disabled && !props.readOnly) {
+				const changed = document.commitText(event.data);
+				event.preventDefault();
+				invalidate();
+				if (changed) emitInput();
+			}
+			props.onImeCommit?.(event);
+		},
+		onImeDeleteSurrounding(event) {
+			if (!props.disabled && !props.readOnly) {
+				const changed = document.deleteSurrounding(event.beforeBytes, event.afterBytes);
+				event.preventDefault();
+				invalidate();
+				if (changed) emitInput();
+			}
+			props.onImeDeleteSurrounding?.(event);
+		},
+		onImeDisabled(event) {
+			if (document.setComposition("", null, null)) invalidate();
+			props.onImeDisabled?.(event);
+		},
+		onTextSelectionChange(event) {
+			if (event.anchor !== void 0 && event.head !== void 0 && document.setSelection(event.anchor, event.head)) invalidate();
+			props.onTextSelectionChange?.(event);
 		}
 	}));
 }
@@ -2631,4 +2910,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { Svg as $, isSelected as A, createContainerMatch as B, OverlayPlaneProvider as C, useMotionConfig as Ct, Column as D, Center as E, createNetworkImageResource as F, CodeEditor as G, Button as H, createOwnedImageResource as I, PasswordInput as J, Icon as K, releaseImageResource as L, FORM_ERROR as M, createFormDraft as N, Row as O, createFileImageResource as P, RichTextSpan as Q, CollapsiblePresence as R, createTransitionPresence as S, MotionConfigProvider as St, useOverlayPlane as T, Link as U, createMeasuredSize as V, createButton as W, PathBuilder as X, Path as Y, RichText as Z, createRetainedItems as _, createPulse as _t, ScrollArea as a, translate2d$1 as at, Spin as b, createTransition as bt, autoPlacement as c, createHover as ct, flip as d, createAnimationFrame as dt, Text as et, offset as f, animate as ft, createNotifications as g, createLoop as gt, NotificationRegion as h, createKeyframeAnimation as ht, createScrollReset as i, rotate2d$1 as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createFocus as lt, size as m, createInterpolation as mt, createTabs as n, TextInput as nt, Popover as o, createActive as ot, shift as p, animateKeyframes as pt, Image as q, createShortcuts as r, View as rt, arrow as s, createPress as st, primitives_exports as t, TextArea as tt, computeHostFloatingPosition as u, createFocusWithin as ut, Pulse as v, createRotation as vt, createOverlayLayer as w, useReducedMotion as wt, Modal as x, normalizeSweepGeometry as xt, Ripple as y, createSweep as yt, createPresence as z };
 
-//# sourceMappingURL=primitives-BNmmuKec.mjs.map
+//# sourceMappingURL=primitives-DPV8_Ghl.mjs.map

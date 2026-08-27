@@ -307,6 +307,44 @@ pub struct WidgetNodeEvent {
     pub json: String,
 }
 
+/// Selection owned by a native widget but synchronized to its JavaScript owner.
+///
+/// Offsets use UTF-16 code units so JavaScript document models such as
+/// CodeMirror can apply them without converting through Rust byte offsets.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WidgetTextSelection {
+    /// Fixed end of the selection in UTF-16 code units.
+    pub anchor: usize,
+    /// Moving end (and caret position) in UTF-16 code units.
+    pub head: usize,
+    /// Selected text, or `None` for a collapsed selection.
+    pub text: Option<String>,
+    /// Gesture granularity reported to JavaScript.
+    pub kind: WidgetTextSelectionKind,
+}
+
+/// Granularity used to create a native widget selection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WidgetTextSelectionKind {
+    /// Character/caret selection.
+    Simple,
+    /// Word selection, normally produced by a double click.
+    Word,
+    /// Logical-line selection, normally produced by a triple click.
+    Line,
+}
+
+impl WidgetTextSelectionKind {
+    /// Stable event payload spelling.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Simple => "simple",
+            Self::Word => "word",
+            Self::Line => "line",
+        }
+    }
+}
+
 impl WidgetNodeEvent {
     /// Construct an event with an already serialized JSON-object payload.
     pub fn json(event_code: u8, json: impl Into<String>) -> Self {
@@ -341,6 +379,8 @@ bitflags::bitflags! {
         const LAYOUT = 1 << 5;
         /// Accessibility semantics must be republished.
         const SEMANTICS = 1 << 6;
+        /// [`Widget::text_selection`] changed and must be synchronized to JS.
+        const SELECTION = 1 << 7;
     }
 }
 
@@ -390,6 +430,16 @@ impl WidgetEventResult {
     /// Whether the host should suppress the key's following text event.
     pub const fn consumes_key_text(&self) -> bool {
         self.changes.contains(WidgetChanges::CONSUME_KEY_TEXT)
+    }
+
+    /// Whether the host must synchronize [`Widget::text_selection`] to JS.
+    pub const fn selection_changed(&self) -> bool {
+        self.changes.contains(WidgetChanges::SELECTION)
+    }
+
+    /// Consume an event after changing the native presentation selection.
+    pub const fn selection_changed_result() -> Self {
+        Self::handled_with(WidgetChanges::REDRAW.union(WidgetChanges::SELECTION))
     }
 
     /// Consume a key event and suppress its following text event.
@@ -550,6 +600,15 @@ pub trait Widget {
     /// and dispatches an input event with `{"value": ...}`. Returning `None`
     /// opts out even when the value flag was set.
     fn current_value(&self) -> Option<&str> {
+        None
+    }
+
+    /// Current native presentation selection for synchronization to JS.
+    ///
+    /// The JavaScript document model remains authoritative. Widgets should
+    /// report pointer-driven selection here and accept the resulting controlled
+    /// selection through their configuration.
+    fn text_selection(&self) -> Option<WidgetTextSelection> {
         None
     }
 

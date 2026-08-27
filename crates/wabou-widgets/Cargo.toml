@@ -7,7 +7,6 @@ license.workspace = true
 
 [dependencies]
 anyrender.workspace = true
-editor-core = "0.5.0"
 image = {
   workspace = true,
   features = ["bmp", "gif", "jpeg", "png", "webp"]
@@ -15,6 +14,7 @@ image = {
 parley = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
+unicode-width = { workspace = true }
 vello = { workspace = true }
 wabou-shell = { workspace = true }
 zeroize = { workspace = true }

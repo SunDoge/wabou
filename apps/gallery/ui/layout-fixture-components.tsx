@@ -6,6 +6,7 @@ import {
   Bubble,
   BubbleContent,
   Button,
+  CodeEditor,
   Dialog,
   DialogDescription,
   DialogScrollBody,
@@ -40,6 +41,19 @@ export function MarkdownInlineLayoutFixture() {
   return (
     <View class="w-80 p-4 bg-canvas">
       <MarkdownPreview source="Before `code` after." />
+    </View>
+  );
+}
+
+export function CodeEditorLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 min-h-0 p-4 bg-canvas">
+      <CodeEditor
+        aria-label="Fixture config editor"
+        language="json"
+        value={'{\n  "enabled": true,\n  "emoji": "😀"\n}'}
+        class="w-full h-full min-w-0 min-h-0 rounded-md border border-strong bg-input text-primary"
+      />
     </View>
   );
 }

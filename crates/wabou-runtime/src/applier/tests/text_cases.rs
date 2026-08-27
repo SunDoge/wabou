@@ -273,6 +273,10 @@ fn code_editor_drag_selection_survives_native_pointer_routing() {
         parent: NodeKey::new(1, 1),
         child: NodeKey::new(2, 1),
     });
+    applier.apply_op(&Op::AddEventListener {
+        id: NodeKey::new(2, 1),
+        event_type: event::TEXTSELECTIONCHANGE,
+    });
     for (prop, value) in [(width, "320px"), (height, "120px")] {
         applier.apply_op(&Op::SetStyle {
             id: NodeKey::new(2, 1),
@@ -288,14 +292,32 @@ fn code_editor_drag_selection_survives_native_pointer_routing() {
     applier.handle_event(pointer(PointerPhase::Down, 68.0, 10.0, 1));
     applier.handle_event(pointer(PointerPhase::Move, 300.0, 10.0, 1));
     applier.handle_event(pointer(PointerPhase::Up, 300.0, 10.0, 0));
-    assert!(applier.handle_event(UiEvent::TextInput("X".into())).handled);
+    assert!(
+        !applier.handle_event(UiEvent::TextInput("X".into())).handled,
+        "the controlled viewport must not edit outside CodeMirror"
+    );
     applier.build_frame(&mut tcx, 800, 600);
 
     let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     assert_eq!(
         applier.document.widget_manager.widgets[&node].current_value(),
-        Some("X")
+        None
     );
+    let selection_event = applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<String, _>(format!(
+                "JSON.stringify(globalThis.dispatched.filter((event) => event[1] === {}).at(-1))",
+                event::TEXTSELECTIONCHANGE
+            ))
+        })
+        .expect("native widget selection event");
+    let event: serde_json::Value = serde_json::from_str(&selection_event).unwrap();
+    let payload: serde_json::Value = serde_json::from_str(event[2].as_str().unwrap()).unwrap();
+    assert_eq!(payload["anchor"], 0);
+    assert_eq!(payload["head"], 6);
+    assert_eq!(payload["text"], "abcdef");
 }
 
 #[test]

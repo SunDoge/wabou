@@ -33,13 +33,31 @@ impl Applier {
                 || input.clone(),
                 |geometry| localize_widget_event(input, *geometry),
             );
-        let result = {
+        let (result, selection) = {
             let widget = self.document.widget_manager.widgets.get_mut(&node)?;
-            widget.handle_event(&input)
+            let result = widget.handle_event(&input);
+            let selection = result
+                .selection_changed()
+                .then(|| widget.text_selection())
+                .flatten();
+            (result, selection)
         };
         self.drain_widget_host_actions(node);
         self.drain_widget_node_events(node);
         self.invalidate_widget_changes(result.changes());
+        if let Some(selection) = selection {
+            let _ = self.dispatch_json(
+                target,
+                event::TEXTSELECTIONCHANGE,
+                &serde_json::json!({
+                    "anchor": selection.anchor,
+                    "head": selection.head,
+                    "text": selection.text,
+                    "kind": selection.kind.as_str(),
+                })
+                .to_string(),
+            );
+        }
         if !result.is_handled() {
             return None;
         }

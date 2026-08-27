@@ -184,6 +184,7 @@ export interface WabouElementProps {
   onImeCommit?: EventHandler<WabouTextCommitEvent>;
   onImeDeleteSurrounding?: EventHandler<WabouImeDeleteSurroundingEvent>;
   onImeDisabled?: EventHandler<WabouNodeEvent>;
+  onTextSelectionChange?: EventHandler<WabouTextSelectionChangeEvent>;
   /** Preventing this event keeps the native window open. */
   onWindowCloseRequested?: EventHandler<WabouNodeEvent>;
 }
@@ -342,6 +343,13 @@ export interface WabouImePreeditEvent extends WabouNodeEvent {
 export interface WabouImeDeleteSurroundingEvent extends WabouNodeEvent {
   readonly beforeBytes: number;
   readonly afterBytes: number;
+}
+
+export interface WabouTextSelectionChangeEvent extends WabouNodeEvent {
+  readonly anchor?: number;
+  readonly head?: number;
+  readonly text: string | null;
+  readonly kind: "simple" | "word" | "line" | null;
 }
 
 export interface NativeScrollbarStyle {

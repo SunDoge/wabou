@@ -7,8 +7,8 @@ export interface ConfigEditorProps extends CodeEditorProps {
 }
 
 /**
- * Experimental native configuration editor. Its Wabou-owned props deliberately
- * hide the editor-core implementation so the backend can evolve independently.
+ * Configuration editor backed by DOM-free CodeMirror state and a controlled
+ * native viewport. It is intentionally not a general-purpose IDE editor.
  */
 export function ConfigEditor(props: ConfigEditorProps): JSX.Element {
   return (

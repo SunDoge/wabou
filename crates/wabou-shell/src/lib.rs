@@ -65,7 +65,7 @@ pub use text::TextContext;
 pub use widget::{
     MeasureContext, PaintContext, Widget, WidgetAccessibility, WidgetAvailableSpace, WidgetChanges,
     WidgetEventResult, WidgetFactory, WidgetGeometry, WidgetHarness, WidgetNodeEvent, WidgetStyle,
-    decode_widget_config,
+    WidgetTextSelection, WidgetTextSelectionKind, decode_widget_config,
 };
 pub use window_state::WindowSizePersistence;
 pub use winit::raw_window_handle;

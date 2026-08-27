@@ -95,6 +95,7 @@ widget contract, not hints:
 - `LAYOUT` recomputes geometry without claiming intrinsic metrics changed;
 - `VALUE` synchronizes `current_value()` and dispatches an input event to JS;
 - `SEMANTICS` republishes accessibility state;
+- `SELECTION` synchronizes a native widget's UTF-16 selection to JS;
 - `CONSUME_KEY_TEXT` prevents a handled key from also arriving as text input.
 
 Lifecycle callbacks run in host order: mount, initial attributes/config and
@@ -110,9 +111,10 @@ window; protocol tests are still needed when JS routing itself matters.
 If this contract eventually needs its own crate, its intended name is
 `wabou-widget-trait`; `wabou-widgets` remains the plural implementation crate.
 
-`@wabou/ui` also exposes an experimental `ConfigEditor`. It is backed
-by the native `code-editor` widget and editor-core, supports Unicode-aware
-editing, selection and pointer dragging, undo/redo, IME, soft wrapping,
-scrolling, and JSON highlighting. Its public API intentionally exposes only
-Wabou concepts (`value`, `readOnly`, `disabled`, `language`, and input events),
-so the Rust editor engine can evolve without leaking into application code.
+`@wabou/ui` also exposes an experimental `ConfigEditor`. Its document,
+selection, transactions, undo and Lezer syntax tree are owned by DOM-free
+CodeMirror state in JavaScript. The native `code-editor` is a controlled
+viewport responsible for paint, soft wrapping, scrolling, hit testing, IME
+placement and clipboard requests. It is intentionally scoped to configuration
+and Markdown editing. A future Helix frontend will use `helix-core` as its
+document model while reusing the native viewport boundary.
