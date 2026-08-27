@@ -1,0 +1,11 @@
+[package]
+name = "wabou-subsecond-hot-reload"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+dioxus-devtools = "0.7.10"
+subsecond = "0.7.10"
