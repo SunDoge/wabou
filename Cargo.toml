@@ -34,6 +34,7 @@ bitflags = "2.10.0"
 bon = "3.9.3"
 clap = "4.6.4"
 directories = "6.0.0"
+dioxus-devtools = { version = "0.7.10", default-features = false }
 getrandom = "0.4.3"
 flume = "0.12.0"
 image = { version = "0.25", default-features = false }

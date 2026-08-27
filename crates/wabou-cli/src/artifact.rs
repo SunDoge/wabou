@@ -25,6 +25,16 @@ pub(super) fn app_binary(workspace: &Path, app: &App) -> Result<String> {
         .ok_or_else(|| "application binary target has no name".into())
 }
 
+pub(super) fn app_package(workspace: &Path, app: &App) -> Result<String> {
+    let metadata = cargo_metadata(workspace, app)?;
+    let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
+    package_metadata(&metadata, &manifest_path)
+        .ok_or("application Cargo package is absent from metadata")?["name"]
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| "application Cargo package has no name".into())
+}
+
 pub(super) fn app_dev_features(workspace: &Path, app: &App) -> Result<String> {
     let metadata = cargo_metadata(workspace, app)?;
     let manifest_path = app.root.join("Cargo.toml").canonicalize()?;

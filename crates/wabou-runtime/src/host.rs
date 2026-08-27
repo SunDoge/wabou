@@ -980,6 +980,9 @@ impl HostBuilder {
     }
 
     fn run_once(mut self) -> crate::Result<crate::RunOutcome> {
+        #[cfg(feature = "rust-hot-reload")]
+        dioxus_devtools::connect_subsecond();
+
         #[cfg(feature = "profiling")]
         let _profile_guard = init_tracing();
         #[cfg(not(feature = "profiling"))]

@@ -60,6 +60,7 @@ destination.
 bun run wabou doctor
 bun run wabou dev apps/gallery
 bun run wabou dev apps/hackernews --devtools
+bun run wabou dev apps/gallery --rust-hot-reload
 ```
 
 `doctor` checks the required Rust and Bun tools, platform build dependencies,
@@ -73,6 +74,45 @@ receives HMR updates, while `wabou inspect` can discover the local DevTools
 socket. `--devtools` additionally opens the visual inspector; it is not needed
 for the socket. No JavaScript production build is required before Rust
 compilation. Ctrl-C terminates Vite, the host, and the optional inspector.
+
+Rust capability hot reload is an experimental, explicit opt-in. Install the
+matching patch builder once:
+
+```bash
+cargo binstall dioxus-cli@0.7.10
+```
+
+Then use `--rust-hot-reload`. The CLI enables Wabou's development-only runtime
+feature, starts `dx` as the Rust build/patch worker, and continues to own Vite
+and child-process cleanup. Application code marks replaceable methods with
+`capability.hot_method(...)` or `capability.hot_method_with(...)`; the latter
+keeps state in the stable host and passes it to the replaceable function.
+
+```rust
+async fn read_workspace(
+    workspace: Arc<Workspace>,
+    request: ReadRequest,
+) -> Result<ReadResponse, String> {
+    workspace.read(request).await
+}
+
+HostBuilder::new().json_capability(WORKSPACE, move |capability| {
+    capability.hot_method_with(READ, workspace.clone(), read_workspace)
+});
+```
+
+Only the explicitly registered function body is replaceable. Existing async
+calls finish using the implementation that created their future; subsequent
+calls use the patch. Capability state and the window/event loop remain alive.
+Changing DTO/state layouts, Cargo dependencies, initial window options,
+decorations, widget types, or runtime internals still requires restarting
+`wabou dev`. Ordinary `wabou dev` retains its existing Cargo-based behavior and
+does not require Dioxus CLI.
+
+The current implementation intentionally uses Dioxus CLI as an external worker
+because its ThinLink patch builder is not exposed as a stable library API. This
+keeps the experimental dependency out of release applications and leaves Wabou
+free to replace the worker later without changing the capability API.
 
 The CLI invokes the project-local Vite executable directly. An application
 does not need specially named `build` or `dev` package scripts; those scripts

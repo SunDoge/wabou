@@ -26,7 +26,7 @@ mod render_metrics;
 mod scaffold;
 
 use artifact::{
-    app_binary, app_bindings_target, app_dev_features, app_framework_feature,
+    app_binary, app_bindings_target, app_dev_features, app_framework_feature, app_package,
     app_profiling_feature, artifact_from_metadata_for_target, cargo_metadata,
     optional_app_bindings_target,
 };
@@ -107,6 +107,9 @@ enum Commands {
         port: u16,
         #[arg(long)]
         devtools: bool,
+        /// Hot-patch explicitly registered Rust capability functions without restarting the host.
+        #[arg(long)]
+        rust_hot_reload: bool,
         /// Vite mode used to select an application-owned development entry.
         #[arg(long)]
         mode: Option<String>,
@@ -375,6 +378,7 @@ fn main() -> Result<()> {
             app,
             port,
             devtools,
+            rust_hot_reload,
             mode,
             cargo_features,
         } => {
@@ -384,6 +388,7 @@ fn main() -> Result<()> {
                 app,
                 port,
                 devtools,
+                rust_hot_reload,
                 mode.as_deref(),
                 &cargo_features.values,
             )
@@ -1046,6 +1051,7 @@ fn dev(
     app: App,
     port: u16,
     open_devtools: bool,
+    rust_hot_reload: bool,
     mode: Option<&str>,
     cargo_features: &[String],
 ) -> Result<()> {
@@ -1071,13 +1077,35 @@ fn dev(
     let url = format!("http://127.0.0.1:{port}");
     wait_for_vite(&url, vite.child.as_mut())?;
 
-    let app_manifest = manifest(&app);
     let binary = app_binary(workspace, &app)?;
-    let dev_features = app_dev_features(workspace, &app)?;
-    let mut host_command = Command::new("cargo");
-    host_command
-        .current_dir(workspace)
-        .args([
+    let mut dev_features = app_dev_features(workspace, &app)?;
+    let mut host_command = if rust_hot_reload {
+        ensure_dx_hot_patch_available()?;
+        let package = app_package(workspace, &app)?;
+        let hot_reload_feature = app_framework_feature(workspace, &app, "rust-hot-reload")?;
+        dev_features.push(',');
+        dev_features.push_str(&hot_reload_feature);
+        let mut command = Command::new("dx");
+        command.current_dir(workspace).args([
+            "serve",
+            "--hot-patch",
+            "--desktop",
+            "--interactive",
+            "false",
+            "--open",
+            "false",
+            "--package",
+            &package,
+            "--bin",
+            &binary,
+            "--features",
+            &dev_features,
+        ]);
+        command
+    } else {
+        let app_manifest = manifest(&app);
+        let mut command = Command::new("cargo");
+        command.current_dir(workspace).args([
             "run",
             "--manifest-path",
             &app_manifest,
@@ -1085,7 +1113,10 @@ fn dev(
             &binary,
             "--features",
             &dev_features,
-        ])
+        ]);
+        command
+    };
+    host_command
         .env("WABOU_VITE_URL", &url)
         .env("WABOU_VITE_ENTRY", &app.entry);
     apply_cargo_features(&mut host_command, cargo_features);
@@ -1098,8 +1129,32 @@ fn dev(
         None
     };
 
-    println!("[wabou] dev server ready at {url}; press Ctrl-C to stop");
+    if rust_hot_reload {
+        println!(
+            "[wabou] Vite and Rust capability hot reload ready at {url}; press Ctrl-C to stop"
+        );
+    } else {
+        println!("[wabou] dev server ready at {url}; press Ctrl-C to stop");
+    }
     supervise(&mut host, &mut vite, inspector.as_mut())
+}
+
+fn ensure_dx_hot_patch_available() -> Result<()> {
+    let output = Command::new("dx").arg("--version").output().map_err(|error| {
+        format!(
+            "Rust capability hot reload requires Dioxus CLI 0.7.10 (`cargo binstall dioxus-cli@0.7.10`): {error}"
+        )
+    })?;
+    ensure(output.status, "Dioxus CLI version check")?;
+    let version = String::from_utf8_lossy(&output.stdout);
+    if !version.contains("0.7.10") {
+        return Err(format!(
+            "Rust capability hot reload requires Dioxus CLI 0.7.10, found `{}`",
+            version.trim()
+        )
+        .into());
+    }
+    Ok(())
 }
 
 fn package_executable(workspace: &Path, app: &App, release: bool) -> Result<()> {
@@ -1778,6 +1833,22 @@ mod tests {
     #[test]
     fn rejects_the_removed_app_dir_flag() {
         assert!(Cli::try_parse_from(["wabou", "run", "--app-dir", "apps/gallery"]).is_err());
+    }
+
+    #[test]
+    fn parses_opt_in_rust_capability_hot_reload() {
+        let Commands::Dev {
+            app,
+            rust_hot_reload,
+            ..
+        } = Cli::try_parse_from(["wabou", "dev", "apps/gallery", "--rust-hot-reload"])
+            .unwrap()
+            .command
+        else {
+            panic!("expected dev command");
+        };
+        assert_eq!(app.as_deref(), Some(Path::new("apps/gallery")));
+        assert!(rust_hot_reload);
     }
 
     #[test]
