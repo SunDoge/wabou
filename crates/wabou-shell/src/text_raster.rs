@@ -12,6 +12,10 @@ const SUBPIXEL_VARIANTS: f32 = 4.0;
 const MAX_RASTER_DIMENSION: u32 = 2048;
 const MAX_RASTER_PIXELS: u64 = 512 * 1024;
 
+fn quantized_physical_baseline(logical_y: f32, scale: f32, origin_y: f32) -> f32 {
+    (logical_y.mul_add(scale, origin_y)).round()
+}
+
 struct RasterGlyph {
     x: i32,
     y: i32,
@@ -66,7 +70,12 @@ pub(super) fn rasterize_layout(
             for glyph in glyph_run.positioned_glyphs() {
                 let glyph_id = u16::try_from(glyph.id).ok()?;
                 let physical_x = glyph.x * scale + origin_x;
-                let physical_y = glyph.y * scale + origin_y;
+                // Parley layouts are kept in logical coordinates so layout
+                // remains stable across monitors. Quantize the baseline only
+                // after applying the final device scale and text origin, as
+                // required by Parley's non-quantized builder contract. Blitz
+                // gets the same property from its scale-aware quantized builder.
+                let physical_y = quantized_physical_baseline(glyph.y, scale, origin_y);
                 let base_x = physical_x.floor() as i32;
                 let base_y = physical_y.floor() as i32;
                 let mut renderer = Render::new(&sources);
@@ -196,5 +205,12 @@ mod tests {
         assert_eq!(destination[3], 191);
         assert!(destination[0] > destination[2]);
         assert_eq!(destination[1], 0);
+    }
+
+    #[test]
+    fn baseline_is_quantized_after_device_scale_and_origin() {
+        assert_eq!(quantized_physical_baseline(12.2, 1.0, 0.25), 12.0);
+        assert_eq!(quantized_physical_baseline(12.2, 1.25, 0.25), 16.0);
+        assert_eq!(quantized_physical_baseline(12.2, 2.0, 0.25), 25.0);
     }
 }
