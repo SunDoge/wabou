@@ -36,6 +36,8 @@ import {
 } from "@wabou/ui";
 import imageIcon from "lucide-static/icons/image.svg?raw";
 import { For } from "solid-js";
+import { AgentActivityStatus } from "../../pi-agent/ui/agent-activity";
+import { initialAgentState } from "../../pi-agent/ui/agent-state";
 import { ComposerContextFiles } from "../../pi-agent/ui/composer-context";
 import { ComposerDeliveryControl } from "../../pi-agent/ui/composer-delivery";
 import { ComposerImages } from "../../pi-agent/ui/composer-images";
@@ -122,11 +124,21 @@ export function PiModelControlsLayoutFixture() {
 export function PiAgentHeaderLayoutFixture() {
   return (
     <View class="w-full h-14 min-w-0 px-5 border-b border-subtle bg-surface flex flex-row items-center justify-between gap-3">
-      <View class="min-w-0 flex-1">
+      <View class="min-w-0 flex-1 flex flex-col gap-0">
         <Text class="font-semibold truncate">Implement session controls</Text>
-        <Text class="text-xs text-muted truncate">
-          Claude Sonnet 4.5 · medium thinking
-        </Text>
+        <View class="min-w-0 flex flex-row items-center gap-2">
+          <Text class="min-w-0 flex-1 text-xs text-muted truncate">
+            Claude Sonnet 4.5 · medium thinking
+          </Text>
+          <AgentActivityStatus
+            state={{
+              ...initialAgentState,
+              connection: "running",
+              activity: { kind: "retrying", attempt: 2, maxAttempts: 3 },
+              queue: { steering: 1, followUp: 2 },
+            }}
+          />
+        </View>
       </View>
       <View class="flex-none flex flex-row items-center gap-1">
         <ModelControls

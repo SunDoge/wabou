@@ -1,6 +1,16 @@
 import { match, P } from "ts-pattern";
 
 export type AgentConnection = "stopped" | "ready" | "running" | "failed";
+export type AgentActivity =
+  | { kind: "responding" }
+  | { kind: "compacting"; reason?: string }
+  | {
+      kind: "retrying";
+      attempt?: number;
+      maxAttempts?: number;
+      delayMs?: number;
+    }
+  | { kind: "summarizing" };
 export type AgentItem =
   | {
       id: string;
@@ -84,6 +94,8 @@ const thinkingLevels = new Set<AgentThinkingLevel>([
 
 export interface AgentViewState {
   connection: AgentConnection;
+  activity?: AgentActivity;
+  queue: { steering: number; followUp: number };
   items: readonly AgentItem[];
   activeAssistantId?: string;
   error?: string;
@@ -102,6 +114,7 @@ export interface AgentViewState {
 
 export const initialAgentState: AgentViewState = {
   connection: "stopped",
+  queue: { steering: 0, followUp: 0 },
   items: [],
   commands: [],
   models: [],
@@ -345,8 +358,76 @@ export function reducePiEvent(
       connection: "ready" as const,
       error: undefined,
     }))
-    .with("process_exit", () => ({ ...state, connection: "stopped" as const }))
-    .with("agent_start", () => ({ ...state, connection: "running" as const }))
+    .with("process_exit", () => ({
+      ...state,
+      connection: "stopped" as const,
+      activity: undefined,
+    }))
+    .with("agent_start", () => ({
+      ...state,
+      connection: "running" as const,
+      activity: { kind: "responding" as const },
+    }))
+    .with("queue_update", () => ({
+      ...state,
+      queue: {
+        steering: Array.isArray(event.steering) ? event.steering.length : 0,
+        followUp: Array.isArray(event.followUp) ? event.followUp.length : 0,
+      },
+    }))
+    .with("compaction_start", () => ({
+      ...state,
+      connection: "running" as const,
+      activity: {
+        kind: "compacting" as const,
+        ...(typeof event.reason === "string" ? { reason: event.reason } : {}),
+      },
+    }))
+    .with("compaction_end", () => ({
+      ...state,
+      connection:
+        event.willRetry === true ? ("running" as const) : ("ready" as const),
+      activity:
+        event.willRetry === true
+          ? ({ kind: "responding" } as const)
+          : undefined,
+    }))
+    .with("auto_retry_start", () => ({
+      ...state,
+      connection: "running" as const,
+      activity: {
+        kind: "retrying" as const,
+        ...(finiteNumber(event.attempt) !== undefined
+          ? { attempt: finiteNumber(event.attempt) }
+          : {}),
+        ...(finiteNumber(event.maxAttempts) !== undefined
+          ? { maxAttempts: finiteNumber(event.maxAttempts) }
+          : {}),
+        ...(finiteNumber(event.delayMs) !== undefined
+          ? { delayMs: finiteNumber(event.delayMs) }
+          : {}),
+      },
+    }))
+    .with("auto_retry_end", () => ({
+      ...state,
+      activity:
+        event.success === true ? ({ kind: "responding" } as const) : undefined,
+    }))
+    .with(
+      P.union(
+        "summarization_retry_scheduled",
+        "summarization_retry_attempt_start",
+      ),
+      () => ({
+        ...state,
+        connection: "running" as const,
+        activity: { kind: "summarizing" as const },
+      }),
+    )
+    .with("summarization_retry_finished", () => ({
+      ...state,
+      activity: { kind: "compacting" as const },
+    }))
     .with("response", () => {
       if (event.success !== true) {
         const message = String(event.error ?? "Pi RPC command failed");
@@ -451,6 +532,8 @@ export function reducePiEvent(
     .with("agent_settled", () => ({
       ...state,
       connection: "ready" as const,
+      activity: undefined,
+      queue: { steering: 0, followUp: 0 },
       activeAssistantId: undefined,
       items: state.items.map((item) =>
         item.kind === "user" && item.queued ? { ...item, queued: false } : item,

@@ -129,6 +129,44 @@ describe("Pi agent event projection", () => {
     expect(ready.items[0]).toMatchObject({ kind: "user", queued: false });
   });
 
+  test("projects compaction, retry and queue activity without appearing idle", () => {
+    let state = reducePiEvent(initialAgentState, {
+      type: "queue_update",
+      steering: ["Now"],
+      followUp: ["Later", "Finally"],
+    });
+    expect(state.queue).toEqual({ steering: 1, followUp: 2 });
+
+    state = reducePiEvent(state, {
+      type: "compaction_start",
+      reason: "threshold",
+    });
+    expect(state).toMatchObject({
+      connection: "running",
+      activity: { kind: "compacting", reason: "threshold" },
+    });
+
+    state = reducePiEvent(state, {
+      type: "auto_retry_start",
+      attempt: 2,
+      maxAttempts: 3,
+      delayMs: 2_000,
+    });
+    expect(state.activity).toEqual({
+      kind: "retrying",
+      attempt: 2,
+      maxAttempts: 3,
+      delayMs: 2_000,
+    });
+
+    state = reducePiEvent(state, { type: "agent_settled" });
+    expect(state).toMatchObject({
+      connection: "ready",
+      queue: { steering: 0, followUp: 0 },
+    });
+    expect(state.activity).toBeUndefined();
+  });
+
   test("restores persisted Pi messages when a session is opened", () => {
     const state = reducePiEvent(initialAgentState, {
       type: "response",
