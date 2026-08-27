@@ -6473,6 +6473,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pi-agent-wabou"
+version = "0.1.0"
+dependencies = [
+ "flume",
+ "serde",
+ "serde_json",
+ "snafu",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "wabou",
+]
+
+[[package]]
 name = "pico-args"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,459 @@
+use std::{
+    collections::HashMap,
+    env,
+    io::{BufRead as _, BufReader, Write as _},
+    path::PathBuf,
+    process::{Child, ChildStdin, Command, Stdio},
+    sync::{Arc, Mutex},
+};
+
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+use wabou::{
+    HostMessage, HostMessageContext, JsonCapability, JsonCapabilityContract, JsonMethod, rquickjs,
+};
+
+pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("piAgent", 1);
+const EVENT_TOPIC: &str = "pi.event";
+
+const GET_STATUS: JsonMethod<AgentRequest, PiStatus> = JsonMethod::new("getStatus");
+const START: JsonMethod<StartRequest, PiStatus> = JsonMethod::new("start");
+const PROMPT: JsonMethod<PromptRequest, ()> = JsonMethod::new("prompt");
+const ABORT: JsonMethod<AgentRequest, ()> = JsonMethod::new("abort");
+const STOP: JsonMethod<AgentRequest, ()> = JsonMethod::new("stop");
+const NEW_SESSION: JsonMethod<AgentRequest, ()> = JsonMethod::new("newSession");
+const CYCLE_MODEL: JsonMethod<AgentRequest, ()> = JsonMethod::new("cycleModel");
+const CYCLE_THINKING: JsonMethod<AgentRequest, ()> = JsonMethod::new("cycleThinking");
+const SET_MODEL: JsonMethod<SetModelRequest, ()> = JsonMethod::new("setModel");
+
+#[derive(Clone)]
+pub struct PiService {
+    state: Arc<Mutex<HashMap<String, PiProcess>>>,
+    events_tx: flume::Sender<Value>,
+    events_rx: flume::Receiver<Value>,
+}
+
+struct PiProcess {
+    child: Option<Child>,
+    stdin: Option<Arc<Mutex<ChildStdin>>>,
+    cwd: Option<PathBuf>,
+    last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PiStatus {
+    running: bool,
+    cwd: Option<String>,
+    runtime: &'static str,
+    error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StartRequest {
+    agent_id: String,
+    cwd: Option<String>,
+    proxy: Option<String>,
+    no_proxy: Option<String>,
+    provider: Option<String>,
+    model: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PromptRequest {
+    #[serde(rename = "agentId")]
+    agent_id: String,
+    message: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AgentRequest {
+    agent_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetModelRequest {
+    agent_id: String,
+    provider: String,
+    model_id: String,
+}
+
+impl PiService {
+    pub fn new() -> Self {
+        let (events_tx, events_rx) = flume::bounded(1024);
+        Self {
+            state: Arc::new(Mutex::new(HashMap::new())),
+            events_tx,
+            events_rx,
+        }
+    }
+
+    fn status(&self, agent_id: &str) -> Result<PiStatus, String> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| "Pi process lock poisoned".to_owned())?;
+        let running = state
+            .get_mut(agent_id)
+            .and_then(|process| process.child.as_mut())
+            .is_some_and(|child| child.try_wait().ok().flatten().is_none());
+        if !running {
+            state.remove(agent_id);
+        }
+        let process = state.get(agent_id);
+        Ok(PiStatus {
+            running,
+            cwd: process
+                .and_then(|process| process.cwd.as_ref())
+                .map(|path| path.display().to_string()),
+            runtime: "bun",
+            error: process.and_then(|process| process.last_error.clone()),
+        })
+    }
+
+    fn start(&self, request: StartRequest) -> Result<PiStatus, String> {
+        validate_agent_id(&request.agent_id)?;
+        self.stop(&request.agent_id)?;
+        let cwd = request
+            .cwd
+            .filter(|value| !value.trim().is_empty())
+            .map(PathBuf::from)
+            .unwrap_or(env::current_dir().map_err(|error| error.to_string())?);
+        if !cwd.is_dir() {
+            return Err(format!("workspace does not exist: {}", cwd.display()));
+        }
+        let explicit_pi = env::var_os("WABOU_PI_BIN");
+        let mut command = match explicit_pi {
+            Some(executable) => {
+                let mut command = Command::new(executable);
+                command.args(["--mode", "rpc"]);
+                command
+            }
+            None => {
+                let mut command = Command::new("bun");
+                command.args([
+                    "x",
+                    "--package",
+                    "@earendil-works/pi-coding-agent@0.84.3",
+                    "pi",
+                    "--mode",
+                    "rpc",
+                ]);
+                command
+            }
+        };
+        if let Some(provider) = request.provider.filter(|value| !value.trim().is_empty()) {
+            command.args(["--provider", provider.trim()]);
+        }
+        if let Some(model) = request.model.filter(|value| !value.trim().is_empty()) {
+            command.args(["--model", model.trim()]);
+        }
+        command
+            .current_dir(&cwd)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if let Some(proxy) = request.proxy.filter(|value| !value.trim().is_empty()) {
+            for name in [
+                "HTTP_PROXY",
+                "HTTPS_PROXY",
+                "ALL_PROXY",
+                "http_proxy",
+                "https_proxy",
+                "all_proxy",
+            ] {
+                command.env(name, &proxy);
+            }
+        }
+        if let Some(no_proxy) = request.no_proxy.filter(|value| !value.trim().is_empty()) {
+            command.env("NO_PROXY", &no_proxy).env("no_proxy", no_proxy);
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt as _;
+            command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        }
+        let mut child = command.spawn().map_err(|error| {
+            format!("could not start Pi through Bun. Install Bun or set WABOU_PI_BIN: {error}")
+        })?;
+        let stdin = Arc::new(Mutex::new(
+            child.stdin.take().ok_or("Pi stdin was not piped")?,
+        ));
+        let stdout = child.stdout.take().ok_or("Pi stdout was not piped")?;
+        let stderr = child.stderr.take().ok_or("Pi stderr was not piped")?;
+
+        let stdout_events = self.events_tx.clone();
+        let stdout_agent_id = request.agent_id.clone();
+        std::thread::Builder::new()
+            .name("pi-rpc-stdout".to_owned())
+            .spawn(move || {
+                for line in BufReader::new(stdout).lines() {
+                    match line {
+                        Ok(line) if !line.is_empty() => match serde_json::from_str(&line) {
+                            Ok(event) => {
+                                let _ = stdout_events.send(tag_event(&stdout_agent_id, event));
+                            }
+                            Err(error) => {
+                                let _ = stdout_events.send(tag_event(
+                                    &stdout_agent_id,
+                                    json!({
+                                        "type":"bridge_error",
+                                        "message":format!("invalid Pi RPC event: {error}")
+                                    }),
+                                ));
+                            }
+                        },
+                        Ok(_) => {}
+                        Err(error) => {
+                            let _ = stdout_events.send(tag_event(
+                                &stdout_agent_id,
+                                json!({"type":"bridge_error","message":error.to_string()}),
+                            ));
+                            break;
+                        }
+                    }
+                }
+                let _ =
+                    stdout_events.send(tag_event(&stdout_agent_id, json!({"type":"process_exit"})));
+            })
+            .map_err(|error| error.to_string())?;
+        let stderr_events = self.events_tx.clone();
+        let stderr_agent_id = request.agent_id.clone();
+        std::thread::Builder::new()
+            .name("pi-rpc-stderr".to_owned())
+            .spawn(move || {
+                for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                    let _ = stderr_events.send(tag_event(
+                        &stderr_agent_id,
+                        json!({"type":"process_log","message":line}),
+                    ));
+                }
+            })
+            .map_err(|error| error.to_string())?;
+
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| "Pi process lock poisoned".to_owned())?;
+        state.insert(
+            request.agent_id.clone(),
+            PiProcess {
+                child: Some(child),
+                stdin: Some(stdin),
+                cwd: Some(cwd),
+                last_error: None,
+            },
+        );
+        drop(state);
+        self.events_tx
+            .send(tag_event(
+                &request.agent_id,
+                json!({"type":"process_start"}),
+            ))
+            .map_err(|error| error.to_string())?;
+        self.send(
+            &request.agent_id,
+            json!({"id":"wabou-bootstrap-state","type":"get_state"}),
+        )?;
+        self.status(&request.agent_id)
+    }
+
+    fn send(&self, agent_id: &str, value: Value) -> Result<(), String> {
+        let stdin = self
+            .state
+            .lock()
+            .map_err(|_| "Pi process lock poisoned".to_owned())?
+            .get(agent_id)
+            .and_then(|process| process.stdin.clone())
+            .ok_or_else(|| format!("Pi agent `{agent_id}` is not running"))?;
+        let mut stdin = stdin.lock().map_err(|_| "Pi stdin lock poisoned")?;
+        serde_json::to_writer(&mut *stdin, &value).map_err(|error| error.to_string())?;
+        stdin.write_all(b"\n").map_err(|error| error.to_string())?;
+        stdin.flush().map_err(|error| error.to_string())
+    }
+
+    fn stop(&self, agent_id: &str) -> Result<(), String> {
+        let process = self
+            .state
+            .lock()
+            .map_err(|_| "Pi process lock poisoned".to_owned())?
+            .remove(agent_id);
+        if let Some(mut child) = process.and_then(|mut process| process.child.take()) {
+            child.kill().map_err(|error| error.to_string())?;
+            let _ = child.wait();
+        }
+        Ok(())
+    }
+}
+
+fn validate_agent_id(agent_id: &str) -> Result<(), String> {
+    if agent_id.is_empty()
+        || !agent_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    {
+        return Err("agentId must contain only letters, numbers, '-' or '_'".to_owned());
+    }
+    Ok(())
+}
+
+fn tag_event(agent_id: &str, mut event: Value) -> Value {
+    if let Some(object) = event.as_object_mut() {
+        object.insert("agentId".to_owned(), Value::String(agent_id.to_owned()));
+    }
+    event
+}
+
+impl Drop for PiProcess {
+    fn drop(&mut self) {
+        if let Some(child) = self.child.as_mut() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Result<()> {
+    let status = service.clone();
+    capability.method(GET_STATUS, move |request: AgentRequest| {
+        let service = status.clone();
+        async move { service.status(&request.agent_id) }
+    })?;
+    let start = service.clone();
+    capability.method(START, move |request: StartRequest| {
+        let service = start.clone();
+        async move { service.start(request) }
+    })?;
+    let prompt = service.clone();
+    capability.method(PROMPT, move |request: PromptRequest| {
+        let service = prompt.clone();
+        async move {
+            let message = request.message.trim();
+            if message.is_empty() {
+                return Err("prompt cannot be empty".to_owned());
+            }
+            service.send(
+                &request.agent_id,
+                json!({"type":"prompt","message":message}),
+            )
+        }
+    })?;
+    let abort = service.clone();
+    capability.method(ABORT, move |request: AgentRequest| {
+        let service = abort.clone();
+        async move { service.send(&request.agent_id, json!({"type":"abort"})) }
+    })?;
+    let stop = service.clone();
+    capability.method(STOP, move |request: AgentRequest| {
+        let service = stop.clone();
+        async move { service.stop(&request.agent_id) }
+    })?;
+    let new_session = service.clone();
+    capability.method(NEW_SESSION, move |request: AgentRequest| {
+        let service = new_session.clone();
+        async move {
+            service.send(&request.agent_id, json!({"type":"new_session"}))?;
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-new-session-state","type":"get_state"}),
+            )
+        }
+    })?;
+    let cycle_model = service.clone();
+    capability.method(CYCLE_MODEL, move |request: AgentRequest| {
+        let service = cycle_model.clone();
+        async move { service.send(&request.agent_id, json!({"type":"cycle_model"})) }
+    })?;
+    let cycle_thinking = service.clone();
+    capability.method(CYCLE_THINKING, move |request: AgentRequest| {
+        let service = cycle_thinking.clone();
+        async move { service.send(&request.agent_id, json!({"type":"cycle_thinking_level"})) }
+    })?;
+    capability.method(SET_MODEL, move |request: SetModelRequest| {
+        let service = service.clone();
+        async move {
+            service.send(
+                &request.agent_id,
+                json!({"type":"set_model","provider":request.provider,"modelId":request.model_id}),
+            )
+        }
+    })
+}
+
+fn drain_event_batch(first: Value, receiver: &flume::Receiver<Value>) -> Vec<Value> {
+    let mut events = Vec::with_capacity(32);
+    events.push(first);
+    while events.len() < 64 {
+        match receiver.try_recv() {
+            Ok(event) => events.push(event),
+            Err(_) => break,
+        }
+    }
+    events
+}
+
+pub fn stream_events(context: HostMessageContext, service: PiService) {
+    let producer = context.clone();
+    context.spawn(async move {
+        loop {
+            tokio::select! {
+                () = producer.cancelled() => break,
+                event = service.events_rx.recv_async() => match event {
+                    Ok(event) => {
+                        // Pi can emit a JSONL record for every streamed token. Give the reader a
+                        // short coalescing window, then deliver one JS update for the whole batch.
+                        tokio::time::sleep(std::time::Duration::from_millis(8)).await;
+                        let events = drain_event_batch(event, &service.events_rx);
+                        let payload = match serde_json::to_string(&events) {
+                            Ok(payload) => payload,
+                            Err(error) => {
+                                tracing::warn!(?error, "could not encode Pi event batch");
+                                continue;
+                            }
+                        };
+                        if producer.messages().send_async(HostMessage::str(EVENT_TOPIC, payload)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_is_stopped_before_start() {
+        let status = PiService::new().status("default").expect("status");
+        assert!(!status.running);
+        assert_eq!(status.runtime, "bun");
+    }
+
+    #[test]
+    fn event_batch_is_bounded_and_leaves_backpressure_in_the_channel() {
+        let (sender, receiver) = flume::bounded(128);
+        for index in 1..=70 {
+            sender.send(json!({"index": index})).expect("queued event");
+        }
+        let first = receiver.recv().expect("first event");
+        let batch = drain_event_batch(first, &receiver);
+        assert_eq!(batch.len(), 64);
+        assert_eq!(receiver.len(), 6);
+    }
+
+    #[test]
+    fn tags_events_with_their_agent_identity() {
+        assert_eq!(
+            tag_event("agent-2", json!({"type":"agent_start"}))["agentId"],
+            "agent-2"
+        );
+    }
+}

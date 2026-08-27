@@ -1,0 +1,18 @@
+[package]
+name = "pi-agent-wabou"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "pi-agent-wabou"
+path = "src/main.rs"
+
+[dependencies]
+flume = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+snafu = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tokio = { workspace = true, features = ["macros"] }
+wabou = { workspace = true }

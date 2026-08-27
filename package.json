@@ -47,6 +47,7 @@
     "apps/hackernews",
     "apps/manga-ocr",
     "apps/motrix",
+    "apps/pi-agent",
     "apps/stress",
     "apps/terminal",
     "apps/vlist"

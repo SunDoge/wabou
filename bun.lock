@@ -119,6 +119,22 @@
         "vite": "^6.0.0",
       },
     },
+    "apps/pi-agent": {
+      "name": "@wabou/pi-agent",
+      "version": "0.0.0",
+      "dependencies": {
+        "@wabou/ui": "workspace:*",
+        "lucide-static": "1.31.0",
+        "solid-js": "2.0.0-rc.2",
+        "ts-pattern": "^5.9.0",
+      },
+      "devDependencies": {
+        "@inlang/paraglide-js": "^2.24.1",
+        "@wabou/test": "workspace:*",
+        "@wabou/vite": "workspace:*",
+        "vite": "^6.0.0",
+      },
+    },
     "apps/stress": {
       "name": "@wabou/stress",
       "version": "0.0.0",
@@ -740,6 +756,8 @@
     "@wabou/manga-ocr": ["@wabou/manga-ocr@workspace:apps/manga-ocr"],
 
     "@wabou/motrix": ["@wabou/motrix@workspace:apps/motrix"],
+
+    "@wabou/pi-agent": ["@wabou/pi-agent@workspace:apps/pi-agent"],
 
     "@wabou/stress": ["@wabou/stress@workspace:apps/stress"],
 
