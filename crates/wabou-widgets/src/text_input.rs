@@ -67,6 +67,7 @@ pub struct TextInput {
     font_weight: f32,
     font_italic: bool,
     line_height: Option<(f32, bool)>,
+    font_family: Option<Arc<str>>,
     text_color: Color,
     focused: bool,
     blink_on: bool,
@@ -80,16 +81,29 @@ pub struct TextInput {
     multiline: bool,
     viewport_width: f32,
     viewport_height: f32,
+    scroll_x: f32,
     scroll_y: f32,
     disabled: bool,
     read_only: bool,
     text_metrics: Option<SingleLineTextMetrics>,
+    single_line_y_offset: f32,
 }
 
 impl Default for TextInput {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn snap_metrics_baseline(
+    mut metrics: SingleLineTextMetrics,
+    device_scale: f64,
+) -> SingleLineTextMetrics {
+    let scale = device_scale.max(f64::EPSILON) as f32;
+    let snapped_baseline = (metrics.baseline * scale).round() / scale;
+    metrics.line_box[1] += snapped_baseline - metrics.baseline;
+    metrics.baseline = snapped_baseline;
+    metrics
 }
 
 impl TextInput {
@@ -104,29 +118,42 @@ impl TextInput {
     }
 
     fn with_multiline(multiline: bool) -> Self {
+        let mut editor = PlainEditor::new(16.0);
+        editor
+            .edit_styles()
+            .insert(parley::StyleProperty::LineHeight(
+                parley::LineHeight::Absolute(16.0 * 1.2),
+            ));
         Self {
-            editor: PlainEditor::new(16.0),
+            editor,
             placeholder: String::new(),
             font_size: 16.0,
             font_weight: 400.0,
             font_italic: false,
             line_height: None,
+            font_family: None,
             text_color: Color::from_rgb8(0xe2, 0xe8, 0xf0),
             focused: false,
             blink_on: true,
             next_blink: None,
             pending: Vec::new(),
-            needs_refresh: false,
+            // PlainEditor does not have a shaped layout until its driver is
+            // refreshed. The empty editor still defines the canonical input
+            // baseline used by the placeholder, so initialize it on the first
+            // paint even when no authored style differs from the defaults.
+            needs_refresh: true,
             cached_value: String::new(),
             selecting: false,
             last_click: None,
             multiline,
             viewport_width: 0.0,
             viewport_height: 0.0,
+            scroll_x: 0.0,
             scroll_y: 0.0,
             disabled: false,
             read_only: false,
             text_metrics: None,
+            single_line_y_offset: 0.0,
         }
     }
 
@@ -146,34 +173,65 @@ impl TextInput {
         self.text_color
     }
 
+    fn used_line_height(&self) -> (f32, bool) {
+        self.line_height.unwrap_or((self.font_size * 1.2, false))
+    }
+
+    fn sync_editor_line_height(&mut self) {
+        let (value, relative) = self.used_line_height();
+        self.editor
+            .edit_styles()
+            .insert(parley::StyleProperty::LineHeight(if relative {
+                parley::LineHeight::FontSizeRelative(value)
+            } else {
+                parley::LineHeight::Absolute(value)
+            }));
+        self.needs_refresh = true;
+    }
+
     fn local_point(&self, x: f64, y: f64) -> (f32, f32) {
-        let local_x = x as f32;
+        let mut local_x = x as f32;
         let mut local_y = y as f32;
         if self.multiline {
             local_y += self.scroll_y;
+        } else {
+            local_x += self.scroll_x;
+            local_y -= self.single_line_y_offset;
         }
         (local_x, local_y)
     }
 
     fn clamp_scroll(&mut self) {
-        let content_height = self
-            .editor
-            .try_layout()
-            .map_or(0.0, |layout| layout.height());
-        self.scroll_y = self
-            .scroll_y
-            .clamp(0.0, (content_height - self.viewport_height).max(0.0));
+        let Some(layout) = self.editor.try_layout() else {
+            self.scroll_x = 0.0;
+            self.scroll_y = 0.0;
+            return;
+        };
+        if self.multiline {
+            self.scroll_x = 0.0;
+            self.scroll_y = self
+                .scroll_y
+                .clamp(0.0, (layout.height() - self.viewport_height).max(0.0));
+        } else {
+            self.scroll_y = 0.0;
+            self.scroll_x = self
+                .scroll_x
+                .clamp(0.0, (layout.full_width() - self.viewport_width).max(0.0));
+        }
     }
 
     fn reveal_caret(&mut self) {
-        if !self.multiline {
-            return;
-        }
         if let Some(caret) = self.editor.cursor_geometry(1.5) {
-            if caret.y0 < f64::from(self.scroll_y) {
-                self.scroll_y = caret.y0 as f32;
-            } else if caret.y1 > f64::from(self.scroll_y + self.viewport_height) {
-                self.scroll_y = (caret.y1 as f32 - self.viewport_height).max(0.0);
+            if self.multiline {
+                if caret.y0 < f64::from(self.scroll_y) {
+                    self.scroll_y = caret.y0 as f32;
+                } else if caret.y1 > f64::from(self.scroll_y + self.viewport_height) {
+                    self.scroll_y = (caret.y1 as f32 - self.viewport_height).max(0.0);
+                }
+            } else if caret.x0 < f64::from(self.scroll_x) {
+                self.scroll_x = caret.x0 as f32;
+            } else if caret.x1 > f64::from(self.scroll_x + self.viewport_width) {
+                self.scroll_x = (caret.x1 as f32 - self.viewport_width).max(0.0);
             }
         }
         self.clamp_scroll();
@@ -396,9 +454,12 @@ impl TextInput {
         &self,
         cx: &mut PaintContext<'_>,
         width: f32,
-        height: f32,
+        canonical_metrics: Option<SingleLineTextMetrics>,
     ) -> Option<SingleLineTextMetrics> {
-        if !self.cached_value.is_empty() || self.placeholder.is_empty() {
+        if !self.cached_value.is_empty()
+            || self.editor.is_composing()
+            || self.placeholder.is_empty()
+        {
             return None;
         }
         let layout = layout_text_styled(
@@ -407,37 +468,61 @@ impl TextInput {
             self.font_size,
             self.font_weight,
             self.font_italic,
-            self.line_height,
+            Some(self.used_line_height()),
             TextAlign::Start,
             brush_for_color(PLACEHOLDER_COLOR),
             Arc::from([]),
-            None,
+            self.font_family.as_ref(),
             self.multiline.then_some(width.max(0.0)),
         );
-        let metrics = (!self.multiline)
-            .then(|| single_line_text_metrics(&layout, height))
-            .flatten();
-        let y_offset = metrics.map_or(0.0, |metrics| f64::from(metrics.line_box[1]));
+        // The placeholder uses a separate layout from PlainEditor. Its line
+        // metrics can differ fractionally even with identical authored styles,
+        // which made the first typed glyph jump when the placeholder vanished.
+        // Use the primary-font strut as the canonical input baseline and
+        // retain only the placeholder's measured width.
+        let metrics = if self.multiline {
+            None
+        } else {
+            canonical_metrics.map(|mut metrics| {
+                metrics.line_box[2] = layout.width();
+                metrics
+            })
+        };
+        let y_offset = metrics
+            .zip(layout.lines().next())
+            .map_or(0.0, |(metrics, line)| {
+                f64::from(metrics.baseline - line.metrics().baseline)
+            });
         cx.draw_text_layout(&layout, [0.0, y_offset]);
         metrics
     }
 
     fn paint_editor(
-        &self,
+        &mut self,
         scene: &mut Scene,
-        height: f32,
         device_scale: f64,
+        canonical_metrics: Option<SingleLineTextMetrics>,
     ) -> Option<SingleLineTextMetrics> {
         let layout = self.editor.try_layout()?;
-        let metrics = (!self.multiline)
-            .then(|| single_line_text_metrics(layout, height))
-            .flatten();
+        let metrics = canonical_metrics.map(|mut metrics| {
+            metrics.line_box[2] = layout.width();
+            metrics
+        });
+        self.single_line_y_offset = metrics
+            .zip(layout.lines().next())
+            .map_or(0.0, |(metrics, line)| {
+                metrics.baseline - line.metrics().baseline
+            });
         let transform = Affine::translate((
-            0.0,
+            if self.multiline {
+                0.0
+            } else {
+                -f64::from(self.scroll_x)
+            },
             if self.multiline {
                 -f64::from(self.scroll_y)
             } else {
-                f64::from(metrics.map_or(0.0, |metrics| metrics.line_box[1]))
+                f64::from(self.single_line_y_offset)
             },
         ));
         if self.focused {
@@ -451,35 +536,29 @@ impl TextInput {
                 );
             }
         }
-        if !self.cached_value.is_empty() {
-            for line in layout.lines() {
-                for item in line.items() {
-                    let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
-                        continue;
-                    };
-                    let glyphs: Vec<_> = glyph_run
-                        .positioned_glyphs()
-                        .map(|glyph| anyrender::Glyph {
+        for line in layout.lines() {
+            for item in line.items() {
+                let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
+                    continue;
+                };
+                if glyph_run.positioned_glyphs().next().is_some() {
+                    scene.draw_glyphs(
+                        glyph_run.run().font(),
+                        glyph_run.run().font_size() * device_scale as f32,
+                        true,
+                        glyph_run.run().normalized_coords(),
+                        vello::kurbo::Vec2::ZERO,
+                        Fill::NonZero,
+                        self.text_color,
+                        1.0,
+                        transform * Affine::scale(device_scale.recip()),
+                        None,
+                        glyph_run.positioned_glyphs().map(|glyph| anyrender::Glyph {
                             id: glyph.id,
                             x: glyph.x * device_scale as f32,
                             y: glyph.y * device_scale as f32,
-                        })
-                        .collect();
-                    if !glyphs.is_empty() {
-                        scene.draw_glyphs(
-                            glyph_run.run().font(),
-                            glyph_run.run().font_size() * device_scale as f32,
-                            true,
-                            glyph_run.run().normalized_coords(),
-                            vello::kurbo::Vec2::ZERO,
-                            Fill::NonZero,
-                            self.text_color,
-                            1.0,
-                            transform * Affine::scale(device_scale.recip()),
-                            None,
-                            glyphs.into_iter(),
-                        );
-                    }
+                        }),
+                    );
                 }
             }
         }
@@ -504,11 +583,33 @@ impl Widget for TextInput {
         let [width, height] = cx.size();
         let device_scale = cx.device_scale();
         if self.multiline && self.viewport_width != width {
-            self.viewport_width = width;
+            self.viewport_width = width.max(0.0);
             self.editor.set_width(Some(width.max(0.0)));
             self.needs_refresh = true;
+        } else {
+            self.viewport_width = width.max(0.0);
         }
         self.viewport_height = height.max(0.0);
+
+        let canonical_metrics = if self.multiline {
+            None
+        } else {
+            let strut = layout_text_styled(
+                cx.text(),
+                Arc::from(""),
+                self.font_size,
+                self.font_weight,
+                self.font_italic,
+                Some(self.used_line_height()),
+                TextAlign::Start,
+                brush_for_color(self.text_color),
+                Arc::from([]),
+                self.font_family.as_ref(),
+                None,
+            );
+            single_line_text_metrics(&strut, height)
+                .map(|metrics| snap_metrics_baseline(metrics, device_scale))
+        };
 
         // Blink.
         if self.focused && self.next_blink.is_some_and(|d| Instant::now() >= d) {
@@ -519,11 +620,16 @@ impl Widget for TextInput {
         self.refresh_editor(cx.text());
 
         // Cache value for current_value().
-        self.cached_value = self.editor.text().to_string();
+        if self.editor.text() != self.cached_value.as_str() {
+            self.cached_value.clear();
+            for chunk in self.editor.text() {
+                self.cached_value.push_str(chunk);
+            }
+        }
 
         let mut scene = Scene::new();
-        let placeholder_metrics = self.paint_placeholder(cx, width, height);
-        let editor_metrics = self.paint_editor(&mut scene, height, device_scale);
+        let placeholder_metrics = self.paint_placeholder(cx, width, canonical_metrics);
+        let editor_metrics = self.paint_editor(&mut scene, device_scale, canonical_metrics);
         self.text_metrics = placeholder_metrics.or(editor_metrics);
         cx.scene_mut().append_scene(scene, Affine::IDENTITY);
     }
@@ -534,11 +640,24 @@ impl Widget for TextInput {
         }
         match event {
             UiEvent::Pointer(event) => self.handle_pointer(event),
-            UiEvent::Wheel(event) if self.multiline => {
-                let previous = self.scroll_y;
-                self.scroll_y += event.delta_y as f32;
+            UiEvent::Wheel(event) => {
+                let previous = if self.multiline {
+                    self.scroll_y
+                } else {
+                    self.scroll_x
+                };
+                if self.multiline {
+                    self.scroll_y += event.delta_y as f32;
+                } else {
+                    self.scroll_x += event.delta_x as f32;
+                }
                 self.clamp_scroll();
-                if self.scroll_y != previous {
+                let current = if self.multiline {
+                    self.scroll_y
+                } else {
+                    self.scroll_x
+                };
+                if current != previous {
                     WidgetEventResult::HANDLED
                 } else {
                     WidgetEventResult::IGNORED
@@ -617,6 +736,9 @@ impl Widget for TextInput {
                     self.editor
                         .edit_styles()
                         .insert(parley::StyleProperty::FontSize(px));
+                    if self.line_height.is_none() {
+                        self.sync_editor_line_height();
+                    }
                     self.needs_refresh = true;
                 }
             }
@@ -661,12 +783,14 @@ impl Widget for TextInput {
 
     fn style_changed(&mut self, style: &WidgetStyle) -> WidgetChanges {
         self.text_color = style.color;
+        let mut line_height_changed = false;
         if self.font_size != style.font_size {
             self.font_size = style.font_size;
             self.editor
                 .edit_styles()
                 .insert(parley::StyleProperty::FontSize(style.font_size));
             self.needs_refresh = true;
+            line_height_changed = self.line_height.is_none();
         }
         if self.font_weight != style.font_weight {
             self.font_weight = style.font_weight;
@@ -690,14 +814,26 @@ impl Widget for TextInput {
         }
         if self.line_height != style.line_height {
             self.line_height = style.line_height;
-            let line_height = match style.line_height {
-                Some((value, true)) => parley::LineHeight::FontSizeRelative(value),
-                Some((value, false)) => parley::LineHeight::Absolute(value),
-                None => parley::LineHeight::default(),
-            };
-            self.editor
-                .edit_styles()
-                .insert(parley::StyleProperty::LineHeight(line_height));
+            line_height_changed = true;
+        }
+        if line_height_changed {
+            self.sync_editor_line_height();
+        }
+        if self.font_family != style.font_family {
+            self.font_family = style.font_family.clone();
+            if let Some(family) = self.font_family.as_ref() {
+                self.editor
+                    .edit_styles()
+                    .insert(parley::StyleProperty::FontFamily(
+                        parley::FontFamily::from(family.as_ref()).into_owned(),
+                    ));
+            } else {
+                self.editor.edit_styles().remove(core::mem::discriminant(
+                    &parley::StyleProperty::<[u8; 4]>::FontFamily(
+                        parley::FontFamily::from("").into_owned(),
+                    ),
+                ));
+            }
             self.needs_refresh = true;
         }
         WidgetChanges::REDRAW
@@ -735,12 +871,33 @@ impl Widget for TextInput {
             return None;
         }
         let area = self.editor.ime_cursor_area();
-        let y_offset = if self.multiline { -self.scroll_y } else { 0.0 };
+        let caret = self.editor.cursor_geometry(1.5);
+        let (x0, x1, y0, y1) = caret.map_or(
+            (
+                area.x1 as f32,
+                area.x1 as f32 + 1.5,
+                area.y0 as f32,
+                area.y1 as f32,
+            ),
+            |caret| {
+                (
+                    caret.x0 as f32,
+                    caret.x1 as f32,
+                    caret.y0 as f32,
+                    caret.y1 as f32,
+                )
+            },
+        );
+        let y_offset = if self.multiline {
+            -self.scroll_y
+        } else {
+            self.single_line_y_offset
+        };
         Some([
-            area.x0 as f32,
-            area.y0 as f32 + y_offset,
-            area.x1 as f32,
-            area.y1 as f32 + y_offset,
+            x0 - self.scroll_x,
+            y0 + y_offset,
+            x1 - self.scroll_x,
+            y1 + y_offset,
         ])
     }
 }
@@ -821,6 +978,112 @@ mod tests {
     }
 
     #[test]
+    fn single_line_input_scrolls_caret_and_keeps_pointer_and_ime_coordinates_in_sync() {
+        let mut input = TextInput::new();
+        input.attribute_changed("value", "the quick brown fox jumps over the lazy dog");
+        input.focus_changed(true);
+        let mut tcx = TextContext::new();
+        input.paint(48.0, 30.0, &mut tcx);
+        input.queue(PendingEdit::MoveToEnd);
+        input.paint(48.0, 30.0, &mut tcx);
+
+        assert!(input.scroll_x > 0.0, "the end caret must remain visible");
+        let (text_x, text_y) = input.local_point(4.0, 12.0);
+        assert_eq!(text_x, 4.0 + input.scroll_x);
+        assert_eq!(text_y, 12.0 - input.single_line_y_offset);
+
+        let raw = input.editor.cursor_geometry(1.5).expect("caret");
+        let ime = input.ime_cursor_area().expect("IME cursor area");
+        assert_eq!(ime[0], raw.x0 as f32 - input.scroll_x);
+        assert_eq!(ime[2], raw.x1 as f32 - input.scroll_x);
+
+        input.queue(PendingEdit::MoveToStart);
+        input.paint(48.0, 30.0, &mut tcx);
+        assert_eq!(input.scroll_x, 0.0);
+    }
+
+    #[test]
+    fn text_input_uses_the_computed_font_family() {
+        let mut input = TextInput::new();
+        let family: Arc<str> = Arc::from("Menlo, monospace");
+        input.style_changed(&WidgetStyle {
+            background: None,
+            color: input.text_color,
+            font_size: input.font_size,
+            font_weight: input.font_weight,
+            font_italic: input.font_italic,
+            line_height: input.line_height,
+            text_align: TextAlign::Start,
+            font_family: Some(family.clone()),
+        });
+
+        assert_eq!(input.font_family, Some(family));
+        assert!(input.needs_refresh);
+    }
+
+    #[test]
+    fn mixed_script_preedit_keeps_the_multiline_caret_box_stable() {
+        let mut input = TextInput::multiline();
+        input.attribute_changed("font-size", "14px");
+        input.attribute_changed("value", "abc");
+        input.focus_changed(true);
+        let mut tcx = TextContext::new();
+        input.paint(240.0, 80.0, &mut tcx);
+        let latin = input.editor.cursor_geometry(1.5).expect("Latin caret");
+        let latin_line = input
+            .editor
+            .try_layout()
+            .and_then(|layout| layout.lines().next())
+            .expect("Latin line")
+            .metrics()
+            .clone();
+        let latin_box = (latin.y0 as f32, latin.y1 as f32);
+
+        input.handle_event(&UiEvent::Ime(ImeEvent::Preedit {
+            text: "你".into(),
+            cursor: Some((3, 3)),
+        }));
+        input.paint(240.0, 80.0, &mut tcx);
+        let mixed = input.editor.cursor_geometry(1.5).expect("mixed caret");
+        let mixed_line = input
+            .editor
+            .try_layout()
+            .and_then(|layout| layout.lines().next())
+            .expect("mixed line")
+            .metrics()
+            .clone();
+        let mixed_box = (mixed.y0 as f32, mixed.y1 as f32);
+
+        assert_eq!(
+            latin_box, mixed_box,
+            "latin={latin:?} {latin_line:?} mixed={mixed:?} {mixed_line:?}"
+        );
+    }
+
+    #[test]
+    fn empty_textarea_paints_preedit_instead_of_the_placeholder() {
+        let mut input = TextInput::multiline();
+        input.attribute_changed("placeholder", "Write a message");
+        input.handle_event(&UiEvent::Ime(ImeEvent::Preedit {
+            text: "中文".into(),
+            cursor: Some((6, 6)),
+        }));
+        let mut tcx = TextContext::new();
+        let scene = input.paint(240.0, 80.0, &mut tcx);
+
+        assert!(input.cached_value.is_empty());
+        assert!(input.editor.is_composing());
+        assert!(!scene.commands.is_empty(), "preedit glyphs must be painted");
+        let mut placeholder_context = PaintContext::new(240.0, 80.0, 1.0, &mut tcx);
+        assert!(
+            input
+                .paint_placeholder(&mut placeholder_context, 240.0, None)
+                .is_none(),
+            "placeholder must stay hidden while composing"
+        );
+    }
+
+    #[test]
     fn pointer_coordinates_are_widget_local() {
         let mut input = TextInput::new();
         input.handle_event(&pointer(PointerPhase::Down, 10.0, 5));
@@ -852,6 +1115,38 @@ mod tests {
             input.caret_color(),
             wabou_shell::style::parse_color("#111827").unwrap()
         );
+    }
+
+    #[test]
+    fn placeholder_and_first_typed_glyph_keep_the_same_baseline() {
+        let mut input = TextInput::new();
+        input.attribute_changed("font-size", "14px");
+        input.attribute_changed("placeholder", "Choose a repository");
+        let mut tcx = TextContext::new();
+        input.paint(240.0, 30.0, &mut tcx);
+        let placeholder = input.text_metrics.expect("placeholder metrics");
+
+        input.handle_event(&UiEvent::TextInput("a".into()));
+        input.paint(240.0, 30.0, &mut tcx);
+        let typed = input.text_metrics.expect("typed text metrics");
+
+        assert_eq!(placeholder.baseline, typed.baseline);
+        assert_eq!(placeholder.line_box[1], typed.line_box[1]);
+
+        let mut composing = TextInput::new();
+        composing.attribute_changed("font-size", "14px");
+        composing.attribute_changed("placeholder", "Choose a repository");
+        composing.paint(240.0, 30.0, &mut tcx);
+        let placeholder = composing.text_metrics.expect("placeholder metrics");
+        composing.focus_changed(true);
+        composing.handle_event(&UiEvent::Ime(ImeEvent::Preedit {
+            text: "你".into(),
+            cursor: Some((3, 3)),
+        }));
+        composing.paint(240.0, 30.0, &mut tcx);
+        let preedit = composing.text_metrics.expect("preedit metrics");
+        assert_eq!(placeholder.baseline, preedit.baseline);
+        assert_eq!(placeholder.line_box[1], preedit.line_box[1]);
     }
 
     #[test]
@@ -993,7 +1288,25 @@ mod tests {
                 .is_handled()
         );
         input.paint(200.0, 32.0, &mut tcx);
-        assert!(input.ime_cursor_area().is_some());
+        let raw_area = input.editor.cursor_geometry(1.5).expect("preedit caret");
+        let area = input.ime_cursor_area().expect("IME cursor area");
+        assert_eq!(area[1], raw_area.y0 as f32 + input.single_line_y_offset);
+        assert_eq!(area[3], raw_area.y1 as f32 + input.single_line_y_offset);
+
+        let mut paint = PaintContext::new_clipped(200.0, 32.0, 6.0, 2.0, &mut tcx);
+        <TextInput as Widget>::paint(&mut input, &mut paint);
+        let scene = paint.finish();
+        let path =
+            std::env::temp_dir().join(format!("wabou-ime-preedit-{}.png", std::process::id()));
+        wabou_shell::renderer::render_to_png(
+            &scene,
+            400,
+            64,
+            Color::TRANSPARENT,
+            &path.to_string_lossy(),
+        )
+        .expect("render IME preedit scene");
+        std::fs::remove_file(path).expect("remove owned IME render");
 
         assert!(
             input

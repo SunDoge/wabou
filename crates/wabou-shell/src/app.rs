@@ -168,6 +168,7 @@ pub struct App {
     pointer_buttons: u32,
     pointer_position: Point,
     pointer_states: HashMap<PointerId, (Point, u32, PointerProperties)>,
+    ime_requested: bool,
     ime_enabled: bool,
     ime_cursor_area: Option<[f64; 4]>,
     startup_error: Arc<Mutex<Option<crate::Error>>>,
@@ -292,6 +293,7 @@ impl App {
             pointer_buttons: 0,
             pointer_position: Point { x: 0.0, y: 0.0 },
             pointer_states: HashMap::new(),
+            ime_requested: false,
             ime_enabled: false,
             ime_cursor_area: None,
             startup_error: Arc::new(Mutex::new(None)),
@@ -614,27 +616,18 @@ impl App {
             self.drain_effects() | self.poll_modal_effects() | self.poll_effect_completions();
         response.handled |= host_action || effect;
         response.request_redraw |= host_action || effect;
-        if let Some(allowed) = response.text_input
-            && allowed != self.ime_enabled
-            && let Some(shell) = self.state.as_ref()
-        {
-            let request = if allowed {
-                let (position, size) = Self::ime_cursor_rect(self.ime_cursor_area);
-                let capabilities = ImeCapabilities::new()
-                    .with_hint_and_purpose()
-                    .with_cursor_area();
-                let data = ImeRequestData::default()
-                    .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
-                    .with_cursor_area(position.into(), size.into());
-                ImeRequest::Enable(
-                    ImeEnableRequest::new(capabilities, data)
-                        .expect("IME capabilities and initial data must match"),
-                )
-            } else {
-                ImeRequest::Disable
-            };
-            if shell.window().request_ime_update(request).is_ok() {
-                self.ime_enabled = allowed;
+        if let Some(allowed) = response.text_input {
+            self.ime_requested = allowed;
+            if allowed {
+                self.enable_ime_if_ready();
+            } else if self.ime_enabled
+                && let Some(shell) = self.state.as_ref()
+                && shell
+                    .window()
+                    .request_ime_update(ImeRequest::Disable)
+                    .is_ok()
+            {
+                self.ime_enabled = false;
             }
         }
         if response.request_redraw
@@ -653,19 +646,71 @@ impl App {
         )
     }
 
-    fn update_ime_cursor_area(&mut self) {
-        let area = self.source.ime_cursor_area();
-        if area == self.ime_cursor_area {
+    fn enable_ime_if_ready(&mut self) {
+        if !self.ime_requested || self.ime_enabled {
             return;
         }
+        let Some(area) = self.ime_cursor_area else {
+            return;
+        };
+        let Some(shell) = self.state.as_ref() else {
+            return;
+        };
+        let (position, size) = Self::ime_cursor_rect(Some(area));
+        let capabilities = ImeCapabilities::new()
+            .with_hint_and_purpose()
+            .with_cursor_area();
+        let data = ImeRequestData::default()
+            .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
+            .with_cursor_area(position.into(), size.into());
+        let request = ImeRequest::Enable(
+            ImeEnableRequest::new(capabilities, data)
+                .expect("IME capabilities and initial data must match"),
+        );
+        if shell.window().request_ime_update(request).is_ok() {
+            self.ime_enabled = true;
+            tracing::debug!(
+                target: "wabou::ime",
+                x = position.x,
+                y = position.y,
+                width = size.width,
+                height = size.height,
+                "enabled IME with resolved caret area"
+            );
+        }
+    }
+
+    fn update_ime_cursor_area(&mut self) {
+        let area = self.source.ime_cursor_area();
+        let changed = area != self.ime_cursor_area;
         self.ime_cursor_area = area;
+        if self.ime_requested && !self.ime_enabled {
+            self.enable_ime_if_ready();
+            return;
+        }
+        if !changed {
+            return;
+        }
         if !self.ime_enabled {
             return;
         }
         if let Some(shell) = self.state.as_ref() {
             let (position, size) = Self::ime_cursor_rect(self.ime_cursor_area);
             let data = ImeRequestData::default().with_cursor_area(position.into(), size.into());
-            let _ = shell.window().request_ime_update(ImeRequest::Update(data));
+            if shell
+                .window()
+                .request_ime_update(ImeRequest::Update(data))
+                .is_ok()
+            {
+                tracing::debug!(
+                    target: "wabou::ime",
+                    x = position.x,
+                    y = position.y,
+                    width = size.width,
+                    height = size.height,
+                    "updated IME caret area"
+                );
+            }
         }
     }
 

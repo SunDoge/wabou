@@ -77,23 +77,12 @@ fn widget_clip(node: &PlacedNode) -> Option<([f32; 4], f64)> {
         .map(|clip| (clip, node.own_clip_radius as f64))
 }
 
-fn append_widget(scene: &mut Scene, node: &PlacedNode, widget: &Scene, transform: Affine) {
-    let radius = node.paint.border_radius as f64;
-    if radius <= 0.0 {
-        append_fragment(scene, widget, Some(transform));
-        return;
-    }
-    let [top, right, bottom, left] = node.border_widths;
-    let inner_radius = (radius - top.max(right).max(bottom).max(left) as f64).max(0.0);
-    let [width, height] = node.content_size;
-    let mut clipped = Scene::new();
-    clipped.push_clip_layer(
-        Affine::IDENTITY,
-        &Rect::new(0.0, 0.0, width as f64, height as f64).to_rounded_rect(inner_radius),
-    );
-    append_fragment(&mut clipped, widget, None);
-    clipped.pop_layer();
-    append_fragment(scene, &clipped, Some(transform));
+fn append_widget(scene: &mut Scene, widget: &Scene, transform: Affine) {
+    // Widget fragments are already clipped in content-local coordinates by
+    // PaintContext. Wrapping an appended fragment in a second rounded layer
+    // duplicates clip and draw-info encoding on every frame, including the
+    // transient scene produced for IME preedit text.
+    append_fragment(scene, widget, Some(transform));
 }
 
 /// Append one retained backend-neutral scene fragment.
@@ -600,7 +589,6 @@ pub fn build_scene_scaled(
             }
             append_widget(
                 scene,
-                n,
                 ws,
                 node_transform
                     * Affine::translate((n.content_origin[0] as f64, n.content_origin[1] as f64)),
@@ -693,6 +681,10 @@ mod tests {
     #[test]
     fn rounded_native_widget_is_clipped_without_overflow_hidden() {
         let mut widget = Scene::new();
+        widget.push_clip_layer(
+            Affine::IDENTITY,
+            &Rect::new(0.0, 0.0, 80.0, 80.0).to_rounded_rect(12.0),
+        );
         widget.fill(
             Fill::NonZero,
             Affine::IDENTITY,
@@ -700,6 +692,7 @@ mod tests {
             None,
             &Rect::new(0.0, 0.0, 80.0, 80.0),
         );
+        widget.pop_layer();
         let mut node = placed_node(Paint {
             border_radius: 12.0,
             widget: Some(std::sync::Arc::new(widget)),
