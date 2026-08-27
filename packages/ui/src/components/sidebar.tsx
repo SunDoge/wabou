@@ -147,6 +147,7 @@ export function SidebarMenuButton(props: SidebarMenuButtonProps): JSX.Element {
     <HeadlessButton
       {...forwarded}
       unstyled
+      aria-selected={props.selected}
       class={(state) =>
         mergeClasses(
           "w-full min-w-0 h-8 px-3 justify-start gap-2 rounded-md text-sm",

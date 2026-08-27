@@ -8071,6 +8071,9 @@ function SidebarMenuButton(props) {
 	const forwarded = omit(props, "class");
 	return createComponent$1(Button$1, mergeProps(forwarded, {
 		unstyled: true,
+		get ["aria-selected"]() {
+			return props.selected;
+		},
 		class: (state) => mergeClasses("w-full min-w-0 h-8 px-3 justify-start gap-2 rounded-md text-sm", state.selected ? "bg-selected text-primary" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-secondary", state.focusVisible && "border border-focus", props.class)
 	}));
 }
