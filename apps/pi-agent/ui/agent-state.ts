@@ -26,6 +26,8 @@ export interface AgentViewState {
   model?: string;
   thinking?: string;
   sessionId?: string;
+  sessionFile?: string;
+  sessionName?: string;
 }
 
 export const initialAgentState: AgentViewState = {
@@ -49,6 +51,19 @@ const textContent = (value: unknown): string => {
     .filter((part) => part.type === "text" || part.type === "thinking")
     .map((part) => (typeof part.text === "string" ? part.text : ""))
     .join("");
+};
+
+const restoredItems = (value: unknown): readonly AgentItem[] => {
+  const messages = record(value)?.messages;
+  if (!Array.isArray(messages)) return [];
+  return messages.flatMap((value, index): AgentItem[] => {
+    const message = record(value);
+    const role = message?.role;
+    if (role !== "user" && role !== "assistant") return [];
+    const text = textContent(message);
+    if (!text) return [];
+    return [{ id: `restored-${index}`, kind: role, text }];
+  });
 };
 
 const replaceItem = (
@@ -88,6 +103,13 @@ export function reducePiEvent(
         return { ...state, items: [], activeAssistantId: undefined };
       }
       const data = record(event.data);
+      if (event.command === "get_messages") {
+        return {
+          ...state,
+          items: restoredItems(data),
+          activeAssistantId: undefined,
+        };
+      }
       const model = record(
         event.command === "set_model" ? event.data : data?.model,
       );
@@ -116,6 +138,14 @@ export function reducePiEvent(
           typeof data?.sessionId === "string"
             ? data.sessionId
             : state.sessionId,
+        sessionFile:
+          typeof data?.sessionFile === "string"
+            ? data.sessionFile
+            : state.sessionFile,
+        sessionName:
+          typeof data?.sessionName === "string"
+            ? data.sessionName
+            : state.sessionName,
       };
     })
     .with("agent_end", () => ({

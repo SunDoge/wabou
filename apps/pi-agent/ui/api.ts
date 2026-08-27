@@ -13,6 +13,15 @@ export interface PiStatus {
   error?: string;
 }
 
+export interface PiSession {
+  agentId: string;
+  sessionId: string;
+  sessionFile: string;
+  name?: string;
+  cwd: string;
+  updatedAt: number;
+}
+
 interface PiCapability extends NativeJsonCapability {
   __wabouCapabilityVersion: number;
   getStatus(request: string): string | PromiseLike<string>;
@@ -24,6 +33,8 @@ interface PiCapability extends NativeJsonCapability {
   cycleModel(request: string): string | PromiseLike<string>;
   cycleThinking(request: string): string | PromiseLike<string>;
   setModel(request: string): string | PromiseLike<string>;
+  listSessions(request: string): string | PromiseLike<string>;
+  getMessages(request: string): string | PromiseLike<string>;
 }
 
 interface PiHost extends Host {
@@ -45,12 +56,16 @@ export function usePiApi() {
       noProxy?: string;
       provider?: string;
       model?: string;
+      sessionId?: string;
     }) => call<PiStatus>("start", options),
     prompt: (agentId: string, message: string) =>
       call<void>("prompt", { agentId, message }),
     abort: (agentId: string) => call<void>("abort", { agentId }),
     stop: (agentId: string) => call<void>("stop", { agentId }),
     newSession: (agentId: string) => call<void>("newSession", { agentId }),
+    listSessions: (agentId: string) =>
+      call<PiSession[]>("listSessions", { agentId }),
+    getMessages: (agentId: string) => call<void>("getMessages", { agentId }),
     cycleModel: (agentId: string) => call<void>("cycleModel", { agentId }),
     cycleThinking: (agentId: string) =>
       call<void>("cycleThinking", { agentId }),

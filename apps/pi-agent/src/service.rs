@@ -25,12 +25,32 @@ const NEW_SESSION: JsonMethod<AgentRequest, ()> = JsonMethod::new("newSession");
 const CYCLE_MODEL: JsonMethod<AgentRequest, ()> = JsonMethod::new("cycleModel");
 const CYCLE_THINKING: JsonMethod<AgentRequest, ()> = JsonMethod::new("cycleThinking");
 const SET_MODEL: JsonMethod<SetModelRequest, ()> = JsonMethod::new("setModel");
+const LIST_SESSIONS: JsonMethod<AgentRequest, Vec<PiSession>> = JsonMethod::new("listSessions");
+const GET_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getMessages");
 
 #[derive(Clone)]
 pub struct PiService {
     state: Arc<Mutex<HashMap<String, PiProcess>>>,
     events_tx: flume::Sender<Value>,
     events_rx: flume::Receiver<Value>,
+    sessions: Arc<Mutex<SessionCatalog>>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionCatalog {
+    sessions: Vec<PiSession>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PiSession {
+    agent_id: String,
+    session_id: String,
+    session_file: String,
+    name: Option<String>,
+    cwd: String,
+    updated_at: u64,
 }
 
 struct PiProcess {
@@ -58,6 +78,7 @@ struct StartRequest {
     no_proxy: Option<String>,
     provider: Option<String>,
     model: Option<String>,
+    session_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -85,10 +106,12 @@ struct SetModelRequest {
 impl PiService {
     pub fn new() -> Self {
         let (events_tx, events_rx) = flume::bounded(1024);
+        let sessions = load_session_catalog();
         Self {
             state: Arc::new(Mutex::new(HashMap::new())),
             events_tx,
             events_rx,
+            sessions: Arc::new(Mutex::new(sessions)),
         }
     }
 
@@ -152,6 +175,11 @@ impl PiService {
         if let Some(model) = request.model.filter(|value| !value.trim().is_empty()) {
             command.args(["--model", model.trim()]);
         }
+        if let Some(session_id) = request.session_id.filter(|value| !value.trim().is_empty()) {
+            command.args(["--session", session_id.trim()]);
+        } else {
+            command.arg("--continue");
+        }
         command
             .current_dir(&cwd)
             .stdin(Stdio::piped())
@@ -187,6 +215,8 @@ impl PiService {
         let stderr = child.stderr.take().ok_or("Pi stderr was not piped")?;
 
         let stdout_events = self.events_tx.clone();
+        let sessions = self.sessions.clone();
+        let session_cwd = cwd.display().to_string();
         let stdout_agent_id = request.agent_id.clone();
         std::thread::Builder::new()
             .name("pi-rpc-stdout".to_owned())
@@ -195,6 +225,7 @@ impl PiService {
                     match line {
                         Ok(line) if !line.is_empty() => match serde_json::from_str(&line) {
                             Ok(event) => {
+                                remember_session(&sessions, &stdout_agent_id, &session_cwd, &event);
                                 let _ = stdout_events.send(tag_event(&stdout_agent_id, event));
                             }
                             Err(error) => {
@@ -288,6 +319,90 @@ impl PiService {
         }
         Ok(())
     }
+
+    fn sessions(&self, agent_id: &str) -> Result<Vec<PiSession>, String> {
+        let catalog = self
+            .sessions
+            .lock()
+            .map_err(|_| "Pi session catalog lock poisoned".to_owned())?;
+        let mut sessions = catalog
+            .sessions
+            .iter()
+            .filter(|session| session.agent_id == agent_id)
+            .cloned()
+            .collect::<Vec<_>>();
+        sessions.sort_by_key(|session| std::cmp::Reverse(session.updated_at));
+        Ok(sessions)
+    }
+}
+
+fn session_catalog_path() -> Option<PathBuf> {
+    directories::ProjectDirs::from("dev", "Wabou", "Pi Agent")
+        .map(|dirs| dirs.data_local_dir().join("sessions.json"))
+}
+
+fn load_session_catalog() -> SessionCatalog {
+    session_catalog_path()
+        .and_then(|path| std::fs::read(path).ok())
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
+}
+
+fn remember_session(
+    sessions: &Arc<Mutex<SessionCatalog>>,
+    agent_id: &str,
+    cwd: &str,
+    event: &Value,
+) {
+    if event.get("type").and_then(Value::as_str) != Some("response")
+        || event.get("command").and_then(Value::as_str) != Some("get_state")
+        || event.get("success").and_then(Value::as_bool) != Some(true)
+    {
+        return;
+    }
+    let Some(data) = event.get("data") else {
+        return;
+    };
+    let (Some(session_id), Some(session_file)) = (
+        data.get("sessionId").and_then(Value::as_str),
+        data.get("sessionFile").and_then(Value::as_str),
+    ) else {
+        return;
+    };
+    let updated_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_secs());
+    let Ok(mut catalog) = sessions.lock() else {
+        return;
+    };
+    let entry = PiSession {
+        agent_id: agent_id.to_owned(),
+        session_id: session_id.to_owned(),
+        session_file: session_file.to_owned(),
+        name: data
+            .get("sessionName")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        cwd: cwd.to_owned(),
+        updated_at,
+    };
+    if let Some(existing) = catalog
+        .sessions
+        .iter_mut()
+        .find(|existing| existing.session_id == session_id)
+    {
+        *existing = entry;
+    } else {
+        catalog.sessions.push(entry);
+    }
+    if let Some(path) = session_catalog_path() {
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Ok(bytes) = serde_json::to_vec_pretty(&*catalog) {
+            let _ = std::fs::write(path, bytes);
+        }
+    }
 }
 
 fn validate_agent_id(agent_id: &str) -> Result<(), String> {
@@ -327,6 +442,16 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
     capability.method(START, move |request: StartRequest| {
         let service = start.clone();
         async move { service.start(request) }
+    })?;
+    let list_sessions = service.clone();
+    capability.method(LIST_SESSIONS, move |request: AgentRequest| {
+        let service = list_sessions.clone();
+        async move { service.sessions(&request.agent_id) }
+    })?;
+    let get_messages = service.clone();
+    capability.method(GET_MESSAGES, move |request: AgentRequest| {
+        let service = get_messages.clone();
+        async move { service.send(&request.agent_id, json!({"type":"get_messages"})) }
     })?;
     let prompt = service.clone();
     capability.method(PROMPT, move |request: PromptRequest| {

@@ -31,7 +31,7 @@ import {
   reducePiEvent,
   reducePiEvents,
 } from "./agent-state";
-import { usePiApi } from "./api";
+import { type PiSession, usePiApi } from "./api";
 import { ConversationItem } from "./conversation";
 import { i18n, m } from "./i18n";
 import { type AgentDefaults, SettingsPage } from "./settings";
@@ -42,7 +42,7 @@ export function App() {
   const api = usePiApi();
   const navigate = useNavigate();
   const location = useLocation();
-  const params = useParams<{ agentId?: string }>();
+  const params = useParams<{ agentId?: string; sessionId?: string }>();
   const [defaults, setDefaults] = createSignal<AgentDefaults>({
     proxy: "",
     noProxy: "127.0.0.1,localhost",
@@ -52,6 +52,7 @@ export function App() {
   const [agents, setAgents] = createSignal<readonly AgentWorkspace[]>([
     createAgentWorkspace(1),
   ]);
+  const [sessions, setSessions] = createSignal<readonly PiSession[]>([]);
   const [lastActiveId, setLastActiveId] = createSignal("agent-1");
   const [draft, setDraft] = createSignal("");
   let nextMessage = 1;
@@ -97,6 +98,39 @@ export function App() {
         ...agent,
         state: reducePiEvents(agent.state, batch),
       }));
+      if (
+        batch.some(
+          (event) =>
+            event.type === "response" &&
+            event.command === "get_state" &&
+            event.success === true,
+        )
+      ) {
+        void api.getMessages(id);
+        void api.listSessions(id).then((next) =>
+          setSessions((current) => [
+            ...current.filter((session) => session.agentId !== id),
+            ...next,
+          ]),
+        );
+        const stateEvent = batch.find(
+          (event) =>
+            event.type === "response" &&
+            event.command === "get_state" &&
+            event.success === true,
+        );
+        const data = stateEvent?.data as
+          | Record<string, unknown>
+          | null
+          | undefined;
+        if (
+          stateEvent?.id === "wabou-new-session-state" &&
+          id === activeId() &&
+          typeof data?.sessionId === "string"
+        ) {
+          void navigate({ to: `/agents/${id}/sessions/${data.sessionId}` });
+        }
+      }
     }
   });
   onCleanup(unsubscribe);
@@ -108,6 +142,12 @@ export function App() {
         .join("\0"),
     (agentIds) => {
       for (const id of agentIds.split("\0").filter(Boolean)) {
+        void api.listSessions(id).then((next) =>
+          setSessions((current) => [
+            ...current.filter((session) => session.agentId !== id),
+            ...next,
+          ]),
+        );
         void api
           .getStatus(id)
           .then((status) => {
@@ -135,8 +175,10 @@ export function App() {
     },
   );
 
-  const start = async (): Promise<boolean> => {
-    const agent = active();
+  const start = async (
+    agent: AgentWorkspace = active(),
+    sessionId?: string,
+  ): Promise<boolean> => {
     try {
       const status = await api.start({
         agentId: agent.id,
@@ -145,6 +187,7 @@ export function App() {
         noProxy: agent.noProxy.trim() || undefined,
         provider: agent.provider.trim() || undefined,
         model: agent.model.trim() || undefined,
+        sessionId,
       });
       updateAgent(agent.id, (current) => ({
         ...current,
@@ -209,6 +252,43 @@ export function App() {
     void navigate({ to: `/agents/${id}` });
   };
 
+  const selectSession = async (agentId: string, sessionId: string) => {
+    setLastActiveId(agentId);
+    setDraft("");
+    await navigate({ to: `/agents/${agentId}/sessions/${sessionId}` });
+  };
+
+  let openingSession = "";
+  createEffect(
+    () => {
+      const { agentId, sessionId } = params();
+      const session = sessions().find(
+        (candidate) =>
+          candidate.agentId === agentId && candidate.sessionId === sessionId,
+      );
+      const agent = agents().find((candidate) => candidate.id === agentId);
+      return session && agent ? { session, agent } : undefined;
+    },
+    (target) => {
+      if (!target) return;
+      const key = `${target.agent.id}\0${target.session.sessionId}`;
+      if (
+        openingSession === key ||
+        target.agent.state.sessionId === target.session.sessionId
+      )
+        return;
+      openingSession = key;
+      const next = {
+        ...target.agent,
+        cwd: target.session.cwd || target.agent.cwd,
+      };
+      updateAgent(target.agent.id, () => next);
+      void start(next, target.session.sessionId).finally(() => {
+        openingSession = "";
+      });
+    },
+  );
+
   const setConfiguredModel = async () => {
     const agent = active();
     if (!agent.provider.trim() || !agent.model.trim()) return;
@@ -223,6 +303,10 @@ export function App() {
         select={selectAgent}
         add={addAgent}
         openSettings={() => navigate({ to: "/settings" })}
+        sessions={sessions()}
+        selectSession={(agentId, sessionId) =>
+          void selectSession(agentId, sessionId)
+        }
       />
 
       <Show

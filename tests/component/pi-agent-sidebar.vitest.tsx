@@ -12,6 +12,7 @@ test("returns to an existing agent after creating a new one", () => {
     createAgentWorkspace(1),
   ]);
   const [activeId, setActiveId] = createSignal("agent-1");
+  let selectedSession = "";
 
   const screen = renderComponent(() => (
     <Sidebar
@@ -24,6 +25,19 @@ test("returns to an existing agent after creating a new one", () => {
         setActiveId(agent.id);
       }}
       openSettings={() => {}}
+      sessions={[
+        {
+          agentId: "agent-1",
+          sessionId: "session-123456",
+          sessionFile: "/tmp/session.jsonl",
+          name: "Fix sidebar",
+          cwd: "/tmp/project",
+          updatedAt: 1,
+        },
+      ]}
+      selectSession={(_, sessionId) => {
+        selectedSession = sessionId;
+      }}
     />
   ));
 
@@ -58,4 +72,7 @@ test("returns to an existing agent after creating a new one", () => {
   );
   first.unhover();
   expect(first.className).toContain("bg-selected");
+
+  screen.getByRole("button", { name: "Fix sidebar" }).click();
+  expect(selectedSession).toBe("session-123456");
 });

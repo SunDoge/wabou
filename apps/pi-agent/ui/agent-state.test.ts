@@ -91,6 +91,28 @@ describe("Pi agent event projection", () => {
     expect(state.model).toBe("GPT-5.5");
   });
 
+  test("restores persisted Pi messages when a session is opened", () => {
+    const state = reducePiEvent(initialAgentState, {
+      type: "response",
+      command: "get_messages",
+      success: true,
+      data: {
+        messages: [
+          { role: "user", content: [{ type: "text", text: "Fix it" }] },
+          {
+            role: "assistant",
+            content: [{ type: "text", text: "Done" }],
+          },
+          { role: "toolResult", content: [{ type: "text", text: "ignored" }] },
+        ],
+      },
+    });
+    expect(state.items).toEqual([
+      { id: "restored-0", kind: "user", text: "Fix it" },
+      { id: "restored-1", kind: "assistant", text: "Done" },
+    ]);
+  });
+
   test("keeps RPC failures attached to the affected agent state", () => {
     const state = reducePiEvent(initialAgentState, {
       type: "response",

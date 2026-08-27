@@ -8,6 +8,7 @@ name = "pi-agent-wabou"
 path = "src/main.rs"
 
 [dependencies]
+directories = { workspace = true }
 flume = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

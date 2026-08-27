@@ -15,12 +15,16 @@ const agent = new BaseRoute({
   getParentRoute: () => root,
   path: "agents/$agentId",
 });
+const session = new BaseRoute({
+  getParentRoute: () => root,
+  path: "agents/$agentId/sessions/$sessionId",
+});
 const settings = new BaseRoute({
   getParentRoute: () => root,
   path: "settings",
 });
 const router = createDataRouter({
-  routeTree: root.addChildren([index, agent, settings]),
+  routeTree: root.addChildren([index, agent, session, settings]),
   context: {},
 });
 

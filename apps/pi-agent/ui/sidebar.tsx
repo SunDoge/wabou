@@ -17,6 +17,7 @@ import settings from "lucide-static/icons/settings.svg?raw";
 import { For } from "solid-js";
 import { i18n, m } from "./i18n";
 import type { AgentWorkspace } from "./workspace";
+import type { PiSession } from "./api";
 
 interface SidebarProps {
   agents: readonly AgentWorkspace[];
@@ -24,6 +25,8 @@ interface SidebarProps {
   select: (id: string) => void;
   add: () => void;
   openSettings: () => void;
+  sessions: readonly PiSession[];
+  selectSession: (agentId: string, sessionId: string) => void;
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -50,21 +53,46 @@ export function Sidebar(props: SidebarProps) {
           <SidebarGroupLabel>{i18n.message(m.agents, {})}</SidebarGroupLabel>
           <For each={props.agents} keyed={(agent) => agent.id}>
             {(agent) => (
-              <SidebarMenuButton
-                selected={agent().id === props.activeId}
-                onClick={() => props.select(agent().id)}
-              >
-                <Text class="min-w-0 flex-1 truncate">{agent().name}</Text>
-                <View
-                  class={
-                    agent().state.connection === "running"
-                      ? "w-2 h-2 flex-none rounded-full bg-accent"
-                      : agent().state.connection === "ready"
-                        ? "w-2 h-2 flex-none rounded-full bg-success-primary"
-                        : "w-2 h-2 flex-none rounded-full bg-strong"
-                  }
-                />
-              </SidebarMenuButton>
+              <View>
+                <SidebarMenuButton
+                  selected={agent().id === props.activeId}
+                  onClick={() => props.select(agent().id)}
+                >
+                  <Text class="min-w-0 flex-1 truncate">{agent().name}</Text>
+                  <View
+                    class={
+                      agent().state.connection === "running"
+                        ? "w-2 h-2 flex-none rounded-full bg-accent"
+                        : agent().state.connection === "ready"
+                          ? "w-2 h-2 flex-none rounded-full bg-success-primary"
+                          : "w-2 h-2 flex-none rounded-full bg-strong"
+                    }
+                  />
+                </SidebarMenuButton>
+                <For
+                  each={(props.sessions ?? []).filter(
+                    (session) => session.agentId === agent().id,
+                  )}
+                  keyed={(session) => session.sessionId}
+                >
+                  {(session) => (
+                    <SidebarMenuButton
+                      class="pl-8 text-sm"
+                      selected={
+                        agent().state.sessionId === session().sessionId &&
+                        agent().id === props.activeId
+                      }
+                      onClick={() =>
+                        props.selectSession(agent().id, session().sessionId)
+                      }
+                    >
+                      <Text class="min-w-0 flex-1 truncate">
+                        {session().name ?? session().sessionId.slice(0, 8)}
+                      </Text>
+                    </SidebarMenuButton>
+                  )}
+                </For>
+              </View>
             )}
           </For>
         </SidebarGroup>

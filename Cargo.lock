@@ -6476,6 +6476,7 @@ dependencies = [
 name = "pi-agent-wabou"
 version = "0.1.0"
 dependencies = [
+ "directories",
  "flume",
  "serde",
  "serde_json",
