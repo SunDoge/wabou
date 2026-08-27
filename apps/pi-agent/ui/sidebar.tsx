@@ -1,6 +1,7 @@
 import {
   Button,
   Icon,
+  SearchField,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
@@ -14,10 +15,10 @@ import {
 import bot from "lucide-static/icons/bot.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
-import { For } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
+import type { PiSession } from "./api";
 import { i18n, m } from "./i18n";
 import type { AgentWorkspace } from "./workspace";
-import type { PiSession } from "./api";
 
 interface SidebarProps {
   agents: readonly AgentWorkspace[];
@@ -30,6 +31,44 @@ interface SidebarProps {
 }
 
 export function Sidebar(props: SidebarProps) {
+  const [query, setQuery] = createSignal("");
+  const normalizedQuery = () => query().trim().toLocaleLowerCase();
+  const visibleAgents = createMemo(() => {
+    const needle = normalizedQuery();
+    if (!needle) return props.agents;
+    return props.agents.filter((agent) => {
+      if (`${agent.name}\n${agent.cwd}`.toLocaleLowerCase().includes(needle)) {
+        return true;
+      }
+      return props.sessions.some(
+        (session) =>
+          session.agentId === agent.id &&
+          `${session.name ?? ""}\n${session.sessionId}`
+            .toLocaleLowerCase()
+            .includes(needle),
+      );
+    });
+  });
+  const visibleSessions = (agentId: string) => {
+    const needle = normalizedQuery();
+    const sessions = props.sessions.filter(
+      (session) => session.agentId === agentId,
+    );
+    if (!needle) return sessions;
+    const agent = props.agents.find((candidate) => candidate.id === agentId);
+    if (
+      `${agent?.name ?? ""}\n${agent?.cwd ?? ""}`
+        .toLocaleLowerCase()
+        .includes(needle)
+    ) {
+      return sessions;
+    }
+    return sessions.filter((session) =>
+      `${session.name ?? ""}\n${session.sessionId}`
+        .toLocaleLowerCase()
+        .includes(needle),
+    );
+  };
   return (
     <SidebarRoot class="w-72 border-r border-subtle" elevation="floating">
       <SidebarHeader class="flex items-center gap-3 px-4 py-4">
@@ -49,9 +88,17 @@ export function Sidebar(props: SidebarProps) {
           {i18n.message(m.new_agent, {})}
         </Button>
 
+        <SearchField
+          aria-label={i18n.message(m.search_agents, {})}
+          value={query()}
+          onValueChange={setQuery}
+          placeholder={i18n.message(m.search_agents, {})}
+          clearLabel={i18n.message(m.clear_search, {})}
+        />
+
         <SidebarGroup>
           <SidebarGroupLabel>{i18n.message(m.agents, {})}</SidebarGroupLabel>
-          <For each={props.agents} keyed={(agent) => agent.id}>
+          <For each={visibleAgents()} keyed={(agent) => agent.id}>
             {(agent) => (
               <View>
                 <SidebarMenuButton
@@ -70,9 +117,7 @@ export function Sidebar(props: SidebarProps) {
                   />
                 </SidebarMenuButton>
                 <For
-                  each={(props.sessions ?? []).filter(
-                    (session) => session.agentId === agent().id,
-                  )}
+                  each={visibleSessions(agent().id)}
                   keyed={(session) => session.sessionId}
                 >
                   {(session) => (
@@ -95,6 +140,11 @@ export function Sidebar(props: SidebarProps) {
               </View>
             )}
           </For>
+          <Show when={visibleAgents().length === 0}>
+            <Text role="status" class="px-3 py-4 text-sm text-muted">
+              {i18n.message(m.no_agents_found, {})}
+            </Text>
+          </Show>
         </SidebarGroup>
       </SidebarContent>
 

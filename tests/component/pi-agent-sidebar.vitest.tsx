@@ -1,78 +1,58 @@
 import { renderComponent } from "@wabou/test/component";
-import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
+import type { PiSession } from "../../apps/pi-agent/ui/api";
 import { Sidebar } from "../../apps/pi-agent/ui/sidebar";
-import {
-  type AgentWorkspace,
-  createAgentWorkspace,
-} from "../../apps/pi-agent/ui/workspace";
+import { createAgentWorkspace } from "../../apps/pi-agent/ui/workspace";
 
-test("returns to an existing agent after creating a new one", () => {
-  const [agents, setAgents] = createSignal<readonly AgentWorkspace[]>([
-    createAgentWorkspace(1),
-  ]);
-  const [activeId, setActiveId] = createSignal("agent-1");
-  let selectedSession = "";
-
+test("Pi Agent sidebar searches agents and sessions without flattening the hierarchy", () => {
+  const agents = [createAgentWorkspace(1), createAgentWorkspace(2)];
+  agents[0].cwd = "/work/api";
+  agents[1].cwd = "/work/docs";
+  const sessions: PiSession[] = [
+    {
+      agentId: "agent-1",
+      sessionId: "session-api",
+      sessionFile: "/tmp/session-api.jsonl",
+      name: "Fix API",
+      cwd: "/work/api",
+      updatedAt: 1,
+    },
+    {
+      agentId: "agent-2",
+      sessionId: "session-docs",
+      sessionFile: "/tmp/session-docs.jsonl",
+      name: "Write release notes",
+      cwd: "/work/docs",
+      updatedAt: 2,
+    },
+  ];
+  let selected: [string, string] | undefined;
   const screen = renderComponent(() => (
     <Sidebar
-      agents={agents()}
-      activeId={activeId()}
-      select={setActiveId}
-      add={() => {
-        const agent = createAgentWorkspace(2);
-        setAgents((current) => [...current, agent]);
-        setActiveId(agent.id);
+      agents={agents}
+      sessions={sessions}
+      activeId="agent-1"
+      select={() => {}}
+      selectSession={(agentId, sessionId) => {
+        selected = [agentId, sessionId];
       }}
+      add={() => {}}
       openSettings={() => {}}
-      sessions={[
-        {
-          agentId: "agent-1",
-          sessionId: "session-123456",
-          sessionFile: "/tmp/session.jsonl",
-          name: "Fix sidebar",
-          cwd: "/tmp/project",
-          updatedAt: 1,
-        },
-      ]}
-      selectSession={(_, sessionId) => {
-        selectedSession = sessionId;
-      }}
     />
   ));
 
-  screen.getByRole("button", { name: "New agent" }).click();
-  expect(activeId()).toBe("agent-2");
-  expect(screen.getByRole("button", { name: "Agent 2" }).selected).toBe(true);
+  const search = screen.getByRole("textbox", {
+    name: "Search agents and sessions",
+  });
+  search.input("release notes");
 
-  screen.getByRole("button", { name: "Agent 1" }).click();
-  expect(activeId()).toBe("agent-1");
-  const first = screen.getByRole("button", { name: "Agent 1" });
-  const second = screen.getByRole("button", { name: "Agent 2" });
-  expect(first.selected).toBe(true);
-  expect(first.className).toContain("bg-selected");
-  expect(second.selected).toBe(false);
-  expect(second.className).not.toContain("bg-selected");
+  expect(screen.queryByRole("button", { name: "Agent 1" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Agent 2" })).toBeDefined();
+  screen.getByRole("button", { name: "Write release notes" }).click();
+  expect(selected).toEqual(["agent-2", "session-docs"]);
 
-  first.hover();
-  expect(first.className).toContain("bg-control-hover");
-  setAgents((current) =>
-    current.map((agent) =>
-      agent.id === "agent-1"
-        ? {
-            ...agent,
-            state: { ...agent.state, connection: "running" },
-          }
-        : agent,
-    ),
+  search.input("missing workspace");
+  expect(screen.getByRole("status").text).toBe(
+    "No matching agents or sessions.",
   );
-  screen.flush();
-  expect(screen.getByRole("button", { name: "Agent 1" }).className).toContain(
-    "bg-control-hover",
-  );
-  first.unhover();
-  expect(first.className).toContain("bg-selected");
-
-  screen.getByRole("button", { name: "Fix sidebar" }).click();
-  expect(selectedSession).toBe("session-123456");
 });
