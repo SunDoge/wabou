@@ -1,5 +1,6 @@
 import { mergeClasses } from "@wabou/core/style";
 import { lexer, type Token, type Tokens } from "marked";
+import remend from "remend";
 import { createMemo, For, type JSX } from "solid-js";
 import { RichText, RichTextSpan, Text, View } from "../primitives";
 import { CodeBlock } from "./code-block";
@@ -240,6 +241,8 @@ function MarkdownBlock(props: {
 
 export interface MarkdownProps {
   source: string;
+  /** Repair an incomplete Markdown tail while text is still arriving. */
+  streaming?: boolean;
   /** Document typography by default; conversation keeps agent replies compact. */
   variant?: MarkdownVariant;
   class?: string;
@@ -248,7 +251,9 @@ export interface MarkdownProps {
 
 /** Parses GFM in JavaScript and renders native Wabou components, without HTML or a DOM. */
 export function Markdown(props: MarkdownProps): JSX.Element {
-  const tokens = createMemo(() => lexer(props.source, { gfm: true }));
+  const tokens = createMemo(() =>
+    lexer(props.streaming ? remend(props.source) : props.source, { gfm: true }),
+  );
   const variant = () => props.variant ?? "document";
   return (
     <View

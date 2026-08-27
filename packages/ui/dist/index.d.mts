@@ -1168,6 +1168,8 @@ declare function AdaptiveSplitPaneDetail(props: {
 type MarkdownVariant = "document" | "conversation";
 interface MarkdownProps {
   source: string;
+  /** Repair an incomplete Markdown tail while text is still arriving. */
+  streaming?: boolean;
   /** Document typography by default; conversation keeps agent replies compact. */
   variant?: MarkdownVariant;
   class?: string;

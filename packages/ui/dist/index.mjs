@@ -19,6 +19,7 @@ import fileUp from "lucide-static/icons/file-up.svg?raw";
 import pencil from "lucide-static/icons/pencil.svg?raw";
 import minus from "lucide-static/icons/minus.svg?raw";
 import { lexer } from "marked";
+import remend from "remend";
 import check from "lucide-static/icons/check.svg?raw";
 import ellipsis from "lucide-static/icons/ellipsis.svg?raw";
 import { NumberFormatter, NumberParser } from "@internationalized/number";
@@ -5231,7 +5232,7 @@ function MarkdownBlock(props) {
 }
 /** Parses GFM in JavaScript and renders native Wabou components, without HTML or a DOM. */
 function Markdown(props) {
-	const tokens = createMemo(() => lexer(props.source, { gfm: true }));
+	const tokens = createMemo(() => lexer(props.streaming ? remend(props.source) : props.source, { gfm: true }));
 	const variant = () => props.variant ?? "document";
 	return createComponent$1(View, {
 		role: "region",

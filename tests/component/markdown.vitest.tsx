@@ -43,3 +43,21 @@ test("renders compact conversation Markdown including GFM tables", () => {
   expect(response.text).toContain("api.tsUpdated");
   expect(response.snapshot()).toMatchObject({ role: "region" });
 });
+
+test("repairs incomplete inline Markdown only while streaming", () => {
+  const [streaming, setStreaming] = createSignal(true);
+  const screen = renderComponent(() => (
+    <Markdown
+      source="The **important answer"
+      streaming={streaming()}
+      aria-label="Streaming response"
+    />
+  ));
+
+  const response = screen.getByRole("region", { name: "Streaming response" });
+  expect(response.text).toBe("The important answer");
+
+  setStreaming(false);
+  screen.flush();
+  expect(response.text).toContain("**important answer");
+});

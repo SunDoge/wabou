@@ -215,6 +215,8 @@ function MessageEntrance(props: { children: JSX.Element }) {
 
 export function ConversationItem(props: { item: AgentItem }) {
   const messageText = () => (props.item.kind === "tool" ? "" : props.item.text);
+  const messageStreaming = () =>
+    props.item.kind === "assistant" && props.item.streaming === true;
   const messageVariant = () =>
     match(props.item)
       .with({ kind: "assistant" }, () => "ghost" as const)
@@ -310,6 +312,7 @@ export function ConversationItem(props: { item: AgentItem }) {
                 >
                   <Markdown
                     source={messageText()}
+                    streaming={messageStreaming()}
                     variant="conversation"
                     aria-label="Assistant response"
                   />
