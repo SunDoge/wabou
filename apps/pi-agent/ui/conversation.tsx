@@ -243,9 +243,16 @@ export function ConversationItem(props: { item: AgentItem }) {
             <Show
               when={props.item.kind === "assistant"}
               fallback={
-                <MessageHeader>
-                  {props.item.kind === "user" ? "You" : "System"}
-                </MessageHeader>
+                <View class="flex flex-row items-center gap-2">
+                  <MessageHeader>
+                    {props.item.kind === "user" ? "You" : "System"}
+                  </MessageHeader>
+                  <Show when={props.item.kind === "user" && props.item.queued}>
+                    <View role="status" aria-label="Queued follow-up">
+                      <Badge variant="secondary">Queued</Badge>
+                    </View>
+                  </Show>
+                </View>
               }
             >
               <View class="h-7 w-full px-1 flex flex-row items-center justify-between gap-2">

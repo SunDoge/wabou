@@ -9,6 +9,7 @@ export type AgentItem =
       /** Model reasoning is kept separate from the user-facing answer. */
       thinkingText?: string;
       streaming?: boolean;
+      queued?: boolean;
     }
   | {
       id: string;
@@ -97,8 +98,12 @@ export function appendUserMessage(
   state: AgentViewState,
   id: string,
   text: string,
+  queued = false,
 ): AgentViewState {
-  return { ...state, items: [...state.items, { id, kind: "user", text }] };
+  return {
+    ...state,
+    items: [...state.items, { id, kind: "user", text, queued }],
+  };
 }
 
 export function reducePiEvent(
@@ -175,7 +180,9 @@ export function reducePiEvent(
       items: state.items.map((item) =>
         item.kind === "assistant" && item.streaming
           ? { ...item, streaming: false }
-          : item,
+          : item.kind === "user" && item.queued
+            ? { ...item, queued: false }
+            : item,
       ),
     }))
     .with("message_start", () => {

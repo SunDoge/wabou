@@ -73,6 +73,8 @@
   "starter_plan_title": "规划新功能",
   "starter_plan_prompt": "帮我把一个功能想法整理成具体的实现计划。",
   "working": "Pi 正在工作…",
+  "queue_follow_up": "Pi 工作时可继续添加后续任务…",
+  "queue": "排队",
   "prompt_placeholder": "让这个 Agent 在当前仓库中完成任务…",
   "send_hint": "Enter 发送 · Shift+Enter 换行",
   "send": "发送",

@@ -37,6 +37,7 @@ interface PiCapability extends NativeJsonCapability {
   getStatus(request: string): string | PromiseLike<string>;
   start(request: string): string | PromiseLike<string>;
   prompt(request: string): string | PromiseLike<string>;
+  followUp(request: string): string | PromiseLike<string>;
   abort(request: string): string | PromiseLike<string>;
   stop(request: string): string | PromiseLike<string>;
   newSession(request: string): string | PromiseLike<string>;
@@ -80,6 +81,8 @@ export function usePiApi() {
     }) => call<PiStatus>("start", options),
     prompt: (agentId: string, message: string) =>
       call<void>("prompt", { agentId, message }),
+    followUp: (agentId: string, message: string) =>
+      call<void>("followUp", { agentId, message }),
     abort: (agentId: string) => call<void>("abort", { agentId }),
     stop: (agentId: string) => call<void>("stop", { agentId }),
     newSession: (agentId: string) => call<void>("newSession", { agentId }),

@@ -270,15 +270,23 @@ export function App() {
   const submit = async () => {
     const message = draft().trim();
     const agent = active();
-    if (!message || agent.state.connection === "running") return;
+    if (!message) return;
+    const queueing = agent.state.connection === "running";
     if (agent.state.connection !== "ready" && !(await start())) return;
     setDraft("");
     updateAgent(agent.id, (current) => ({
       ...current,
-      state: appendUserMessage(current.state, `user-${nextMessage++}`, message),
+      state: appendUserMessage(
+        current.state,
+        `user-${nextMessage++}`,
+        message,
+        queueing,
+      ),
     }));
     try {
-      await api.prompt(agent.id, message);
+      await (queueing
+        ? api.followUp(agent.id, message)
+        : api.prompt(agent.id, message));
     } catch (error) {
       updateAgent(agent.id, (current) => ({
         ...current,
@@ -536,10 +544,9 @@ export function App() {
                 <TextArea
                   class="h-20 border-transparent shadow-none bg-input"
                   value={draft()}
-                  disabled={active().state.connection === "running"}
                   placeholder={
                     active().state.connection === "running"
-                      ? i18n.message(m.working, {})
+                      ? i18n.message(m.queue_follow_up, {})
                       : i18n.message(m.prompt_placeholder, {})
                   }
                   onInput={(event) => setDraft(event.currentTarget.value)}
@@ -555,12 +562,13 @@ export function App() {
                     {i18n.message(m.send_hint, {})}
                   </Text>
                   <Button
-                    disabled={
-                      !draft().trim() || active().state.connection === "running"
-                    }
+                    disabled={!draft().trim()}
                     onClick={() => void submit()}
                   >
-                    <Icon source={send} size={14} /> {i18n.message(m.send, {})}
+                    <Icon source={send} size={14} />{" "}
+                    {active().state.connection === "running"
+                      ? i18n.message(m.queue, {})
+                      : i18n.message(m.send, {})}
                   </Button>
                 </View>
               </View>

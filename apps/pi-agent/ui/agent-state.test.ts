@@ -115,6 +115,14 @@ describe("Pi agent event projection", () => {
     expect(state.model).toBe("GPT-5.5");
   });
 
+  test("marks follow-ups as queued until the active turn ends", () => {
+    const queued = appendUserMessage(initialAgentState, "user-1", "Next", true);
+    expect(queued.items[0]).toMatchObject({ kind: "user", queued: true });
+
+    const ready = reducePiEvent(queued, { type: "agent_end" });
+    expect(ready.items[0]).toMatchObject({ kind: "user", queued: false });
+  });
+
   test("restores persisted Pi messages when a session is opened", () => {
     const state = reducePiEvent(initialAgentState, {
       type: "response",

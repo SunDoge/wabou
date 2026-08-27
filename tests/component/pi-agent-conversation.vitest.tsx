@@ -129,3 +129,20 @@ test("Pi Agent tool activity starts expanded and summarizes common arguments", (
   toggle.click();
   expect(toggle.expanded).toBe(false);
 });
+
+test("Pi Agent distinguishes a queued follow-up from a sent message", () => {
+  const screen = renderComponent(() => (
+    <ConversationItem
+      item={{
+        id: "queued-1",
+        kind: "user",
+        text: "After that, run the integration tests.",
+        queued: true,
+      }}
+    />
+  ));
+
+  expect(screen.getByRole("status", { name: "Queued follow-up" }).text).toBe(
+    "Queued",
+  );
+});

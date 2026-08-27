@@ -19,6 +19,7 @@ const EVENT_TOPIC: &str = "pi.event";
 const GET_STATUS: JsonMethod<AgentRequest, PiStatus> = JsonMethod::new("getStatus");
 const START: JsonMethod<StartRequest, PiStatus> = JsonMethod::new("start");
 const PROMPT: JsonMethod<PromptRequest, ()> = JsonMethod::new("prompt");
+const FOLLOW_UP: JsonMethod<PromptRequest, ()> = JsonMethod::new("followUp");
 const ABORT: JsonMethod<AgentRequest, ()> = JsonMethod::new("abort");
 const STOP: JsonMethod<AgentRequest, ()> = JsonMethod::new("stop");
 const NEW_SESSION: JsonMethod<AgentRequest, ()> = JsonMethod::new("newSession");
@@ -569,6 +570,20 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
             service.send(
                 &request.agent_id,
                 json!({"type":"prompt","message":message}),
+            )
+        }
+    })?;
+    let follow_up = service.clone();
+    capability.method(FOLLOW_UP, move |request: PromptRequest| {
+        let service = follow_up.clone();
+        async move {
+            let message = request.message.trim();
+            if message.is_empty() {
+                return Err("follow-up cannot be empty".to_owned());
+            }
+            service.send(
+                &request.agent_id,
+                json!({"type":"follow_up","message":message}),
             )
         }
     })?;

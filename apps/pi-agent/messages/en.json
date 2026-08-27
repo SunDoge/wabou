@@ -73,6 +73,8 @@
   "starter_plan_title": "Plan a feature",
   "starter_plan_prompt": "Help me turn a feature idea into a concrete implementation plan.",
   "working": "Pi is working…",
+  "queue_follow_up": "Add a follow-up while Pi is working…",
+  "queue": "Queue",
   "prompt_placeholder": "Ask this agent to work in its repository…",
   "send_hint": "Enter to send · Shift+Enter for newline",
   "send": "Send",
