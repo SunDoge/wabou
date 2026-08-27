@@ -42,6 +42,20 @@ test("returns to an existing agent after creating a new one", () => {
 
   first.hover();
   expect(first.className).toContain("bg-control-hover");
+  setAgents((current) =>
+    current.map((agent) =>
+      agent.id === "agent-1"
+        ? {
+            ...agent,
+            state: { ...agent.state, connection: "running" },
+          }
+        : agent,
+    ),
+  );
+  screen.flush();
+  expect(screen.getByRole("button", { name: "Agent 1" }).className).toContain(
+    "bg-control-hover",
+  );
   first.unhover();
   expect(first.className).toContain("bg-selected");
 });

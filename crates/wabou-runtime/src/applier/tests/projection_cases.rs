@@ -391,6 +391,101 @@ fn pointer_target_transitions_emit_over_enter_out_and_leave() {
 }
 
 #[test]
+fn crossing_descendants_keeps_the_interactive_ancestor_hovered() {
+    let mut applier = interactive_applier();
+    let view = applier.document.atoms.borrow_mut().intern("view");
+    for id in [3, 4] {
+        applier.apply_op(&Op::CreateElement {
+            id: NodeKey::new(id, 1),
+            tag: view,
+        });
+        applier.apply_op(&Op::AppendChild {
+            parent: NodeKey::new(2, 1),
+            child: NodeKey::new(id, 1),
+        });
+    }
+    let hit = |solid_id, rect| {
+        HitItem::Content(HitNode {
+            solid_id,
+            rect,
+            transform: Affine::IDENTITY,
+            clips: Vec::new(),
+            pointer_events: true,
+        })
+    };
+    applier.interaction.input.hit_items = vec![
+        hit(NodeKey::new(2, 1), [0.0, 0.0, 100.0, 50.0]),
+        hit(NodeKey::new(3, 1), [0.0, 0.0, 50.0, 50.0]),
+        hit(NodeKey::new(4, 1), [50.0, 0.0, 100.0, 50.0]),
+    ];
+
+    applier.handle_event(pointer(PointerPhase::Move, 25.0, 20.0, 0));
+    applier.handle_event(pointer(PointerPhase::Move, 75.0, 20.0, 0));
+
+    let codes = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<Vec<u8>, _>("globalThis.dispatched.map((x) => x[1])"))
+        .expect("read dispatched events");
+    assert_eq!(
+        codes,
+        vec![
+            event::POINTEROVER,
+            event::POINTERENTER,
+            event::POINTERMOVE,
+            event::POINTEROUT,
+            event::POINTEROVER,
+            event::POINTERMOVE,
+        ]
+    );
+}
+
+#[test]
+fn pointer_activation_uses_the_interactive_ancestor_boundary() {
+    let mut applier = interactive_applier();
+    let view = applier.document.atoms.borrow_mut().intern("view");
+    for id in [3, 4] {
+        applier.apply_op(&Op::CreateElement {
+            id: NodeKey::new(id, 1),
+            tag: view,
+        });
+        applier.apply_op(&Op::AppendChild {
+            parent: NodeKey::new(2, 1),
+            child: NodeKey::new(id, 1),
+        });
+    }
+    let hit = |solid_id, rect| {
+        HitItem::Content(HitNode {
+            solid_id,
+            rect,
+            transform: Affine::IDENTITY,
+            clips: Vec::new(),
+            pointer_events: true,
+        })
+    };
+    applier.interaction.input.hit_items = vec![
+        hit(NodeKey::new(2, 1), [0.0, 0.0, 100.0, 50.0]),
+        hit(NodeKey::new(3, 1), [0.0, 0.0, 50.0, 50.0]),
+        hit(NodeKey::new(4, 1), [50.0, 0.0, 100.0, 50.0]),
+    ];
+
+    applier.handle_event(pointer(PointerPhase::Down, 49.0, 20.0, 1));
+    applier.handle_event(pointer(PointerPhase::Up, 51.0, 20.0, 0));
+
+    let events = applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<Vec<Vec<u32>>, _>("globalThis.dispatched.map(([id, code]) => [id, code])")
+        })
+        .expect("read dispatched events");
+    assert!(
+        events.contains(&vec![2, u32::from(event::CLICK)]),
+        "one interactive ancestor must own activation across its descendants: {events:?}"
+    );
+}
+
+#[test]
 fn leaving_native_window_clears_hover_and_emits_exit_events() {
     let mut applier = interactive_applier();
     applier.handle_event(pointer(PointerPhase::Enter, 20.0, 20.0, 0));

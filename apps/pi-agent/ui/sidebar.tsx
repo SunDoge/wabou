@@ -48,18 +48,18 @@ export function Sidebar(props: SidebarProps) {
 
         <SidebarGroup>
           <SidebarGroupLabel>{i18n.message(m.agents, {})}</SidebarGroupLabel>
-          <For each={props.agents}>
+          <For each={props.agents} keyed={(agent) => agent.id}>
             {(agent) => (
               <SidebarMenuButton
-                selected={agent.id === props.activeId}
-                onClick={() => props.select(agent.id)}
+                selected={agent().id === props.activeId}
+                onClick={() => props.select(agent().id)}
               >
-                <Text class="min-w-0 flex-1 truncate">{agent.name}</Text>
+                <Text class="min-w-0 flex-1 truncate">{agent().name}</Text>
                 <View
                   class={
-                    agent.state.connection === "running"
+                    agent().state.connection === "running"
                       ? "w-2 h-2 flex-none rounded-full bg-accent"
-                      : agent.state.connection === "ready"
+                      : agent().state.connection === "ready"
                         ? "w-2 h-2 flex-none rounded-full bg-success-primary"
                         : "w-2 h-2 flex-none rounded-full bg-strong"
                   }

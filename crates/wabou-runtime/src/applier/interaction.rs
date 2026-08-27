@@ -16,14 +16,30 @@ impl Applier {
         if target == old {
             return false;
         }
+        // Hit testing deliberately returns the deepest painted node, while
+        // hover state belongs to the nearest interactive ancestor. Crossing
+        // children of one control must not make that control leave and enter
+        // itself (for example, moving from a button label to its status dot).
+        let hover_boundary = |this: &Self, target: Option<NodeKey>| {
+            target.and_then(|target| {
+                this.listener_target_in_chain(target, event::POINTERENTER)
+                    .or_else(|| this.listener_target_in_chain(target, event::POINTERLEAVE))
+            })
+        };
+        let old_boundary = hover_boundary(self, old);
+        let new_boundary = hover_boundary(self, target);
         let mut changed = false;
         if let Some(old) = old {
             changed |= self.dispatch_pointer(old, event::POINTEROUT, None, modifiers);
-            changed |= self.dispatch_pointer(old, event::POINTERLEAVE, None, modifiers);
+            if old_boundary != new_boundary {
+                changed |= self.dispatch_pointer(old, event::POINTERLEAVE, None, modifiers);
+            }
         }
         if let Some(new) = target {
             changed |= self.dispatch_pointer(new, event::POINTEROVER, None, modifiers);
-            changed |= self.dispatch_pointer(new, event::POINTERENTER, None, modifiers);
+            if old_boundary != new_boundary {
+                changed |= self.dispatch_pointer(new, event::POINTERENTER, None, modifiers);
+            }
         }
         self.interaction
             .input
@@ -151,11 +167,15 @@ impl Applier {
         changed |= release_target.is_some_and(|target| {
             self.dispatch_pointer(target, event::POINTERUP, Some(button), pointer.modifiers)
         });
-        if let Some(target) = target
+        let captured_click_target =
+            captured.and_then(|target| self.listener_target_in_chain(target, event::CLICK));
+        let click_target =
+            target.and_then(|target| self.listener_target_in_chain(target, event::CLICK));
+        if let Some(target) = click_target
             && button == PointerButton::Primary
             && pointer.properties.primary
             && !dragged
-            && Some(target) == captured
+            && Some(target) == captured_click_target
         {
             let mut data = [0.0; event_data::LEN];
             data[event_data::CLIENT_X as usize] = self.interaction.input.pointer_position.0;
@@ -189,9 +209,13 @@ impl Applier {
                 self.interaction.input.last_primary_click = Some((now, target, x, y));
             }
         }
-        if let Some(target) = target
+        let captured_context_target =
+            captured.and_then(|target| self.listener_target_in_chain(target, event::CONTEXTMENU));
+        let context_target =
+            target.and_then(|target| self.listener_target_in_chain(target, event::CONTEXTMENU));
+        if let Some(target) = context_target
             && button == PointerButton::Secondary
-            && Some(target) == captured
+            && Some(target) == captured_context_target
         {
             let mut data = [0.0; event_data::LEN];
             data[event_data::CLIENT_X as usize] = x;
