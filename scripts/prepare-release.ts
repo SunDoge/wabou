@@ -115,6 +115,19 @@ const oldVersion = [...oldVersions][0];
 if (oldVersion === version)
   throw new Error(`workspace is already at ${version}`);
 
+const oldPackageChangelogs = new Map<string, string>();
+for (const path of packageManifests) {
+  const manifest = await Bun.file(path).json();
+  if (manifest.private === true) continue;
+  const changelogPath = join(path, "..", "CHANGELOG.md");
+  if (await Bun.file(changelogPath).exists()) {
+    oldPackageChangelogs.set(
+      changelogPath,
+      await Bun.file(changelogPath).text(),
+    );
+  }
+}
+
 // Changesets owns package release notes and consumes pending changesets. The
 // explicit pass below then corrects its computed prerelease to the requested
 // version, which is necessary when an earlier Git tag was created by mistake.
@@ -132,14 +145,16 @@ for (const path of packageManifests) {
   if (!(await Bun.file(changelogPath).exists())) continue;
   const changelog = await Bun.file(changelogPath).text();
   if (changelog.includes(`## ${version}\n`)) continue;
+  const oldChangelog = oldPackageChangelogs.get(changelogPath);
   if (
     computedVersion !== oldVersion &&
-    changelog.includes(`## ${computedVersion}\n`)
+    oldChangelog &&
+    changelog.endsWith(oldChangelog)
   ) {
-    await Bun.write(
-      changelogPath,
-      changelog.replace(`## ${computedVersion}\n`, `## ${version}\n`),
-    );
+    const releaseNotes = changelog
+      .slice(0, -oldChangelog.length)
+      .replaceAll(computedVersion, version);
+    await Bun.write(changelogPath, `${releaseNotes}${oldChangelog}`);
   } else {
     const titleEnd = changelog.indexOf("\n");
     await Bun.write(
@@ -157,6 +172,12 @@ await updateText(join(root, "Cargo.toml"), (source) =>
 );
 await updateText(join(root, "CHANGELOG.md"), releaseRootChangelog);
 
+for (const lockfile of ["Cargo.lock", "bun.lock"]) {
+  await updateText(join(root, lockfile), (source) =>
+    source.replaceAll(oldVersion, version),
+  );
+}
+
 const revisionFiles = [
   "README.md",
   "docs/cli.md",
@@ -171,12 +192,18 @@ for (const relativePath of revisionFiles) {
 
 for (const args of [
   ["bun", "install"],
-  ["cargo", "metadata", "--format-version", "1", "--no-deps"],
   ["bun", "run", "scripts/check-package-boundaries.ts"],
 ]) {
   const result = await command(args);
   if (result.status !== 0) throw new Error(`${args.join(" ")} failed`);
 }
+
+const metadata = await command(
+  ["cargo", "metadata", "--format-version", "1", "--no-deps"],
+  { capture: true },
+);
+if (metadata.status !== 0)
+  throw new Error(metadata.stderr || "cargo metadata failed");
 
 console.log(
   `\nPrepared ${version}. Review and commit the changes before creating ${tag}.`,

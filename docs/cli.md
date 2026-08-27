@@ -23,7 +23,7 @@ Create a standalone preview application with:
 
 ```bash
 cargo install --git https://github.com/SunDoge/wabou.git \
-  --tag v0.1.0-alpha.1 --locked wabou-cli
+  --tag v0.1.0-alpha.3 --locked wabou-cli
 wabou new hello-wabou
 cd hello-wabou
 bun install
@@ -33,7 +33,7 @@ bun run dev
 Until Wabou publishes crates.io and npm packages, `new` records the selected
 Wabou revision as `vendor/wabou`, a Git submodule shared by Cargo and Bun. This
 avoids accidentally combining Rust and JavaScript packages from different
-commits. The default revision is `v0.1.0-alpha.1`; maintainers can exercise a
+commits. The default revision is `v0.1.0-alpha.3`; maintainers can exercise a
 candidate commit with `--wabou-repository` and `--wabou-ref`.
 
 The app's Vite config delegates Wabou's compiler, Solid universal renderer,

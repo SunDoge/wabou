@@ -10016,7 +10016,7 @@ checksum = "5c3082ca00d5a5ef149bb8b555a72ae84c9c59f7250f013ac822ac2e49b19c64"
 
 [[package]]
 name = "wabou"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "serde",
  "wabou-bindgen",
@@ -10026,7 +10026,7 @@ dependencies = [
 
 [[package]]
 name = "wabou-accessibility"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "accesskit",
  "accesskit_xplat",
@@ -10036,7 +10036,7 @@ dependencies = [
 
 [[package]]
 name = "wabou-bindgen"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "serde",
  "specta",
@@ -10046,7 +10046,7 @@ dependencies = [
 
 [[package]]
 name = "wabou-cli"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "anyrender",
  "cargo-packager",
@@ -10067,7 +10067,7 @@ dependencies = [
 
 [[package]]
 name = "wabou-database"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "tokio",
  "turso",
@@ -10076,7 +10076,7 @@ dependencies = [
 
 [[package]]
 name = "wabou-devtools"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "base64 0.22.1",
  "rmcp",
@@ -10104,7 +10104,7 @@ dependencies = [
 
 [[package]]
 name = "wabou-host-api"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "serde",
  "serde_json",
@@ -10115,7 +10115,7 @@ dependencies = [
 
 [[package]]
 name = "wabou-runtime"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "anyrender",
  "arc-swap",
@@ -10163,7 +10163,7 @@ dependencies = [
 
 [[package]]
 name = "wabou-shell"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "anyrender",
  "anyrender_skia",
@@ -10198,7 +10198,7 @@ dependencies = [
 
 [[package]]
 name = "wabou-style"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "serde",
  "serde_json",
@@ -10207,7 +10207,7 @@ dependencies = [
 
 [[package]]
 name = "wabou-terminal"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "anyrender",
  "libc",
@@ -10225,7 +10225,7 @@ dependencies = [
 
 [[package]]
 name = "wabou-tray"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "gtk",
  "tray-icon",
@@ -10234,7 +10234,7 @@ dependencies = [
 
 [[package]]
 name = "wabou-widgets"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.3"
 dependencies = [
  "anyrender",
  "editor-core",

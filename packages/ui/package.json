@@ -1,6 +1,6 @@
 {
   "name": "@wabou/ui",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.3",
   "description": "The primary application-facing API for Wabou native interfaces.",
   "license": "Apache-2.0",
   "repository": {

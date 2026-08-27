@@ -1244,7 +1244,7 @@ mod tests {
             panic!("expected new command");
         };
         assert_eq!(wabou_repository, "https://github.com/SunDoge/wabou.git");
-        assert_eq!(wabou_ref, "v0.1.0-alpha.1");
+        assert_eq!(wabou_ref, "v0.1.0-alpha.3");
     }
 
     #[cfg(unix)]

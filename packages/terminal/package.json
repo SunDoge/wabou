@@ -1,6 +1,6 @@
 {
   "name": "@wabou/terminal",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.3",
   "description": "Terminal component bindings for Wabou applications.",
   "license": "Apache-2.0",
   "repository": {
