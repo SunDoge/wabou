@@ -53,7 +53,7 @@ pub use host::{
     managed_host_service,
 };
 pub use host_frame::{
-    HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, ResizeObservation,
+    HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, NumericEventData, ResizeObservation,
 };
 pub use host_message::{
     DEFAULT_HOST_MESSAGE_CAPACITY, HostMessage, HostMessageContext, HostMessageError,

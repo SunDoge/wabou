@@ -107,7 +107,7 @@ pub mod event_data {
 #[allow(missing_docs)]
 pub mod host_frame {
     pub const MAGIC: u32 = 0x31464857;
-    pub const VERSION: u32 = 2;
+    pub const VERSION: u32 = 3;
     pub const HEADER_LEN: u32 = 32;
 }
 

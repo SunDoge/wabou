@@ -278,13 +278,23 @@ const EVENT_DATA_SLOT = {
 	deltaX: 7,
 	deltaY: 8,
 	scrollX: 9,
-	scrollY: 10
+	scrollY: 10,
+	phase: 11,
+	pointerIdLo: 12,
+	pointerIdHi: 13,
+	pointerType: 14,
+	primary: 15,
+	pressure: 16,
+	tangentialPressure: 17,
+	tiltX: 18,
+	tiltY: 19,
+	twist: 20
 };
 const EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;
 /** Versioned Host → JS frame envelope. Keep in sync through `bun run gen`. */
 const HOST_FRAME = {
 	Magic: 826689623,
-	Version: 2,
+	Version: 3,
 	HeaderLen: 32
 };
 const HOST_RECORD_KIND = {
@@ -635,4 +645,4 @@ var Writer = class {
 //#endregion
 export { formatResourceKeyParts as C, createResourceKeyFamily as S, validateResourceKeyParts as T, isNodeKey as _, GRAPHIC_SOURCE as a, nodeKeyFromSlotMapFfi as b, HOST_RECORD_KIND as c, TEXT_BEHAVIOR as d, Writer as f, formatNodeKey as g, ROOT_NODE_KEY as h, GRAPHIC_DATA as i, INTERACTION_POLICY as l, NodeKeyTable as m, EVENT_DATA_LEN as n, HOST_FRAME as o, NodeKeyAllocator as p, EVENT_DATA_SLOT as r, HOST_NODE_PAYLOAD as s, EVENT_CODE as t, OP as u, nodeKey as v, isResourceKeyParts as w, ResourceKeyTable as x, nodeKeyEquals as y };
 
-//# sourceMappingURL=protocol-CraQTlUq.mjs.map
+//# sourceMappingURL=protocol-C3qFqoA0.mjs.map

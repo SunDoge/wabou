@@ -390,7 +390,12 @@ impl Applier {
                     event_code: event::SCROLL,
                     event_id: 0,
                     cancellable: false,
-                    payload: NodeEventPayload::Numeric(data),
+                    payload: NodeEventPayload::Numeric(
+                        crate::host_frame::NumericEventData::prefix(
+                            data,
+                            event_data::SCROLL_Y as usize + 1,
+                        ),
+                    ),
                 })
             })
             .collect::<Vec<_>>();

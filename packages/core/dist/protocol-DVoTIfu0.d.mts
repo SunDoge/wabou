@@ -190,13 +190,23 @@ declare const EVENT_DATA_SLOT: {
   readonly deltaY: 8;
   readonly scrollX: 9;
   readonly scrollY: 10;
+  readonly phase: 11;
+  readonly pointerIdLo: 12;
+  readonly pointerIdHi: 13;
+  readonly pointerType: 14;
+  readonly primary: 15;
+  readonly pressure: 16;
+  readonly tangentialPressure: 17;
+  readonly tiltX: 18;
+  readonly tiltY: 19;
+  readonly twist: 20;
 };
 declare const EVENT_DATA_LEN: number;
 type EventDataSlot = keyof typeof EVENT_DATA_SLOT;
 /** Versioned Host → JS frame envelope. Keep in sync through `bun run gen`. */
 declare const HOST_FRAME: {
   readonly Magic: 826689623;
-  readonly Version: 2;
+  readonly Version: 3;
   readonly HeaderLen: 32;
 };
 declare const HOST_RECORD_KIND: {
@@ -290,4 +300,4 @@ declare class Writer {
 }
 //#endregion
 export { formatResourceKeyParts as A, nodeKeyEquals as C, ResourceKeyParts as D, ResourceKeyFamily as E, validateResourceKeyParts as M, ResourceKeyTable as O, nodeKey as S, ResourceKey as T, NodeKeyAllocator as _, EventType as a, formatNodeKey as b, HOST_FRAME as c, INTERACTION_POLICY as d, OP as f, NodeKey as g, Writer as h, EventDataSlot as i, isResourceKeyParts as j, createResourceKeyFamily as k, HOST_NODE_PAYLOAD as l, TEXT_BEHAVIOR as m, EVENT_DATA_LEN as n, GRAPHIC_DATA as o, OpCode as p, EVENT_DATA_SLOT as r, GRAPHIC_SOURCE as s, EVENT_CODE as t, HOST_RECORD_KIND as u, NodeKeyTable as v, nodeKeyFromSlotMapFfi as w, isNodeKey as x, ROOT_NODE_KEY as y };
-//# sourceMappingURL=protocol-pMJDDBQV.d.mts.map
+//# sourceMappingURL=protocol-DVoTIfu0.d.mts.map

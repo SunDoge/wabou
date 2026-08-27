@@ -42,7 +42,8 @@ function numericScrollFrame(
   target: { lo: number; hi: number },
   scrollY: number,
 ): Uint8Array {
-  const recordLen = 8 + 16 + EVENT_DATA_LEN * 8;
+  const numericLen = EVENT_DATA_SLOT.scrollY + 1;
+  const recordLen = 8 + 16 + numericLen * 8;
   const bytes = new Uint8Array(HOST_FRAME.HeaderLen + recordLen);
   const view = new DataView(bytes.buffer);
   view.setUint32(0, HOST_FRAME.Magic, true);
@@ -57,6 +58,7 @@ function numericScrollFrame(
   view.setUint32(offset + 4, target.hi, true);
   view.setUint8(offset + 8, EVENT_CODE.scroll);
   view.setUint8(offset + 9, HOST_NODE_PAYLOAD.Numeric);
+  view.setUint16(offset + 10, numericLen, true);
   offset += 16;
   view.setFloat64(offset + EVENT_DATA_SLOT.scrollY * 8, scrollY, true);
   return bytes;
@@ -116,6 +118,15 @@ test("numeric host frames preserve extended scroll slots", () => {
   decodeAndDispatchHostFrame(numericScrollFrame(node.id, 3_200));
 
   expect(observed).toBe(3_200);
+});
+
+test("numeric host frames carry only the event-specific slot prefix", () => {
+  const frame = numericScrollFrame({ lo: 1, hi: 1 }, 42);
+  const expectedRecordLen = 8 + 16 + (EVENT_DATA_SLOT.scrollY + 1) * 8;
+  expect(frame.byteLength).toBe(HOST_FRAME.HeaderLen + expectedRecordLen);
+  expect(new DataView(frame.buffer).getUint32(HOST_FRAME.HeaderLen + 4, true)).toBe(
+    expectedRecordLen,
+  );
 });
 
 test("malformed frames are rejected atomically", () => {

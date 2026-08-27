@@ -1,4 +1,4 @@
-import { _ as isNodeKey, a as GRAPHIC_SOURCE, f as Writer, g as formatNodeKey, h as ROOT_NODE_KEY, i as GRAPHIC_DATA, l as INTERACTION_POLICY, m as NodeKeyTable, p as NodeKeyAllocator, t as EVENT_CODE, y as nodeKeyEquals } from "./protocol-CraQTlUq.mjs";
+import { _ as isNodeKey, a as GRAPHIC_SOURCE, f as Writer, g as formatNodeKey, h as ROOT_NODE_KEY, i as GRAPHIC_DATA, l as INTERACTION_POLICY, m as NodeKeyTable, p as NodeKeyAllocator, t as EVENT_CODE, y as nodeKeyEquals } from "./protocol-C3qFqoA0.mjs";
 import { r as assertInlineStyleValue, s as isTypedStyleValue } from "./style-wyr3v0Z9.mjs";
 import { For, Show, createComponent, createContext, createMemo, createSignal, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { createRenderer } from "@solidjs/universal";
@@ -1055,6 +1055,22 @@ function dispatchEvent(solidId, eventCode, payloadStr, numericData) {
 				data.button = ed[4];
 				data.buttons = ed[5];
 				data.mods = ed[6];
+				data.pointerId = {
+					lo: ed[12],
+					hi: ed[13]
+				};
+				data.pointerType = [
+					"mouse",
+					"touch",
+					"pen",
+					"unknown"
+				][ed[14]];
+				data.primary = ed[15] !== 0;
+				data.pressure = Number.isNaN(ed[16]) ? null : ed[16];
+				data.tangentialPressure = Number.isNaN(ed[17]) ? null : ed[17];
+				data.tiltX = Number.isNaN(ed[18]) ? null : ed[18];
+				data.tiltY = Number.isNaN(ed[19]) ? null : ed[19];
+				data.twist = Number.isNaN(ed[20]) ? null : ed[20];
 			} else if (eventCode === EVENT_CODE.wheel) {
 				data.clientX = ed[0];
 				data.clientY = ed[1];
@@ -1062,6 +1078,12 @@ function dispatchEvent(solidId, eventCode, payloadStr, numericData) {
 				data.offsetY = ed[3];
 				data.deltaX = ed[7];
 				data.deltaY = ed[8];
+				data.phase = [
+					"started",
+					"changed",
+					"ended",
+					"cancelled"
+				][ed[11]];
 			} else if (eventCode === EVENT_CODE.scroll) {
 				data.scrollX = ed[9];
 				data.scrollY = ed[10];
@@ -1148,4 +1170,4 @@ function eventName(code) {
 //#endregion
 export { VirtualList as A, removeNode as C, setTransform2D as D, setProp as E, useHost as F, PathBuilder as I, isVectorPath as L, Portal as M, HostProvider as N, spread as O, defaultHost as P, releaseOverlayRoot as S, runSweep as T, mergeProps as _, createElement as a, ref as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, createFps as j, writer as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, render as w, registerRoot as x, observeGlobalPointerEvent as y };
 
-//# sourceMappingURL=renderer-0vXxx3P8.mjs.map
+//# sourceMappingURL=renderer-RSUU_Q3a.mjs.map

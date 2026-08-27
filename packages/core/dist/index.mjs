@@ -1,7 +1,7 @@
-import { S as createResourceKeyFamily, a as GRAPHIC_SOURCE, c as HOST_RECORD_KIND, d as TEXT_BEHAVIOR, l as INTERACTION_POLICY, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, t as EVENT_CODE, u as OP, v as nodeKey } from "./protocol-CraQTlUq.mjs";
+import { S as createResourceKeyFamily, a as GRAPHIC_SOURCE, c as HOST_RECORD_KIND, d as TEXT_BEHAVIOR, l as INTERACTION_POLICY, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, t as EVENT_CODE, u as OP, v as nodeKey } from "./protocol-C3qFqoA0.mjs";
 import { _ as utilityConflictProperties, a as bool, c as mergeClasses, d as px, f as rgba, g as translate2d, h as shadow, i as auto, l as number, m as scale2d, n as StyleValueKind, o as classes, p as rotate2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as percent, v as INLINE_STYLE_CONTRACT } from "./style-wyr3v0Z9.mjs";
-import { A as VirtualList, C as removeNode, D as setTransform2D, E as setProp, F as useHost, I as PathBuilder, L as isVectorPath, M as Portal, N as HostProvider, O as spread, P as defaultHost, S as releaseOverlayRoot, T as runSweep, _ as mergeProps, a as createElement, b as ref, c as dispatchEvent, d as getRequestEvent, f as insert, g as memo, h as isServer, i as createComponent, j as createFps, k as writer, l as effect, m as isDirectEvent, n as acquireOverlayRoot, o as createTextNode, p as insertNode, r as applyRef, s as delegateEvents, t as Dynamic, u as getMountRoot, v as mount, w as render, x as registerRoot, y as observeGlobalPointerEvent } from "./renderer-0vXxx3P8.mjs";
-import { a as subscribeJson, i as subscribeAll, n as hostMessages, o as dispatchResizeObservation, r as subscribe, t as dispatchHostMessage } from "./host-messages-CiIPMkh6.mjs";
+import { A as VirtualList, C as removeNode, D as setTransform2D, E as setProp, F as useHost, I as PathBuilder, L as isVectorPath, M as Portal, N as HostProvider, O as spread, P as defaultHost, S as releaseOverlayRoot, T as runSweep, _ as mergeProps, a as createElement, b as ref, c as dispatchEvent, d as getRequestEvent, f as insert, g as memo, h as isServer, i as createComponent, j as createFps, k as writer, l as effect, m as isDirectEvent, n as acquireOverlayRoot, o as createTextNode, p as insertNode, r as applyRef, s as delegateEvents, t as Dynamic, u as getMountRoot, v as mount, w as render, x as registerRoot, y as observeGlobalPointerEvent } from "./renderer-RSUU_Q3a.mjs";
+import { a as subscribeAll, i as subscribe, n as dispatchHostMessage, o as subscribeJson, r as hostMessages, t as dispatchResizeObservation } from "./resize-observer-bJVAKxKD.mjs";
 import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
 import "./registry.mjs";
 import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
@@ -380,6 +380,22 @@ globalThis.cancelAnimationFrame = cancelAnimationFrameImpl;
 globalThis.__wabou_tick = __wabou_tick;
 globalThis.__wabou_has_raf = __wabou_has_raf;
 //#endregion
+//#region src/glue/app-lifecycle.ts
+function decodeAppLifecycle(value) {
+	if (typeof value !== "object" || value === null) throw new TypeError("application lifecycle event must be an object");
+	const state = value.state;
+	if (state !== "resumed" && state !== "suspended" && state !== "memory-warning") throw new TypeError("application lifecycle event has an invalid state");
+	return { state };
+}
+/** Subscribe to operating-system lifecycle notifications. */
+function subscribeAppLifecycle(handler) {
+	return subscribeJson("wabou:app-lifecycle", handler, { decode: decodeAppLifecycle });
+}
+/** Subscribe for the lifetime of the current Solid owner. */
+function useAppLifecycle(handler) {
+	onCleanup(subscribeAppLifecycle(handler));
+}
+//#endregion
 //#region src/glue/timers.ts
 let nextTimerId = 1;
 const active = /* @__PURE__ */ new Set();
@@ -460,6 +476,7 @@ function decodeAndDispatchHostFrame(input) {
 			const target = nodeKey(view.getUint32(offset, true), view.getUint32(offset + 4, true));
 			const eventCode = view.getUint8(offset + 8);
 			const payloadKind = view.getUint8(offset + 9);
+			const numericLen = view.getUint16(offset + 10, true);
 			const eventId = view.getUint32(offset + 12, true);
 			offset += 16;
 			if (payloadKind === HOST_NODE_PAYLOAD.None) records.push({
@@ -471,10 +488,11 @@ function decodeAndDispatchHostFrame(input) {
 				json: ""
 			});
 			else if (payloadKind === HOST_NODE_PAYLOAD.Numeric) {
-				requireBytes(8 * EVENT_DATA_LEN, end);
-				const numeric = new Float64Array(EVENT_DATA_LEN);
+				if (numericLen > EVENT_DATA_LEN) throw new TypeError("HostEventFrame numeric payload exceeds ABI slots");
+				requireBytes(8 * numericLen, end);
+				const numeric = new Float64Array(numericLen);
 				for (let slot = 0; slot < numeric.length; slot++) numeric[slot] = view.getFloat64(offset + slot * 8, true);
-				offset += 8 * numeric.length;
+				offset += 8 * numericLen;
 				records.push({
 					kind: "node",
 					flags,
@@ -1661,6 +1679,6 @@ function reconcileKeyedList(current, patch, keyOf) {
 	return ordered;
 }
 //#endregion
-export { AsyncActionConflictError, ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useNotification, useWindow, utilityConflictProperties, writer };
+export { AsyncActionConflictError, ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useNotification, useWindow, utilityConflictProperties, writer };
 
 //# sourceMappingURL=index.mjs.map

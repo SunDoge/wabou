@@ -171,7 +171,7 @@ export type EventDataSlot = keyof typeof EVENT_DATA_SLOT;
 /** Versioned Host → JS frame envelope. Keep in sync through `bun run gen`. */
 export const HOST_FRAME = {
   Magic: 0x31464857,
-  Version: 2,
+  Version: 3,
   HeaderLen: 32,
 } as const;
 

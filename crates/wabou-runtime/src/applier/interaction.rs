@@ -629,7 +629,10 @@ impl Applier {
             event_code: code,
             event_id: 0,
             cancellable: false,
-            payload: NodeEventPayload::Numeric(data),
+            payload: NodeEventPayload::Numeric(crate::host_frame::NumericEventData::prefix(
+                data,
+                event_data::TWIST as usize + 1,
+            )),
         });
         if let Err(error) = self.runtime.js.dispatch_host_frame(&[event]) {
             tracing::warn!(?error, ?target, code, "event dispatch failed");
@@ -680,7 +683,10 @@ impl Applier {
             event_code: code,
             event_id,
             cancellable: true,
-            payload: NodeEventPayload::Numeric(data),
+            payload: NodeEventPayload::Numeric(crate::host_frame::NumericEventData::prefix(
+                data,
+                Self::numeric_event_len(code),
+            )),
         });
         match self.runtime.js.dispatch_host_frame(&[event]) {
             Ok(disposition) => (true, disposition.is_prevented(event_id)),
@@ -688,6 +694,14 @@ impl Applier {
                 tracing::warn!(?error, ?target, code, "event dispatch failed");
                 (false, false)
             }
+        }
+    }
+
+    fn numeric_event_len(code: u8) -> usize {
+        if code == event::WHEEL {
+            event_data::PHASE as usize + 1
+        } else {
+            event_data::TWIST as usize + 1
         }
     }
 

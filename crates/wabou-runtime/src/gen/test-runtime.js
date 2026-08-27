@@ -7512,7 +7512,7 @@
   var EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;
   var HOST_FRAME = {
     Magic: 826689623,
-    Version: 2,
+    Version: 3,
     HeaderLen: 32
   };
   var HOST_RECORD_KIND = {
@@ -10582,6 +10582,7 @@ ${detail}`);
         const target = nodeKey(view.getUint32(offset, true), view.getUint32(offset + 4, true));
         const eventCode = view.getUint8(offset + 8);
         const payloadKind = view.getUint8(offset + 9);
+        const numericLen = view.getUint16(offset + 10, true);
         const eventId = view.getUint32(offset + 12, true);
         offset += 16;
         if (payloadKind === HOST_NODE_PAYLOAD.None) {
@@ -10594,12 +10595,15 @@ ${detail}`);
             json: ""
           });
         } else if (payloadKind === HOST_NODE_PAYLOAD.Numeric) {
-          requireBytes(8 * EVENT_DATA_LEN, end);
-          const numeric = new Float64Array(EVENT_DATA_LEN);
+          if (numericLen > EVENT_DATA_LEN) {
+            throw new TypeError("HostEventFrame numeric payload exceeds ABI slots");
+          }
+          requireBytes(8 * numericLen, end);
+          const numeric = new Float64Array(numericLen);
           for (let slot = 0;slot < numeric.length; slot++) {
             numeric[slot] = view.getFloat64(offset + slot * 8, true);
           }
-          offset += 8 * numeric.length;
+          offset += 8 * numericLen;
           records.push({
             kind: "node",
             flags,
