@@ -68,7 +68,10 @@ function inlineText(tokens: Token[]): string {
 }
 
 function inlinePieces(text: string): string[] {
-  return text.split(/(\s+)/).filter(Boolean);
+  // Wabou deliberately does not merge adjacent text nodes. Keep whitespace
+  // attached to a visible word so it has stable layout width instead of
+  // creating standalone whitespace-only Text nodes.
+  return text.match(/\s*\S+(?:\s+|$)/g) ?? (text ? [text] : []);
 }
 
 function InlineTextPieces(props: { text: string; class: string }): JSX.Element {

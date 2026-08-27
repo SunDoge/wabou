@@ -41,7 +41,7 @@ test("keeps inline code in the surrounding paragraph flow", () => {
     .getByRole("textbox", { name: "Markdown source" })
     .input("Before `code` after.");
 
-  expect(
-    screen.getByRole("region", { name: "Markdown preview" }).text,
-  ).toContain("Before code after.");
+  const text = screen.getByRole("region", { name: "Markdown preview" }).text;
+  expect(text).toContain("Before code after.");
+  expect(text).not.toContain("Beforecodeafter.");
 });
