@@ -42,7 +42,7 @@ test("global pointer observers run before target bubbling and can unsubscribe", 
   expect(order).toEqual(["capture", "target", "target"]);
 });
 
-test("every declared pointer event decodes the fixed numeric payload", () => {
+test("every declared pointer event decodes its numeric payload", () => {
   const node = createElement("view");
   const observed: Array<[string, number, number]> = [];
   for (const [prop, code] of [

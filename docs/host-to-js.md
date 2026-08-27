@@ -116,7 +116,7 @@ Unknown record kinds in a known version are skipped using `record_len`.
 ```text
 HostEventFrameHeader (32 bytes)
   u32 magic            = 0x31464857 ("WHF1")
-  u16 version          = 2
+  u16 version          = 3
   u16 flags
   u64 sequence
   u64 monotonic_time_ns
@@ -128,7 +128,7 @@ repeated record_count times
   u8  flags
   u16 reserved         = 0
   u32 record_len       including the 8-byte record header
-  u8[record_len - 8] payload
+  u8[record_len - 8] payload, padded so the next record is 8-byte aligned
 ```
 
 Limits are checked before allocation:
@@ -145,7 +145,7 @@ ordering assertions, not as a globally unique identifier.
 
 ## Record kinds and ordering
 
-Version 2 currently encodes these records:
+Version 3 currently encodes these records:
 
 ```rust
 enum HostEvent {
@@ -173,7 +173,7 @@ u32 target_lo
 u32 target_hi
 u8  event_code         @wabou/core/protocol EVENT_CODE
 u8  payload_kind       0 none, 1 numeric, 2 utf8-json
-u16 reserved
+u16 numeric_len       number of valid f64 slots, otherwise zero
 u32 event_id           zero for non-cancellable events
 
 numeric payload:
@@ -188,13 +188,26 @@ numeric payload:
   f64 delta_y
   f64 scroll_x
   f64 scroll_y
+  f64 gesture_phase
+  f64 pointer_id_lo
+  f64 pointer_id_hi
+  f64 pointer_type
+  f64 primary
+  f64 pressure
+  f64 tangential_pressure
+  f64 tilt_x
+  f64 tilt_y
+  f64 twist
 
 json payload:
   u32 len + utf8 bytes
 ```
 
-Numeric input stays allocation-free on the Rust side and avoids JSON parsing in
-the guest. Keyboard/text payloads remain UTF-8 JSON in version 2; they may gain
+Only the event-specific prefix through `numeric_len` is encoded. Aligned host
+frames let the guest read that prefix as a zero-copy `Float64Array` view into
+the complete frame arena. Numeric input therefore stays allocation-free on
+both sides and avoids JSON parsing. Keyboard/text payloads remain UTF-8 JSON in
+version 3; they may gain
 typed records in a later protocol version without changing the frame envelope.
 Propagation paths are not serialized: the guest renderer derives the path from
 its retained logical parent map after the Host has selected the target.
