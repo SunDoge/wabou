@@ -30,8 +30,42 @@ import type { AgentItem } from "./agent-state";
 
 const TOOL_OUTPUT_PREVIEW_BYTES = 12_000;
 
+export function summarizeToolInput(input: string): string {
+  try {
+    const value = JSON.parse(input) as Record<string, unknown>;
+    for (const key of [
+      "command",
+      "path",
+      "file_path",
+      "filename",
+      "query",
+      "url",
+    ]) {
+      const candidate = value[key];
+      if (typeof candidate === "string" && candidate.trim()) {
+        const firstLine = candidate.trim().split("\n", 1)[0] ?? "";
+        return firstLine.length > 88 ? `${firstLine.slice(0, 85)}…` : firstLine;
+      }
+    }
+  } catch {
+    // The raw input remains available when a third-party tool does not use JSON.
+  }
+  const compact = input.trim().replace(/\s+/g, " ");
+  return compact.length > 88 ? `${compact.slice(0, 85)}…` : compact;
+}
+
 function ToolCall(props: { item: Extract<AgentItem, { kind: "tool" }> }) {
-  const [open, setOpen] = createSignal(props.item.state === "running");
+  const initiallyRunning = untrack(() => props.item.state === "running");
+  const [open, setOpen] = createSignal(initiallyRunning);
+  let wasRunning = initiallyRunning;
+  createEffect(
+    () => props.item.state === "running",
+    (running) => {
+      if (running) setOpen(true);
+      else if (wasRunning) setOpen(false);
+      wasRunning = running;
+    },
+  );
   const preview = () => {
     const value = props.item.output;
     return value.length > TOOL_OUTPUT_PREVIEW_BYTES
@@ -39,8 +73,8 @@ function ToolCall(props: { item: Extract<AgentItem, { kind: "tool" }> }) {
       : value;
   };
   return (
-    <View class="w-full min-w-0 overflow-hidden rounded-lg border border-subtle bg-surface">
-      <View class="h-9 px-3 flex items-center gap-2 bg-control">
+    <View class="w-full min-w-0 overflow-hidden rounded-lg border border-subtle bg-surface shadow-xs">
+      <View class="min-h-10 px-3 flex items-center gap-2 bg-control">
         <View class="relative w-5 h-5 flex-none flex items-center justify-center">
           <Icon source={terminal} size={14} />
           <Show when={props.item.state === "running"}>
@@ -56,10 +90,22 @@ function ToolCall(props: { item: Extract<AgentItem, { kind: "tool" }> }) {
         <Button
           variant="ghost"
           size="sm"
-          class="flex-1 min-w-0 justify-start"
+          class="flex-1 min-w-0 justify-start gap-2"
+          aria-label={`${props.item.name}: ${summarizeToolInput(props.item.input)}`}
+          aria-expanded={open()}
           onClick={() => setOpen((value) => !value)}
         >
-          <Text class="min-w-0 text-sm font-medium">{props.item.name}</Text>
+          <Icon
+            source={chevronRight}
+            size={12}
+            class={open() ? "rotate-90 text-muted" : "text-muted"}
+          />
+          <Text class="flex-none text-sm font-semibold text-primary">
+            {props.item.name}
+          </Text>
+          <Text class="min-w-0 flex-1 truncate text-left text-xs text-muted">
+            {summarizeToolInput(props.item.input)}
+          </Text>
         </Button>
         <Badge
           variant={props.item.state === "failed" ? "destructive" : "secondary"}
@@ -67,20 +113,27 @@ function ToolCall(props: { item: Extract<AgentItem, { kind: "tool" }> }) {
           {props.item.state}
         </Badge>
       </View>
-      <Show when={open()}>
+      <CollapsiblePresence
+        open={open()}
+        duration={0.16}
+        contentClass="min-w-0 border-t border-subtle"
+      >
         <CodeBlock
           code={props.item.input}
-          language="json"
+          language="input"
+          copyable={false}
           class="border-0 rounded-none"
         />
-      </Show>
-      <Show when={open() && props.item.output}>
-        <CodeBlock
-          code={preview()}
-          language="output"
-          class="border-0 rounded-none border-t border-subtle"
-        />
-      </Show>
+        <Show when={props.item.output}>
+          <View class="min-w-0 max-h-64 overflow-y-auto border-t border-subtle">
+            <CodeBlock
+              code={preview()}
+              language="output"
+              class="border-0 rounded-none"
+            />
+          </View>
+        </Show>
+      </CollapsiblePresence>
     </View>
   );
 }

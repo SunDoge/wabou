@@ -1,6 +1,9 @@
 import { renderComponent } from "@wabou/test/component";
 import { expect, test } from "vitest";
-import { ConversationItem } from "../../apps/pi-agent/ui/conversation";
+import {
+  ConversationItem,
+  summarizeToolInput,
+} from "../../apps/pi-agent/ui/conversation";
 
 test("Pi Agent renders assistant Markdown but preserves user source text", () => {
   const assistant = renderComponent(() => (
@@ -95,4 +98,34 @@ test("Pi Agent keeps reasoning in an independently collapsible process detail", 
   expect(
     screen.getByRole("region", { name: "Model reasoning" }).text,
   ).toContain("I should inspect src/main.rs first.");
+});
+
+test("Pi Agent tool activity starts expanded and summarizes common arguments", () => {
+  expect(
+    summarizeToolInput(
+      JSON.stringify({ command: "cargo test -p wabou-runtime\nnext line" }),
+    ),
+  ).toBe("cargo test -p wabou-runtime");
+
+  const screen = renderComponent(() => (
+    <ConversationItem
+      item={{
+        id: "tool-1",
+        kind: "tool",
+        name: "bash",
+        state: "running",
+        input: JSON.stringify({ command: "cargo test -p wabou-runtime" }),
+        output: "running tests",
+      }}
+    />
+  ));
+  const toggle = screen.getByRole("button", {
+    name: "bash: cargo test -p wabou-runtime",
+  });
+  expect(toggle.expanded).toBe(true);
+  expect(toggle.text).toContain("cargo test -p wabou-runtime");
+  expect(screen.getAllByRole("group", { name: "Code block" })).toHaveLength(2);
+
+  toggle.click();
+  expect(toggle.expanded).toBe(false);
 });

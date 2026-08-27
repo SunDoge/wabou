@@ -49,7 +49,7 @@ export function MarkdownInlineLayoutFixture() {
 
 export function MarkdownConversationLayoutFixture() {
   return (
-    <View class="w-full h-full min-w-0 p-5 bg-canvas">
+    <View class="w-full h-full min-w-0 p-5 flex flex-col gap-3 bg-canvas">
       <Markdown
         variant="conversation"
         aria-label="Conversation Markdown fixture"
@@ -63,7 +63,7 @@ export function MarkdownConversationLayoutFixture() {
 
 export function PiConversationLayoutFixture() {
   return (
-    <View class="w-full h-full min-w-0 p-5 bg-canvas">
+    <View class="w-full h-full min-w-0 p-5 flex flex-col gap-3 bg-canvas">
       <ConversationItem
         item={{
           id: "fixture-assistant",
@@ -71,6 +71,16 @@ export function PiConversationLayoutFixture() {
           thinkingText: "Inspect the router and verify the active session.",
           text: "## Change\n\nThe active session now remains selected.\n\n- Preserved navigation state\n- Added a regression test",
           streaming: true,
+        }}
+      />
+      <ConversationItem
+        item={{
+          id: "fixture-tool",
+          kind: "tool",
+          name: "bash",
+          state: "running",
+          input: JSON.stringify({ command: "cargo test -p wabou-runtime" }),
+          output: "running 245 tests",
         }}
       />
     </View>
