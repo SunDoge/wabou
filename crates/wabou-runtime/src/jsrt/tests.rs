@@ -45,6 +45,20 @@ fn runtime_options_reject_a_zero_stack_limit() {
 }
 
 #[test]
+fn boot_reports_quickjs_stack_exhaustion_with_the_configured_limit() {
+    let mut runtime =
+        JsRuntime::new_with_options(JsRuntimeOptions::default().max_stack_size(256 * 1024))
+            .expect("runtime");
+    let error = runtime
+        .boot("function recurse() { recurse(); } recurse();")
+        .expect_err("recursive bundle must exhaust the configured stack");
+    let diagnostic = error.to_string();
+    assert!(diagnostic.contains("stack"), "{diagnostic}");
+    assert!(diagnostic.contains("262144 bytes"), "{diagnostic}");
+    assert!(diagnostic.contains("native thread stack"), "{diagnostic}");
+}
+
+#[test]
 fn pure_javascript_compatibility_probes_resolve_json() {
     let mut runtime =
         JsRuntime::new_with_options(JsRuntimeOptions::default().max_stack_size(4 * 1024 * 1024))

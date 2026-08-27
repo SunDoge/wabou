@@ -174,6 +174,7 @@ impl JsRuntimeOptions {
 /// own its frame/event lifecycle.
 pub struct JsRuntime {
     clock: Arc<dyn crate::clock::Clock>,
+    max_stack_size: usize,
     /// Bytes flushed by the most recent `__wabou_flush` call.
     out: Rc<RefCell<Vec<u8>>>,
     /// True once the app's initial render has been evaluated.
@@ -242,10 +243,14 @@ impl JsRuntime {
         futures_lite::future::block_on(async {
             rt.set_max_stack_size(options.stack_size()).await;
         });
-        Self::build_inner(rt, clock)
+        Self::build_inner(rt, clock, options.stack_size())
     }
 
-    fn build_inner(rt: AsyncRuntime, clock: Arc<dyn crate::clock::Clock>) -> JsResult<Self> {
+    fn build_inner(
+        rt: AsyncRuntime,
+        clock: Arc<dyn crate::clock::Clock>,
+        max_stack_size: usize,
+    ) -> JsResult<Self> {
         let tokio_rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
@@ -279,6 +284,7 @@ impl JsRuntime {
         }))?;
 
         let this = Self {
+            max_stack_size,
             clock,
             rt,
             ctx,
@@ -936,38 +942,46 @@ impl JsRuntime {
             source_map.and_then(crate::source_map::StackSourceMap::parse);
         let src = source.to_string();
         let mapped_source_map = self.source_map.clone();
+        let max_stack_size = self.max_stack_size;
         self.with(|ctx| -> JsResult<()> {
             let mut options = EvalOptions::default();
             options.filename = Some("bundle.js".to_owned());
             ctx.eval_with_options::<(), _>(src.as_str(), options)
                 .catch(&ctx)
                 .map_err(|caught| {
-                    match caught {
+                    let mut diagnostic = match caught {
                         rquickjs::CaughtError::Value(v) => {
-                            let s = v
+                            v
                                 .as_string()
                                 .map(|s| s.to_string().unwrap_or_default())
-                                .unwrap_or_default();
-                            eprintln!("boot app failed (value): {s}");
+                                .unwrap_or_else(|| "JavaScript threw a non-string value".into())
                         }
                         rquickjs::CaughtError::Exception(e) => {
-                            eprintln!("boot app failed (exception): {e:?}");
-                            if let Some(msg) = e.message() {
-                                eprintln!("  Message: {msg}");
-                            }
-                            if let Some(stack) = e.stack() {
-                                let stack = mapped_source_map
+                            let message = e
+                                .message()
+                                .unwrap_or_else(|| "JavaScript exception".to_owned());
+                            e.stack().map_or(message.clone(), |stack| {
+                                let mapped = mapped_source_map
                                     .borrow()
                                     .as_ref()
                                     .map_or_else(|| stack.clone(), |map| map.map_stack(&stack));
-                                eprintln!("  Stack: {stack}");
-                            }
+                                format!("{message}\n{mapped}")
+                            })
                         }
-                        rquickjs::CaughtError::Error(e) => {
-                            eprintln!("boot app failed (error): {e:?}")
-                        }
+                        rquickjs::CaughtError::Error(e) => e.to_string(),
+                    };
+                    if diagnostic.to_ascii_lowercase().contains("stack") {
+                        diagnostic.push_str(&format!(
+                            "\nQuickJS stack limit: {} bytes. This limit does not enlarge the native thread stack; the native stack must be larger than this value.",
+                            max_stack_size
+                        ));
                     }
-                    rquickjs::Error::Unknown
+                    eprintln!("boot app failed:\n{diagnostic}");
+                    rquickjs::Error::new_from_js_message(
+                        "JavaScript bundle",
+                        "Wabou runtime",
+                        diagnostic,
+                    )
                 })?;
             Ok(())
         })?;
@@ -1189,7 +1203,11 @@ impl JsRuntime {
         let vite = crate::vite::ViteState::new(origin);
         vite.install_loader(&rt)?;
 
-        let mut this = Self::build_inner(rt, Arc::new(crate::clock::SystemClock::new()))?;
+        let mut this = Self::build_inner(
+            rt,
+            Arc::new(crate::clock::SystemClock::new()),
+            options.stack_size(),
+        )?;
         this.with(|ctx| -> JsResult<()> {
             let g = ctx.globals();
             g.set(
