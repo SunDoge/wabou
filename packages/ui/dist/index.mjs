@@ -4924,6 +4924,149 @@ function AdaptiveSplitPaneDetail(props) {
 	});
 }
 //#endregion
+//#region src/components/markdown-model.ts
+function sameStyle(left, right) {
+	return left.strong === right.strong && left.emphasis === right.emphasis && left.code === right.code && left.deleted === right.deleted && left.href === right.href;
+}
+function appendRun(runs, text, style) {
+	if (!text) return;
+	const previous = runs.at(-1);
+	if (previous && sameStyle(previous.style, style)) previous.text += text;
+	else runs.push({
+		text,
+		style
+	});
+}
+function inlineRuns(tokens, inherited = {}) {
+	const runs = [];
+	for (const token of tokens) {
+		const nested = (style) => {
+			if ("tokens" in token && Array.isArray(token.tokens)) for (const run of inlineRuns(token.tokens, style)) appendRun(runs, run.text, run.style);
+			else if ("text" in token && typeof token.text === "string") appendRun(runs, token.text, style);
+		};
+		switch (token.type) {
+			case "strong":
+				nested({
+					...inherited,
+					strong: true
+				});
+				break;
+			case "em":
+				nested({
+					...inherited,
+					emphasis: true
+				});
+				break;
+			case "codespan":
+				appendRun(runs, token.text, {
+					...inherited,
+					code: true
+				});
+				break;
+			case "del":
+				nested({
+					...inherited,
+					deleted: true
+				});
+				break;
+			case "link":
+				nested({
+					...inherited,
+					href: token.href
+				});
+				break;
+			case "image":
+				appendRun(runs, token.text || token.href, inherited);
+				break;
+			case "br":
+				appendRun(runs, "\n", inherited);
+				break;
+			case "checkbox": break;
+			default: nested(inherited);
+		}
+	}
+	return runs;
+}
+function blocks(tokens) {
+	const result = [];
+	for (const token of tokens) switch (token.type) {
+		case "space": break;
+		case "heading": {
+			const heading = token;
+			result.push({
+				kind: "heading",
+				depth: heading.depth,
+				runs: inlineRuns(heading.tokens)
+			});
+			break;
+		}
+		case "paragraph":
+		case "text": {
+			const text = token;
+			result.push({
+				kind: "paragraph",
+				runs: inlineRuns(text.tokens ?? [text])
+			});
+			break;
+		}
+		case "blockquote":
+			result.push({
+				kind: "blockquote",
+				blocks: blocks(token.tokens)
+			});
+			break;
+		case "list": {
+			const list = token;
+			result.push({
+				kind: "list",
+				ordered: list.ordered,
+				start: typeof list.start === "number" ? list.start : 1,
+				items: list.items.map((item) => ({
+					checked: typeof item.checked === "boolean" ? item.checked : void 0,
+					blocks: blocks(item.tokens)
+				}))
+			});
+			break;
+		}
+		case "table": {
+			const table = token;
+			result.push({
+				kind: "table",
+				align: table.align,
+				header: table.header.map((cell) => inlineRuns(cell.tokens)),
+				rows: table.rows.map((row) => row.map((cell) => inlineRuns(cell.tokens)))
+			});
+			break;
+		}
+		case "code":
+			result.push({
+				kind: "code",
+				code: token.text,
+				language: token.lang || void 0
+			});
+			break;
+		case "hr":
+			result.push({ kind: "rule" });
+			break;
+		case "html":
+			result.push({
+				kind: "literal",
+				text: token.text
+			});
+			break;
+		default: if ("tokens" in token && Array.isArray(token.tokens)) result.push(...blocks(token.tokens));
+	}
+	return result;
+}
+/**
+* Parse GFM into Wabou-owned render data. Marked is deliberately kept behind
+* this adapter so native components never depend on a parser-specific AST.
+*/
+function parseMarkdown(source, streaming = false) {
+	const repaired = streaming ? remend(source) : source;
+	return blocks(lexer(repaired, { gfm: true }));
+}
+//#endregion
 //#region src/components/separator.tsx
 /** A visual divider with an opt-in semantic separator contract. */
 function Separator(props) {
@@ -4999,12 +5142,8 @@ function TypographyListItem(props) {
 }
 //#endregion
 //#region src/components/markdown.tsx
-function inlineText(tokens) {
-	return tokens.map((token) => {
-		if (token.type === "br") return "\n";
-		if ("tokens" in token && Array.isArray(token.tokens)) return inlineText(token.tokens);
-		return "text" in token && typeof token.text === "string" ? token.text : "";
-	}).join("");
+function runClass(run) {
+	return mergeClasses(run.style.strong && "font-semibold text-primary", run.style.emphasis && "italic text-primary", run.style.code && "font-mono text-sm font-normal text-primary", run.style.deleted && "text-muted", run.style.href && "text-accent");
 }
 function InlineMarkdown(props) {
 	return createComponent$1(RichText, {
@@ -5014,53 +5153,25 @@ function InlineMarkdown(props) {
 		get children() {
 			return createComponent$1(For, {
 				get each() {
-					return props.tokens;
+					return props.runs;
 				},
-				children: (token) => {
-					switch (token.type) {
-						case "strong": return createComponent$1(RichTextSpan, {
-							class: "font-semibold text-primary",
-							get children() {
-								return inlineText(token.tokens);
-							}
-						});
-						case "em": return createComponent$1(RichTextSpan, {
-							class: "italic text-primary",
-							get children() {
-								return inlineText(token.tokens);
-							}
-						});
-						case "codespan": return createComponent$1(RichTextSpan, {
-							class: "font-mono text-sm font-normal text-primary",
-							get children() {
-								return token.text;
-							}
-						});
-						case "link": return createComponent$1(RichTextSpan, {
-							class: "text-accent",
-							get children() {
-								return inlineText(token.tokens);
-							}
-						});
-						case "br": return createComponent$1(RichTextSpan, { children: "\n" });
-						default: return createComponent$1(RichTextSpan, { get children() {
-							return memo(() => {
-								return !!("tokens" in token && Array.isArray(token.tokens));
-							})() ? inlineText(token.tokens) : memo(() => {
-								return !!("text" in token && typeof token.text === "string");
-							})() ? token.text : token.raw;
-						} });
+				children: (run) => createComponent$1(RichTextSpan, {
+					get ["class"]() {
+						return runClass(run);
+					},
+					get children() {
+						return run.text;
 					}
-				}
+				})
 			});
 		}
 	});
 }
 function Heading(props) {
-	const text = () => inlineText(props.token.tokens);
+	const text = () => props.block.runs.map((run) => run.text).join("");
 	if (props.variant === "conversation") {
 		const className = () => {
-			switch (props.token.depth) {
+			switch (props.block.depth) {
 				case 1: return "text-2xl font-semibold text-primary whitespace-normal";
 				case 2: return "text-xl font-semibold text-primary whitespace-normal";
 				case 3: return "text-lg font-semibold text-primary whitespace-normal";
@@ -5076,7 +5187,7 @@ function Heading(props) {
 			}
 		});
 	}
-	switch (props.token.depth) {
+	switch (props.block.depth) {
 		case 1: return createComponent$1(TypographyH1, { get children() {
 			return text();
 		} });
@@ -5091,8 +5202,20 @@ function Heading(props) {
 		} });
 	}
 }
+function MarkdownBlocks(props) {
+	return createComponent$1(For, {
+		get each() {
+			return props.blocks;
+		},
+		children: (block) => createComponent$1(MarkdownBlock, {
+			block,
+			get variant() {
+				return props.variant;
+			}
+		})
+	});
+}
 function MarkdownList(props) {
-	const start = typeof props.token.start === "number" ? props.token.start : 1;
 	return createComponent$1(View, {
 		get ["class"]() {
 			return props.variant === "conversation" ? "flex flex-col gap-1.5" : "flex flex-col gap-2";
@@ -5100,7 +5223,7 @@ function MarkdownList(props) {
 		get children() {
 			return createComponent$1(For, {
 				get each() {
-					return props.token.items;
+					return props.block.items;
 				},
 				children: (item, index) => createComponent$1(View, {
 					class: "min-w-0 flex flex-row items-start gap-2",
@@ -5110,15 +5233,17 @@ function MarkdownList(props) {
 							class: "flex-none text-secondary",
 							get children() {
 								return memo(() => {
-									return !!props.token.ordered;
-								})() ? `${start + index()}.` : "•";
+									return typeof item.checked === "boolean";
+								})() ? item.checked ? "[x]" : "[ ]" : memo(() => {
+									return !!props.block.ordered;
+								})() ? `${props.block.start + index()}.` : "•";
 							}
 						}), createComponent$1(View, {
-							class: "min-w-0 flex-1",
+							class: "min-w-0 flex-1 flex flex-col gap-1.5",
 							get children() {
-								return createComponent$1(InlineMarkdown, {
-									get tokens() {
-										return item.tokens;
+								return createComponent$1(MarkdownBlocks, {
+									get blocks() {
+										return item.blocks;
 									},
 									get variant() {
 										return props.variant;
@@ -5133,7 +5258,7 @@ function MarkdownList(props) {
 	});
 }
 function MarkdownTable(props) {
-	const rows = () => [props.token.header, ...props.token.rows];
+	const rows = () => [props.block.header, ...props.block.rows];
 	return createComponent$1(View, {
 		class: "min-w-0 overflow-hidden rounded-lg border border-subtle",
 		get children() {
@@ -5148,13 +5273,11 @@ function MarkdownTable(props) {
 					get children() {
 						return createComponent$1(For, {
 							each: row,
-							children: (cell) => createComponent$1(View, {
+							children: (runs) => createComponent$1(View, {
 								class: "min-w-0 flex-1 px-3 py-2 border-r border-subtle",
 								get children() {
 									return createComponent$1(InlineMarkdown, {
-										get tokens() {
-											return cell.tokens;
-										},
+										runs,
 										get variant() {
 											return props.variant;
 										}
@@ -5169,70 +5292,76 @@ function MarkdownTable(props) {
 	});
 }
 function MarkdownBlock(props) {
-	const token = props.token;
-	switch (token.type) {
+	const block = props.block;
+	switch (block.kind) {
 		case "heading": return createComponent$1(Heading, {
-			token,
+			block,
 			get variant() {
 				return props.variant;
 			}
 		});
 		case "paragraph": return createComponent$1(InlineMarkdown, {
-			get tokens() {
-				return token.tokens;
+			get runs() {
+				return block.runs;
 			},
 			get variant() {
 				return props.variant;
 			}
 		});
-		case "blockquote": return createComponent$1(TypographyBlockquote, {
-			get ["class"]() {
-				return props.variant === "conversation" ? "text-sm" : void 0;
-			},
+		case "blockquote": return createComponent$1(View, {
+			class: "min-w-0 flex flex-row items-stretch gap-3",
 			get children() {
-				return inlineText(token.tokens);
+				return [createComponent$1(View, {
+					"aria-hidden": "true",
+					class: "w-1 flex-none rounded-full bg-strong"
+				}), createComponent$1(View, {
+					class: "min-w-0 flex-1 flex flex-col gap-2",
+					get children() {
+						return createComponent$1(MarkdownBlocks, {
+							get blocks() {
+								return block.blocks;
+							},
+							get variant() {
+								return props.variant;
+							}
+						});
+					}
+				})];
 			}
 		});
 		case "list": return createComponent$1(MarkdownList, {
-			token,
+			block,
 			get variant() {
 				return props.variant;
 			}
 		});
 		case "table": return createComponent$1(MarkdownTable, {
-			token,
+			block,
 			get variant() {
 				return props.variant;
 			}
 		});
 		case "code": return createComponent$1(CodeBlock, {
 			get code() {
-				return token.text;
+				return block.code;
 			},
 			get language() {
-				return token.lang ?? "text";
+				return block.language ?? "text";
 			},
 			copyable: false
 		});
-		case "hr": return createComponent$1(Separator, {});
-		case "space": return null;
-		case "html": return createComponent$1(Text, {
+		case "rule": return createComponent$1(Separator, {});
+		case "literal": return createComponent$1(Text, {
 			class: "text-sm text-muted whitespace-normal",
-			children: "HTML blocks are intentionally not rendered."
-		});
-		default: return "tokens" in token && Array.isArray(token.tokens) ? createComponent$1(InlineMarkdown, {
-			get tokens() {
-				return token.tokens;
-			},
-			get variant() {
-				return props.variant;
+			get children() {
+				return block.text;
 			}
-		}) : null;
+		});
 	}
 }
 /** Parses GFM in JavaScript and renders native Wabou components, without HTML or a DOM. */
 function Markdown(props) {
-	const tokens = createMemo(() => lexer(props.streaming ? remend(props.source) : props.source, { gfm: true }));
+	const blocks = createMemo(() => parseMarkdown(props.source, props.streaming));
 	const variant = () => props.variant ?? "document";
 	return createComponent$1(View, {
 		role: "region",
@@ -5243,16 +5372,13 @@ function Markdown(props) {
 			return mergeClasses("min-w-0 flex flex-col", variant() === "conversation" ? "gap-2.5" : "gap-4", props.class);
 		},
 		get children() {
-			return createComponent$1(For, {
-				get each() {
-					return tokens();
+			return createComponent$1(MarkdownBlocks, {
+				get blocks() {
+					return blocks();
 				},
-				children: (token) => createComponent$1(MarkdownBlock, {
-					token,
-					get variant() {
-						return variant();
-					}
-				})
+				get variant() {
+					return variant();
+				}
 			});
 		}
 	});

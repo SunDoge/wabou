@@ -2,6 +2,49 @@ import { renderComponent } from "@wabou/test/component";
 import { Markdown } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
+import { parseMarkdown } from "../../packages/ui/src/components/markdown-model";
+
+test("normalizes parser tokens into nested Wabou inline styles", () => {
+  const [paragraph] = parseMarkdown(
+    "**bold and _italic_** plus [linked `code`](https://wabou.dev)",
+  );
+
+  expect(paragraph).toEqual({
+    kind: "paragraph",
+    runs: [
+      { text: "bold and ", style: { strong: true } },
+      {
+        text: "italic",
+        style: { strong: true, emphasis: true },
+      },
+      { text: " plus ", style: {} },
+      { text: "linked ", style: { href: "https://wabou.dev" } },
+      {
+        text: "code",
+        style: { href: "https://wabou.dev", code: true },
+      },
+    ],
+  });
+});
+
+test("preserves nested blocks and task state instead of flattening them", () => {
+  const parsed = parseMarkdown(
+    "> First **paragraph**\n>\n> - [x] nested task\n> - [ ] pending",
+  );
+
+  expect(parsed).toMatchObject([
+    {
+      kind: "blockquote",
+      blocks: [
+        { kind: "paragraph" },
+        {
+          kind: "list",
+          items: [{ checked: true }, { checked: false }],
+        },
+      ],
+    },
+  ]);
+});
 
 test("renders reactive GFM as native semantic components", () => {
   const [source, setSource] = createSignal(
