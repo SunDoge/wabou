@@ -100,7 +100,7 @@ export function PiTranscriptSearchLayoutFixture() {
               id: "tool",
               kind: "tool",
               name: "bash",
-              state: "done",
+              state: "success",
               input: '{"command":"cargo test"}',
               output: "all tests passed",
             },

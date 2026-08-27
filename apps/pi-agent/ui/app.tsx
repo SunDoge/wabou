@@ -28,6 +28,7 @@ import {
   reducePiEvents,
 } from "./agent-state";
 import { type PiSession, usePiApi } from "./api";
+import { CommandPicker } from "./command-picker";
 import { ConversationItem } from "./conversation";
 import { ConversationWelcome } from "./conversation-welcome";
 import {
@@ -180,6 +181,7 @@ export function App() {
       ) {
         void api.getMessages(id);
         void api.getSessionStats(id);
+        void api.getCommands(id);
         void api
           .listSessions(id)
           .then((next) =>
@@ -622,6 +624,10 @@ export function App() {
                 />
                 <View class="flex items-center justify-between gap-3 px-1">
                   <View class="min-w-0 flex flex-row items-center gap-3">
+                    <CommandPicker
+                      commands={active().state.commands}
+                      choose={setDraft}
+                    />
                     <Text class="flex-none text-xs text-muted">
                       {i18n.message(m.send_hint, {})}
                     </Text>

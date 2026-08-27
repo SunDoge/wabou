@@ -41,6 +41,12 @@ export interface AgentSessionStats {
   };
 }
 
+export interface AgentCommand {
+  name: string;
+  description?: string;
+  source: "extension" | "prompt" | "skill" | string;
+}
+
 export interface AgentViewState {
   connection: AgentConnection;
   items: readonly AgentItem[];
@@ -52,11 +58,13 @@ export interface AgentViewState {
   sessionFile?: string;
   sessionName?: string;
   stats?: AgentSessionStats;
+  commands: readonly AgentCommand[];
 }
 
 export const initialAgentState: AgentViewState = {
   connection: "stopped",
   items: [],
+  commands: [],
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -172,6 +180,25 @@ const sessionStats = (value: unknown): AgentSessionStats | undefined => {
   };
 };
 
+const commands = (value: unknown): readonly AgentCommand[] => {
+  const values = record(value)?.commands;
+  if (!Array.isArray(values)) return [];
+  return values.flatMap((value): AgentCommand[] => {
+    const command = record(value);
+    if (typeof command?.name !== "string" || typeof command.source !== "string")
+      return [];
+    return [
+      {
+        name: command.name,
+        source: command.source,
+        ...(typeof command.description === "string"
+          ? { description: command.description }
+          : {}),
+      },
+    ];
+  });
+};
+
 const replaceItem = (
   items: readonly AgentItem[],
   id: string,
@@ -227,6 +254,9 @@ export function reducePiEvent(
       }
       if (event.command === "get_session_stats") {
         return { ...state, stats: sessionStats(event.data) ?? state.stats };
+      }
+      if (event.command === "get_commands") {
+        return { ...state, commands: commands(event.data) };
       }
       const model = record(
         event.command === "set_model" ? event.data : data?.model,

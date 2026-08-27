@@ -197,4 +197,32 @@ describe("Pi agent event projection", () => {
       contextUsage: { percent: 18.75 },
     });
   });
+
+  test("keeps only valid commands reported by Pi", () => {
+    const state = reducePiEvent(initialAgentState, {
+      type: "response",
+      command: "get_commands",
+      success: true,
+      data: {
+        commands: [
+          {
+            name: "fix-tests",
+            description: "Fix failing tests",
+            source: "prompt",
+          },
+          { name: "skill:review", source: "skill" },
+          { description: "missing a name", source: "extension" },
+        ],
+      },
+    });
+
+    expect(state.commands).toEqual([
+      {
+        name: "fix-tests",
+        description: "Fix failing tests",
+        source: "prompt",
+      },
+      { name: "skill:review", source: "skill" },
+    ]);
+  });
 });
