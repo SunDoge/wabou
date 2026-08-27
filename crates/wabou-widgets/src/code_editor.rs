@@ -595,6 +595,10 @@ impl Widget for CodeEditor {
                 let command = if event.modifiers.shift() {
                     CursorCommand::ExtendSelection { to: position }
                 } else {
+                    // editor-core deliberately keeps selection state separate
+                    // from cursor movement. A plain pointer press starts a new
+                    // selection gesture, so collapse the old range first.
+                    self.execute(Command::Cursor(CursorCommand::ClearSelection));
                     CursorCommand::MoveTo {
                         line: position.line,
                         column: position.column,
@@ -955,6 +959,27 @@ mod tests {
 
         assert_eq!(editor.selected_offsets(), Some((0, 4)));
         assert!(!editor.selecting);
+    }
+
+    #[test]
+    fn plain_pointer_down_collapses_the_previous_selection() {
+        let mut editor = CodeEditor::from_text("abcdef");
+        editor.viewport = [640.0, 88.0];
+        editor.execute(Command::Cursor(CursorCommand::SetSelection {
+            start: Position::new(0, 1),
+            end: Position::new(0, 4),
+        }));
+        assert_eq!(editor.selected_offsets(), Some((1, 4)));
+
+        editor.handle_event(&pointer(
+            PointerPhase::Down,
+            f64::from(editor.geometry.x_for_cell(5)),
+            10.0,
+            1,
+        ));
+
+        assert_eq!(editor.selected_offsets(), None);
+        assert_eq!(editor.state.editor().cursor_position(), Position::new(0, 5));
     }
 
     #[test]
