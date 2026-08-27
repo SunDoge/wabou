@@ -726,10 +726,13 @@ const initial = {
 	scaleFactor: 1,
 	maximized: false,
 	focused: false,
+	outerX: null,
+	outerY: null,
+	occluded: false,
 	colorScheme: "light"
 };
 function sameMetrics(previous, next) {
-	return previous.windowId.lo === next.windowId.lo && previous.windowId.hi === next.windowId.hi && previous.logicalWidth === next.logicalWidth && previous.logicalHeight === next.logicalHeight && previous.physicalWidth === next.physicalWidth && previous.physicalHeight === next.physicalHeight && previous.scaleFactor === next.scaleFactor && previous.maximized === next.maximized && previous.focused === next.focused && previous.colorScheme === next.colorScheme;
+	return previous.windowId.lo === next.windowId.lo && previous.windowId.hi === next.windowId.hi && previous.logicalWidth === next.logicalWidth && previous.logicalHeight === next.logicalHeight && previous.physicalWidth === next.physicalWidth && previous.physicalHeight === next.physicalHeight && previous.scaleFactor === next.scaleFactor && previous.maximized === next.maximized && previous.focused === next.focused && previous.outerX === next.outerX && previous.outerY === next.outerY && previous.occluded === next.occluded && previous.colorScheme === next.colorScheme;
 }
 const [metrics, setMetrics] = createSignal(initial, {
 	equals: sameMetrics,
@@ -743,7 +746,8 @@ function decodeWindowMetrics(value) {
 		if (typeof number !== "number" || !Number.isFinite(number)) throw new TypeError(`window metrics ${field} must be a finite number`);
 		return number;
 	};
-	if (typeof next.maximized !== "boolean" || typeof next.focused !== "boolean") throw new TypeError("window metrics flags must be booleans");
+	if (typeof next.maximized !== "boolean" || typeof next.focused !== "boolean" || typeof next.occluded !== "boolean") throw new TypeError("window metrics flags must be booleans");
+	for (const field of ["outerX", "outerY"]) if (next[field] !== null && (typeof next[field] !== "number" || !Number.isFinite(next[field]))) throw new TypeError(`window metrics ${field} must be null or a finite number`);
 	if (next.colorScheme !== null && next.colorScheme !== "light" && next.colorScheme !== "dark") throw new TypeError("window metrics colorScheme is invalid");
 	return {
 		windowId: windowKeyFromJSON(next.windowId),
@@ -754,6 +758,9 @@ function decodeWindowMetrics(value) {
 		scaleFactor: finiteNumber("scaleFactor"),
 		maximized: next.maximized,
 		focused: next.focused,
+		outerX: next.outerX,
+		outerY: next.outerY,
+		occluded: next.occluded,
 		colorScheme: next.colorScheme
 	};
 }
@@ -774,6 +781,9 @@ const state = {
 	scaleFactor: () => metrics().scaleFactor,
 	maximized: () => metrics().maximized,
 	focused: () => metrics().focused,
+	outerX: () => metrics().outerX,
+	outerY: () => metrics().outerY,
+	occluded: () => metrics().occluded,
 	colorScheme: () => metrics().colorScheme ?? "light"
 };
 /** Reactive state and controls for the native window owning this JS runtime. */

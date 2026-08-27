@@ -295,6 +295,7 @@ impl App {
         };
         let (physical_width, physical_height) = shell.size();
         let (logical_width, logical_height) = shell.logical_size();
+        let outer_position = shell.window().outer_position().ok();
         let next = WindowMetrics {
             window_key: self.window_key,
             logical_width,
@@ -304,6 +305,9 @@ impl App {
             scale_factor: shell.scale_factor(),
             maximized: shell.window().is_maximized(),
             focused: shell.window().has_focus(),
+            outer_x: outer_position.map(|position| position.x),
+            outer_y: outer_position.map(|position| position.y),
+            occluded: self.window_metrics.occluded,
             color_scheme: shell.window().theme().map(|theme| match theme {
                 winit::window::Theme::Light => crate::ColorScheme::Light,
                 winit::window::Theme::Dark => crate::ColorScheme::Dark,
@@ -1078,8 +1082,13 @@ impl ApplicationHandler for App {
                     shell.window().request_redraw();
                 }
             }
-            WindowEvent::Occluded(false) => {
-                self.present_retry_pending = false;
+            WindowEvent::Moved(_) => self.sync_window_metrics(),
+            WindowEvent::Occluded(occluded) => {
+                self.window_metrics.occluded = occluded;
+                self.sync_window_metrics();
+                if !occluded {
+                    self.present_retry_pending = false;
+                }
                 if let Some(shell) = self.state.as_ref() {
                     shell.window().request_redraw();
                 }

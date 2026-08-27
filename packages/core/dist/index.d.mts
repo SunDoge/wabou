@@ -128,6 +128,9 @@ interface WindowMetrics {
   scaleFactor: number;
   maximized: boolean;
   focused: boolean;
+  outerX: number | null;
+  outerY: number | null;
+  occluded: boolean;
   colorScheme: "light" | "dark" | null;
 }
 interface WindowState extends WindowHandle {
@@ -137,6 +140,9 @@ interface WindowState extends WindowHandle {
   scaleFactor: Accessor<number>;
   maximized: Accessor<boolean>;
   focused: Accessor<boolean>;
+  outerX: Accessor<number | null>;
+  outerY: Accessor<number | null>;
+  occluded: Accessor<boolean>;
   colorScheme: Accessor<"light" | "dark">;
 }
 /** Inclusive logical-pixel constraints evaluated against the native client area. */

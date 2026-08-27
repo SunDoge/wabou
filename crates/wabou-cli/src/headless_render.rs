@@ -356,6 +356,9 @@ fn run_layout_batch(
             scale_factor: case.scale_factor,
             maximized: false,
             focused: true,
+            outer_x: None,
+            outer_y: None,
+            occluded: false,
             color_scheme: Some(wabou_shell::ColorScheme::Light),
         }));
         let mut nodes = applier.build_frame(&mut text, case.width, case.height);
@@ -488,6 +491,9 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         scale_factor: *scale_factor,
         maximized: false,
         focused: true,
+        outer_x: None,
+        outer_y: None,
+        occluded: false,
         color_scheme: Some(wabou_shell::ColorScheme::Light),
     }));
     let mut text_context = TextContext::new();

@@ -48,6 +48,9 @@ impl Applier {
             "scaleFactor": metrics.scale_factor,
             "maximized": metrics.maximized,
             "focused": metrics.focused,
+            "outerX": metrics.outer_x,
+            "outerY": metrics.outer_y,
+            "occluded": metrics.occluded,
             "colorScheme": metrics.color_scheme.map(|scheme| match scheme {
                 wabou_shell::ColorScheme::Light => "light",
                 wabou_shell::ColorScheme::Dark => "dark",

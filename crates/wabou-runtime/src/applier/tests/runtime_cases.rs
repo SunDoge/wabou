@@ -149,6 +149,9 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
         scale_factor: 2.0,
         maximized: true,
         focused: true,
+        outer_x: Some(120),
+        outer_y: Some(80),
+        occluded: false,
         color_scheme: Some(wabou_shell::ColorScheme::Dark),
     }));
     assert!(response.request_redraw);
@@ -167,6 +170,9 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
     assert_eq!(payload["windowId"]["hi"], 1);
     assert_eq!(payload["logicalWidth"], 800);
     assert_eq!(payload["scaleFactor"], 2.0);
+    assert_eq!(payload["outerX"], 120);
+    assert_eq!(payload["outerY"], 80);
+    assert_eq!(payload["occluded"], false);
     assert_eq!(payload["colorScheme"], "dark");
 }
 

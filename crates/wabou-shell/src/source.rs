@@ -184,6 +184,12 @@ pub struct WindowMetrics {
     pub maximized: bool,
     /// Whether the native window owns keyboard focus.
     pub focused: bool,
+    /// Outer-window horizontal desktop coordinate, when the platform exposes it.
+    pub outer_x: Option<i32>,
+    /// Outer-window vertical desktop coordinate, when the platform exposes it.
+    pub outer_y: Option<i32>,
+    /// Whether the compositor reports the window as completely hidden.
+    pub occluded: bool,
     /// Current native light/dark preference, when reported by the platform.
     pub color_scheme: Option<ColorScheme>,
 }
@@ -208,6 +214,9 @@ impl Default for WindowMetrics {
             scale_factor: 1.0,
             maximized: false,
             focused: false,
+            outer_x: None,
+            outer_y: None,
+            occluded: false,
             color_scheme: Some(ColorScheme::Light),
         }
     }

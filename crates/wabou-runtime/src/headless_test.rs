@@ -126,6 +126,9 @@ pub(super) fn run_headless_test(
                 scale_factor: viewport.scale_factor,
                 maximized: false,
                 focused: true,
+                outer_x: None,
+                outer_y: None,
+                occluded: false,
                 color_scheme: Some(wabou_shell::ColorScheme::Light),
             }));
             last_nodes[index] = profilers[index].build(

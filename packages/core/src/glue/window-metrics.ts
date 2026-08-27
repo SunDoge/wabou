@@ -17,6 +17,9 @@ export interface WindowMetrics {
   scaleFactor: number;
   maximized: boolean;
   focused: boolean;
+  outerX: number | null;
+  outerY: number | null;
+  occluded: boolean;
   colorScheme: "light" | "dark" | null;
 }
 
@@ -27,6 +30,9 @@ export interface WindowState extends WindowHandle {
   scaleFactor: Accessor<number>;
   maximized: Accessor<boolean>;
   focused: Accessor<boolean>;
+  outerX: Accessor<number | null>;
+  outerY: Accessor<number | null>;
+  occluded: Accessor<boolean>;
   colorScheme: Accessor<"light" | "dark">;
 }
 
@@ -104,6 +110,9 @@ const initial: WindowMetrics = {
   scaleFactor: 1,
   maximized: false,
   focused: false,
+  outerX: null,
+  outerY: null,
+  occluded: false,
   colorScheme: "light",
 };
 
@@ -121,6 +130,9 @@ function sameMetrics(previous: WindowMetrics, next: WindowMetrics): boolean {
     previous.scaleFactor === next.scaleFactor &&
     previous.maximized === next.maximized &&
     previous.focused === next.focused &&
+    previous.outerX === next.outerX &&
+    previous.outerY === next.outerY &&
+    previous.occluded === next.occluded &&
     previous.colorScheme === next.colorScheme
   );
 }
@@ -143,8 +155,19 @@ function decodeWindowMetrics(value: unknown): WindowMetrics {
       throw new TypeError(`window metrics ${field} must be a finite number`);
     return number;
   };
-  if (typeof next.maximized !== "boolean" || typeof next.focused !== "boolean")
+  if (
+    typeof next.maximized !== "boolean" ||
+    typeof next.focused !== "boolean" ||
+    typeof next.occluded !== "boolean"
+  )
     throw new TypeError("window metrics flags must be booleans");
+  for (const field of ["outerX", "outerY"] as const) {
+    if (
+      next[field] !== null &&
+      (typeof next[field] !== "number" || !Number.isFinite(next[field]))
+    )
+      throw new TypeError(`window metrics ${field} must be null or a finite number`);
+  }
   if (
     next.colorScheme !== null &&
     next.colorScheme !== "light" &&
@@ -160,6 +183,9 @@ function decodeWindowMetrics(value: unknown): WindowMetrics {
     scaleFactor: finiteNumber("scaleFactor"),
     maximized: next.maximized,
     focused: next.focused,
+    outerX: next.outerX as number | null,
+    outerY: next.outerY as number | null,
+    occluded: next.occluded,
     colorScheme: next.colorScheme,
   };
 }
@@ -184,6 +210,9 @@ const state: WindowState = {
   scaleFactor: () => metrics().scaleFactor,
   maximized: () => metrics().maximized,
   focused: () => metrics().focused,
+  outerX: () => metrics().outerX,
+  outerY: () => metrics().outerY,
+  occluded: () => metrics().occluded,
   colorScheme: () => metrics().colorScheme ?? "light",
 };
 
