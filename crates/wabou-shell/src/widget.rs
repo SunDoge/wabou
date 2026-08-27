@@ -253,6 +253,8 @@ pub struct WidgetStyle {
     pub font_size: f32,
     /// Numeric CSS font weight.
     pub font_weight: f32,
+    /// Whether text uses an italic or oblique face.
+    pub font_italic: bool,
     /// Resolved line height and whether it was explicitly specified.
     pub line_height: Option<(f32, bool)>,
     /// Horizontal text alignment.
@@ -288,6 +290,7 @@ impl From<&Paint> for WidgetStyle {
             color: paint.text_color,
             font_size: paint.font_size,
             font_weight: paint.font_weight,
+            font_italic: paint.font_italic,
             line_height: paint.line_height,
             text_align: paint.text_align,
             font_family: paint.font_family.clone(),

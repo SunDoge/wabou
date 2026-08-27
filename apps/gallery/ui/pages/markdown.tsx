@@ -84,7 +84,7 @@ function InlineMarkdown(props: { tokens: Token[] }): JSX.Element {
             case "em": {
               const emphasis = token as Tokens.Em;
               return (
-                <RichTextSpan class="text-primary">
+                <RichTextSpan class="italic text-primary">
                   {inlineText(emphasis.tokens)}
                 </RichTextSpan>
               );

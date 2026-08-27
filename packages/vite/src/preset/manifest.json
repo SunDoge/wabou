@@ -2086,6 +2086,15 @@
         }
       }
     ],
+    "italic": [
+      {
+        "property": "font-style",
+        "value": {
+          "type": "keyword",
+          "value": "italic"
+        }
+      }
+    ],
     "items-baseline": [
       {
         "property": "align-items",
@@ -2422,6 +2431,15 @@
             "unit": "px",
             "value": 320.0
           }
+        }
+      }
+    ],
+    "not-italic": [
+      {
+        "property": "font-style",
+        "value": {
+          "type": "keyword",
+          "value": "normal"
         }
       }
     ],

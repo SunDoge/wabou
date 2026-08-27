@@ -1,6 +1,20 @@
 use super::*;
 
 #[test]
+fn parses_explicit_font_style_utilities() {
+    for (candidate, value) in [("italic", "italic"), ("not-italic", "normal")] {
+        let declaration = &parse_utility(candidate).unwrap().declarations[0];
+        assert_eq!(declaration.property, "font-style");
+        assert_eq!(
+            declaration.value,
+            Value::Keyword {
+                value: value.into()
+            }
+        );
+    }
+}
+
+#[test]
 fn interaction_feedback_utilities_are_explicit_style_ir() {
     let cursor = parse_utility("cursor-pointer").unwrap();
     assert_eq!(cursor.declarations[0].property, "cursor");

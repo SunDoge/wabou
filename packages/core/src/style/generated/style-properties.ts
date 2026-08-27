@@ -136,6 +136,11 @@ export const INLINE_STYLE_CONTRACT = {
     number: true,
     typed: [1],
   },
+  "font-style": {
+    string: true,
+    number: false,
+    typed: [],
+  },
   "font-weight": {
     string: true,
     number: true,

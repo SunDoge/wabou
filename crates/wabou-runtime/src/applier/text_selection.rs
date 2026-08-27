@@ -76,6 +76,7 @@ impl Applier {
                 text.clone(),
                 node.paint.font_size,
                 node.paint.font_weight,
+                node.paint.font_italic,
                 node.paint.letter_spacing,
                 node.paint.line_height,
                 node.paint.text_align,

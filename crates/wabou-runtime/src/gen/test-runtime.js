@@ -8036,6 +8036,11 @@
       number: true,
       typed: [1]
     },
+    "font-style": {
+      string: true,
+      number: false,
+      typed: []
+    },
     "font-weight": {
       string: true,
       number: true,
@@ -8715,6 +8720,7 @@
       "grow-0": ["flex-grow"],
       hidden: ["display"],
       "inline-flex": ["display"],
+      italic: ["font-style"],
       "items-baseline": ["align-items"],
       "items-center": ["align-items"],
       "items-end": ["align-items"],
@@ -8749,6 +8755,7 @@
       "max-w-sm": ["max-width"],
       "max-w-xl": ["max-width"],
       "max-w-xs": ["max-width"],
+      "not-italic": ["font-style"],
       "origin-bottom-left": ["transform-origin-x", "transform-origin-y"],
       "origin-bottom-right": ["transform-origin-x", "transform-origin-y"],
       "origin-center": ["transform-origin-x", "transform-origin-y"],

@@ -79,6 +79,8 @@ type DebugComputedStyle = {
 	fontSize: number,
 	/**  Numeric font weight. */
 	fontWeight: number,
+	/**  Whether an italic or oblique face was requested. */
+	fontItalic?: boolean,
 	/**  Requested font-family fallback stack, when explicitly configured. */
 	fontFamily?: string | null,
 	/**  Whether resolved glyph runs require synthetic emboldening. */

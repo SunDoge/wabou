@@ -529,6 +529,11 @@ fn apply_paint_ir(paint: &mut DeclaredPaint, property: &str, value: &IrValue) ->
             };
             paint.font_weight = weight.or(paint.font_weight);
         }
+        "font-style" => match value.keyword() {
+            Some("italic") | Some("oblique") => paint.font_italic = Some(true),
+            Some("normal") => paint.font_italic = Some(false),
+            _ => {}
+        },
         "letter-spacing" => match value {
             IrValue::Length {
                 value: IrLength::Px { value },

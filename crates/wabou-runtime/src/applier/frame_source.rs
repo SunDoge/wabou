@@ -731,6 +731,7 @@ impl FrameSource for Applier {
                 label,
                 11.0,
                 600.0,
+                false,
                 None,
                 TextAlign::Start,
                 [255, 255, 255, 255],

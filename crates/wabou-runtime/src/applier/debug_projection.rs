@@ -428,6 +428,7 @@ impl Applier {
                     overflow_y: layout.map(|style| format!("{:?}", style.overflow.y)),
                     font_size: placed_node.paint.font_size,
                     font_weight: placed_node.paint.font_weight,
+                    font_italic: placed_node.paint.font_italic,
                     font_family: placed_node.paint.font_family.as_deref().map(str::to_owned),
                     synthetic_bold: synthesis.embolden,
                     synthetic_italic: synthesis.skew,

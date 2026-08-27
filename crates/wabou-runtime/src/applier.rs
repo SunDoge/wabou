@@ -292,6 +292,8 @@ pub struct ComputedNodeSnapshot {
     pub font_size: f32,
     /// Resolved numeric font weight.
     pub font_weight: f32,
+    /// Whether an italic or oblique face was requested.
+    pub font_italic: bool,
     /// Resolved line height and whether it is font-relative.
     pub line_height: Option<(f32, bool)>,
     /// Whether normal inline wrapping is enabled.
@@ -478,6 +480,7 @@ impl DocumentState {
             text_color: paint.text_color,
             font_size: paint.font_size,
             font_weight: paint.font_weight,
+            font_italic: paint.font_italic,
             line_height: paint.line_height,
             wrap_text: paint.wrap_text,
             text_ellipsis: paint.text_ellipsis,

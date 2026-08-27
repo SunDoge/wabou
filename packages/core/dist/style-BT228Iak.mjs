@@ -149,6 +149,11 @@ const INLINE_STYLE_CONTRACT = {
 		number: true,
 		typed: [1]
 	},
+	"font-style": {
+		string: true,
+		number: false,
+		typed: []
+	},
 	"font-weight": {
 		string: true,
 		number: true,
@@ -945,6 +950,7 @@ const UTILITY_CONFLICT_DATA = {
 		"grow-0": ["flex-grow"],
 		hidden: ["display"],
 		"inline-flex": ["display"],
+		italic: ["font-style"],
 		"items-baseline": ["align-items"],
 		"items-center": ["align-items"],
 		"items-end": ["align-items"],
@@ -979,6 +985,7 @@ const UTILITY_CONFLICT_DATA = {
 		"max-w-sm": ["max-width"],
 		"max-w-xl": ["max-width"],
 		"max-w-xs": ["max-width"],
+		"not-italic": ["font-style"],
 		"origin-bottom-left": ["transform-origin-x", "transform-origin-y"],
 		"origin-bottom-right": ["transform-origin-x", "transform-origin-y"],
 		"origin-center": ["transform-origin-x", "transform-origin-y"],
@@ -1630,4 +1637,4 @@ function mergeClasses(...values) {
 //#endregion
 export { utilityConflictProperties as _, bool as a, mergeClasses as c, px as d, rgba as f, translate2d as g, shadow as h, auto as i, number as l, scale2d as m, StyleValueKind as n, classes as o, rotate2d as p, assertInlineStyleValue as r, isTypedStyleValue as s, STYLE_VALUE as t, percent as u, INLINE_STYLE_CONTRACT as v };
 
-//# sourceMappingURL=style-wyr3v0Z9.mjs.map
+//# sourceMappingURL=style-BT228Iak.mjs.map

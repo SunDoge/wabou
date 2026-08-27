@@ -188,6 +188,7 @@ pub struct CodeEditor {
     last_click: Option<(Instant, f32, f32, u8)>,
     text_color: Color,
     font_family: Option<Arc<str>>,
+    font_italic: bool,
 }
 
 impl CodeEditor {
@@ -209,6 +210,7 @@ impl CodeEditor {
             last_click: None,
             text_color: Color::from_rgb8(0xe6, 0xe9, 0xef),
             font_family: Some(Arc::from("monospace")),
+            font_italic: false,
         }
     }
 
@@ -431,6 +433,7 @@ impl CodeEditor {
                 range,
                 font_size: FONT_SIZE,
                 font_weight: 400.0,
+                font_italic: self.font_italic,
                 line_height: Some((self.geometry.line_height, false)),
                 color: brush_for_color(color),
             })
@@ -441,6 +444,7 @@ impl CodeEditor {
             Arc::from(text),
             FONT_SIZE,
             400.0,
+            self.font_italic,
             Some((self.geometry.line_height, false)),
             TextAlign::Start,
             brush_for_color(self.text_color),
@@ -469,6 +473,7 @@ impl CodeEditor {
             Arc::from(format!("{number:>4}")),
             FONT_SIZE,
             400.0,
+            self.font_italic,
             Some((self.geometry.line_height, false)),
             TextAlign::Start,
             brush_for_color(Color::from_rgb8(0x68, 0x6f, 0x86)),
@@ -506,6 +511,7 @@ impl Widget for CodeEditor {
             Arc::from("0"),
             FONT_SIZE,
             400.0,
+            self.font_italic,
             Some((self.geometry.line_height, false)),
             TextAlign::Start,
             brush_for_color(self.text_color),
@@ -603,6 +609,7 @@ impl Widget for CodeEditor {
                     Arc::from(composition.text.as_str()),
                     FONT_SIZE,
                     400.0,
+                    self.font_italic,
                     Some((self.geometry.line_height, false)),
                     TextAlign::Start,
                     brush_for_color(self.text_color),
@@ -828,6 +835,7 @@ impl Widget for CodeEditor {
     }
     fn style_changed(&mut self, style: &WidgetStyle) -> wabou_shell::WidgetChanges {
         self.text_color = style.color;
+        self.font_italic = style.font_italic;
         wabou_shell::WidgetChanges::REDRAW
     }
     fn text_selection(&self) -> Option<WidgetTextSelection> {

@@ -1831,6 +1831,13 @@ var manifest_default = {
 				"value": "flex"
 			}
 		}],
+		"italic": [{
+			"property": "font-style",
+			"value": {
+				"type": "keyword",
+				"value": "italic"
+			}
+		}],
 		"items-baseline": [{
 			"property": "align-items",
 			"value": {
@@ -2100,6 +2107,13 @@ var manifest_default = {
 					"unit": "px",
 					"value": 320
 				}
+			}
+		}],
+		"not-italic": [{
+			"property": "font-style",
+			"value": {
+				"type": "keyword",
+				"value": "normal"
 			}
 		}],
 		"origin-bottom-left": [{
@@ -5157,4 +5171,4 @@ var manifest_default = {
 //#endregion
 export { manifest_default as t };
 
-//# sourceMappingURL=manifest-DrDTvnbn.mjs.map
+//# sourceMappingURL=manifest-2IhL3h98.mjs.map

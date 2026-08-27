@@ -177,6 +177,9 @@ pub struct DebugComputedStyle {
     /// Numeric font weight.
     #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub font_weight: f32,
+    /// Whether an italic or oblique face was requested.
+    #[serde(default)]
+    pub font_italic: bool,
     /// Requested font-family fallback stack, when explicitly configured.
     #[serde(default)]
     pub font_family: Option<String>,
@@ -215,6 +218,7 @@ impl Default for DebugComputedStyle {
             overflow_y: None,
             font_size: 0.0,
             font_weight: 0.0,
+            font_italic: false,
             font_family: None,
             synthetic_bold: false,
             synthetic_italic: false,

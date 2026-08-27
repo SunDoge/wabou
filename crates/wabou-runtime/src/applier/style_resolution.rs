@@ -525,6 +525,7 @@ impl Applier {
                     range: start..end,
                     font_size: paint.map(|p| p.font_size).unwrap_or(16.0),
                     font_weight: paint.map(|p| p.font_weight).unwrap_or(400.0),
+                    font_italic: paint.is_some_and(|p| p.font_italic),
                     line_height: paint.and_then(|p| p.line_height),
                     color: wabou_shell::text::brush_for_color(
                         paint.map(|p| p.text_color).unwrap_or(Color::BLACK),
@@ -1135,6 +1136,7 @@ fn inherited_paint(paint: &Paint) -> InheritedPaint {
         text_color: paint.text_color,
         font_size: paint.font_size,
         font_weight: paint.font_weight,
+        font_italic: paint.font_italic,
         letter_spacing: paint.letter_spacing,
         line_height: paint.line_height,
         wrap_text: paint.wrap_text,

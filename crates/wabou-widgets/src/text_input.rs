@@ -65,6 +65,7 @@ pub struct TextInput {
     placeholder: String,
     font_size: f32,
     font_weight: f32,
+    font_italic: bool,
     line_height: Option<(f32, bool)>,
     text_color: Color,
     focused: bool,
@@ -108,6 +109,7 @@ impl TextInput {
             placeholder: String::new(),
             font_size: 16.0,
             font_weight: 400.0,
+            font_italic: false,
             line_height: None,
             text_color: Color::from_rgb8(0xe2, 0xe8, 0xf0),
             focused: false,
@@ -404,6 +406,7 @@ impl TextInput {
             Arc::from(self.placeholder.as_str()),
             self.font_size,
             self.font_weight,
+            self.font_italic,
             self.line_height,
             TextAlign::Start,
             brush_for_color(PLACEHOLDER_COLOR),
@@ -672,6 +675,17 @@ impl Widget for TextInput {
                 .insert(parley::StyleProperty::FontWeight(parley::FontWeight::new(
                     style.font_weight,
                 )));
+            self.needs_refresh = true;
+        }
+        if self.font_italic != style.font_italic {
+            self.font_italic = style.font_italic;
+            self.editor
+                .edit_styles()
+                .insert(parley::StyleProperty::FontStyle(if style.font_italic {
+                    parley::FontStyle::Italic
+                } else {
+                    parley::FontStyle::Normal
+                }));
             self.needs_refresh = true;
         }
         if self.line_height != style.line_height {
