@@ -95,6 +95,13 @@ pub fn text_synthesis(layout: &Layout<[u8; 4]>) -> TextSynthesis {
     result
 }
 
+/// Synthetic styles that the active painter will actually apply.
+pub fn applied_text_synthesis(layout: &Layout<[u8; 4]>) -> TextSynthesis {
+    let mut synthesis = text_synthesis(layout);
+    synthesis.embolden = false;
+    synthesis
+}
+
 #[derive(Clone, Hash, PartialEq, Eq)]
 struct TextRunKey {
     start: usize,
@@ -138,23 +145,6 @@ pub struct TextContext {
 }
 
 type GlyphSceneEntry = (std::sync::Weak<Layout<[u8; 4]>>, Arc<Scene>);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum OutlineFallback {
-    DirectNativeWeight,
-    RetainedSyntheticWeight,
-}
-
-const fn outline_fallback_for(is_apple_platform: bool) -> OutlineFallback {
-    if is_apple_platform {
-        OutlineFallback::DirectNativeWeight
-    } else {
-        OutlineFallback::RetainedSyntheticWeight
-    }
-}
-
-pub(crate) const OUTLINE_FALLBACK: OutlineFallback =
-    outline_fallback_for(cfg!(any(target_os = "macos", target_os = "ios")));
 
 fn use_swash_raster_for(backend: Option<&str>) -> bool {
     match backend {
@@ -216,10 +206,12 @@ impl TextContext {
 
     /// Stable diagnostic name for the platform outline fallback policy.
     pub fn outline_fallback_name(&self) -> &'static str {
-        match OUTLINE_FALLBACK {
-            OutlineFallback::DirectNativeWeight => "direct-native-weight",
-            OutlineFallback::RetainedSyntheticWeight => "retained-synthetic-weight",
-        }
+        // Fontique recommends geometric emboldening whenever a fallback face
+        // does not expose the exact requested weight. Many CJK system families
+        // provide 400 and 600 but not 500, making ordinary `font-medium`
+        // controls look double-bold. Prefer the nearest native face on every
+        // platform; real bold faces and variable weight axes are unaffected.
+        "direct-native-weight"
     }
 
     /// Register a raw font file (TTF/OTF) from its bytes so it becomes
@@ -899,24 +891,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn apple_outline_policy_suppresses_synthetic_bold() {
+    fn outline_policy_suppresses_synthetic_bold() {
         let suppressed = synthetic_embolden(true, false, 16.0, 2.0);
         let raster = synthetic_embolden(true, true, 16.0, 2.0);
 
         assert_eq!(suppressed, Vec2::ZERO);
         assert_eq!(raster, Vec2::new(4.0 / 3.0, 4.0 / 3.0));
-    }
-
-    #[test]
-    fn platform_outline_policy_is_the_only_platform_specific_text_fallback() {
-        assert_eq!(
-            outline_fallback_for(true),
-            OutlineFallback::DirectNativeWeight
-        );
-        assert_eq!(
-            outline_fallback_for(false),
-            OutlineFallback::RetainedSyntheticWeight
-        );
     }
 
     #[test]
@@ -929,10 +909,7 @@ mod tests {
 
         let context = TextContext::new();
         assert_eq!(context.raster_backend_name(), "swash");
-        assert!(matches!(
-            context.outline_fallback_name(),
-            "direct-native-weight" | "retained-synthetic-weight"
-        ));
+        assert_eq!(context.outline_fallback_name(), "direct-native-weight");
     }
 
     #[test]

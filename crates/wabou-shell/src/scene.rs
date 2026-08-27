@@ -10,7 +10,7 @@ use vello::peniko::{BlendMode, Color, Fill};
 use crate::layout::{PlacedNode, SubtreeEvent, subtree_events};
 use crate::scrollbar::{ScrollAxis, thumb as scrollbar_thumb, track as scrollbar_track};
 use crate::style::{IrLength, PaintTransform, Shadow};
-use crate::text::{OUTLINE_FALLBACK, OutlineFallback, TextContext};
+use crate::text::TextContext;
 
 /// Resolve the node-local static CSS and runtime affine transforms separately.
 pub fn resolve_local_transforms(node: &PlacedNode) -> (Affine, Affine) {
@@ -465,18 +465,10 @@ fn draw_outline_fallback(
     device_scale: f64,
 ) {
     let transform = text_transform * Affine::scale(device_scale.recip());
-    match OUTLINE_FALLBACK {
-        OutlineFallback::DirectNativeWeight => {
-            // Direct encoding avoids a retained-fragment issue on Metal. It
-            // also keeps transformed/faux-style fallback text at the native
-            // font weight instead of geometrically emboldening it.
-            tcx.draw_native_weight_layout_into(scene, layout, transform, device_scale);
-        }
-        OutlineFallback::RetainedSyntheticWeight => {
-            let glyph_scene = tcx.glyph_scene_scaled(layout, device_scale);
-            append_fragment(scene, &glyph_scene, Some(transform));
-        }
-    }
+    // Direct encoding avoids a retained-fragment issue on Metal. It also
+    // keeps transformed/faux-style fallback text at the native font weight
+    // instead of geometrically emboldening it.
+    tcx.draw_native_weight_layout_into(scene, layout, transform, device_scale);
 }
 
 enum Layer {

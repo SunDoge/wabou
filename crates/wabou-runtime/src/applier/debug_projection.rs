@@ -305,7 +305,7 @@ impl Applier {
             let text_layout = wabou_shell::scene::layout_node_text(text_context, placed_node);
             let synthesis = text_layout
                 .as_deref()
-                .map(wabou_shell::text::text_synthesis)
+                .map(wabou_shell::text::applied_text_synthesis)
                 .unwrap_or_default();
             let text_metrics = text_layout
                 .as_deref()
