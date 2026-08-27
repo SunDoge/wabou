@@ -424,6 +424,7 @@ mod tests {
             location: KeyLocation::Standard,
             modifiers,
             repeat: false,
+            synthetic: false,
         }
     }
 

@@ -184,6 +184,7 @@ fn key_event_payload(key: &wabou_shell::KeyEvent) -> String {
         "mods": key.modifiers.bits(),
         "primary": key.modifiers.primary_shortcut(),
         "repeat": key.repeat,
+        "synthetic": key.synthetic,
     })
     .to_string()
 }
@@ -711,15 +712,34 @@ impl Applier {
 
 impl Applier {
     fn cancel_pointer_gesture(&mut self, pointer: wabou_shell::PointerEvent) -> bool {
-        self.interaction.input.pointer_position = (pointer.position.x, pointer.position.y);
-        self.interaction.input.pointer_buttons = pointer.buttons;
+        self.interaction.input.update_pointer(&pointer);
         self.interaction.text_selection.next_scroll = None;
-        if self.interaction.input.pointer_down_target.is_some() {
+        let pointer_id = pointer.properties.id;
+        let old_active = self
+            .interaction
+            .input
+            .pointer_routes
+            .get_mut(&pointer_id)
+            .and_then(|route| route.down_target.take())
+            .or_else(|| {
+                pointer
+                    .properties
+                    .primary
+                    .then_some(self.interaction.input.pointer_down_target)
+                    .flatten()
+            });
+        if old_active.is_some() {
             self.interaction.text_selection.last_click = None;
         }
-        let old_active = self.interaction.input.pointer_down_target.take();
-        self.interaction.input.pointer_down_position = None;
-        self.interaction.input.pointer_dragged = false;
+        if let Some(route) = self.interaction.input.pointer_routes.get_mut(&pointer_id) {
+            route.down_position = None;
+            route.dragged = false;
+        }
+        if pointer.properties.primary {
+            self.interaction.input.pointer_down_target.take();
+            self.interaction.input.pointer_down_position = None;
+            self.interaction.input.pointer_dragged = false;
+        }
         let target = old_active.or_else(|| {
             self.interaction
                 .input
@@ -742,20 +762,41 @@ impl Applier {
     }
 
     fn cancel_active_pointer_gesture(&mut self) -> bool {
-        if self.interaction.input.pointer_down_target.is_none() {
-            self.interaction.input.pointer_buttons = 0;
-            return false;
+        let mut active = self
+            .interaction
+            .input
+            .pointer_routes
+            .values()
+            .copied()
+            .filter(|route| route.down_target.is_some())
+            .collect::<Vec<_>>();
+        if active.is_empty() && self.interaction.input.pointer_down_target.is_some() {
+            active.push(crate::applier::input_router::PointerRouteState {
+                position: self.interaction.input.pointer_position,
+                buttons: self.interaction.input.pointer_buttons,
+                properties: self.interaction.input.pointer_properties,
+                down_target: self.interaction.input.pointer_down_target,
+                down_position: self.interaction.input.pointer_down_position,
+                dragged: self.interaction.input.pointer_dragged,
+                hovered_target: self.interaction.input.hovered_target,
+            });
         }
-        self.cancel_pointer_gesture(wabou_shell::PointerEvent {
-            phase: PointerPhase::Cancel,
-            position: wabou_shell::Point {
-                x: self.interaction.input.pointer_position.0,
-                y: self.interaction.input.pointer_position.1,
-            },
-            button: None,
-            buttons: 0,
-            modifiers: Modifiers::empty(),
-        })
+        let mut changed = false;
+        for route in active {
+            changed |= self.cancel_pointer_gesture(wabou_shell::PointerEvent {
+                phase: PointerPhase::Cancel,
+                position: wabou_shell::Point {
+                    x: route.position.0,
+                    y: route.position.1,
+                },
+                button: None,
+                buttons: 0,
+                modifiers: Modifiers::empty(),
+                properties: route.properties,
+            });
+        }
+        self.interaction.input.pointer_buttons = 0;
+        changed
     }
 }
 

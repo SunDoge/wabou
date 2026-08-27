@@ -153,6 +153,16 @@ export const EVENT_DATA_SLOT = {
   deltaY: 8,
   scrollX: 9,
   scrollY: 10,
+  phase: 11,
+  pointerIdLo: 12,
+  pointerIdHi: 13,
+  pointerType: 14,
+  primary: 15,
+  pressure: 16,
+  tangentialPressure: 17,
+  tiltX: 18,
+  tiltY: 19,
+  twist: 20,
 } as const;
 
 export const EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;

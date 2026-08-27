@@ -593,6 +593,61 @@ fn dragging_outside_pressed_target_keeps_the_js_pointer_capture() {
 }
 
 #[test]
+fn simultaneous_pointers_keep_independent_capture_state() {
+    let mut applier = interactive_applier();
+    let first_id = wabou_shell::PointerId { lo: 7, hi: 1 };
+    let second_id = wabou_shell::PointerId { lo: 8, hi: 1 };
+    let event = |phase, id, primary, x, buttons| {
+        UiEvent::Pointer(PointerEvent {
+            phase,
+            position: Point { x, y: 20.0 },
+            button: Some(PointerButton::Primary),
+            buttons,
+            modifiers: Modifiers::default(),
+            properties: wabou_shell::PointerProperties {
+                id,
+                pointer_type: wabou_shell::PointerType::Touch,
+                primary,
+                ..Default::default()
+            },
+        })
+    };
+
+    applier.handle_event(event(PointerPhase::Down, first_id, true, 10.0, 1));
+    applier.handle_event(event(PointerPhase::Down, second_id, false, 20.0, 1));
+    assert!(
+        applier.interaction.input.pointer_routes[&first_id]
+            .down_target
+            .is_some()
+    );
+    assert!(
+        applier.interaction.input.pointer_routes[&second_id]
+            .down_target
+            .is_some()
+    );
+
+    applier.handle_event(event(PointerPhase::Up, first_id, true, 10.0, 0));
+    assert!(
+        applier.interaction.input.pointer_routes[&first_id]
+            .down_target
+            .is_none()
+    );
+    assert!(
+        applier.interaction.input.pointer_routes[&second_id]
+            .down_target
+            .is_some(),
+        "releasing one finger must not release another finger's capture"
+    );
+
+    applier.handle_event(event(PointerPhase::Cancel, second_id, false, 20.0, 0));
+    assert!(
+        applier.interaction.input.pointer_routes[&second_id]
+            .down_target
+            .is_none()
+    );
+}
+
+#[test]
 fn coalesced_release_distance_also_suppresses_click() {
     let mut applier = interactive_applier();
     applier.handle_event(pointer(PointerPhase::Down, 10.0, 20.0, 1));

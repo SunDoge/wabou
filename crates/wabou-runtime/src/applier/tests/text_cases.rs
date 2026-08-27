@@ -198,6 +198,7 @@ fn text_input_updates_value_paints_and_dispatches_input() {
         location: Default::default(),
         modifiers: Modifiers::default(),
         repeat: false,
+        synthetic: false,
     }));
     applier.build_frame(&mut tcx, 800, 600);
     assert_eq!(
@@ -220,6 +221,7 @@ fn text_input_updates_value_paints_and_dispatches_input() {
             location: Default::default(),
             modifiers: Modifiers::default(),
             repeat: false,
+            synthetic: false,
         }));
     }
     applier.build_frame(&mut tcx, 800, 600);
@@ -439,6 +441,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
             Modifiers::CONTROL
         },
         repeat: false,
+        synthetic: false,
     }));
     assert_eq!(
         copied.clipboard,
@@ -681,6 +684,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
             Modifiers::CONTROL
         },
         repeat: false,
+        synthetic: false,
     }));
     assert!(select_all.handled);
     assert!(select_all.request_redraw);
@@ -699,6 +703,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
             Modifiers::CONTROL
         },
         repeat: false,
+        synthetic: false,
     }));
     assert_eq!(
         copy_all.clipboard,

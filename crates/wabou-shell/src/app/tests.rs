@@ -47,6 +47,33 @@ fn custom_decoration_edges_map_to_native_resize_directions() {
     assert_eq!(direction(-1.0, 300.0), None);
 }
 
+#[test]
+fn native_pointer_sources_keep_identity_and_pressure() {
+    let first = App::pointer_source_properties(
+        None,
+        true,
+        &PointerSource::Touch {
+            finger_id: winit::event::FingerId::from_raw(7),
+            force: Some(winit::event::Force::Normalized(0.75)),
+        },
+    );
+    let second = App::pointer_source_properties(
+        None,
+        false,
+        &PointerSource::Touch {
+            finger_id: winit::event::FingerId::from_raw(8),
+            force: None,
+        },
+    );
+
+    assert_eq!(first.pointer_type, PointerType::Touch);
+    assert_eq!(first.pressure, Some(0.75));
+    assert!(first.primary);
+    assert!(!second.primary);
+    assert_ne!(first.id, second.id);
+    assert_ne!(first.id, App::namespaced_pointer_id(0, 1));
+}
+
 struct EventActionSource {
     pending: bool,
     drained: Arc<AtomicUsize>,
@@ -370,6 +397,14 @@ fn focus_loss_cancels_pressed_pointers_and_resets_physical_modifiers() {
     let mut app = App::new(Box::new(EventRecordingSource(events.clone())));
     app.pointer_position = Point { x: 12.0, y: 34.0 };
     app.pointer_buttons = 5;
+    app.pointer_states.insert(
+        PointerProperties::default().id,
+        (
+            app.pointer_position,
+            app.pointer_buttons,
+            PointerProperties::default(),
+        ),
+    );
     app.modifiers = Modifiers::CONTROL | Modifiers::SHIFT;
 
     app.dispatch_focus_change(false);
@@ -385,6 +420,7 @@ fn focus_loss_cancels_pressed_pointers_and_resets_physical_modifiers() {
                 button: None,
                 buttons: 0,
                 modifiers: Modifiers::CONTROL | Modifiers::SHIFT,
+                properties: PointerProperties::default(),
             }),
             UiEvent::Focus(false),
         ]

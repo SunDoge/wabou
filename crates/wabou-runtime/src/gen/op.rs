@@ -80,7 +80,7 @@ pub mod event {
 
 #[allow(missing_docs)]
 pub mod event_data {
-    pub const LEN: usize = 11;
+    pub const LEN: usize = 21;
     pub const CLIENT_X: u8 = 0;
     pub const CLIENT_Y: u8 = 1;
     pub const OFFSET_X: u8 = 2;
@@ -92,6 +92,16 @@ pub mod event_data {
     pub const DELTA_Y: u8 = 8;
     pub const SCROLL_X: u8 = 9;
     pub const SCROLL_Y: u8 = 10;
+    pub const PHASE: u8 = 11;
+    pub const POINTER_ID_LO: u8 = 12;
+    pub const POINTER_ID_HI: u8 = 13;
+    pub const POINTER_TYPE: u8 = 14;
+    pub const PRIMARY: u8 = 15;
+    pub const PRESSURE: u8 = 16;
+    pub const TANGENTIAL_PRESSURE: u8 = 17;
+    pub const TILT_X: u8 = 18;
+    pub const TILT_Y: u8 = 19;
+    pub const TWIST: u8 = 20;
 }
 
 #[allow(missing_docs)]

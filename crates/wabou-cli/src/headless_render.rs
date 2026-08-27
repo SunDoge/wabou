@@ -230,6 +230,7 @@ fn apply_actions(
                         button: Some(PointerButton::Primary),
                         buttons,
                         modifiers: Modifiers::default(),
+                        properties: Default::default(),
                     }));
                 }
             }
@@ -238,6 +239,7 @@ fn apply_actions(
                     position: Point { x: *x, y: *y },
                     delta_x: *delta_x,
                     delta_y: *delta_y,
+                    phase: wabou_shell::GesturePhase::Changed,
                     modifiers: Modifiers::default(),
                 }));
             }
@@ -256,6 +258,7 @@ fn apply_actions(
                         location: KeyLocation::Standard,
                         modifiers: Modifiers::default(),
                         repeat: false,
+                        synthetic: false,
                     }));
                 }
             }

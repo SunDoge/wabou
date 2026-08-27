@@ -23,6 +23,7 @@ import "./polyfills/encoding-streams";
 import "./polyfills/fetch";
 
 import "./glue/animation-frame";
+import "./glue/app-lifecycle";
 import "./glue/timers";
 import "./glue/resize-observer";
 import "./glue/host-messages";
@@ -51,6 +52,12 @@ export {
   tempDir,
 } from "./glue/app-dirs";
 export { type Application, application } from "./glue/application";
+export {
+  type AppLifecycleEvent,
+  type AppLifecycleState,
+  subscribeAppLifecycle,
+  useAppLifecycle,
+} from "./glue/app-lifecycle";
 export {
   type AsyncAction,
   AsyncActionConflictError,

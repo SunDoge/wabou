@@ -73,6 +73,55 @@ test("every declared pointer event decodes the fixed numeric payload", () => {
   ]);
 });
 
+test("pointer events retain native identity and pen measurements", () => {
+  const node = createElement("view");
+  let received: Record<string, unknown> | undefined;
+  setProp(
+    node,
+    "onPointerMove",
+    (event: Record<string, unknown>) => {
+      received = event;
+    },
+    undefined,
+  );
+  dispatchEvent(
+    node.id,
+    EVENT_CODE.pointermove,
+    "",
+    [12, 13, 2, 3, 0, 1, 0, 0, 0, 0, 0, 0, 7, 9, 2, 1, 0.75, -0.2, 15, -8, 120],
+  );
+  expect(received).toMatchObject({
+    pointerId: { lo: 7, hi: 9 },
+    pointerType: "pen",
+    primary: true,
+    pressure: 0.75,
+    tangentialPressure: -0.2,
+    tiltX: 15,
+    tiltY: -8,
+    twist: 120,
+  });
+});
+
+test("wheel events retain the native gesture phase", () => {
+  const node = createElement("view");
+  let phase: string | undefined;
+  setProp(
+    node,
+    "onWheel",
+    (event: { phase: string }) => {
+      phase = event.phase;
+    },
+    undefined,
+  );
+  dispatchEvent(
+    node.id,
+    EVENT_CODE.wheel,
+    "",
+    [12, 13, 2, 3, 0, 0, 0, 4, -8, 0, 0, 2],
+  );
+  expect(phase).toBe("ended");
+});
+
 test("graphic sources use the typed resource protocol", () => {
   const svg = createElement("svg");
   const image = createElement("img");

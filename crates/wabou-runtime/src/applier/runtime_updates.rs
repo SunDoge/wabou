@@ -1,6 +1,27 @@
 use super::*;
 
 impl Applier {
+    pub(super) fn handle_app_lifecycle(
+        &mut self,
+        lifecycle: wabou_shell::AppLifecycleEvent,
+    ) -> EventResponse {
+        let state = match lifecycle {
+            wabou_shell::AppLifecycleEvent::Resumed => "resumed",
+            wabou_shell::AppLifecycleEvent::Suspended => "suspended",
+            wabou_shell::AppLifecycleEvent::MemoryWarning => "memory-warning",
+        };
+        let event = HostEvent::Application(crate::host_message::HostMessage::str(
+            "wabou:app-lifecycle",
+            serde_json::json!({ "state": state }).to_string(),
+        ));
+        let handled = self.runtime.js.dispatch_host_frame(&[event]).is_ok();
+        EventResponse {
+            handled,
+            request_redraw: handled,
+            ..EventResponse::IGNORED
+        }
+    }
+
     pub(super) fn handle_gesture(&mut self, gesture: wabou_shell::GestureEvent) -> EventResponse {
         let phase = |phase| match phase {
             wabou_shell::GesturePhase::Started => "started",

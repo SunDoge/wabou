@@ -7497,7 +7497,17 @@
     deltaX: 7,
     deltaY: 8,
     scrollX: 9,
-    scrollY: 10
+    scrollY: 10,
+    phase: 11,
+    pointerIdLo: 12,
+    pointerIdHi: 13,
+    pointerType: 14,
+    primary: 15,
+    pressure: 16,
+    tangentialPressure: 17,
+    tiltX: 18,
+    tiltY: 19,
+    twist: 20
   };
   var EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;
   var HOST_FRAME = {
@@ -10197,6 +10207,14 @@
           data.button = ed[4];
           data.buttons = ed[5];
           data.mods = ed[6];
+          data.pointerId = { lo: ed[12], hi: ed[13] };
+          data.pointerType = ["mouse", "touch", "pen", "unknown"][ed[14]];
+          data.primary = ed[15] !== 0;
+          data.pressure = Number.isNaN(ed[16]) ? null : ed[16];
+          data.tangentialPressure = Number.isNaN(ed[17]) ? null : ed[17];
+          data.tiltX = Number.isNaN(ed[18]) ? null : ed[18];
+          data.tiltY = Number.isNaN(ed[19]) ? null : ed[19];
+          data.twist = Number.isNaN(ed[20]) ? null : ed[20];
         } else if (eventCode === EVENT_CODE.wheel) {
           data.clientX = ed[0];
           data.clientY = ed[1];
@@ -10204,6 +10222,7 @@
           data.offsetY = ed[3];
           data.deltaX = ed[7];
           data.deltaY = ed[8];
+          data.phase = ["started", "changed", "ended", "cancelled"][ed[11]];
         } else if (eventCode === EVENT_CODE.scroll) {
           data.scrollX = ed[9];
           data.scrollY = ed[10];
@@ -10345,6 +10364,59 @@ ${detail}`);
   globalThis.__wabou_tick = __wabou_tick;
   globalThis.__wabou_has_raf = __wabou_has_raf;
 
+  // packages/core/src/glue/host-messages.ts
+  var listeners2 = new Map;
+  var allListeners = new Set;
+  var utf8 = new TextDecoder;
+  function subscribe(topic, handler) {
+    let set = listeners2.get(topic);
+    if (!set) {
+      set = new Set;
+      listeners2.set(topic, set);
+    }
+    set.add(handler);
+    return () => {
+      set.delete(handler);
+      if (set.size === 0)
+        listeners2.delete(topic);
+    };
+  }
+  function subscribeJson(topic, handler, options2 = {}) {
+    return subscribe(topic, (payload) => {
+      try {
+        const source = typeof payload === "string" ? payload : payload instanceof Uint8Array ? utf8.decode(payload) : undefined;
+        if (source === undefined)
+          throw new TypeError(`host message "${topic}" does not contain JSON text`);
+        const parsed = JSON.parse(source);
+        handler(options2.decode ? options2.decode(parsed) : parsed);
+      } catch (error) {
+        if (options2.onError)
+          options2.onError(error, payload);
+        else
+          console.error(`[wabou-host] invalid JSON message for "${topic}"`, error);
+      }
+    });
+  }
+  function dispatchHostMessage(topic, payload) {
+    const set = listeners2.get(topic);
+    if (set) {
+      for (const handler of set) {
+        try {
+          handler(payload);
+        } catch (error) {
+          console.error(`[wabou-host] subscriber for "${topic}" threw`, error);
+        }
+      }
+    }
+    for (const handler of allListeners) {
+      try {
+        handler(topic, payload);
+      } catch (error) {
+        console.error(`[wabou-host] subscribeAll handler threw`, error);
+      }
+    }
+  }
+
   // packages/core/src/glue/timers.ts
   var nextTimerId = 1;
   var active = new Set;
@@ -10458,59 +10530,6 @@ ${detail}`);
     }
   }
   globalThis.ResizeObserver = WabouResizeObserver;
-
-  // packages/core/src/glue/host-messages.ts
-  var listeners2 = new Map;
-  var allListeners = new Set;
-  var utf8 = new TextDecoder;
-  function subscribe(topic, handler) {
-    let set = listeners2.get(topic);
-    if (!set) {
-      set = new Set;
-      listeners2.set(topic, set);
-    }
-    set.add(handler);
-    return () => {
-      set.delete(handler);
-      if (set.size === 0)
-        listeners2.delete(topic);
-    };
-  }
-  function subscribeJson(topic, handler, options2 = {}) {
-    return subscribe(topic, (payload) => {
-      try {
-        const source = typeof payload === "string" ? payload : payload instanceof Uint8Array ? utf8.decode(payload) : undefined;
-        if (source === undefined)
-          throw new TypeError(`host message "${topic}" does not contain JSON text`);
-        const parsed = JSON.parse(source);
-        handler(options2.decode ? options2.decode(parsed) : parsed);
-      } catch (error) {
-        if (options2.onError)
-          options2.onError(error, payload);
-        else
-          console.error(`[wabou-host] invalid JSON message for "${topic}"`, error);
-      }
-    });
-  }
-  function dispatchHostMessage(topic, payload) {
-    const set = listeners2.get(topic);
-    if (set) {
-      for (const handler of set) {
-        try {
-          handler(payload);
-        } catch (error) {
-          console.error(`[wabou-host] subscriber for "${topic}" threw`, error);
-        }
-      }
-    }
-    for (const handler of allListeners) {
-      try {
-        handler(topic, payload);
-      } catch (error) {
-        console.error(`[wabou-host] subscribeAll handler threw`, error);
-      }
-    }
-  }
 
   // packages/core/src/glue/host-frame.ts
   var RECORD_HEADER_LEN = 8;
@@ -10811,10 +10830,13 @@ ${detail}`);
     scaleFactor: 1,
     maximized: false,
     focused: false,
+    outerX: null,
+    outerY: null,
+    occluded: false,
     colorScheme: "light"
   };
   function sameMetrics(previous, next) {
-    return previous.windowId.lo === next.windowId.lo && previous.windowId.hi === next.windowId.hi && previous.logicalWidth === next.logicalWidth && previous.logicalHeight === next.logicalHeight && previous.physicalWidth === next.physicalWidth && previous.physicalHeight === next.physicalHeight && previous.scaleFactor === next.scaleFactor && previous.maximized === next.maximized && previous.focused === next.focused && previous.colorScheme === next.colorScheme;
+    return previous.windowId.lo === next.windowId.lo && previous.windowId.hi === next.windowId.hi && previous.logicalWidth === next.logicalWidth && previous.logicalHeight === next.logicalHeight && previous.physicalWidth === next.physicalWidth && previous.physicalHeight === next.physicalHeight && previous.scaleFactor === next.scaleFactor && previous.maximized === next.maximized && previous.focused === next.focused && previous.outerX === next.outerX && previous.outerY === next.outerY && previous.occluded === next.occluded && previous.colorScheme === next.colorScheme;
   }
   var [metrics, setMetrics] = createSignal2(initial, {
     equals: sameMetrics,
@@ -10830,8 +10852,12 @@ ${detail}`);
         throw new TypeError(`window metrics ${field} must be a finite number`);
       return number;
     };
-    if (typeof next.maximized !== "boolean" || typeof next.focused !== "boolean")
+    if (typeof next.maximized !== "boolean" || typeof next.focused !== "boolean" || typeof next.occluded !== "boolean")
       throw new TypeError("window metrics flags must be booleans");
+    for (const field of ["outerX", "outerY"]) {
+      if (next[field] !== null && (typeof next[field] !== "number" || !Number.isFinite(next[field])))
+        throw new TypeError(`window metrics ${field} must be null or a finite number`);
+    }
     if (next.colorScheme !== null && next.colorScheme !== "light" && next.colorScheme !== "dark")
       throw new TypeError("window metrics colorScheme is invalid");
     return {
@@ -10843,6 +10869,9 @@ ${detail}`);
       scaleFactor: finiteNumber("scaleFactor"),
       maximized: next.maximized,
       focused: next.focused,
+      outerX: next.outerX,
+      outerY: next.outerY,
+      occluded: next.occluded,
       colorScheme: next.colorScheme
     };
   }
@@ -10865,6 +10894,9 @@ ${detail}`);
     scaleFactor: () => metrics().scaleFactor,
     maximized: () => metrics().maximized,
     focused: () => metrics().focused,
+    outerX: () => metrics().outerX,
+    outerY: () => metrics().outerY,
+    occluded: () => metrics().occluded,
     colorScheme: () => metrics().colorScheme ?? "light"
   };
   function useWindow() {

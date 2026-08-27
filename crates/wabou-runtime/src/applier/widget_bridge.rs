@@ -430,6 +430,7 @@ mod tests {
             button: Some(PointerButton::Primary),
             buttons: 1,
             modifiers: Modifiers::default(),
+            properties: wabou_shell::PointerProperties::default(),
         });
 
         let UiEvent::Pointer(local) = localize_widget_event(&event, geometry()) else {
@@ -444,6 +445,7 @@ mod tests {
             position: wabou_shell::Point { x: 120.0, y: 30.0 },
             delta_x: 3.0,
             delta_y: -8.0,
+            phase: wabou_shell::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         });
 

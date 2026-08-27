@@ -197,6 +197,7 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         position: Point { x: 10.0, y: 10.0 },
         delta_x: 0.0,
         delta_y: 50.0,
+        phase: wabou_shell::GesturePhase::Changed,
         modifiers: Modifiers::default(),
     }));
     assert!(response.handled);

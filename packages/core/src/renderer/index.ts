@@ -260,6 +260,14 @@ export interface WabouPointerEvent extends WabouPositionedEvent {
   readonly button: number;
   readonly buttons: number;
   readonly mods: number;
+  readonly pointerId: Readonly<{ lo: number; hi: number }>;
+  readonly pointerType: "mouse" | "touch" | "pen" | "unknown";
+  readonly primary: boolean;
+  readonly pressure: number | null;
+  readonly tangentialPressure: number | null;
+  readonly tiltX: number | null;
+  readonly tiltY: number | null;
+  readonly twist: number | null;
 }
 
 export type WabouGlobalPointerEventType =
@@ -301,11 +309,14 @@ export interface WabouKeyEvent extends WabouNodeEvent {
   /** Whether the physical modifiers form the platform Primary chord. */
   readonly primary: boolean;
   readonly repeat: boolean;
+  /** Whether the platform synthesized this transition during focus recovery. */
+  readonly synthetic: boolean;
 }
 
 export interface WabouWheelEvent extends WabouPositionedEvent {
   readonly deltaX: number;
   readonly deltaY: number;
+  readonly phase: "started" | "changed" | "ended" | "cancelled";
 }
 
 export interface WabouScrollEvent extends WabouNodeEvent {
@@ -1066,6 +1077,14 @@ export function dispatchEvent(
         data.button = ed[4];
         data.buttons = ed[5];
         data.mods = ed[6];
+        data.pointerId = { lo: ed[12], hi: ed[13] };
+        data.pointerType = ["mouse", "touch", "pen", "unknown"][ed[14]];
+        data.primary = ed[15] !== 0;
+        data.pressure = Number.isNaN(ed[16]) ? null : ed[16];
+        data.tangentialPressure = Number.isNaN(ed[17]) ? null : ed[17];
+        data.tiltX = Number.isNaN(ed[18]) ? null : ed[18];
+        data.tiltY = Number.isNaN(ed[19]) ? null : ed[19];
+        data.twist = Number.isNaN(ed[20]) ? null : ed[20];
       } else if (eventCode === EVENT_CODE.wheel) {
         data.clientX = ed[0];
         data.clientY = ed[1];
@@ -1073,6 +1092,7 @@ export function dispatchEvent(
         data.offsetY = ed[3];
         data.deltaX = ed[7];
         data.deltaY = ed[8];
+        data.phase = ["started", "changed", "ended", "cancelled"][ed[11]];
       } else if (eventCode === EVENT_CODE.scroll) {
         data.scrollX = ed[9];
         data.scrollY = ed[10];

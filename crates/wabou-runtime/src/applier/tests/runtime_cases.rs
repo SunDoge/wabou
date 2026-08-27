@@ -232,6 +232,28 @@ fn native_gesture_reaches_js_with_explicit_non_dom_semantics() {
 }
 
 #[test]
+fn application_lifecycle_reaches_js_without_a_render_frame() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let response = applier.handle_event(UiEvent::AppLifecycle(
+        wabou_shell::AppLifecycleEvent::MemoryWarning,
+    ));
+    assert!(response.request_redraw);
+    let payload = applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<String, _>(
+                "globalThis.__host_got.find((x) => x.topic === 'wabou:app-lifecycle').payload",
+            )
+        })
+        .unwrap();
+    let payload: serde_json::Value = serde_json::from_str(&payload).unwrap();
+    assert_eq!(payload["state"], "memory-warning");
+}
+
+#[test]
 fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
     const CORE_FIXTURE: &str = include_str!("../../gen/test-runtime.js");
     let js = JsRuntime::new().expect("runtime");

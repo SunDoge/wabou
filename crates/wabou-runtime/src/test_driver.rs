@@ -1035,6 +1035,7 @@ fn click_semantic_target(
         button: Some(PointerButton::Primary),
         buttons: 1,
         modifiers: Modifiers::default(),
+        properties: wabou_shell::PointerProperties::default(),
     }));
     source.handle_event(UiEvent::Pointer(PointerEvent {
         phase: PointerPhase::Up,
@@ -1042,6 +1043,7 @@ fn click_semantic_target(
         button: Some(PointerButton::Primary),
         buttons: 0,
         modifiers: Modifiers::default(),
+        properties: wabou_shell::PointerProperties::default(),
     }));
     true
 }
@@ -1333,6 +1335,7 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
                     button: Some(PointerButton::Primary),
                     buttons: 1,
                     modifiers: Modifiers::default(),
+                    properties: wabou_shell::PointerProperties::default(),
                 }),
                 UiEvent::Pointer(PointerEvent {
                     phase: PointerPhase::Move,
@@ -1340,6 +1343,7 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
                     button: Some(PointerButton::Primary),
                     buttons: 1,
                     modifiers: Modifiers::default(),
+                    properties: wabou_shell::PointerProperties::default(),
                 }),
                 UiEvent::Pointer(PointerEvent {
                     phase: PointerPhase::Up,
@@ -1347,6 +1351,7 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
                     button: Some(PointerButton::Primary),
                     buttons: 0,
                     modifiers: Modifiers::default(),
+                    properties: wabou_shell::PointerProperties::default(),
                 }),
             ]
         }
@@ -1363,6 +1368,7 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
                     location: KeyLocation::Standard,
                     modifiers: Modifiers::from_bits_truncate(*modifiers),
                     repeat: false,
+                    synthetic: false,
                 })
             })
             .collect(),
@@ -1381,6 +1387,7 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
             position: center,
             delta_x: *delta_x,
             delta_y: *delta_y,
+            phase: wabou_shell::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         })],
     }
@@ -1398,6 +1405,7 @@ fn click_events(node: &wabou_shell::SemanticNode) -> [UiEvent; 2] {
             button: Some(PointerButton::Primary),
             buttons: 1,
             modifiers: Modifiers::default(),
+            properties: wabou_shell::PointerProperties::default(),
         }),
         UiEvent::Pointer(PointerEvent {
             phase: PointerPhase::Up,
@@ -1405,6 +1413,7 @@ fn click_events(node: &wabou_shell::SemanticNode) -> [UiEvent; 2] {
             button: Some(PointerButton::Primary),
             buttons: 0,
             modifiers: Modifiers::default(),
+            properties: wabou_shell::PointerProperties::default(),
         }),
     ]
 }

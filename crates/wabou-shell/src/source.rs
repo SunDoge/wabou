@@ -329,6 +329,65 @@ pub enum PointerPhase {
     Leave,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+/// Stable identity of one active native pointer, represented as FFI-safe words.
+pub struct PointerId {
+    /// Low 32 bits.
+    pub lo: u32,
+    /// High 32 bits, including a source namespace.
+    pub hi: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Native pointer category exposed without DOM compatibility aliases.
+pub enum PointerType {
+    /// Conventional mouse or mouse-compatible pointing device.
+    Mouse,
+    /// Direct touchscreen contact.
+    Touch,
+    /// Tablet pen, eraser, brush, or similar tool.
+    Pen,
+    /// Platform source which cannot be classified reliably.
+    #[default]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+/// Device properties accompanying a pointer transition.
+pub struct PointerProperties {
+    /// Identity stable for the active pointer sequence.
+    pub id: PointerId,
+    /// Native pointer category.
+    pub pointer_type: PointerType,
+    /// Whether this is the primary pointer for its category.
+    pub primary: bool,
+    /// Normalized contact pressure, when reported by the platform.
+    pub pressure: Option<f64>,
+    /// Normalized tablet barrel pressure in the range -1 to 1.
+    pub tangential_pressure: Option<f64>,
+    /// Tablet tilt around the surface Y-Z plane, in degrees.
+    pub tilt_x: Option<f64>,
+    /// Tablet tilt around the surface X-Z plane, in degrees.
+    pub tilt_y: Option<f64>,
+    /// Clockwise tablet-tool rotation in degrees.
+    pub twist: Option<f64>,
+}
+
+impl Default for PointerProperties {
+    fn default() -> Self {
+        Self {
+            id: PointerId { lo: 1, hi: 0 },
+            pointer_type: PointerType::Mouse,
+            primary: true,
+            pressure: None,
+            tangential_pressure: None,
+            tilt_x: None,
+            tilt_y: None,
+            twist: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// Pointer event in logical window or widget-local coordinates.
 pub struct PointerEvent {
@@ -343,6 +402,8 @@ pub struct PointerEvent {
     pub buttons: u32,
     /// Keyboard modifiers active for the event.
     pub modifiers: Modifiers,
+    /// Pointer identity, category, and optional contact/tool measurements.
+    pub properties: PointerProperties,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -354,6 +415,8 @@ pub struct WheelEvent {
     pub delta_x: f64,
     /// Vertical logical-pixel delta.
     pub delta_y: f64,
+    /// Native scroll lifecycle phase.
+    pub phase: GesturePhase,
     /// Keyboard modifiers active for the event.
     pub modifiers: Modifiers,
 }
@@ -406,6 +469,17 @@ pub enum GestureEvent {
         /// Platform click stage.
         stage: i64,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Operating-system application lifecycle notification.
+pub enum AppLifecycleEvent {
+    /// The application became active and may resume foreground work.
+    Resumed,
+    /// The application should pause foreground work.
+    Suspended,
+    /// The operating system requested that caches be reduced promptly.
+    MemoryWarning,
 }
 
 /// Platform input-method lifecycle delivered to the focused native widget.
@@ -490,6 +564,8 @@ pub struct KeyEvent {
     pub modifiers: Modifiers,
     /// Whether this is an automatic repeat rather than the initial press.
     pub repeat: bool,
+    /// Whether the platform synthesized this transition during focus recovery.
+    pub synthetic: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -519,6 +595,8 @@ pub struct FileDropEvent {
 #[derive(Debug, Clone, PartialEq)]
 /// Input and window-state events delivered to a [`FrameSource`] or widget.
 pub enum UiEvent {
+    /// Operating-system application lifecycle notification.
+    AppLifecycle(AppLifecycleEvent),
     /// Pointer movement or button transition.
     Pointer(PointerEvent),
     /// Wheel or trackpad scrolling.

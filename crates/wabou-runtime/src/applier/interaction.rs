@@ -1,12 +1,23 @@
 use super::*;
 
 impl Applier {
-    fn update_hover_target(&mut self, target: Option<NodeKey>, modifiers: Modifiers) -> bool {
-        if target == self.interaction.input.hovered_target {
+    fn update_hover_target(
+        &mut self,
+        pointer_id: wabou_shell::PointerId,
+        target: Option<NodeKey>,
+        modifiers: Modifiers,
+    ) -> bool {
+        let old = self
+            .interaction
+            .input
+            .pointer_routes
+            .get(&pointer_id)
+            .and_then(|route| route.hovered_target);
+        if target == old {
             return false;
         }
         let mut changed = false;
-        if let Some(old) = self.interaction.input.hovered_target {
+        if let Some(old) = old {
             changed |= self.dispatch_pointer(old, event::POINTEROUT, None, modifiers);
             changed |= self.dispatch_pointer(old, event::POINTERLEAVE, None, modifiers);
         }
@@ -14,7 +25,15 @@ impl Applier {
             changed |= self.dispatch_pointer(new, event::POINTEROVER, None, modifiers);
             changed |= self.dispatch_pointer(new, event::POINTERENTER, None, modifiers);
         }
-        self.interaction.input.hovered_target = target;
+        self.interaction
+            .input
+            .pointer_routes
+            .entry(pointer_id)
+            .or_default()
+            .hovered_target = target;
+        if self.interaction.input.pointer_properties.primary {
+            self.interaction.input.hovered_target = target;
+        }
         changed
     }
 
@@ -23,19 +42,21 @@ impl Applier {
         pointer: wabou_shell::PointerEvent,
     ) -> EventResponse {
         let (x, y) = (pointer.position.x, pointer.position.y);
-        self.interaction.input.pointer_position = (x, y);
-        self.interaction.input.pointer_buttons = pointer.buttons;
+        self.interaction.input.update_pointer(&pointer);
         let target = self.interaction.input.hit_test(x, y);
-        Self::response(self.update_hover_target(target, pointer.modifiers))
+        Self::response(self.update_hover_target(pointer.properties.id, target, pointer.modifiers))
     }
 
     pub(super) fn handle_pointer_leave(
         &mut self,
         pointer: wabou_shell::PointerEvent,
     ) -> EventResponse {
-        self.interaction.input.pointer_position = (pointer.position.x, pointer.position.y);
-        self.interaction.input.pointer_buttons = pointer.buttons;
-        let mut changed = self.update_hover_target(None, pointer.modifiers);
+        self.interaction.input.update_pointer(&pointer);
+        let mut changed = self.update_hover_target(pointer.properties.id, None, pointer.modifiers);
+        self.interaction
+            .input
+            .pointer_routes
+            .remove(&pointer.properties.id);
         if let Some((node, _)) = self.interaction.scroll.hovered.take() {
             self.interaction
                 .scroll
@@ -81,33 +102,46 @@ impl Applier {
     ) -> EventResponse {
         let (x, y) = (pointer.position.x, pointer.position.y);
         let button = pointer.button.unwrap_or(PointerButton::Primary);
-        self.interaction.input.pointer_position = (x, y);
-        self.interaction.input.pointer_buttons = pointer.buttons;
-        if let Some(drag) = self.interaction.scroll.drag.take() {
+        self.interaction.input.update_pointer(&pointer);
+        if pointer.properties.primary
+            && let Some(drag) = self.interaction.scroll.drag.take()
+        {
             self.interaction
                 .scroll
                 .activity
                 .insert(drag.node, Instant::now());
             return Self::response(true);
         }
-        if button == PointerButton::Primary
-            && let Some((down_x, down_y)) = self.interaction.input.pointer_down_position
-        {
-            let dx = x - down_x;
-            let dy = y - down_y;
-            self.interaction.input.pointer_dragged |=
-                dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
+        let pointer_id = pointer.properties.id;
+        let (captured, dragged) = {
+            let route = self
+                .interaction
+                .input
+                .pointer_routes
+                .entry(pointer_id)
+                .or_default();
+            if button == PointerButton::Primary
+                && let Some((down_x, down_y)) = route.down_position
+            {
+                let dx = x - down_x;
+                let dy = y - down_y;
+                route.dragged |= dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
+            }
+            (route.down_target, route.dragged)
+        };
+        if pointer.properties.primary {
+            self.interaction.input.pointer_down_target = captured;
+            self.interaction.input.pointer_dragged = dragged;
         }
         let target = self.interaction.input.hit_test(x, y);
-        let captured = self.interaction.input.pointer_down_target;
         let mut changed = captured.is_some_and(|captured| {
             self.handle_widget_event(captured, &UiEvent::Pointer(pointer))
                 .is_some_and(|response| response.handled || response.request_redraw)
         });
-        if button == PointerButton::Primary {
+        if button == PointerButton::Primary && pointer.properties.primary {
             changed |= self.extend_text_selection(target, x, y);
             self.interaction.text_selection.next_scroll = None;
-            if self.interaction.input.pointer_dragged {
+            if dragged {
                 self.interaction.text_selection.last_click = None;
             }
         }
@@ -119,8 +153,9 @@ impl Applier {
         });
         if let Some(target) = target
             && button == PointerButton::Primary
-            && !self.interaction.input.pointer_dragged
-            && Some(target) == self.interaction.input.pointer_down_target
+            && pointer.properties.primary
+            && !dragged
+            && Some(target) == captured
         {
             let mut data = [0.0; event_data::LEN];
             data[event_data::CLIENT_X as usize] = self.interaction.input.pointer_position.0;
@@ -132,6 +167,7 @@ impl Applier {
             data[event_data::BUTTONS as usize] =
                 Self::web_buttons(self.interaction.input.pointer_buttons) as f64;
             data[event_data::MODS as usize] = pointer.modifiers.bits() as f64;
+            Self::fill_pointer_properties(&mut data, pointer.properties);
             let (dispatched, _) = self.dispatch_cancellable_numeric(target, event::CLICK, data);
             changed |= dispatched;
 
@@ -155,7 +191,7 @@ impl Applier {
         }
         if let Some(target) = target
             && button == PointerButton::Secondary
-            && Some(target) == self.interaction.input.pointer_down_target
+            && Some(target) == captured
         {
             let mut data = [0.0; event_data::LEN];
             data[event_data::CLIENT_X as usize] = x;
@@ -167,13 +203,21 @@ impl Applier {
             data[event_data::BUTTONS as usize] =
                 Self::web_buttons(self.interaction.input.pointer_buttons) as f64;
             data[event_data::MODS as usize] = pointer.modifiers.bits() as f64;
+            Self::fill_pointer_properties(&mut data, pointer.properties);
             let (dispatched, _) =
                 self.dispatch_cancellable_numeric(target, event::CONTEXTMENU, data);
             changed |= dispatched;
         }
-        self.interaction.input.pointer_down_target.take();
-        self.interaction.input.pointer_down_position = None;
-        self.interaction.input.pointer_dragged = false;
+        if let Some(route) = self.interaction.input.pointer_routes.get_mut(&pointer_id) {
+            route.down_target = None;
+            route.down_position = None;
+            route.dragged = false;
+        }
+        if pointer.properties.primary {
+            self.interaction.input.pointer_down_target.take();
+            self.interaction.input.pointer_down_position = None;
+            self.interaction.input.pointer_dragged = false;
+        }
         changed |= self.sync_text_selection_change();
         Self::response(changed)
     }
@@ -182,7 +226,9 @@ impl Applier {
         &mut self,
         pointer: wabou_shell::PointerEvent,
     ) -> EventResponse {
-        if let Some(drag) = self.interaction.scroll.drag.take() {
+        if pointer.properties.primary
+            && let Some(drag) = self.interaction.scroll.drag.take()
+        {
             self.interaction
                 .scroll
                 .activity
@@ -199,9 +245,9 @@ impl Applier {
     ) -> EventResponse {
         let (x, y) = (pointer.position.x, pointer.position.y);
         let button = pointer.button.unwrap_or(PointerButton::Primary);
-        self.interaction.input.pointer_position = (x, y);
-        self.interaction.input.pointer_buttons = pointer.buttons;
+        self.interaction.input.update_pointer(&pointer);
         if button == PointerButton::Primary
+            && pointer.properties.primary
             && let Some((node, target)) = self.scrollbar_at(x, y)
             && let Some(hit) = self
                 .interaction
@@ -250,12 +296,29 @@ impl Applier {
         }
 
         let target = self.interaction.input.hit_test(x, y);
-        self.interaction.input.pointer_down_target = target;
-        self.interaction.input.pointer_down_position = Some((x, y));
-        self.interaction.input.pointer_dragged = false;
+        {
+            let route = self
+                .interaction
+                .input
+                .pointer_routes
+                .entry(pointer.properties.id)
+                .or_default();
+            route.down_target = target;
+            route.down_position = Some((x, y));
+            route.dragged = false;
+        }
+        if pointer.properties.primary {
+            self.interaction.input.pointer_down_target = target;
+            self.interaction.input.pointer_down_position = Some((x, y));
+            self.interaction.input.pointer_dragged = false;
+        }
         self.interaction.use_pointer_modality();
-        let mut changed = self.set_focused_target(self.pointer_focus_target(target));
-        if button == PointerButton::Primary {
+        let mut changed = if pointer.properties.primary {
+            self.set_focused_target(self.pointer_focus_target(target))
+        } else {
+            false
+        };
+        if button == PointerButton::Primary && pointer.properties.primary {
             self.interaction.text_selection.next_scroll = None;
             changed |= target
                 .is_some_and(|target| self.begin_text_selection(target, x, y, pointer.modifiers));
@@ -284,12 +347,14 @@ impl Applier {
         pointer: wabou_shell::PointerEvent,
     ) -> EventResponse {
         let (x, y) = (pointer.position.x, pointer.position.y);
-        self.interaction.input.pointer_buttons = pointer.buttons;
-        self.interaction.input.pointer_position = (x, y);
-        let hovered_scrollbar = self
-            .scrollbar_at(x, y)
-            .map(|(node, target)| (node, target.axis))
-            .or_else(|| self.scrollbar_edge_at(x, y));
+        self.interaction.input.update_pointer(&pointer);
+        let hovered_scrollbar = if pointer.properties.primary {
+            self.scrollbar_at(x, y)
+                .map(|(node, target)| (node, target.axis))
+                .or_else(|| self.scrollbar_edge_at(x, y))
+        } else {
+            self.interaction.scroll.hovered
+        };
         let scrollbar_hover_changed = hovered_scrollbar != self.interaction.scroll.hovered;
         let previous_hover = self.interaction.scroll.hovered;
         self.interaction.scroll.hovered = hovered_scrollbar;
@@ -305,7 +370,7 @@ impl Applier {
                 .activity
                 .insert(node, Instant::now());
         }
-        if self.interaction.scroll.drag.is_some() {
+        if pointer.properties.primary && self.interaction.scroll.drag.is_some() {
             let changed = self.drag_scrollbar(x, y);
             return EventResponse {
                 handled: true,
@@ -313,28 +378,41 @@ impl Applier {
                 ..EventResponse::IGNORED
             };
         }
-        if pointer.buttons & 1 != 0
-            && let Some((down_x, down_y)) = self.interaction.input.pointer_down_position
-        {
-            let dx = x - down_x;
-            let dy = y - down_y;
-            self.interaction.input.pointer_dragged |=
-                dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
+        let pointer_id = pointer.properties.id;
+        let (captured, dragged) = {
+            let route = self
+                .interaction
+                .input
+                .pointer_routes
+                .entry(pointer_id)
+                .or_default();
+            if pointer.buttons & 1 != 0
+                && let Some((down_x, down_y)) = route.down_position
+            {
+                let dx = x - down_x;
+                let dy = y - down_y;
+                route.dragged |= dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
+            }
+            (route.down_target, route.dragged)
+        };
+        if pointer.properties.primary {
+            self.interaction.input.pointer_down_target = captured;
+            self.interaction.input.pointer_dragged = dragged;
         }
         let target = self.interaction.input.hit_test(x, y);
         let mut changed = scrollbar_hover_changed;
-        if let Some(captured) = self.interaction.input.pointer_down_target
+        if let Some(captured) = captured
             && let Some(response) = self.handle_widget_event(captured, &UiEvent::Pointer(pointer))
         {
             changed |= response.handled || response.request_redraw;
         }
-        if pointer.buttons & 1 != 0 {
+        if pointer.properties.primary && pointer.buttons & 1 != 0 {
             changed |= self.extend_text_selection(target, x, y);
             self.arm_text_selection_autoscroll();
         }
-        changed |= self.update_hover_target(target, pointer.modifiers);
+        changed |= self.update_hover_target(pointer_id, target, pointer.modifiers);
         let dispatch_target = if pointer.buttons != 0 {
-            self.interaction.input.pointer_down_target.or(target)
+            captured.or(target)
         } else {
             target
         };
@@ -385,6 +463,12 @@ impl Applier {
         data[event_data::MODS as usize] = wheel.modifiers.bits() as f64;
         data[event_data::DELTA_X as usize] = wheel.delta_x;
         data[event_data::DELTA_Y as usize] = wheel.delta_y;
+        data[event_data::PHASE as usize] = match wheel.phase {
+            wabou_shell::GesturePhase::Started => 0.0,
+            wabou_shell::GesturePhase::Changed => 1.0,
+            wabou_shell::GesturePhase::Ended => 2.0,
+            wabou_shell::GesturePhase::Cancelled => 3.0,
+        };
         let (dispatched, prevented) = self.dispatch_cancellable_numeric(target, event::WHEEL, data);
         let scrolled =
             !prevented && self.scroll_nearest(target, wheel.delta_x as f32, wheel.delta_y as f32);
@@ -539,6 +623,7 @@ impl Applier {
         data[event_data::BUTTONS as usize] =
             Self::web_buttons(self.interaction.input.pointer_buttons) as f64;
         data[event_data::MODS as usize] = modifiers.bits() as f64;
+        Self::fill_pointer_properties(&mut data, self.interaction.input.pointer_properties);
         let event = HostEvent::Node(HostNodeEvent {
             target,
             event_code: code,
@@ -551,6 +636,27 @@ impl Applier {
             return false;
         }
         true
+    }
+
+    fn fill_pointer_properties(
+        data: &mut [f64; event_data::LEN],
+        properties: wabou_shell::PointerProperties,
+    ) {
+        data[event_data::POINTER_ID_LO as usize] = f64::from(properties.id.lo);
+        data[event_data::POINTER_ID_HI as usize] = f64::from(properties.id.hi);
+        data[event_data::POINTER_TYPE as usize] = match properties.pointer_type {
+            wabou_shell::PointerType::Mouse => 0.0,
+            wabou_shell::PointerType::Touch => 1.0,
+            wabou_shell::PointerType::Pen => 2.0,
+            wabou_shell::PointerType::Unknown => 3.0,
+        };
+        data[event_data::PRIMARY as usize] = f64::from(properties.primary);
+        data[event_data::PRESSURE as usize] = properties.pressure.unwrap_or(f64::NAN);
+        data[event_data::TANGENTIAL_PRESSURE as usize] =
+            properties.tangential_pressure.unwrap_or(f64::NAN);
+        data[event_data::TILT_X as usize] = properties.tilt_x.unwrap_or(f64::NAN);
+        data[event_data::TILT_Y as usize] = properties.tilt_y.unwrap_or(f64::NAN);
+        data[event_data::TWIST as usize] = properties.twist.unwrap_or(f64::NAN);
     }
 
     pub(super) fn dispatch_cancellable_numeric(

@@ -19,6 +19,7 @@ fn pointer_with_modifiers(
         button: Some(PointerButton::Primary),
         buttons,
         modifiers,
+        properties: Default::default(),
     })
 }
 
