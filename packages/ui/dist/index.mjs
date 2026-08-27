@@ -4925,6 +4925,43 @@ function AdaptiveSplitPaneDetail(props) {
 }
 //#endregion
 //#region src/components/markdown-model.ts
+function sameRuns(left, right) {
+	return left.length === right.length && left.every((run, index) => run.text === right[index]?.text && sameStyle(run.style, right[index]?.style ?? {}));
+}
+function sameBlock(left, right) {
+	if (left.kind !== right.kind) return false;
+	switch (left.kind) {
+		case "heading": return right.kind === "heading" && left.depth === right.depth && sameRuns(left.runs, right.runs);
+		case "paragraph": return right.kind === "paragraph" && sameRuns(left.runs, right.runs);
+		case "blockquote": return right.kind === "blockquote" && sameBlocks(left.blocks, right.blocks);
+		case "list": return right.kind === "list" && left.ordered === right.ordered && left.start === right.start && left.items.length === right.items.length && left.items.every((item, index) => item.checked === right.items[index]?.checked && sameBlocks(item.blocks, right.items[index]?.blocks ?? []));
+		case "table": return right.kind === "table" && left.align.length === right.align.length && left.align.every((align, index) => align === right.align[index]) && sameRunRows(left.header, right.header) && left.rows.length === right.rows.length && left.rows.every((row, index) => sameRunRows(row, right.rows[index] ?? []));
+		case "code": return right.kind === "code" && left.code === right.code && left.language === right.language;
+		case "rule": return right.kind === "rule";
+		case "literal": return right.kind === "literal" && left.text === right.text;
+	}
+}
+function sameRunRows(left, right) {
+	return left.length === right.length && left.every((runs, index) => sameRuns(runs, right[index] ?? []));
+}
+function sameBlocks(left, right) {
+	return left.length === right.length && left.every((block, index) => sameBlock(block, right[index]));
+}
+/**
+* Preserve unchanged block identities across streaming parses. Solid can then
+* retain the already-rendered native subtree while only replacing the block
+* whose Markdown source is still growing.
+*/
+function reconcileMarkdownBlocks(previous, next) {
+	let changed = previous.length !== next.length;
+	const reconciled = next.map((block, index) => {
+		const prior = previous[index];
+		if (prior && sameBlock(prior, block)) return prior;
+		changed = true;
+		return block;
+	});
+	return changed ? reconciled : previous;
+}
 function sameStyle(left, right) {
 	return left.strong === right.strong && left.emphasis === right.emphasis && left.code === right.code && left.deleted === right.deleted && left.href === right.href;
 }
@@ -5143,12 +5180,12 @@ function TypographyListItem(props) {
 //#endregion
 //#region src/components/markdown.tsx
 function runClass(run) {
-	return mergeClasses(run.style.strong && "font-semibold text-primary", run.style.emphasis && "italic text-primary", run.style.code && "font-mono text-sm font-normal text-primary", run.style.deleted && "text-muted", run.style.href && "text-accent");
+	return mergeClasses(run.style.strong && "font-semibold text-primary", run.style.emphasis && "italic text-primary", run.style.code && "font-mono text-sm font-normal text-primary", run.style.deleted && "text-muted", run.style.href && "font-medium text-accent");
 }
 function InlineMarkdown(props) {
 	return createComponent$1(RichText, {
 		get ["class"]() {
-			return mergeClasses("min-w-0 whitespace-normal", props.variant === "conversation" ? "text-sm leading-relaxed text-primary" : "text-base leading-relaxed text-secondary");
+			return mergeClasses("min-w-0 whitespace-normal", props.variant === "conversation" ? "text-sm leading-relaxed text-primary" : "text-base leading-relaxed text-secondary", props.class);
 		},
 		get children() {
 			return createComponent$1(For, {
@@ -5172,10 +5209,10 @@ function Heading(props) {
 	if (props.variant === "conversation") {
 		const className = () => {
 			switch (props.block.depth) {
-				case 1: return "text-2xl font-semibold text-primary whitespace-normal";
-				case 2: return "text-xl font-semibold text-primary whitespace-normal";
-				case 3: return "text-lg font-semibold text-primary whitespace-normal";
-				default: return "text-base font-semibold text-primary whitespace-normal";
+				case 1: return "text-xl font-semibold tracking-tight text-primary whitespace-normal";
+				case 2: return "text-lg font-semibold tracking-tight text-primary whitespace-normal";
+				case 3: return "text-base font-semibold tracking-tight text-primary whitespace-normal";
+				default: return "text-sm font-semibold text-primary whitespace-normal";
 			}
 		};
 		return createComponent$1(Text, {
@@ -5273,13 +5310,18 @@ function MarkdownTable(props) {
 					get children() {
 						return createComponent$1(For, {
 							each: row,
-							children: (runs) => createComponent$1(View, {
-								class: "min-w-0 flex-1 px-3 py-2 border-r border-subtle",
+							children: (runs, columnIndex) => createComponent$1(View, {
+								get ["class"]() {
+									return mergeClasses("min-w-0 flex-1 px-3 py-2", columnIndex() + 1 < row.length && "border-r border-subtle");
+								},
 								get children() {
 									return createComponent$1(InlineMarkdown, {
 										runs,
 										get variant() {
 											return props.variant;
+										},
+										get ["class"]() {
+											return mergeClasses(props.block.align[columnIndex()] === "center" && "text-center", props.block.align[columnIndex()] === "right" && "text-right");
 										}
 									});
 								}
@@ -5361,7 +5403,11 @@ function MarkdownBlock(props) {
 }
 /** Parses GFM in JavaScript and renders native Wabou components, without HTML or a DOM. */
 function Markdown(props) {
-	const blocks = createMemo(() => parseMarkdown(props.source, props.streaming));
+	let previous = [];
+	const blocks = createMemo(() => {
+		previous = reconcileMarkdownBlocks(previous, parseMarkdown(props.source, props.streaming));
+		return previous;
+	});
 	const variant = () => props.variant ?? "document";
 	return createComponent$1(View, {
 		role: "region",
@@ -5369,7 +5415,7 @@ function Markdown(props) {
 			return props["aria-label"] ?? "Markdown";
 		},
 		get ["class"]() {
-			return mergeClasses("min-w-0 flex flex-col", variant() === "conversation" ? "gap-2.5" : "gap-4", props.class);
+			return mergeClasses("min-w-0 flex flex-col", variant() === "conversation" ? "gap-3" : "gap-4", props.class);
 		},
 		get children() {
 			return createComponent$1(MarkdownBlocks, {

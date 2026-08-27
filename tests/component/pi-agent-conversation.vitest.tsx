@@ -48,7 +48,7 @@ test("Pi Agent exposes streaming progress without wrapping assistant prose in a 
     "Writing",
   );
   const response = screen.getByRole("region", { name: "Assistant response" });
-  expect(response.className).toContain("gap-2.5");
+  expect(response.className).toContain("gap-3");
   expect(response.parent?.className).toBe(
     "max-w-full min-w-0 overflow-hidden rounded-xl border p-0 border-transparent bg-transparent text-primary",
   );

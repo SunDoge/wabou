@@ -2,7 +2,10 @@ import { renderComponent } from "@wabou/test/component";
 import { Markdown } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
-import { parseMarkdown } from "../../packages/ui/src/components/markdown-model";
+import {
+  parseMarkdown,
+  reconcileMarkdownBlocks,
+} from "../../packages/ui/src/components/markdown-model";
 
 test("normalizes parser tokens into nested Wabou inline styles", () => {
   const [paragraph] = parseMarkdown(
@@ -46,6 +49,23 @@ test("preserves nested blocks and task state instead of flattening them", () => 
   ]);
 });
 
+test("reuses settled blocks while a streaming tail grows", () => {
+  const initial = parseMarkdown(
+    "## Result\n\nFirst paragraph.\n\nPartial",
+    true,
+  );
+  const next = parseMarkdown(
+    "## Result\n\nFirst paragraph.\n\nPartial answer",
+    true,
+  );
+  const reconciled = reconcileMarkdownBlocks(initial, next);
+
+  expect(reconciled[0]).toBe(initial[0]);
+  expect(reconciled[1]).toBe(initial[1]);
+  expect(reconciled[2]).not.toBe(initial[2]);
+  expect(reconcileMarkdownBlocks(reconciled, next)).toBe(reconciled);
+});
+
 test("renders reactive GFM as native semantic components", () => {
   const [source, setSource] = createSignal(
     "## Result\n\n- **Fast** updates\n\n```ts\nconst ready = true\n```",
@@ -81,7 +101,7 @@ test("renders compact conversation Markdown including GFM tables", () => {
   ));
 
   const response = screen.getByRole("region", { name: "Compact response" });
-  expect(response.className).toContain("gap-2.5");
+  expect(response.className).toContain("gap-3");
   expect(response.text).toContain("FileState");
   expect(response.text).toContain("api.tsUpdated");
   expect(response.snapshot()).toMatchObject({ role: "region" });

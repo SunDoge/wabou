@@ -39,6 +39,109 @@ export type MarkdownBlock =
   | { kind: "rule" }
   | { kind: "literal"; text: string };
 
+function sameRuns(left: readonly MarkdownRun[], right: readonly MarkdownRun[]) {
+  return (
+    left.length === right.length &&
+    left.every(
+      (run, index) =>
+        run.text === right[index]?.text &&
+        sameStyle(run.style, right[index]?.style ?? {}),
+    )
+  );
+}
+
+function sameBlock(left: MarkdownBlock, right: MarkdownBlock): boolean {
+  if (left.kind !== right.kind) return false;
+  switch (left.kind) {
+    case "heading":
+      return (
+        right.kind === "heading" &&
+        left.depth === right.depth &&
+        sameRuns(left.runs, right.runs)
+      );
+    case "paragraph":
+      return right.kind === "paragraph" && sameRuns(left.runs, right.runs);
+    case "blockquote":
+      return (
+        right.kind === "blockquote" && sameBlocks(left.blocks, right.blocks)
+      );
+    case "list":
+      return (
+        right.kind === "list" &&
+        left.ordered === right.ordered &&
+        left.start === right.start &&
+        left.items.length === right.items.length &&
+        left.items.every(
+          (item, index) =>
+            item.checked === right.items[index]?.checked &&
+            sameBlocks(item.blocks, right.items[index]?.blocks ?? []),
+        )
+      );
+    case "table":
+      return (
+        right.kind === "table" &&
+        left.align.length === right.align.length &&
+        left.align.every((align, index) => align === right.align[index]) &&
+        sameRunRows(left.header, right.header) &&
+        left.rows.length === right.rows.length &&
+        left.rows.every((row, index) =>
+          sameRunRows(row, right.rows[index] ?? []),
+        )
+      );
+    case "code":
+      return (
+        right.kind === "code" &&
+        left.code === right.code &&
+        left.language === right.language
+      );
+    case "rule":
+      return right.kind === "rule";
+    case "literal":
+      return right.kind === "literal" && left.text === right.text;
+  }
+}
+
+function sameRunRows(
+  left: readonly (readonly MarkdownRun[])[],
+  right: readonly (readonly MarkdownRun[])[],
+) {
+  return (
+    left.length === right.length &&
+    left.every((runs, index) => sameRuns(runs, right[index] ?? []))
+  );
+}
+
+function sameBlocks(
+  left: readonly MarkdownBlock[],
+  right: readonly MarkdownBlock[],
+) {
+  return (
+    left.length === right.length &&
+    left.every((block, index) =>
+      sameBlock(block, right[index] as MarkdownBlock),
+    )
+  );
+}
+
+/**
+ * Preserve unchanged block identities across streaming parses. Solid can then
+ * retain the already-rendered native subtree while only replacing the block
+ * whose Markdown source is still growing.
+ */
+export function reconcileMarkdownBlocks(
+  previous: readonly MarkdownBlock[],
+  next: readonly MarkdownBlock[],
+): MarkdownBlock[] {
+  let changed = previous.length !== next.length;
+  const reconciled = next.map((block, index) => {
+    const prior = previous[index];
+    if (prior && sameBlock(prior, block)) return prior;
+    changed = true;
+    return block;
+  });
+  return changed ? reconciled : (previous as MarkdownBlock[]);
+}
+
 function sameStyle(left: MarkdownInlineStyle, right: MarkdownInlineStyle) {
   return (
     left.strong === right.strong &&

@@ -6,6 +6,7 @@ import {
   type MarkdownBlock as MarkdownBlockModel,
   type MarkdownRun,
   parseMarkdown,
+  reconcileMarkdownBlocks,
 } from "./markdown-model";
 import { Separator } from "./separator";
 import {
@@ -23,13 +24,14 @@ function runClass(run: MarkdownRun): string | undefined {
     run.style.emphasis && "italic text-primary",
     run.style.code && "font-mono text-sm font-normal text-primary",
     run.style.deleted && "text-muted",
-    run.style.href && "text-accent",
+    run.style.href && "font-medium text-accent",
   );
 }
 
 function InlineMarkdown(props: {
   runs: MarkdownRun[];
   variant: MarkdownVariant;
+  class?: string;
 }): JSX.Element {
   return (
     <RichText
@@ -38,6 +40,7 @@ function InlineMarkdown(props: {
         props.variant === "conversation"
           ? "text-sm leading-relaxed text-primary"
           : "text-base leading-relaxed text-secondary",
+        props.class,
       )}
     >
       <For each={props.runs}>
@@ -56,13 +59,13 @@ function Heading(props: {
     const className = () => {
       switch (props.block.depth) {
         case 1:
-          return "text-2xl font-semibold text-primary whitespace-normal";
+          return "text-xl font-semibold tracking-tight text-primary whitespace-normal";
         case 2:
-          return "text-xl font-semibold text-primary whitespace-normal";
+          return "text-lg font-semibold tracking-tight text-primary whitespace-normal";
         case 3:
-          return "text-lg font-semibold text-primary whitespace-normal";
+          return "text-base font-semibold tracking-tight text-primary whitespace-normal";
         default:
-          return "text-base font-semibold text-primary whitespace-normal";
+          return "text-sm font-semibold text-primary whitespace-normal";
       }
     };
     return <Text class={className()}>{text()}</Text>;
@@ -140,9 +143,23 @@ function MarkdownTable(props: {
             )}
           >
             <For each={row}>
-              {(runs) => (
-                <View class="min-w-0 flex-1 px-3 py-2 border-r border-subtle">
-                  <InlineMarkdown runs={runs} variant={props.variant} />
+              {(runs, columnIndex) => (
+                <View
+                  class={mergeClasses(
+                    "min-w-0 flex-1 px-3 py-2",
+                    columnIndex() + 1 < row.length && "border-r border-subtle",
+                  )}
+                >
+                  <InlineMarkdown
+                    runs={runs}
+                    variant={props.variant}
+                    class={mergeClasses(
+                      props.block.align[columnIndex()] === "center" &&
+                        "text-center",
+                      props.block.align[columnIndex()] === "right" &&
+                        "text-right",
+                    )}
+                  />
                 </View>
               )}
             </For>
@@ -208,7 +225,14 @@ export interface MarkdownProps {
 
 /** Parses GFM in JavaScript and renders native Wabou components, without HTML or a DOM. */
 export function Markdown(props: MarkdownProps): JSX.Element {
-  const blocks = createMemo(() => parseMarkdown(props.source, props.streaming));
+  let previous: MarkdownBlockModel[] = [];
+  const blocks = createMemo(() => {
+    previous = reconcileMarkdownBlocks(
+      previous,
+      parseMarkdown(props.source, props.streaming),
+    );
+    return previous;
+  });
   const variant = () => props.variant ?? "document";
   return (
     <View
@@ -216,7 +240,7 @@ export function Markdown(props: MarkdownProps): JSX.Element {
       aria-label={props["aria-label"] ?? "Markdown"}
       class={mergeClasses(
         "min-w-0 flex flex-col",
-        variant() === "conversation" ? "gap-2.5" : "gap-4",
+        variant() === "conversation" ? "gap-3" : "gap-4",
         props.class,
       )}
     >
