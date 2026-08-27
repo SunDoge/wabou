@@ -37,6 +37,8 @@ const GET_FORK_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getFork
 const FORK: JsonMethod<ForkRequest, ()> = JsonMethod::new("fork");
 const LIST_WORKSPACE_FILES: JsonMethod<WorkspaceFilesRequest, Vec<String>> =
     JsonMethod::new("listWorkspaceFiles");
+const RESPOND_EXTENSION_UI: JsonMethod<ExtensionUiResponseRequest, ()> =
+    JsonMethod::new("respondExtensionUi");
 const LIST_AGENTS: JsonMethod<(), Vec<AgentProfile>> = JsonMethod::no_request("listAgents");
 const SAVE_AGENTS: JsonMethod<Vec<AgentProfile>, ()> = JsonMethod::new("saveAgents");
 const DELETE_AGENT: JsonMethod<AgentRequest, ()> = JsonMethod::new("deleteAgent");
@@ -312,6 +314,38 @@ struct ForkRequest {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct WorkspaceFilesRequest {
     cwd: PathBuf,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ExtensionUiResponseRequest {
+    agent_id: String,
+    id: String,
+    value: Option<String>,
+    confirmed: Option<bool>,
+    cancelled: Option<bool>,
+}
+
+fn extension_ui_response(request: ExtensionUiResponseRequest) -> (String, Value) {
+    let has_value = request.value.is_some();
+    let has_confirmation = request.confirmed.is_some();
+    let mut response = serde_json::Map::from_iter([
+        (
+            "type".to_owned(),
+            Value::String("extension_ui_response".to_owned()),
+        ),
+        ("id".to_owned(), Value::String(request.id)),
+    ]);
+    if let Some(value) = request.value {
+        response.insert("value".to_owned(), Value::String(value));
+    }
+    if let Some(confirmed) = request.confirmed {
+        response.insert("confirmed".to_owned(), Value::Bool(confirmed));
+    }
+    if request.cancelled == Some(true) || (!has_value && !has_confirmation) {
+        response.insert("cancelled".to_owned(), Value::Bool(true));
+    }
+    (request.agent_id, Value::Object(response))
 }
 
 impl PiService {
@@ -729,6 +763,17 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
                 .map_err(|error| format!("workspace scan task failed: {error}"))?
         },
     )?;
+    let extension_ui = service.clone();
+    capability.method(
+        RESPOND_EXTENSION_UI,
+        move |request: ExtensionUiResponseRequest| {
+            let service = extension_ui.clone();
+            async move {
+                let (agent_id, response) = extension_ui_response(request);
+                service.send(&agent_id, response)
+            }
+        },
+    )?;
     capability.method(DEFAULT_WORKSPACE, |request: AgentRequest| async move {
         default_workspace(&request.agent_id)
     })?;
@@ -992,6 +1037,46 @@ mod tests {
         assert_eq!(
             tag_event("agent-2", json!({"type":"agent_start"}))["agentId"],
             "agent-2"
+        );
+    }
+
+    #[test]
+    fn extension_ui_responses_preserve_value_confirmation_and_cancellation() {
+        let (_, value) = extension_ui_response(ExtensionUiResponseRequest {
+            agent_id: "agent-1".to_owned(),
+            id: "input-1".to_owned(),
+            value: Some("typed value".to_owned()),
+            confirmed: None,
+            cancelled: None,
+        });
+        assert_eq!(
+            value,
+            json!({"type":"extension_ui_response","id":"input-1","value":"typed value"})
+        );
+
+        let (_, confirmation) = extension_ui_response(ExtensionUiResponseRequest {
+            agent_id: "agent-1".to_owned(),
+            id: "confirm-1".to_owned(),
+            value: None,
+            confirmed: Some(false),
+            cancelled: None,
+        });
+        assert_eq!(
+            confirmation,
+            json!({"type":"extension_ui_response","id":"confirm-1","confirmed":false})
+        );
+
+        let (agent_id, cancelled) = extension_ui_response(ExtensionUiResponseRequest {
+            agent_id: "agent-2".to_owned(),
+            id: "select-1".to_owned(),
+            value: None,
+            confirmed: None,
+            cancelled: None,
+        });
+        assert_eq!(agent_id, "agent-2");
+        assert_eq!(
+            cancelled,
+            json!({"type":"extension_ui_response","id":"select-1","cancelled":true})
         );
     }
 

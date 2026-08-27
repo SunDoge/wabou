@@ -50,6 +50,12 @@ import {
   writeAgentDraft,
   writeAgentDraftList,
 } from "./drafts";
+import {
+  type ExtensionUiAnswer,
+  ExtensionUiDialog,
+  type ExtensionUiDialogRequest,
+  parseExtensionUiRequest,
+} from "./extension-ui";
 import { i18n, m } from "./i18n";
 import { SessionForkDialog } from "./session-fork";
 import { SessionTitle } from "./session-title";
@@ -90,6 +96,9 @@ export function App() {
     entryId: string;
     text: string;
   }>();
+  const [extensionDialogs, setExtensionDialogs] = createSignal<
+    readonly ExtensionUiDialogRequest[]
+  >([]);
   const itemHandles = new Map<string, Handle>();
   let nextMessage = 1;
   let profilesHydrated = false;
@@ -197,6 +206,23 @@ export function App() {
       const group = grouped.get(id) ?? [];
       group.push(event);
       grouped.set(id, group);
+      const dialog = parseExtensionUiRequest(event);
+      if (dialog) {
+        setExtensionDialogs((current) =>
+          current.some(
+            (candidate) =>
+              candidate.agentId === dialog.agentId &&
+              candidate.id === dialog.id,
+          )
+            ? current
+            : [...current, dialog],
+        );
+      }
+      if (event.type === "process_exit") {
+        setExtensionDialogs((current) =>
+          current.filter((candidate) => candidate.agentId !== id),
+        );
+      }
     }
     for (const [id, batch] of grouped) {
       updateAgent(id, (agent) => ({
@@ -435,6 +461,9 @@ export function App() {
     setDrafts((current) => removeAgentDrafts(current, removed.id));
     setDraftImages((current) => removeAgentDraftLists(current, removed.id));
     setDraftContext((current) => removeAgentDraftLists(current, removed.id));
+    setExtensionDialogs((current) =>
+      current.filter((request) => request.agentId !== removed.id),
+    );
     const remaining = agents().filter((agent) => agent.id !== removed.id);
     const next =
       remaining[0] ??
@@ -496,6 +525,32 @@ export function App() {
     const agent = active();
     if (!agent.provider.trim() || !agent.model.trim()) return;
     await api.setModel(agent.id, agent.provider.trim(), agent.model.trim());
+  };
+
+  const respondToExtension = async (
+    request: ExtensionUiDialogRequest,
+    answer: ExtensionUiAnswer,
+  ) => {
+    setExtensionDialogs((current) =>
+      current.filter(
+        (candidate) =>
+          candidate.agentId !== request.agentId || candidate.id !== request.id,
+      ),
+    );
+    try {
+      await api.respondExtensionUi(request.agentId, {
+        id: request.id,
+        ...answer,
+      });
+    } catch (error) {
+      updateAgent(request.agentId, (agent) => ({
+        ...agent,
+        state: reducePiEvent(agent.state, {
+          type: "bridge_error",
+          message: String(error),
+        }),
+      }));
+    }
   };
 
   return (
@@ -745,6 +800,13 @@ export function App() {
           const target = pendingFork();
           if (target) void api.fork(activeId(), target.entryId);
           setPendingFork(undefined);
+        }}
+      />
+      <ExtensionUiDialog
+        request={extensionDialogs()[0]}
+        respond={(answer) => {
+          const request = extensionDialogs()[0];
+          if (request) void respondToExtension(request, answer);
         }}
       />
     </View>
