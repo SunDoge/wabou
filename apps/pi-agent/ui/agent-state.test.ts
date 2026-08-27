@@ -361,4 +361,21 @@ describe("Pi agent event projection", () => {
       { id: "second", entryId: "entry-b" },
     ]);
   });
+
+  test("retains bounded runtime diagnostics and clears them on restart", () => {
+    let state = initialAgentState;
+    for (let index = 0; index < 105; index += 1) {
+      state = reducePiEvent(state, {
+        type: "process_log",
+        message: `diagnostic ${index}`,
+      });
+    }
+
+    expect(state.runtimeLogs).toHaveLength(100);
+    expect(state.runtimeLogs[0]).toBe("diagnostic 5");
+    expect(state.runtimeLogs.at(-1)).toBe("diagnostic 104");
+
+    state = reducePiEvent(state, { type: "process_start" });
+    expect(state.runtimeLogs).toEqual([]);
+  });
 });

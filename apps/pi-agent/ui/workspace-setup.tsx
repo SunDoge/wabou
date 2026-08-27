@@ -5,6 +5,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CodeBlock,
   DirectoryPicker,
   Field,
   FieldDescription,
@@ -22,6 +23,7 @@ import { i18n, m } from "./i18n";
 export function WorkspaceSetup(props: {
   path: string;
   error?: string;
+  runtimeLogs?: readonly string[];
   provider?: string;
   model?: string;
   proxy?: string;
@@ -117,6 +119,15 @@ export function WorkspaceSetup(props: {
               <Text role="alert" class="text-sm text-danger whitespace-normal">
                 {props.error}
               </Text>
+            ) : null}
+            {props.runtimeLogs && props.runtimeLogs.length > 0 ? (
+              <View class="min-w-0 max-h-40 overflow-y-auto">
+                <CodeBlock
+                  aria-label={i18n.message(m.runtime_output, {})}
+                  code={props.runtimeLogs.slice(-12).join("\n")}
+                  language="log"
+                />
+              </View>
             ) : null}
             <Button
               class="w-full"

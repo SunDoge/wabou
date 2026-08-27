@@ -859,6 +859,7 @@ export function App() {
               <WorkspaceSetup
                 path={active().cwd}
                 error={active().state.error}
+                runtimeLogs={active().state.runtimeLogs}
                 provider={active().provider}
                 model={active().model}
                 proxy={active().proxy}

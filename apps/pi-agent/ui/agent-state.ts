@@ -97,6 +97,7 @@ export interface AgentViewState {
   connection: AgentConnection;
   activity?: AgentActivity;
   queue: { steering: number; followUp: number };
+  runtimeLogs: readonly string[];
   items: readonly AgentItem[];
   activeAssistantId?: string;
   error?: string;
@@ -119,6 +120,7 @@ export interface AgentViewState {
 export const initialAgentState: AgentViewState = {
   connection: "stopped",
   queue: { steering: 0, followUp: 0 },
+  runtimeLogs: [],
   items: [],
   commands: [],
   models: [],
@@ -361,7 +363,17 @@ export function reducePiEvent(
       ...state,
       connection: "ready" as const,
       error: undefined,
+      runtimeLogs: [],
     }))
+    .with("process_log", () => {
+      const message =
+        typeof event.message === "string" ? event.message.trim() : "";
+      if (!message) return state;
+      return {
+        ...state,
+        runtimeLogs: [...state.runtimeLogs.slice(-99), message],
+      };
+    })
     .with("process_exit", () => ({
       ...state,
       connection: "stopped" as const,

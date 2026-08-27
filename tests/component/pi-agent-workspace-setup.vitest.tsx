@@ -43,3 +43,19 @@ test("Pi Agent setup selects a workspace before starting", async () => {
   startButton.click();
   await screen.waitFor(() => expect(start).toHaveBeenCalledOnce());
 });
+
+test("Pi Agent setup exposes recent runtime diagnostics", () => {
+  const screen = renderComponent(() => (
+    <WorkspaceSetup
+      path="/work/wabou"
+      runtimeLogs={["bun install failed", "proxy refused connection"]}
+      updatePath={() => {}}
+      start={async () => {}}
+      openSettings={() => {}}
+    />
+  ));
+
+  const output = screen.getByRole("group", { name: "Runtime output" });
+  expect(output.text).toContain("bun install failed");
+  expect(output.text).toContain("proxy refused connection");
+});

@@ -70,6 +70,7 @@
   "runtime": "Runtime",
   "runtime_kind": "Bun sidecar · Pi JSONL RPC",
   "runtime_detail": "Set WABOU_PI_BIN to bypass package resolution and use a managed Pi installation. A QuickJS-native executor remains a future option.",
+  "runtime_output": "Runtime output",
   "back_to_agents": "Back to agents",
   "no_model": "No model selected",
   "thinking": "{level} thinking",

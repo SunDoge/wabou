@@ -70,6 +70,7 @@
   "runtime": "运行时",
   "runtime_kind": "Bun sidecar · Pi JSONL RPC",
   "runtime_detail": "设置 WABOU_PI_BIN 可以跳过包解析并使用已有的 Pi。未来可以继续实验原生 QuickJS 执行器。",
+  "runtime_output": "运行时输出",
   "back_to_agents": "返回 Agent",
   "no_model": "尚未选择模型",
   "thinking": "思考级别：{level}",
