@@ -29,10 +29,12 @@ import {
 } from "./agent-state";
 import { type PiSession, usePiApi } from "./api";
 import { CommandPicker } from "./command-picker";
+import { ComposerImagePicker, ComposerImages } from "./composer-images";
 import { ConversationItem } from "./conversation";
 import { ConversationWelcome } from "./conversation-welcome";
 import {
   type AgentDrafts,
+  agentDraftKey,
   readAgentDraft,
   removeAgentDrafts,
   writeAgentDraft,
@@ -68,6 +70,9 @@ export function App() {
   const [sessions, setSessions] = createSignal<readonly PiSession[]>([]);
   const [lastActiveId, setLastActiveId] = createSignal("agent-1");
   const [drafts, setDrafts] = createSignal<AgentDrafts>({});
+  const [draftImages, setDraftImages] = createSignal<
+    Readonly<Record<string, readonly string[]>>
+  >({});
   const [searchOpen, setSearchOpen] = createSignal(false);
   const [activeSearchItem, setActiveSearchItem] = createSignal<string>();
   const itemHandles = new Map<string, Handle>();
@@ -138,6 +143,17 @@ export function App() {
     setDrafts((current) =>
       writeAgentDraft(current, activeId(), activeSessionId(), value),
     );
+  const images = () =>
+    draftImages()[agentDraftKey(activeId(), activeSessionId())] ?? [];
+  const setImages = (paths: readonly string[]) => {
+    const key = agentDraftKey(activeId(), activeSessionId());
+    setDraftImages((current) => {
+      if (paths.length > 0) return { ...current, [key]: paths };
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  };
   createEffect(
     () => params().agentId,
     (routeId) => {
@@ -295,11 +311,13 @@ export function App() {
 
   const submit = async () => {
     const message = draft().trim();
+    const attachedImages = images();
     const agent = active();
     if (!message) return;
     const queueing = agent.state.connection === "running";
     if (agent.state.connection !== "ready" && !(await start())) return;
     setDraft("");
+    setImages([]);
     updateAgent(agent.id, (current) => ({
       ...current,
       state: appendUserMessage(
@@ -311,9 +329,11 @@ export function App() {
     }));
     try {
       await (queueing
-        ? api.followUp(agent.id, message)
-        : api.prompt(agent.id, message));
+        ? api.followUp(agent.id, message, attachedImages)
+        : api.prompt(agent.id, message, attachedImages));
     } catch (error) {
+      setDraft(message);
+      setImages(attachedImages);
       updateAgent(agent.id, (current) => ({
         ...current,
         state: reducePiEvent(current.state, {
@@ -606,6 +626,7 @@ export function App() {
 
             <View class="flex-none border-t border-subtle bg-surface p-4">
               <View class="max-w-4xl mx-auto min-w-0 rounded-xl border border-strong bg-input shadow-sm p-2 gap-2">
+                <ComposerImages paths={images()} change={setImages} />
                 <TextArea
                   class="h-20 border-transparent shadow-none bg-input"
                   value={draft()}
@@ -624,6 +645,7 @@ export function App() {
                 />
                 <View class="flex items-center justify-between gap-3 px-1">
                   <View class="min-w-0 flex flex-row items-center gap-3">
+                    <ComposerImagePicker paths={images()} change={setImages} />
                     <CommandPicker
                       commands={active().state.commands}
                       choose={setDraft}

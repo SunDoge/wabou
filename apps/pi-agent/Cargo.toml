@@ -8,6 +8,7 @@ name = "pi-agent-wabou"
 path = "src/main.rs"
 
 [dependencies]
+base64 = "0.22"
 directories = { workspace = true }
 flume = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -15,5 +16,5 @@ serde_json = { workspace = true }
 snafu = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-tokio = { workspace = true, features = ["macros"] }
+tokio = { workspace = true, features = ["fs", "macros"] }
 wabou = { workspace = true }

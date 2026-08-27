@@ -82,10 +82,16 @@ export function usePiApi() {
       model?: string;
       sessionId?: string;
     }) => call<PiStatus>("start", options),
-    prompt: (agentId: string, message: string) =>
-      call<void>("prompt", { agentId, message }),
-    followUp: (agentId: string, message: string) =>
-      call<void>("followUp", { agentId, message }),
+    prompt: (
+      agentId: string,
+      message: string,
+      imagePaths: readonly string[] = [],
+    ) => call<void>("prompt", { agentId, message, imagePaths }),
+    followUp: (
+      agentId: string,
+      message: string,
+      imagePaths: readonly string[] = [],
+    ) => call<void>("followUp", { agentId, message, imagePaths }),
     abort: (agentId: string) => call<void>("abort", { agentId }),
     stop: (agentId: string) => call<void>("stop", { agentId }),
     newSession: (agentId: string) => call<void>("newSession", { agentId }),

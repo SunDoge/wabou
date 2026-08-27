@@ -15,6 +15,7 @@ import {
   MarkdownConversationLayoutFixture,
   MarkdownInlineLayoutFixture,
   MessageLayoutFixture,
+  PiComposerImagesLayoutFixture,
   PiConversationLayoutFixture,
   PiTranscriptSearchLayoutFixture,
   QRCodeLayoutFixture,
@@ -130,6 +131,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         height: 480,
         render: PiConversationLayoutFixture,
         waitMs: 220,
+      },
+      "component/PiComposerImages": {
+        width: 420,
+        height: 120,
+        render: PiComposerImagesLayoutFixture,
       },
       "component/PiTranscriptSearch": {
         width: 480,

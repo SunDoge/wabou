@@ -7,6 +7,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use wabou::{
@@ -110,6 +111,52 @@ struct PromptRequest {
     #[serde(rename = "agentId")]
     agent_id: String,
     message: String,
+    #[serde(default)]
+    image_paths: Vec<PathBuf>,
+}
+
+const MAX_PROMPT_IMAGE_BYTES: u64 = 20 * 1024 * 1024;
+
+async fn prompt_images(paths: Vec<PathBuf>) -> Result<Vec<Value>, String> {
+    let mut images = Vec::with_capacity(paths.len());
+    for path in paths {
+        let metadata = tokio::fs::metadata(&path)
+            .await
+            .map_err(|error| format!("could not inspect {}: {error}", path.display()))?;
+        if !metadata.is_file() {
+            return Err(format!(
+                "image attachment is not a file: {}",
+                path.display()
+            ));
+        }
+        if metadata.len() > MAX_PROMPT_IMAGE_BYTES {
+            return Err(format!(
+                "image attachment exceeds 20 MiB: {}",
+                path.display()
+            ));
+        }
+        let mime_type = match path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .map(str::to_ascii_lowercase)
+            .as_deref()
+        {
+            Some("png") => "image/png",
+            Some("jpg" | "jpeg") => "image/jpeg",
+            Some("webp") => "image/webp",
+            Some("gif") => "image/gif",
+            _ => return Err(format!("unsupported image attachment: {}", path.display())),
+        };
+        let bytes = tokio::fs::read(&path)
+            .await
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+        images.push(json!({
+            "type": "image",
+            "data": BASE64.encode(bytes),
+            "mimeType": mime_type,
+        }));
+    }
+    Ok(images)
 }
 
 #[derive(Debug, Deserialize)]
@@ -597,9 +644,14 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
             if message.is_empty() {
                 return Err("prompt cannot be empty".to_owned());
             }
+            let images = prompt_images(request.image_paths).await?;
             service.send(
                 &request.agent_id,
-                json!({"type":"prompt","message":message}),
+                json!({
+                    "type":"prompt",
+                    "message":message,
+                    "images":images,
+                }),
             )
         }
     })?;
@@ -611,9 +663,14 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
             if message.is_empty() {
                 return Err("follow-up cannot be empty".to_owned());
             }
+            let images = prompt_images(request.image_paths).await?;
             service.send(
                 &request.agent_id,
-                json!({"type":"follow_up","message":message}),
+                json!({
+                    "type":"follow_up",
+                    "message":message,
+                    "images":images,
+                }),
             )
         }
     })?;
@@ -790,5 +847,27 @@ mod tests {
             Some("Pi Agent")
         );
         assert!(default_workspace("../escape").is_err());
+    }
+
+    #[tokio::test]
+    async fn prompt_images_stay_in_rust_until_the_rpc_payload_is_built() {
+        let path = std::env::temp_dir().join(format!(
+            "wabou-pi-image-{}-{}.png",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        tokio::fs::write(&path, [0x89, b'P', b'N', b'G'])
+            .await
+            .expect("write fixture");
+
+        let images = prompt_images(vec![path.clone()]).await.expect("image");
+        assert_eq!(images[0]["type"], "image");
+        assert_eq!(images[0]["mimeType"], "image/png");
+        assert_eq!(images[0]["data"], "iVBORw==");
+
+        tokio::fs::remove_file(path).await.expect("remove fixture");
     }
 }

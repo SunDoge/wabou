@@ -36,6 +36,7 @@ import {
 } from "@wabou/ui";
 import imageIcon from "lucide-static/icons/image.svg?raw";
 import { For } from "solid-js";
+import { ComposerImages } from "../../pi-agent/ui/composer-images";
 import { ConversationItem } from "../../pi-agent/ui/conversation";
 import { TranscriptSearch } from "../../pi-agent/ui/transcript-search";
 import { MangaPageMock } from "./pages/image-viewport";
@@ -113,6 +114,20 @@ export function PiTranscriptSearchLayoutFixture() {
           <Text>Transcript content</Text>
         </View>
       </MessageScroller>
+    </View>
+  );
+}
+
+export function PiComposerImagesLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-3 bg-canvas">
+      <ComposerImages
+        paths={[
+          "/home/user/screenshots/very-long-diagnostic-screenshot-name.png",
+          "/home/user/screenshots/layout.png",
+        ]}
+        change={() => {}}
+      />
     </View>
   );
 }
