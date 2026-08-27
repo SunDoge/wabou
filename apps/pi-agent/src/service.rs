@@ -32,6 +32,8 @@ const LIST_SESSIONS: JsonMethod<AgentRequest, Vec<PiSession>> = JsonMethod::new(
 const GET_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getMessages");
 const GET_SESSION_STATS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getSessionStats");
 const GET_COMMANDS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getCommands");
+const GET_FORK_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getForkMessages");
+const FORK: JsonMethod<ForkRequest, ()> = JsonMethod::new("fork");
 const LIST_AGENTS: JsonMethod<(), Vec<AgentProfile>> = JsonMethod::no_request("listAgents");
 const SAVE_AGENTS: JsonMethod<Vec<AgentProfile>, ()> = JsonMethod::new("saveAgents");
 const DELETE_AGENT: JsonMethod<AgentRequest, ()> = JsonMethod::new("deleteAgent");
@@ -178,6 +180,13 @@ struct SetModelRequest {
 struct RenameSessionRequest {
     agent_id: String,
     name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ForkRequest {
+    agent_id: String,
+    entry_id: String,
 }
 
 impl PiService {
@@ -633,6 +642,26 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
             service.send(
                 &request.agent_id,
                 json!({"id":"wabou-commands","type":"get_commands"}),
+            )
+        }
+    })?;
+    let get_fork_messages = service.clone();
+    capability.method(GET_FORK_MESSAGES, move |request: AgentRequest| {
+        let service = get_fork_messages.clone();
+        async move {
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-fork-messages","type":"get_fork_messages"}),
+            )
+        }
+    })?;
+    let fork = service.clone();
+    capability.method(FORK, move |request: ForkRequest| {
+        let service = fork.clone();
+        async move {
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-fork","type":"fork","entryId":request.entry_id}),
             )
         }
     })?;

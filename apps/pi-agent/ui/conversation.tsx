@@ -22,6 +22,7 @@ import {
 } from "@wabou/ui";
 import bot from "lucide-static/icons/bot.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
+import gitBranch from "lucide-static/icons/git-branch.svg?raw";
 import image from "lucide-static/icons/image.svg?raw";
 import terminal from "lucide-static/icons/terminal.svg?raw";
 import user from "lucide-static/icons/user.svg?raw";
@@ -221,7 +222,10 @@ function MessageEntrance(props: { children: JSX.Element }) {
   );
 }
 
-export function ConversationItem(props: { item: AgentItem }) {
+export function ConversationItem(props: {
+  item: AgentItem;
+  fork?: () => void;
+}) {
   const messageText = () => (props.item.kind === "tool" ? "" : props.item.text);
   const messageStreaming = () =>
     props.item.kind === "assistant" && props.item.streaming === true;
@@ -272,6 +276,16 @@ export function ConversationItem(props: { item: AgentItem }) {
                     copiedLabel="Copied"
                     aria-label="Copy user message"
                   />
+                  <Show when={props.item.kind === "user" && props.fork}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Fork from this message"
+                      onClick={() => props.fork?.()}
+                    >
+                      <Icon source={gitBranch} size={13} />
+                    </Button>
+                  </Show>
                 </View>
               }
             >

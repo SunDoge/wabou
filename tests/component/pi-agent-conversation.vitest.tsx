@@ -1,5 +1,5 @@
 import { renderComponent } from "@wabou/test/component";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import {
   ConversationItem,
   summarizeToolInput,
@@ -148,6 +148,7 @@ test("Pi Agent distinguishes a queued follow-up from a sent message", () => {
 });
 
 test("Pi Agent keeps submitted image names visible and user messages copyable", () => {
+  const fork = vi.fn();
   const screen = renderComponent(() => (
     <ConversationItem
       item={{
@@ -156,6 +157,7 @@ test("Pi Agent keeps submitted image names visible and user messages copyable", 
         text: "Explain this screenshot",
         imageNames: ["layout.png", "error.png"],
       }}
+      fork={fork}
     />
   ));
 
@@ -165,4 +167,6 @@ test("Pi Agent keeps submitted image names visible and user messages copyable", 
   expect(
     screen.getByRole("button", { name: "Copy user message" }),
   ).toBeTruthy();
+  screen.getByRole("button", { name: "Fork from this message" }).click();
+  expect(fork).toHaveBeenCalledOnce();
 });

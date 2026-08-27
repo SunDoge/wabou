@@ -44,6 +44,7 @@ import {
   writeAgentDraft,
 } from "./drafts";
 import { i18n, m } from "./i18n";
+import { SessionForkDialog } from "./session-fork";
 import { SessionTitle } from "./session-title";
 import { SessionUsage } from "./session-usage";
 import { type AgentDefaults, SettingsPage } from "./settings";
@@ -79,6 +80,10 @@ export function App() {
   >({});
   const [searchOpen, setSearchOpen] = createSignal(false);
   const [activeSearchItem, setActiveSearchItem] = createSignal<string>();
+  const [pendingFork, setPendingFork] = createSignal<{
+    entryId: string;
+    text: string;
+  }>();
   const itemHandles = new Map<string, Handle>();
   let nextMessage = 1;
   let profilesHydrated = false;
@@ -229,6 +234,30 @@ export function App() {
         }
       }
       if (batch.some((event) => event.type === "agent_end")) {
+        void api.getSessionStats(id);
+      }
+      if (
+        batch.some(
+          (event) =>
+            event.type === "response" &&
+            event.command === "get_messages" &&
+            event.success === true,
+        )
+      ) {
+        void api.getForkMessages(id);
+      }
+      const forkEvent = batch.find(
+        (event) =>
+          event.type === "response" &&
+          event.command === "fork" &&
+          event.success === true,
+      );
+      const forkData = forkEvent?.data as Record<string, unknown> | undefined;
+      if (forkEvent && forkData?.cancelled !== true) {
+        if (id === activeId() && typeof forkData?.text === "string") {
+          setDraft(forkData.text);
+        }
+        void api.getMessages(id);
         void api.getSessionStats(id);
       }
     }
@@ -618,7 +647,18 @@ export function App() {
                                 : undefined
                             }
                           >
-                            <ConversationItem item={item} />
+                            <ConversationItem
+                              item={item}
+                              fork={
+                                item.kind === "user" && item.entryId
+                                  ? () =>
+                                      setPendingFork({
+                                        entryId: item.entryId ?? "",
+                                        text: item.text,
+                                      })
+                                  : undefined
+                              }
+                            />
                           </MessageScrollerItem>
                         )}
                       </For>
@@ -675,6 +715,15 @@ export function App() {
           </Show>
         </View>
       </Show>
+      <SessionForkDialog
+        open={pendingFork() !== undefined}
+        cancel={() => setPendingFork(undefined)}
+        confirm={() => {
+          const target = pendingFork();
+          if (target) void api.fork(activeId(), target.entryId);
+          setPendingFork(undefined);
+        }}
+      />
     </View>
   );
 }

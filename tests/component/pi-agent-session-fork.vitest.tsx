@@ -1,0 +1,36 @@
+import { renderComponent } from "@wabou/test/component";
+import { Button } from "@wabou/ui";
+import { createSignal } from "solid-js";
+import { expect, test, vi } from "vitest";
+import { SessionForkDialog } from "../../apps/pi-agent/ui/session-fork";
+
+test("requires confirmation before rewinding a Pi session", () => {
+  const confirm = vi.fn();
+  const cancel = vi.fn();
+  const App = () => {
+    const [open, setOpen] = createSignal(false);
+    return (
+      <>
+        <Button onClick={() => setOpen(true)}>Fork message</Button>
+        <SessionForkDialog
+          open={open()}
+          confirm={confirm}
+          cancel={() => {
+            cancel();
+            setOpen(false);
+          }}
+        />
+      </>
+    );
+  };
+  const screen = renderComponent(App);
+
+  screen.getByRole("button", { name: "Fork message" }).click();
+
+  const dialog = screen.getByRole("alertdialog", {
+    name: "Fork from this message?",
+  });
+  expect(dialog.text).toContain("Pi keeps the session tree");
+  screen.getByRole("button", { name: "Fork" }).click();
+  expect(confirm).toHaveBeenCalledOnce();
+});

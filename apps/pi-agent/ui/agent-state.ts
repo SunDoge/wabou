@@ -8,6 +8,7 @@ export type AgentItem =
       text: string;
       queued?: boolean;
       imageNames?: readonly string[];
+      entryId?: string;
     }
   | {
       id: string;
@@ -205,6 +206,30 @@ const commands = (value: unknown): readonly AgentCommand[] => {
   });
 };
 
+function attachForkEntryIds(
+  items: readonly AgentItem[],
+  value: unknown,
+): readonly AgentItem[] {
+  const values = record(value)?.messages;
+  if (!Array.isArray(values)) return items;
+  const next = [...items];
+  let cursor = 0;
+  for (const value of values) {
+    const point = record(value);
+    if (typeof point?.entryId !== "string" || typeof point.text !== "string")
+      continue;
+    const index = next.findIndex(
+      (item, index) =>
+        index >= cursor && item.kind === "user" && item.text === point.text,
+    );
+    if (index < 0) continue;
+    const item = next[index];
+    if (item.kind === "user") next[index] = { ...item, entryId: point.entryId };
+    cursor = index + 1;
+  }
+  return next;
+}
+
 const replaceItem = (
   items: readonly AgentItem[],
   id: string,
@@ -273,6 +298,9 @@ export function reducePiEvent(
       }
       if (event.command === "get_commands") {
         return { ...state, commands: commands(event.data) };
+      }
+      if (event.command === "get_fork_messages") {
+        return { ...state, items: attachForkEntryIds(state.items, event.data) };
       }
       const model = record(
         event.command === "set_model" ? event.data : data?.model,

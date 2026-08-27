@@ -225,4 +225,25 @@ describe("Pi agent event projection", () => {
       { name: "skill:review", source: "skill" },
     ]);
   });
+
+  test("associates stable fork ids with repeated user messages in order", () => {
+    let state = appendUserMessage(initialAgentState, "first", "Retry");
+    state = appendUserMessage(state, "second", "Retry");
+    state = reducePiEvent(state, {
+      type: "response",
+      command: "get_fork_messages",
+      success: true,
+      data: {
+        messages: [
+          { entryId: "entry-a", text: "Retry" },
+          { entryId: "entry-b", text: "Retry" },
+        ],
+      },
+    });
+
+    expect(state.items).toMatchObject([
+      { id: "first", entryId: "entry-a" },
+      { id: "second", entryId: "entry-b" },
+    ]);
+  });
 });
