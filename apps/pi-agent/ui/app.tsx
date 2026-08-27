@@ -35,6 +35,7 @@ import {
   writeAgentDraft,
 } from "./drafts";
 import { i18n, m } from "./i18n";
+import { SessionTitle } from "./session-title";
 import { type AgentDefaults, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
 import {
@@ -111,6 +112,12 @@ export function App() {
   };
   const active = () =>
     agents().find((agent) => agent.id === activeId()) ?? agents()[0];
+  const activeSession = () =>
+    sessions().find(
+      (session) =>
+        session.agentId === activeId() &&
+        session.sessionId === active().state.sessionId,
+    );
   const activeSessionId = () => params().sessionId;
   const draft = () => readAgentDraft(drafts(), activeId(), activeSessionId());
   const setDraft = (value: string) =>
@@ -436,16 +443,30 @@ export function App() {
       >
         <View class="flex-1 min-w-0 min-h-0 flex flex-col">
           <View class="h-14 flex-none px-5 border-b border-subtle bg-surface flex items-center justify-between gap-3">
-            <View class="min-w-0">
-              <Text class="font-semibold">{active().name}</Text>
-              <Text class="text-xs text-muted">
-                {(active().state.model ?? active().model) ||
-                  i18n.message(m.no_model, {})}{" "}
-                ·{" "}
-                {i18n.message(m.thinking, {
-                  level: active().state.thinking ?? "default",
-                })}
-              </Text>
+            <View class="min-w-0 flex-1 flex flex-row items-center gap-2">
+              <View class="min-w-0">
+                <Text class="font-semibold">
+                  {activeSession()?.name ??
+                    active().state.sessionName ??
+                    active().name}
+                </Text>
+                <Text class="text-xs text-muted">
+                  {(active().state.model ?? active().model) ||
+                    i18n.message(m.no_model, {})}{" "}
+                  ·{" "}
+                  {i18n.message(m.thinking, {
+                    level: active().state.thinking ?? "default",
+                  })}
+                </Text>
+              </View>
+              <Show when={active().state.sessionId}>
+                <SessionTitle
+                  name={
+                    activeSession()?.name ?? active().state.sessionName ?? ""
+                  }
+                  rename={(name) => api.renameSession(active().id, name)}
+                />
+              </Show>
             </View>
             <View class="flex items-center gap-1">
               <Button

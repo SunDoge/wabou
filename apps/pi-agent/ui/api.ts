@@ -41,6 +41,7 @@ interface PiCapability extends NativeJsonCapability {
   abort(request: string): string | PromiseLike<string>;
   stop(request: string): string | PromiseLike<string>;
   newSession(request: string): string | PromiseLike<string>;
+  renameSession(request: string): string | PromiseLike<string>;
   cycleModel(request: string): string | PromiseLike<string>;
   cycleThinking(request: string): string | PromiseLike<string>;
   setModel(request: string): string | PromiseLike<string>;
@@ -86,6 +87,8 @@ export function usePiApi() {
     abort: (agentId: string) => call<void>("abort", { agentId }),
     stop: (agentId: string) => call<void>("stop", { agentId }),
     newSession: (agentId: string) => call<void>("newSession", { agentId }),
+    renameSession: (agentId: string, name: string) =>
+      call<void>("renameSession", { agentId, name }),
     listSessions: (agentId: string) =>
       call<PiSession[]>("listSessions", { agentId }),
     getMessages: (agentId: string) => call<void>("getMessages", { agentId }),

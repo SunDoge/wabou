@@ -23,6 +23,7 @@ const FOLLOW_UP: JsonMethod<PromptRequest, ()> = JsonMethod::new("followUp");
 const ABORT: JsonMethod<AgentRequest, ()> = JsonMethod::new("abort");
 const STOP: JsonMethod<AgentRequest, ()> = JsonMethod::new("stop");
 const NEW_SESSION: JsonMethod<AgentRequest, ()> = JsonMethod::new("newSession");
+const RENAME_SESSION: JsonMethod<RenameSessionRequest, ()> = JsonMethod::new("renameSession");
 const CYCLE_MODEL: JsonMethod<AgentRequest, ()> = JsonMethod::new("cycleModel");
 const CYCLE_THINKING: JsonMethod<AgentRequest, ()> = JsonMethod::new("cycleThinking");
 const SET_MODEL: JsonMethod<SetModelRequest, ()> = JsonMethod::new("setModel");
@@ -121,6 +122,13 @@ struct SetModelRequest {
     agent_id: String,
     provider: String,
     model_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RenameSessionRequest {
+    agent_id: String,
+    name: String,
 }
 
 impl PiService {
@@ -605,6 +613,24 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
             service.send(
                 &request.agent_id,
                 json!({"id":"wabou-new-session-state","type":"get_state"}),
+            )
+        }
+    })?;
+    let rename_session = service.clone();
+    capability.method(RENAME_SESSION, move |request: RenameSessionRequest| {
+        let service = rename_session.clone();
+        async move {
+            let name = request.name.trim();
+            if name.is_empty() {
+                return Err("session name cannot be empty".to_owned());
+            }
+            service.send(
+                &request.agent_id,
+                json!({"type":"set_session_name","name":name}),
+            )?;
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-renamed-session-state","type":"get_state"}),
             )
         }
     })?;
