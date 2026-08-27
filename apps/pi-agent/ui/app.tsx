@@ -1,3 +1,4 @@
+import type { Handle } from "@wabou/core/renderer";
 import {
   Button,
   Icon,
@@ -17,6 +18,7 @@ import {
 import brain from "lucide-static/icons/brain.svg?raw";
 import chevronsUpDown from "lucide-static/icons/chevrons-up-down.svg?raw";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
+import search from "lucide-static/icons/search.svg?raw";
 import send from "lucide-static/icons/send.svg?raw";
 import square from "lucide-static/icons/square.svg?raw";
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
@@ -39,6 +41,7 @@ import { SessionTitle } from "./session-title";
 import { SessionUsage } from "./session-usage";
 import { type AgentDefaults, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
+import { TranscriptSearch } from "./transcript-search";
 import {
   type AgentWorkspace,
   agentProfile,
@@ -64,6 +67,9 @@ export function App() {
   const [sessions, setSessions] = createSignal<readonly PiSession[]>([]);
   const [lastActiveId, setLastActiveId] = createSignal("agent-1");
   const [drafts, setDrafts] = createSignal<AgentDrafts>({});
+  const [searchOpen, setSearchOpen] = createSignal(false);
+  const [activeSearchItem, setActiveSearchItem] = createSignal<string>();
+  const itemHandles = new Map<string, Handle>();
   let nextMessage = 1;
   let profilesHydrated = false;
   let saveProfilesTimer: ReturnType<typeof setTimeout> | undefined;
@@ -104,7 +110,6 @@ export function App() {
       }, 150);
     },
   );
-
   const activeId = () => {
     const routeId = params().agentId;
     return routeId && agents().some((agent) => agent.id === routeId)
@@ -120,6 +125,13 @@ export function App() {
         session.sessionId === active().state.sessionId,
     );
   const activeSessionId = () => params().sessionId;
+  createEffect(
+    () => `${activeId()}\0${activeSessionId() ?? ""}`,
+    () => {
+      setSearchOpen(false);
+      setActiveSearchItem(undefined);
+    },
+  );
   const draft = () => readAgentDraft(drafts(), activeId(), activeSessionId());
   const setDraft = (value: string) =>
     setDrafts((current) =>
@@ -476,6 +488,16 @@ export function App() {
             <View class="flex items-center gap-1">
               <Button
                 variant="ghost"
+                size="icon"
+                aria-label={i18n.message(m.search_transcript, {})}
+                disabled={active().state.items.length === 0}
+                aria-pressed={searchOpen()}
+                onClick={() => setSearchOpen((open) => !open)}
+              >
+                <Icon source={search} size={15} />
+              </Button>
+              <Button
+                variant="ghost"
                 size="sm"
                 disabled={
                   active().state.connection !== "ready" ||
@@ -544,6 +566,14 @@ export function App() {
             }
           >
             <MessageScroller class="flex-1 min-h-0" followEnd>
+              <Show when={searchOpen()}>
+                <TranscriptSearch
+                  items={active().state.items}
+                  resolveItem={(id) => itemHandles.get(id)}
+                  activeChanged={setActiveSearchItem}
+                  close={() => setSearchOpen(false)}
+                />
+              </Show>
               <MessageScrollerViewport>
                 <MessageScrollerContent class="max-w-4xl mx-auto p-5">
                   <Show
@@ -553,7 +583,14 @@ export function App() {
                     <MessageGroup>
                       <For each={active().state.items}>
                         {(item) => (
-                          <MessageScrollerItem>
+                          <MessageScrollerItem
+                            ref={(node) => itemHandles.set(item.id, node)}
+                            class={
+                              activeSearchItem() === item.id
+                                ? "rounded-lg bg-selected"
+                                : undefined
+                            }
+                          >
                             <ConversationItem item={item} />
                           </MessageScrollerItem>
                         )}

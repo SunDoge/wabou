@@ -22,6 +22,7 @@ import {
   Message,
   MessageContent,
   MessageGroup,
+  MessageScroller,
   QRCode,
   ScrollArea,
   Select,
@@ -36,6 +37,7 @@ import {
 import imageIcon from "lucide-static/icons/image.svg?raw";
 import { For } from "solid-js";
 import { ConversationItem } from "../../pi-agent/ui/conversation";
+import { TranscriptSearch } from "../../pi-agent/ui/transcript-search";
 import { MangaPageMock } from "./pages/image-viewport";
 import { MarkdownPreview } from "./pages/markdown";
 
@@ -83,6 +85,34 @@ export function PiConversationLayoutFixture() {
           output: "running 245 tests",
         }}
       />
+    </View>
+  );
+}
+
+export function PiTranscriptSearchLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 min-h-0 bg-canvas">
+      <MessageScroller aria-label="Searchable transcript fixture">
+        <TranscriptSearch
+          items={[
+            { id: "user", kind: "user", text: "Run the cargo tests" },
+            {
+              id: "tool",
+              kind: "tool",
+              name: "bash",
+              state: "done",
+              input: '{"command":"cargo test"}',
+              output: "all tests passed",
+            },
+          ]}
+          resolveItem={() => undefined}
+          activeChanged={() => {}}
+          close={() => {}}
+        />
+        <View class="p-4">
+          <Text>Transcript content</Text>
+        </View>
+      </MessageScroller>
     </View>
   );
 }
