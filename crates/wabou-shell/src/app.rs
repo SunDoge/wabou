@@ -884,6 +884,32 @@ impl App {
         self.sync_pointer_cursor();
     }
 
+    fn handle_pointer_entered(&mut self, position: PhysicalPosition<f64>) {
+        self.pointer_position = self.logical_pointer_position(position);
+        self.dispatch_event(UiEvent::Pointer(PointerEvent {
+            phase: PointerPhase::Enter,
+            position: self.pointer_position,
+            button: None,
+            buttons: self.pointer_buttons,
+            modifiers: self.modifiers,
+        }));
+        self.sync_pointer_cursor();
+    }
+
+    fn handle_pointer_left(&mut self, position: Option<PhysicalPosition<f64>>) {
+        if let Some(position) = position {
+            self.pointer_position = self.logical_pointer_position(position);
+        }
+        self.dispatch_event(UiEvent::Pointer(PointerEvent {
+            phase: PointerPhase::Leave,
+            position: self.pointer_position,
+            button: None,
+            buttons: self.pointer_buttons,
+            modifiers: self.modifiers,
+        }));
+        self.sync_pointer_cursor();
+    }
+
     fn handle_pointer_button(
         &mut self,
         position: PhysicalPosition<f64>,
@@ -1019,6 +1045,12 @@ impl ApplicationHandler for App {
         }
         match event {
             WindowEvent::CloseRequested => {
+                if self.source.close_requested() {
+                    if let Some(shell) = self.state.as_ref() {
+                        shell.window().request_redraw();
+                    }
+                    return;
+                }
                 self.state = None;
                 event_loop.exit();
             }
@@ -1053,6 +1085,8 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::PointerMoved { position, .. } => self.handle_pointer_moved(position),
+            WindowEvent::PointerEntered { position, .. } => self.handle_pointer_entered(position),
+            WindowEvent::PointerLeft { position, .. } => self.handle_pointer_left(position),
             WindowEvent::PointerButton {
                 position,
                 button,
@@ -1721,6 +1755,22 @@ impl MultiWindowApp {
         window_key: WindowResourceKey,
         event_loop: &dyn ActiveEventLoop,
     ) {
+        let prevented = self
+            .windows
+            .values_mut()
+            .find(|app| app.window_key == window_key)
+            .or_else(|| self.hidden_windows.get_mut(&window_key))
+            .is_some_and(|app| {
+                let prevented = app.source.close_requested();
+                if prevented && let Some(shell) = app.state.as_ref() {
+                    shell.window().request_redraw();
+                }
+                prevented
+            });
+        if prevented {
+            return;
+        }
+
         let mut context =
             Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop);
         if self

@@ -306,6 +306,8 @@ pub enum PointerButton {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Lifecycle phase of a pointer interaction.
 pub enum PointerPhase {
+    /// Pointer entered the native window.
+    Enter,
     /// Pointer moved without changing button state.
     Move,
     /// A button was pressed.
@@ -314,6 +316,8 @@ pub enum PointerPhase {
     Up,
     /// The platform cancelled the active pointer sequence.
     Cancel,
+    /// Pointer left the native window.
+    Leave,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -718,6 +722,12 @@ pub trait FrameSource {
 
     /// Deliver completion of a typed desktop effect at a frame boundary.
     fn complete_effect(&mut self, _completion: crate::EffectCompletion) {}
+
+    /// Notify the source that the native window was asked to close.
+    /// Return true to keep the window alive.
+    fn close_requested(&mut self) -> bool {
+        false
+    }
 
     /// Deliver a native Wabou event to the source.
     fn handle_event(&mut self, _event: UiEvent) -> EventResponse {

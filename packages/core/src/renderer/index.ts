@@ -179,6 +179,13 @@ export interface WabouElementProps {
   onFocusOut?: EventHandler<WabouNodeEvent>;
   onWheel?: EventHandler<WabouWheelEvent>;
   onScroll?: EventHandler<WabouScrollEvent>;
+  onImeEnabled?: EventHandler<WabouNodeEvent>;
+  onImePreedit?: EventHandler<WabouImePreeditEvent>;
+  onImeCommit?: EventHandler<WabouTextCommitEvent>;
+  onImeDeleteSurrounding?: EventHandler<WabouImeDeleteSurroundingEvent>;
+  onImeDisabled?: EventHandler<WabouNodeEvent>;
+  /** Preventing this event keeps the native window open. */
+  onWindowCloseRequested?: EventHandler<WabouNodeEvent>;
 }
 
 export interface WabouControlProps extends WabouElementProps {
@@ -308,6 +315,22 @@ export interface WabouScrollEvent extends WabouNodeEvent {
 
 export interface WabouInputEvent extends WabouNodeEvent {
   readonly currentTarget: WabouEventTarget & { value: string };
+}
+
+export interface WabouTextCommitEvent extends WabouNodeEvent {
+  readonly data: string;
+  readonly source: "keyboard" | "ime" | "paste";
+}
+
+export interface WabouImePreeditEvent extends WabouNodeEvent {
+  readonly data: string;
+  readonly cursorStart: number | null;
+  readonly cursorEnd: number | null;
+}
+
+export interface WabouImeDeleteSurroundingEvent extends WabouNodeEvent {
+  readonly beforeBytes: number;
+  readonly afterBytes: number;
 }
 
 export interface NativeScrollbarStyle {
@@ -1024,11 +1047,17 @@ export function dispatchEvent(
     const ed = numericData;
     if (ed) {
       if (
-        eventCode === EVENT_CODE.pointerup ||
         eventCode === EVENT_CODE.pointerdown ||
         eventCode === EVENT_CODE.pointermove ||
+        eventCode === EVENT_CODE.pointerup ||
+        eventCode === EVENT_CODE.pointerenter ||
+        eventCode === EVENT_CODE.pointerleave ||
+        eventCode === EVENT_CODE.pointercancel ||
+        eventCode === EVENT_CODE.pointerover ||
+        eventCode === EVENT_CODE.pointerout ||
         eventCode === EVENT_CODE.click ||
-        eventCode === EVENT_CODE.contextmenu
+        eventCode === EVENT_CODE.contextmenu ||
+        eventCode === EVENT_CODE.dblclick
       ) {
         data.clientX = ed[0];
         data.clientY = ed[1];

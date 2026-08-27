@@ -1402,8 +1402,13 @@ fn interactive_applier() -> Applier {
         event::POINTERDOWN,
         event::POINTERMOVE,
         event::POINTERUP,
+        event::POINTERENTER,
+        event::POINTERLEAVE,
+        event::POINTEROVER,
+        event::POINTEROUT,
         event::CLICK,
         event::CONTEXTMENU,
+        event::DBLCLICK,
     ] {
         applier.apply_op(&Op::AddEventListener {
             id: NodeKey::new(2, 1),

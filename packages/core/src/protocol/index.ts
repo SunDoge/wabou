@@ -132,6 +132,11 @@ export const EVENT_CODE = {
   terminalbell: 31,
   resourceready: 32,
   resourceerror: 33,
+  imeenabled: 34,
+  imepreedit: 35,
+  imedeletesurrounding: 36,
+  imedisabled: 37,
+  windowcloserequested: 38,
 } as const;
 
 export type EventType = keyof typeof EVENT_CODE;

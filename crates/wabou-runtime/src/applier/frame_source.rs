@@ -235,6 +235,22 @@ impl Applier {
 }
 
 impl FrameSource for Applier {
+    fn close_requested(&mut self) -> bool {
+        let Some(target) = self
+            .document
+            .node_store
+            .solid_id_for_node(self.document.node_store.root)
+        else {
+            return false;
+        };
+        let (_, prevented) = self.dispatch_cancellable_json(
+            target,
+            event::WINDOWCLOSEREQUESTED,
+            "{}".into(),
+        );
+        prevented
+    }
+
     fn set_device_scale(&mut self, scale: f64) {
         self.frame.device_scale = scale.max(f64::EPSILON);
     }
@@ -1036,6 +1052,9 @@ impl FrameSource for Applier {
         }
 
         match input {
+            UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Enter => {
+                self.handle_pointer_enter(pointer)
+            }
             UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Move => {
                 self.handle_pointer_move(pointer)
             }
@@ -1047,6 +1066,9 @@ impl FrameSource for Applier {
             }
             UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Cancel => {
                 self.handle_pointer_cancel(pointer)
+            }
+            UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Leave => {
+                self.handle_pointer_leave(pointer)
             }
             UiEvent::Wheel(wheel) => self.handle_wheel_event(wheel),
             UiEvent::Focus(focused) => self.handle_window_focus(focused),

@@ -1,4 +1,4 @@
-import { g as NodeKey } from "./protocol-DYzSggts.mjs";
+import { g as NodeKey } from "./protocol-pMJDDBQV.mjs";
 import { t as FileDropEvent } from "./file-drop-Ci2RppE8.mjs";
 //#region src/glue/resize-observer.d.ts
 declare function dispatchResizeObservation(solidId: NodeKey, width: number, height: number): void;

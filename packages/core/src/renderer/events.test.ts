@@ -42,6 +42,37 @@ test("global pointer observers run before target bubbling and can unsubscribe", 
   expect(order).toEqual(["capture", "target", "target"]);
 });
 
+test("every declared pointer event decodes the fixed numeric payload", () => {
+  const node = createElement("view");
+  const observed: Array<[string, number, number]> = [];
+  for (const [prop, code] of [
+    ["onPointerOver", EVENT_CODE.pointerover],
+    ["onPointerEnter", EVENT_CODE.pointerenter],
+    ["onPointerOut", EVENT_CODE.pointerout],
+    ["onPointerLeave", EVENT_CODE.pointerleave],
+    ["onPointerCancel", EVENT_CODE.pointercancel],
+    ["onDblClick", EVENT_CODE.dblclick],
+  ] as const) {
+    setProp(
+      node,
+      prop,
+      (event: { type: string; clientX: number; offsetY: number }) =>
+        observed.push([event.type, event.clientX, event.offsetY]),
+      undefined,
+    );
+    dispatchEvent(node.id, code, "", [12, 13, 2, 3, 0, 0, 0]);
+  }
+
+  expect(observed).toEqual([
+    ["pointerover", 12, 3],
+    ["pointerenter", 12, 3],
+    ["pointerout", 12, 3],
+    ["pointerleave", 12, 3],
+    ["pointercancel", 12, 3],
+    ["dblclick", 12, 3],
+  ]);
+});
+
 test("graphic sources use the typed resource protocol", () => {
   const svg = createElement("svg");
   const image = createElement("img");

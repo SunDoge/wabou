@@ -1,6 +1,55 @@
 use super::*;
 
 impl Applier {
+    fn update_hover_target(
+        &mut self,
+        target: Option<NodeKey>,
+        modifiers: Modifiers,
+    ) -> bool {
+        if target == self.interaction.input.hovered_target {
+            return false;
+        }
+        let mut changed = false;
+        if let Some(old) = self.interaction.input.hovered_target {
+            changed |= self.dispatch_pointer(old, event::POINTEROUT, None, modifiers);
+            changed |= self.dispatch_pointer(old, event::POINTERLEAVE, None, modifiers);
+        }
+        if let Some(new) = target {
+            changed |= self.dispatch_pointer(new, event::POINTEROVER, None, modifiers);
+            changed |= self.dispatch_pointer(new, event::POINTERENTER, None, modifiers);
+        }
+        self.interaction.input.hovered_target = target;
+        changed
+    }
+
+    pub(super) fn handle_pointer_enter(
+        &mut self,
+        pointer: wabou_shell::PointerEvent,
+    ) -> EventResponse {
+        let (x, y) = (pointer.position.x, pointer.position.y);
+        self.interaction.input.pointer_position = (x, y);
+        self.interaction.input.pointer_buttons = pointer.buttons;
+        let target = self.interaction.input.hit_test(x, y);
+        Self::response(self.update_hover_target(target, pointer.modifiers))
+    }
+
+    pub(super) fn handle_pointer_leave(
+        &mut self,
+        pointer: wabou_shell::PointerEvent,
+    ) -> EventResponse {
+        self.interaction.input.pointer_position = (pointer.position.x, pointer.position.y);
+        self.interaction.input.pointer_buttons = pointer.buttons;
+        let mut changed = self.update_hover_target(None, pointer.modifiers);
+        if let Some((node, _)) = self.interaction.scroll.hovered.take() {
+            self.interaction
+                .scroll
+                .activity
+                .insert(node, Instant::now());
+            changed = true;
+        }
+        Self::response(changed)
+    }
+
     pub(super) fn dispatch_image_resource_error(
         &mut self,
         node: taffy::NodeId,
@@ -89,6 +138,24 @@ impl Applier {
             data[event_data::MODS as usize] = pointer.modifiers.bits() as f64;
             let (dispatched, _) = self.dispatch_cancellable_numeric(target, event::CLICK, data);
             changed |= dispatched;
+
+            let now = Instant::now();
+            let is_double_click = self.interaction.input.last_primary_click.is_some_and(
+                |(time, last_target, last_x, last_y)| {
+                    last_target == target
+                        && now.duration_since(time) <= Duration::from_millis(400)
+                        && (x - last_x).abs() <= 4.0
+                        && (y - last_y).abs() <= 4.0
+                },
+            );
+            if is_double_click {
+                let (dispatched, _) =
+                    self.dispatch_cancellable_numeric(target, event::DBLCLICK, data);
+                changed |= dispatched;
+                self.interaction.input.last_primary_click = None;
+            } else {
+                self.interaction.input.last_primary_click = Some((now, target, x, y));
+            }
         }
         if let Some(target) = target
             && button == PointerButton::Secondary
@@ -269,15 +336,7 @@ impl Applier {
             changed |= self.extend_text_selection(target, x, y);
             self.arm_text_selection_autoscroll();
         }
-        if target != self.interaction.input.hovered_target {
-            if let Some(old) = self.interaction.input.hovered_target {
-                changed |= self.dispatch_pointer(old, event::POINTERLEAVE, None, pointer.modifiers);
-            }
-            if let Some(new) = target {
-                changed |= self.dispatch_pointer(new, event::POINTERENTER, None, pointer.modifiers);
-            }
-            self.interaction.input.hovered_target = target;
-        }
+        changed |= self.update_hover_target(target, pointer.modifiers);
         let dispatch_target = if pointer.buttons != 0 {
             self.interaction.input.pointer_down_target.or(target)
         } else {

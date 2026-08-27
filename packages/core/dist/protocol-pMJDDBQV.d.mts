@@ -171,6 +171,11 @@ declare const EVENT_CODE: {
   readonly terminalbell: 31;
   readonly resourceready: 32;
   readonly resourceerror: 33;
+  readonly imeenabled: 34;
+  readonly imepreedit: 35;
+  readonly imedeletesurrounding: 36;
+  readonly imedisabled: 37;
+  readonly windowcloserequested: 38;
 };
 type EventType = keyof typeof EVENT_CODE;
 declare const EVENT_DATA_SLOT: {
@@ -285,4 +290,4 @@ declare class Writer {
 }
 //#endregion
 export { formatResourceKeyParts as A, nodeKeyEquals as C, ResourceKeyParts as D, ResourceKeyFamily as E, validateResourceKeyParts as M, ResourceKeyTable as O, nodeKey as S, ResourceKey as T, NodeKeyAllocator as _, EventType as a, formatNodeKey as b, HOST_FRAME as c, INTERACTION_POLICY as d, OP as f, NodeKey as g, Writer as h, EventDataSlot as i, isResourceKeyParts as j, createResourceKeyFamily as k, HOST_NODE_PAYLOAD as l, TEXT_BEHAVIOR as m, EVENT_DATA_LEN as n, GRAPHIC_DATA as o, OpCode as p, EVENT_DATA_SLOT as r, GRAPHIC_SOURCE as s, EVENT_CODE as t, HOST_RECORD_KIND as u, NodeKeyTable as v, nodeKeyFromSlotMapFfi as w, isNodeKey as x, ROOT_NODE_KEY as y };
-//# sourceMappingURL=protocol-DYzSggts.d.mts.map
+//# sourceMappingURL=protocol-pMJDDBQV.d.mts.map

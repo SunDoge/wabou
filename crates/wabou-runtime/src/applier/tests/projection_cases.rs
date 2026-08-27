@@ -368,6 +368,181 @@ fn pointer_sequence_hit_tests_and_synthesizes_one_click() {
 }
 
 #[test]
+fn pointer_target_transitions_emit_over_enter_out_and_leave() {
+    let mut applier = interactive_applier();
+    applier.handle_event(pointer(PointerPhase::Move, 20.0, 20.0, 0));
+    applier.handle_event(pointer(PointerPhase::Move, 200.0, 200.0, 0));
+
+    let codes = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<Vec<u8>, _>("globalThis.dispatched.map((x) => x[1])"))
+        .expect("read dispatched events");
+    assert_eq!(
+        codes,
+        vec![
+            event::POINTEROVER,
+            event::POINTERENTER,
+            event::POINTERMOVE,
+            event::POINTEROUT,
+            event::POINTERLEAVE,
+        ]
+    );
+}
+
+#[test]
+fn leaving_native_window_clears_hover_and_emits_exit_events() {
+    let mut applier = interactive_applier();
+    applier.handle_event(pointer(PointerPhase::Enter, 20.0, 20.0, 0));
+    assert_eq!(
+        applier.interaction.input.hovered_target,
+        Some(NodeKey::new(2, 1))
+    );
+    applier.handle_event(pointer(PointerPhase::Leave, 20.0, 20.0, 0));
+
+    let codes = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<Vec<u8>, _>("globalThis.dispatched.map((x) => x[1])"))
+        .expect("read dispatched events");
+    assert_eq!(
+        codes,
+        vec![
+            event::POINTEROVER,
+            event::POINTERENTER,
+            event::POINTEROUT,
+            event::POINTERLEAVE,
+        ]
+    );
+    assert!(applier.interaction.input.hovered_target.is_none());
+}
+
+#[test]
+fn second_primary_click_synthesizes_dblclick() {
+    let mut applier = interactive_applier();
+    for _ in 0..2 {
+        applier.handle_event(pointer(PointerPhase::Down, 20.0, 20.0, 1));
+        applier.handle_event(pointer(PointerPhase::Up, 20.0, 20.0, 0));
+    }
+
+    let codes = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<Vec<u8>, _>("globalThis.dispatched.map((x) => x[1])"))
+        .expect("read dispatched events");
+    assert_eq!(
+        codes,
+        vec![
+            event::POINTERDOWN,
+            event::POINTERUP,
+            event::CLICK,
+            event::POINTERDOWN,
+            event::POINTERUP,
+            event::CLICK,
+            event::DBLCLICK,
+        ]
+    );
+}
+
+#[test]
+fn focused_js_node_receives_complete_ime_lifecycle_and_commit_sources() {
+    let mut applier = interactive_applier();
+    let target = NodeKey::new(2, 1);
+    applier.interaction.input.focused_target = Some(target);
+    for event_type in [
+        event::IMEENABLED,
+        event::IMEPREEDIT,
+        event::IMECOMMIT,
+        event::IMEDELETESURROUNDING,
+        event::IMEDISABLED,
+    ] {
+        applier.apply_op(&Op::AddEventListener {
+            id: target,
+            event_type,
+        });
+    }
+
+    for input in [
+        UiEvent::Ime(wabou_shell::ImeEvent::Enabled),
+        UiEvent::Ime(wabou_shell::ImeEvent::Preedit {
+            text: "かな".into(),
+            cursor: Some((0, 3)),
+        }),
+        UiEvent::Ime(wabou_shell::ImeEvent::DeleteSurrounding {
+            before_bytes: 3,
+            after_bytes: 0,
+        }),
+        UiEvent::Ime(wabou_shell::ImeEvent::Commit("仮名".into())),
+        UiEvent::TextInput("x".into()),
+        UiEvent::Paste("pasted".into()),
+        UiEvent::Ime(wabou_shell::ImeEvent::Disabled),
+    ] {
+        applier.handle_event(input);
+    }
+
+    let dispatched = applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<String, _>(
+                "JSON.stringify(globalThis.dispatched.map(([target, code, payload]) => [code, payload && JSON.parse(payload)]))",
+            )
+        })
+        .expect("read dispatched IME events");
+    assert_eq!(
+        dispatched,
+        serde_json::json!([
+            [event::IMEENABLED, {}],
+            [event::IMEPREEDIT, {
+                "data": "かな",
+                "cursorStart": 0,
+                "cursorEnd": 3,
+            }],
+            [event::IMEDELETESURROUNDING, {
+                "beforeBytes": 3,
+                "afterBytes": 0,
+            }],
+            [event::IMECOMMIT, { "data": "仮名", "source": "ime" }],
+            [event::IMECOMMIT, { "data": "x", "source": "keyboard" }],
+            [event::IMECOMMIT, { "data": "pasted", "source": "paste" }],
+            [event::IMEDISABLED, {}],
+        ])
+        .to_string()
+    );
+}
+
+#[test]
+fn native_close_request_is_synchronously_cancellable_by_root_js() {
+    let mut applier = interactive_applier();
+    assert!(!FrameSource::close_requested(&mut applier));
+
+    applier.apply_op(&Op::AddEventListener {
+        id: NodeKey::new(1, 1),
+        event_type: event::WINDOWCLOSEREQUESTED,
+    });
+    applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                r#"
+                globalThis.__wabou_dispatch_host_frame = (u8) => {
+                  const view = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+                  const record = 32 + 8;
+                  return {
+                    needsTick: true,
+                    preventedEventIds: new Uint32Array([view.getUint32(record + 12, true)]),
+                  };
+                };
+                "#,
+            )
+        })
+        .expect("install cancelling close listener");
+
+    assert!(FrameSource::close_requested(&mut applier));
+}
+
+#[test]
 fn secondary_pointer_sequence_dispatches_context_menu_without_click() {
     let mut applier = interactive_applier();
     applier.handle_event(pointer_with_button(

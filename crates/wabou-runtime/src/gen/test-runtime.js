@@ -7479,7 +7479,12 @@
     textselectionchange: 30,
     terminalbell: 31,
     resourceready: 32,
-    resourceerror: 33
+    resourceerror: 33,
+    imeenabled: 34,
+    imepreedit: 35,
+    imedeletesurrounding: 36,
+    imedisabled: 37,
+    windowcloserequested: 38
   };
   var EVENT_DATA_SLOT = {
     clientX: 0,
@@ -10184,7 +10189,7 @@
     } else {
       const ed = numericData;
       if (ed) {
-        if (eventCode === EVENT_CODE.pointerup || eventCode === EVENT_CODE.pointerdown || eventCode === EVENT_CODE.pointermove || eventCode === EVENT_CODE.click || eventCode === EVENT_CODE.contextmenu) {
+        if (eventCode === EVENT_CODE.pointerdown || eventCode === EVENT_CODE.pointermove || eventCode === EVENT_CODE.pointerup || eventCode === EVENT_CODE.pointerenter || eventCode === EVENT_CODE.pointerleave || eventCode === EVENT_CODE.pointercancel || eventCode === EVENT_CODE.pointerover || eventCode === EVENT_CODE.pointerout || eventCode === EVENT_CODE.click || eventCode === EVENT_CODE.contextmenu || eventCode === EVENT_CODE.dblclick) {
           data.clientX = ed[0];
           data.clientY = ed[1];
           data.offsetX = ed[2];

@@ -590,7 +590,7 @@ impl TerminalWidget {
         match pointer.phase {
             PointerPhase::Down => self.remote_mouse_button = button,
             PointerPhase::Up | PointerPhase::Cancel => self.remote_mouse_button = None,
-            PointerPhase::Move => {}
+            PointerPhase::Enter | PointerPhase::Move | PointerPhase::Leave => {}
         }
         true
     }

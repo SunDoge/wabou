@@ -95,6 +95,8 @@ pub(super) struct InputRouter {
     pub(super) pointer_down_target: Option<NodeKey>,
     pub(super) pointer_down_position: Option<(f64, f64)>,
     pub(super) pointer_dragged: bool,
+    /// Last completed primary activation used to synthesize `dblclick`.
+    pub(super) last_primary_click: Option<(Instant, NodeKey, f64, f64)>,
     pub(super) next_host_event_id: u32,
     pub(super) hovered_target: Option<NodeKey>,
     pub(super) focused_target: Option<NodeKey>,

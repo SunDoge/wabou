@@ -71,6 +71,11 @@ pub mod event {
     pub const TERMINALBELL: u8 = 31;
     pub const RESOURCEREADY: u8 = 32;
     pub const RESOURCEERROR: u8 = 33;
+    pub const IMEENABLED: u8 = 34;
+    pub const IMEPREEDIT: u8 = 35;
+    pub const IMEDELETESURROUNDING: u8 = 36;
+    pub const IMEDISABLED: u8 = 37;
+    pub const WINDOWCLOSEREQUESTED: u8 = 38;
 }
 
 #[allow(missing_docs)]
