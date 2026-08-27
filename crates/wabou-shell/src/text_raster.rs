@@ -40,10 +40,12 @@ pub(super) fn rasterize_layout(
                 continue;
             };
             let run = glyph_run.run();
-            // Faux skew/embolden needs transformed raster bounds. Keep those
-            // uncommon runs on Vello's vector path until the raster backend
-            // can apply Parley's synthesis without clipping.
-            if run.synthesis().any() {
+            // A synthetic skew needs transformed raster bounds, so retain its
+            // vector fallback. Synthetic emboldening is deliberately ignored:
+            // many CJK fallback families lack an exact 500 face and rendering
+            // the nearest native face through hinted Swash is both sharper and
+            // less artificially heavy than falling back to unhinted outlines.
+            if run.synthesis().skew().is_some() {
                 return None;
             }
             let font_data = run.font();
