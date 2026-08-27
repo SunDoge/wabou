@@ -10172,6 +10172,7 @@ dependencies = [
  "arboard",
  "bitflags 2.13.1",
  "directories",
+ "futures-util",
  "image",
  "lru 0.18.1",
  "notify-rust",

@@ -149,9 +149,10 @@ fn modal_effects_complete_after_waking_without_blocking_dispatch() {
     assert!(!app.poll_modal_effects());
     assert!(completions.lock().unwrap().is_empty());
 
+    let wakes_before_ready = wake_count.load(Ordering::Relaxed);
     ready.store(true, Ordering::Relaxed);
     pending_waker.lock().unwrap().take().unwrap().wake();
-    assert_eq!(wake_count.load(Ordering::Relaxed), 1);
+    assert!(wake_count.load(Ordering::Relaxed) > wakes_before_ready);
     assert!(app.poll_modal_effects());
     assert_eq!(completions.lock().unwrap().len(), 1);
     assert!(!app.poll_modal_effects());

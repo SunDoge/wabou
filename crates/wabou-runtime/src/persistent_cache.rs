@@ -1,14 +1,9 @@
 //! Small content-addressed cache for application-level JSON results.
 
-use std::{
-    path::PathBuf,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::{io::Write, path::PathBuf};
 
 use serde::{Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
-
-static NEXT_PARTIAL: AtomicU64 = AtomicU64::new(1);
 
 /// Bounded on-disk cache for reproducible application results.
 ///
@@ -70,28 +65,19 @@ impl PersistentJsonCache {
         if target.exists() {
             return Ok(());
         }
-        let id = NEXT_PARTIAL.fetch_add(1, Ordering::Relaxed);
-        let partial = self
-            .directory
-            .join(format!(".partial-{}-{id}.json", std::process::id()));
-        std::fs::write(
-            &partial,
-            serde_json::to_vec(value).map_err(|error| error.to_string())?,
-        )
-        .map_err(|error| error.to_string())?;
-        match std::fs::rename(&partial, &target) {
-            Ok(()) => {
+        let bytes = serde_json::to_vec(value).map_err(|error| error.to_string())?;
+        let mut partial =
+            tempfile::NamedTempFile::new_in(&self.directory).map_err(|error| error.to_string())?;
+        partial
+            .write_all(&bytes)
+            .map_err(|error| error.to_string())?;
+        match partial.persist_noclobber(&target) {
+            Ok(_) => {
                 self.prune();
                 Ok(())
             }
-            Err(_) if target.exists() => {
-                let _ = std::fs::remove_file(partial);
-                Ok(())
-            }
-            Err(error) => {
-                let _ = std::fs::remove_file(partial);
-                Err(error.to_string())
-            }
+            Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+            Err(error) => Err(error.error.to_string()),
         }
     }
 
@@ -138,23 +124,19 @@ fn identifier(value: &str) -> bool {
 mod tests {
     use super::*;
 
-    fn directory(name: &str) -> PathBuf {
-        std::env::temp_dir().join(format!(
-            "wabou-persistent-cache-{name}-{}-{}",
-            std::process::id(),
-            NEXT_PARTIAL.fetch_add(1, Ordering::Relaxed)
-        ))
+    fn directory() -> tempfile::TempDir {
+        tempfile::tempdir().unwrap()
     }
 
     #[test]
     fn round_trips_and_rejects_path_like_identifiers() {
-        let directory = directory("roundtrip");
-        let cache = PersistentJsonCache::new(&directory, 4).unwrap();
+        let directory = directory();
+        let cache = PersistentJsonCache::new(directory.path(), 4).unwrap();
         cache.insert("ocr", "one", &vec!["漫画"]).unwrap();
+        cache.insert("ocr", "one", &vec!["replacement"]).unwrap();
         assert_eq!(cache.get::<Vec<String>>("ocr", "one").unwrap(), ["漫画"]);
         assert!(cache.insert("../escape", "one", &true).is_err());
         assert!(cache.get::<bool>("ocr", "../escape").is_none());
-        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
@@ -163,21 +145,19 @@ mod tests {
             PersistentJsonCache::content_key(&[b"ab", b"c"]),
             PersistentJsonCache::content_key(&[b"a", b"bc"])
         );
-        let directory = directory("bounded");
-        let cache = PersistentJsonCache::new(&directory, 0).unwrap();
+        let directory = directory();
+        let cache = PersistentJsonCache::new(directory.path(), 0).unwrap();
         cache.insert("value", "first", &1).unwrap();
         assert!(cache.get::<u32>("value", "first").is_none());
-        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
     fn malformed_entries_are_removed_and_become_misses() {
-        let directory = directory("malformed");
-        let cache = PersistentJsonCache::new(&directory, 2).unwrap();
-        let path = directory.join("test-bad.json");
+        let directory = directory();
+        let cache = PersistentJsonCache::new(directory.path(), 2).unwrap();
+        let path = directory.path().join("test-bad.json");
         std::fs::write(&path, b"not json").unwrap();
         assert!(cache.get::<bool>("test", "bad").is_none());
         assert!(!path.exists());
-        std::fs::remove_dir_all(directory).unwrap();
     }
 }

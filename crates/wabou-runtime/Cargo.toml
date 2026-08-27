@@ -43,6 +43,7 @@ slotmap = { workspace = true }
 sourcemap = "9.2.2"
 sys-locale = { workspace = true }
 taffy = { workspace = true, features = ["content_size", "parse"] }
+tempfile = "3"
 tokio = { workspace = true, features = ["fs", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 tracing = { workspace = true }
@@ -76,5 +77,4 @@ vite = ["dep:tungstenite", "dep:ureq"]
 
 [dev-dependencies]
 image = { workspace = true, features = ["png"] }
-tempfile = "3"
 wabou-devtools = { workspace = true }

@@ -2,6 +2,7 @@
 
 #![warn(missing_docs)]
 
+use futures_util::stream::{FuturesUnordered, Stream};
 use slotmap::{Key as SlotMapKey, KeyData, SlotMap};
 use snafu::ResultExt;
 use std::collections::HashMap;
@@ -166,7 +167,7 @@ pub struct App {
     pending_windows: Vec<PendingWindowEffect>,
     pending_window_commands: Vec<(crate::WindowResourceKey, WindowCommand)>,
     pending_extension_effects: Vec<crate::EffectRequest>,
-    pending_modal_effects: Vec<ModalEffectFuture>,
+    pending_modal_effects: FuturesUnordered<ModalEffectFuture>,
     effect_completion_tx: Sender<crate::EffectCompletion>,
     effect_completion_rx: Receiver<crate::EffectCompletion>,
     wake_callback: Option<WakeCallback>,
@@ -271,7 +272,7 @@ impl App {
             pending_windows: Vec::new(),
             pending_window_commands: Vec::new(),
             pending_extension_effects: Vec::new(),
-            pending_modal_effects: Vec::new(),
+            pending_modal_effects: FuturesUnordered::new(),
             effect_completion_tx,
             effect_completion_rx,
             wake_callback: None,
@@ -758,22 +759,11 @@ impl App {
         };
         let waker = Waker::from(Arc::new(CallbackWaker(wake)));
         let mut context = Context::from_waker(&waker);
-        let mut completed = Vec::new();
-        let mut index = 0;
-        while index < self.pending_modal_effects.len() {
-            match self.pending_modal_effects[index]
-                .as_mut()
-                .poll(&mut context)
-            {
-                Poll::Ready(completion) => {
-                    completed.push(completion);
-                    drop(self.pending_modal_effects.swap_remove(index));
-                }
-                Poll::Pending => index += 1,
-            }
-        }
-        let changed = !completed.is_empty();
-        for completion in completed {
+        let mut changed = false;
+        while let Poll::Ready(Some(completion)) =
+            Pin::new(&mut self.pending_modal_effects).poll_next(&mut context)
+        {
+            changed = true;
             self.source.complete_effect(completion);
         }
         changed
