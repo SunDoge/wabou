@@ -3,10 +3,56 @@ import { Markdown } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 import {
+  type MarkdownBlock,
   MarkdownDocument,
+  type MarkdownRun,
   parseMarkdown,
   reconcileMarkdownBlocks,
 } from "../../packages/ui/src/components/markdown-model";
+
+function mergeAdjacentRuns(runs: readonly MarkdownRun[]): MarkdownRun[] {
+  const merged: MarkdownRun[] = [];
+  for (const run of runs) {
+    const previous = merged.at(-1);
+    if (
+      previous &&
+      JSON.stringify(previous.style) === JSON.stringify(run.style)
+    ) {
+      previous.text += run.text;
+    } else {
+      merged.push({ text: run.text, style: { ...run.style } });
+    }
+  }
+  return merged;
+}
+
+function semanticBlocks(blocks: readonly MarkdownBlock[]): MarkdownBlock[] {
+  return blocks.map((block) => {
+    switch (block.kind) {
+      case "heading":
+      case "paragraph":
+        return { ...block, runs: mergeAdjacentRuns(block.runs) };
+      case "blockquote":
+        return { ...block, blocks: semanticBlocks(block.blocks) };
+      case "list":
+        return {
+          ...block,
+          items: block.items.map((item) => ({
+            ...item,
+            blocks: semanticBlocks(item.blocks),
+          })),
+        };
+      case "table":
+        return {
+          ...block,
+          header: block.header.map(mergeAdjacentRuns),
+          rows: block.rows.map((row) => row.map(mergeAdjacentRuns)),
+        };
+      default:
+        return block;
+    }
+  });
+}
 
 test("normalizes parser tokens into nested Wabou inline styles", () => {
   const [paragraph] = parseMarkdown(
@@ -105,6 +151,33 @@ test("incremental document reparses non-local reference definitions", () => {
     runs: [{ text: "Wabou", style: { href: "https://wabou.dev" } }],
   });
   expect(document.lastParse.incremental).toBe(false);
+});
+
+test.each([
+  [
+    "ordinary blocks",
+    "# Heading\n\nA paragraph with **bold**.\n\n- one\n- two\n\n```js\nlet x = 1;\n```\n\nTail.",
+  ],
+  [
+    "GFM tables",
+    "**After** — a table:\n\n| State | Fill | Icon |\n|---|---|---|\n| Rest | white | circle |\n| Hover | blue | arrow |\n\nDone.",
+  ],
+  [
+    "inline images",
+    "before ![a shot](https://example.com/x.png) after, and more prose.",
+  ],
+])("incremental %s appends agree with a fresh streaming parse", (_name, source) => {
+  for (const chunkSize of [1, 2, 3, 7, 17, 64]) {
+    const document = new MarkdownDocument();
+    let accumulated = "";
+    const characters = Array.from(source);
+    for (let index = 0; index < characters.length; index += chunkSize) {
+      accumulated += characters.slice(index, index + chunkSize).join("");
+      expect(semanticBlocks(document.setSource(accumulated, true))).toEqual(
+        semanticBlocks(parseMarkdown(accumulated, true)),
+      );
+    }
+  }
 });
 
 test("marks only text appended after mount for a streaming reveal", () => {
