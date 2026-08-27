@@ -765,6 +765,7 @@ mod tests {
             button: Some(PointerButton::Primary),
             buttons,
             modifiers: Modifiers::default(),
+            properties: Default::default(),
         })
     }
 
@@ -779,6 +780,7 @@ mod tests {
             location: Default::default(),
             modifiers: Modifiers::default(),
             repeat: false,
+            synthetic: false,
         })
     }
 
@@ -855,6 +857,7 @@ mod tests {
                 Modifiers::CONTROL
             },
             repeat: false,
+            synthetic: false,
         }));
 
         assert_eq!(result.clipboard_request(), Some(&ClipboardRequest::Read));
@@ -897,6 +900,7 @@ mod tests {
             position: Point { x: 10.0, y: 10.0 },
             delta_x: 0.0,
             delta_y: 10_000.0,
+            phase: wabou_shell::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         }));
 

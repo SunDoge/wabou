@@ -804,6 +804,7 @@ mod tests {
             button: Some(PointerButton::Primary),
             buttons,
             modifiers: Modifiers::default(),
+            properties: Default::default(),
         })
     }
 
