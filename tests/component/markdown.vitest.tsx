@@ -63,7 +63,24 @@ test("reuses settled blocks while a streaming tail grows", () => {
   expect(reconciled[0]).toBe(initial[0]);
   expect(reconciled[1]).toBe(initial[1]);
   expect(reconciled[2]).not.toBe(initial[2]);
+  if (initial[2]?.kind !== "paragraph" || reconciled[2]?.kind !== "paragraph")
+    throw new Error("expected paragraph tail");
+  expect(reconciled[2].runs[0]).toBe(initial[2].runs[0]);
+  expect(reconciled[2].runs[1]?.text).toBe(" answer");
   expect(reconcileMarkdownBlocks(reconciled, next)).toBe(reconciled);
+});
+
+test("marks only text appended after mount for a streaming reveal", () => {
+  const [source, setSource] = createSignal("Settled text");
+  const screen = renderComponent(() => (
+    <Markdown source={source()} streaming aria-label="Streaming reveal" />
+  ));
+  const response = screen.getByRole("region", { name: "Streaming reveal" });
+  expect(JSON.stringify(response.snapshot())).not.toContain('"opacity":"0.28"');
+
+  setSource("Settled text arrives");
+  screen.flush();
+  expect(JSON.stringify(response.snapshot())).toContain('"opacity":"0.28"');
 });
 
 test("renders reactive GFM as native semantic components", () => {

@@ -1042,13 +1042,14 @@ fn explicit_text_flow_does_not_absorb_a_nested_element() {
 fn explicit_rich_text_flow_absorbs_styled_text_descendants_as_runs() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (text_tag, span_tag, font_weight, color) = {
+    let (text_tag, span_tag, font_weight, color, opacity) = {
         let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("text"),
             atoms.intern("text-span"),
             atoms.intern("font-weight"),
             atoms.intern("color"),
+            atoms.intern("opacity"),
         )
     };
     applier.apply_op(&Op::CreateElement {
@@ -1077,6 +1078,11 @@ fn explicit_rich_text_flow_absorbs_styled_text_descendants_as_runs() {
         id: NodeKey::new(4, 1),
         prop: color,
         value: "#ff0000",
+    });
+    applier.apply_op(&Op::SetStyle {
+        id: NodeKey::new(4, 1),
+        prop: opacity,
+        value: "0.5",
     });
     applier.apply_op(&Op::CreateText {
         id: NodeKey::new(5, 1),
@@ -1116,5 +1122,5 @@ fn explicit_rich_text_flow_absorbs_styled_text_descendants_as_runs() {
     assert_eq!(paint.text_runs[0].range, 0..6);
     assert_eq!(paint.text_runs[1].range, 6..11);
     assert_eq!(paint.text_runs[1].font_weight, 700.0);
-    assert_eq!(paint.text_runs[1].color, [255, 0, 0, 255]);
+    assert_eq!(paint.text_runs[1].color, [255, 0, 0, 128]);
 }

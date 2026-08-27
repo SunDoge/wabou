@@ -1,5 +1,6 @@
 import { mergeClasses } from "@wabou/core/style";
-import { createMemo, For, type JSX } from "solid-js";
+import { createMemo, For, type JSX, untrack } from "solid-js";
+import { createKeyframeAnimation, useReducedMotion } from "../animation";
 import { RichText, RichTextSpan, Text, View } from "../primitives";
 import { CodeBlock } from "./code-block";
 import {
@@ -9,12 +10,6 @@ import {
   reconcileMarkdownBlocks,
 } from "./markdown-model";
 import { Separator } from "./separator";
-import {
-  TypographyH1,
-  TypographyH2,
-  TypographyH3,
-  TypographyH4,
-} from "./typography";
 
 export type MarkdownVariant = "document" | "conversation";
 
@@ -32,6 +27,7 @@ function InlineMarkdown(props: {
   runs: MarkdownRun[];
   variant: MarkdownVariant;
   class?: string;
+  animateRun?: (run: MarkdownRun) => boolean;
 }): JSX.Element {
   return (
     <RichText
@@ -44,17 +40,40 @@ function InlineMarkdown(props: {
       )}
     >
       <For each={props.runs}>
-        {(run) => <RichTextSpan class={runClass(run)}>{run.text}</RichTextSpan>}
+        {(run) => (
+          <MarkdownSpan run={run} reveal={props.animateRun?.(run) ?? false} />
+        )}
       </For>
     </RichText>
+  );
+}
+
+function MarkdownSpan(props: { run: MarkdownRun; reveal: boolean }) {
+  const reducedMotion = useReducedMotion();
+  const reveal = untrack(() => props.reveal)
+    ? createKeyframeAnimation([0.28, 1], {
+        duration: 0.18,
+        ease: "easeOut",
+        reducedMotion,
+        reducedValue: 1,
+      }).value
+    : () => 1;
+  return (
+    <RichTextSpan
+      class={runClass(props.run)}
+      data-motion={props.reveal ? "markdown-stream-reveal" : undefined}
+      style={{ opacity: reveal() }}
+    >
+      {props.run.text}
+    </RichTextSpan>
   );
 }
 
 function Heading(props: {
   block: Extract<MarkdownBlockModel, { kind: "heading" }>;
   variant: MarkdownVariant;
+  animateRun?: (run: MarkdownRun) => boolean;
 }): JSX.Element {
-  const text = () => props.block.runs.map((run) => run.text).join("");
   if (props.variant === "conversation") {
     const className = () => {
       switch (props.block.depth) {
@@ -68,27 +87,69 @@ function Heading(props: {
           return "text-sm font-semibold text-primary whitespace-normal";
       }
     };
-    return <Text class={className()}>{text()}</Text>;
+    return (
+      <InlineMarkdown
+        runs={props.block.runs}
+        variant={props.variant}
+        class={className()}
+        animateRun={props.animateRun}
+      />
+    );
   }
   switch (props.block.depth) {
     case 1:
-      return <TypographyH1>{text()}</TypographyH1>;
+      return (
+        <InlineMarkdown
+          runs={props.block.runs}
+          variant={props.variant}
+          class="text-4xl font-bold text-primary"
+          animateRun={props.animateRun}
+        />
+      );
     case 2:
-      return <TypographyH2>{text()}</TypographyH2>;
+      return (
+        <InlineMarkdown
+          runs={props.block.runs}
+          variant={props.variant}
+          class="text-3xl font-semibold text-primary"
+          animateRun={props.animateRun}
+        />
+      );
     case 3:
-      return <TypographyH3>{text()}</TypographyH3>;
+      return (
+        <InlineMarkdown
+          runs={props.block.runs}
+          variant={props.variant}
+          class="text-2xl font-semibold text-primary"
+          animateRun={props.animateRun}
+        />
+      );
     default:
-      return <TypographyH4>{text()}</TypographyH4>;
+      return (
+        <InlineMarkdown
+          runs={props.block.runs}
+          variant={props.variant}
+          class="text-xl font-semibold text-primary"
+          animateRun={props.animateRun}
+        />
+      );
   }
 }
 
 function MarkdownBlocks(props: {
   blocks: MarkdownBlockModel[];
   variant: MarkdownVariant;
+  animateRun?: (run: MarkdownRun) => boolean;
 }): JSX.Element {
   return (
     <For each={props.blocks}>
-      {(block) => <MarkdownBlock block={block} variant={props.variant} />}
+      {(block) => (
+        <MarkdownBlock
+          block={block}
+          variant={props.variant}
+          animateRun={props.animateRun}
+        />
+      )}
     </For>
   );
 }
@@ -96,6 +157,7 @@ function MarkdownBlocks(props: {
 function MarkdownList(props: {
   block: Extract<MarkdownBlockModel, { kind: "list" }>;
   variant: MarkdownVariant;
+  animateRun?: (run: MarkdownRun) => boolean;
 }): JSX.Element {
   return (
     <View
@@ -118,7 +180,11 @@ function MarkdownList(props: {
                   : "•"}
             </Text>
             <View class="min-w-0 flex-1 flex flex-col gap-1.5">
-              <MarkdownBlocks blocks={item.blocks} variant={props.variant} />
+              <MarkdownBlocks
+                blocks={item.blocks}
+                variant={props.variant}
+                animateRun={props.animateRun}
+              />
             </View>
           </View>
         )}
@@ -130,6 +196,7 @@ function MarkdownList(props: {
 function MarkdownTable(props: {
   block: Extract<MarkdownBlockModel, { kind: "table" }>;
   variant: MarkdownVariant;
+  animateRun?: (run: MarkdownRun) => boolean;
 }): JSX.Element {
   const rows = () => [props.block.header, ...props.block.rows];
   return (
@@ -159,6 +226,7 @@ function MarkdownTable(props: {
                       props.block.align[columnIndex()] === "right" &&
                         "text-right",
                     )}
+                    animateRun={props.animateRun}
                   />
                 </View>
               )}
@@ -173,13 +241,26 @@ function MarkdownTable(props: {
 function MarkdownBlock(props: {
   block: MarkdownBlockModel;
   variant: MarkdownVariant;
+  animateRun?: (run: MarkdownRun) => boolean;
 }): JSX.Element {
   const block = props.block;
   switch (block.kind) {
     case "heading":
-      return <Heading block={block} variant={props.variant} />;
+      return (
+        <Heading
+          block={block}
+          variant={props.variant}
+          animateRun={props.animateRun}
+        />
+      );
     case "paragraph":
-      return <InlineMarkdown runs={block.runs} variant={props.variant} />;
+      return (
+        <InlineMarkdown
+          runs={block.runs}
+          variant={props.variant}
+          animateRun={props.animateRun}
+        />
+      );
     case "blockquote":
       return (
         <View class="min-w-0 flex flex-row items-stretch gap-3">
@@ -188,14 +269,30 @@ function MarkdownBlock(props: {
             class="w-1 flex-none rounded-full bg-strong"
           />
           <View class="min-w-0 flex-1 flex flex-col gap-2">
-            <MarkdownBlocks blocks={block.blocks} variant={props.variant} />
+            <MarkdownBlocks
+              blocks={block.blocks}
+              variant={props.variant}
+              animateRun={props.animateRun}
+            />
           </View>
         </View>
       );
     case "list":
-      return <MarkdownList block={block} variant={props.variant} />;
+      return (
+        <MarkdownList
+          block={block}
+          variant={props.variant}
+          animateRun={props.animateRun}
+        />
+      );
     case "table":
-      return <MarkdownTable block={block} variant={props.variant} />;
+      return (
+        <MarkdownTable
+          block={block}
+          variant={props.variant}
+          animateRun={props.animateRun}
+        />
+      );
     case "code":
       return (
         <CodeBlock
@@ -223,17 +320,65 @@ export interface MarkdownProps {
   "aria-label"?: string;
 }
 
+function visitMarkdownRuns(
+  blocks: readonly MarkdownBlockModel[],
+  visit: (run: MarkdownRun) => void,
+) {
+  for (const block of blocks) {
+    switch (block.kind) {
+      case "heading":
+      case "paragraph":
+        block.runs.forEach(visit);
+        break;
+      case "blockquote":
+        visitMarkdownRuns(block.blocks, visit);
+        break;
+      case "list":
+        block.items.forEach((item) => {
+          visitMarkdownRuns(item.blocks, visit);
+        });
+        break;
+      case "table":
+        block.header.forEach((runs) => {
+          runs.forEach(visit);
+        });
+        block.rows.forEach((row) => {
+          row.forEach((runs) => {
+            runs.forEach(visit);
+          });
+        });
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 /** Parses GFM in JavaScript and renders native Wabou components, without HTML or a DOM. */
 export function Markdown(props: MarkdownProps): JSX.Element {
   let previous: MarkdownBlockModel[] = [];
+  let initialized = false;
+  const knownRuns = new WeakSet<MarkdownRun>();
   const blocks = createMemo(() => {
     previous = reconcileMarkdownBlocks(
       previous,
       parseMarkdown(props.source, props.streaming),
     );
+    if (!initialized) {
+      visitMarkdownRuns(previous, (run) => {
+        knownRuns.add(run);
+      });
+      initialized = true;
+    }
     return previous;
   });
   const variant = () => props.variant ?? "document";
+  const animateRun = (run: MarkdownRun) => {
+    const reveal =
+      untrack(() => props.streaming === true) && !knownRuns.has(run);
+    knownRuns.add(run);
+    return reveal;
+  };
   return (
     <View
       role="region"
@@ -244,7 +389,11 @@ export function Markdown(props: MarkdownProps): JSX.Element {
         props.class,
       )}
     >
-      <MarkdownBlocks blocks={blocks()} variant={variant()} />
+      <MarkdownBlocks
+        blocks={blocks()}
+        variant={variant()}
+        animateRun={animateRun}
+      />
     </View>
   );
 }

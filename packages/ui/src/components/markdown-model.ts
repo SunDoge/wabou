@@ -50,6 +50,101 @@ function sameRuns(left: readonly MarkdownRun[], right: readonly MarkdownRun[]) {
   );
 }
 
+function reconcileRuns(
+  previous: readonly MarkdownRun[],
+  next: readonly MarkdownRun[],
+): MarkdownRun[] {
+  const reconciled: MarkdownRun[] = [];
+  let previousIndex = 0;
+  let canReuse = true;
+  for (const run of next) {
+    let remaining = run.text;
+    while (canReuse && remaining.length > 0) {
+      const prior = previous[previousIndex];
+      if (
+        !prior ||
+        !sameStyle(prior.style, run.style) ||
+        !remaining.startsWith(prior.text)
+      ) {
+        canReuse = false;
+        break;
+      }
+      reconciled.push(prior);
+      remaining = remaining.slice(prior.text.length);
+      previousIndex += 1;
+    }
+    if (remaining) reconciled.push({ text: remaining, style: run.style });
+  }
+  return previousIndex === previous.length && sameRuns(previous, reconciled)
+    ? (previous as MarkdownRun[])
+    : reconciled;
+}
+
+function reconcileBlock(
+  previous: MarkdownBlock | undefined,
+  next: MarkdownBlock,
+): MarkdownBlock {
+  if (!previous || previous.kind !== next.kind) return next;
+  if (sameBlock(previous, next)) return previous;
+  switch (next.kind) {
+    case "heading": {
+      if (previous.kind !== "heading") return next;
+      const runs = reconcileRuns(previous.runs, next.runs);
+      return runs === previous.runs && previous.depth === next.depth
+        ? previous
+        : { ...next, runs };
+    }
+    case "paragraph": {
+      if (previous.kind !== "paragraph") return next;
+      const runs = reconcileRuns(previous.runs, next.runs);
+      return runs === previous.runs ? previous : { ...next, runs };
+    }
+    case "blockquote":
+      return {
+        ...next,
+        blocks:
+          previous.kind === "blockquote"
+            ? reconcileMarkdownBlocks(previous.blocks, next.blocks)
+            : next.blocks,
+      };
+    case "list":
+      return {
+        ...next,
+        items: next.items.map((item, index) => ({
+          ...item,
+          blocks:
+            previous.kind === "list"
+              ? reconcileMarkdownBlocks(
+                  previous.items[index]?.blocks ?? [],
+                  item.blocks,
+                )
+              : item.blocks,
+        })),
+      };
+    case "table":
+      return {
+        ...next,
+        header: next.header.map((runs, index) =>
+          previous.kind === "table"
+            ? reconcileRuns(previous.header[index] ?? [], runs)
+            : runs,
+        ),
+        rows: next.rows.map((row, rowIndex) =>
+          row.map((runs, columnIndex) =>
+            previous.kind === "table"
+              ? reconcileRuns(
+                  previous.rows[rowIndex]?.[columnIndex] ?? [],
+                  runs,
+                )
+              : runs,
+          ),
+        ),
+      };
+    default:
+      return next;
+  }
+}
+
 function sameBlock(left: MarkdownBlock, right: MarkdownBlock): boolean {
   if (left.kind !== right.kind) return false;
   switch (left.kind) {
@@ -134,10 +229,9 @@ export function reconcileMarkdownBlocks(
 ): MarkdownBlock[] {
   let changed = previous.length !== next.length;
   const reconciled = next.map((block, index) => {
-    const prior = previous[index];
-    if (prior && sameBlock(prior, block)) return prior;
-    changed = true;
-    return block;
+    const result = reconcileBlock(previous[index], block);
+    if (result !== previous[index]) changed = true;
+    return result;
   });
   return changed ? reconciled : (previous as MarkdownBlock[]);
 }

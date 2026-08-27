@@ -4928,6 +4928,68 @@ function AdaptiveSplitPaneDetail(props) {
 function sameRuns(left, right) {
 	return left.length === right.length && left.every((run, index) => run.text === right[index]?.text && sameStyle(run.style, right[index]?.style ?? {}));
 }
+function reconcileRuns(previous, next) {
+	const reconciled = [];
+	let previousIndex = 0;
+	let canReuse = true;
+	for (const run of next) {
+		let remaining = run.text;
+		while (canReuse && remaining.length > 0) {
+			const prior = previous[previousIndex];
+			if (!prior || !sameStyle(prior.style, run.style) || !remaining.startsWith(prior.text)) {
+				canReuse = false;
+				break;
+			}
+			reconciled.push(prior);
+			remaining = remaining.slice(prior.text.length);
+			previousIndex += 1;
+		}
+		if (remaining) reconciled.push({
+			text: remaining,
+			style: run.style
+		});
+	}
+	return previousIndex === previous.length && sameRuns(previous, reconciled) ? previous : reconciled;
+}
+function reconcileBlock(previous, next) {
+	if (!previous || previous.kind !== next.kind) return next;
+	if (sameBlock(previous, next)) return previous;
+	switch (next.kind) {
+		case "heading": {
+			if (previous.kind !== "heading") return next;
+			const runs = reconcileRuns(previous.runs, next.runs);
+			return runs === previous.runs && previous.depth === next.depth ? previous : {
+				...next,
+				runs
+			};
+		}
+		case "paragraph": {
+			if (previous.kind !== "paragraph") return next;
+			const runs = reconcileRuns(previous.runs, next.runs);
+			return runs === previous.runs ? previous : {
+				...next,
+				runs
+			};
+		}
+		case "blockquote": return {
+			...next,
+			blocks: previous.kind === "blockquote" ? reconcileMarkdownBlocks(previous.blocks, next.blocks) : next.blocks
+		};
+		case "list": return {
+			...next,
+			items: next.items.map((item, index) => ({
+				...item,
+				blocks: previous.kind === "list" ? reconcileMarkdownBlocks(previous.items[index]?.blocks ?? [], item.blocks) : item.blocks
+			}))
+		};
+		case "table": return {
+			...next,
+			header: next.header.map((runs, index) => previous.kind === "table" ? reconcileRuns(previous.header[index] ?? [], runs) : runs),
+			rows: next.rows.map((row, rowIndex) => row.map((runs, columnIndex) => previous.kind === "table" ? reconcileRuns(previous.rows[rowIndex]?.[columnIndex] ?? [], runs) : runs))
+		};
+		default: return next;
+	}
+}
 function sameBlock(left, right) {
 	if (left.kind !== right.kind) return false;
 	switch (left.kind) {
@@ -4955,10 +5017,9 @@ function sameBlocks(left, right) {
 function reconcileMarkdownBlocks(previous, next) {
 	let changed = previous.length !== next.length;
 	const reconciled = next.map((block, index) => {
-		const prior = previous[index];
-		if (prior && sameBlock(prior, block)) return prior;
-		changed = true;
-		return block;
+		const result = reconcileBlock(previous[index], block);
+		if (result !== previous[index]) changed = true;
+		return result;
 	});
 	return changed ? reconciled : previous;
 }
@@ -5129,55 +5190,6 @@ function Separator(props) {
 	}));
 }
 //#endregion
-//#region src/components/typography.tsx
-function styledText(props, className) {
-	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
-		return mergeClasses(className, props.class);
-	} }));
-}
-const TypographyH1 = (props) => styledText(props, "text-4xl font-bold text-primary whitespace-normal");
-const TypographyH2 = (props) => styledText(props, "text-3xl font-semibold text-primary whitespace-normal");
-const TypographyH3 = (props) => styledText(props, "text-2xl font-semibold text-primary whitespace-normal");
-const TypographyH4 = (props) => styledText(props, "text-xl font-semibold text-primary whitespace-normal");
-const TypographyP = (props) => styledText(props, "text-base leading-relaxed text-secondary whitespace-normal");
-const TypographyLead = (props) => styledText(props, "text-xl leading-relaxed text-muted whitespace-normal");
-const TypographyLarge = (props) => styledText(props, "text-lg font-semibold text-primary whitespace-normal");
-const TypographySmall = (props) => styledText(props, "text-sm font-medium text-secondary whitespace-normal");
-const TypographyMuted = (props) => styledText(props, "text-sm text-muted whitespace-normal");
-const TypographyInlineCode = (props) => styledText(props, "px-1.5 py-0.5 rounded bg-control font-mono text-sm font-medium text-primary");
-function TypographyBlockquote(props) {
-	return createComponent$1(View, {
-		class: "flex flex-row items-stretch gap-4",
-		get children() {
-			return [createComponent$1(View, {
-				"aria-hidden": "true",
-				class: "w-1 flex-none rounded-full bg-strong"
-			}), memo(() => {
-				return styledText(props, "min-w-0 flex-1 text-base leading-relaxed text-secondary whitespace-normal");
-			})];
-		}
-	});
-}
-function TypographyList(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return mergeClasses("flex flex-col gap-2", props.class);
-	} }));
-}
-function TypographyListItem(props) {
-	return createComponent$1(View, {
-		class: "min-w-0 flex flex-row items-start gap-2",
-		get children() {
-			return [createComponent$1(Text, {
-				"aria-hidden": "true",
-				class: "flex-none text-secondary",
-				children: "•"
-			}), memo(() => {
-				return styledText(props, "min-w-0 flex-1 text-base text-secondary whitespace-normal");
-			})];
-		}
-	});
-}
-//#endregion
 //#region src/components/markdown.tsx
 function runClass(run) {
 	return mergeClasses(run.style.strong && "font-semibold text-primary", run.style.emphasis && "italic text-primary", run.style.code && "font-mono text-sm font-normal text-primary", run.style.deleted && "text-muted", run.style.href && "font-medium text-accent");
@@ -5192,20 +5204,40 @@ function InlineMarkdown(props) {
 				get each() {
 					return props.runs;
 				},
-				children: (run) => createComponent$1(RichTextSpan, {
-					get ["class"]() {
-						return runClass(run);
-					},
-					get children() {
-						return run.text;
+				children: (run) => createComponent$1(MarkdownSpan, {
+					run,
+					get reveal() {
+						return props.animateRun?.(run) ?? false;
 					}
 				})
 			});
 		}
 	});
 }
+function MarkdownSpan(props) {
+	const reducedMotion = useReducedMotion();
+	const reveal = untrack(() => props.reveal) ? createKeyframeAnimation([.28, 1], {
+		duration: .18,
+		ease: "easeOut",
+		reducedMotion,
+		reducedValue: 1
+	}).value : () => 1;
+	return createComponent$1(RichTextSpan, {
+		get ["class"]() {
+			return runClass(props.run);
+		},
+		get ["data-motion"]() {
+			return props.reveal ? "markdown-stream-reveal" : void 0;
+		},
+		get style() {
+			return { opacity: reveal() };
+		},
+		get children() {
+			return props.run.text;
+		}
+	});
+}
 function Heading(props) {
-	const text = () => props.block.runs.map((run) => run.text).join("");
 	if (props.variant === "conversation") {
 		const className = () => {
 			switch (props.block.depth) {
@@ -5215,28 +5247,70 @@ function Heading(props) {
 				default: return "text-sm font-semibold text-primary whitespace-normal";
 			}
 		};
-		return createComponent$1(Text, {
+		return createComponent$1(InlineMarkdown, {
+			get runs() {
+				return props.block.runs;
+			},
+			get variant() {
+				return props.variant;
+			},
 			get ["class"]() {
 				return className();
 			},
-			get children() {
-				return text();
+			get animateRun() {
+				return props.animateRun;
 			}
 		});
 	}
 	switch (props.block.depth) {
-		case 1: return createComponent$1(TypographyH1, { get children() {
-			return text();
-		} });
-		case 2: return createComponent$1(TypographyH2, { get children() {
-			return text();
-		} });
-		case 3: return createComponent$1(TypographyH3, { get children() {
-			return text();
-		} });
-		default: return createComponent$1(TypographyH4, { get children() {
-			return text();
-		} });
+		case 1: return createComponent$1(InlineMarkdown, {
+			get runs() {
+				return props.block.runs;
+			},
+			get variant() {
+				return props.variant;
+			},
+			class: "text-4xl font-bold text-primary",
+			get animateRun() {
+				return props.animateRun;
+			}
+		});
+		case 2: return createComponent$1(InlineMarkdown, {
+			get runs() {
+				return props.block.runs;
+			},
+			get variant() {
+				return props.variant;
+			},
+			class: "text-3xl font-semibold text-primary",
+			get animateRun() {
+				return props.animateRun;
+			}
+		});
+		case 3: return createComponent$1(InlineMarkdown, {
+			get runs() {
+				return props.block.runs;
+			},
+			get variant() {
+				return props.variant;
+			},
+			class: "text-2xl font-semibold text-primary",
+			get animateRun() {
+				return props.animateRun;
+			}
+		});
+		default: return createComponent$1(InlineMarkdown, {
+			get runs() {
+				return props.block.runs;
+			},
+			get variant() {
+				return props.variant;
+			},
+			class: "text-xl font-semibold text-primary",
+			get animateRun() {
+				return props.animateRun;
+			}
+		});
 	}
 }
 function MarkdownBlocks(props) {
@@ -5248,6 +5322,9 @@ function MarkdownBlocks(props) {
 			block,
 			get variant() {
 				return props.variant;
+			},
+			get animateRun() {
+				return props.animateRun;
 			}
 		})
 	});
@@ -5284,6 +5361,9 @@ function MarkdownList(props) {
 									},
 									get variant() {
 										return props.variant;
+									},
+									get animateRun() {
+										return props.animateRun;
 									}
 								});
 							}
@@ -5322,6 +5402,9 @@ function MarkdownTable(props) {
 										},
 										get ["class"]() {
 											return mergeClasses(props.block.align[columnIndex()] === "center" && "text-center", props.block.align[columnIndex()] === "right" && "text-right");
+										},
+										get animateRun() {
+											return props.animateRun;
 										}
 									});
 								}
@@ -5340,6 +5423,9 @@ function MarkdownBlock(props) {
 			block,
 			get variant() {
 				return props.variant;
+			},
+			get animateRun() {
+				return props.animateRun;
 			}
 		});
 		case "paragraph": return createComponent$1(InlineMarkdown, {
@@ -5348,6 +5434,9 @@ function MarkdownBlock(props) {
 			},
 			get variant() {
 				return props.variant;
+			},
+			get animateRun() {
+				return props.animateRun;
 			}
 		});
 		case "blockquote": return createComponent$1(View, {
@@ -5365,6 +5454,9 @@ function MarkdownBlock(props) {
 							},
 							get variant() {
 								return props.variant;
+							},
+							get animateRun() {
+								return props.animateRun;
 							}
 						});
 					}
@@ -5375,12 +5467,18 @@ function MarkdownBlock(props) {
 			block,
 			get variant() {
 				return props.variant;
+			},
+			get animateRun() {
+				return props.animateRun;
 			}
 		});
 		case "table": return createComponent$1(MarkdownTable, {
 			block,
 			get variant() {
 				return props.variant;
+			},
+			get animateRun() {
+				return props.animateRun;
 			}
 		});
 		case "code": return createComponent$1(CodeBlock, {
@@ -5401,14 +5499,52 @@ function MarkdownBlock(props) {
 		});
 	}
 }
+function visitMarkdownRuns(blocks, visit) {
+	for (const block of blocks) switch (block.kind) {
+		case "heading":
+		case "paragraph":
+			block.runs.forEach(visit);
+			break;
+		case "blockquote":
+			visitMarkdownRuns(block.blocks, visit);
+			break;
+		case "list":
+			block.items.forEach((item) => {
+				visitMarkdownRuns(item.blocks, visit);
+			});
+			break;
+		case "table":
+			block.header.forEach((runs) => {
+				runs.forEach(visit);
+			});
+			block.rows.forEach((row) => {
+				row.forEach((runs) => {
+					runs.forEach(visit);
+				});
+			});
+	}
+}
 /** Parses GFM in JavaScript and renders native Wabou components, without HTML or a DOM. */
 function Markdown(props) {
 	let previous = [];
+	let initialized = false;
+	const knownRuns = /* @__PURE__ */ new WeakSet();
 	const blocks = createMemo(() => {
 		previous = reconcileMarkdownBlocks(previous, parseMarkdown(props.source, props.streaming));
+		if (!initialized) {
+			visitMarkdownRuns(previous, (run) => {
+				knownRuns.add(run);
+			});
+			initialized = true;
+		}
 		return previous;
 	});
 	const variant = () => props.variant ?? "document";
+	const animateRun = (run) => {
+		const reveal = untrack(() => props.streaming === true) && !knownRuns.has(run);
+		knownRuns.add(run);
+		return reveal;
+	};
 	return createComponent$1(View, {
 		role: "region",
 		get ["aria-label"]() {
@@ -5424,7 +5560,8 @@ function Markdown(props) {
 				},
 				get variant() {
 					return variant();
-				}
+				},
+				animateRun
 			});
 		}
 	});
@@ -9723,6 +9860,55 @@ function TreeView(props) {
 					});
 				}
 			});
+		}
+	});
+}
+//#endregion
+//#region src/components/typography.tsx
+function styledText(props, className) {
+	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
+		return mergeClasses(className, props.class);
+	} }));
+}
+const TypographyH1 = (props) => styledText(props, "text-4xl font-bold text-primary whitespace-normal");
+const TypographyH2 = (props) => styledText(props, "text-3xl font-semibold text-primary whitespace-normal");
+const TypographyH3 = (props) => styledText(props, "text-2xl font-semibold text-primary whitespace-normal");
+const TypographyH4 = (props) => styledText(props, "text-xl font-semibold text-primary whitespace-normal");
+const TypographyP = (props) => styledText(props, "text-base leading-relaxed text-secondary whitespace-normal");
+const TypographyLead = (props) => styledText(props, "text-xl leading-relaxed text-muted whitespace-normal");
+const TypographyLarge = (props) => styledText(props, "text-lg font-semibold text-primary whitespace-normal");
+const TypographySmall = (props) => styledText(props, "text-sm font-medium text-secondary whitespace-normal");
+const TypographyMuted = (props) => styledText(props, "text-sm text-muted whitespace-normal");
+const TypographyInlineCode = (props) => styledText(props, "px-1.5 py-0.5 rounded bg-control font-mono text-sm font-medium text-primary");
+function TypographyBlockquote(props) {
+	return createComponent$1(View, {
+		class: "flex flex-row items-stretch gap-4",
+		get children() {
+			return [createComponent$1(View, {
+				"aria-hidden": "true",
+				class: "w-1 flex-none rounded-full bg-strong"
+			}), memo(() => {
+				return styledText(props, "min-w-0 flex-1 text-base leading-relaxed text-secondary whitespace-normal");
+			})];
+		}
+	});
+}
+function TypographyList(props) {
+	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+		return mergeClasses("flex flex-col gap-2", props.class);
+	} }));
+}
+function TypographyListItem(props) {
+	return createComponent$1(View, {
+		class: "min-w-0 flex flex-row items-start gap-2",
+		get children() {
+			return [createComponent$1(Text, {
+				"aria-hidden": "true",
+				class: "flex-none text-secondary",
+				children: "•"
+			}), memo(() => {
+				return styledText(props, "min-w-0 flex-1 text-base text-secondary whitespace-normal");
+			})];
 		}
 	});
 }
