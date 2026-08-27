@@ -99,6 +99,7 @@ type ComponentId =
   | "data-table"
   | "tree-view"
   | "chart"
+  | "markdown"
   | "image-viewport"
   | "direction"
   | "typography"
@@ -161,6 +162,7 @@ const groups: Array<{
       { id: "message", name: "Message" },
       { id: "message-scroller", name: "Message scroller" },
       { id: "chart", name: "Chart experiment" },
+      { id: "markdown", name: "Markdown" },
       { id: "image-viewport", name: "Image viewport" },
       { id: "typography", name: "Typography" },
       { id: "fps", name: "FPS" },
@@ -312,6 +314,8 @@ const descriptions: Record<ComponentId, string> = {
     "Navigates explicit hierarchical data with roving focus and native keyboard semantics.",
   chart:
     "D3 geometry and scales rendered through Wabou's typed native path pipeline.",
+  markdown:
+    "Parses Markdown in JavaScript and renders its token tree with native Wabou components.",
   "image-viewport":
     "Shares one image-space transform across contained media and editable annotation regions.",
   direction:
@@ -357,6 +361,7 @@ import { ColorsPage, LayoutStylesPage, ShadowsPage } from "./pages/foundations";
 import { I18nPage } from "./pages/i18n";
 import { ImageViewportPage } from "./pages/image-viewport";
 import { MenubarPage } from "./pages/menubar";
+import { MarkdownPage } from "./pages/markdown";
 import { OverviewPage } from "./pages/overview";
 import {
   DirectionPage,
@@ -724,6 +729,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "chart"}>
                     <ChartPage />
+                  </Match>
+                  <Match when={selected() === "markdown"}>
+                    <MarkdownPage />
                   </Match>
                   <Match when={selected() === "image-viewport"}>
                     <ImageViewportPage />
