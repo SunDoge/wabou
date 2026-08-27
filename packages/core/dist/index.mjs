@@ -817,6 +817,42 @@ function useFileDrop(handler) {
 	onCleanup(subscribeFileDrop(handler));
 }
 //#endregion
+//#region src/glue/gesture.ts
+function isPhase(value) {
+	return value === "started" || value === "changed" || value === "ended" || value === "cancelled";
+}
+function decodeGesture(value) {
+	if (typeof value !== "object" || value === null) throw new TypeError("gesture event must be an object");
+	const event = value;
+	if (event.type === "double-tap") return { type: "double-tap" };
+	if (event.type === "pressure" && typeof event.pressure === "number" && typeof event.stage === "number") return {
+		type: "pressure",
+		pressure: event.pressure,
+		stage: event.stage
+	};
+	if (!isPhase(event.phase)) throw new TypeError("continuous gesture event has an invalid phase");
+	if ((event.type === "pinch" || event.type === "rotation") && typeof event.delta === "number") return {
+		type: event.type,
+		delta: event.delta,
+		phase: event.phase
+	};
+	if (event.type === "pan" && typeof event.deltaX === "number" && typeof event.deltaY === "number") return {
+		type: "pan",
+		deltaX: event.deltaX,
+		deltaY: event.deltaY,
+		phase: event.phase
+	};
+	throw new TypeError("gesture event has an invalid payload");
+}
+/** Subscribe to native trackpad and touchscreen gestures for the current window. */
+function subscribeGesture(handler) {
+	return subscribeJson("wabou:gesture", handler, { decode: decodeGesture });
+}
+/** Subscribe for the lifetime of the current Solid owner. */
+function useGesture(handler) {
+	onCleanup(subscribeGesture(handler));
+}
+//#endregion
 //#region src/glue/clipboard.ts
 const clipboard = Object.freeze({
 	readText: () => dispatchEffect(effectOps.clipboardRead),
@@ -1625,6 +1661,6 @@ function reconcileKeyedList(current, patch, keyOf) {
 	return ordered;
 }
 //#endregion
-export { AsyncActionConflictError, ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useHost, useNotification, useWindow, utilityConflictProperties, writer };
+export { AsyncActionConflictError, ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useNotification, useWindow, utilityConflictProperties, writer };
 
 //# sourceMappingURL=index.mjs.map

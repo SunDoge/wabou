@@ -29,6 +29,7 @@ import "./glue/host-messages";
 import "./glue/host-frame";
 import "./glue/window-metrics";
 import "./glue/file-drop";
+import "./glue/gesture";
 import "./glue/effects";
 import "./glue/clipboard";
 import "./glue/app-dirs";
@@ -90,6 +91,13 @@ export {
   subscribeFileDrop,
   useFileDrop,
 } from "./glue/file-drop";
+export {
+  type GestureEvent,
+  type GestureHandler,
+  type GesturePhase,
+  subscribeGesture,
+  useGesture,
+} from "./glue/gesture";
 export {
   createEventEffect,
   type EventEffectOptions,

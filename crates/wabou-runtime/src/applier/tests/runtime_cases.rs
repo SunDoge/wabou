@@ -205,6 +205,33 @@ fn native_file_drop_reaches_js_with_paths_and_logical_position() {
 }
 
 #[test]
+fn native_gesture_reaches_js_with_explicit_non_dom_semantics() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let response = applier.handle_event(UiEvent::Gesture(wabou_shell::GestureEvent::Pan {
+        delta_x: 12.5,
+        delta_y: -4.0,
+        phase: wabou_shell::GesturePhase::Changed,
+    }));
+    assert!(response.request_redraw);
+    let payload = applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<String, _>(
+                "globalThis.__host_got.find((x) => x.topic === 'wabou:gesture').payload",
+            )
+        })
+        .unwrap();
+    let payload: serde_json::Value = serde_json::from_str(&payload).unwrap();
+    assert_eq!(payload["type"], "pan");
+    assert_eq!(payload["deltaX"], 12.5);
+    assert_eq!(payload["deltaY"], -4.0);
+    assert_eq!(payload["phase"], "changed");
+}
+
+#[test]
 fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
     const CORE_FIXTURE: &str = include_str!("../../gen/test-runtime.js");
     let js = JsRuntime::new().expect("runtime");

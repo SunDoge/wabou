@@ -243,11 +243,8 @@ impl FrameSource for Applier {
         else {
             return false;
         };
-        let (_, prevented) = self.dispatch_cancellable_json(
-            target,
-            event::WINDOWCLOSEREQUESTED,
-            "{}".into(),
-        );
+        let (_, prevented) =
+            self.dispatch_cancellable_json(target, event::WINDOWCLOSEREQUESTED, "{}".into());
         prevented
     }
 
@@ -1034,6 +1031,9 @@ impl FrameSource for Applier {
         if let UiEvent::FileDrop(event) = input {
             return self.handle_file_drop(event);
         }
+        if let UiEvent::Gesture(event) = input {
+            return self.handle_gesture(event);
+        }
         if matches!(
             &input,
             UiEvent::Key(_) | UiEvent::TextInput(_) | UiEvent::Ime(_) | UiEvent::Paste(_)
@@ -1077,6 +1077,7 @@ impl FrameSource for Applier {
             | UiEvent::TextInput(_)
             | UiEvent::Ime(_)
             | UiEvent::Paste(_)
+            | UiEvent::Gesture(_)
             | UiEvent::FileDrop(_)
             | UiEvent::WindowMetrics(_) => EventResponse::IGNORED,
         }

@@ -358,6 +358,56 @@ pub struct WheelEvent {
     pub modifiers: Modifiers,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Lifecycle phase shared by native continuous gestures.
+pub enum GesturePhase {
+    /// The gesture has started.
+    Started,
+    /// The gesture changed since its previous update.
+    Changed,
+    /// The gesture ended normally.
+    Ended,
+    /// The platform cancelled the gesture.
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+/// Native trackpad or touchscreen gesture kept independent from DOM events.
+pub enum GestureEvent {
+    /// Relative magnification; positive values zoom in.
+    Pinch {
+        /// Relative magnification since the previous update.
+        delta: f64,
+        /// Current gesture lifecycle phase.
+        phase: GesturePhase,
+    },
+    /// Relative translation in logical window pixels.
+    Pan {
+        /// Horizontal logical-pixel change.
+        delta_x: f64,
+        /// Vertical logical-pixel change.
+        delta_y: f64,
+        /// Current gesture lifecycle phase.
+        phase: GesturePhase,
+    },
+    /// Relative counter-clockwise rotation in degrees.
+    Rotation {
+        /// Relative counter-clockwise rotation in degrees.
+        delta: f64,
+        /// Current gesture lifecycle phase.
+        phase: GesturePhase,
+    },
+    /// Platform smart-zoom/double-tap gesture.
+    DoubleTap,
+    /// Force-touch pressure and platform click stage.
+    Pressure {
+        /// Normalized force in the inclusive range zero to one.
+        pressure: f64,
+        /// Platform click stage.
+        stage: i64,
+    },
+}
+
 /// Platform input-method lifecycle delivered to the focused native widget.
 /// Cursor offsets and delete ranges are UTF-8 byte offsets.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -473,6 +523,8 @@ pub enum UiEvent {
     Pointer(PointerEvent),
     /// Wheel or trackpad scrolling.
     Wheel(WheelEvent),
+    /// Native trackpad or touchscreen gesture.
+    Gesture(GestureEvent),
     /// Physical/logical keyboard transition.
     Key(KeyEvent),
     /// Text committed outside an IME composition.

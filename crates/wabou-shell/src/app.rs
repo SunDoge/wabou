@@ -17,7 +17,9 @@ use vello::peniko::Color;
 use winit::application::ApplicationHandler;
 use winit::cursor::{Cursor, CursorIcon};
 use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-use winit::event::{ButtonSource, ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{
+    ButtonSource, ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
+};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, KeyLocation as WinitKeyLocation, ModifiersState};
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -31,15 +33,24 @@ use crate::scene as scene_builder;
 use crate::shell::Shell;
 use crate::source::{
     ClipboardRequest, EventResponse, FileDropEvent, FileDropPhase, FrameSource, FrameStats,
-    HostAction, HostActionResult, ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point,
-    PointerButton, PointerEvent, PointerPhase, SemanticAction, SemanticRole, UiEvent, WakeCallback,
-    WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
+    GestureEvent, GesturePhase, HostAction, HostActionResult, ImeEvent, KeyEvent, KeyLocation,
+    KeyPhase, Modifiers, Point, PointerButton, PointerEvent, PointerPhase, SemanticAction,
+    SemanticRole, UiEvent, WakeCallback, WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
 };
 use crate::style::CursorStyle;
 use crate::window_lifecycle::{WindowCapabilities, WindowEffect, WindowIntent, WindowLifecycle};
 
 fn ms(d: std::time::Duration) -> f64 {
     d.as_secs_f64() * 1000.0
+}
+
+const fn gesture_phase(phase: TouchPhase) -> GesturePhase {
+    match phase {
+        TouchPhase::Started => GesturePhase::Started,
+        TouchPhase::Moved => GesturePhase::Changed,
+        TouchPhase::Ended => GesturePhase::Ended,
+        TouchPhase::Cancelled => GesturePhase::Cancelled,
+    }
 }
 
 fn allowed_external_url(raw: &str) -> Option<url::Url> {
@@ -1103,6 +1114,40 @@ impl ApplicationHandler for App {
                 ..
             } => self.handle_pointer_button(position, button, state),
             WindowEvent::MouseWheel { delta, .. } => self.handle_wheel(delta),
+            WindowEvent::PinchGesture { delta, phase, .. } => {
+                self.dispatch_event(UiEvent::Gesture(GestureEvent::Pinch {
+                    delta,
+                    phase: gesture_phase(phase),
+                }));
+            }
+            WindowEvent::PanGesture { delta, phase, .. } => {
+                let scale = self
+                    .state
+                    .as_ref()
+                    .map_or(1.0, |shell| shell.scale_factor());
+                self.dispatch_event(UiEvent::Gesture(GestureEvent::Pan {
+                    delta_x: f64::from(delta.x) / scale,
+                    delta_y: f64::from(delta.y) / scale,
+                    phase: gesture_phase(phase),
+                }));
+            }
+            WindowEvent::RotationGesture { delta, phase, .. } => {
+                self.dispatch_event(UiEvent::Gesture(GestureEvent::Rotation {
+                    delta: f64::from(delta),
+                    phase: gesture_phase(phase),
+                }));
+            }
+            WindowEvent::DoubleTapGesture { .. } => {
+                self.dispatch_event(UiEvent::Gesture(GestureEvent::DoubleTap));
+            }
+            WindowEvent::TouchpadPressure {
+                pressure, stage, ..
+            } => {
+                self.dispatch_event(UiEvent::Gesture(GestureEvent::Pressure {
+                    pressure: f64::from(pressure),
+                    stage,
+                }));
+            }
             WindowEvent::KeyboardInput { event, .. } => {
                 let phase = match event.state {
                     ElementState::Pressed => KeyPhase::Down,

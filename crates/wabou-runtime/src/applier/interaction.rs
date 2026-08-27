@@ -1,11 +1,7 @@
 use super::*;
 
 impl Applier {
-    fn update_hover_target(
-        &mut self,
-        target: Option<NodeKey>,
-        modifiers: Modifiers,
-    ) -> bool {
+    fn update_hover_target(&mut self, target: Option<NodeKey>, modifiers: Modifiers) -> bool {
         if target == self.interaction.input.hovered_target {
             return false;
         }

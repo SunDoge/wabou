@@ -1,6 +1,48 @@
 use super::*;
 
 impl Applier {
+    pub(super) fn handle_gesture(&mut self, gesture: wabou_shell::GestureEvent) -> EventResponse {
+        let phase = |phase| match phase {
+            wabou_shell::GesturePhase::Started => "started",
+            wabou_shell::GesturePhase::Changed => "changed",
+            wabou_shell::GesturePhase::Ended => "ended",
+            wabou_shell::GesturePhase::Cancelled => "cancelled",
+        };
+        let payload = match gesture {
+            wabou_shell::GestureEvent::Pinch {
+                delta,
+                phase: value,
+            } => serde_json::json!({ "type": "pinch", "delta": delta, "phase": phase(value) }),
+            wabou_shell::GestureEvent::Pan {
+                delta_x,
+                delta_y,
+                phase: value,
+            } => serde_json::json!({
+                "type": "pan", "deltaX": delta_x, "deltaY": delta_y, "phase": phase(value),
+            }),
+            wabou_shell::GestureEvent::Rotation {
+                delta,
+                phase: value,
+            } => serde_json::json!({
+                "type": "rotation", "delta": delta, "phase": phase(value),
+            }),
+            wabou_shell::GestureEvent::DoubleTap => serde_json::json!({ "type": "double-tap" }),
+            wabou_shell::GestureEvent::Pressure { pressure, stage } => serde_json::json!({
+                "type": "pressure", "pressure": pressure, "stage": stage,
+            }),
+        };
+        let event = HostEvent::Application(crate::host_message::HostMessage::str(
+            "wabou:gesture",
+            payload.to_string(),
+        ));
+        let handled = self.runtime.js.dispatch_host_frame(&[event]).is_ok();
+        EventResponse {
+            handled,
+            request_redraw: handled,
+            ..EventResponse::IGNORED
+        }
+    }
+
     pub(super) fn handle_file_drop(&mut self, event: wabou_shell::FileDropEvent) -> EventResponse {
         let phase = match event.phase {
             wabou_shell::FileDropPhase::Entered => "entered",
