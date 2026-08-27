@@ -1,64 +1,21 @@
 //! Typed request/reply workers for thread-affine native state.
 
-use std::{
-    panic::{AssertUnwindSafe, catch_unwind},
-    sync::{Arc, Mutex, mpsc},
-    thread::JoinHandle,
-};
-
-struct RequestEnvelope<Request, Response> {
-    request: Request,
-    reply: tokio::sync::oneshot::Sender<Result<Response, String>>,
-}
-
-struct WorkerInner<Request, Response> {
-    name: Arc<str>,
-    sender: Mutex<Option<mpsc::SyncSender<RequestEnvelope<Request, Response>>>>,
-    thread: Mutex<Option<JoinHandle<()>>>,
-}
-
-impl<Request, Response> WorkerInner<Request, Response> {
-    fn shutdown(&self) -> Result<(), String> {
-        self.sender
-            .lock()
-            .map_err(|_| format!("{} worker sender is poisoned", self.name))?
-            .take();
-        let thread = self
-            .thread
-            .lock()
-            .map_err(|_| format!("{} worker thread is poisoned", self.name))?
-            .take();
-        if let Some(thread) = thread {
-            thread
-                .join()
-                .map_err(|_| format!("{} worker thread panicked", self.name))?;
-        }
-        Ok(())
-    }
-}
-
-impl<Request, Response> Drop for WorkerInner<Request, Response> {
-    fn drop(&mut self) {
-        let _ = self.shutdown();
-    }
-}
-
-/// Cloneable request handle for a serial thread that exclusively owns native state.
-///
-/// State is initialized on the worker thread, which makes this suitable for
-/// inference engines and other thread-affine resources. Requests are processed
-/// in FIFO order. Dropping a request future does not cancel work already queued;
-/// only delivery of its result is abandoned.
-pub struct SerialWorker<Request, Response> {
-    inner: Arc<WorkerInner<Request, Response>>,
-}
+use crate::actor::ThreadActor;
 
 const DEFAULT_QUEUE_CAPACITY: usize = 64;
+
+/// Compatibility facade over Wabou's thread actor primitive.
+///
+/// State is initialized and exclusively owned by the actor thread. Requests
+/// use the actor's bounded mailbox and typed call/reply path.
+pub struct SerialWorker<Request, Response> {
+    actor: ThreadActor<Request, Response>,
+}
 
 impl<Request, Response> Clone for SerialWorker<Request, Response> {
     fn clone(&self) -> Self {
         Self {
-            inner: self.inner.clone(),
+            actor: self.actor.clone(),
         }
     }
 }
@@ -82,95 +39,53 @@ where
         Self::spawn_with_capacity(name, DEFAULT_QUEUE_CAPACITY, initialize, handle)
     }
 
-    /// Start a named worker with an explicit bounded request capacity.
+    /// Start a named worker with an explicit bounded mailbox capacity.
     pub fn spawn_with_capacity<State, Initialize, Handle>(
         name: impl Into<String>,
         capacity: usize,
         initialize: Initialize,
-        mut handle: Handle,
+        handle: Handle,
     ) -> Result<Self, String>
     where
         State: 'static,
         Initialize: FnOnce() -> Result<State, String> + Send + 'static,
         Handle: FnMut(&mut State, Request) -> Result<Response, String> + Send + 'static,
     {
-        if capacity == 0 {
-            return Err("serial worker queue capacity must be greater than zero".to_owned());
-        }
-        let name = Arc::<str>::from(name.into());
-        let thread_name = name.to_string();
-        let diagnostic_name = name.clone();
-        let (sender, receiver) = mpsc::sync_channel::<RequestEnvelope<Request, Response>>(capacity);
-        let thread = std::thread::Builder::new()
-            .name(thread_name)
-            .spawn(move || {
-                let initialized = catch_unwind(AssertUnwindSafe(initialize))
-                    .map_err(|_| format!("{diagnostic_name} worker initializer panicked"))
-                    .and_then(|result| result);
-                let mut state = match initialized {
-                    Ok(state) => state,
-                    Err(error) => {
-                        while let Ok(envelope) = receiver.recv() {
-                            let _ = envelope.reply.send(Err(error.clone()));
-                        }
-                        return;
-                    }
-                };
-                while let Ok(envelope) = receiver.recv() {
-                    let result =
-                        catch_unwind(AssertUnwindSafe(|| handle(&mut state, envelope.request)))
-                            .unwrap_or_else(|_| {
-                                Err(format!("{diagnostic_name} worker request panicked"))
-                            });
-                    let _ = envelope.reply.send(result);
-                }
-            })
-            .map_err(|error| format!("failed to start {name} worker: {error}"))?;
-        Ok(Self {
-            inner: Arc::new(WorkerInner {
-                name,
-                sender: Mutex::new(Some(sender)),
-                thread: Mutex::new(Some(thread)),
-            }),
-        })
+        ThreadActor::spawn(name, capacity, initialize, handle)
+            .map(|actor| Self { actor })
+            .map_err(|error| error.to_string())
     }
 
     /// Queue one request and asynchronously wait for its typed result.
     pub async fn request(&self, request: Request) -> Result<Response, String> {
-        let sender = self
-            .inner
-            .sender
-            .lock()
-            .map_err(|_| format!("{} worker sender is poisoned", self.inner.name))?
-            .clone()
-            .ok_or_else(|| format!("{} worker has stopped", self.inner.name))?;
-        let (reply, result) = tokio::sync::oneshot::channel();
-        match sender.try_send(RequestEnvelope { request, reply }) {
-            Ok(()) => {}
-            Err(mpsc::TrySendError::Full(_)) => {
-                return Err(format!("{} worker queue is full", self.inner.name));
-            }
-            Err(mpsc::TrySendError::Disconnected(_)) => {
-                return Err(format!("{} worker has stopped", self.inner.name));
-            }
-        }
-        result
+        self.actor
+            .call(request)
             .await
-            .map_err(|_| format!("{} worker stopped before replying", self.inner.name))?
+            .map_err(|error| error.to_string())
     }
 
-    /// Stop accepting requests, drain queued work, and join the worker thread.
+    /// Queue a fire-and-forget message without allocating a reply channel.
+    pub fn send(&self, request: Request) -> Result<(), String> {
+        self.actor.tell(request).map_err(|error| error.to_string())
+    }
+
+    /// Return the process-local actor identity used by diagnostics and tracing.
+    pub fn actor_id(&self) -> u64 {
+        self.actor.id()
+    }
+
+    /// Stop accepting requests, drain queued work, and join the actor thread.
     pub fn shutdown(&self) -> Result<(), String> {
-        self.inner.shutdown()
+        self.actor.shutdown().map_err(|error| error.to_string())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::SerialWorker;
 
     #[test]
-    fn initializes_and_serializes_state_on_the_named_thread() {
+    fn preserves_serial_worker_api_and_thread_affinity() {
         let worker = SerialWorker::spawn(
             "counter-worker",
             || Ok::<_, String>(0_u32),
@@ -181,8 +96,7 @@ mod tests {
             },
         )
         .unwrap();
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
+        let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .unwrap();
@@ -193,25 +107,23 @@ mod tests {
     }
 
     #[test]
-    fn reports_initializer_and_request_panics_as_errors() {
+    fn preserves_initializer_and_handler_errors() {
         let failed = SerialWorker::<(), ()>::spawn(
             "failed-worker",
-            || -> Result<(), String> { panic!("init") },
+            || Err::<(), _>("cannot initialize".to_owned()),
             |_, _| Ok(()),
-        )
-        .unwrap();
-        let panics = SerialWorker::spawn(
-            "panic-worker",
-            || Ok::<_, String>(()),
-            |_, _: ()| -> Result<(), String> { panic!("request") },
         )
         .unwrap();
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .unwrap();
-        assert!(runtime.block_on(failed.request(())).is_err());
-        assert!(runtime.block_on(panics.request(())).is_err());
+        assert!(
+            runtime
+                .block_on(failed.request(()))
+                .unwrap_err()
+                .contains("cannot initialize")
+        );
     }
 
     #[test]

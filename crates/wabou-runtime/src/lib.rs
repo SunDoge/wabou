@@ -7,6 +7,7 @@
 
 #![warn(missing_docs)]
 
+mod actor;
 mod applier;
 mod asset_cache;
 mod atom;
