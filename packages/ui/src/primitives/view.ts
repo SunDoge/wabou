@@ -450,6 +450,12 @@ export function CodeEditor(props: CodeEditorProps): JSX.Element {
       get widgetConfig() {
         return widgetConfig();
       },
+      onInput(event: { currentTarget: { value: string } }) {
+        if (props.disabled || props.readOnly) return;
+        document.sync(event.currentTarget.value, props.language);
+        invalidate();
+        emitInput();
+      },
       onKeyDown(event: WabouKeyEvent) {
         if (!props.disabled) {
           const result = document.handleKey({
@@ -499,7 +505,9 @@ export function CodeEditor(props: CodeEditorProps): JSX.Element {
         }
         props.onImeDeleteSurrounding?.(event);
       },
-      onImeDisabled(event: Parameters<NonNullable<PrimitiveProps["onImeDisabled"]>>[0]) {
+      onImeDisabled(
+        event: Parameters<NonNullable<PrimitiveProps["onImeDisabled"]>>[0],
+      ) {
         if (document.setComposition("", null, null)) invalidate();
         props.onImeDisabled?.(event);
       },
