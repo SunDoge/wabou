@@ -392,14 +392,14 @@ enum ViteMessage {
     },
     CssUpdate {
         accepted_path: String,
-        timestamp: u64,
     },
     FullReload,
 }
 
 /// Start a Vite HMR client on a background thread. Connects to the Vite dev
 /// server's WebSocket, fetches updated module/stylesheet sources via blocking
-/// HTTP, and forwards them to the Applier through `reload`.
+/// HTTP, and forwards them to the Applier through `reload`. CSS notifications
+/// carry only their path because Wabou styles are delivered as Style IR.
 pub struct HmrClient {
     stop: Arc<AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
@@ -496,19 +496,11 @@ pub fn start_hmr_client(
                             }
                         }
                     }
-                    ViteMessage::CssUpdate {
-                        accepted_path,
-                        timestamp,
-                    } => match fetch_module(&client, &server_url, &accepted_path, timestamp) {
-                        Ok(source) => reload.send(crate::ReloadMsg::CssUpdate {
-                            path: accepted_path.clone(),
-                            source,
-                        }),
-                        Err(error) => {
-                            tracing::error!(?error, "failed to fetch Vite stylesheet update");
-                            continue;
-                        }
-                    },
+                    ViteMessage::CssUpdate { accepted_path } => {
+                        reload.send(crate::ReloadMsg::CssUpdate {
+                            path: accepted_path,
+                        })
+                    }
                     ViteMessage::FullReload => reload.send(crate::ReloadMsg::FullReload),
                 };
                 if result.is_err() {
@@ -574,10 +566,8 @@ fn messages(payload: VitePayload) -> Vec<ViteMessage> {
                         .map_or(accepted_path.as_str(), |(path, _)| path)
                         .ends_with(".css")
                     {
-                        Some(ViteMessage::CssUpdate {
-                            accepted_path,
-                            timestamp,
-                        })
+                        let _ = timestamp;
+                        Some(ViteMessage::CssUpdate { accepted_path })
                     } else {
                         Some(ViteMessage::Update {
                             path,
@@ -589,10 +579,10 @@ fn messages(payload: VitePayload) -> Vec<ViteMessage> {
                 ViteUpdate::CssUpdate {
                     accepted_path,
                     timestamp,
-                } => Some(ViteMessage::CssUpdate {
-                    accepted_path,
-                    timestamp,
-                }),
+                } => {
+                    let _ = timestamp;
+                    Some(ViteMessage::CssUpdate { accepted_path })
+                }
                 ViteUpdate::Other => None,
             })
             .collect(),
@@ -697,7 +687,6 @@ mod tests {
             messages(css_update),
             vec![ViteMessage::CssUpdate {
                 accepted_path: "/@id/__x00__virtual:uno.css".to_owned(),
-                timestamp: 42,
             }]
         );
     }

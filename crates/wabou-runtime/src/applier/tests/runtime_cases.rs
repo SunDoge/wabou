@@ -582,7 +582,6 @@ fn hmr_batch_coalesces_full_reload_over_partial_updates() {
         },
         ReloadMsg::CssUpdate {
             path: "/x.css".into(),
-            source: "body{}".into(),
         },
         ReloadMsg::FullReload,
         ReloadMsg::HmrUpdate {
@@ -740,8 +739,18 @@ fn hmr_queue_full_reload_is_drained_as_full_reload_result() {
     })
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let wakes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let callback_wakes = wakes.clone();
+    FrameSource::set_wake_callback(
+        &mut applier,
+        Arc::new(move || {
+            callback_wakes.fetch_add(1, Ordering::Relaxed);
+        }),
+    );
     let handle = applier.reload_handle();
     handle.send(ReloadMsg::FullReload).unwrap();
+    assert_eq!(wakes.load(Ordering::Relaxed), 1);
+    assert!(FrameSource::poll_async(&mut applier));
     let mut text = TextContext::new();
     applier.build_frame(&mut text, 100, 100);
     assert!(matches!(

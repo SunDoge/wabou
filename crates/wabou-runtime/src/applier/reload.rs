@@ -1,5 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, mpsc};
+use std::sync::{Arc, Mutex, mpsc};
+
+use wabou_shell::WakeCallback;
 
 /// A Vite HMR signal forwarded from the background HMR client to the applier.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,8 +23,6 @@ pub enum ReloadMsg {
     CssUpdate {
         /// CSS module path reported by Vite.
         path: String,
-        /// CSS source retained only for diagnostics.
-        source: String,
     },
     /// Vite requested a complete entry re-import.
     FullReload,
@@ -51,6 +51,7 @@ pub enum HmrDrainResult {
 pub struct ReloadHandle {
     tx: mpsc::Sender<ReloadMsg>,
     pending: Arc<AtomicBool>,
+    wake: Arc<Mutex<Option<WakeCallback>>>,
 }
 
 impl ReloadHandle {
@@ -58,6 +59,11 @@ impl ReloadHandle {
     pub fn send(&self, message: ReloadMsg) -> Result<(), mpsc::SendError<ReloadMsg>> {
         self.tx.send(message)?;
         self.pending.store(true, Ordering::Release);
+        if let Ok(wake) = self.wake.lock()
+            && let Some(wake) = wake.as_ref()
+        {
+            wake();
+        }
         Ok(())
     }
 }
@@ -81,6 +87,7 @@ pub(super) struct HmrJsUpdate {
 pub(super) struct ReloadState {
     receiver: Option<mpsc::Receiver<ReloadMsg>>,
     pending: Arc<AtomicBool>,
+    wake: Arc<Mutex<Option<WakeCallback>>>,
     vite_entry: Option<String>,
     last_result: HmrDrainResult,
 }
@@ -90,6 +97,7 @@ impl Default for ReloadState {
         Self {
             receiver: None,
             pending: Arc::new(AtomicBool::new(false)),
+            wake: Arc::new(Mutex::new(None)),
             vite_entry: None,
             last_result: HmrDrainResult::Idle,
         }
@@ -103,11 +111,15 @@ impl ReloadState {
         ReloadHandle {
             tx,
             pending: self.pending.clone(),
+            wake: self.wake.clone(),
         }
     }
 
     pub(super) fn drain(&self) -> Option<HmrBatch> {
         let receiver = self.receiver.as_ref()?;
+        // Clear before draining. A concurrent send then sets `pending` again
+        // and wakes the event loop, rather than being hidden by a later clear.
+        self.pending.store(false, Ordering::Release);
         let messages: Vec<_> = receiver.try_iter().collect();
         (!messages.is_empty()).then(|| plan_hmr_batch(messages))
     }
@@ -116,8 +128,10 @@ impl ReloadState {
         self.pending.load(Ordering::Acquire)
     }
 
-    pub(super) fn clear_pending(&self) {
-        self.pending.store(false, Ordering::Release);
+    pub(super) fn set_wake(&self, wake: WakeCallback) {
+        if let Ok(mut slot) = self.wake.lock() {
+            *slot = Some(wake);
+        }
     }
 
     pub(super) fn set_vite_entry(&mut self, entry: impl Into<String>) {
@@ -158,8 +172,44 @@ pub(super) fn plan_hmr_batch(msgs: impl IntoIterator<Item = ReloadMsg>) -> HmrBa
                 timestamp,
                 source,
             }),
-            ReloadMsg::CssUpdate { path, .. } => batch.css_paths.push(path),
+            ReloadMsg::CssUpdate { path } => batch.css_paths.push(path),
         }
     }
     batch
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::{ReloadMsg, ReloadState};
+
+    #[test]
+    fn sending_wakes_an_idle_event_loop() {
+        let mut state = ReloadState::default();
+        let handle = state.handle();
+        let wakes = std::sync::Arc::new(AtomicUsize::new(0));
+        let callback_wakes = wakes.clone();
+        state.set_wake(std::sync::Arc::new(move || {
+            callback_wakes.fetch_add(1, Ordering::Relaxed);
+        }));
+
+        handle.send(ReloadMsg::FullReload).unwrap();
+
+        assert!(state.is_pending());
+        assert_eq!(wakes.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn draining_consumes_the_pending_signal_with_the_batch() {
+        let mut state = ReloadState::default();
+        let handle = state.handle();
+        handle.send(ReloadMsg::FullReload).unwrap();
+
+        let batch = state.drain().expect("queued HMR batch");
+
+        assert!(batch.full_reload);
+        assert!(!state.is_pending());
+        assert!(state.drain().is_none());
+    }
 }

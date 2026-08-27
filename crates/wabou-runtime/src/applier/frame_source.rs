@@ -149,7 +149,6 @@ impl Applier {
         if !matches!(hmr, HmrDrainResult::Idle) {
             self.runtime.reload.record_result(hmr);
         }
-        self.runtime.reload.clear_pending();
         self.drain_host_messages();
         self.dispatch_scroll_changes();
 
@@ -860,6 +859,7 @@ impl FrameSource for Applier {
             widget.set_wake_callback(wake.clone());
         }
         self.runtime.host_message_inbox.set_wake(wake.clone());
+        self.runtime.reload.set_wake(wake.clone());
         self.runtime.effect_bridge.set_wake_callback(wake.clone());
         self.runtime.wake_callback = Some(wake);
     }
@@ -872,6 +872,7 @@ impl FrameSource for Applier {
         // tray/background applications keep responding while their native
         // surface is hidden or has been released.
         let host_messages_pending = self.runtime.host_message_inbox.has_pending();
+        let hmr_pending = self.runtime.reload.is_pending();
         if host_messages_pending {
             self.drain_host_messages();
         }
@@ -920,6 +921,7 @@ impl FrameSource for Applier {
             || was_woken
             || js_progressed
             || host_messages_pending
+            || hmr_pending
             || screenshot_pending
             || overlay_changed
     }

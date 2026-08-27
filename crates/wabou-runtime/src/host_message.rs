@@ -510,6 +510,9 @@ impl HostMessageInbox {
     }
 
     pub(crate) fn drain_batch(&self) -> Vec<HostMessage> {
+        // Clear before draining. A concurrent producer then restores pending
+        // and wakes the UI thread instead of having its signal overwritten.
+        self.pending.store(false, Ordering::Release);
         let mut batch = Vec::new();
         while batch.len() < MAX_HOST_MESSAGES_PER_FRAME {
             match self.rx.try_recv() {
@@ -519,8 +522,6 @@ impl HostMessageInbox {
         }
         if batch.len() >= MAX_HOST_MESSAGES_PER_FRAME {
             self.pending.store(true, Ordering::Release);
-        } else {
-            self.pending.store(false, Ordering::Release);
         }
         batch
     }
