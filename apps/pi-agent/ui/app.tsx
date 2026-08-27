@@ -1,7 +1,11 @@
 import {
   Button,
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
   Icon,
-  Input,
   MessageGroup,
   MessageScroller,
   MessageScrollerButton,
@@ -29,107 +33,9 @@ import {
 import { usePiApi } from "./api";
 import { ConversationItem } from "./conversation";
 import { i18n, m } from "./i18n";
+import { type AgentDefaults, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
 import { type AgentWorkspace, createAgentWorkspace } from "./workspace";
-
-interface AgentDefaults {
-  proxy: string;
-  noProxy: string;
-  provider: string;
-  model: string;
-}
-
-function SettingsPage(props: {
-  value: AgentDefaults;
-  update: (patch: Partial<AgentDefaults>) => void;
-  close: () => void;
-}) {
-  return (
-    <View class="flex-1 min-w-0 min-h-0 overflow-y-auto bg-canvas p-8">
-      <View class="max-w-3xl mx-auto gap-6">
-        <View class="gap-1">
-          <Text class="text-2xl font-semibold">
-            {i18n.message(m.settings, {})}
-          </Text>
-          <Text class="text-sm text-muted whitespace-normal">
-            {i18n.message(m.settings_intro, {})}
-          </Text>
-        </View>
-        <View class="rounded-xl border border-subtle bg-surface p-5 gap-3 shadow-sm">
-          <Text class="font-semibold">{i18n.message(m.language, {})}</Text>
-          <View class="flex gap-2">
-            <Button
-              variant={i18n.locale() === "en" ? "default" : "outline"}
-              onClick={() => i18n.set("en")}
-            >
-              {i18n.message(m.english, {})}
-            </Button>
-            <Button
-              variant={i18n.locale() === "zh" ? "default" : "outline"}
-              onClick={() => i18n.set("zh")}
-            >
-              {i18n.message(m.chinese, {})}
-            </Button>
-          </View>
-        </View>
-        <View class="rounded-xl border border-subtle bg-surface p-5 gap-3 shadow-sm">
-          <Text class="font-semibold">
-            {i18n.message(m.default_provider, {})}
-          </Text>
-          <Input
-            aria-label="Default provider"
-            value={props.value.provider}
-            placeholder={i18n.message(m.provider_placeholder, {})}
-            onInput={(event) =>
-              props.update({ provider: event.currentTarget.value })
-            }
-          />
-          <Input
-            aria-label="Default model"
-            value={props.value.model}
-            placeholder={i18n.message(m.model_optional, {})}
-            onInput={(event) =>
-              props.update({ model: event.currentTarget.value })
-            }
-          />
-        </View>
-        <View class="rounded-xl border border-subtle bg-surface p-5 gap-3 shadow-sm">
-          <Text class="font-semibold">{i18n.message(m.default_proxy, {})}</Text>
-          <Input
-            aria-label="Default proxy URL"
-            value={props.value.proxy}
-            placeholder="http://127.0.0.1:7890"
-            onInput={(event) =>
-              props.update({ proxy: event.currentTarget.value })
-            }
-          />
-          <Input
-            aria-label="Default proxy bypass list"
-            value={props.value.noProxy}
-            onInput={(event) =>
-              props.update({ noProxy: event.currentTarget.value })
-            }
-          />
-          <Text class="text-sm text-muted whitespace-normal">
-            {i18n.message(m.proxy_detail, {})}
-          </Text>
-        </View>
-        <View class="rounded-xl border border-subtle bg-surface p-5 gap-2 shadow-sm">
-          <Text class="font-semibold">{i18n.message(m.runtime, {})}</Text>
-          <Text class="text-sm text-secondary">
-            {i18n.message(m.runtime_kind, {})}
-          </Text>
-          <Text class="text-sm text-muted whitespace-normal">
-            {i18n.message(m.runtime_detail, {})}
-          </Text>
-        </View>
-        <Button variant="outline" onClick={props.close}>
-          {i18n.message(m.back_to_agents, {})}
-        </Button>
-      </View>
-    </View>
-  );
-}
 
 export function App() {
   const api = usePiApi();
@@ -146,7 +52,6 @@ export function App() {
   ]);
   const [activeId, setActiveId] = createSignal("agent-1");
   const [draft, setDraft] = createSignal("");
-  const [pendingAgent, setPendingAgent] = createSignal<string>();
   let nextAgent = 2;
   let nextMessage = 1;
 
@@ -217,7 +122,6 @@ export function App() {
 
   const start = async (): Promise<boolean> => {
     const agent = active();
-    setPendingAgent(agent.id);
     try {
       const status = await api.start({
         agentId: agent.id,
@@ -243,8 +147,6 @@ export function App() {
         },
       }));
       return false;
-    } finally {
-      setPendingAgent(undefined);
     }
   };
 
@@ -289,15 +191,11 @@ export function App() {
       <Sidebar
         agents={agents()}
         activeId={active().id}
-        active={active()}
-        pending={pendingAgent() === active().id}
         select={(id) => {
           setActiveId(id);
           setDraft("");
         }}
         add={addAgent}
-        update={patchActive}
-        start={start}
         openSettings={() => navigate({ to: "/settings" })}
       />
 
@@ -306,9 +204,11 @@ export function App() {
         fallback={
           <SettingsPage
             value={defaults()}
+            agent={active()}
             update={(patch) =>
               setDefaults((current) => ({ ...current, ...patch }))
             }
+            updateAgent={patchActive}
             close={() => navigate({ to: "/" })}
           />
         }
@@ -383,17 +283,19 @@ export function App() {
                 <Show
                   when={active().state.items.length > 0}
                   fallback={
-                    <View class="flex-1 min-h-72 items-center justify-center gap-3">
-                      <View class="w-12 h-12 rounded-xl bg-selected flex items-center justify-center">
-                        <Icon source={bot} size={24} class="text-accent" />
-                      </View>
-                      <Text class="text-lg font-semibold">
-                        {i18n.message(m.empty_title, {})}
-                      </Text>
-                      <Text class="max-w-md text-center text-sm text-muted whitespace-normal">
-                        {i18n.message(m.empty_detail, {})}
-                      </Text>
-                    </View>
+                    <Empty variant="plain" class="min-h-72">
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                          <Icon source={bot} size={20} class="text-accent" />
+                        </EmptyMedia>
+                        <EmptyTitle>
+                          {i18n.message(m.empty_title, {})}
+                        </EmptyTitle>
+                        <EmptyDescription>
+                          {i18n.message(m.empty_detail, {})}
+                        </EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
                   }
                 >
                   <MessageGroup>

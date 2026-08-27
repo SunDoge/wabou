@@ -634,7 +634,7 @@ function Card(props) {
 	const rest = omit(props, "class", "children", "shadows");
 	return createComponent$1(View, mergeProps(rest, {
 		get ["class"]() {
-			return mergeClasses("min-w-0 min-h-0 flex flex-col overflow-hidden rounded-lg border border-subtle bg-surface", props.class);
+			return mergeClasses("min-w-0 min-h-0 flex-none flex flex-col overflow-hidden rounded-lg border border-subtle bg-surface", props.class);
 		},
 		get shadows() {
 			return memo(() => {

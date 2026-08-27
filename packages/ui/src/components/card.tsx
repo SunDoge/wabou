@@ -14,7 +14,7 @@ export function Card(props: CardProps): JSX.Element {
     <View
       {...rest}
       class={mergeClasses(
-        "min-w-0 min-h-0 flex flex-col overflow-hidden rounded-lg border border-subtle bg-surface",
+        "min-w-0 min-h-0 flex-none flex flex-col overflow-hidden rounded-lg border border-subtle bg-surface",
         props.class,
       )}
       shadows={
