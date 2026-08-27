@@ -28,3 +28,44 @@ test("Pi Agent renders assistant Markdown but preserves user source text", () =>
   expect(user.queryByRole("region", { name: "Assistant response" })).toBeNull();
   expect(user.roots[0]?.text).toContain("**keep source**");
 });
+
+test("Pi Agent exposes streaming progress without wrapping assistant prose in a card", () => {
+  const screen = renderComponent(() => (
+    <ConversationItem
+      item={{
+        id: "assistant-streaming",
+        kind: "assistant",
+        text: "## Working\n\nReading the repository…",
+        streaming: true,
+      }}
+    />
+  ));
+
+  expect(screen.getByRole("status", { name: "Pi is writing" }).text).toContain(
+    "Writing",
+  );
+  const response = screen.getByRole("region", { name: "Assistant response" });
+  expect(response.className).toContain("gap-2.5");
+  expect(response.parent?.className).toBe(
+    "max-w-full min-w-0 overflow-hidden rounded-xl border p-0 border-transparent bg-transparent text-primary",
+  );
+});
+
+test("Pi Agent messages enter with finite native motion", async () => {
+  const screen = renderComponent(
+    () => (
+      <ConversationItem
+        item={{ id: "assistant-motion", kind: "assistant", text: "Ready." }}
+      />
+    ),
+    { clock: "fake" },
+  );
+  const message = screen.roots[0];
+  expect(message?.transform?.[5]).toBe(5);
+  expect(message?.style("opacity")).toEqual({ kind: 3, value: 0 });
+
+  await screen.advanceTime(200);
+
+  expect(message?.transform?.[5]).toBe(0);
+  expect(message?.style("opacity")).toEqual({ kind: 3, value: 1 });
+});

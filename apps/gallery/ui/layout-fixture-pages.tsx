@@ -12,6 +12,7 @@ import {
   ImageListLayoutFixture,
   ImageViewportLayoutFixture,
   InputGroupLayoutFixture,
+  MarkdownConversationLayoutFixture,
   MarkdownInlineLayoutFixture,
   MessageLayoutFixture,
   QRCodeLayoutFixture,
@@ -116,6 +117,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 360,
         height: 120,
         render: MarkdownInlineLayoutFixture,
+      },
+      "component/MarkdownConversation": {
+        width: 720,
+        height: 520,
+        render: MarkdownConversationLayoutFixture,
       },
       "component/CodeEditor": {
         width: 520,

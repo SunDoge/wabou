@@ -5007,7 +5007,9 @@ function inlineText(tokens) {
 }
 function InlineMarkdown(props) {
 	return createComponent$1(RichText, {
-		class: "min-w-0 text-secondary whitespace-normal",
+		get ["class"]() {
+			return mergeClasses("min-w-0 whitespace-normal", props.variant === "conversation" ? "text-sm leading-relaxed text-primary" : "text-base leading-relaxed text-secondary");
+		},
 		get children() {
 			return createComponent$1(For, {
 				get each() {
@@ -5055,6 +5057,24 @@ function InlineMarkdown(props) {
 }
 function Heading(props) {
 	const text = () => inlineText(props.token.tokens);
+	if (props.variant === "conversation") {
+		const className = () => {
+			switch (props.token.depth) {
+				case 1: return "text-2xl font-semibold text-primary whitespace-normal";
+				case 2: return "text-xl font-semibold text-primary whitespace-normal";
+				case 3: return "text-lg font-semibold text-primary whitespace-normal";
+				default: return "text-base font-semibold text-primary whitespace-normal";
+			}
+		};
+		return createComponent$1(Text, {
+			get ["class"]() {
+				return className();
+			},
+			get children() {
+				return text();
+			}
+		});
+	}
 	switch (props.token.depth) {
 		case 1: return createComponent$1(TypographyH1, { get children() {
 			return text();
@@ -5073,7 +5093,9 @@ function Heading(props) {
 function MarkdownList(props) {
 	const start = typeof props.token.start === "number" ? props.token.start : 1;
 	return createComponent$1(View, {
-		class: "flex flex-col gap-2",
+		get ["class"]() {
+			return props.variant === "conversation" ? "flex flex-col gap-1.5" : "flex flex-col gap-2";
+		},
 		get children() {
 			return createComponent$1(For, {
 				get each() {
@@ -5093,11 +5115,52 @@ function MarkdownList(props) {
 						}), createComponent$1(View, {
 							class: "min-w-0 flex-1",
 							get children() {
-								return createComponent$1(InlineMarkdown, { get tokens() {
-									return item.tokens;
-								} });
+								return createComponent$1(InlineMarkdown, {
+									get tokens() {
+										return item.tokens;
+									},
+									get variant() {
+										return props.variant;
+									}
+								});
 							}
 						})];
+					}
+				})
+			});
+		}
+	});
+}
+function MarkdownTable(props) {
+	const rows = () => [props.token.header, ...props.token.rows];
+	return createComponent$1(View, {
+		class: "min-w-0 overflow-hidden rounded-lg border border-subtle",
+		get children() {
+			return createComponent$1(For, {
+				get each() {
+					return rows();
+				},
+				children: (row, rowIndex) => createComponent$1(View, {
+					get ["class"]() {
+						return mergeClasses("min-w-0 flex flex-row border-b border-subtle", rowIndex() === 0 ? "bg-control" : "bg-surface");
+					},
+					get children() {
+						return createComponent$1(For, {
+							each: row,
+							children: (cell) => createComponent$1(View, {
+								class: "min-w-0 flex-1 px-3 py-2 border-r border-subtle",
+								get children() {
+									return createComponent$1(InlineMarkdown, {
+										get tokens() {
+											return cell.tokens;
+										},
+										get variant() {
+											return props.variant;
+										}
+									});
+								}
+							})
+						});
 					}
 				})
 			});
@@ -5107,14 +5170,40 @@ function MarkdownList(props) {
 function MarkdownBlock(props) {
 	const token = props.token;
 	switch (token.type) {
-		case "heading": return createComponent$1(Heading, { token });
-		case "paragraph": return createComponent$1(InlineMarkdown, { get tokens() {
-			return token.tokens;
-		} });
-		case "blockquote": return createComponent$1(TypographyBlockquote, { get children() {
-			return inlineText(token.tokens);
-		} });
-		case "list": return createComponent$1(MarkdownList, { token });
+		case "heading": return createComponent$1(Heading, {
+			token,
+			get variant() {
+				return props.variant;
+			}
+		});
+		case "paragraph": return createComponent$1(InlineMarkdown, {
+			get tokens() {
+				return token.tokens;
+			},
+			get variant() {
+				return props.variant;
+			}
+		});
+		case "blockquote": return createComponent$1(TypographyBlockquote, {
+			get ["class"]() {
+				return props.variant === "conversation" ? "text-sm" : void 0;
+			},
+			get children() {
+				return inlineText(token.tokens);
+			}
+		});
+		case "list": return createComponent$1(MarkdownList, {
+			token,
+			get variant() {
+				return props.variant;
+			}
+		});
+		case "table": return createComponent$1(MarkdownTable, {
+			token,
+			get variant() {
+				return props.variant;
+			}
+		});
 		case "code": return createComponent$1(CodeBlock, {
 			get code() {
 				return token.text;
@@ -5130,28 +5219,39 @@ function MarkdownBlock(props) {
 			class: "text-sm text-muted whitespace-normal",
 			children: "HTML blocks are intentionally not rendered."
 		});
-		default: return "tokens" in token && Array.isArray(token.tokens) ? createComponent$1(InlineMarkdown, { get tokens() {
-			return token.tokens;
-		} }) : null;
+		default: return "tokens" in token && Array.isArray(token.tokens) ? createComponent$1(InlineMarkdown, {
+			get tokens() {
+				return token.tokens;
+			},
+			get variant() {
+				return props.variant;
+			}
+		}) : null;
 	}
 }
 /** Parses GFM in JavaScript and renders native Wabou components, without HTML or a DOM. */
 function Markdown(props) {
 	const tokens = createMemo(() => lexer(props.source, { gfm: true }));
+	const variant = () => props.variant ?? "document";
 	return createComponent$1(View, {
 		role: "region",
 		get ["aria-label"]() {
 			return props["aria-label"] ?? "Markdown";
 		},
 		get ["class"]() {
-			return mergeClasses("min-w-0 flex flex-col gap-4", props.class);
+			return mergeClasses("min-w-0 flex flex-col", variant() === "conversation" ? "gap-2.5" : "gap-4", props.class);
 		},
 		get children() {
 			return createComponent$1(For, {
 				get each() {
 					return tokens();
 				},
-				children: (token) => createComponent$1(MarkdownBlock, { token })
+				children: (token) => createComponent$1(MarkdownBlock, {
+					token,
+					get variant() {
+						return variant();
+					}
+				})
 			});
 		}
 	});

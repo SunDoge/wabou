@@ -18,6 +18,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
   InputGroupText,
+  Markdown,
   Message,
   MessageContent,
   MessageGroup,
@@ -41,6 +42,20 @@ export function MarkdownInlineLayoutFixture() {
   return (
     <View class="w-80 p-4 bg-canvas">
       <MarkdownPreview source="Before `code` after." />
+    </View>
+  );
+}
+
+export function MarkdownConversationLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-5 bg-canvas">
+      <Markdown
+        variant="conversation"
+        aria-label="Conversation Markdown fixture"
+        source={
+          "## Change\n\nUpdated the request path and kept `healthz` backward compatible.\n\n- Added validation\n- Preserved existing callers\n\n| Check | Result |\n| --- | --- |\n| Types | Passed |\n| Layout | Passed |\n\n```sh\ncargo test -p server\n```"
+        }
+      />
     </View>
   );
 }

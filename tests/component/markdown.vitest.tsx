@@ -25,3 +25,21 @@ test("renders reactive GFM as native semantic components", () => {
   );
   expect(screen.queryByRole("group", { name: "Code block" })).toBeNull();
 });
+
+test("renders compact conversation Markdown including GFM tables", () => {
+  const screen = renderComponent(() => (
+    <Markdown
+      variant="conversation"
+      aria-label="Compact response"
+      source={
+        "## Result\n\n| File | State |\n| --- | --- |\n| api.ts | Updated |"
+      }
+    />
+  ));
+
+  const response = screen.getByRole("region", { name: "Compact response" });
+  expect(response.className).toContain("gap-2.5");
+  expect(response.text).toContain("FileState");
+  expect(response.text).toContain("api.tsUpdated");
+  expect(response.snapshot()).toMatchObject({ role: "region" });
+});
