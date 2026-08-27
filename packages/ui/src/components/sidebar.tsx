@@ -151,11 +151,13 @@ export function SidebarMenuButton(props: SidebarMenuButtonProps): JSX.Element {
       class={(state) =>
         mergeClasses(
           "w-full min-w-0 h-8 px-3 justify-start gap-2 rounded-md text-sm",
-          state.selected
-            ? "bg-selected text-primary"
+          state.pressed
+            ? "bg-control-pressed text-primary"
             : state.hovered
               ? "bg-control-hover text-primary"
-              : "bg-transparent text-secondary",
+              : state.selected
+                ? "bg-selected text-primary"
+                : "bg-transparent text-secondary",
           state.focusVisible && "border border-focus",
           props.class,
         )

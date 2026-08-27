@@ -39,4 +39,9 @@ test("returns to an existing agent after creating a new one", () => {
   expect(first.className).toContain("bg-selected");
   expect(second.selected).toBe(false);
   expect(second.className).not.toContain("bg-selected");
+
+  first.hover();
+  expect(first.className).toContain("bg-control-hover");
+  first.unhover();
+  expect(first.className).toContain("bg-selected");
 });
