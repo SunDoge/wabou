@@ -1,7 +1,7 @@
 import {
+  Button,
   CodeBlock,
   CodeEditor,
-  Button,
   PrimitiveLink,
   Separator,
   Text,
@@ -67,30 +67,48 @@ function inlineText(tokens: Token[]): string {
     .join("");
 }
 
+function inlinePieces(text: string): string[] {
+  return text.split(/(\s+)/).filter(Boolean);
+}
+
+function InlineTextPieces(props: { text: string; class: string }): JSX.Element {
+  return (
+    <For each={inlinePieces(props.text)}>
+      {(piece) => <Text class={props.class}>{piece}</Text>}
+    </For>
+  );
+}
+
 function InlineMarkdown(props: { tokens: Token[] }): JSX.Element {
   return (
-    <View class="min-w-0 flex flex-row flex-wrap items-baseline gap-1">
+    <View class="min-w-0 flex flex-row flex-wrap items-baseline">
       <For each={props.tokens}>
         {(token) => {
           switch (token.type) {
             case "strong": {
               const strong = token as Tokens.Strong;
               return (
-                <Text class="font-semibold text-primary whitespace-normal">
-                  {inlineText(strong.tokens)}
-                </Text>
+                <InlineTextPieces
+                  text={inlineText(strong.tokens)}
+                  class="font-semibold text-primary whitespace-normal"
+                />
               );
             }
             case "em": {
               const emphasis = token as Tokens.Em;
               return (
-                <Text class="text-primary whitespace-normal">
-                  {inlineText(emphasis.tokens)}
-                </Text>
+                <InlineTextPieces
+                  text={inlineText(emphasis.tokens)}
+                  class="text-primary whitespace-normal"
+                />
               );
             }
             case "codespan":
-              return <TypographyInlineCode>{token.text}</TypographyInlineCode>;
+              return (
+                <TypographyInlineCode class="font-normal">
+                  {token.text}
+                </TypographyInlineCode>
+              );
             case "link": {
               const link = token as Tokens.Link;
               return (
@@ -108,13 +126,16 @@ function InlineMarkdown(props: { tokens: Token[] }): JSX.Element {
               return <View class="w-full h-0" />;
             default:
               return (
-                <Text class="text-secondary whitespace-normal">
-                  {"tokens" in token && Array.isArray(token.tokens)
-                    ? inlineText(token.tokens)
-                    : "text" in token && typeof token.text === "string"
-                      ? token.text
-                      : token.raw}
-                </Text>
+                <InlineTextPieces
+                  text={
+                    "tokens" in token && Array.isArray(token.tokens)
+                      ? inlineText(token.tokens)
+                      : "text" in token && typeof token.text === "string"
+                        ? token.text
+                        : token.raw
+                  }
+                  class="text-secondary whitespace-normal"
+                />
               );
           }
         }}

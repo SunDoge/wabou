@@ -248,6 +248,57 @@ fn text_input_updates_value_paints_and_dispatches_input() {
 }
 
 #[test]
+fn code_editor_drag_selection_survives_native_pointer_routing() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    js.with(|ctx| {
+        ctx.eval::<(), _>(
+            "globalThis.__wabou_tick = () => false; globalThis.__wabou_has_raf = () => false;",
+        )
+    })
+    .unwrap();
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (tag, value, width, height) = {
+        let mut atoms = applier.document.atoms.borrow_mut();
+        (
+            atoms.intern("code-editor"),
+            atoms.intern("value"),
+            atoms.intern("width"),
+            atoms.intern("height"),
+        )
+    };
+    create_element_with_attrs(&mut applier, 2, tag, &[(value, "abcdef")]);
+    set_focus_order(&mut applier, 2, 0);
+    applier.apply_op(&Op::AppendChild {
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
+    });
+    for (prop, value) in [(width, "320px"), (height, "120px")] {
+        applier.apply_op(&Op::SetStyle {
+            id: NodeKey::new(2, 1),
+            prop,
+            value,
+        });
+    }
+
+    let mut tcx = TextContext::new();
+    applier.build_frame(&mut tcx, 800, 600);
+    // The editor gutter is 58px and text inset is 10px. Drag beyond the
+    // visible end, as users naturally do when selecting a complete line.
+    applier.handle_event(pointer(PointerPhase::Down, 68.0, 10.0, 1));
+    applier.handle_event(pointer(PointerPhase::Move, 300.0, 10.0, 1));
+    applier.handle_event(pointer(PointerPhase::Up, 300.0, 10.0, 0));
+    assert!(applier.handle_event(UiEvent::TextInput("X".into())).handled);
+    applier.build_frame(&mut tcx, 800, 600);
+
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
+    assert_eq!(
+        applier.document.widget_manager.widgets[&node].current_value(),
+        Some("X")
+    );
+}
+
+#[test]
 fn text_only_element_uses_one_parley_leaf_instead_of_text_boxes() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);

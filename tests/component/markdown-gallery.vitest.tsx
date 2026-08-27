@@ -33,3 +33,15 @@ test("renders asynchronous Markdown chunks as they arrive", async () => {
   expect(preview.text).toContain("for await (const chunk of response)");
   expect(screen.getByRole("button", { name: "Stream example" })).not.toBeNull();
 });
+
+test("keeps inline code in the surrounding paragraph flow", () => {
+  const screen = renderComponent(() => <MarkdownPage />);
+
+  screen
+    .getByRole("textbox", { name: "Markdown source" })
+    .input("Before `code` after.");
+
+  expect(
+    screen.getByRole("region", { name: "Markdown preview" }).text,
+  ).toContain("Before code after.");
+});
