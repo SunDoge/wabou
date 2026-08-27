@@ -8,6 +8,7 @@ import {
   RouterProvider,
 } from "@wabou/ui";
 import { App } from "./app";
+import { AppErrorBoundary } from "./app-error-boundary";
 
 const root = new BaseRootRoute({ component: App });
 const index = new BaseRoute({ getParentRoute: () => root, path: "/" });
@@ -28,4 +29,8 @@ const router = createDataRouter({
   context: {},
 });
 
-mount(() => <RouterProvider router={router} />);
+mount(() => (
+  <AppErrorBoundary>
+    <RouterProvider router={router} />
+  </AppErrorBoundary>
+));
