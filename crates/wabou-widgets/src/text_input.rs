@@ -209,9 +209,19 @@ impl TextInput {
         };
         if self.multiline {
             self.scroll_x = 0.0;
-            self.scroll_y = self
-                .scroll_y
-                .clamp(0.0, (layout.height() - self.viewport_height).max(0.0));
+            // Keep one line of virtual space below an active composition.
+            // IMEs commonly replace a long phonetic preedit with wider CJK
+            // glyphs. Without this reserve, crossing a wrap boundary moves
+            // the viewport by a whole line while the user selects a candidate.
+            let composition_reserve = if self.editor.is_composing() {
+                self.used_line_height().0
+            } else {
+                0.0
+            };
+            self.scroll_y = self.scroll_y.clamp(
+                0.0,
+                (layout.height() + composition_reserve - self.viewport_height).max(0.0),
+            );
         } else {
             self.scroll_y = 0.0;
             self.scroll_x = self
@@ -220,13 +230,24 @@ impl TextInput {
         }
     }
 
-    fn reveal_caret(&mut self) {
+    fn reveal_caret_with_composition_reserve(&mut self, reserve_composition_line: bool) {
         if let Some(caret) = self.editor.cursor_geometry(1.5) {
             if self.multiline {
                 if caret.y0 < f64::from(self.scroll_y) {
                     self.scroll_y = caret.y0 as f32;
-                } else if caret.y1 > f64::from(self.scroll_y + self.viewport_height) {
-                    self.scroll_y = (caret.y1 as f32 - self.viewport_height).max(0.0);
+                } else {
+                    let composition_reserve =
+                        if reserve_composition_line && self.editor.is_composing() {
+                            self.used_line_height().0
+                        } else {
+                            0.0
+                        };
+                    if caret.y1 + f64::from(composition_reserve)
+                        > f64::from(self.scroll_y + self.viewport_height)
+                    {
+                        self.scroll_y =
+                            (caret.y1 as f32 + composition_reserve - self.viewport_height).max(0.0);
+                    }
                 }
             } else if caret.x0 < f64::from(self.scroll_x) {
                 self.scroll_x = caret.x0 as f32;
@@ -235,6 +256,10 @@ impl TextInput {
             }
         }
         self.clamp_scroll();
+    }
+
+    fn reveal_caret(&mut self) {
+        self.reveal_caret_with_composition_reserve(true);
     }
 
     fn handle_pointer(&mut self, event: &PointerEvent) -> WidgetEventResult {
@@ -395,6 +420,8 @@ impl TextInput {
             return;
         }
         let multiline = self.multiline;
+        let was_composing = self.editor.is_composing();
+        let scroll_before_edit = self.scroll_y;
         {
             let mut driver = self.editor.driver(&mut tcx.font_cx, &mut tcx.layout_cx);
             for edit in self.pending.drain(..) {
@@ -447,7 +474,16 @@ impl TextInput {
             driver.refresh_layout();
         }
         self.needs_refresh = false;
-        self.reveal_caret();
+        if multiline && was_composing && self.editor.is_composing() {
+            // Candidate changes can reshape a phonetic preedit into wider CJK
+            // glyphs. Keep the viewport anchored across those transient
+            // updates, moving it only if the resulting caret is actually out
+            // of view.
+            self.scroll_y = scroll_before_edit;
+            self.reveal_caret_with_composition_reserve(false);
+        } else {
+            self.reveal_caret();
+        }
     }
 
     fn paint_placeholder(
@@ -1030,14 +1066,26 @@ mod tests {
         let mut tcx = TextContext::new();
         input.paint(240.0, 80.0, &mut tcx);
         let latin = input.editor.cursor_geometry(1.5).expect("Latin caret");
-        let latin_line = input
+        let latin_line = *input
             .editor
             .try_layout()
             .and_then(|layout| layout.lines().next())
             .expect("Latin line")
-            .metrics()
-            .clone();
+            .metrics();
         let latin_box = (latin.y0 as f32, latin.y1 as f32);
+        let latin_glyph_y = input
+            .editor
+            .try_layout()
+            .and_then(|layout| layout.lines().next())
+            .and_then(|line| {
+                line.items().find_map(|item| match item {
+                    PositionedLayoutItem::GlyphRun(run) => {
+                        run.positioned_glyphs().next().map(|glyph| glyph.y)
+                    }
+                    _ => None,
+                })
+            })
+            .expect("Latin glyph");
 
         input.handle_event(&UiEvent::Ime(ImeEvent::Preedit {
             text: "你".into(),
@@ -1045,19 +1093,69 @@ mod tests {
         }));
         input.paint(240.0, 80.0, &mut tcx);
         let mixed = input.editor.cursor_geometry(1.5).expect("mixed caret");
-        let mixed_line = input
+        let mixed_line = *input
             .editor
             .try_layout()
             .and_then(|layout| layout.lines().next())
             .expect("mixed line")
-            .metrics()
-            .clone();
+            .metrics();
         let mixed_box = (mixed.y0 as f32, mixed.y1 as f32);
+        let mixed_latin_glyph_y = input
+            .editor
+            .try_layout()
+            .and_then(|layout| layout.lines().next())
+            .and_then(|line| {
+                line.items().find_map(|item| match item {
+                    PositionedLayoutItem::GlyphRun(run) => {
+                        run.positioned_glyphs().next().map(|glyph| glyph.y)
+                    }
+                    _ => None,
+                })
+            })
+            .expect("mixed Latin glyph");
 
         assert_eq!(
             latin_box, mixed_box,
             "latin={latin:?} {latin_line:?} mixed={mixed:?} {mixed_line:?}"
         );
+        assert_eq!(latin_glyph_y, mixed_latin_glyph_y);
+    }
+
+    #[test]
+    fn multiline_preedit_does_not_jump_when_cjk_candidate_wraps() {
+        let mut input = TextInput::multiline();
+        input.attribute_changed("font-size", "14px");
+        input.attribute_changed("value", "first line\nsecond line\naaaaa");
+        input.focus_changed(true);
+        let mut tcx = TextContext::new();
+        input.paint(60.0, 38.0, &mut tcx);
+        {
+            let mut driver = input.editor.driver(&mut tcx.font_cx, &mut tcx.layout_cx);
+            driver.move_to_text_end();
+            driver.refresh_layout();
+        }
+
+        input.handle_event(&UiEvent::Ime(ImeEvent::Preedit {
+            text: "zhongwen".into(),
+            cursor: Some((8, 8)),
+        }));
+        input.paint(60.0, 38.0, &mut tcx);
+        let phonetic_scroll = input.scroll_y;
+
+        input.handle_event(&UiEvent::Ime(ImeEvent::Preedit {
+            text: "中文".into(),
+            cursor: Some((6, 6)),
+        }));
+        input.paint(60.0, 38.0, &mut tcx);
+
+        assert!(
+            (input.scroll_y - phonetic_scroll).abs() < 0.5,
+            "composition viewport moved from {phonetic_scroll} to {}",
+            input.scroll_y
+        );
+        let caret = input.editor.cursor_geometry(1.5).expect("caret");
+        assert!(caret.y0 >= f64::from(input.scroll_y));
+        assert!(caret.y1 <= f64::from(input.scroll_y + input.viewport_height));
     }
 
     #[test]
