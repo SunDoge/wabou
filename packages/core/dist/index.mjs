@@ -490,8 +490,13 @@ function decodeAndDispatchHostFrame(input) {
 			else if (payloadKind === HOST_NODE_PAYLOAD.Numeric) {
 				if (numericLen > EVENT_DATA_LEN) throw new TypeError("HostEventFrame numeric payload exceeds ABI slots");
 				requireBytes(8 * numericLen, end);
-				const numeric = new Float64Array(numericLen);
-				for (let slot = 0; slot < numeric.length; slot++) numeric[slot] = view.getFloat64(offset + slot * 8, true);
+				const absoluteOffset = bytes.byteOffset + offset;
+				let numeric;
+				if (absoluteOffset % Float64Array.BYTES_PER_ELEMENT === 0) numeric = new Float64Array(bytes.buffer, absoluteOffset, numericLen);
+				else {
+					numeric = new Float64Array(numericLen);
+					for (let slot = 0; slot < numeric.length; slot++) numeric[slot] = view.getFloat64(offset + slot * 8, true);
+				}
 				offset += 8 * numericLen;
 				records.push({
 					kind: "node",
