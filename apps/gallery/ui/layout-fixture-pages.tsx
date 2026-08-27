@@ -11,6 +11,7 @@ import {
   ImageListLayoutFixture,
   ImageViewportLayoutFixture,
   InputGroupLayoutFixture,
+  MarkdownInlineLayoutFixture,
   MessageLayoutFixture,
   QRCodeLayoutFixture,
   ScrollAreaLayoutFixture,
@@ -24,8 +25,8 @@ import * as dataTable from "./pages/data-table";
 import * as foundations from "./pages/foundations";
 import * as i18n from "./pages/i18n";
 import * as imageViewport from "./pages/image-viewport";
-import * as menubar from "./pages/menubar";
 import * as markdown from "./pages/markdown";
+import * as menubar from "./pages/menubar";
 import * as overlay from "./pages/overlay";
 import * as shadcn from "./pages/shadcn";
 import * as system from "./pages/system";
@@ -109,6 +110,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 440,
         height: 160,
         render: InputGroupLayoutFixture,
+      },
+      "component/MarkdownInline": {
+        width: 360,
+        height: 120,
+        render: MarkdownInlineLayoutFixture,
       },
       "component/Message": {
         width: 360,

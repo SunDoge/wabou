@@ -34,6 +34,15 @@ import {
 import imageIcon from "lucide-static/icons/image.svg?raw";
 import { For } from "solid-js";
 import { MangaPageMock } from "./pages/image-viewport";
+import { MarkdownPreview } from "./pages/markdown";
+
+export function MarkdownInlineLayoutFixture() {
+  return (
+    <View class="w-80 p-4 bg-canvas">
+      <MarkdownPreview source="Before `code` after." />
+    </View>
+  );
+}
 
 export function SidebarLayoutFixture() {
   return (

@@ -67,78 +67,131 @@ function inlineText(tokens: Token[]): string {
     .join("");
 }
 
-function inlinePieces(text: string): string[] {
-  // Wabou deliberately does not merge adjacent text nodes. Keep whitespace
-  // attached to a visible word so it has stable layout width instead of
-  // creating standalone whitespace-only Text nodes.
-  return text.match(/\s*\S+(?:\s+|$)/g) ?? (text ? [text] : []);
-}
+type InlineSegment = {
+  text: string;
+  kind: "text" | "strong" | "em" | "code" | "link" | "break";
+  spaceBefore: boolean;
+  url?: string;
+};
 
-function InlineTextPieces(props: { text: string; class: string }): JSX.Element {
-  return (
-    <For each={inlinePieces(props.text)}>
-      {(piece) => <Text class={props.class}>{piece}</Text>}
-    </For>
-  );
+function inlineSegments(tokens: Token[]): InlineSegment[] {
+  const segments: InlineSegment[] = [];
+  let pendingSpace = false;
+  const append = (text: string, kind: InlineSegment["kind"], url?: string) => {
+    for (const part of text.match(/\s+|\S+/g) ?? []) {
+      if (/^\s+$/.test(part)) {
+        pendingSpace = true;
+        continue;
+      }
+      segments.push({
+        text: part,
+        kind,
+        spaceBefore: segments.length > 0 && pendingSpace,
+        url,
+      });
+      pendingSpace = false;
+    }
+  };
+  const visit = (
+    nested: Token[],
+    inherited: InlineSegment["kind"] = "text",
+    url?: string,
+  ) => {
+    for (const token of nested) {
+      switch (token.type) {
+        case "br":
+          segments.push({ text: "", kind: "break", spaceBefore: false });
+          pendingSpace = false;
+          break;
+        case "strong":
+          visit((token as Tokens.Strong).tokens, "strong");
+          break;
+        case "em":
+          visit((token as Tokens.Em).tokens, "em");
+          break;
+        case "codespan":
+          append(token.text, "code");
+          break;
+        case "link": {
+          const link = token as Tokens.Link;
+          visit(link.tokens, "link", link.href);
+          break;
+        }
+        default:
+          if ("tokens" in token && Array.isArray(token.tokens)) {
+            visit(token.tokens, inherited, url);
+          } else {
+            append(
+              "text" in token && typeof token.text === "string"
+                ? token.text
+                : token.raw,
+              inherited,
+              url,
+            );
+          }
+      }
+    }
+  };
+  visit(tokens);
+  return segments;
 }
 
 function InlineMarkdown(props: { tokens: Token[] }): JSX.Element {
+  const segments = () => inlineSegments(props.tokens);
+  const content = (segment: InlineSegment) =>
+    `${segment.spaceBefore ? " " : ""}${segment.text}`;
   return (
     <View class="min-w-0 flex flex-row flex-wrap items-baseline">
-      <For each={props.tokens}>
-        {(token) => {
-          switch (token.type) {
-            case "strong": {
-              const strong = token as Tokens.Strong;
+      <For each={segments()}>
+        {(segment) => {
+          const spacing = { "ml-1": segment.spaceBefore };
+          switch (segment.kind) {
+            case "strong":
               return (
-                <InlineTextPieces
-                  text={inlineText(strong.tokens)}
+                <Text
                   class="font-semibold text-primary whitespace-normal"
-                />
+                  classList={spacing}
+                >
+                  {content(segment)}
+                </Text>
               );
-            }
-            case "em": {
-              const emphasis = token as Tokens.Em;
+            case "em":
               return (
-                <InlineTextPieces
-                  text={inlineText(emphasis.tokens)}
+                <Text
                   class="text-primary whitespace-normal"
-                />
+                  classList={spacing}
+                >
+                  {content(segment)}
+                </Text>
               );
-            }
-            case "codespan":
+            case "code":
               return (
-                <TypographyInlineCode class="font-normal">
-                  {token.text}
+                <TypographyInlineCode class="font-normal" classList={spacing}>
+                  {content(segment)}
                 </TypographyInlineCode>
               );
-            case "link": {
-              const link = token as Tokens.Link;
+            case "link":
               return (
                 <PrimitiveLink
                   unstyled
                   selectable
-                  url={link.href}
+                  url={segment.url ?? ""}
                   class="text-accent whitespace-normal"
+                  classList={spacing}
                 >
-                  {inlineText(link.tokens)}
+                  {content(segment)}
                 </PrimitiveLink>
               );
-            }
-            case "br":
+            case "break":
               return <View class="w-full h-0" />;
             default:
               return (
-                <InlineTextPieces
-                  text={
-                    "tokens" in token && Array.isArray(token.tokens)
-                      ? inlineText(token.tokens)
-                      : "text" in token && typeof token.text === "string"
-                        ? token.text
-                        : token.raw
-                  }
+                <Text
                   class="text-secondary whitespace-normal"
-                />
+                  classList={spacing}
+                >
+                  {content(segment)}
+                </Text>
               );
           }
         }}

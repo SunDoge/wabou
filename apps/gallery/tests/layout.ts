@@ -236,6 +236,28 @@ const assertMessageLayout = (snapshot: LayoutSnapshot) => {
     throw new Error(`message text was compressed to ${text.rect.width}px`);
 };
 
+const assertMarkdownInlineLayout = (snapshot: LayoutSnapshot) => {
+  const before = getLayoutNode(snapshot, { text: "Before" });
+  const code = getLayoutNode(snapshot, { text: " code" });
+  const after = getLayoutNode(snapshot, { text: " after." });
+  for (const [left, right] of [
+    [before, code],
+    [code, after],
+  ] as const) {
+    if (
+      layoutRectBottom(left.rect) <= right.rect.y ||
+      layoutRectBottom(right.rect) <= left.rect.y
+    )
+      throw new Error("markdown inline nodes wrapped onto separate rows");
+  }
+  const beforeGap = code.rect.x - layoutRectRight(before.rect);
+  const afterGap = after.rect.x - layoutRectRight(code.rect);
+  if (beforeGap < 3 || afterGap < 3)
+    throw new Error(
+      `markdown inline spaces collapsed: before=${beforeGap}px after=${afterGap}px`,
+    );
+};
+
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   // Carousel tracks and message reactions deliberately extend past their
   // logical content box; their component-specific clipping is tested lower.
@@ -261,6 +283,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/QRCode": { assert: assertQrCodeLayout },
   "component/IconFrame": { assert: assertIconFrameLayout },
   "component/InputGroup": { assert: assertInputGroupLayout },
+  "component/MarkdownInline": { assert: assertMarkdownInlineLayout },
   "component/Message": { assert: assertMessageLayout },
 };
 const fixtureCase = (id: string) => {
