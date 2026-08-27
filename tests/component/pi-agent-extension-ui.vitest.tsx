@@ -4,9 +4,13 @@ import { createSignal } from "solid-js";
 import { expect, test, vi } from "vitest";
 import {
   type ExtensionUiAnswer,
+  ExtensionUiChrome,
   ExtensionUiDialog,
   type ExtensionUiDialogRequest,
+  parseExtensionUiEffect,
   parseExtensionUiRequest,
+  reduceExtensionUiStatuses,
+  reduceExtensionUiWidgets,
 } from "../../apps/pi-agent/ui/extension-ui";
 
 test("parses only blocking Pi extension dialog requests", () => {
@@ -118,4 +122,111 @@ test("returns an explicit negative confirmation", () => {
   confirmation.getByRole("button", { name: "No" }).click();
   expect(confirmationResponse).toHaveBeenCalledOnce();
   expect(confirmationResponse).toHaveBeenCalledWith({ confirmed: false });
+});
+
+test("parses Pi extension notifications and editor effects", () => {
+  expect(
+    parseExtensionUiEffect({
+      type: "extension_ui_request",
+      agentId: "agent-2",
+      id: "notice-1",
+      method: "notify",
+      message: "Indexing finished",
+      notifyType: "warning",
+    }),
+  ).toEqual({
+    kind: "notify",
+    agentId: "agent-2",
+    id: "notice-1",
+    message: "Indexing finished",
+    tone: "warning",
+  });
+  expect(
+    parseExtensionUiEffect({
+      type: "extension_ui_request",
+      agentId: "agent-1",
+      id: "editor-1",
+      method: "set_editor_text",
+      text: "Review @src/main.ts",
+    }),
+  ).toEqual({
+    kind: "editorText",
+    agentId: "agent-1",
+    text: "Review @src/main.ts",
+  });
+  expect(
+    parseExtensionUiEffect({
+      type: "extension_ui_request",
+      agentId: "agent-1",
+      method: "setWidget",
+      widgetKey: "build",
+      widgetLines: "not an array",
+    }),
+  ).toBeUndefined();
+});
+
+test("updates and clears extension status and widget keys independently", () => {
+  const statuses = reduceExtensionUiStatuses([], {
+    kind: "status",
+    agentId: "agent-1",
+    key: "branch",
+    text: "main",
+  });
+  expect(
+    reduceExtensionUiStatuses(statuses, {
+      kind: "status",
+      agentId: "agent-1",
+      key: "branch",
+    }),
+  ).toEqual([]);
+
+  const widgets = reduceExtensionUiWidgets([], {
+    kind: "widget",
+    agentId: "agent-1",
+    key: "tasks",
+    lines: ["Build", "Test"],
+    placement: "aboveEditor",
+  });
+  expect(widgets).toHaveLength(1);
+  expect(
+    reduceExtensionUiWidgets(widgets, {
+      kind: "widget",
+      agentId: "agent-2",
+      key: "tasks",
+      placement: "belowEditor",
+    }),
+  ).toEqual(widgets);
+});
+
+test("renders extension status and widgets at their requested placement", () => {
+  const screen = renderComponent(() => (
+    <ExtensionUiChrome
+      placement="aboveEditor"
+      statuses={[{ agentId: "agent-1", key: "git", text: "On main" }]}
+      widgets={[
+        {
+          agentId: "agent-1",
+          key: "tasks",
+          lines: ["Build complete", "Tests passing"],
+          placement: "aboveEditor",
+        },
+        {
+          agentId: "agent-1",
+          key: "hint",
+          lines: ["Hidden below"],
+          placement: "belowEditor",
+        },
+      ]}
+    />
+  ));
+
+  expect(screen.getByRole("status", { name: "Extension status" }).text).toBe(
+    "On main",
+  );
+  expect(
+    screen.getByRole("region", { name: "Extension widget tasks" }).text,
+  ).toBe("Build complete\nTests passing");
+  expect(
+    screen.queryByRole("region", { name: "Extension widget hint" }),
+  ).toBeNull();
 });

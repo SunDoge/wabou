@@ -39,6 +39,7 @@ import { For } from "solid-js";
 import { ComposerContextFiles } from "../../pi-agent/ui/composer-context";
 import { ComposerImages } from "../../pi-agent/ui/composer-images";
 import { ConversationItem } from "../../pi-agent/ui/conversation";
+import { ExtensionUiChrome } from "../../pi-agent/ui/extension-ui";
 import { TranscriptSearch } from "../../pi-agent/ui/transcript-search";
 import { MangaPageMock } from "./pages/image-viewport";
 import { MarkdownPreview } from "./pages/markdown";
@@ -143,6 +144,36 @@ export function PiComposerContextLayoutFixture() {
         ]}
         change={() => {}}
       />
+    </View>
+  );
+}
+
+export function PiExtensionUiLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-3 bg-canvas">
+      <View class="w-full min-w-0 rounded-xl border border-strong bg-input p-2 gap-2">
+        <ExtensionUiChrome
+          placement="aboveEditor"
+          statuses={[
+            {
+              agentId: "agent-1",
+              key: "branch",
+              text: "Working on a long extension-provided status without overflowing the composer",
+            },
+          ]}
+          widgets={[
+            {
+              agentId: "agent-1",
+              key: "tasks",
+              lines: [
+                "Indexing workspace files",
+                "Checking packages/ui/src/components/markdown.tsx",
+              ],
+              placement: "aboveEditor",
+            },
+          ]}
+        />
+      </View>
     </View>
   );
 }

@@ -1,6 +1,8 @@
+import { currentWindow } from "@wabou/core";
 import type { Handle } from "@wabou/core/renderer";
 import {
   Button,
+  createToasts,
   Icon,
   MessageGroup,
   MessageScroller,
@@ -10,6 +12,7 @@ import {
   MessageScrollerViewport,
   Text,
   TextArea,
+  Toaster,
   useLocation,
   useNavigate,
   useParams,
@@ -52,9 +55,16 @@ import {
 } from "./drafts";
 import {
   type ExtensionUiAnswer,
+  ExtensionUiChrome,
   ExtensionUiDialog,
   type ExtensionUiDialogRequest,
+  type ExtensionUiEffect,
+  type ExtensionUiStatus,
+  type ExtensionUiWidget,
+  parseExtensionUiEffect,
   parseExtensionUiRequest,
+  reduceExtensionUiStatuses,
+  reduceExtensionUiWidgets,
 } from "./extension-ui";
 import { i18n, m } from "./i18n";
 import { SessionForkDialog } from "./session-fork";
@@ -71,8 +81,49 @@ import {
 } from "./workspace";
 import { WorkspaceSetup } from "./workspace-setup";
 
+function ExtensionWindowTitle(props: { title: string }) {
+  createEffect(() => {
+    currentWindow().setTitle(props.title);
+  });
+  return null;
+}
+
+function dispatchExtensionUiEffect(
+  event: Record<string, unknown>,
+  handlers: {
+    notify(effect: Extract<ExtensionUiEffect, { kind: "notify" }>): void;
+    status(effect: Extract<ExtensionUiEffect, { kind: "status" }>): void;
+    widget(effect: Extract<ExtensionUiEffect, { kind: "widget" }>): void;
+    title(effect: Extract<ExtensionUiEffect, { kind: "title" }>): void;
+    editorText(
+      effect: Extract<ExtensionUiEffect, { kind: "editorText" }>,
+    ): void;
+  },
+) {
+  const effect = parseExtensionUiEffect(event);
+  if (!effect) return;
+  switch (effect.kind) {
+    case "notify":
+      handlers.notify(effect);
+      break;
+    case "status":
+      handlers.status(effect);
+      break;
+    case "widget":
+      handlers.widget(effect);
+      break;
+    case "title":
+      handlers.title(effect);
+      break;
+    case "editorText":
+      handlers.editorText(effect);
+      break;
+  }
+}
+
 export function App() {
   const api = usePiApi();
+  const toasts = createToasts();
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams<{ agentId?: string; sessionId?: string }>();
@@ -99,6 +150,16 @@ export function App() {
   const [extensionDialogs, setExtensionDialogs] = createSignal<
     readonly ExtensionUiDialogRequest[]
   >([]);
+  const [extensionStatuses, setExtensionStatuses] = createSignal<
+    readonly ExtensionUiStatus[]
+  >([]);
+  const [extensionWidgets, setExtensionWidgets] = createSignal<
+    readonly ExtensionUiWidget[]
+  >([]);
+  const [extensionTitles, setExtensionTitles] = createSignal<
+    Readonly<Record<string, string>>
+  >({});
+  const deliveredNotifications = new Set<string>();
   const itemHandles = new Map<string, Handle>();
   let nextMessage = 1;
   let profilesHydrated = false;
@@ -199,104 +260,161 @@ export function App() {
     updateAgent(id, (agent) => ({ ...agent, ...patch }));
   };
 
-  const unsubscribe = api.subscribe((events) => {
-    const grouped = new Map<string, Record<string, unknown>[]>();
+  const unsubscribe = api.subscribe(
+    (events: readonly Record<string, unknown>[]) => {
+      const grouped = new Map<string, Record<string, unknown>[]>();
+      for (const event of events) {
+        const id =
+          typeof event.agentId === "string" ? event.agentId : "agent-1";
+        const group = grouped.get(id) ?? [];
+        group.push(event);
+        grouped.set(id, group);
+        const dialog = parseExtensionUiRequest(event);
+        if (dialog) {
+          setExtensionDialogs((current) =>
+            current.some(
+              (candidate) =>
+                candidate.agentId === dialog.agentId &&
+                candidate.id === dialog.id,
+            )
+              ? current
+              : [...current, dialog],
+          );
+        }
+        if (event.type === "process_exit") {
+          setExtensionDialogs((current) =>
+            current.filter((candidate) => candidate.agentId !== id),
+          );
+        }
+      }
+      for (const [id, batch] of grouped) {
+        updateAgent(id, (agent) => ({
+          ...agent,
+          state: reducePiEvents(agent.state, batch),
+        }));
+        if (
+          batch.some(
+            (event) =>
+              event.type === "response" &&
+              event.command === "get_state" &&
+              event.success === true,
+          )
+        ) {
+          void api.getMessages(id);
+          void api.getSessionStats(id);
+          void api.getCommands(id);
+          void api
+            .listSessions(id)
+            .then((next) =>
+              setSessions((current) => [
+                ...current.filter((session) => session.agentId !== id),
+                ...next,
+              ]),
+            );
+          const stateEvent = batch.find(
+            (event) =>
+              event.type === "response" &&
+              event.command === "get_state" &&
+              event.success === true,
+          );
+          const data = stateEvent?.data as
+            | Record<string, unknown>
+            | null
+            | undefined;
+          if (
+            stateEvent?.id === "wabou-new-session-state" &&
+            id === activeId() &&
+            typeof data?.sessionId === "string"
+          ) {
+            void navigate({ to: `/agents/${id}/sessions/${data.sessionId}` });
+          }
+        }
+        if (batch.some((event) => event.type === "agent_end")) {
+          void api.getSessionStats(id);
+        }
+        if (
+          batch.some(
+            (event) =>
+              event.type === "response" &&
+              event.command === "get_messages" &&
+              event.success === true,
+          )
+        ) {
+          void api.getForkMessages(id);
+        }
+        const forkEvent = batch.find(
+          (event) =>
+            event.type === "response" &&
+            event.command === "fork" &&
+            event.success === true,
+        );
+        const forkData = forkEvent?.data as Record<string, unknown> | undefined;
+        if (forkEvent && forkData?.cancelled !== true) {
+          if (id === activeId() && typeof forkData?.text === "string") {
+            setDraft(forkData.text);
+          }
+          void api.getMessages(id);
+          void api.getSessionStats(id);
+        }
+      }
+    },
+  );
+  const unsubscribeExtensionUi = api.subscribe((events) => {
     for (const event of events) {
       const id = typeof event.agentId === "string" ? event.agentId : "agent-1";
-      const group = grouped.get(id) ?? [];
-      group.push(event);
-      grouped.set(id, group);
-      const dialog = parseExtensionUiRequest(event);
-      if (dialog) {
-        setExtensionDialogs((current) =>
-          current.some(
-            (candidate) =>
-              candidate.agentId === dialog.agentId &&
-              candidate.id === dialog.id,
-          )
-            ? current
-            : [...current, dialog],
-        );
-      }
-      if (event.type === "process_exit") {
-        setExtensionDialogs((current) =>
-          current.filter((candidate) => candidate.agentId !== id),
-        );
-      }
-    }
-    for (const [id, batch] of grouped) {
-      updateAgent(id, (agent) => ({
-        ...agent,
-        state: reducePiEvents(agent.state, batch),
-      }));
-      if (
-        batch.some(
-          (event) =>
-            event.type === "response" &&
-            event.command === "get_state" &&
-            event.success === true,
-        )
-      ) {
-        void api.getMessages(id);
-        void api.getSessionStats(id);
-        void api.getCommands(id);
-        void api
-          .listSessions(id)
-          .then((next) =>
-            setSessions((current) => [
-              ...current.filter((session) => session.agentId !== id),
-              ...next,
-            ]),
+      dispatchExtensionUiEffect(event, {
+        notify: (effect) => {
+          const notificationKey = `${effect.agentId}\0${effect.id}`;
+          if (deliveredNotifications.has(notificationKey)) return;
+          deliveredNotifications.add(notificationKey);
+          const title =
+            agents().find((agent) => agent.id === effect.agentId)?.name ??
+            effect.agentId;
+          const input = { description: effect.message };
+          if (effect.tone === "error") toasts.error(title, input);
+          else if (effect.tone === "warning") toasts.warning(title, input);
+          else toasts.show({ title, ...input });
+        },
+        status: (effect) =>
+          setExtensionStatuses((current) =>
+            reduceExtensionUiStatuses(current, effect),
+          ),
+        widget: (effect) =>
+          setExtensionWidgets((current) =>
+            reduceExtensionUiWidgets(current, effect),
+          ),
+        title: (effect) =>
+          setExtensionTitles((current) => ({
+            ...current,
+            [effect.agentId]: effect.title,
+          })),
+        editorText: (effect) => {
+          const sessionId = agents().find(
+            (agent) => agent.id === effect.agentId,
+          )?.state.sessionId;
+          setDrafts((current) =>
+            writeAgentDraft(current, effect.agentId, sessionId, effect.text),
           );
-        const stateEvent = batch.find(
-          (event) =>
-            event.type === "response" &&
-            event.command === "get_state" &&
-            event.success === true,
-        );
-        const data = stateEvent?.data as
-          | Record<string, unknown>
-          | null
-          | undefined;
-        if (
-          stateEvent?.id === "wabou-new-session-state" &&
-          id === activeId() &&
-          typeof data?.sessionId === "string"
-        ) {
-          void navigate({ to: `/agents/${id}/sessions/${data.sessionId}` });
-        }
-      }
-      if (batch.some((event) => event.type === "agent_end")) {
-        void api.getSessionStats(id);
-      }
-      if (
-        batch.some(
-          (event) =>
-            event.type === "response" &&
-            event.command === "get_messages" &&
-            event.success === true,
-        )
-      ) {
-        void api.getForkMessages(id);
-      }
-      const forkEvent = batch.find(
-        (event) =>
-          event.type === "response" &&
-          event.command === "fork" &&
-          event.success === true,
+        },
+      });
+      if (event.type !== "process_exit") continue;
+      setExtensionStatuses((current) =>
+        current.filter((candidate) => candidate.agentId !== id),
       );
-      const forkData = forkEvent?.data as Record<string, unknown> | undefined;
-      if (forkEvent && forkData?.cancelled !== true) {
-        if (id === activeId() && typeof forkData?.text === "string") {
-          setDraft(forkData.text);
-        }
-        void api.getMessages(id);
-        void api.getSessionStats(id);
-      }
+      setExtensionWidgets((current) =>
+        current.filter((candidate) => candidate.agentId !== id),
+      );
+      setExtensionTitles((current) => {
+        if (!(id in current)) return current;
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
     }
   });
   onCleanup(() => {
     unsubscribe();
+    unsubscribeExtensionUi();
     if (saveProfilesTimer !== undefined) clearTimeout(saveProfilesTimer);
   });
 
@@ -464,6 +582,18 @@ export function App() {
     setExtensionDialogs((current) =>
       current.filter((request) => request.agentId !== removed.id),
     );
+    setExtensionStatuses((current) =>
+      current.filter((status) => status.agentId !== removed.id),
+    );
+    setExtensionWidgets((current) =>
+      current.filter((widget) => widget.agentId !== removed.id),
+    );
+    setExtensionTitles((current) => {
+      if (!(removed.id in current)) return current;
+      const next = { ...current };
+      delete next[removed.id];
+      return next;
+    });
     const remaining = agents().filter((agent) => agent.id !== removed.id);
     const next =
       remaining[0] ??
@@ -739,6 +869,15 @@ export function App() {
 
             <View class="flex-none border-t border-subtle bg-surface p-4">
               <View class="max-w-4xl mx-auto min-w-0 rounded-xl border border-strong bg-input shadow-sm p-2 gap-2">
+                <ExtensionUiChrome
+                  statuses={extensionStatuses().filter(
+                    (status) => status.agentId === activeId(),
+                  )}
+                  widgets={extensionWidgets().filter(
+                    (widget) => widget.agentId === activeId(),
+                  )}
+                  placement="aboveEditor"
+                />
                 <ComposerImages paths={images()} change={setImages} />
                 <ComposerContextFiles
                   paths={contextFiles()}
@@ -759,6 +898,13 @@ export function App() {
                       void submit();
                     }
                   }}
+                />
+                <ExtensionUiChrome
+                  statuses={[]}
+                  widgets={extensionWidgets().filter(
+                    (widget) => widget.agentId === activeId(),
+                  )}
+                  placement="belowEditor"
                 />
                 <View class="flex items-center justify-between gap-3 px-1">
                   <View class="min-w-0 flex flex-row items-center gap-3">
@@ -809,6 +955,10 @@ export function App() {
           if (request) void respondToExtension(request, answer);
         }}
       />
+      <ExtensionWindowTitle
+        title={extensionTitles()[activeId()] || "Pi Agent · Wabou"}
+      />
+      <Toaster toasts={toasts} />
     </View>
   );
 }

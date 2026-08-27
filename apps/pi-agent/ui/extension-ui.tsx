@@ -12,6 +12,7 @@ import {
   DialogFooter,
   DialogTitle,
   Input,
+  Text,
   TextArea,
   View,
 } from "@wabou/ui";
@@ -34,6 +35,202 @@ export interface ExtensionUiDialogRequest {
 }
 
 type JsonRecord = Record<string, unknown>;
+
+export type ExtensionUiEffect =
+  | {
+      kind: "notify";
+      agentId: string;
+      id: string;
+      message: string;
+      tone: "info" | "warning" | "error";
+    }
+  | {
+      kind: "status";
+      agentId: string;
+      key: string;
+      text?: string;
+    }
+  | {
+      kind: "widget";
+      agentId: string;
+      key: string;
+      lines?: readonly string[];
+      placement: "aboveEditor" | "belowEditor";
+    }
+  | { kind: "title"; agentId: string; title: string }
+  | { kind: "editorText"; agentId: string; text: string };
+
+export interface ExtensionUiStatus {
+  agentId: string;
+  key: string;
+  text: string;
+}
+
+export interface ExtensionUiWidget {
+  agentId: string;
+  key: string;
+  lines: readonly string[];
+  placement: "aboveEditor" | "belowEditor";
+}
+
+export function parseExtensionUiEffect(
+  event: JsonRecord,
+): ExtensionUiEffect | undefined {
+  if (
+    event.type !== "extension_ui_request" ||
+    typeof event.agentId !== "string" ||
+    typeof event.method !== "string"
+  )
+    return undefined;
+
+  const agentId = event.agentId;
+  return match(event.method)
+    .with("notify", (): ExtensionUiEffect | undefined =>
+      typeof event.id === "string" && typeof event.message === "string"
+        ? {
+            kind: "notify",
+            agentId,
+            id: event.id,
+            message: event.message,
+            tone:
+              event.notifyType === "warning" || event.notifyType === "error"
+                ? event.notifyType
+                : "info",
+          }
+        : undefined,
+    )
+    .with("setStatus", (): ExtensionUiEffect | undefined =>
+      typeof event.statusKey === "string"
+        ? {
+            kind: "status",
+            agentId,
+            key: event.statusKey,
+            ...(typeof event.statusText === "string"
+              ? { text: event.statusText }
+              : {}),
+          }
+        : undefined,
+    )
+    .with("setWidget", (): ExtensionUiEffect | undefined => {
+      if (typeof event.widgetKey !== "string") return undefined;
+      const lines = Array.isArray(event.widgetLines)
+        ? event.widgetLines.filter(
+            (line): line is string => typeof line === "string",
+          )
+        : undefined;
+      if (event.widgetLines !== undefined && !lines) return undefined;
+      return {
+        kind: "widget",
+        agentId,
+        key: event.widgetKey,
+        ...(lines ? { lines } : {}),
+        placement:
+          event.widgetPlacement === "aboveEditor"
+            ? "aboveEditor"
+            : "belowEditor",
+      };
+    })
+    .with("setTitle", (): ExtensionUiEffect | undefined =>
+      typeof event.title === "string"
+        ? { kind: "title", agentId, title: event.title }
+        : undefined,
+    )
+    .with("set_editor_text", (): ExtensionUiEffect | undefined =>
+      typeof event.text === "string"
+        ? { kind: "editorText", agentId, text: event.text }
+        : undefined,
+    )
+    .otherwise(() => undefined);
+}
+
+function replaceKeyed<T extends { agentId: string; key: string }>(
+  current: readonly T[],
+  value: T | undefined,
+  agentId: string,
+  key: string,
+): readonly T[] {
+  const retained = current.filter(
+    (candidate) => candidate.agentId !== agentId || candidate.key !== key,
+  );
+  if (!value) return retained.length === current.length ? current : retained;
+  return [...retained, value];
+}
+
+export function reduceExtensionUiStatuses(
+  current: readonly ExtensionUiStatus[],
+  effect: Extract<ExtensionUiEffect, { kind: "status" }>,
+): readonly ExtensionUiStatus[] {
+  return replaceKeyed(
+    current,
+    effect.text === undefined
+      ? undefined
+      : { agentId: effect.agentId, key: effect.key, text: effect.text },
+    effect.agentId,
+    effect.key,
+  );
+}
+
+export function reduceExtensionUiWidgets(
+  current: readonly ExtensionUiWidget[],
+  effect: Extract<ExtensionUiEffect, { kind: "widget" }>,
+): readonly ExtensionUiWidget[] {
+  return replaceKeyed(
+    current,
+    effect.lines === undefined
+      ? undefined
+      : {
+          agentId: effect.agentId,
+          key: effect.key,
+          lines: effect.lines,
+          placement: effect.placement,
+        },
+    effect.agentId,
+    effect.key,
+  );
+}
+
+export function ExtensionUiChrome(props: {
+  statuses: readonly ExtensionUiStatus[];
+  widgets: readonly ExtensionUiWidget[];
+  placement: "aboveEditor" | "belowEditor";
+}) {
+  const widgets = () =>
+    props.widgets.filter((widget) => widget.placement === props.placement);
+  return (
+    <>
+      <Show
+        when={props.placement === "aboveEditor" && props.statuses.length > 0}
+      >
+        <View
+          role="status"
+          aria-label="Extension status"
+          class="w-full min-w-0 flex flex-col gap-1 px-1"
+        >
+          <For each={props.statuses}>
+            {(status) => (
+              <Text class="w-full min-w-0 text-xs text-muted whitespace-normal">
+                {status.text}
+              </Text>
+            )}
+          </For>
+        </View>
+      </Show>
+      <For each={widgets()}>
+        {(widget) => (
+          <View
+            role="region"
+            aria-label={`Extension widget ${widget.key}`}
+            class="min-w-0 rounded-lg border border-subtle bg-control px-3 py-2"
+          >
+            <Text class="text-xs leading-relaxed text-secondary whitespace-normal">
+              {widget.lines.join("\n")}
+            </Text>
+          </View>
+        )}
+      </For>
+    </>
+  );
+}
 
 export function parseExtensionUiRequest(
   event: JsonRecord,
