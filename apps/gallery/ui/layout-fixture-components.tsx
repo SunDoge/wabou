@@ -37,6 +37,7 @@ import {
 import imageIcon from "lucide-static/icons/image.svg?raw";
 import { For } from "solid-js";
 import { ComposerContextFiles } from "../../pi-agent/ui/composer-context";
+import { ComposerDeliveryControl } from "../../pi-agent/ui/composer-delivery";
 import { ComposerImages } from "../../pi-agent/ui/composer-images";
 import { ConversationItem } from "../../pi-agent/ui/conversation";
 import { ExtensionUiChrome } from "../../pi-agent/ui/extension-ui";
@@ -169,6 +170,14 @@ export function PiComposerContextLayoutFixture() {
         ]}
         change={() => {}}
       />
+    </View>
+  );
+}
+
+export function PiComposerDeliveryLayoutFixture() {
+  return (
+    <View class="w-full h-full p-4 flex items-start bg-surface">
+      <ComposerDeliveryControl value="followUp" change={() => {}} />
     </View>
   );
 }

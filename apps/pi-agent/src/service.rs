@@ -21,6 +21,7 @@ const EVENT_TOPIC: &str = "pi.event";
 const GET_STATUS: JsonMethod<AgentRequest, PiStatus> = JsonMethod::new("getStatus");
 const START: JsonMethod<StartRequest, PiStatus> = JsonMethod::new("start");
 const PROMPT: JsonMethod<PromptRequest, ()> = JsonMethod::new("prompt");
+const STEER: JsonMethod<PromptRequest, ()> = JsonMethod::new("steer");
 const FOLLOW_UP: JsonMethod<PromptRequest, ()> = JsonMethod::new("followUp");
 const ABORT: JsonMethod<AgentRequest, ()> = JsonMethod::new("abort");
 const STOP: JsonMethod<AgentRequest, ()> = JsonMethod::new("stop");
@@ -888,6 +889,28 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
                 &request.agent_id,
                 json!({
                     "type":"prompt",
+                    "message":message,
+                    "images":images,
+                }),
+            )
+        }
+    })?;
+    let steer = service.clone();
+    capability.method(STEER, move |request: PromptRequest| {
+        let service = steer.clone();
+        async move {
+            let message = request.message.trim().to_owned();
+            if message.is_empty() {
+                return Err("steering message cannot be empty".to_owned());
+            }
+            let images = prompt_images(request.image_paths).await?;
+            let workspace = service.workspace(&request.agent_id)?;
+            let message =
+                append_workspace_context(&message, &workspace, request.context_paths).await?;
+            service.send(
+                &request.agent_id,
+                json!({
+                    "type":"steer",
                     "message":message,
                     "images":images,
                 }),

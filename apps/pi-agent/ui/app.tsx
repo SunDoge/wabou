@@ -35,6 +35,10 @@ import {
   WorkspaceContextPicker,
 } from "./composer-context";
 import {
+  ComposerDeliveryControl,
+  type ComposerDeliveryMode,
+} from "./composer-delivery";
+import {
   ComposerImagePicker,
   ComposerImages,
   imageFileName,
@@ -141,6 +145,8 @@ export function App() {
   const [draftImages, setDraftImages] = createSignal<AgentDraftLists>({});
   const [draftContext, setDraftContext] = createSignal<AgentDraftLists>({});
   const [searchOpen, setSearchOpen] = createSignal(false);
+  const [deliveryMode, setDeliveryMode] =
+    createSignal<ComposerDeliveryMode>("followUp");
   const [activeSearchItem, setActiveSearchItem] = createSignal<string>();
   const [pendingFork, setPendingFork] = createSignal<{
     entryId: string;
@@ -517,7 +523,9 @@ export function App() {
     }));
     try {
       await (queueing
-        ? api.followUp(agent.id, message, attachedImages, attachedContext)
+        ? deliveryMode() === "steer"
+          ? api.steer(agent.id, message, attachedImages, attachedContext)
+          : api.followUp(agent.id, message, attachedImages, attachedContext)
         : api.prompt(agent.id, message, attachedImages, attachedContext));
     } catch (error) {
       setDraft(message);
@@ -897,6 +905,12 @@ export function App() {
                       commands={active().state.commands}
                       choose={setDraft}
                     />
+                    <Show when={active().state.connection === "running"}>
+                      <ComposerDeliveryControl
+                        value={deliveryMode()}
+                        change={setDeliveryMode}
+                      />
+                    </Show>
                     <Text class="flex-none text-xs text-muted">
                       {i18n.message(m.send_hint, {})}
                     </Text>

@@ -16,6 +16,7 @@ import {
   MarkdownInlineLayoutFixture,
   MessageLayoutFixture,
   PiComposerContextLayoutFixture,
+  PiComposerDeliveryLayoutFixture,
   PiComposerImagesLayoutFixture,
   PiConversationLayoutFixture,
   PiExtensionUiLayoutFixture,
@@ -144,6 +145,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 420,
         height: 120,
         render: PiComposerContextLayoutFixture,
+      },
+      "component/PiComposerDelivery": {
+        width: 240,
+        height: 80,
+        render: PiComposerDeliveryLayoutFixture,
       },
       "component/PiExtensionUi": {
         width: 420,
