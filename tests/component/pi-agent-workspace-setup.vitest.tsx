@@ -30,7 +30,10 @@ test("Pi Agent setup selects a workspace before starting", async () => {
     },
   });
   const startButton = screen.getByRole("button", { name: "Start agent" });
-  expect(JSON.stringify(screen.snapshot())).toContain("Choose a project");
+  expect(JSON.stringify(screen.snapshot())).toContain(
+    "Start your first coding agent",
+  );
+  expect(JSON.stringify(screen.snapshot())).not.toContain("Describe a task");
   expect(screen.getByRole("button", { name: "Review settings" })).toBeDefined();
   expect(startButton.disabled).toBe(true);
 

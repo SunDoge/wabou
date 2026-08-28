@@ -833,16 +833,23 @@ export function App() {
                       </Show>
                     </View>
                   </Show>
-                  <Text class="flex-none text-xs text-muted">·</Text>
-                  <Text class="min-w-0 flex-1 truncate text-xs text-muted">
-                    {(active().state.model ?? active().model) ||
-                      i18n.message(m.no_model, {})}{" "}
-                    ·{" "}
-                    {i18n.message(m.thinking, {
-                      level: active().state.thinking ?? "default",
-                    })}
-                  </Text>
-                  <AgentActivityStatus state={active().state} />
+                  <Show
+                    when={
+                      active().state.connection === "ready" ||
+                      active().state.connection === "running"
+                    }
+                  >
+                    <Text class="flex-none text-xs text-muted">·</Text>
+                    <Text class="min-w-0 flex-1 truncate text-xs text-muted">
+                      {(active().state.model ?? active().model) ||
+                        i18n.message(m.no_model, {})}{" "}
+                      ·{" "}
+                      {i18n.message(m.thinking, {
+                        level: active().state.thinking ?? "default",
+                      })}
+                    </Text>
+                    <AgentActivityStatus state={active().state} />
+                  </Show>
                 </View>
               </View>
               <Show when={active().state.sessionId}>
@@ -854,99 +861,107 @@ export function App() {
                 />
               </Show>
             </View>
-            <View class="min-w-0 flex-none overflow-hidden flex flex-row items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Toggle terminal"
-                aria-pressed={terminalOpen()}
-                disabled={!active().cwd.trim()}
-                onClick={() => {
-                  if (!terminalOpen()) setTerminalMounted(true);
-                  setTerminalOpen((open) => !open);
-                }}
-              >
-                <Icon source={squareTerminal} size={15} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={i18n.message(m.workspace_files, {})}
-                aria-pressed={sidePanel() === "files"}
-                onClick={() =>
-                  setSidePanel((current) =>
-                    current === "files" ? undefined : "files",
-                  )
-                }
-              >
-                <Icon source={folder} size={15} />
-              </Button>
-              <Show when={workspaceInfo()?.repository}>
+            <Show
+              when={
+                active().state.connection === "ready" ||
+                active().state.connection === "running"
+              }
+            >
+              <View class="min-w-0 flex-none overflow-hidden flex flex-row items-center gap-1">
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label={i18n.message(m.code_changes, {})}
-                  aria-pressed={sidePanel() === "changes"}
+                  aria-label="Toggle terminal"
+                  aria-pressed={terminalOpen()}
+                  disabled={!active().cwd.trim()}
+                  onClick={() => {
+                    if (!terminalOpen()) setTerminalMounted(true);
+                    setTerminalOpen((open) => !open);
+                  }}
+                >
+                  <Icon source={squareTerminal} size={15} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={i18n.message(m.workspace_files, {})}
+                  aria-pressed={sidePanel() === "files"}
                   onClick={() =>
                     setSidePanel((current) =>
-                      current === "changes" ? undefined : "changes",
+                      current === "files" ? undefined : "files",
                     )
                   }
                 >
-                  <Icon source={gitBranch} size={15} />
+                  <Icon source={folder} size={15} />
                 </Button>
-              </Show>
-              <ModelControls
-                models={active().state.models}
-                modelProvider={active().state.modelProvider}
-                modelId={active().state.modelId}
-                thinking={active().state.thinking}
-                thinkingLevels={active().state.availableThinkingLevels}
-                disabled={active().state.connection !== "ready"}
-                chooseModel={(provider, modelId) =>
-                  void api.setModel(active().id, provider, modelId)
-                }
-                chooseThinking={(level) =>
-                  void api.setThinking(active().id, level)
-                }
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={i18n.message(m.search_transcript, {})}
-                disabled={active().state.items.length === 0}
-                aria-pressed={searchOpen()}
-                onClick={() => setSearchOpen((open) => !open)}
-              >
-                <Icon source={search} size={15} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={i18n.message(m.new_session, {})}
-                disabled={active().state.connection !== "ready"}
-                onClick={() => void api.newSession(active().id)}
-              >
-                <Icon source={filePlus} size={15} />
-              </Button>
-              <SessionActions
-                disabled={
-                  active().state.connection !== "ready" ||
-                  !active().state.sessionId
-                }
-                compact={() => void api.compactSession(active().id)}
-                clone={() => void api.cloneSession(active().id)}
-                exportHtml={() => void exportActiveSession()}
-              />
-              <Show when={active().state.connection === "running"}>
+                <Show when={workspaceInfo()?.repository}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={i18n.message(m.code_changes, {})}
+                    aria-pressed={sidePanel() === "changes"}
+                    onClick={() =>
+                      setSidePanel((current) =>
+                        current === "changes" ? undefined : "changes",
+                      )
+                    }
+                  >
+                    <Icon source={gitBranch} size={15} />
+                  </Button>
+                </Show>
+                <ModelControls
+                  models={active().state.models}
+                  modelProvider={active().state.modelProvider}
+                  modelId={active().state.modelId}
+                  thinking={active().state.thinking}
+                  thinkingLevels={active().state.availableThinkingLevels}
+                  disabled={active().state.connection !== "ready"}
+                  chooseModel={(provider, modelId) =>
+                    void api.setModel(active().id, provider, modelId)
+                  }
+                  chooseThinking={(level) =>
+                    void api.setThinking(active().id, level)
+                  }
+                />
                 <Button
-                  variant="outline"
-                  onClick={() => void api.abort(active().id)}
+                  variant="ghost"
+                  size="icon"
+                  aria-label={i18n.message(m.search_transcript, {})}
+                  disabled={active().state.items.length === 0}
+                  aria-pressed={searchOpen()}
+                  onClick={() => setSearchOpen((open) => !open)}
                 >
-                  <Icon source={square} size={12} /> {i18n.message(m.stop, {})}
+                  <Icon source={search} size={15} />
                 </Button>
-              </Show>
-            </View>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={i18n.message(m.new_session, {})}
+                  disabled={active().state.connection !== "ready"}
+                  onClick={() => void api.newSession(active().id)}
+                >
+                  <Icon source={filePlus} size={15} />
+                </Button>
+                <SessionActions
+                  disabled={
+                    active().state.connection !== "ready" ||
+                    !active().state.sessionId
+                  }
+                  compact={() => void api.compactSession(active().id)}
+                  clone={() => void api.cloneSession(active().id)}
+                  exportHtml={() => void exportActiveSession()}
+                />
+                <Show when={active().state.connection === "running"}>
+                  <Button
+                    variant="outline"
+                    onClick={() => void api.abort(active().id)}
+                  >
+                    <Icon source={square} size={12} />{" "}
+                    {i18n.message(m.stop, {})}
+                  </Button>
+                </Show>
+              </View>
+            </Show>
           </View>
 
           <Show

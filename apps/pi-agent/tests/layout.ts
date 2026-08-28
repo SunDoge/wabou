@@ -28,8 +28,13 @@ try {
     );
   }
 
-  getLayoutNode(snapshot, { name: "Search agents and sessions" });
-  getLayoutNode(snapshot, { text: "Choose a project" });
+  if (
+    queryLayoutNodes(snapshot, { name: "Search agents and sessions" }).length >
+    0
+  ) {
+    throw new Error("empty onboarding exposed an inactive session search");
+  }
+  getLayoutNode(snapshot, { text: "Start your first coding agent" });
   getLayoutNode(snapshot, { role: "textbox", name: "Workspace" });
 
   await renderLayoutFixtures({

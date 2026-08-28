@@ -88,22 +88,25 @@ export function Sidebar(props: SidebarProps) {
       </SidebarHeader>
 
       <SidebarContent contentClass="gap-3">
-        <Button
-          class="w-full justify-start shadow-xs"
-          disabled={!props.canCreateSession}
-          onClick={props.newSession}
-        >
-          <Icon source={messageSquare} size={16} />
-          {i18n.message(m.new_thread, {})}
-        </Button>
+        <Show when={props.canCreateSession}>
+          <Button
+            class="w-full justify-start shadow-xs"
+            onClick={props.newSession}
+          >
+            <Icon source={messageSquare} size={16} />
+            {i18n.message(m.new_thread, {})}
+          </Button>
+        </Show>
 
-        <SearchField
-          aria-label={i18n.message(m.search_agents, {})}
-          value={query()}
-          onValueChange={setQuery}
-          placeholder={i18n.message(m.search_agents, {})}
-          clearLabel={i18n.message(m.clear_search, {})}
-        />
+        <Show when={props.sessions.length > 0}>
+          <SearchField
+            aria-label={i18n.message(m.search_agents, {})}
+            value={query()}
+            onValueChange={setQuery}
+            placeholder={i18n.message(m.search_agents, {})}
+            clearLabel={i18n.message(m.clear_search, {})}
+          />
+        </Show>
 
         <SidebarGroup>
           <View class="px-2 flex flex-row items-center justify-between gap-2">
