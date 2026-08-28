@@ -703,6 +703,7 @@ impl TerminalWidget {
             Arc::from("0"),
             self.font_size,
             400.0,
+            false,
             None,
             Default::default(),
             [255, 255, 255, 255],

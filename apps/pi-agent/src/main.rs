@@ -24,6 +24,7 @@ fn main() -> Result<(), Whatever> {
                 .initial_inner_size(1180, 780)
                 .min_inner_size(820, 560),
         )
+        .widget("terminal", wabou_terminal::terminal_widget)
         .capability(service::CAPABILITY, move |host| {
             service::mount(host, capability.clone())
         })

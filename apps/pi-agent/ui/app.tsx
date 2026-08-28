@@ -23,6 +23,7 @@ import gitBranch from "lucide-static/icons/git-branch.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import send from "lucide-static/icons/send.svg?raw";
 import square from "lucide-static/icons/square.svg?raw";
+import squareTerminal from "lucide-static/icons/square-terminal.svg?raw";
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { AgentActivityStatus } from "./agent-activity";
 import {
@@ -79,6 +80,7 @@ import { SessionUsage } from "./session-usage";
 import { type AgentDefaults, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
 import { TranscriptSearch } from "./transcript-search";
+import { AgentTerminalPanel } from "./terminal-panel";
 import {
   type AgentWorkspace,
   agentProfile,
@@ -155,6 +157,8 @@ export function App() {
   const [draftContext, setDraftContext] = createSignal<AgentDraftLists>({});
   const [searchOpen, setSearchOpen] = createSignal(false);
   const [sidePanel, setSidePanel] = createSignal<"files" | "changes">();
+  const [terminalOpen, setTerminalOpen] = createSignal(false);
+  const [terminalMounted, setTerminalMounted] = createSignal(false);
   const [deliveryMode, setDeliveryMode] =
     createSignal<ComposerDeliveryMode>("followUp");
   const [activeSearchItem, setActiveSearchItem] = createSignal<string>();
@@ -854,6 +858,19 @@ export function App() {
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label="Toggle terminal"
+                aria-pressed={terminalOpen()}
+                disabled={!active().cwd.trim()}
+                onClick={() => {
+                  if (!terminalOpen()) setTerminalMounted(true);
+                  setTerminalOpen((open) => !open);
+                }}
+              >
+                <Icon source={squareTerminal} size={15} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 aria-label={i18n.message(m.workspace_files, {})}
                 aria-pressed={sidePanel() === "files"}
                 onClick={() =>
@@ -1064,6 +1081,17 @@ export function App() {
                 </View>
               </View>
             </View>
+          </Show>
+          <Show when={terminalMounted()}>
+            <AgentTerminalPanel
+              cwd={active().cwd}
+              open={terminalOpen()}
+              close={() => setTerminalOpen(false)}
+              dispose={() => {
+                setTerminalOpen(false);
+                setTerminalMounted(false);
+              }}
+            />
           </Show>
         </View>
         <Show when={sidePanel() === "files" && active().cwd.trim()}>

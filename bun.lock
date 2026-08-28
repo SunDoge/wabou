@@ -122,6 +122,7 @@
       "name": "@wabou/pi-agent",
       "version": "0.0.0",
       "dependencies": {
+        "@wabou/terminal": "workspace:*",
         "@wabou/ui": "workspace:*",
         "lucide-static": "1.31.0",
         "solid-js": "2.0.0-rc.2",

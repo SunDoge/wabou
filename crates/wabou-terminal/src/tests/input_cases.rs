@@ -166,6 +166,7 @@ fn font_metrics_drive_cell_width_and_grid_resize() {
         Arc::from("0"),
         20.0,
         400.0,
+        false,
         None,
         Default::default(),
         [255, 255, 255, 255],
