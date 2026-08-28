@@ -45,8 +45,10 @@ use headless_render::{
     RenderOptions, actions_from_matches as render_actions_from_matches,
     legacy_actions as legacy_render_actions, run as render,
 };
+#[cfg(test)]
+use process::wait_for_managed_child;
 use process::{
-    ManagedChild, configure_test_backend, supervise, wait_for_managed_child, wait_for_vite,
+    ManagedChild, configure_test_backend, supervise, wait_for_behavior_host, wait_for_vite,
 };
 use project::{App, ensure_workspace_package_exports, find_app_root, find_workspace, load_app};
 
@@ -872,7 +874,7 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     let stopped = Arc::new(AtomicBool::new(false));
     let signal = stopped.clone();
     ctrlc::set_handler(move || signal.store(true, Ordering::Release))?;
-    let status = wait_for_managed_child(host, HOST_TIMEOUT, &stopped)?;
+    let status = wait_for_behavior_host(host, HOST_TIMEOUT, &stopped)?;
     ensure(status, "Wabou behavior test")
 }
 
