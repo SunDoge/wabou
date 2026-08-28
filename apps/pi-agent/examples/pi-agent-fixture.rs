@@ -17,6 +17,7 @@ struct FixtureState {
     last_prompt: Option<String>,
     session_serial: u32,
     pending_response: bool,
+    pending_extension_choice: bool,
     subagents_enabled: bool,
 }
 
@@ -76,6 +77,7 @@ impl FixtureState {
             last_prompt,
             session_serial,
             pending_response: false,
+            pending_extension_choice: false,
             subagents_enabled: argument("--extension")
                 .is_some_and(|value| value == "npm:pi-subagents@0.58.0"),
         })
@@ -95,6 +97,7 @@ impl FixtureState {
         write(&self.session_file, [])?;
         self.last_prompt = None;
         self.pending_response = false;
+        self.pending_extension_choice = false;
         Ok(())
     }
 
@@ -168,6 +171,17 @@ fn answer_prompt(state: &mut FixtureState, message: &str) -> io::Result<()> {
                 "type":"thinking_delta",
                 "delta":"Waiting for the deterministic abort request."
             }
+        }));
+    }
+    if message == "Exercise extension UI" {
+        state.pending_extension_choice = true;
+        return emit(&json!({
+            "type":"extension_ui_request",
+            "id":"fixture-choice",
+            "method":"select",
+            "title":"Choose fixture mode",
+            "message":"The deterministic extension is waiting for a native UI response.",
+            "options":["Careful","Fast"]
         }));
     }
     state.persist_prompt(message)?;
@@ -351,6 +365,28 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
                 emit(&json!({"type":"message_end"}))?;
                 emit(&json!({"type":"agent_end"}))?;
             }
+            emit(&json!({"type":"agent_settled"}))
+        }
+        "extension_ui_response" => {
+            if !state.pending_extension_choice
+                || request.get("id").and_then(Value::as_str) != Some("fixture-choice")
+            {
+                return Ok(());
+            }
+            state.pending_extension_choice = false;
+            let choice = request
+                .get("value")
+                .and_then(Value::as_str)
+                .unwrap_or("cancelled");
+            emit(&json!({
+                "type":"message_update",
+                "assistantMessageEvent":{
+                    "type":"text_delta",
+                    "delta":format!("Extension UI selected: {choice}")
+                }
+            }))?;
+            emit(&json!({"type":"message_end"}))?;
+            emit(&json!({"type":"agent_end"}))?;
             emit(&json!({"type":"agent_settled"}))
         }
         _ => response(request, json!({})),

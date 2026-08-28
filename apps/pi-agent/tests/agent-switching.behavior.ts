@@ -31,6 +31,31 @@ test("starts a deterministic Pi agent and renders its streamed response", async 
   await expect(composer).toHaveValue("");
 });
 
+test("round-trips a Pi extension UI request through the native dialog", async ({
+  page,
+}) => {
+  const composer = page.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+  await composer.type("Exercise extension UI");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Choose fixture mode" });
+  await expect(dialog).toBeInViewport({ timeout: 5_000 });
+  await expect(
+    dialog.getByRole("label", {
+      name: "The deterministic extension is waiting for a native UI response.",
+    }),
+  ).toHaveCount(1);
+  await dialog.getByRole("option", { name: "Careful" }).click();
+
+  await expect(dialog).toBeAbsent({ timeout: 5_000 });
+  await expect(
+    page.getByRole("label", { name: "Extension UI selected: Careful" }),
+  ).toHaveCount(1, { timeout: 5_000 });
+  await expect(page.getByRole("button", { name: "Stop" })).toBeAbsent();
+});
+
 test("keeps the active workspace usable at its minimum window size", async ({
   page,
   window,
