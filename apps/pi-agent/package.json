@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "generate": "paraglide-js compile --project ./project.inlang --outdir ./ui/paraglide --strategy baseLocale --is-server false --emit-ts-declarations",
+    "generate": "paraglide-js compile --project ./project.inlang --outdir ./ui/paraglide --strategy baseLocale --is-server false --output-structure message-modules --emit-ts-declarations",
     "build": "bun run generate && vite build",
     "dev": "vite --host 127.0.0.1 --port 5187 --strictPort"
   },

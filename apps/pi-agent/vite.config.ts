@@ -9,6 +9,7 @@ export default defineWabouConfig({
         outdir: "./ui/paraglide",
         strategy: ["baseLocale"],
         isServer: "false",
+        outputStructure: "message-modules",
         emitTsDeclarations: true,
       }),
     ],
