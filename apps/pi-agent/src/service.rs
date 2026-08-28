@@ -58,6 +58,8 @@ const RESPOND_EXTENSION_UI: JsonMethod<ExtensionUiResponseRequest, ()> =
     JsonMethod::new("respondExtensionUi");
 const LIST_AGENTS: JsonMethod<(), Vec<AgentProfile>> = JsonMethod::no_request("listAgents");
 const SAVE_AGENTS: JsonMethod<Vec<AgentProfile>, ()> = JsonMethod::new("saveAgents");
+const GET_APP_SETTINGS: JsonMethod<(), AppSettings> = JsonMethod::no_request("getAppSettings");
+const SAVE_APP_SETTINGS: JsonMethod<AppSettings, ()> = JsonMethod::new("saveAppSettings");
 const DELETE_AGENT: JsonMethod<AgentRequest, ()> = JsonMethod::new("deleteAgent");
 const DEFAULT_WORKSPACE: JsonMethod<AgentRequest, String> = JsonMethod::new("defaultWorkspace");
 
@@ -76,16 +78,44 @@ struct SessionCatalog {
     sessions: Vec<PiSession>,
     #[serde(default)]
     agents: Vec<AgentProfile>,
+    #[serde(default)]
+    settings: AppSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
+struct AppSettings {
+    #[serde(default)]
+    proxy: String,
+    #[serde(default = "default_no_proxy")]
+    no_proxy: String,
+    #[serde(default)]
+    provider: String,
+    #[serde(default)]
+    model: String,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            proxy: String::new(),
+            no_proxy: default_no_proxy(),
+            provider: String::new(),
+            model: String::new(),
+        }
+    }
+}
+
+fn default_no_proxy() -> String {
+    "127.0.0.1,localhost".to_owned()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 struct AgentProfile {
     id: String,
     name: String,
     cwd: String,
-    proxy: String,
-    no_proxy: String,
     provider: String,
     model: String,
 }
@@ -754,7 +784,9 @@ impl PiService {
         self.stop(&request.agent_id)?;
         let cwd = request
             .cwd
-            .filter(|value| !value.trim().is_empty())
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
             .map(PathBuf::from)
             .unwrap_or(env::current_dir().map_err(|error| error.to_string())?);
         if cwd.exists() && !cwd.is_dir() {
@@ -785,12 +817,7 @@ impl PiService {
                 command
             }
         };
-        if let Some(provider) = request.provider.filter(|value| !value.trim().is_empty()) {
-            command.args(["--provider", provider.trim()]);
-        }
-        if let Some(model) = request.model.filter(|value| !value.trim().is_empty()) {
-            command.args(["--model", model.trim()]);
-        }
+        configure_pi_command(&mut command, &request);
         if let Some(session_file) = session_file {
             command.arg("--session").arg(session_file);
         } else {
@@ -801,21 +828,6 @@ impl PiService {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        if let Some(proxy) = request.proxy.filter(|value| !value.trim().is_empty()) {
-            for name in [
-                "HTTP_PROXY",
-                "HTTPS_PROXY",
-                "ALL_PROXY",
-                "http_proxy",
-                "https_proxy",
-                "all_proxy",
-            ] {
-                command.env(name, &proxy);
-            }
-        }
-        if let Some(no_proxy) = request.no_proxy.filter(|value| !value.trim().is_empty()) {
-            command.env("NO_PROXY", &no_proxy).env("no_proxy", no_proxy);
-        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt as _;
@@ -983,6 +995,22 @@ impl PiService {
         persist_catalog(&catalog)
     }
 
+    fn app_settings(&self) -> Result<AppSettings, String> {
+        self.sessions
+            .lock()
+            .map(|catalog| catalog.settings.clone())
+            .map_err(|_| "Pi session catalog lock poisoned".to_owned())
+    }
+
+    fn save_app_settings(&self, settings: AppSettings) -> Result<(), String> {
+        let mut catalog = self
+            .sessions
+            .lock()
+            .map_err(|_| "Pi session catalog lock poisoned".to_owned())?;
+        catalog.settings = settings;
+        persist_catalog(&catalog)
+    }
+
     fn delete_agent(&self, agent_id: &str) -> Result<(), String> {
         validate_agent_id(agent_id)?;
         self.stop(agent_id)?;
@@ -995,6 +1023,50 @@ impl PiService {
             .sessions
             .retain(|session| session.agent_id != agent_id);
         persist_catalog(&catalog)
+    }
+}
+
+fn configure_pi_command(command: &mut Command, request: &StartRequest) {
+    if let Some(provider) = request
+        .provider
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        command.args(["--provider", provider]);
+    }
+    if let Some(model) = request
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        command.args(["--model", model]);
+    }
+    if let Some(proxy) = request
+        .proxy
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        for name in [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        ] {
+            command.env(name, proxy);
+        }
+    }
+    if let Some(no_proxy) = request
+        .no_proxy
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        command.env("NO_PROXY", no_proxy).env("no_proxy", no_proxy);
     }
 }
 
@@ -1209,6 +1281,16 @@ pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::
     capability.json_method(SAVE_AGENTS, move |agents: Vec<AgentProfile>| {
         let service = save_agents.clone();
         async move { service.save_agents(agents) }
+    })?;
+    let get_app_settings = service.clone();
+    capability.json_method(GET_APP_SETTINGS, move |(): ()| {
+        let service = get_app_settings.clone();
+        async move { service.app_settings() }
+    })?;
+    let save_app_settings = service.clone();
+    capability.json_method(SAVE_APP_SETTINGS, move |settings: AppSettings| {
+        let service = save_app_settings.clone();
+        async move { service.save_app_settings(settings) }
     })?;
     let delete_agent = service.clone();
     capability.json_method(DELETE_AGENT, move |request: AgentRequest| {
@@ -1618,6 +1700,59 @@ mod tests {
     }
 
     #[test]
+    fn pi_command_receives_model_and_proxy_configuration() {
+        let request = StartRequest {
+            agent_id: "agent-1".to_owned(),
+            cwd: None,
+            proxy: Some("  http://127.0.0.1:7890  ".to_owned()),
+            no_proxy: Some(" localhost,127.0.0.1 ".to_owned()),
+            provider: Some(" openai ".to_owned()),
+            model: Some(" gpt-5 ".to_owned()),
+            session_id: None,
+        };
+        let mut command = Command::new("pi");
+        configure_pi_command(&mut command, &request);
+
+        let args = command
+            .get_args()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(args, ["--provider", "openai", "--model", "gpt-5"]);
+
+        let environment = command
+            .get_envs()
+            .map(|(name, value)| {
+                (
+                    name.to_string_lossy().into_owned(),
+                    value
+                        .expect("configured environment value")
+                        .to_string_lossy()
+                        .into_owned(),
+                )
+            })
+            .collect::<std::collections::HashMap<_, _>>();
+        for name in [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        ] {
+            assert_eq!(
+                environment.get(name).map(String::as_str),
+                Some("http://127.0.0.1:7890")
+            );
+        }
+        for name in ["NO_PROXY", "no_proxy"] {
+            assert_eq!(
+                environment.get(name).map(String::as_str),
+                Some("localhost,127.0.0.1")
+            );
+        }
+    }
+
+    #[test]
     fn event_batch_is_bounded_and_leaves_backpressure_in_the_channel() {
         let (sender, receiver) = flume::bounded(128);
         for index in 1..=70 {
@@ -1682,6 +1817,34 @@ mod tests {
         let catalog: SessionCatalog =
             serde_json::from_str(r#"{"sessions":[]}"#).expect("legacy catalog");
         assert!(catalog.agents.is_empty());
+        assert_eq!(catalog.settings, AppSettings::default());
+    }
+
+    #[test]
+    fn legacy_project_proxy_fields_are_ignored_in_favor_of_app_settings() {
+        let catalog: SessionCatalog = serde_json::from_str(
+            r#"{
+                "sessions": [],
+                "agents": [{
+                    "id": "agent-1",
+                    "name": "Agent 1",
+                    "cwd": "",
+                    "proxy": "http://old-project-proxy:7890",
+                    "noProxy": "localhost",
+                    "provider": "",
+                    "model": ""
+                }],
+                "settings": {
+                    "proxy": "http://global-proxy:7890",
+                    "noProxy": "localhost",
+                    "provider": "openai",
+                    "model": "gpt-5"
+                }
+            }"#,
+        )
+        .expect("legacy project fields remain readable");
+        assert_eq!(catalog.settings.proxy, "http://global-proxy:7890");
+        assert_eq!(catalog.agents.len(), 1);
     }
 
     #[test]
@@ -1690,8 +1853,6 @@ mod tests {
             id: "agent-1".to_owned(),
             name: "Agent 1".to_owned(),
             cwd: String::new(),
-            proxy: String::new(),
-            no_proxy: String::new(),
             provider: String::new(),
             model: String::new(),
         };
@@ -1829,6 +1990,7 @@ mod tests {
                 session("missing", &directory.join("missing.jsonl")),
             ],
             agents: Vec::new(),
+            settings: AppSettings::default(),
         };
 
         assert!(prune_missing_sessions(&mut catalog));

@@ -21,6 +21,12 @@ struct FixtureState {
 impl FixtureState {
     fn from_args() -> io::Result<Self> {
         let args = std::env::args_os().collect::<Vec<_>>();
+        let argument = |name: &str| {
+            args.windows(2)
+                .find(|pair| pair[0] == name)
+                .and_then(|pair| pair[1].to_str())
+                .map(str::to_owned)
+        };
         let restored_session = args
             .windows(2)
             .find(|pair| pair[0] == "--session")
@@ -45,10 +51,17 @@ impl FixtureState {
             write(&session_file, [])?;
             None
         };
+        let model_provider = argument("--provider").unwrap_or_else(|| "wabou".to_owned());
+        let model_id = argument("--model").unwrap_or_else(|| "fake-model".to_owned());
+        let model_name = if model_id == "fake-model" {
+            "Fake model".to_owned()
+        } else {
+            model_id.clone()
+        };
         Ok(Self {
-            model_provider: "wabou".to_owned(),
-            model_id: "fake-model".to_owned(),
-            model_name: "Fake model".to_owned(),
+            model_provider,
+            model_id,
+            model_name,
             thinking: "medium".to_owned(),
             session_id,
             session_file,
@@ -180,7 +193,9 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
         "get_available_models" => response(
             request,
             json!({"models":[{
-                "provider":"wabou","id":"fake-model","name":"Fake model"
+                "provider":state.model_provider,
+                "id":state.model_id,
+                "name":state.model_name
             },{
                 "provider":"wabou","id":"alternative-model","name":"Alternative model"
             }]}),

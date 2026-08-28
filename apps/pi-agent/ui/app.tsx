@@ -78,7 +78,7 @@ import { SessionActions } from "./session-actions";
 import { SessionForkDialog } from "./session-fork";
 import { SessionTitle } from "./session-title";
 import { SessionUsage } from "./session-usage";
-import { type AgentDefaults, SettingsPage } from "./settings";
+import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
 import { AgentTerminalPanel } from "./terminal-panel";
 import { TranscriptSearch } from "./transcript-search";
@@ -140,7 +140,7 @@ export function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams<{ agentId?: string; sessionId?: string }>();
-  const [defaults, setDefaults] = createSignal<AgentDefaults>({
+  const [defaults, setDefaults] = createSignal<AppSettings>({
     proxy: "",
     noProxy: "127.0.0.1,localhost",
     provider: "",
@@ -184,6 +184,18 @@ export function App() {
   let nextMessage = 1;
   let profilesHydrated = false;
   let saveProfilesTimer: ReturnType<typeof setTimeout> | undefined;
+  let settingsHydrated = false;
+  let saveSettingsTimer: ReturnType<typeof setTimeout> | undefined;
+
+  void api
+    .getAppSettings()
+    .then(setDefaults)
+    .catch((error) => {
+      console.error(`[pi-agent] could not load app settings: ${String(error)}`);
+    })
+    .finally(() => {
+      settingsHydrated = true;
+    });
 
   void api
     .listAgents()
@@ -218,6 +230,17 @@ export function App() {
       saveProfilesTimer = setTimeout(() => {
         saveProfilesTimer = undefined;
         void api.saveAgents(JSON.parse(serialized));
+      }, 150);
+    },
+  );
+  createEffect(
+    () => JSON.stringify(defaults()),
+    (serialized) => {
+      if (!settingsHydrated) return;
+      if (saveSettingsTimer !== undefined) clearTimeout(saveSettingsTimer);
+      saveSettingsTimer = setTimeout(() => {
+        saveSettingsTimer = undefined;
+        void api.saveAppSettings(JSON.parse(serialized));
       }, 150);
     },
   );
@@ -543,10 +566,11 @@ export function App() {
       const status = await api.start({
         agentId: agent.id,
         cwd: agent.cwd,
-        proxy: agent.proxy.trim() || undefined,
-        noProxy: agent.noProxy.trim() || undefined,
-        provider: agent.provider.trim() || undefined,
-        model: agent.model.trim() || undefined,
+        proxy: defaults().proxy.trim() || undefined,
+        noProxy: defaults().noProxy.trim() || undefined,
+        provider:
+          agent.provider.trim() || defaults().provider.trim() || undefined,
+        model: agent.model.trim() || defaults().model.trim() || undefined,
         sessionId,
       });
       updateAgent(agent.id, (current) => ({
@@ -618,7 +642,7 @@ export function App() {
           (agent) => Number(agent.id.match(/^agent-(\d+)$/)?.[1]) || 0,
         ),
       ) + 1;
-    const agent = { ...createAgentWorkspace(nextIndex), ...defaults() };
+    const agent = createAgentWorkspace(nextIndex);
     setAgents((current) => [...current, agent]);
     setLastActiveId(agent.id);
     void navigate({ to: `/agents/${agent.id}` });
@@ -784,14 +808,14 @@ export function App() {
         when={location().pathname !== "/settings"}
         fallback={
           <SettingsPage
-            value={defaults()}
-            agent={active()}
+            app={defaults()}
+            project={active()}
             state={active().state}
-            update={(patch) =>
+            updateApp={(patch) =>
               setDefaults((current) => ({ ...current, ...patch }))
             }
-            updateAgent={patchActive}
-            deleteAgent={() => void deleteActiveAgent()}
+            updateProject={patchActive}
+            deleteProject={() => void deleteActiveAgent()}
             setAutoCompaction={(enabled) =>
               void api.setAutoCompaction(active().id, enabled)
             }
@@ -986,7 +1010,7 @@ export function App() {
                 runtimeLogs={active().state.runtimeLogs}
                 provider={active().provider}
                 model={active().model}
-                proxy={active().proxy}
+                proxy={defaults().proxy}
                 updatePath={(cwd) => patchActive({ cwd })}
                 start={start}
                 openSettings={() => void navigate({ to: "/settings" })}

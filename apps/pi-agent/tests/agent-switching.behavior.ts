@@ -51,11 +51,11 @@ test("keeps the active workspace usable at its minimum window size", async ({
 test("returns to an existing agent after creating a new one", async ({
   page,
 }) => {
-  const first = page.getByRole("button", { name: "Agent 1" });
+  const first = page.getByRole("button", { name: "Project 1" });
   await expect(first).toBeSelected();
 
   await page.getByRole("button", { name: "Add project" }).click();
-  const second = page.getByRole("button", { name: "Agent 2" });
+  const second = page.getByRole("button", { name: "Project 2" });
   await expect(second).toBeSelected();
 
   await first.click();
@@ -78,18 +78,28 @@ test("changes model through the native combobox overlay", async ({ page }) => {
   ).toHaveCount(1);
 });
 
-test("updates the agent through settings without losing its conversation", async ({
+test("updates project and app settings without losing its conversation", async ({
   page,
 }) => {
   await page.getByRole("button", { name: "Settings" }).click();
   await page.getByRole("heading", { name: "Settings" }).waitFor();
-  const name = page.getByRole("textbox", { name: "Agent name" });
+  const name = page.getByRole("textbox", { name: "Project name" });
   await expect(name).toBeInViewport();
   await name.click();
   await name.press("a", { control: true });
   await name.type("Workspace Agent");
   await expect(name).toHaveValue("Workspace Agent");
-  await page.getByRole("button", { name: "Back to agents" }).click();
+  const provider = page.getByRole("textbox", { name: "Provider" });
+  await provider.type("openai");
+  await expect(provider).toHaveValue("openai");
+  const configuredModel = page.getByRole("textbox", { name: "Model" });
+  await configuredModel.type("gpt-5");
+  await expect(configuredModel).toHaveValue("gpt-5");
+  await configuredModel.wheel(1_200);
+  const proxy = page.getByRole("textbox", { name: "Default proxy URL" });
+  await proxy.type("http://127.0.0.1:7890");
+  await expect(proxy).toHaveValue("http://127.0.0.1:7890");
+  await page.getByRole("button", { name: "Back to projects" }).click();
   await expect(
     page.getByRole("button", { name: "Workspace Agent" }),
   ).toBeSelected();
@@ -146,6 +156,9 @@ test("aborts a running response and returns the session to ready", async ({
   await expect(
     page.getByRole("combobox", { name: "Choose model" }),
   ).toBeEnabled();
+  await expect(
+    page.getByRole("combobox", { name: "Choose model" }),
+  ).toHaveValue("gpt-5");
 });
 
 test("opens and closes an embedded native terminal panel", async ({ page }) => {
@@ -176,7 +189,7 @@ test("keeps retained layout stable across repeated agent switches", async ({
   page,
 }) => {
   const first = page.getByRole("button", { name: "Workspace Agent" });
-  const second = page.getByRole("button", { name: "Agent 2" });
+  const second = page.getByRole("button", { name: "Project 2" });
   const composer = page.getByRole("textbox", {
     name: "Ask this agent to work in its repository…",
   });

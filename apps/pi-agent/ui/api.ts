@@ -50,6 +50,11 @@ export interface PersistedAgentProfile {
   id: string;
   name: string;
   cwd: string;
+  provider: string;
+  model: string;
+}
+
+export interface PersistedAppSettings {
   proxy: string;
   noProxy: string;
   provider: string;
@@ -120,6 +125,9 @@ export function usePiApi() {
     listAgents: () => call<PersistedAgentProfile[]>("listAgents"),
     saveAgents: (agents: readonly PersistedAgentProfile[]) =>
       call<void>("saveAgents", agents),
+    getAppSettings: () => call<PersistedAppSettings>("getAppSettings"),
+    saveAppSettings: (settings: PersistedAppSettings) =>
+      call<void>("saveAppSettings", settings),
     deleteAgent: (agentId: string) => call<void>("deleteAgent", { agentId }),
     defaultWorkspace: (agentId: string) =>
       call<string>("defaultWorkspace", { agentId }),

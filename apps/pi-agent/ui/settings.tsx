@@ -27,7 +27,7 @@ import { i18n, m } from "./i18n";
 import { SessionBehaviorSettings } from "./session-behavior-settings";
 import type { AgentWorkspace } from "./workspace";
 
-export interface AgentDefaults {
+export interface AppSettings {
   proxy: string;
   noProxy: string;
   provider: string;
@@ -35,13 +35,13 @@ export interface AgentDefaults {
 }
 
 export function SettingsPage(props: {
-  value: AgentDefaults;
-  update: (patch: Partial<AgentDefaults>) => void;
-  agent: AgentWorkspace;
+  app: AppSettings;
+  updateApp: (patch: Partial<AppSettings>) => void;
+  project: AgentWorkspace;
   state: AgentViewState;
-  updateAgent: (patch: Partial<AgentWorkspace>) => void;
+  updateProject: (patch: Partial<AgentWorkspace>) => void;
   close: () => void;
-  deleteAgent: () => void;
+  deleteProject: () => void;
   setAutoCompaction: (enabled: boolean) => void;
   setSteeringMode: (mode: AgentQueueMode) => void;
   setFollowUpMode: (mode: AgentQueueMode) => void;
@@ -62,7 +62,7 @@ export function SettingsPage(props: {
         <Card>
           <CardHeader>
             <CardTitle>
-              {i18n.message(m.current_agent, { name: props.agent.name })}
+              {i18n.message(m.current_agent, { name: props.project.name })}
             </CardTitle>
             <CardDescription>
               {i18n.message(m.current_agent_detail, {})}
@@ -73,17 +73,17 @@ export function SettingsPage(props: {
               <FieldLabel>{i18n.message(m.agent_name, {})}</FieldLabel>
               <Input
                 aria-label={i18n.message(m.agent_name, {})}
-                value={props.agent.name}
+                value={props.project.name}
                 onInput={(event) =>
-                  props.updateAgent({ name: event.currentTarget.value })
+                  props.updateProject({ name: event.currentTarget.value })
                 }
               />
             </Field>
             <Field>
               <FieldLabel>{i18n.message(m.workspace, {})}</FieldLabel>
               <DirectoryPicker
-                value={props.agent.cwd}
-                onValueChange={(cwd) => props.updateAgent({ cwd })}
+                value={props.project.cwd}
+                onValueChange={(cwd) => props.updateProject({ cwd })}
                 placeholder={i18n.message(m.choose_repository, {})}
                 browseLabel={i18n.message(m.browse, {})}
               />
@@ -91,9 +91,10 @@ export function SettingsPage(props: {
             <Field>
               <FieldLabel>{i18n.message(m.provider, {})}</FieldLabel>
               <Input
-                value={props.agent.provider}
+                aria-label={i18n.message(m.provider, {})}
+                value={props.project.provider}
                 onInput={(event) =>
-                  props.updateAgent({ provider: event.currentTarget.value })
+                  props.updateProject({ provider: event.currentTarget.value })
                 }
                 placeholder={i18n.message(m.provider_placeholder, {})}
               />
@@ -101,21 +102,12 @@ export function SettingsPage(props: {
             <Field>
               <FieldLabel>{i18n.message(m.model, {})}</FieldLabel>
               <Input
-                value={props.agent.model}
+                aria-label={i18n.message(m.model, {})}
+                value={props.project.model}
                 onInput={(event) =>
-                  props.updateAgent({ model: event.currentTarget.value })
+                  props.updateProject({ model: event.currentTarget.value })
                 }
                 placeholder={i18n.message(m.model_optional, {})}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>{i18n.message(m.proxy_url, {})}</FieldLabel>
-              <Input
-                value={props.agent.proxy}
-                onInput={(event) =>
-                  props.updateAgent({ proxy: event.currentTarget.value })
-                }
-                placeholder={i18n.message(m.proxy_placeholder, {})}
               />
             </Field>
           </CardContent>
@@ -173,10 +165,10 @@ export function SettingsPage(props: {
               <FieldLabel>{i18n.message(m.provider, {})}</FieldLabel>
               <Input
                 aria-label="Default provider"
-                value={props.value.provider}
+                value={props.app.provider}
                 placeholder={i18n.message(m.provider_placeholder, {})}
                 onInput={(event) =>
-                  props.update({ provider: event.currentTarget.value })
+                  props.updateApp({ provider: event.currentTarget.value })
                 }
               />
             </Field>
@@ -184,10 +176,10 @@ export function SettingsPage(props: {
               <FieldLabel>{i18n.message(m.model, {})}</FieldLabel>
               <Input
                 aria-label="Default model"
-                value={props.value.model}
+                value={props.app.model}
                 placeholder={i18n.message(m.model_optional, {})}
                 onInput={(event) =>
-                  props.update({ model: event.currentTarget.value })
+                  props.updateApp({ model: event.currentTarget.value })
                 }
               />
             </Field>
@@ -206,10 +198,10 @@ export function SettingsPage(props: {
               <FieldLabel>{i18n.message(m.proxy_url, {})}</FieldLabel>
               <Input
                 aria-label="Default proxy URL"
-                value={props.value.proxy}
+                value={props.app.proxy}
                 placeholder="http://127.0.0.1:7890"
                 onInput={(event) =>
-                  props.update({ proxy: event.currentTarget.value })
+                  props.updateApp({ proxy: event.currentTarget.value })
                 }
               />
             </Field>
@@ -217,9 +209,9 @@ export function SettingsPage(props: {
               <FieldLabel>{i18n.message(m.proxy_bypass, {})}</FieldLabel>
               <Input
                 aria-label="Default proxy bypass list"
-                value={props.value.noProxy}
+                value={props.app.noProxy}
                 onInput={(event) =>
-                  props.update({ noProxy: event.currentTarget.value })
+                  props.updateApp({ noProxy: event.currentTarget.value })
                 }
               />
               <FieldDescription>127.0.0.1, localhost</FieldDescription>
@@ -260,7 +252,7 @@ export function SettingsPage(props: {
               <AlertDialogHeader>
                 <AlertDialogTitle>
                   {i18n.message(m.delete_agent_confirm, {
-                    name: props.agent.name,
+                    name: props.project.name,
                   })}
                 </AlertDialogTitle>
                 <AlertDialogDescription>
@@ -273,7 +265,7 @@ export function SettingsPage(props: {
                 </AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
-                  onClick={props.deleteAgent}
+                  onClick={props.deleteProject}
                 >
                   {i18n.message(m.delete_agent, {})}
                 </AlertDialogAction>
