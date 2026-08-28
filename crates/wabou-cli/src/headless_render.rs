@@ -516,6 +516,11 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         )
     };
 
+    apply_actions(&mut applier, &mut text_context, &mut nodes, options);
+
+    // Actions can start finite motion (for example a theme transition). Keep
+    // driving frames after replay so --wait-ms describes the state being
+    // captured rather than an idle delay before the interaction.
     if *wait_ms > 0 {
         let deadline = Instant::now() + Duration::from_millis(*wait_ms);
         while Instant::now() < deadline {
@@ -534,7 +539,6 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
             };
         }
     }
-    apply_actions(&mut applier, &mut text_context, &mut nodes, options);
 
     if let Some(path) = &options.metrics {
         render_metrics::write(
