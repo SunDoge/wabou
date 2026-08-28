@@ -236,6 +236,26 @@ const assertMessageLayout = (snapshot: LayoutSnapshot) => {
     throw new Error(`message text was compressed to ${text.rect.width}px`);
 };
 
+const assertPiAgentToolbarLayout = (snapshot: LayoutSnapshot) => {
+  const toolbar = getLayoutNode(snapshot, {
+    name: "Pi agent toolbar fixture",
+  });
+  const controls = [
+    ...queryLayoutNodes(snapshot, { role: "button" }),
+    ...queryLayoutNodes(snapshot, { role: "combobox" }),
+  ].filter(
+    (node) =>
+      node.rect.y >= toolbar.rect.y &&
+      layoutRectBottom(node.rect) <= layoutRectBottom(toolbar.rect),
+  );
+  if (controls.length < 5)
+    throw new Error(`Pi Agent toolbar lost controls; found ${controls.length}`);
+  for (const control of controls)
+    assertLayoutRectContains(toolbar.contentRect, control.rect, {
+      label: control.semantic?.label ?? control.semantic?.role ?? control.tag,
+    });
+};
+
 const assertMarkdownInlineLayout = (snapshot: LayoutSnapshot) => {
   const candidates = snapshot.nodes.filter((node) => node.text != null);
   const paragraph = candidates.find(
@@ -284,6 +304,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/InputGroup": { assert: assertInputGroupLayout },
   "component/MarkdownInline": { assert: assertMarkdownInlineLayout },
   "component/Message": { assert: assertMessageLayout },
+  "pi-agent/toolbar": { assert: assertPiAgentToolbarLayout },
 };
 const fixtureCase = (id: string) => {
   const override = overrides[id];

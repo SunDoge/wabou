@@ -1697,7 +1697,7 @@ function Combobox(props) {
 				trigger = node;
 				popover.ref(node);
 			},
-			class: (state) => mergeClasses("w-72 justify-between border bg-input shadow-xs", componentsControlSize("default"), state.focused ? "border-focus" : "border-subtle", props.class),
+			class: (state) => mergeClasses("w-72 overflow-hidden justify-between border bg-input shadow-xs", componentsControlSize("default"), state.focused ? "border-focus" : "border-subtle", props.class),
 			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 			get onClick() {
 				return popover.onClick;
@@ -6676,7 +6676,7 @@ function Select(props) {
 				trigger = node;
 				popover.ref(node);
 			},
-			class: (state) => mergeClasses("w-72 justify-between border bg-input shadow-xs", componentsControlSize("default"), state.focused ? "border-focus" : "border-subtle", props.class),
+			class: (state) => mergeClasses("w-72 overflow-hidden justify-between border bg-input shadow-xs", componentsControlSize("default"), state.focused ? "border-focus" : "border-subtle", props.class),
 			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 			get onClick() {
 				return popover.onClick;
@@ -6772,7 +6772,7 @@ function Select(props) {
 										}),
 										get children() {
 											return [createComponent$1(Text, {
-												class: "min-w-0 flex-1 text-sm whitespace-nowrap text-ellipsis",
+												class: "min-w-0 flex-1 text-sm truncate",
 												get children() {
 													return option().label;
 												}

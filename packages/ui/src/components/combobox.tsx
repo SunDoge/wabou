@@ -98,7 +98,7 @@ export function Combobox(props: ComboboxProps): JSX.Element {
           }}
           class={(state) =>
             mergeClasses(
-              "w-72 justify-between border bg-input shadow-xs",
+              "w-72 overflow-hidden justify-between border bg-input shadow-xs",
               componentsControlSize("default"),
               state.focused ? "border-focus" : "border-subtle",
               props.class,

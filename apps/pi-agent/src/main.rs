@@ -22,7 +22,11 @@ fn main() -> Result<(), Whatever> {
             WindowOptions::new()
                 .title("Pi Agent · Wabou")
                 .initial_inner_size(1180, 780)
-                .min_inner_size(820, 560),
+                // The fixed 288px sidebar leaves 892px for the conversation
+                // toolbar and composer. Keep the native window above that
+                // measured application-shell boundary instead of allowing
+                // flex children to be compressed into one another.
+                .min_inner_size(1180, 680),
         )
         .widget("terminal", wabou_terminal::terminal_widget)
         .capability(service::CAPABILITY, move |host| {

@@ -102,7 +102,9 @@ export function Sidebar(props: SidebarProps) {
 
         <SidebarGroup>
           <View class="px-2 flex flex-row items-center justify-between gap-2">
-            <SidebarGroupLabel>{i18n.message(m.projects, {})}</SidebarGroupLabel>
+            <SidebarGroupLabel>
+              {i18n.message(m.projects, {})}
+            </SidebarGroupLabel>
             <Button
               variant="ghost"
               size="icon"
@@ -117,6 +119,7 @@ export function Sidebar(props: SidebarProps) {
             {(agent) => (
               <View class="gap-1">
                 <SidebarMenuButton
+                  class="h-11"
                   aria-label={agent().name}
                   selected={agent().id === props.activeId}
                   onClick={() => props.select(agent().id)}
@@ -140,28 +143,39 @@ export function Sidebar(props: SidebarProps) {
                     }
                   />
                 </SidebarMenuButton>
-                <ForValue
-                  each={visibleSessions(agent().id)}
-                  keyed={(session) => session.sessionId}
-                >
-                  {(session) => (
-                    <SidebarMenuButton
-                      class="ml-5 pl-3 text-sm"
-                      aria-label={session().name ?? session().sessionId.slice(0, 8)}
-                      selected={
-                        agent().state.sessionId === session().sessionId &&
-                        agent().id === props.activeId
-                      }
-                      onClick={() =>
-                        props.selectSession(agent().id, session().sessionId)
-                      }
-                    >
-                      <Text class="min-w-0 flex-1 truncate">
-                        {session().name ?? session().sessionId.slice(0, 8)}
-                      </Text>
-                    </SidebarMenuButton>
-                  )}
-                </ForValue>
+                <Show when={agent().id === props.activeId || normalizedQuery()}>
+                  <ForValue
+                    each={visibleSessions(agent().id)}
+                    keyed={(session) => session.sessionId}
+                  >
+                    {(session) => (
+                      <View class="min-w-0 pl-5">
+                        <SidebarMenuButton
+                          class="pl-3 text-sm"
+                          aria-label={
+                            session().name ?? session().sessionId.slice(0, 8)
+                          }
+                          selected={
+                            agent().state.sessionId === session().sessionId &&
+                            agent().id === props.activeId
+                          }
+                          onClick={() =>
+                            props.selectSession(agent().id, session().sessionId)
+                          }
+                        >
+                          <Icon
+                            source={messageSquare}
+                            size={13}
+                            class="flex-none text-muted"
+                          />
+                          <Text class="min-w-0 flex-1 truncate">
+                            {session().name ?? session().sessionId.slice(0, 8)}
+                          </Text>
+                        </SidebarMenuButton>
+                      </View>
+                    )}
+                  </ForValue>
+                </Show>
               </View>
             )}
           </ForValue>

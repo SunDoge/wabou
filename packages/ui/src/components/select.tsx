@@ -157,7 +157,7 @@ export function Select(props: SelectProps): JSX.Element {
           }}
           class={(state) =>
             mergeClasses(
-              "w-72 justify-between border bg-input shadow-xs",
+              "w-72 overflow-hidden justify-between border bg-input shadow-xs",
               componentsControlSize("default"),
               state.focused ? "border-focus" : "border-subtle",
               props.class,
@@ -242,7 +242,7 @@ export function Select(props: SelectProps): JSX.Element {
                     interaction.send({ type: "SELECT", id: option().value })
                   }
                 >
-                  <Text class="min-w-0 flex-1 text-sm whitespace-nowrap text-ellipsis">
+                  <Text class="min-w-0 flex-1 text-sm truncate">
                     {option().label}
                   </Text>
                   <View aria-hidden="true" class="w-4 h-4 flex-none">

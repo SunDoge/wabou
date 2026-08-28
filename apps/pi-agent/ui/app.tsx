@@ -79,8 +79,8 @@ import { SessionTitle } from "./session-title";
 import { SessionUsage } from "./session-usage";
 import { type AgentDefaults, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
-import { TranscriptSearch } from "./transcript-search";
 import { AgentTerminalPanel } from "./terminal-panel";
+import { TranscriptSearch } from "./transcript-search";
 import {
   type AgentWorkspace,
   agentProfile,
@@ -797,8 +797,8 @@ export function App() {
       >
         <View class="flex-1 min-w-0 min-h-0 flex flex-col">
           <View class="h-14 flex-none px-5 border-b border-subtle bg-surface flex items-center justify-between gap-3">
-            <View class="min-w-0 flex-1 flex flex-row items-center gap-2">
-              <View class="min-w-0 flex flex-col gap-0">
+            <View class="min-w-0 flex-1 overflow-hidden flex flex-row items-center gap-2">
+              <View class="min-w-0 flex-1 overflow-hidden flex flex-col gap-0">
                 <Text class="font-semibold">
                   {activeSession()?.name ??
                     active().state.sessionName ??
@@ -854,7 +854,7 @@ export function App() {
                 />
               </Show>
             </View>
-            <View class="flex items-center gap-1">
+            <View class="min-w-0 flex-none overflow-hidden flex flex-row items-center gap-1">
               <Button
                 variant="ghost"
                 size="icon"

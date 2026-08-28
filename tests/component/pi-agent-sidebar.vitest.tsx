@@ -61,3 +61,49 @@ test("Pi Agent sidebar searches agents and sessions without flattening the hiera
     "No matching agents or sessions.",
   );
 });
+
+test("shows sessions only under the active agent and keeps agent selection live", () => {
+  const agents = [createAgentWorkspace(1), createAgentWorkspace(2)];
+  agents[0].cwd = "/work/api";
+  agents[1].cwd = "/work/docs";
+  agents[1].state.sessionId = "session-docs";
+  const sessions: PiSession[] = [
+    {
+      agentId: "agent-1",
+      sessionId: "session-api",
+      sessionFile: "/tmp/session-api.jsonl",
+      name: "Fix API",
+      cwd: "/work/api",
+      updatedAt: 1,
+    },
+    {
+      agentId: "agent-2",
+      sessionId: "session-docs",
+      sessionFile: "/tmp/session-docs.jsonl",
+      name: "Write release notes",
+      cwd: "/work/docs",
+      updatedAt: 2,
+    },
+  ];
+  const selected: string[] = [];
+  const screen = renderComponent(() => (
+    <Sidebar
+      agents={agents}
+      sessions={sessions}
+      activeId="agent-2"
+      select={(id) => selected.push(id)}
+      selectSession={() => {}}
+      add={() => {}}
+      newSession={() => {}}
+      canCreateSession
+      openSettings={() => {}}
+    />
+  ));
+
+  expect(screen.queryByRole("button", { name: "Fix API" })).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Write release notes" }),
+  ).toBeDefined();
+  screen.getByRole("button", { name: "Agent 1" }).click();
+  expect(selected).toEqual(["agent-1"]);
+});
