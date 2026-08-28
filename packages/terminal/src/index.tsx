@@ -84,6 +84,7 @@ export interface TerminalProps {
 export function Terminal(props: TerminalProps): JSX.Element {
   return (
     <terminal
+      role="textbox"
       class={props.class}
       style={props.style}
       ref={props.ref}

@@ -57,3 +57,26 @@ test("offers terminal lifecycle actions from a secondary click", () => {
   screen.getByRole("menuitem", { name: "Close terminal" }).click();
   expect(screen.getAllByRole("tab")).toHaveLength(1);
 });
+
+test("preserves the native terminal when its process updates the title", () => {
+  const screen = renderComponent(() => (
+    <AgentTerminalPanel
+      cwd="/work/alpha"
+      open
+      close={() => {}}
+      dispose={() => {}}
+    />
+  ));
+  const terminal = screen.getByRole("textbox", { name: "Terminal 1" });
+  const identity = terminal.identity;
+
+  terminal.emit("terminaltitlechange", {
+    title: "fish · alpha",
+    subtitle: null,
+  });
+
+  expect(screen.getByRole("tab").name).toContain("fish · alpha");
+  expect(screen.getByRole("textbox", { name: "Terminal 1" }).identity).toEqual(
+    identity,
+  );
+});

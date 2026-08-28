@@ -1,5 +1,9 @@
 import { PlatformProvider, type PlatformServices } from "@wabou/core";
-import { INTERACTION_POLICY, type NodeKey } from "@wabou/core/protocol";
+import {
+  type EventType,
+  INTERACTION_POLICY,
+  type NodeKey,
+} from "@wabou/core/protocol";
 import {
   type BuiltinHost,
   dispatchEvent,
@@ -99,6 +103,8 @@ export interface ComponentSnapshotNode {
 }
 
 export interface ComponentLocator extends ComponentQueries {
+  /** Exact retained-node identity. Changes prove that the component remounted. */
+  readonly identity: Readonly<{ lo: number; hi: number }>;
   /** Direct authored parent, or null at the component render root. */
   readonly parent: ComponentLocator | null;
   readonly tag: string;
@@ -169,6 +175,8 @@ export interface ComponentLocator extends ComponentQueries {
   contextMenu(position?: ComponentPointerPosition): void;
   press(key: string, options?: ComponentKeyOptions): void;
   input(value: string): void;
+  /** Dispatch a typed host event for custom-widget/component contracts. */
+  emit(type: EventType, payload?: unknown): void;
   /** Dispatch native focus/focusin, blurring the previously focused locator. */
   focus(): void;
   /** Dispatch native blur/focusout when this locator owns focus. */
@@ -993,6 +1001,9 @@ export function renderComponent(
   function locator(node: AuthoredNode): ComponentLocator {
     return {
       ...queries(node),
+      get identity() {
+        return { lo: node.id.lo, hi: node.id.hi };
+      },
       get parent() {
         return node.parent ? locator(node.parent) : null;
       },
@@ -1130,6 +1141,12 @@ export function renderComponent(
         ensureEditable(node);
         focusAuthoredNode(node);
         commitEvent(node, EVENT_CODE.input, JSON.stringify({ value }));
+      },
+      emit: (type, payload = "") => {
+        ensureAttached(node, `dispatch ${type} to`);
+        const encoded =
+          typeof payload === "string" ? payload : JSON.stringify(payload);
+        commitEvent(node, EVENT_CODE[type], encoded);
       },
       focus: () => {
         ensureEnabled(node, "focus");
