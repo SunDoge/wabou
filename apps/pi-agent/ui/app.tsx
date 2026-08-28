@@ -449,6 +449,7 @@ export function App() {
         }
         if (batch.some((event) => event.type === "agent_settled")) {
           void api.getSessionStats(id);
+          void api.getForkMessages(id);
           if (id === activeId()) refreshWorkspaceInfo();
         }
         if (

@@ -297,6 +297,14 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
                 }]})
             ])}),
         ),
+        "get_fork_messages" => response(
+            request,
+            json!({
+                "messages":state.last_prompt.as_ref().map_or_else(Vec::new, |message| vec![
+                    json!({"entryId":"fixture-user-entry","text":message})
+                ])
+            }),
+        ),
         "get_session_stats" => response(
             request,
             json!({"inputTokens":12,"outputTokens":8,"totalTokens":20}),
@@ -368,6 +376,16 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
         "clone" => {
             state.clone_session()?;
             response(request, json!({"cancelled":false}))
+        }
+        "fork" => {
+            let entry_id = request
+                .get("entryId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if entry_id != "fixture-user-entry" {
+                return response(request, json!({"cancelled":true}));
+            }
+            response(request, json!({"cancelled":false,"text":state.last_prompt}))
         }
         "compact" => response(request, json!({"compacted":true})),
         "export_html" => {

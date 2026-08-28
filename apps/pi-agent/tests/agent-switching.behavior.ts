@@ -31,6 +31,31 @@ test("starts a deterministic Pi agent and renders its streamed response", async 
   await expect(composer).toHaveValue("");
 });
 
+test("forks from a retained user message and restores it to the composer", async ({
+  page,
+}) => {
+  const forkMessage = page.getByRole("button", {
+    name: "Fork from this message",
+  });
+  await expect(forkMessage).toBeEnabled({ timeout: 5_000 });
+  await forkMessage.click();
+
+  const dialog = page.getByRole("alertdialog", {
+    name: "Fork from this message?",
+  });
+  await expect(dialog).toBeInViewport();
+  await dialog.getByRole("button", { name: "Fork" }).click();
+  await expect(dialog).toBeAbsent();
+
+  const composer = page.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+  await expect(composer).toHaveValue("Explain the fixture", { timeout: 5_000 });
+  await composer.press("a", { control: true });
+  await composer.press("Backspace");
+  await expect(composer).toHaveValue("");
+});
+
 test("round-trips a Pi extension UI request through the native dialog", async ({
   page,
 }) => {
