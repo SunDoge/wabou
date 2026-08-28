@@ -388,6 +388,67 @@ fn large_sibling_tree_only_reprojects_when_ifc_inputs_change() {
 }
 
 #[test]
+fn protocol_keyed_moves_keep_logical_and_taffy_trees_unique() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let view = applier.document.atoms.borrow_mut().intern("view");
+    applier.apply_frame(&Frame {
+        seq: 1,
+        ops: (2..=4)
+            .flat_map(|id| {
+                [
+                    Op::CreateElement {
+                        id: nk(id),
+                        tag: view,
+                    },
+                    Op::AppendChild {
+                        parent: NodeKey::ROOT,
+                        child: nk(id),
+                    },
+                ]
+            })
+            .collect(),
+    });
+
+    applier.apply_frame(&Frame {
+        seq: 2,
+        ops: vec![
+            Op::InsertBefore {
+                parent: NodeKey::ROOT,
+                child: nk(4),
+                ref_id: nk(2),
+            },
+            Op::AppendChild {
+                parent: NodeKey::ROOT,
+                child: nk(3),
+            },
+            Op::InsertBefore {
+                parent: NodeKey::ROOT,
+                child: nk(2),
+                ref_id: nk(3),
+            },
+        ],
+    });
+
+    let store = &applier.document.node_store;
+    let expected = [
+        store.solid_to_node[&nk(4)],
+        store.solid_to_node[&nk(2)],
+        store.solid_to_node[&nk(3)],
+    ];
+    assert_eq!(store.children[&store.root], expected);
+    assert_eq!(store.tree.children(store.root).unwrap(), expected);
+    assert_eq!(
+        store.children[&store.root]
+            .iter()
+            .copied()
+            .collect::<std::collections::HashSet<_>>()
+            .len(),
+        expected.len(),
+    );
+}
+
+#[test]
 fn app_directory_effect_uses_host_configuration_only() {
     let directories = wabou_shell::AppDirectories::resolve(
         &wabou_shell::AppDirectoryConfig::new("dev", "Wabou", "Effect Test"),

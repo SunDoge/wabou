@@ -63,6 +63,9 @@ impl NodeStore {
             self.solid_to_node.get(&parent)?,
             self.solid_to_node.get(&child)?,
         );
+        if child == self.root || parent == child || self.is_logical_descendant(parent, child) {
+            return None;
+        }
         self.detach_for_move(child);
         self.children.entry(parent).or_default().push(child);
         self.logical_parent.insert(child, parent);
@@ -82,6 +85,9 @@ impl NodeStore {
         let &reference = self.solid_to_node.get(&reference)?;
         if child == reference {
             return Some(child);
+        }
+        if child == self.root || parent == child || self.is_logical_descendant(parent, child) {
+            return None;
         }
 
         // Solid's universal renderer uses append/insert-before for both initial
@@ -161,7 +167,57 @@ impl NodeStore {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{HashMap as StdHashMap, HashSet as StdHashSet};
+
+    use proptest::prelude::*;
+
     use super::*;
+
+    fn assert_structural_invariants(store: &NodeStore) {
+        assert_eq!(
+            store.solid_to_node.len(),
+            store.node_to_solid.len(),
+            "identity maps have different cardinality"
+        );
+        for (&key, &node) in &store.solid_to_node {
+            assert_eq!(store.node_to_solid.get(&node), Some(&key));
+            assert!(store.children.contains_key(&node));
+            assert!(store.declared.contains_key(&node));
+        }
+        for (&node, &key) in &store.node_to_solid {
+            assert_eq!(store.solid_to_node.get(&key), Some(&node));
+        }
+
+        assert!(!store.logical_parent.contains_key(&store.root));
+        let mut occurrences = StdHashMap::<NodeId, usize>::new();
+        for (&parent, children) in &store.children {
+            assert!(store.node_to_solid.contains_key(&parent));
+            let mut siblings = StdHashSet::new();
+            for &child in children {
+                assert_ne!(child, store.root, "root appeared as a child");
+                assert!(store.node_to_solid.contains_key(&child));
+                assert!(siblings.insert(child), "duplicate child in one parent");
+                *occurrences.entry(child).or_default() += 1;
+                assert_eq!(store.logical_parent.get(&child), Some(&parent));
+            }
+        }
+        for (&child, &parent) in &store.logical_parent {
+            assert!(store.node_to_solid.contains_key(&child));
+            assert!(store.node_to_solid.contains_key(&parent));
+            assert_eq!(occurrences.get(&child), Some(&1));
+
+            let mut ancestors = StdHashSet::new();
+            let mut current = Some(child);
+            while let Some(node) = current {
+                assert!(ancestors.insert(node), "logical parent cycle detected");
+                current = store.logical_parent.get(&node).copied();
+            }
+        }
+        for (&child, &count) in &occurrences {
+            assert_eq!(count, 1, "child appeared under multiple parents");
+            assert!(store.logical_parent.contains_key(&child));
+        }
+    }
 
     #[test]
     fn owns_bidirectional_identity_and_logical_structure() {
@@ -181,6 +237,7 @@ mod tests {
         assert_eq!(store.remove(NodeKey::new(3, 1)), Some(second));
         assert_eq!(store.children[&store.root], [first]);
         assert!(!store.node_to_solid.contains_key(&second));
+        assert_structural_invariants(&store);
     }
 
     #[test]
@@ -227,5 +284,54 @@ mod tests {
 
         store.insert_before(NodeKey::ROOT, NodeKey::new(2, 1), NodeKey::new(2, 1));
         assert_eq!(store.children[&store.root], [third, first, second]);
+        assert_structural_invariants(&store);
+    }
+
+    #[test]
+    fn rejects_self_parenting_and_ancestor_cycles_without_mutating_the_tree() {
+        let mut store = NodeStore::new();
+        let parent_key = NodeKey::new(2, 1);
+        let child_key = NodeKey::new(3, 1);
+        let parent = store.create_leaf(parent_key, Declared::default());
+        let child = store.create_leaf(child_key, Declared::default());
+        store.append(NodeKey::ROOT, parent_key);
+        store.append(parent_key, child_key);
+        let before = store
+            .children
+            .iter()
+            .map(|(&node, children)| (node, children.clone()))
+            .collect::<StdHashMap<_, _>>();
+
+        assert_eq!(store.append(parent_key, parent_key), None);
+        assert_eq!(store.append(child_key, parent_key), None);
+        assert_eq!(store.append(parent_key, NodeKey::ROOT), None);
+        assert_eq!(store.children, before);
+        assert_eq!(store.logical_parent[&parent], store.root);
+        assert_eq!(store.logical_parent[&child], parent);
+        assert_structural_invariants(&store);
+    }
+
+    proptest! {
+        #[test]
+        fn arbitrary_move_sequences_preserve_tree_invariants(
+            operations in prop::collection::vec((0_u8..3, 0_usize..9, 0_usize..9, 0_usize..9), 0..512)
+        ) {
+            let mut store = NodeStore::new();
+            let keys = std::iter::once(NodeKey::ROOT)
+                .chain((2..=9).map(|id| NodeKey::new(id, 1)))
+                .collect::<Vec<_>>();
+            for &key in &keys[1..] {
+                store.create_leaf(key, Declared::default());
+            }
+
+            for (kind, parent, child, reference) in operations {
+                match kind {
+                    0 => { store.append(keys[parent], keys[child]); }
+                    1 => { store.insert_before(keys[parent], keys[child], keys[reference]); }
+                    _ => { store.remove_child(keys[parent], keys[child]); }
+                }
+                assert_structural_invariants(&store);
+            }
+        }
     }
 }

@@ -79,4 +79,5 @@ vite = ["dep:tungstenite", "dep:ureq"]
 
 [dev-dependencies]
 image = { workspace = true, features = ["png"] }
+proptest = "1"
 wabou-devtools = { workspace = true }
