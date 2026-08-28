@@ -46,6 +46,11 @@ fn smooth_scroll_coordinate(current: f32, target: f32, velocity: &mut f32, delta
     target + (change + temp) * decay
 }
 
+fn consume_scroll_delta(current: f32, delta: f32, range: f32) -> (f32, f32) {
+    let next = (current + delta).clamp(0.0, range);
+    (next, delta - (next - current))
+}
+
 impl Applier {
     pub(super) fn scroll_into_view(&mut self, target: NodeKey) -> bool {
         let Some(mut node) = self.document.node_store.solid_to_node.get(&target).copied() else {
@@ -321,8 +326,8 @@ impl Applier {
                 let mut next = base;
                 for axis in 0..2 {
                     if axes[axis] {
-                        next[axis] = (base[axis] + remaining[axis]).clamp(0.0, range[axis]);
-                        remaining[axis] -= next[axis] - base[axis];
+                        (next[axis], remaining[axis]) =
+                            consume_scroll_delta(base[axis], remaining[axis], range[axis]);
                     }
                 }
                 if next != base {
@@ -650,7 +655,7 @@ fn scrollbar_auto_opacity(elapsed: Duration, delay: Duration, fade: Duration, he
 
 #[cfg(test)]
 mod scrollbar_visibility_tests {
-    use super::{scrollbar_auto_opacity, smooth_scroll_coordinate};
+    use super::{consume_scroll_delta, scrollbar_auto_opacity, smooth_scroll_coordinate};
     use std::time::Duration;
 
     #[test]
@@ -701,5 +706,12 @@ mod scrollbar_visibility_tests {
         let at_120_hz = simulate(120, 1.0 / 120.0);
         assert!((at_60_hz - at_120_hz).abs() < 0.1);
         assert!(at_60_hz > 99.9);
+    }
+
+    #[test]
+    fn scroll_chain_preserves_the_delta_an_inner_scroller_cannot_consume() {
+        assert_eq!(consume_scroll_delta(80.0, 50.0, 100.0), (100.0, 30.0));
+        assert_eq!(consume_scroll_delta(20.0, -50.0, 100.0), (0.0, -30.0));
+        assert_eq!(consume_scroll_delta(20.0, 50.0, 100.0), (70.0, 0.0));
     }
 }
