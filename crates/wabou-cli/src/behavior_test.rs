@@ -75,6 +75,8 @@ enum ReplayAction {
         #[serde(default)]
         index: Option<u64>,
         #[serde(default)]
+        scope: Vec<ReplayLocatorReference>,
+        #[serde(default)]
         wait: Option<ReplayWait>,
     },
     #[serde(rename = "inputByRole")]
@@ -84,6 +86,8 @@ enum ReplayAction {
         label: String,
         #[serde(default)]
         index: Option<u64>,
+        #[serde(default)]
+        scope: Vec<ReplayLocatorReference>,
         input: ReplayInput,
         #[serde(default)]
         wait: Option<ReplayWait>,
@@ -95,6 +99,8 @@ enum ReplayAction {
         label: String,
         #[serde(default)]
         index: Option<u64>,
+        #[serde(default)]
+        scope: Vec<ReplayLocatorReference>,
         wait: ReplayWait,
     },
     #[serde(rename = "assertByRole")]
@@ -104,6 +110,8 @@ enum ReplayAction {
         label: String,
         #[serde(default)]
         index: Option<u64>,
+        #[serde(default)]
+        scope: Vec<ReplayLocatorReference>,
         assertion: ReplayLocatorAssertion,
         wait: ReplayWait,
     },
@@ -342,6 +350,14 @@ fn validate_index(index: Option<u64>) -> std::result::Result<(), String> {
     Ok(())
 }
 
+fn validate_scope(scope: &[ReplayLocatorReference]) -> std::result::Result<(), String> {
+    for selector in scope {
+        selector.role.validate()?;
+        validate_index(selector.index)?;
+    }
+    Ok(())
+}
+
 impl ReplayAction {
     fn validate(&self) -> std::result::Result<(), String> {
         if let Self::RespondToEffect { operation, result } = self {
@@ -377,11 +393,13 @@ impl ReplayAction {
                 role,
                 label,
                 index,
+                scope,
                 wait,
             } => {
                 role.validate()?;
                 let _ = label;
                 validate_index(*index)?;
+                validate_scope(scope)?;
                 (*window_id, wait.as_ref())
             }
             Self::InputByRole {
@@ -389,12 +407,14 @@ impl ReplayAction {
                 role,
                 label,
                 index,
+                scope,
                 input,
                 wait,
             } => {
                 role.validate()?;
                 let _ = label;
                 validate_index(*index)?;
+                validate_scope(scope)?;
                 input.validate()?;
                 (*window_id, wait.as_ref())
             }
@@ -403,11 +423,13 @@ impl ReplayAction {
                 role,
                 label,
                 index,
+                scope,
                 wait,
             } => {
                 role.validate()?;
                 let _ = label;
                 validate_index(*index)?;
+                validate_scope(scope)?;
                 (*window_id, Some(wait))
             }
             Self::AssertByRole {
@@ -415,12 +437,14 @@ impl ReplayAction {
                 role,
                 label,
                 index,
+                scope,
                 assertion,
                 wait,
             } => {
                 role.validate()?;
                 let _ = label;
                 validate_index(*index)?;
+                validate_scope(scope)?;
                 if index.is_some() && matches!(assertion, ReplayLocatorAssertion::Count { .. }) {
                     return Err("count assertion requires an unindexed locator".into());
                 }

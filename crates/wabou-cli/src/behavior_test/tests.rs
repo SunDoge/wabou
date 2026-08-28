@@ -29,6 +29,28 @@ fn report_reconstructs_shared_state_through_selected_test() {
 }
 
 #[test]
+fn replay_accepts_recorded_locator_scopes() {
+    let trace = json!([{
+        "action": "assertByRole",
+        "windowId": { "lo": 1, "hi": 1 },
+        "role": "button",
+        "label": "Save",
+        "scope": [
+            { "role": "dialog", "name": "Settings" },
+            { "role": "group", "name": "Account", "index": 1 }
+        ],
+        "assertion": { "type": "disabled", "expected": false },
+        "wait": { "timeout": 1000, "interval": 16, "stableFor": 0 }
+    }]);
+
+    assert_eq!(
+        replay_actions_from_value(&json!({ "version": 1, "actions": trace.clone() }), None)
+            .unwrap(),
+        trace
+    );
+}
+
+#[test]
 fn input_validation_reports_actionable_errors() {
     let trace = json!([{ "action": "showWindow", "windowId": 1 }]);
     assert_eq!(
