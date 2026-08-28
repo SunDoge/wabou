@@ -78,12 +78,21 @@ test("changes model through the native combobox overlay", async ({ page }) => {
   ).toHaveCount(1);
 });
 
-test("preserves the active conversation across settings navigation", async ({
+test("updates the agent through settings without losing its conversation", async ({
   page,
 }) => {
   await page.getByRole("button", { name: "Settings" }).click();
   await page.getByRole("heading", { name: "Settings" }).waitFor();
+  const name = page.getByRole("textbox", { name: "Agent name" });
+  await expect(name).toBeInViewport();
+  await name.click();
+  await name.press("a", { control: true });
+  await name.type("Workspace Agent");
+  await expect(name).toHaveValue("Workspace Agent");
   await page.getByRole("button", { name: "Back to agents" }).click();
+  await expect(
+    page.getByRole("button", { name: "Workspace Agent" }),
+  ).toBeSelected();
   await expect(
     page.getByRole("label", {
       name: "Fake Pi completed: Explain the fixture",
