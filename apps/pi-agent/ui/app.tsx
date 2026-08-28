@@ -145,6 +145,7 @@ export function App() {
     noProxy: "127.0.0.1,localhost",
     provider: "",
     model: "",
+    subagentsEnabled: true,
   });
   const [agents, setAgents] = createSignal<readonly AgentWorkspace[]>([
     createAgentWorkspace(1),
@@ -572,6 +573,7 @@ export function App() {
           agent.provider.trim() || defaults().provider.trim() || undefined,
         model: agent.model.trim() || defaults().model.trim() || undefined,
         sessionId,
+        subagentsEnabled: defaults().subagentsEnabled,
       });
       updateAgent(agent.id, (current) => ({
         ...current,

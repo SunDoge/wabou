@@ -19,6 +19,7 @@ import {
   Input,
   PageHeader,
   PageViewport,
+  Switch,
   Text,
   View,
 } from "@wabou/ui";
@@ -32,6 +33,7 @@ export interface AppSettings {
   noProxy: string;
   provider: string;
   model: string;
+  subagentsEnabled: boolean;
 }
 
 export function SettingsPage(props: {
@@ -130,6 +132,10 @@ export function SettingsPage(props: {
           </CardContent>
         </Card>
 
+        <Text class="text-xs font-semibold tracking-wide text-muted">
+          {i18n.message(m.application_settings, {})}
+        </Text>
+
         <Card>
           <CardHeader>
             <CardTitle>{i18n.message(m.language, {})}</CardTitle>
@@ -150,6 +156,27 @@ export function SettingsPage(props: {
             >
               {i18n.message(m.chinese, {})}
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{i18n.message(m.subagents, {})}</CardTitle>
+            <CardDescription>
+              {i18n.message(m.subagents_detail, {})}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Switch
+              label={i18n.message(m.enable_subagents, {})}
+              checked={props.app.subagentsEnabled}
+              onCheckedChange={(subagentsEnabled) =>
+                props.updateApp({ subagentsEnabled })
+              }
+            />
+            <FieldDescription>
+              {i18n.message(m.enable_subagents_detail, {})}
+            </FieldDescription>
           </CardContent>
         </Card>
 

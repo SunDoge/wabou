@@ -16,6 +16,7 @@ struct FixtureState {
     last_prompt: Option<String>,
     session_serial: u32,
     pending_response: bool,
+    subagents_enabled: bool,
 }
 
 impl FixtureState {
@@ -68,6 +69,8 @@ impl FixtureState {
             last_prompt,
             session_serial,
             pending_response: false,
+            subagents_enabled: argument("--extension")
+                .is_some_and(|value| value == "npm:pi-subagents@0.58.0"),
         })
     }
 
@@ -203,14 +206,21 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
         "get_available_thinking_levels" => {
             response(request, json!({"levels":["off","medium","high"]}))
         }
-        "get_commands" => response(
-            request,
-            json!({"commands":[{
+        "get_commands" => {
+            let mut commands = vec![json!({
                 "name":"fixture",
                 "source":"test",
                 "description":"Run a deterministic fixture command"
-            }]}),
-        ),
+            })];
+            if state.subagents_enabled {
+                commands.push(json!({
+                    "name":"subagents",
+                    "source":"extension",
+                    "description":"Administer isolated Pi subagents"
+                }));
+            }
+            response(request, json!({"commands":commands}))
+        }
         "get_messages" => response(
             request,
             json!({"messages":state.last_prompt.as_ref().map_or_else(Vec::new, |message| vec![

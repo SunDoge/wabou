@@ -59,6 +59,7 @@ export interface PersistedAppSettings {
   noProxy: string;
   provider: string;
   model: string;
+  subagentsEnabled: boolean;
 }
 
 interface PiCapability extends NativeJsonCapability {
@@ -140,6 +141,7 @@ export function usePiApi() {
       provider?: string;
       model?: string;
       sessionId?: string;
+      subagentsEnabled?: boolean;
     }) => call<PiStatus>("start", options),
     prompt: (
       agentId: string,

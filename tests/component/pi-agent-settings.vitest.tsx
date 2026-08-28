@@ -13,6 +13,7 @@ test("Pi Agent settings separate project overrides from global network configura
     noProxy: "127.0.0.1,localhost",
     provider: "",
     model: "",
+    subagentsEnabled: true,
   });
   const [agent, setAgent] = createSignal(createAgentWorkspace(1));
   let deleted = 0;
@@ -54,6 +55,10 @@ test("Pi Agent settings separate project overrides from global network configura
     .input("http://127.0.0.1:7890");
   expect(defaults().proxy).toBe("http://127.0.0.1:7890");
   expect(agent()).not.toHaveProperty("proxy");
+  const subagents = screen.getByRole("switch", { name: "Enable subagents" });
+  expect(subagents.checked).toBe(true);
+  subagents.click();
+  expect(defaults().subagentsEnabled).toBe(false);
 
   screen.getByRole("button", { name: "Delete project" }).click();
   const dialog = screen.getByRole("alertdialog", { name: "Delete project" });

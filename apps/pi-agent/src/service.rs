@@ -93,6 +93,8 @@ struct AppSettings {
     provider: String,
     #[serde(default)]
     model: String,
+    #[serde(default = "default_enabled")]
+    subagents_enabled: bool,
 }
 
 impl Default for AppSettings {
@@ -102,12 +104,17 @@ impl Default for AppSettings {
             no_proxy: default_no_proxy(),
             provider: String::new(),
             model: String::new(),
+            subagents_enabled: true,
         }
     }
 }
 
 fn default_no_proxy() -> String {
     "127.0.0.1,localhost".to_owned()
+}
+
+const fn default_enabled() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -157,6 +164,8 @@ struct StartRequest {
     provider: Option<String>,
     model: Option<String>,
     session_id: Option<String>,
+    #[serde(default)]
+    subagents_enabled: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1027,6 +1036,9 @@ impl PiService {
 }
 
 fn configure_pi_command(command: &mut Command, request: &StartRequest) {
+    if request.subagents_enabled {
+        command.args(["--extension", "npm:pi-subagents@0.58.0"]);
+    }
     if let Some(provider) = request
         .provider
         .as_deref()
@@ -1700,8 +1712,8 @@ mod tests {
     }
 
     #[test]
-    fn pi_command_receives_model_and_proxy_configuration() {
-        let request = StartRequest {
+    fn pi_command_receives_runtime_configuration() {
+        let mut request = StartRequest {
             agent_id: "agent-1".to_owned(),
             cwd: None,
             proxy: Some("  http://127.0.0.1:7890  ".to_owned()),
@@ -1709,6 +1721,7 @@ mod tests {
             provider: Some(" openai ".to_owned()),
             model: Some(" gpt-5 ".to_owned()),
             session_id: None,
+            subagents_enabled: true,
         };
         let mut command = Command::new("pi");
         configure_pi_command(&mut command, &request);
@@ -1717,7 +1730,17 @@ mod tests {
             .get_args()
             .map(|value| value.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
-        assert_eq!(args, ["--provider", "openai", "--model", "gpt-5"]);
+        assert_eq!(
+            args,
+            [
+                "--extension",
+                "npm:pi-subagents@0.58.0",
+                "--provider",
+                "openai",
+                "--model",
+                "gpt-5"
+            ]
+        );
 
         let environment = command
             .get_envs()
@@ -1750,6 +1773,15 @@ mod tests {
                 Some("localhost,127.0.0.1")
             );
         }
+
+        request.subagents_enabled = false;
+        let mut command = Command::new("pi");
+        configure_pi_command(&mut command, &request);
+        let args = command
+            .get_args()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(args, ["--provider", "openai", "--model", "gpt-5"]);
     }
 
     #[test]
@@ -1838,12 +1870,14 @@ mod tests {
                     "proxy": "http://global-proxy:7890",
                     "noProxy": "localhost",
                     "provider": "openai",
-                    "model": "gpt-5"
+                    "model": "gpt-5",
+                    "subagentsEnabled": true
                 }
             }"#,
         )
         .expect("legacy project fields remain readable");
         assert_eq!(catalog.settings.proxy, "http://global-proxy:7890");
+        assert!(catalog.settings.subagents_enabled);
         assert_eq!(catalog.agents.len(), 1);
     }
 

@@ -20,6 +20,15 @@ test("starts a deterministic Pi agent and renders its streamed response", async 
   await expect(
     page.getByRole("button", { name: "read: README.md" }),
   ).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Commands" }).click();
+  const subagents = page.getByRole("option", { name: "/subagents" });
+  await expect(subagents).toBeInViewport();
+  await subagents.click();
+  await expect(composer).toHaveValue("/subagents ");
+  await composer.press("a", { control: true });
+  await composer.press("Backspace");
+  await expect(composer).toHaveValue("");
 });
 
 test("keeps the active workspace usable at its minimum window size", async ({
@@ -218,6 +227,7 @@ test("recovers after the Pi process exits unexpectedly", async ({ page }) => {
   const composer = page.getByRole("textbox", {
     name: "Ask this agent to work in its repository…",
   });
+  await composer.press("a", { control: true });
   await composer.type("Exit fixture");
   await page.getByRole("button", { name: "Send" }).click();
 
