@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     env,
     io::{BufRead as _, BufReader, Write as _},
     path::{Path, PathBuf},
@@ -8,6 +8,7 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use gix::bstr::ByteSlice as _;
 use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -460,18 +461,6 @@ const MAX_DIFF_FILES: usize = 100;
 const MAX_DIFF_FILE_BYTES: usize = 256 * 1024;
 const MAX_DIFF_TOTAL_BYTES: usize = 2 * 1024 * 1024;
 
-fn git_stdout(cwd: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(cwd)
-        .output()
-        .map_err(|error| format!("could not run git: {error}"))?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
-    }
-    Ok(output.stdout)
-}
-
 fn truncate_utf8(mut value: String, max_bytes: usize) -> String {
     if value.len() <= max_bytes {
         return value;
@@ -485,125 +474,146 @@ fn truncate_utf8(mut value: String, max_bytes: usize) -> String {
     value
 }
 
+fn repository_changed_paths(repository: &gix::Repository) -> Result<BTreeSet<PathBuf>, String> {
+    let platform = repository
+        .status(gix::progress::Discard)
+        .map_err(|error| format!("could not inspect repository status: {error}"))?
+        .untracked_files(gix::status::UntrackedFiles::Files);
+    let changes = platform
+        .into_iter(Vec::<gix::bstr::BString>::new())
+        .map_err(|error| format!("could not prepare repository status: {error}"))?;
+    let mut paths = BTreeSet::new();
+    for change in changes {
+        let change =
+            change.map_err(|error| format!("could not read repository status: {error}"))?;
+        let path = change
+            .location()
+            .to_str()
+            .map_err(|_| "repository contains a changed path that is not UTF-8".to_owned())?;
+        paths.insert(PathBuf::from(path));
+    }
+    Ok(paths)
+}
+
+fn head_file(repository: &gix::Repository, path: &Path) -> Result<Option<Vec<u8>>, String> {
+    let Ok(tree_id) = repository.head_tree_id() else {
+        return Ok(None);
+    };
+    let tree = repository
+        .find_tree(tree_id)
+        .map_err(|error| format!("could not read HEAD tree: {error}"))?;
+    let Some(entry) = tree
+        .lookup_entry_by_path(path)
+        .map_err(|error| format!("could not find {} in HEAD: {error}", path.display()))?
+    else {
+        return Ok(None);
+    };
+    if !entry.mode().is_blob() {
+        return Ok(None);
+    }
+    let object = entry
+        .object()
+        .map_err(|error| format!("could not read {} from HEAD: {error}", path.display()))?;
+    let blob = object
+        .try_into_blob()
+        .map_err(|error| format!("{} in HEAD is not a blob: {error}", path.display()))?;
+    Ok(Some(blob.data.clone()))
+}
+
+fn worktree_file(root: &Path, path: &Path) -> Result<Option<Vec<u8>>, String> {
+    let absolute = root.join(path);
+    if absolute.is_dir() {
+        return Ok(None);
+    }
+    match std::fs::read(absolute) {
+        Ok(data) => Ok(Some(data)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(format!("could not read {}: {error}", path.display())),
+    }
+}
+
+fn diff_file(path: &Path, old: Option<Vec<u8>>, new: Option<Vec<u8>>) -> WorkspaceFileChange {
+    let status = match (&old, &new) {
+        (None, Some(_)) => "added",
+        (Some(_), None) => "deleted",
+        _ => "modified",
+    };
+    let path = path.to_string_lossy().replace('\\', "/");
+    let binary = old
+        .as_deref()
+        .into_iter()
+        .chain(new.as_deref())
+        .any(|data| std::str::from_utf8(data).is_err());
+    let (additions, deletions, patch) = if binary {
+        (0, 0, format!("Binary file {path} changed\n"))
+    } else {
+        let old = old
+            .as_deref()
+            .and_then(|data| std::str::from_utf8(data).ok())
+            .unwrap_or_default();
+        let new = new
+            .as_deref()
+            .and_then(|data| std::str::from_utf8(data).ok())
+            .unwrap_or_default();
+        let diff = similar::TextDiff::from_lines(old, new);
+        let additions = diff
+            .iter_all_changes()
+            .filter(|change| change.tag() == similar::ChangeTag::Insert)
+            .count();
+        let deletions = diff
+            .iter_all_changes()
+            .filter(|change| change.tag() == similar::ChangeTag::Delete)
+            .count();
+        let old_name = if status == "added" {
+            "/dev/null".to_owned()
+        } else {
+            format!("a/{path}")
+        };
+        let new_name = if status == "deleted" {
+            "/dev/null".to_owned()
+        } else {
+            format!("b/{path}")
+        };
+        let body = diff
+            .unified_diff()
+            .context_radius(3)
+            .header(&old_name, &new_name)
+            .to_string();
+        (
+            additions,
+            deletions,
+            format!("diff --git a/{path} b/{path}\n{body}"),
+        )
+    };
+    WorkspaceFileChange {
+        path,
+        status,
+        additions,
+        deletions,
+        patch: truncate_utf8(patch, MAX_DIFF_FILE_BYTES),
+    }
+}
+
 fn workspace_changes(cwd: &Path) -> Result<WorkspaceChanges, String> {
     let cwd = cwd
         .canonicalize()
         .map_err(|error| format!("could not open workspace {}: {error}", cwd.display()))?;
-    let has_head = Command::new("git")
-        .args(["rev-parse", "--verify", "HEAD"])
-        .current_dir(&cwd)
-        .output()
-        .is_ok_and(|output| output.status.success());
-    let numstat = if has_head {
-        git_stdout(
-            &cwd,
-            &["diff", "HEAD", "--numstat", "-z", "--no-renames", "--"],
-        )?
-    } else {
-        Vec::new()
-    };
-    let status_output = if has_head {
-        git_stdout(
-            &cwd,
-            &["diff", "HEAD", "--name-status", "-z", "--no-renames", "--"],
-        )?
-    } else {
-        Vec::new()
-    };
-    let mut status_fields = status_output.split(|byte| *byte == 0);
-    let mut statuses = HashMap::new();
-    while let (Some(status), Some(path)) = (status_fields.next(), status_fields.next()) {
-        if status.is_empty() || path.is_empty() {
-            continue;
-        }
-        statuses.insert(
-            String::from_utf8_lossy(path).into_owned(),
-            status.first().copied().map(char::from).unwrap_or('M'),
-        );
-    }
+    let repository = gix::open(&cwd)
+        .map_err(|error| format!("{} is not a Git repository: {error}", cwd.display()))?;
     let mut files = Vec::new();
     let mut total_patch_bytes = 0;
-    for record in numstat
-        .split(|byte| *byte == 0)
-        .filter(|item| !item.is_empty())
-    {
-        let record = String::from_utf8_lossy(record);
-        let mut fields = record.splitn(3, '\t');
-        let additions = fields
-            .next()
-            .and_then(|value| value.parse().ok())
-            .unwrap_or(0);
-        let deletions = fields
-            .next()
-            .and_then(|value| value.parse().ok())
-            .unwrap_or(0);
-        let Some(path) = fields.next() else { continue };
+    for path in repository_changed_paths(&repository)? {
         if files.len() >= MAX_DIFF_FILES || total_patch_bytes >= MAX_DIFF_TOTAL_BYTES {
             break;
         }
-        let patch = git_stdout(
-            &cwd,
-            &[
-                "diff",
-                "HEAD",
-                "--no-color",
-                "--no-ext-diff",
-                "--unified=3",
-                "--",
-                path,
-            ],
-        )?;
-        let patch = truncate_utf8(
-            String::from_utf8_lossy(&patch).into_owned(),
-            MAX_DIFF_FILE_BYTES,
-        );
-        total_patch_bytes += patch.len();
-        let status = match statuses.get(path).copied().unwrap_or('M') {
-            'A' => "added",
-            'D' => "deleted",
-            _ => "modified",
-        };
-        files.push(WorkspaceFileChange {
-            path: path.to_owned(),
-            status,
-            additions,
-            deletions,
-            patch,
-        });
-    }
-    let untracked = git_stdout(&cwd, &["ls-files", "--others", "--exclude-standard", "-z"])?;
-    for raw_path in untracked
-        .split(|byte| *byte == 0)
-        .filter(|path| !path.is_empty())
-    {
-        if files.len() >= MAX_DIFF_FILES || total_patch_bytes >= MAX_DIFF_TOTAL_BYTES {
-            break;
-        }
-        let path = String::from_utf8_lossy(raw_path).into_owned();
-        let Ok(preview) = read_workspace_file(&cwd, Path::new(&path)) else {
+        let old = head_file(&repository, &path)?;
+        let new = worktree_file(&cwd, &path)?;
+        if old.is_none() && new.is_none() {
             continue;
-        };
-        let additions = preview.text.lines().count();
-        let added_lines = preview
-            .text
-            .lines()
-            .map(|line| format!("+{line}"))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let patch = truncate_utf8(
-            format!(
-                "diff --git a/{path} b/{path}\nnew file mode 100644\n--- /dev/null\n+++ b/{path}\n@@ -0,0 +1,{additions} @@\n{added_lines}\n"
-            ),
-            MAX_DIFF_FILE_BYTES,
-        );
-        total_patch_bytes += patch.len();
-        files.push(WorkspaceFileChange {
-            path,
-            status: "added",
-            additions,
-            deletions: 0,
-            patch,
-        });
+        }
+        let change = diff_file(&path, old, new);
+        total_patch_bytes += change.patch.len();
+        files.push(change);
     }
     Ok(WorkspaceChanges { files })
 }
@@ -617,27 +627,26 @@ struct WorkspaceInfo {
 }
 
 fn workspace_info(cwd: &Path) -> WorkspaceInfo {
-    let output = Command::new("git")
-        .args(["status", "--short", "--branch", "--untracked-files=normal"])
-        .current_dir(cwd)
-        .output();
-    let Ok(output) = output else {
+    let Ok(repository) = gix::open(cwd) else {
         return WorkspaceInfo {
             repository: false,
             branch: None,
             changed_files: 0,
         };
     };
-    if !output.status.success() {
-        return WorkspaceInfo {
-            repository: false,
-            branch: None,
-            changed_files: 0,
-        };
+    let branch = repository
+        .head()
+        .ok()
+        .and_then(|head| head.referent_name().map(|name| name.shorten().to_string()));
+    let changed_files = repository_changed_paths(&repository).map_or(0, |paths| paths.len());
+    WorkspaceInfo {
+        repository: true,
+        branch,
+        changed_files,
     }
-    parse_git_status(&String::from_utf8_lossy(&output.stdout))
 }
 
+#[cfg(test)]
 fn parse_git_status(status: &str) -> WorkspaceInfo {
     let mut lines = status.lines();
     let branch = lines.next().and_then(|line| {
@@ -1778,6 +1787,19 @@ mod tests {
         assert!(changes.files[1].patch.contains("+new file"));
 
         let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn binary_workspace_changes_are_not_misreported_as_text_deletions() {
+        let change = diff_file(
+            Path::new("asset.bin"),
+            Some(vec![0, 0xff]),
+            Some(vec![0, 0xfe]),
+        );
+        assert_eq!(change.status, "modified");
+        assert_eq!(change.additions, 0);
+        assert_eq!(change.deletions, 0);
+        assert_eq!(change.patch, "Binary file asset.bin changed\n");
     }
 
     #[test]
