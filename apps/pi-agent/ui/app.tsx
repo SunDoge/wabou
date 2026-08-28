@@ -297,12 +297,28 @@ export function App() {
     ({ scope, ids }) => itemHandles.synchronize(scope, ids),
   );
   const refreshWorkspaceInfo = () => void workspaceInfo.refresh();
+  let previousSearchScope: { agentId: string; sessionId: string } | undefined;
   createEffect(
-    () => `${activeId()}\0${activeSessionId() ?? ""}`,
-    () => {
+    () => ({
+      agentId: activeId(),
+      sessionId: active().state.sessionId ?? activeSessionId() ?? "",
+    }),
+    (nextScope) => {
+      const previous = previousSearchScope;
+      previousSearchScope = nextScope;
+      pendingFork.retainOwner(nextScope.agentId);
+      // Assigning the first durable ID to an already-visible conversation is
+      // synchronization, not navigation. A prior durable ID disappearing or
+      // changing does represent a new conversation and closes scoped UI.
+      if (
+        !previous ||
+        (previous.agentId === nextScope.agentId &&
+          (!previous.sessionId || previous.sessionId === nextScope.sessionId))
+      ) {
+        return;
+      }
       setSearchOpen(false);
       setActiveSearchItem(undefined);
-      pendingFork.retainOwner(activeId());
     },
   );
   const draft = () => readAgentDraft(drafts(), activeId(), activeSessionId());

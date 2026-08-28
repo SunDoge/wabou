@@ -162,6 +162,9 @@ test("creates a fresh session and restores the previous transcript", async ({
       name: "Fake Pi completed: Explain the fixture",
     }),
   ).toHaveCount(1, { timeout: 5_000 });
+  await expect(
+    page.getByRole("button", { name: "Search conversation" }),
+  ).toHaveCount(1);
 });
 
 test("renames the current session and refreshes its sidebar entry", async ({
@@ -203,6 +206,9 @@ test("clones and compacts a session without losing its transcript", async ({
       name: "Fake Pi completed: Explain the fixture",
     }),
   ).toHaveCount(1, { timeout: 5_000 });
+  await expect(
+    page.getByRole("button", { name: "Search conversation" }),
+  ).toHaveCount(1);
 });
 
 test("exports the active session through the native save dialog", async ({
@@ -242,6 +248,45 @@ test("aborts a running response and returns the session to ready", async ({
   await expect(
     page.getByRole("combobox", { name: "Choose model" }),
   ).toHaveValue("gpt-5");
+  await expect(
+    page.getByRole("label", {
+      name: "Fake Pi completed: Explain the fixture",
+    }),
+  ).toHaveCount(1);
+});
+
+test("searches the retained transcript and closes without changing sessions", async ({
+  page,
+}) => {
+  const toggle = page.getByRole("button", { name: "Search conversation" });
+  await expect(toggle).toBeEnabled({ timeout: 5_000 });
+  await expect(toggle).toNotOverlap(
+    page.getByRole("combobox", { name: "Choose model" }),
+  );
+  await expect(toggle).toNotOverlap(
+    page.getByRole("combobox", { name: "Thinking level" }),
+  );
+  await toggle.click();
+  await expect(toggle).toBePressed();
+  await expect(
+    page.getByRole("group", { name: "Search conversation" }),
+  ).toHaveCount(1);
+  const search = page.getByRole("textbox", { name: "Search conversation" });
+  await expect(search).toHaveCount(1);
+  await search.type("Explain the fixture");
+
+  const previous = page.getByRole("button", { name: "Previous match" });
+  const next = page.getByRole("button", { name: "Next match" });
+  await expect(previous).toBeEnabled();
+  await expect(next).toBeEnabled();
+  await next.click();
+  await previous.click();
+  await page.getByRole("button", { name: "Close search" }).click();
+
+  await expect(search).toBeAbsent();
+  await expect(
+    page.getByRole("button", { name: "Deterministic test 3" }),
+  ).toBeSelected();
 });
 
 test("opens and closes an embedded native terminal panel", async ({ page }) => {
