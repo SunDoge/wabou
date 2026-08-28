@@ -1,7 +1,7 @@
 import type { Handle } from "@wabou/core/renderer";
 import type { Shadow } from "@wabou/core/style";
 import { mergeClasses } from "@wabou/core/style";
-import chevronsUpDown from "lucide-static/icons/chevrons-up-down.svg?raw";
+import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import { createSignal, type JSX } from "solid-js";
 import { Button as HeadlessButton, Icon, Popover, Text } from "../primitives";
 import { Command, type CommandItem } from "./command";
@@ -117,7 +117,7 @@ export function Combobox(props: ComboboxProps): JSX.Element {
             {selected()?.label ?? props.placeholder ?? "Select an option"}
           </Text>
           <Icon
-            source={chevronsUpDown}
+            source={chevronDown}
             class="flex-none text-muted"
             size={16}
           />

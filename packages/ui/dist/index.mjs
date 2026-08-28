@@ -8,12 +8,11 @@ import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
 import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
 import arrowRight from "lucide-static/icons/arrow-right.svg?raw";
 import arrowUp from "lucide-static/icons/arrow-up.svg?raw";
-import chevronsUpDown from "lucide-static/icons/chevrons-up-down.svg?raw";
+import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import { CalendarDate, endOfMonth, isSameDay, startOfMonth, startOfWeek } from "@internationalized/date";
 import calendarIcon from "lucide-static/icons/calendar.svg?raw";
 import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
-import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import fileUp from "lucide-static/icons/file-up.svg?raw";
 import pencil from "lucide-static/icons/pencil.svg?raw";
@@ -1714,7 +1713,7 @@ function Combobox(props) {
 						return selected()?.label ?? props.placeholder ?? "Select an option";
 					}
 				}), createComponent$1(Icon, {
-					source: chevronsUpDown,
+					source: chevronDown,
 					class: "flex-none text-muted",
 					size: 16
 				})];
