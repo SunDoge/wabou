@@ -100,6 +100,9 @@ assertInOverlayPlane(screen.getByRole("dialog"), "floating");
 
 These assertions inspect the authored protocol tree. They catch composition
 mistakes early, but they do not claim that layout or pixels are correct.
+`assertSingleSurfaceOwner` also rejects background, border, radius, shadow, and
+equivalent inline styles on descendants declaring `native-editor`; ownership
+metadata therefore cannot hide visual chrome on native content.
 
 ## Layout contract tests
 

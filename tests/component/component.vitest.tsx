@@ -95,12 +95,27 @@ test("reports duplicate surface and unexpected focus ownership", () => {
     name: "Broken compound control",
   });
 
-  expect(() => assertSingleSurfaceOwner(group)).toThrow(
-    "found 2",
-  );
-  expect(() => assertFocusOwnerCount(group, 0)).toThrow(
-    "found 1",
-  );
+  expect(() => assertSingleSurfaceOwner(group)).toThrow("found 2");
+  expect(() => assertFocusOwnerCount(group, 0)).toThrow("found 1");
+});
+
+test("rejects visual chrome authored by nested native content", () => {
+  const screen = renderComponent(() => (
+    <View role="group" aria-label="Compound editor" data-wabou-owns="surface">
+      <View
+        role="textbox"
+        aria-label="Native content"
+        data-wabou-owns="native-editor"
+        class="rounded-lg bg-input"
+      />
+    </View>
+  ));
+
+  expect(() =>
+    assertSingleSurfaceOwner(
+      screen.getByRole("group", { name: "Compound editor" }),
+    ),
+  ).toThrow("must not author visual chrome");
 });
 
 test("navigates authored parents and finds a stable semantic ancestor", () => {

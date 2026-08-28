@@ -30,8 +30,24 @@ function ownsComponentResponsibility(locator, responsibility) {
 * painting `bg-input`.
 */
 function assertSingleSurfaceOwner(root) {
-	const owners = componentDescendants(root).filter((locator) => ownsComponentResponsibility(locator, "surface"));
+	const descendants = componentDescendants(root);
+	const owners = descendants.filter((locator) => ownsComponentResponsibility(locator, "surface"));
 	if (owners.length !== 1) throw new Error(`${locatorDescription(root)} must have exactly one visible surface owner; found ${owners.length}: ${owners.map(locatorDescription).join(", ") || "none"}`);
+	const forbiddenClass = /^(?:bg|border|rounded|shadow)(?:-|$)/u;
+	const forbiddenStyles = [
+		"background",
+		"background-color",
+		"border",
+		"border-width",
+		"border-radius",
+		"box-shadow"
+	];
+	for (const content of descendants) {
+		if (content === owners[0] || !ownsComponentResponsibility(content, "native-editor")) continue;
+		const classes = content.className.split(/\s+/u).filter((candidate) => forbiddenClass.test(candidate));
+		const styles = forbiddenStyles.filter((property) => content.style(property) !== null);
+		if (classes.length > 0 || styles.length > 0) throw new Error(`${locatorDescription(content)} is native content inside ${locatorDescription(owners[0])} and must not author visual chrome; found ${[...classes, ...styles].join(", ")}`);
+	}
 	return owners[0];
 }
 /** Assert an explicit number of native focus owners inside one composition. */
