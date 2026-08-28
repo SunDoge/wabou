@@ -171,3 +171,32 @@ test("opens and closes an embedded native terminal panel", async ({ page }) => {
     page.getByRole("region", { name: "Terminal panel" }),
   ).toBeAbsent();
 });
+
+test("keeps retained layout stable across repeated agent switches", async ({
+  page,
+}) => {
+  const first = page.getByRole("button", { name: "Workspace Agent" });
+  const second = page.getByRole("button", { name: "Agent 2" });
+  const composer = page.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+  const initialComposer = await composer.snapshot();
+  const initialFirst = await first.snapshot();
+
+  for (let iteration = 0; iteration < 8; iteration += 1) {
+    await second.click();
+    await expect(second).toBeSelected();
+    await first.click();
+    await expect(first).toBeSelected();
+    await expect(composer).toHaveBounds(initialComposer.bounds, {
+      tolerance: 0.5,
+    });
+    await expect(first).toHaveBounds(initialFirst.bounds, { tolerance: 0.5 });
+  }
+
+  await expect(
+    page.getByRole("label", {
+      name: "Fake Pi completed: Explain the fixture",
+    }),
+  ).toHaveCount(1);
+});
