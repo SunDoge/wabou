@@ -10,6 +10,7 @@ import {
 describe("Pi agent event projection", () => {
   test("does not let a stale process status erase active response state", () => {
     expect(reconcileProcessConnection("running", true)).toBe("running");
+    expect(reconcileProcessConnection("failed", true)).toBe("failed");
     expect(reconcileProcessConnection("stopped", true)).toBe("ready");
     expect(reconcileProcessConnection("running", false)).toBe("stopped");
   });

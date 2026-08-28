@@ -8,7 +8,7 @@ export function reconcileProcessConnection(
   processRunning: boolean,
 ): AgentConnection {
   if (!processRunning) return "stopped";
-  return current === "running" ? "running" : "ready";
+  return current === "running" || current === "failed" ? current : "ready";
 }
 export type AgentQueueMode = "all" | "one-at-a-time";
 export type AgentActivity =
