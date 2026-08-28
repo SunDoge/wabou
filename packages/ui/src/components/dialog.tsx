@@ -27,7 +27,7 @@ export function Dialog(props: DialogProps): JSX.Element {
         ...props.backdropStyle,
       }}
       contentClass={mergeClasses(
-        "w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-lg border border-subtle bg-surface p-5",
+        "w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-xl border border-subtle bg-surface p-5",
         props.contentClass,
       )}
       contentShadows={

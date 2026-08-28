@@ -27,6 +27,7 @@ test("records the complete authored InputGroup contract without a native host", 
 
   expect(assertSingleSurfaceOwner(group).name).toBe("Project URL");
   expect(assertFocusOwnerCount(group, 2)).toHaveLength(2);
+  expect(group.className).toContain("rounded-lg");
   expect(screen.snapshot()).toMatchInlineSnapshot(`
     [
       {
@@ -74,7 +75,7 @@ test("records the complete authored InputGroup contract without a native host", 
               "placeholder": "example.com",
               "role": "textbox",
             },
-            "className": "w-full px-3 text-sm text-primary h-full flex-1 min-w-0",
+            "className": "w-full text-primary px-3 gap-2 text-sm rounded-lg h-full flex-1 min-w-0",
             "focusOrder": 0,
             "name": "Hostname",
             "role": "textbox",
@@ -92,7 +93,7 @@ test("records the complete authored InputGroup contract without a native host", 
                 "text": "Copy",
               },
             ],
-            "className": "inline-flex flex-none whitespace-nowrap items-center justify-center gap-2 rounded-md border font-medium bg-transparent text-secondary border-transparent h-6 px-2 text-xs mx-1",
+            "className": "inline-flex flex-none whitespace-nowrap items-center justify-center border font-medium bg-transparent text-secondary border-transparent h-7 px-2 gap-1.5 text-xs rounded-lg mx-1",
             "focusOrder": 0,
             "name": "Copy",
             "role": "button",
@@ -114,7 +115,7 @@ test("records the complete authored InputGroup contract without a native host", 
             "text": "Copy",
           },
         ],
-        "className": "relative w-full min-w-0 flex rounded-md border shadow-xs h-8 flex-row items-center border-strong bg-input",
+        "className": "relative w-full min-w-0 flex rounded-lg border shadow-xs h-8 flex-row items-center border-strong bg-input",
         "name": "Project URL",
         "role": "group",
         "tag": "view",

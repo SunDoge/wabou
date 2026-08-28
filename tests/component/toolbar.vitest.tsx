@@ -28,6 +28,7 @@ test("moves one toolbar tab stop and skips disabled commands", () => {
 
   expect(toolbar.getAllByRole("button")).toHaveLength(3);
   expect(toolbar.orientation).toBe("horizontal");
+  expect(toolbar.className).toContain("rounded-lg");
   expect(undo.focusOrder).toBe(0);
   expect(share.focusOrder).toBe(-1);
   undo.focus();

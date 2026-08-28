@@ -78,7 +78,7 @@ export function FieldLegend(props: {
 }
 export function FieldGroup(props: { children?: JSX.Element; class?: string }) {
   return (
-    <View class={mergeClasses("flex flex-col gap-5", props.class)}>
+    <View class={mergeClasses("flex flex-col gap-4", props.class)}>
       {props.children}
     </View>
   );
@@ -227,7 +227,7 @@ export function inputGroupClass(
   invalid: boolean,
 ): string {
   return mergeClasses(
-    "relative w-full min-w-0 flex rounded-md border shadow-xs",
+    "relative w-full min-w-0 flex rounded-lg border shadow-xs",
     orientation === "horizontal"
       ? "h-8 flex-row items-center"
       : "h-auto flex-col items-stretch",

@@ -96,7 +96,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
           aria-label={props["aria-label"]}
           aria-orientation={orientation()}
           class={mergeClasses(
-            "flex-none flex items-center gap-1 rounded-md border border-subtle bg-control p-1",
+            "flex-none flex items-center gap-1 rounded-lg border border-subtle bg-control p-1",
             match(orientation())
               .with("horizontal", () => "flex-row")
               .with("vertical", () => "flex-col")

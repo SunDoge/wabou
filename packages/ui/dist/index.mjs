@@ -302,7 +302,7 @@ function Dialog(props) {
 			};
 		},
 		get contentClass() {
-			return mergeClasses("w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-lg border border-subtle bg-surface p-5", props.contentClass);
+			return mergeClasses("w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-xl border border-subtle bg-surface p-5", props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -1838,7 +1838,7 @@ function DropdownMenu(props) {
 			return props.anchorPoint;
 		},
 		get contentClass() {
-			return mergeClasses("w-56 p-1 flex flex-col gap-1 rounded-lg border border-subtle bg-surface", props.contentClass);
+			return mergeClasses("w-56 p-1 flex flex-col gap-0.5 rounded-xl border border-subtle bg-surface", props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -1877,7 +1877,7 @@ function DropdownMenu(props) {
 					return props["aria-label"];
 				},
 				focusOrder: 0,
-				class: "min-w-0 flex flex-col gap-1",
+				class: "min-w-0 flex flex-col gap-0.5",
 				onKeyDown: handleMenuKey,
 				get children() {
 					return createComponent$1(For, {
@@ -1901,7 +1901,7 @@ function DropdownMenu(props) {
 								return item().disabled;
 							},
 							get ["class"]() {
-								return mergeClasses("w-full min-h-8 flex-none px-2 py-1.5 flex flex-col justify-center rounded-md", highlighted() === item().id ? "bg-control-hover" : "bg-transparent", item().destructive ? "text-danger-primary" : "text-primary");
+								return mergeClasses("w-full min-h-8 flex-none px-2 py-1.5 flex flex-col justify-center rounded-lg", highlighted() === item().id ? "bg-control-hover" : "bg-transparent", item().destructive ? "text-danger-primary" : "text-primary");
 							},
 							get style() {
 								return { opacity: item().disabled ? .45 : 1 };
@@ -3519,7 +3519,7 @@ function FieldLegend(props) {
 function FieldGroup(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return mergeClasses("flex flex-col gap-5", props.class);
+			return mergeClasses("flex flex-col gap-4", props.class);
 		},
 		get children() {
 			return props.children;
@@ -3647,7 +3647,7 @@ function useInputGroup() {
 	return useContext(InputGroupContext);
 }
 function inputGroupClass(orientation, focused, invalid) {
-	return mergeClasses("relative w-full min-w-0 flex rounded-md border shadow-xs", orientation === "horizontal" ? "h-8 flex-row items-center" : "h-auto flex-col items-stretch", invalid ? "border-danger" : focused ? "border-focus" : "border-strong");
+	return mergeClasses("relative w-full min-w-0 flex rounded-lg border shadow-xs", orientation === "horizontal" ? "h-8 flex-row items-center" : "h-auto flex-col items-stretch", invalid ? "border-danger" : focused ? "border-focus" : "border-strong");
 }
 function InputGroup(props) {
 	const focus = createFocusWithin();
@@ -5767,7 +5767,7 @@ function Toolbar(props) {
 					return orientation();
 				},
 				get ["class"]() {
-					return mergeClasses("flex-none flex items-center gap-1 rounded-md border border-subtle bg-control p-1", match(orientation()).with("horizontal", () => "flex-row").with("vertical", () => "flex-col").exhaustive(), props.class);
+					return mergeClasses("flex-none flex items-center gap-1 rounded-lg border border-subtle bg-control p-1", match(orientation()).with("horizontal", () => "flex-row").with("vertical", () => "flex-col").exhaustive(), props.class);
 				},
 				get children() {
 					return props.children;
@@ -7442,7 +7442,7 @@ function PageViewport(props) {
 		}
 	});
 }
-const pageHeaderClass = (className, stacked = false) => mergeClasses("min-w-0 min-h-14 flex-none flex justify-between gap-4", stacked ? "flex-col items-stretch" : "flex-row items-center", className);
+const pageHeaderClass = (className, stacked = false) => mergeClasses("min-w-0 min-h-12 flex-none flex justify-between gap-4", stacked ? "flex-col items-stretch" : "flex-row items-center", className);
 /** Consistent page title, supporting text and trailing application actions. */
 function PageHeader(props) {
 	return createComponent$1(View, {
@@ -7458,7 +7458,7 @@ function PageHeader(props) {
 						get children() {
 							return [createComponent$1(Text, {
 								role: "heading",
-								class: "whitespace-nowrap text-4xl font-bold",
+								class: "whitespace-nowrap text-2xl font-semibold",
 								get children() {
 									return props.title;
 								}
@@ -9322,7 +9322,7 @@ function TabsList(props) {
 		get ["class"]() {
 			return memo(() => {
 				return !!props.unstyled;
-			})() ? props.class : mergeClasses("flex-none flex items-center gap-1", orientationClass(context.orientation(), "flex-row", "flex-col"), match(props.variant ?? "default").with("default", () => "p-0.5 rounded-md bg-control").with("line", () => "bg-transparent").exhaustive(), props.class);
+			})() ? props.class : mergeClasses("flex-none flex items-center gap-1", orientationClass(context.orientation(), "flex-row", "flex-col"), match(props.variant ?? "default").with("default", () => "p-0.5 rounded-lg bg-control").with("line", () => "bg-transparent").exhaustive(), props.class);
 		},
 		get children() {
 			return props.children;
@@ -9354,7 +9354,7 @@ function TabsTrigger(props) {
 			unregister?.();
 			unregister = context.register(props.value, node, () => props.disabled ?? false);
 		},
-		class: (state) => props.unstyled ? typeof props.class === "function" ? props.class(state) : props.class ?? "" : mergeClasses("h-7 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium", match({
+		class: (state) => props.unstyled ? typeof props.class === "function" ? props.class(state) : props.class ?? "" : mergeClasses("h-7 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium", match({
 			selected: selected(),
 			hovered: state.hovered
 		}).with({ selected: true }, () => "bg-surface text-primary shadow-xs").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-muted"), state.focusVisible && "border-focus", typeof props.class === "function" ? props.class(state) : props.class),

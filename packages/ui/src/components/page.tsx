@@ -59,7 +59,7 @@ export function PageViewport(props: PageViewportProps): JSX.Element {
 
 export const pageHeaderClass = (className?: string, stacked = false) =>
   mergeClasses(
-    "min-w-0 min-h-14 flex-none flex justify-between gap-4",
+    "min-w-0 min-h-12 flex-none flex justify-between gap-4",
     stacked ? "flex-col items-stretch" : "flex-row items-center",
     className,
   );
@@ -82,7 +82,7 @@ export function PageHeader(props: PageHeaderProps): JSX.Element {
     <View class={pageHeaderClass(props.class, props.stacked)}>
       <View class="min-w-0 flex-1 flex flex-row items-center gap-3">
         <View class="min-w-0 flex flex-col gap-1">
-          <Text role="heading" class="whitespace-nowrap text-4xl font-bold">
+          <Text role="heading" class="whitespace-nowrap text-2xl font-semibold">
             {props.title}
           </Text>
           <Show when={props.description}>

@@ -37,6 +37,10 @@ test("selects tabs and publishes only the active panel", () => {
   expect(
     screen.getByRole("tablist", { name: "Project sections" }).orientation,
   ).toBe("horizontal");
+  expect(
+    screen.getByRole("tablist", { name: "Project sections" }).className,
+  ).toContain("rounded-lg");
+  expect(overview.className).toContain("rounded-md");
   expect(overview.selected).toBe(true);
   expect(screen.getByRole("tabpanel").text).toBe("Overview panel");
 

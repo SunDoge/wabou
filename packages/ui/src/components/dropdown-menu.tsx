@@ -137,7 +137,7 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
       outsidePointerStrategy={props.outsidePointerStrategy}
       anchorPoint={props.anchorPoint}
       contentClass={mergeClasses(
-        "w-56 p-1 flex flex-col gap-1 rounded-lg border border-subtle bg-surface",
+        "w-56 p-1 flex flex-col gap-0.5 rounded-xl border border-subtle bg-surface",
         props.contentClass,
       )}
       contentShadows={
@@ -179,7 +179,7 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
         role="menu"
         aria-label={props["aria-label"]}
         focusOrder={0}
-        class="min-w-0 flex flex-col gap-1"
+        class="min-w-0 flex flex-col gap-0.5"
         onKeyDown={handleMenuKey}
       >
         <For each={props.items} keyed={false}>
@@ -196,7 +196,7 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
                 aria-label={item().label}
                 aria-disabled={item().disabled}
                 class={mergeClasses(
-                  "w-full min-h-8 flex-none px-2 py-1.5 flex flex-col justify-center rounded-md",
+                  "w-full min-h-8 flex-none px-2 py-1.5 flex flex-col justify-center rounded-lg",
                   highlighted() === item().id
                     ? "bg-control-hover"
                     : "bg-transparent",

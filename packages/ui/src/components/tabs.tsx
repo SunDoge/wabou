@@ -114,7 +114,7 @@ export function TabsList(props: {
               "flex-none flex items-center gap-1",
               orientationClass(context.orientation(), "flex-row", "flex-col"),
               match(props.variant ?? "default")
-                .with("default", () => "p-0.5 rounded-md bg-control")
+                .with("default", () => "p-0.5 rounded-lg bg-control")
                 .with("line", () => "bg-transparent")
                 .exhaustive(),
               props.class,
@@ -164,7 +164,7 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
             ? props.class(state)
             : (props.class ?? "")
           : mergeClasses(
-              "h-7 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
+              "h-7 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium",
               match({ selected: selected(), hovered: state.hovered })
                 .with(
                   { selected: true },
