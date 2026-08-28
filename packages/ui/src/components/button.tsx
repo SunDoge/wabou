@@ -1,3 +1,4 @@
+import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { match, P } from "ts-pattern";
 import {
@@ -6,8 +7,8 @@ import {
   type ButtonProps as HeadlessButtonProps,
   type WabouStyle,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import { useButtonGroupOrientation } from "./button-group-context";
+import { componentsControlSize } from "./theme";
 
 export type ButtonVariant =
   | "default"
@@ -95,12 +96,7 @@ function buttonColors(variant: ButtonVariant, state: ButtonState): string {
 }
 
 function buttonSize(size: ButtonSize): string {
-  return match(size)
-    .with("sm", () => "h-6 px-2 text-xs")
-    .with("default", () => "h-8 px-3 text-sm")
-    .with("lg", () => "h-10 px-4 text-base")
-    .with("icon", () => "w-8 h-8 p-0 text-sm")
-    .exhaustive();
+  return componentsControlSize(size);
 }
 
 export function Button(props: ButtonProps): JSX.Element {
@@ -115,7 +111,7 @@ export function Button(props: ButtonProps): JSX.Element {
       unstyled
       class={(state) =>
         mergeClasses(
-          "inline-flex flex-none whitespace-nowrap items-center justify-center gap-2 rounded-md border font-medium",
+          "inline-flex flex-none whitespace-nowrap items-center justify-center border font-medium",
           buttonColors(variant(), state),
           buttonSize(size()),
           groupOrientation && "rounded-none border-transparent",

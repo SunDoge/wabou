@@ -10,6 +10,36 @@ import {
 
 export type ComponentsTheme = "light" | "dark";
 export type ComponentsElevation = "raised" | "floating" | "modal";
+export type ComponentsControlSize = "sm" | "default" | "lg" | "icon";
+
+/**
+ * Geometry contract for Wabou's default desktop theme.
+ *
+ * Components consume these recipes instead of independently choosing height,
+ * padding, radius, and icon rhythm. The values intentionally favor desktop
+ * density over touch-first sizing.
+ */
+export const componentsThemeContract = Object.freeze({
+  controlHeight: Object.freeze({ sm: 28, default: 32, lg: 40, icon: 32 }),
+  iconSize: Object.freeze({ sm: 14, default: 16, lg: 18 }),
+  controlRadius: 8,
+  containerRadius: 12,
+  containerPadding: 20,
+  sectionGap: 16,
+});
+
+export function componentsControlSize(size: ComponentsControlSize): string {
+  switch (size) {
+    case "sm":
+      return "h-7 px-2 gap-1.5 text-xs rounded-lg";
+    case "lg":
+      return "h-10 px-4 gap-2.5 text-base rounded-lg";
+    case "icon":
+      return "w-8 h-8 p-0 gap-0 text-sm rounded-lg";
+    default:
+      return "h-8 px-3 gap-2 text-sm rounded-lg";
+  }
+}
 
 /**
  * Native elevation recipes adapted from gpui-component. Wabou and GPUI both
@@ -22,17 +52,21 @@ export function componentsElevation(
   elevation: ComponentsElevation,
 ): Shadow[] {
   if (elevation === "raised") {
-    return [shadow({ offsetY: 1, stdDev: 2, color: 0x0000002e })];
+    return [
+      shadow({ spread: 1, stdDev: 0, color: 0x0000000d }),
+      shadow({ offsetY: 1, stdDev: 2, color: 0x0000001f }),
+      shadow({ offsetY: 4, stdDev: 7, spread: -4, color: 0x00000014 }),
+    ];
   }
   if (elevation === "floating") {
     return [
       shadow({
         spread: 1,
         stdDev: 0,
-        color: theme === "dark" ? 0xffffff1a : 0x0000001a,
+        color: theme === "dark" ? 0xffffff1f : 0x00000014,
       }),
-      shadow({ offsetY: 4, stdDev: 3, spread: -1, color: 0x0000001a }),
-      shadow({ offsetY: 2, stdDev: 2, spread: -2, color: 0x0000001a }),
+      shadow({ offsetY: 8, stdDev: 12, spread: -5, color: 0x00000024 }),
+      shadow({ offsetY: 2, stdDev: 3, spread: -2, color: 0x0000001f }),
     ];
   }
   return [
@@ -46,7 +80,7 @@ interface ComponentsThemeContext {
 }
 
 const defaultTheme: ComponentsThemeContext = {
-  theme: () => "dark",
+  theme: () => "light",
 };
 const ThemeContext = createContext<ComponentsThemeContext>(defaultTheme);
 
@@ -58,7 +92,7 @@ export function ComponentsProvider(
   props: ComponentsProviderProps,
 ): JSX.Element {
   return createComponent(ThemeContext, {
-    value: { theme: () => props.theme ?? "dark" },
+    value: { theme: () => props.theme ?? "light" },
     get children() {
       return props.children;
     },

@@ -103,6 +103,9 @@ test("composes fixed chrome, searchable content, navigation and empty state", ()
   search.input("missing");
   expect(screen.getByRole("status", { name: "Nothing here" })).not.toBeNull();
   search.press("Escape");
-  screen.getByRole("button", { name: "Search" }).click();
+  const searchButton = screen.getByRole("button", { name: "Search" });
+  expect(searchButton.className).toContain("rounded-lg");
+  expect(searchButton.className).toContain("gap-2.5");
+  searchButton.click();
   expect(selected).toBe("search");
 });

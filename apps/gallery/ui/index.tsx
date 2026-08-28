@@ -360,8 +360,8 @@ import { DataTablePage } from "./pages/data-table";
 import { ColorsPage, LayoutStylesPage, ShadowsPage } from "./pages/foundations";
 import { I18nPage } from "./pages/i18n";
 import { ImageViewportPage } from "./pages/image-viewport";
-import { MenubarPage } from "./pages/menubar";
 import { MarkdownPage } from "./pages/markdown";
+import { MenubarPage } from "./pages/menubar";
 import { OverviewPage } from "./pages/overview";
 import {
   DirectionPage,
@@ -408,7 +408,7 @@ function App() {
   const compact = createWindowMatch({ maxWidth: 1099 }, window);
   const windowId = currentWindow().id;
   if (windowId.lo !== 1 || windowId.hi !== 1) return <ChildWindowPage />;
-  const [theme, setTheme] = createSignal<GalleryTheme>("dark");
+  const [theme, setTheme] = createSignal<GalleryTheme>("light");
   const dark = () => theme() !== "light";
   const themeLabel = () =>
     `${theme().slice(0, 1).toUpperCase()}${theme().slice(1)}`;

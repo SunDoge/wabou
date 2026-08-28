@@ -1,12 +1,16 @@
 import type { Handle } from "@wabou/core/renderer";
 import type { Shadow } from "@wabou/core/style";
+import { mergeClasses } from "@wabou/core/style";
 import chevronsUpDown from "lucide-static/icons/chevrons-up-down.svg?raw";
 import { createSignal, type JSX } from "solid-js";
 import { Button as HeadlessButton, Icon, Popover, Text } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
-import type { PopupMotionProps } from "./popover";
 import { Command, type CommandItem } from "./command";
-import { componentsElevation, useComponentsTheme } from "./theme";
+import type { PopupMotionProps } from "./popover";
+import {
+  componentsControlSize,
+  componentsElevation,
+  useComponentsTheme,
+} from "./theme";
 
 export interface ComboboxOption extends CommandItem {
   value: string;
@@ -94,7 +98,8 @@ export function Combobox(props: ComboboxProps): JSX.Element {
           }}
           class={(state) =>
             mergeClasses(
-              "w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs",
+              "w-72 justify-between border bg-input shadow-xs",
+              componentsControlSize("default"),
               state.focused ? "border-focus" : "border-subtle",
               props.class,
             )

@@ -37,6 +37,9 @@ test("propagates vertical composition without changing standalone buttons", () =
       <Button aria-label="Standalone">Save</Button>
     </>
   ));
+  const standalone = screen.getByRole("button", { name: "Standalone" });
+  expect(standalone.className).toContain("h-8");
+  expect(standalone.className).toContain("rounded-lg");
   expect(screen.getByRole("group", { name: "Account" }).className).toContain(
     "flex-col",
   );

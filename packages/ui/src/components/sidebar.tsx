@@ -108,7 +108,7 @@ export function SidebarContent(props: SidebarContentProps): JSX.Element {
     <ScrollArea
       {...props}
       class={mergeClasses("min-h-0 flex-1", props.class)}
-      contentClass={mergeClasses("px-2 py-3", props.contentClass)}
+      contentClass={mergeClasses("px-3 py-4", props.contentClass)}
     />
   );
 }
@@ -118,7 +118,7 @@ export function SidebarGroup(props: ViewProps): JSX.Element {
     <View
       {...props}
       role={props.role ?? "group"}
-      class={mergeClasses("flex-none flex flex-col gap-0.5 mb-4", props.class)}
+      class={mergeClasses("flex-none flex flex-col gap-1 mb-5", props.class)}
     />
   );
 }
@@ -128,7 +128,7 @@ export function SidebarGroupLabel(props: TextProps): JSX.Element {
     <Text
       {...props}
       class={mergeClasses(
-        "px-2 py-1 text-xs font-medium text-muted",
+        "px-2 py-1.5 text-xs font-medium text-muted",
         props.class,
       )}
     />
@@ -150,7 +150,7 @@ export function SidebarMenuButton(props: SidebarMenuButtonProps): JSX.Element {
       aria-selected={props.selected}
       class={(state) =>
         mergeClasses(
-          "w-full min-w-0 h-8 px-3 justify-start gap-2 rounded-md text-sm",
+          "w-full min-w-0 h-8 px-3 justify-start gap-2.5 rounded-lg text-sm",
           state.pressed
             ? "bg-control-pressed text-primary"
             : state.hovered

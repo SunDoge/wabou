@@ -1,5 +1,5 @@
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
-import { defineWabouConfig } from "@wabou/vite";
+import { defaultWabouColorThemes, defineWabouConfig } from "@wabou/vite";
 
 export default defineWabouConfig(({ mode }) => ({
   entry: mode === "layout-test" ? "ui/layout-fixtures.tsx" : "ui/index.tsx",
@@ -20,68 +20,9 @@ export default defineWabouConfig(({ mode }) => ({
     timeZones: "golden",
   },
   theme: {
-    default: "dark",
+    default: "light",
     themes: {
-      dark: {
-        appearance: "dark",
-        colors: {
-          canvas: "#111113",
-          surface: "#1b1b1f",
-          "surface-muted": "#18181b",
-          input: "#18181b",
-          control: "#212225",
-          "control-hover": "#2b2d31",
-          "control-pressed": "#34363b",
-          selected: "#27384d",
-          primary: "#eeeeef",
-          secondary: "#b4b4bb",
-          muted: "#8b8d98",
-          subtle: "#303136",
-          strong: "#484950",
-          accent: "#0090ff",
-          "accent-hover": "#3b9eff",
-          "accent-pressed": "#0588f0",
-          "on-accent": "#ffffff",
-          danger: "#ef4444",
-          "danger-hover": "#dc2626",
-          "danger-pressed": "#b91c1c",
-          "danger-surface": "#450a0a",
-          "danger-primary": "#fecaca",
-          "success-surface": "#064e3b",
-          "success-primary": "#a7f3d0",
-          focus: "#5eb1ef",
-        },
-      },
-      light: {
-        appearance: "light",
-        colors: {
-          canvas: "#fcfcfd",
-          surface: "#ffffff",
-          "surface-muted": "#f9f9fb",
-          input: "#ffffff",
-          control: "#f0f0f3",
-          "control-hover": "#e8e8ec",
-          "control-pressed": "#e0e1e6",
-          selected: "#e1f0ff",
-          primary: "#1c2024",
-          secondary: "#60646c",
-          muted: "#8b8d98",
-          subtle: "#d9d9e0",
-          strong: "#b9bbc3",
-          accent: "#0090ff",
-          "accent-hover": "#0588f0",
-          "accent-pressed": "#0d74ce",
-          "on-accent": "#ffffff",
-          danger: "#dc2626",
-          "danger-hover": "#b91c1c",
-          "danger-pressed": "#991b1b",
-          "danger-surface": "#fef2f2",
-          "danger-primary": "#991b1b",
-          "success-surface": "#ecfdf5",
-          "success-primary": "#047857",
-          focus: "#0d74ce",
-        },
-      },
+      ...defaultWabouColorThemes.themes,
       violet: {
         appearance: "dark",
         colors: {

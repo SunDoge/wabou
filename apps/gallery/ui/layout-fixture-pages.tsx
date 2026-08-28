@@ -134,7 +134,7 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
       },
       "component/PiConversation": {
         width: 720,
-        height: 480,
+        height: 520,
         render: PiConversationLayoutFixture,
         waitMs: 220,
       },

@@ -1,9 +1,10 @@
+import { mergeClasses } from "@wabou/core/style";
+import { type JSX, omit } from "solid-js";
 import {
   TextInput as PrimitiveTextInput,
   type TextInputProps as PrimitiveTextInputProps,
 } from "../primitives";
-import { type JSX, omit } from "solid-js";
-import { mergeClasses } from "@wabou/core/style";
+import { componentsControlSize } from "./theme";
 
 export interface InputProps extends PrimitiveTextInputProps {
   class?: string;
@@ -31,10 +32,11 @@ export function Input(props: InputProps): JSX.Element {
           : "native-editor"
       }
       class={mergeClasses(
-        "h-8 w-full px-3 text-sm text-primary",
+        "w-full text-primary",
+        componentsControlSize("default"),
         (props.chrome ?? "default") === "default" &&
           mergeClasses(
-            "rounded-md border border-subtle shadow-xs",
+            "border border-subtle shadow-xs",
             props.surfaceClass ?? "bg-input",
           ),
         props.disabled && "opacity-50",

@@ -15,6 +15,7 @@ import {
   View,
 } from "../primitives";
 import { Badge, type BadgeProps } from "./badge";
+import { componentsControlSize } from "./theme";
 
 export * from "./alert";
 export * from "./alert-dialog";
@@ -111,11 +112,14 @@ export {
   type TabsTriggerProps,
 } from "./tabs";
 export {
+  type ComponentsControlSize,
   type ComponentsElevation,
   ComponentsProvider,
   type ComponentsProviderProps,
   type ComponentsTheme,
+  componentsControlSize,
   componentsElevation,
+  componentsThemeContract,
   useComponentsTheme,
 } from "./theme";
 export * from "./timeline";
@@ -177,7 +181,8 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
     <PrimitivePasswordInput
       {...props}
       class={mergeClasses(
-        "h-8 w-full px-3 rounded-md border text-sm shadow-xs",
+        "w-full border shadow-xs",
+        componentsControlSize("default"),
         "border-subtle bg-input text-primary",
         props.disabled && "opacity-50",
         props.class,
@@ -195,7 +200,7 @@ export function TextArea(props: TextAreaProps): JSX.Element {
     <PrimitiveTextArea
       {...props}
       class={mergeClasses(
-        "h-24 w-full px-3 py-2 rounded-md border text-sm shadow-xs",
+        "h-24 w-full px-3 py-2 rounded-lg border text-sm shadow-xs",
         "border-subtle bg-input text-primary",
         props.disabled && "opacity-50",
         props.class,

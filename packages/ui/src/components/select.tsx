@@ -1,5 +1,10 @@
 import type { Handle } from "@wabou/core/renderer";
 import type { Shadow } from "@wabou/core/style";
+import { mergeClasses } from "@wabou/core/style";
+import check from "lucide-static/icons/check.svg?raw";
+import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
+import { createUniqueId, For, type JSX } from "solid-js";
+import { match } from "ts-pattern";
 import {
   Button as HeadlessButton,
   Icon,
@@ -12,14 +17,13 @@ import {
   createSelectInteraction,
   type SelectCommand,
 } from "../primitives/interactions";
-import check from "lucide-static/icons/check.svg?raw";
-import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
-import { createUniqueId, For, type JSX } from "solid-js";
-import { match } from "ts-pattern";
-import { mergeClasses } from "@wabou/core/style";
 import type { PopupMotionProps } from "./popover";
 import { selectControlsId } from "./select-semantics";
-import { componentsElevation, useComponentsTheme } from "./theme";
+import {
+  componentsControlSize,
+  componentsElevation,
+  useComponentsTheme,
+} from "./theme";
 
 const ITEM_HEIGHT = 40;
 const VISIBLE_ITEMS = 6;
@@ -153,7 +157,8 @@ export function Select(props: SelectProps): JSX.Element {
           }}
           class={(state) =>
             mergeClasses(
-              "w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs",
+              "w-72 justify-between border bg-input shadow-xs",
+              componentsControlSize("default"),
               state.focused ? "border-focus" : "border-subtle",
               props.class,
             )

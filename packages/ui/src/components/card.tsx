@@ -1,6 +1,6 @@
+import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
 export interface CardProps extends Omit<ViewProps, "class"> {
@@ -14,7 +14,7 @@ export function Card(props: CardProps): JSX.Element {
     <View
       {...rest}
       class={mergeClasses(
-        "min-w-0 min-h-0 flex-none flex flex-col overflow-hidden rounded-lg border border-subtle bg-surface",
+        "min-w-0 min-h-0 flex-none flex flex-col overflow-hidden rounded-xl border border-subtle bg-surface",
         props.class,
       )}
       shadows={
@@ -33,7 +33,7 @@ export function CardHeader(props: ViewProps): JSX.Element {
     <View
       {...props}
       class={mergeClasses(
-        "relative min-w-0 flex flex-col gap-1 px-4 pt-4 pr-12",
+        "relative min-w-0 flex flex-col gap-1.5 px-5 pt-5 pr-14",
         props.class,
       )}
     >
@@ -76,7 +76,7 @@ export function CardAction(props: ViewProps): JSX.Element {
     <View
       {...props}
       class={mergeClasses(
-        "absolute top-4 right-4 flex-none flex items-center justify-end",
+        "absolute top-5 right-5 flex-none flex items-center justify-end",
         props.class,
       )}
     >
@@ -90,7 +90,7 @@ export function CardContent(props: ViewProps): JSX.Element {
     <View
       {...props}
       class={mergeClasses(
-        "min-w-0 min-h-0 flex flex-col gap-3 p-4",
+        "min-w-0 min-h-0 flex flex-col gap-4 px-5 pt-4 pb-5",
         props.class,
       )}
     >
@@ -104,7 +104,7 @@ export function CardFooter(props: ViewProps): JSX.Element {
     <View
       {...props}
       class={mergeClasses(
-        "min-w-0 flex items-center gap-2 px-4 pb-4",
+        "min-w-0 flex items-center gap-2 px-5 pb-5",
         props.class,
       )}
     >

@@ -54,6 +54,109 @@ function Badge(props) {
 	}));
 }
 //#endregion
+//#region src/components/theme.ts
+/**
+* Geometry contract for Wabou's default desktop theme.
+*
+* Components consume these recipes instead of independently choosing height,
+* padding, radius, and icon rhythm. The values intentionally favor desktop
+* density over touch-first sizing.
+*/
+const componentsThemeContract = Object.freeze({
+	controlHeight: Object.freeze({
+		sm: 28,
+		default: 32,
+		lg: 40,
+		icon: 32
+	}),
+	iconSize: Object.freeze({
+		sm: 14,
+		default: 16,
+		lg: 18
+	}),
+	controlRadius: 8,
+	containerRadius: 12,
+	containerPadding: 20,
+	sectionGap: 16
+});
+function componentsControlSize(size) {
+	switch (size) {
+		case "sm": return "h-7 px-2 gap-1.5 text-xs rounded-lg";
+		case "lg": return "h-10 px-4 gap-2.5 text-base rounded-lg";
+		case "icon": return "w-8 h-8 p-0 gap-0 text-sm rounded-lg";
+		default: return "h-8 px-3 gap-2 text-sm rounded-lg";
+	}
+}
+/**
+* Native elevation recipes adapted from gpui-component. Wabou and GPUI both
+* pass standard deviation directly to their renderer, so these values should
+* not use CSS's doubled blur radius. Floating surfaces also carry a subtle
+* foreground-colored ring: black in light mode, white in dark mode.
+*/
+function componentsElevation(theme, elevation) {
+	if (elevation === "raised") return [
+		shadow({
+			spread: 1,
+			stdDev: 0,
+			color: 13
+		}),
+		shadow({
+			offsetY: 1,
+			stdDev: 2,
+			color: 31
+		}),
+		shadow({
+			offsetY: 4,
+			stdDev: 7,
+			spread: -4,
+			color: 20
+		})
+	];
+	if (elevation === "floating") return [
+		shadow({
+			spread: 1,
+			stdDev: 0,
+			color: theme === "dark" ? 4294967071 : 20
+		}),
+		shadow({
+			offsetY: 8,
+			stdDev: 12,
+			spread: -5,
+			color: 36
+		}),
+		shadow({
+			offsetY: 2,
+			stdDev: 3,
+			spread: -2,
+			color: 31
+		})
+	];
+	return [shadow({
+		offsetY: 20,
+		stdDev: 25,
+		spread: -5,
+		color: 26
+	}), shadow({
+		offsetY: 8,
+		stdDev: 10,
+		spread: -6,
+		color: 26
+	})];
+}
+const defaultTheme = { theme: () => "light" };
+const ThemeContext = createContext(defaultTheme);
+function ComponentsProvider(props) {
+	return createComponent(ThemeContext, {
+		value: { theme: () => props.theme ?? "light" },
+		get children() {
+			return props.children;
+		}
+	});
+}
+function useComponentsTheme() {
+	return (getOwner() ? useContext(ThemeContext) : defaultTheme).theme;
+}
+//#endregion
 //#region src/components/alert.tsx
 const AlertContext = createContext({ variant: () => "default" });
 function alertColors(variant) {
@@ -161,7 +264,7 @@ function buttonColors(variant, state) {
 	}, () => mergeClasses("bg-control-hover border-transparent text-primary", focus)).with({ variant: "secondary" }, () => mergeClasses("bg-control border-transparent text-primary", focus)).with({ pressed: true }, ({ variant: value }) => mergeClasses("bg-control-pressed text-secondary", passiveBorder(value), focus)).with({ hovered: true }, ({ variant: value }) => mergeClasses("bg-control-hover text-secondary", passiveBorder(value), focus)).with({ variant: P.union("outline", "ghost") }, ({ variant: value }) => mergeClasses("bg-transparent text-secondary", passiveBorder(value), focus)).exhaustive();
 }
 function buttonSize(size) {
-	return match(size).with("sm", () => "h-6 px-2 text-xs").with("default", () => "h-8 px-3 text-sm").with("lg", () => "h-10 px-4 text-base").with("icon", () => "w-8 h-8 p-0 text-sm").exhaustive();
+	return componentsControlSize(size);
 }
 function Button(props) {
 	const local = props;
@@ -171,71 +274,13 @@ function Button(props) {
 	const groupOrientation = useButtonGroupOrientation();
 	return createComponent$1(Button$1, mergeProps(forwarded, {
 		unstyled: true,
-		class: (state) => mergeClasses("inline-flex flex-none whitespace-nowrap items-center justify-center gap-2 rounded-md border font-medium", buttonColors(variant(), state), buttonSize(size()), groupOrientation && "rounded-none border-transparent", local.class),
+		class: (state) => mergeClasses("inline-flex flex-none whitespace-nowrap items-center justify-center border font-medium", buttonColors(variant(), state), buttonSize(size()), groupOrientation && "rounded-none border-transparent", local.class),
 		style: (state) => ({
 			"border-width": 1,
 			opacity: state.disabled ? .45 : 1,
 			...typeof local.style === "function" ? local.style(state) : local.style
 		})
 	}));
-}
-//#endregion
-//#region src/components/theme.ts
-/**
-* Native elevation recipes adapted from gpui-component. Wabou and GPUI both
-* pass standard deviation directly to their renderer, so these values should
-* not use CSS's doubled blur radius. Floating surfaces also carry a subtle
-* foreground-colored ring: black in light mode, white in dark mode.
-*/
-function componentsElevation(theme, elevation) {
-	if (elevation === "raised") return [shadow({
-		offsetY: 1,
-		stdDev: 2,
-		color: 46
-	})];
-	if (elevation === "floating") return [
-		shadow({
-			spread: 1,
-			stdDev: 0,
-			color: theme === "dark" ? 4294967066 : 26
-		}),
-		shadow({
-			offsetY: 4,
-			stdDev: 3,
-			spread: -1,
-			color: 26
-		}),
-		shadow({
-			offsetY: 2,
-			stdDev: 2,
-			spread: -2,
-			color: 26
-		})
-	];
-	return [shadow({
-		offsetY: 20,
-		stdDev: 25,
-		spread: -5,
-		color: 26
-	}), shadow({
-		offsetY: 8,
-		stdDev: 10,
-		spread: -6,
-		color: 26
-	})];
-}
-const defaultTheme = { theme: () => "dark" };
-const ThemeContext = createContext(defaultTheme);
-function ComponentsProvider(props) {
-	return createComponent(ThemeContext, {
-		value: { theme: () => props.theme ?? "dark" },
-		get children() {
-			return props.children;
-		}
-	});
-}
-function useComponentsTheme() {
-	return (getOwner() ? useContext(ThemeContext) : defaultTheme).theme;
 }
 //#endregion
 //#region src/components/dialog.tsx
@@ -636,7 +681,7 @@ function Card(props) {
 	const rest = omit(props, "class", "children", "shadows");
 	return createComponent$1(View, mergeProps(rest, {
 		get ["class"]() {
-			return mergeClasses("min-w-0 min-h-0 flex-none flex flex-col overflow-hidden rounded-lg border border-subtle bg-surface", props.class);
+			return mergeClasses("min-w-0 min-h-0 flex-none flex flex-col overflow-hidden rounded-xl border border-subtle bg-surface", props.class);
 		},
 		get shadows() {
 			return memo(() => {
@@ -651,7 +696,7 @@ function Card(props) {
 function CardHeader(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return mergeClasses("relative min-w-0 flex flex-col gap-1 px-4 pt-4 pr-12", props.class);
+			return mergeClasses("relative min-w-0 flex flex-col gap-1.5 px-5 pt-5 pr-14", props.class);
 		},
 		get children() {
 			return props.children;
@@ -682,7 +727,7 @@ function CardDescription(props) {
 function CardAction(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return mergeClasses("absolute top-4 right-4 flex-none flex items-center justify-end", props.class);
+			return mergeClasses("absolute top-5 right-5 flex-none flex items-center justify-end", props.class);
 		},
 		get children() {
 			return props.children;
@@ -692,7 +737,7 @@ function CardAction(props) {
 function CardContent(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return mergeClasses("min-w-0 min-h-0 flex flex-col gap-3 p-4", props.class);
+			return mergeClasses("min-w-0 min-h-0 flex flex-col gap-4 px-5 pt-4 pb-5", props.class);
 		},
 		get children() {
 			return props.children;
@@ -702,7 +747,7 @@ function CardContent(props) {
 function CardFooter(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return mergeClasses("min-w-0 flex items-center gap-2 px-4 pb-4", props.class);
+			return mergeClasses("min-w-0 flex items-center gap-2 px-5 pb-5", props.class);
 		},
 		get children() {
 			return props.children;
@@ -1454,7 +1499,7 @@ function Input(props) {
 			return (props.chrome ?? "default") === "default" ? "surface native-editor" : "native-editor";
 		},
 		get ["class"]() {
-			return mergeClasses("h-8 w-full px-3 text-sm text-primary", (props.chrome ?? "default") === "default" && mergeClasses("rounded-md border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
+			return mergeClasses("w-full text-primary", componentsControlSize("default"), (props.chrome ?? "default") === "default" && mergeClasses("border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
 		}
 	}));
 }
@@ -1652,7 +1697,7 @@ function Combobox(props) {
 				trigger = node;
 				popover.ref(node);
 			},
-			class: (state) => mergeClasses("w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs", state.focused ? "border-focus" : "border-subtle", props.class),
+			class: (state) => mergeClasses("w-72 justify-between border bg-input shadow-xs", componentsControlSize("default"), state.focused ? "border-focus" : "border-subtle", props.class),
 			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 			get onClick() {
 				return popover.onClick;
@@ -6425,7 +6470,7 @@ function Select(props) {
 				trigger = node;
 				popover.ref(node);
 			},
-			class: (state) => mergeClasses("w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs", state.focused ? "border-focus" : "border-subtle", props.class),
+			class: (state) => mergeClasses("w-72 justify-between border bg-input shadow-xs", componentsControlSize("default"), state.focused ? "border-focus" : "border-subtle", props.class),
 			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 			get onClick() {
 				return popover.onClick;
@@ -8786,7 +8831,7 @@ function SidebarContent(props) {
 			return mergeClasses("min-h-0 flex-1", props.class);
 		},
 		get contentClass() {
-			return mergeClasses("px-2 py-3", props.contentClass);
+			return mergeClasses("px-3 py-4", props.contentClass);
 		}
 	}));
 }
@@ -8796,13 +8841,13 @@ function SidebarGroup(props) {
 			return props.role ?? "group";
 		},
 		get ["class"]() {
-			return mergeClasses("flex-none flex flex-col gap-0.5 mb-4", props.class);
+			return mergeClasses("flex-none flex flex-col gap-1 mb-5", props.class);
 		}
 	}));
 }
 function SidebarGroupLabel(props) {
 	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
-		return mergeClasses("px-2 py-1 text-xs font-medium text-muted", props.class);
+		return mergeClasses("px-2 py-1.5 text-xs font-medium text-muted", props.class);
 	} }));
 }
 /** Consistent navigation row; applications still own activation and routing. */
@@ -8813,7 +8858,7 @@ function SidebarMenuButton(props) {
 		get ["aria-selected"]() {
 			return props.selected;
 		},
-		class: (state) => mergeClasses("w-full min-w-0 h-8 px-3 justify-start gap-2 rounded-md text-sm", state.pressed ? "bg-control-pressed text-primary" : state.hovered ? "bg-control-hover text-primary" : state.selected ? "bg-selected text-primary" : "bg-transparent text-secondary", state.focusVisible && "border border-focus", props.class)
+		class: (state) => mergeClasses("w-full min-w-0 h-8 px-3 justify-start gap-2.5 rounded-lg text-sm", state.pressed ? "bg-control-pressed text-primary" : state.hovered ? "bg-control-hover text-primary" : state.selected ? "bg-selected text-primary" : "bg-transparent text-secondary", state.focusVisible && "border border-focus", props.class)
 	}));
 }
 function SidebarEmpty(props) {
@@ -10038,12 +10083,12 @@ function Fps(props) {
 /** A native secret input whose value never crosses into JavaScript. */
 function PasswordInput(props) {
 	return createComponent$1(PasswordInput$1, mergeProps(props, { get ["class"]() {
-		return mergeClasses("h-8 w-full px-3 rounded-md border text-sm shadow-xs", "border-subtle bg-input text-primary", props.disabled && "opacity-50", props.class);
+		return mergeClasses("w-full border shadow-xs", componentsControlSize("default"), "border-subtle bg-input text-primary", props.disabled && "opacity-50", props.class);
 	} }));
 }
 function TextArea$1(props) {
 	return createComponent$1(TextArea, mergeProps(props, { get ["class"]() {
-		return mergeClasses("h-24 w-full px-3 py-2 rounded-md border text-sm shadow-xs", "border-subtle bg-input text-primary", props.disabled && "opacity-50", props.class);
+		return mergeClasses("h-24 w-full px-3 py-2 rounded-lg border text-sm shadow-xs", "border-subtle bg-input text-primary", props.disabled && "opacity-50", props.class);
 	} }));
 }
 function switchColors(checked, state) {
@@ -10370,6 +10415,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDescription, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertTitle, AnnotationLayer, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Bubble, BubbleContent, BubbleGroup, BubbleReactions, Button, ButtonGroup, ButtonGroupSeparator, ButtonGroupText, Calendar, CalendarDate, Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, Center, ChartContainer, ChartEmpty, ChartLegend, Checkbox, CodeBlock, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, CopyButton, DataTable, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectionProvider, DirectionalRow, DirectionalText, DirectoryPicker, Drawer, DrawerClose, DrawerDescription, DrawerFooter, DrawerHandle, DrawerHeader, DrawerTitle, DropZone, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, IconFrame, Image, ImageList, ImageOverlayLayer, ImageViewport, InlineEdit, Input, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Label, Markdown, Marker, MarkerContent, MarkerIcon, Menubar, MenubarMenu, Message, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerViewport, Modal, MotionConfigProvider, NativeSelect, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, NavigationMenuViewport, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, PropertyList, PropertyRow, Pulse, QRCode, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, RichText, RichTextSpan, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, ShortcutRecorder, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitButton, SplitPane, SplitPaneAside, SplitPaneMain, StatCard, StatusBar, StatusBarItem, StatusBarSeparator, Stepper, Svg, Switch, Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, Timeline, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, TypographyBlockquote, TypographyH1, TypographyH2, TypographyH3, TypographyH4, TypographyInlineCode, TypographyLarge, TypographyLead, TypographyList, TypographyListItem, TypographyMuted, TypographyP, TypographySmall, View, WindowFrame, alertColors, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentGroupClass, attachmentMediaClass, badgeClass, bubbleClass, bubbleContentClass, clampAnnotationRegion, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFileImageResource, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNetworkImageResource, createNotifications, createOverlayLayer, createOwnedImageResource, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, drawerDragOffset, drawerShouldDismiss, emptyClass, emptyMediaClass, encodeQrCode, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, imageViewportTransform, inputGroupAddonClass, inputGroupClass, isMessageScrollNearEnd, itemClass, itemMediaClass, messageClass, messageScrollRange, messageScrollRevealDelta, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, pointInLayoutRect, primitives_exports as primitives, qrCodePath, ratingLabel, reconcileCommandHighlight, redirect, releaseImageResource, responsiveGridColumnCount, responsiveGridRemainderCount, shortcutFromKeyEvent, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, uniqueFieldErrors, useChartConfig, useComponentsTheme, useDirection, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDescription, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertTitle, AnnotationLayer, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Bubble, BubbleContent, BubbleGroup, BubbleReactions, Button, ButtonGroup, ButtonGroupSeparator, ButtonGroupText, Calendar, CalendarDate, Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, Center, ChartContainer, ChartEmpty, ChartLegend, Checkbox, CodeBlock, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, CopyButton, DataTable, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectionProvider, DirectionalRow, DirectionalText, DirectoryPicker, Drawer, DrawerClose, DrawerDescription, DrawerFooter, DrawerHandle, DrawerHeader, DrawerTitle, DropZone, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, IconFrame, Image, ImageList, ImageOverlayLayer, ImageViewport, InlineEdit, Input, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Label, Markdown, Marker, MarkerContent, MarkerIcon, Menubar, MenubarMenu, Message, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerViewport, Modal, MotionConfigProvider, NativeSelect, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, NavigationMenuViewport, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, PropertyList, PropertyRow, Pulse, QRCode, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, RichText, RichTextSpan, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, ShortcutRecorder, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitButton, SplitPane, SplitPaneAside, SplitPaneMain, StatCard, StatusBar, StatusBarItem, StatusBarSeparator, Stepper, Svg, Switch, Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, Timeline, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, TypographyBlockquote, TypographyH1, TypographyH2, TypographyH3, TypographyH4, TypographyInlineCode, TypographyLarge, TypographyLead, TypographyList, TypographyListItem, TypographyMuted, TypographyP, TypographySmall, View, WindowFrame, alertColors, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentGroupClass, attachmentMediaClass, badgeClass, bubbleClass, bubbleContentClass, clampAnnotationRegion, clampPage, clampRatingValue, componentsControlSize, componentsElevation, componentsThemeContract, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFileImageResource, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNetworkImageResource, createNotifications, createOverlayLayer, createOwnedImageResource, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, drawerDragOffset, drawerShouldDismiss, emptyClass, emptyMediaClass, encodeQrCode, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, imageViewportTransform, inputGroupAddonClass, inputGroupClass, isMessageScrollNearEnd, itemClass, itemMediaClass, messageClass, messageScrollRange, messageScrollRevealDelta, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, pointInLayoutRect, primitives_exports as primitives, qrCodePath, ratingLabel, reconcileCommandHighlight, redirect, releaseImageResource, responsiveGridColumnCount, responsiveGridRemainderCount, shortcutFromKeyEvent, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, uniqueFieldErrors, useChartConfig, useComponentsTheme, useDirection, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

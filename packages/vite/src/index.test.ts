@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import type { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
-import { compileColorThemes } from "./style-compiler";
 import {
   defaultWabouColorThemes,
   defineWabouConfig,
   wabouPlugins,
 } from "./index";
+import { compileColorThemes } from "./style-compiler";
 
 describe("@wabou/vite", () => {
   const buildEnvironment = [
@@ -51,7 +51,7 @@ describe("@wabou/vite", () => {
 
   test("ships the semantic color contract required by official UI components", () => {
     const compiled = compileColorThemes(defaultWabouColorThemes);
-    expect(compiled?.default).toBe("dark");
+    expect(compiled?.default).toBe("light");
     for (const theme of Object.values(compiled?.themes ?? {})) {
       expect(Object.keys(theme.colors).sort()).toEqual(
         [
