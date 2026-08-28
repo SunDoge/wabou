@@ -27,7 +27,7 @@
     "version-packages": "changeset version",
     "release:prepare": "bun run scripts/prepare-release.ts",
     "release-packages": "bun run packages:build && bun run packages:check && bun run scripts/publish-packages.ts",
-    "gen:i18n": "bun run --cwd apps/gallery generate",
+    "gen:i18n": "turbo run generate --filter=@wabou/gallery --filter=@wabou/pi-agent",
     "gen:source": "bun run gen:i18n && bun --conditions=wabou-source run scripts/codegen/index.ts",
     "gen": "bun run gen:source && bun run packages:build",
     "gen:check": "bun run scripts/check-generated.ts",

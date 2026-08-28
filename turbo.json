@@ -11,7 +11,10 @@
       "outputs": ["ui/paraglide/**"]
     },
     "//#check:types": {
-      "dependsOn": ["@wabou/gallery#generate"],
+      "dependsOn": [
+        "@wabou/gallery#generate",
+        "@wabou/pi-agent#generate"
+      ],
       "outputs": []
     },
     "build": {
