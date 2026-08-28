@@ -108,6 +108,10 @@ test("updates project and app settings without losing its conversation", async (
   const proxy = page.getByRole("textbox", { name: "Default proxy URL" });
   await proxy.type("http://127.0.0.1:7890");
   await expect(proxy).toHaveValue("http://127.0.0.1:7890");
+  const subagents = page.getByRole("switch", { name: "Enable subagents" });
+  await expect(subagents).toBeChecked();
+  await subagents.click();
+  await expect(subagents).toBeUnchecked();
   await page.getByRole("button", { name: "Back to projects" }).click();
   await expect(
     page.getByRole("button", { name: "Workspace Agent" }),
@@ -238,4 +242,7 @@ test("recovers after the Pi process exits unexpectedly", async ({ page }) => {
   await expect(
     page.getByRole("combobox", { name: "Choose model" }),
   ).toBeEnabled();
+  await page.getByRole("button", { name: "Commands" }).click();
+  await expect(page.getByRole("option", { name: "/fixture" })).toBeInViewport();
+  await expect(page.getByRole("option", { name: "/subagents" })).toBeAbsent();
 });
