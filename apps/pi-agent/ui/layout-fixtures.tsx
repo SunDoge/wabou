@@ -20,6 +20,7 @@ secondProject.name = "Release automation";
 secondProject.cwd = "/work/wabou/release-automation";
 
 const appSettings: AppSettings = {
+  locale: "en",
   proxy: "http://127.0.0.1:7890",
   noProxy: "127.0.0.1,localhost",
   provider: "anthropic",

@@ -9,6 +9,7 @@ import { createAgentWorkspace } from "../../apps/pi-agent/ui/workspace";
 
 test("Pi Agent settings separate project overrides from global network configuration", () => {
   const [defaults, setDefaults] = createSignal<AppSettings>({
+    locale: "en",
     proxy: "",
     noProxy: "127.0.0.1,localhost",
     provider: "",
@@ -61,6 +62,12 @@ test("Pi Agent settings separate project overrides from global network configura
   expect(subagents.checked).toBe(true);
   subagents.click();
   expect(defaults().subagentsEnabled).toBe(false);
+
+  screen.getByRole("button", { name: "中文" }).click();
+  expect(defaults().locale).toBe("zh");
+  expect(screen.getByRole("heading", { name: "设置" })).toBeDefined();
+  screen.getByRole("button", { name: "English" }).click();
+  expect(defaults().locale).toBe("en");
 
   screen.getByRole("button", { name: "Delete project" }).click();
   const dialog = screen.getByRole("alertdialog", { name: "Delete project" });

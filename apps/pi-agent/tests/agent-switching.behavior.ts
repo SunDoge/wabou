@@ -112,6 +112,17 @@ test("updates project and app settings without losing its conversation", async (
   await expect(subagents).toBeChecked();
   await subagents.click();
   await expect(subagents).toBeUnchecked();
+
+  await subagents.wheel(-600);
+  await page.getByRole("button", { name: "中文" }).click();
+  await page.getByRole("heading", { name: "设置" }).waitFor();
+  await page.getByRole("button", { name: "返回项目" }).click();
+  await page.getByRole("button", { name: "设置" }).click();
+  await page.getByRole("heading", { name: "设置" }).waitFor();
+  await page.getByRole("textbox", { name: "项目名称" }).wheel(800);
+  await page.getByRole("button", { name: "English" }).click();
+  await page.getByRole("heading", { name: "Settings" }).waitFor();
+
   await page.getByRole("button", { name: "Back to projects" }).click();
   await expect(
     page.getByRole("button", { name: "Workspace Agent" }),

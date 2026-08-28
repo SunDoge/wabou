@@ -86,6 +86,8 @@ struct SessionCatalog {
 #[serde(rename_all = "camelCase")]
 struct AppSettings {
     #[serde(default)]
+    locale: AppLocale,
+    #[serde(default)]
     proxy: String,
     #[serde(default = "default_no_proxy")]
     no_proxy: String,
@@ -97,9 +99,18 @@ struct AppSettings {
     subagents_enabled: bool,
 }
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum AppLocale {
+    #[default]
+    En,
+    Zh,
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            locale: AppLocale::En,
             proxy: String::new(),
             no_proxy: default_no_proxy(),
             provider: String::new(),
@@ -1877,8 +1888,22 @@ mod tests {
         )
         .expect("legacy project fields remain readable");
         assert_eq!(catalog.settings.proxy, "http://global-proxy:7890");
+        assert_eq!(catalog.settings.locale, AppLocale::En);
         assert!(catalog.settings.subagents_enabled);
         assert_eq!(catalog.agents.len(), 1);
+    }
+
+    #[test]
+    fn application_locale_round_trips_and_legacy_catalogs_default_to_english() {
+        let legacy: SessionCatalog =
+            serde_json::from_str(r#"{"settings":{}}"#).expect("legacy catalog");
+        assert_eq!(legacy.settings.locale, AppLocale::En);
+
+        let mut catalog = SessionCatalog::default();
+        catalog.settings.locale = AppLocale::Zh;
+        let encoded = serde_json::to_string(&catalog).expect("encode catalog");
+        let decoded: SessionCatalog = serde_json::from_str(&encoded).expect("decode catalog");
+        assert_eq!(decoded.settings.locale, AppLocale::Zh);
     }
 
     #[test]

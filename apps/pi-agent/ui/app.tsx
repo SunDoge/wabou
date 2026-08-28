@@ -76,15 +76,15 @@ import {
 } from "./extension-ui";
 import { i18n, m } from "./i18n";
 import { ModelControls } from "./model-controls";
+import { createOwnedOverlay } from "./owned-overlay";
+import { createPersistedRecord } from "./persisted-record";
+import { ScopedHandleRegistry } from "./scoped-handle-registry";
 import { SessionActions } from "./session-actions";
 import { SessionForkDialog } from "./session-fork";
 import { SessionTitle } from "./session-title";
 import { SessionUsage } from "./session-usage";
 import { type AppSettings, SettingsPage } from "./settings";
-import { createPersistedRecord } from "./persisted-record";
-import { createOwnedOverlay } from "./owned-overlay";
 import { Sidebar } from "./sidebar";
-import { ScopedHandleRegistry } from "./scoped-handle-registry";
 import { AgentTerminalPanel } from "./terminal-panel";
 import { TranscriptSearch } from "./transcript-search";
 import {
@@ -147,6 +147,7 @@ export function App() {
   const params = useParams<{ agentId?: string; sessionId?: string }>();
   const defaults = createPersistedRecord<AppSettings>({
     initial: {
+      locale: "en",
       proxy: "",
       noProxy: "127.0.0.1,localhost",
       provider: "",
@@ -160,6 +161,10 @@ export function App() {
     onSaveError: (error) =>
       console.error(`[pi-agent] could not save app settings: ${String(error)}`),
   });
+  createEffect(
+    () => defaults.value().locale,
+    (locale) => i18n.set(locale),
+  );
   const [agents, setAgents] = createSignal<readonly AgentWorkspace[]>([
     createAgentWorkspace(1),
   ]);

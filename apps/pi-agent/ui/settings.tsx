@@ -29,6 +29,7 @@ import { SessionBehaviorSettings } from "./session-behavior-settings";
 import type { AgentWorkspace } from "./workspace";
 
 export interface AppSettings {
+  locale: "en" | "zh";
   proxy: string;
   noProxy: string;
   provider: string;
@@ -48,6 +49,10 @@ export function SettingsPage(props: {
   setSteeringMode: (mode: AgentQueueMode) => void;
   setFollowUpMode: (mode: AgentQueueMode) => void;
 }) {
+  const setLocale = (locale: AppSettings["locale"]) => {
+    i18n.set(locale);
+    props.updateApp({ locale });
+  };
   return (
     <PageViewport class="bg-canvas" contentClass="p-8">
       <View class="w-full max-w-3xl mx-auto flex flex-col gap-6 pb-8">
@@ -146,14 +151,14 @@ export function SettingsPage(props: {
           </CardHeader>
           <CardContent class="flex-row">
             <Button
-              variant={i18n.locale() === "en" ? "default" : "outline"}
-              onClick={() => i18n.set("en")}
+              variant={props.app.locale === "en" ? "default" : "outline"}
+              onClick={() => setLocale("en")}
             >
               {i18n.message(m.english, {})}
             </Button>
             <Button
-              variant={i18n.locale() === "zh" ? "default" : "outline"}
-              onClick={() => i18n.set("zh")}
+              variant={props.app.locale === "zh" ? "default" : "outline"}
+              onClick={() => setLocale("zh")}
             >
               {i18n.message(m.chinese, {})}
             </Button>

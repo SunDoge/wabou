@@ -55,6 +55,7 @@ export interface PersistedAgentProfile {
 }
 
 export interface PersistedAppSettings {
+  locale: "en" | "zh";
   proxy: string;
   noProxy: string;
   provider: string;
