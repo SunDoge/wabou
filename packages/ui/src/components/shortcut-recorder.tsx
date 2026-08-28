@@ -1,3 +1,4 @@
+import { mergeClasses } from "@wabou/core/style";
 import { createSignal, For, type JSX } from "solid-js";
 import { match } from "ts-pattern";
 import {
@@ -6,7 +7,6 @@ import {
   Text,
   View,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import { Kbd } from "./display";
 
 const MOD_SHIFT = 1;
@@ -91,7 +91,7 @@ export function ShortcutRecorder(props: ShortcutRecorderProps): JSX.Element {
         disabled={props.disabled}
         class={(state) =>
           mergeClasses(
-            "h-10 min-w-48 px-3 flex flex-row items-center gap-1 rounded-md border bg-input",
+            "h-10 min-w-48 px-3 flex flex-row items-center gap-1 rounded-lg border bg-input",
             recording() || state.focusVisible
               ? "border-focus"
               : "border-strong",

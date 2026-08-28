@@ -9,9 +9,9 @@ test("authors inspector rows with table semantics", () => {
       <PropertyRow name="frameRate" value="120 fps" />
     </PropertyList>
   ));
-  expect(
-    screen.getByRole("table", { name: "Runtime properties" }),
-  ).not.toBeNull();
+  const table = screen.getByRole("table", { name: "Runtime properties" });
+  expect(table).not.toBeNull();
+  expect(table.className).toContain("rounded-xl");
   expect(screen.getAllByRole("row")).toHaveLength(2);
   expect(screen.getByRole("row", { name: "frameRate" }).text).toContain(
     "120 fps",

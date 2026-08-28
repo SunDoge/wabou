@@ -8,6 +8,7 @@ import {
 import { useHost } from "@wabou/core";
 import type { Handle } from "@wabou/core/renderer";
 import type { Shadow } from "@wabou/core/style";
+import { mergeClasses } from "@wabou/core/style";
 import calendarIcon from "lucide-static/icons/calendar.svg?raw";
 import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
@@ -19,9 +20,12 @@ import {
   Text,
   View,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import type { PopupMotionProps } from "./popover";
-import { componentsElevation, useComponentsTheme } from "./theme";
+import {
+  componentsControlSize,
+  componentsElevation,
+  useComponentsTheme,
+} from "./theme";
 
 function dayOfWeek(value: CalendarDate): number {
   return new Date(Date.UTC(value.year, value.month - 1, value.day)).getUTCDay();
@@ -350,7 +354,7 @@ export function DatePicker(props: DatePickerProps): JSX.Element {
       open={open()}
       onOpenChange={setOpen}
       placement="bottom-start"
-      contentClass="rounded-lg border border-subtle bg-surface"
+      contentClass="rounded-xl border border-subtle bg-surface"
       contentShadows={
         props.contentShadows === undefined
           ? componentsElevation(theme(), "floating")
@@ -364,7 +368,8 @@ export function DatePicker(props: DatePickerProps): JSX.Element {
           aria-label={props["aria-label"]}
           disabled={props.disabled}
           class={mergeClasses(
-            "w-72 h-8 px-3 justify-start gap-2 rounded-md border border-subtle bg-input text-sm shadow-xs",
+            "w-72 justify-start border border-subtle bg-input shadow-xs",
+            componentsControlSize("default"),
             props.class,
           )}
         >

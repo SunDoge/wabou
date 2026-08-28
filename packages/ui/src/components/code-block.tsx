@@ -17,7 +17,7 @@ export function CodeBlock(props: CodeBlockProps): JSX.Element {
       role="group"
       aria-label={props["aria-label"] ?? "Code block"}
       class={mergeClasses(
-        "min-w-0 overflow-hidden rounded-lg border border-subtle bg-control",
+        "min-w-0 overflow-hidden rounded-xl border border-subtle bg-control",
         props.class,
       )}
     >

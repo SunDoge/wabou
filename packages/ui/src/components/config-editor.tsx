@@ -1,6 +1,6 @@
-import { CodeEditor, type CodeEditorProps } from "../primitives";
-import type { JSX } from "solid-js";
 import { mergeClasses } from "@wabou/core/style";
+import type { JSX } from "solid-js";
+import { CodeEditor, type CodeEditorProps } from "../primitives";
 
 export interface ConfigEditorProps extends CodeEditorProps {
   class?: string;
@@ -16,7 +16,7 @@ export function ConfigEditor(props: ConfigEditorProps): JSX.Element {
       {...props}
       language="json"
       class={mergeClasses(
-        "min-h-48 w-full rounded-md border border-strong bg-input text-primary",
+        "min-h-48 w-full rounded-lg border border-strong bg-input text-primary",
         props.class,
       )}
     />

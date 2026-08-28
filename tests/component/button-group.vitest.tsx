@@ -19,6 +19,7 @@ test("turns ordinary buttons into one horizontal control surface", () => {
   const group = screen.getByRole("group", { name: "History" });
   expect(group.className).toContain("overflow-hidden");
   expect(group.className).toContain("border-strong");
+  expect(group.className).toContain("rounded-lg");
   for (const button of screen.getAllByRole("button")) {
     expect(button.className).toContain("rounded-none");
     expect(button.className).toContain("border-transparent");

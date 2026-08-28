@@ -131,7 +131,7 @@ export function Select(props: SelectProps): JSX.Element {
       placement="bottom-start"
       openOnPointerDown
       contentClass={mergeClasses(
-        "w-72 p-1 rounded-lg border border-subtle bg-surface",
+        "w-72 p-1 rounded-xl border border-subtle bg-surface",
         props.contentClass,
       )}
       contentShadows={
@@ -224,7 +224,7 @@ export function Select(props: SelectProps): JSX.Element {
                   aria-selected={selected()}
                   aria-disabled={option().disabled}
                   class={mergeClasses(
-                    "w-full h-8 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm",
+                    "w-full h-8 flex-none px-3 flex items-center justify-between gap-3 rounded-lg text-sm",
                     highlighted()
                       ? "bg-control-hover text-primary"
                       : "bg-transparent text-secondary",

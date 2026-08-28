@@ -1,3 +1,4 @@
+import { mergeClasses } from "@wabou/core/style";
 import { createComponent, type JSX } from "solid-js";
 import { match } from "ts-pattern";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
@@ -5,7 +6,6 @@ import {
   ButtonGroupContext,
   type ButtonGroupOrientation,
 } from "./button-group-context";
-import { mergeClasses } from "@wabou/core/style";
 
 export interface ButtonGroupProps extends Omit<ViewProps, "class"> {
   orientation?: ButtonGroupOrientation;
@@ -31,7 +31,7 @@ export function ButtonGroup(props: ButtonGroupProps): JSX.Element {
           role="group"
           aria-label={props["aria-label"]}
           class={mergeClasses(
-            "min-w-0 flex gap-0 overflow-hidden rounded-md border border-strong bg-surface shadow-xs",
+            "min-w-0 flex gap-0 overflow-hidden rounded-lg border border-strong bg-surface shadow-xs",
             layout(),
             props.class,
           )}

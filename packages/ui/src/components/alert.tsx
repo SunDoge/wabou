@@ -1,3 +1,4 @@
+import { mergeClasses } from "@wabou/core/style";
 import {
   createComponent,
   createContext,
@@ -7,7 +8,6 @@ import {
 } from "solid-js";
 import { match } from "ts-pattern";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 export type AlertVariant = "default" | "destructive";
 
@@ -78,7 +78,7 @@ export function Alert(props: AlertProps): JSX.Element {
           role="alert"
           aria-label={props["aria-label"] ?? props.title}
           class={mergeClasses(
-            "w-full min-w-0 flex flex-row items-start gap-3 rounded-lg border p-4 shadow-xs",
+            "w-full min-w-0 flex flex-row items-start gap-3 rounded-xl border p-4 shadow-xs",
             colors().container,
             props.class,
           )}

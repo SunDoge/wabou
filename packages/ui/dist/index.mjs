@@ -193,7 +193,7 @@ function Alert(props) {
 					return props["aria-label"] ?? props.title;
 				},
 				get ["class"]() {
-					return mergeClasses("w-full min-w-0 flex flex-row items-start gap-3 rounded-lg border p-4 shadow-xs", colors().container, props.class);
+					return mergeClasses("w-full min-w-0 flex flex-row items-start gap-3 rounded-xl border p-4 shadow-xs", colors().container, props.class);
 				},
 				get children() {
 					return [memo(() => {
@@ -646,7 +646,7 @@ function ButtonGroup(props) {
 					return props["aria-label"];
 				},
 				get ["class"]() {
-					return mergeClasses("min-w-0 flex gap-0 overflow-hidden rounded-md border border-strong bg-surface shadow-xs", layout(), props.class);
+					return mergeClasses("min-w-0 flex gap-0 overflow-hidden rounded-lg border border-strong bg-surface shadow-xs", layout(), props.class);
 				},
 				get children() {
 					return props.children;
@@ -1422,7 +1422,7 @@ function CodeBlock(props) {
 			return props["aria-label"] ?? "Code block";
 		},
 		get ["class"]() {
-			return mergeClasses("min-w-0 overflow-hidden rounded-lg border border-subtle bg-control", props.class);
+			return mergeClasses("min-w-0 overflow-hidden rounded-xl border border-subtle bg-control", props.class);
 		},
 		get children() {
 			return [createComponent$1(View, {
@@ -1670,7 +1670,7 @@ function Combobox(props) {
 		onOpenChange: setOpen,
 		placement: "bottom-start",
 		get contentClass() {
-			return mergeClasses("w-72 p-2 rounded-lg border border-subtle bg-surface", props.contentClass);
+			return mergeClasses("w-72 p-2 rounded-xl border border-subtle bg-surface", props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -1755,7 +1755,7 @@ function ConfigEditor(props) {
 	return createComponent$1(CodeEditor, mergeProps(props, {
 		language: "json",
 		get ["class"]() {
-			return mergeClasses("min-h-48 w-full rounded-md border border-strong bg-input text-primary", props.class);
+			return mergeClasses("min-h-48 w-full rounded-lg border border-strong bg-input text-primary", props.class);
 		}
 	}));
 }
@@ -2553,7 +2553,7 @@ function DatePicker(props) {
 		},
 		onOpenChange: setOpen,
 		placement: "bottom-start",
-		contentClass: "rounded-lg border border-subtle bg-surface",
+		contentClass: "rounded-xl border border-subtle bg-surface",
 		get contentShadows() {
 			return memo(() => {
 				return props.contentShadows === void 0;
@@ -2570,7 +2570,7 @@ function DatePicker(props) {
 				return props.disabled;
 			},
 			get ["class"]() {
-				return mergeClasses("w-72 h-8 px-3 justify-start gap-2 rounded-md border border-subtle bg-input text-sm shadow-xs", props.class);
+				return mergeClasses("w-72 justify-start border border-subtle bg-input shadow-xs", componentsControlSize("default"), props.class);
 			},
 			get children() {
 				return [createComponent$1(Icon, {
@@ -3381,7 +3381,7 @@ function DropZone(props) {
 //#endregion
 //#region src/components/empty.tsx
 function emptyClass(variant = "surface", className) {
-	return mergeClasses("w-full min-w-0 flex-1 p-8 items-center justify-center gap-6 text-center", variant === "surface" ? "min-h-64 rounded-lg border border-subtle bg-surface shadow-xs" : "min-h-0 bg-transparent", className);
+	return mergeClasses("w-full min-w-0 flex-1 p-8 items-center justify-center gap-6 text-center", variant === "surface" ? "min-h-64 rounded-xl border border-subtle bg-surface shadow-xs" : "min-h-0 bg-transparent", className);
 }
 /** A composable empty-state region based on shadcn's Empty anatomy. */
 function Empty(props) {
@@ -4689,7 +4689,7 @@ function InputOTPSeparator(props) {
 function itemClass(variant = "default", size = "default", className) {
 	const colors = match(variant).with("default", () => "border-transparent bg-transparent").with("outline", () => "border-subtle bg-transparent").with("muted", () => "border-transparent bg-control").exhaustive();
 	const spacing = match(size).with("default", () => "gap-4 p-4").with("sm", () => "gap-2 px-4 py-3").exhaustive();
-	return mergeClasses("w-full min-w-0 flex flex-row flex-wrap items-center rounded-md border text-sm", colors, spacing, className);
+	return mergeClasses("w-full min-w-0 flex flex-row flex-wrap items-center rounded-lg border text-sm", colors, spacing, className);
 }
 /** A composable list row based on shadcn's Item anatomy. */
 function Item(props) {
@@ -6440,7 +6440,7 @@ function Select(props) {
 		placement: "bottom-start",
 		openOnPointerDown: true,
 		get contentClass() {
-			return mergeClasses("w-72 p-1 rounded-lg border border-subtle bg-surface", props.contentClass);
+			return mergeClasses("w-72 p-1 rounded-xl border border-subtle bg-surface", props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -6551,7 +6551,7 @@ function Select(props) {
 											return option().disabled;
 										},
 										get ["class"]() {
-											return mergeClasses("w-full h-8 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm", highlighted() ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
+											return mergeClasses("w-full h-8 flex-none px-3 flex items-center justify-between gap-3 rounded-lg text-sm", highlighted() ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
 										},
 										get style() {
 											return { opacity: option().disabled ? .45 : 1 };
@@ -7018,7 +7018,7 @@ function NavigationMenu(props) {
 				placement: "bottom-start",
 				outsidePointerStrategy: "passthrough",
 				get contentClass() {
-					return mergeClasses("w-[520px] max-w-full min-w-0 overflow-hidden rounded-lg border border-subtle bg-surface p-2 shadow-md", props.viewportClass);
+					return mergeClasses("w-[520px] max-w-full min-w-0 overflow-hidden rounded-xl p-2", props.viewportClass);
 				},
 				trigger: (trigger) => createComponent$1(View, {
 					ref(r$) {
@@ -7074,7 +7074,7 @@ function NavigationMenuItem(props) {
 	});
 }
 function navigationMenuTriggerClass(open, className) {
-	return mergeClasses("h-9 px-3 inline-flex flex-none items-center justify-center gap-1 rounded-md border-transparent text-sm font-medium", open ? "bg-selected text-primary" : "bg-transparent text-secondary", className);
+	return mergeClasses("h-8 px-3 inline-flex flex-none items-center justify-center gap-1 rounded-lg border-transparent text-sm font-medium", open ? "bg-selected text-primary" : "bg-transparent text-secondary", className);
 }
 function NavigationMenuTrigger(props) {
 	const menu = requireNavigationMenu();
@@ -7162,7 +7162,7 @@ function NavigationMenuLink(props) {
 		role: "link",
 		variant: "ghost",
 		get ["class"]() {
-			return mergeClasses("w-full h-auto min-w-0 flex flex-col items-start gap-1 rounded-md p-2 text-left", props.active && "bg-selected", props.class);
+			return mergeClasses("w-full h-auto min-w-0 flex flex-col items-start gap-1 rounded-lg p-2 text-left", props.active && "bg-selected", props.class);
 		},
 		onClick: (event) => {
 			if (props.closeOnSelect ?? true) menu.setOpenValue(null);
@@ -7667,7 +7667,7 @@ function PropertyList(props) {
 	return createComponent$1(View, mergeProps(props, {
 		role: "table",
 		get ["class"]() {
-			return mergeClasses("w-full min-w-0 flex flex-col overflow-hidden rounded-lg border border-subtle bg-surface", props.class);
+			return mergeClasses("w-full min-w-0 flex flex-col overflow-hidden rounded-xl border border-subtle bg-surface", props.class);
 		},
 		get children() {
 			return props.children;
@@ -8738,7 +8738,7 @@ function ShortcutRecorder(props) {
 				get disabled() {
 					return props.disabled;
 				},
-				class: (state) => mergeClasses("h-10 min-w-48 px-3 flex flex-row items-center gap-1 rounded-md border bg-input", recording() || state.focusVisible ? "border-focus" : "border-strong"),
+				class: (state) => mergeClasses("h-10 min-w-48 px-3 flex flex-row items-center gap-1 rounded-lg border bg-input", recording() || state.focusVisible ? "border-focus" : "border-strong"),
 				onClick: () => setRecording(true),
 				onKeyDown: handleKeyDown,
 				get children() {

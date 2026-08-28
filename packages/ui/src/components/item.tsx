@@ -1,7 +1,7 @@
+import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { match } from "ts-pattern";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 export type ItemVariant = "default" | "outline" | "muted";
 export type ItemSize = "default" | "sm";
@@ -22,7 +22,7 @@ export function itemClass(
     .with("sm", () => "gap-2 px-4 py-3")
     .exhaustive();
   return mergeClasses(
-    "w-full min-w-0 flex flex-row flex-wrap items-center rounded-md border text-sm",
+    "w-full min-w-0 flex flex-row flex-wrap items-center rounded-lg border text-sm",
     colors,
     spacing,
     className,

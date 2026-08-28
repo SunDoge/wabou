@@ -27,6 +27,9 @@ test("searches and selects a value", () => {
   const trigger = screen.getByRole("combobox", { name: "Technology" });
 
   trigger.click();
+  expect(
+    screen.getByRole("listbox").closestByRole("presentation")?.className,
+  ).toContain("rounded-xl");
   screen.getByRole("textbox", { name: "Technology search" }).input("native");
   screen.getByRole("option", { name: "Rust" }).click();
 
