@@ -13,6 +13,8 @@ import {
   View,
 } from "@wabou/ui";
 import bot from "lucide-static/icons/bot.svg?raw";
+import folder from "lucide-static/icons/folder.svg?raw";
+import messageSquare from "lucide-static/icons/message-square.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
 import { createMemo, createSignal, For, Show } from "solid-js";
@@ -25,6 +27,8 @@ interface SidebarProps {
   activeId: string;
   select: (id: string) => void;
   add: () => void;
+  newSession: () => void;
+  canCreateSession: boolean;
   openSettings: () => void;
   sessions: readonly PiSession[];
   selectSession: (agentId: string, sessionId: string) => void;
@@ -80,12 +84,12 @@ export function Sidebar(props: SidebarProps) {
 
       <SidebarContent contentClass="gap-3">
         <Button
-          class="w-full justify-start"
-          variant="outline"
-          onClick={props.add}
+          class="w-full justify-start shadow-xs"
+          disabled={!props.canCreateSession}
+          onClick={props.newSession}
         >
-          <Icon source={plus} size={16} />
-          {i18n.message(m.new_agent, {})}
+          <Icon source={messageSquare} size={16} />
+          {i18n.message(m.new_thread, {})}
         </Button>
 
         <SearchField
@@ -97,15 +101,35 @@ export function Sidebar(props: SidebarProps) {
         />
 
         <SidebarGroup>
-          <SidebarGroupLabel>{i18n.message(m.agents, {})}</SidebarGroupLabel>
+          <View class="px-2 flex flex-row items-center justify-between gap-2">
+            <SidebarGroupLabel>{i18n.message(m.projects, {})}</SidebarGroupLabel>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="w-7 h-7"
+              aria-label={i18n.message(m.new_project, {})}
+              onClick={props.add}
+            >
+              <Icon source={plus} size={13} />
+            </Button>
+          </View>
           <For each={visibleAgents()} keyed={(agent) => agent.id}>
             {(agent) => (
-              <View>
+              <View class="gap-1">
                 <SidebarMenuButton
+                  aria-label={agent().name}
                   selected={agent().id === props.activeId}
                   onClick={() => props.select(agent().id)}
                 >
-                  <Text class="min-w-0 flex-1 truncate">{agent().name}</Text>
+                  <Icon source={folder} size={15} class="text-secondary" />
+                  <View class="min-w-0 flex-1 gap-0">
+                    <Text class="truncate text-sm font-medium">
+                      {agent().name}
+                    </Text>
+                    <Text class="truncate text-xs text-muted">
+                      {workspaceName(agent().cwd)}
+                    </Text>
+                  </View>
                   <View
                     class={
                       agent().state.connection === "running"
@@ -122,7 +146,8 @@ export function Sidebar(props: SidebarProps) {
                 >
                   {(session) => (
                     <SidebarMenuButton
-                      class="pl-8 text-sm"
+                      class="ml-5 pl-3 text-sm"
+                      aria-label={session().name ?? session().sessionId.slice(0, 8)}
                       selected={
                         agent().state.sessionId === session().sessionId &&
                         agent().id === props.activeId
@@ -156,4 +181,10 @@ export function Sidebar(props: SidebarProps) {
       </SidebarFooter>
     </SidebarRoot>
   );
+}
+
+export function workspaceName(path: string): string {
+  const normalized = path.replace(/[\\/]+$/, "");
+  if (!normalized) return i18n.message(m.workspace_not_selected, {});
+  return normalized.split(/[\\/]/).at(-1) || normalized;
 }

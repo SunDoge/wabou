@@ -27,6 +27,7 @@ test("Pi Agent sidebar searches agents and sessions without flattening the hiera
     },
   ];
   let selected: [string, string] | undefined;
+  let createdSession = false;
   const screen = renderComponent(() => (
     <Sidebar
       agents={agents}
@@ -37,6 +38,8 @@ test("Pi Agent sidebar searches agents and sessions without flattening the hiera
         selected = [agentId, sessionId];
       }}
       add={() => {}}
+      newSession={() => (createdSession = true)}
+      canCreateSession
       openSettings={() => {}}
     />
   ));
@@ -44,6 +47,8 @@ test("Pi Agent sidebar searches agents and sessions without flattening the hiera
   const search = screen.getByRole("textbox", {
     name: "Search agents and sessions",
   });
+  screen.getByRole("button", { name: "New thread" }).click();
+  expect(createdSession).toBe(true);
   search.input("release notes");
 
   expect(screen.queryByRole("button", { name: "Agent 1" })).toBeNull();

@@ -18,6 +18,7 @@ import {
   View,
 } from "@wabou/ui";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
+import folder from "lucide-static/icons/folder.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import send from "lucide-static/icons/send.svg?raw";
 import square from "lucide-static/icons/square.svg?raw";
@@ -733,6 +734,8 @@ export function App() {
         activeId={activeId()}
         select={selectAgent}
         add={addAgent}
+        newSession={() => void api.newSession(active().id)}
+        canCreateSession={active().state.connection === "ready"}
         openSettings={() => navigate({ to: "/settings" })}
         sessions={sessions()}
         selectSession={(agentId, sessionId) =>
@@ -775,6 +778,11 @@ export function App() {
                     active().name}
                 </Text>
                 <View class="min-w-0 flex flex-row items-center gap-2">
+                  <Icon source={folder} size={12} class="flex-none text-muted" />
+                  <Text class="max-w-64 truncate text-xs text-muted">
+                    {active().cwd}
+                  </Text>
+                  <Text class="flex-none text-xs text-muted">·</Text>
                   <Text class="min-w-0 flex-1 truncate text-xs text-muted">
                     {(active().state.model ?? active().model) ||
                       i18n.message(m.no_model, {})}{" "}
@@ -882,7 +890,12 @@ export function App() {
                 <MessageScrollerContent class="max-w-4xl mx-auto p-5">
                   <Show
                     when={active().state.items.length > 0}
-                    fallback={<ConversationWelcome choosePrompt={setDraft} />}
+                    fallback={
+                      <ConversationWelcome
+                        workspace={active().cwd}
+                        choosePrompt={setDraft}
+                      />
+                    }
                   >
                     <ConversationList
                       items={active().state.items}
