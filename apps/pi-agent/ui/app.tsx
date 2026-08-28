@@ -1028,7 +1028,10 @@ export function App() {
             </MessageScroller>
 
             <View class="flex-none border-t border-subtle bg-surface p-4">
-              <View class="max-w-4xl mx-auto min-w-0 rounded-xl border border-strong bg-input shadow-sm p-2 gap-2">
+              <View
+                data-wabou-owns="surface focus-ring"
+                class="max-w-4xl mx-auto min-w-0 rounded-xl border border-strong bg-input shadow-sm p-2 gap-2"
+              >
                 <ExtensionUiChrome
                   statuses={extensionStatuses().filter(
                     (status) => status.agentId === activeId(),
@@ -1044,7 +1047,8 @@ export function App() {
                   change={setContextFiles}
                 />
                 <TextArea
-                  class="h-20 border-transparent shadow-none bg-input"
+                  chrome="none"
+                  class="h-20"
                   value={draft()}
                   aria-label={i18n.message(m.prompt_placeholder, {})}
                   placeholder={

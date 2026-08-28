@@ -78,13 +78,16 @@ const componentsThemeContract = Object.freeze({
 	containerPadding: 20,
 	sectionGap: 16
 });
-function componentsControlSize(size) {
+function componentsControlContentSize(size) {
 	switch (size) {
-		case "sm": return "h-7 px-2 gap-1.5 text-xs rounded-lg";
-		case "lg": return "h-10 px-4 gap-2.5 text-base rounded-lg";
-		case "icon": return "w-8 h-8 p-0 gap-0 text-sm rounded-lg";
-		default: return "h-8 px-3 gap-2 text-sm rounded-lg";
+		case "sm": return "h-7 px-2 gap-1.5 text-xs";
+		case "lg": return "h-10 px-4 gap-2.5 text-base";
+		case "icon": return "w-8 h-8 p-0 gap-0 text-sm";
+		default: return "h-8 px-3 gap-2 text-sm";
 	}
+}
+function componentsControlSize(size) {
+	return `${componentsControlContentSize(size)} rounded-lg`;
 }
 /**
 * Native elevation recipes adapted from gpui-component. Wabou and GPUI both
@@ -1498,7 +1501,7 @@ function Input(props) {
 			return (props.chrome ?? "default") === "default" ? "surface native-editor" : "native-editor";
 		},
 		get ["class"]() {
-			return mergeClasses("w-full text-primary", componentsControlSize("default"), (props.chrome ?? "default") === "default" && mergeClasses("border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
+			return mergeClasses("w-full text-primary", (props.chrome ?? "default") === "default" ? componentsControlSize("default") : componentsControlContentSize("default"), (props.chrome ?? "default") === "default" && mergeClasses("border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
 		}
 	}));
 }
@@ -3957,8 +3960,9 @@ function InputGroupTextArea(props) {
 			group?.registerControl(node);
 			props.ref?.(node);
 		},
+		"data-wabou-owns": "native-editor",
 		get ["class"]() {
-			return mergeClasses("w-full h-24 px-3 py-2 border-transparent bg-transparent text-sm", props.class);
+			return mergeClasses("w-full h-24 px-3 py-2 text-sm text-primary", props.class);
 		}
 	}));
 }
@@ -10306,9 +10310,15 @@ function PasswordInput(props) {
 	} }));
 }
 function TextArea$1(props) {
-	return createComponent$1(TextArea, mergeProps(props, { get ["class"]() {
-		return mergeClasses("h-24 w-full px-3 py-2 rounded-lg border text-sm shadow-xs", "border-subtle bg-input text-primary", props.disabled && "opacity-50", props.class);
-	} }));
+	const forwarded = omit(props, "chrome", "surfaceClass");
+	return createComponent$1(TextArea, mergeProps(forwarded, {
+		get ["data-wabou-owns"]() {
+			return (props.chrome ?? "default") === "default" ? "surface native-editor" : "native-editor";
+		},
+		get ["class"]() {
+			return mergeClasses("h-24 w-full px-3 py-2 text-sm text-primary", (props.chrome ?? "default") === "default" && mergeClasses("rounded-lg border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
+		}
+	}));
 }
 function switchColors(checked, state) {
 	return match({

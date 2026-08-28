@@ -28,17 +28,23 @@ export const componentsThemeContract = Object.freeze({
   sectionGap: 16,
 });
 
-export function componentsControlSize(size: ComponentsControlSize): string {
+export function componentsControlContentSize(
+  size: ComponentsControlSize,
+): string {
   switch (size) {
     case "sm":
-      return "h-7 px-2 gap-1.5 text-xs rounded-lg";
+      return "h-7 px-2 gap-1.5 text-xs";
     case "lg":
-      return "h-10 px-4 gap-2.5 text-base rounded-lg";
+      return "h-10 px-4 gap-2.5 text-base";
     case "icon":
-      return "w-8 h-8 p-0 gap-0 text-sm rounded-lg";
+      return "w-8 h-8 p-0 gap-0 text-sm";
     default:
-      return "h-8 px-3 gap-2 text-sm rounded-lg";
+      return "h-8 px-3 gap-2 text-sm";
   }
+}
+
+export function componentsControlSize(size: ComponentsControlSize): string {
+  return `${componentsControlContentSize(size)} rounded-lg`;
 }
 
 /**

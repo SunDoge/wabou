@@ -2254,6 +2254,10 @@ interface PasswordInputProps extends PasswordInputProps$1 {
 declare function PasswordInput(props: PasswordInputProps): JSX.Element;
 interface TextAreaProps$1 extends TextAreaProps {
   class?: string;
+  /** Background utility owned by this textarea. Defaults to `bg-input`. */
+  surfaceClass?: string;
+  /** Use `none` when an enclosing composition owns the visual surface. */
+  chrome?: "default" | "none";
 }
 declare function TextArea$1(props: TextAreaProps$1): JSX.Element;
 interface SwitchProps {

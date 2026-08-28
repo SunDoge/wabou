@@ -9,6 +9,7 @@ import {
   InputGroupButton,
   InputGroupInput,
   InputGroupText,
+  InputGroupTextArea,
   Text,
 } from "@wabou/ui";
 import { expect, test } from "vitest";
@@ -28,6 +29,9 @@ test("records the complete authored InputGroup contract without a native host", 
   expect(assertSingleSurfaceOwner(group).name).toBe("Project URL");
   expect(assertFocusOwnerCount(group, 2)).toHaveLength(2);
   expect(group.className).toContain("rounded-lg");
+  expect(
+    screen.getByRole("textbox", { name: "Hostname" }).className,
+  ).not.toContain("rounded");
   expect(screen.snapshot()).toMatchInlineSnapshot(`
     [
       {
@@ -75,7 +79,7 @@ test("records the complete authored InputGroup contract without a native host", 
               "placeholder": "example.com",
               "role": "textbox",
             },
-            "className": "w-full text-primary px-3 gap-2 text-sm rounded-lg h-full flex-1 min-w-0",
+            "className": "w-full text-primary px-3 gap-2 text-sm h-full flex-1 min-w-0",
             "focusOrder": 0,
             "name": "Hostname",
             "role": "textbox",
@@ -141,4 +145,21 @@ test("focuses the registered native editor through an addon", () => {
   expect(
     screen.getByRole("group", { name: "Project URL" }).className,
   ).toContain("border-focus");
+});
+
+test("keeps multiline input chrome on the compound surface", () => {
+  const screen = renderComponent(() => (
+    <InputGroup aria-label="Comment" orientation="vertical">
+      <InputGroupTextArea aria-label="Comment body" />
+    </InputGroup>
+  ));
+  const group = screen.getByRole("group", { name: "Comment" });
+  const editor = screen.getByRole("textbox", { name: "Comment body" });
+
+  expect(assertSingleSurfaceOwner(group)).toEqual(group);
+  expect(editor.attribute("data-wabou-owns")).toBe("native-editor");
+  expect(editor.className).not.toContain("rounded");
+  expect(editor.className).not.toContain("border");
+  expect(editor.className).not.toContain("shadow");
+  expect(editor.className).not.toContain("bg-");
 });

@@ -16,6 +16,9 @@ test("keeps terminal tabs bound to the workspace where they were created", () =>
   ));
 
   expect(screen.getByRole("region", { name: "Terminal panel" })).toBeTruthy();
+  const terminal = screen.getByRole("textbox", { name: "Terminal 1" });
+  expect(terminal.className).not.toContain("rounded");
+  expect(terminal.parent?.parent?.className).not.toContain("p-1");
   expect(screen.getAllByRole("tab")).toHaveLength(1);
   expect(screen.getAllByRole("tab")[0]?.name).toContain("alpha");
   expect(screen.getAllByRole("tab")[0]?.selected).toBe(true);

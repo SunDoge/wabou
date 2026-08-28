@@ -1,5 +1,13 @@
 import type { Handle } from "@wabou/core/renderer";
-import { createContext, For as ForValue, type JSX, omit, Show, useContext } from "solid-js";
+import { mergeClasses } from "@wabou/core/style";
+import {
+  createContext,
+  For as ForValue,
+  type JSX,
+  omit,
+  Show,
+  useContext,
+} from "solid-js";
 import { match } from "ts-pattern";
 import {
   createFocusWithin,
@@ -10,7 +18,6 @@ import {
   type ViewProps,
 } from "../primitives";
 import { Button, type ButtonProps } from "./button";
-import { mergeClasses } from "@wabou/core/style";
 import { Input, type InputProps } from "./input";
 import { Label, type LabelProps } from "./label";
 export type FieldOrientation = "vertical" | "horizontal";
@@ -376,8 +383,9 @@ export function InputGroupTextArea(
         group?.registerControl(node);
         props.ref?.(node);
       }}
+      data-wabou-owns="native-editor"
       class={mergeClasses(
-        "w-full h-24 px-3 py-2 border-transparent bg-transparent text-sm",
+        "w-full h-24 px-3 py-2 text-sm text-primary",
         props.class,
       )}
     />

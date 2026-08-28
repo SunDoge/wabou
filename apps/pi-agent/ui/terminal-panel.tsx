@@ -153,7 +153,7 @@ export function AgentTerminalPanel(
           <Icon source={x} size={14} />
         </Button>
       </View>
-      <View class="min-h-0 flex-1 p-1">
+      <View class="min-h-0 flex-1">
         <ForEntity each={tabs()} by={(tab) => tab.id}>
           {(tab) => {
             const terminal = (trigger: ContextMenuTriggerProps) => (
@@ -171,7 +171,7 @@ export function AgentTerminalPanel(
                   }}
                   aria-label={`Terminal ${tab.id}`}
                   cwd={tab.cwd}
-                  class="w-full h-full overflow-hidden rounded-md bg-slate-950 text-slate-200"
+                  class="w-full h-full overflow-hidden bg-slate-950 text-slate-200"
                   inheritTheme
                   fontFamily="Hack Nerd Font Mono"
                   fontSize="13px"

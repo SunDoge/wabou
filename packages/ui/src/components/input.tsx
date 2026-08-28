@@ -4,7 +4,7 @@ import {
   TextInput as PrimitiveTextInput,
   type TextInputProps as PrimitiveTextInputProps,
 } from "../primitives";
-import { componentsControlSize } from "./theme";
+import { componentsControlContentSize, componentsControlSize } from "./theme";
 
 export interface InputProps extends PrimitiveTextInputProps {
   class?: string;
@@ -33,7 +33,9 @@ export function Input(props: InputProps): JSX.Element {
       }
       class={mergeClasses(
         "w-full text-primary",
-        componentsControlSize("default"),
+        (props.chrome ?? "default") === "default"
+          ? componentsControlSize("default")
+          : componentsControlContentSize("default"),
         (props.chrome ?? "default") === "default" &&
           mergeClasses(
             "border border-subtle shadow-xs",

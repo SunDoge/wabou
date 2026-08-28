@@ -1,4 +1,8 @@
-import { assertFocusOwnerCount, renderComponent } from "@wabou/test/component";
+import {
+  assertFocusOwnerCount,
+  assertSingleSurfaceOwner,
+  renderComponent,
+} from "@wabou/test/component";
 import {
   CodeEditor,
   Input,
@@ -109,6 +113,27 @@ test("allows the input surface to be selected without conflicting backgrounds", 
   expect(input.className).toContain("bg-surface-raised");
   expect(input.className).not.toContain("bg-input");
   expect(input.attribute("surfaceClass")).toBeNull();
+});
+
+test("removes all visual chrome from nested native editors", () => {
+  const screen = renderComponent(() => (
+    <View data-wabou-owns="surface">
+      <Input aria-label="Inline name" chrome="none" />
+      <TextArea aria-label="Inline notes" chrome="none" />
+    </View>
+  ));
+  const root = screen.getByRole("textbox", { name: "Inline name" }).parent;
+  expect(root).not.toBeNull();
+  if (!root) throw new Error("nested editors require a surface parent");
+
+  expect(assertSingleSurfaceOwner(root)).toEqual(root);
+  for (const editor of screen.getAllByRole("textbox")) {
+    expect(editor.attribute("data-wabou-owns")).toBe("native-editor");
+    expect(editor.className).not.toContain("rounded");
+    expect(editor.className).not.toContain("border");
+    expect(editor.className).not.toContain("shadow");
+    expect(editor.className).not.toContain("bg-");
+  }
 });
 
 test("keeps password contents behind a Rust secret handle", () => {

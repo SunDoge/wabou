@@ -1,6 +1,6 @@
 import { createFps } from "@wabou/core/renderer";
 import { mergeClasses } from "@wabou/core/style";
-import { createSignal, type JSX } from "solid-js";
+import { createSignal, type JSX, omit } from "solid-js";
 import { match, P } from "ts-pattern";
 import { createTransition, useReducedMotion } from "../animation";
 import {
@@ -194,15 +194,29 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
 
 export interface TextAreaProps extends PrimitiveTextAreaProps {
   class?: string;
+  /** Background utility owned by this textarea. Defaults to `bg-input`. */
+  surfaceClass?: string;
+  /** Use `none` when an enclosing composition owns the visual surface. */
+  chrome?: "default" | "none";
 }
 
 export function TextArea(props: TextAreaProps): JSX.Element {
+  const forwarded = omit(props, "chrome", "surfaceClass");
   return (
     <PrimitiveTextArea
-      {...props}
+      {...forwarded}
+      data-wabou-owns={
+        (props.chrome ?? "default") === "default"
+          ? "surface native-editor"
+          : "native-editor"
+      }
       class={mergeClasses(
-        "h-24 w-full px-3 py-2 rounded-lg border text-sm shadow-xs",
-        "border-subtle bg-input text-primary",
+        "h-24 w-full px-3 py-2 text-sm text-primary",
+        (props.chrome ?? "default") === "default" &&
+          mergeClasses(
+            "rounded-lg border border-subtle shadow-xs",
+            props.surfaceClass ?? "bg-input",
+          ),
         props.disabled && "opacity-50",
         props.class,
       )}
