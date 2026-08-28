@@ -1,5 +1,6 @@
 import {
   Button,
+  createLatestAsyncResource,
   createToasts,
   currentWindow,
   type Handle,
@@ -32,7 +33,7 @@ import {
   reducePiEvent,
   reducePiEvents,
 } from "./agent-state";
-import { type PiSession, usePiApi, type WorkspaceInfo } from "./api";
+import { type PiSession, usePiApi } from "./api";
 import { CommandPicker } from "./command-picker";
 import {
   ComposerContextFiles,
@@ -153,7 +154,6 @@ export function App() {
     createAgentWorkspace(1),
   ]);
   const [sessions, setSessions] = createSignal<readonly PiSession[]>([]);
-  const [workspaceInfo, setWorkspaceInfo] = createSignal<WorkspaceInfo>();
   const [workspaceRevision, setWorkspaceRevision] = createSignal(0);
   const [lastActiveId, setLastActiveId] = createSignal("agent-1");
   const [drafts, setDrafts] = createSignal<AgentDrafts>({});
@@ -194,8 +194,7 @@ export function App() {
       console.error(`[pi-agent] could not save projects: ${String(error)}`),
   });
   const settingsWriter = createDeferredWriter({
-    write: (serialized: string) =>
-      api.saveAppSettings(JSON.parse(serialized)),
+    write: (serialized: string) => api.saveAppSettings(JSON.parse(serialized)),
     onError: (error) =>
       console.error(`[pi-agent] could not save app settings: ${String(error)}`),
   });
@@ -257,6 +256,16 @@ export function App() {
   };
   const active = () =>
     agents().find((agent) => agent.id === activeId()) ?? agents()[0];
+  const workspaceInfo = createLatestAsyncResource({
+    source: () => active().cwd.trim() || undefined,
+    load: (cwd) => api.workspaceInfo(cwd),
+  });
+  createEffect(
+    () => workspaceInfo.value(),
+    (info) => {
+      if (info) setWorkspaceRevision((revision) => revision + 1);
+    },
+  );
   const disposeTerminal = () => {
     setTerminalOpen(false);
     setTerminalMounted(false);
@@ -288,22 +297,7 @@ export function App() {
     }),
     ({ scope, ids }) => itemHandles.synchronize(scope, ids),
   );
-  const refreshWorkspaceInfo = (cwd = active().cwd) => {
-    if (!cwd.trim()) {
-      setWorkspaceInfo(undefined);
-      return;
-    }
-    void api.workspaceInfo(cwd).then((info) => {
-      if (active().cwd === cwd) {
-        setWorkspaceInfo(info);
-        setWorkspaceRevision((revision) => revision + 1);
-      }
-    });
-  };
-  createEffect(
-    () => active().cwd,
-    (cwd) => refreshWorkspaceInfo(cwd),
-  );
+  const refreshWorkspaceInfo = () => void workspaceInfo.refresh();
   createEffect(
     () => `${activeId()}\0${activeSessionId() ?? ""}`,
     () => {
@@ -881,19 +875,22 @@ export function App() {
                   </Text>
                   <Show
                     when={
-                      workspaceInfo()?.repository && workspaceInfo()?.branch
+                      workspaceInfo.value()?.repository &&
+                      workspaceInfo.value()?.branch
                     }
                   >
                     <Text class="flex-none text-xs text-muted">·</Text>
                     <View class="flex-none flex flex-row items-center gap-1">
                       <Icon source={gitBranch} size={11} class="text-muted" />
                       <Text class="max-w-32 truncate text-xs text-muted">
-                        {workspaceInfo()?.branch}
+                        {workspaceInfo.value()?.branch}
                       </Text>
-                      <Show when={(workspaceInfo()?.changedFiles ?? 0) > 0}>
+                      <Show
+                        when={(workspaceInfo.value()?.changedFiles ?? 0) > 0}
+                      >
                         <Text class="text-xs text-warning-primary">
                           {i18n.message(m.changed_files, {
-                            count: workspaceInfo()?.changedFiles ?? 0,
+                            count: workspaceInfo.value()?.changedFiles ?? 0,
                           })}
                         </Text>
                       </Show>
@@ -963,7 +960,7 @@ export function App() {
                 >
                   <Icon source={folder} size={15} />
                 </Button>
-                <Show when={workspaceInfo()?.repository}>
+                <Show when={workspaceInfo.value()?.repository}>
                   <Button
                     variant="ghost"
                     size="icon"

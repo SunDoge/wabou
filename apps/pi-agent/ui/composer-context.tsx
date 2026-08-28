@@ -9,6 +9,7 @@ import {
   AttachmentTitle,
   Button,
   Command,
+  createLatestAsyncResource,
   filterCommandItems,
   Icon,
   Popover,
@@ -18,7 +19,13 @@ import {
 import fileCode from "lucide-static/icons/file-code-2.svg?raw";
 import filesIcon from "lucide-static/icons/files.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import { createMemo, createSignal, For as ForValue, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For as ForValue,
+  Show,
+} from "solid-js";
 import { i18n, m } from "./i18n";
 
 export interface ComposerContextProps {
@@ -72,41 +79,30 @@ export function WorkspaceContextPicker(
 ) {
   const [open, setOpen] = createSignal(false);
   const [query, setQuery] = createSignal("");
-  const [workspace, setWorkspace] = createSignal("");
-  const [files, setFiles] = createSignal<readonly string[]>([]);
-  const [loading, setLoading] = createSignal(false);
-  const [error, setError] = createSignal("");
+  const files = createLatestAsyncResource({
+    source: () => (open() && props.cwd ? props.cwd : undefined),
+    load: (cwd) => props.loadFiles(cwd),
+  });
+  createEffect(
+    () => props.cwd,
+    () => {
+      setQuery("");
+    },
+  );
   const allItems = createMemo(() =>
-    files()
+    (files.value() ?? [])
       .filter((path) => !props.paths.includes(path))
       .map((path) => ({ id: path, label: path })),
   );
   const visibleItems = createMemo(() =>
     filterCommandItems(allItems(), query()).slice(0, 60),
   );
-  const load = async () => {
-    if (!props.cwd || workspace() === props.cwd) return;
-    setLoading(true);
-    setError("");
-    try {
-      setFiles(await props.loadFiles(props.cwd));
-      setWorkspace(props.cwd);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <Popover
       aria-label={i18n.message(m.add_context_file, {})}
       placement="top-start"
       open={open()}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) void load();
-      }}
+      onOpenChange={setOpen}
       contentClass="w-96 max-h-96"
       trigger={(trigger) => (
         <Button
@@ -127,10 +123,12 @@ export function WorkspaceContextPicker(
         </Text>
       </View>
       <Show
-        when={!loading() && !error()}
+        when={!files.loading() && !files.error()}
         fallback={
           <Text role="status" class="px-3 py-4 text-sm text-muted">
-            {loading() ? i18n.message(m.loading_files, {}) : error()}
+            {files.loading()
+              ? i18n.message(m.loading_files, {})
+              : String(files.error() ?? "")}
           </Text>
         }
       >
