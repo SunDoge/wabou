@@ -24,7 +24,26 @@ pub(super) struct ScrollState {
     pub(super) hovered: Option<(NodeId, ScrollAxis)>,
     pub(super) activity: HashMap<NodeId, Instant>,
     pub(super) offsets: HashMap<NodeId, [f32; 2]>,
+    pub(super) motions: HashMap<NodeId, WheelScrollMotion>,
     pub(super) pending_events: HashMap<NodeKey, [f32; 2]>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(super) struct WheelScrollMotion {
+    pub(super) target: [f32; 2],
+    pub(super) velocity: [f32; 2],
+    pub(super) last_tick: Instant,
+}
+
+fn smooth_scroll_coordinate(current: f32, target: f32, velocity: &mut f32, delta_time: f32) -> f32 {
+    const SMOOTH_TIME: f32 = 0.055;
+    let omega = 2.0 / SMOOTH_TIME;
+    let x = omega * delta_time;
+    let decay = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x);
+    let change = current - target;
+    let temp = (*velocity + omega * change) * delta_time;
+    *velocity = (*velocity - omega * temp) * decay;
+    target + (change + temp) * decay
 }
 
 impl Applier {
@@ -38,6 +57,7 @@ impl Applier {
         let mut changed = false;
         while let Some(parent) = self.document.node_store.tree.parent(node) {
             if let Some(metrics) = self.interaction.scroll.metrics.get(&parent).copied() {
+                self.interaction.scroll.motions.remove(&parent);
                 let offset = self
                     .interaction
                     .scroll
@@ -235,6 +255,7 @@ impl Applier {
         let delta = (position - drag.last_position) * scrollbar_drag_ratio(&hit.placed, drag.axis);
         drag.last_position = position;
         self.interaction.scroll.drag = Some(drag);
+        self.interaction.scroll.motions.remove(&drag.node);
         let offset = self
             .interaction
             .scroll
@@ -256,61 +277,144 @@ impl Applier {
         changed
     }
 
-    pub(super) fn scroll_nearest(&mut self, target: NodeKey, delta_x: f32, delta_y: f32) -> bool {
+    pub(super) fn scroll_nearest(
+        &mut self,
+        target: NodeKey,
+        delta_x: f32,
+        delta_y: f32,
+        smooth: bool,
+    ) -> bool {
         let Some(mut node) = self.document.node_store.solid_to_node.get(&target).copied() else {
             return false;
         };
+        let mut remaining = [delta_x, delta_y];
+        let mut changed_nodes = Vec::new();
         loop {
-            let scrollable = self
-                .document
-                .node_store
-                .tree
-                .style(node)
-                .ok()
-                .is_some_and(|style| {
-                    style.overflow.x == taffy::Overflow::Scroll
-                        || style.overflow.y == taffy::Overflow::Scroll
-                });
-            if scrollable {
+            let Ok(style) = self.document.node_store.tree.style(node) else {
+                return false;
+            };
+            let axes = [
+                style.overflow.x == taffy::Overflow::Scroll,
+                style.overflow.y == taffy::Overflow::Scroll,
+            ];
+            if axes[0] || axes[1] {
                 let Ok(layout) = self.document.node_store.tree.layout(node) else {
                     return false;
                 };
-                let max_x = layout.scroll_width();
-                let max_y = layout.scroll_height();
-                let style = self
-                    .document
-                    .node_store
-                    .tree
-                    .style(node)
-                    .expect("style checked above");
-                let offset = self
+                let range = [layout.scroll_width(), layout.scroll_height()];
+                let current = self
                     .interaction
                     .scroll
                     .offsets
-                    .entry(node)
-                    .or_insert([0.0, 0.0]);
-                let old = *offset;
-                if style.overflow.x == taffy::Overflow::Scroll {
-                    offset[0] = (offset[0] + delta_x).clamp(0.0, max_x);
-                }
-                if style.overflow.y == taffy::Overflow::Scroll {
-                    offset[1] = (offset[1] + delta_y).clamp(0.0, max_y);
-                }
-                if *offset != old {
-                    self.frame.projections.semantics_dirty = true;
+                    .get(&node)
+                    .copied()
+                    .unwrap_or([0.0; 2]);
+                let base = if smooth {
                     self.interaction
                         .scroll
-                        .activity
-                        .insert(node, Instant::now());
-                    self.queue_scroll_event(node);
-                    return true;
+                        .motions
+                        .get(&node)
+                        .map_or(current, |motion| motion.target)
+                } else {
+                    current
+                };
+                let mut next = base;
+                for axis in 0..2 {
+                    if axes[axis] {
+                        next[axis] = (base[axis] + remaining[axis]).clamp(0.0, range[axis]);
+                        remaining[axis] -= next[axis] - base[axis];
+                    }
+                }
+                if next != base {
+                    if smooth {
+                        self.interaction
+                            .scroll
+                            .motions
+                            .entry(node)
+                            .and_modify(|motion| motion.target = next)
+                            .or_insert(WheelScrollMotion {
+                                target: next,
+                                velocity: [0.0; 2],
+                                last_tick: Instant::now(),
+                            });
+                    } else {
+                        self.interaction.scroll.motions.remove(&node);
+                        self.interaction.scroll.offsets.insert(node, next);
+                    }
+                    changed_nodes.push(node);
                 }
             }
+            if remaining.iter().all(|delta| delta.abs() <= f32::EPSILON) {
+                break;
+            }
             let Some(parent) = self.document.node_store.tree.parent(node) else {
-                return false;
+                break;
             };
             node = parent;
         }
+        let now = Instant::now();
+        for node in &changed_nodes {
+            self.interaction.scroll.activity.insert(*node, now);
+            if !smooth {
+                self.queue_scroll_event(*node);
+            }
+        }
+        let changed = !changed_nodes.is_empty();
+        self.frame.projections.semantics_dirty |= changed;
+        changed
+    }
+
+    pub(super) fn tick_scroll_motions_at(&mut self, now: Instant) -> bool {
+        let mut changed = Vec::new();
+        let mut finished = Vec::new();
+        for (node, motion) in &mut self.interaction.scroll.motions {
+            let delta_time = now
+                .saturating_duration_since(motion.last_tick)
+                .as_secs_f32()
+                .min(0.05);
+            motion.last_tick = now;
+            if delta_time <= 0.0 {
+                continue;
+            }
+            let offset = self
+                .interaction
+                .scroll
+                .offsets
+                .entry(*node)
+                .or_insert([0.0; 2]);
+            let old = *offset;
+            for ((value, target), velocity) in offset
+                .iter_mut()
+                .zip(motion.target)
+                .zip(&mut motion.velocity)
+            {
+                *value = smooth_scroll_coordinate(*value, target, velocity, delta_time);
+                if (*value - target).abs() < 0.05 && velocity.abs() < 1.0 {
+                    *value = target;
+                    *velocity = 0.0;
+                }
+            }
+            if *offset != old {
+                changed.push(*node);
+            }
+            if *offset == motion.target {
+                finished.push(*node);
+            }
+        }
+        for node in finished {
+            self.interaction.scroll.motions.remove(&node);
+        }
+        for node in &changed {
+            self.interaction.scroll.activity.insert(*node, now);
+            self.queue_scroll_event(*node);
+        }
+        let changed = !changed.is_empty();
+        self.frame.projections.semantics_dirty |= changed;
+        changed
+    }
+
+    pub(super) fn tick_scroll_motions(&mut self) -> bool {
+        self.tick_scroll_motions_at(Instant::now())
     }
 
     pub(super) fn scroll_node(&mut self, target: NodeKey, x: f32, y: f32, relative: bool) -> bool {
@@ -330,6 +434,7 @@ impl Applier {
         };
         let max_x = layout.scroll_width();
         let max_y = layout.scroll_height();
+        self.interaction.scroll.motions.remove(&node);
         let offset = self
             .interaction
             .scroll
@@ -410,7 +515,12 @@ impl Applier {
 
     pub(super) fn clamp_scroll_offsets(&mut self, placed: &[PlacedNode]) -> bool {
         let mut changed = Vec::new();
+        let mut finished_motions = Vec::new();
         for item in placed {
+            if let Some(motion) = self.interaction.scroll.motions.get_mut(&item.node_id) {
+                motion.target[0] = motion.target[0].clamp(0.0, item.scroll.range[0]);
+                motion.target[1] = motion.target[1].clamp(0.0, item.scroll.range[1]);
+            }
             let Some(offset) = self.interaction.scroll.offsets.get_mut(&item.node_id) else {
                 continue;
             };
@@ -420,6 +530,18 @@ impl Applier {
             if *offset != old {
                 changed.push(item.node_id);
             }
+            if self
+                .interaction
+                .scroll
+                .motions
+                .get(&item.node_id)
+                .is_some_and(|motion| motion.target == *offset)
+            {
+                finished_motions.push(item.node_id);
+            }
+        }
+        for node in finished_motions {
+            self.interaction.scroll.motions.remove(&node);
         }
         for node in &changed {
             self.queue_scroll_event(*node);
@@ -506,7 +628,7 @@ impl Applier {
             self.interaction.text_selection.next_scroll = None;
             return false;
         };
-        let changed = self.scroll_nearest(target, dx, dy);
+        let changed = self.scroll_nearest(target, dx, dy, false);
         self.interaction.text_selection.next_scroll =
             changed.then(|| Instant::now() + Duration::from_millis(50));
         changed
@@ -528,7 +650,7 @@ fn scrollbar_auto_opacity(elapsed: Duration, delay: Duration, fade: Duration, he
 
 #[cfg(test)]
 mod scrollbar_visibility_tests {
-    use super::scrollbar_auto_opacity;
+    use super::{scrollbar_auto_opacity, smooth_scroll_coordinate};
     use std::time::Duration;
 
     #[test]
@@ -560,5 +682,24 @@ mod scrollbar_visibility_tests {
             1.0,
             "hover and drag hold the scrollbar fully visible"
         );
+    }
+
+    #[test]
+    fn wheel_motion_is_monotonic_and_nearly_frame_rate_independent() {
+        fn simulate(frames: usize, delta_time: f32) -> f32 {
+            let mut value = 0.0;
+            let mut velocity = 0.0;
+            for _ in 0..frames {
+                let next = smooth_scroll_coordinate(value, 100.0, &mut velocity, delta_time);
+                assert!(next >= value && next <= 100.0);
+                value = next;
+            }
+            value
+        }
+
+        let at_60_hz = simulate(60, 1.0 / 60.0);
+        let at_120_hz = simulate(120, 1.0 / 120.0);
+        assert!((at_60_hz - at_120_hz).abs() < 0.1);
+        assert!(at_60_hz > 99.9);
     }
 }

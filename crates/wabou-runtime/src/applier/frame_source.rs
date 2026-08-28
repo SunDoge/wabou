@@ -288,6 +288,7 @@ impl FrameSource for Applier {
         self.drain_pending_color_palette();
 
         let selection_scrolled = self.tick_text_selection_autoscroll();
+        self.tick_scroll_motions();
         // Only re-inherit when a change can affect inherited content styles.
         // Per-frame non-inherited animation sets LAYOUT but not INHERIT, so
         // this O(N) pass remains skipped for those frames.
@@ -817,6 +818,7 @@ impl FrameSource for Applier {
             || self.runtime.reload.is_pending()
             || self.runtime.host_message_inbox.has_pending()
             || self.runtime.js.has_async_wake()
+            || !self.interaction.scroll.motions.is_empty()
             || self.document.invalidation.contains(InvalidationFlags::TICK)
     }
 

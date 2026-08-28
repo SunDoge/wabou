@@ -58,8 +58,8 @@ pub use source::{
     KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent, PointerId,
     PointerPhase, PointerProperties, PointerType, RendererBackend, ScreenshotRequest,
     SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
-    SemanticStates, SemanticToggleState, UiEvent, WHEEL_LINE_DELTA, WakeCallback, WheelEvent,
-    WindowCommand, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
+    SemanticStates, SemanticToggleState, UiEvent, WHEEL_LINE_DELTA, WakeCallback, WheelDeltaMode,
+    WheelEvent, WindowCommand, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
 };
 pub use text::TextContext;
 pub use widget::{

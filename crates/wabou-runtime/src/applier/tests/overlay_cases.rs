@@ -197,6 +197,7 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         position: Point { x: 10.0, y: 10.0 },
         delta_x: 0.0,
         delta_y: 50.0,
+        delta_mode: wabou_shell::WheelDeltaMode::Pixel,
         phase: wabou_shell::GesturePhase::Changed,
         modifiers: Modifiers::default(),
     }));
@@ -216,6 +217,45 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
             .contains(InvalidationFlags::LAYOUT),
         "scroll offsets must not invalidate intrinsic layout"
     );
+
+    let response = applier.handle_event(UiEvent::Wheel(wabou_shell::WheelEvent {
+        position: Point { x: 10.0, y: 10.0 },
+        delta_x: 0.0,
+        delta_y: 50.0,
+        delta_mode: wabou_shell::WheelDeltaMode::Line,
+        phase: wabou_shell::GesturePhase::Changed,
+        modifiers: Modifiers::default(),
+    }));
+    assert!(response.handled);
+    assert!(
+        applier.has_anim(),
+        "native frame scheduling must stay active until wheel motion settles"
+    );
+    assert_eq!(
+        applier.interaction.scroll.offsets[&container],
+        [0.0, 50.0],
+        "a discrete wheel notch must retarget instead of jumping"
+    );
+    let started = applier.interaction.scroll.motions[&container].last_tick;
+    assert!(applier.tick_scroll_motions_at(started + Duration::from_millis(16)));
+    let animated = applier.interaction.scroll.offsets[&container][1];
+    assert!(
+        animated > 50.0 && animated < 100.0,
+        "the native motion must advance monotonically without completing in one frame: {animated}"
+    );
+    applier.handle_event(UiEvent::Wheel(wabou_shell::WheelEvent {
+        position: Point { x: 10.0, y: 10.0 },
+        delta_x: 0.0,
+        delta_y: 5.0,
+        delta_mode: wabou_shell::WheelDeltaMode::Pixel,
+        phase: wabou_shell::GesturePhase::Changed,
+        modifiers: Modifiers::default(),
+    }));
+    assert!(
+        (applier.interaction.scroll.offsets[&container][1] - (animated + 5.0)).abs() < 0.01,
+        "precise input must interrupt the pending wheel target and remain one-to-one"
+    );
+    assert!(!applier.interaction.scroll.motions.contains_key(&container));
 
     applier.apply_op(&Op::ScrollTo {
         id: NodeKey::new(2, 1),

@@ -946,6 +946,7 @@ fn wheel_routing_preserves_pointer_position_for_widgets() {
         position: Point { x: 42.0, y: 73.0 },
         delta_x: 0.0,
         delta_y: -40.0,
+        delta_mode: wabou_shell::WheelDeltaMode::Pixel,
         phase: wabou_shell::GesturePhase::Changed,
         modifiers: Modifiers::default(),
     }));

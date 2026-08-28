@@ -415,10 +415,21 @@ pub struct WheelEvent {
     pub delta_x: f64,
     /// Vertical logical-pixel delta.
     pub delta_y: f64,
+    /// Whether the native source reported discrete lines or precise pixels.
+    pub delta_mode: WheelDeltaMode,
     /// Native scroll lifecycle phase.
     pub phase: GesturePhase,
     /// Keyboard modifiers active for the event.
     pub modifiers: Modifiers,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Native granularity of a wheel delta.
+pub enum WheelDeltaMode {
+    /// A discrete mouse-wheel notch, normalized to logical pixels by the shell.
+    Line,
+    /// A precise trackpad or high-resolution wheel delta in logical pixels.
+    Pixel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

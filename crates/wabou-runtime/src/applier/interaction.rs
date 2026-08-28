@@ -494,8 +494,13 @@ impl Applier {
             wabou_shell::GesturePhase::Cancelled => 3.0,
         };
         let (dispatched, prevented) = self.dispatch_cancellable_numeric(target, event::WHEEL, data);
-        let scrolled =
-            !prevented && self.scroll_nearest(target, wheel.delta_x as f32, wheel.delta_y as f32);
+        let scrolled = !prevented
+            && self.scroll_nearest(
+                target,
+                wheel.delta_x as f32,
+                wheel.delta_y as f32,
+                wheel.delta_mode == wabou_shell::WheelDeltaMode::Line,
+            );
         Self::response(dispatched || scrolled)
     }
 

@@ -37,7 +37,7 @@ use crate::source::{
     FrameStats, GestureEvent, GesturePhase, HostAction, HostActionResult, ImeEvent, KeyEvent,
     KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent, PointerId, PointerPhase,
     PointerProperties, PointerType, SemanticAction, SemanticRole, UiEvent, WakeCallback,
-    WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
+    WheelDeltaMode, WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
 };
 use crate::style::CursorStyle;
 use crate::window_lifecycle::{WindowCapabilities, WindowEffect, WindowIntent, WindowLifecycle};
@@ -1217,19 +1217,24 @@ impl App {
     }
 
     fn handle_wheel(&mut self, delta: MouseScrollDelta, phase: TouchPhase) {
-        let (delta_x, delta_y) = match delta {
+        let (delta_x, delta_y, delta_mode) = match delta {
             // Winit reports the direction content should move; the DOM/Wabou
             // event reports the scroll-position delta.
             MouseScrollDelta::LineDelta(x, y) => (
                 -f64::from(x) * crate::WHEEL_LINE_DELTA,
                 -f64::from(y) * crate::WHEEL_LINE_DELTA,
+                WheelDeltaMode::Line,
             ),
             MouseScrollDelta::PixelDelta(position) => {
                 let scale = self
                     .state
                     .as_ref()
                     .map_or(1.0, |shell| shell.scale_factor());
-                (-position.x / scale, -position.y / scale)
+                (
+                    -position.x / scale,
+                    -position.y / scale,
+                    WheelDeltaMode::Pixel,
+                )
             }
         };
         // Winit's wheel event has no position, so expose the latest logical
@@ -1238,6 +1243,7 @@ impl App {
             position: self.pointer_position,
             delta_x,
             delta_y,
+            delta_mode,
             phase: gesture_phase(phase),
             modifiers: self.modifiers,
         }));

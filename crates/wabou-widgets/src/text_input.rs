@@ -1307,6 +1307,7 @@ mod tests {
             position: Point { x: 10.0, y: 10.0 },
             delta_x: 0.0,
             delta_y: 10_000.0,
+            delta_mode: wabou_shell::WheelDeltaMode::Pixel,
             phase: wabou_shell::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         }));

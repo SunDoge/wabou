@@ -640,6 +640,7 @@ fn smooth_wheel_deltas_accumulate_into_terminal_lines() {
             position: wabou_shell::Point { x: 1.0, y: 1.0 },
             delta_x: 0.0,
             delta_y,
+            delta_mode: wabou_shell::WheelDeltaMode::Pixel,
             phase: wabou_shell::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         })
@@ -668,6 +669,7 @@ fn wheel_remainders_do_not_leak_between_terminal_input_owners() {
             position: wabou_shell::Point { x: 1.0, y: 1.0 },
             delta_x: 0.0,
             delta_y,
+            delta_mode: wabou_shell::WheelDeltaMode::Pixel,
             phase: wabou_shell::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         })
@@ -890,6 +892,7 @@ fn active_selection_owns_wheel_input_in_mouse_reporting_mode() {
         position,
         delta_x: 0.0,
         delta_y: 40.0,
+        delta_mode: wabou_shell::WheelDeltaMode::Pixel,
         phase: wabou_shell::GesturePhase::Changed,
         modifiers: Modifiers::empty(),
     }));
@@ -916,6 +919,7 @@ fn mouse_reporting_sends_wheel_buttons_at_pointer_position() {
             position,
             delta_x: 0.0,
             delta_y,
+            delta_mode: wabou_shell::WheelDeltaMode::Pixel,
             phase: wabou_shell::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         }));
@@ -926,6 +930,7 @@ fn mouse_reporting_sends_wheel_buttons_at_pointer_position() {
         position,
         delta_x: 0.0,
         delta_y: -40.0,
+        delta_mode: wabou_shell::WheelDeltaMode::Pixel,
         phase: wabou_shell::GesturePhase::Changed,
         modifiers: Modifiers::ALT | Modifiers::CONTROL,
     }));
@@ -968,6 +973,7 @@ fn focus_and_alternate_scroll_modes_report_to_pty() {
         position: wabou_shell::Point { x: 0.0, y: 0.0 },
         delta_x: 0.0,
         delta_y: -48.0,
+        delta_mode: wabou_shell::WheelDeltaMode::Pixel,
         phase: wabou_shell::GesturePhase::Changed,
         modifiers: Modifiers::default(),
     }));

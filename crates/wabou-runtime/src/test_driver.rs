@@ -1387,6 +1387,7 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
             position: center,
             delta_x: *delta_x,
             delta_y: *delta_y,
+            delta_mode: wabou_shell::WheelDeltaMode::Pixel,
             phase: wabou_shell::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         })],

@@ -307,6 +307,7 @@ impl Applier {
         self.document.overlay_planes.remove(&node);
         self.interaction.scroll.styles.remove(&node);
         self.interaction.scroll.offsets.remove(&node);
+        self.interaction.scroll.motions.remove(&node);
         self.document.resources.svg.remove(&node);
         self.document.style.diagnostics.remove(&node);
         #[cfg(any(feature = "devtools", test))]
