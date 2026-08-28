@@ -7618,7 +7618,7 @@ function NumberField(props) {
 //#endregion
 //#region src/components/page.tsx
 const pageViewportClass = (className) => mergeClasses("min-w-0 min-h-0 flex-1", className);
-const pageViewportContentClass = (className) => mergeClasses("w-full h-full", className);
+const pageViewportContentClass = (className) => mergeClasses("w-full", className);
 /**
 * A full-height application page boundary.
 *

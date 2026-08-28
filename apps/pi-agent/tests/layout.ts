@@ -66,6 +66,43 @@ try {
           });
         },
       },
+      {
+        id: "shell/sidebar",
+        width: 300,
+        height: 720,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, {
+            role: "textbox",
+            name: "Search agents and sessions",
+          });
+          getLayoutNode(fixture, {
+            role: "button",
+            name: "Documentation workspace",
+          });
+        },
+      },
+      {
+        id: "shell/model-controls",
+        width: 480,
+        height: 96,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, { role: "combobox", name: "Choose model" });
+          getLayoutNode(fixture, { role: "combobox", name: "Thinking level" });
+        },
+      },
+      {
+        id: "settings/project-and-application",
+        width: 760,
+        height: 680,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, { text: "Settings" });
+          getLayoutNode(fixture, { role: "textbox", name: "Project name" });
+          getLayoutNode(fixture, { role: "textbox", name: "Workspace" });
+        },
+      },
     ],
     mode: "layout-test",
     command: [resolve("target/release/wabou")],

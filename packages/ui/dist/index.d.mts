@@ -1479,7 +1479,7 @@ interface PageViewportProps extends Omit<ScrollAreaProps, "class" | "contentClas
   children?: JSX.Element;
   /** Classes applied to the bounded scrolling viewport. */
   class?: string;
-  /** Classes applied to the full-height page content wrapper. */
+  /** Classes applied to the intrinsic-height page content wrapper. */
   contentClass?: string;
   /** Reset the page to its origin whenever this identity changes. */
   resetKey?: unknown;

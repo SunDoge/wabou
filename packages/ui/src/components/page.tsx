@@ -1,4 +1,5 @@
 import type { Handle } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import { type JSX, Show } from "solid-js";
 import {
   createScrollReset,
@@ -7,20 +8,19 @@ import {
   Text,
   View,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 export const pageViewportClass = (className?: string) =>
   mergeClasses("min-w-0 min-h-0 flex-1", className);
 
 export const pageViewportContentClass = (className?: string) =>
-  mergeClasses("w-full h-full", className);
+  mergeClasses("w-full", className);
 
 export interface PageViewportProps
   extends Omit<ScrollAreaProps, "class" | "contentClass" | "ref"> {
   children?: JSX.Element;
   /** Classes applied to the bounded scrolling viewport. */
   class?: string;
-  /** Classes applied to the full-height page content wrapper. */
+  /** Classes applied to the intrinsic-height page content wrapper. */
   contentClass?: string;
   /** Reset the page to its origin whenever this identity changes. */
   resetKey?: unknown;

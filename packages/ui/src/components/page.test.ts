@@ -13,11 +13,9 @@ describe("PageViewport layout contract", () => {
     );
   });
 
-  test("gives page children a definite full-height containing block", () => {
-    expect(pageViewportContentClass()).toBe("w-full h-full");
-    expect(pageViewportContentClass("max-w-6xl")).toBe(
-      "w-full h-full max-w-6xl",
-    );
+  test("lets long page content grow beyond its minimum viewport height", () => {
+    expect(pageViewportContentClass()).toBe("w-full");
+    expect(pageViewportContentClass("max-w-6xl")).toBe("w-full max-w-6xl");
   });
 
   test("keeps page headings outside the flexible body", () => {

@@ -2,7 +2,30 @@ import "@wabou/ui";
 import "virtual:wabou-stylesheet";
 import { defineLayoutFixtures } from "@wabou/test/layout/fixtures";
 import { DiffViewer } from "@wabou/ui";
+import { initialAgentState } from "./agent-state";
+import { ModelControls } from "./model-controls";
+import { type AppSettings, SettingsPage } from "./settings";
+import { Sidebar } from "./sidebar";
+import { createAgentWorkspace } from "./workspace";
 import { WorkspacePanel } from "./workspace-panel";
+
+const project = createAgentWorkspace(1);
+project.name = "Documentation workspace";
+project.cwd = "/work/wabou/documentation-and-examples";
+project.provider = "anthropic";
+project.model = "claude-sonnet-4-5";
+
+const secondProject = createAgentWorkspace(2);
+secondProject.name = "Release automation";
+secondProject.cwd = "/work/wabou/release-automation";
+
+const appSettings: AppSettings = {
+  proxy: "http://127.0.0.1:7890",
+  noProxy: "127.0.0.1,localhost",
+  provider: "anthropic",
+  model: "claude-sonnet-4-5",
+  subagentsEnabled: true,
+};
 
 defineLayoutFixtures({
   "workspace/files-panel": {
@@ -43,6 +66,86 @@ defineLayoutFixtures({
             patch: "@@ -0,0 +1,4 @@\n+# Wabou\n+\n+Native UI\n+",
           },
         ]}
+      />
+    ),
+  },
+  "shell/sidebar": {
+    width: 300,
+    height: 720,
+    render: () => (
+      <Sidebar
+        agents={[project, secondProject]}
+        sessions={[
+          {
+            agentId: project.id,
+            sessionId: "session-one",
+            sessionFile: "/tmp/session-one.jsonl",
+            name: "Fix the persistent workspace resource loading loop",
+            cwd: project.cwd,
+            updatedAt: 2,
+          },
+          {
+            agentId: project.id,
+            sessionId: "session-two",
+            sessionFile: "/tmp/session-two.jsonl",
+            name: "Review release readiness",
+            cwd: project.cwd,
+            updatedAt: 1,
+          },
+        ]}
+        activeId={project.id}
+        select={() => {}}
+        selectSession={() => {}}
+        add={() => {}}
+        newSession={() => {}}
+        canCreateSession
+        openSettings={() => {}}
+      />
+    ),
+  },
+  "shell/model-controls": {
+    width: 480,
+    height: 96,
+    render: () => (
+      <ModelControls
+        models={[
+          {
+            provider: "anthropic",
+            id: "claude-sonnet-4-5",
+            name: "Claude Sonnet 4.5",
+            reasoning: true,
+          },
+        ]}
+        modelProvider="anthropic"
+        modelId="claude-sonnet-4-5"
+        thinking="medium"
+        thinkingLevels={["off", "medium", "high"]}
+        chooseModel={() => {}}
+        chooseThinking={() => {}}
+      />
+    ),
+  },
+  "settings/project-and-application": {
+    width: 760,
+    height: 680,
+    render: () => (
+      <SettingsPage
+        app={appSettings}
+        updateApp={() => {}}
+        project={project}
+        state={{
+          ...initialAgentState,
+          connection: "ready",
+          autoCompactionEnabled: true,
+          steeringMode: "one-at-a-time",
+          followUpMode: "one-at-a-time",
+        }}
+        updateProject={() => {}}
+        close={() => {}}
+        deleteProject={() => {}}
+        setAutoCompaction={() => {}}
+        setSteeringMode={() => {}}
+        setFollowUpMode={() => {}}
       />
     ),
   },
