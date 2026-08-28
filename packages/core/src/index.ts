@@ -145,6 +145,12 @@ export {
   type NativeJsonCapability,
 } from "./glue/json-capability";
 export {
+  bindCapability,
+  type CapabilityClientOptions,
+  CapabilityError,
+  type NativeCapability,
+} from "./glue/native-capability";
+export {
   type KeyboardModifiers,
   subscribeKeyboardModifiers,
   useKeyboardModifierChanges,

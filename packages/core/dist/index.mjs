@@ -1618,6 +1618,21 @@ function bindJsonCapability(capability, options) {
 	};
 }
 //#endregion
+//#region src/glue/native-capability.ts
+var CapabilityError = class extends Error {
+	code;
+	constructor(message) {
+		super(message);
+		this.name = "CapabilityError";
+		this.code = "capability_unavailable";
+	}
+};
+/** Validate and expose one versioned native capability namespace. */
+function bindCapability(capability, options) {
+	if (capability?.__wabouCapabilityVersion !== options.version) throw new CapabilityError(`The native ${options.name} capability version ${options.version} is unavailable`);
+	return capability;
+}
+//#endregion
 //#region src/glue/latest-async-resource.ts
 /**
 * Load the latest reactive key while exposing ordinary, non-suspending state.
@@ -1735,6 +1750,6 @@ function reconcileKeyedList(current, patch, keyOf) {
 	return ordered;
 }
 //#endregion
-export { AsyncActionConflictError, ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, writer };
+export { AsyncActionConflictError, CapabilityError, ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, writer };
 
 //# sourceMappingURL=index.mjs.map

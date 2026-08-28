@@ -5,7 +5,9 @@ use std::future::Future;
 
 use rquickjs::{Ctx, FromJs, IntoJs, Object, Value};
 use serde::{Serialize, de::DeserializeOwned};
-use wabou_bindgen::HostMethod;
+use wabou_bindgen::{HostMethod, JsonMethod};
+
+use crate::json_capability::JsonCapability;
 
 struct SerdeValue<T>(T);
 
@@ -49,6 +51,29 @@ pub struct NativeCapability<'js> {
 }
 
 impl<'js> NativeCapability<'js> {
+    /// Install a JSON-coded method in this capability namespace.
+    ///
+    /// JSON is an optional codec for low-frequency or dynamic DTOs; it does
+    /// not require a second capability namespace or registration model.
+    pub fn json_method<Request, Response, Error, Handler, HandlerFuture>(
+        &self,
+        method: JsonMethod<Request, Response>,
+        handler: Handler,
+    ) -> rquickjs::Result<()>
+    where
+        Request: DeserializeOwned + 'static,
+        Response: Serialize + 'static,
+        Error: Display + 'static,
+        Handler: Fn(Request) -> HandlerFuture + Clone + rquickjs::markers::ParallelSend + 'static,
+        HandlerFuture: Future<Output = Result<Response, Error>> + 'static,
+    {
+        JsonCapability {
+            ctx: self.ctx.clone(),
+            object: self.object.clone(),
+        }
+        .method(method, handler)
+    }
+
     /// Install a typed method whose function body can be replaced by
     /// Subsecond without restarting the Wabou host.
     ///
@@ -195,7 +220,7 @@ where
 #[cfg(test)]
 mod tests {
     use serde::{Deserialize, Serialize};
-    use wabou_bindgen::HostMethod;
+    use wabou_bindgen::{HostMethod, JsonMethod};
 
     use super::NativeCapability;
     use crate::jsrt::JsRuntime;
@@ -235,5 +260,47 @@ mod tests {
             .with(|ctx| ctx.eval::<Option<u32>, _>("globalThis.nativeResult"))
             .expect("read native result");
         assert_eq!(result, Some(42));
+    }
+
+    #[test]
+    fn direct_and_json_methods_share_one_capability_namespace() {
+        const DIRECT: HostMethod<DoubleRequest, DoubleResponse> = HostMethod::new("direct");
+        const JSON: JsonMethod<DoubleRequest, DoubleResponse> = JsonMethod::new("json");
+        let runtime = JsRuntime::new().expect("runtime");
+        runtime
+            .mount_capability("mixedTest", |ctx, object| {
+                let capability = NativeCapability { ctx, object };
+                capability.method(DIRECT, |request| async move {
+                    Ok::<_, String>(DoubleResponse {
+                        value: request.value * 2,
+                    })
+                })?;
+                capability.json_method(JSON, |request| async move {
+                    Ok::<_, String>(DoubleResponse {
+                        value: request.value * 3,
+                    })
+                })
+            })
+            .expect("mount mixed capability");
+        runtime
+            .with(|ctx| {
+                ctx.eval::<(), _>(
+                    r#"
+                    globalThis.mixedResult = undefined;
+                    Promise.all([
+                      __wabou_capabilities.mixedTest.direct({ value: 4 }),
+                      __wabou_capabilities.mixedTest.json('{"value":4}').then(JSON.parse),
+                    ]).then(([direct, json]) => {
+                      globalThis.mixedResult = direct.value + json.value.value;
+                    });
+                    "#,
+                )
+            })
+            .expect("invoke mixed methods");
+        while runtime.poll_async_runtime() {}
+        let result = runtime
+            .with(|ctx| ctx.eval::<Option<u32>, _>("globalThis.mixedResult"))
+            .expect("read mixed result");
+        assert_eq!(result, Some(20));
     }
 }

@@ -92,8 +92,7 @@ resource-lifetime rules live in [the runtime boundary contract](runtime-contract
 | --- | --- |
 | frame protocol | high-frequency, batched mutation and host-event data |
 | native intrinsics | private synchronous runtime and engine primitives |
-| native capability | direct typed application request/response APIs |
-| JSON capability | low-frequency application request/response APIs |
+| capability | typed application request/response APIs; JSON is an optional method codec |
 
 Long-running application producers publish through the host event frame; they
 do not invent another callback ABI. Native effects are not an application
@@ -104,13 +103,14 @@ and generated Rust/TypeScript views; handwritten parallel enums or registration
 lists are drift bugs.
 
 The runtime and default `wabou` facade consume lightweight `JsonMethod` and
-`HostMethod` contracts. Specta and the TypeScript exporter remain behind
-`wabou-bindgen`'s `generate` and the facade's `bindings` features, so executing
-an application does not inherently depend on code-generation machinery.
-Applications may mount direct structured-value methods through
-`HostBuilder::native_capability`; JSON remains the default for low-frequency
-control operations, while native capabilities serve measured hot calls and
-stable typed object operations.
+`HostMethod` contracts. Both are methods in one versioned capability namespace:
+`HostMethod` exchanges structured QuickJS values directly, while `JsonMethod`
+opts into JSON text for dynamic or externally sourced payloads. Specta and the
+TypeScript exporter remain behind `wabou-bindgen`'s `generate` and the facade's
+`bindings` features, so executing an application does not inherently depend on
+code-generation machinery. Applications mount the namespace through
+`HostBuilder::capability`; JSON is a codec choice, not a second capability
+system.
 
 The protocol transports explicit facts. For example, JS sends focusability and
 focus order as an interaction policy. Rust validates and applies that policy;

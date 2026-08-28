@@ -67,14 +67,14 @@ impl JsonCapabilityErrorCode {
     }
 }
 
-/// Shared identity of one generated and runtime-installed JSON capability.
+/// Shared identity of one generated and runtime-installed capability.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct JsonCapabilityContract {
+pub struct CapabilityContract {
     name: &'static str,
     version: u32,
 }
 
-impl JsonCapabilityContract {
+impl CapabilityContract {
     /// Declare a capability namespace and its independently versioned ABI.
     pub const fn new(name: &'static str, version: u32) -> Self {
         Self { name, version }
@@ -90,6 +90,10 @@ impl JsonCapabilityContract {
         self.version
     }
 }
+
+/// Legacy name for [`CapabilityContract`]. JSON is a method codec rather than
+/// a separate capability namespace.
+pub type JsonCapabilityContract = CapabilityContract;
 
 /// One typed JSON capability method shared by binding generation and runtime
 /// registration.

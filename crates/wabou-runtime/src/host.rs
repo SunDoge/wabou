@@ -812,6 +812,9 @@ impl HostBuilder {
 
     /// Mount typed asynchronous methods that exchange structured QuickJS
     /// values directly without JSON text encoding.
+    ///
+    /// Prefer [`HostBuilder::capability`] in application code. This explicit
+    /// spelling remains useful while existing applications migrate.
     pub fn native_capability<F>(self, contract: JsonCapabilityContract, mount: F) -> Self
     where
         F: for<'js> Fn(NativeCapability<'js>) -> rquickjs::Result<()>
@@ -824,6 +827,21 @@ impl HostBuilder {
             object.set("__wabouCapabilityVersion", contract.version())?;
             mount(NativeCapability { ctx, object })
         })
+    }
+
+    /// Mount one versioned capability namespace.
+    ///
+    /// Methods use direct structured QuickJS values by default and may opt
+    /// into JSON coding through [`NativeCapability::json_method`].
+    pub fn capability<F>(self, contract: JsonCapabilityContract, mount: F) -> Self
+    where
+        F: for<'js> Fn(NativeCapability<'js>) -> rquickjs::Result<()>
+            + rquickjs::markers::ParallelSend
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.native_capability(contract, mount)
     }
 
     /// Register a producer for application-level Rust → JavaScript messages.

@@ -1,6 +1,7 @@
-export interface NativeJsonCapability {
-  readonly __wabouCapabilityVersion: number;
-}
+import type { NativeCapability } from "./native-capability";
+
+/** A capability namespace containing one or more JSON-coded methods. */
+export interface NativeJsonCapability extends NativeCapability {}
 
 export type JsonCapabilityMethodName<Capability> = Extract<
   {
