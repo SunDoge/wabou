@@ -183,6 +183,9 @@ enum Commands {
         /// Use the real platform event loop instead of the deterministic backend.
         #[arg(long)]
         native: bool,
+        /// Environment variable passed explicitly to the application host.
+        #[arg(long = "env", value_name = "KEY=VALUE")]
+        host_env: Vec<String>,
         #[command(flatten)]
         cargo_features: CargoFeatures,
     },
@@ -325,6 +328,7 @@ struct TestOptions {
     mode: Option<String>,
     failure_screenshot: bool,
     native: bool,
+    host_env: Vec<String>,
     cargo_features: Vec<String>,
 }
 
@@ -450,6 +454,7 @@ fn main() -> Result<()> {
             mode,
             failure_screenshot,
             native,
+            host_env,
             cargo_features,
         } => {
             let target = scenario.map(|path| cwd.join(path));
@@ -463,6 +468,7 @@ fn main() -> Result<()> {
                 mode,
                 failure_screenshot,
                 native,
+                host_env,
                 cargo_features: cargo_features.values,
             };
             test_scenario(&workspace, &app, &options)
@@ -646,6 +652,7 @@ fn check(
                 mode: None,
                 failure_screenshot: false,
                 native: false,
+                host_env: Vec::new(),
                 cargo_features: cargo_features.to_vec(),
             },
         )?;
@@ -850,6 +857,15 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
         .env("XDG_DATA_HOME", test_data.path().join("xdg-data"))
         .env("XDG_CACHE_HOME", test_data.path().join("xdg-cache"));
     configure_test_backend(&mut host, options.native);
+    for assignment in &options.host_env {
+        let (name, value) = assignment
+            .split_once('=')
+            .ok_or_else(|| format!("invalid --env value {assignment:?}; expected KEY=VALUE"))?;
+        if name.is_empty() || name.contains('=') || name.contains('\0') || value.contains('\0') {
+            return Err(format!("invalid --env value {assignment:?}; expected KEY=VALUE").into());
+        }
+        host.env(name, value);
+    }
     if options.failure_screenshot {
         host.env("WABOU_TEST_FAILURE_SCREENSHOT", "1");
     }
@@ -1226,6 +1242,29 @@ mod tests {
         };
         assert_eq!(app.as_deref(), Some(Path::new("apps/gallery")));
         assert!(skip_behavior);
+    }
+
+    #[test]
+    fn parses_explicit_behavior_host_environment() {
+        let Cli {
+            command: Commands::Test { host_env, .. },
+        } = Cli::try_parse_from([
+            "wabou",
+            "test",
+            "apps/pi-agent",
+            "--env",
+            "WABOU_PI_BIN=/tmp/fake-pi",
+            "--env",
+            "PI_TEST_MODE=deterministic",
+        ])
+        .unwrap()
+        else {
+            panic!("expected test command");
+        };
+        assert_eq!(
+            host_env,
+            ["WABOU_PI_BIN=/tmp/fake-pi", "PI_TEST_MODE=deterministic"]
+        );
     }
 
     #[test]

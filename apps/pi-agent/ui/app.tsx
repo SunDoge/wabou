@@ -1040,6 +1040,7 @@ export function App() {
                 <TextArea
                   class="h-20 border-transparent shadow-none bg-input"
                   value={draft()}
+                  aria-label={i18n.message(m.prompt_placeholder, {})}
                   placeholder={
                     active().state.connection === "running"
                       ? i18n.message(m.queue_follow_up, {})

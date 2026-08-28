@@ -34,3 +34,17 @@ QuickJS runtime; that is deliberately not required by this application today.
 The interface defaults to English for public demos and uses compiled Paraglide
 messages. Chinese and future locales can be added incrementally without shipping a
 browser-oriented i18n runtime.
+
+## Deterministic GUI test
+
+The native behavior suite uses a small Rust Pi JSONL fixture, so it exercises the
+real Solid → capability → Rust service → child process → batched host-message path
+without network access, provider credentials, or model output variance:
+
+```bash
+cargo build -p pi-agent-wabou --example pi-agent-fixture
+cargo run -p wabou-cli -- test apps/pi-agent \
+  --env "WABOU_PI_BIN=$PWD/target/debug/examples/pi-agent-fixture"
+```
+
+`bun run verify:behavior` builds and injects this fixture automatically in CI.
