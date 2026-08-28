@@ -46,6 +46,7 @@ test("opens, highlights, selects, and restores trigger focus", async () => {
   rust.click();
   expect(screen.getByRole("status").text).toBe("rust");
   expect(trigger.text).toContain("Rust");
+  expect(trigger.valueText).toBe("Rust");
   expect(trigger.expanded).toBe(false);
   expect(screen.queryByRole("listbox")).toBeNull();
   await screen.advanceTime(16);
@@ -119,11 +120,7 @@ test("opens on pointer down without waiting for the pressed state to release", (
 
 test("opens without implicit motion by default", () => {
   const screen = renderComponent(() => (
-    <Select
-      aria-label="Technology"
-      options={options}
-      defaultValue="solid"
-    />
+    <Select aria-label="Technology" options={options} defaultValue="solid" />
   ));
 
   screen.getByRole("combobox", { name: "Technology" }).click();

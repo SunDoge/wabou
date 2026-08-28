@@ -92,6 +92,7 @@ export function Combobox(props: ComboboxProps): JSX.Element {
           aria-label={props["aria-label"]}
           aria-haspopup="listbox"
           aria-expanded={open()}
+          aria-valuetext={selected()?.label}
           ref={(node) => {
             trigger = node;
             popover.ref(node);
@@ -116,11 +117,7 @@ export function Combobox(props: ComboboxProps): JSX.Element {
           >
             {selected()?.label ?? props.placeholder ?? "Select an option"}
           </Text>
-          <Icon
-            source={chevronDown}
-            class="flex-none text-muted"
-            size={16}
-          />
+          <Icon source={chevronDown} class="flex-none text-muted" size={16} />
         </HeadlessButton>
       )}
     >

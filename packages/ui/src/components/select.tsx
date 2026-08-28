@@ -151,6 +151,7 @@ export function Select(props: SelectProps): JSX.Element {
           aria-haspopup="listbox"
           aria-expanded={interaction.open()}
           aria-controls={selectControlsId(`${id}-listbox`, interaction.open())}
+          aria-valuetext={selected()?.label}
           ref={(node) => {
             trigger = node;
             popover.ref(node);

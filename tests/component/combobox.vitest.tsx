@@ -35,6 +35,7 @@ test("searches and selects a value", () => {
 
   expect(screen.getByRole("status").text).toBe("rust");
   expect(trigger.text).toContain("Rust");
+  expect(trigger.valueText).toBe("Rust");
   expect(screen.queryByRole("listbox")).toBeNull();
 });
 

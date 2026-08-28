@@ -27,6 +27,7 @@ export interface ButtonProps
     | "aria-label"
     | "aria-pressed"
     | "aria-selected"
+    | "aria-valuetext"
     | "role"
     | "focusOrder"
     | "onBlur"
@@ -262,6 +263,7 @@ export function Button(props: ButtonProps): JSX.Element {
       aria-current={props["aria-current"]}
       aria-selected={props["aria-selected"]}
       aria-pressed={props["aria-pressed"]}
+      aria-valuetext={props["aria-valuetext"]}
       class={
         typeof props.class === "function" ? props.class(state()) : props.class
       }

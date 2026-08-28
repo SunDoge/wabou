@@ -1133,6 +1133,9 @@ function Button(props) {
 		get ["aria-pressed"]() {
 			return props["aria-pressed"];
 		},
+		get ["aria-valuetext"]() {
+			return props["aria-valuetext"];
+		},
 		get ["class"]() {
 			return memo(() => {
 				return typeof props.class === "function";
@@ -2916,4 +2919,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { Svg as $, isSelected as A, createContainerMatch as B, OverlayPlaneProvider as C, useMotionConfig as Ct, Column as D, Center as E, createNetworkImageResource as F, CodeEditor as G, Button as H, createOwnedImageResource as I, PasswordInput as J, Icon as K, releaseImageResource as L, FORM_ERROR as M, createFormDraft as N, Row as O, createFileImageResource as P, RichTextSpan as Q, CollapsiblePresence as R, createTransitionPresence as S, MotionConfigProvider as St, useOverlayPlane as T, Link as U, createMeasuredSize as V, createButton as W, PathBuilder as X, Path as Y, RichText as Z, createRetainedItems as _, createPulse as _t, ScrollArea as a, translate2d$1 as at, Spin as b, createTransition as bt, autoPlacement as c, createHover as ct, flip as d, createAnimationFrame as dt, Text as et, offset as f, animate as ft, createNotifications as g, createLoop as gt, NotificationRegion as h, createKeyframeAnimation as ht, createScrollReset as i, rotate2d$1 as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createFocus as lt, size as m, createInterpolation as mt, createTabs as n, TextInput as nt, Popover as o, createActive as ot, shift as p, animateKeyframes as pt, Image as q, createShortcuts as r, View as rt, arrow as s, createPress as st, primitives_exports as t, TextArea as tt, computeHostFloatingPosition as u, createFocusWithin as ut, Pulse as v, createRotation as vt, createOverlayLayer as w, useReducedMotion as wt, Modal as x, normalizeSweepGeometry as xt, Ripple as y, createSweep as yt, createPresence as z };
 
-//# sourceMappingURL=primitives-D5SrePwu.mjs.map
+//# sourceMappingURL=primitives-Hut6Y4sw.mjs.map
