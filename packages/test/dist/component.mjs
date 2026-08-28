@@ -548,6 +548,12 @@ function renderComponent(render, options = {}) {
 	function locator(node) {
 		return {
 			...queries(node),
+			get identity() {
+				return {
+					lo: node.id.lo,
+					hi: node.id.hi
+				};
+			},
 			get parent() {
 				return node.parent ? locator(node.parent) : null;
 			},
@@ -681,6 +687,11 @@ function renderComponent(render, options = {}) {
 				ensureEditable(node);
 				focusAuthoredNode(node);
 				commitEvent(node, EVENT_CODE.input, JSON.stringify({ value }));
+			},
+			emit: (type, payload = "") => {
+				ensureAttached(node, `dispatch ${type} to`);
+				const encoded = typeof payload === "string" ? payload : JSON.stringify(payload);
+				commitEvent(node, EVENT_CODE[type], encoded);
 			},
 			focus: () => {
 				ensureEnabled(node, "focus");

@@ -1,4 +1,5 @@
 import { BuiltinHost, Host } from "@wabou/core/renderer";
+import { EventType } from "@wabou/core/protocol";
 import { PlatformServices } from "@wabou/core";
 import { JSX } from "solid-js";
 //#region src/component.d.ts
@@ -46,6 +47,11 @@ interface ComponentSnapshotNode {
   readonly children?: readonly ComponentSnapshotNode[];
 }
 interface ComponentLocator extends ComponentQueries {
+  /** Exact retained-node identity. Changes prove that the component remounted. */
+  readonly identity: Readonly<{
+    lo: number;
+    hi: number;
+  }>;
   /** Direct authored parent, or null at the component render root. */
   readonly parent: ComponentLocator | null;
   readonly tag: string;
@@ -111,6 +117,8 @@ interface ComponentLocator extends ComponentQueries {
   contextMenu(position?: ComponentPointerPosition): void;
   press(key: string, options?: ComponentKeyOptions): void;
   input(value: string): void;
+  /** Dispatch a typed host event for custom-widget/component contracts. */
+  emit(type: EventType, payload?: unknown): void;
   /** Dispatch native focus/focusin, blurring the previously focused locator. */
   focus(): void;
   /** Dispatch native blur/focusout when this locator owns focus. */
