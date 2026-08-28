@@ -64,9 +64,13 @@ test("updates a controlled CodeEditor through the component input contract", () 
   };
   const screen = renderComponent(App);
   const editor = screen.getByRole("textbox", { name: "Markdown source" });
+  const identity = editor.identity;
 
   editor.input("updated");
   expect(editor.value).toBe("updated");
+  expect(
+    screen.getByRole("textbox", { name: "Markdown source" }).identity,
+  ).toEqual(identity);
 });
 
 test("blocks authored disabled and read-only editors", () => {

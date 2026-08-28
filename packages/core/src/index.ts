@@ -99,6 +99,7 @@ export {
   type EntityKey,
   ForEntity,
   type ForEntityProps,
+  validateEntityKeys,
 } from "./glue/entity-list";
 export {
   type FileDropEvent,

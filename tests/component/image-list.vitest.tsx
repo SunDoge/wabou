@@ -62,3 +62,28 @@ test("rejects non-positive row and thumbnail geometry", () => {
     }),
   ).toThrow(RangeError);
 });
+
+test("keeps keyed image rows mounted across immutable data refreshes", () => {
+  const [items, setItems] = createSignal<readonly Page[]>([
+    { id: 1, path: "/old.png", title: "Old title" },
+  ]);
+  const screen = renderComponent(() => (
+    <ImageList
+      items={items}
+      getItemKey={(page) => page.id}
+      renderThumbnail={() => <View class="w-full h-full bg-control" />}
+      getLabel={(page) => page.title}
+      itemHeight={80}
+      viewportHeight={160}
+      accessibilityLabel="Stable images"
+    />
+  ));
+  const identity = screen.getByRole("option", { name: "Old title" }).identity;
+
+  setItems([{ id: 1, path: "/new.png", title: "New title" }]);
+  screen.flush();
+
+  expect(screen.getByRole("option", { name: "New title" }).identity).toEqual(
+    identity,
+  );
+});

@@ -1409,6 +1409,15 @@ function latestSequence(events, sequence) {
 }
 //#endregion
 //#region src/glue/entity-list.tsx
+function validateEntityKeys(values, by) {
+	const keys = /* @__PURE__ */ new Set();
+	for (const entity of values) {
+		const key = by(entity);
+		if (keys.has(key)) throw new Error(`ForEntity received duplicate key ${String(key)}`);
+		keys.add(key);
+	}
+	return values;
+}
 /**
 * Render stateful entities by a stable application key.
 *
@@ -1417,16 +1426,26 @@ function latestSequence(events, sequence) {
 * the same key. This keeps native widgets and other owned resources mounted.
 */
 function ForEntity(props) {
+	const by = untrack(() => props.by);
+	const entities = createMemo(() => {
+		const values = props.each;
+		if (!values) return values;
+		return validateEntityKeys(values, by);
+	});
 	return createComponent$1(For, {
 		get each() {
-			return props.each;
+			return entities();
 		},
-		keyed: props.by,
+		keyed: by,
 		get fallback() {
 			return props.fallback;
 		},
 		children: (item, index) => {
 			const entity = untrack(item);
+			const key = by(entity);
+			createEffect(item, (current) => {
+				if (current !== entity) throw new Error(`ForEntity key ${String(key)} replaced its entity object; keep the object stable and update its signals/store instead`);
+			});
 			return props.children(entity, index);
 		}
 	});
@@ -1774,6 +1793,6 @@ function reconcileKeyedList(current, patch, keyOf) {
 	return ordered;
 }
 //#endregion
-export { AsyncActionConflictError, CapabilityError, ColorThemeProvider, Dynamic, EVENT_CODE, ForEntity, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, writer };
+export { AsyncActionConflictError, CapabilityError, ColorThemeProvider, Dynamic, EVENT_CODE, ForEntity, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys, writer };
 
 //# sourceMappingURL=index.mjs.map

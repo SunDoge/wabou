@@ -1,6 +1,8 @@
 import {
   type Accessor,
   createComponent,
+  createEffect,
+  createMemo,
   For,
   type JSX,
   untrack,
@@ -15,6 +17,21 @@ export interface ForEntityProps<T, K extends EntityKey> {
   children: (item: T, index: Accessor<number>) => JSX.Element;
 }
 
+export function validateEntityKeys<T, K extends EntityKey>(
+  values: readonly T[],
+  by: (item: T) => K,
+): readonly T[] {
+  const keys = new Set<K>();
+  for (const entity of values) {
+    const key = by(entity);
+    if (keys.has(key)) {
+      throw new Error(`ForEntity received duplicate key ${String(key)}`);
+    }
+    keys.add(key);
+  }
+  return values;
+}
+
 /**
  * Render stateful entities by a stable application key.
  *
@@ -25,6 +42,12 @@ export interface ForEntityProps<T, K extends EntityKey> {
 export function ForEntity<T, K extends EntityKey>(
   props: ForEntityProps<T, K>,
 ): JSX.Element {
+  const by = untrack(() => props.by);
+  const entities = createMemo(() => {
+    const values = props.each;
+    if (!values) return values;
+    return validateEntityKeys(values, by);
+  });
   return createComponent(
     For as unknown as (props: {
       each: readonly T[] | undefined | null | false;
@@ -34,14 +57,22 @@ export function ForEntity<T, K extends EntityKey>(
     }) => JSX.Element,
     {
       get each() {
-        return props.each;
+        return entities();
       },
-      keyed: props.by,
+      keyed: by,
       get fallback() {
         return props.fallback;
       },
       children: (item, index) => {
         const entity = untrack(item);
+        const key = by(entity);
+        createEffect(item, (current) => {
+          if (current !== entity) {
+            throw new Error(
+              `ForEntity key ${String(key)} replaced its entity object; keep the object stable and update its signals/store instead`,
+            );
+          }
+        });
         return props.children(entity, index);
       },
     },

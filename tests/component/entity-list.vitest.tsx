@@ -1,4 +1,4 @@
-import { ForEntity } from "@wabou/core";
+import { ForEntity, validateEntityKeys } from "@wabou/core";
 import { renderComponent } from "@wabou/test/component";
 import { createSignal } from "solid-js";
 import { describe, expect, test } from "vitest";
@@ -21,5 +21,17 @@ describe("ForEntity", () => {
     expect(screen.getByRole("label", { name: "Beta" }).identity).toEqual(
       identity,
     );
+  });
+
+  test("rejects duplicate application keys", () => {
+    expect(() =>
+      validateEntityKeys(
+        [
+          { id: "same", label: "First" },
+          { id: "same", label: "Second" },
+        ],
+        (item) => item.id,
+      ),
+    ).toThrow("ForEntity received duplicate key same");
   });
 });

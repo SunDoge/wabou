@@ -3,7 +3,7 @@ import {
   type Accessor,
   createMemo,
   createSignal,
-  For,
+  For as ForValue,
   type JSX,
   onCleanup,
   Show,
@@ -246,7 +246,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
           width: "100%",
         }}
       >
-        <For each={virtualItems()} keyed={false}>
+        <ForValue each={virtualItems()} keyed={false}>
           {(virtualItem) => {
             const index = () => virtualItem().index;
             const item = createVirtualRow(config.items, index);
@@ -279,7 +279,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
               </view>
             );
           }}
-        </For>
+        </ForValue>
       </view>
     </view>
   );
