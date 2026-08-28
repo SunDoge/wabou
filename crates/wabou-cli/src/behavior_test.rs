@@ -143,41 +143,15 @@ enum ReplayPlatform {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum ReplayRole {
-    Button,
-    Group,
-    Textbox,
-    Link,
-    Dialog,
-    Alert,
-    Status,
-    Checkbox,
-    Radio,
-    Switch,
-    Combobox,
-    Listbox,
-    Option,
-    Menu,
-    Menuitem,
-    Tree,
-    Treeitem,
-    Table,
-    Row,
-    Cell,
-    Columnheader,
-    Rowheader,
-    Slider,
-    Progressbar,
-    Heading,
-    Label,
-    Img,
-    Radiogroup,
-    Tablist,
-    Tab,
-    Tabpanel,
-    Grid,
-    Gridcell,
+#[serde(transparent)]
+struct ReplayRole(String);
+
+impl ReplayRole {
+    fn validate(&self) -> std::result::Result<(), String> {
+        wabou_shell::SemanticRole::from_name(&self.0)
+            .map(|_| ())
+            .ok_or_else(|| format!("unknown exposed semantic role {:?}", self.0))
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -405,7 +379,8 @@ impl ReplayAction {
                 index,
                 wait,
             } => {
-                let _ = (role, label);
+                role.validate()?;
+                let _ = label;
                 validate_index(*index)?;
                 (*window_id, wait.as_ref())
             }
@@ -417,7 +392,8 @@ impl ReplayAction {
                 input,
                 wait,
             } => {
-                let _ = (role, label);
+                role.validate()?;
+                let _ = label;
                 validate_index(*index)?;
                 input.validate()?;
                 (*window_id, wait.as_ref())
@@ -429,7 +405,8 @@ impl ReplayAction {
                 index,
                 wait,
             } => {
-                let _ = (role, label);
+                role.validate()?;
+                let _ = label;
                 validate_index(*index)?;
                 (*window_id, Some(wait))
             }
@@ -441,7 +418,8 @@ impl ReplayAction {
                 assertion,
                 wait,
             } => {
-                let _ = (role, label);
+                role.validate()?;
+                let _ = label;
                 validate_index(*index)?;
                 if index.is_some() && matches!(assertion, ReplayLocatorAssertion::Count { .. }) {
                     return Err("count assertion requires an unindexed locator".into());
@@ -629,7 +607,8 @@ impl ReplayLocatorAssertion {
                 }
             }
             Self::NotOverlap { other, tolerance } => {
-                let _ = (&other.role, &other.name);
+                other.role.validate()?;
+                let _ = &other.name;
                 validate_index(other.index)?;
                 if !tolerance.is_finite() || *tolerance < 0.0 {
                     return Err(
@@ -642,7 +621,8 @@ impl ReplayLocatorAssertion {
                 fields,
                 tolerance,
             } => {
-                let _ = (&other.role, &other.name);
+                other.role.validate()?;
+                let _ = &other.name;
                 validate_index(other.index)?;
                 if fields.is_empty() {
                     return Err("matching bounds fields cannot be empty".into());

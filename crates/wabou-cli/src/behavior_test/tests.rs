@@ -479,6 +479,51 @@ fn replay_artifacts_use_a_separate_default_directory() {
 }
 
 #[test]
+fn replay_validation_tracks_every_exposed_semantic_role() {
+    let actions = wabou_shell::SemanticRole::ALL
+        .iter()
+        .copied()
+        .filter(|role| *role != wabou_shell::SemanticRole::Generic)
+        .map(|role| {
+            json!({
+                "action": "waitForByRole",
+                "windowId": 1,
+                "role": role.as_str(),
+                "label": "fixture",
+                "wait": { "timeout": 1000, "interval": 16 }
+            })
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        replay_actions_from_value(&json!({ "version": 1, "actions": actions.clone() }), None)
+            .unwrap(),
+        serde_json::Value::Array(actions)
+    );
+}
+
+#[test]
+fn replay_validation_rejects_internal_or_unknown_semantic_roles() {
+    for role in ["generic", "presentation", "invented"] {
+        let error = replay_actions_from_value(
+            &json!({
+                "version": 1,
+                "actions": [{
+                    "action": "waitForByRole",
+                    "windowId": 1,
+                    "role": role,
+                    "label": "fixture",
+                    "wait": { "timeout": 1000, "interval": 16 }
+                }]
+            }),
+            None,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("unknown exposed semantic role"));
+    }
+}
+
+#[test]
 fn preparation_removes_only_stale_framework_outputs() {
     let directory = tempfile::tempdir().unwrap();
     for name in [
