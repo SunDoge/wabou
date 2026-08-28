@@ -49,6 +49,18 @@ try {
           });
         },
       },
+      {
+        id: "workspace/diff-viewer",
+        width: 640,
+        height: 520,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, {
+            role: "textbox",
+            name: "Technical diff: src/main.ts",
+          });
+        },
+      },
     ],
     mode: "layout-test",
     command: [resolve("target/release/wabou")],

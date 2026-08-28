@@ -37,6 +37,7 @@ export * from "./copy-button";
 export * from "./data-table";
 export * from "./date-picker";
 export * from "./dialog";
+export * from "./diff-viewer";
 export * from "./direction";
 export * from "./directory-picker";
 export * from "./disclosure";

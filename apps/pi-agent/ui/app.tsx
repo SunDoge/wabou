@@ -85,6 +85,7 @@ import {
   createAgentWorkspace,
   restoreAgentWorkspace,
 } from "./workspace";
+import { WorkspaceChangesPanel } from "./workspace-changes-panel";
 import { WorkspacePanel } from "./workspace-panel";
 import { WorkspaceSetup } from "./workspace-setup";
 
@@ -147,12 +148,13 @@ export function App() {
   ]);
   const [sessions, setSessions] = createSignal<readonly PiSession[]>([]);
   const [workspaceInfo, setWorkspaceInfo] = createSignal<WorkspaceInfo>();
+  const [workspaceRevision, setWorkspaceRevision] = createSignal(0);
   const [lastActiveId, setLastActiveId] = createSignal("agent-1");
   const [drafts, setDrafts] = createSignal<AgentDrafts>({});
   const [draftImages, setDraftImages] = createSignal<AgentDraftLists>({});
   const [draftContext, setDraftContext] = createSignal<AgentDraftLists>({});
   const [searchOpen, setSearchOpen] = createSignal(false);
-  const [workspacePanelOpen, setWorkspacePanelOpen] = createSignal(false);
+  const [sidePanel, setSidePanel] = createSignal<"files" | "changes">();
   const [deliveryMode, setDeliveryMode] =
     createSignal<ComposerDeliveryMode>("followUp");
   const [activeSearchItem, setActiveSearchItem] = createSignal<string>();
@@ -235,7 +237,10 @@ export function App() {
       return;
     }
     void api.workspaceInfo(cwd).then((info) => {
-      if (active().cwd === cwd) setWorkspaceInfo(info);
+      if (active().cwd === cwd) {
+        setWorkspaceInfo(info);
+        setWorkspaceRevision((revision) => revision + 1);
+      }
     });
   };
   createEffect(
@@ -850,11 +855,30 @@ export function App() {
                 variant="ghost"
                 size="icon"
                 aria-label={i18n.message(m.workspace_files, {})}
-                aria-pressed={workspacePanelOpen()}
-                onClick={() => setWorkspacePanelOpen((open) => !open)}
+                aria-pressed={sidePanel() === "files"}
+                onClick={() =>
+                  setSidePanel((current) =>
+                    current === "files" ? undefined : "files",
+                  )
+                }
               >
                 <Icon source={folder} size={15} />
               </Button>
+              <Show when={workspaceInfo()?.repository}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={i18n.message(m.code_changes, {})}
+                  aria-pressed={sidePanel() === "changes"}
+                  onClick={() =>
+                    setSidePanel((current) =>
+                      current === "changes" ? undefined : "changes",
+                    )
+                  }
+                >
+                  <Icon source={gitBranch} size={15} />
+                </Button>
+              </Show>
               <ModelControls
                 models={active().state.models}
                 modelProvider={active().state.modelProvider}
@@ -1042,7 +1066,7 @@ export function App() {
             </View>
           </Show>
         </View>
-        <Show when={workspacePanelOpen() && active().cwd.trim()}>
+        <Show when={sidePanel() === "files" && active().cwd.trim()}>
           <WorkspacePanel
             cwd={active().cwd}
             loadFiles={api.listWorkspaceFiles}
@@ -1050,7 +1074,15 @@ export function App() {
             addContext={(path) =>
               setContextFiles([...new Set([...contextFiles(), path])])
             }
-            close={() => setWorkspacePanelOpen(false)}
+            close={() => setSidePanel(undefined)}
+          />
+        </Show>
+        <Show when={sidePanel() === "changes" && active().cwd.trim()}>
+          <WorkspaceChangesPanel
+            cwd={active().cwd}
+            revision={workspaceRevision()}
+            load={api.workspaceChanges}
+            close={() => setSidePanel(undefined)}
           />
         </Show>
       </Show>

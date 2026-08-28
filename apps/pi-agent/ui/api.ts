@@ -34,6 +34,18 @@ export interface WorkspaceFilePreview {
   text: string;
 }
 
+export interface WorkspaceFileChange {
+  path: string;
+  status: "added" | "modified" | "deleted" | "renamed";
+  additions: number;
+  deletions: number;
+  patch: string;
+}
+
+export interface WorkspaceChanges {
+  files: readonly WorkspaceFileChange[];
+}
+
 export interface PersistedAgentProfile {
   id: string;
   name: string;
@@ -80,6 +92,9 @@ interface PiCapability extends NativeJsonCapability {
     cwd: string;
     path: string;
   }): WorkspaceFilePreview | PromiseLike<WorkspaceFilePreview>;
+  workspaceChanges(request: {
+    cwd: string;
+  }): WorkspaceChanges | PromiseLike<WorkspaceChanges>;
   respondExtensionUi(request: string): string | PromiseLike<string>;
   listAgents(request?: string): string | PromiseLike<string>;
   saveAgents(request: string): string | PromiseLike<string>;
@@ -161,6 +176,8 @@ export function usePiApi() {
     workspaceInfo: async (cwd: string) => capability.workspaceInfo({ cwd }),
     readWorkspaceFile: async (cwd: string, path: string) =>
       capability.readWorkspaceFile({ cwd, path }),
+    workspaceChanges: async (cwd: string) =>
+      capability.workspaceChanges({ cwd }),
     respondExtensionUi: (
       agentId: string,
       response:

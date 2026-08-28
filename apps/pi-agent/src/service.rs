@@ -51,6 +51,8 @@ const WORKSPACE_INFO: HostMethod<WorkspaceFilesRequest, WorkspaceInfo> =
     HostMethod::new("workspaceInfo");
 const READ_WORKSPACE_FILE: HostMethod<ReadWorkspaceFileRequest, WorkspaceFilePreview> =
     HostMethod::new("readWorkspaceFile");
+const WORKSPACE_CHANGES: HostMethod<WorkspaceFilesRequest, WorkspaceChanges> =
+    HostMethod::new("workspaceChanges");
 const RESPOND_EXTENSION_UI: JsonMethod<ExtensionUiResponseRequest, ()> =
     JsonMethod::new("respondExtensionUi");
 const LIST_AGENTS: JsonMethod<(), Vec<AgentProfile>> = JsonMethod::no_request("listAgents");
@@ -436,6 +438,174 @@ struct ReadWorkspaceFileRequest {
 struct WorkspaceFilePreview {
     path: String,
     text: String,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceChanges {
+    files: Vec<WorkspaceFileChange>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceFileChange {
+    path: String,
+    status: &'static str,
+    additions: usize,
+    deletions: usize,
+    patch: String,
+}
+
+const MAX_DIFF_FILES: usize = 100;
+const MAX_DIFF_FILE_BYTES: usize = 256 * 1024;
+const MAX_DIFF_TOTAL_BYTES: usize = 2 * 1024 * 1024;
+
+fn git_stdout(cwd: &Path, args: &[&str]) -> Result<Vec<u8>, String> {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .map_err(|error| format!("could not run git: {error}"))?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+    }
+    Ok(output.stdout)
+}
+
+fn truncate_utf8(mut value: String, max_bytes: usize) -> String {
+    if value.len() <= max_bytes {
+        return value;
+    }
+    let mut end = max_bytes;
+    while !value.is_char_boundary(end) {
+        end -= 1;
+    }
+    value.truncate(end);
+    value.push_str("\n… diff truncated …\n");
+    value
+}
+
+fn workspace_changes(cwd: &Path) -> Result<WorkspaceChanges, String> {
+    let cwd = cwd
+        .canonicalize()
+        .map_err(|error| format!("could not open workspace {}: {error}", cwd.display()))?;
+    let has_head = Command::new("git")
+        .args(["rev-parse", "--verify", "HEAD"])
+        .current_dir(&cwd)
+        .output()
+        .is_ok_and(|output| output.status.success());
+    let numstat = if has_head {
+        git_stdout(
+            &cwd,
+            &["diff", "HEAD", "--numstat", "-z", "--no-renames", "--"],
+        )?
+    } else {
+        Vec::new()
+    };
+    let status_output = if has_head {
+        git_stdout(
+            &cwd,
+            &["diff", "HEAD", "--name-status", "-z", "--no-renames", "--"],
+        )?
+    } else {
+        Vec::new()
+    };
+    let mut status_fields = status_output.split(|byte| *byte == 0);
+    let mut statuses = HashMap::new();
+    while let (Some(status), Some(path)) = (status_fields.next(), status_fields.next()) {
+        if status.is_empty() || path.is_empty() {
+            continue;
+        }
+        statuses.insert(
+            String::from_utf8_lossy(path).into_owned(),
+            status.first().copied().map(char::from).unwrap_or('M'),
+        );
+    }
+    let mut files = Vec::new();
+    let mut total_patch_bytes = 0;
+    for record in numstat
+        .split(|byte| *byte == 0)
+        .filter(|item| !item.is_empty())
+    {
+        let record = String::from_utf8_lossy(record);
+        let mut fields = record.splitn(3, '\t');
+        let additions = fields
+            .next()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(0);
+        let deletions = fields
+            .next()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(0);
+        let Some(path) = fields.next() else { continue };
+        if files.len() >= MAX_DIFF_FILES || total_patch_bytes >= MAX_DIFF_TOTAL_BYTES {
+            break;
+        }
+        let patch = git_stdout(
+            &cwd,
+            &[
+                "diff",
+                "HEAD",
+                "--no-color",
+                "--no-ext-diff",
+                "--unified=3",
+                "--",
+                path,
+            ],
+        )?;
+        let patch = truncate_utf8(
+            String::from_utf8_lossy(&patch).into_owned(),
+            MAX_DIFF_FILE_BYTES,
+        );
+        total_patch_bytes += patch.len();
+        let status = match statuses.get(path).copied().unwrap_or('M') {
+            'A' => "added",
+            'D' => "deleted",
+            _ => "modified",
+        };
+        files.push(WorkspaceFileChange {
+            path: path.to_owned(),
+            status,
+            additions,
+            deletions,
+            patch,
+        });
+    }
+    let untracked = git_stdout(&cwd, &["ls-files", "--others", "--exclude-standard", "-z"])?;
+    for raw_path in untracked
+        .split(|byte| *byte == 0)
+        .filter(|path| !path.is_empty())
+    {
+        if files.len() >= MAX_DIFF_FILES || total_patch_bytes >= MAX_DIFF_TOTAL_BYTES {
+            break;
+        }
+        let path = String::from_utf8_lossy(raw_path).into_owned();
+        let Ok(preview) = read_workspace_file(&cwd, Path::new(&path)) else {
+            continue;
+        };
+        let additions = preview.text.lines().count();
+        let added_lines = preview
+            .text
+            .lines()
+            .map(|line| format!("+{line}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let patch = truncate_utf8(
+            format!(
+                "diff --git a/{path} b/{path}\nnew file mode 100644\n--- /dev/null\n+++ b/{path}\n@@ -0,0 +1,{additions} @@\n{added_lines}\n"
+            ),
+            MAX_DIFF_FILE_BYTES,
+        );
+        total_patch_bytes += patch.len();
+        files.push(WorkspaceFileChange {
+            path,
+            status: "added",
+            additions,
+            deletions: 0,
+            patch,
+        });
+    }
+    Ok(WorkspaceChanges { files })
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -982,6 +1152,14 @@ pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::
             tokio::task::spawn_blocking(move || read_workspace_file(&request.cwd, &request.path))
                 .await
                 .map_err(|error| format!("workspace file task failed: {error}"))?
+        },
+    )?;
+    capability.method(
+        WORKSPACE_CHANGES,
+        move |request: WorkspaceFilesRequest| async move {
+            tokio::task::spawn_blocking(move || workspace_changes(&request.cwd))
+                .await
+                .map_err(|error| format!("workspace changes task failed: {error}"))?
         },
     )?;
     capability.json_method(
@@ -1563,6 +1741,41 @@ mod tests {
         assert!(read_workspace_file(&directory, Path::new("../outside.txt")).is_err());
         std::fs::write(directory.join("binary"), [0xff, 0xfe]).expect("binary fixture");
         assert!(read_workspace_file(&directory, Path::new("binary")).is_err());
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn workspace_changes_returns_bounded_structured_patches() {
+        let directory = test_directory("workspace-changes");
+        std::fs::create_dir_all(&directory).expect("fixture directory");
+        let git = |args: &[&str]| {
+            let status = Command::new("git")
+                .args(args)
+                .current_dir(&directory)
+                .status()
+                .expect("git fixture command");
+            assert!(status.success());
+        };
+        git(&["init", "--quiet"]);
+        git(&["config", "user.email", "wabou@example.invalid"]);
+        git(&["config", "user.name", "Wabou Test"]);
+        std::fs::write(directory.join("example.txt"), "before\n").expect("initial file");
+        git(&["add", "example.txt"]);
+        git(&["commit", "--quiet", "-m", "fixture"]);
+        std::fs::write(directory.join("example.txt"), "before\nafter\n").expect("changed file");
+        std::fs::write(directory.join("new.txt"), "new file\n").expect("untracked file");
+
+        let changes = workspace_changes(&directory).expect("workspace changes");
+        assert_eq!(changes.files.len(), 2);
+        assert_eq!(changes.files[0].path, "example.txt");
+        assert_eq!(changes.files[0].status, "modified");
+        assert_eq!(changes.files[0].additions, 1);
+        assert_eq!(changes.files[0].deletions, 0);
+        assert!(changes.files[0].patch.contains("+after"));
+        assert_eq!(changes.files[1].path, "new.txt");
+        assert_eq!(changes.files[1].status, "added");
+        assert!(changes.files[1].patch.contains("+new file"));
 
         let _ = std::fs::remove_dir_all(directory);
     }
