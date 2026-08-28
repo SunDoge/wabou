@@ -81,6 +81,7 @@ import { SessionForkDialog } from "./session-fork";
 import { SessionTitle } from "./session-title";
 import { SessionUsage } from "./session-usage";
 import { type AppSettings, SettingsPage } from "./settings";
+import { createPersistedRecord } from "./persisted-record";
 import { Sidebar } from "./sidebar";
 import { ScopedHandleRegistry } from "./scoped-handle-registry";
 import { AgentTerminalPanel } from "./terminal-panel";
@@ -143,12 +144,20 @@ export function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams<{ agentId?: string; sessionId?: string }>();
-  const [defaults, setDefaults] = createSignal<AppSettings>({
-    proxy: "",
-    noProxy: "127.0.0.1,localhost",
-    provider: "",
-    model: "",
-    subagentsEnabled: true,
+  const defaults = createPersistedRecord<AppSettings>({
+    initial: {
+      proxy: "",
+      noProxy: "127.0.0.1,localhost",
+      provider: "",
+      model: "",
+      subagentsEnabled: true,
+    },
+    load: api.getAppSettings,
+    save: api.saveAppSettings,
+    onLoadError: (error) =>
+      console.error(`[pi-agent] could not load app settings: ${String(error)}`),
+    onSaveError: (error) =>
+      console.error(`[pi-agent] could not save app settings: ${String(error)}`),
   });
   const [agents, setAgents] = createSignal<readonly AgentWorkspace[]>([
     createAgentWorkspace(1),
@@ -187,27 +196,11 @@ export function App() {
   const itemHandles = new ScopedHandleRegistry<Handle>();
   let nextMessage = 1;
   let profilesHydrated = false;
-  let settingsHydrated = false;
   const profileWriter = createDeferredWriter({
     write: (serialized: string) => api.saveAgents(JSON.parse(serialized)),
     onError: (error) =>
       console.error(`[pi-agent] could not save projects: ${String(error)}`),
   });
-  const settingsWriter = createDeferredWriter({
-    write: (serialized: string) => api.saveAppSettings(JSON.parse(serialized)),
-    onError: (error) =>
-      console.error(`[pi-agent] could not save app settings: ${String(error)}`),
-  });
-
-  void api
-    .getAppSettings()
-    .then(setDefaults)
-    .catch((error) => {
-      console.error(`[pi-agent] could not load app settings: ${String(error)}`);
-    })
-    .finally(() => {
-      settingsHydrated = true;
-    });
 
   void api
     .listAgents()
@@ -239,13 +232,6 @@ export function App() {
     (serialized) => {
       if (!profilesHydrated) return;
       profileWriter.schedule(serialized);
-    },
-  );
-  createEffect(
-    () => JSON.stringify(defaults()),
-    (serialized) => {
-      if (!settingsHydrated) return;
-      settingsWriter.schedule(serialized);
     },
   );
   const activeId = () => {
@@ -547,7 +533,6 @@ export function App() {
     unsubscribeExtensionUi();
     itemHandles.clear();
     profileWriter.flush();
-    settingsWriter.flush();
   });
 
   createEffect(
@@ -603,13 +588,15 @@ export function App() {
       const status = await api.start({
         agentId: agent.id,
         cwd: agent.cwd,
-        proxy: defaults().proxy.trim() || undefined,
-        noProxy: defaults().noProxy.trim() || undefined,
+        proxy: defaults.value().proxy.trim() || undefined,
+        noProxy: defaults.value().noProxy.trim() || undefined,
         provider:
-          agent.provider.trim() || defaults().provider.trim() || undefined,
-        model: agent.model.trim() || defaults().model.trim() || undefined,
+          agent.provider.trim() ||
+          defaults.value().provider.trim() ||
+          undefined,
+        model: agent.model.trim() || defaults.value().model.trim() || undefined,
         sessionId,
-        subagentsEnabled: defaults().subagentsEnabled,
+        subagentsEnabled: defaults.value().subagentsEnabled,
       });
       updateAgent(agent.id, (current) => ({
         ...current,
@@ -836,12 +823,10 @@ export function App() {
         when={location().pathname !== "/settings"}
         fallback={
           <SettingsPage
-            app={defaults()}
+            app={defaults.value()}
             project={active()}
             state={active().state}
-            updateApp={(patch) =>
-              setDefaults((current) => ({ ...current, ...patch }))
-            }
+            updateApp={defaults.update}
             updateProject={patchActive}
             deleteProject={() => void deleteActiveAgent()}
             setAutoCompaction={(enabled) =>
@@ -1044,7 +1029,7 @@ export function App() {
                 runtimeLogs={active().state.runtimeLogs}
                 provider={active().provider}
                 model={active().model}
-                proxy={defaults().proxy}
+                proxy={defaults.value().proxy}
                 updatePath={(cwd) => patchActive({ cwd })}
                 start={start}
                 openSettings={() => void navigate({ to: "/settings" })}
