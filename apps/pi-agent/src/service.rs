@@ -1127,7 +1127,14 @@ fn default_workspace(agent_id: &str) -> Result<String, String> {
         .document_dir()
         .unwrap_or_else(|| user.home_dir())
         .join("pi-agent");
-    Ok(root.join(agent_id).display().to_string())
+    let workspace = root.join(agent_id);
+    std::fs::create_dir_all(&workspace).map_err(|error| {
+        format!(
+            "could not create default workspace {}: {error}",
+            workspace.display()
+        )
+    })?;
+    Ok(workspace.display().to_string())
 }
 
 fn tag_event(agent_id: &str, mut event: Value) -> Value {

@@ -53,6 +53,32 @@ pub(super) fn pty_spawn_parts(launch: &LaunchConfig) -> (String, Vec<String>) {
     }
 }
 
+pub(super) fn validate_working_directory(cwd: Option<&str>) -> std::io::Result<()> {
+    let Some(cwd) = cwd else {
+        return Ok(());
+    };
+    let path = std::path::Path::new(cwd);
+    let metadata = std::fs::metadata(path).map_err(|error| {
+        std::io::Error::new(
+            error.kind(),
+            format!(
+                "terminal working directory `{}` is unavailable: {error}",
+                path.display()
+            ),
+        )
+    })?;
+    if !metadata.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotADirectory,
+            format!(
+                "terminal working directory `{}` is not a directory",
+                path.display()
+            ),
+        ));
+    }
+    Ok(())
+}
+
 /// Quote one argv item for the Windows `CommandLineToArgvW` rules.
 #[cfg(any(windows, test))]
 pub(super) fn quote_windows_command_arg(value: &str) -> String {

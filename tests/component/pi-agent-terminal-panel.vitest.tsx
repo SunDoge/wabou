@@ -38,3 +38,24 @@ test("keeps terminal tabs bound to the workspace where they were created", () =>
   screen.getByRole("button", { name: "Close terminal alpha" }).click();
   expect(closed).toBe(1);
 });
+
+test("offers terminal lifecycle actions from a secondary click", () => {
+  const screen = renderComponent(() => (
+    <AgentTerminalPanel
+      cwd="/work/alpha"
+      open
+      close={() => {}}
+      dispose={() => {}}
+    />
+  ));
+
+  screen.getByRole("group", { name: "alpha terminal surface" }).contextMenu();
+  screen.getByRole("menuitem", { name: "New terminal" }).click();
+  expect(screen.getAllByRole("tab")).toHaveLength(2);
+
+  screen
+    .getByRole("group", { name: "alpha terminal surface", index: 0 })
+    .contextMenu();
+  screen.getByRole("menuitem", { name: "Close terminal" }).click();
+  expect(screen.getAllByRole("tab")).toHaveLength(1);
+});

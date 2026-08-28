@@ -227,6 +227,20 @@ fn failed_terminal_spawn_can_be_reconfigured_without_retrying_each_frame() {
 }
 
 #[test]
+fn missing_working_directory_reports_the_path_before_spawning_env() {
+    let missing =
+        std::env::temp_dir().join(format!("wabou-terminal-missing-cwd-{}", std::process::id()));
+    let mut widget = TerminalWidget::lazy_default_shell();
+    widget.attribute_changed("cwd", &missing.display().to_string());
+    widget.ensure_launched();
+
+    let error = widget.spawn_error.as_deref().expect("spawn error");
+    assert!(error.contains("terminal working directory"), "{error}");
+    assert!(error.contains(&missing.display().to_string()), "{error}");
+    assert!(!error.contains("/usr/bin/env"), "{error}");
+}
+
+#[test]
 fn terminal_reports_physical_text_area_and_cell_dimensions() {
     let mut widget = TerminalWidget::headless(40, 10);
     widget.resize(340.0, 180.0, 2.0);

@@ -1,6 +1,8 @@
 import { Terminal } from "@wabou/terminal";
 import {
   Button,
+  ContextMenu,
+  type ContextMenuTriggerProps,
   type Handle,
   Icon,
   Text,
@@ -110,7 +112,8 @@ export function AgentTerminalPanel(
               >
                 <Icon source={squareTerminal} size={13} class="flex-none" />
                 <Text class="min-w-0 flex-1 truncate">
-                  {tab.title}{tab.exited ? " · exited" : ""}
+                  {tab.title}
+                  {tab.exited ? " · exited" : ""}
                 </Text>
                 <Button
                   variant="ghost"
@@ -150,29 +153,56 @@ export function AgentTerminalPanel(
       </View>
       <View class="min-h-0 flex-1 p-1">
         <For each={tabs()}>
-          {(tab) => (
-            <Terminal
-              ref={(node) => {
-                handles.set(tab.id, node);
-                if (untrack(activeId) === tab.id) focusTerminal(tab.id);
-              }}
-              aria-label={`${tab.title} terminal`}
-              cwd={tab.cwd}
-              class="w-full h-full overflow-hidden rounded-md bg-slate-950 text-slate-200"
-              style={{ display: activeId() === tab.id ? "flex" : "none" }}
-              inheritTheme
-              fontFamily="Hack Nerd Font Mono"
-              fontSize="13px"
-              lineHeight="19px"
-              selectionBackground="#2563eb80"
-              onTerminalTitleChange={(event) =>
-                updateTab(tab.id, {
-                  title: event.title?.trim() || workspaceName(tab.cwd),
-                })
-              }
-              onTerminalExit={() => updateTab(tab.id, { exited: true })}
-            />
-          )}
+          {(tab) => {
+            const terminal = (trigger: ContextMenuTriggerProps) => (
+              <View
+                {...trigger}
+                role="group"
+                aria-label={`${tab.title} terminal surface`}
+                class="w-full h-full"
+                style={{ display: activeId() === tab.id ? "flex" : "none" }}
+              >
+                <Terminal
+                  ref={(node) => {
+                    handles.set(tab.id, node);
+                    if (untrack(activeId) === tab.id) focusTerminal(tab.id);
+                  }}
+                  aria-label={`${tab.title} terminal`}
+                  cwd={tab.cwd}
+                  class="w-full h-full overflow-hidden rounded-md bg-slate-950 text-slate-200"
+                  inheritTheme
+                  fontFamily="Hack Nerd Font Mono"
+                  fontSize="13px"
+                  lineHeight="19px"
+                  selectionBackground="#2563eb80"
+                  onTerminalTitleChange={(event) =>
+                    updateTab(tab.id, {
+                      title: event.title?.trim() || workspaceName(tab.cwd),
+                    })
+                  }
+                  onTerminalExit={() => updateTab(tab.id, { exited: true })}
+                />
+              </View>
+            );
+            return (
+              <ContextMenu
+                aria-label="Terminal actions"
+                items={[
+                  { id: "new", label: "New terminal" },
+                  {
+                    id: "close",
+                    label: "Close terminal",
+                    separatorBefore: true,
+                  },
+                ]}
+                onAction={(id) => {
+                  if (id === "new") addTab();
+                  if (id === "close") closeTab(tab.id);
+                }}
+                trigger={terminal}
+              />
+            );
+          }}
         </For>
       </View>
     </View>

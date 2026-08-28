@@ -427,7 +427,9 @@ impl TerminalWidget {
             return;
         };
         self.launch_started = true;
-        if let Err(error) = validate_launch_command(&launch.command) {
+        if let Err(error) = validate_launch_command(&launch.command)
+            .and_then(|()| process::validate_working_directory(launch.cwd.as_deref()))
+        {
             self.spawn_error = Some(error.to_string());
             return;
         }
