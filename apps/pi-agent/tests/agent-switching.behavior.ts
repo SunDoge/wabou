@@ -205,6 +205,31 @@ test("opens and closes an embedded native terminal panel", async ({ page }) => {
   ).toBeUnpressed();
 });
 
+test("creates and closes terminal tabs without remounting the survivor", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Toggle terminal" }).click();
+  const first = page.getByRole("textbox", { name: "Terminal 1" });
+  await expect(first).toHaveCount(1);
+
+  await page.getByRole("button", { name: "New terminal" }).click();
+  const second = page.getByRole("textbox", { name: "Terminal 2" });
+  await expect(second).toHaveCount(1);
+  await second.type("printf wabou-second-terminal");
+  await second.press("Enter");
+  await expect(second).toBeFocused();
+
+  await page.getByRole("button", { name: "Close terminal 2" }).click();
+  await expect(second).toBeAbsent();
+  await expect(first).toHaveCount(1);
+  await expect(first).toBeFocused();
+
+  await page.getByRole("button", { name: "Close terminal panel" }).click();
+  await expect(
+    page.getByRole("region", { name: "Terminal panel" }),
+  ).toBeAbsent();
+});
+
 test("keeps retained layout stable across repeated agent switches", async ({
   page,
 }) => {

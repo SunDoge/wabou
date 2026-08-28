@@ -3,6 +3,7 @@ import {
   Button,
   ContextMenu,
   type ContextMenuTriggerProps,
+  createHover,
   ForEntity,
   type Handle,
   Icon,
@@ -101,37 +102,42 @@ export function AgentTerminalPanel(
           class="min-w-0 flex-1 flex flex-row items-center gap-1 overflow-hidden"
         >
           <ForEntity each={tabs()} by={(tab) => tab.id}>
-            {(tab) => (
-              <View
-                role="tab"
-                aria-selected={activeId() === tab.id}
-                class="h-7 min-w-28 max-w-56 flex flex-row items-center gap-2 rounded-md px-2 text-xs"
-                classList={{
-                  "bg-slate-700 text-white": activeId() === tab.id,
-                  "text-slate-400 hover:bg-slate-800": activeId() !== tab.id,
-                }}
-                onClick={() => setActiveId(tab.id)}
-              >
-                <Icon source={squareTerminal} size={13} class="flex-none" />
-                <Text class="min-w-0 flex-1 truncate">
-                  {tab.title()}
-                  {tab.exited() ? " · exited" : ""}
-                </Text>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Close terminal ${tab.title()}`}
-                  class="w-5 h-5 flex-none text-slate-400"
-                  style={{ padding: 0 }}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    closeTab(tab.id);
+            {(tab) => {
+              const hover = createHover();
+              return (
+                <View
+                  {...hover.bindings}
+                  role="tab"
+                  aria-selected={activeId() === tab.id}
+                  class="h-7 min-w-28 max-w-56 flex flex-row items-center gap-2 rounded-md px-2 text-xs"
+                  classList={{
+                    "bg-slate-700 text-white": activeId() === tab.id,
+                    "text-slate-400": activeId() !== tab.id,
+                    "bg-slate-800": activeId() !== tab.id && hover.hovered(),
                   }}
+                  onClick={() => setActiveId(tab.id)}
                 >
-                  <Icon source={x} size={12} />
-                </Button>
-              </View>
-            )}
+                  <Icon source={squareTerminal} size={13} class="flex-none" />
+                  <Text class="min-w-0 flex-1 truncate">
+                    {tab.title()}
+                    {tab.exited() ? " · exited" : ""}
+                  </Text>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Close terminal ${tab.id}`}
+                    class="w-5 h-5 flex-none text-slate-400"
+                    style={{ padding: 0 }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      closeTab(tab.id);
+                    }}
+                  >
+                    <Icon source={x} size={12} />
+                  </Button>
+                </View>
+              );
+            }}
           </ForEntity>
         </View>
         <Button
