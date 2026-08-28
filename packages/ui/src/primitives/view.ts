@@ -343,6 +343,11 @@ export function Icon(props: IconProps): JSX.Element {
           height: iconSize,
           "flex-shrink": 0,
           "line-height": "1",
+          // Icon is visual content, never the interaction owner. Keeping it
+          // out of native hit testing makes an enclosing Button receive the
+          // complete pointer gesture directly; callers can opt back in with
+          // an explicit style when building a genuinely interactive graphic.
+          "pointer-events": "none",
           ...(props.style ?? {}),
         };
       },

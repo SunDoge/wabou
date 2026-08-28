@@ -39,6 +39,57 @@ test("tests a reactive component through its authored role and name", () => {
   expect(screen.getByRole("status", { name: "Count 1" }).text).toBe("1");
 });
 
+test("keeps a forwarded Button disabled state reactive", async () => {
+  const App = () => {
+    const [available, setAvailable] = createSignal(false);
+    return (
+      <View>
+        <Button
+          aria-label="Run"
+          disabled={!available()}
+          onClick={() => setAvailable(false)}
+        />
+        <Button aria-label="Enable run" onClick={() => setAvailable(true)} />
+      </View>
+    );
+  };
+
+  const screen = renderComponent(App);
+  const run = screen.getByRole("button", { name: "Run" });
+  expect(run.disabled).toBe(true);
+
+  screen.getByRole("button", { name: "Enable run" }).click();
+  await screen.waitFor(() => expect(run.disabled).toBe(false));
+
+  run.click();
+  await screen.waitFor(() => expect(run.disabled).toBe(true));
+});
+
+test("activates a forwarded Button and publishes controlled pressed state", async () => {
+  const App = () => {
+    const [open, setOpen] = createSignal(false);
+    return (
+      <View>
+        <Button
+          aria-label="Toggle panel"
+          aria-pressed={open()}
+          onClick={() => setOpen((value) => !value)}
+        />
+        <Show when={open()}>
+          <View role="group" aria-label="Panel" />
+        </Show>
+      </View>
+    );
+  };
+
+  const screen = renderComponent(App);
+  const toggle = screen.getByRole("button", { name: "Toggle panel" });
+  expect(toggle.pressed).toBe(false);
+  toggle.click();
+  await screen.waitFor(() => expect(toggle.pressed).toBe(true));
+  expect(screen.getByRole("group", { name: "Panel" })).toBeDefined();
+});
+
 test("strict queries reject ambiguous components", () => {
   const screen = renderComponent(() => (
     <View>
