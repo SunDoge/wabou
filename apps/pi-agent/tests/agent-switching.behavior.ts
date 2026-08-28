@@ -22,6 +22,32 @@ test("starts a deterministic Pi agent and renders its streamed response", async 
   ).toHaveCount(1);
 });
 
+test("keeps the active workspace usable at its minimum window size", async ({
+  page,
+  window,
+}) => {
+  await window.resize(window.current, 1180, 680);
+
+  const composer = page.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+  const send = page.getByRole("button", { name: "Send" });
+  const newThread = page.getByRole("button", { name: "New thread" });
+  const model = page.getByRole("combobox", { name: "Choose model" });
+  for (const control of [composer, send, newThread, model]) {
+    await expect(control).toBeInViewport();
+  }
+  await expect(newThread).toNotOverlap(composer);
+
+  const terminalToggle = page.getByRole("button", { name: "Toggle terminal" });
+  await terminalToggle.click();
+  await expect(
+    page.getByRole("region", { name: "Terminal panel" }),
+  ).toBeInViewport();
+  await expect(composer).toBeInViewport();
+  await page.getByRole("button", { name: "Close terminal panel" }).click();
+});
+
 test("returns to an existing agent after creating a new one", async ({
   page,
 }) => {
