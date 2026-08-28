@@ -7,6 +7,7 @@
 
 #![warn(missing_docs)]
 
+mod actor;
 mod applier;
 mod asset_cache;
 mod atom;
@@ -15,6 +16,7 @@ mod clock;
 mod config;
 mod effect_trace;
 mod error;
+mod headless_test;
 mod host;
 #[cfg(test)]
 pub(crate) mod host_abi;
@@ -33,6 +35,8 @@ mod serial_worker;
 mod source_map;
 mod style_ir;
 mod test_driver;
+mod test_report;
+mod ui_inbox;
 
 #[cfg(test)]
 mod css_support_matrix_test;
@@ -49,7 +53,7 @@ pub use host::{
     managed_host_service,
 };
 pub use host_frame::{
-    HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, ResizeObservation,
+    HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, NumericEventData, ResizeObservation,
 };
 pub use host_message::{
     DEFAULT_HOST_MESSAGE_CAPACITY, HostMessage, HostMessageContext, HostMessageError,

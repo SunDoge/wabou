@@ -236,6 +236,27 @@ const assertMessageLayout = (snapshot: LayoutSnapshot) => {
     throw new Error(`message text was compressed to ${text.rect.width}px`);
 };
 
+const assertMarkdownInlineLayout = (snapshot: LayoutSnapshot) => {
+  const candidates = snapshot.nodes.filter((node) => node.text != null);
+  const paragraph = candidates.find(
+    (node) => node.text === "Before code after.",
+  );
+  if (!paragraph)
+    throw new Error(
+      `RichText text mismatch: ${JSON.stringify(candidates.map((node) => node.text))}`,
+    );
+  if (!paragraph.textMetrics)
+    throw new Error("RichText did not publish native text metrics");
+  if (paragraph.textMetrics.lineBox.height > 28)
+    throw new Error(
+      `RichText wrapped an inline paragraph: height=${paragraph.textMetrics.lineBox.height}px`,
+    );
+  if (paragraph.textMetrics.lineBox.width < 110)
+    throw new Error(
+      `RichText collapsed inline whitespace: width=${paragraph.textMetrics.lineBox.width}px`,
+    );
+};
+
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   // Carousel tracks and message reactions deliberately extend past their
   // logical content box; their component-specific clipping is tested lower.
@@ -261,6 +282,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/QRCode": { assert: assertQrCodeLayout },
   "component/IconFrame": { assert: assertIconFrameLayout },
   "component/InputGroup": { assert: assertInputGroupLayout },
+  "component/MarkdownInline": { assert: assertMarkdownInlineLayout },
   "component/Message": { assert: assertMessageLayout },
 };
 const fixtureCase = (id: string) => {

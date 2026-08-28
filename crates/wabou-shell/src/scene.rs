@@ -10,7 +10,7 @@ use vello::peniko::{BlendMode, Color, Fill};
 use crate::layout::{PlacedNode, SubtreeEvent, subtree_events};
 use crate::scrollbar::{ScrollAxis, thumb as scrollbar_thumb, track as scrollbar_track};
 use crate::style::{IrLength, PaintTransform, Shadow};
-use crate::text::{OUTLINE_FALLBACK, OutlineFallback, TextContext};
+use crate::text::TextContext;
 
 /// Resolve the node-local static CSS and runtime affine transforms separately.
 pub fn resolve_local_transforms(node: &PlacedNode) -> (Affine, Affine) {
@@ -77,23 +77,12 @@ fn widget_clip(node: &PlacedNode) -> Option<([f32; 4], f64)> {
         .map(|clip| (clip, node.own_clip_radius as f64))
 }
 
-fn append_widget(scene: &mut Scene, node: &PlacedNode, widget: &Scene, transform: Affine) {
-    let radius = node.paint.border_radius as f64;
-    if radius <= 0.0 {
-        append_fragment(scene, widget, Some(transform));
-        return;
-    }
-    let [top, right, bottom, left] = node.border_widths;
-    let inner_radius = (radius - top.max(right).max(bottom).max(left) as f64).max(0.0);
-    let [width, height] = node.content_size;
-    let mut clipped = Scene::new();
-    clipped.push_clip_layer(
-        Affine::IDENTITY,
-        &Rect::new(0.0, 0.0, width as f64, height as f64).to_rounded_rect(inner_radius),
-    );
-    append_fragment(&mut clipped, widget, None);
-    clipped.pop_layer();
-    append_fragment(scene, &clipped, Some(transform));
+fn append_widget(scene: &mut Scene, widget: &Scene, transform: Affine) {
+    // Widget fragments are already clipped in content-local coordinates by
+    // PaintContext. Wrapping an appended fragment in a second rounded layer
+    // duplicates clip and draw-info encoding on every frame, including the
+    // transient scene produced for IME preedit text.
+    append_fragment(scene, widget, Some(transform));
 }
 
 /// Append one retained backend-neutral scene fragment.
@@ -426,6 +415,7 @@ pub fn layout_node_text(
             text.clone(),
             node.paint.font_size,
             node.paint.font_weight,
+            node.paint.font_italic,
             node.paint.letter_spacing,
             node.paint.line_height,
             node.paint.text_align,
@@ -442,6 +432,7 @@ pub fn layout_node_text(
             text.clone(),
             node.paint.font_size,
             node.paint.font_weight,
+            node.paint.font_italic,
             node.paint.letter_spacing,
             node.paint.line_height,
             node.paint.text_align,
@@ -463,18 +454,10 @@ fn draw_outline_fallback(
     device_scale: f64,
 ) {
     let transform = text_transform * Affine::scale(device_scale.recip());
-    match OUTLINE_FALLBACK {
-        OutlineFallback::DirectNativeWeight => {
-            // Direct encoding avoids a retained-fragment issue on Metal. It
-            // also keeps transformed/faux-style fallback text at the native
-            // font weight instead of geometrically emboldening it.
-            tcx.draw_native_weight_layout_into(scene, layout, transform, device_scale);
-        }
-        OutlineFallback::RetainedSyntheticWeight => {
-            let glyph_scene = tcx.glyph_scene_scaled(layout, device_scale);
-            append_fragment(scene, &glyph_scene, Some(transform));
-        }
-    }
+    // Direct encoding avoids a retained-fragment issue on Metal. It also
+    // keeps transformed/faux-style fallback text at the native font weight
+    // instead of geometrically emboldening it.
+    tcx.draw_native_weight_layout_into(scene, layout, transform, device_scale);
 }
 
 enum Layer {
@@ -606,7 +589,6 @@ pub fn build_scene_scaled(
             }
             append_widget(
                 scene,
-                n,
                 ws,
                 node_transform
                     * Affine::translate((n.content_origin[0] as f64, n.content_origin[1] as f64)),
@@ -627,13 +609,6 @@ pub fn build_scene_scaled(
 mod tests {
     use super::*;
     use crate::style::{Paint, PaintTransform, Shadow};
-    use std::sync::Mutex;
-
-    // wgpu's Linux software/EGL backend is not safe to initialize concurrently
-    // in the same test process. Keep pixel tests parallel with the rest of the
-    // suite while serializing only renderer creation.
-    static OFFSCREEN_RENDER_LOCK: Mutex<()> = Mutex::new(());
-
     fn placed_node(paint: Paint) -> PlacedNode {
         PlacedNode {
             node_id: taffy::tree::NodeId::from(0_u64),
@@ -706,6 +681,10 @@ mod tests {
     #[test]
     fn rounded_native_widget_is_clipped_without_overflow_hidden() {
         let mut widget = Scene::new();
+        widget.push_clip_layer(
+            Affine::IDENTITY,
+            &Rect::new(0.0, 0.0, 80.0, 80.0).to_rounded_rect(12.0),
+        );
         widget.fill(
             Fill::NonZero,
             Affine::IDENTITY,
@@ -713,6 +692,7 @@ mod tests {
             None,
             &Rect::new(0.0, 0.0, 80.0, 80.0),
         );
+        widget.pop_layer();
         let mut node = placed_node(Paint {
             border_radius: 12.0,
             widget: Some(std::sync::Arc::new(widget)),
@@ -763,7 +743,6 @@ mod tests {
 
     #[test]
     fn overlay_scrollbar_pixels_scale_once_at_one_and_two_x() {
-        let _render_guard = OFFSCREEN_RENDER_LOCK.lock().expect("offscreen render lock");
         let mut node = placed_node(Paint::default());
         node.rect = [0.0, 0.0, 100.0, 100.0];
         node.content_origin = [0.0, 0.0];
@@ -829,7 +808,6 @@ mod tests {
     }
 
     fn render_nodes(nodes: &[PlacedNode], name: &str) -> image::RgbaImage {
-        let _render_guard = OFFSCREEN_RENDER_LOCK.lock().expect("offscreen render lock");
         let mut scene = Scene::new();
         build_scene_scaled(
             &mut scene,

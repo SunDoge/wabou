@@ -53,9 +53,10 @@ pub use error::{Error, Result};
 pub use shell::Shell;
 pub use shortcut::StandardShortcut;
 pub use source::{
-    ClipboardRequest, ColorScheme, EventResponse, FileDropEvent, FileDropPhase, FrameSource,
-    FrameStats, HostAction, HostActionResult, ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers,
-    Point, PointerButton, PointerEvent, PointerPhase, RendererBackend, ScreenshotRequest,
+    AppLifecycleEvent, ClipboardRequest, ColorScheme, EventResponse, FileDropEvent, FileDropPhase,
+    FrameSource, FrameStats, GestureEvent, GesturePhase, HostAction, HostActionResult, ImeEvent,
+    KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent, PointerId,
+    PointerPhase, PointerProperties, PointerType, RendererBackend, ScreenshotRequest,
     SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
     SemanticStates, SemanticToggleState, UiEvent, WHEEL_LINE_DELTA, WakeCallback, WheelEvent,
     WindowCommand, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
@@ -64,7 +65,7 @@ pub use text::TextContext;
 pub use widget::{
     MeasureContext, PaintContext, Widget, WidgetAccessibility, WidgetAvailableSpace, WidgetChanges,
     WidgetEventResult, WidgetFactory, WidgetGeometry, WidgetHarness, WidgetNodeEvent, WidgetStyle,
-    decode_widget_config,
+    WidgetTextSelection, WidgetTextSelectionKind, decode_widget_config,
 };
 pub use window_state::WindowSizePersistence;
 pub use winit::raw_window_handle;

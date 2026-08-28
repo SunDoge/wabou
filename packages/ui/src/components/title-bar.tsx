@@ -7,7 +7,7 @@ import {
   type WabouClassList,
   type WabouStyle,
 } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { useComponentsTheme } from "./theme";
 
 export interface WindowFrameProps extends ViewProps {
@@ -73,7 +73,7 @@ export function WindowFrame(props: WindowFrameProps): JSX.Element {
     >
       <View
         {...props}
-        class={join("w-full h-full", props.class)}
+        class={mergeClasses("w-full h-full", props.class)}
         classList={windowFrameClientClassList(
           window.maximized(),
           props.rounded !== false,
@@ -121,7 +121,7 @@ export function TitleBar(props: TitleBarProps): JSX.Element {
   return (
     <View
       {...props}
-      class={join(titleBarClass, props.class)}
+      class={mergeClasses(titleBarClass, props.class)}
       style={{ ...titleBarLayoutStyle, ...props.style }}
     />
   );

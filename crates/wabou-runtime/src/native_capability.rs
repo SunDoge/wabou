@@ -49,6 +49,70 @@ pub struct NativeCapability<'js> {
 }
 
 impl<'js> NativeCapability<'js> {
+    /// Install a typed method whose function body can be replaced by
+    /// Subsecond without restarting the Wabou host.
+    ///
+    /// Only function pointers are accepted so long-lived state remains owned
+    /// by the stable host instead of a replaceable closure environment.
+    pub fn hot_method<Request, Response, Error, HandlerFuture>(
+        &self,
+        method: HostMethod<Request, Response>,
+        handler: fn(Request) -> HandlerFuture,
+    ) -> rquickjs::Result<()>
+    where
+        Request: DeserializeOwned + 'static,
+        Response: Serialize + 'static,
+        Error: Display + 'static,
+        HandlerFuture: Future<Output = Result<Response, Error>> + 'static,
+    {
+        #[cfg(not(feature = "rust-hot-reload"))]
+        return self.method(method, handler);
+
+        #[cfg(feature = "rust-hot-reload")]
+        {
+            let handler = std::sync::Arc::new(std::sync::Mutex::new(
+                dioxus_devtools::subsecond::HotFn::current(handler),
+            ));
+            self.method(method, move |request| {
+                handler
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .call((request,))
+            })
+        }
+    }
+
+    /// Install a hot typed method with state retained by the stable host.
+    pub fn hot_method_with<State, Request, Response, Error, HandlerFuture>(
+        &self,
+        method: HostMethod<Request, Response>,
+        state: State,
+        handler: fn(State, Request) -> HandlerFuture,
+    ) -> rquickjs::Result<()>
+    where
+        State: Clone + rquickjs::markers::ParallelSend + 'static,
+        Request: DeserializeOwned + 'static,
+        Response: Serialize + 'static,
+        Error: Display + 'static,
+        HandlerFuture: Future<Output = Result<Response, Error>> + 'static,
+    {
+        #[cfg(not(feature = "rust-hot-reload"))]
+        return self.method(method, move |request| handler(state.clone(), request));
+
+        #[cfg(feature = "rust-hot-reload")]
+        {
+            let handler = std::sync::Arc::new(std::sync::Mutex::new(
+                dioxus_devtools::subsecond::HotFn::current(handler),
+            ));
+            self.method(method, move |request| {
+                handler
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .call((state.clone(), request))
+            })
+        }
+    }
+
     /// Install a typed asynchronous native method.
     pub fn method<Request, Response, Error, Handler, HandlerFuture>(
         &self,

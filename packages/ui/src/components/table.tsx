@@ -6,7 +6,7 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export interface TableProps extends Omit<ViewProps, "class"> {
   class?: string;
@@ -27,13 +27,13 @@ export function Table(props: TableProps): JSX.Element {
     <View
       {...rest}
       role="table"
-      class={join(
+      class={mergeClasses(
         "relative w-full min-w-0 overflow-x-auto overflow-y-hidden",
         props.class,
       )}
     >
       <View
-        class={join(
+        class={mergeClasses(
           "w-full min-w-full flex-none flex flex-col text-sm",
           props.contentClass,
         )}
@@ -50,7 +50,10 @@ export function TableHeader(props: ViewProps): JSX.Element {
       {...props}
       role="group"
       aria-label={props["aria-label"] ?? "Table header"}
-      class={join("w-full min-w-0 flex-none flex flex-col", props.class)}
+      class={mergeClasses(
+        "w-full min-w-0 flex-none flex flex-col",
+        props.class,
+      )}
     >
       {props.children}
     </View>
@@ -63,7 +66,10 @@ export function TableBody(props: ViewProps): JSX.Element {
       {...props}
       role="group"
       aria-label={props["aria-label"] ?? "Table body"}
-      class={join("w-full min-w-0 flex-none flex flex-col", props.class)}
+      class={mergeClasses(
+        "w-full min-w-0 flex-none flex flex-col",
+        props.class,
+      )}
     >
       {props.children}
     </View>
@@ -76,7 +82,7 @@ export function TableFooter(props: ViewProps): JSX.Element {
       {...props}
       role="group"
       aria-label={props["aria-label"] ?? "Table footer"}
-      class={join(
+      class={mergeClasses(
         "w-full min-w-0 flex-none flex flex-col border-t border-subtle bg-control",
         props.class,
       )}
@@ -106,7 +112,7 @@ export function TableRow(props: TableRowProps): JSX.Element {
       {...rest}
       role="row"
       aria-selected={props.selected}
-      class={join(
+      class={mergeClasses(
         "w-full min-w-0 min-h-11 flex-none flex flex-row items-stretch border-b border-subtle",
         props.selected ? "bg-selected" : "bg-surface",
         hover.hovered() && !props.selected ? "bg-control-hover" : undefined,
@@ -135,7 +141,7 @@ export function TableHead(props: TableHeadProps): JSX.Element {
     <Text
       {...props}
       role="columnheader"
-      class={join(
+      class={mergeClasses(
         "min-w-32 flex-1 px-3 flex items-center whitespace-nowrap text-xs font-medium text-muted",
         props.class,
       )}
@@ -154,7 +160,7 @@ export function TableCell(props: TableCellProps): JSX.Element {
     <View
       {...props}
       role="cell"
-      class={join(
+      class={mergeClasses(
         "min-w-32 flex-1 px-3 flex items-center text-sm text-primary",
         props.class,
       )}
@@ -169,7 +175,7 @@ export function TableCaption(props: TextProps): JSX.Element {
     <Text
       {...props}
       role={props.role ?? "label"}
-      class={join(
+      class={mergeClasses(
         "w-full min-w-0 flex-none px-3 py-3 whitespace-normal text-sm text-muted",
         props.class,
       )}

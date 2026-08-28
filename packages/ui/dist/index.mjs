@@ -1,8 +1,8 @@
-import { $ as translate2d$1, A as isSelected, B as createButton, C as OverlayPlaneProvider, D as Column, E as Center, F as createPresence, G as Path, H as Icon, I as createContainerMatch, J as Text, K as PathBuilder, L as createMeasuredSize, M as FORM_ERROR, N as createFormDraft, O as Row, P as CollapsiblePresence, Q as rotate2d$1, R as Button$1, S as createTransitionPresence, St as useReducedMotion, U as Image, V as CodeEditor, W as PasswordInput$1, X as TextInput, Y as TextArea, Z as View, _ as createRetainedItems, _t as createSweep, a as ScrollArea, at as createAnimationFrame, b as Spin, bt as MotionConfigProvider, ct as createOwnedImageResource, dt as animateKeyframes, et as createActive, ft as createInterpolation, g as createNotifications, gt as createRotation, h as NotificationRegion, ht as createPulse, i as createScrollReset, it as createFocusWithin, j as toggleSelection, k as createKeyedSelection, lt as releaseImageResource, mt as createLoop, n as createTabs, nt as createHover, o as Popover$1, ot as createFileImageResource, pt as createKeyframeAnimation, q as Svg, r as createShortcuts, rt as createFocus, st as createNetworkImageResource, t as primitives_exports, tt as createPress, ut as animate, v as Pulse, vt as createTransition, w as createOverlayLayer, x as Modal, xt as useMotionConfig, y as Ripple, yt as normalizeSweepGeometry, z as Link } from "./primitives-DIx_hD2G.mjs";
+import { $ as Svg, A as isSelected, B as createContainerMatch, C as OverlayPlaneProvider, Ct as useMotionConfig, D as Column, E as Center, F as createNetworkImageResource, G as CodeEditor, H as Button$1, I as createOwnedImageResource, J as PasswordInput$1, K as Icon, L as releaseImageResource, M as FORM_ERROR, N as createFormDraft, O as Row, P as createFileImageResource, Q as RichTextSpan, R as CollapsiblePresence, S as createTransitionPresence, St as MotionConfigProvider, U as Link, V as createMeasuredSize, W as createButton, X as PathBuilder, Y as Path, Z as RichText, _ as createRetainedItems, _t as createPulse, a as ScrollArea, at as translate2d$1, b as Spin, bt as createTransition, ct as createHover, dt as createAnimationFrame, et as Text, ft as animate, g as createNotifications, gt as createLoop, h as NotificationRegion, ht as createKeyframeAnimation, i as createScrollReset, it as rotate2d$1, j as toggleSelection, k as createKeyedSelection, lt as createFocus, mt as createInterpolation, n as createTabs, nt as TextInput, o as Popover$1, ot as createActive, pt as animateKeyframes, q as Image, r as createShortcuts, rt as View, st as createPress, t as primitives_exports, tt as TextArea, ut as createFocusWithin, v as Pulse, vt as createRotation, w as createOverlayLayer, wt as useReducedMotion, x as Modal, xt as normalizeSweepGeometry, y as Ripple, yt as createSweep, z as createPresence } from "./primitives-D5SrePwu.mjs";
 import { rgba, useClipboard, useDialog, useFileDrop, useHost, useWindow } from "@wabou/core";
 import { mergeClasses, rgba as rgba$1, scale2d, shadow } from "@wabou/core/style";
-import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
-import { VirtualList, applyRef, createComponent as createComponent$1, createFps, memo, mergeProps } from "@wabou/core/renderer";
+import { For, Match, Show, Switch as Switch$1, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
+import { VirtualList, applyRef, createComponent as createComponent$1, createFps, memo, mergeProps, useHost as useHost$1 } from "@wabou/core/renderer";
 import { P, match } from "ts-pattern";
 import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
 import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
@@ -18,6 +18,8 @@ import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import fileUp from "lucide-static/icons/file-up.svg?raw";
 import pencil from "lucide-static/icons/pencil.svg?raw";
 import minus from "lucide-static/icons/minus.svg?raw";
+import { lexer } from "marked";
+import remend from "remend";
 import check from "lucide-static/icons/check.svg?raw";
 import ellipsis from "lucide-static/icons/ellipsis.svg?raw";
 import { NumberFormatter, NumberParser } from "@internationalized/number";
@@ -34,15 +36,10 @@ import { createMemoryHistory, createMemoryHistory as createMemoryHistory$1 } fro
 import { BaseRootRoute, BaseRoute, RouterCore, notFound, redirect } from "@tanstack/router-core";
 export * from "@wabou/core";
 export * from "@wabou/core/i18n";
-//#region src/components/class-names.ts
-function join(...values) {
-	return values.filter(Boolean).join(" ");
-}
-//#endregion
 //#region src/components/badge.tsx
 function badgeClass(variant = "default", weight = "medium", className) {
 	const colors = match(variant).with("default", () => "bg-accent border-accent text-on-accent").with("secondary", () => "bg-control border-subtle text-primary").with("outline", () => "bg-transparent border-strong text-secondary").with("ghost", () => "bg-transparent border-transparent text-secondary").with("link", () => "bg-transparent border-transparent text-accent").with("success", () => "bg-success-surface border-success-primary text-success-primary").with("destructive", () => "bg-danger-surface border-danger text-danger-primary").exhaustive();
-	return join("flex-none overflow-hidden whitespace-nowrap rounded-full border px-2 py-0.5 text-xs", weight === "normal" ? "font-normal" : "font-medium", colors, className);
+	return mergeClasses("flex-none overflow-hidden whitespace-nowrap rounded-full border px-2 py-0.5 text-xs", weight === "normal" ? "font-normal" : "font-medium", colors, className);
 }
 /** Compact status text with shadcn-compatible visual variants. */
 function Badge(props) {
@@ -93,7 +90,7 @@ function Alert(props) {
 					return props["aria-label"] ?? props.title;
 				},
 				get ["class"]() {
-					return join("w-full min-w-0 flex flex-row items-start gap-3 rounded-lg border p-4 shadow-xs", colors().container, props.class);
+					return mergeClasses("w-full min-w-0 flex flex-row items-start gap-3 rounded-lg border p-4 shadow-xs", colors().container, props.class);
 				},
 				get children() {
 					return [memo(() => {
@@ -119,13 +116,13 @@ function Alert(props) {
 function AlertTitle(props) {
 	const context = useContext(AlertContext);
 	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
-		return join("w-full min-w-0 text-sm font-semibold", alertColors(context.variant()).title, props.class);
+		return mergeClasses("w-full min-w-0 text-sm font-semibold", alertColors(context.variant()).title, props.class);
 	} }));
 }
 function AlertDescription(props) {
 	const context = useContext(AlertContext);
 	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
-		return join("w-full min-w-0 whitespace-normal text-sm", alertColors(context.variant()).description, props.class);
+		return mergeClasses("w-full min-w-0 whitespace-normal text-sm", alertColors(context.variant()).description, props.class);
 	} }));
 }
 //#endregion
@@ -146,22 +143,22 @@ function buttonColors(variant, state) {
 	}).with({
 		variant: "default",
 		pressed: true
-	}, () => join("bg-accent-pressed border-transparent text-on-accent", focus)).with({
+	}, () => mergeClasses("bg-accent-pressed border-transparent text-on-accent", focus)).with({
 		variant: "default",
 		hovered: true
-	}, () => join("bg-accent-hover border-transparent text-on-accent", focus)).with({ variant: "default" }, () => join("bg-accent border-transparent text-on-accent", focus)).with({
+	}, () => mergeClasses("bg-accent-hover border-transparent text-on-accent", focus)).with({ variant: "default" }, () => mergeClasses("bg-accent border-transparent text-on-accent", focus)).with({
 		variant: "destructive",
 		pressed: true
-	}, () => join("bg-danger-pressed border-transparent text-on-accent", focus)).with({
+	}, () => mergeClasses("bg-danger-pressed border-transparent text-on-accent", focus)).with({
 		variant: "destructive",
 		hovered: true
-	}, () => join("bg-danger-hover border-transparent text-on-accent", focus)).with({ variant: "destructive" }, () => join("bg-danger border-transparent text-on-accent", focus)).with({
+	}, () => mergeClasses("bg-danger-hover border-transparent text-on-accent", focus)).with({ variant: "destructive" }, () => mergeClasses("bg-danger border-transparent text-on-accent", focus)).with({
 		variant: "secondary",
 		pressed: true
-	}, () => join("bg-control-pressed border-transparent text-primary", focus)).with({
+	}, () => mergeClasses("bg-control-pressed border-transparent text-primary", focus)).with({
 		variant: "secondary",
 		hovered: true
-	}, () => join("bg-control-hover border-transparent text-primary", focus)).with({ variant: "secondary" }, () => join("bg-control border-transparent text-primary", focus)).with({ pressed: true }, ({ variant: value }) => join("bg-control-pressed text-secondary", passiveBorder(value), focus)).with({ hovered: true }, ({ variant: value }) => join("bg-control-hover text-secondary", passiveBorder(value), focus)).with({ variant: P.union("outline", "ghost") }, ({ variant: value }) => join("bg-transparent text-secondary", passiveBorder(value), focus)).exhaustive();
+	}, () => mergeClasses("bg-control-hover border-transparent text-primary", focus)).with({ variant: "secondary" }, () => mergeClasses("bg-control border-transparent text-primary", focus)).with({ pressed: true }, ({ variant: value }) => mergeClasses("bg-control-pressed text-secondary", passiveBorder(value), focus)).with({ hovered: true }, ({ variant: value }) => mergeClasses("bg-control-hover text-secondary", passiveBorder(value), focus)).with({ variant: P.union("outline", "ghost") }, ({ variant: value }) => mergeClasses("bg-transparent text-secondary", passiveBorder(value), focus)).exhaustive();
 }
 function buttonSize(size) {
 	return match(size).with("sm", () => "h-6 px-2 text-xs").with("default", () => "h-8 px-3 text-sm").with("lg", () => "h-10 px-4 text-base").with("icon", () => "w-8 h-8 p-0 text-sm").exhaustive();
@@ -174,7 +171,7 @@ function Button(props) {
 	const groupOrientation = useButtonGroupOrientation();
 	return createComponent$1(Button$1, mergeProps(forwarded, {
 		unstyled: true,
-		class: (state) => join("inline-flex flex-none whitespace-nowrap items-center justify-center gap-2 rounded-md border font-medium", buttonColors(variant(), state), buttonSize(size()), groupOrientation && "rounded-none border-transparent", local.class),
+		class: (state) => mergeClasses("inline-flex flex-none whitespace-nowrap items-center justify-center gap-2 rounded-md border font-medium", buttonColors(variant(), state), buttonSize(size()), groupOrientation && "rounded-none border-transparent", local.class),
 		style: (state) => ({
 			"border-width": 1,
 			opacity: state.disabled ? .45 : 1,
@@ -260,7 +257,7 @@ function Dialog(props) {
 			};
 		},
 		get contentClass() {
-			return join("w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-lg border border-subtle bg-surface p-5", props.contentClass);
+			return mergeClasses("w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-lg border border-subtle bg-surface p-5", props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -272,7 +269,7 @@ function Dialog(props) {
 function DialogHeader(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("flex flex-col gap-1", props.class);
+			return mergeClasses("flex flex-col gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -282,7 +279,7 @@ function DialogHeader(props) {
 function DialogFooter(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("flex items-center justify-end gap-2", props.class);
+			return mergeClasses("flex items-center justify-end gap-2", props.class);
 		},
 		get children() {
 			return props.children;
@@ -292,7 +289,7 @@ function DialogFooter(props) {
 function DialogScrollBody(props) {
 	return createComponent$1(ScrollArea, mergeProps(props, {
 		get ["class"]() {
-			return join("min-h-0 flex-1", props.class);
+			return mergeClasses("min-h-0 flex-1", props.class);
 		},
 		get contentClass() {
 			return props.contentClass;
@@ -305,7 +302,7 @@ function DialogScrollBody(props) {
 function DialogTitle(props) {
 	return createComponent$1(Text, {
 		get ["class"]() {
-			return join("text-lg font-semibold text-primary", props.class);
+			return mergeClasses("text-lg font-semibold text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -315,7 +312,7 @@ function DialogTitle(props) {
 function DialogDescription(props) {
 	return createComponent$1(Text, {
 		get ["class"]() {
-			return join("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
+			return mergeClasses("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -391,7 +388,7 @@ function AspectRatio(props) {
 	return createComponent$1(View, mergeProps(rest, {
 		"data-wabou-owns": "clip",
 		get ["class"]() {
-			return join("w-full min-w-0 overflow-hidden", props.class);
+			return mergeClasses("w-full min-w-0 overflow-hidden", props.class);
 		},
 		get style() {
 			return aspectRatioStyle(props.ratio, props.style);
@@ -412,7 +409,7 @@ function attachmentClass(options) {
 	const state = options.state ?? "done";
 	const size = options.size ?? "default";
 	const orientation = options.orientation ?? "horizontal";
-	return join("max-w-full min-w-0 flex-none flex border bg-surface text-primary", match(orientation).with("horizontal", () => "min-w-40 flex-row flex-wrap items-center").with("vertical", () => "w-28 flex-col items-stretch").exhaustive(), match(size).with("default", () => "gap-2 rounded-xl p-2 text-sm").with("sm", () => "gap-2 rounded-lg p-1.5 text-xs").with("xs", () => "gap-1.5 rounded-md p-1 text-xs").exhaustive(), match(state).with("idle", () => "border-strong").with("uploading", () => "border-focus").with("processing", () => "border-accent").with("error", () => "border-danger bg-danger-surface").with("done", () => "border-subtle").exhaustive(), options.class);
+	return mergeClasses("max-w-full min-w-0 flex-none flex border bg-surface text-primary", match(orientation).with("horizontal", () => "min-w-40 flex-row flex-wrap items-center").with("vertical", () => "w-28 flex-col items-stretch").exhaustive(), match(size).with("default", () => "gap-2 rounded-xl p-2 text-sm").with("sm", () => "gap-2 rounded-lg p-1.5 text-xs").with("xs", () => "gap-1.5 rounded-md p-1 text-xs").exhaustive(), match(state).with("idle", () => "border-strong").with("uploading", () => "border-focus").with("processing", () => "border-accent").with("error", () => "border-danger bg-danger-surface").with("done", () => "border-subtle").exhaustive(), options.class);
 }
 /** File/task summary anatomy adapted from shadcn without DOM data selectors. */
 function Attachment(props) {
@@ -445,7 +442,7 @@ function attachmentMediaClass(variant, context, className) {
 	const size = context.size();
 	const orientation = context.orientation();
 	const state = context.state();
-	return join("aspect-square flex-none overflow-hidden flex items-center justify-center rounded-lg", orientation === "vertical" ? "w-full" : match(size).with("default", () => "w-10").with("sm", () => "w-8").with("xs", () => "w-7").exhaustive(), state === "error" ? "bg-danger-surface text-danger-primary" : "bg-control text-primary", variant === "image" && state !== "done" && "opacity-60", className);
+	return mergeClasses("aspect-square flex-none overflow-hidden flex items-center justify-center rounded-lg", orientation === "vertical" ? "w-full" : match(size).with("default", () => "w-10").with("sm", () => "w-8").with("xs", () => "w-7").exhaustive(), state === "error" ? "bg-danger-surface text-danger-primary" : "bg-control text-primary", variant === "image" && state !== "done" && "opacity-60", className);
 }
 function AttachmentMedia(props) {
 	const context = useContext(AttachmentContext);
@@ -461,7 +458,7 @@ function AttachmentMedia(props) {
 function AttachmentContent(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("max-w-full min-w-0 flex-1 flex flex-col gap-0.5", props.class);
+			return mergeClasses("max-w-full min-w-0 flex-1 flex flex-col gap-0.5", props.class);
 		},
 		get children() {
 			return props.children;
@@ -474,7 +471,7 @@ function AttachmentTitle(props) {
 			return props.maxLines ?? 1;
 		},
 		get ["class"]() {
-			return join("max-w-full min-w-0 font-medium text-primary", props.class);
+			return mergeClasses("max-w-full min-w-0 font-medium text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -488,7 +485,7 @@ function AttachmentDescription(props) {
 			return props.maxLines ?? 1;
 		},
 		get ["class"]() {
-			return join("max-w-full min-w-0 text-xs", context.state() === "error" ? "text-danger-primary" : "text-muted", props.class);
+			return mergeClasses("max-w-full min-w-0 text-xs", context.state() === "error" ? "text-danger-primary" : "text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -498,7 +495,7 @@ function AttachmentDescription(props) {
 function AttachmentActions(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("flex-none flex items-center gap-1", props.class);
+			return mergeClasses("flex-none flex items-center gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -516,7 +513,7 @@ function AttachmentAction(props) {
 	}));
 }
 function attachmentGroupClass(className) {
-	return join("w-full min-w-0 overflow-x-auto overflow-y-hidden py-1 flex flex-row items-start gap-3", className);
+	return mergeClasses("w-full min-w-0 overflow-x-auto overflow-y-hidden py-1 flex flex-row items-start gap-3", className);
 }
 function AttachmentGroup(props) {
 	return createComponent$1(View, mergeProps(props, {
@@ -541,7 +538,7 @@ function Avatar(props) {
 			return props.alt ?? props.fallback;
 		},
 		get ["class"]() {
-			return join("flex-none overflow-hidden rounded-full bg-control border border-subtle", size(), props.class);
+			return mergeClasses("flex-none overflow-hidden rounded-full bg-control border border-subtle", size(), props.class);
 		},
 		get children() {
 			return memo(() => {
@@ -565,7 +562,7 @@ function Avatar(props) {
 function AvatarGroup(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("flex items-center gap-1", props.class);
+			return mergeClasses("flex items-center gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -575,7 +572,7 @@ function AvatarGroup(props) {
 function AvatarGroupCount(props) {
 	return createComponent$1(Center, {
 		get ["class"]() {
-			return join("w-10 h-10 flex-none rounded-full bg-control border border-subtle", props.class);
+			return mergeClasses("w-10 h-10 flex-none rounded-full bg-control border border-subtle", props.class);
 		},
 		get children() {
 			return createComponent$1(Text, {
@@ -604,7 +601,7 @@ function ButtonGroup(props) {
 					return props["aria-label"];
 				},
 				get ["class"]() {
-					return join("min-w-0 flex gap-0 overflow-hidden rounded-md border border-strong bg-surface shadow-xs", layout(), props.class);
+					return mergeClasses("min-w-0 flex gap-0 overflow-hidden rounded-md border border-strong bg-surface shadow-xs", layout(), props.class);
 				},
 				get children() {
 					return props.children;
@@ -616,7 +613,7 @@ function ButtonGroup(props) {
 function ButtonGroupText(props) {
 	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return join("min-h-8 px-3 flex-none flex items-center whitespace-nowrap text-sm font-medium text-secondary bg-control", props.class);
+			return mergeClasses("min-h-8 px-3 flex-none flex items-center whitespace-nowrap text-sm font-medium text-secondary bg-control", props.class);
 		},
 		get children() {
 			return props.children;
@@ -628,7 +625,7 @@ function ButtonGroupSeparator(props) {
 		role: "separator",
 		"aria-hidden": "true",
 		get ["class"]() {
-			return join("flex-none self-stretch bg-strong", match(props.orientation ?? "vertical").with("vertical", () => "w-px min-h-full").with("horizontal", () => "h-px min-w-full").exhaustive(), props.class);
+			return mergeClasses("flex-none self-stretch bg-strong", match(props.orientation ?? "vertical").with("vertical", () => "w-px min-h-full").with("horizontal", () => "h-px min-w-full").exhaustive(), props.class);
 		}
 	});
 }
@@ -639,7 +636,7 @@ function Card(props) {
 	const rest = omit(props, "class", "children", "shadows");
 	return createComponent$1(View, mergeProps(rest, {
 		get ["class"]() {
-			return join("min-w-0 min-h-0 flex flex-col overflow-hidden rounded-lg border border-subtle bg-surface", props.class);
+			return mergeClasses("min-w-0 min-h-0 flex-none flex flex-col overflow-hidden rounded-lg border border-subtle bg-surface", props.class);
 		},
 		get shadows() {
 			return memo(() => {
@@ -654,7 +651,7 @@ function Card(props) {
 function CardHeader(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("relative min-w-0 flex flex-col gap-1 px-4 pt-4 pr-12", props.class);
+			return mergeClasses("relative min-w-0 flex flex-col gap-1 px-4 pt-4 pr-12", props.class);
 		},
 		get children() {
 			return props.children;
@@ -664,7 +661,7 @@ function CardHeader(props) {
 function CardTitle(props) {
 	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return join("min-w-0 text-base font-semibold text-primary", props.class);
+			return mergeClasses("min-w-0 text-base font-semibold text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -674,7 +671,7 @@ function CardTitle(props) {
 function CardDescription(props) {
 	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return join("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
+			return mergeClasses("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -685,7 +682,7 @@ function CardDescription(props) {
 function CardAction(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("absolute top-4 right-4 flex-none flex items-center justify-end", props.class);
+			return mergeClasses("absolute top-4 right-4 flex-none flex items-center justify-end", props.class);
 		},
 		get children() {
 			return props.children;
@@ -695,7 +692,7 @@ function CardAction(props) {
 function CardContent(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("min-w-0 min-h-0 flex flex-col gap-3 p-4", props.class);
+			return mergeClasses("min-w-0 min-h-0 flex flex-col gap-3 p-4", props.class);
 		},
 		get children() {
 			return props.children;
@@ -705,7 +702,7 @@ function CardContent(props) {
 function CardFooter(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("min-w-0 flex items-center gap-2 px-4 pb-4", props.class);
+			return mergeClasses("min-w-0 flex items-center gap-2 px-4 pb-4", props.class);
 		},
 		get children() {
 			return props.children;
@@ -1072,7 +1069,7 @@ function Carousel(props) {
 					return props["aria-label"];
 				},
 				get ["class"]() {
-					return join("relative min-w-0 min-h-0", props.class);
+					return mergeClasses("relative min-w-0 min-h-0", props.class);
 				},
 				onKeyDown: (event) => {
 					if (match({
@@ -1165,7 +1162,7 @@ function CarouselContent(props) {
 			props.ref?.(node);
 		},
 		get ["class"]() {
-			return join("min-w-0 min-h-0 overflow-hidden", props.class);
+			return mergeClasses("min-w-0 min-h-0 overflow-hidden", props.class);
 		},
 		onPointerDown: (event) => {
 			if (event.button !== 0 || axisSize() <= 0) return;
@@ -1191,7 +1188,7 @@ function CarouselContent(props) {
 		get children() {
 			return createComponent$1(View, {
 				get ["class"]() {
-					return join("flex w-full h-full flex-none", carousel.orientation() === "horizontal" ? "flex-row" : "flex-col", props.trackClass);
+					return mergeClasses("flex w-full h-full flex-none", carousel.orientation() === "horizontal" ? "flex-row" : "flex-col", props.trackClass);
 				},
 				get transform() {
 					return memo(() => {
@@ -1216,7 +1213,7 @@ function CarouselItem(props) {
 			return props["aria-label"];
 		},
 		get ["class"]() {
-			return join("min-w-0 min-h-0 flex-none", carousel.orientation() === "horizontal" ? "w-full" : "h-full", props.class);
+			return mergeClasses("min-w-0 min-h-0 flex-none", carousel.orientation() === "horizontal" ? "w-full" : "h-full", props.class);
 		}
 	}));
 }
@@ -1283,7 +1280,7 @@ function ChartContainer(props) {
 					return props.label;
 				},
 				get ["class"]() {
-					return join("relative min-w-0", props.class);
+					return mergeClasses("relative min-w-0", props.class);
 				},
 				get style() {
 					return props.style;
@@ -1302,7 +1299,7 @@ function ChartLegend(props) {
 	const config = useChartConfig();
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("flex flex-row flex-wrap items-center gap-4", props.class);
+			return mergeClasses("flex flex-row flex-wrap items-center gap-4", props.class);
 		},
 		get children() {
 			return createComponent$1(For, {
@@ -1315,7 +1312,7 @@ function ChartLegend(props) {
 						return [createComponent$1(View, {
 							"aria-hidden": "true",
 							get ["class"]() {
-								return join("w-2.5 h-2.5 flex-none rounded-full", series.colorClass);
+								return mergeClasses("w-2.5 h-2.5 flex-none rounded-full", series.colorClass);
 							}
 						}), createComponent$1(Text, {
 							class: "text-sm text-secondary",
@@ -1332,7 +1329,7 @@ function ChartLegend(props) {
 function ChartEmpty(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("h-48 items-center justify-center", props.class);
+			return mergeClasses("h-48 items-center justify-center", props.class);
 		},
 		get children() {
 			return createComponent$1(Text, {
@@ -1380,7 +1377,7 @@ function CodeBlock(props) {
 			return props["aria-label"] ?? "Code block";
 		},
 		get ["class"]() {
-			return join("min-w-0 overflow-hidden rounded-lg border border-subtle bg-control", props.class);
+			return mergeClasses("min-w-0 overflow-hidden rounded-lg border border-subtle bg-control", props.class);
 		},
 		get children() {
 			return [createComponent$1(View, {
@@ -1399,7 +1396,16 @@ function CodeBlock(props) {
 								return props.code;
 							},
 							variant: "ghost",
-							size: "sm"
+							size: "sm",
+							get idleLabel() {
+								return props.copyLabel;
+							},
+							get copiedLabel() {
+								return props.copiedLabel;
+							},
+							get ["aria-label"]() {
+								return props.copyLabel;
+							}
 						});
 					})];
 				}
@@ -1448,7 +1454,7 @@ function Input(props) {
 			return (props.chrome ?? "default") === "default" ? "surface native-editor" : "native-editor";
 		},
 		get ["class"]() {
-			return join("h-8 w-full px-3 text-sm text-primary", (props.chrome ?? "default") === "default" && join("rounded-md border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
+			return mergeClasses("h-8 w-full px-3 text-sm text-primary", (props.chrome ?? "default") === "default" && mergeClasses("rounded-md border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
 		}
 	}));
 }
@@ -1491,7 +1497,7 @@ function Command(props) {
 	};
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("min-w-0 flex flex-col gap-2", props.class);
+			return mergeClasses("min-w-0 flex flex-col gap-2", props.class);
 		},
 		get children() {
 			return [createComponent$1(Input, {
@@ -1519,7 +1525,7 @@ function Command(props) {
 					return highlighted();
 				},
 				get ["class"]() {
-					return join("min-w-0 flex flex-col gap-1", props.listClass);
+					return mergeClasses("min-w-0 flex flex-col gap-1", props.listClass);
 				},
 				get children() {
 					return memo(() => {
@@ -1550,7 +1556,7 @@ function Command(props) {
 								return item().disabled;
 							},
 							get ["class"]() {
-								return join("min-h-9 px-3 py-1.5 flex flex-col justify-center rounded-md", highlighted() === item().id ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
+								return mergeClasses("min-h-9 px-3 py-1.5 flex flex-col justify-center rounded-md", highlighted() === item().id ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
 							},
 							get style() {
 								return { opacity: item().disabled ? .45 : 1 };
@@ -1619,7 +1625,7 @@ function Combobox(props) {
 		onOpenChange: setOpen,
 		placement: "bottom-start",
 		get contentClass() {
-			return join("w-72 p-2 rounded-lg border border-subtle bg-surface", props.contentClass);
+			return mergeClasses("w-72 p-2 rounded-lg border border-subtle bg-surface", props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -1646,7 +1652,7 @@ function Combobox(props) {
 				trigger = node;
 				popover.ref(node);
 			},
-			class: (state) => join("w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs", state.focused ? "border-focus" : "border-subtle", props.class),
+			class: (state) => mergeClasses("w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs", state.focused ? "border-focus" : "border-subtle", props.class),
 			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 			get onClick() {
 				return popover.onClick;
@@ -1657,7 +1663,7 @@ function Combobox(props) {
 			get children() {
 				return [createComponent$1(Text, {
 					get ["class"]() {
-						return join("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
+						return mergeClasses("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
 					},
 					get children() {
 						return selected()?.label ?? props.placeholder ?? "Select an option";
@@ -1697,14 +1703,14 @@ function Combobox(props) {
 //#endregion
 //#region src/components/config-editor.tsx
 /**
-* Experimental native configuration editor. Its Wabou-owned props deliberately
-* hide the editor-core implementation so the backend can evolve independently.
+* Configuration editor backed by DOM-free CodeMirror state and a controlled
+* native viewport. It is intentionally not a general-purpose IDE editor.
 */
 function ConfigEditor(props) {
 	return createComponent$1(CodeEditor, mergeProps(props, {
 		language: "json",
 		get ["class"]() {
-			return join("min-h-48 w-full rounded-md border border-strong bg-input text-primary", props.class);
+			return mergeClasses("min-h-48 w-full rounded-md border border-strong bg-input text-primary", props.class);
 		}
 	}));
 }
@@ -1787,7 +1793,7 @@ function DropdownMenu(props) {
 			return props.anchorPoint;
 		},
 		get contentClass() {
-			return join("w-56 p-1 flex flex-col gap-1 rounded-lg border border-subtle bg-surface", props.contentClass);
+			return mergeClasses("w-56 p-1 flex flex-col gap-1 rounded-lg border border-subtle bg-surface", props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -1850,7 +1856,7 @@ function DropdownMenu(props) {
 								return item().disabled;
 							},
 							get ["class"]() {
-								return join("w-full min-h-8 flex-none px-2 py-1.5 flex flex-col justify-center rounded-md", highlighted() === item().id ? "bg-control-hover" : "bg-transparent", item().destructive ? "text-danger-primary" : "text-primary");
+								return mergeClasses("w-full min-h-8 flex-none px-2 py-1.5 flex flex-col justify-center rounded-md", highlighted() === item().id ? "bg-control-hover" : "bg-transparent", item().destructive ? "text-danger-primary" : "text-primary");
 							},
 							get style() {
 								return { opacity: item().disabled ? .45 : 1 };
@@ -1953,12 +1959,12 @@ function Table(props) {
 	return createComponent$1(View, mergeProps(rest, {
 		role: "table",
 		get ["class"]() {
-			return join("relative w-full min-w-0 overflow-x-auto overflow-y-hidden", props.class);
+			return mergeClasses("relative w-full min-w-0 overflow-x-auto overflow-y-hidden", props.class);
 		},
 		get children() {
 			return createComponent$1(View, {
 				get ["class"]() {
-					return join("w-full min-w-full flex-none flex flex-col text-sm", props.contentClass);
+					return mergeClasses("w-full min-w-full flex-none flex flex-col text-sm", props.contentClass);
 				},
 				get children() {
 					return props.children;
@@ -1974,7 +1980,7 @@ function TableHeader(props) {
 			return props["aria-label"] ?? "Table header";
 		},
 		get ["class"]() {
-			return join("w-full min-w-0 flex-none flex flex-col", props.class);
+			return mergeClasses("w-full min-w-0 flex-none flex flex-col", props.class);
 		},
 		get children() {
 			return props.children;
@@ -1988,7 +1994,7 @@ function TableBody(props) {
 			return props["aria-label"] ?? "Table body";
 		},
 		get ["class"]() {
-			return join("w-full min-w-0 flex-none flex flex-col", props.class);
+			return mergeClasses("w-full min-w-0 flex-none flex flex-col", props.class);
 		},
 		get children() {
 			return props.children;
@@ -2002,7 +2008,7 @@ function TableFooter(props) {
 			return props["aria-label"] ?? "Table footer";
 		},
 		get ["class"]() {
-			return join("w-full min-w-0 flex-none flex flex-col border-t border-subtle bg-control", props.class);
+			return mergeClasses("w-full min-w-0 flex-none flex flex-col border-t border-subtle bg-control", props.class);
 		},
 		get children() {
 			return props.children;
@@ -2018,7 +2024,7 @@ function TableRow(props) {
 			return props.selected;
 		},
 		get ["class"]() {
-			return join("w-full min-w-0 min-h-11 flex-none flex flex-row items-stretch border-b border-subtle", props.selected ? "bg-selected" : "bg-surface", hover.hovered() && !props.selected ? "bg-control-hover" : void 0, props.class);
+			return mergeClasses("w-full min-w-0 min-h-11 flex-none flex flex-row items-stretch border-b border-subtle", props.selected ? "bg-selected" : "bg-surface", hover.hovered() && !props.selected ? "bg-control-hover" : void 0, props.class);
 		},
 		onPointerEnter: (event) => {
 			hover.bindings.onPointerEnter();
@@ -2037,7 +2043,7 @@ function TableHead(props) {
 	return createComponent$1(Text, mergeProps(props, {
 		role: "columnheader",
 		get ["class"]() {
-			return join("min-w-32 flex-1 px-3 flex items-center whitespace-nowrap text-xs font-medium text-muted", props.class);
+			return mergeClasses("min-w-32 flex-1 px-3 flex items-center whitespace-nowrap text-xs font-medium text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -2048,7 +2054,7 @@ function TableCell(props) {
 	return createComponent$1(View, mergeProps(props, {
 		role: "cell",
 		get ["class"]() {
-			return join("min-w-32 flex-1 px-3 flex items-center text-sm text-primary", props.class);
+			return mergeClasses("min-w-32 flex-1 px-3 flex items-center text-sm text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -2061,7 +2067,7 @@ function TableCaption(props) {
 			return props.role ?? "label";
 		},
 		get ["class"]() {
-			return join("w-full min-w-0 flex-none px-3 py-3 whitespace-normal text-sm text-muted", props.class);
+			return mergeClasses("w-full min-w-0 flex-none px-3 py-3 whitespace-normal text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -2429,7 +2435,7 @@ function Calendar(props) {
 									get disabled() {
 										return disabled();
 									},
-									class: (state) => join("w-8 h-8 rounded-md items-center justify-center text-sm", selected() ? "bg-accent text-on-accent" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-primary", outside() && "text-muted"),
+									class: (state) => mergeClasses("w-8 h-8 rounded-md items-center justify-center text-sm", selected() ? "bg-accent text-on-accent" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-primary", outside() && "text-muted"),
 									get style() {
 										return { opacity: disabled() ? .35 : 1 };
 									},
@@ -2519,7 +2525,7 @@ function DatePicker(props) {
 				return props.disabled;
 			},
 			get ["class"]() {
-				return join("w-72 h-8 px-3 justify-start gap-2 rounded-md border border-subtle bg-input text-sm shadow-xs", props.class);
+				return mergeClasses("w-72 h-8 px-3 justify-start gap-2 rounded-md border border-subtle bg-input text-sm shadow-xs", props.class);
 			},
 			get children() {
 				return [createComponent$1(Icon, {
@@ -2569,13 +2575,13 @@ function useDirection() {
 function DirectionalRow(props) {
 	const direction = () => useDirection();
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join("flex", direction() === "rtl" ? "flex-row-reverse" : "flex-row", props.class);
+		return mergeClasses("flex", direction() === "rtl" ? "flex-row-reverse" : "flex-row", props.class);
 	} }));
 }
 function DirectionalText(props) {
 	const direction = () => useDirection();
 	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
-		return join(direction() === "rtl" ? "text-right" : "text-left", props.class);
+		return mergeClasses(direction() === "rtl" ? "text-right" : "text-left", props.class);
 	} }));
 }
 //#endregion
@@ -2609,12 +2615,12 @@ function DirectoryPicker(props) {
 	}
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("w-full min-w-0 flex items-center gap-2", local.class);
+			return mergeClasses("w-full min-w-0 flex items-center gap-2", local.class);
 		},
 		get children() {
 			return [createComponent$1(Input, mergeProps(inputProps, {
 				get ["class"]() {
-					return join("min-w-0 flex-1", local.inputClass);
+					return mergeClasses("min-w-0 flex-1", local.inputClass);
 				},
 				get value() {
 					return local.value;
@@ -2622,7 +2628,7 @@ function DirectoryPicker(props) {
 				onInput: (event) => local.onValueChange(event.currentTarget.value)
 			})), createComponent$1(Button, {
 				get ["class"]() {
-					return join("flex-none", local.buttonClass);
+					return mergeClasses("flex-none", local.buttonClass);
 				},
 				variant: "outline",
 				get disabled() {
@@ -2695,7 +2701,7 @@ function Collapsible(props) {
 		get children() {
 			return createComponent$1(View, mergeProps(rest, {
 				get ["class"]() {
-					return join("flex flex-col", props.class);
+					return mergeClasses("flex flex-col", props.class);
 				},
 				get children() {
 					return props.children;
@@ -2723,7 +2729,7 @@ function CollapsibleTrigger(props) {
 		get children() {
 			return createComponent$1(View, {
 				get ["class"]() {
-					return join("w-full flex items-center justify-between gap-3", props.class);
+					return mergeClasses("w-full flex items-center justify-between gap-3", props.class);
 				},
 				get children() {
 					return [memo(() => {
@@ -2808,7 +2814,7 @@ function Accordion(props) {
 		get children() {
 			return createComponent$1(View, mergeProps(rest, {
 				get ["class"]() {
-					return join("flex flex-col", props.class);
+					return mergeClasses("flex flex-col", props.class);
 				},
 				get children() {
 					return props.children;
@@ -2829,7 +2835,7 @@ function AccordionItem(props) {
 		get children() {
 			return createComponent$1(View, mergeProps(rest, {
 				get ["class"]() {
-					return join("flex flex-col border-b border-subtle", props.class);
+					return mergeClasses("flex flex-col border-b border-subtle", props.class);
 				},
 				get children() {
 					return props.children;
@@ -2870,7 +2876,7 @@ function AccordionTrigger(props) {
 		get children() {
 			return createComponent$1(View, {
 				get ["class"]() {
-					return join("w-full py-4 flex items-center justify-between gap-4", props.class);
+					return mergeClasses("w-full py-4 flex items-center justify-between gap-4", props.class);
 				},
 				get children() {
 					return [createComponent$1(Text, {
@@ -2901,7 +2907,7 @@ function AccordionContent(props) {
 			return root.reducedMotion();
 		},
 		get contentClass() {
-			return join("pb-4", props.class);
+			return mergeClasses("pb-4", props.class);
 		},
 		contentProps,
 		get contentStyle() {
@@ -2935,7 +2941,7 @@ function Skeleton(props) {
 		},
 		"aria-hidden": "true",
 		get ["class"]() {
-			return join("overflow-hidden rounded-md bg-control", props.class);
+			return mergeClasses("overflow-hidden rounded-md bg-control", props.class);
 		},
 		get children() {
 			return createComponent$1(View, {
@@ -2957,7 +2963,7 @@ function Spinner(props) {
 			return props.label ?? "Loading";
 		},
 		get ["class"]() {
-			return join("w-4 h-4 flex-none text-accent", props.class);
+			return mergeClasses("w-4 h-4 flex-none text-accent", props.class);
 		},
 		duration: .9,
 		get children() {
@@ -2972,7 +2978,7 @@ function Spinner(props) {
 function Kbd(props) {
 	return createComponent$1(Text, {
 		get ["class"]() {
-			return join("h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted", props.class);
+			return mergeClasses("h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -2982,7 +2988,7 @@ function Kbd(props) {
 function KbdGroup(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("inline-flex items-center gap-1", props.class);
+			return mergeClasses("inline-flex items-center gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -3136,7 +3142,7 @@ function Drawer(props) {
 					props.contentRef?.(node);
 				},
 				get contentClass() {
-					return join("relative min-w-0 min-h-0 flex flex-col border-subtle bg-surface", placement().content, props.contentClass);
+					return mergeClasses("relative min-w-0 min-h-0 flex flex-col border-subtle bg-surface", placement().content, props.contentClass);
 				},
 				contentTransform: transform,
 				get contentShadows() {
@@ -3164,7 +3170,7 @@ function DrawerHandle(props) {
 			return props["aria-label"] ?? "Drag or click to close drawer";
 		},
 		get ["class"]() {
-			return join("flex flex-none items-center justify-center", hitArea(), props.class);
+			return mergeClasses("flex flex-none items-center justify-center", hitArea(), props.class);
 		},
 		onPointerDown: (event) => {
 			drawer.onPointerDown(event);
@@ -3190,7 +3196,7 @@ function DrawerHandle(props) {
 			return createComponent$1(View, {
 				"aria-hidden": "true",
 				get ["class"]() {
-					return join("pointer-events-none rounded-full bg-strong", indicator());
+					return mergeClasses("pointer-events-none rounded-full bg-strong", indicator());
 				}
 			});
 		}
@@ -3198,22 +3204,22 @@ function DrawerHandle(props) {
 }
 function DrawerHeader(props) {
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join("flex flex-col gap-1 p-5", props.class);
+		return mergeClasses("flex flex-col gap-1 p-5", props.class);
 	} }));
 }
 function DrawerFooter(props) {
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join("mt-auto flex flex-col gap-2 p-5", props.class);
+		return mergeClasses("mt-auto flex flex-col gap-2 p-5", props.class);
 	} }));
 }
 function DrawerTitle(props) {
 	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
-		return join("text-lg font-semibold text-primary", props.class);
+		return mergeClasses("text-lg font-semibold text-primary", props.class);
 	} }));
 }
 function DrawerDescription(props) {
 	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
-		return join("whitespace-normal text-sm text-muted", props.class);
+		return mergeClasses("whitespace-normal text-sm text-muted", props.class);
 	} }));
 }
 function DrawerClose(props) {
@@ -3283,13 +3289,13 @@ function DropZone(props) {
 			return props.disabled ? "true" : void 0;
 		},
 		get ["class"]() {
-			return join("w-full min-w-0 min-h-36 px-6 py-5 flex flex-col items-center justify-center gap-3 rounded-xl border-2 text-center", isActive ? "border-accent bg-selected" : "border-strong bg-input", props.disabled && "opacity-50", props.class);
+			return mergeClasses("w-full min-w-0 min-h-36 px-6 py-5 flex flex-col items-center justify-center gap-3 rounded-xl border-2 text-center", isActive ? "border-accent bg-selected" : "border-strong bg-input", props.disabled && "opacity-50", props.class);
 		},
 		get children() {
 			return [
 				createComponent$1(View, {
 					get ["class"]() {
-						return join("w-10 h-10 flex-none items-center justify-center rounded-lg", isActive ? "bg-accent text-on-accent" : "bg-control text-secondary");
+						return mergeClasses("w-10 h-10 flex-none items-center justify-center rounded-lg", isActive ? "bg-accent text-on-accent" : "bg-control text-secondary");
 					},
 					get children() {
 						return createComponent$1(Icon, {
@@ -3330,7 +3336,7 @@ function DropZone(props) {
 //#endregion
 //#region src/components/empty.tsx
 function emptyClass(variant = "surface", className) {
-	return join("w-full min-w-0 flex-1 p-8 items-center justify-center gap-6 text-center", variant === "surface" ? "min-h-64 rounded-lg border border-subtle bg-surface shadow-xs" : "min-h-0 bg-transparent", className);
+	return mergeClasses("w-full min-w-0 flex-1 p-8 items-center justify-center gap-6 text-center", variant === "surface" ? "min-h-64 rounded-lg border border-subtle bg-surface shadow-xs" : "min-h-0 bg-transparent", className);
 }
 /** A composable empty-state region based on shadcn's Empty anatomy. */
 function Empty(props) {
@@ -3347,7 +3353,7 @@ function Empty(props) {
 function EmptyHeader(props) {
 	return createComponent$1(Column, mergeProps(props, {
 		get ["class"]() {
-			return join("w-full max-w-sm min-w-0 items-center gap-2", props.class);
+			return mergeClasses("w-full max-w-sm min-w-0 items-center gap-2", props.class);
 		},
 		get children() {
 			return props.children;
@@ -3355,7 +3361,7 @@ function EmptyHeader(props) {
 	}));
 }
 function emptyMediaClass(variant = "default", className) {
-	return join("mb-2 flex-none flex items-center justify-center", match(variant).with("default", () => "bg-transparent").with("icon", () => join("w-10 h-10 rounded-lg", "bg-control text-primary")).exhaustive(), className);
+	return mergeClasses("mb-2 flex-none flex items-center justify-center", match(variant).with("default", () => "bg-transparent").with("icon", () => mergeClasses("w-10 h-10 rounded-lg", "bg-control text-primary")).exhaustive(), className);
 }
 function EmptyMedia(props) {
 	const rest = omit(props, "variant", "class", "children");
@@ -3374,7 +3380,7 @@ function EmptyTitle(props) {
 			return props.role ?? "heading";
 		},
 		get ["class"]() {
-			return join("text-lg font-medium text-primary", props.class);
+			return mergeClasses("text-lg font-medium text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -3384,7 +3390,7 @@ function EmptyTitle(props) {
 function EmptyDescription(props) {
 	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return join("w-full min-w-0 whitespace-normal text-center text-sm text-muted", props.class);
+			return mergeClasses("w-full min-w-0 whitespace-normal text-center text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -3394,7 +3400,7 @@ function EmptyDescription(props) {
 function EmptyContent(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("w-full max-w-sm min-w-0 flex flex-col items-center gap-4 text-sm", props.class);
+			return mergeClasses("w-full max-w-sm min-w-0 flex flex-col items-center gap-4 text-sm", props.class);
 		},
 		get children() {
 			return props.children;
@@ -3415,7 +3421,7 @@ function Label(props) {
 			return props.disabled;
 		},
 		get ["class"]() {
-			return join("min-w-0 text-sm font-medium text-primary", props.disabled ? "opacity-50" : "cursor-pointer", props.class);
+			return mergeClasses("min-w-0 text-sm font-medium text-primary", props.disabled ? "opacity-50" : "cursor-pointer", props.class);
 		},
 		onClick: (event) => {
 			props.onClick?.(event);
@@ -3429,7 +3435,8 @@ function Label(props) {
 //#endregion
 //#region src/components/forms.tsx
 function fieldClass(orientation = "vertical", invalid = false, className) {
-	return join("w-full min-w-0 flex", match(orientation).with("vertical", () => "flex-col gap-2").with("horizontal", () => "flex-row items-start gap-4").exhaustive(), invalid && "text-danger-primary", className);
+	const layout = match(orientation).with("vertical", () => "flex-col gap-2").with("horizontal", () => "flex-row items-start gap-4").exhaustive();
+	return mergeClasses("w-full min-w-0 flex", layout, invalid && "text-danger-primary", className);
 }
 function Field(props) {
 	return createComponent$1(View, {
@@ -3446,7 +3453,7 @@ function FieldSet(props) {
 	return createComponent$1(View, {
 		role: "group",
 		get ["class"]() {
-			return join("w-full min-w-0 flex flex-col gap-6", props.class);
+			return mergeClasses("w-full min-w-0 flex flex-col gap-6", props.class);
 		},
 		get children() {
 			return props.children;
@@ -3457,7 +3464,7 @@ function FieldLegend(props) {
 	return createComponent$1(Text, {
 		role: "heading",
 		get ["class"]() {
-			return join("mb-1 font-medium text-primary", props.variant === "label" ? "text-sm" : "text-base", props.class);
+			return mergeClasses("mb-1 font-medium text-primary", props.variant === "label" ? "text-sm" : "text-base", props.class);
 		},
 		get children() {
 			return props.children;
@@ -3467,7 +3474,7 @@ function FieldLegend(props) {
 function FieldGroup(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("flex flex-col gap-5", props.class);
+			return mergeClasses("flex flex-col gap-5", props.class);
 		},
 		get children() {
 			return props.children;
@@ -3480,7 +3487,7 @@ function FieldLabel(props) {
 function FieldTitle(props) {
 	return createComponent$1(Text, {
 		get ["class"]() {
-			return join("text-sm font-medium text-primary", props.class);
+			return mergeClasses("text-sm font-medium text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -3490,7 +3497,7 @@ function FieldTitle(props) {
 function FieldContent(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("min-w-0 flex-1 flex flex-col gap-1", props.class);
+			return mergeClasses("min-w-0 flex-1 flex flex-col gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -3500,7 +3507,7 @@ function FieldContent(props) {
 function FieldDescription(props) {
 	return createComponent$1(Text, {
 		get ["class"]() {
-			return join("w-full min-w-0 whitespace-normal text-xs text-muted", props.class);
+			return mergeClasses("w-full min-w-0 whitespace-normal text-xs text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -3524,7 +3531,7 @@ function FieldError(props) {
 			return label();
 		},
 		get ["class"]() {
-			return join("w-full min-w-0 flex flex-col gap-1", props.class);
+			return mergeClasses("w-full min-w-0 flex flex-col gap-1", props.class);
 		},
 		get children() {
 			return createComponent$1(Show, {
@@ -3559,7 +3566,7 @@ function FieldError(props) {
 function FieldSeparator(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("w-full min-w-0 h-5 flex items-center gap-2", props.class);
+			return mergeClasses("w-full min-w-0 h-5 flex items-center gap-2", props.class);
 		},
 		get children() {
 			return [
@@ -3595,7 +3602,7 @@ function useInputGroup() {
 	return useContext(InputGroupContext);
 }
 function inputGroupClass(orientation, focused, invalid) {
-	return join("relative w-full min-w-0 flex rounded-md border shadow-xs", orientation === "horizontal" ? "h-8 flex-row items-center" : "h-auto flex-col items-stretch", invalid ? "border-danger" : focused ? "border-focus" : "border-strong");
+	return mergeClasses("relative w-full min-w-0 flex rounded-md border shadow-xs", orientation === "horizontal" ? "h-8 flex-row items-center" : "h-auto flex-col items-stretch", invalid ? "border-danger" : focused ? "border-focus" : "border-strong");
 }
 function InputGroup(props) {
 	const focus = createFocusWithin();
@@ -3626,7 +3633,7 @@ function InputGroup(props) {
 				},
 				"data-wabou-owns": "surface focus-ring",
 				get ["class"]() {
-					return join(inputGroupClass(props.orientation ?? "horizontal", focus.focusWithin(), props.invalid ?? false), props.surfaceClass ?? "bg-input", props.disabled && "opacity-50", props.class);
+					return mergeClasses(inputGroupClass(props.orientation ?? "horizontal", focus.focusWithin(), props.invalid ?? false), props.surfaceClass ?? "bg-input", props.disabled && "opacity-50", props.class);
 				},
 				get children() {
 					return props.children;
@@ -3644,7 +3651,7 @@ function InputGroupInput(props) {
 		},
 		chrome: "none",
 		get ["class"]() {
-			return join("h-full flex-1 min-w-0", props.class);
+			return mergeClasses("h-full flex-1 min-w-0", props.class);
 		}
 	}));
 }
@@ -3659,7 +3666,7 @@ function InputGroupAddon(props) {
 			return props.role ?? "group";
 		},
 		get ["class"]() {
-			return join(inputGroupAddonClass(props.align ?? "inline-start"), props.class);
+			return mergeClasses(inputGroupAddonClass(props.align ?? "inline-start"), props.class);
 		},
 		onClick: (event) => {
 			if (props.focusControl ?? true) group?.focusControl();
@@ -3670,7 +3677,7 @@ function InputGroupAddon(props) {
 function InputGroupText(props) {
 	return createComponent$1(Text, {
 		get ["class"]() {
-			return join("flex-none text-sm text-muted", props.class);
+			return mergeClasses("flex-none text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -3686,7 +3693,7 @@ function InputGroupButton(props) {
 			return props.variant ?? "ghost";
 		},
 		get ["class"]() {
-			return join("mx-1", props.class);
+			return mergeClasses("mx-1", props.class);
 		}
 	}));
 }
@@ -3698,7 +3705,7 @@ function InputGroupTextArea(props) {
 			props.ref?.(node);
 		},
 		get ["class"]() {
-			return join("w-full h-24 px-3 py-2 border-transparent bg-transparent text-sm", props.class);
+			return mergeClasses("w-full h-24 px-3 py-2 border-transparent bg-transparent text-sm", props.class);
 		}
 	}));
 }
@@ -3774,7 +3781,7 @@ function HoverCard(props) {
 		closeOnEscape: true,
 		restoreFocus: false,
 		get contentClass() {
-			return join("min-w-56 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-lg border border-subtle bg-surface", props.contentClass);
+			return mergeClasses("min-w-56 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-lg border border-subtle bg-surface", props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -3835,7 +3842,7 @@ function IconFrame(props) {
 	return createComponent$1(Center, mergeProps(rest, {
 		role: "presentation",
 		get ["class"]() {
-			return join("flex-none", frameSizeClass(size()), variantClass(props.variant ?? "plain"), props.class);
+			return mergeClasses("flex-none", frameSizeClass(size()), variantClass(props.variant ?? "plain"), props.class);
 		},
 		get children() {
 			return createComponent$1(Icon, {
@@ -4104,7 +4111,7 @@ function ImageViewport(props) {
 					return props.role ?? "group";
 				},
 				get ["class"]() {
-					return join("relative min-w-0 min-h-0 overflow-hidden bg-control", props.class);
+					return mergeClasses("relative min-w-0 min-h-0 overflow-hidden bg-control", props.class);
 				},
 				onPointerDown: (event) => {
 					if (!props.pannable || event.button !== 0) return;
@@ -4289,7 +4296,7 @@ function AnnotationLayer(props) {
 			return props.role ?? "group";
 		},
 		get ["class"]() {
-			return join("absolute inset-0", props.class);
+			return mergeClasses("absolute inset-0", props.class);
 		},
 		get classList() {
 			return { "pointer-events-none": props.interactionMode === "passthrough" };
@@ -4324,7 +4331,7 @@ function AnnotationLayer(props) {
 					},
 					focusOrder: 0,
 					get ["class"]() {
-						return join("absolute border-2 bg-transparent cursor-move", selected() === region.id ? "border-accent" : "border-strong");
+						return mergeClasses("absolute border-2 bg-transparent cursor-move", selected() === region.id ? "border-accent" : "border-strong");
 					},
 					get style() {
 						return styleFor(displayedRegion(region));
@@ -4386,7 +4393,7 @@ function ImageOverlayLayer(props) {
 	const rest = omit(props, "items", "children");
 	return createComponent$1(View, mergeProps(rest, {
 		get ["class"]() {
-			return join("absolute inset-0 pointer-events-none", props.class);
+			return mergeClasses("absolute inset-0 pointer-events-none", props.class);
 		},
 		get children() {
 			return createComponent$1(For, {
@@ -4436,7 +4443,7 @@ function InlineEdit(props) {
 	};
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("min-w-0", props.class);
+			return mergeClasses("min-w-0", props.class);
 		},
 		get children() {
 			return memo(() => {
@@ -4449,7 +4456,7 @@ function InlineEdit(props) {
 					return props["aria-label"];
 				},
 				get ["class"]() {
-					return join("min-w-0", props.inputClass);
+					return mergeClasses("min-w-0", props.inputClass);
 				},
 				get value() {
 					return draft();
@@ -4477,7 +4484,7 @@ function InlineEdit(props) {
 					return `Edit ${props["aria-label"]}`;
 				},
 				get ["class"]() {
-					return join("h-8 max-w-full min-w-0 px-2 justify-start gap-2", props.displayClass);
+					return mergeClasses("h-8 max-w-full min-w-0 px-2 justify-start gap-2", props.displayClass);
 				},
 				onClick: begin,
 				get children() {
@@ -4531,7 +4538,7 @@ function InputOTP(props) {
 					return props["aria-label"];
 				},
 				get ["class"]() {
-					return join("relative inline-flex flex-none items-center gap-2", props.disabled && "opacity-50", props.class);
+					return mergeClasses("relative inline-flex flex-none items-center gap-2", props.disabled && "opacity-50", props.class);
 				},
 				get children() {
 					return [memo(() => {
@@ -4554,7 +4561,7 @@ function InputOTP(props) {
 							return props.readOnly;
 						},
 						get ["class"]() {
-							return join("absolute inset-0 w-full h-full z-10 opacity-0", props.inputClass);
+							return mergeClasses("absolute inset-0 w-full h-full z-10 opacity-0", props.inputClass);
 						},
 						onFocus: () => setFocused(true),
 						onBlur: () => setFocused(false),
@@ -4575,7 +4582,7 @@ function InputOTPGroup(props) {
 	return createComponent$1(View, mergeProps(props, {
 		"aria-hidden": "true",
 		get ["class"]() {
-			return join("flex flex-none items-center gap-1", props.class);
+			return mergeClasses("flex flex-none items-center gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -4589,7 +4596,7 @@ function InputOTPSlot(props) {
 	const active = () => context.focused() && props.index === Math.min(context.value().length, context.maxLength() - 1);
 	return createComponent$1(View, mergeProps(forwarded, {
 		get ["class"]() {
-			return join("relative w-9 h-9 flex-none flex items-center justify-center rounded-md border bg-input text-sm text-primary shadow-xs", active() ? "border-focus" : "border-subtle", props.class);
+			return mergeClasses("relative w-9 h-9 flex-none flex items-center justify-center rounded-md border bg-input text-sm text-primary shadow-xs", active() ? "border-focus" : "border-subtle", props.class);
 		},
 		get children() {
 			return [createComponent$1(Show, {
@@ -4621,7 +4628,7 @@ function InputOTPSeparator(props) {
 	return createComponent$1(View, mergeProps(props, {
 		"aria-hidden": "true",
 		get ["class"]() {
-			return join("w-5 h-9 flex-none flex items-center justify-center", props.class);
+			return mergeClasses("w-5 h-9 flex-none flex items-center justify-center", props.class);
 		},
 		get children() {
 			return createComponent$1(Icon, {
@@ -4635,7 +4642,9 @@ function InputOTPSeparator(props) {
 //#endregion
 //#region src/components/item.tsx
 function itemClass(variant = "default", size = "default", className) {
-	return join("w-full min-w-0 flex flex-row flex-wrap items-center rounded-md border text-sm", match(variant).with("default", () => "border-transparent bg-transparent").with("outline", () => "border-subtle bg-transparent").with("muted", () => "border-transparent bg-control").exhaustive(), match(size).with("default", () => "gap-4 p-4").with("sm", () => "gap-2 px-4 py-3").exhaustive(), className);
+	const colors = match(variant).with("default", () => "border-transparent bg-transparent").with("outline", () => "border-subtle bg-transparent").with("muted", () => "border-transparent bg-control").exhaustive();
+	const spacing = match(size).with("default", () => "gap-4 p-4").with("sm", () => "gap-2 px-4 py-3").exhaustive();
+	return mergeClasses("w-full min-w-0 flex flex-row flex-wrap items-center rounded-md border text-sm", colors, spacing, className);
 }
 /** A composable list row based on shadcn's Item anatomy. */
 function Item(props) {
@@ -4658,7 +4667,7 @@ function ItemGroup(props) {
 			return props.role ?? "group";
 		},
 		get ["class"]() {
-			return join("w-full min-w-0 flex flex-col", props.class);
+			return mergeClasses("w-full min-w-0 flex flex-col", props.class);
 		},
 		get children() {
 			return props.children;
@@ -4669,12 +4678,12 @@ function ItemSeparator(props) {
 	return createComponent$1(View, {
 		"aria-hidden": "true",
 		get ["class"]() {
-			return join("w-full h-px flex-none bg-subtle", props.class);
+			return mergeClasses("w-full h-px flex-none bg-subtle", props.class);
 		}
 	});
 }
 function itemMediaClass(variant = "default", className) {
-	return join("flex-none flex items-center justify-center gap-2", match(variant).with("default", () => "bg-transparent").with("icon", () => "w-8 h-8 rounded-sm border border-subtle bg-control").with("image", () => "w-10 h-10 overflow-hidden rounded-sm").exhaustive(), className);
+	return mergeClasses("flex-none flex items-center justify-center gap-2", match(variant).with("default", () => "bg-transparent").with("icon", () => "w-8 h-8 rounded-sm border border-subtle bg-control").with("image", () => "w-10 h-10 overflow-hidden rounded-sm").exhaustive(), className);
 }
 function ItemMedia(props) {
 	return createComponent$1(View, {
@@ -4689,7 +4698,7 @@ function ItemMedia(props) {
 function ItemContent(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("flex-1 min-w-0 flex flex-col gap-1", props.class);
+			return mergeClasses("flex-1 min-w-0 flex flex-col gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -4699,7 +4708,7 @@ function ItemContent(props) {
 function ItemTitle(props) {
 	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return join("min-w-0 text-sm font-medium text-primary", props.class);
+			return mergeClasses("min-w-0 text-sm font-medium text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -4712,7 +4721,7 @@ function ItemDescription(props) {
 			return props.maxLines ?? 2;
 		},
 		get ["class"]() {
-			return join("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
+			return mergeClasses("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -4722,7 +4731,7 @@ function ItemDescription(props) {
 function ItemActions(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("flex-none flex items-center gap-2", props.class);
+			return mergeClasses("flex-none flex items-center gap-2", props.class);
 		},
 		get children() {
 			return props.children;
@@ -4732,7 +4741,7 @@ function ItemActions(props) {
 function ItemHeader(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("w-full min-w-0 flex items-center justify-between gap-2", props.class);
+			return mergeClasses("w-full min-w-0 flex items-center justify-between gap-2", props.class);
 		},
 		get children() {
 			return props.children;
@@ -4797,7 +4806,7 @@ function ResponsiveGrid(props) {
 					};
 				},
 				get ["class"]() {
-					return join("w-full min-w-0 grid", responsiveGridColumnClass(columns()), props.class);
+					return mergeClasses("w-full min-w-0 grid", responsiveGridColumnClass(columns()), props.class);
 				},
 				get children() {
 					return props.children;
@@ -4817,7 +4826,7 @@ function ResponsiveGridRemainder(props) {
 		children: () => createComponent$1(View, {
 			"aria-hidden": true,
 			get ["class"]() {
-				return join("min-w-0", props.class);
+				return mergeClasses("min-w-0", props.class);
 			}
 		})
 	});
@@ -4831,7 +4840,7 @@ function ResponsiveGridRemainder(props) {
 function SplitPane(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("w-full min-w-0 flex flex-row overflow-hidden", props.class);
+			return mergeClasses("w-full min-w-0 flex flex-row overflow-hidden", props.class);
 		},
 		get children() {
 			return props.children;
@@ -4841,7 +4850,7 @@ function SplitPane(props) {
 function SplitPaneMain(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("flex-1 min-w-0 overflow-hidden", props.class);
+			return mergeClasses("flex-1 min-w-0 overflow-hidden", props.class);
 		},
 		get children() {
 			return props.children;
@@ -4851,7 +4860,7 @@ function SplitPaneMain(props) {
 function SplitPaneAside(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("flex-none min-w-0 overflow-hidden", props.class);
+			return mergeClasses("flex-none min-w-0 overflow-hidden", props.class);
 		},
 		get children() {
 			return props.children;
@@ -4914,11 +4923,742 @@ function AdaptiveSplitPaneDetail(props) {
 					return props["aria-label"];
 				},
 				get contentClass() {
-					return join("h-11/12 p-0 overflow-hidden", props.modalClass);
+					return mergeClasses("h-11/12 p-0 overflow-hidden", props.modalClass);
 				},
 				get children() {
 					return props.children;
 				}
+			});
+		}
+	});
+}
+//#endregion
+//#region src/components/markdown-model.ts
+const LINK_REFERENCE_DEFINITION = /^ {0,3}\[[^\]\n]+\]:/m;
+function sameRuns(left, right) {
+	return left.length === right.length && left.every((run, index) => run.text === right[index]?.text && sameStyle(run.style, right[index]?.style ?? {}));
+}
+function reconcileRuns(previous, next) {
+	const reconciled = [];
+	let previousIndex = 0;
+	let canReuse = true;
+	for (const run of next) {
+		let remaining = run.text;
+		while (canReuse && remaining.length > 0) {
+			const prior = previous[previousIndex];
+			if (!prior || !sameStyle(prior.style, run.style) || !remaining.startsWith(prior.text)) {
+				canReuse = false;
+				break;
+			}
+			reconciled.push(prior);
+			remaining = remaining.slice(prior.text.length);
+			previousIndex += 1;
+		}
+		if (remaining) reconciled.push({
+			text: remaining,
+			style: run.style
+		});
+	}
+	return previousIndex === previous.length && sameRuns(previous, reconciled) ? previous : reconciled;
+}
+function reconcileBlock(previous, next) {
+	if (!previous || previous.kind !== next.kind) return next;
+	if (sameBlock(previous, next)) return previous;
+	switch (next.kind) {
+		case "heading": {
+			if (previous.kind !== "heading") return next;
+			const runs = reconcileRuns(previous.runs, next.runs);
+			return runs === previous.runs && previous.depth === next.depth ? previous : {
+				...next,
+				runs
+			};
+		}
+		case "paragraph": {
+			if (previous.kind !== "paragraph") return next;
+			const runs = reconcileRuns(previous.runs, next.runs);
+			return runs === previous.runs ? previous : {
+				...next,
+				runs
+			};
+		}
+		case "blockquote": return {
+			...next,
+			blocks: previous.kind === "blockquote" ? reconcileMarkdownBlocks(previous.blocks, next.blocks) : next.blocks
+		};
+		case "list": return {
+			...next,
+			items: next.items.map((item, index) => ({
+				...item,
+				blocks: previous.kind === "list" ? reconcileMarkdownBlocks(previous.items[index]?.blocks ?? [], item.blocks) : item.blocks
+			}))
+		};
+		case "table": return {
+			...next,
+			header: next.header.map((runs, index) => previous.kind === "table" ? reconcileRuns(previous.header[index] ?? [], runs) : runs),
+			rows: next.rows.map((row, rowIndex) => row.map((runs, columnIndex) => previous.kind === "table" ? reconcileRuns(previous.rows[rowIndex]?.[columnIndex] ?? [], runs) : runs))
+		};
+		default: return next;
+	}
+}
+function sameBlock(left, right) {
+	if (left.kind !== right.kind) return false;
+	switch (left.kind) {
+		case "heading": return right.kind === "heading" && left.depth === right.depth && sameRuns(left.runs, right.runs);
+		case "paragraph": return right.kind === "paragraph" && sameRuns(left.runs, right.runs);
+		case "blockquote": return right.kind === "blockquote" && sameBlocks(left.blocks, right.blocks);
+		case "list": return right.kind === "list" && left.ordered === right.ordered && left.start === right.start && left.items.length === right.items.length && left.items.every((item, index) => item.checked === right.items[index]?.checked && sameBlocks(item.blocks, right.items[index]?.blocks ?? []));
+		case "table": return right.kind === "table" && left.align.length === right.align.length && left.align.every((align, index) => align === right.align[index]) && sameRunRows(left.header, right.header) && left.rows.length === right.rows.length && left.rows.every((row, index) => sameRunRows(row, right.rows[index] ?? []));
+		case "code": return right.kind === "code" && left.code === right.code && left.language === right.language;
+		case "rule": return right.kind === "rule";
+		case "literal": return right.kind === "literal" && left.text === right.text;
+	}
+}
+function sameRunRows(left, right) {
+	return left.length === right.length && left.every((runs, index) => sameRuns(runs, right[index] ?? []));
+}
+function sameBlocks(left, right) {
+	return left.length === right.length && left.every((block, index) => sameBlock(block, right[index]));
+}
+/**
+* Preserve unchanged block identities across streaming parses. Solid can then
+* retain the already-rendered native subtree while only replacing the block
+* whose Markdown source is still growing.
+*/
+function reconcileMarkdownBlocks(previous, next) {
+	let changed = previous.length !== next.length;
+	const reconciled = next.map((block, index) => {
+		const result = reconcileBlock(previous[index], block);
+		if (result !== previous[index]) changed = true;
+		return result;
+	});
+	return changed ? reconciled : previous;
+}
+function sameStyle(left, right) {
+	return left.strong === right.strong && left.emphasis === right.emphasis && left.code === right.code && left.deleted === right.deleted && left.href === right.href;
+}
+function appendRun(runs, text, style) {
+	if (!text) return;
+	const previous = runs.at(-1);
+	if (previous && sameStyle(previous.style, style)) previous.text += text;
+	else runs.push({
+		text,
+		style
+	});
+}
+function inlineRuns(tokens, inherited = {}) {
+	const runs = [];
+	for (const token of tokens) {
+		const nested = (style) => {
+			if ("tokens" in token && Array.isArray(token.tokens)) for (const run of inlineRuns(token.tokens, style)) appendRun(runs, run.text, run.style);
+			else if ("text" in token && typeof token.text === "string") appendRun(runs, token.text, style);
+		};
+		switch (token.type) {
+			case "strong":
+				nested({
+					...inherited,
+					strong: true
+				});
+				break;
+			case "em":
+				nested({
+					...inherited,
+					emphasis: true
+				});
+				break;
+			case "codespan":
+				appendRun(runs, token.text, {
+					...inherited,
+					code: true
+				});
+				break;
+			case "del":
+				nested({
+					...inherited,
+					deleted: true
+				});
+				break;
+			case "link":
+				nested({
+					...inherited,
+					href: token.href
+				});
+				break;
+			case "image":
+				appendRun(runs, token.text || token.href, inherited);
+				break;
+			case "br":
+				appendRun(runs, "\n", inherited);
+				break;
+			case "checkbox": break;
+			default: nested(inherited);
+		}
+	}
+	return runs;
+}
+function blocks(tokens) {
+	const result = [];
+	for (const token of tokens) switch (token.type) {
+		case "space": break;
+		case "heading": {
+			const heading = token;
+			result.push({
+				kind: "heading",
+				depth: heading.depth,
+				runs: inlineRuns(heading.tokens)
+			});
+			break;
+		}
+		case "paragraph":
+		case "text": {
+			const text = token;
+			result.push({
+				kind: "paragraph",
+				runs: inlineRuns(text.tokens ?? [text])
+			});
+			break;
+		}
+		case "blockquote":
+			result.push({
+				kind: "blockquote",
+				blocks: blocks(token.tokens)
+			});
+			break;
+		case "list": {
+			const list = token;
+			result.push({
+				kind: "list",
+				ordered: list.ordered,
+				start: typeof list.start === "number" ? list.start : 1,
+				items: list.items.map((item) => ({
+					checked: typeof item.checked === "boolean" ? item.checked : void 0,
+					blocks: blocks(item.tokens)
+				}))
+			});
+			break;
+		}
+		case "table": {
+			const table = token;
+			result.push({
+				kind: "table",
+				align: table.align,
+				header: table.header.map((cell) => inlineRuns(cell.tokens)),
+				rows: table.rows.map((row) => row.map((cell) => inlineRuns(cell.tokens)))
+			});
+			break;
+		}
+		case "code":
+			result.push({
+				kind: "code",
+				code: token.text,
+				language: token.lang || void 0
+			});
+			break;
+		case "hr":
+			result.push({ kind: "rule" });
+			break;
+		case "html":
+			result.push({
+				kind: "literal",
+				text: token.text
+			});
+			break;
+		default: if ("tokens" in token && Array.isArray(token.tokens)) result.push(...blocks(token.tokens));
+	}
+	return result;
+}
+function parseWithOffsets(source) {
+	const parsedBlocks = [];
+	const parsedTokens = [];
+	let offset = 0;
+	for (const token of lexer(source, { gfm: true })) {
+		const start = offset;
+		offset += token.raw.length;
+		const tokenBlocks = blocks([token]);
+		parsedBlocks.push(...tokenBlocks);
+		parsedTokens.push({
+			start,
+			end: offset,
+			blockCount: tokenBlocks.length
+		});
+	}
+	return {
+		blocks: parsedBlocks,
+		tokens: parsedTokens
+	};
+}
+/**
+* Stateful Markdown parse adapter for append-heavy streams.
+*
+* Like Waku's MarkdownView, it treats the last two top-level source tokens as
+* volatile. Appends retain everything before that boundary and only lex the
+* tail. Parser-specific tokens never escape this module.
+*/
+var MarkdownDocument = class {
+	#source = "";
+	#streaming = false;
+	#blocks = [];
+	#tokens = [];
+	#lastParse = {
+		incremental: false,
+		parsedBytes: 0,
+		sourceBytes: 0
+	};
+	get blocks() {
+		return this.#blocks;
+	}
+	/** Diagnostics for benchmarks and streaming regression tests. */
+	get lastParse() {
+		return this.#lastParse;
+	}
+	setSource(source, streaming = false) {
+		if (source === this.#source && streaming === this.#streaming) return this.#blocks;
+		const displaySource = streaming ? remend(source) : source;
+		const canAppend = streaming && this.#streaming && source.startsWith(this.#source) && !LINK_REFERENCE_DEFINITION.test(source) && this.#tokens.length > 2;
+		let next;
+		let parsedBytes = displaySource.length;
+		let incremental = false;
+		if (canAppend) {
+			const stableTokenCount = this.#tokens.length - 2;
+			const stableTokens = this.#tokens.slice(0, stableTokenCount);
+			const boundary = stableTokens.at(-1)?.end ?? 0;
+			if (boundary <= source.length && boundary <= displaySource.length) {
+				const stableBlockCount = stableTokens.reduce((count, token) => count + token.blockCount, 0);
+				const tail = parseWithOffsets(displaySource.slice(boundary));
+				parsedBytes = displaySource.length - boundary;
+				incremental = true;
+				next = {
+					blocks: [...this.#blocks.slice(0, stableBlockCount), ...tail.blocks],
+					tokens: [...stableTokens, ...tail.tokens.map((token) => ({
+						...token,
+						start: token.start + boundary,
+						end: token.end + boundary
+					}))]
+				};
+			} else next = parseWithOffsets(displaySource);
+		} else next = parseWithOffsets(displaySource);
+		this.#blocks = reconcileMarkdownBlocks(this.#blocks, next.blocks);
+		this.#tokens = next.tokens;
+		this.#source = source;
+		this.#streaming = streaming;
+		this.#lastParse = {
+			incremental,
+			parsedBytes,
+			sourceBytes: displaySource.length
+		};
+		return this.#blocks;
+	}
+};
+//#endregion
+//#region src/components/separator.tsx
+/** A visual divider with an opt-in semantic separator contract. */
+function Separator(props) {
+	const orientation = () => props.orientation ?? "horizontal";
+	const decorative = () => props.decorative ?? true;
+	const dimensions = () => match(orientation()).with("horizontal", () => "h-px w-full").with("vertical", () => "w-px h-full").exhaustive();
+	const rest = omit(props, "class", "decorative", "orientation");
+	return createComponent$1(View, mergeProps(rest, {
+		get role() {
+			return decorative() ? "presentation" : "separator";
+		},
+		get ["aria-hidden"]() {
+			return decorative() ? "true" : void 0;
+		},
+		get ["aria-orientation"]() {
+			return memo(() => {
+				return !!decorative();
+			})() ? void 0 : orientation();
+		},
+		get ["class"]() {
+			return mergeClasses("flex-none bg-subtle", dimensions(), props.class);
+		}
+	}));
+}
+//#endregion
+//#region src/components/markdown.tsx
+function runClass(run) {
+	return mergeClasses(run.style.strong && "font-semibold text-primary", run.style.emphasis && "italic text-primary", run.style.code && "font-mono text-sm font-normal text-primary", run.style.deleted && "text-muted", run.style.href && "font-medium text-accent");
+}
+function InlineMarkdown(props) {
+	return createComponent$1(RichText, {
+		get ["class"]() {
+			return mergeClasses("min-w-0 whitespace-normal", props.variant === "conversation" ? "text-sm leading-relaxed text-primary" : "text-base leading-relaxed text-secondary", props.class);
+		},
+		get children() {
+			return createComponent$1(For, {
+				get each() {
+					return props.runs;
+				},
+				children: (run) => createComponent$1(MarkdownSpan, {
+					run,
+					get reveal() {
+						return props.animateRun?.(run) ?? false;
+					}
+				})
+			});
+		}
+	});
+}
+function MarkdownSpan(props) {
+	const reducedMotion = useReducedMotion();
+	const reveal = untrack(() => props.reveal) ? createKeyframeAnimation([.72, 1], {
+		duration: .12,
+		ease: "easeOut",
+		reducedMotion,
+		reducedValue: 1
+	}).value : () => 1;
+	return createComponent$1(RichTextSpan, {
+		get ["class"]() {
+			return runClass(props.run);
+		},
+		get ["data-motion"]() {
+			return props.reveal ? "markdown-stream-reveal" : void 0;
+		},
+		get style() {
+			return { opacity: reveal() };
+		},
+		get children() {
+			return props.run.text;
+		}
+	});
+}
+function Heading(props) {
+	const className = createMemo(() => {
+		if (props.variant === "conversation") switch (props.block.depth) {
+			case 1: return "text-xl font-semibold tracking-tight text-primary whitespace-normal";
+			case 2: return "text-lg font-semibold tracking-tight text-primary whitespace-normal";
+			case 3: return "text-base font-semibold tracking-tight text-primary whitespace-normal";
+			default: return "text-sm font-semibold text-primary whitespace-normal";
+		}
+		switch (props.block.depth) {
+			case 1: return "text-4xl font-bold text-primary";
+			case 2: return "text-3xl font-semibold text-primary";
+			case 3: return "text-2xl font-semibold text-primary";
+			default: return "text-xl font-semibold text-primary";
+		}
+	});
+	return createComponent$1(InlineMarkdown, {
+		get runs() {
+			return props.block.runs;
+		},
+		get variant() {
+			return props.variant;
+		},
+		get ["class"]() {
+			return className();
+		},
+		get animateRun() {
+			return props.animateRun;
+		}
+	});
+}
+function MarkdownBlocks(props) {
+	return createComponent$1(For, {
+		get each() {
+			return props.blocks;
+		},
+		keyed: false,
+		children: (block) => createComponent$1(MarkdownBlock, {
+			get block() {
+				return block();
+			},
+			get variant() {
+				return props.variant;
+			},
+			get animateRun() {
+				return props.animateRun;
+			}
+		})
+	});
+}
+function MarkdownList(props) {
+	return createComponent$1(View, {
+		get ["class"]() {
+			return props.variant === "conversation" ? "flex flex-col gap-1.5" : "flex flex-col gap-2";
+		},
+		get children() {
+			return createComponent$1(For, {
+				get each() {
+					return props.block.items;
+				},
+				children: (item, index) => createComponent$1(View, {
+					class: "min-w-0 flex flex-row items-start gap-2",
+					get children() {
+						return [createComponent$1(Text, {
+							"aria-hidden": "true",
+							class: "flex-none text-secondary",
+							get children() {
+								return memo(() => {
+									return typeof item.checked === "boolean";
+								})() ? item.checked ? "[x]" : "[ ]" : memo(() => {
+									return !!props.block.ordered;
+								})() ? `${props.block.start + index()}.` : "•";
+							}
+						}), createComponent$1(View, {
+							class: "min-w-0 flex-1 flex flex-col gap-1.5",
+							get children() {
+								return createComponent$1(MarkdownBlocks, {
+									get blocks() {
+										return item.blocks;
+									},
+									get variant() {
+										return props.variant;
+									},
+									get animateRun() {
+										return props.animateRun;
+									}
+								});
+							}
+						})];
+					}
+				})
+			});
+		}
+	});
+}
+function MarkdownTable(props) {
+	const rows = () => [props.block.header, ...props.block.rows];
+	return createComponent$1(View, {
+		class: "min-w-0 overflow-hidden rounded-lg border border-subtle",
+		get children() {
+			return createComponent$1(For, {
+				get each() {
+					return rows();
+				},
+				children: (row, rowIndex) => createComponent$1(View, {
+					get ["class"]() {
+						return mergeClasses("min-w-0 flex flex-row border-b border-subtle", rowIndex() === 0 ? "bg-control" : "bg-surface");
+					},
+					get children() {
+						return createComponent$1(For, {
+							each: row,
+							children: (runs, columnIndex) => createComponent$1(View, {
+								get ["class"]() {
+									return mergeClasses("min-w-0 flex-1 px-3 py-2", columnIndex() + 1 < row.length && "border-r border-subtle");
+								},
+								get children() {
+									return createComponent$1(InlineMarkdown, {
+										runs,
+										get variant() {
+											return props.variant;
+										},
+										get ["class"]() {
+											return mergeClasses(props.block.align[columnIndex()] === "center" && "text-center", props.block.align[columnIndex()] === "right" && "text-right");
+										},
+										get animateRun() {
+											return props.animateRun;
+										}
+									});
+								}
+							})
+						});
+					}
+				})
+			});
+		}
+	});
+}
+function MarkdownBlock(props) {
+	const heading = () => props.block.kind === "heading" ? props.block : void 0;
+	const paragraph = () => props.block.kind === "paragraph" ? props.block : void 0;
+	const blockquote = () => props.block.kind === "blockquote" ? props.block : void 0;
+	const list = () => props.block.kind === "list" ? props.block : void 0;
+	const table = () => props.block.kind === "table" ? props.block : void 0;
+	const code = () => props.block.kind === "code" ? props.block : void 0;
+	const literal = () => props.block.kind === "literal" ? props.block : void 0;
+	return createComponent$1(Switch$1, { get children() {
+		return [
+			createComponent$1(Match, {
+				get when() {
+					return heading();
+				},
+				children: (block) => createComponent$1(Heading, {
+					get block() {
+						return block();
+					},
+					get variant() {
+						return props.variant;
+					},
+					get animateRun() {
+						return props.animateRun;
+					}
+				})
+			}),
+			createComponent$1(Match, {
+				get when() {
+					return paragraph();
+				},
+				children: (block) => createComponent$1(InlineMarkdown, {
+					get runs() {
+						return block().runs;
+					},
+					get variant() {
+						return props.variant;
+					},
+					get animateRun() {
+						return props.animateRun;
+					}
+				})
+			}),
+			createComponent$1(Match, {
+				get when() {
+					return blockquote();
+				},
+				children: (block) => createComponent$1(View, {
+					class: "min-w-0 flex flex-row items-stretch gap-3",
+					get children() {
+						return [createComponent$1(View, {
+							"aria-hidden": "true",
+							class: "w-1 flex-none rounded-full bg-strong"
+						}), createComponent$1(View, {
+							class: "min-w-0 flex-1 flex flex-col gap-2",
+							get children() {
+								return createComponent$1(MarkdownBlocks, {
+									get blocks() {
+										return block().blocks;
+									},
+									get variant() {
+										return props.variant;
+									},
+									get animateRun() {
+										return props.animateRun;
+									}
+								});
+							}
+						})];
+					}
+				})
+			}),
+			createComponent$1(Match, {
+				get when() {
+					return list();
+				},
+				children: (block) => createComponent$1(MarkdownList, {
+					get block() {
+						return block();
+					},
+					get variant() {
+						return props.variant;
+					},
+					get animateRun() {
+						return props.animateRun;
+					}
+				})
+			}),
+			createComponent$1(Match, {
+				get when() {
+					return table();
+				},
+				children: (block) => createComponent$1(MarkdownTable, {
+					get block() {
+						return block();
+					},
+					get variant() {
+						return props.variant;
+					},
+					get animateRun() {
+						return props.animateRun;
+					}
+				})
+			}),
+			createComponent$1(Match, {
+				get when() {
+					return code();
+				},
+				children: (block) => createComponent$1(CodeBlock, {
+					get code() {
+						return block().code;
+					},
+					get language() {
+						return block().language ?? "text";
+					},
+					copyLabel: "Copy code"
+				})
+			}),
+			createComponent$1(Match, {
+				get when() {
+					return props.block.kind === "rule";
+				},
+				get children() {
+					return createComponent$1(Separator, {});
+				}
+			}),
+			createComponent$1(Match, {
+				get when() {
+					return literal();
+				},
+				children: (block) => createComponent$1(Text, {
+					class: "text-sm text-muted whitespace-normal",
+					get children() {
+						return block().text;
+					}
+				})
+			})
+		];
+	} });
+}
+function visitMarkdownRuns(blocks, visit) {
+	for (const block of blocks) switch (block.kind) {
+		case "heading":
+		case "paragraph":
+			block.runs.forEach(visit);
+			break;
+		case "blockquote":
+			visitMarkdownRuns(block.blocks, visit);
+			break;
+		case "list":
+			block.items.forEach((item) => {
+				visitMarkdownRuns(item.blocks, visit);
+			});
+			break;
+		case "table":
+			block.header.forEach((runs) => {
+				runs.forEach(visit);
+			});
+			block.rows.forEach((row) => {
+				row.forEach((runs) => {
+					runs.forEach(visit);
+				});
+			});
+	}
+}
+/** Parses GFM in JavaScript and renders native Wabou components, without HTML or a DOM. */
+function Markdown(props) {
+	const document = new MarkdownDocument();
+	let initialized = false;
+	const knownRuns = /* @__PURE__ */ new WeakSet();
+	const blocks = createMemo(() => {
+		const parsed = document.setSource(props.source, props.streaming);
+		if (!initialized) {
+			visitMarkdownRuns(parsed, (run) => {
+				knownRuns.add(run);
+			});
+			initialized = true;
+		}
+		return parsed;
+	});
+	const variant = () => props.variant ?? "document";
+	const animateRun = (run) => {
+		const reveal = untrack(() => props.streaming === true) && !knownRuns.has(run);
+		knownRuns.add(run);
+		return reveal;
+	};
+	return createComponent$1(View, {
+		role: "region",
+		get ["aria-label"]() {
+			return props["aria-label"] ?? "Markdown";
+		},
+		get ["class"]() {
+			return mergeClasses("min-w-0 flex flex-col", variant() === "conversation" ? "gap-3" : "gap-4", props.class);
+		},
+		get children() {
+			return createComponent$1(MarkdownBlocks, {
+				get blocks() {
+					return blocks();
+				},
+				get variant() {
+					return variant();
+				},
+				animateRun
 			});
 		}
 	});
@@ -4982,7 +5722,7 @@ function Toolbar(props) {
 					return orientation();
 				},
 				get ["class"]() {
-					return join("flex-none flex items-center gap-1 rounded-md border border-subtle bg-control p-1", match(orientation()).with("horizontal", () => "flex-row").with("vertical", () => "flex-col").exhaustive(), props.class);
+					return mergeClasses("flex-none flex items-center gap-1 rounded-md border border-subtle bg-control p-1", match(orientation()).with("horizontal", () => "flex-row").with("vertical", () => "flex-col").exhaustive(), props.class);
 				},
 				get children() {
 					return props.children;
@@ -5051,7 +5791,7 @@ function ToolbarGroup(props) {
 			return props["aria-label"];
 		},
 		get ["class"]() {
-			return join("flex items-center gap-0.5", toolbar.orientation() === "horizontal" ? "flex-row" : "flex-col", props.class);
+			return mergeClasses("flex items-center gap-0.5", toolbar.orientation() === "horizontal" ? "flex-row" : "flex-col", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5064,7 +5804,7 @@ function ToolbarSeparator(props) {
 	return createComponent$1(View, {
 		"aria-hidden": "true",
 		get ["class"]() {
-			return join("flex-none bg-subtle", toolbar.orientation() === "horizontal" ? "w-px h-5" : "h-px w-5", props.class);
+			return mergeClasses("flex-none bg-subtle", toolbar.orientation() === "horizontal" ? "w-px h-5" : "h-px w-5", props.class);
 		}
 	});
 }
@@ -5215,7 +5955,7 @@ function MessageGroup(props) {
 			return props.role ?? "group";
 		},
 		get ["class"]() {
-			return join("w-full min-w-0 flex flex-col gap-3", props.class);
+			return mergeClasses("w-full min-w-0 flex flex-col gap-3", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5223,7 +5963,7 @@ function MessageGroup(props) {
 	}));
 }
 function messageClass(align = "start", className) {
-	return join("relative w-full min-w-0 flex gap-2 text-sm", align === "end" ? "flex-row-reverse" : "flex-row", className);
+	return mergeClasses("relative w-full min-w-0 flex gap-2 text-sm", align === "end" ? "flex-row-reverse" : "flex-row", className);
 }
 function Message(props) {
 	const forwarded = omit(props, "align", "class", "children");
@@ -5248,7 +5988,7 @@ function Message(props) {
 function MessageAvatar(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("w-8 h-8 flex-none self-end overflow-hidden rounded-full bg-control flex items-center justify-center", props.class);
+			return mergeClasses("w-8 h-8 flex-none self-end overflow-hidden rounded-full bg-control flex items-center justify-center", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5259,7 +5999,7 @@ function MessageContent(props) {
 	const context = useContext(MessageContext);
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("flex-1 min-w-0 flex flex-col gap-2", context.align() === "end" ? "items-end" : "items-start", props.class);
+			return mergeClasses("flex-1 min-w-0 flex flex-col gap-2", context.align() === "end" ? "items-end" : "items-start", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5270,7 +6010,7 @@ function MessageHeader(props) {
 	const context = useContext(MessageContext);
 	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return join("max-w-full min-w-0 px-3 text-xs font-medium text-muted", context.align() === "end" && "text-right", props.class);
+			return mergeClasses("max-w-full min-w-0 px-3 text-xs font-medium text-muted", context.align() === "end" && "text-right", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5281,7 +6021,7 @@ const MessageFooter = MessageHeader;
 function BubbleGroup(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("w-full min-w-0 grid gap-2", props.class);
+			return mergeClasses("w-full min-w-0 grid gap-2", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5289,7 +6029,7 @@ function BubbleGroup(props) {
 	}));
 }
 function bubbleClass(variant = "default", align = "start", className) {
-	return join("relative min-w-0 flex flex-col gap-1", variant === "ghost" ? "max-w-full" : "max-w-4/5", align === "end" ? "self-end items-end" : "self-start items-start", className);
+	return mergeClasses("relative min-w-0 flex flex-col gap-1", variant === "ghost" ? "max-w-full" : "max-w-4/5", align === "end" ? "self-end items-end" : "self-start items-start", className);
 }
 function Bubble(props) {
 	const message = useContext(MessageContext);
@@ -5314,7 +6054,7 @@ function Bubble(props) {
 }
 function bubbleContentClass(variant, className) {
 	const colors = match(variant).with("default", () => "border-transparent bg-accent text-on-accent").with("secondary", () => "border-transparent bg-control text-primary").with("muted", () => "border-transparent bg-control text-secondary").with("tinted", () => "border-transparent bg-selected text-primary").with("outline", () => "border-subtle bg-surface text-primary").with("ghost", () => "border-transparent bg-transparent text-primary").with("destructive", () => "border-danger bg-danger-surface text-danger-primary").exhaustive();
-	return join("max-w-full min-w-0 overflow-hidden rounded-xl border", variant === "ghost" ? "p-0" : "px-3 py-2", colors, className);
+	return mergeClasses("max-w-full min-w-0 overflow-hidden rounded-xl border", variant === "ghost" ? "p-0" : "px-3 py-2", colors, className);
 }
 function BubbleContent(props) {
 	const context = useContext(BubbleContext);
@@ -5333,7 +6073,7 @@ function BubbleReactions(props) {
 	const align = () => props.align ?? bubble.align();
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("relative z-10 flex-none flex items-center justify-center gap-1 rounded-full bg-control px-1.5 py-0.5 text-sm", align() === "end" ? "self-end" : "self-start", props.class);
+			return mergeClasses("relative z-10 flex-none flex items-center justify-center gap-1 rounded-full bg-control px-1.5 py-0.5 text-sm", align() === "end" ? "self-end" : "self-start", props.class);
 		},
 		get transform() {
 			return translate2d$1(0, side() === "top" ? 4 : -4);
@@ -5347,7 +6087,7 @@ function Marker(props) {
 	const variant = () => props.variant ?? "default";
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("w-full min-w-0 min-h-4 flex items-center gap-2 text-sm text-muted", variant() === "border" && "border-b border-subtle pb-2", props.class);
+			return mergeClasses("w-full min-w-0 min-h-4 flex items-center gap-2 text-sm text-muted", variant() === "border" && "border-b border-subtle pb-2", props.class);
 		},
 		get children() {
 			return [
@@ -5384,7 +6124,7 @@ function MarkerIcon(props) {
 	return createComponent$1(View, mergeProps(props, {
 		"aria-hidden": "true",
 		get ["class"]() {
-			return join("w-4 h-4 flex-none", props.class);
+			return mergeClasses("w-4 h-4 flex-none", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5394,7 +6134,7 @@ function MarkerIcon(props) {
 function MarkerContent(props) {
 	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return join("min-w-0 whitespace-nowrap text-sm text-muted", props.class);
+			return mergeClasses("min-w-0 whitespace-nowrap text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5409,6 +6149,16 @@ function messageScrollRange(contentHeight, viewportHeight) {
 function isMessageScrollNearEnd(scrollY, contentHeight, viewportHeight, threshold = 24) {
 	return scrollY >= messageScrollRange(contentHeight, viewportHeight) - Math.max(0, threshold);
 }
+/** Smallest vertical delta that reveals a target without disturbing visible content. */
+function messageScrollRevealDelta(viewport, target, margin = 12) {
+	const inset = Math.max(0, margin);
+	const visibleTop = viewport.y + inset;
+	const visibleBottom = viewport.y + viewport.height - inset;
+	if (target.y < visibleTop) return target.y - visibleTop;
+	const targetBottom = target.y + target.height;
+	if (targetBottom > visibleBottom) return targetBottom - visibleBottom;
+	return 0;
+}
 const MessageScrollerContext = createContext();
 function requireMessageScroller() {
 	const context = useContext(MessageScrollerContext);
@@ -5419,6 +6169,7 @@ function useMessageScroller() {
 	return requireMessageScroller();
 }
 function MessageScroller(props) {
+	const host = useHost$1();
 	const forwarded = omit(props, "followEnd", "endThreshold", "class", "children");
 	const [scrollY, setScrollY] = createSignal(0);
 	const [followingEnd, setFollowingEnd] = createSignal(props.followEnd ?? true);
@@ -5445,6 +6196,17 @@ function MessageScroller(props) {
 			setFollowingEnd(direction === "end");
 			viewport?.scrollTo({ top: direction === "end" ? Number.MAX_SAFE_INTEGER : 0 });
 		},
+		scrollIntoView: (target, options) => {
+			if (!viewport) return;
+			const snapshot = host.layout.snapshot([viewport, target]);
+			const viewportMetrics = snapshot.nodes.find((node) => node.id.lo === viewport?.id.lo && node.id.hi === viewport?.id.hi);
+			const targetMetrics = snapshot.nodes.find((node) => node.id.lo === target.id.lo && node.id.hi === target.id.hi);
+			if (!viewportMetrics || !targetMetrics) return;
+			const delta = messageScrollRevealDelta(viewportMetrics.rect, targetMetrics.rect, options?.margin);
+			if (delta === 0) return;
+			setFollowingEnd(false);
+			viewport.scrollBy({ top: delta });
+		},
 		setViewport: (node) => {
 			viewport = node;
 			viewportSize.ref(node);
@@ -5465,7 +6227,7 @@ function MessageScroller(props) {
 		get children() {
 			return createComponent$1(View, mergeProps(forwarded, {
 				get ["class"]() {
-					return join("relative w-full h-full min-w-0 min-h-0 flex flex-col overflow-hidden", props.class);
+					return mergeClasses("relative w-full h-full min-w-0 min-h-0 flex flex-col overflow-hidden", props.class);
 				},
 				get transform() {
 					return props.transform ?? translate2d$1(-16, 0);
@@ -5486,7 +6248,7 @@ function MessageScrollerViewport(props) {
 			props.ref?.(node);
 		},
 		get ["class"]() {
-			return join("w-full min-w-0 min-h-0 flex-1 overflow-x-hidden overflow-y-auto", props.class);
+			return mergeClasses("w-full min-w-0 min-h-0 flex-1 overflow-x-hidden overflow-y-auto", props.class);
 		},
 		get scrollbar() {
 			return props.scrollbar ?? { visibility: "auto" };
@@ -5509,7 +6271,7 @@ function MessageScrollerContent(props) {
 			props.ref?.(node);
 		},
 		get ["class"]() {
-			return join("w-full min-w-0 min-h-full flex-none flex flex-col gap-4", props.class);
+			return mergeClasses("w-full min-w-0 min-h-full flex-none flex flex-col gap-4", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5519,7 +6281,7 @@ function MessageScrollerContent(props) {
 function MessageScrollerItem(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("w-full min-w-0 flex-none", props.class);
+			return mergeClasses("w-full min-w-0 flex-none", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5548,7 +6310,7 @@ function MessageScrollerButton(props) {
 					return props.size ?? "icon";
 				},
 				get ["class"]() {
-					return join("absolute z-10 left-1/2 flex-none rounded-full shadow-sm", direction() === "end" ? "bottom-3" : "top-3", props.class);
+					return mergeClasses("absolute z-10 left-1/2 flex-none rounded-full shadow-sm", direction() === "end" ? "bottom-3" : "top-3", props.class);
 				},
 				onClick: (event) => {
 					context.scrollTo(direction());
@@ -5633,7 +6395,7 @@ function Select(props) {
 		placement: "bottom-start",
 		openOnPointerDown: true,
 		get contentClass() {
-			return join("w-72 p-1 rounded-lg border border-subtle bg-surface", props.contentClass);
+			return mergeClasses("w-72 p-1 rounded-lg border border-subtle bg-surface", props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -5663,7 +6425,7 @@ function Select(props) {
 				trigger = node;
 				popover.ref(node);
 			},
-			class: (state) => join("w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs", state.focused ? "border-focus" : "border-subtle", props.class),
+			class: (state) => mergeClasses("w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs", state.focused ? "border-focus" : "border-subtle", props.class),
 			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 			get onClick() {
 				return popover.onClick;
@@ -5681,7 +6443,7 @@ function Select(props) {
 			get children() {
 				return [createComponent$1(Text, {
 					get ["class"]() {
-						return join("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
+						return mergeClasses("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
 					},
 					get children() {
 						return selected()?.label ?? props.placeholder ?? "Select an option";
@@ -5744,7 +6506,7 @@ function Select(props) {
 											return option().disabled;
 										},
 										get ["class"]() {
-											return join("w-full h-8 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm", highlighted() ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
+											return mergeClasses("w-full h-8 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm", highlighted() ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
 										},
 										get style() {
 											return { opacity: option().disabled ? .45 : 1 };
@@ -5852,7 +6614,7 @@ function Breadcrumb(props) {
 			return props["aria-label"] ?? "Breadcrumb";
 		},
 		get ["class"]() {
-			return join("min-w-0", props.class);
+			return mergeClasses("min-w-0", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5862,7 +6624,7 @@ function Breadcrumb(props) {
 function BreadcrumbList(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("min-w-0 flex flex-wrap items-center gap-1.5 text-sm text-muted", props.class);
+			return mergeClasses("min-w-0 flex flex-wrap items-center gap-1.5 text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5872,7 +6634,7 @@ function BreadcrumbList(props) {
 function BreadcrumbItem(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("min-w-0 flex items-center gap-1.5", props.class);
+			return mergeClasses("min-w-0 flex items-center gap-1.5", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5883,7 +6645,7 @@ function BreadcrumbLink(props) {
 	return createComponent$1(Button$1, mergeProps(props, {
 		unstyled: true,
 		role: "link",
-		class: (state) => join("min-w-0 rounded-sm text-sm text-secondary", state.hovered && "text-primary", state.focusVisible && "border border-focus", props.class)
+		class: (state) => mergeClasses("min-w-0 rounded-sm text-sm text-secondary", state.hovered && "text-primary", state.focusVisible && "border border-focus", props.class)
 	}));
 }
 function BreadcrumbPage(props) {
@@ -5893,7 +6655,7 @@ function BreadcrumbPage(props) {
 		"aria-disabled": "true",
 		"aria-current": "page",
 		get ["class"]() {
-			return join("min-w-0 text-sm font-medium text-primary", props.class);
+			return mergeClasses("min-w-0 text-sm font-medium text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5906,7 +6668,7 @@ function BreadcrumbSeparator(props) {
 		role: "presentation",
 		"aria-hidden": "true",
 		get ["class"]() {
-			return join("w-4 h-4 flex-none flex items-center justify-center text-muted", props.class);
+			return mergeClasses("w-4 h-4 flex-none flex items-center justify-center text-muted", props.class);
 		},
 		get children() {
 			return props.children ?? createComponent$1(Icon, {
@@ -5922,7 +6684,7 @@ function BreadcrumbEllipsis(props) {
 		role: "presentation",
 		"aria-hidden": "true",
 		get ["class"]() {
-			return join("w-8 h-8 flex-none flex items-center justify-center text-muted", props.class);
+			return mergeClasses("w-8 h-8 flex-none flex items-center justify-center text-muted", props.class);
 		},
 		get children() {
 			return createComponent$1(Icon, {
@@ -5966,7 +6728,7 @@ function Pagination(props) {
 			return context.disabled() || void 0;
 		},
 		get ["class"]() {
-			return join("flex items-center", props.class);
+			return mergeClasses("flex items-center", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5981,12 +6743,12 @@ function Pagination(props) {
 }
 function PaginationContent(props) {
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join("flex items-center gap-1", props.class);
+		return mergeClasses("flex items-center gap-1", props.class);
 	} }));
 }
 function PaginationItem(props) {
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join("flex-none", props.class);
+		return mergeClasses("flex-none", props.class);
 	} }));
 }
 function PaginationLink(props) {
@@ -6021,7 +6783,7 @@ function PaginationEllipsis(props) {
 	return createComponent$1(Text, {
 		"aria-hidden": true,
 		get ["class"]() {
-			return join("w-8 text-center text-muted", props.class);
+			return mergeClasses("w-8 text-center text-muted", props.class);
 		},
 		children: "..."
 	});
@@ -6090,7 +6852,7 @@ function Popover(props) {
 	const theme = useComponentsTheme();
 	return createComponent$1(Popover$1, mergeProps(props, {
 		get contentClass() {
-			return join("min-w-48 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-lg border border-subtle bg-surface", props.contentClass);
+			return mergeClasses("min-w-48 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-lg border border-subtle bg-surface", props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -6102,7 +6864,7 @@ function Popover(props) {
 function PopoverHeader(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("min-w-0 flex flex-col gap-1", props.class);
+			return mergeClasses("min-w-0 flex flex-col gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -6113,7 +6875,7 @@ function PopoverTitle(props) {
 	return createComponent$1(Text, {
 		role: "heading",
 		get ["class"]() {
-			return join("whitespace-normal text-sm font-semibold text-primary", props.class);
+			return mergeClasses("whitespace-normal text-sm font-semibold text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -6123,7 +6885,7 @@ function PopoverTitle(props) {
 function PopoverDescription(props) {
 	return createComponent$1(Text, {
 		get ["class"]() {
-			return join("min-w-0 whitespace-normal text-xs text-muted", props.class);
+			return mergeClasses("min-w-0 whitespace-normal text-xs text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -6133,7 +6895,7 @@ function PopoverDescription(props) {
 function PopoverFooter(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("min-w-0 flex items-center justify-end gap-2", props.class);
+			return mergeClasses("min-w-0 flex items-center justify-end gap-2", props.class);
 		},
 		get children() {
 			return props.children;
@@ -6211,7 +6973,7 @@ function NavigationMenu(props) {
 				placement: "bottom-start",
 				outsidePointerStrategy: "passthrough",
 				get contentClass() {
-					return join("w-[520px] max-w-full min-w-0 overflow-hidden rounded-lg border border-subtle bg-surface p-2 shadow-md", props.viewportClass);
+					return mergeClasses("w-[520px] max-w-full min-w-0 overflow-hidden rounded-lg border border-subtle bg-surface p-2 shadow-md", props.viewportClass);
 				},
 				trigger: (trigger) => createComponent$1(View, {
 					ref(r$) {
@@ -6223,7 +6985,7 @@ function NavigationMenu(props) {
 						return props["aria-label"];
 					},
 					get ["class"]() {
-						return join("relative inline-flex flex-none items-center justify-center", props.class);
+						return mergeClasses("relative inline-flex flex-none items-center justify-center", props.class);
 					},
 					get children() {
 						return props.children;
@@ -6240,7 +7002,7 @@ function NavigationMenuList(props) {
 	return createComponent$1(View, {
 		role: "menubar",
 		get ["class"]() {
-			return join("flex flex-none items-center justify-center gap-1", props.class);
+			return mergeClasses("flex flex-none items-center justify-center gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -6257,7 +7019,7 @@ function NavigationMenuItem(props) {
 		get children() {
 			return createComponent$1(View, {
 				get ["class"]() {
-					return join("relative flex-none", props.class);
+					return mergeClasses("relative flex-none", props.class);
 				},
 				get children() {
 					return props.children;
@@ -6267,7 +7029,7 @@ function NavigationMenuItem(props) {
 	});
 }
 function navigationMenuTriggerClass(open, className) {
-	return join("h-9 px-3 inline-flex flex-none items-center justify-center gap-1 rounded-md border-transparent text-sm font-medium", open ? "bg-selected text-primary" : "bg-transparent text-secondary", className);
+	return mergeClasses("h-9 px-3 inline-flex flex-none items-center justify-center gap-1 rounded-md border-transparent text-sm font-medium", open ? "bg-selected text-primary" : "bg-transparent text-secondary", className);
 }
 function NavigationMenuTrigger(props) {
 	const menu = requireNavigationMenu();
@@ -6339,7 +7101,7 @@ function NavigationMenuContent(props) {
 	const render = () => createComponent$1(View, mergeProps(forwarded, {
 		role: "group",
 		get ["class"]() {
-			return join("w-full min-w-0 flex flex-col gap-1", props.class);
+			return mergeClasses("w-full min-w-0 flex flex-col gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -6355,7 +7117,7 @@ function NavigationMenuLink(props) {
 		role: "link",
 		variant: "ghost",
 		get ["class"]() {
-			return join("w-full h-auto min-w-0 flex flex-col items-start gap-1 rounded-md p-2 text-left", props.active && "bg-selected", props.class);
+			return mergeClasses("w-full h-auto min-w-0 flex flex-col items-start gap-1 rounded-md p-2 text-left", props.active && "bg-selected", props.class);
 		},
 		onClick: (event) => {
 			if (props.closeOnSelect ?? true) menu.setOpenValue(null);
@@ -6375,7 +7137,7 @@ function NavigationMenuIndicator(props) {
 	return createComponent$1(View, mergeProps(props, {
 		"aria-hidden": "true",
 		get ["class"]() {
-			return join("absolute left-1/2 bottom-0 w-2 h-0.5 rounded-full bg-accent", props.class);
+			return mergeClasses("absolute left-1/2 bottom-0 w-2 h-0.5 rounded-full bg-accent", props.class);
 		}
 	}));
 }
@@ -6595,8 +7357,8 @@ function NumberField(props) {
 }
 //#endregion
 //#region src/components/page.tsx
-const pageViewportClass = (className) => join("min-w-0 min-h-0 flex-1", className);
-const pageViewportContentClass = (className) => join("w-full h-full", className);
+const pageViewportClass = (className) => mergeClasses("min-w-0 min-h-0 flex-1", className);
+const pageViewportContentClass = (className) => mergeClasses("w-full h-full", className);
 /**
 * A full-height application page boundary.
 *
@@ -6635,7 +7397,7 @@ function PageViewport(props) {
 		}
 	});
 }
-const pageHeaderClass = (className, stacked = false) => join("min-w-0 min-h-14 flex-none flex justify-between gap-4", stacked ? "flex-col items-stretch" : "flex-row items-center", className);
+const pageHeaderClass = (className, stacked = false) => mergeClasses("min-w-0 min-h-14 flex-none flex justify-between gap-4", stacked ? "flex-col items-stretch" : "flex-row items-center", className);
 /** Consistent page title, supporting text and trailing application actions. */
 function PageHeader(props) {
 	return createComponent$1(View, {
@@ -6749,7 +7511,7 @@ function ProgressRoot(props) {
 					return context.valueLabel();
 				},
 				get ["class"]() {
-					return join("w-full min-w-0 flex flex-col gap-2", props.class);
+					return mergeClasses("w-full min-w-0 flex flex-col gap-2", props.class);
 				},
 				get children() {
 					return props.children;
@@ -6768,7 +7530,7 @@ function ProgressTrack(props) {
 		},
 		"aria-hidden": "true",
 		get ["class"]() {
-			return join("w-full h-2 flex-none overflow-hidden rounded-full bg-control", props.class);
+			return mergeClasses("w-full h-2 flex-none overflow-hidden rounded-full bg-control", props.class);
 		}
 	}));
 }
@@ -6786,7 +7548,7 @@ function IndeterminateProgressFill(props) {
 	return createComponent$1(View, mergeProps(props, {
 		"aria-hidden": "true",
 		get ["class"]() {
-			return join("w-2/5 h-full rounded-full bg-accent", props.class);
+			return mergeClasses("w-2/5 h-full rounded-full bg-accent", props.class);
 		},
 		get transform() {
 			return sweep.transform();
@@ -6806,7 +7568,7 @@ function ProgressFill(props) {
 			return createComponent$1(View, mergeProps(props, {
 				"aria-hidden": "true",
 				get ["class"]() {
-					return join("h-full rounded-full bg-accent", props.class);
+					return mergeClasses("h-full rounded-full bg-accent", props.class);
 				},
 				get style() {
 					return {
@@ -6822,7 +7584,7 @@ function ProgressLabel(props) {
 	const context = useProgressContext();
 	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return join("min-w-0 text-sm text-secondary", props.class);
+			return mergeClasses("min-w-0 text-sm text-secondary", props.class);
 		},
 		get children() {
 			return props.children ?? context.label();
@@ -6833,7 +7595,7 @@ function ProgressValueLabel(props) {
 	const context = useProgressContext();
 	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return join("flex-none text-sm font-mono text-muted", props.class);
+			return mergeClasses("flex-none text-sm font-mono text-muted", props.class);
 		},
 		get children() {
 			return props.children ?? context.valueLabel() ?? "In progress";
@@ -6860,7 +7622,7 @@ function PropertyList(props) {
 	return createComponent$1(View, mergeProps(props, {
 		role: "table",
 		get ["class"]() {
-			return join("w-full min-w-0 flex flex-col overflow-hidden rounded-lg border border-subtle bg-surface", props.class);
+			return mergeClasses("w-full min-w-0 flex flex-col overflow-hidden rounded-lg border border-subtle bg-surface", props.class);
 		},
 		get children() {
 			return props.children;
@@ -6875,13 +7637,13 @@ function PropertyRow(props) {
 			return props.name;
 		},
 		get ["class"]() {
-			return join("min-h-10 w-full min-w-0 px-3 py-2 flex flex-row items-center gap-3 border-b border-subtle", props.class);
+			return mergeClasses("min-h-10 w-full min-w-0 px-3 py-2 flex flex-row items-center gap-3 border-b border-subtle", props.class);
 		},
 		get children() {
 			return [createComponent$1(Text, {
 				role: "cell",
 				get ["class"]() {
-					return join("w-48 flex-none text-xs font-mono text-accent whitespace-nowrap", props.nameClass);
+					return mergeClasses("w-48 flex-none text-xs font-mono text-accent whitespace-nowrap", props.nameClass);
 				},
 				get children() {
 					return props.name;
@@ -6889,7 +7651,7 @@ function PropertyRow(props) {
 			}), createComponent$1(Text, {
 				role: "cell",
 				get ["class"]() {
-					return join("min-w-0 flex-1 text-xs text-muted whitespace-normal", props.valueClass);
+					return mergeClasses("min-w-0 flex-1 text-xs text-muted whitespace-normal", props.valueClass);
 				},
 				get children() {
 					return props.value;
@@ -6959,7 +7721,7 @@ function QRCode(props) {
 			return props["aria-label"] ?? "QR code";
 		},
 		get ["class"]() {
-			return join("relative flex-none overflow-hidden", props.class);
+			return mergeClasses("relative flex-none overflow-hidden", props.class);
 		},
 		get style() {
 			return {
@@ -7070,7 +7832,7 @@ function Rating(props) {
 		},
 		"aria-orientation": "horizontal",
 		get ["class"]() {
-			return join("flex flex-col items-start gap-1.5", props.class);
+			return mergeClasses("flex flex-col items-start gap-1.5", props.class);
 		},
 		get style() {
 			return { opacity: disabled() ? .45 : 1 };
@@ -7116,7 +7878,7 @@ function Rating(props) {
 										disabled: inert
 									});
 								},
-								class: (buttonState) => join("w-8 h-8 items-center justify-center rounded-md border border-transparent", match({
+								class: (buttonState) => mergeClasses("w-8 h-8 items-center justify-center rounded-md border border-transparent", match({
 									focused: buttonState.focusVisible,
 									hovered: buttonState.hovered
 								}).with({ focused: true }, () => "border-focus bg-control").with({ hovered: true }, () => "bg-control-hover").with({
@@ -7270,7 +8032,7 @@ function ResizablePanelGroup(props) {
 					return props["aria-label"];
 				},
 				get ["class"]() {
-					return join("w-full h-full min-w-0 min-h-0 flex overflow-hidden", direction() === "horizontal" ? "flex-row" : "flex-col", props.class);
+					return mergeClasses("w-full h-full min-w-0 min-h-0 flex overflow-hidden", direction() === "horizontal" ? "flex-row" : "flex-col", props.class);
 				},
 				get children() {
 					return props.children;
@@ -7288,7 +8050,7 @@ function ResizablePanel(props) {
 			return props.id;
 		},
 		get ["class"]() {
-			return join("min-w-0 min-h-0 flex-none overflow-hidden", props.class);
+			return mergeClasses("min-w-0 min-h-0 flex-none overflow-hidden", props.class);
 		},
 		get style() {
 			return style();
@@ -7348,7 +8110,7 @@ function ResizableHandle(props) {
 		},
 		focusOrder: 0,
 		get ["class"]() {
-			return join("flex-none rounded-sm", context.direction() === "horizontal" ? "w-2 h-full" : "w-full h-2", dragging() || hovered() ? "bg-accent" : "bg-control", props.class);
+			return mergeClasses("flex-none rounded-sm", context.direction() === "horizontal" ? "w-2 h-full" : "w-full h-2", dragging() || hovered() ? "bg-accent" : "bg-control", props.class);
 		},
 		onPointerEnter: () => setHovered(true),
 		onPointerLeave: () => setHovered(false),
@@ -7483,14 +8245,14 @@ function Checkbox(props) {
 		get selected() {
 			return checked();
 		},
-		class: (buttonState) => join("min-h-7 px-1 items-center gap-2 rounded-md border border-transparent", buttonState.hovered && "bg-control-hover", buttonState.focusVisible && "border-focus", props.class),
+		class: (buttonState) => mergeClasses("min-h-7 px-1 items-center gap-2 rounded-md border border-transparent", buttonState.hovered && "bg-control-hover", buttonState.focusVisible && "border-focus", props.class),
 		style: (buttonState) => ({ opacity: buttonState.disabled ? .45 : 1 }),
 		onClick: toggle,
 		get children() {
 			return [createComponent$1(Center, {
 				"aria-hidden": "true",
 				get ["class"]() {
-					return join(SELECTION_INDICATOR_CLASS, "rounded text-xs font-bold", boxColors());
+					return mergeClasses(SELECTION_INDICATOR_CLASS, "rounded text-xs font-bold", boxColors());
 				},
 				get children() {
 					return memo(() => {
@@ -7551,7 +8313,7 @@ function RadioGroup(props) {
 					return props["aria-label"];
 				},
 				get ["class"]() {
-					return join("flex flex-col gap-3", props.class);
+					return mergeClasses("flex flex-col gap-3", props.class);
 				},
 				get children() {
 					return props.children;
@@ -7586,7 +8348,7 @@ function RadioGroupItem(props) {
 			unregister?.();
 			unregister = group.register(props.value, node, disabled);
 		},
-		class: (buttonState) => join("min-h-7 px-1 items-center gap-2 rounded-md border border-transparent", buttonState.hovered && "bg-control-hover", buttonState.focusVisible && "border-focus", props.class),
+		class: (buttonState) => mergeClasses("min-h-7 px-1 items-center gap-2 rounded-md border border-transparent", buttonState.hovered && "bg-control-hover", buttonState.focusVisible && "border-focus", props.class),
 		style: (buttonState) => ({ opacity: buttonState.disabled ? .45 : 1 }),
 		onClick: () => group.select(props.value),
 		onKeyDown: (event) => {
@@ -7596,7 +8358,7 @@ function RadioGroupItem(props) {
 			return [createComponent$1(Center, {
 				"aria-hidden": "true",
 				get ["class"]() {
-					return join(SELECTION_INDICATOR_CLASS, "rounded-full bg-input", match(checked()).with(true, () => "border-accent").with(false, () => "border-strong").exhaustive());
+					return mergeClasses(SELECTION_INDICATOR_CLASS, "rounded-full bg-input", match(checked()).with(true, () => "border-accent").with(false, () => "border-strong").exhaustive());
 				},
 				get children() {
 					return memo(() => {
@@ -7646,7 +8408,7 @@ function Toggle(props) {
 		get ["aria-pressed"]() {
 			return pressed();
 		},
-		class: (state) => join("items-center justify-center rounded-md border font-medium", size(), colors(state), match(props.variant ?? "default").with("outline", () => "border-strong").with("default", () => "border-transparent").exhaustive(), state.focusVisible && "border-focus", props.class),
+		class: (state) => mergeClasses("items-center justify-center rounded-md border font-medium", size(), colors(state), match(props.variant ?? "default").with("outline", () => "border-strong").with("default", () => "border-transparent").exhaustive(), state.focusVisible && "border-focus", props.class),
 		style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 		onClick: toggle,
 		get children() {
@@ -7730,7 +8492,7 @@ function ToggleGroup(props) {
 					return props["aria-label"];
 				},
 				get ["class"]() {
-					return join("flex flex-row items-center rounded-md bg-transparent", match(props.spacing ?? 0).with(0, () => "gap-0").with(1, () => "gap-1").with(2, () => "gap-2").exhaustive(), props.class);
+					return mergeClasses("flex flex-row items-center rounded-md bg-transparent", match(props.spacing ?? 0).with(0, () => "gap-0").with(1, () => "gap-1").with(2, () => "gap-2").exhaustive(), props.class);
 				},
 				get children() {
 					return props.children;
@@ -7764,7 +8526,7 @@ function ToggleGroupItem(props) {
 			unregister?.();
 			unregister = group.register(props.value, node, disabled);
 		},
-		class: (state) => join("h-7 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium", match(props.size ?? group.size()).with("sm", () => "h-6 px-2 text-xs").with("default", () => "h-8 px-3 text-sm").with("lg", () => "h-10 px-4 text-sm").exhaustive(), match({
+		class: (state) => mergeClasses("h-7 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium", match(props.size ?? group.size()).with("sm", () => "h-6 px-2 text-xs").with("default", () => "h-8 px-3 text-sm").with("lg", () => "h-10 px-4 text-sm").exhaustive(), match({
 			selected: selected(),
 			accent: props.variant === "accent",
 			hovered: state.hovered
@@ -7782,31 +8544,6 @@ function ToggleGroupItem(props) {
 			return props.children;
 		}
 	});
-}
-//#endregion
-//#region src/components/separator.tsx
-/** A visual divider with an opt-in semantic separator contract. */
-function Separator(props) {
-	const orientation = () => props.orientation ?? "horizontal";
-	const decorative = () => props.decorative ?? true;
-	const dimensions = () => match(orientation()).with("horizontal", () => "h-px w-full").with("vertical", () => "w-px h-full").exhaustive();
-	const rest = omit(props, "class", "decorative", "orientation");
-	return createComponent$1(View, mergeProps(rest, {
-		get role() {
-			return decorative() ? "presentation" : "separator";
-		},
-		get ["aria-hidden"]() {
-			return decorative() ? "true" : void 0;
-		},
-		get ["aria-orientation"]() {
-			return memo(() => {
-				return !!decorative();
-			})() ? void 0 : orientation();
-		},
-		get ["class"]() {
-			return join("flex-none bg-subtle", dimensions(), props.class);
-		}
-	}));
 }
 //#endregion
 //#region src/components/sheet.tsx
@@ -7867,7 +8604,7 @@ function Sheet(props) {
 			};
 		},
 		get contentClass() {
-			return join("min-w-0 min-h-0 flex flex-col gap-4 border-subtle bg-surface p-5", placement().content, props.contentClass);
+			return mergeClasses("min-w-0 min-h-0 flex flex-col gap-4 border-subtle bg-surface p-5", placement().content, props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -7932,7 +8669,7 @@ function ShortcutRecorder(props) {
 	const parts = () => value().split("+").filter(Boolean);
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("min-w-0 flex flex-col gap-2", props.class);
+			return mergeClasses("min-w-0 flex flex-col gap-2", props.class);
 		},
 		get children() {
 			return [memo(() => {
@@ -7956,7 +8693,7 @@ function ShortcutRecorder(props) {
 				get disabled() {
 					return props.disabled;
 				},
-				class: (state) => join("h-10 min-w-48 px-3 flex flex-row items-center gap-1 rounded-md border bg-input", recording() || state.focusVisible ? "border-focus" : "border-strong"),
+				class: (state) => mergeClasses("h-10 min-w-48 px-3 flex flex-row items-center gap-1 rounded-md border bg-input", recording() || state.focusVisible ? "border-focus" : "border-strong"),
 				onClick: () => setRecording(true),
 				onKeyDown: handleKeyDown,
 				get children() {
@@ -8012,7 +8749,7 @@ function Sidebar(props) {
 			return props.role ?? "group";
 		},
 		get ["class"]() {
-			return join("h-full min-h-0 flex-none flex flex-col overflow-hidden bg-surface-muted", props.class);
+			return mergeClasses("h-full min-h-0 flex-none flex flex-col overflow-hidden bg-surface-muted", props.class);
 		},
 		get shadows() {
 			return memo(() => {
@@ -8023,7 +8760,7 @@ function Sidebar(props) {
 }
 function SidebarHeader(props) {
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join("flex-none border-b border-subtle bg-surface", props.class);
+		return mergeClasses("flex-none border-b border-subtle bg-surface", props.class);
 	} }));
 }
 function SidebarSearch(props) {
@@ -8036,7 +8773,7 @@ function SidebarSearch(props) {
 					return props.placeholder ?? "Search";
 				},
 				get ["class"]() {
-					return join("w-full", props.class);
+					return mergeClasses("w-full", props.class);
 				}
 			}));
 		}
@@ -8046,10 +8783,10 @@ function SidebarSearch(props) {
 function SidebarContent(props) {
 	return createComponent$1(ScrollArea, mergeProps(props, {
 		get ["class"]() {
-			return join("min-h-0 flex-1", props.class);
+			return mergeClasses("min-h-0 flex-1", props.class);
 		},
 		get contentClass() {
-			return join("px-2 py-3", props.contentClass);
+			return mergeClasses("px-2 py-3", props.contentClass);
 		}
 	}));
 }
@@ -8059,13 +8796,13 @@ function SidebarGroup(props) {
 			return props.role ?? "group";
 		},
 		get ["class"]() {
-			return join("flex-none flex flex-col gap-0.5 mb-4", props.class);
+			return mergeClasses("flex-none flex flex-col gap-0.5 mb-4", props.class);
 		}
 	}));
 }
 function SidebarGroupLabel(props) {
 	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
-		return join("px-2 py-1 text-xs font-medium text-muted", props.class);
+		return mergeClasses("px-2 py-1 text-xs font-medium text-muted", props.class);
 	} }));
 }
 /** Consistent navigation row; applications still own activation and routing. */
@@ -8073,13 +8810,16 @@ function SidebarMenuButton(props) {
 	const forwarded = omit(props, "class");
 	return createComponent$1(Button$1, mergeProps(forwarded, {
 		unstyled: true,
-		class: (state) => join("w-full min-w-0 h-8 px-3 justify-start gap-2 rounded-md text-sm", state.selected ? "bg-selected text-primary" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-secondary", state.focusVisible && "border border-focus", props.class)
+		get ["aria-selected"]() {
+			return props.selected;
+		},
+		class: (state) => mergeClasses("w-full min-w-0 h-8 px-3 justify-start gap-2 rounded-md text-sm", state.pressed ? "bg-control-pressed text-primary" : state.hovered ? "bg-control-hover text-primary" : state.selected ? "bg-selected text-primary" : "bg-transparent text-secondary", state.focusVisible && "border border-focus", props.class)
 	}));
 }
 function SidebarEmpty(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("px-3 py-6 flex flex-col items-center gap-1", props.class);
+			return mergeClasses("px-3 py-6 flex flex-col items-center gap-1", props.class);
 		},
 		get children() {
 			return [createComponent$1(Text, {
@@ -8103,7 +8843,7 @@ function SidebarEmpty(props) {
 }
 function SidebarFooter(props) {
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join("flex-none border-t border-subtle bg-surface", props.class);
+		return mergeClasses("flex-none border-t border-subtle bg-surface", props.class);
 	} }));
 }
 //#endregion
@@ -8178,7 +8918,7 @@ function Slider(props) {
 			return props.disabled ? -1 : 0;
 		},
 		get ["class"]() {
-			return join("h-7 relative flex items-center", props.disabled ? "cursor-not-allowed" : "cursor-pointer", props.class);
+			return mergeClasses("h-7 relative flex items-center", props.disabled ? "cursor-not-allowed" : "cursor-pointer", props.class);
 		},
 		onFocus: () => setFocused(true),
 		onBlur: () => {
@@ -8216,7 +8956,7 @@ function Slider(props) {
 			}), createComponent$1(View, {
 				"aria-hidden": "true",
 				get ["class"]() {
-					return join("w-4 h-4 absolute rounded-full border bg-surface shadow-xs", focused() || dragging() ? "border-focus" : "border-strong");
+					return mergeClasses("w-4 h-4 absolute rounded-full border bg-surface shadow-xs", focused() || dragging() ? "border-focus" : "border-strong");
 				},
 				get style() {
 					return {
@@ -8324,7 +9064,7 @@ function StatCard(props) {
 								}), createComponent$1(View, {
 									"aria-hidden": "true",
 									get ["class"]() {
-										return join("w-2 h-2 rounded-full bg-accent", props.indicatorClass);
+										return mergeClasses("w-2 h-2 rounded-full bg-accent", props.indicatorClass);
 									}
 								})];
 							}
@@ -8376,7 +9116,7 @@ function StatusBar(props) {
 	return createComponent$1(View, mergeProps(props, {
 		role: "status",
 		get ["class"]() {
-			return join("h-7 w-full min-w-0 flex-none flex flex-row items-center gap-1 px-2 border-t border-subtle bg-control", props.class);
+			return mergeClasses("h-7 w-full min-w-0 flex-none flex flex-row items-center gap-1 px-2 border-t border-subtle bg-control", props.class);
 		},
 		get children() {
 			return props.children;
@@ -8386,7 +9126,7 @@ function StatusBar(props) {
 function StatusBarItem(props) {
 	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return join("h-full min-w-0 px-1.5 flex items-center text-xs text-muted whitespace-nowrap", props.grow ? "flex-1" : "flex-none", props.class);
+			return mergeClasses("h-full min-w-0 px-1.5 flex items-center text-xs text-muted whitespace-nowrap", props.grow ? "flex-1" : "flex-none", props.class);
 		},
 		get children() {
 			return props.children;
@@ -8398,7 +9138,7 @@ function StatusBarSeparator(props) {
 		role: "separator",
 		"aria-orientation": "vertical",
 		get ["class"]() {
-			return join("w-px h-4 flex-none bg-subtle", props.class);
+			return mergeClasses("w-px h-4 flex-none bg-subtle", props.class);
 		}
 	});
 }
@@ -8418,7 +9158,7 @@ function Stepper(props) {
 			return props["aria-label"] ?? "Progress steps";
 		},
 		get ["class"]() {
-			return join("min-w-0 flex flex-row items-start", props.class);
+			return mergeClasses("min-w-0 flex flex-row items-start", props.class);
 		},
 		get children() {
 			return createComponent$1(For, {
@@ -8467,7 +9207,7 @@ function Stepper(props) {
 							return memo(() => {
 								return index() < props.steps.length - 1;
 							})() && createComponent$1(View, { get ["class"]() {
-								return join("h-px flex-1 mt-4", index() < currentIndex() ? "bg-accent" : "bg-subtle");
+								return mergeClasses("h-px flex-1 mt-4", index() < currentIndex() ? "bg-accent" : "bg-subtle");
 							} });
 						})];
 					}
@@ -8514,7 +9254,7 @@ function Tabs(props) {
 		get children() {
 			return createComponent$1(View, {
 				get ["class"]() {
-					return join("flex gap-3", orientationClass(context.orientation(), "flex-col", "flex-row"), props.class);
+					return mergeClasses("flex gap-3", orientationClass(context.orientation(), "flex-col", "flex-row"), props.class);
 				},
 				get children() {
 					return props.children;
@@ -8537,7 +9277,7 @@ function TabsList(props) {
 		get ["class"]() {
 			return memo(() => {
 				return !!props.unstyled;
-			})() ? props.class : join("flex-none flex items-center gap-1", orientationClass(context.orientation(), "flex-row", "flex-col"), match(props.variant ?? "default").with("default", () => "p-0.5 rounded-md bg-control").with("line", () => "bg-transparent").exhaustive(), props.class);
+			})() ? props.class : mergeClasses("flex-none flex items-center gap-1", orientationClass(context.orientation(), "flex-row", "flex-col"), match(props.variant ?? "default").with("default", () => "p-0.5 rounded-md bg-control").with("line", () => "bg-transparent").exhaustive(), props.class);
 		},
 		get children() {
 			return props.children;
@@ -8569,7 +9309,7 @@ function TabsTrigger(props) {
 			unregister?.();
 			unregister = context.register(props.value, node, () => props.disabled ?? false);
 		},
-		class: (state) => props.unstyled ? typeof props.class === "function" ? props.class(state) : props.class ?? "" : join("h-7 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium", match({
+		class: (state) => props.unstyled ? typeof props.class === "function" ? props.class(state) : props.class ?? "" : mergeClasses("h-7 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium", match({
 			selected: selected(),
 			hovered: state.hovered
 		}).with({ selected: true }, () => "bg-surface text-primary shadow-xs").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-muted"), state.focusVisible && "border-focus", typeof props.class === "function" ? props.class(state) : props.class),
@@ -8599,7 +9339,7 @@ function TabsContent(props) {
 			return createComponent$1(View, {
 				role: "tabpanel",
 				get ["class"]() {
-					return join("flex-1", props.class);
+					return mergeClasses("flex-1", props.class);
 				},
 				get children() {
 					return props.children;
@@ -8617,7 +9357,7 @@ function Timeline(props) {
 			return props["aria-label"] ?? "Timeline";
 		},
 		get ["class"]() {
-			return join("min-w-0 flex flex-col", props.class);
+			return mergeClasses("min-w-0 flex flex-col", props.class);
 		},
 		get children() {
 			return createComponent$1(For, {
@@ -8631,7 +9371,7 @@ function Timeline(props) {
 							class: "w-4 flex-none flex flex-col items-center",
 							get children() {
 								return [createComponent$1(View, { get ["class"]() {
-									return join("w-3 h-3 flex-none rounded-full border", item.status === "complete" ? "border-accent bg-accent" : item.status === "current" ? "border-accent bg-surface" : "border-subtle bg-control");
+									return mergeClasses("w-3 h-3 flex-none rounded-full border", item.status === "complete" ? "border-accent bg-accent" : item.status === "current" ? "border-accent bg-surface" : "border-subtle bg-control");
 								} }), memo(() => {
 									return memo(() => {
 										return index() < props.items.length - 1;
@@ -8730,7 +9470,7 @@ function WindowFrame(props) {
 		get children() {
 			return createComponent$1(View, mergeProps(props, {
 				get ["class"]() {
-					return join("w-full h-full", props.class);
+					return mergeClasses("w-full h-full", props.class);
 				},
 				get classList() {
 					return windowFrameClientClassList(window.maximized(), props.rounded !== false, props.classList);
@@ -8767,7 +9507,7 @@ const titleBarDragRegionLayoutStyle = {
 function TitleBar(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join(titleBarClass, props.class);
+			return mergeClasses(titleBarClass, props.class);
 		},
 		get style() {
 			return {
@@ -8822,7 +9562,7 @@ function ToastContent(props) {
 						return style().icon;
 					},
 					get ["class"]() {
-						return join("flex-none mt-0.5", style().color);
+						return mergeClasses("flex-none mt-0.5", style().color);
 					},
 					size: 18
 				}),
@@ -8940,7 +9680,7 @@ function Toaster(props) {
 			return props.class;
 		},
 		get itemClass() {
-			return join("w-96 max-w-full", props.itemClass);
+			return mergeClasses("w-96 max-w-full", props.itemClass);
 		},
 		get motion() {
 			return memo(() => {
@@ -8986,7 +9726,7 @@ function Tooltip(props) {
 		closeOnEscape: true,
 		restoreFocus: false,
 		get contentClass() {
-			return join("max-w-xs rounded-md border border-subtle bg-surface px-2 py-1 shadow-md", props.contentClass);
+			return mergeClasses("max-w-xs rounded-md border border-subtle bg-surface px-2 py-1 shadow-md", props.contentClass);
 		},
 		get motion() {
 			return props.motion;
@@ -9143,7 +9883,7 @@ function TreeView(props) {
 			return props["aria-label"];
 		},
 		get ["class"]() {
-			return join("min-w-0 flex flex-col gap-0.5", props.class);
+			return mergeClasses("min-w-0 flex flex-col gap-0.5", props.class);
 		},
 		get children() {
 			return createComponent$1(For, {
@@ -9176,7 +9916,7 @@ function TreeView(props) {
 						get focusOrder() {
 							return tabStop() === item.node.id ? 0 : -1;
 						},
-						class: (state) => join("w-full h-8 min-w-0 pr-2 items-center gap-2 rounded-md text-sm", state.selected ? "bg-selected text-primary" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-secondary", props.itemClass),
+						class: (state) => mergeClasses("w-full h-8 min-w-0 pr-2 items-center gap-2 rounded-md text-sm", state.selected ? "bg-selected text-primary" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-secondary", props.itemClass),
 						get style() {
 							return { "padding-left": `${8 + (item.level - 1) * 20}px` };
 						},
@@ -9224,7 +9964,7 @@ function TreeView(props) {
 //#region src/components/typography.tsx
 function styledText(props, className) {
 	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
-		return join(className, props.class);
+		return mergeClasses(className, props.class);
 	} }));
 }
 const TypographyH1 = (props) => styledText(props, "text-4xl font-bold text-primary whitespace-normal");
@@ -9252,7 +9992,7 @@ function TypographyBlockquote(props) {
 }
 function TypographyList(props) {
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join("flex flex-col gap-2", props.class);
+		return mergeClasses("flex flex-col gap-2", props.class);
 	} }));
 }
 function TypographyListItem(props) {
@@ -9282,7 +10022,7 @@ function Fps(props) {
 		},
 		weight: "normal",
 		get ["class"]() {
-			return join("font-mono", props.class);
+			return mergeClasses("font-mono", props.class);
 		},
 		get children() {
 			return [memo(() => {
@@ -9298,12 +10038,12 @@ function Fps(props) {
 /** A native secret input whose value never crosses into JavaScript. */
 function PasswordInput(props) {
 	return createComponent$1(PasswordInput$1, mergeProps(props, { get ["class"]() {
-		return join("h-8 w-full px-3 rounded-md border text-sm shadow-xs", "border-subtle bg-input text-primary", props.disabled && "opacity-50", props.class);
+		return mergeClasses("h-8 w-full px-3 rounded-md border text-sm shadow-xs", "border-subtle bg-input text-primary", props.disabled && "opacity-50", props.class);
 	} }));
 }
 function TextArea$1(props) {
 	return createComponent$1(TextArea, mergeProps(props, { get ["class"]() {
-		return join("h-24 w-full px-3 py-2 rounded-md border text-sm shadow-xs", "border-subtle bg-input text-primary", props.disabled && "opacity-50", props.class);
+		return mergeClasses("h-24 w-full px-3 py-2 rounded-md border text-sm shadow-xs", "border-subtle bg-input text-primary", props.disabled && "opacity-50", props.class);
 	} }));
 }
 function switchColors(checked, state) {
@@ -9347,7 +10087,7 @@ function Switch(props) {
 	};
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("w-full min-w-0 flex items-center gap-3", props.class);
+			return mergeClasses("w-full min-w-0 flex items-center gap-3", props.class);
 		},
 		get children() {
 			return [createComponent$1(Button$1, {
@@ -9362,7 +10102,7 @@ function Switch(props) {
 				get ["aria-checked"]() {
 					return checked();
 				},
-				class: (state) => join("w-11 h-6 flex-none rounded-full p-0.5", switchColors(checked(), state), state.focused && "border border-focus"),
+				class: (state) => mergeClasses("w-11 h-6 flex-none rounded-full p-0.5", switchColors(checked(), state), state.focused && "border border-focus"),
 				style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 				onClick: toggle,
 				get children() {
@@ -9630,6 +10370,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDescription, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertTitle, AnnotationLayer, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Bubble, BubbleContent, BubbleGroup, BubbleReactions, Button, ButtonGroup, ButtonGroupSeparator, ButtonGroupText, Calendar, CalendarDate, Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, Center, ChartContainer, ChartEmpty, ChartLegend, Checkbox, CodeBlock, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, CopyButton, DataTable, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectionProvider, DirectionalRow, DirectionalText, DirectoryPicker, Drawer, DrawerClose, DrawerDescription, DrawerFooter, DrawerHandle, DrawerHeader, DrawerTitle, DropZone, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, IconFrame, Image, ImageList, ImageOverlayLayer, ImageViewport, InlineEdit, Input, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Label, Marker, MarkerContent, MarkerIcon, Menubar, MenubarMenu, Message, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerViewport, Modal, MotionConfigProvider, NativeSelect, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, NavigationMenuViewport, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, PropertyList, PropertyRow, Pulse, QRCode, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, ShortcutRecorder, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitButton, SplitPane, SplitPaneAside, SplitPaneMain, StatCard, StatusBar, StatusBarItem, StatusBarSeparator, Stepper, Svg, Switch, Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, Timeline, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, TypographyBlockquote, TypographyH1, TypographyH2, TypographyH3, TypographyH4, TypographyInlineCode, TypographyLarge, TypographyLead, TypographyList, TypographyListItem, TypographyMuted, TypographyP, TypographySmall, View, WindowFrame, alertColors, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentGroupClass, attachmentMediaClass, badgeClass, bubbleClass, bubbleContentClass, clampAnnotationRegion, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFileImageResource, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNetworkImageResource, createNotifications, createOverlayLayer, createOwnedImageResource, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, drawerDragOffset, drawerShouldDismiss, emptyClass, emptyMediaClass, encodeQrCode, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, imageViewportTransform, inputGroupAddonClass, inputGroupClass, isMessageScrollNearEnd, itemClass, itemMediaClass, messageClass, messageScrollRange, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, pointInLayoutRect, primitives_exports as primitives, qrCodePath, ratingLabel, reconcileCommandHighlight, redirect, releaseImageResource, responsiveGridColumnCount, responsiveGridRemainderCount, shortcutFromKeyEvent, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, uniqueFieldErrors, useChartConfig, useComponentsTheme, useDirection, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDescription, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertTitle, AnnotationLayer, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Bubble, BubbleContent, BubbleGroup, BubbleReactions, Button, ButtonGroup, ButtonGroupSeparator, ButtonGroupText, Calendar, CalendarDate, Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, Center, ChartContainer, ChartEmpty, ChartLegend, Checkbox, CodeBlock, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, CopyButton, DataTable, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectionProvider, DirectionalRow, DirectionalText, DirectoryPicker, Drawer, DrawerClose, DrawerDescription, DrawerFooter, DrawerHandle, DrawerHeader, DrawerTitle, DropZone, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, IconFrame, Image, ImageList, ImageOverlayLayer, ImageViewport, InlineEdit, Input, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Label, Markdown, Marker, MarkerContent, MarkerIcon, Menubar, MenubarMenu, Message, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerViewport, Modal, MotionConfigProvider, NativeSelect, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, NavigationMenuViewport, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, PropertyList, PropertyRow, Pulse, QRCode, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, RichText, RichTextSpan, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, ShortcutRecorder, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitButton, SplitPane, SplitPaneAside, SplitPaneMain, StatCard, StatusBar, StatusBarItem, StatusBarSeparator, Stepper, Svg, Switch, Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, Timeline, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, TypographyBlockquote, TypographyH1, TypographyH2, TypographyH3, TypographyH4, TypographyInlineCode, TypographyLarge, TypographyLead, TypographyList, TypographyListItem, TypographyMuted, TypographyP, TypographySmall, View, WindowFrame, alertColors, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentGroupClass, attachmentMediaClass, badgeClass, bubbleClass, bubbleContentClass, clampAnnotationRegion, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFileImageResource, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNetworkImageResource, createNotifications, createOverlayLayer, createOwnedImageResource, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, drawerDragOffset, drawerShouldDismiss, emptyClass, emptyMediaClass, encodeQrCode, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, imageViewportTransform, inputGroupAddonClass, inputGroupClass, isMessageScrollNearEnd, itemClass, itemMediaClass, messageClass, messageScrollRange, messageScrollRevealDelta, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, pointInLayoutRect, primitives_exports as primitives, qrCodePath, ratingLabel, reconcileCommandHighlight, redirect, releaseImageResource, responsiveGridColumnCount, responsiveGridRemainderCount, shortcutFromKeyEvent, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, uniqueFieldErrors, useChartConfig, useComponentsTheme, useDirection, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

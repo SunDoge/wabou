@@ -7,7 +7,7 @@ import {
 } from "solid-js";
 import { match } from "ts-pattern";
 import { Text, View } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import {
   type CommandStateItem,
   filterCommandItems,
@@ -85,7 +85,7 @@ export function Command(props: CommandProps): JSX.Element {
   };
 
   return (
-    <View class={join("min-w-0 flex flex-col gap-2", props.class)}>
+    <View class={mergeClasses("min-w-0 flex flex-col gap-2", props.class)}>
       <Input
         aria-label={props["aria-label"]}
         value={query()}
@@ -98,7 +98,7 @@ export function Command(props: CommandProps): JSX.Element {
         role="listbox"
         aria-label={`${props["aria-label"]} results`}
         aria-activedescendant={highlighted()}
-        class={join("min-w-0 flex flex-col gap-1", props.listClass)}
+        class={mergeClasses("min-w-0 flex flex-col gap-1", props.listClass)}
       >
         {filtered().length === 0 ? (
           <Text role="status" class="px-3 py-4 text-sm text-muted text-center">
@@ -113,7 +113,7 @@ export function Command(props: CommandProps): JSX.Element {
                 aria-label={item().label}
                 aria-selected={highlighted() === item().id}
                 aria-disabled={item().disabled}
-                class={join(
+                class={mergeClasses(
                   "min-h-9 px-3 py-1.5 flex flex-col justify-center rounded-md",
                   highlighted() === item().id
                     ? "bg-control-hover text-primary"

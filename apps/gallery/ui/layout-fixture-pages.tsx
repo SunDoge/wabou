@@ -6,12 +6,24 @@ import { ComponentsProvider, View } from "@wabou/ui";
 import { type Component, createComponent } from "solid-js";
 import {
   AdaptiveSplitPaneLayoutFixture,
+  CodeEditorLayoutFixture,
   DialogLayoutFixture,
   IconFrameLayoutFixture,
   ImageListLayoutFixture,
   ImageViewportLayoutFixture,
   InputGroupLayoutFixture,
+  MarkdownConversationLayoutFixture,
+  MarkdownInlineLayoutFixture,
   MessageLayoutFixture,
+  PiAgentHeaderLayoutFixture,
+  PiComposerContextLayoutFixture,
+  PiComposerDeliveryLayoutFixture,
+  PiComposerImagesLayoutFixture,
+  PiConversationLayoutFixture,
+  PiExtensionUiLayoutFixture,
+  PiModelControlsLayoutFixture,
+  PiSessionBehaviorLayoutFixture,
+  PiTranscriptSearchLayoutFixture,
   QRCodeLayoutFixture,
   ScrollAreaLayoutFixture,
   SelectLayoutFixture,
@@ -24,6 +36,7 @@ import * as dataTable from "./pages/data-table";
 import * as foundations from "./pages/foundations";
 import * as i18n from "./pages/i18n";
 import * as imageViewport from "./pages/image-viewport";
+import * as markdown from "./pages/markdown";
 import * as menubar from "./pages/menubar";
 import * as overlay from "./pages/overlay";
 import * as shadcn from "./pages/shadcn";
@@ -109,6 +122,67 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         height: 160,
         render: InputGroupLayoutFixture,
       },
+      "component/MarkdownInline": {
+        width: 360,
+        height: 120,
+        render: MarkdownInlineLayoutFixture,
+      },
+      "component/MarkdownConversation": {
+        width: 720,
+        height: 520,
+        render: MarkdownConversationLayoutFixture,
+      },
+      "component/PiConversation": {
+        width: 720,
+        height: 480,
+        render: PiConversationLayoutFixture,
+        waitMs: 220,
+      },
+      "component/PiAgentHeader": {
+        width: 720,
+        height: 56,
+        render: PiAgentHeaderLayoutFixture,
+      },
+      "component/PiComposerImages": {
+        width: 420,
+        height: 120,
+        render: PiComposerImagesLayoutFixture,
+      },
+      "component/PiComposerContext": {
+        width: 420,
+        height: 120,
+        render: PiComposerContextLayoutFixture,
+      },
+      "component/PiComposerDelivery": {
+        width: 240,
+        height: 80,
+        render: PiComposerDeliveryLayoutFixture,
+      },
+      "component/PiExtensionUi": {
+        width: 420,
+        height: 180,
+        render: PiExtensionUiLayoutFixture,
+      },
+      "component/PiModelControls": {
+        width: 480,
+        height: 100,
+        render: PiModelControlsLayoutFixture,
+      },
+      "component/PiSessionBehavior": {
+        width: 520,
+        height: 360,
+        render: PiSessionBehaviorLayoutFixture,
+      },
+      "component/PiTranscriptSearch": {
+        width: 480,
+        height: 180,
+        render: PiTranscriptSearchLayoutFixture,
+      },
+      "component/CodeEditor": {
+        width: 520,
+        height: 320,
+        render: CodeEditorLayoutFixture,
+      },
       "component/Message": {
         width: 360,
         height: 180,
@@ -135,6 +209,7 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
   ...pageFixtures("i18n", i18n),
   ...pageFixtures("image-viewport", imageViewport),
   ...pageFixtures("menubar", menubar),
+  ...pageFixtures("markdown", markdown),
   ...pageFixtures("overlay", overlay),
   ...pageFixtures("shadcn", shadcn),
   ...pageFixtures("system", system),

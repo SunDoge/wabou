@@ -16,8 +16,9 @@
 //! 2. **Only explicit text containers collapse.** JavaScript publishes the
 //!    typed text-behavior contract. Rust never infers text behavior from
 //!    HTML-like tag names.
-//! 3. **Only direct text leaves are absorbed.** Components and nested elements
-//!    keep principal boxes; styled inline subtrees are not guessed.
+//! 3. **Plain text only absorbs direct leaves by default.** An explicitly
+//!    styled text container may also absorb nested text-only descendants; the
+//!    host never guesses this behavior from tag names.
 //! 4. **Replaced subtrees stay out.** SVG roots and host widgets own their
 //!    content; descendants are logical-only and never become Taffy boxes under
 //!    the replaced parent.
@@ -27,8 +28,9 @@
 //!
 //! ## All-or-nothing (current)
 //!
-//! A text container collapses **only if every** logical child is a direct text
-//! leaf. Mixed content keeps all children as separate boxes.
+//! A text container collapses **only if every** logical child satisfies its
+//! declared mode: direct text for `Text`, recursively text-only descendants for
+//! `RichText`. Mixed or replaced content keeps all children as separate boxes.
 //!
 //! ## Hit testing after merge
 //!
@@ -53,6 +55,9 @@ use taffy::style::Display;
 pub struct NodeFacts {
     /// JavaScript-authored permission to absorb direct text children.
     pub text_container: bool,
+    /// Explicit permission to recursively absorb non-replaced text-only
+    /// descendants and preserve their styles as Parley runs.
+    pub styled_text_container: bool,
     /// Text content when this is a `#text` leaf.
     pub text: Option<Arc<str>>,
     /// Computed `display` used for flex/grid/block boundary checks.
@@ -99,6 +104,39 @@ impl InlineFormattingContext {
     ) -> Self {
         let mut ctx = Self::default();
 
+        fn collect_text(
+            node: NodeId,
+            logical_children: &HashMap<NodeId, Vec<NodeId>>,
+            facts: &impl Fn(NodeId) -> NodeFacts,
+            recursive: bool,
+            text: &mut String,
+        ) -> bool {
+            let node_facts = facts(node);
+            if node_facts.replaced || node_facts.establishes_item_layout() {
+                return false;
+            }
+            if let Some(value) = node_facts.text {
+                if logical_children
+                    .get(&node)
+                    .is_some_and(|children| !children.is_empty())
+                {
+                    return false;
+                }
+                text.push_str(&value);
+                return true;
+            }
+            if !recursive {
+                return false;
+            }
+            let Some(children) = logical_children.get(&node) else {
+                return false;
+            };
+            !children.is_empty()
+                && children
+                    .iter()
+                    .all(|child| collect_text(*child, logical_children, facts, true, text))
+        }
+
         for (&parent, kids) in logical_children {
             let parent_facts = facts(parent);
 
@@ -114,21 +152,11 @@ impl InlineFormattingContext {
             }
 
             let mut text = String::new();
+            let recursive = parent_facts.styled_text_container;
             let can_collapse = parent_facts.text_container
                 && !kids.is_empty()
-                && kids.iter().all(|&child| {
-                    let child_facts = facts(child);
-                    let Some(value) = child_facts.text else {
-                        return false;
-                    };
-                    if logical_children
-                        .get(&child)
-                        .is_some_and(|kids| !kids.is_empty())
-                    {
-                        return false;
-                    }
-                    text.push_str(&value);
-                    true
+                && kids.iter().all(|child| {
+                    collect_text(*child, logical_children, facts, recursive, &mut text)
                 });
 
             if can_collapse {
@@ -156,6 +184,7 @@ mod tests {
     fn text_facts(s: &str) -> NodeFacts {
         NodeFacts {
             text_container: false,
+            styled_text_container: false,
             text: Some(Arc::from(s)),
             display: Display::Block,
             display_explicit: false,
@@ -166,6 +195,7 @@ mod tests {
     fn element(display: Display) -> NodeFacts {
         NodeFacts {
             text_container: false,
+            styled_text_container: false,
             text: None,
             display,
             display_explicit: false,
@@ -285,6 +315,41 @@ mod tests {
         let ctx = InlineFormattingContext::build(&children, &facts);
         assert!(!ctx.roots.contains(&parent));
         assert!(!ctx.suppressed_children.contains(&parent));
+    }
+
+    #[test]
+    fn explicit_styled_text_container_collapses_text_only_descendants() {
+        let mut tree = TaffyTree::<()>::new();
+        let mut n = 0;
+        let parent = nid(&mut tree, &mut n);
+        let plain = nid(&mut tree, &mut n);
+        let span = nid(&mut tree, &mut n);
+        let styled = nid(&mut tree, &mut n);
+        let children = HashMap::from([
+            (parent, vec![plain, span]),
+            (plain, vec![]),
+            (span, vec![styled]),
+            (styled, vec![]),
+        ]);
+        let facts = |id: NodeId| {
+            if id == parent {
+                let mut facts = element(Display::Block);
+                facts.text_container = true;
+                facts.styled_text_container = true;
+                facts
+            } else if id == plain {
+                text_facts("Before ")
+            } else if id == span {
+                element(Display::Block)
+            } else {
+                text_facts("code")
+            }
+        };
+
+        let ctx = InlineFormattingContext::build(&children, &facts);
+        assert!(ctx.roots.contains(&parent));
+        assert_eq!(ctx.collapsed_text[&parent].as_ref(), "Before code");
+        assert!(ctx.suppressed_children.contains(&parent));
     }
 
     #[test]

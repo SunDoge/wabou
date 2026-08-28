@@ -80,6 +80,34 @@ fn maps_non_wrapping_non_shrinking_badges() {
 }
 
 #[test]
+fn font_style_inherits_and_can_be_reset() {
+    let mut layout = taffy::Style::default();
+    let mut parent = DeclaredPaint::default();
+    assert!(apply_ir(
+        &mut layout,
+        &mut parent,
+        "font-style",
+        &keyword("italic")
+    ));
+    let inherited = parent.resolve_inherited(&InheritedPaint::default());
+    assert!(inherited.font_italic);
+    assert!(
+        DeclaredPaint::default()
+            .resolve(&inherited, HostPaint::default())
+            .font_italic
+    );
+
+    let mut child = DeclaredPaint::default();
+    assert!(apply_ir(
+        &mut layout,
+        &mut child,
+        "font-style",
+        &keyword("normal")
+    ));
+    assert!(!child.resolve(&inherited, HostPaint::default()).font_italic);
+}
+
+#[test]
 fn white_space_inherit_is_not_confused_with_initial() {
     // Parent declares nowrap; child declares nothing → child must not wrap.
     let parent = DeclaredPaint {

@@ -1,4 +1,4 @@
-import { o as dispatchResizeObservation, t as dispatchHostMessage } from "./host-messages-DViFbllb.mjs";
+import { n as dispatchHostMessage, t as dispatchResizeObservation } from "./resize-observer-DwtjcJCy.mjs";
 //#region src/testing.ts
 /** Publish one native file-drop event without requiring a window backend. */
 function dispatchFileDropEvent(event) {

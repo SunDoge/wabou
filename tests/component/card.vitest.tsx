@@ -33,6 +33,7 @@ test("exposes the complete card anatomy and top-end action slot", () => {
 
   const card = screen.getByRole("group", { name: "Project" });
   expect(card.className).toContain("overflow-hidden");
+  expect(card.className).toContain("flex-none");
   const header = screen.getByRole("group", { name: "Project heading" });
   expect(header.className).toContain("relative");
   const action = screen.getByRole("group", { name: "Project state" });

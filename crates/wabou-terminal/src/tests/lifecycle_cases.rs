@@ -503,6 +503,7 @@ fn exited_terminal_is_read_only_but_remains_selectable_and_copyable() {
             location: KeyLocation::Standard,
             modifiers,
             repeat: false,
+            synthetic: false,
         })
     };
     assert_eq!(
@@ -523,6 +524,7 @@ fn exited_terminal_is_read_only_but_remains_selectable_and_copyable() {
         location: KeyLocation::Standard,
         modifiers: Modifiers::empty(),
         repeat: false,
+        synthetic: false,
     }));
     widget.focus_changed(true);
 

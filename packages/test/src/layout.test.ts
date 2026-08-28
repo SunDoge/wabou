@@ -3,6 +3,8 @@ import {
   assertLayoutRectContains,
   layoutRectBottom,
   layoutRectRight,
+  type LayoutSnapshot,
+  visibleOverflowDiagnostics,
 } from "./layout";
 import { reactiveRuntimeDiagnostic } from "./layout-node";
 
@@ -44,5 +46,49 @@ describe("layout rect assertions", () => {
       reactiveRuntimeDiagnostic("ERROR js: [REACTIVITY_HALTED] update ignored"),
     ).toContain("[REACTIVITY_HALTED]");
     expect(reactiveRuntimeDiagnostic("ordinary renderer warning")).toBeUndefined();
+  });
+
+  test("reports actionable context for visible overflow", () => {
+    const snapshot: LayoutSnapshot = {
+      status: {
+        viewportWidth: 100,
+        viewportHeight: 100,
+        deviceScale: 1,
+        nodeCount: 2,
+      },
+      nodes: [
+        {
+          id: { lo: 1, hi: 1 },
+          tag: "view",
+          classes: ["w-20", "overflow-visible"],
+          attrs: [["aria-label", "Attachment row"]],
+          rect: { x: 0, y: 0, width: 80, height: 40 },
+          contentRect: { x: 0, y: 0, width: 80, height: 40 },
+          styleDiagnostics: [],
+          computed: { overflowX: "Visible", overflowY: "Visible" },
+        },
+        {
+          id: { lo: 2, hi: 1 },
+          parentId: { lo: 1, hi: 1 },
+          tag: "text",
+          text: "A filename that does not fit",
+          classes: ["font-medium"],
+          attrs: [],
+          rect: { x: 5, y: 5, width: 90, height: 20 },
+          contentRect: { x: 5, y: 5, width: 90, height: 20 },
+          styleDiagnostics: [],
+          computed: {},
+        },
+      ],
+    };
+
+    const [diagnostic] = visibleOverflowDiagnostics(snapshot);
+    expect(diagnostic?.message).toContain("extends 15.0px outside");
+    expect(diagnostic?.message).toContain('text="A filename that does not fit"');
+    expect(diagnostic?.message).toContain('name="Attachment row"');
+    expect(diagnostic?.message).toContain("rect=(5.0,5.0 90.0x20.0)");
+    expect(diagnostic?.message).toContain(
+      'path: view#1:1["Attachment row"] > text#2:1',
+    );
   });
 });

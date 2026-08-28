@@ -6,9 +6,16 @@ until the Rust crate boundaries stabilize.
 
 ## Prepare
 
-1. Set `workspace.package.version` and every `@wabou/*` package to the exact
-   prerelease version.
-2. Add the matching heading to the root and package changelogs.
+1. Prepare an explicit, unused prerelease version. This consumes pending
+   Changesets, synchronizes Rust and JavaScript versions, updates changelogs and
+   lockfiles, and refuses to reuse a local or remote Git tag:
+
+   ```bash
+   bun run release:prepare 0.1.0-alpha.3
+   ```
+
+2. Review the generated release metadata. The preparation command never
+   commits, tags, publishes, or pushes.
 3. Pin build-critical tools in `mise.toml` and install with `mise install`.
 4. Run the same gates as CI:
 
@@ -29,14 +36,14 @@ until the Rust crate boundaries stabilize.
 ## Publish JavaScript packages
 
 The repository remains in Changesets prerelease mode between alpha releases.
-`bun run version-packages` therefore advances the fixed package group from
-`0.1.0-alpha.1` to `0.1.0-alpha.2`, rather than accidentally creating the
-stable `0.1.0` release.
+Use `release:prepare` rather than calling `version-packages` directly so an
+explicit version is shared with the Rust workspace and checked against Git
+tags.
 
 1. Confirm `bun pm whoami` reports an npm account with publish access to the
    `@wabou` scope.
-2. Run `bun run version-packages`, update the matching Rust workspace version
-   and root changelog heading, then commit the release metadata.
+2. Run `bun run release:prepare <version>`, review its output, then commit the
+   release metadata.
 3. Re-run every preparation gate against that commit.
 4. Publish in dependency order with the prerelease dist-tag:
 
@@ -53,8 +60,8 @@ Push the release commit and wait for both GitHub workflows to succeed. Then
 create an annotated tag without moving or replacing an existing tag:
 
 ```bash
-git tag -a v0.1.0-alpha.2 -m "Wabou v0.1.0-alpha.2"
-git push origin v0.1.0-alpha.2
+git tag -a v0.1.0-alpha.3 -m "Wabou v0.1.0-alpha.3"
+git push origin v0.1.0-alpha.3
 ```
 
 The tag push runs CI again. Publish the matching root changelog section as the

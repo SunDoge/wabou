@@ -154,6 +154,34 @@ function formatLayoutTree(snapshot) {
 function overflowAmount(outer, inner) {
 	return Math.max(0, outer.x - inner.x, outer.y - inner.y, inner.x + inner.width - (outer.x + outer.width), inner.y + inner.height - (outer.y + outer.height));
 }
+function compactText(value, limit = 80) {
+	const normalized = value.replace(/\s+/g, " ").trim();
+	return normalized.length <= limit ? normalized : `${normalized.slice(0, limit - 1)}…`;
+}
+function diagnosticNodeText(node) {
+	const parts = [`${node.tag}#${key(node.id)}`];
+	const role = layoutRole(node);
+	const name = layoutName(node);
+	if (role) parts.push(`role=${role}`);
+	if (name) parts.push(`name=${JSON.stringify(compactText(name))}`);
+	if (node.text) parts.push(`text=${JSON.stringify(compactText(node.text))}`);
+	if (node.classes.length > 0) parts.push(`class=${JSON.stringify(compactText(node.classes.join(" "), 120))}`);
+	parts.push(`rect=(${rectText(node.rect)})`);
+	const overflowX = node.computed.overflowX ?? "Visible";
+	const overflowY = node.computed.overflowY ?? "Visible";
+	if (overflowX !== "Visible" || overflowY !== "Visible") parts.push(`overflow=${overflowX}/${overflowY}`);
+	return parts.join(" ");
+}
+function diagnosticAncestorPath(node, nodes) {
+	const path = [];
+	let current = node;
+	while (current) {
+		const name = layoutName(current);
+		path.push(`${current.tag}#${key(current.id)}${name ? `[${JSON.stringify(compactText(name, 40))}]` : ""}`);
+		current = current.parentId ? nodes.get(key(current.parentId)) : void 0;
+	}
+	return path.reverse().join(" > ");
+}
 function visibleOverflowDiagnostics(snapshot, options = {}) {
 	const tolerance = options.tolerance ?? 1;
 	const nodes = new Map(snapshot.nodes.map((node) => [key(node.id), node]));
@@ -169,7 +197,12 @@ function visibleOverflowDiagnostics(snapshot, options = {}) {
 					node,
 					related: parent,
 					amount,
-					message: `${node.tag} ${key(node.id)} extends ${amount.toFixed(1)}px outside ${parent.tag} ${key(parent.id)}`
+					message: [
+						`${node.tag} ${key(node.id)} extends ${amount.toFixed(1)}px outside ${parent.tag} ${key(parent.id)}`,
+						`node: ${diagnosticNodeText(node)}`,
+						`boundary: ${diagnosticNodeText(parent)}`,
+						`path: ${diagnosticAncestorPath(node, nodes)}`
+					].join("\n    ")
 				});
 				break;
 			}

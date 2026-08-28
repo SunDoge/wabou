@@ -18,7 +18,7 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export interface ImageViewportSize {
   width: number;
@@ -193,7 +193,7 @@ export function ImageViewport(props: ImageViewportProps): JSX.Element {
         {...rest}
         ref={measured.ref}
         role={props.role ?? "group"}
-        class={join(
+        class={mergeClasses(
           "relative min-w-0 min-h-0 overflow-hidden bg-control",
           props.class,
         )}
@@ -461,7 +461,7 @@ export function AnnotationLayer(props: AnnotationLayerProps): JSX.Element {
     <View
       {...rest}
       role={props.role ?? "group"}
-      class={join("absolute inset-0", props.class)}
+      class={mergeClasses("absolute inset-0", props.class)}
       classList={{
         "pointer-events-none": props.interactionMode === "passthrough",
       }}
@@ -484,7 +484,7 @@ export function AnnotationLayer(props: AnnotationLayerProps): JSX.Element {
             aria-label={region.label ?? `Annotation ${region.id}`}
             aria-pressed={selected() === region.id}
             focusOrder={0}
-            class={join(
+            class={mergeClasses(
               "absolute border-2 bg-transparent cursor-move",
               selected() === region.id ? "border-accent" : "border-strong",
             )}
@@ -550,7 +550,7 @@ export function ImageOverlayLayer<T extends ImageOverlayItem>(
   return (
     <View
       {...rest}
-      class={join("absolute inset-0 pointer-events-none", props.class)}
+      class={mergeClasses("absolute inset-0 pointer-events-none", props.class)}
     >
       <For each={props.items}>
         {(item, index) => (

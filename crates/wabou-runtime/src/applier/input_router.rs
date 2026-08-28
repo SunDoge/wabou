@@ -87,14 +87,29 @@ pub(super) fn hit_contains(rect: [f32; 4], radius: f32, transform: Affine, point
     (local.x - center_x).powi(2) + (local.y - center_y).powi(2) <= radius.powi(2)
 }
 
+#[derive(Clone, Copy, Default)]
+pub(super) struct PointerRouteState {
+    pub(super) position: (f64, f64),
+    pub(super) buttons: u32,
+    pub(super) properties: wabou_shell::PointerProperties,
+    pub(super) hovered_target: Option<NodeKey>,
+    pub(super) down_target: Option<NodeKey>,
+    pub(super) down_position: Option<(f64, f64)>,
+    pub(super) dragged: bool,
+}
+
 #[derive(Default)]
 pub(super) struct InputRouter {
     pub(super) listeners: HashMap<NodeKey, EventMask>,
     pub(super) pointer_position: (f64, f64),
     pub(super) pointer_buttons: u32,
+    pub(super) pointer_properties: wabou_shell::PointerProperties,
+    pub(super) pointer_routes: HashMap<wabou_shell::PointerId, PointerRouteState>,
     pub(super) pointer_down_target: Option<NodeKey>,
     pub(super) pointer_down_position: Option<(f64, f64)>,
     pub(super) pointer_dragged: bool,
+    /// Last completed primary activation used to synthesize `dblclick`.
+    pub(super) last_primary_click: Option<(Instant, NodeKey, f64, f64)>,
     pub(super) next_host_event_id: u32,
     pub(super) hovered_target: Option<NodeKey>,
     pub(super) focused_target: Option<NodeKey>,
@@ -136,6 +151,21 @@ impl InputRouter {
             }
         }
         None
+    }
+
+    pub(super) fn update_pointer(&mut self, pointer: &wabou_shell::PointerEvent) {
+        let route = self
+            .pointer_routes
+            .entry(pointer.properties.id)
+            .or_default();
+        route.position = (pointer.position.x, pointer.position.y);
+        route.buttons = pointer.buttons;
+        route.properties = pointer.properties;
+        if pointer.properties.primary {
+            self.pointer_position = route.position;
+            self.pointer_buttons = pointer.buttons;
+            self.pointer_properties = pointer.properties;
+        }
     }
 
     pub(super) fn local_position(&self, target: NodeKey, x: f64, y: f64) -> (f64, f64) {

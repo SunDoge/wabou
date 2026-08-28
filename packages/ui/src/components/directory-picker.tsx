@@ -3,7 +3,7 @@ import folder from "lucide-static/icons/folder.svg?raw";
 import { createSignal, type JSX, omit } from "solid-js";
 import { Icon, View } from "../primitives";
 import { Button } from "./button";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { directoryPickerOptions } from "./directory-picker-state";
 import { Input, type InputProps } from "./input";
 
@@ -58,15 +58,20 @@ export function DirectoryPicker(props: DirectoryPickerProps): JSX.Element {
   }
 
   return (
-    <View class={join("w-full min-w-0 flex items-center gap-2", local.class)}>
+    <View
+      class={mergeClasses(
+        "w-full min-w-0 flex items-center gap-2",
+        local.class,
+      )}
+    >
       <Input
         {...inputProps}
-        class={join("min-w-0 flex-1", local.inputClass)}
+        class={mergeClasses("min-w-0 flex-1", local.inputClass)}
         value={local.value}
         onInput={(event) => local.onValueChange(event.currentTarget.value)}
       />
       <Button
-        class={join("flex-none", local.buttonClass)}
+        class={mergeClasses("flex-none", local.buttonClass)}
         variant="outline"
         disabled={Boolean(inputProps.disabled) || pending()}
         aria-label={

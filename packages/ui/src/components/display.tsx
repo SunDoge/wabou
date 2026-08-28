@@ -1,7 +1,7 @@
 import { createSignal, type JSX } from "solid-js";
 import { createSweep, useReducedMotion } from "../animation";
 import { createMeasuredSize, Spin, Svg, Text, View } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export interface SkeletonProps {
   class?: string;
@@ -30,7 +30,7 @@ export function Skeleton(props: SkeletonProps): JSX.Element {
     <View
       ref={measured.ref}
       aria-hidden="true"
-      class={join("overflow-hidden rounded-md bg-control", props.class)}
+      class={mergeClasses("overflow-hidden rounded-md bg-control", props.class)}
     >
       <View
         class="w-2/5 h-full flex-none bg-control-hover"
@@ -49,7 +49,7 @@ export function Spinner(props: {
     <Spin
       role="status"
       aria-label={props.label ?? "Loading"}
-      class={join("w-4 h-4 flex-none text-accent", props.class)}
+      class={mergeClasses("w-4 h-4 flex-none text-accent", props.class)}
       duration={0.9}
     >
       <Svg aria-hidden="true" class="w-full h-full" source={SPINNER_SOURCE} />
@@ -63,7 +63,7 @@ export function Kbd(props: {
 }): JSX.Element {
   return (
     <Text
-      class={join(
+      class={mergeClasses(
         "h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted",
         props.class,
       )}
@@ -78,7 +78,7 @@ export function KbdGroup(props: {
   children?: JSX.Element;
 }): JSX.Element {
   return (
-    <View class={join("inline-flex items-center gap-1", props.class)}>
+    <View class={mergeClasses("inline-flex items-center gap-1", props.class)}>
       {props.children}
     </View>
   );

@@ -1,7 +1,7 @@
 import { type JSX, omit } from "solid-js";
 import { match } from "ts-pattern";
 import { View, type ViewProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export interface SeparatorProps
   extends Omit<
@@ -35,7 +35,7 @@ export function Separator(props: SeparatorProps): JSX.Element {
       role={decorative() ? "presentation" : "separator"}
       aria-hidden={decorative() ? "true" : undefined}
       aria-orientation={decorative() ? undefined : orientation()}
-      class={join("flex-none bg-subtle", dimensions(), props.class)}
+      class={mergeClasses("flex-none bg-subtle", dimensions(), props.class)}
     />
   );
 }

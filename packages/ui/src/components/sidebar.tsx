@@ -1,3 +1,4 @@
+import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import {
   Button as HeadlessButton,
@@ -9,7 +10,6 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
-import { join } from "./class-names";
 import { SearchField, type SearchFieldProps } from "./search-field";
 import {
   type ComponentsElevation,
@@ -60,7 +60,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
     <View
       {...forwarded}
       role={props.role ?? "group"}
-      class={join(
+      class={mergeClasses(
         "h-full min-h-0 flex-none flex flex-col overflow-hidden bg-surface-muted",
         props.class,
       )}
@@ -77,7 +77,10 @@ export function SidebarHeader(props: ViewProps): JSX.Element {
   return (
     <View
       {...props}
-      class={join("flex-none border-b border-subtle bg-surface", props.class)}
+      class={mergeClasses(
+        "flex-none border-b border-subtle bg-surface",
+        props.class,
+      )}
     />
   );
 }
@@ -89,7 +92,7 @@ export function SidebarSearch(props: SearchFieldProps): JSX.Element {
       <SearchField
         {...forwarded}
         placeholder={props.placeholder ?? "Search"}
-        class={join("w-full", props.class)}
+        class={mergeClasses("w-full", props.class)}
       />
     </View>
   );
@@ -104,8 +107,8 @@ export function SidebarContent(props: SidebarContentProps): JSX.Element {
   return (
     <ScrollArea
       {...props}
-      class={join("min-h-0 flex-1", props.class)}
-      contentClass={join("px-2 py-3", props.contentClass)}
+      class={mergeClasses("min-h-0 flex-1", props.class)}
+      contentClass={mergeClasses("px-2 py-3", props.contentClass)}
     />
   );
 }
@@ -115,7 +118,7 @@ export function SidebarGroup(props: ViewProps): JSX.Element {
     <View
       {...props}
       role={props.role ?? "group"}
-      class={join("flex-none flex flex-col gap-0.5 mb-4", props.class)}
+      class={mergeClasses("flex-none flex flex-col gap-0.5 mb-4", props.class)}
     />
   );
 }
@@ -124,7 +127,10 @@ export function SidebarGroupLabel(props: TextProps): JSX.Element {
   return (
     <Text
       {...props}
-      class={join("px-2 py-1 text-xs font-medium text-muted", props.class)}
+      class={mergeClasses(
+        "px-2 py-1 text-xs font-medium text-muted",
+        props.class,
+      )}
     />
   );
 }
@@ -141,14 +147,17 @@ export function SidebarMenuButton(props: SidebarMenuButtonProps): JSX.Element {
     <HeadlessButton
       {...forwarded}
       unstyled
+      aria-selected={props.selected}
       class={(state) =>
-        join(
+        mergeClasses(
           "w-full min-w-0 h-8 px-3 justify-start gap-2 rounded-md text-sm",
-          state.selected
-            ? "bg-selected text-primary"
+          state.pressed
+            ? "bg-control-pressed text-primary"
             : state.hovered
               ? "bg-control-hover text-primary"
-              : "bg-transparent text-secondary",
+              : state.selected
+                ? "bg-selected text-primary"
+                : "bg-transparent text-secondary",
           state.focusVisible && "border border-focus",
           props.class,
         )
@@ -164,7 +173,10 @@ export function SidebarEmpty(props: {
 }): JSX.Element {
   return (
     <View
-      class={join("px-3 py-6 flex flex-col items-center gap-1", props.class)}
+      class={mergeClasses(
+        "px-3 py-6 flex flex-col items-center gap-1",
+        props.class,
+      )}
     >
       <Text role="status" class="text-sm text-secondary">
         {props.title ?? "No results found"}
@@ -180,7 +192,10 @@ export function SidebarFooter(props: ViewProps): JSX.Element {
   return (
     <View
       {...props}
-      class={join("flex-none border-t border-subtle bg-surface", props.class)}
+      class={mergeClasses(
+        "flex-none border-t border-subtle bg-surface",
+        props.class,
+      )}
     />
   );
 }

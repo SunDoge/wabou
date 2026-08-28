@@ -1,7 +1,7 @@
 import type { Handle } from "@wabou/core/renderer";
 import { type JSX, omit } from "solid-js";
 import { Text, type TextProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export interface LabelProps extends Omit<TextProps, "class" | "role"> {
   class?: string;
@@ -32,7 +32,7 @@ export function Label(props: LabelProps): JSX.Element {
       {...rest}
       role="label"
       aria-disabled={props.disabled}
-      class={join(
+      class={mergeClasses(
         "min-w-0 text-sm font-medium text-primary",
         props.disabled ? "opacity-50" : "cursor-pointer",
         props.class,

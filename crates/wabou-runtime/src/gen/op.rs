@@ -71,11 +71,16 @@ pub mod event {
     pub const TERMINALBELL: u8 = 31;
     pub const RESOURCEREADY: u8 = 32;
     pub const RESOURCEERROR: u8 = 33;
+    pub const IMEENABLED: u8 = 34;
+    pub const IMEPREEDIT: u8 = 35;
+    pub const IMEDELETESURROUNDING: u8 = 36;
+    pub const IMEDISABLED: u8 = 37;
+    pub const WINDOWCLOSEREQUESTED: u8 = 38;
 }
 
 #[allow(missing_docs)]
 pub mod event_data {
-    pub const LEN: usize = 11;
+    pub const LEN: usize = 21;
     pub const CLIENT_X: u8 = 0;
     pub const CLIENT_Y: u8 = 1;
     pub const OFFSET_X: u8 = 2;
@@ -87,12 +92,22 @@ pub mod event_data {
     pub const DELTA_Y: u8 = 8;
     pub const SCROLL_X: u8 = 9;
     pub const SCROLL_Y: u8 = 10;
+    pub const PHASE: u8 = 11;
+    pub const POINTER_ID_LO: u8 = 12;
+    pub const POINTER_ID_HI: u8 = 13;
+    pub const POINTER_TYPE: u8 = 14;
+    pub const PRIMARY: u8 = 15;
+    pub const PRESSURE: u8 = 16;
+    pub const TANGENTIAL_PRESSURE: u8 = 17;
+    pub const TILT_X: u8 = 18;
+    pub const TILT_Y: u8 = 19;
+    pub const TWIST: u8 = 20;
 }
 
 #[allow(missing_docs)]
 pub mod host_frame {
     pub const MAGIC: u32 = 0x31464857;
-    pub const VERSION: u32 = 2;
+    pub const VERSION: u32 = 3;
     pub const HEADER_LEN: u32 = 32;
 }
 

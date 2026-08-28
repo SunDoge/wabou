@@ -368,6 +368,276 @@ fn pointer_sequence_hit_tests_and_synthesizes_one_click() {
 }
 
 #[test]
+fn pointer_target_transitions_emit_over_enter_out_and_leave() {
+    let mut applier = interactive_applier();
+    applier.handle_event(pointer(PointerPhase::Move, 20.0, 20.0, 0));
+    applier.handle_event(pointer(PointerPhase::Move, 200.0, 200.0, 0));
+
+    let codes = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<Vec<u8>, _>("globalThis.dispatched.map((x) => x[1])"))
+        .expect("read dispatched events");
+    assert_eq!(
+        codes,
+        vec![
+            event::POINTEROVER,
+            event::POINTERENTER,
+            event::POINTERMOVE,
+            event::POINTEROUT,
+            event::POINTERLEAVE,
+        ]
+    );
+}
+
+#[test]
+fn crossing_descendants_keeps_the_interactive_ancestor_hovered() {
+    let mut applier = interactive_applier();
+    let view = applier.document.atoms.borrow_mut().intern("view");
+    for id in [3, 4] {
+        applier.apply_op(&Op::CreateElement {
+            id: NodeKey::new(id, 1),
+            tag: view,
+        });
+        applier.apply_op(&Op::AppendChild {
+            parent: NodeKey::new(2, 1),
+            child: NodeKey::new(id, 1),
+        });
+    }
+    let hit = |solid_id, rect| {
+        HitItem::Content(HitNode {
+            solid_id,
+            rect,
+            transform: Affine::IDENTITY,
+            clips: Vec::new(),
+            pointer_events: true,
+        })
+    };
+    applier.interaction.input.hit_items = vec![
+        hit(NodeKey::new(2, 1), [0.0, 0.0, 100.0, 50.0]),
+        hit(NodeKey::new(3, 1), [0.0, 0.0, 50.0, 50.0]),
+        hit(NodeKey::new(4, 1), [50.0, 0.0, 100.0, 50.0]),
+    ];
+
+    applier.handle_event(pointer(PointerPhase::Move, 25.0, 20.0, 0));
+    applier.handle_event(pointer(PointerPhase::Move, 75.0, 20.0, 0));
+
+    let codes = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<Vec<u8>, _>("globalThis.dispatched.map((x) => x[1])"))
+        .expect("read dispatched events");
+    assert_eq!(
+        codes,
+        vec![
+            event::POINTEROVER,
+            event::POINTERENTER,
+            event::POINTERMOVE,
+            event::POINTEROUT,
+            event::POINTEROVER,
+            event::POINTERMOVE,
+        ]
+    );
+}
+
+#[test]
+fn pointer_activation_uses_the_interactive_ancestor_boundary() {
+    let mut applier = interactive_applier();
+    let view = applier.document.atoms.borrow_mut().intern("view");
+    for id in [3, 4] {
+        applier.apply_op(&Op::CreateElement {
+            id: NodeKey::new(id, 1),
+            tag: view,
+        });
+        applier.apply_op(&Op::AppendChild {
+            parent: NodeKey::new(2, 1),
+            child: NodeKey::new(id, 1),
+        });
+    }
+    let hit = |solid_id, rect| {
+        HitItem::Content(HitNode {
+            solid_id,
+            rect,
+            transform: Affine::IDENTITY,
+            clips: Vec::new(),
+            pointer_events: true,
+        })
+    };
+    applier.interaction.input.hit_items = vec![
+        hit(NodeKey::new(2, 1), [0.0, 0.0, 100.0, 50.0]),
+        hit(NodeKey::new(3, 1), [0.0, 0.0, 50.0, 50.0]),
+        hit(NodeKey::new(4, 1), [50.0, 0.0, 100.0, 50.0]),
+    ];
+
+    applier.handle_event(pointer(PointerPhase::Down, 49.0, 20.0, 1));
+    applier.handle_event(pointer(PointerPhase::Up, 51.0, 20.0, 0));
+
+    let events = applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<Vec<Vec<u32>>, _>("globalThis.dispatched.map(([id, code]) => [id, code])")
+        })
+        .expect("read dispatched events");
+    assert!(
+        events.contains(&vec![2, u32::from(event::CLICK)]),
+        "one interactive ancestor must own activation across its descendants: {events:?}"
+    );
+}
+
+#[test]
+fn leaving_native_window_clears_hover_and_emits_exit_events() {
+    let mut applier = interactive_applier();
+    applier.handle_event(pointer(PointerPhase::Enter, 20.0, 20.0, 0));
+    assert_eq!(
+        applier.interaction.input.hovered_target,
+        Some(NodeKey::new(2, 1))
+    );
+    applier.handle_event(pointer(PointerPhase::Leave, 20.0, 20.0, 0));
+
+    let codes = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<Vec<u8>, _>("globalThis.dispatched.map((x) => x[1])"))
+        .expect("read dispatched events");
+    assert_eq!(
+        codes,
+        vec![
+            event::POINTEROVER,
+            event::POINTERENTER,
+            event::POINTEROUT,
+            event::POINTERLEAVE,
+        ]
+    );
+    assert!(applier.interaction.input.hovered_target.is_none());
+}
+
+#[test]
+fn second_primary_click_synthesizes_dblclick() {
+    let mut applier = interactive_applier();
+    for _ in 0..2 {
+        applier.handle_event(pointer(PointerPhase::Down, 20.0, 20.0, 1));
+        applier.handle_event(pointer(PointerPhase::Up, 20.0, 20.0, 0));
+    }
+
+    let codes = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<Vec<u8>, _>("globalThis.dispatched.map((x) => x[1])"))
+        .expect("read dispatched events");
+    assert_eq!(
+        codes,
+        vec![
+            event::POINTERDOWN,
+            event::POINTERUP,
+            event::CLICK,
+            event::POINTERDOWN,
+            event::POINTERUP,
+            event::CLICK,
+            event::DBLCLICK,
+        ]
+    );
+}
+
+#[test]
+fn focused_js_node_receives_complete_ime_lifecycle_and_commit_sources() {
+    let mut applier = interactive_applier();
+    let target = NodeKey::new(2, 1);
+    applier.interaction.input.focused_target = Some(target);
+    for event_type in [
+        event::IMEENABLED,
+        event::IMEPREEDIT,
+        event::IMECOMMIT,
+        event::IMEDELETESURROUNDING,
+        event::IMEDISABLED,
+    ] {
+        applier.apply_op(&Op::AddEventListener {
+            id: target,
+            event_type,
+        });
+    }
+
+    for input in [
+        UiEvent::Ime(wabou_shell::ImeEvent::Enabled),
+        UiEvent::Ime(wabou_shell::ImeEvent::Preedit {
+            text: "かな".into(),
+            cursor: Some((0, 3)),
+        }),
+        UiEvent::Ime(wabou_shell::ImeEvent::DeleteSurrounding {
+            before_bytes: 3,
+            after_bytes: 0,
+        }),
+        UiEvent::Ime(wabou_shell::ImeEvent::Commit("仮名".into())),
+        UiEvent::TextInput("x".into()),
+        UiEvent::Paste("pasted".into()),
+        UiEvent::Ime(wabou_shell::ImeEvent::Disabled),
+    ] {
+        applier.handle_event(input);
+    }
+
+    let dispatched = applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<String, _>(
+                "JSON.stringify(globalThis.dispatched.map(([target, code, payload]) => [code, payload && JSON.parse(payload)]))",
+            )
+        })
+        .expect("read dispatched IME events");
+    assert_eq!(
+        dispatched,
+        serde_json::json!([
+            [event::IMEENABLED, {}],
+            [event::IMEPREEDIT, {
+                "data": "かな",
+                "cursorStart": 0,
+                "cursorEnd": 3,
+            }],
+            [event::IMEDELETESURROUNDING, {
+                "beforeBytes": 3,
+                "afterBytes": 0,
+            }],
+            [event::IMECOMMIT, { "data": "仮名", "source": "ime" }],
+            [event::IMECOMMIT, { "data": "x", "source": "keyboard" }],
+            [event::IMECOMMIT, { "data": "pasted", "source": "paste" }],
+            [event::IMEDISABLED, {}],
+        ])
+        .to_string()
+    );
+}
+
+#[test]
+fn native_close_request_is_synchronously_cancellable_by_root_js() {
+    let mut applier = interactive_applier();
+    assert!(!FrameSource::close_requested(&mut applier));
+
+    applier.apply_op(&Op::AddEventListener {
+        id: NodeKey::new(1, 1),
+        event_type: event::WINDOWCLOSEREQUESTED,
+    });
+    applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                r#"
+                globalThis.__wabou_dispatch_host_frame = (u8) => {
+                  const view = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+                  const record = 32 + 8;
+                  return {
+                    needsTick: true,
+                    preventedEventIds: new Uint32Array([view.getUint32(record + 12, true)]),
+                  };
+                };
+                "#,
+            )
+        })
+        .expect("install cancelling close listener");
+
+    assert!(FrameSource::close_requested(&mut applier));
+}
+
+#[test]
 fn secondary_pointer_sequence_dispatches_context_menu_without_click() {
     let mut applier = interactive_applier();
     applier.handle_event(pointer_with_button(
@@ -415,6 +685,61 @@ fn dragging_outside_pressed_target_keeps_the_js_pointer_capture() {
     assert!(applier.interaction.input.pointer_down_target.is_none());
     assert!(applier.interaction.input.pointer_down_position.is_none());
     assert!(!applier.interaction.input.pointer_dragged);
+}
+
+#[test]
+fn simultaneous_pointers_keep_independent_capture_state() {
+    let mut applier = interactive_applier();
+    let first_id = wabou_shell::PointerId { lo: 7, hi: 1 };
+    let second_id = wabou_shell::PointerId { lo: 8, hi: 1 };
+    let event = |phase, id, primary, x, buttons| {
+        UiEvent::Pointer(PointerEvent {
+            phase,
+            position: Point { x, y: 20.0 },
+            button: Some(PointerButton::Primary),
+            buttons,
+            modifiers: Modifiers::default(),
+            properties: wabou_shell::PointerProperties {
+                id,
+                pointer_type: wabou_shell::PointerType::Touch,
+                primary,
+                ..Default::default()
+            },
+        })
+    };
+
+    applier.handle_event(event(PointerPhase::Down, first_id, true, 10.0, 1));
+    applier.handle_event(event(PointerPhase::Down, second_id, false, 20.0, 1));
+    assert!(
+        applier.interaction.input.pointer_routes[&first_id]
+            .down_target
+            .is_some()
+    );
+    assert!(
+        applier.interaction.input.pointer_routes[&second_id]
+            .down_target
+            .is_some()
+    );
+
+    applier.handle_event(event(PointerPhase::Up, first_id, true, 10.0, 0));
+    assert!(
+        applier.interaction.input.pointer_routes[&first_id]
+            .down_target
+            .is_none()
+    );
+    assert!(
+        applier.interaction.input.pointer_routes[&second_id]
+            .down_target
+            .is_some(),
+        "releasing one finger must not release another finger's capture"
+    );
+
+    applier.handle_event(event(PointerPhase::Cancel, second_id, false, 20.0, 0));
+    assert!(
+        applier.interaction.input.pointer_routes[&second_id]
+            .down_target
+            .is_none()
+    );
 }
 
 #[test]

@@ -2,6 +2,7 @@
 
 #![warn(missing_docs)]
 
+use futures_util::stream::{FuturesUnordered, Stream};
 use slotmap::{Key as SlotMapKey, KeyData, SlotMap};
 use snafu::ResultExt;
 use std::collections::HashMap;
@@ -16,7 +17,10 @@ use vello::peniko::Color;
 use winit::application::ApplicationHandler;
 use winit::cursor::{Cursor, CursorIcon};
 use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-use winit::event::{ButtonSource, ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{
+    ButtonSource, DeviceId, ElementState, MouseButton, MouseScrollDelta,
+    PointerKind as WinitPointerKind, PointerSource, TabletToolData, TouchPhase, WindowEvent,
+};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, KeyLocation as WinitKeyLocation, ModifiersState};
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -29,9 +33,10 @@ use crate::WindowResourceKey;
 use crate::scene as scene_builder;
 use crate::shell::Shell;
 use crate::source::{
-    ClipboardRequest, EventResponse, FileDropEvent, FileDropPhase, FrameSource, FrameStats,
-    HostAction, HostActionResult, ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point,
-    PointerButton, PointerEvent, PointerPhase, SemanticAction, SemanticRole, UiEvent, WakeCallback,
+    AppLifecycleEvent, ClipboardRequest, EventResponse, FileDropEvent, FileDropPhase, FrameSource,
+    FrameStats, GestureEvent, GesturePhase, HostAction, HostActionResult, ImeEvent, KeyEvent,
+    KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent, PointerId, PointerPhase,
+    PointerProperties, PointerType, SemanticAction, SemanticRole, UiEvent, WakeCallback,
     WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
 };
 use crate::style::CursorStyle;
@@ -39,6 +44,15 @@ use crate::window_lifecycle::{WindowCapabilities, WindowEffect, WindowIntent, Wi
 
 fn ms(d: std::time::Duration) -> f64 {
     d.as_secs_f64() * 1000.0
+}
+
+const fn gesture_phase(phase: TouchPhase) -> GesturePhase {
+    match phase {
+        TouchPhase::Started => GesturePhase::Started,
+        TouchPhase::Moved => GesturePhase::Changed,
+        TouchPhase::Ended => GesturePhase::Ended,
+        TouchPhase::Cancelled => GesturePhase::Cancelled,
+    }
 }
 
 fn allowed_external_url(raw: &str) -> Option<url::Url> {
@@ -153,6 +167,8 @@ pub struct App {
     modifiers: Modifiers,
     pointer_buttons: u32,
     pointer_position: Point,
+    pointer_states: HashMap<PointerId, (Point, u32, PointerProperties)>,
+    ime_requested: bool,
     ime_enabled: bool,
     ime_cursor_area: Option<[f64; 4]>,
     startup_error: Arc<Mutex<Option<crate::Error>>>,
@@ -166,7 +182,7 @@ pub struct App {
     pending_windows: Vec<PendingWindowEffect>,
     pending_window_commands: Vec<(crate::WindowResourceKey, WindowCommand)>,
     pending_extension_effects: Vec<crate::EffectRequest>,
-    pending_modal_effects: Vec<ModalEffectFuture>,
+    pending_modal_effects: FuturesUnordered<ModalEffectFuture>,
     effect_completion_tx: Sender<crate::EffectCompletion>,
     effect_completion_rx: Receiver<crate::EffectCompletion>,
     wake_callback: Option<WakeCallback>,
@@ -219,22 +235,36 @@ impl App {
 
     fn dispatch_focus_change(&mut self, focused: bool) {
         if !focused {
-            if self.pointer_buttons != 0 {
-                self.pointer_buttons = 0;
+            let active = self
+                .pointer_states
+                .drain()
+                .filter_map(|(_, state)| (state.1 != 0).then_some(state))
+                .collect::<Vec<_>>();
+            self.pointer_buttons = 0;
+            for (position, _, properties) in active {
                 self.dispatch_event(UiEvent::Pointer(PointerEvent {
                     phase: PointerPhase::Cancel,
-                    position: self.pointer_position,
+                    position,
                     button: None,
                     buttons: 0,
                     modifiers: self.modifiers,
+                    properties,
                 }));
             }
             // Some platforms do not send matching key/modifier releases after
             // deactivation. Never carry those physical states into the next
             // focus session.
-            self.modifiers = Modifiers::default();
+            self.set_modifiers(Modifiers::default());
         }
         self.dispatch_event(UiEvent::Focus(focused));
+    }
+
+    fn set_modifiers(&mut self, modifiers: Modifiers) {
+        if self.modifiers == modifiers {
+            return;
+        }
+        self.modifiers = modifiers;
+        self.dispatch_event(UiEvent::ModifiersChanged(modifiers));
     }
 
     /// Construct a single-window application using default window options.
@@ -262,6 +292,8 @@ impl App {
             modifiers: Modifiers::default(),
             pointer_buttons: 0,
             pointer_position: Point { x: 0.0, y: 0.0 },
+            pointer_states: HashMap::new(),
+            ime_requested: false,
             ime_enabled: false,
             ime_cursor_area: None,
             startup_error: Arc::new(Mutex::new(None)),
@@ -271,7 +303,7 @@ impl App {
             pending_windows: Vec::new(),
             pending_window_commands: Vec::new(),
             pending_extension_effects: Vec::new(),
-            pending_modal_effects: Vec::new(),
+            pending_modal_effects: FuturesUnordered::new(),
             effect_completion_tx,
             effect_completion_rx,
             wake_callback: None,
@@ -294,6 +326,7 @@ impl App {
         };
         let (physical_width, physical_height) = shell.size();
         let (logical_width, logical_height) = shell.logical_size();
+        let outer_position = shell.window().outer_position().ok();
         let next = WindowMetrics {
             window_key: self.window_key,
             logical_width,
@@ -303,6 +336,9 @@ impl App {
             scale_factor: shell.scale_factor(),
             maximized: shell.window().is_maximized(),
             focused: shell.window().has_focus(),
+            outer_x: outer_position.map(|position| position.x),
+            outer_y: outer_position.map(|position| position.y),
+            occluded: self.window_metrics.occluded,
             color_scheme: shell.window().theme().map(|theme| match theme {
                 winit::window::Theme::Light => crate::ColorScheme::Light,
                 winit::window::Theme::Dark => crate::ColorScheme::Dark,
@@ -372,6 +408,131 @@ impl App {
             PointerButton::Secondary => 4,
             PointerButton::Other(index) if index < u32::BITS as u16 => 1 << index,
             PointerButton::Other(_) => 0,
+        }
+    }
+
+    fn namespaced_pointer_id(namespace: u32, raw: u64) -> PointerId {
+        PointerId {
+            lo: raw as u32,
+            hi: ((raw >> 32) as u32) ^ namespace.rotate_left(29),
+        }
+    }
+
+    fn device_pointer_id(namespace: u32, device_id: Option<DeviceId>) -> PointerId {
+        Self::namespaced_pointer_id(namespace, device_id.map_or(0, |id| id.into_raw() as u64))
+    }
+
+    fn tablet_properties(
+        device_id: Option<DeviceId>,
+        primary: bool,
+        data: &TabletToolData,
+    ) -> PointerProperties {
+        let angle = data.clone().angle();
+        let tilt = data.clone().tilt();
+        PointerProperties {
+            id: Self::device_pointer_id(2, device_id),
+            pointer_type: PointerType::Pen,
+            primary,
+            pressure: data.force.as_ref().map(|force| force.normalized(angle)),
+            tangential_pressure: data.tangential_force.map(f64::from),
+            tilt_x: tilt.map(|tilt| f64::from(tilt.x)),
+            tilt_y: tilt.map(|tilt| f64::from(tilt.y)),
+            twist: data.twist.map(f64::from),
+        }
+    }
+
+    fn pointer_source_properties(
+        device_id: Option<DeviceId>,
+        primary: bool,
+        source: &PointerSource,
+    ) -> PointerProperties {
+        match source {
+            PointerSource::Mouse => PointerProperties {
+                id: Self::namespaced_pointer_id(0, 1),
+                pointer_type: PointerType::Mouse,
+                primary,
+                ..PointerProperties::default()
+            },
+            PointerSource::Touch { finger_id, force } => PointerProperties {
+                id: Self::namespaced_pointer_id(1, finger_id.into_raw() as u64),
+                pointer_type: PointerType::Touch,
+                primary,
+                pressure: force.as_ref().map(|force| force.normalized(None)),
+                ..PointerProperties::default()
+            },
+            PointerSource::TabletTool { data, .. } => {
+                Self::tablet_properties(device_id, primary, data)
+            }
+            PointerSource::Unknown => PointerProperties {
+                id: Self::device_pointer_id(3, device_id),
+                pointer_type: PointerType::Unknown,
+                primary,
+                ..PointerProperties::default()
+            },
+        }
+    }
+
+    fn pointer_kind_properties(
+        device_id: Option<DeviceId>,
+        primary: bool,
+        kind: WinitPointerKind,
+    ) -> PointerProperties {
+        match kind {
+            WinitPointerKind::Mouse => PointerProperties {
+                id: Self::namespaced_pointer_id(0, 1),
+                pointer_type: PointerType::Mouse,
+                primary,
+                ..PointerProperties::default()
+            },
+            WinitPointerKind::Touch(finger_id) => PointerProperties {
+                id: Self::namespaced_pointer_id(1, finger_id.into_raw() as u64),
+                pointer_type: PointerType::Touch,
+                primary,
+                ..PointerProperties::default()
+            },
+            WinitPointerKind::TabletTool(_) => PointerProperties {
+                id: Self::device_pointer_id(2, device_id),
+                pointer_type: PointerType::Pen,
+                primary,
+                ..PointerProperties::default()
+            },
+            WinitPointerKind::Unknown => PointerProperties {
+                id: Self::device_pointer_id(3, device_id),
+                pointer_type: PointerType::Unknown,
+                primary,
+                ..PointerProperties::default()
+            },
+        }
+    }
+
+    fn button_source_properties(
+        device_id: Option<DeviceId>,
+        primary: bool,
+        source: &ButtonSource,
+    ) -> PointerProperties {
+        match source {
+            ButtonSource::Mouse(_) => PointerProperties {
+                id: Self::namespaced_pointer_id(0, 1),
+                pointer_type: PointerType::Mouse,
+                primary,
+                ..PointerProperties::default()
+            },
+            ButtonSource::Touch { finger_id, force } => PointerProperties {
+                id: Self::namespaced_pointer_id(1, finger_id.into_raw() as u64),
+                pointer_type: PointerType::Touch,
+                primary,
+                pressure: force.as_ref().map(|force| force.normalized(None)),
+                ..PointerProperties::default()
+            },
+            ButtonSource::TabletTool { data, .. } => {
+                Self::tablet_properties(device_id, primary, data)
+            }
+            ButtonSource::Unknown(_) => PointerProperties {
+                id: Self::device_pointer_id(3, device_id),
+                pointer_type: PointerType::Unknown,
+                primary,
+                ..PointerProperties::default()
+            },
         }
     }
 
@@ -455,27 +616,18 @@ impl App {
             self.drain_effects() | self.poll_modal_effects() | self.poll_effect_completions();
         response.handled |= host_action || effect;
         response.request_redraw |= host_action || effect;
-        if let Some(allowed) = response.text_input
-            && allowed != self.ime_enabled
-            && let Some(shell) = self.state.as_ref()
-        {
-            let request = if allowed {
-                let (position, size) = Self::ime_cursor_rect(self.ime_cursor_area);
-                let capabilities = ImeCapabilities::new()
-                    .with_hint_and_purpose()
-                    .with_cursor_area();
-                let data = ImeRequestData::default()
-                    .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
-                    .with_cursor_area(position.into(), size.into());
-                ImeRequest::Enable(
-                    ImeEnableRequest::new(capabilities, data)
-                        .expect("IME capabilities and initial data must match"),
-                )
-            } else {
-                ImeRequest::Disable
-            };
-            if shell.window().request_ime_update(request).is_ok() {
-                self.ime_enabled = allowed;
+        if let Some(allowed) = response.text_input {
+            self.ime_requested = allowed;
+            if allowed {
+                self.enable_ime_if_ready();
+            } else if self.ime_enabled
+                && let Some(shell) = self.state.as_ref()
+                && shell
+                    .window()
+                    .request_ime_update(ImeRequest::Disable)
+                    .is_ok()
+            {
+                self.ime_enabled = false;
             }
         }
         if response.request_redraw
@@ -494,19 +646,71 @@ impl App {
         )
     }
 
-    fn update_ime_cursor_area(&mut self) {
-        let area = self.source.ime_cursor_area();
-        if area == self.ime_cursor_area {
+    fn enable_ime_if_ready(&mut self) {
+        if !self.ime_requested || self.ime_enabled {
             return;
         }
+        let Some(area) = self.ime_cursor_area else {
+            return;
+        };
+        let Some(shell) = self.state.as_ref() else {
+            return;
+        };
+        let (position, size) = Self::ime_cursor_rect(Some(area));
+        let capabilities = ImeCapabilities::new()
+            .with_hint_and_purpose()
+            .with_cursor_area();
+        let data = ImeRequestData::default()
+            .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
+            .with_cursor_area(position.into(), size.into());
+        let request = ImeRequest::Enable(
+            ImeEnableRequest::new(capabilities, data)
+                .expect("IME capabilities and initial data must match"),
+        );
+        if shell.window().request_ime_update(request).is_ok() {
+            self.ime_enabled = true;
+            tracing::debug!(
+                target: "wabou::ime",
+                x = position.x,
+                y = position.y,
+                width = size.width,
+                height = size.height,
+                "enabled IME with resolved caret area"
+            );
+        }
+    }
+
+    fn update_ime_cursor_area(&mut self) {
+        let area = self.source.ime_cursor_area();
+        let changed = area != self.ime_cursor_area;
         self.ime_cursor_area = area;
+        if self.ime_requested && !self.ime_enabled {
+            self.enable_ime_if_ready();
+            return;
+        }
+        if !changed {
+            return;
+        }
         if !self.ime_enabled {
             return;
         }
         if let Some(shell) = self.state.as_ref() {
             let (position, size) = Self::ime_cursor_rect(self.ime_cursor_area);
             let data = ImeRequestData::default().with_cursor_area(position.into(), size.into());
-            let _ = shell.window().request_ime_update(ImeRequest::Update(data));
+            if shell
+                .window()
+                .request_ime_update(ImeRequest::Update(data))
+                .is_ok()
+            {
+                tracing::debug!(
+                    target: "wabou::ime",
+                    x = position.x,
+                    y = position.y,
+                    width = size.width,
+                    height = size.height,
+                    "updated IME caret area"
+                );
+            }
         }
     }
 
@@ -758,22 +962,11 @@ impl App {
         };
         let waker = Waker::from(Arc::new(CallbackWaker(wake)));
         let mut context = Context::from_waker(&waker);
-        let mut completed = Vec::new();
-        let mut index = 0;
-        while index < self.pending_modal_effects.len() {
-            match self.pending_modal_effects[index]
-                .as_mut()
-                .poll(&mut context)
-            {
-                Poll::Ready(completion) => {
-                    completed.push(completion);
-                    drop(self.pending_modal_effects.swap_remove(index));
-                }
-                Poll::Pending => index += 1,
-            }
-        }
-        let changed = !completed.is_empty();
-        for completion in completed {
+        let mut changed = false;
+        while let Poll::Ready(Some(completion)) =
+            Pin::new(&mut self.pending_modal_effects).poll_next(&mut context)
+        {
+            changed = true;
             self.source.complete_effect(completion);
         }
         changed
@@ -882,15 +1075,85 @@ impl App {
         }
     }
 
-    fn handle_pointer_moved(&mut self, position: PhysicalPosition<f64>) {
-        self.pointer_position = self.logical_pointer_position(position);
+    fn update_pointer_state(
+        &mut self,
+        position: Point,
+        buttons: u32,
+        properties: PointerProperties,
+    ) {
+        self.pointer_states
+            .insert(properties.id, (position, buttons, properties));
+        if properties.primary {
+            self.pointer_position = position;
+            self.pointer_buttons = buttons;
+        }
+    }
+
+    fn handle_pointer_moved(
+        &mut self,
+        position: PhysicalPosition<f64>,
+        properties: PointerProperties,
+    ) {
+        let position = self.logical_pointer_position(position);
+        let buttons = self
+            .pointer_states
+            .get(&properties.id)
+            .map_or(0, |state| state.1);
+        self.update_pointer_state(position, buttons, properties);
         self.dispatch_event(UiEvent::Pointer(PointerEvent {
             phase: PointerPhase::Move,
-            position: self.pointer_position,
+            position,
             button: None,
-            buttons: self.pointer_buttons,
+            buttons,
             modifiers: self.modifiers,
+            properties,
         }));
+        self.sync_pointer_cursor();
+    }
+
+    fn handle_pointer_entered(
+        &mut self,
+        position: PhysicalPosition<f64>,
+        properties: PointerProperties,
+    ) {
+        let position = self.logical_pointer_position(position);
+        let buttons = self
+            .pointer_states
+            .get(&properties.id)
+            .map_or(0, |state| state.1);
+        self.update_pointer_state(position, buttons, properties);
+        self.dispatch_event(UiEvent::Pointer(PointerEvent {
+            phase: PointerPhase::Enter,
+            position,
+            button: None,
+            buttons,
+            modifiers: self.modifiers,
+            properties,
+        }));
+        self.sync_pointer_cursor();
+    }
+
+    fn handle_pointer_left(
+        &mut self,
+        position: Option<PhysicalPosition<f64>>,
+        properties: PointerProperties,
+    ) {
+        let old = self.pointer_states.get(&properties.id).copied();
+        let position = position
+            .map(|position| self.logical_pointer_position(position))
+            .or_else(|| old.map(|state| state.0))
+            .unwrap_or(self.pointer_position);
+        let buttons = old.map_or(0, |state| state.1);
+        self.update_pointer_state(position, buttons, properties);
+        self.dispatch_event(UiEvent::Pointer(PointerEvent {
+            phase: PointerPhase::Leave,
+            position,
+            button: None,
+            buttons,
+            modifiers: self.modifiers,
+            properties,
+        }));
+        self.pointer_states.remove(&properties.id);
         self.sync_pointer_cursor();
     }
 
@@ -899,10 +1162,17 @@ impl App {
         position: PhysicalPosition<f64>,
         source: ButtonSource,
         state: ElementState,
+        properties: PointerProperties,
     ) {
         let button = Self::pointer_button(&source);
-        self.pointer_position = self.logical_pointer_position(position);
+        let position = self.logical_pointer_position(position);
+        let mut buttons = self
+            .pointer_states
+            .get(&properties.id)
+            .map_or(0, |state| state.1);
+        self.update_pointer_state(position, buttons, properties);
         if state == ElementState::Pressed
+            && properties.primary
             && button == PointerButton::Primary
             && let Some(direction) = self.custom_resize_direction()
             && let Some(shell) = self.state.as_ref()
@@ -913,6 +1183,7 @@ impl App {
                     // also dispatch it into the UI tree or leave a pressed
                     // button bit set.
                     self.pointer_buttons = 0;
+                    self.pointer_states.remove(&properties.id);
                     return;
                 }
                 Err(error) => {
@@ -926,24 +1197,26 @@ impl App {
         }
         let phase = match state {
             ElementState::Pressed => {
-                self.pointer_buttons |= Self::button_mask(button);
+                buttons |= Self::button_mask(button);
                 PointerPhase::Down
             }
             ElementState::Released => {
-                self.pointer_buttons &= !Self::button_mask(button);
+                buttons &= !Self::button_mask(button);
                 PointerPhase::Up
             }
         };
+        self.update_pointer_state(position, buttons, properties);
         self.dispatch_event(UiEvent::Pointer(PointerEvent {
             phase,
-            position: self.pointer_position,
+            position,
             button: Some(button),
-            buttons: self.pointer_buttons,
+            buttons,
             modifiers: self.modifiers,
+            properties,
         }));
     }
 
-    fn handle_wheel(&mut self, delta: MouseScrollDelta) {
+    fn handle_wheel(&mut self, delta: MouseScrollDelta, phase: TouchPhase) {
         let (delta_x, delta_y) = match delta {
             // Winit reports the direction content should move; the DOM/Wabou
             // event reports the scroll-position delta.
@@ -965,6 +1238,7 @@ impl App {
             position: self.pointer_position,
             delta_x,
             delta_y,
+            phase: gesture_phase(phase),
             modifiers: self.modifiers,
         }));
     }
@@ -981,6 +1255,18 @@ impl App {
 }
 
 impl ApplicationHandler for App {
+    fn resumed(&mut self, _event_loop: &dyn ActiveEventLoop) {
+        self.dispatch_event(UiEvent::AppLifecycle(AppLifecycleEvent::Resumed));
+    }
+
+    fn suspended(&mut self, _event_loop: &dyn ActiveEventLoop) {
+        self.dispatch_event(UiEvent::AppLifecycle(AppLifecycleEvent::Suspended));
+    }
+
+    fn memory_warning(&mut self, _event_loop: &dyn ActiveEventLoop) {
+        self.dispatch_event(UiEvent::AppLifecycle(AppLifecycleEvent::MemoryWarning));
+    }
+
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         if self.state.is_some() {
             return;
@@ -1029,6 +1315,12 @@ impl ApplicationHandler for App {
         }
         match event {
             WindowEvent::CloseRequested => {
+                if self.source.close_requested() {
+                    if let Some(shell) = self.state.as_ref() {
+                        shell.window().request_redraw();
+                    }
+                    return;
+                }
                 self.state = None;
                 event_loop.exit();
             }
@@ -1056,21 +1348,94 @@ impl ApplicationHandler for App {
                     shell.window().request_redraw();
                 }
             }
-            WindowEvent::Occluded(false) => {
-                self.present_retry_pending = false;
+            WindowEvent::Moved(_) => self.sync_window_metrics(),
+            WindowEvent::Occluded(occluded) => {
+                self.window_metrics.occluded = occluded;
+                self.sync_window_metrics();
+                if !occluded {
+                    self.present_retry_pending = false;
+                }
                 if let Some(shell) = self.state.as_ref() {
                     shell.window().request_redraw();
                 }
             }
-            WindowEvent::PointerMoved { position, .. } => self.handle_pointer_moved(position),
-            WindowEvent::PointerButton {
+            WindowEvent::PointerMoved {
+                device_id,
                 position,
+                primary,
+                source,
+            } => self.handle_pointer_moved(
+                position,
+                Self::pointer_source_properties(device_id, primary, &source),
+            ),
+            WindowEvent::PointerEntered {
+                device_id,
+                position,
+                primary,
+                kind,
+            } => self.handle_pointer_entered(
+                position,
+                Self::pointer_kind_properties(device_id, primary, kind),
+            ),
+            WindowEvent::PointerLeft {
+                device_id,
+                position,
+                primary,
+                kind,
+            } => self.handle_pointer_left(
+                position,
+                Self::pointer_kind_properties(device_id, primary, kind),
+            ),
+            WindowEvent::PointerButton {
+                device_id,
+                position,
+                primary,
                 button,
                 state,
+            } => {
+                let properties = Self::button_source_properties(device_id, primary, &button);
+                self.handle_pointer_button(position, button, state, properties);
+            }
+            WindowEvent::MouseWheel { delta, phase, .. } => self.handle_wheel(delta, phase),
+            WindowEvent::PinchGesture { delta, phase, .. } => {
+                self.dispatch_event(UiEvent::Gesture(GestureEvent::Pinch {
+                    delta,
+                    phase: gesture_phase(phase),
+                }));
+            }
+            WindowEvent::PanGesture { delta, phase, .. } => {
+                let scale = self
+                    .state
+                    .as_ref()
+                    .map_or(1.0, |shell| shell.scale_factor());
+                self.dispatch_event(UiEvent::Gesture(GestureEvent::Pan {
+                    delta_x: f64::from(delta.x) / scale,
+                    delta_y: f64::from(delta.y) / scale,
+                    phase: gesture_phase(phase),
+                }));
+            }
+            WindowEvent::RotationGesture { delta, phase, .. } => {
+                self.dispatch_event(UiEvent::Gesture(GestureEvent::Rotation {
+                    delta: f64::from(delta),
+                    phase: gesture_phase(phase),
+                }));
+            }
+            WindowEvent::DoubleTapGesture { .. } => {
+                self.dispatch_event(UiEvent::Gesture(GestureEvent::DoubleTap));
+            }
+            WindowEvent::TouchpadPressure {
+                pressure, stage, ..
+            } => {
+                self.dispatch_event(UiEvent::Gesture(GestureEvent::Pressure {
+                    pressure: f64::from(pressure),
+                    stage,
+                }));
+            }
+            WindowEvent::KeyboardInput {
+                event,
+                is_synthetic,
                 ..
-            } => self.handle_pointer_button(position, button, state),
-            WindowEvent::MouseWheel { delta, .. } => self.handle_wheel(delta),
-            WindowEvent::KeyboardInput { event, .. } => {
+            } => {
                 let phase = match event.state {
                     ElementState::Pressed => KeyPhase::Down,
                     ElementState::Released => KeyPhase::Up,
@@ -1099,13 +1464,14 @@ impl ApplicationHandler for App {
                     location: Self::key_location(event.location),
                     modifiers: self.modifiers,
                     repeat: event.repeat,
+                    synthetic: is_synthetic,
                 }));
                 if let Some(text) = Self::unconsumed_key_text(text, &response) {
                     self.dispatch_event(UiEvent::TextInput(text));
                 }
             }
             WindowEvent::ModifiersChanged(state) => {
-                self.modifiers = Self::modifiers(state.state());
+                self.set_modifiers(Self::modifiers(state.state()));
             }
             WindowEvent::Ime(event) => {
                 let event = match event {
@@ -1403,6 +1769,12 @@ impl ExtensionContext<'_> {
             button: Some(PointerButton::Primary),
             buttons: 1,
             modifiers: Modifiers::default(),
+            properties: PointerProperties {
+                id: App::namespaced_pointer_id(0, 1),
+                pointer_type: PointerType::Mouse,
+                primary: true,
+                ..PointerProperties::default()
+            },
         }));
         let response = app.dispatch_event(UiEvent::Pointer(PointerEvent {
             phase: PointerPhase::Up,
@@ -1410,6 +1782,12 @@ impl ExtensionContext<'_> {
             button: Some(PointerButton::Primary),
             buttons: 0,
             modifiers: Modifiers::default(),
+            properties: PointerProperties {
+                id: App::namespaced_pointer_id(0, 1),
+                pointer_type: PointerType::Mouse,
+                primary: true,
+                ..PointerProperties::default()
+            },
         }));
         if response.request_redraw
             && let Some(shell) = app.state.as_ref()
@@ -1731,6 +2109,22 @@ impl MultiWindowApp {
         window_key: WindowResourceKey,
         event_loop: &dyn ActiveEventLoop,
     ) {
+        let prevented = self
+            .windows
+            .values_mut()
+            .find(|app| app.window_key == window_key)
+            .or_else(|| self.hidden_windows.get_mut(&window_key))
+            .is_some_and(|app| {
+                let prevented = app.source.close_requested();
+                if prevented && let Some(shell) = app.state.as_ref() {
+                    shell.window().request_redraw();
+                }
+                prevented
+            });
+        if prevented {
+            return;
+        }
+
         let mut context =
             Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop);
         if self
@@ -1937,6 +2331,39 @@ impl MultiWindowApp {
 }
 
 impl ApplicationHandler for MultiWindowApp {
+    fn resumed(&mut self, event_loop: &dyn ActiveEventLoop) {
+        for app in self
+            .pending
+            .iter_mut()
+            .chain(self.windows.values_mut())
+            .chain(self.hidden_windows.values_mut())
+        {
+            app.resumed(event_loop);
+        }
+    }
+
+    fn suspended(&mut self, event_loop: &dyn ActiveEventLoop) {
+        for app in self
+            .pending
+            .iter_mut()
+            .chain(self.windows.values_mut())
+            .chain(self.hidden_windows.values_mut())
+        {
+            app.suspended(event_loop);
+        }
+    }
+
+    fn memory_warning(&mut self, event_loop: &dyn ActiveEventLoop) {
+        for app in self
+            .pending
+            .iter_mut()
+            .chain(self.windows.values_mut())
+            .chain(self.hidden_windows.values_mut())
+        {
+            app.memory_warning(event_loop);
+        }
+    }
+
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         for mut app in self.pending.drain(..) {
             app.window_key =

@@ -15,7 +15,7 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export function normalizeOtpValue(
   value: string,
@@ -89,7 +89,7 @@ export function InputOTP(props: InputOTPProps): JSX.Element {
       <View
         role="group"
         aria-label={props["aria-label"]}
-        class={join(
+        class={mergeClasses(
           "relative inline-flex flex-none items-center gap-2",
           props.disabled && "opacity-50",
           props.class,
@@ -102,7 +102,7 @@ export function InputOTP(props: InputOTPProps): JSX.Element {
           value={value()}
           disabled={props.disabled}
           readOnly={props.readOnly}
-          class={join(
+          class={mergeClasses(
             "absolute inset-0 w-full h-full z-10 opacity-0",
             props.inputClass,
           )}
@@ -135,7 +135,7 @@ export function InputOTPGroup(props: ViewProps): JSX.Element {
     <View
       {...props}
       aria-hidden="true"
-      class={join("flex flex-none items-center gap-1", props.class)}
+      class={mergeClasses("flex flex-none items-center gap-1", props.class)}
     >
       {props.children}
     </View>
@@ -156,7 +156,7 @@ export function InputOTPSlot(props: InputOTPSlotProps): JSX.Element {
   return (
     <View
       {...forwarded}
-      class={join(
+      class={mergeClasses(
         "relative w-9 h-9 flex-none flex items-center justify-center rounded-md border bg-input text-sm text-primary shadow-xs",
         active() ? "border-focus" : "border-subtle",
         props.class,
@@ -180,7 +180,7 @@ export function InputOTPSeparator(props: ViewProps): JSX.Element {
     <View
       {...props}
       aria-hidden="true"
-      class={join(
+      class={mergeClasses(
         "w-5 h-9 flex-none flex items-center justify-center",
         props.class,
       )}

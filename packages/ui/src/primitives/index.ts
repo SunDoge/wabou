@@ -1,13 +1,4 @@
 export {
-  createFileImageResource,
-  createNetworkImageResource,
-  createOwnedImageResource,
-  type ImageResourceDescriptor,
-  type ImageResourceRequest,
-  type OwnedImageResource,
-  releaseImageResource,
-} from "./image-resource";
-export {
   type AnimationFrameCallback,
   createAnimationFrame,
 } from "./animation-frame";
@@ -34,6 +25,15 @@ export {
   type FocusWithinResult,
 } from "./focus";
 export { createHover, type HoverResult } from "./hover";
+export {
+  createFileImageResource,
+  createNetworkImageResource,
+  createOwnedImageResource,
+  type ImageResourceDescriptor,
+  type ImageResourceRequest,
+  type OwnedImageResource,
+  releaseImageResource,
+} from "./image-resource";
 export {
   createFormDraft,
   FORM_ERROR,
@@ -186,6 +186,10 @@ export {
   PathBuilder,
   type PathProps,
   type PrimitiveProps,
+  RichText,
+  type RichTextProps,
+  RichTextSpan,
+  type RichTextSpanProps,
   rotate2d,
   Svg,
   type SvgProps,

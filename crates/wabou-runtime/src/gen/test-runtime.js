@@ -7428,9 +7428,10 @@
   };
   var TEXT_BEHAVIOR = {
     AggregateDirectText: 1,
-    SingleLine: 2
+    SingleLine: 2,
+    AggregateStyledText: 4
   };
-  var TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine;
+  var TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine | TEXT_BEHAVIOR.AggregateStyledText;
   var INTERACTION_POLICY = {
     Focusable: 1,
     BlockSubtree: 2,
@@ -7479,7 +7480,12 @@
     textselectionchange: 30,
     terminalbell: 31,
     resourceready: 32,
-    resourceerror: 33
+    resourceerror: 33,
+    imeenabled: 34,
+    imepreedit: 35,
+    imedeletesurrounding: 36,
+    imedisabled: 37,
+    windowcloserequested: 38
   };
   var EVENT_DATA_SLOT = {
     clientX: 0,
@@ -7492,12 +7498,22 @@
     deltaX: 7,
     deltaY: 8,
     scrollX: 9,
-    scrollY: 10
+    scrollY: 10,
+    phase: 11,
+    pointerIdLo: 12,
+    pointerIdHi: 13,
+    pointerType: 14,
+    primary: 15,
+    pressure: 16,
+    tangentialPressure: 17,
+    tiltX: 18,
+    tiltY: 19,
+    twist: 20
   };
   var EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;
   var HOST_FRAME = {
     Magic: 826689623,
-    Version: 2,
+    Version: 3,
     HeaderLen: 32
   };
   var HOST_RECORD_KIND = {
@@ -8019,6 +8035,11 @@
       string: true,
       number: true,
       typed: [1]
+    },
+    "font-style": {
+      string: true,
+      number: false,
+      typed: []
     },
     "font-weight": {
       string: true,
@@ -8699,6 +8720,7 @@
       "grow-0": ["flex-grow"],
       hidden: ["display"],
       "inline-flex": ["display"],
+      italic: ["font-style"],
       "items-baseline": ["align-items"],
       "items-center": ["align-items"],
       "items-end": ["align-items"],
@@ -8733,6 +8755,7 @@
       "max-w-sm": ["max-width"],
       "max-w-xl": ["max-width"],
       "max-w-xs": ["max-width"],
+      "not-italic": ["font-style"],
       "origin-bottom-left": ["transform-origin-x", "transform-origin-y"],
       "origin-bottom-right": ["transform-origin-x", "transform-origin-y"],
       "origin-center": ["transform-origin-x", "transform-origin-y"],
@@ -10184,7 +10207,7 @@
     } else {
       const ed = numericData;
       if (ed) {
-        if (eventCode === EVENT_CODE.pointerup || eventCode === EVENT_CODE.pointerdown || eventCode === EVENT_CODE.pointermove || eventCode === EVENT_CODE.click || eventCode === EVENT_CODE.contextmenu) {
+        if (eventCode === EVENT_CODE.pointerdown || eventCode === EVENT_CODE.pointermove || eventCode === EVENT_CODE.pointerup || eventCode === EVENT_CODE.pointerenter || eventCode === EVENT_CODE.pointerleave || eventCode === EVENT_CODE.pointercancel || eventCode === EVENT_CODE.pointerover || eventCode === EVENT_CODE.pointerout || eventCode === EVENT_CODE.click || eventCode === EVENT_CODE.contextmenu || eventCode === EVENT_CODE.dblclick) {
           data.clientX = ed[0];
           data.clientY = ed[1];
           data.offsetX = ed[2];
@@ -10192,6 +10215,14 @@
           data.button = ed[4];
           data.buttons = ed[5];
           data.mods = ed[6];
+          data.pointerId = { lo: ed[12], hi: ed[13] };
+          data.pointerType = ["mouse", "touch", "pen", "unknown"][ed[14]];
+          data.primary = ed[15] !== 0;
+          data.pressure = Number.isNaN(ed[16]) ? null : ed[16];
+          data.tangentialPressure = Number.isNaN(ed[17]) ? null : ed[17];
+          data.tiltX = Number.isNaN(ed[18]) ? null : ed[18];
+          data.tiltY = Number.isNaN(ed[19]) ? null : ed[19];
+          data.twist = Number.isNaN(ed[20]) ? null : ed[20];
         } else if (eventCode === EVENT_CODE.wheel) {
           data.clientX = ed[0];
           data.clientY = ed[1];
@@ -10199,6 +10230,7 @@
           data.offsetY = ed[3];
           data.deltaX = ed[7];
           data.deltaY = ed[8];
+          data.phase = ["started", "changed", "ended", "cancelled"][ed[11]];
         } else if (eventCode === EVENT_CODE.scroll) {
           data.scrollX = ed[9];
           data.scrollY = ed[10];
@@ -10340,6 +10372,59 @@ ${detail}`);
   globalThis.__wabou_tick = __wabou_tick;
   globalThis.__wabou_has_raf = __wabou_has_raf;
 
+  // packages/core/src/glue/host-messages.ts
+  var listeners2 = new Map;
+  var allListeners = new Set;
+  var utf8 = new TextDecoder;
+  function subscribe(topic, handler) {
+    let set = listeners2.get(topic);
+    if (!set) {
+      set = new Set;
+      listeners2.set(topic, set);
+    }
+    set.add(handler);
+    return () => {
+      set.delete(handler);
+      if (set.size === 0)
+        listeners2.delete(topic);
+    };
+  }
+  function subscribeJson(topic, handler, options2 = {}) {
+    return subscribe(topic, (payload) => {
+      try {
+        const source = typeof payload === "string" ? payload : payload instanceof Uint8Array ? utf8.decode(payload) : undefined;
+        if (source === undefined)
+          throw new TypeError(`host message "${topic}" does not contain JSON text`);
+        const parsed = JSON.parse(source);
+        handler(options2.decode ? options2.decode(parsed) : parsed);
+      } catch (error) {
+        if (options2.onError)
+          options2.onError(error, payload);
+        else
+          console.error(`[wabou-host] invalid JSON message for "${topic}"`, error);
+      }
+    });
+  }
+  function dispatchHostMessage(topic, payload) {
+    const set = listeners2.get(topic);
+    if (set) {
+      for (const handler of set) {
+        try {
+          handler(payload);
+        } catch (error) {
+          console.error(`[wabou-host] subscriber for "${topic}" threw`, error);
+        }
+      }
+    }
+    for (const handler of allListeners) {
+      try {
+        handler(topic, payload);
+      } catch (error) {
+        console.error(`[wabou-host] subscribeAll handler threw`, error);
+      }
+    }
+  }
+
   // packages/core/src/glue/timers.ts
   var nextTimerId = 1;
   var active = new Set;
@@ -10454,59 +10539,6 @@ ${detail}`);
   }
   globalThis.ResizeObserver = WabouResizeObserver;
 
-  // packages/core/src/glue/host-messages.ts
-  var listeners2 = new Map;
-  var allListeners = new Set;
-  var utf8 = new TextDecoder;
-  function subscribe(topic, handler) {
-    let set = listeners2.get(topic);
-    if (!set) {
-      set = new Set;
-      listeners2.set(topic, set);
-    }
-    set.add(handler);
-    return () => {
-      set.delete(handler);
-      if (set.size === 0)
-        listeners2.delete(topic);
-    };
-  }
-  function subscribeJson(topic, handler, options2 = {}) {
-    return subscribe(topic, (payload) => {
-      try {
-        const source = typeof payload === "string" ? payload : payload instanceof Uint8Array ? utf8.decode(payload) : undefined;
-        if (source === undefined)
-          throw new TypeError(`host message "${topic}" does not contain JSON text`);
-        const parsed = JSON.parse(source);
-        handler(options2.decode ? options2.decode(parsed) : parsed);
-      } catch (error) {
-        if (options2.onError)
-          options2.onError(error, payload);
-        else
-          console.error(`[wabou-host] invalid JSON message for "${topic}"`, error);
-      }
-    });
-  }
-  function dispatchHostMessage(topic, payload) {
-    const set = listeners2.get(topic);
-    if (set) {
-      for (const handler of set) {
-        try {
-          handler(payload);
-        } catch (error) {
-          console.error(`[wabou-host] subscriber for "${topic}" threw`, error);
-        }
-      }
-    }
-    for (const handler of allListeners) {
-      try {
-        handler(topic, payload);
-      } catch (error) {
-        console.error(`[wabou-host] subscribeAll handler threw`, error);
-      }
-    }
-  }
-
   // packages/core/src/glue/host-frame.ts
   var RECORD_HEADER_LEN = 8;
   var FLAG_CANCELLABLE = 1;
@@ -10558,6 +10590,7 @@ ${detail}`);
         const target = nodeKey(view.getUint32(offset, true), view.getUint32(offset + 4, true));
         const eventCode = view.getUint8(offset + 8);
         const payloadKind = view.getUint8(offset + 9);
+        const numericLen = view.getUint16(offset + 10, true);
         const eventId = view.getUint32(offset + 12, true);
         offset += 16;
         if (payloadKind === HOST_NODE_PAYLOAD.None) {
@@ -10570,12 +10603,21 @@ ${detail}`);
             json: ""
           });
         } else if (payloadKind === HOST_NODE_PAYLOAD.Numeric) {
-          requireBytes(8 * EVENT_DATA_LEN, end);
-          const numeric = new Float64Array(EVENT_DATA_LEN);
-          for (let slot = 0;slot < numeric.length; slot++) {
-            numeric[slot] = view.getFloat64(offset + slot * 8, true);
+          if (numericLen > EVENT_DATA_LEN) {
+            throw new TypeError("HostEventFrame numeric payload exceeds ABI slots");
           }
-          offset += 8 * numeric.length;
+          requireBytes(8 * numericLen, end);
+          const absoluteOffset = bytes.byteOffset + offset;
+          let numeric;
+          if (absoluteOffset % Float64Array.BYTES_PER_ELEMENT === 0) {
+            numeric = new Float64Array(bytes.buffer, absoluteOffset, numericLen);
+          } else {
+            numeric = new Float64Array(numericLen);
+            for (let slot = 0;slot < numeric.length; slot++) {
+              numeric[slot] = view.getFloat64(offset + slot * 8, true);
+            }
+          }
+          offset += 8 * numericLen;
           records.push({
             kind: "node",
             flags,
@@ -10689,6 +10731,49 @@ ${detail}`);
     return decodeAndDispatchHostFrame(frame);
   }
   globalThis.__wabou_dispatch_host_frame = __wabou_dispatch_host_frame;
+
+  // packages/core/src/glue/keyboard-modifiers.ts
+  var SHIFT = 1 << 0;
+  var CONTROL = 1 << 1;
+  var ALT = 1 << 2;
+  var META = 1 << 3;
+  var PRIMARY = 1 << 4;
+  var VALID_MASK = SHIFT | CONTROL | ALT | META | PRIMARY;
+  function decodeKeyboardModifiers(value) {
+    if (!Number.isInteger(value) || value < 0 || (value & ~VALID_MASK) !== 0) {
+      throw new TypeError("keyboard modifier bits are invalid");
+    }
+    const bits = value;
+    return Object.freeze({
+      bits: bits & (SHIFT | CONTROL | ALT | META),
+      shift: (bits & SHIFT) !== 0,
+      control: (bits & CONTROL) !== 0,
+      alt: (bits & ALT) !== 0,
+      meta: (bits & META) !== 0,
+      primary: (bits & PRIMARY) !== 0
+    });
+  }
+  var empty = decodeKeyboardModifiers(0);
+  var [keyboardModifiers, setKeyboardModifiers] = createSignal2(empty, {
+    equals: (previous, next) => previous.bits === next.bits && previous.primary === next.primary,
+    ownedWrite: true
+  });
+  var subscribers = new Set;
+  subscribe("wabou:keyboard-modifiers", (payload) => {
+    try {
+      const modifiers = decodeKeyboardModifiers(payload);
+      setKeyboardModifiers(modifiers);
+      for (const subscriber of subscribers) {
+        try {
+          subscriber(modifiers);
+        } catch (error) {
+          console.error("[wabou-host] keyboard modifier subscriber threw", error);
+        }
+      }
+    } catch (error) {
+      console.error("[wabou-host] invalid keyboard modifiers", error);
+    }
+  });
 
   // packages/core/src/glue/platform-context.ts
   var PlatformContext = createContext({});
@@ -10806,10 +10891,13 @@ ${detail}`);
     scaleFactor: 1,
     maximized: false,
     focused: false,
+    outerX: null,
+    outerY: null,
+    occluded: false,
     colorScheme: "light"
   };
   function sameMetrics(previous, next) {
-    return previous.windowId.lo === next.windowId.lo && previous.windowId.hi === next.windowId.hi && previous.logicalWidth === next.logicalWidth && previous.logicalHeight === next.logicalHeight && previous.physicalWidth === next.physicalWidth && previous.physicalHeight === next.physicalHeight && previous.scaleFactor === next.scaleFactor && previous.maximized === next.maximized && previous.focused === next.focused && previous.colorScheme === next.colorScheme;
+    return previous.windowId.lo === next.windowId.lo && previous.windowId.hi === next.windowId.hi && previous.logicalWidth === next.logicalWidth && previous.logicalHeight === next.logicalHeight && previous.physicalWidth === next.physicalWidth && previous.physicalHeight === next.physicalHeight && previous.scaleFactor === next.scaleFactor && previous.maximized === next.maximized && previous.focused === next.focused && previous.outerX === next.outerX && previous.outerY === next.outerY && previous.occluded === next.occluded && previous.colorScheme === next.colorScheme;
   }
   var [metrics, setMetrics] = createSignal2(initial, {
     equals: sameMetrics,
@@ -10825,8 +10913,12 @@ ${detail}`);
         throw new TypeError(`window metrics ${field} must be a finite number`);
       return number;
     };
-    if (typeof next.maximized !== "boolean" || typeof next.focused !== "boolean")
+    if (typeof next.maximized !== "boolean" || typeof next.focused !== "boolean" || typeof next.occluded !== "boolean")
       throw new TypeError("window metrics flags must be booleans");
+    for (const field of ["outerX", "outerY"]) {
+      if (next[field] !== null && (typeof next[field] !== "number" || !Number.isFinite(next[field])))
+        throw new TypeError(`window metrics ${field} must be null or a finite number`);
+    }
     if (next.colorScheme !== null && next.colorScheme !== "light" && next.colorScheme !== "dark")
       throw new TypeError("window metrics colorScheme is invalid");
     return {
@@ -10838,6 +10930,9 @@ ${detail}`);
       scaleFactor: finiteNumber("scaleFactor"),
       maximized: next.maximized,
       focused: next.focused,
+      outerX: next.outerX,
+      outerY: next.outerY,
+      occluded: next.occluded,
       colorScheme: next.colorScheme
     };
   }
@@ -10860,6 +10955,9 @@ ${detail}`);
     scaleFactor: () => metrics().scaleFactor,
     maximized: () => metrics().maximized,
     focused: () => metrics().focused,
+    outerX: () => metrics().outerX,
+    outerY: () => metrics().outerY,
+    occluded: () => metrics().occluded,
     colorScheme: () => metrics().colorScheme ?? "light"
   };
   function useWindow() {

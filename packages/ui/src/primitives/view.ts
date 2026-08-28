@@ -7,23 +7,36 @@ import {
   spread,
   TEXT_BEHAVIOR,
   type WabouElementProps,
+  type WabouImeDeleteSurroundingEvent,
+  type WabouImePreeditEvent,
+  type WabouKeyEvent,
+  type WabouTextCommitEvent,
+  type WabouTextSelectionChangeEvent,
 } from "@wabou/core/renderer";
 import type { Affine2D, Shadow, WabouStyle } from "@wabou/core/style";
 
 export type { VectorPath, VectorPathPaint } from "@wabou/core";
 export { PathBuilder } from "@wabou/core";
 
-import { type JSX, omit, untrack } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  type JSX,
+  omit,
+  untrack,
+} from "solid-js";
+
+import {
+  CodeEditorDocument,
+  type CodeEditorLanguage,
+} from "./code-editor-state";
 
 export type { Affine2D, WabouStyle } from "@wabou/core/style";
 export { rotate2d, translate2d } from "@wabou/core/style";
 export type WabouClassList = Record<string, boolean | undefined>;
 
-export interface TextSelectionChangeEvent {
-  type: "textselectionchange";
-  text: string | null;
-  kind: "simple" | "word" | "line" | null;
-}
+export type TextSelectionChangeEvent = WabouTextSelectionChangeEvent;
 
 export interface PrimitiveProps
   extends Omit<WabouElementProps, "children" | "ref" | "style"> {
@@ -39,8 +52,6 @@ export interface PrimitiveProps
   children?: JSX.Element;
   /** Native host node, useful for imperative primitives and measurement. */
   ref?: (node: Handle) => void;
-  /** Fires once when a native text selection gesture commits or changes asynchronously. */
-  onTextSelectionChange?: (event: TextSelectionChangeEvent) => void;
 }
 
 export interface ViewProps extends PrimitiveProps {}
@@ -49,6 +60,11 @@ export interface TextProps extends PrimitiveProps {
   /** Maximum rendered lines. Overflow on the final line is replaced by an ellipsis. */
   maxLines?: number;
 }
+
+export interface RichTextProps extends TextProps {}
+
+/** A styled text-only descendant of RichText. Layout-box styles are invalid. */
+export interface RichTextSpanProps extends PrimitiveProps {}
 
 export interface SvgProps extends Omit<PrimitiveProps, "children"> {
   /** Trusted inline SVG source parsed and cached by the native host. */
@@ -114,7 +130,6 @@ export interface ImageProps extends Omit<PrimitiveProps, "children"> {
   onResourceError?: (event: ImageResourceErrorEvent) => void;
 }
 
-
 export interface TextInputProps extends Omit<PrimitiveProps, "children"> {
   value?: string;
   placeholder?: string;
@@ -136,8 +151,8 @@ export interface PasswordInputProps extends Omit<PrimitiveProps, "children"> {
 
 export interface CodeEditorProps extends Omit<PrimitiveProps, "children"> {
   value?: string;
-  /** The initial experimental adapter supports JSON highlighting. */
-  language?: "json";
+  /** Headless CodeMirror/Lezer language service. */
+  language?: CodeEditorLanguage;
   disabled?: boolean;
   readOnly?: boolean;
   "aria-label": string;
@@ -147,6 +162,7 @@ export interface CodeEditorProps extends Omit<PrimitiveProps, "children"> {
 type InternalPrimitiveTag =
   | "view"
   | "text"
+  | "text-span"
   | "svg"
   | "img"
   | "button"
@@ -170,6 +186,7 @@ function primitive(
   tag:
     | "view"
     | "text"
+    | "text-span"
     | "svg"
     | "img"
     | "input"
@@ -258,6 +275,38 @@ export function Text(props: TextProps): JSX.Element {
     false,
   );
   return node as unknown as JSX.Element;
+}
+
+/**
+ * One Parley paragraph assembled from explicitly styled text descendants.
+ *
+ * Unlike adjacent Text components, spans share wrapping, whitespace,
+ * selection, and copy semantics because the native host lays them out once.
+ */
+export function RichText(props: RichTextProps): JSX.Element {
+  resolvedTextBehavior(untrack(() => props.maxLines));
+  const node = createElement("text");
+  spread(node, omit(props, "maxLines"), false);
+  spread(
+    node,
+    {
+      role: props.role ?? "label",
+      get textBehavior() {
+        const behavior = resolvedTextBehavior(props.maxLines);
+        return {
+          ...behavior,
+          flags: behavior.flags | TEXT_BEHAVIOR.AggregateStyledText,
+        };
+      },
+    },
+    false,
+  );
+  return node as unknown as JSX.Element;
+}
+
+/** A text-style boundary inside RichText; it never creates a layout box. */
+export function RichTextSpan(props: RichTextSpanProps): JSX.Element {
+  return primitive("text-span", props);
 }
 
 /** A static SVG asset rendered through the native usvg/Vello pipeline. */
@@ -358,7 +407,120 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
   return editorPrimitive("password-input", props);
 }
 
-/** Experimental native editor for config and script-sized documents. */
+/** CodeMirror-owned config/Markdown editor rendered by a native viewport. */
 export function CodeEditor(props: CodeEditorProps): JSX.Element {
-  return editorPrimitive("code-editor", props);
+  const initialValue = untrack(() => props.value ?? "");
+  const initialLanguage = untrack(() => props.language);
+  const document = new CodeEditorDocument(initialValue, initialLanguage);
+  const [revision, setRevision] = createSignal(0);
+  const invalidate = () => setRevision((value) => value + 1);
+  const emitInput = () =>
+    props.onInput?.({ currentTarget: { value: document.value } });
+  createEffect(
+    () => props.value,
+    (controlledValue) => {
+      if (controlledValue !== undefined && controlledValue !== document.value) {
+        document.sync(controlledValue, props.language);
+        invalidate();
+      }
+    },
+  );
+  const widgetConfig = createMemo(() => {
+    revision();
+    return document.config(props.language);
+  });
+  const nativeProps = omit(
+    props,
+    "language",
+    "onInput",
+    "onKeyDown",
+    "onImePreedit",
+    "onImeCommit",
+    "onImeDeleteSurrounding",
+    "onImeDisabled",
+    "onTextSelectionChange",
+  );
+  return editorPrimitive(
+    "code-editor",
+    mergeProps(nativeProps, {
+      get value() {
+        revision();
+        return document.value;
+      },
+      get widgetConfig() {
+        return widgetConfig();
+      },
+      onInput(event: { currentTarget: { value: string } }) {
+        if (props.disabled || props.readOnly) return;
+        document.sync(event.currentTarget.value, props.language);
+        invalidate();
+        emitInput();
+      },
+      onKeyDown(event: WabouKeyEvent) {
+        if (!props.disabled) {
+          const result = document.handleKey({
+            key: event.key,
+            shift: (event.mods & 1) !== 0,
+            primary: event.primary,
+            readOnly: props.readOnly,
+          });
+          if (result.handled) {
+            event.preventDefault();
+            invalidate();
+            if (result.changed && !props.readOnly) emitInput();
+          }
+        }
+        props.onKeyDown?.(event);
+      },
+      onImePreedit(event: WabouImePreeditEvent) {
+        if (!props.disabled && !props.readOnly) {
+          document.setComposition(
+            event.data,
+            event.cursorStart,
+            event.cursorEnd,
+          );
+          event.preventDefault();
+          invalidate();
+        }
+        props.onImePreedit?.(event);
+      },
+      onImeCommit(event: WabouTextCommitEvent) {
+        if (!props.disabled && !props.readOnly) {
+          const changed = document.commitText(event.data);
+          event.preventDefault();
+          invalidate();
+          if (changed) emitInput();
+        }
+        props.onImeCommit?.(event);
+      },
+      onImeDeleteSurrounding(event: WabouImeDeleteSurroundingEvent) {
+        if (!props.disabled && !props.readOnly) {
+          const changed = document.deleteSurrounding(
+            event.beforeBytes,
+            event.afterBytes,
+          );
+          event.preventDefault();
+          invalidate();
+          if (changed) emitInput();
+        }
+        props.onImeDeleteSurrounding?.(event);
+      },
+      onImeDisabled(
+        event: Parameters<NonNullable<PrimitiveProps["onImeDisabled"]>>[0],
+      ) {
+        if (document.setComposition("", null, null)) invalidate();
+        props.onImeDisabled?.(event);
+      },
+      onTextSelectionChange(event: TextSelectionChangeEvent) {
+        if (
+          event.anchor !== undefined &&
+          event.head !== undefined &&
+          document.setSelection(event.anchor, event.head)
+        ) {
+          invalidate();
+        }
+        props.onTextSelectionChange?.(event);
+      },
+    }) as CodeEditorProps,
+  );
 }

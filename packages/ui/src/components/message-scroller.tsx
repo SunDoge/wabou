@@ -1,4 +1,10 @@
-import type { Handle, WabouScrollEvent } from "@wabou/core/renderer";
+import {
+  type Handle,
+  type LayoutRect,
+  useHost,
+  type WabouScrollEvent,
+} from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
 import {
   createContext,
@@ -18,7 +24,6 @@ import {
   type ViewProps,
 } from "../primitives";
 import { Button, type ButtonProps } from "./button";
-import { join } from "./class-names";
 
 export type MessageScrollDirection = "start" | "end";
 
@@ -41,11 +46,27 @@ export function isMessageScrollNearEnd(
   );
 }
 
+/** Smallest vertical delta that reveals a target without disturbing visible content. */
+export function messageScrollRevealDelta(
+  viewport: LayoutRect,
+  target: LayoutRect,
+  margin = 12,
+): number {
+  const inset = Math.max(0, margin);
+  const visibleTop = viewport.y + inset;
+  const visibleBottom = viewport.y + viewport.height - inset;
+  if (target.y < visibleTop) return target.y - visibleTop;
+  const targetBottom = target.y + target.height;
+  if (targetBottom > visibleBottom) return targetBottom - visibleBottom;
+  return 0;
+}
+
 export interface MessageScrollerControls {
   followingEnd(): boolean;
   canScrollStart(): boolean;
   canScrollEnd(): boolean;
   scrollTo(direction: MessageScrollDirection): void;
+  scrollIntoView(target: Handle, options?: { margin?: number }): void;
 }
 
 interface MessageScrollerContextValue extends MessageScrollerControls {
@@ -78,6 +99,7 @@ export interface MessageScrollerProps extends ViewProps {
 }
 
 export function MessageScroller(props: MessageScrollerProps): JSX.Element {
+  const host = useHost();
   const forwarded = omit(
     props,
     "followEnd",
@@ -122,6 +144,26 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
         top: direction === "end" ? Number.MAX_SAFE_INTEGER : 0,
       });
     },
+    scrollIntoView: (target, options) => {
+      if (!viewport) return;
+      const snapshot = host.layout.snapshot([viewport, target]);
+      const viewportMetrics = snapshot.nodes.find(
+        (node) =>
+          node.id.lo === viewport?.id.lo && node.id.hi === viewport?.id.hi,
+      );
+      const targetMetrics = snapshot.nodes.find(
+        (node) => node.id.lo === target.id.lo && node.id.hi === target.id.hi,
+      );
+      if (!viewportMetrics || !targetMetrics) return;
+      const delta = messageScrollRevealDelta(
+        viewportMetrics.rect,
+        targetMetrics.rect,
+        options?.margin,
+      );
+      if (delta === 0) return;
+      setFollowingEnd(false);
+      viewport.scrollBy({ top: delta });
+    },
     setViewport: (node) => {
       viewport = node;
       viewportSize.ref(node);
@@ -150,7 +192,7 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
     <MessageScrollerContext value={context}>
       <View
         {...forwarded}
-        class={join(
+        class={mergeClasses(
           "relative w-full h-full min-w-0 min-h-0 flex flex-col overflow-hidden",
           props.class,
         )}
@@ -176,7 +218,7 @@ export function MessageScrollerViewport(
         context.setViewport(node);
         props.ref?.(node);
       }}
-      class={join(
+      class={mergeClasses(
         "w-full min-w-0 min-h-0 flex-1 overflow-x-hidden overflow-y-auto",
         props.class,
       )}
@@ -201,7 +243,7 @@ export function MessageScrollerContent(props: ViewProps): JSX.Element {
         context.setContent(node);
         props.ref?.(node);
       }}
-      class={join(
+      class={mergeClasses(
         "w-full min-w-0 min-h-full flex-none flex flex-col gap-4",
         props.class,
       )}
@@ -213,7 +255,10 @@ export function MessageScrollerContent(props: ViewProps): JSX.Element {
 
 export function MessageScrollerItem(props: ViewProps): JSX.Element {
   return (
-    <View {...props} class={join("w-full min-w-0 flex-none", props.class)}>
+    <View
+      {...props}
+      class={mergeClasses("w-full min-w-0 flex-none", props.class)}
+    >
       {props.children}
     </View>
   );
@@ -242,7 +287,7 @@ export function MessageScrollerButton(
         aria-label={props["aria-label"] ?? label()}
         variant={props.variant ?? "secondary"}
         size={props.size ?? "icon"}
-        class={join(
+        class={mergeClasses(
           "absolute z-10 left-1/2 flex-none rounded-full shadow-sm",
           direction() === "end" ? "bottom-3" : "top-3",
           props.class,

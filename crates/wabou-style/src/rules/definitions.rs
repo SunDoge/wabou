@@ -718,6 +718,8 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("font-semibold", vec![number("font-weight", 600.0)]),
         ("font-bold", vec![number("font-weight", 700.0)]),
         ("font-extrabold", vec![number("font-weight", 800.0)]),
+        ("italic", vec![keyword("font-style", "italic")]),
+        ("not-italic", vec![keyword("font-style", "normal")]),
         (
             "text-xs",
             vec![

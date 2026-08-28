@@ -1,7 +1,13 @@
-import { Center, Image, type ImageResourceHandle, Text, View } from "../primitives";
+import {
+  Center,
+  Image,
+  type ImageResourceHandle,
+  Text,
+  View,
+} from "../primitives";
 import type { JSX } from "solid-js";
 import { match } from "ts-pattern";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 export type AvatarSize = "sm" | "default" | "lg";
 export interface AvatarProps {
   image?: ImageResourceHandle;
@@ -21,7 +27,7 @@ export function Avatar(props: AvatarProps) {
     <Center
       role="img"
       aria-label={props.alt ?? props.fallback}
-      class={join(
+      class={mergeClasses(
         "flex-none overflow-hidden rounded-full bg-control border border-subtle",
         size(),
         props.class,
@@ -43,7 +49,7 @@ export function Avatar(props: AvatarProps) {
 }
 export function AvatarGroup(props: { children?: JSX.Element; class?: string }) {
   return (
-    <View class={join("flex items-center gap-1", props.class)}>
+    <View class={mergeClasses("flex items-center gap-1", props.class)}>
       {props.children}
     </View>
   );
@@ -54,7 +60,7 @@ export function AvatarGroupCount(props: {
 }) {
   return (
     <Center
-      class={join(
+      class={mergeClasses(
         "w-10 h-10 flex-none rounded-full bg-control border border-subtle",
         props.class,
       )}

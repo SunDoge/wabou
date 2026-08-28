@@ -198,6 +198,7 @@ fn text_input_updates_value_paints_and_dispatches_input() {
         location: Default::default(),
         modifiers: Modifiers::default(),
         repeat: false,
+        synthetic: false,
     }));
     applier.build_frame(&mut tcx, 800, 600);
     assert_eq!(
@@ -220,6 +221,7 @@ fn text_input_updates_value_paints_and_dispatches_input() {
             location: Default::default(),
             modifiers: Modifiers::default(),
             repeat: false,
+            synthetic: false,
         }));
     }
     applier.build_frame(&mut tcx, 800, 600);
@@ -243,6 +245,79 @@ fn text_input_updates_value_paints_and_dispatches_input() {
         applier.document.widget_manager.widgets[&node].current_value(),
         Some("")
     );
+}
+
+#[test]
+fn code_editor_drag_selection_survives_native_pointer_routing() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    js.with(|ctx| {
+        ctx.eval::<(), _>(
+            "globalThis.__wabou_tick = () => false; globalThis.__wabou_has_raf = () => false;",
+        )
+    })
+    .unwrap();
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (tag, value, width, height) = {
+        let mut atoms = applier.document.atoms.borrow_mut();
+        (
+            atoms.intern("code-editor"),
+            atoms.intern("value"),
+            atoms.intern("width"),
+            atoms.intern("height"),
+        )
+    };
+    create_element_with_attrs(&mut applier, 2, tag, &[(value, "abcdef")]);
+    set_focus_order(&mut applier, 2, 0);
+    applier.apply_op(&Op::AppendChild {
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
+    });
+    applier.apply_op(&Op::AddEventListener {
+        id: NodeKey::new(2, 1),
+        event_type: event::TEXTSELECTIONCHANGE,
+    });
+    for (prop, value) in [(width, "320px"), (height, "120px")] {
+        applier.apply_op(&Op::SetStyle {
+            id: NodeKey::new(2, 1),
+            prop,
+            value,
+        });
+    }
+
+    let mut tcx = TextContext::new();
+    applier.build_frame(&mut tcx, 800, 600);
+    // The editor gutter is 58px and text inset is 10px. Drag beyond the
+    // visible end, as users naturally do when selecting a complete line.
+    applier.handle_event(pointer(PointerPhase::Down, 68.0, 10.0, 1));
+    applier.handle_event(pointer(PointerPhase::Move, 300.0, 10.0, 1));
+    applier.handle_event(pointer(PointerPhase::Up, 300.0, 10.0, 0));
+    assert!(
+        !applier.handle_event(UiEvent::TextInput("X".into())).handled,
+        "the controlled viewport must not edit outside CodeMirror"
+    );
+    applier.build_frame(&mut tcx, 800, 600);
+
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
+    assert_eq!(
+        applier.document.widget_manager.widgets[&node].current_value(),
+        None
+    );
+    let selection_event = applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<String, _>(format!(
+                "JSON.stringify(globalThis.dispatched.filter((event) => event[1] === {}).at(-1))",
+                event::TEXTSELECTIONCHANGE
+            ))
+        })
+        .expect("native widget selection event");
+    let event: serde_json::Value = serde_json::from_str(&selection_event).unwrap();
+    let payload: serde_json::Value = serde_json::from_str(event[2].as_str().unwrap()).unwrap();
+    assert_eq!(payload["anchor"], 0);
+    assert_eq!(payload["head"], 6);
+    assert_eq!(payload["text"], "abcdef");
 }
 
 #[test]
@@ -439,6 +514,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
             Modifiers::CONTROL
         },
         repeat: false,
+        synthetic: false,
     }));
     assert_eq!(
         copied.clipboard,
@@ -681,6 +757,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
             Modifiers::CONTROL
         },
         repeat: false,
+        synthetic: false,
     }));
     assert!(select_all.handled);
     assert!(select_all.request_redraw);
@@ -699,6 +776,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
             Modifiers::CONTROL
         },
         repeat: false,
+        synthetic: false,
     }));
     assert_eq!(
         copy_all.clipboard,
@@ -958,4 +1036,91 @@ fn explicit_text_flow_does_not_absorb_a_nested_element() {
             .text
             .is_none()
     );
+}
+
+#[test]
+fn explicit_rich_text_flow_absorbs_styled_text_descendants_as_runs() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (text_tag, span_tag, font_weight, color, opacity) = {
+        let mut atoms = applier.document.atoms.borrow_mut();
+        (
+            atoms.intern("text"),
+            atoms.intern("text-span"),
+            atoms.intern("font-weight"),
+            atoms.intern("color"),
+            atoms.intern("opacity"),
+        )
+    };
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: text_tag,
+    });
+    applier.apply_op(&Op::SetTextBehavior {
+        id: NodeKey::new(2, 1),
+        flags: crate::protocol::TEXT_BEHAVIOR_AGGREGATE_DIRECT
+            | crate::protocol::TEXT_BEHAVIOR_AGGREGATE_STYLED,
+    });
+    applier.apply_op(&Op::CreateText {
+        id: NodeKey::new(3, 1),
+        text: "Hello ",
+    });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(4, 1),
+        tag: span_tag,
+    });
+    applier.apply_op(&Op::SetStyle {
+        id: NodeKey::new(4, 1),
+        prop: font_weight,
+        value: "700",
+    });
+    applier.apply_op(&Op::SetStyle {
+        id: NodeKey::new(4, 1),
+        prop: color,
+        value: "#ff0000",
+    });
+    applier.apply_op(&Op::SetStyle {
+        id: NodeKey::new(4, 1),
+        prop: opacity,
+        value: "0.5",
+    });
+    applier.apply_op(&Op::CreateText {
+        id: NodeKey::new(5, 1),
+        text: "world",
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: NodeKey::new(4, 1),
+        child: NodeKey::new(5, 1),
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: NodeKey::new(2, 1),
+        child: NodeKey::new(3, 1),
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: NodeKey::new(2, 1),
+        child: NodeKey::new(4, 1),
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
+    });
+
+    applier.rebuild_layout_boxes();
+    applier.inherit();
+
+    let parent = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
+    assert_eq!(applier.document.node_store.tree.child_count(parent), 0);
+    assert!(applier.document.node_store.inline_roots.contains(&parent));
+    let paint = applier
+        .document
+        .node_store
+        .tree
+        .get_node_context(parent)
+        .expect("rich text paint");
+    assert_eq!(paint.text.as_deref(), Some("Hello world"));
+    assert_eq!(paint.text_runs.len(), 2);
+    assert_eq!(paint.text_runs[0].range, 0..6);
+    assert_eq!(paint.text_runs[1].range, 6..11);
+    assert_eq!(paint.text_runs[1].font_weight, 700.0);
+    assert_eq!(paint.text_runs[1].color, [255, 0, 0, 128]);
 }

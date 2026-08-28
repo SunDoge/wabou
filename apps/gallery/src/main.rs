@@ -21,7 +21,7 @@ fn main() -> Result<(), Whatever> {
             options
         })
         .json_capability(gallery::bindings::CAPABILITY, |capability| {
-            capability.method(
+            capability.hot_method(
                 gallery::bindings::DESCRIBE_PALETTE,
                 gallery::bindings::describe_palette,
             )

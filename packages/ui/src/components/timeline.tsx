@@ -1,6 +1,6 @@
 import { For, type JSX } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export interface TimelineItem {
   id: string;
@@ -18,14 +18,14 @@ export function Timeline(props: TimelineProps): JSX.Element {
     <View
       role="group"
       aria-label={props["aria-label"] ?? "Timeline"}
-      class={join("min-w-0 flex flex-col", props.class)}
+      class={mergeClasses("min-w-0 flex flex-col", props.class)}
     >
       <For each={props.items}>
         {(item, index) => (
           <View class="min-w-0 flex flex-row gap-3">
             <View class="w-4 flex-none flex flex-col items-center">
               <View
-                class={join(
+                class={mergeClasses(
                   "w-3 h-3 flex-none rounded-full border",
                   item.status === "complete"
                     ? "border-accent bg-accent"

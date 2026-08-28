@@ -63,6 +63,8 @@ pub struct TextRun {
     pub font_size: f32,
     /// Numeric CSS font weight.
     pub font_weight: f32,
+    /// Whether this range uses an italic face or synthetic skew.
+    pub font_italic: bool,
     /// Line height and whether it is relative to font size.
     pub line_height: Option<(f32, bool)>,
     /// RGBA text brush.
@@ -93,12 +95,20 @@ pub fn text_synthesis(layout: &Layout<[u8; 4]>) -> TextSynthesis {
     result
 }
 
+/// Synthetic styles that the active painter will actually apply.
+pub fn applied_text_synthesis(layout: &Layout<[u8; 4]>) -> TextSynthesis {
+    let mut synthesis = text_synthesis(layout);
+    synthesis.embolden = false;
+    synthesis
+}
+
 #[derive(Clone, Hash, PartialEq, Eq)]
 struct TextRunKey {
     start: usize,
     end: usize,
     font_size: u32,
     font_weight: u32,
+    font_italic: bool,
     line_height: Option<(u32, bool)>,
     color: [u8; 4],
 }
@@ -108,6 +118,7 @@ struct TextLayoutKey {
     text: Arc<str>,
     font_size: u32,
     font_weight: u32,
+    font_italic: bool,
     letter_spacing: u32,
     line_height: Option<(u32, bool)>,
     max_width: Option<u32>,
@@ -134,23 +145,6 @@ pub struct TextContext {
 }
 
 type GlyphSceneEntry = (std::sync::Weak<Layout<[u8; 4]>>, Arc<Scene>);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum OutlineFallback {
-    DirectNativeWeight,
-    RetainedSyntheticWeight,
-}
-
-const fn outline_fallback_for(is_apple_platform: bool) -> OutlineFallback {
-    if is_apple_platform {
-        OutlineFallback::DirectNativeWeight
-    } else {
-        OutlineFallback::RetainedSyntheticWeight
-    }
-}
-
-pub(crate) const OUTLINE_FALLBACK: OutlineFallback =
-    outline_fallback_for(cfg!(any(target_os = "macos", target_os = "ios")));
 
 fn use_swash_raster_for(backend: Option<&str>) -> bool {
     match backend {
@@ -212,10 +206,12 @@ impl TextContext {
 
     /// Stable diagnostic name for the platform outline fallback policy.
     pub fn outline_fallback_name(&self) -> &'static str {
-        match OUTLINE_FALLBACK {
-            OutlineFallback::DirectNativeWeight => "direct-native-weight",
-            OutlineFallback::RetainedSyntheticWeight => "retained-synthetic-weight",
-        }
+        // Fontique recommends geometric emboldening whenever a fallback face
+        // does not expose the exact requested weight. Many CJK system families
+        // provide 400 and 600 but not 500, making ordinary `font-medium`
+        // controls look double-bold. Prefer the nearest native face on every
+        // platform; real bold faces and variable weight axes are unaffected.
+        "direct-native-weight"
     }
 
     /// Register a raw font file (TTF/OTF) from its bytes so it becomes
@@ -412,6 +408,7 @@ pub fn layout_text(tcx: &mut TextContext, text: &str, font_size: f32) -> Arc<Lay
         Arc::from(text),
         font_size,
         400.0,
+        false,
         None,
         TextAlign::Start,
         [0, 0, 0, 255],
@@ -426,6 +423,7 @@ fn text_layout_key(
     text: Arc<str>,
     font_size: f32,
     font_weight: f32,
+    font_italic: bool,
     letter_spacing: f32,
     line_height: Option<(f32, bool)>,
     alignment: TextAlign,
@@ -438,6 +436,7 @@ fn text_layout_key(
         text,
         font_size: font_size.to_bits(),
         font_weight: font_weight.to_bits(),
+        font_italic,
         letter_spacing: letter_spacing.to_bits(),
         line_height: line_height.map(|(value, relative)| (value.to_bits(), relative)),
         max_width: max_width.map(f32::to_bits),
@@ -450,6 +449,7 @@ fn text_layout_key(
                 end: run.range.end,
                 font_size: run.font_size.to_bits(),
                 font_weight: run.font_weight.to_bits(),
+                font_italic: run.font_italic,
                 line_height: run
                     .line_height
                     .map(|(value, relative)| (value.to_bits(), relative)),
@@ -468,6 +468,7 @@ pub fn layout_text_styled_with_spacing(
     text: Arc<str>,
     font_size: f32,
     font_weight: f32,
+    font_italic: bool,
     letter_spacing: f32,
     line_height: Option<(f32, bool)>,
     alignment: TextAlign,
@@ -480,6 +481,7 @@ pub fn layout_text_styled_with_spacing(
         text.clone(),
         font_size,
         font_weight,
+        font_italic,
         letter_spacing,
         line_height,
         alignment,
@@ -509,6 +511,11 @@ pub fn layout_text_styled_with_spacing(
     builder.push_default(StyleProperty::FontWeight(parley::FontWeight::new(
         font_weight,
     )));
+    builder.push_default(StyleProperty::FontStyle(if font_italic {
+        parley::FontStyle::Italic
+    } else {
+        parley::FontStyle::Normal
+    }));
     builder.push_default(StyleProperty::LetterSpacing(letter_spacing));
     if let Some(family) = font_family {
         builder.push_default(StyleProperty::FontFamily(parley::FontFamily::from(
@@ -526,6 +533,14 @@ pub fn layout_text_styled_with_spacing(
         builder.push(StyleProperty::FontSize(run.font_size), run.range.clone());
         builder.push(
             StyleProperty::FontWeight(parley::FontWeight::new(run.font_weight)),
+            run.range.clone(),
+        );
+        builder.push(
+            StyleProperty::FontStyle(if run.font_italic {
+                parley::FontStyle::Italic
+            } else {
+                parley::FontStyle::Normal
+            }),
             run.range.clone(),
         );
         builder.push(StyleProperty::Brush(run.color), run.range.clone());
@@ -563,6 +578,7 @@ pub fn layout_text_styled(
     text: Arc<str>,
     font_size: f32,
     font_weight: f32,
+    font_italic: bool,
     line_height: Option<(f32, bool)>,
     alignment: TextAlign,
     color: [u8; 4],
@@ -575,6 +591,7 @@ pub fn layout_text_styled(
         text,
         font_size,
         font_weight,
+        font_italic,
         0.0,
         line_height,
         alignment,
@@ -596,6 +613,7 @@ pub fn measure_text_intrinsic_widths(
     text: Arc<str>,
     font_size: f32,
     font_weight: f32,
+    font_italic: bool,
     letter_spacing: f32,
     line_height: Option<(f32, bool)>,
     alignment: TextAlign,
@@ -608,6 +626,7 @@ pub fn measure_text_intrinsic_widths(
         text.clone(),
         font_size,
         font_weight,
+        font_italic,
         letter_spacing,
         line_height,
         alignment,
@@ -624,6 +643,7 @@ pub fn measure_text_intrinsic_widths(
         text,
         font_size,
         font_weight,
+        font_italic,
         letter_spacing,
         line_height,
         alignment,
@@ -654,6 +674,7 @@ pub fn layout_text_styled_clamped(
     text: Arc<str>,
     font_size: f32,
     font_weight: f32,
+    font_italic: bool,
     letter_spacing: f32,
     line_height: Option<(f32, bool)>,
     alignment: TextAlign,
@@ -668,6 +689,7 @@ pub fn layout_text_styled_clamped(
         text.clone(),
         font_size,
         font_weight,
+        font_italic,
         letter_spacing,
         line_height,
         alignment,
@@ -687,6 +709,7 @@ pub fn layout_text_styled_clamped(
         text.clone(),
         font_size,
         font_weight,
+        font_italic,
         letter_spacing,
         line_height,
         alignment,
@@ -717,6 +740,7 @@ pub fn layout_text_styled_clamped(
         Arc::from("…"),
         font_size,
         font_weight,
+        font_italic,
         letter_spacing,
         line_height,
         alignment,
@@ -743,6 +767,7 @@ pub fn layout_text_styled_clamped(
             candidate,
             font_size,
             font_weight,
+            font_italic,
             letter_spacing,
             line_height,
             alignment,
@@ -771,6 +796,7 @@ pub fn layout_text_styled_overflow(
     text: Arc<str>,
     font_size: f32,
     font_weight: f32,
+    font_italic: bool,
     letter_spacing: f32,
     line_height: Option<(f32, bool)>,
     alignment: TextAlign,
@@ -787,6 +813,7 @@ pub fn layout_text_styled_overflow(
                 text,
                 font_size,
                 font_weight,
+                font_italic,
                 letter_spacing,
                 line_height,
                 alignment,
@@ -807,6 +834,7 @@ pub fn layout_text_styled_overflow(
         text.clone(),
         font_size,
         font_weight,
+        font_italic,
         letter_spacing,
         line_height,
         alignment,
@@ -863,24 +891,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn apple_outline_policy_suppresses_synthetic_bold() {
+    fn outline_policy_suppresses_synthetic_bold() {
         let suppressed = synthetic_embolden(true, false, 16.0, 2.0);
         let raster = synthetic_embolden(true, true, 16.0, 2.0);
 
         assert_eq!(suppressed, Vec2::ZERO);
         assert_eq!(raster, Vec2::new(4.0 / 3.0, 4.0 / 3.0));
-    }
-
-    #[test]
-    fn platform_outline_policy_is_the_only_platform_specific_text_fallback() {
-        assert_eq!(
-            outline_fallback_for(true),
-            OutlineFallback::DirectNativeWeight
-        );
-        assert_eq!(
-            outline_fallback_for(false),
-            OutlineFallback::RetainedSyntheticWeight
-        );
     }
 
     #[test]
@@ -893,10 +909,7 @@ mod tests {
 
         let context = TextContext::new();
         assert_eq!(context.raster_backend_name(), "swash");
-        assert!(matches!(
-            context.outline_fallback_name(),
-            "direct-native-weight" | "retained-synthetic-weight"
-        ));
+        assert_eq!(context.outline_fallback_name(), "direct-native-weight");
     }
 
     #[test]
@@ -908,6 +921,7 @@ mod tests {
             text.clone(),
             16.0,
             400.0,
+            false,
             None,
             TextAlign::Start,
             [0, 0, 0, 255],
@@ -920,6 +934,7 @@ mod tests {
             text,
             16.0,
             400.0,
+            false,
             None,
             TextAlign::Start,
             [0, 0, 0, 255],
@@ -949,6 +964,7 @@ mod tests {
             text.clone(),
             16.0,
             400.0,
+            false,
             0.0,
             None,
             TextAlign::Start,
@@ -963,6 +979,7 @@ mod tests {
             text,
             16.0,
             400.0,
+            false,
             0.0,
             None,
             TextAlign::Start,
@@ -977,6 +994,7 @@ mod tests {
             Arc::from("Family 👨‍👩‍👧‍👦 credentials and recovery material"),
             16.0,
             400.0,
+            false,
             0.0,
             None,
             TextAlign::Start,
@@ -1004,6 +1022,7 @@ mod tests {
             text.clone(),
             16.0,
             400.0,
+            false,
             None,
             TextAlign::Start,
             [0, 0, 0, 255],
@@ -1016,6 +1035,7 @@ mod tests {
             text.clone(),
             16.0,
             400.0,
+            false,
             0.0,
             None,
             TextAlign::Start,
@@ -1030,6 +1050,7 @@ mod tests {
             text,
             16.0,
             400.0,
+            false,
             0.0,
             None,
             TextAlign::Start,
@@ -1055,6 +1076,7 @@ mod tests {
             text.clone(),
             16.0,
             400.0,
+            false,
             0.0,
             None,
             TextAlign::Start,
@@ -1068,6 +1090,7 @@ mod tests {
             text.clone(),
             16.0,
             400.0,
+            false,
             2.0,
             None,
             TextAlign::Start,
@@ -1081,6 +1104,7 @@ mod tests {
             text,
             16.0,
             400.0,
+            false,
             2.0,
             None,
             TextAlign::Start,
@@ -1105,6 +1129,7 @@ mod tests {
                 text.clone(),
                 16.0,
                 400.0,
+                false,
                 0.0,
                 None,
                 TextAlign::Start,
@@ -1197,6 +1222,7 @@ mod tests {
             text.clone(),
             16.0,
             400.0,
+            false,
             None,
             TextAlign::Start,
             [0, 0, 0, 255],
@@ -1209,6 +1235,7 @@ mod tests {
             text,
             16.0,
             400.0,
+            false,
             None,
             TextAlign::Start,
             [0, 0, 0, 255],
@@ -1229,6 +1256,7 @@ mod tests {
             text.clone(),
             16.0,
             400.0,
+            false,
             None,
             TextAlign::Start,
             [0, 0, 0, 255],
@@ -1241,6 +1269,7 @@ mod tests {
             text,
             16.0,
             400.0,
+            false,
             None,
             TextAlign::Center,
             [0, 0, 0, 255],

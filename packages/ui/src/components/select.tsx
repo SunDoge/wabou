@@ -16,7 +16,7 @@ import check from "lucide-static/icons/check.svg?raw";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import { createUniqueId, For, type JSX } from "solid-js";
 import { match } from "ts-pattern";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import type { PopupMotionProps } from "./popover";
 import { selectControlsId } from "./select-semantics";
 import { componentsElevation, useComponentsTheme } from "./theme";
@@ -126,7 +126,7 @@ export function Select(props: SelectProps): JSX.Element {
       }}
       placement="bottom-start"
       openOnPointerDown
-      contentClass={join(
+      contentClass={mergeClasses(
         "w-72 p-1 rounded-lg border border-subtle bg-surface",
         props.contentClass,
       )}
@@ -152,7 +152,7 @@ export function Select(props: SelectProps): JSX.Element {
             popover.ref(node);
           }}
           class={(state) =>
-            join(
+            mergeClasses(
               "w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs",
               state.focused ? "border-focus" : "border-subtle",
               props.class,
@@ -168,7 +168,7 @@ export function Select(props: SelectProps): JSX.Element {
           }}
         >
           <Text
-            class={join(
+            class={mergeClasses(
               "min-w-0 flex-1 text-left truncate",
               selected() ? "text-primary" : "text-muted",
             )}
@@ -218,7 +218,7 @@ export function Select(props: SelectProps): JSX.Element {
                   role="option"
                   aria-selected={selected()}
                   aria-disabled={option().disabled}
-                  class={join(
+                  class={mergeClasses(
                     "w-full h-8 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm",
                     highlighted()
                       ? "bg-control-hover text-primary"

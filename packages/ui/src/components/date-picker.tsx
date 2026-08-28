@@ -19,7 +19,7 @@ import {
   Text,
   View,
 } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import type { PopupMotionProps } from "./popover";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
@@ -266,7 +266,7 @@ export function Calendar(props: CalendarProps): JSX.Element {
                 focusOrder={isSameDay(date(), tabStop()) ? 0 : -1}
                 disabled={disabled()}
                 class={(state) =>
-                  join(
+                  mergeClasses(
                     "w-8 h-8 rounded-md items-center justify-center text-sm",
                     selected()
                       ? "bg-accent text-on-accent"
@@ -363,7 +363,7 @@ export function DatePicker(props: DatePickerProps): JSX.Element {
           {...trigger}
           aria-label={props["aria-label"]}
           disabled={props.disabled}
-          class={join(
+          class={mergeClasses(
             "w-72 h-8 px-3 justify-start gap-2 rounded-md border border-subtle bg-input text-sm shadow-xs",
             props.class,
           )}

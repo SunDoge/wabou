@@ -14,8 +14,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .next()
         .unwrap_or_else(|| "globalThis.__wabouRouterCoreExperiment".to_owned());
     let source = fs::read_to_string(bundle_path)?;
-    let runtime = JsRuntime::new()?;
-    runtime.with(|ctx| ctx.eval::<(), _>(source.as_str()))?;
+    let mut runtime = JsRuntime::new()?;
+    runtime.boot(&source)?;
 
     let deadline = time::Instant::now() + time::Duration::from_secs(5);
     loop {

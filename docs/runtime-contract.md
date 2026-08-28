@@ -18,7 +18,9 @@ HostBuilder::new()
 Pure-library compatibility tests use the same `JsRuntimeOptions` type through
 `JsRuntime::new_with_options`, so a probe and the eventual application can run
 under identical limits. Keep the configured limit below the native thread
-stack; an arbitrarily large value does not create more native stack.
+stack; an arbitrarily large value does not create more native stack. When a
+bundle exhausts this limit during boot, Wabou reports the configured limit with
+the JavaScript exception and mapped stack trace.
 
 Wabou keeps transport, application APIs, and resource lifetime as separate
 concerns. New features must use one of the existing mechanisms below instead

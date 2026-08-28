@@ -1,24 +1,21 @@
-import {
-  CodeEditor,
-  type CodeEditorProps,
-} from "../primitives";
+import { CodeEditor, type CodeEditorProps } from "../primitives";
 import type { JSX } from "solid-js";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export interface ConfigEditorProps extends CodeEditorProps {
   class?: string;
 }
 
 /**
- * Experimental native configuration editor. Its Wabou-owned props deliberately
- * hide the editor-core implementation so the backend can evolve independently.
+ * Configuration editor backed by DOM-free CodeMirror state and a controlled
+ * native viewport. It is intentionally not a general-purpose IDE editor.
  */
 export function ConfigEditor(props: ConfigEditorProps): JSX.Element {
   return (
     <CodeEditor
       {...props}
       language="json"
-      class={join(
+      class={mergeClasses(
         "min-h-48 w-full rounded-md border border-strong bg-input text-primary",
         props.class,
       )}

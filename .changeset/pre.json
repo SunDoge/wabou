@@ -21,7 +21,26 @@
     "@wabou/terminal": "0.1.0-alpha.1",
     "@wabou/test": "0.1.0-alpha.1",
     "@wabou/unocss-preset": "0.1.0-alpha.1",
-    "@wabou/vite": "0.1.0-alpha.1"
+    "@wabou/vite": "0.1.0-alpha.1",
+    "@wabou/ui": "0.1.0-alpha.1"
   },
-  "changesets": []
+  "changesets": [
+    "bundle-runtime-in-core",
+    "calm-routes-flow",
+    "clean-package-dependencies",
+    "compiled-js-packages",
+    "generational-window-handles",
+    "narrow-preview-surfaces",
+    "native-behavior-semantics",
+    "native-file-drop",
+    "persistent-responsive-windows",
+    "selectable-renderer-backends",
+    "solid-refresh-dev-only",
+    "typed-native-window-effects",
+    "typed-resource-handles",
+    "typed-test-window-keys",
+    "unified-ui-surface",
+    "vite-intl-dependencies",
+    "vite-six"
+  ]
 }

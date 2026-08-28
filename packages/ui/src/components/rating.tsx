@@ -9,7 +9,7 @@ import {
   createControllableState,
   createRovingFocus,
 } from "../primitives/interactions";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import {
   clampRatingValue,
   normalizeRatingMax,
@@ -101,7 +101,7 @@ export function Rating(props: RatingProps): JSX.Element {
       aria-label={props.label}
       aria-disabled={disabled() || undefined}
       aria-orientation="horizontal"
-      class={join("flex flex-col items-start gap-1.5", props.class)}
+      class={mergeClasses("flex flex-col items-start gap-1.5", props.class)}
       style={{ opacity: disabled() ? 0.45 : 1 }}
     >
       <View class="flex flex-row items-center gap-0.5">
@@ -135,7 +135,7 @@ export function Rating(props: RatingProps): JSX.Element {
                   });
                 }}
                 class={(buttonState) =>
-                  join(
+                  mergeClasses(
                     "w-8 h-8 items-center justify-center rounded-md border border-transparent",
                     match({
                       focused: buttonState.focusVisible,

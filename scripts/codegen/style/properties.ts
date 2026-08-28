@@ -140,6 +140,10 @@ add(["font-weight"], {
   number: true,
   typed: [NUMBER],
 });
+add(["font-style"], {
+  string: true,
+  number: false,
+});
 add(["letter-spacing"], {
   string: true,
   number: true,

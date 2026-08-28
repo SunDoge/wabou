@@ -6,7 +6,7 @@ import {
   Text,
   View,
 } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { Kbd } from "./display";
 
 const MOD_SHIFT = 1;
@@ -79,7 +79,7 @@ export function ShortcutRecorder(props: ShortcutRecorderProps): JSX.Element {
   };
   const parts = () => value().split("+").filter(Boolean);
   return (
-    <View class={join("min-w-0 flex flex-col gap-2", props.class)}>
+    <View class={mergeClasses("min-w-0 flex flex-col gap-2", props.class)}>
       {props.label && (
         <Text class="text-sm font-medium text-primary">{props.label}</Text>
       )}
@@ -90,7 +90,7 @@ export function ShortcutRecorder(props: ShortcutRecorderProps): JSX.Element {
         aria-pressed={recording()}
         disabled={props.disabled}
         class={(state) =>
-          join(
+          mergeClasses(
             "h-10 min-w-48 px-3 flex flex-row items-center gap-1 rounded-md border bg-input",
             recording() || state.focusVisible
               ? "border-focus"

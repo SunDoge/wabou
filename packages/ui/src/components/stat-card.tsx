@@ -1,7 +1,7 @@
 import type { JSX } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
 import { Card, CardContent } from "./card";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export interface StatCardProps extends Omit<ViewProps, "children"> {
   label: string;
@@ -21,7 +21,10 @@ export function StatCard(props: StatCardProps): JSX.Element {
           </Text>
           <View
             aria-hidden="true"
-            class={join("w-2 h-2 rounded-full bg-accent", props.indicatorClass)}
+            class={mergeClasses(
+              "w-2 h-2 rounded-full bg-accent",
+              props.indicatorClass,
+            )}
           />
         </View>
         <Text class="text-3xl font-semibold text-primary">{props.value}</Text>

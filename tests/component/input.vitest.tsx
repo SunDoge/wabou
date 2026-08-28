@@ -1,8 +1,12 @@
+import { assertFocusOwnerCount, renderComponent } from "@wabou/test/component";
 import {
-  assertFocusOwnerCount,
-  renderComponent,
-} from "@wabou/test/component";
-import { Input, PasswordInput, Text, TextArea, View } from "@wabou/ui";
+  CodeEditor,
+  Input,
+  PasswordInput,
+  Text,
+  TextArea,
+  View,
+} from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 
@@ -42,6 +46,24 @@ test("updates controlled single-line and multiline editors", () => {
   expect(screen.getByRole("status", { name: "Form value" }).text).toBe(
     "Ada|first\nsecond",
   );
+});
+
+test("updates a controlled CodeEditor through the component input contract", () => {
+  const App = () => {
+    const [source, setSource] = createSignal("initial");
+    return (
+      <CodeEditor
+        aria-label="Markdown source"
+        value={source()}
+        onInput={(event) => setSource(event.currentTarget.value)}
+      />
+    );
+  };
+  const screen = renderComponent(App);
+  const editor = screen.getByRole("textbox", { name: "Markdown source" });
+
+  editor.input("updated");
+  expect(editor.value).toBe("updated");
 });
 
 test("blocks authored disabled and read-only editors", () => {

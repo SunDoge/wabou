@@ -35,6 +35,7 @@ fn pointer_drag_selects_terminal_grid_text() {
             Modifiers::CONTROL | Modifiers::SHIFT
         },
         repeat: false,
+        synthetic: false,
     }));
     assert_eq!(
         copy.clipboard_request(),
@@ -55,6 +56,7 @@ fn pointer_drag_selects_terminal_grid_text() {
             Modifiers::CONTROL | Modifiers::SHIFT
         },
         repeat: false,
+        synthetic: false,
     }));
     assert_eq!(paste.clipboard_request(), Some(&ClipboardRequest::Read));
 }
@@ -365,6 +367,7 @@ fn local_keyboard_shortcuts_break_the_terminal_click_streak() {
             location: KeyLocation::Standard,
             modifiers,
             repeat: false,
+            synthetic: false,
         })
     };
 
@@ -430,6 +433,7 @@ fn terminal_clipboard_shortcuts_do_not_consume_control_process_input() {
             location: KeyLocation::Standard,
             modifiers,
             repeat: false,
+            synthetic: false,
         })
     };
 
@@ -485,6 +489,7 @@ fn terminal_select_all_covers_scrollback_and_publishes_a_line_selection() {
         location: KeyLocation::Standard,
         modifiers,
         repeat: false,
+        synthetic: false,
     });
 
     let result = widget.handle_event(&key);
@@ -515,6 +520,7 @@ fn terminal_select_all_covers_scrollback_and_publishes_a_line_selection() {
             location: KeyLocation::Standard,
             modifiers: Modifiers::CONTROL,
             repeat: false,
+            synthetic: false,
         });
         widget.handle_event(&interrupt);
         assert_eq!(widget.take_input(), [0x01]);
@@ -541,6 +547,7 @@ fn copy_shortcut_without_selection_never_reaches_the_pty() {
         location: KeyLocation::Standard,
         modifiers,
         repeat: false,
+        synthetic: false,
     };
     let response = widget.handle_event(&UiEvent::Key(key.clone()));
 
@@ -633,6 +640,7 @@ fn smooth_wheel_deltas_accumulate_into_terminal_lines() {
             position: wabou_shell::Point { x: 1.0, y: 1.0 },
             delta_x: 0.0,
             delta_y,
+            phase: wabou_shell::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         })
     };
@@ -660,6 +668,7 @@ fn wheel_remainders_do_not_leak_between_terminal_input_owners() {
             position: wabou_shell::Point { x: 1.0, y: 1.0 },
             delta_x: 0.0,
             delta_y,
+            phase: wabou_shell::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         })
     };
@@ -881,6 +890,7 @@ fn active_selection_owns_wheel_input_in_mouse_reporting_mode() {
         position,
         delta_x: 0.0,
         delta_y: 40.0,
+        phase: wabou_shell::GesturePhase::Changed,
         modifiers: Modifiers::empty(),
     }));
 
@@ -906,6 +916,7 @@ fn mouse_reporting_sends_wheel_buttons_at_pointer_position() {
             position,
             delta_x: 0.0,
             delta_y,
+            phase: wabou_shell::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         }));
     }
@@ -915,6 +926,7 @@ fn mouse_reporting_sends_wheel_buttons_at_pointer_position() {
         position,
         delta_x: 0.0,
         delta_y: -40.0,
+        phase: wabou_shell::GesturePhase::Changed,
         modifiers: Modifiers::ALT | Modifiers::CONTROL,
     }));
     assert_eq!(widget.take_input(), b"\x1b[<88;3;2M");
@@ -956,6 +968,7 @@ fn focus_and_alternate_scroll_modes_report_to_pty() {
         position: wabou_shell::Point { x: 0.0, y: 0.0 },
         delta_x: 0.0,
         delta_y: -48.0,
+        phase: wabou_shell::GesturePhase::Changed,
         modifiers: Modifiers::default(),
     }));
     assert_eq!(widget.take_input(), b"\x1b[A");

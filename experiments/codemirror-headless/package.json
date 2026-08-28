@@ -1,0 +1,15 @@
+{
+  "name": "wabou-codemirror-headless-experiment",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/index.ts --target=browser --format=iife --minify --outfile=dist/bundle.js",
+    "test": "bun run build && bun run verify.ts"
+  },
+  "dependencies": {
+    "@codemirror/state": "^6.5.2",
+    "@lezer/common": "^1.2.3",
+    "@lezer/highlight": "^1.2.1",
+    "@lezer/json": "^1.0.3"
+  }
+}

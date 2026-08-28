@@ -1,10 +1,10 @@
 import type { Handle, NativeScrollbarStyle } from "@wabou/core/renderer";
 import { type JSX, omit } from "solid-js";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { View, type ViewProps, type WabouStyle } from "./view";
 
 export const scrollAreaViewportClass = (className?: string) =>
-  join("min-w-0 min-h-0 overflow-x-hidden overflow-y-auto", className);
+  mergeClasses("min-w-0 min-h-0 overflow-x-hidden overflow-y-auto", className);
 
 export interface ScrollAreaProps
   extends Omit<
@@ -61,7 +61,10 @@ export function ScrollArea(props: ScrollAreaProps): JSX.Element {
       onScroll={props.onScroll}
     >
       <View
-        class={join("flex-none flex flex-col min-h-full", props.contentClass)}
+        class={mergeClasses(
+          "flex-none flex flex-col min-h-full",
+          props.contentClass,
+        )}
       >
         {props.children}
       </View>

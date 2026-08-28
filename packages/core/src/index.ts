@@ -23,12 +23,15 @@ import "./polyfills/encoding-streams";
 import "./polyfills/fetch";
 
 import "./glue/animation-frame";
+import "./glue/app-lifecycle";
 import "./glue/timers";
 import "./glue/resize-observer";
 import "./glue/host-messages";
 import "./glue/host-frame";
+import "./glue/keyboard-modifiers";
 import "./glue/window-metrics";
 import "./glue/file-drop";
+import "./glue/gesture";
 import "./glue/effects";
 import "./glue/clipboard";
 import "./glue/app-dirs";
@@ -49,6 +52,12 @@ export {
   resourceDir,
   tempDir,
 } from "./glue/app-dirs";
+export {
+  type AppLifecycleEvent,
+  type AppLifecycleState,
+  subscribeAppLifecycle,
+  useAppLifecycle,
+} from "./glue/app-lifecycle";
 export { type Application, application } from "./glue/application";
 export {
   type AsyncAction,
@@ -83,6 +92,10 @@ export {
   useDialog,
 } from "./glue/dialog";
 export {
+  createEventEffect,
+  type EventEffectOptions,
+} from "./glue/event-effect";
+export {
   type FileDropEvent,
   type FileDropHandler,
   type FileDropPhase,
@@ -91,9 +104,12 @@ export {
   useFileDrop,
 } from "./glue/file-drop";
 export {
-  createEventEffect,
-  type EventEffectOptions,
-} from "./glue/event-effect";
+  type GestureEvent,
+  type GestureHandler,
+  type GesturePhase,
+  subscribeGesture,
+  useGesture,
+} from "./glue/gesture";
 export type {
   HostJsonSubscriptionOptions,
   HostMessage,
@@ -108,13 +124,13 @@ export {
 } from "./glue/host-messages";
 export {
   createRevisionedHostResource,
-  RevisionedHostWaitError,
   type RevisionedHostPatch,
   type RevisionedHostResource,
   type RevisionedHostResourceOptions,
-  type RevisionedHostWaitOptions,
-  type RevisionedHostWaitErrorReason,
   type RevisionedHostValue,
+  RevisionedHostWaitError,
+  type RevisionedHostWaitErrorReason,
+  type RevisionedHostWaitOptions,
 } from "./glue/host-resource";
 export {
   type CalendarDateFields,
@@ -128,6 +144,12 @@ export {
   type JsonCapabilityMethodName,
   type NativeJsonCapability,
 } from "./glue/json-capability";
+export {
+  type KeyboardModifiers,
+  subscribeKeyboardModifiers,
+  useKeyboardModifierChanges,
+  useKeyboardModifiers,
+} from "./glue/keyboard-modifiers";
 export {
   createLatestAsyncResource,
   type LatestAsyncResource,

@@ -16,6 +16,9 @@ test("window metrics expose one reactive logical coordinate space", () => {
       scaleFactor: 2,
       maximized: true,
       focused: true,
+      outerX: 120,
+      outerY: 80,
+      occluded: false,
       colorScheme: "dark",
     }),
   );
@@ -26,6 +29,9 @@ test("window metrics expose one reactive logical coordinate space", () => {
   expect(window.height()).toBe(600);
   expect(window.scaleFactor()).toBe(2);
   expect(window.maximized()).toBe(true);
+  expect(window.outerX()).toBe(120);
+  expect(window.outerY()).toBe(80);
+  expect(window.occluded()).toBe(false);
   expect(window.colorScheme()).toBe("dark");
   expect(window.metrics().physicalWidth).toBe(1600);
 });

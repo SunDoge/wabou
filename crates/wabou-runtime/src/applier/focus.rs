@@ -141,15 +141,60 @@ impl Applier {
                     self.dispatch_json(target, event::KEYUP, &payload)
                 })
             }
-            UiEvent::TextInput(text)
-            | UiEvent::Ime(wabou_shell::ImeEvent::Commit(text))
-            | UiEvent::Paste(text) => self.interaction.input.focused_target.is_some_and(|target| {
-                let payload = serde_json::json!({ "data": text }).to_string();
-                self.dispatch_json(target, event::IMECOMMIT, &payload)
-            }),
-            UiEvent::Ime(_) => widget_handled,
+            UiEvent::TextInput(text) => self.dispatch_focused_ime_json(
+                event::IMECOMMIT,
+                serde_json::json!({ "data": text, "source": "keyboard" }),
+            ),
+            UiEvent::Paste(text) => self.dispatch_focused_ime_json(
+                event::IMECOMMIT,
+                serde_json::json!({ "data": text, "source": "paste" }),
+            ),
+            UiEvent::Ime(wabou_shell::ImeEvent::Commit(text)) => self.dispatch_focused_ime_json(
+                event::IMECOMMIT,
+                serde_json::json!({ "data": text, "source": "ime" }),
+            ),
+            UiEvent::Ime(wabou_shell::ImeEvent::Enabled) => {
+                self.dispatch_focused_ime_json(event::IMEENABLED, serde_json::json!({}))
+                    || widget_handled
+            }
+            UiEvent::Ime(wabou_shell::ImeEvent::Preedit { text, cursor }) => {
+                let (cursor_start, cursor_end) = cursor
+                    .map(|(start, end)| (Some(start), Some(end)))
+                    .unwrap_or((None, None));
+                self.dispatch_focused_ime_json(
+                    event::IMEPREEDIT,
+                    serde_json::json!({
+                        "data": text,
+                        "cursorStart": cursor_start,
+                        "cursorEnd": cursor_end,
+                    }),
+                ) || widget_handled
+            }
+            UiEvent::Ime(wabou_shell::ImeEvent::DeleteSurrounding {
+                before_bytes,
+                after_bytes,
+            }) => {
+                self.dispatch_focused_ime_json(
+                    event::IMEDELETESURROUNDING,
+                    serde_json::json!({
+                        "beforeBytes": before_bytes,
+                        "afterBytes": after_bytes,
+                    }),
+                ) || widget_handled
+            }
+            UiEvent::Ime(wabou_shell::ImeEvent::Disabled) => {
+                self.dispatch_focused_ime_json(event::IMEDISABLED, serde_json::json!({}))
+                    || widget_handled
+            }
             _ => unreachable!("focused input routing received a non-input event"),
         }
+    }
+
+    fn dispatch_focused_ime_json(&mut self, code: u8, payload: serde_json::Value) -> bool {
+        self.interaction
+            .input
+            .focused_target
+            .is_some_and(|target| self.dispatch_json(target, code, &payload.to_string()))
     }
 
     pub(super) fn handle_window_focus(&mut self, focused: bool) -> EventResponse {

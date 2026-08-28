@@ -70,9 +70,12 @@ export type OpCode = (typeof OP)[keyof typeof OP];
 export const TEXT_BEHAVIOR = {
   AggregateDirectText: 0x01,
   SingleLine: 0x02,
+  AggregateStyledText: 0x04,
 } as const;
 const TEXT_BEHAVIOR_MASK =
-  TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine;
+  TEXT_BEHAVIOR.AggregateDirectText |
+  TEXT_BEHAVIOR.SingleLine |
+  TEXT_BEHAVIOR.AggregateStyledText;
 
 export const INTERACTION_POLICY = {
   Focusable: 0x01,
@@ -93,9 +96,7 @@ export const GRAPHIC_DATA = { VectorPath: 0x01 } as const;
 const MAX_GRAPHIC_DATA_BYTES = 16 * 1024 * 1024;
 
 function validGraphicSourceKind(kind: number): boolean {
-  return (
-    kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.ResourceRaster
-  );
+  return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.ResourceRaster;
 }
 
 export const EVENT_CODE = {
@@ -132,6 +133,11 @@ export const EVENT_CODE = {
   terminalbell: 31,
   resourceready: 32,
   resourceerror: 33,
+  imeenabled: 34,
+  imepreedit: 35,
+  imedeletesurrounding: 36,
+  imedisabled: 37,
+  windowcloserequested: 38,
 } as const;
 
 export type EventType = keyof typeof EVENT_CODE;
@@ -148,6 +154,16 @@ export const EVENT_DATA_SLOT = {
   deltaY: 8,
   scrollX: 9,
   scrollY: 10,
+  phase: 11,
+  pointerIdLo: 12,
+  pointerIdHi: 13,
+  pointerType: 14,
+  primary: 15,
+  pressure: 16,
+  tangentialPressure: 17,
+  tiltX: 18,
+  tiltY: 19,
+  twist: 20,
 } as const;
 
 export const EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;
@@ -156,7 +172,7 @@ export type EventDataSlot = keyof typeof EVENT_DATA_SLOT;
 /** Versioned Host → JS frame envelope. Keep in sync through `bun run gen`. */
 export const HOST_FRAME = {
   Magic: 0x31464857,
-  Version: 2,
+  Version: 3,
   HeaderLen: 32,
 } as const;
 

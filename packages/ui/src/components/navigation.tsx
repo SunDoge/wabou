@@ -17,7 +17,7 @@ import {
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import ellipsis from "lucide-static/icons/ellipsis.svg?raw";
 import { Button, type ButtonProps } from "./button";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import {
   clampPage,
   createPaginationRange,
@@ -43,7 +43,7 @@ export function Breadcrumb(props: BreadcrumbProps): JSX.Element {
       {...rest}
       role="group"
       aria-label={props["aria-label"] ?? "Breadcrumb"}
-      class={join("min-w-0", props.class)}
+      class={mergeClasses("min-w-0", props.class)}
     >
       {props.children}
     </View>
@@ -54,7 +54,7 @@ export function BreadcrumbList(props: ViewProps): JSX.Element {
   return (
     <View
       {...props}
-      class={join(
+      class={mergeClasses(
         "min-w-0 flex flex-wrap items-center gap-1.5 text-sm text-muted",
         props.class,
       )}
@@ -68,7 +68,7 @@ export function BreadcrumbItem(props: ViewProps): JSX.Element {
   return (
     <View
       {...props}
-      class={join("min-w-0 flex items-center gap-1.5", props.class)}
+      class={mergeClasses("min-w-0 flex items-center gap-1.5", props.class)}
     >
       {props.children}
     </View>
@@ -87,7 +87,7 @@ export function BreadcrumbLink(props: BreadcrumbLinkProps): JSX.Element {
       unstyled
       role="link"
       class={(state) =>
-        join(
+        mergeClasses(
           "min-w-0 rounded-sm text-sm text-secondary",
           state.hovered && "text-primary",
           state.focusVisible && "border border-focus",
@@ -110,7 +110,10 @@ export function BreadcrumbPage(props: BreadcrumbPageProps): JSX.Element {
       role="link"
       aria-disabled="true"
       aria-current="page"
-      class={join("min-w-0 text-sm font-medium text-primary", props.class)}
+      class={mergeClasses(
+        "min-w-0 text-sm font-medium text-primary",
+        props.class,
+      )}
     >
       {props.children}
     </Text>
@@ -131,7 +134,7 @@ export function BreadcrumbSeparator(
       {...rest}
       role="presentation"
       aria-hidden="true"
-      class={join(
+      class={mergeClasses(
         "w-4 h-4 flex-none flex items-center justify-center text-muted",
         props.class,
       )}
@@ -155,7 +158,7 @@ export function BreadcrumbEllipsis(
       {...rest}
       role="presentation"
       aria-hidden="true"
-      class={join(
+      class={mergeClasses(
         "w-8 h-8 flex-none flex items-center justify-center text-muted",
         props.class,
       )}
@@ -218,7 +221,7 @@ export function Pagination(props: PaginationProps): JSX.Element {
       role="group"
       aria-label={props["aria-label"] ?? "Pagination"}
       aria-disabled={context.disabled() || undefined}
-      class={join("flex items-center", props.class)}
+      class={mergeClasses("flex items-center", props.class)}
     >
       {props.children}
     </View>
@@ -235,12 +238,15 @@ export function Pagination(props: PaginationProps): JSX.Element {
 
 export function PaginationContent(props: ViewProps): JSX.Element {
   return (
-    <View {...props} class={join("flex items-center gap-1", props.class)} />
+    <View
+      {...props}
+      class={mergeClasses("flex items-center gap-1", props.class)}
+    />
   );
 }
 
 export function PaginationItem(props: ViewProps): JSX.Element {
-  return <View {...props} class={join("flex-none", props.class)} />;
+  return <View {...props} class={mergeClasses("flex-none", props.class)} />;
 }
 
 export interface PaginationLinkProps
@@ -282,7 +288,10 @@ export function PaginationLink(props: PaginationLinkProps): JSX.Element {
 
 export function PaginationEllipsis(props: { class?: string }): JSX.Element {
   return (
-    <Text aria-hidden class={join("w-8 text-center text-muted", props.class)}>
+    <Text
+      aria-hidden
+      class={mergeClasses("w-8 text-center text-muted", props.class)}
+    >
       ...
     </Text>
   );

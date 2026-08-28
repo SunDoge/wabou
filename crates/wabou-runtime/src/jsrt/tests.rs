@@ -45,6 +45,20 @@ fn runtime_options_reject_a_zero_stack_limit() {
 }
 
 #[test]
+fn boot_reports_quickjs_stack_exhaustion_with_the_configured_limit() {
+    let mut runtime =
+        JsRuntime::new_with_options(JsRuntimeOptions::default().max_stack_size(256 * 1024))
+            .expect("runtime");
+    let error = runtime
+        .boot("function recurse() { recurse(); } recurse();")
+        .expect_err("recursive bundle must exhaust the configured stack");
+    let diagnostic = error.to_string();
+    assert!(diagnostic.contains("stack"), "{diagnostic}");
+    assert!(diagnostic.contains("262144 bytes"), "{diagnostic}");
+    assert!(diagnostic.contains("native thread stack"), "{diagnostic}");
+}
+
+#[test]
 fn pure_javascript_compatibility_probes_resolve_json() {
     let mut runtime =
         JsRuntime::new_with_options(JsRuntimeOptions::default().max_stack_size(4 * 1024 * 1024))
@@ -437,6 +451,11 @@ fn sleep_uses_rquickjs_async_scheduler_and_wakes_host() {
 #[test]
 fn promise_jobs_are_time_sliced() {
     let runtime = JsRuntime::new().expect("runtime");
+    let wake_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let wake_count_for_callback = wake_count.clone();
+    runtime.set_wake_callback(Arc::new(move || {
+        wake_count_for_callback.fetch_add(1, Ordering::Relaxed);
+    }));
     runtime
         .with(|ctx| {
             ctx.eval::<(), _>(
@@ -460,6 +479,11 @@ fn promise_jobs_are_time_sliced() {
         .with(|ctx| ctx.eval::<u32, _>("globalThis.jobCount"))
         .expect("read first slice count");
     assert!(first > 0 && first < 1000, "one poll drained {first} jobs");
+    assert_eq!(
+        wake_count.load(Ordering::Relaxed),
+        0,
+        "a UI-thread time slice must not recursively wake the event-loop proxy",
+    );
 
     while runtime.poll_async_runtime() {}
     let final_count = runtime

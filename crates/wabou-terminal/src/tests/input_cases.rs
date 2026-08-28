@@ -285,6 +285,7 @@ fn headless_input_uses_terminal_escape_sequences() {
         location: Default::default(),
         modifiers: Modifiers::default(),
         repeat: false,
+        synthetic: false,
     }));
     widget.handle_event(&UiEvent::TextInput("λ".into()));
     assert_eq!(widget.take_input(), b"\x1b[A\xce\xbb");
@@ -305,6 +306,7 @@ fn key_encoding_honors_terminal_modes_and_modifiers() {
             location: Default::default(),
             modifiers,
             repeat: false,
+            synthetic: false,
         })
     };
 
@@ -330,6 +332,7 @@ fn legacy_keyboard_encodes_extended_function_keys() {
             location: KeyLocation::Standard,
             modifiers,
             repeat: false,
+            synthetic: false,
         })
     };
 
@@ -391,6 +394,7 @@ fn application_keypad_mode_encodes_physical_numpad_keys() {
             location: KeyLocation::Numpad,
             modifiers: Modifiers::empty(),
             repeat: false,
+            synthetic: false,
         })
     };
 
@@ -437,6 +441,7 @@ fn negotiated_kitty_keyboard_reports_press_and_release_without_double_text() {
         location: KeyLocation::Standard,
         modifiers: Modifiers::empty(),
         repeat: false,
+        synthetic: false,
     };
 
     let pressed = widget.handle_event(&UiEvent::Key(key.clone()));
@@ -462,6 +467,7 @@ fn kitty_disambiguation_does_not_repeat_key_on_release() {
         location: KeyLocation::Standard,
         modifiers: Modifiers::empty(),
         repeat: false,
+        synthetic: false,
     };
 
     assert!(widget.handle_event(&UiEvent::Key(key.clone())).is_handled());
@@ -484,6 +490,7 @@ fn legacy_control_keys_cover_ascii_control_range() {
             location: Default::default(),
             modifiers,
             repeat: false,
+            synthetic: false,
         })
     };
 
@@ -509,6 +516,7 @@ fn legacy_control_keys_cover_ascii_control_range() {
         location: Default::default(),
         modifiers: Modifiers::CONTROL | Modifiers::ALT,
         repeat: false,
+        synthetic: false,
     }));
     assert!(!alt_graph.is_handled());
     assert!(widget.take_input().is_empty());
@@ -531,6 +539,7 @@ fn scrollback_shortcuts_are_local_and_typing_returns_to_bottom() {
             location: Default::default(),
             modifiers,
             repeat: false,
+            synthetic: false,
         })
     };
 

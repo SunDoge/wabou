@@ -6,8 +6,18 @@ tags.
 
 ## Unreleased
 
+## 0.1.0-alpha.3 - 2026-08-27
+
 ### Changed
 
+- Public JavaScript packages now converge on `@wabou/core` and `@wabou/ui`,
+  reducing the package surface applications need to understand.
+- Native windows, resources, and behavior tests use typed generational handles,
+  including asynchronous window creation and native file drag-and-drop events.
+- The router adapter now supports typed search, asynchronous loaders, caching,
+  preloading, guards, and native memory history.
+- Native windows can select the compiled Vello or experimental Skia renderer
+  backend, and persist their logical size for responsive desktop layouts.
 - Behavior tests now resolve controls from the rendered semantic tree, scroll
   off-screen targets into view before native pointer routing, and support
   alert and status locators.

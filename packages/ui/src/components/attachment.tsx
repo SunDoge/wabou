@@ -2,7 +2,7 @@ import { createContext, type JSX, omit, useContext } from "solid-js";
 import { match } from "ts-pattern";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
 import { Button, type ButtonProps } from "./button";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export type AttachmentState =
   | "idle"
@@ -34,7 +34,7 @@ export function attachmentClass(options: {
   const state = options.state ?? "done";
   const size = options.size ?? "default";
   const orientation = options.orientation ?? "horizontal";
-  return join(
+  return mergeClasses(
     "max-w-full min-w-0 flex-none flex border bg-surface text-primary",
     match(orientation)
       .with("horizontal", () => "min-w-40 flex-row flex-wrap items-center")
@@ -103,7 +103,7 @@ export function attachmentMediaClass(
   const size = context.size();
   const orientation = context.orientation();
   const state = context.state();
-  return join(
+  return mergeClasses(
     "aspect-square flex-none overflow-hidden flex items-center justify-center rounded-lg",
     orientation === "vertical"
       ? "w-full"
@@ -143,7 +143,7 @@ export function AttachmentContent(props: ViewProps): JSX.Element {
   return (
     <View
       {...props}
-      class={join(
+      class={mergeClasses(
         "max-w-full min-w-0 flex-1 flex flex-col gap-0.5",
         props.class,
       )}
@@ -158,7 +158,10 @@ export function AttachmentTitle(props: TextProps): JSX.Element {
     <Text
       {...props}
       maxLines={props.maxLines ?? 1}
-      class={join("max-w-full min-w-0 font-medium text-primary", props.class)}
+      class={mergeClasses(
+        "max-w-full min-w-0 font-medium text-primary",
+        props.class,
+      )}
     >
       {props.children}
     </Text>
@@ -171,7 +174,7 @@ export function AttachmentDescription(props: TextProps): JSX.Element {
     <Text
       {...props}
       maxLines={props.maxLines ?? 1}
-      class={join(
+      class={mergeClasses(
         "max-w-full min-w-0 text-xs",
         context.state() === "error" ? "text-danger-primary" : "text-muted",
         props.class,
@@ -186,7 +189,7 @@ export function AttachmentActions(props: ViewProps): JSX.Element {
   return (
     <View
       {...props}
-      class={join("flex-none flex items-center gap-1", props.class)}
+      class={mergeClasses("flex-none flex items-center gap-1", props.class)}
     >
       {props.children}
     </View>
@@ -204,7 +207,7 @@ export function AttachmentAction(props: ButtonProps): JSX.Element {
 }
 
 export function attachmentGroupClass(className?: string): string {
-  return join(
+  return mergeClasses(
     "w-full min-w-0 overflow-x-auto overflow-y-hidden py-1 flex flex-row items-start gap-3",
     className,
   );

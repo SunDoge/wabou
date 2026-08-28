@@ -6,7 +6,7 @@ import {
   Text,
   View,
 } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
 export type PopoverProps = HeadlessPopoverProps;
@@ -23,7 +23,7 @@ export function Popover(props: PopoverProps): JSX.Element {
   return (
     <HeadlessPopover
       {...props}
-      contentClass={join(
+      contentClass={mergeClasses(
         "min-w-48 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-lg border border-subtle bg-surface",
         props.contentClass,
       )}
@@ -41,7 +41,7 @@ export function PopoverHeader(props: {
   class?: string;
 }): JSX.Element {
   return (
-    <View class={join("min-w-0 flex flex-col gap-1", props.class)}>
+    <View class={mergeClasses("min-w-0 flex flex-col gap-1", props.class)}>
       {props.children}
     </View>
   );
@@ -54,7 +54,7 @@ export function PopoverTitle(props: {
   return (
     <Text
       role="heading"
-      class={join(
+      class={mergeClasses(
         "whitespace-normal text-sm font-semibold text-primary",
         props.class,
       )}
@@ -70,7 +70,10 @@ export function PopoverDescription(props: {
 }): JSX.Element {
   return (
     <Text
-      class={join("min-w-0 whitespace-normal text-xs text-muted", props.class)}
+      class={mergeClasses(
+        "min-w-0 whitespace-normal text-xs text-muted",
+        props.class,
+      )}
     >
       {props.children}
     </Text>
@@ -83,7 +86,10 @@ export function PopoverFooter(props: {
 }): JSX.Element {
   return (
     <View
-      class={join("min-w-0 flex items-center justify-end gap-2", props.class)}
+      class={mergeClasses(
+        "min-w-0 flex items-center justify-end gap-2",
+        props.class,
+      )}
     >
       {props.children}
     </View>

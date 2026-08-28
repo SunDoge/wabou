@@ -149,6 +149,9 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
         scale_factor: 2.0,
         maximized: true,
         focused: true,
+        outer_x: Some(120),
+        outer_y: Some(80),
+        occluded: false,
         color_scheme: Some(wabou_shell::ColorScheme::Dark),
     }));
     assert!(response.request_redraw);
@@ -167,6 +170,9 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
     assert_eq!(payload["windowId"]["hi"], 1);
     assert_eq!(payload["logicalWidth"], 800);
     assert_eq!(payload["scaleFactor"], 2.0);
+    assert_eq!(payload["outerX"], 120);
+    assert_eq!(payload["outerY"], 80);
+    assert_eq!(payload["occluded"], false);
     assert_eq!(payload["colorScheme"], "dark");
 }
 
@@ -196,6 +202,77 @@ fn native_file_drop_reaches_js_with_paths_and_logical_position() {
     assert_eq!(payload["paths"][1], "/tmp/two.torrent");
     assert_eq!(payload["position"]["x"], 24.5);
     assert_eq!(payload["position"]["y"], 31.0);
+}
+
+#[test]
+fn native_gesture_reaches_js_with_explicit_non_dom_semantics() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let response = applier.handle_event(UiEvent::Gesture(wabou_shell::GestureEvent::Pan {
+        delta_x: 12.5,
+        delta_y: -4.0,
+        phase: wabou_shell::GesturePhase::Changed,
+    }));
+    assert!(response.request_redraw);
+    let payload = applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<String, _>(
+                "globalThis.__host_got.find((x) => x.topic === 'wabou:gesture').payload",
+            )
+        })
+        .unwrap();
+    let payload: serde_json::Value = serde_json::from_str(&payload).unwrap();
+    assert_eq!(payload["type"], "pan");
+    assert_eq!(payload["deltaX"], 12.5);
+    assert_eq!(payload["deltaY"], -4.0);
+    assert_eq!(payload["phase"], "changed");
+}
+
+#[test]
+fn application_lifecycle_reaches_js_without_a_render_frame() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let response = applier.handle_event(UiEvent::AppLifecycle(
+        wabou_shell::AppLifecycleEvent::MemoryWarning,
+    ));
+    assert!(response.request_redraw);
+    let payload = applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<String, _>(
+                "globalThis.__host_got.find((x) => x.topic === 'wabou:app-lifecycle').payload",
+            )
+        })
+        .unwrap();
+    let payload: serde_json::Value = serde_json::from_str(&payload).unwrap();
+    assert_eq!(payload["state"], "memory-warning");
+}
+
+#[test]
+fn modifier_changes_reach_js_as_typed_host_state() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let response = applier.handle_event(UiEvent::ModifiersChanged(
+        wabou_shell::Modifiers::CONTROL | wabou_shell::Modifiers::SHIFT,
+    ));
+    assert!(response.request_redraw);
+    let payload = applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<i32, _>(
+                "globalThis.__host_got.find((x) => x.topic === 'wabou:keyboard-modifiers').payload",
+            )
+        })
+        .unwrap();
+    assert_eq!(payload & 0b1111, 0b0011);
+    assert_eq!((payload & 0b1_0000) != 0, cfg!(not(target_os = "macos")));
 }
 
 #[test]
@@ -582,7 +659,6 @@ fn hmr_batch_coalesces_full_reload_over_partial_updates() {
         },
         ReloadMsg::CssUpdate {
             path: "/x.css".into(),
-            source: "body{}".into(),
         },
         ReloadMsg::FullReload,
         ReloadMsg::HmrUpdate {
@@ -740,8 +816,18 @@ fn hmr_queue_full_reload_is_drained_as_full_reload_result() {
     })
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let wakes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let callback_wakes = wakes.clone();
+    FrameSource::set_wake_callback(
+        &mut applier,
+        Arc::new(move || {
+            callback_wakes.fetch_add(1, Ordering::Relaxed);
+        }),
+    );
     let handle = applier.reload_handle();
     handle.send(ReloadMsg::FullReload).unwrap();
+    assert_eq!(wakes.load(Ordering::Relaxed), 1);
+    assert!(FrameSource::poll_async(&mut applier));
     let mut text = TextContext::new();
     applier.build_frame(&mut text, 100, 100);
     assert!(matches!(

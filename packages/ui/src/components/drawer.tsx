@@ -29,7 +29,7 @@ import {
   type ViewProps,
 } from "../primitives";
 import { Button, type ButtonProps } from "./button";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
 export type DrawerDirection = "top" | "right" | "bottom" | "left";
@@ -221,7 +221,7 @@ export function Drawer(props: DrawerProps): JSX.Element {
             measured.ref(node);
             props.contentRef?.(node);
           }}
-          contentClass={join(
+          contentClass={mergeClasses(
             "relative min-w-0 min-h-0 flex flex-col border-subtle bg-surface",
             placement().content,
             props.contentClass,
@@ -269,7 +269,7 @@ export function DrawerHandle(props: ViewProps): JSX.Element {
       {...forwarded}
       role="button"
       aria-label={props["aria-label"] ?? "Drag or click to close drawer"}
-      class={join(
+      class={mergeClasses(
         "flex flex-none items-center justify-center",
         hitArea(),
         props.class,
@@ -297,7 +297,10 @@ export function DrawerHandle(props: ViewProps): JSX.Element {
     >
       <View
         aria-hidden="true"
-        class={join("pointer-events-none rounded-full bg-strong", indicator())}
+        class={mergeClasses(
+          "pointer-events-none rounded-full bg-strong",
+          indicator(),
+        )}
       />
     </View>
   );
@@ -305,7 +308,10 @@ export function DrawerHandle(props: ViewProps): JSX.Element {
 
 export function DrawerHeader(props: ViewProps): JSX.Element {
   return (
-    <View {...props} class={join("flex flex-col gap-1 p-5", props.class)} />
+    <View
+      {...props}
+      class={mergeClasses("flex flex-col gap-1 p-5", props.class)}
+    />
   );
 }
 
@@ -313,7 +319,7 @@ export function DrawerFooter(props: ViewProps): JSX.Element {
   return (
     <View
       {...props}
-      class={join("mt-auto flex flex-col gap-2 p-5", props.class)}
+      class={mergeClasses("mt-auto flex flex-col gap-2 p-5", props.class)}
     />
   );
 }
@@ -322,7 +328,7 @@ export function DrawerTitle(props: TextProps): JSX.Element {
   return (
     <Text
       {...props}
-      class={join("text-lg font-semibold text-primary", props.class)}
+      class={mergeClasses("text-lg font-semibold text-primary", props.class)}
     />
   );
 }
@@ -331,7 +337,7 @@ export function DrawerDescription(props: TextProps): JSX.Element {
   return (
     <Text
       {...props}
-      class={join("whitespace-normal text-sm text-muted", props.class)}
+      class={mergeClasses("whitespace-normal text-sm text-muted", props.class)}
     />
   );
 }

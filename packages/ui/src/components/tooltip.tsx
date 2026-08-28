@@ -2,7 +2,7 @@ import type { Handle } from "@wabou/core/renderer";
 import { createSignal, type JSX, onCleanup } from "solid-js";
 import type { Placement } from "../primitives";
 import { Popover, Text } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import type { PopupMotionProps } from "./popover";
 import { createTooltipDelayController } from "./tooltip-state";
 
@@ -66,7 +66,7 @@ export function Tooltip(props: TooltipProps): JSX.Element {
       contentInteractionBlocked
       closeOnEscape
       restoreFocus={false}
-      contentClass={join(
+      contentClass={mergeClasses(
         "max-w-xs rounded-md border border-subtle bg-surface px-2 py-1 shadow-md",
         props.contentClass,
       )}

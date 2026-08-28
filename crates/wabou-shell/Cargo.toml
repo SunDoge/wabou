@@ -17,6 +17,7 @@ anyrender-vello.workspace = true
 arboard = { workspace = true }
 bitflags = { workspace = true }
 directories = { workspace = true }
+futures-util = "0.3"
 image = { workspace = true, features = ["ico", "jpeg", "png", "webp"] }
 lru = "0.18.1"
 notify-rust = { workspace = true }

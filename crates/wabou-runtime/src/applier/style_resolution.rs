@@ -198,6 +198,9 @@ impl Applier {
             text_container: decl.is_some_and(|declared| {
                 declared.text_behavior & crate::protocol::TEXT_BEHAVIOR_AGGREGATE_DIRECT != 0
             }),
+            styled_text_container: decl.is_some_and(|declared| {
+                declared.text_behavior & crate::protocol::TEXT_BEHAVIOR_AGGREGATE_STYLED != 0
+            }),
             text: tag.is_none().then_some(text).flatten(),
             display,
             display_explicit: decl.is_some_and(|d| d.display_explicit),
@@ -483,7 +486,7 @@ impl Applier {
                 .cloned()
                 .unwrap_or_default()
             {
-                self.collect_styled_inline_runs(child, &mut text, &mut runs);
+                self.collect_styled_inline_runs(child, &mut text, &mut runs, 1.0);
             }
             if let Some(mut paint) = self
                 .document
@@ -508,31 +511,36 @@ impl Applier {
         node: NodeId,
         text: &mut String,
         runs: &mut Vec<wabou_shell::text::TextRun>,
+        ancestor_opacity: f32,
     ) {
         let Some(decl) = self.document.node_store.declared.get(&node) else {
             return;
         };
+        let paint = self.document.node_store.tree.get_node_context(node);
+        let opacity = ancestor_opacity * paint.map(|p| p.opacity).unwrap_or(1.0);
         if let Some(value) = &decl.text {
             let start = text.len();
             text.push_str(value);
             let end = text.len();
             if start != end {
-                let paint = self.document.node_store.tree.get_node_context(node);
+                let mut color = wabou_shell::text::brush_for_color(
+                    paint.map(|p| p.text_color).unwrap_or(Color::BLACK),
+                );
+                color[3] = ((color[3] as f32) * opacity.clamp(0.0, 1.0)).round() as u8;
                 runs.push(wabou_shell::text::TextRun {
                     range: start..end,
                     font_size: paint.map(|p| p.font_size).unwrap_or(16.0),
                     font_weight: paint.map(|p| p.font_weight).unwrap_or(400.0),
+                    font_italic: paint.is_some_and(|p| p.font_italic),
                     line_height: paint.and_then(|p| p.line_height),
-                    color: wabou_shell::text::brush_for_color(
-                        paint.map(|p| p.text_color).unwrap_or(Color::BLACK),
-                    ),
+                    color,
                 });
             }
             return;
         }
         if let Some(children) = self.document.node_store.children.get(&node) {
             for child in children {
-                self.collect_styled_inline_runs(*child, text, runs);
+                self.collect_styled_inline_runs(*child, text, runs, opacity);
             }
         }
     }
@@ -1132,6 +1140,7 @@ fn inherited_paint(paint: &Paint) -> InheritedPaint {
         text_color: paint.text_color,
         font_size: paint.font_size,
         font_weight: paint.font_weight,
+        font_italic: paint.font_italic,
         letter_spacing: paint.letter_spacing,
         line_height: paint.line_height,
         wrap_text: paint.wrap_text,

@@ -1,6 +1,9 @@
 //! Headless (offscreen) rendering to a PNG file.
 
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::{Mutex, OnceLock},
+};
 
 use anyrender::{ImageRenderer, PaintScene, Scene};
 use image::ImageEncoder as _;
@@ -9,6 +12,8 @@ use vello::kurbo::Affine;
 use vello::peniko::Color;
 
 use crate::RendererBackend;
+
+static VELLO_IMAGE_RENDERER: OnceLock<Mutex<anyrender_vello::VelloImageRenderer>> = OnceLock::new();
 
 /// Render `scene` to an RGBA8 buffer and encode it as PNG at `out_path`.
 pub fn render_to_png(
@@ -78,13 +83,14 @@ fn render_to_image(
     base_color: Color,
     backend: RendererBackend,
 ) -> crate::Result<image::RgbaImage> {
-    fn render<R: ImageRenderer>(
+    fn render_with<R: ImageRenderer>(
+        renderer: &mut R,
         scene: &Scene,
         width: u32,
         height: u32,
         base_color: Color,
     ) -> Vec<u8> {
-        let mut renderer = R::new(width, height);
+        renderer.resize(width, height);
         let mut buf = Vec::new();
         renderer.render_to_vec(
             |painter| {
@@ -102,9 +108,23 @@ fn render_to_image(
         buf
     }
 
+    #[cfg(feature = "renderer-skia")]
+    fn render<R: ImageRenderer>(
+        scene: &Scene,
+        width: u32,
+        height: u32,
+        base_color: Color,
+    ) -> Vec<u8> {
+        render_with(&mut R::new(width, height), scene, width, height, base_color)
+    }
+
     let buf = match backend {
         RendererBackend::Vello => {
-            render::<anyrender_vello::VelloImageRenderer>(scene, width, height, base_color)
+            let mut renderer = VELLO_IMAGE_RENDERER
+                .get_or_init(|| Mutex::new(anyrender_vello::VelloImageRenderer::new(width, height)))
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            render_with(&mut *renderer, scene, width, height, base_color)
         }
         RendererBackend::Skia => {
             #[cfg(feature = "renderer-skia")]
@@ -155,6 +175,33 @@ mod tests {
         .unwrap();
         assert_eq!(image.get_pixel(16, 16).0, [20, 180, 240, 255]);
         assert_eq!(image.get_pixel(2, 2).0, [0, 0, 0, 255]);
+    }
+
+    #[test]
+    fn concurrent_vello_captures_share_one_renderer() {
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let workers = (0..2)
+            .map(|_| {
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    for _ in 0..3 {
+                        let image = render_to_image(
+                            &comparison_scene(),
+                            32,
+                            32,
+                            Color::BLACK,
+                            RendererBackend::Vello,
+                        )
+                        .unwrap();
+                        assert_eq!(image.get_pixel(16, 16).0, [20, 180, 240, 255]);
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+        for worker in workers {
+            worker.join().unwrap();
+        }
     }
 
     #[cfg(feature = "renderer-skia")]

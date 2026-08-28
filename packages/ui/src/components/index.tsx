@@ -1,4 +1,5 @@
 import { createFps } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import { createSignal, type JSX } from "solid-js";
 import { match, P } from "ts-pattern";
 import { createTransition, useReducedMotion } from "../animation";
@@ -14,7 +15,6 @@ import {
   View,
 } from "../primitives";
 import { Badge, type BadgeProps } from "./badge";
-import { join } from "./class-names";
 
 export * from "./alert";
 export * from "./alert-dialog";
@@ -61,6 +61,7 @@ export * from "./input-otp";
 export * from "./item";
 export * from "./label";
 export * from "./layout";
+export * from "./markdown";
 export * from "./menubar";
 export * from "./message";
 export * from "./message-scroller";
@@ -158,7 +159,7 @@ export function Fps(props: FpsProps): JSX.Element {
     <Badge
       variant={variant()}
       weight="normal"
-      class={join("font-mono", props.class)}
+      class={mergeClasses("font-mono", props.class)}
     >
       {value()}
       {props.label === "" ? "" : ` ${props.label ?? "fps"}`}
@@ -175,7 +176,7 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
   return (
     <PrimitivePasswordInput
       {...props}
-      class={join(
+      class={mergeClasses(
         "h-8 w-full px-3 rounded-md border text-sm shadow-xs",
         "border-subtle bg-input text-primary",
         props.disabled && "opacity-50",
@@ -193,7 +194,7 @@ export function TextArea(props: TextAreaProps): JSX.Element {
   return (
     <PrimitiveTextArea
       {...props}
-      class={join(
+      class={mergeClasses(
         "h-24 w-full px-3 py-2 rounded-md border text-sm shadow-xs",
         "border-subtle bg-input text-primary",
         props.disabled && "opacity-50",
@@ -240,7 +241,12 @@ export function Switch(props: SwitchProps): JSX.Element {
     props.onCheckedChange?.(next);
   };
   return (
-    <View class={join("w-full min-w-0 flex items-center gap-3", props.class)}>
+    <View
+      class={mergeClasses(
+        "w-full min-w-0 flex items-center gap-3",
+        props.class,
+      )}
+    >
       <HeadlessButton
         unstyled
         role="switch"
@@ -248,7 +254,7 @@ export function Switch(props: SwitchProps): JSX.Element {
         aria-label={props["aria-label"] ?? props.label}
         aria-checked={checked()}
         class={(state) =>
-          join(
+          mergeClasses(
             "w-11 h-6 flex-none rounded-full p-0.5",
             switchColors(checked(), state),
             state.focused && "border border-focus",

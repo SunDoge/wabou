@@ -17,12 +17,34 @@ pub const MAX_HOST_FRAME_RECORDS: usize = 512;
 pub const FLAG_CANCELLABLE: u8 = 1;
 
 #[derive(Debug, Clone, PartialEq)]
+/// Stack-backed numeric payload which encodes only the event's used prefix.
+pub struct NumericEventData {
+    values: [f64; crate::protocol::event_data::LEN],
+    len: u16,
+}
+
+impl NumericEventData {
+    /// Retain `values` without allocating and expose only `len` slots on wire.
+    pub fn prefix(values: [f64; crate::protocol::event_data::LEN], len: usize) -> Self {
+        assert!(len <= crate::protocol::event_data::LEN);
+        Self {
+            values,
+            len: len as u16,
+        }
+    }
+
+    fn as_slice(&self) -> &[f64] {
+        &self.values[..usize::from(self.len)]
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 /// Payload representation for an unsolicited event targeting one Solid node.
 pub enum NodeEventPayload {
     /// Event carries only its header fields.
     None,
-    /// Fixed-width numeric event-data slots defined by the generated ABI.
-    Numeric([f64; crate::protocol::event_data::LEN]),
+    /// Event-specific prefix of the generated numeric event-data slots.
+    Numeric(NumericEventData),
     /// Event-specific JSON object.
     Json(String),
 }
@@ -106,6 +128,12 @@ fn end_record(out: &mut [u8], start: usize) {
     out[start + 4..start + 8].copy_from_slice(&len.to_le_bytes());
 }
 
+fn align_record(out: &mut Vec<u8>) {
+    while !out.len().is_multiple_of(size_of::<f64>()) {
+        out.push(0);
+    }
+}
+
 fn push_short_str(out: &mut Vec<u8>, value: &str) -> Result<(), HostFrameError> {
     let len = u16::try_from(value.len()).map_err(|_| HostFrameError::StringTooLarge)?;
     push_u16(out, len);
@@ -187,12 +215,18 @@ pub fn encode_host_frame(
                     NodeEventPayload::Numeric(_) => host_node_payload::NUMERIC,
                     NodeEventPayload::Json(_) => host_node_payload::JSON,
                 });
-                push_u16(&mut out, 0);
+                push_u16(
+                    &mut out,
+                    match &node.payload {
+                        NodeEventPayload::Numeric(values) => values.len,
+                        _ => 0,
+                    },
+                );
                 push_u32(&mut out, node.event_id);
                 match &node.payload {
                     NodeEventPayload::None => {}
                     NodeEventPayload::Numeric(values) => {
-                        for value in values {
+                        for value in values.as_slice() {
                             push_f64(&mut out, *value);
                         }
                     }
@@ -210,6 +244,9 @@ pub fn encode_host_frame(
             }
             HostEvent::Application(msg) => encode_application(&mut out, msg)?,
         }
+        // Numeric payloads can then be viewed directly by JavaScript without
+        // allocating or copying into another Float64Array.
+        align_record(&mut out);
         let len = out.len() - start;
         if len > u32::MAX as usize || out.len() > MAX_HOST_FRAME_BYTES {
             return Err(HostFrameError::TooLarge);
@@ -255,6 +292,36 @@ mod tests {
         assert_eq!(u32_at(&frame, 44), 3);
         let second = 32 + u32_at(&frame, 36) as usize;
         assert_eq!(frame[second], host_record::APPLICATION_MESSAGE);
+    }
+
+    #[test]
+    fn numeric_records_encode_only_the_declared_prefix() {
+        let mut values = [0.0; crate::protocol::event_data::LEN];
+        values[crate::protocol::event_data::SCROLL_Y as usize] = 42.0;
+        let numeric_len = crate::protocol::event_data::SCROLL_Y as usize + 1;
+        let frame = encode_host_frame(
+            1,
+            Duration::ZERO,
+            &[HostEvent::Node(HostNodeEvent {
+                target: NodeKey::new(2, 1),
+                event_code: crate::protocol::event::SCROLL,
+                event_id: 0,
+                cancellable: false,
+                payload: NodeEventPayload::Numeric(NumericEventData::prefix(values, numeric_len)),
+            })],
+        )
+        .unwrap();
+
+        let record_len = 8 + 16 + numeric_len * size_of::<f64>();
+        assert_eq!(frame.len(), host_frame::HEADER_LEN as usize + record_len);
+        assert_eq!(
+            u32_at(&frame, host_frame::HEADER_LEN as usize + 4),
+            record_len as u32
+        );
+        assert_eq!(
+            u16::from_le_bytes(frame[50..52].try_into().unwrap()),
+            numeric_len as u16
+        );
     }
 
     #[test]

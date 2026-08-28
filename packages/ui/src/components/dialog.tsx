@@ -8,7 +8,7 @@ import {
   View,
 } from "../primitives";
 import { ScrollArea, type ScrollAreaProps } from "../primitives/scroll-area";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
 export interface DialogProps extends Omit<ModalProps, "contentClass"> {
@@ -26,7 +26,7 @@ export function Dialog(props: DialogProps): JSX.Element {
         "background-color": rgba(0x00000033),
         ...props.backdropStyle,
       }}
-      contentClass={join(
+      contentClass={mergeClasses(
         "w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-lg border border-subtle bg-surface p-5",
         props.contentClass,
       )}
@@ -44,7 +44,7 @@ export function DialogHeader(props: {
   class?: string;
 }) {
   return (
-    <View class={join("flex flex-col gap-1", props.class)}>
+    <View class={mergeClasses("flex flex-col gap-1", props.class)}>
       {props.children}
     </View>
   );
@@ -55,7 +55,9 @@ export function DialogFooter(props: {
   class?: string;
 }) {
   return (
-    <View class={join("flex items-center justify-end gap-2", props.class)}>
+    <View
+      class={mergeClasses("flex items-center justify-end gap-2", props.class)}
+    >
       {props.children}
     </View>
   );
@@ -75,7 +77,7 @@ export function DialogScrollBody(props: DialogScrollBodyProps) {
   return (
     <ScrollArea
       {...props}
-      class={join("min-h-0 flex-1", props.class)}
+      class={mergeClasses("min-h-0 flex-1", props.class)}
       contentClass={props.contentClass}
     >
       {props.children}
@@ -85,7 +87,9 @@ export function DialogScrollBody(props: DialogScrollBodyProps) {
 
 export function DialogTitle(props: { children?: JSX.Element; class?: string }) {
   return (
-    <Text class={join("text-lg font-semibold text-primary", props.class)}>
+    <Text
+      class={mergeClasses("text-lg font-semibold text-primary", props.class)}
+    >
       {props.children}
     </Text>
   );
@@ -97,7 +101,7 @@ export function DialogDescription(props: {
 }) {
   return (
     <Text
-      class={join(
+      class={mergeClasses(
         "w-full min-w-0 whitespace-normal text-sm text-muted",
         props.class,
       )}

@@ -145,6 +145,8 @@ pub struct InheritedPaint {
     pub font_size: f32,
     /// Resolved numeric CSS font weight.
     pub font_weight: f32,
+    /// Whether text uses an italic face or synthetic skew.
+    pub font_italic: bool,
     /// Resolved additional spacing between glyphs in logical pixels.
     pub letter_spacing: f32,
     /// Resolved line height and whether it is font-relative.
@@ -168,6 +170,7 @@ impl Default for InheritedPaint {
             text_color: Color::BLACK,
             font_size: 16.0,
             font_weight: 400.0,
+            font_italic: false,
             letter_spacing: 0.0,
             line_height: None,
             wrap_text: true, // CSS `white-space: normal`
@@ -216,6 +219,8 @@ pub struct DeclaredPaint {
     pub font_size: Option<f32>,
     /// Authored numeric font weight, or inheritance when absent.
     pub font_weight: Option<f32>,
+    /// Authored font style, or inheritance when absent.
+    pub font_italic: Option<bool>,
     /// Authored additional spacing between glyphs, or inheritance when absent.
     pub letter_spacing: Option<f32>,
     /// `(value, relative)` where relative means a font-size multiplier.
@@ -258,6 +263,7 @@ impl Default for DeclaredPaint {
             text_color: None,
             font_size: None,
             font_weight: None,
+            font_italic: None,
             letter_spacing: None,
             line_height: None,
             wrap_text: None,
@@ -281,6 +287,7 @@ impl DeclaredPaint {
             text_color: self.text_color.unwrap_or(parent.text_color),
             font_size: self.font_size.unwrap_or(parent.font_size),
             font_weight: self.font_weight.unwrap_or(parent.font_weight),
+            font_italic: self.font_italic.unwrap_or(parent.font_italic),
             letter_spacing: self.letter_spacing.unwrap_or(parent.letter_spacing),
             line_height: self.line_height.or(parent.line_height),
             wrap_text: self.wrap_text.unwrap_or(parent.wrap_text),
@@ -321,6 +328,7 @@ impl DeclaredPaint {
             text_color: inherited.text_color,
             font_size: inherited.font_size,
             font_weight: inherited.font_weight,
+            font_italic: inherited.font_italic,
             letter_spacing: inherited.letter_spacing,
             line_height: inherited.line_height,
             wrap_text: inherited.wrap_text,
@@ -491,6 +499,8 @@ pub struct Paint {
     pub font_size: f32,
     /// Resolved numeric CSS font weight.
     pub font_weight: f32,
+    /// Whether text uses an italic face or synthetic skew.
+    pub font_italic: bool,
     /// Resolved additional spacing between glyphs in logical pixels.
     pub letter_spacing: f32,
     /// `(value, relative)` where relative means a font-size multiplier.

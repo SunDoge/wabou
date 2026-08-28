@@ -6,7 +6,7 @@ import {
   useContext,
 } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export interface ChartSeriesConfig {
   label: string;
@@ -35,7 +35,7 @@ export function ChartContainer(props: ChartContainerProps): JSX.Element {
         <View
           role="img"
           aria-label={props.label}
-          class={join("relative min-w-0", props.class)}
+          class={mergeClasses("relative min-w-0", props.class)}
           style={props.style}
         >
           {props.children}
@@ -53,14 +53,17 @@ export function ChartLegend(props: { class?: string }): JSX.Element {
   const config = useChartConfig();
   return (
     <View
-      class={join("flex flex-row flex-wrap items-center gap-4", props.class)}
+      class={mergeClasses(
+        "flex flex-row flex-wrap items-center gap-4",
+        props.class,
+      )}
     >
       <For each={Object.values(config)}>
         {(series) => (
           <View class="flex flex-row items-center gap-2">
             <View
               aria-hidden="true"
-              class={join(
+              class={mergeClasses(
                 "w-2.5 h-2.5 flex-none rounded-full",
                 series.colorClass,
               )}
@@ -78,7 +81,7 @@ export function ChartEmpty(props: {
   class?: string;
 }): JSX.Element {
   return (
-    <View class={join("h-48 items-center justify-center", props.class)}>
+    <View class={mergeClasses("h-48 items-center justify-center", props.class)}>
       <Text class="text-sm text-muted">{props.message ?? "No chart data"}</Text>
     </View>
   );

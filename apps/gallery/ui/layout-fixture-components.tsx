@@ -6,6 +6,7 @@ import {
   Bubble,
   BubbleContent,
   Button,
+  CodeEditor,
   Dialog,
   DialogDescription,
   DialogScrollBody,
@@ -17,9 +18,11 @@ import {
   InputGroupAddon,
   InputGroupInput,
   InputGroupText,
+  Markdown,
   Message,
   MessageContent,
   MessageGroup,
+  MessageScroller,
   QRCode,
   ScrollArea,
   Select,
@@ -33,7 +36,264 @@ import {
 } from "@wabou/ui";
 import imageIcon from "lucide-static/icons/image.svg?raw";
 import { For } from "solid-js";
+import { AgentActivityStatus } from "../../pi-agent/ui/agent-activity";
+import { initialAgentState } from "../../pi-agent/ui/agent-state";
+import { ComposerContextFiles } from "../../pi-agent/ui/composer-context";
+import { ComposerDeliveryControl } from "../../pi-agent/ui/composer-delivery";
+import { ComposerImages } from "../../pi-agent/ui/composer-images";
+import { ConversationItem } from "../../pi-agent/ui/conversation";
+import { ExtensionUiChrome } from "../../pi-agent/ui/extension-ui";
+import { ModelControls } from "../../pi-agent/ui/model-controls";
+import { SessionActions } from "../../pi-agent/ui/session-actions";
+import { SessionBehaviorSettings } from "../../pi-agent/ui/session-behavior-settings";
+import { TranscriptSearch } from "../../pi-agent/ui/transcript-search";
 import { MangaPageMock } from "./pages/image-viewport";
+import { MarkdownPreview } from "./pages/markdown";
+
+export function MarkdownInlineLayoutFixture() {
+  return (
+    <View class="w-80 p-4 bg-canvas">
+      <MarkdownPreview source="Before `code` after." />
+    </View>
+  );
+}
+
+export function MarkdownConversationLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-5 flex flex-col gap-3 bg-canvas">
+      <Markdown
+        variant="conversation"
+        aria-label="Conversation Markdown fixture"
+        source={
+          "## Change\n\nUpdated the request path and kept `healthz` backward compatible.\n\n- Added validation\n- Preserved existing callers\n\n| Check | Result |\n| --- | --- |\n| Types | Passed |\n| Layout | Passed |\n\n```sh\ncargo test -p server\n```"
+        }
+      />
+    </View>
+  );
+}
+
+export function PiConversationLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-5 flex flex-col gap-3 bg-canvas">
+      <ConversationItem
+        item={{
+          id: "fixture-assistant",
+          kind: "assistant",
+          thinkingText: "Inspect the router and verify the active session.",
+          text: "## Change\n\nThe active session now remains selected.\n\n- Preserved navigation state\n- Added a regression test",
+          streaming: true,
+        }}
+      />
+      <ConversationItem
+        item={{
+          id: "fixture-tool",
+          kind: "tool",
+          name: "bash",
+          state: "running",
+          input: JSON.stringify({ command: "cargo test -p wabou-runtime" }),
+          output: "running 245 tests",
+        }}
+      />
+    </View>
+  );
+}
+
+export function PiModelControlsLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-5 flex items-start bg-canvas">
+      <ModelControls
+        models={[
+          {
+            provider: "anthropic",
+            id: "claude-sonnet-4-5-with-a-deliberately-long-model-id",
+            name: "Claude Sonnet 4.5 with an unusually long display name",
+            reasoning: true,
+            contextWindow: 200_000,
+          },
+        ]}
+        modelProvider="anthropic"
+        modelId="claude-sonnet-4-5-with-a-deliberately-long-model-id"
+        thinking="medium"
+        thinkingLevels={["off", "medium", "high", "xhigh"]}
+        chooseModel={() => {}}
+        chooseThinking={() => {}}
+      />
+    </View>
+  );
+}
+
+export function PiSessionBehaviorLayoutFixture() {
+  return (
+    <View class="w-full min-w-0 p-5 bg-canvas">
+      <SessionBehaviorSettings
+        state={{
+          ...initialAgentState,
+          connection: "ready",
+          autoCompactionEnabled: true,
+          steeringMode: "one-at-a-time",
+          followUpMode: "all",
+        }}
+        setAutoCompaction={() => {}}
+        setSteeringMode={() => {}}
+        setFollowUpMode={() => {}}
+      />
+    </View>
+  );
+}
+
+export function PiAgentHeaderLayoutFixture() {
+  return (
+    <View class="w-full h-14 min-w-0 px-5 border-b border-subtle bg-surface flex flex-row items-center justify-between gap-3">
+      <View class="min-w-0 flex-1 flex flex-col gap-0">
+        <Text class="font-semibold truncate">Implement session controls</Text>
+        <View class="min-w-0 flex flex-row items-center gap-2">
+          <Text class="min-w-0 flex-1 text-xs text-muted truncate">
+            Claude Sonnet 4.5 · medium thinking
+          </Text>
+          <AgentActivityStatus
+            state={{
+              ...initialAgentState,
+              connection: "running",
+              activity: { kind: "retrying", attempt: 2, maxAttempts: 3 },
+              queue: { steering: 1, followUp: 2 },
+            }}
+          />
+        </View>
+      </View>
+      <View class="flex-none flex flex-row items-center gap-1">
+        <ModelControls
+          models={[
+            {
+              provider: "anthropic",
+              id: "claude-sonnet-4-5",
+              name: "Claude Sonnet 4.5",
+              reasoning: true,
+              contextWindow: 200_000,
+            },
+          ]}
+          modelProvider="anthropic"
+          modelId="claude-sonnet-4-5"
+          thinking="medium"
+          thinkingLevels={["off", "medium", "high"]}
+          chooseModel={() => {}}
+          chooseThinking={() => {}}
+        />
+        <SessionActions
+          compact={() => {}}
+          clone={() => {}}
+          exportHtml={() => {}}
+        />
+      </View>
+    </View>
+  );
+}
+
+export function PiTranscriptSearchLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 min-h-0 bg-canvas">
+      <MessageScroller aria-label="Searchable transcript fixture">
+        <TranscriptSearch
+          items={[
+            { id: "user", kind: "user", text: "Run the cargo tests" },
+            {
+              id: "tool",
+              kind: "tool",
+              name: "bash",
+              state: "success",
+              input: '{"command":"cargo test"}',
+              output: "all tests passed",
+            },
+          ]}
+          resolveItem={() => undefined}
+          activeChanged={() => {}}
+          close={() => {}}
+        />
+        <View class="p-4">
+          <Text>Transcript content</Text>
+        </View>
+      </MessageScroller>
+    </View>
+  );
+}
+
+export function PiComposerImagesLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-3 bg-canvas">
+      <ComposerImages
+        paths={[
+          "/home/user/screenshots/very-long-diagnostic-screenshot-name.png",
+          "/home/user/screenshots/layout.png",
+        ]}
+        change={() => {}}
+      />
+    </View>
+  );
+}
+
+export function PiComposerContextLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-3 bg-canvas">
+      <ComposerContextFiles
+        paths={[
+          "packages/runtime/src/very/deep/module/with-a-long-file-name.ts",
+          "crates/wabou-runtime/src/host.rs",
+        ]}
+        change={() => {}}
+      />
+    </View>
+  );
+}
+
+export function PiComposerDeliveryLayoutFixture() {
+  return (
+    <View class="w-full h-full p-4 flex items-start bg-surface">
+      <ComposerDeliveryControl value="followUp" change={() => {}} />
+    </View>
+  );
+}
+
+export function PiExtensionUiLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-3 bg-canvas">
+      <View class="w-full min-w-0 rounded-xl border border-strong bg-input p-2 gap-2">
+        <ExtensionUiChrome
+          placement="aboveEditor"
+          statuses={[
+            {
+              agentId: "agent-1",
+              key: "branch",
+              text: "Working on a long extension-provided status without overflowing the composer",
+            },
+          ]}
+          widgets={[
+            {
+              agentId: "agent-1",
+              key: "tasks",
+              lines: [
+                "Indexing workspace files",
+                "Checking packages/ui/src/components/markdown.tsx",
+              ],
+              placement: "aboveEditor",
+            },
+          ]}
+        />
+      </View>
+    </View>
+  );
+}
+
+export function CodeEditorLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 min-h-0 p-4 bg-canvas">
+      <CodeEditor
+        aria-label="Fixture config editor"
+        language="json"
+        value={'{\n  "enabled": true,\n  "emoji": "😀"\n}'}
+        class="w-full h-full min-w-0 min-h-0 rounded-md border border-strong bg-input text-primary"
+      />
+    </View>
+  );
+}
 
 export function SidebarLayoutFixture() {
   return (

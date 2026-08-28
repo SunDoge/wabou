@@ -471,11 +471,13 @@ fn key_payload_keeps_physical_modifiers_separate_from_primary() {
         location: Default::default(),
         modifiers: platform_primary,
         repeat: false,
+        synthetic: true,
     };
     let payload: serde_json::Value = serde_json::from_str(&key_event_payload(&event)).unwrap();
 
     assert_eq!(payload["mods"], platform_primary.bits());
     assert_eq!(payload["primary"], true);
+    assert_eq!(payload["synthetic"], true);
 
     let mut physical_control = event;
     physical_control.modifiers = if cfg!(target_os = "macos") {
@@ -733,6 +735,7 @@ fn prevented_keydown_never_reaches_the_focused_widget() {
             Modifiers::CONTROL
         },
         repeat: false,
+        synthetic: false,
     }));
 
     assert!(response.handled);
@@ -763,6 +766,7 @@ fn prevented_keydown_never_reaches_the_focused_widget() {
         location: Default::default(),
         modifiers: Modifiers::default(),
         repeat: false,
+        synthetic: false,
     }));
     assert_eq!(
         *received.lock().unwrap(),
@@ -942,6 +946,7 @@ fn wheel_routing_preserves_pointer_position_for_widgets() {
         position: Point { x: 42.0, y: 73.0 },
         delta_x: 0.0,
         delta_y: -40.0,
+        phase: wabou_shell::GesturePhase::Changed,
         modifiers: Modifiers::default(),
     }));
 
@@ -1315,6 +1320,7 @@ fn pointer_with_button(
         button: Some(button),
         buttons,
         modifiers: Modifiers::default(),
+        properties: wabou_shell::PointerProperties::default(),
     })
 }
 
@@ -1402,8 +1408,13 @@ fn interactive_applier() -> Applier {
         event::POINTERDOWN,
         event::POINTERMOVE,
         event::POINTERUP,
+        event::POINTERENTER,
+        event::POINTERLEAVE,
+        event::POINTEROVER,
+        event::POINTEROUT,
         event::CLICK,
         event::CONTEXTMENU,
+        event::DBLCLICK,
     ] {
         applier.apply_op(&Op::AddEventListener {
             id: NodeKey::new(2, 1),
@@ -1774,6 +1785,7 @@ fn focused_widget_can_consume_tab_before_default_focus_traversal() {
         location: Default::default(),
         modifiers: Modifiers::default(),
         repeat: false,
+        synthetic: false,
     }));
 
     assert!(response.handled);

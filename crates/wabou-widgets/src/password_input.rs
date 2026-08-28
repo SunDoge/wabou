@@ -72,6 +72,7 @@ pub struct PasswordInput {
     disabled: bool,
     font_size: f32,
     font_weight: f32,
+    font_italic: bool,
     line_height: Option<(f32, bool)>,
     font_family: Option<Arc<str>>,
     color: Color,
@@ -89,6 +90,7 @@ impl PasswordInput {
             disabled: false,
             font_size: 16.0,
             font_weight: 400.0,
+            font_italic: false,
             line_height: None,
             font_family: None,
             color: Color::WHITE,
@@ -131,6 +133,7 @@ impl Widget for PasswordInput {
             Arc::from(text),
             self.font_size,
             self.font_weight,
+            self.font_italic,
             self.line_height,
             TextAlign::Start,
             brush_for_color(color),
@@ -215,6 +218,7 @@ impl Widget for PasswordInput {
     fn style_changed(&mut self, style: &WidgetStyle) -> wabou_shell::WidgetChanges {
         self.font_size = style.font_size;
         self.font_weight = style.font_weight;
+        self.font_italic = style.font_italic;
         self.line_height = style.line_height;
         self.font_family = style.font_family.clone();
         self.color = style.color;

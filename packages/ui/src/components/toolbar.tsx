@@ -16,7 +16,7 @@ import {
   createRovingFocus,
 } from "../primitives/interactions";
 import { Button, type ButtonProps } from "./button";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export type ToolbarOrientation = "horizontal" | "vertical";
 
@@ -95,7 +95,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
           role={props.role ?? "toolbar"}
           aria-label={props["aria-label"]}
           aria-orientation={orientation()}
-          class={join(
+          class={mergeClasses(
             "flex-none flex items-center gap-1 rounded-md border border-subtle bg-control p-1",
             match(orientation())
               .with("horizontal", () => "flex-row")
@@ -180,7 +180,7 @@ export function ToolbarGroup(props: {
     <View
       role="group"
       aria-label={props["aria-label"]}
-      class={join(
+      class={mergeClasses(
         "flex items-center gap-0.5",
         toolbar.orientation() === "horizontal" ? "flex-row" : "flex-col",
         props.class,
@@ -197,7 +197,7 @@ export function ToolbarSeparator(props: { class?: string }): JSX.Element {
   return (
     <View
       aria-hidden="true"
-      class={join(
+      class={mergeClasses(
         "flex-none bg-subtle",
         toolbar.orientation() === "horizontal" ? "w-px h-5" : "h-px w-5",
         props.class,

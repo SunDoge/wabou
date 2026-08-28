@@ -3,7 +3,7 @@ import type { Handle, LayoutRect } from "@wabou/core/renderer";
 import fileUp from "lucide-static/icons/file-up.svg?raw";
 import { createEffect, createSignal, type JSX, Show } from "solid-js";
 import { Icon, Text, View, type ViewProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export interface DropZoneProps extends Omit<ViewProps, "class" | "children"> {
   /** Called with paths accepted by this zone after a native drop. */
@@ -94,7 +94,7 @@ export function DropZone(props: DropZoneProps): JSX.Element {
       role="group"
       aria-label={props.label ?? "Drop files"}
       aria-disabled={props.disabled ? "true" : undefined}
-      class={join(
+      class={mergeClasses(
         "w-full min-w-0 min-h-36 px-6 py-5 flex flex-col items-center justify-center gap-3 rounded-xl border-2 text-center",
         isActive ? "border-accent bg-selected" : "border-strong bg-input",
         props.disabled && "opacity-50",
@@ -102,7 +102,7 @@ export function DropZone(props: DropZoneProps): JSX.Element {
       )}
     >
       <View
-        class={join(
+        class={mergeClasses(
           "w-10 h-10 flex-none items-center justify-center rounded-lg",
           isActive ? "bg-accent text-on-accent" : "bg-control text-secondary",
         )}

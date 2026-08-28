@@ -5,7 +5,7 @@ import { match } from "ts-pattern";
 import { Popover, Text, View } from "../primitives";
 import { createTypeahead } from "../primitives/interactions";
 import type { Placement, PointAnchor } from "../primitives/positioner";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { type MenuStateItem, moveMenuHighlight } from "./menu-state";
 import type { PopupMotionProps } from "./popover";
 import { componentsElevation, useComponentsTheme } from "./theme";
@@ -136,7 +136,7 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
       restoreFocus={props.restoreFocus}
       outsidePointerStrategy={props.outsidePointerStrategy}
       anchorPoint={props.anchorPoint}
-      contentClass={join(
+      contentClass={mergeClasses(
         "w-56 p-1 flex flex-col gap-1 rounded-lg border border-subtle bg-surface",
         props.contentClass,
       )}
@@ -195,7 +195,7 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
                 role="menuitem"
                 aria-label={item().label}
                 aria-disabled={item().disabled}
-                class={join(
+                class={mergeClasses(
                   "w-full min-h-8 flex-none px-2 py-1.5 flex flex-col justify-center rounded-md",
                   highlighted() === item().id
                     ? "bg-control-hover"

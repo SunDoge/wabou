@@ -1,12 +1,7 @@
-import {
-  Center,
-  Icon,
-  type IconProps,
-  type ViewProps,
-} from "../primitives";
+import { Center, Icon, type IconProps, type ViewProps } from "../primitives";
 import { omit } from "solid-js";
 import { match } from "ts-pattern";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export type IconFrameSize = "sm" | "default" | "lg";
 export type IconFrameVariant = "plain" | "muted" | "selected" | "solid";
@@ -67,7 +62,7 @@ export function IconFrame(props: IconFrameProps) {
     <Center
       {...rest}
       role="presentation"
-      class={join(
+      class={mergeClasses(
         "flex-none",
         frameSizeClass(size()),
         variantClass(props.variant ?? "plain"),

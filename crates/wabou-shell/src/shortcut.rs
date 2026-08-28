@@ -57,6 +57,7 @@ mod tests {
             location: KeyLocation::Standard,
             modifiers: primary,
             repeat: false,
+            synthetic: false,
         };
 
         assert!(event.matches_standard_shortcut(StandardShortcut::Copy));
@@ -86,6 +87,7 @@ mod tests {
             location: KeyLocation::Standard,
             modifiers: primary,
             repeat: false,
+            synthetic: false,
         };
 
         assert!(event.matches_standard_shortcut(StandardShortcut::Paste));

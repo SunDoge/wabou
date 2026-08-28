@@ -12,7 +12,7 @@ import {
   type ViewProps,
   type WabouStyle,
 } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { createControllableState } from "./state";
 
 export type ResizableDirection = "horizontal" | "vertical";
@@ -214,7 +214,7 @@ export function ResizablePanelGroup(
         ref={measured.ref}
         role="group"
         aria-label={props["aria-label"]}
-        class={join(
+        class={mergeClasses(
           "w-full h-full min-w-0 min-h-0 flex overflow-hidden",
           direction() === "horizontal" ? "flex-row" : "flex-col",
           props.class,
@@ -241,7 +241,10 @@ export function ResizablePanel(props: {
     <View
       role="group"
       aria-label={props.id}
-      class={join("min-w-0 min-h-0 flex-none overflow-hidden", props.class)}
+      class={mergeClasses(
+        "min-w-0 min-h-0 flex-none overflow-hidden",
+        props.class,
+      )}
       style={style()}
     >
       {props.children}
@@ -314,7 +317,7 @@ export function ResizableHandle(props: ResizableHandleProps): JSX.Element {
       aria-valuenow={context.state.size(props.before)}
       aria-valuetext={`${Math.round(context.state.size(props.before))} percent`}
       focusOrder={0}
-      class={join(
+      class={mergeClasses(
         "flex-none rounded-sm",
         context.direction() === "horizontal" ? "w-2 h-full" : "w-full h-2",
         dragging() || hovered() ? "bg-accent" : "bg-control",

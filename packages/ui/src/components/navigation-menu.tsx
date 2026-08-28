@@ -11,7 +11,7 @@ import {
 import { Icon, rotate2d, View, type ViewProps } from "../primitives";
 import { createControllableState } from "../primitives/interactions";
 import { Button, type ButtonProps } from "./button";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { Popover } from "./popover";
 
 interface NavigationEntry {
@@ -119,7 +119,7 @@ export function NavigationMenu(props: NavigationMenuProps): JSX.Element {
           }}
           placement="bottom-start"
           outsidePointerStrategy="passthrough"
-          contentClass={join(
+          contentClass={mergeClasses(
             "w-[520px] max-w-full min-w-0 overflow-hidden rounded-lg border border-subtle bg-surface p-2 shadow-md",
             props.viewportClass,
           )}
@@ -128,7 +128,7 @@ export function NavigationMenu(props: NavigationMenuProps): JSX.Element {
               ref={trigger.ref}
               role="group"
               aria-label={props["aria-label"]}
-              class={join(
+              class={mergeClasses(
                 "relative inline-flex flex-none items-center justify-center",
                 props.class,
               )}
@@ -151,7 +151,7 @@ export function NavigationMenuList(props: {
   return (
     <View
       role="menubar"
-      class={join(
+      class={mergeClasses(
         "flex flex-none items-center justify-center gap-1",
         props.class,
       )}
@@ -177,7 +177,7 @@ export function NavigationMenuItem(
   };
   return (
     <NavigationItemContext value={context}>
-      <View class={join("relative flex-none", props.class)}>
+      <View class={mergeClasses("relative flex-none", props.class)}>
         {props.children}
       </View>
     </NavigationItemContext>
@@ -188,7 +188,7 @@ export function navigationMenuTriggerClass(
   open: boolean,
   className?: string,
 ): string {
-  return join(
+  return mergeClasses(
     "h-9 px-3 inline-flex flex-none items-center justify-center gap-1 rounded-md border-transparent text-sm font-medium",
     open ? "bg-selected text-primary" : "bg-transparent text-secondary",
     className,
@@ -266,7 +266,7 @@ export function NavigationMenuContent(props: ViewProps): JSX.Element {
     <View
       {...forwarded}
       role="group"
-      class={join("w-full min-w-0 flex flex-col gap-1", props.class)}
+      class={mergeClasses("w-full min-w-0 flex flex-col gap-1", props.class)}
     >
       {props.children}
     </View>
@@ -291,7 +291,7 @@ export function NavigationMenuLink(
       {...forwarded}
       role="link"
       variant="ghost"
-      class={join(
+      class={mergeClasses(
         "w-full h-auto min-w-0 flex flex-col items-start gap-1 rounded-md p-2 text-left",
         props.active && "bg-selected",
         props.class,
@@ -313,7 +313,7 @@ export function NavigationMenuIndicator(props: ViewProps): JSX.Element {
     <View
       {...props}
       aria-hidden="true"
-      class={join(
+      class={mergeClasses(
         "absolute left-1/2 bottom-0 w-2 h-0.5 rounded-full bg-accent",
         props.class,
       )}

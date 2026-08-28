@@ -34,6 +34,21 @@ of its static and reactive text children form one measured run and one item in
 its parent's layout. Use `Text` rather than placing bare text directly in a
 flex or grid container.
 
+Use `RichText` when one paragraph needs multiple text styles without creating
+one layout box per fragment. Only `RichTextSpan` text descendants are allowed;
+layout and replaced-content children deliberately prevent collapsing:
+
+```tsx
+<RichText class="whitespace-normal text-secondary">
+  Plain text with <RichTextSpan class="font-semibold text-primary">emphasis</RichTextSpan>
+  {" and preserved spaces."}
+</RichText>
+```
+
+The paragraph is shaped once by Parley and each span becomes a styled run.
+Interactive spans and per-run backgrounds are not part of the initial API;
+use separate components when those behaviors are required.
+
 Use `maxLines` when a component has a bounded text region:
 
 ```tsx

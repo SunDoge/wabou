@@ -100,6 +100,7 @@ export function decodeAndDispatchHostFrame(
       );
       const eventCode = view.getUint8(offset + 8);
       const payloadKind = view.getUint8(offset + 9);
+      const numericLen = view.getUint16(offset + 10, true);
       const eventId = view.getUint32(offset + 12, true);
       offset += 16;
       if (payloadKind === HOST_NODE_PAYLOAD.None) {
@@ -112,12 +113,23 @@ export function decodeAndDispatchHostFrame(
           json: "",
         });
       } else if (payloadKind === HOST_NODE_PAYLOAD.Numeric) {
-        requireBytes(8 * EVENT_DATA_LEN, end);
-        const numeric = new Float64Array(EVENT_DATA_LEN);
-        for (let slot = 0; slot < numeric.length; slot++) {
-          numeric[slot] = view.getFloat64(offset + slot * 8, true);
+        if (numericLen > EVENT_DATA_LEN) {
+          throw new TypeError("HostEventFrame numeric payload exceeds ABI slots");
         }
-        offset += 8 * numeric.length;
+        requireBytes(8 * numericLen, end);
+        const absoluteOffset = bytes.byteOffset + offset;
+        let numeric: Float64Array;
+        if (absoluteOffset % Float64Array.BYTES_PER_ELEMENT === 0) {
+          numeric = new Float64Array(bytes.buffer, absoluteOffset, numericLen);
+        } else {
+          // ArrayBufferView callers may provide an arbitrary byteOffset. Rust
+          // host frames are aligned, but retain a safe fallback for tooling.
+          numeric = new Float64Array(numericLen);
+          for (let slot = 0; slot < numeric.length; slot++) {
+            numeric[slot] = view.getFloat64(offset + slot * 8, true);
+          }
+        }
+        offset += 8 * numericLen;
         records.push({
           kind: "node",
           flags,

@@ -2,7 +2,7 @@ import { rgba } from "@wabou/core";
 import type { JSX } from "solid-js";
 import { match } from "ts-pattern";
 import { Modal, type ModalMotionOptions, type ModalProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import {
   DialogDescription,
   DialogFooter,
@@ -61,7 +61,7 @@ export function Sheet(props: SheetProps): JSX.Element {
         ...placement().backdrop,
         ...props.backdropStyle,
       }}
-      contentClass={join(
+      contentClass={mergeClasses(
         "min-w-0 min-h-0 flex flex-col gap-4 border-subtle bg-surface p-5",
         placement().content,
         props.contentClass,

@@ -71,6 +71,7 @@ fn external_widget_can_use_the_complete_public_sdk() {
         button: Some(PointerButton::Primary),
         buttons: 1,
         modifiers: Modifiers::empty(),
+        properties: Default::default(),
     });
     let _factory: WidgetFactory = std::sync::Arc::new(|| Box::new(ExternalWidget::new()));
     let mut harness = WidgetHarness::new(ExternalWidget::new());

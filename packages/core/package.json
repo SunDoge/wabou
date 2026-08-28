@@ -1,6 +1,6 @@
 {
   "name": "@wabou/core",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.3",
   "description": "Core runtime APIs and QuickJS compatibility layer for Wabou.",
   "license": "Apache-2.0",
   "repository": {

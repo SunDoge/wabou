@@ -5,7 +5,7 @@ import {
   ButtonGroupContext,
   type ButtonGroupOrientation,
 } from "./button-group-context";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export interface ButtonGroupProps extends Omit<ViewProps, "class"> {
   orientation?: ButtonGroupOrientation;
@@ -30,7 +30,7 @@ export function ButtonGroup(props: ButtonGroupProps): JSX.Element {
           {...props}
           role="group"
           aria-label={props["aria-label"]}
-          class={join(
+          class={mergeClasses(
             "min-w-0 flex gap-0 overflow-hidden rounded-md border border-strong bg-surface shadow-xs",
             layout(),
             props.class,
@@ -47,7 +47,7 @@ export function ButtonGroupText(props: TextProps): JSX.Element {
   return (
     <Text
       {...props}
-      class={join(
+      class={mergeClasses(
         "min-h-8 px-3 flex-none flex items-center whitespace-nowrap text-sm font-medium text-secondary bg-control",
         props.class,
       )}
@@ -69,7 +69,7 @@ export function ButtonGroupSeparator(
     <View
       role="separator"
       aria-hidden="true"
-      class={join(
+      class={mergeClasses(
         "flex-none self-stretch bg-strong",
         match(props.orientation ?? "vertical")
           .with("vertical", () => "w-px min-h-full")

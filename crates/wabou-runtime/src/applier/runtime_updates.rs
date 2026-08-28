@@ -1,6 +1,92 @@
 use super::*;
 
 impl Applier {
+    pub(super) fn handle_modifiers_changed(
+        &mut self,
+        modifiers: wabou_shell::Modifiers,
+    ) -> EventResponse {
+        const PRIMARY: u8 = 1 << 4;
+        let bits = modifiers.bits()
+            | if modifiers.primary_shortcut() {
+                PRIMARY
+            } else {
+                0
+            };
+        let event = HostEvent::Application(crate::host_message::HostMessage::i32(
+            "wabou:keyboard-modifiers",
+            i32::from(bits),
+        ));
+        let handled = self.runtime.js.dispatch_host_frame(&[event]).is_ok();
+        EventResponse {
+            handled,
+            request_redraw: handled,
+            ..EventResponse::IGNORED
+        }
+    }
+
+    pub(super) fn handle_app_lifecycle(
+        &mut self,
+        lifecycle: wabou_shell::AppLifecycleEvent,
+    ) -> EventResponse {
+        let state = match lifecycle {
+            wabou_shell::AppLifecycleEvent::Resumed => "resumed",
+            wabou_shell::AppLifecycleEvent::Suspended => "suspended",
+            wabou_shell::AppLifecycleEvent::MemoryWarning => "memory-warning",
+        };
+        let event = HostEvent::Application(crate::host_message::HostMessage::str(
+            "wabou:app-lifecycle",
+            serde_json::json!({ "state": state }).to_string(),
+        ));
+        let handled = self.runtime.js.dispatch_host_frame(&[event]).is_ok();
+        EventResponse {
+            handled,
+            request_redraw: handled,
+            ..EventResponse::IGNORED
+        }
+    }
+
+    pub(super) fn handle_gesture(&mut self, gesture: wabou_shell::GestureEvent) -> EventResponse {
+        let phase = |phase| match phase {
+            wabou_shell::GesturePhase::Started => "started",
+            wabou_shell::GesturePhase::Changed => "changed",
+            wabou_shell::GesturePhase::Ended => "ended",
+            wabou_shell::GesturePhase::Cancelled => "cancelled",
+        };
+        let payload = match gesture {
+            wabou_shell::GestureEvent::Pinch {
+                delta,
+                phase: value,
+            } => serde_json::json!({ "type": "pinch", "delta": delta, "phase": phase(value) }),
+            wabou_shell::GestureEvent::Pan {
+                delta_x,
+                delta_y,
+                phase: value,
+            } => serde_json::json!({
+                "type": "pan", "deltaX": delta_x, "deltaY": delta_y, "phase": phase(value),
+            }),
+            wabou_shell::GestureEvent::Rotation {
+                delta,
+                phase: value,
+            } => serde_json::json!({
+                "type": "rotation", "delta": delta, "phase": phase(value),
+            }),
+            wabou_shell::GestureEvent::DoubleTap => serde_json::json!({ "type": "double-tap" }),
+            wabou_shell::GestureEvent::Pressure { pressure, stage } => serde_json::json!({
+                "type": "pressure", "pressure": pressure, "stage": stage,
+            }),
+        };
+        let event = HostEvent::Application(crate::host_message::HostMessage::str(
+            "wabou:gesture",
+            payload.to_string(),
+        ));
+        let handled = self.runtime.js.dispatch_host_frame(&[event]).is_ok();
+        EventResponse {
+            handled,
+            request_redraw: handled,
+            ..EventResponse::IGNORED
+        }
+    }
+
     pub(super) fn handle_file_drop(&mut self, event: wabou_shell::FileDropEvent) -> EventResponse {
         let phase = match event.phase {
             wabou_shell::FileDropPhase::Entered => "entered",
@@ -48,6 +134,9 @@ impl Applier {
             "scaleFactor": metrics.scale_factor,
             "maximized": metrics.maximized,
             "focused": metrics.focused,
+            "outerX": metrics.outer_x,
+            "outerY": metrics.outer_y,
+            "occluded": metrics.occluded,
             "colorScheme": metrics.color_scheme.map(|scheme| match scheme {
                 wabou_shell::ColorScheme::Light => "light",
                 wabou_shell::ColorScheme::Dark => "dark",
@@ -192,9 +281,32 @@ impl Applier {
         #[cfg(feature = "vite")]
         {
             if let Some(entry) = self.runtime.reload.vite_entry().map(str::to_owned) {
-                match self.runtime.js.reboot_vite_entry(&entry) {
+                // Vite can announce a full reload before every changed module in the
+                // graph has finished transforming. An editor's atomic save can therefore
+                // produce a short-lived 500 for a dependency even though the next fetch
+                // is valid. Once the native scene is reset, abandoning that first failure
+                // leaves a permanently blank window, so retry the entry import briefly.
+                let mut attempts = 0;
+                let reload = loop {
+                    attempts += 1;
+                    match self.runtime.js.reboot_vite_entry(&entry) {
+                        Ok(()) => break Ok(()),
+                        Err(error) if attempts < 6 => {
+                            tracing::warn!(
+                                target: "hmr",
+                                %entry,
+                                attempts,
+                                error = ?error,
+                                "vite entry is not ready; retrying full reload"
+                            );
+                            std::thread::sleep(std::time::Duration::from_millis(120));
+                        }
+                        Err(error) => break Err(error),
+                    }
+                };
+                match reload {
                     Ok(()) => {
-                        tracing::info!(target: "hmr", %entry, "vite entry re-imported after full reload");
+                        tracing::info!(target: "hmr", %entry, attempts, "vite entry re-imported after full reload");
                         self.document
                             .invalidation
                             .insert(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);

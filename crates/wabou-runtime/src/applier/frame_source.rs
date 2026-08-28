@@ -149,7 +149,6 @@ impl Applier {
         if !matches!(hmr, HmrDrainResult::Idle) {
             self.runtime.reload.record_result(hmr);
         }
-        self.runtime.reload.clear_pending();
         self.drain_host_messages();
         self.dispatch_scroll_changes();
 
@@ -236,6 +235,19 @@ impl Applier {
 }
 
 impl FrameSource for Applier {
+    fn close_requested(&mut self) -> bool {
+        let Some(target) = self
+            .document
+            .node_store
+            .solid_id_for_node(self.document.node_store.root)
+        else {
+            return false;
+        };
+        let (_, prevented) =
+            self.dispatch_cancellable_json(target, event::WINDOWCLOSEREQUESTED, "{}".into());
+        prevented
+    }
+
     fn set_device_scale(&mut self, scale: f64) {
         self.frame.device_scale = scale.max(f64::EPSILON);
     }
@@ -264,6 +276,16 @@ impl FrameSource for Applier {
         if !self.run_javascript_tick(width, height) {
             return Vec::new();
         }
+
+        // Vite evaluates the regenerated virtual stylesheet while applying an
+        // HMR module inside the JavaScript tick. Drain that update before
+        // inheritance and layout so the refreshed component and its Style IR
+        // become visible atomically in this frame. Waiting for another frame
+        // can leave newly introduced classes on engine defaults indefinitely
+        // when the stylesheet module itself emits no renderer operations.
+        self.drain_pending_stylesheet();
+        self.drain_pending_color_theme();
+        self.drain_pending_color_palette();
 
         let selection_scrolled = self.tick_text_selection_autoscroll();
         // Only re-inherit when a change can affect inherited content styles.
@@ -719,6 +741,7 @@ impl FrameSource for Applier {
                 label,
                 11.0,
                 600.0,
+                false,
                 None,
                 TextAlign::Start,
                 [255, 255, 255, 255],
@@ -860,6 +883,7 @@ impl FrameSource for Applier {
             widget.set_wake_callback(wake.clone());
         }
         self.runtime.host_message_inbox.set_wake(wake.clone());
+        self.runtime.reload.set_wake(wake.clone());
         self.runtime.effect_bridge.set_wake_callback(wake.clone());
         self.runtime.wake_callback = Some(wake);
     }
@@ -872,6 +896,7 @@ impl FrameSource for Applier {
         // tray/background applications keep responding while their native
         // surface is hidden or has been released.
         let host_messages_pending = self.runtime.host_message_inbox.has_pending();
+        let hmr_pending = self.runtime.reload.is_pending();
         if host_messages_pending {
             self.drain_host_messages();
         }
@@ -920,6 +945,7 @@ impl FrameSource for Applier {
             || was_woken
             || js_progressed
             || host_messages_pending
+            || hmr_pending
             || screenshot_pending
             || overlay_changed
     }
@@ -1016,6 +1042,15 @@ impl FrameSource for Applier {
         if let UiEvent::FileDrop(event) = input {
             return self.handle_file_drop(event);
         }
+        if let UiEvent::Gesture(event) = input {
+            return self.handle_gesture(event);
+        }
+        if let UiEvent::AppLifecycle(event) = input {
+            return self.handle_app_lifecycle(event);
+        }
+        if let UiEvent::ModifiersChanged(modifiers) = input {
+            return self.handle_modifiers_changed(modifiers);
+        }
         if matches!(
             &input,
             UiEvent::Key(_) | UiEvent::TextInput(_) | UiEvent::Ime(_) | UiEvent::Paste(_)
@@ -1034,6 +1069,9 @@ impl FrameSource for Applier {
         }
 
         match input {
+            UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Enter => {
+                self.handle_pointer_enter(pointer)
+            }
             UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Move => {
                 self.handle_pointer_move(pointer)
             }
@@ -1046,13 +1084,19 @@ impl FrameSource for Applier {
             UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Cancel => {
                 self.handle_pointer_cancel(pointer)
             }
+            UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Leave => {
+                self.handle_pointer_leave(pointer)
+            }
             UiEvent::Wheel(wheel) => self.handle_wheel_event(wheel),
             UiEvent::Focus(focused) => self.handle_window_focus(focused),
             UiEvent::Pointer(_)
+            | UiEvent::AppLifecycle(_)
+            | UiEvent::ModifiersChanged(_)
             | UiEvent::Key(_)
             | UiEvent::TextInput(_)
             | UiEvent::Ime(_)
             | UiEvent::Paste(_)
+            | UiEvent::Gesture(_)
             | UiEvent::FileDrop(_)
             | UiEvent::WindowMetrics(_) => EventResponse::IGNORED,
         }
