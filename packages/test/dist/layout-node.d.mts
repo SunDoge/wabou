@@ -11,6 +11,8 @@ interface RenderAppLayoutOptions {
   readonly mode?: string;
   readonly skipBuild?: boolean;
   readonly waitMs?: number;
+  /** Boot the application's Rust host so custom capabilities are available. */
+  readonly withHost?: boolean;
   /** Executable and any fixed prefix arguments. Defaults to `["wabou"]`. */
   readonly command?: readonly string[];
 }

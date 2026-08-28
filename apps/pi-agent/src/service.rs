@@ -49,6 +49,8 @@ const LIST_WORKSPACE_FILES: JsonMethod<WorkspaceFilesRequest, Vec<String>> =
     JsonMethod::new("listWorkspaceFiles");
 const WORKSPACE_INFO: HostMethod<WorkspaceFilesRequest, WorkspaceInfo> =
     HostMethod::new("workspaceInfo");
+const READ_WORKSPACE_FILE: HostMethod<ReadWorkspaceFileRequest, WorkspaceFilePreview> =
+    HostMethod::new("readWorkspaceFile");
 const RESPOND_EXTENSION_UI: JsonMethod<ExtensionUiResponseRequest, ()> =
     JsonMethod::new("respondExtensionUi");
 const LIST_AGENTS: JsonMethod<(), Vec<AgentProfile>> = JsonMethod::no_request("listAgents");
@@ -217,6 +219,54 @@ fn list_workspace_files(root: &std::path::Path) -> Result<Vec<String>, String> {
     Ok(files)
 }
 
+fn read_workspace_file(root: &Path, relative: &Path) -> Result<WorkspaceFilePreview, String> {
+    if relative.is_absolute()
+        || relative.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
+    {
+        return Err(format!(
+            "file path must stay inside the workspace: {}",
+            relative.display()
+        ));
+    }
+    let root = root
+        .canonicalize()
+        .map_err(|error| format!("could not open workspace {}: {error}", root.display()))?;
+    let path = root
+        .join(relative)
+        .canonicalize()
+        .map_err(|error| format!("could not open {}: {error}", relative.display()))?;
+    if !path.starts_with(&root) {
+        return Err(format!(
+            "file path leaves the workspace: {}",
+            relative.display()
+        ));
+    }
+    let metadata = path
+        .metadata()
+        .map_err(|error| format!("could not inspect {}: {error}", relative.display()))?;
+    if !metadata.is_file() || metadata.len() > MAX_CONTEXT_FILE_BYTES {
+        return Err(format!(
+            "preview requires a regular text file under 512 KiB: {}",
+            relative.display()
+        ));
+    }
+    let bytes = std::fs::read(&path)
+        .map_err(|error| format!("could not read {}: {error}", relative.display()))?;
+    let text = String::from_utf8(bytes)
+        .map_err(|_| format!("file is not UTF-8 text: {}", relative.display()))?;
+    Ok(WorkspaceFilePreview {
+        path: relative.display().to_string(),
+        text,
+    })
+}
+
 async fn append_workspace_context(
     message: &str,
     root: &std::path::Path,
@@ -372,6 +422,20 @@ struct ExportSessionRequest {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct WorkspaceFilesRequest {
     cwd: PathBuf,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReadWorkspaceFileRequest {
+    cwd: PathBuf,
+    path: PathBuf,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceFilePreview {
+    path: String,
+    text: String,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -910,6 +974,14 @@ pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::
             tokio::task::spawn_blocking(move || workspace_info(&request.cwd))
                 .await
                 .map_err(|error| format!("workspace status task failed: {error}"))
+        },
+    )?;
+    capability.method(
+        READ_WORKSPACE_FILE,
+        move |request: ReadWorkspaceFileRequest| async move {
+            tokio::task::spawn_blocking(move || read_workspace_file(&request.cwd, &request.path))
+                .await
+                .map_err(|error| format!("workspace file task failed: {error}"))?
         },
     )?;
     capability.json_method(
@@ -1473,6 +1545,26 @@ mod tests {
                 changed_files: 0,
             }
         );
+    }
+
+    #[test]
+    fn workspace_file_preview_is_text_only_and_cannot_escape_the_workspace() {
+        let directory = test_directory("workspace-preview");
+        std::fs::create_dir_all(directory.join("src")).expect("fixture directory");
+        std::fs::write(directory.join("src/main.rs"), "fn main() {}\n").expect("text fixture");
+
+        assert_eq!(
+            read_workspace_file(&directory, Path::new("src/main.rs")).expect("workspace file"),
+            WorkspaceFilePreview {
+                path: "src/main.rs".to_owned(),
+                text: "fn main() {}\n".to_owned(),
+            }
+        );
+        assert!(read_workspace_file(&directory, Path::new("../outside.txt")).is_err());
+        std::fs::write(directory.join("binary"), [0xff, 0xfe]).expect("binary fixture");
+        assert!(read_workspace_file(&directory, Path::new("binary")).is_err());
+
+        let _ = std::fs::remove_dir_all(directory);
     }
 
     #[test]

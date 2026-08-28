@@ -1,7 +1,8 @@
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { defineWabouConfig } from "@wabou/vite";
 
-export default defineWabouConfig({
+export default defineWabouConfig(({ mode }) => ({
+  entry: mode === "layout-test" ? "ui/layout-fixtures.tsx" : "ui/index.tsx",
   vite: {
     plugins: [
       paraglideVitePlugin({
@@ -83,4 +84,4 @@ export default defineWabouConfig({
       },
     },
   },
-});
+}));

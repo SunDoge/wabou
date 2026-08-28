@@ -5,12 +5,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 //#region src/layout-node.ts
 function layoutCommandArgs(options) {
-	const args = [
+	const args = options.withHost ? [
+		"render",
+		options.app,
+		"--out",
+		`${options.out}.png`,
+		"--snapshot",
+		options.out,
+		"--with-host"
+	] : [
 		"layout",
 		options.app,
 		"--out",
 		options.out
 	];
+	if (options.withHost && options.batch !== void 0) throw new Error("host-backed layout does not support batch fixtures");
 	if (options.batch !== void 0) args.push("--batch", options.batch);
 	if (options.width !== void 0) args.push("--width", String(options.width));
 	if (options.height !== void 0) args.push("--height", String(options.height));

@@ -30,7 +30,7 @@ import {
   reducePiEvent,
   reducePiEvents,
 } from "./agent-state";
-import { type PiSession, type WorkspaceInfo, usePiApi } from "./api";
+import { type PiSession, usePiApi, type WorkspaceInfo } from "./api";
 import { CommandPicker } from "./command-picker";
 import {
   ComposerContextFiles,
@@ -85,6 +85,7 @@ import {
   createAgentWorkspace,
   restoreAgentWorkspace,
 } from "./workspace";
+import { WorkspacePanel } from "./workspace-panel";
 import { WorkspaceSetup } from "./workspace-setup";
 
 function ExtensionWindowTitle(props: { title: string }) {
@@ -151,6 +152,7 @@ export function App() {
   const [draftImages, setDraftImages] = createSignal<AgentDraftLists>({});
   const [draftContext, setDraftContext] = createSignal<AgentDraftLists>({});
   const [searchOpen, setSearchOpen] = createSignal(false);
+  const [workspacePanelOpen, setWorkspacePanelOpen] = createSignal(false);
   const [deliveryMode, setDeliveryMode] =
     createSignal<ComposerDeliveryMode>("followUp");
   const [activeSearchItem, setActiveSearchItem] = createSignal<string>();
@@ -794,11 +796,19 @@ export function App() {
                     active().name}
                 </Text>
                 <View class="min-w-0 flex flex-row items-center gap-2">
-                  <Icon source={folder} size={12} class="flex-none text-muted" />
+                  <Icon
+                    source={folder}
+                    size={12}
+                    class="flex-none text-muted"
+                  />
                   <Text class="max-w-64 truncate text-xs text-muted">
                     {active().cwd}
                   </Text>
-                  <Show when={workspaceInfo()?.repository && workspaceInfo()?.branch}>
+                  <Show
+                    when={
+                      workspaceInfo()?.repository && workspaceInfo()?.branch
+                    }
+                  >
                     <Text class="flex-none text-xs text-muted">·</Text>
                     <View class="flex-none flex flex-row items-center gap-1">
                       <Icon source={gitBranch} size={11} class="text-muted" />
@@ -836,6 +846,15 @@ export function App() {
               </Show>
             </View>
             <View class="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={i18n.message(m.workspace_files, {})}
+                aria-pressed={workspacePanelOpen()}
+                onClick={() => setWorkspacePanelOpen((open) => !open)}
+              >
+                <Icon source={folder} size={15} />
+              </Button>
               <ModelControls
                 models={active().state.models}
                 modelProvider={active().state.modelProvider}
@@ -1023,6 +1042,17 @@ export function App() {
             </View>
           </Show>
         </View>
+        <Show when={workspacePanelOpen() && active().cwd.trim()}>
+          <WorkspacePanel
+            cwd={active().cwd}
+            loadFiles={api.listWorkspaceFiles}
+            readFile={api.readWorkspaceFile}
+            addContext={(path) =>
+              setContextFiles([...new Set([...contextFiles(), path])])
+            }
+            close={() => setWorkspacePanelOpen(false)}
+          />
+        </Show>
       </Show>
       <SessionForkDialog
         open={pendingFork() !== undefined}

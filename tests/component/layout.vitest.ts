@@ -188,6 +188,33 @@ test("builds a single-process fixture batch invocation", () => {
   ]);
 });
 
+test("builds a host-backed layout invocation for application capabilities", () => {
+  expect(
+    layoutCommandArgs({
+      app: "apps/pi-agent",
+      out: "/tmp/layout.json",
+      width: 1200,
+      height: 800,
+      withHost: true,
+      waitMs: 100,
+    }),
+  ).toEqual([
+    "render",
+    "apps/pi-agent",
+    "--out",
+    "/tmp/layout.json.png",
+    "--snapshot",
+    "/tmp/layout.json",
+    "--with-host",
+    "--width",
+    "1200",
+    "--height",
+    "800",
+    "--wait-ms",
+    "100",
+  ]);
+});
+
 test("rejects drifted or malformed Rust layout snapshots at the boundary", () => {
   expect(parseLayoutSnapshot(fixture())).toEqual(fixture());
   expect(() =>

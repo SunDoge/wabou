@@ -28,6 +28,8 @@ export interface RenderAppLayoutOptions {
   readonly mode?: string;
   readonly skipBuild?: boolean;
   readonly waitMs?: number;
+  /** Boot the application's Rust host so custom capabilities are available. */
+  readonly withHost?: boolean;
   /** Executable and any fixed prefix arguments. Defaults to `["wabou"]`. */
   readonly command?: readonly string[];
 }
@@ -35,7 +37,19 @@ export interface RenderAppLayoutOptions {
 export function layoutCommandArgs(
   options: RenderAppLayoutOptions,
 ): readonly string[] {
-  const args = ["layout", options.app, "--out", options.out];
+  const args = options.withHost
+    ? [
+        "render",
+        options.app,
+        "--out",
+        `${options.out}.png`,
+        "--snapshot",
+        options.out,
+        "--with-host",
+      ]
+    : ["layout", options.app, "--out", options.out];
+  if (options.withHost && options.batch !== undefined)
+    throw new Error("host-backed layout does not support batch fixtures");
   if (options.batch !== undefined) args.push("--batch", options.batch);
   if (options.width !== undefined) args.push("--width", String(options.width));
   if (options.height !== undefined)
