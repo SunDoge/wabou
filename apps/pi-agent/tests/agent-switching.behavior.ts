@@ -456,6 +456,26 @@ test("attaches a native-picked image to the Pi prompt", async ({
   ).toHaveCount(1, { timeout: 5_000 });
 });
 
+test("cancels a blocking Pi extension request and resumes the agent", async ({
+  page,
+}) => {
+  const composer = page.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+  await composer.type("Exercise extension UI");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Choose fixture mode" });
+  await expect(dialog).toBeInViewport({ timeout: 5_000 });
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+
+  await expect(dialog).toBeAbsent();
+  await expect(
+    page.getByRole("label", { name: "Extension UI selected: cancelled" }),
+  ).toHaveCount(1, { timeout: 5_000 });
+  await expect(page.getByRole("button", { name: "Stop" })).toBeAbsent();
+});
+
 test(
   "browses an isolated workspace and attaches a file as context",
   async ({ page, files }) => {
