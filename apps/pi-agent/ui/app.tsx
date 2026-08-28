@@ -341,6 +341,18 @@ export function App() {
     const id = active().id;
     updateAgent(id, (agent) => ({ ...agent, ...patch }));
   };
+  const prepareDefaultWorkspace = (id: string) => {
+    void api
+      .defaultWorkspace(id)
+      .then((cwd) => {
+        updateAgent(id, (agent) => (agent.cwd ? agent : { ...agent, cwd }));
+      })
+      .catch((error) => {
+        console.error(
+          `[pi-agent] could not prepare the default workspace: ${String(error)}`,
+        );
+      });
+  };
 
   const unsubscribe = api.subscribe(
     (events: readonly Record<string, unknown>[]) => {
@@ -672,18 +684,7 @@ export function App() {
     setAgents((current) => [...current, agent]);
     setLastActiveId(agent.id);
     void navigate({ to: `/agents/${agent.id}` });
-    void api
-      .defaultWorkspace(agent.id)
-      .then((cwd) => {
-        updateAgent(agent.id, (current) =>
-          current.cwd ? current : { ...current, cwd },
-        );
-      })
-      .catch((error) => {
-        console.error(
-          `[pi-agent] could not prepare the default workspace: ${String(error)}`,
-        );
-      });
+    prepareDefaultWorkspace(agent.id);
   };
 
   const deleteActiveAgent = async () => {
@@ -735,6 +736,7 @@ export function App() {
     setAgents(remaining.length > 0 ? remaining : [next]);
     setLastActiveId(next.id);
     await navigate({ to: `/agents/${next.id}` });
+    if (!next.cwd) prepareDefaultWorkspace(next.id);
   };
 
   const selectAgent = (id: string) => {

@@ -63,6 +63,6 @@ test("Pi Agent settings separate project overrides from global network configura
   screen.getByRole("button", { name: "Delete project" }).click();
   const dialog = screen.getByRole("alertdialog", { name: "Delete project" });
   expect(dialog.text).toContain("Delete Build project?");
-  dialog.getByRole("button", { name: "Delete project" }).click();
+  dialog.getByRole("button", { name: "Delete Build project?" }).click();
   expect(deleted).toBe(1);
 });

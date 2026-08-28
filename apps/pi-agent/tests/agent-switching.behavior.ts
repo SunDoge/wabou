@@ -252,4 +252,32 @@ test("recovers after the Pi process exits unexpectedly", async ({ page }) => {
   await page.getByRole("button", { name: "Commands" }).click();
   await expect(page.getByRole("option", { name: "/fixture" })).toBeInViewport();
   await expect(page.getByRole("option", { name: "/subagents" })).toBeAbsent();
+  await page.getByRole("button", { name: "Commands" }).click();
 });
+
+test(
+  "prepares a default workspace after deleting the last project",
+  async ({ page }) => {
+    const deleteCurrentProject = async (name: string) => {
+      await page.getByRole("button", { name: "Settings" }).click();
+      await page.getByRole("heading", { name: "Settings" }).waitFor();
+      await page.getByRole("textbox", { name: "Project name" }).wheel(5_000);
+      await page.getByRole("button", { name: "Delete project" }).click();
+      await page.getByRole("button", { name: `Delete ${name}?` }).click();
+    };
+
+    await deleteCurrentProject("Workspace Agent");
+    await expect(
+      page.getByRole("button", { name: "Project 2" }),
+    ).toBeSelected();
+    await deleteCurrentProject("Project 2");
+
+    await expect(
+      page.getByRole("button", { name: "Project 3" }),
+    ).toBeSelected();
+    await expect(page.getByRole("button", { name: "Start agent" })).toBeEnabled(
+      { timeout: 5_000 },
+    );
+  },
+  { timeout: 15_000 },
+);

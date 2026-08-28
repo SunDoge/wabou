@@ -292,6 +292,9 @@ export function SettingsPage(props: {
                 </AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
+                  aria-label={i18n.message(m.delete_agent_confirm, {
+                    name: props.project.name,
+                  })}
                   onClick={props.deleteProject}
                 >
                   {i18n.message(m.delete_agent, {})}
