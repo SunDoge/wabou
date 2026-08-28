@@ -451,6 +451,11 @@ fn sleep_uses_rquickjs_async_scheduler_and_wakes_host() {
 #[test]
 fn promise_jobs_are_time_sliced() {
     let runtime = JsRuntime::new().expect("runtime");
+    let wake_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let wake_count_for_callback = wake_count.clone();
+    runtime.set_wake_callback(Arc::new(move || {
+        wake_count_for_callback.fetch_add(1, Ordering::Relaxed);
+    }));
     runtime
         .with(|ctx| {
             ctx.eval::<(), _>(
@@ -474,6 +479,11 @@ fn promise_jobs_are_time_sliced() {
         .with(|ctx| ctx.eval::<u32, _>("globalThis.jobCount"))
         .expect("read first slice count");
     assert!(first > 0 && first < 1000, "one poll drained {first} jobs");
+    assert_eq!(
+        wake_count.load(Ordering::Relaxed),
+        0,
+        "a UI-thread time slice must not recursively wake the event-loop proxy",
+    );
 
     while runtime.poll_async_runtime() {}
     let final_count = runtime

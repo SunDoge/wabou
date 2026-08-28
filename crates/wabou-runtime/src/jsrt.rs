@@ -117,8 +117,12 @@ impl HostFrameDisposition {
 }
 
 impl RuntimeWake {
-    fn notify(&self) {
+    fn mark_pending(&self) {
         self.pending.store(true, Ordering::Release);
+    }
+
+    fn notify(&self) {
+        self.mark_pending();
         if let Some(callback) = self.callback.lock().ok().and_then(|slot| slot.clone()) {
             callback();
         }
@@ -823,14 +827,19 @@ impl JsRuntime {
                 }
             }
             if std::time::Instant::now() >= deadline {
-                self.runtime_wake.notify();
+                // We are already on the UI thread. Calling the event-loop
+                // proxy here can create a self-wake storm that starves macOS
+                // RedrawRequested events. The FrameSource return value and
+                // pending bit are sufficient to schedule the next frame.
+                self.runtime_wake.mark_pending();
                 return true;
             }
         }
 
         // The fixed job budget was exhausted. Continue on a fresh event-loop
-        // turn even if no IO waker fires between now and then.
-        self.runtime_wake.notify();
+        // turn even if no IO waker fires between now and then. Do not invoke
+        // the proxy from inside its own callback; the shell observes this bit.
+        self.runtime_wake.mark_pending();
         true
     }
 
