@@ -200,3 +200,19 @@ test("keeps retained layout stable across repeated agent switches", async ({
     }),
   ).toHaveCount(1);
 });
+
+test("recovers after the Pi process exits unexpectedly", async ({ page }) => {
+  const composer = page.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+  await composer.type("Exit fixture");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  const restart = page.getByRole("button", { name: "Start agent" });
+  await expect(restart).toBeEnabled({ timeout: 5_000 });
+  await restart.click();
+  await expect(composer).toBeInViewport({ timeout: 5_000 });
+  await expect(
+    page.getByRole("combobox", { name: "Choose model" }),
+  ).toBeEnabled();
+});

@@ -107,6 +107,9 @@ fn answer_prompt(state: &mut FixtureState, message: &str) -> io::Result<()> {
         "type":"message_start",
         "message":{"role":"assistant","content":[]}
     }))?;
+    if message == "Exit fixture" {
+        return Err(io::Error::other("deterministic fixture process exit"));
+    }
     if message == "Wait for abort" {
         state.pending_response = true;
         return emit(&json!({
