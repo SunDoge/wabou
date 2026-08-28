@@ -294,6 +294,7 @@ pub struct TerminalWidget {
     explicit_line_height: Option<f32>,
     focused: bool,
     cursor_on: bool,
+    cursor_blink: Option<bool>,
     next_cursor_blink: Option<Instant>,
     spawn_error: Option<String>,
     selecting: bool,
@@ -372,6 +373,7 @@ impl TerminalWidget {
             explicit_line_height: None,
             focused: false,
             cursor_on: true,
+            cursor_blink: None,
             next_cursor_blink: None,
             spawn_error: None,
             selecting: false,
@@ -788,10 +790,8 @@ impl TerminalWidget {
                 );
             }
             RioEvent::CursorBlinkingChange | RioEvent::CursorBlinkingChangeOnRoute(_) => {
-                self.cursor_on = true;
-                let blinking = self.terminal.lock().blinking_cursor;
-                self.next_cursor_blink =
-                    (self.focused && blinking).then(|| Instant::now() + Duration::from_millis(500));
+                let terminal_blinking = self.terminal.lock().blinking_cursor;
+                self.schedule_cursor_blink(terminal_blinking);
                 return true;
             }
             RioEvent::Bell => {

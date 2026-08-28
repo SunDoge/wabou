@@ -683,6 +683,55 @@ fn cursor_blink_mode_and_bell_reach_the_frontend() {
 }
 
 #[test]
+fn cursor_blink_override_can_keep_live_terminals_stable() {
+    let mut widget = TerminalWidget::headless(20, 4);
+    widget.focus_changed(true);
+    widget.feed(b"\x1b[1 q");
+    assert!(widget.poll_async());
+    assert!(widget.next_cursor_blink.is_some());
+
+    widget.attribute_changed("cursor-blink", "false");
+    assert!(widget.cursor_on);
+    assert!(widget.next_cursor_blink.is_none());
+
+    widget.attribute_removed("cursor-blink");
+    assert!(widget.next_cursor_blink.is_some());
+}
+
+#[test]
+fn cursor_blink_frames_retain_terminal_background_and_text() {
+    use anyrender::recording::RenderCommand;
+
+    let mut widget = TerminalWidget::headless(20, 4);
+    widget.feed(b"steady text\x1b[1 q");
+    widget.focus_changed(true);
+    let mut tcx = TextContext::new();
+    let visible = widget.paint(
+        DEFAULT_CELL_WIDTH * 20.0,
+        DEFAULT_LINE_HEIGHT * 4.0,
+        &mut tcx,
+    );
+    widget.cursor_on = false;
+    let hidden = widget.paint(
+        DEFAULT_CELL_WIDTH * 20.0,
+        DEFAULT_LINE_HEIGHT * 4.0,
+        &mut tcx,
+    );
+    let stable_commands = |scene: &Scene| {
+        scene
+            .commands
+            .iter()
+            .filter(|command| {
+                matches!(command, RenderCommand::Fill(_) | RenderCommand::GlyphRun(_))
+            })
+            .count()
+    };
+
+    assert!(stable_commands(&visible) > 1);
+    assert_eq!(stable_commands(&visible), stable_commands(&hidden) + 1);
+}
+
+#[test]
 fn cursor_visual_stays_hollow_when_terminal_is_unfocused() {
     let cell = Rect::new(10.5, 20.5, 17.5, 37.5);
     assert_eq!(

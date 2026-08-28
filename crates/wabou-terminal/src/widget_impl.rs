@@ -41,6 +41,17 @@ fn terminal_scene(width: f32, height: f32, background: Color) -> Scene {
 }
 
 impl TerminalWidget {
+    fn cursor_blinking(&self, terminal_blinking: bool) -> bool {
+        self.cursor_blink.unwrap_or(terminal_blinking)
+    }
+
+    pub(super) fn schedule_cursor_blink(&mut self, terminal_blinking: bool) {
+        let blinking =
+            self.focused && !self.exit_reported && self.cursor_blinking(terminal_blinking);
+        self.cursor_on = true;
+        self.next_cursor_blink = blinking.then(|| Instant::now() + Duration::from_millis(500));
+    }
+
     fn draw_visible_rows(
         &self,
         context: &mut RowPaintContext<'_>,
@@ -715,6 +726,11 @@ impl Widget for TerminalWidget {
             "allow-clipboard-read" => {
                 self.allow_clipboard_read = matches!(value, "" | "true" | "1");
             }
+            "cursor-blink" => {
+                self.cursor_blink = Some(matches!(value, "" | "true" | "1"));
+                let terminal_blinking = self.terminal.lock().blinking_cursor;
+                self.schedule_cursor_blink(terminal_blinking);
+            }
             "sync-window-title" => {
                 let enabled = matches!(value, "" | "true" | "1");
                 if self.sync_window_title && !enabled {
@@ -751,7 +767,8 @@ impl Widget for TerminalWidget {
             | "cwd"
             | "selection-background"
             | "selection-foreground"
-            | "inherit-theme" => WidgetChanges::REDRAW,
+            | "inherit-theme"
+            | "cursor-blink" => WidgetChanges::REDRAW,
             _ => WidgetChanges::empty(),
         }
     }
@@ -822,10 +839,10 @@ impl Widget for TerminalWidget {
         self.focused = focused;
         self.cursor_on = true;
         let terminal = self.terminal.lock();
-        self.next_cursor_blink = (focused && !self.exit_reported && terminal.blinking_cursor)
-            .then(|| Instant::now() + Duration::from_millis(500));
+        let terminal_blinking = terminal.blinking_cursor;
         let report_focus = terminal.mode().contains(Mode::FOCUS_IN_OUT);
         drop(terminal);
+        self.schedule_cursor_blink(terminal_blinking);
         if report_focus && !self.exit_reported {
             self.send_bytes(if focused {
                 b"\x1b[I".to_vec()
@@ -888,6 +905,11 @@ impl Widget for TerminalWidget {
                 );
             }
             "allow-clipboard-read" => self.allow_clipboard_read = false,
+            "cursor-blink" => {
+                self.cursor_blink = None;
+                let terminal_blinking = self.terminal.lock().blinking_cursor;
+                self.schedule_cursor_blink(terminal_blinking);
+            }
             "sync-window-title" => {
                 if self.sync_window_title {
                     self.pending_host_actions
@@ -927,7 +949,8 @@ impl Widget for TerminalWidget {
             | "cwd"
             | "selection-background"
             | "selection-foreground"
-            | "inherit-theme" => WidgetChanges::REDRAW,
+            | "inherit-theme"
+            | "cursor-blink" => WidgetChanges::REDRAW,
             _ => WidgetChanges::empty(),
         }
     }

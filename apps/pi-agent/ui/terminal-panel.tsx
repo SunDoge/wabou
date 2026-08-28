@@ -174,6 +174,7 @@ export function AgentTerminalPanel(
                   fontFamily="Hack Nerd Font Mono"
                   fontSize="13px"
                   lineHeight="19px"
+                  cursorBlink={false}
                   selectionBackground="#2563eb80"
                   onTerminalTitleChange={(event) =>
                     updateTab(tab.id, {
