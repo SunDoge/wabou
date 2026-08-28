@@ -28,6 +28,7 @@ import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { AgentActivityStatus } from "./agent-activity";
 import {
   appendUserMessage,
+  reconcileProcessConnection,
   reducePiEvent,
   reducePiEvents,
 } from "./agent-state";
@@ -512,7 +513,10 @@ export function App() {
               cwd: status.cwd ?? agent.cwd,
               state: {
                 ...agent.state,
-                connection: status.running ? "ready" : "stopped",
+                connection: reconcileProcessConnection(
+                  agent.state.connection,
+                  status.running,
+                ),
                 error: status.error,
               },
             }));
@@ -915,20 +919,21 @@ export function App() {
                     <Icon source={gitBranch} size={15} />
                   </Button>
                 </Show>
-                <ModelControls
-                  models={active().state.models}
-                  modelProvider={active().state.modelProvider}
-                  modelId={active().state.modelId}
-                  thinking={active().state.thinking}
-                  thinkingLevels={active().state.availableThinkingLevels}
-                  disabled={active().state.connection !== "ready"}
-                  chooseModel={(provider, modelId) =>
-                    void api.setModel(active().id, provider, modelId)
-                  }
-                  chooseThinking={(level) =>
-                    void api.setThinking(active().id, level)
-                  }
-                />
+                <Show when={active().state.connection === "ready"}>
+                  <ModelControls
+                    models={active().state.models}
+                    modelProvider={active().state.modelProvider}
+                    modelId={active().state.modelId}
+                    thinking={active().state.thinking}
+                    thinkingLevels={active().state.availableThinkingLevels}
+                    chooseModel={(provider, modelId) =>
+                      void api.setModel(active().id, provider, modelId)
+                    }
+                    chooseThinking={(level) =>
+                      void api.setThinking(active().id, level)
+                    }
+                  />
+                </Show>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -939,24 +944,22 @@ export function App() {
                 >
                   <Icon source={search} size={15} />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={i18n.message(m.new_session, {})}
-                  disabled={active().state.connection !== "ready"}
-                  onClick={() => void api.newSession(active().id)}
-                >
-                  <Icon source={filePlus} size={15} />
-                </Button>
-                <SessionActions
-                  disabled={
-                    active().state.connection !== "ready" ||
-                    !active().state.sessionId
-                  }
-                  compact={() => void api.compactSession(active().id)}
-                  clone={() => void api.cloneSession(active().id)}
-                  exportHtml={() => void exportActiveSession()}
-                />
+                <Show when={active().state.connection === "ready"}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={i18n.message(m.new_session, {})}
+                    onClick={() => void api.newSession(active().id)}
+                  >
+                    <Icon source={filePlus} size={15} />
+                  </Button>
+                  <SessionActions
+                    disabled={!active().state.sessionId}
+                    compact={() => void api.compactSession(active().id)}
+                    clone={() => void api.cloneSession(active().id)}
+                    exportHtml={() => void exportActiveSession()}
+                  />
+                </Show>
                 <Show when={active().state.connection === "running"}>
                   <Button
                     variant="outline"

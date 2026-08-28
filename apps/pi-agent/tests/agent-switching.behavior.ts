@@ -130,6 +130,24 @@ test("creates a fresh session and restores the previous transcript", async ({
   ).toHaveCount(1, { timeout: 5_000 });
 });
 
+test("aborts a running response and returns the session to ready", async ({
+  page,
+}) => {
+  const composer = page.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+  await composer.type("Wait for abort");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  const stop = page.getByRole("button", { name: "Stop" });
+  await expect(stop).toBeEnabled({ timeout: 5_000 });
+  await stop.click();
+  await expect(stop).toBeAbsent({ timeout: 5_000 });
+  await expect(
+    page.getByRole("combobox", { name: "Choose model" }),
+  ).toBeEnabled();
+});
+
 test("opens and closes an embedded native terminal panel", async ({ page }) => {
   const toggle = page.getByRole("button", { name: "Toggle terminal" });
   await expect(toggle).toBeEnabled();

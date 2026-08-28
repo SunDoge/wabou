@@ -1,6 +1,15 @@
 import { match, P } from "ts-pattern";
 
 export type AgentConnection = "stopped" | "ready" | "running" | "failed";
+
+/** Reconcile a process liveness snapshot without erasing newer RPC activity. */
+export function reconcileProcessConnection(
+  current: AgentConnection,
+  processRunning: boolean,
+): AgentConnection {
+  if (!processRunning) return "stopped";
+  return current === "running" ? "running" : "ready";
+}
 export type AgentQueueMode = "all" | "one-at-a-time";
 export type AgentActivity =
   | { kind: "responding" }

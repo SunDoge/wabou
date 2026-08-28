@@ -2,11 +2,18 @@ import { describe, expect, test } from "vitest";
 import {
   appendUserMessage,
   initialAgentState,
+  reconcileProcessConnection,
   reducePiEvent,
   reducePiEvents,
 } from "./agent-state";
 
 describe("Pi agent event projection", () => {
+  test("does not let a stale process status erase active response state", () => {
+    expect(reconcileProcessConnection("running", true)).toBe("running");
+    expect(reconcileProcessConnection("stopped", true)).toBe("ready");
+    expect(reconcileProcessConnection("running", false)).toBe("stopped");
+  });
+
   test("streams an assistant message without duplicating it", () => {
     let state = appendUserMessage(initialAgentState, "user-1", "hello");
     state = reducePiEvent(state, { type: "agent_start" });

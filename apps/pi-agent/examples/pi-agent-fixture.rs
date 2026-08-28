@@ -15,6 +15,7 @@ struct FixtureState {
     session_file: PathBuf,
     last_prompt: Option<String>,
     session_serial: u32,
+    pending_response: bool,
 }
 
 impl FixtureState {
@@ -53,6 +54,7 @@ impl FixtureState {
             session_file,
             last_prompt,
             session_serial,
+            pending_response: false,
         })
     }
 
@@ -68,6 +70,7 @@ impl FixtureState {
         self.session_file = std::env::current_dir()?.join(format!("{}.jsonl", self.session_id));
         write(&self.session_file, [])?;
         self.last_prompt = None;
+        self.pending_response = false;
         Ok(())
     }
 }
@@ -99,12 +102,22 @@ fn response(request: &Value, data: Value) -> io::Result<()> {
 }
 
 fn answer_prompt(state: &mut FixtureState, message: &str) -> io::Result<()> {
-    state.persist_prompt(message)?;
     emit(&json!({"type":"agent_start"}))?;
     emit(&json!({
         "type":"message_start",
         "message":{"role":"assistant","content":[]}
     }))?;
+    if message == "Wait for abort" {
+        state.pending_response = true;
+        return emit(&json!({
+            "type":"message_update",
+            "assistantMessageEvent":{
+                "type":"thinking_delta",
+                "delta":"Waiting for the deterministic abort request."
+            }
+        }));
+    }
+    state.persist_prompt(message)?;
     emit(&json!({
         "type":"message_update",
         "assistantMessageEvent":{
@@ -242,7 +255,14 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
                 "sessionId":state.session_id
             }))
         }
-        "abort" => emit(&json!({"type":"agent_settled"})),
+        "abort" => {
+            if state.pending_response {
+                state.pending_response = false;
+                emit(&json!({"type":"message_end"}))?;
+                emit(&json!({"type":"agent_end"}))?;
+            }
+            emit(&json!({"type":"agent_settled"}))
+        }
         _ => response(request, json!({})),
     }
 }
