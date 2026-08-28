@@ -88,9 +88,10 @@ import {
 import { WorkspaceSetup } from "./workspace-setup";
 
 function ExtensionWindowTitle(props: { title: string }) {
-  createEffect(() => {
-    currentWindow().setTitle(props.title);
-  });
+  createEffect(
+    () => props.title,
+    (title) => currentWindow().setTitle(title),
+  );
   return null;
 }
 
