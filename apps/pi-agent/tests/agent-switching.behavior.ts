@@ -27,6 +27,12 @@ test("opens and closes an embedded native terminal panel", async ({ page }) => {
     page.getByRole("tablist", { name: "Terminal sessions" }),
   ).toHaveCount(1);
 
+  const terminal = page.getByRole("textbox", { name: "Terminal 1" });
+  await terminal.type("printf wabou-terminal-ready");
+  await terminal.press("Enter");
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  await expect(terminal).toBeFocused();
+
   await page.getByRole("button", { name: "Close terminal panel" }).click();
   await expect(toggle).toBeUnpressed();
   await expect(

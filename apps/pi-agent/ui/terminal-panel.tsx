@@ -11,13 +11,22 @@ import {
 import plus from "lucide-static/icons/plus.svg?raw";
 import squareTerminal from "lucide-static/icons/square-terminal.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import { createEffect, createSignal, For, untrack } from "solid-js";
+import {
+  type Accessor,
+  createEffect,
+  createSignal,
+  For,
+  type Setter,
+  untrack,
+} from "solid-js";
 
 interface TerminalTab {
   id: number;
   cwd: string;
-  title: string;
-  exited: boolean;
+  title: Accessor<string>;
+  setTitle: Setter<string>;
+  exited: Accessor<boolean>;
+  setExited: Setter<boolean>;
 }
 
 export interface AgentTerminalPanelProps {
@@ -32,18 +41,19 @@ function workspaceName(cwd: string): string {
   return normalized.split(/[\\/]/).pop() || "Shell";
 }
 
+function createTerminalTab(id: number, cwd: string): TerminalTab {
+  const [title, setTitle] = createSignal(workspaceName(cwd));
+  const [exited, setExited] = createSignal(false);
+  return { id, cwd, title, setTitle, exited, setExited };
+}
+
 export function AgentTerminalPanel(
   props: AgentTerminalPanelProps,
 ): ReturnType<typeof View> {
   let nextId = 2;
   const initialCwd = untrack(() => props.cwd);
   const [tabs, setTabs] = createSignal<readonly TerminalTab[]>([
-    {
-      id: 1,
-      cwd: initialCwd,
-      title: workspaceName(initialCwd),
-      exited: false,
-    },
+    createTerminalTab(1, initialCwd),
   ]);
   const [activeId, setActiveId] = createSignal<number>(1);
   const handles = new Map<number, Handle>();
@@ -53,12 +63,7 @@ export function AgentTerminalPanel(
   };
   const addTab = () => {
     const id = nextId++;
-    const tab: TerminalTab = {
-      id,
-      cwd: props.cwd,
-      title: workspaceName(props.cwd),
-      exited: false,
-    };
+    const tab = createTerminalTab(id, props.cwd);
     setTabs((current) => [...current, tab]);
     setActiveId(id);
   };
@@ -74,11 +79,8 @@ export function AgentTerminalPanel(
     }
     if (remaining.length === 0) props.dispose();
   };
-  const updateTab = (id: number, patch: Partial<TerminalTab>) => {
-    setTabs((current) =>
-      current.map((tab) => (tab.id === id ? { ...tab, ...patch } : tab)),
-    );
-  };
+  const updateTitle = (tab: TerminalTab, title: string) =>
+    tab.setTitle((current) => (current === title ? current : title));
 
   createEffect(
     () => activeId(),
@@ -112,13 +114,13 @@ export function AgentTerminalPanel(
               >
                 <Icon source={squareTerminal} size={13} class="flex-none" />
                 <Text class="min-w-0 flex-1 truncate">
-                  {tab.title}
-                  {tab.exited ? " · exited" : ""}
+                  {tab.title()}
+                  {tab.exited() ? " · exited" : ""}
                 </Text>
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label={`Close terminal ${tab.title}`}
+                  aria-label={`Close terminal ${tab.title()}`}
                   class="w-5 h-5 flex-none text-slate-400"
                   style={{ padding: 0 }}
                   onClick={(event) => {
@@ -158,7 +160,7 @@ export function AgentTerminalPanel(
               <View
                 {...trigger}
                 role="group"
-                aria-label={`${tab.title} terminal surface`}
+                aria-label={`Terminal ${tab.id} surface`}
                 class="w-full h-full"
                 style={{ display: activeId() === tab.id ? "flex" : "none" }}
               >
@@ -167,7 +169,7 @@ export function AgentTerminalPanel(
                     handles.set(tab.id, node);
                     if (untrack(activeId) === tab.id) focusTerminal(tab.id);
                   }}
-                  aria-label={`${tab.title} terminal`}
+                  aria-label={`Terminal ${tab.id}`}
                   cwd={tab.cwd}
                   class="w-full h-full overflow-hidden rounded-md bg-slate-950 text-slate-200"
                   inheritTheme
@@ -177,11 +179,12 @@ export function AgentTerminalPanel(
                   cursorBlink={false}
                   selectionBackground="#2563eb80"
                   onTerminalTitleChange={(event) =>
-                    updateTab(tab.id, {
-                      title: event.title?.trim() || workspaceName(tab.cwd),
-                    })
+                    updateTitle(
+                      tab,
+                      event.title?.trim() || workspaceName(tab.cwd),
+                    )
                   }
-                  onTerminalExit={() => updateTab(tab.id, { exited: true })}
+                  onTerminalExit={() => tab.setExited(true)}
                 />
               </View>
             );

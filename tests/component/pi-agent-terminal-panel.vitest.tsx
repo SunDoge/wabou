@@ -49,13 +49,11 @@ test("offers terminal lifecycle actions from a secondary click", () => {
     />
   ));
 
-  screen.getByRole("group", { name: "alpha terminal surface" }).contextMenu();
+  screen.getByRole("group", { name: "Terminal 1 surface" }).contextMenu();
   screen.getByRole("menuitem", { name: "New terminal" }).click();
   expect(screen.getAllByRole("tab")).toHaveLength(2);
 
-  screen
-    .getByRole("group", { name: "alpha terminal surface", index: 0 })
-    .contextMenu();
+  screen.getByRole("group", { name: "Terminal 1 surface" }).contextMenu();
   screen.getByRole("menuitem", { name: "Close terminal" }).click();
   expect(screen.getAllByRole("tab")).toHaveLength(1);
 });
