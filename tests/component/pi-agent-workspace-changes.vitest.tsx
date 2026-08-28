@@ -22,6 +22,7 @@ test("Pi workspace changes load as a collapsed localized summary", async () => {
     expect(screen.getByRole("button", { name: "src/main.rs" })).toBeDefined(),
   );
   expect(load).toHaveBeenCalledWith("/work/wabou");
+  expect(load).toHaveBeenCalledTimes(1);
   expect(screen.getByRole("region", { name: "Technical diff" }).text).toContain(
     "1 file changed",
   );

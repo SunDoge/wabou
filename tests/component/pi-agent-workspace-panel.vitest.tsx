@@ -4,6 +4,7 @@ import { WorkspacePanel } from "../../apps/pi-agent/ui/workspace-panel";
 
 test("workspace panel filters, previews, and attaches a file", async () => {
   const addContext = vi.fn();
+  const loadFiles = vi.fn(async () => ["README.md", "src/index.ts"]);
   const readFile = vi.fn(async (_cwd: string, path: string) => ({
     path,
     text: path.endsWith(".md") ? "# Guide\n\nHello" : "export const value = 1;",
@@ -11,7 +12,7 @@ test("workspace panel filters, previews, and attaches a file", async () => {
   const screen = renderComponent(() => (
     <WorkspacePanel
       cwd="/work/project"
-      loadFiles={async () => ["README.md", "src/index.ts"]}
+      loadFiles={loadFiles}
       readFile={readFile}
       addContext={addContext}
       close={() => {}}
@@ -21,6 +22,7 @@ test("workspace panel filters, previews, and attaches a file", async () => {
   await screen.waitFor(() =>
     expect(screen.getByRole("button", { name: "src/index.ts" })).toBeDefined(),
   );
+  expect(loadFiles).toHaveBeenCalledTimes(1);
   screen
     .getByRole("textbox", { name: "Search workspace files" })
     .input("index");

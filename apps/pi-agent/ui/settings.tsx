@@ -84,6 +84,7 @@ export function SettingsPage(props: {
             <Field>
               <FieldLabel>{i18n.message(m.workspace, {})}</FieldLabel>
               <DirectoryPicker
+                aria-label={i18n.message(m.workspace, {})}
                 value={props.project.cwd}
                 onValueChange={(cwd) => props.updateProject({ cwd })}
                 placeholder={i18n.message(m.choose_repository, {})}

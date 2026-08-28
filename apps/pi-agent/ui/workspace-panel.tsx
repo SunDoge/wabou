@@ -1,6 +1,7 @@
 import {
   Button,
   CodeBlock,
+  createLatestAsyncResource,
   Icon,
   Markdown,
   ScrollArea,
@@ -11,7 +12,13 @@ import {
 import file from "lucide-static/icons/file.svg?raw";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import { createEffect, createMemo, createSignal, For as ForValue, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For as ForValue,
+  Show,
+} from "solid-js";
 import type { WorkspaceFilePreview } from "./api";
 import { i18n, m } from "./i18n";
 
@@ -27,60 +34,55 @@ const basename = (path: string) => path.split(/[\\/]/).at(-1) ?? path;
 const extension = (path: string) => path.split(".").at(-1)?.toLowerCase();
 
 export function WorkspacePanel(props: WorkspacePanelProps) {
-  const [files, setFiles] = createSignal<readonly string[]>([]);
   const [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal("");
   const [preview, setPreview] = createSignal<WorkspaceFilePreview>();
-  const [loading, setLoading] = createSignal(true);
-  const [error, setError] = createSignal("");
-  let loadRevision = 0;
+  const [previewLoading, setPreviewLoading] = createSignal(false);
+  const [previewError, setPreviewError] = createSignal("");
+  let previewRevision = 0;
+  let currentCwd: string | undefined;
 
+  const files = createLatestAsyncResource({
+    source: () => props.cwd,
+    load: (cwd) => props.loadFiles(cwd),
+  });
   createEffect(
     () => props.cwd,
     (cwd) => {
-      const revision = ++loadRevision;
-      setLoading(true);
-      setError("");
-      setFiles([]);
+      if (cwd === currentCwd) return;
+      currentCwd = cwd;
+      previewRevision++;
       setSelected("");
       setPreview(undefined);
-      void props
-        .loadFiles(cwd)
-        .then((next) => {
-          if (revision === loadRevision) setFiles(next);
-        })
-        .catch((reason) => {
-          if (revision === loadRevision) setError(String(reason));
-        })
-        .finally(() => {
-          if (revision === loadRevision) setLoading(false);
-        });
+      setPreviewLoading(false);
+      setPreviewError("");
     },
   );
 
   const filtered = createMemo(() => {
     const needle = query().trim().toLowerCase();
+    const available = files.value() ?? [];
     return needle
-      ? files().filter((path) => path.toLowerCase().includes(needle))
-      : files();
+      ? available.filter((path) => path.toLowerCase().includes(needle))
+      : available;
   });
 
   const choose = (path: string) => {
-    const revision = ++loadRevision;
+    const revision = ++previewRevision;
     setSelected(path);
     setPreview(undefined);
-    setLoading(true);
-    setError("");
+    setPreviewLoading(true);
+    setPreviewError("");
     void props
       .readFile(props.cwd, path)
       .then((next) => {
-        if (revision === loadRevision) setPreview(next);
+        if (revision === previewRevision) setPreview(next);
       })
       .catch((reason) => {
-        if (revision === loadRevision) setError(String(reason));
+        if (revision === previewRevision) setPreviewError(String(reason));
       })
       .finally(() => {
-        if (revision === loadRevision) setLoading(false);
+        if (revision === previewRevision) setPreviewLoading(false);
       });
   };
 
@@ -116,7 +118,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
         <View class="h-56 flex-none min-h-0 rounded-lg border border-subtle overflow-hidden">
           <ScrollArea class="h-full" contentClass="p-1 gap-0.5">
             <Show
-              when={!loading() || files().length > 0}
+              when={!files.loading() || (files.value()?.length ?? 0) > 0}
               fallback={
                 <Text role="status" class="p-3 text-sm text-muted">
                   {i18n.message(m.loading_files, {})}
@@ -154,13 +156,13 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
           </ScrollArea>
         </View>
         <View class="flex-1 min-h-0 flex flex-col gap-2">
-          <Show when={error()}>
+          <Show when={files.error() ?? previewError()}>
             <Text role="alert" class="text-sm text-danger-primary">
-              {error()}
+              {String(files.error() ?? previewError())}
             </Text>
           </Show>
           <Show
-            when={preview()}
+            when={!previewLoading() && preview()}
             fallback={
               <Text class="p-3 text-sm text-muted">
                 {i18n.message(m.select_file_preview, {})}

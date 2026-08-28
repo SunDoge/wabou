@@ -46,8 +46,8 @@ const FORK: JsonMethod<ForkRequest, ()> = JsonMethod::new("fork");
 const CLONE_SESSION: JsonMethod<AgentRequest, ()> = JsonMethod::new("cloneSession");
 const COMPACT_SESSION: JsonMethod<AgentRequest, ()> = JsonMethod::new("compactSession");
 const EXPORT_SESSION: JsonMethod<ExportSessionRequest, ()> = JsonMethod::new("exportSession");
-const LIST_WORKSPACE_FILES: JsonMethod<WorkspaceFilesRequest, Vec<String>> =
-    JsonMethod::new("listWorkspaceFiles");
+const LIST_WORKSPACE_FILES: HostMethod<WorkspaceFilesRequest, Vec<String>> =
+    HostMethod::new("listWorkspaceFiles");
 const WORKSPACE_INFO: HostMethod<WorkspaceFilesRequest, WorkspaceInfo> =
     HostMethod::new("workspaceInfo");
 const READ_WORKSPACE_FILE: HostMethod<ReadWorkspaceFileRequest, WorkspaceFilePreview> =
@@ -1262,7 +1262,7 @@ pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::
                 .map_err(|error| format!("workspace changes task failed: {error}"))?
         },
     )?;
-    capability.json_method(
+    capability.method(
         LIST_WORKSPACE_FILES,
         move |request: WorkspaceFilesRequest| async move {
             tokio::task::spawn_blocking(move || list_workspace_files(&request.cwd))

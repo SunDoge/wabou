@@ -90,7 +90,9 @@ interface PiCapability extends NativeJsonCapability {
   cloneSession(request: string): string | PromiseLike<string>;
   compactSession(request: string): string | PromiseLike<string>;
   exportSession(request: string): string | PromiseLike<string>;
-  listWorkspaceFiles(request: string): string | PromiseLike<string>;
+  listWorkspaceFiles(request: {
+    cwd: string;
+  }): string[] | PromiseLike<string[]>;
   workspaceInfo(request: {
     cwd: string;
   }): WorkspaceInfo | PromiseLike<WorkspaceInfo>;
@@ -181,8 +183,8 @@ export function usePiApi() {
       call<void>("compactSession", { agentId }),
     exportSession: (agentId: string, outputPath: string) =>
       call<void>("exportSession", { agentId, outputPath }),
-    listWorkspaceFiles: (cwd: string) =>
-      call<string[]>("listWorkspaceFiles", { cwd }),
+    listWorkspaceFiles: async (cwd: string) =>
+      capability.listWorkspaceFiles({ cwd }),
     workspaceInfo: async (cwd: string) => capability.workspaceInfo({ cwd }),
     readWorkspaceFile: async (cwd: string, path: string) =>
       capability.readWorkspaceFile({ cwd, path }),

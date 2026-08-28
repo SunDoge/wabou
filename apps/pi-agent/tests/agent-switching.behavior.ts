@@ -234,6 +234,59 @@ test("keeps retained layout stable across repeated agent switches", async ({
   ).toHaveCount(1);
 });
 
+test(
+  "browses an isolated workspace and attaches a file as context",
+  async ({ page, files }) => {
+    const fixturePath = files.writeText(
+      "project-two/README.md",
+      "# Project two\n\nA deterministic workspace fixture.\n",
+    );
+    const workspace = fixturePath.replace(/[\\/][^\\/]+$/, "");
+
+    await page.getByRole("button", { name: "Project 2" }).click();
+    await page.getByRole("button", { name: "Settings" }).click();
+    const workspaceInput = page.getByRole("textbox", { name: "Workspace" });
+    await workspaceInput.click();
+    await workspaceInput.press("a", { control: true });
+    await workspaceInput.type(workspace);
+    await expect(workspaceInput).toHaveValue(workspace);
+    await page.getByRole("button", { name: "Back to projects" }).click();
+
+    await page.getByRole("button", { name: "Start agent" }).click();
+    await page
+      .getByRole("textbox", {
+        name: "Ask this agent to work in its repository…",
+      })
+      .waitFor({ timeout: 5_000 });
+
+    await page.getByRole("button", { name: "Workspace files" }).click();
+    const panel = page.getByRole("region", { name: "Workspace files" });
+    await expect(panel).toBeInViewport();
+    const readme = panel.getByRole("button", { name: "README.md" });
+    await expect(readme).toHaveCount(1, { timeout: 5_000 });
+    await readme.click();
+    const addToContext = panel.getByRole("button", {
+      name: "Add to context",
+    });
+    await expect(addToContext).toHaveCount(1, { timeout: 5_000 });
+    await addToContext.click();
+    await expect(
+      page.getByRole("group", { name: "Context files" }),
+    ).toHaveCount(1);
+    await expect(
+      page.getByRole("button", { name: "Remove README.md" }),
+    ).toHaveCount(1);
+    await panel.getByRole("button", { name: "Close workspace files" }).click();
+    await expect(panel).toBeAbsent();
+
+    await page.getByRole("button", { name: "Workspace Agent" }).click();
+    await expect(
+      page.getByRole("button", { name: "Workspace Agent" }),
+    ).toBeSelected();
+  },
+  { timeout: 10_000 },
+);
+
 test("recovers after the Pi process exits unexpectedly", async ({ page }) => {
   const composer = page.getByRole("textbox", {
     name: "Ask this agent to work in its repository…",

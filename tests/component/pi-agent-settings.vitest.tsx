@@ -44,9 +44,11 @@ test("Pi Agent settings separate project overrides from global network configura
 
   screen.getByRole("textbox", { name: "Project name" }).input("Build project");
   expect(agent().name).toBe("Build project");
+  screen.getByRole("textbox", { name: "Workspace" }).input("/tmp/project");
   screen.getByRole("textbox", { name: "Provider" }).input("openai");
   screen.getByRole("textbox", { name: "Model" }).input("gpt-5");
   expect(agent()).toMatchObject({
+    cwd: "/tmp/project",
     provider: "openai",
     model: "gpt-5",
   });

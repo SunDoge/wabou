@@ -1,6 +1,14 @@
-import { Button, DiffViewer, Icon, ScrollArea, Text, View } from "@wabou/ui";
+import {
+  Button,
+  createLatestAsyncResource,
+  DiffViewer,
+  Icon,
+  ScrollArea,
+  Text,
+  View,
+} from "@wabou/ui";
 import x from "lucide-static/icons/x.svg?raw";
-import { createEffect, createSignal, Show } from "solid-js";
+import { Show } from "solid-js";
 import type { WorkspaceChanges } from "./api";
 import { i18n, m } from "./i18n";
 
@@ -12,27 +20,10 @@ export interface WorkspaceChangesPanelProps {
 }
 
 export function WorkspaceChangesPanel(props: WorkspaceChangesPanelProps) {
-  const [changes, setChanges] = createSignal<WorkspaceChanges>();
-  const [error, setError] = createSignal("");
-  let revision = 0;
-
-  createEffect(
-    () => `${props.cwd}\0${props.revision ?? 0}`,
-    () => {
-      const cwd = props.cwd;
-      const request = ++revision;
-      setChanges(undefined);
-      setError("");
-      void props
-        .load(cwd)
-        .then((value) => {
-          if (request === revision) setChanges(value);
-        })
-        .catch((reason) => {
-          if (request === revision) setError(String(reason));
-        });
-    },
-  );
+  const changes = createLatestAsyncResource<string, WorkspaceChanges>({
+    source: () => `${props.cwd}\0${props.revision ?? 0}`,
+    load: (key) => props.load(key.slice(0, key.lastIndexOf("\0"))),
+  });
 
   return (
     <View
@@ -56,15 +47,15 @@ export function WorkspaceChangesPanel(props: WorkspaceChangesPanelProps) {
       </View>
       <ScrollArea class="flex-1 min-h-0" contentClass="p-3">
         <Show
-          when={!error()}
+          when={!changes.error()}
           fallback={
             <Text role="alert" class="text-sm text-danger-primary">
-              {error()}
+              {String(changes.error())}
             </Text>
           }
         >
           <Show
-            when={changes()}
+            when={changes.value()}
             fallback={
               <Text role="status" class="p-3 text-sm text-muted">
                 {i18n.message(m.loading_changes, {})}
