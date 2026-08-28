@@ -1,7 +1,7 @@
 import { $ as Svg, A as isSelected, B as createContainerMatch, C as OverlayPlaneProvider, Ct as useMotionConfig, D as Column, E as Center, F as createNetworkImageResource, G as CodeEditor, H as Button$1, I as createOwnedImageResource, J as PasswordInput$1, K as Icon, L as releaseImageResource, M as FORM_ERROR, N as createFormDraft, O as Row, P as createFileImageResource, Q as RichTextSpan, R as CollapsiblePresence, S as createTransitionPresence, St as MotionConfigProvider, U as Link, V as createMeasuredSize, W as createButton, X as PathBuilder, Y as Path, Z as RichText, _ as createRetainedItems, _t as createPulse, a as ScrollArea, at as translate2d$1, b as Spin, bt as createTransition, ct as createHover, dt as createAnimationFrame, et as Text, ft as animate, g as createNotifications, gt as createLoop, h as NotificationRegion, ht as createKeyframeAnimation, i as createScrollReset, it as rotate2d$1, j as toggleSelection, k as createKeyedSelection, lt as createFocus, mt as createInterpolation, n as createTabs, nt as TextInput, o as Popover$1, ot as createActive, pt as animateKeyframes, q as Image, r as createShortcuts, rt as View, st as createPress, t as primitives_exports, tt as TextArea, ut as createFocusWithin, v as Pulse, vt as createRotation, w as createOverlayLayer, wt as useReducedMotion, x as Modal, xt as normalizeSweepGeometry, y as Ripple, yt as createSweep, z as createPresence } from "./primitives-D5SrePwu.mjs";
 import { rgba, useClipboard, useDialog, useFileDrop, useHost, useWindow } from "@wabou/core";
 import { mergeClasses, rgba as rgba$1, scale2d, shadow } from "@wabou/core/style";
-import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
+import { For, Match, Show, Switch as Switch$1, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { VirtualList, applyRef, createComponent as createComponent$1, createFps, memo, mergeProps, useHost as useHost$1 } from "@wabou/core/renderer";
 import { P, match } from "ts-pattern";
 import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
@@ -5300,8 +5300,8 @@ function InlineMarkdown(props) {
 }
 function MarkdownSpan(props) {
 	const reducedMotion = useReducedMotion();
-	const reveal = untrack(() => props.reveal) ? createKeyframeAnimation([.28, 1], {
-		duration: .18,
+	const reveal = untrack(() => props.reveal) ? createKeyframeAnimation([.72, 1], {
+		duration: .12,
 		ease: "easeOut",
 		reducedMotion,
 		reducedValue: 1
@@ -5322,88 +5322,45 @@ function MarkdownSpan(props) {
 	});
 }
 function Heading(props) {
-	if (props.variant === "conversation") {
-		const className = () => {
-			switch (props.block.depth) {
-				case 1: return "text-xl font-semibold tracking-tight text-primary whitespace-normal";
-				case 2: return "text-lg font-semibold tracking-tight text-primary whitespace-normal";
-				case 3: return "text-base font-semibold tracking-tight text-primary whitespace-normal";
-				default: return "text-sm font-semibold text-primary whitespace-normal";
-			}
-		};
-		return createComponent$1(InlineMarkdown, {
-			get runs() {
-				return props.block.runs;
-			},
-			get variant() {
-				return props.variant;
-			},
-			get ["class"]() {
-				return className();
-			},
-			get animateRun() {
-				return props.animateRun;
-			}
-		});
-	}
-	switch (props.block.depth) {
-		case 1: return createComponent$1(InlineMarkdown, {
-			get runs() {
-				return props.block.runs;
-			},
-			get variant() {
-				return props.variant;
-			},
-			class: "text-4xl font-bold text-primary",
-			get animateRun() {
-				return props.animateRun;
-			}
-		});
-		case 2: return createComponent$1(InlineMarkdown, {
-			get runs() {
-				return props.block.runs;
-			},
-			get variant() {
-				return props.variant;
-			},
-			class: "text-3xl font-semibold text-primary",
-			get animateRun() {
-				return props.animateRun;
-			}
-		});
-		case 3: return createComponent$1(InlineMarkdown, {
-			get runs() {
-				return props.block.runs;
-			},
-			get variant() {
-				return props.variant;
-			},
-			class: "text-2xl font-semibold text-primary",
-			get animateRun() {
-				return props.animateRun;
-			}
-		});
-		default: return createComponent$1(InlineMarkdown, {
-			get runs() {
-				return props.block.runs;
-			},
-			get variant() {
-				return props.variant;
-			},
-			class: "text-xl font-semibold text-primary",
-			get animateRun() {
-				return props.animateRun;
-			}
-		});
-	}
+	const className = createMemo(() => {
+		if (props.variant === "conversation") switch (props.block.depth) {
+			case 1: return "text-xl font-semibold tracking-tight text-primary whitespace-normal";
+			case 2: return "text-lg font-semibold tracking-tight text-primary whitespace-normal";
+			case 3: return "text-base font-semibold tracking-tight text-primary whitespace-normal";
+			default: return "text-sm font-semibold text-primary whitespace-normal";
+		}
+		switch (props.block.depth) {
+			case 1: return "text-4xl font-bold text-primary";
+			case 2: return "text-3xl font-semibold text-primary";
+			case 3: return "text-2xl font-semibold text-primary";
+			default: return "text-xl font-semibold text-primary";
+		}
+	});
+	return createComponent$1(InlineMarkdown, {
+		get runs() {
+			return props.block.runs;
+		},
+		get variant() {
+			return props.variant;
+		},
+		get ["class"]() {
+			return className();
+		},
+		get animateRun() {
+			return props.animateRun;
+		}
+	});
 }
 function MarkdownBlocks(props) {
 	return createComponent$1(For, {
 		get each() {
 			return props.blocks;
 		},
+		keyed: false,
 		children: (block) => createComponent$1(MarkdownBlock, {
-			block,
+			get block() {
+				return block();
+			},
 			get variant() {
 				return props.variant;
 			},
@@ -5501,87 +5458,143 @@ function MarkdownTable(props) {
 	});
 }
 function MarkdownBlock(props) {
-	const block = props.block;
-	switch (block.kind) {
-		case "heading": return createComponent$1(Heading, {
-			block,
-			get variant() {
-				return props.variant;
-			},
-			get animateRun() {
-				return props.animateRun;
-			}
-		});
-		case "paragraph": return createComponent$1(InlineMarkdown, {
-			get runs() {
-				return block.runs;
-			},
-			get variant() {
-				return props.variant;
-			},
-			get animateRun() {
-				return props.animateRun;
-			}
-		});
-		case "blockquote": return createComponent$1(View, {
-			class: "min-w-0 flex flex-row items-stretch gap-3",
-			get children() {
-				return [createComponent$1(View, {
-					"aria-hidden": "true",
-					class: "w-1 flex-none rounded-full bg-strong"
-				}), createComponent$1(View, {
-					class: "min-w-0 flex-1 flex flex-col gap-2",
-					get children() {
-						return createComponent$1(MarkdownBlocks, {
-							get blocks() {
-								return block.blocks;
-							},
-							get variant() {
-								return props.variant;
-							},
-							get animateRun() {
-								return props.animateRun;
-							}
-						});
+	const heading = () => props.block.kind === "heading" ? props.block : void 0;
+	const paragraph = () => props.block.kind === "paragraph" ? props.block : void 0;
+	const blockquote = () => props.block.kind === "blockquote" ? props.block : void 0;
+	const list = () => props.block.kind === "list" ? props.block : void 0;
+	const table = () => props.block.kind === "table" ? props.block : void 0;
+	const code = () => props.block.kind === "code" ? props.block : void 0;
+	const literal = () => props.block.kind === "literal" ? props.block : void 0;
+	return createComponent$1(Switch$1, { get children() {
+		return [
+			createComponent$1(Match, {
+				get when() {
+					return heading();
+				},
+				children: (block) => createComponent$1(Heading, {
+					get block() {
+						return block();
+					},
+					get variant() {
+						return props.variant;
+					},
+					get animateRun() {
+						return props.animateRun;
 					}
-				})];
-			}
-		});
-		case "list": return createComponent$1(MarkdownList, {
-			block,
-			get variant() {
-				return props.variant;
-			},
-			get animateRun() {
-				return props.animateRun;
-			}
-		});
-		case "table": return createComponent$1(MarkdownTable, {
-			block,
-			get variant() {
-				return props.variant;
-			},
-			get animateRun() {
-				return props.animateRun;
-			}
-		});
-		case "code": return createComponent$1(CodeBlock, {
-			get code() {
-				return block.code;
-			},
-			get language() {
-				return block.language ?? "text";
-			},
-			copyLabel: "Copy code"
-		});
-		case "rule": return createComponent$1(Separator, {});
-		case "literal": return createComponent$1(Text, {
-			class: "text-sm text-muted whitespace-normal",
-			get children() {
-				return block.text;
-			}
-		});
-	}
+				})
+			}),
+			createComponent$1(Match, {
+				get when() {
+					return paragraph();
+				},
+				children: (block) => createComponent$1(InlineMarkdown, {
+					get runs() {
+						return block().runs;
+					},
+					get variant() {
+						return props.variant;
+					},
+					get animateRun() {
+						return props.animateRun;
+					}
+				})
+			}),
+			createComponent$1(Match, {
+				get when() {
+					return blockquote();
+				},
+				children: (block) => createComponent$1(View, {
+					class: "min-w-0 flex flex-row items-stretch gap-3",
+					get children() {
+						return [createComponent$1(View, {
+							"aria-hidden": "true",
+							class: "w-1 flex-none rounded-full bg-strong"
+						}), createComponent$1(View, {
+							class: "min-w-0 flex-1 flex flex-col gap-2",
+							get children() {
+								return createComponent$1(MarkdownBlocks, {
+									get blocks() {
+										return block().blocks;
+									},
+									get variant() {
+										return props.variant;
+									},
+									get animateRun() {
+										return props.animateRun;
+									}
+								});
+							}
+						})];
+					}
+				})
+			}),
+			createComponent$1(Match, {
+				get when() {
+					return list();
+				},
+				children: (block) => createComponent$1(MarkdownList, {
+					get block() {
+						return block();
+					},
+					get variant() {
+						return props.variant;
+					},
+					get animateRun() {
+						return props.animateRun;
+					}
+				})
+			}),
+			createComponent$1(Match, {
+				get when() {
+					return table();
+				},
+				children: (block) => createComponent$1(MarkdownTable, {
+					get block() {
+						return block();
+					},
+					get variant() {
+						return props.variant;
+					},
+					get animateRun() {
+						return props.animateRun;
+					}
+				})
+			}),
+			createComponent$1(Match, {
+				get when() {
+					return code();
+				},
+				children: (block) => createComponent$1(CodeBlock, {
+					get code() {
+						return block().code;
+					},
+					get language() {
+						return block().language ?? "text";
+					},
+					copyLabel: "Copy code"
+				})
+			}),
+			createComponent$1(Match, {
+				get when() {
+					return props.block.kind === "rule";
+				},
+				get children() {
+					return createComponent$1(Separator, {});
+				}
+			}),
+			createComponent$1(Match, {
+				get when() {
+					return literal();
+				},
+				children: (block) => createComponent$1(Text, {
+					class: "text-sm text-muted whitespace-normal",
+					get children() {
+						return block().text;
+					}
+				})
+			})
+		];
+	} });
 }
 function visitMarkdownRuns(blocks, visit) {
 	for (const block of blocks) switch (block.kind) {
