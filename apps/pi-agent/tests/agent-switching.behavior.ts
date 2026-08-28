@@ -144,6 +144,22 @@ test("updates project and app settings without losing its conversation", async (
   await page.getByRole("heading", { name: "Settings" }).waitFor();
   const name = page.getByRole("textbox", { name: "Project name" });
   await expect(name).toBeInViewport();
+  const autoCompaction = page.getByRole("switch", {
+    name: "Automatic context compaction",
+  });
+  await expect(autoCompaction).toBeChecked();
+  await autoCompaction.click();
+  await expect(autoCompaction).toBeUnchecked({ timeout: 5_000 });
+  const steering = page.getByRole("combobox", { name: "Steering messages" });
+  await steering.click();
+  await page.getByRole("option", { name: "All queued messages" }).click();
+  await expect(steering).toHaveValue("All queued messages", { timeout: 5_000 });
+  const followUp = page.getByRole("combobox", { name: "Follow-up messages" });
+  await followUp.click();
+  await page.getByRole("option", { name: "All queued messages" }).click();
+  await expect(followUp).toHaveValue("All queued messages", {
+    timeout: 5_000,
+  });
   await name.click();
   await name.press("a", { control: true });
   await name.type("Workspace Agent");
@@ -158,12 +174,13 @@ test("updates project and app settings without losing its conversation", async (
   const proxy = page.getByRole("textbox", { name: "Default proxy URL" });
   await proxy.type("http://127.0.0.1:7890");
   await expect(proxy).toHaveValue("http://127.0.0.1:7890");
+  await proxy.wheel(-600);
   const subagents = page.getByRole("switch", { name: "Enable subagents" });
   await expect(subagents).toBeChecked();
   await subagents.click();
   await expect(subagents).toBeUnchecked();
 
-  await subagents.wheel(-600);
+  await subagents.wheel(-300);
   await page.getByRole("button", { name: "中文" }).click();
   await page.getByRole("heading", { name: "设置" }).waitFor();
   await page.getByRole("button", { name: "返回项目" }).click();

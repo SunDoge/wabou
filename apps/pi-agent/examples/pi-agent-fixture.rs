@@ -11,6 +11,9 @@ struct FixtureState {
     model_id: String,
     model_name: String,
     thinking: String,
+    auto_compaction: bool,
+    steering_mode: String,
+    follow_up_mode: String,
     session_id: String,
     session_file: PathBuf,
     session_name: String,
@@ -71,6 +74,9 @@ impl FixtureState {
             model_id,
             model_name,
             thinking: "medium".to_owned(),
+            auto_compaction: true,
+            steering_mode: "one-at-a-time".to_owned(),
+            follow_up_mode: "one-at-a-time".to_owned(),
             session_id,
             session_file,
             session_name: format!("Deterministic test {current_session_serial}"),
@@ -254,9 +260,9 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
                 "sessionId":state.session_id,
                 "sessionFile":state.session_file,
                 "sessionName":state.session_name,
-                "autoCompactionEnabled":true,
-                "steeringMode":"one-at-a-time",
-                "followUpMode":"one-at-a-time"
+                "autoCompactionEnabled":state.auto_compaction,
+                "steeringMode":state.steering_mode,
+                "followUpMode":state.follow_up_mode
             }),
         ),
         "get_available_models" => response(
@@ -341,6 +347,29 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
                 .unwrap_or("medium")
                 .to_owned();
             response(request, json!({"level":state.thinking}))
+        }
+        "set_auto_compaction" => {
+            state.auto_compaction = request
+                .get("enabled")
+                .and_then(Value::as_bool)
+                .unwrap_or(state.auto_compaction);
+            response(request, json!({"enabled":state.auto_compaction}))
+        }
+        "set_steering_mode" => {
+            state.steering_mode = request
+                .get("mode")
+                .and_then(Value::as_str)
+                .unwrap_or(&state.steering_mode)
+                .to_owned();
+            response(request, json!({"mode":state.steering_mode}))
+        }
+        "set_follow_up_mode" => {
+            state.follow_up_mode = request
+                .get("mode")
+                .and_then(Value::as_str)
+                .unwrap_or(&state.follow_up_mode)
+                .to_owned();
+            response(request, json!({"mode":state.follow_up_mode}))
         }
         "prompt" | "steer" | "follow_up" => {
             let message = request
