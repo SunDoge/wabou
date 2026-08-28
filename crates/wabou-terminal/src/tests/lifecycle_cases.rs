@@ -378,6 +378,36 @@ fn osc_titles_are_node_scoped_while_clipboard_store_remains_a_host_action() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn pty_output_routes_osc_titles_through_the_widget_listener() {
+    let mut widget = TerminalWidget::spawn(
+        "/bin/sh",
+        vec![
+            "-c".into(),
+            "printf '\\033]0;pty-title\\007'; sleep 1".into(),
+        ],
+        None,
+    );
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    let event = loop {
+        widget.poll_async();
+        if let Some(event) = widget.take_node_event() {
+            break event;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "PTY output did not produce a terminal title event"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    };
+    assert_eq!(event.event_code, event::TERMINALTITLECHANGE);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&event.json).unwrap(),
+        serde_json::json!({ "title": "pty-title", "subtitle": null })
+    );
+}
+
 #[test]
 fn terminal_subtitle_and_title_reset_remain_scoped_to_the_widget_node() {
     let mut widget = TerminalWidget::headless(20, 4);

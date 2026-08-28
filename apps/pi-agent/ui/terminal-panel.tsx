@@ -173,7 +173,7 @@ export function AgentTerminalPanel(
                   cwd={tab.cwd}
                   class="w-full h-full overflow-hidden bg-slate-950 text-slate-200"
                   inheritTheme
-                  fontFamily="Hack Nerd Font Mono"
+                  fontFamily="monospace"
                   fontSize="13px"
                   lineHeight="19px"
                   cursorBlink={false}
