@@ -96,4 +96,57 @@ describe("deferred writer", () => {
       "Error: async failure",
     ]);
   });
+
+  test("primes durable state and coalesces equal snapshots", () => {
+    const saved: string[] = [];
+    const clock = manualScheduler();
+    const writer = createDeferredWriter({
+      write: (value: string) => {
+        saved.push(value);
+      },
+      onError: () => {},
+      scheduler: clock.scheduler,
+      equals: Object.is,
+    });
+
+    writer.prime("restored");
+    writer.schedule("restored");
+    clock.run();
+    expect(saved).toEqual([]);
+
+    writer.schedule("edited");
+    writer.schedule("edited");
+    clock.run();
+    expect(saved).toEqual(["edited"]);
+
+    writer.schedule("edited");
+    clock.run();
+    expect(saved).toEqual(["edited"]);
+  });
+
+  test("allows an equal snapshot to retry after a failed write", async () => {
+    const errors: unknown[] = [];
+    const clock = manualScheduler();
+    let attempts = 0;
+    const writer = createDeferredWriter({
+      write: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error("disk unavailable");
+      },
+      onError: (error) => errors.push(error),
+      scheduler: clock.scheduler,
+      equals: Object.is,
+    });
+
+    writer.schedule("snapshot");
+    clock.run();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(errors).toHaveLength(1);
+
+    writer.schedule("snapshot");
+    clock.run();
+    await Promise.resolve();
+    expect(attempts).toBe(2);
+  });
 });

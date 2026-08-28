@@ -4,6 +4,8 @@ export interface DeferredWriterScheduler {
 }
 
 export interface DeferredWriter<T> {
+  /** Mark a value as already durable without scheduling a write. */
+  prime(value: T): void;
   schedule(value: T): void;
   flush(): void;
   cancel(): void;
@@ -19,10 +21,21 @@ export function createDeferredWriter<T>(options: {
   onError: (error: unknown) => void;
   delayMs?: number;
   scheduler?: DeferredWriterScheduler;
+  equals?: (left: T, right: T) => boolean;
 }): DeferredWriter<T> {
   const scheduler = options.scheduler ?? systemScheduler;
   let timer: unknown;
   let pending: { value: T } | undefined;
+  let accepted: { value: T } | undefined;
+
+  const clearAcceptedIfCurrent = (value: T) => {
+    if (
+      accepted &&
+      (!options.equals || options.equals(accepted.value, value))
+    ) {
+      accepted = undefined;
+    }
+  };
 
   const writePending = () => {
     timer = undefined;
@@ -30,14 +43,28 @@ export function createDeferredWriter<T>(options: {
     pending = undefined;
     if (!next) return;
     try {
-      Promise.resolve(options.write(next.value)).catch(options.onError);
+      Promise.resolve(options.write(next.value)).catch((error) => {
+        clearAcceptedIfCurrent(next.value);
+        options.onError(error);
+      });
     } catch (error) {
+      clearAcceptedIfCurrent(next.value);
       options.onError(error);
     }
   };
 
   return {
+    prime(value) {
+      if (timer !== undefined) scheduler.clear(timer);
+      timer = undefined;
+      pending = undefined;
+      accepted = { value };
+    },
     schedule(value) {
+      if (options.equals && accepted && options.equals(accepted.value, value)) {
+        return;
+      }
+      accepted = { value };
       pending = { value };
       if (timer !== undefined) scheduler.clear(timer);
       timer = scheduler.set(writePending, options.delayMs ?? 150);
@@ -50,6 +77,7 @@ export function createDeferredWriter<T>(options: {
       if (timer !== undefined) scheduler.clear(timer);
       timer = undefined;
       pending = undefined;
+      accepted = undefined;
     },
   };
 }

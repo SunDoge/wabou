@@ -202,20 +202,24 @@ export function App() {
   const itemHandles = new ScopedHandleRegistry<Handle>();
   let nextMessage = 1;
   let profilesHydrated = false;
+  let restoredProfiles: boolean | undefined;
   const profileWriter = createDeferredWriter({
     write: (serialized: string) => api.saveAgents(JSON.parse(serialized)),
     onError: (error) =>
       console.error(`[pi-agent] could not save projects: ${String(error)}`),
+    equals: Object.is,
   });
 
   void api
     .listAgents()
     .then(async (profiles) => {
       if (profiles.length > 0) {
+        restoredProfiles = true;
         const restored = profiles.map(restoreAgentWorkspace);
         setAgents(restored);
         setLastActiveId(restored[0].id);
       } else {
+        restoredProfiles = false;
         const cwd = await api.defaultWorkspace("agent-1");
         setAgents((current) =>
           current.map((agent) =>
@@ -231,6 +235,9 @@ export function App() {
     })
     .finally(() => {
       profilesHydrated = true;
+      const serialized = JSON.stringify(agents().map(agentProfile));
+      if (restoredProfiles === true) profileWriter.prime(serialized);
+      else if (restoredProfiles === false) profileWriter.schedule(serialized);
     });
 
   createEffect(
