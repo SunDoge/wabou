@@ -1,4 +1,10 @@
-import type { Locator, TestAction, TestContext, TestPage } from "./index";
+import type {
+  Locator,
+  TestAction,
+  TestContext,
+  TestFiles,
+  TestPage,
+} from "./index";
 
 function locatorForAction(
   page: TestPage,
@@ -46,12 +52,34 @@ export async function replayActions(
   actions: readonly TestAction[],
   page: TestPage,
   window: TestContext["window"],
+  files: TestFiles,
   assertLocator: ReplayLocatorAssertion,
   assertWindow: ReplayWindowAssertion,
 ): Promise<void> {
+  const fixturePaths = new Map<string, string>();
+  const remapFixturePaths = (value: unknown): unknown => {
+    if (typeof value === "string") return fixturePaths.get(value) ?? value;
+    if (Array.isArray(value)) return value.map(remapFixturePaths);
+    if (value && typeof value === "object")
+      return Object.fromEntries(
+        Object.entries(value).map(([key, item]) => [
+          key,
+          remapFixturePaths(item),
+        ]),
+      );
+    return value;
+  };
   for (const action of actions) {
-    if (action.action === "respondToEffect") {
-      page.effects.respond(action.operation, action.result as never);
+    if (action.action === "writeTextFile") {
+      fixturePaths.set(
+        action.path,
+        files.writeText(action.relativePath, action.contents),
+      );
+    } else if (action.action === "respondToEffect") {
+      page.effects.respond(
+        action.operation,
+        remapFixturePaths(action.result) as never,
+      );
     } else if (action.action === "nativeClose") {
       await window.nativeClose(action.windowId, action.platform);
     } else if (action.action === "showWindow") {
@@ -59,7 +87,11 @@ export async function replayActions(
     } else if (action.action === "resizeWindow") {
       await window.resize(action.windowId, action.width, action.height);
     } else if (action.action === "fileDrop") {
-      await window.fileDrop(action.windowId, action.phase, action.paths);
+      await window.fileDrop(
+        action.windowId,
+        action.phase,
+        action.paths.map((path) => fixturePaths.get(path) ?? path),
+      );
     } else if (action.action === "clickByRole") {
       await locatorForAction(page, action).click(action.wait);
     } else if (action.action === "waitForByRole") {

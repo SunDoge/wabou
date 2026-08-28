@@ -366,6 +366,12 @@ export interface TestResult {
 
 export type TestAction =
   | {
+      action: "writeTextFile";
+      relativePath: string;
+      contents: string;
+      path: string;
+    }
+  | {
       action: "respondToEffect";
       operation: TestEffectOperation;
       result: TestEffectResponseMap[TestEffectOperation];
@@ -945,6 +951,12 @@ const context: TestContext = {
       ) as { path?: string; error?: string };
       if (result.error) throw new Error(result.error);
       if (!result.path) throw new Error("native test fixture omitted its path");
+      trace.push({
+        action: "writeTextFile",
+        relativePath,
+        contents,
+        path: result.path,
+      });
       return result.path;
     },
   },
@@ -1207,6 +1219,7 @@ export function replay(actions: readonly TestAction[]): void {
         actions,
         context.page,
         window,
+        context.files,
         replayLocatorAssertion,
         replayWindowAssertion,
       );

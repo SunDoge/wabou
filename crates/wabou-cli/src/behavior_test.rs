@@ -49,6 +49,12 @@ pub(super) fn prepare_artifact_dir(directory: &Path) -> Result<()> {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "action", rename_all_fields = "camelCase", deny_unknown_fields)]
 enum ReplayAction {
+    #[serde(rename = "writeTextFile")]
+    WriteTextFile {
+        relative_path: String,
+        contents: String,
+        path: String,
+    },
     #[serde(rename = "respondToEffect")]
     RespondToEffect {
         operation: ReplayEffectOperation,
@@ -364,6 +370,20 @@ impl ReplayAction {
             return operation.validate(result);
         }
         let (window_id, wait) = match self {
+            Self::WriteTextFile {
+                relative_path,
+                contents,
+                path,
+            } => {
+                if relative_path.is_empty() {
+                    return Err("fixture relativePath must not be empty".into());
+                }
+                if path.is_empty() {
+                    return Err("fixture path must not be empty".into());
+                }
+                let _ = contents;
+                return Ok(());
+            }
             Self::RespondToEffect { .. } => unreachable!(),
             Self::NativeClose {
                 window_id,

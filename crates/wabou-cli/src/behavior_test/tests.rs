@@ -51,6 +51,22 @@ fn replay_accepts_recorded_locator_scopes() {
 }
 
 #[test]
+fn replay_accepts_portable_text_fixtures() {
+    let trace = json!([{
+        "action": "writeTextFile",
+        "relativePath": "exports/session.html",
+        "contents": "",
+        "path": "/tmp/old-run/exports/session.html"
+    }]);
+
+    assert_eq!(
+        replay_actions_from_value(&json!({ "version": 1, "actions": trace.clone() }), None)
+            .unwrap(),
+        trace
+    );
+}
+
+#[test]
 fn input_validation_reports_actionable_errors() {
     let trace = json!([{ "action": "showWindow", "windowId": 1 }]);
     assert_eq!(
