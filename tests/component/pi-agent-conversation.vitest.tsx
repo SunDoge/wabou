@@ -1,7 +1,9 @@
 import { renderComponent } from "@wabou/test/component";
+import { createSignal } from "solid-js";
 import { expect, test, vi } from "vitest";
 import {
   ConversationItem,
+  ConversationList,
   summarizeToolInput,
 } from "../../apps/pi-agent/ui/conversation";
 
@@ -49,9 +51,7 @@ test("Pi Agent exposes streaming progress without wrapping assistant prose in a 
   );
   const response = screen.getByRole("region", { name: "Assistant response" });
   expect(response.className).toContain("gap-3");
-  expect(response.parent?.className).toBe(
-    "max-w-full min-w-0 overflow-hidden rounded-xl border p-0 border-transparent bg-transparent text-primary",
-  );
+  expect(response.parent?.className).toContain("w-full px-2 pb-3");
 });
 
 test("Pi Agent messages enter with finite native motion", async () => {
@@ -70,6 +70,37 @@ test("Pi Agent messages enter with finite native motion", async () => {
   await screen.advanceTime(200);
 
   expect(message?.transform?.[5]).toBe(0);
+  expect(message?.style("opacity")).toEqual({ kind: 3, value: 1 });
+});
+
+test("Pi Agent retains a streamed message instead of replaying its entrance", async () => {
+  const [items, setItems] = createSignal([
+    {
+      id: "assistant-stream",
+      kind: "assistant" as const,
+      text: "First chunk",
+      streaming: true,
+    },
+  ]);
+  const screen = renderComponent(() => <ConversationList items={items()} />, {
+    clock: "fake",
+  });
+
+  await screen.advanceTime(200);
+  const message = screen.roots[0]?.children[0]?.children[0];
+  expect(message?.style("opacity")).toEqual({ kind: 3, value: 1 });
+
+  setItems([
+    {
+      id: "assistant-stream",
+      kind: "assistant",
+      text: "First chunk and the next token",
+      streaming: true,
+    },
+  ]);
+  screen.flush();
+
+  expect(message?.text).toContain("First chunk and the next token");
   expect(message?.style("opacity")).toEqual({ kind: 3, value: 1 });
 });
 

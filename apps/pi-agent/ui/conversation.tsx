@@ -7,12 +7,15 @@ import {
   CollapsiblePresence,
   CopyButton,
   createKeyframeAnimation,
+  type Handle,
   Icon,
   Markdown,
   Message,
   MessageAvatar,
   MessageContent,
+  MessageGroup,
   MessageHeader,
+  MessageScrollerItem,
   number,
   Pulse,
   Text,
@@ -251,7 +254,7 @@ export function ConversationItem(props: {
             </MessageAvatar>
           </Show>
           <MessageContent
-            class={props.item.kind === "assistant" ? "gap-1" : undefined}
+            class={props.item.kind === "assistant" ? "gap-2" : undefined}
           >
             <Show
               when={props.item.kind === "assistant"}
@@ -290,7 +293,7 @@ export function ConversationItem(props: {
                 </View>
               }
             >
-              <View class="h-7 w-full px-1 flex flex-row items-center justify-between gap-2">
+              <View class="h-7 w-full px-2 flex flex-row items-center justify-between gap-2">
                 <View class="min-w-0 flex flex-row items-center gap-2">
                   <View class="w-5 h-5 flex-none rounded-md bg-selected flex items-center justify-center text-accent">
                     <Icon source={bot} size={13} />
@@ -343,7 +346,13 @@ export function ConversationItem(props: {
               />
             </Show>
             <Bubble variant={messageVariant()}>
-              <BubbleContent>
+              <BubbleContent
+                class={
+                  props.item.kind === "assistant"
+                    ? "w-full px-2 pb-3"
+                    : undefined
+                }
+              >
                 <Show
                   when={
                     props.item.kind === "user" && props.item.imageNames?.length
@@ -414,5 +423,47 @@ export function ConversationItem(props: {
         </Message>
       </Show>
     </MessageEntrance>
+  );
+}
+
+/** Keep streamed message components mounted by semantic item id. */
+export function ConversationList(props: {
+  items: readonly AgentItem[];
+  activeSearchItem?: string;
+  registerItem?: (id: string, node: Handle) => void;
+  fork?: (item: Extract<AgentItem, { kind: "user" }>) => void;
+}) {
+  return (
+    <MessageGroup class="gap-5">
+      <For each={props.items} keyed={(item) => item.id}>
+        {(item) => {
+          const canFork = () => {
+            const current = item();
+            return current.kind === "user" && Boolean(current.entryId);
+          };
+          const fork = () => {
+            const current = item();
+            if (current.kind === "user" && current.entryId) {
+              props.fork?.(current);
+            }
+          };
+          return (
+            <MessageScrollerItem
+              ref={(node) => props.registerItem?.(item().id, node)}
+              class={
+                props.activeSearchItem === item().id
+                  ? "rounded-lg bg-selected"
+                  : undefined
+              }
+            >
+              <ConversationItem
+                item={item()}
+                fork={canFork() ? fork : undefined}
+              />
+            </MessageScrollerItem>
+          );
+        }}
+      </For>
+    </MessageGroup>
   );
 }

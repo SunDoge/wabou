@@ -186,11 +186,26 @@ test("marks only text appended after mount for a streaming reveal", () => {
     <Markdown source={source()} streaming aria-label="Streaming reveal" />
   ));
   const response = screen.getByRole("region", { name: "Streaming reveal" });
-  expect(JSON.stringify(response.snapshot())).not.toContain('"opacity":"0.28"');
+  expect(JSON.stringify(response.snapshot())).not.toContain('"opacity":"0.72"');
 
   setSource("Settled text arrives");
   screen.flush();
-  expect(JSON.stringify(response.snapshot())).toContain('"opacity":"0.28"');
+  expect(JSON.stringify(response.snapshot())).toContain('"opacity":"0.72"');
+});
+
+test("retains the streaming tail block while appending text", () => {
+  const [source, setSource] = createSignal("Partial");
+  const screen = renderComponent(() => (
+    <Markdown source={source()} streaming aria-label="Retained stream" />
+  ));
+  const response = screen.getByRole("region", { name: "Retained stream" });
+  const paragraph = response.children[0];
+  expect(paragraph?.text).toBe("Partial");
+
+  setSource("Partial answer");
+  screen.flush();
+
+  expect(paragraph?.text).toBe("Partial answer");
 });
 
 test("renders reactive GFM as native semantic components", () => {

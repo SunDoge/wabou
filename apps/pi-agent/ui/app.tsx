@@ -4,11 +4,9 @@ import {
   currentWindow,
   type Handle,
   Icon,
-  MessageGroup,
   MessageScroller,
   MessageScrollerButton,
   MessageScrollerContent,
-  MessageScrollerItem,
   MessageScrollerViewport,
   Text,
   TextArea,
@@ -23,7 +21,7 @@ import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import send from "lucide-static/icons/send.svg?raw";
 import square from "lucide-static/icons/square.svg?raw";
-import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { AgentActivityStatus } from "./agent-activity";
 import {
   appendUserMessage,
@@ -45,7 +43,7 @@ import {
   ComposerImages,
   imageFileName,
 } from "./composer-images";
-import { ConversationItem } from "./conversation";
+import { ConversationList } from "./conversation";
 import { ConversationWelcome } from "./conversation-welcome";
 import {
   type AgentDraftLists,
@@ -886,33 +884,17 @@ export function App() {
                     when={active().state.items.length > 0}
                     fallback={<ConversationWelcome choosePrompt={setDraft} />}
                   >
-                    <MessageGroup>
-                      <For each={active().state.items}>
-                        {(item) => (
-                          <MessageScrollerItem
-                            ref={(node) => itemHandles.set(item.id, node)}
-                            class={
-                              activeSearchItem() === item.id
-                                ? "rounded-lg bg-selected"
-                                : undefined
-                            }
-                          >
-                            <ConversationItem
-                              item={item}
-                              fork={
-                                item.kind === "user" && item.entryId
-                                  ? () =>
-                                      setPendingFork({
-                                        entryId: item.entryId ?? "",
-                                        text: item.text,
-                                      })
-                                  : undefined
-                              }
-                            />
-                          </MessageScrollerItem>
-                        )}
-                      </For>
-                    </MessageGroup>
+                    <ConversationList
+                      items={active().state.items}
+                      activeSearchItem={activeSearchItem()}
+                      registerItem={(id, node) => itemHandles.set(id, node)}
+                      fork={(item) =>
+                        setPendingFork({
+                          entryId: item.entryId ?? "",
+                          text: item.text,
+                        })
+                      }
+                    />
                   </Show>
                 </MessageScrollerContent>
               </MessageScrollerViewport>

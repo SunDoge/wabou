@@ -1,5 +1,12 @@
 import { mergeClasses } from "@wabou/core/style";
-import { createMemo, For, type JSX, untrack } from "solid-js";
+import {
+  createMemo,
+  For,
+  type JSX,
+  Match,
+  Switch as SolidSwitch,
+  untrack,
+} from "solid-js";
 import { createKeyframeAnimation, useReducedMotion } from "../animation";
 import { RichText, RichTextSpan, Text, View } from "../primitives";
 import { CodeBlock } from "./code-block";
@@ -50,8 +57,8 @@ function InlineMarkdown(props: {
 function MarkdownSpan(props: { run: MarkdownRun; reveal: boolean }) {
   const reducedMotion = useReducedMotion();
   const reveal = untrack(() => props.reveal)
-    ? createKeyframeAnimation([0.28, 1], {
-        duration: 0.18,
+    ? createKeyframeAnimation([0.72, 1], {
+        duration: 0.12,
         ease: "easeOut",
         reducedMotion,
         reducedValue: 1,
@@ -73,8 +80,8 @@ function Heading(props: {
   variant: MarkdownVariant;
   animateRun?: (run: MarkdownRun) => boolean;
 }): JSX.Element {
-  if (props.variant === "conversation") {
-    const className = () => {
+  const className = createMemo(() => {
+    if (props.variant === "conversation") {
       switch (props.block.depth) {
         case 1:
           return "text-xl font-semibold tracking-tight text-primary whitespace-normal";
@@ -85,54 +92,26 @@ function Heading(props: {
         default:
           return "text-sm font-semibold text-primary whitespace-normal";
       }
-    };
-    return (
-      <InlineMarkdown
-        runs={props.block.runs}
-        variant={props.variant}
-        class={className()}
-        animateRun={props.animateRun}
-      />
-    );
-  }
-  switch (props.block.depth) {
-    case 1:
-      return (
-        <InlineMarkdown
-          runs={props.block.runs}
-          variant={props.variant}
-          class="text-4xl font-bold text-primary"
-          animateRun={props.animateRun}
-        />
-      );
-    case 2:
-      return (
-        <InlineMarkdown
-          runs={props.block.runs}
-          variant={props.variant}
-          class="text-3xl font-semibold text-primary"
-          animateRun={props.animateRun}
-        />
-      );
-    case 3:
-      return (
-        <InlineMarkdown
-          runs={props.block.runs}
-          variant={props.variant}
-          class="text-2xl font-semibold text-primary"
-          animateRun={props.animateRun}
-        />
-      );
-    default:
-      return (
-        <InlineMarkdown
-          runs={props.block.runs}
-          variant={props.variant}
-          class="text-xl font-semibold text-primary"
-          animateRun={props.animateRun}
-        />
-      );
-  }
+    }
+    switch (props.block.depth) {
+      case 1:
+        return "text-4xl font-bold text-primary";
+      case 2:
+        return "text-3xl font-semibold text-primary";
+      case 3:
+        return "text-2xl font-semibold text-primary";
+      default:
+        return "text-xl font-semibold text-primary";
+    }
+  });
+  return (
+    <InlineMarkdown
+      runs={props.block.runs}
+      variant={props.variant}
+      class={className()}
+      animateRun={props.animateRun}
+    />
+  );
 }
 
 function MarkdownBlocks(props: {
@@ -141,10 +120,10 @@ function MarkdownBlocks(props: {
   animateRun?: (run: MarkdownRun) => boolean;
 }): JSX.Element {
   return (
-    <For each={props.blocks}>
+    <For each={props.blocks} keyed={false}>
       {(block) => (
         <MarkdownBlock
-          block={block}
+          block={block()}
           variant={props.variant}
           animateRun={props.animateRun}
         />
@@ -242,71 +221,93 @@ function MarkdownBlock(props: {
   variant: MarkdownVariant;
   animateRun?: (run: MarkdownRun) => boolean;
 }): JSX.Element {
-  const block = props.block;
-  switch (block.kind) {
-    case "heading":
-      return (
-        <Heading
-          block={block}
-          variant={props.variant}
-          animateRun={props.animateRun}
-        />
-      );
-    case "paragraph":
-      return (
-        <InlineMarkdown
-          runs={block.runs}
-          variant={props.variant}
-          animateRun={props.animateRun}
-        />
-      );
-    case "blockquote":
-      return (
-        <View class="min-w-0 flex flex-row items-stretch gap-3">
-          <View
-            aria-hidden="true"
-            class="w-1 flex-none rounded-full bg-strong"
+  const heading = () =>
+    props.block.kind === "heading" ? props.block : undefined;
+  const paragraph = () =>
+    props.block.kind === "paragraph" ? props.block : undefined;
+  const blockquote = () =>
+    props.block.kind === "blockquote" ? props.block : undefined;
+  const list = () => (props.block.kind === "list" ? props.block : undefined);
+  const table = () => (props.block.kind === "table" ? props.block : undefined);
+  const code = () => (props.block.kind === "code" ? props.block : undefined);
+  const literal = () =>
+    props.block.kind === "literal" ? props.block : undefined;
+  return (
+    <SolidSwitch>
+      <Match when={heading()}>
+        {(block) => (
+          <Heading
+            block={block()}
+            variant={props.variant}
+            animateRun={props.animateRun}
           />
-          <View class="min-w-0 flex-1 flex flex-col gap-2">
-            <MarkdownBlocks
-              blocks={block.blocks}
-              variant={props.variant}
-              animateRun={props.animateRun}
+        )}
+      </Match>
+      <Match when={paragraph()}>
+        {(block) => (
+          <InlineMarkdown
+            runs={block().runs}
+            variant={props.variant}
+            animateRun={props.animateRun}
+          />
+        )}
+      </Match>
+      <Match when={blockquote()}>
+        {(block) => (
+          <View class="min-w-0 flex flex-row items-stretch gap-3">
+            <View
+              aria-hidden="true"
+              class="w-1 flex-none rounded-full bg-strong"
             />
+            <View class="min-w-0 flex-1 flex flex-col gap-2">
+              <MarkdownBlocks
+                blocks={block().blocks}
+                variant={props.variant}
+                animateRun={props.animateRun}
+              />
+            </View>
           </View>
-        </View>
-      );
-    case "list":
-      return (
-        <MarkdownList
-          block={block}
-          variant={props.variant}
-          animateRun={props.animateRun}
-        />
-      );
-    case "table":
-      return (
-        <MarkdownTable
-          block={block}
-          variant={props.variant}
-          animateRun={props.animateRun}
-        />
-      );
-    case "code":
-      return (
-        <CodeBlock
-          code={block.code}
-          language={block.language ?? "text"}
-          copyLabel="Copy code"
-        />
-      );
-    case "rule":
-      return <Separator />;
-    case "literal":
-      return (
-        <Text class="text-sm text-muted whitespace-normal">{block.text}</Text>
-      );
-  }
+        )}
+      </Match>
+      <Match when={list()}>
+        {(block) => (
+          <MarkdownList
+            block={block()}
+            variant={props.variant}
+            animateRun={props.animateRun}
+          />
+        )}
+      </Match>
+      <Match when={table()}>
+        {(block) => (
+          <MarkdownTable
+            block={block()}
+            variant={props.variant}
+            animateRun={props.animateRun}
+          />
+        )}
+      </Match>
+      <Match when={code()}>
+        {(block) => (
+          <CodeBlock
+            code={block().code}
+            language={block().language ?? "text"}
+            copyLabel="Copy code"
+          />
+        )}
+      </Match>
+      <Match when={props.block.kind === "rule"}>
+        <Separator />
+      </Match>
+      <Match when={literal()}>
+        {(block) => (
+          <Text class="text-sm text-muted whitespace-normal">
+            {block().text}
+          </Text>
+        )}
+      </Match>
+    </SolidSwitch>
+  );
 }
 
 export interface MarkdownProps {
