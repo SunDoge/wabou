@@ -84,7 +84,7 @@ import { defineWabouConfig } from "@wabou/vite";
 
 export default defineWabouConfig({
   theme: {
-    default: "dark",
+    default: "light",
     themes: {
       dark: {
         appearance: "dark",
@@ -97,6 +97,28 @@ export default defineWabouConfig({
     },
   },
 });
+```
+
+When `theme` is omitted, `@wabou/vite` supplies Wabou's modern desktop
+palette. Light is the default application appearance; a matching dark palette
+uses the same semantic token names. The default `@wabou/ui` geometry is tuned
+for pointer-and-keyboard desktop applications rather than touch-first pages:
+standard controls are 32px high, compact controls are 28px high, controls use
+an 8px radius, container and floating surfaces use a 12px radius, and ordinary
+container content uses a 20px inset. Applications can replace colors without
+having to restyle every component.
+
+`ComponentsProvider` tells components which elevation treatment to use. Keep
+it next to `ColorThemeProvider` so light and dark shadows change together:
+
+```tsx
+import { ColorThemeProvider, ComponentsProvider } from "@wabou/ui";
+
+<ColorThemeProvider theme={settings.theme}>
+  <ComponentsProvider theme={settings.theme === "dark" ? "dark" : "light"}>
+    <App />
+  </ComponentsProvider>
+</ColorThemeProvider>;
 ```
 
 Every named palette must define the same tokens. Those tokens become ordinary

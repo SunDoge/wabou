@@ -1,3 +1,4 @@
+import { mergeClasses } from "@wabou/core/style";
 import minus from "lucide-static/icons/minus.svg?raw";
 import {
   createContext,
@@ -15,7 +16,6 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 export function normalizeOtpValue(
   value: string,
@@ -157,7 +157,7 @@ export function InputOTPSlot(props: InputOTPSlotProps): JSX.Element {
     <View
       {...forwarded}
       class={mergeClasses(
-        "relative w-9 h-9 flex-none flex items-center justify-center rounded-md border bg-input text-sm text-primary shadow-xs",
+        "relative w-9 h-9 flex-none flex items-center justify-center rounded-lg border bg-input text-sm text-primary shadow-xs",
         active() ? "border-focus" : "border-subtle",
         props.class,
       )}

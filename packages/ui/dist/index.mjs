@@ -1601,7 +1601,7 @@ function Command(props) {
 								return item().disabled;
 							},
 							get ["class"]() {
-								return mergeClasses("min-h-9 px-3 py-1.5 flex flex-col justify-center rounded-md", highlighted() === item().id ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
+								return mergeClasses("min-h-9 px-3 py-1.5 flex flex-col justify-center rounded-lg", highlighted() === item().id ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
 							},
 							get style() {
 								return { opacity: item().disabled ? .45 : 1 };
@@ -4641,7 +4641,7 @@ function InputOTPSlot(props) {
 	const active = () => context.focused() && props.index === Math.min(context.value().length, context.maxLength() - 1);
 	return createComponent$1(View, mergeProps(forwarded, {
 		get ["class"]() {
-			return mergeClasses("relative w-9 h-9 flex-none flex items-center justify-center rounded-md border bg-input text-sm text-primary shadow-xs", active() ? "border-focus" : "border-subtle", props.class);
+			return mergeClasses("relative w-9 h-9 flex-none flex items-center justify-center rounded-lg border bg-input text-sm text-primary shadow-xs", active() ? "border-focus" : "border-subtle", props.class);
 		},
 		get children() {
 			return [createComponent$1(Show, {
@@ -6605,7 +6605,7 @@ function Select(props) {
 function NativeSelect(props) {
 	return createComponent$1(Select, mergeProps(props, {
 		motion: false,
-		contentClass: "rounded-md",
+		contentClass: "rounded-xl",
 		contentShadows: null
 	}));
 }

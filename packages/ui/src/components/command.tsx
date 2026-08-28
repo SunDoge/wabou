@@ -1,3 +1,4 @@
+import { mergeClasses } from "@wabou/core/style";
 import {
   createEffect,
   createMemo,
@@ -7,7 +8,6 @@ import {
 } from "solid-js";
 import { match } from "ts-pattern";
 import { Text, View } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import {
   type CommandStateItem,
   filterCommandItems,
@@ -114,7 +114,7 @@ export function Command(props: CommandProps): JSX.Element {
                 aria-selected={highlighted() === item().id}
                 aria-disabled={item().disabled}
                 class={mergeClasses(
-                  "min-h-9 px-3 py-1.5 flex flex-col justify-center rounded-md",
+                  "min-h-9 px-3 py-1.5 flex flex-col justify-center rounded-lg",
                   highlighted() === item().id
                     ? "bg-control-hover text-primary"
                     : "bg-transparent text-secondary",

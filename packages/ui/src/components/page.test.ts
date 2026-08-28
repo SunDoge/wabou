@@ -22,7 +22,7 @@ describe("PageViewport layout contract", () => {
 
   test("keeps page headings outside the flexible body", () => {
     expect(pageHeaderClass()).toContain("flex-none");
-    expect(pageHeaderClass()).toContain("min-h-14");
+    expect(pageHeaderClass()).toContain("min-h-12");
     expect(pageHeaderClass(undefined, true)).toContain("flex-col");
   });
 });

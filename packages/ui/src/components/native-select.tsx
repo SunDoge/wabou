@@ -17,7 +17,7 @@ export function NativeSelect(props: NativeSelectProps): JSX.Element {
     <Select
       {...props}
       motion={false}
-      contentClass="rounded-md"
+      contentClass="rounded-xl"
       contentShadows={null}
     />
   );
