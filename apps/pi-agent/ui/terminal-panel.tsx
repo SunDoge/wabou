@@ -3,6 +3,7 @@ import {
   Button,
   ContextMenu,
   type ContextMenuTriggerProps,
+  ForEntity,
   type Handle,
   Icon,
   Text,
@@ -15,7 +16,6 @@ import {
   type Accessor,
   createEffect,
   createSignal,
-  For,
   type Setter,
   untrack,
 } from "solid-js";
@@ -100,7 +100,7 @@ export function AgentTerminalPanel(
           aria-label="Terminal sessions"
           class="min-w-0 flex-1 flex flex-row items-center gap-1 overflow-hidden"
         >
-          <For each={tabs()}>
+          <ForEntity each={tabs()} by={(tab) => tab.id}>
             {(tab) => (
               <View
                 role="tab"
@@ -132,7 +132,7 @@ export function AgentTerminalPanel(
                 </Button>
               </View>
             )}
-          </For>
+          </ForEntity>
         </View>
         <Button
           variant="ghost"
@@ -154,7 +154,7 @@ export function AgentTerminalPanel(
         </Button>
       </View>
       <View class="min-h-0 flex-1 p-1">
-        <For each={tabs()}>
+        <ForEntity each={tabs()} by={(tab) => tab.id}>
           {(tab) => {
             const terminal = (trigger: ContextMenuTriggerProps) => (
               <View
@@ -207,7 +207,7 @@ export function AgentTerminalPanel(
               />
             );
           }}
-        </For>
+        </ForEntity>
       </View>
     </View>
   );

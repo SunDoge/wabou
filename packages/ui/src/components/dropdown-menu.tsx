@@ -1,6 +1,6 @@
 import type { Handle } from "@wabou/core/renderer";
 import type { Shadow } from "@wabou/core/style";
-import { createEffect, createSignal, For, type JSX } from "solid-js";
+import { createEffect, createSignal, For as ForValue, type JSX } from "solid-js";
 import { match } from "ts-pattern";
 import { Popover, Text, View } from "../primitives";
 import { createTypeahead } from "../primitives/interactions";
@@ -182,7 +182,7 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
         class="min-w-0 flex flex-col gap-0.5"
         onKeyDown={handleMenuKey}
       >
-        <For each={props.items} keyed={false}>
+        <ForValue each={props.items} keyed={false}>
           {(item) => (
             <>
               {item().separatorBefore && (
@@ -215,7 +215,7 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
               </View>
             </>
           )}
-        </For>
+        </ForValue>
       </View>
     </Popover>
   );

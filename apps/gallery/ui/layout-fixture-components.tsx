@@ -35,7 +35,7 @@ import {
   View,
 } from "@wabou/ui";
 import imageIcon from "lucide-static/icons/image.svg?raw";
-import { For } from "solid-js";
+import { For as ForValue } from "solid-js";
 import { AgentActivityStatus } from "../../pi-agent/ui/agent-activity";
 import { initialAgentState } from "../../pi-agent/ui/agent-state";
 import { ComposerContextFiles } from "../../pi-agent/ui/composer-context";
@@ -311,13 +311,13 @@ export function SidebarLayoutFixture() {
           aria-label="Fixture navigation"
           contentClass="gap-1"
         >
-          <For each={Array.from({ length: 18 }, (_, index) => index + 1)}>
+          <ForValue each={Array.from({ length: 18 }, (_, index) => index + 1)}>
             {(index) => (
               <SidebarMenuButton aria-label={`Section ${index}`}>
                 <Text>{`Section ${index}`}</Text>
               </SidebarMenuButton>
             )}
-          </For>
+          </ForValue>
         </SidebarContent>
         <SidebarFooter
           role="group"
@@ -340,13 +340,13 @@ export function ScrollAreaLayoutFixture() {
         class="w-64 h-40 rounded-lg border border-subtle bg-surface"
         contentClass="p-2 gap-1"
       >
-        <For each={Array.from({ length: 12 }, (_, index) => index + 1)}>
+        <ForValue each={Array.from({ length: 12 }, (_, index) => index + 1)}>
           {(index) => (
             <View class="h-8 flex-none px-2 flex items-center rounded bg-surface-muted">
               <Text>{`Scrollable row ${index}`}</Text>
             </View>
           )}
-        </For>
+        </ForValue>
       </ScrollArea>
     </View>
   );
@@ -449,9 +449,9 @@ export function DialogLayoutFixture() {
           Fixed header and footer surround an independently scrolling body.
         </DialogDescription>
         <DialogScrollBody aria-label="Fixture dialog body" contentClass="gap-2">
-          <For each={Array.from({ length: 12 }, (_, index) => index + 1)}>
+          <ForValue each={Array.from({ length: 12 }, (_, index) => index + 1)}>
             {(index) => <Text>{`Dialog row ${index}`}</Text>}
-          </For>
+          </ForValue>
         </DialogScrollBody>
         <View
           role="group"

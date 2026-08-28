@@ -3,7 +3,7 @@ import type { Shadow } from "@wabou/core/style";
 import { mergeClasses } from "@wabou/core/style";
 import check from "lucide-static/icons/check.svg?raw";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
-import { createUniqueId, For, type JSX } from "solid-js";
+import { createUniqueId, For as ForValue, type JSX } from "solid-js";
 import { match } from "ts-pattern";
 import {
   Button as HeadlessButton,
@@ -212,7 +212,7 @@ export function Select(props: SelectProps): JSX.Element {
           class="min-w-0 flex flex-col gap-1"
           onKeyDown={handleKeyDown}
         >
-          <For each={props.options} keyed={false}>
+          <ForValue each={props.options} keyed={false}>
             {(option) => {
               const selected = () => interaction.value() === option().value;
               const highlighted = () =>
@@ -253,7 +253,7 @@ export function Select(props: SelectProps): JSX.Element {
                 </View>
               );
             }}
-          </For>
+          </ForValue>
         </View>
       </ScrollArea>
     </Popover>

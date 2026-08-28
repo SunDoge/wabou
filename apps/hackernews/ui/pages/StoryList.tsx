@@ -13,7 +13,7 @@ import bookmark from "lucide-static/icons/bookmark.svg?raw";
 import messageSquare from "lucide-static/icons/message-square.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import { createMemo, For, type JSX, Show } from "solid-js";
+import { createMemo, For as ForValue, type JSX, Show } from "solid-js";
 import { LoadingList } from "../components/LoadingList";
 import { useTheme } from "../contexts/ThemeContext";
 import {
@@ -103,7 +103,7 @@ export function StoryList(): JSX.Element {
           <Show when={!loadError()} fallback={<LoadError />}>
             <Show when={visibleStories().length > 0} fallback={<EmptyState />}>
               <View class="m-0 p-0">
-                <For each={visibleStories()}>
+                <ForValue each={visibleStories()}>
                   {(story, index) => {
                     const { hovered, bindings } = createHover();
                     return (
@@ -171,7 +171,7 @@ export function StoryList(): JSX.Element {
                       </View>
                     );
                   }}
-                </For>
+                </ForValue>
               </View>
             </Show>
           </Show>

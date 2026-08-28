@@ -17,7 +17,7 @@ import folder from "lucide-static/icons/folder.svg?raw";
 import messageSquare from "lucide-static/icons/message-square.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For as ForValue, Show } from "solid-js";
 import type { PiSession } from "./api";
 import { i18n, m } from "./i18n";
 import type { AgentWorkspace } from "./workspace";
@@ -113,7 +113,7 @@ export function Sidebar(props: SidebarProps) {
               <Icon source={plus} size={13} />
             </Button>
           </View>
-          <For each={visibleAgents()} keyed={(agent) => agent.id}>
+          <ForValue each={visibleAgents()} keyed={(agent) => agent.id}>
             {(agent) => (
               <View class="gap-1">
                 <SidebarMenuButton
@@ -140,7 +140,7 @@ export function Sidebar(props: SidebarProps) {
                     }
                   />
                 </SidebarMenuButton>
-                <For
+                <ForValue
                   each={visibleSessions(agent().id)}
                   keyed={(session) => session.sessionId}
                 >
@@ -161,10 +161,10 @@ export function Sidebar(props: SidebarProps) {
                       </Text>
                     </SidebarMenuButton>
                   )}
-                </For>
+                </ForValue>
               </View>
             )}
-          </For>
+          </ForValue>
           <Show when={visibleAgents().length === 0}>
             <Text role="status" class="px-3 py-4 text-sm text-muted">
               {i18n.message(m.no_agents_found, {})}

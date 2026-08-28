@@ -1,4 +1,4 @@
-import { For, type JSX } from "solid-js";
+import { For as ForValue, type JSX } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
 import { mergeClasses } from "@wabou/core/style";
 
@@ -20,7 +20,7 @@ export function Timeline(props: TimelineProps): JSX.Element {
       aria-label={props["aria-label"] ?? "Timeline"}
       class={mergeClasses("min-w-0 flex flex-col", props.class)}
     >
-      <For each={props.items}>
+      <ForValue each={props.items}>
         {(item, index) => (
           <View class="min-w-0 flex flex-row gap-3">
             <View class="w-4 flex-none flex flex-col items-center">
@@ -55,7 +55,7 @@ export function Timeline(props: TimelineProps): JSX.Element {
             </View>
           </View>
         )}
-      </For>
+      </ForValue>
     </View>
   );
 }

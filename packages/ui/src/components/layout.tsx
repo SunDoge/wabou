@@ -2,7 +2,7 @@ import {
   type Accessor,
   createContext,
   createMemo,
-  For,
+  For as ForValue,
   type JSX,
   omit,
   Show,
@@ -151,9 +151,9 @@ export function ResponsiveGridRemainder(props: {
     }),
   );
   return (
-    <For each={cells()}>
+    <ForValue each={cells()}>
       {() => <View aria-hidden class={mergeClasses("min-w-0", props.class)} />}
-    </For>
+    </ForValue>
   );
 }
 

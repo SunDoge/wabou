@@ -33,7 +33,7 @@ import user from "lucide-static/icons/user.svg?raw";
 import {
   createEffect,
   createSignal,
-  For,
+  For as ForValue,
   type JSX,
   Show,
   untrack,
@@ -363,7 +363,7 @@ export function ConversationItem(props: {
                     aria-label="Attached images"
                     class="mb-2 flex flex-row flex-wrap gap-1.5"
                   >
-                    <For
+                    <ForValue
                       each={
                         props.item.kind === "user" ? props.item.imageNames : []
                       }
@@ -373,7 +373,7 @@ export function ConversationItem(props: {
                           <Icon source={image} size={12} /> {name}
                         </Badge>
                       )}
-                    </For>
+                    </ForValue>
                   </View>
                 </Show>
                 <Show
@@ -387,7 +387,7 @@ export function ConversationItem(props: {
                     aria-label="Context files"
                     class="mb-2 flex flex-row flex-wrap gap-1.5"
                   >
-                    <For
+                    <ForValue
                       each={
                         props.item.kind === "user"
                           ? props.item.contextPaths
@@ -399,7 +399,7 @@ export function ConversationItem(props: {
                           <Icon source={fileCode} size={12} /> {path}
                         </Badge>
                       )}
-                    </For>
+                    </ForValue>
                   </View>
                 </Show>
                 <Show
@@ -435,7 +435,7 @@ export function ConversationList(props: {
 }) {
   return (
     <MessageGroup class="gap-5">
-      <For each={props.items} keyed={(item) => item.id}>
+      <ForValue each={props.items} keyed={(item) => item.id}>
         {(item) => {
           const canFork = () => {
             const current = item();
@@ -463,7 +463,7 @@ export function ConversationList(props: {
             </MessageScrollerItem>
           );
         }}
-      </For>
+      </ForValue>
     </MessageGroup>
   );
 }

@@ -1,7 +1,7 @@
 import type { Handle } from "@wabou/core/renderer";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
-import { createMemo, createSignal, For, type JSX } from "solid-js";
+import { createMemo, createSignal, For as ForValue, type JSX } from "solid-js";
 import { Button as HeadlessButton, Icon, Text, View } from "../primitives";
 import { mergeClasses } from "@wabou/core/style";
 import { createControllableState } from "./state";
@@ -222,7 +222,7 @@ export function TreeView(props: TreeViewProps): JSX.Element {
       aria-label={props["aria-label"]}
       class={mergeClasses("min-w-0 flex flex-col gap-0.5", props.class)}
     >
-      <For each={visible()}>
+      <ForValue each={visible()}>
         {(item) => {
           const branch = () => model().isBranch(item.node.id);
           return (
@@ -278,7 +278,7 @@ export function TreeView(props: TreeViewProps): JSX.Element {
             </HeadlessButton>
           );
         }}
-      </For>
+      </ForValue>
     </View>
   );
 }

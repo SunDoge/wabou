@@ -20,7 +20,7 @@ import {
   useHost,
   View,
 } from "@wabou/ui";
-import { createEffect, createSignal, For, Show } from "solid-js";
+import { createEffect, createSignal, For as ForValue, Show } from "solid-js";
 
 const PRESETS = [100, 1_000, 5_000, 10_000, 25_000];
 const JS_WORK = [0, 50_000, 500_000, 5_000_000];
@@ -177,7 +177,7 @@ function App() {
     <View class="w-full h-full flex flex-col bg-slate-950 text-slate-100">
       <View class="flex-none p-2 flex items-center gap-2 border-b border-slate-700">
         <Text class="text-sm font-semibold mr-1">emoji stress</Text>
-        <For each={PRESETS}>
+        <ForValue each={PRESETS}>
           {(p) => (
             <Button
               class="px-2 py-1 text-xs rounded border border-slate-600"
@@ -189,10 +189,10 @@ function App() {
               {p.toLocaleString()}
             </Button>
           )}
-        </For>
+        </ForValue>
         <Text class="ml-1 text-xs text-slate-500">emojis</Text>
         <Text class="mx-2 text-slate-600">|</Text>
-        <For each={JS_WORK}>
+        <ForValue each={JS_WORK}>
           {(w) => (
             <Button
               class="px-2 py-1 text-xs rounded border border-slate-600"
@@ -203,7 +203,7 @@ function App() {
               {w === 0 ? "0" : w.toLocaleString()}
             </Button>
           )}
-        </For>
+        </ForValue>
         <Text class="ml-1 text-xs text-slate-500">js iters</Text>
         <Text class="mx-2 text-slate-600">|</Text>
         <Button
@@ -252,7 +252,7 @@ function App() {
       </View>
 
       <View class="flex-1 min-h-0 overflow-hidden relative">
-        <For each={bodies()} keyed={false}>
+        <ForValue each={bodies()} keyed={false}>
           {(body, index) => (
             <View
               class="text-[28px] pointer-events-none"
@@ -269,7 +269,7 @@ function App() {
               {body().char}
             </View>
           )}
-        </For>
+        </ForValue>
       </View>
     </View>
   );

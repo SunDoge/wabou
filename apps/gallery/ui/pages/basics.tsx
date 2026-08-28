@@ -60,7 +60,7 @@ import {
 } from "@wabou/ui";
 import info from "lucide-static/icons/info.svg?raw";
 import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
-import { createSignal, For, onCleanup } from "solid-js";
+import { createSignal, For as ForValue, onCleanup } from "solid-js";
 import "virtual:wabou-stylesheet";
 
 import { Preview } from "../preview";
@@ -772,7 +772,7 @@ function ScrollAreaPage() {
               activeColor: 0x0284c7ff,
             }}
           >
-            <For each={Array.from({ length: 16 }, (_, index) => index + 1)}>
+            <ForValue each={Array.from({ length: 16 }, (_, index) => index + 1)}>
               {(index) => (
                 <View
                   class={
@@ -792,7 +792,7 @@ function ScrollAreaPage() {
                   </Text>
                 </View>
               )}
-            </For>
+            </ForValue>
           </ScrollArea>
         </View>
       </Preview>

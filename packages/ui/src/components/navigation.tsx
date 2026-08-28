@@ -1,7 +1,7 @@
 import {
   createComponent,
   createContext,
-  For,
+  For as ForValue,
   type JSX,
   omit,
   useContext,
@@ -314,7 +314,7 @@ export function PaginationItems(props: {
       boundaryCount: props.boundaryCount,
     });
   return (
-    <For each={items()}>
+    <ForValue each={items()}>
       {(item) =>
         typeof item === "number"
           ? (props.renderItem?.(item) ?? (
@@ -326,7 +326,7 @@ export function PaginationItems(props: {
               item === "ellipsis-start" ? "start" : "end",
             ) ?? <PaginationEllipsis />)
       }
-    </For>
+    </ForValue>
   );
 }
 

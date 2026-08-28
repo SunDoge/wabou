@@ -45,7 +45,7 @@ import plus from "lucide-static/icons/plus.svg?raw";
 import retry from "lucide-static/icons/rotate-ccw.svg?raw";
 import stop from "lucide-static/icons/square.svg?raw";
 import trash from "lucide-static/icons/trash-2.svg?raw";
-import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For as ForValue, Show } from "solid-js";
 import { useAppActions } from "../app-actions";
 import { LiveChart } from "../components/live-chart";
 import {
@@ -408,7 +408,7 @@ export function DownloadsPage() {
                 batchSelection.clear();
               }}
             >
-              <For each={filters}>
+              <ForValue each={filters}>
                 {([value, label]) => (
                   <ToggleGroupItem
                     value={value}
@@ -418,7 +418,7 @@ export function DownloadsPage() {
                     {label}
                   </ToggleGroupItem>
                 )}
-              </For>
+              </ForValue>
             </ToggleGroup>
           }
         >
@@ -954,7 +954,7 @@ export function DownloadsPage() {
                             aria-label="Downloaded files"
                             class="flex flex-col"
                           >
-                            <For each={details()?.files ?? []}>
+                            <ForValue each={details()?.files ?? []}>
                               {(file) => (
                                 <View
                                   role="row"
@@ -973,7 +973,7 @@ export function DownloadsPage() {
                                   </View>
                                 </View>
                               )}
-                            </For>
+                            </ForValue>
                             <Show when={!details() && !detailsError()}>
                               <Text class="p-3 text-sm text-muted">
                                 Loading files…

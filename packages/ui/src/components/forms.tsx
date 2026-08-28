@@ -1,5 +1,5 @@
 import type { Handle } from "@wabou/core/renderer";
-import { createContext, For, type JSX, omit, Show, useContext } from "solid-js";
+import { createContext, For as ForValue, type JSX, omit, Show, useContext } from "solid-js";
 import { match } from "ts-pattern";
 import {
   createFocusWithin,
@@ -167,13 +167,13 @@ export function FieldError(props: {
       <Show
         when={props.children !== undefined && props.children !== null}
         fallback={
-          <For each={messages()}>
+          <ForValue each={messages()}>
             {(message) => (
               <Text class="w-full min-w-0 whitespace-normal text-xs text-danger-primary">
                 {message}
               </Text>
             )}
-          </For>
+          </ForValue>
         }
       >
         <Text class="w-full min-w-0 whitespace-normal text-xs text-danger-primary">

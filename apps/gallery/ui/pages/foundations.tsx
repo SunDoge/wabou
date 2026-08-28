@@ -1,6 +1,6 @@
 import { rgba, shadow, Text, useComponentsTheme, View } from "@wabou/ui";
 import wabouUtilityManifest from "@wabou/vite/utility-manifest";
-import { For } from "solid-js";
+import { For as ForValue } from "solid-js";
 import "virtual:wabou-stylesheet";
 
 import { Preview } from "../preview";
@@ -77,7 +77,7 @@ function ColorsPage() {
     <View class="flex flex-col gap-5">
       <Preview title="Base colors">
         <View class="w-full flex gap-3">
-          <For each={["transparent", "black", "white"]}>
+          <ForValue each={["transparent", "black", "white"]}>
             {(token) => (
               <View
                 class={
@@ -111,12 +111,12 @@ function ColorsPage() {
                 </Text>
               </View>
             )}
-          </For>
+          </ForValue>
         </View>
       </Preview>
 
       <View class="flex flex-col gap-5">
-        <For each={COLOR_FAMILIES}>
+        <ForValue each={COLOR_FAMILIES}>
           {(family) => (
             <View class="flex flex-col gap-2">
               <View class="flex items-center justify-between">
@@ -134,18 +134,18 @@ function ColorsPage() {
                 </ThemeText>
               </View>
               <View class="flex gap-1">
-                <For each={COLOR_STOPS}>
+                <ForValue each={COLOR_STOPS}>
                   {(stop) => {
                     const token = `${family}-${stop}`;
                     return (
                       <ColorSwatch value={colors[token]} label={String(stop)} />
                     );
                   }}
-                </For>
+                </ForValue>
               </View>
             </View>
           )}
-        </For>
+        </ForValue>
       </View>
     </View>
   );
@@ -204,7 +204,7 @@ function ShadowsPage() {
 
       <Preview title="Gaussian standard deviation">
         <View class="w-full flex flex-wrap gap-2">
-          <For each={[0, 2, 6, 12]}>
+          <ForValue each={[0, 2, 6, 12]}>
             {(stdDev) => (
               <ShadowTile
                 title={`${stdDev}`}
@@ -218,7 +218,7 @@ function ShadowsPage() {
                 ]}
               />
             )}
-          </For>
+          </ForValue>
         </View>
       </Preview>
 

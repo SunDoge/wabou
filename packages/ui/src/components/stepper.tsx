@@ -1,4 +1,4 @@
-import { createSignal, For, type JSX } from "solid-js";
+import { createSignal, For as ForValue, type JSX } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
 import { Button } from "./button";
 import { mergeClasses } from "@wabou/core/style";
@@ -35,7 +35,7 @@ export function Stepper(props: StepperProps): JSX.Element {
       aria-label={props["aria-label"] ?? "Progress steps"}
       class={mergeClasses("min-w-0 flex flex-row items-start", props.class)}
     >
-      <For each={props.steps}>
+      <ForValue each={props.steps}>
         {(step, index) => (
           <View class="min-w-0 flex-1 flex flex-row items-start">
             <View class="min-w-0 flex-1 items-center gap-2">
@@ -64,7 +64,7 @@ export function Stepper(props: StepperProps): JSX.Element {
             )}
           </View>
         )}
-      </For>
+      </ForValue>
     </View>
   );
 }

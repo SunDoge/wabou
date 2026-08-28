@@ -1,5 +1,5 @@
 import { mergeClasses } from "@wabou/core/style";
-import { For, Show } from "solid-js";
+import { For as ForValue, Show } from "solid-js";
 import { CodeEditor, Text, View, type ViewProps } from "../primitives";
 import {
   Accordion,
@@ -104,7 +104,7 @@ export function DiffViewer(props: DiffViewerProps) {
           defaultValue={props.defaultExpanded ?? []}
           class="min-w-0"
         >
-          <For each={props.files}>
+          <ForValue each={props.files}>
             {(file) => (
               <AccordionItem value={file.path} class="px-4">
                 <AccordionTrigger aria-label={file.path} class="py-3 gap-3">
@@ -156,7 +156,7 @@ export function DiffViewer(props: DiffViewerProps) {
                 </AccordionContent>
               </AccordionItem>
             )}
-          </For>
+          </ForValue>
         </Accordion>
       </Show>
     </View>

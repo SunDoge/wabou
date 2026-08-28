@@ -11,7 +11,7 @@ import {
 import file from "lucide-static/icons/file.svg?raw";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For as ForValue, Show } from "solid-js";
 import type { WorkspaceFilePreview } from "./api";
 import { i18n, m } from "./i18n";
 
@@ -123,7 +123,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                 </Text>
               }
             >
-              <For
+              <ForValue
                 each={filtered()}
                 fallback={
                   <Text role="status" class="p-3 text-sm text-muted">
@@ -149,7 +149,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                     </View>
                   </Button>
                 )}
-              </For>
+              </ForValue>
             </Show>
           </ScrollArea>
         </View>

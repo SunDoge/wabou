@@ -17,7 +17,7 @@ import {
 } from "@wabou/ui";
 import checkCircle from "lucide-static/icons/circle-check.svg?raw";
 import xCircle from "lucide-static/icons/circle-x.svg?raw";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For as ForValue, Show } from "solid-js";
 import { useDownloads } from "../downloads";
 
 export function NotificationsPage() {
@@ -75,7 +75,7 @@ export function NotificationsPage() {
               class="h-full min-h-0"
             >
               <ScrollArea class="h-full min-h-0" contentClass="flex flex-col">
-                <For each={recentEvents()}>
+                <ForValue each={recentEvents()}>
                   {(event) => {
                     const title =
                       event.status === "complete"
@@ -126,7 +126,7 @@ export function NotificationsPage() {
                       </PrimitiveButton>
                     );
                   }}
-                </For>
+                </ForValue>
               </ScrollArea>
             </View>
           </Show>

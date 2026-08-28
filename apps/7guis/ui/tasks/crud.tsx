@@ -6,7 +6,7 @@ import {
   Text,
   View,
 } from "@wabou/ui";
-import { createMemo, createSignal, For } from "solid-js";
+import { createMemo, createSignal, For as ForValue } from "solid-js";
 import { FieldLabel, TaskPage } from "../shared";
 
 interface Person {
@@ -88,7 +88,7 @@ export function CrudTask() {
             class="h-64 rounded-lg border border-subtle bg-surface-muted"
             contentClass="p-2 gap-1"
           >
-            <For each={visible()}>
+            <ForValue each={visible()}>
               {(person) => (
                 <PrimitiveButton
                   unstyled
@@ -109,7 +109,7 @@ export function CrudTask() {
                   {person.last}, {person.first}
                 </PrimitiveButton>
               )}
-            </For>
+            </ForValue>
           </ScrollArea>
         </View>
         <View class="flex-1 flex flex-col gap-4">

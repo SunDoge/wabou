@@ -1,7 +1,7 @@
 import { mergeClasses } from "@wabou/core/style";
 import {
   createMemo,
-  For,
+  For as ForValue,
   type JSX,
   Match,
   Switch as SolidSwitch,
@@ -45,11 +45,11 @@ function InlineMarkdown(props: {
         props.class,
       )}
     >
-      <For each={props.runs}>
+      <ForValue each={props.runs}>
         {(run) => (
           <MarkdownSpan run={run} reveal={props.animateRun?.(run) ?? false} />
         )}
-      </For>
+      </ForValue>
     </RichText>
   );
 }
@@ -120,7 +120,7 @@ function MarkdownBlocks(props: {
   animateRun?: (run: MarkdownRun) => boolean;
 }): JSX.Element {
   return (
-    <For each={props.blocks} keyed={false}>
+    <ForValue each={props.blocks} keyed={false}>
       {(block) => (
         <MarkdownBlock
           block={block()}
@@ -128,7 +128,7 @@ function MarkdownBlocks(props: {
           animateRun={props.animateRun}
         />
       )}
-    </For>
+    </ForValue>
   );
 }
 
@@ -145,7 +145,7 @@ function MarkdownList(props: {
           : "flex flex-col gap-2"
       }
     >
-      <For each={props.block.items}>
+      <ForValue each={props.block.items}>
         {(item, index) => (
           <View class="min-w-0 flex flex-row items-start gap-2">
             <Text aria-hidden="true" class="flex-none text-secondary">
@@ -166,7 +166,7 @@ function MarkdownList(props: {
             </View>
           </View>
         )}
-      </For>
+      </ForValue>
     </View>
   );
 }
@@ -179,7 +179,7 @@ function MarkdownTable(props: {
   const rows = () => [props.block.header, ...props.block.rows];
   return (
     <View class="min-w-0 overflow-hidden rounded-lg border border-subtle">
-      <For each={rows()}>
+      <ForValue each={rows()}>
         {(row, rowIndex) => (
           <View
             class={mergeClasses(
@@ -187,7 +187,7 @@ function MarkdownTable(props: {
               rowIndex() === 0 ? "bg-control" : "bg-surface",
             )}
           >
-            <For each={row}>
+            <ForValue each={row}>
               {(runs, columnIndex) => (
                 <View
                   class={mergeClasses(
@@ -208,10 +208,10 @@ function MarkdownTable(props: {
                   />
                 </View>
               )}
-            </For>
+            </ForValue>
           </View>
         )}
-      </For>
+      </ForValue>
     </View>
   );
 }

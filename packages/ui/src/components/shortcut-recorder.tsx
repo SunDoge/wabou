@@ -1,5 +1,5 @@
 import { mergeClasses } from "@wabou/core/style";
-import { createSignal, For, type JSX } from "solid-js";
+import { createSignal, For as ForValue, type JSX } from "solid-js";
 import { match } from "ts-pattern";
 import {
   type ButtonKeyEvent,
@@ -103,7 +103,7 @@ export function ShortcutRecorder(props: ShortcutRecorderProps): JSX.Element {
         {recording() ? (
           <Text class="text-sm text-muted">Press a shortcut…</Text>
         ) : parts().length > 0 ? (
-          <For each={parts()}>{(part) => <Kbd>{part}</Kbd>}</For>
+          <ForValue each={parts()}>{(part) => <Kbd>{part}</Kbd>}</ForValue>
         ) : (
           <Text class="text-sm text-muted">
             {props.placeholder ?? "Record shortcut"}

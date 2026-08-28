@@ -12,7 +12,7 @@ import { mergeClasses } from "@wabou/core/style";
 import calendarIcon from "lucide-static/icons/calendar.svg?raw";
 import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
-import { createMemo, createSignal, For, type JSX, untrack } from "solid-js";
+import { createMemo, createSignal, For as ForValue, type JSX, untrack } from "solid-js";
 import {
   Button as HeadlessButton,
   Icon,
@@ -246,14 +246,14 @@ export function Calendar(props: CalendarProps): JSX.Element {
         </HeadlessButton>
       </View>
       <View class="w-64 flex flex-wrap gap-1">
-        <For each={monthInfo().weekday_labels}>
+        <ForValue each={monthInfo().weekday_labels}>
           {(day) => (
             <Text class="w-8 h-7 flex items-center justify-center text-xs text-muted">
               {day}
             </Text>
           )}
-        </For>
-        <For each={days()} keyed={false}>
+        </ForValue>
+        <ForValue each={days()} keyed={false}>
           {(date) => {
             const selected = () => isSameDay(date(), value());
             const outside = () => date().month !== visibleMonth().month;
@@ -288,7 +288,7 @@ export function Calendar(props: CalendarProps): JSX.Element {
               </HeadlessButton>
             );
           }}
-        </For>
+        </ForValue>
       </View>
       <View class="pt-2 flex items-center border-t border-subtle">
         <HeadlessButton

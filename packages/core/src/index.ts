@@ -96,6 +96,11 @@ export {
   type EventEffectOptions,
 } from "./glue/event-effect";
 export {
+  type EntityKey,
+  ForEntity,
+  type ForEntityProps,
+} from "./glue/entity-list";
+export {
   type FileDropEvent,
   type FileDropHandler,
   type FileDropPhase,

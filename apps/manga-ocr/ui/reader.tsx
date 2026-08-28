@@ -22,7 +22,7 @@ import languages from "lucide-static/icons/languages.svg?raw";
 import scanText from "lucide-static/icons/scan-text.svg?raw";
 import hand from "lucide-static/icons/hand.svg?raw";
 import squareDashed from "lucide-static/icons/square-dashed.svg?raw";
-import { For, Show } from "solid-js";
+import { For as ForValue, Show } from "solid-js";
 import { Icon } from "@wabou/ui";
 import { ocrStateLabel } from "./ocr-queue";
 import {
@@ -393,7 +393,7 @@ export function Reader() {
             </Show>
             <ScrollArea class="flex-1 min-h-0 pr-1">
               <View class="flex flex-col gap-2">
-                <For each={regions()}>
+                <ForValue each={regions()}>
                   {(region, index) => (
                     <View
                       ref={(node: Handle) => regionItems.set(region.id, node)}
@@ -429,7 +429,7 @@ export function Reader() {
                       </Show>
                     </View>
                   )}
-                </For>
+                </ForValue>
               </View>
             </ScrollArea>
           </CardContent>

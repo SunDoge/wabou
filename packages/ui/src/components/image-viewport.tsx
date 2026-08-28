@@ -4,7 +4,7 @@ import {
   createContext,
   createMemo,
   createSignal,
-  For,
+  For as ForValue,
   type JSX,
   omit,
   useContext,
@@ -477,7 +477,7 @@ export function AnnotationLayer(props: AnnotationLayerProps): JSX.Element {
       onPointerUp={finish}
       onPointerCancel={() => setInteraction()}
     >
-      <For each={props.regions}>
+      <ForValue each={props.regions}>
         {(region) => (
           <View
             role="button"
@@ -506,7 +506,7 @@ export function AnnotationLayer(props: AnnotationLayerProps): JSX.Element {
             />
           </View>
         )}
-      </For>
+      </ForValue>
       {draft() && (
         <View
           aria-hidden="true"
@@ -552,13 +552,13 @@ export function ImageOverlayLayer<T extends ImageOverlayItem>(
       {...rest}
       class={mergeClasses("absolute inset-0 pointer-events-none", props.class)}
     >
-      <For each={props.items}>
+      <ForValue each={props.items}>
         {(item, index) => (
           <View class="absolute overflow-hidden" style={styleFor(item)}>
             {props.children(item, index)}
           </View>
         )}
-      </For>
+      </ForValue>
     </View>
   );
 }

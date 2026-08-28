@@ -6,7 +6,7 @@ import {
   translate2d,
   View,
 } from "@wabou/ui";
-import { createMemo, createSignal, For } from "solid-js";
+import { createMemo, createSignal, For as ForValue } from "solid-js";
 import { TaskPage } from "../shared";
 import {
   cellAddress,
@@ -151,7 +151,7 @@ export function CellsTask() {
                 class="absolute h-8"
                 style={{ width: `${COLUMNS * CELL_WIDTH}px` }}
               >
-                <For each={visibleColumns()}>
+                <ForValue each={visibleColumns()}>
                   {(column) => (
                     <View
                       class="absolute h-8 flex items-center justify-center border-r border-subtle"
@@ -165,7 +165,7 @@ export function CellsTask() {
                       </Text>
                     </View>
                   )}
-                </For>
+                </ForValue>
               </View>
             </View>
           </View>
@@ -176,7 +176,7 @@ export function CellsTask() {
                 class="absolute w-12"
                 style={{ height: `${ROWS * CELL_HEIGHT}px` }}
               >
-                <For each={visibleRows()}>
+                <ForValue each={visibleRows()}>
                   {(row) => (
                     <View
                       class="absolute w-12 flex items-center justify-center border-b border-subtle"
@@ -190,7 +190,7 @@ export function CellsTask() {
                       </Text>
                     </View>
                   )}
-                </For>
+                </ForValue>
               </View>
             </View>
             <View
@@ -209,7 +209,7 @@ export function CellsTask() {
                   height: `${ROWS * CELL_HEIGHT}px`,
                 }}
               >
-                <For each={visibleCells()}>
+                <ForValue each={visibleCells()}>
                   {(cell) => {
                     const selected = () => active() === cell.address;
                     const displayed = () =>
@@ -255,7 +255,7 @@ export function CellsTask() {
                       </PrimitiveButton>
                     );
                   }}
-                </For>
+                </ForValue>
               </View>
             </View>
           </View>

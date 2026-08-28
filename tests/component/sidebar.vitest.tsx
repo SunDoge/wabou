@@ -11,7 +11,7 @@ import {
   SidebarMenuButton,
   SidebarSearch,
 } from "@wabou/ui";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For as ForValue, Show } from "solid-js";
 import { expect, test } from "vitest";
 
 const groups = [
@@ -64,11 +64,11 @@ test("composes fixed chrome, searchable content, navigation and empty state", ()
           onValueChange={setQuery}
         />
         <SidebarContent>
-          <For each={filtered()}>
+          <ForValue each={filtered()}>
             {(group) => (
               <SidebarGroup aria-label={group.label}>
                 <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-                <For each={group.items}>
+                <ForValue each={group.items}>
                   {(item) => (
                     <SidebarMenuButton
                       aria-label={item.label}
@@ -78,10 +78,10 @@ test("composes fixed chrome, searchable content, navigation and empty state", ()
                       {item.label}
                     </SidebarMenuButton>
                   )}
-                </For>
+                </ForValue>
               </SidebarGroup>
             )}
-          </For>
+          </ForValue>
           <Show when={filtered().length === 0}>
             <SidebarEmpty title="Nothing here" />
           </Show>

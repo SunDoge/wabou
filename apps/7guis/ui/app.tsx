@@ -11,7 +11,7 @@ import {
   useParams,
   View,
 } from "@wabou/ui";
-import { createSignal, For, Match, Switch } from "solid-js";
+import { createSignal, For as ForValue, Match, Switch } from "solid-js";
 import { CellsTask } from "./tasks/cells";
 import { CircleDrawerTask } from "./tasks/circle-drawer";
 import { CounterTask } from "./tasks/counter";
@@ -67,7 +67,7 @@ export function App() {
               </View>
             </View>
             <ScrollArea class="flex-1" contentClass="p-3 gap-2">
-              <For each={tasks}>
+              <ForValue each={tasks}>
                 {(item) => (
                   <PrimitiveButton
                     unstyled
@@ -106,7 +106,7 @@ export function App() {
                     </View>
                   </PrimitiveButton>
                 )}
-              </For>
+              </ForValue>
             </ScrollArea>
             <View class="flex-none p-4 border-t border-subtle">
               <Text class="whitespace-normal text-xs text-muted">

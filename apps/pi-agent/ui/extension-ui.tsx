@@ -16,7 +16,7 @@ import {
   TextArea,
   View,
 } from "@wabou/ui";
-import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import { createEffect, createSignal, For as ForValue, onCleanup, Show } from "solid-js";
 import { match } from "ts-pattern";
 import { i18n, m } from "./i18n";
 
@@ -206,16 +206,16 @@ export function ExtensionUiChrome(props: {
           aria-label="Extension status"
           class="w-full min-w-0 flex flex-col gap-1 px-1"
         >
-          <For each={props.statuses}>
+          <ForValue each={props.statuses}>
             {(status) => (
               <Text class="w-full min-w-0 text-xs text-muted whitespace-normal">
                 {status.text}
               </Text>
             )}
-          </For>
+          </ForValue>
         </View>
       </Show>
-      <For each={widgets()}>
+      <ForValue each={widgets()}>
         {(widget) => (
           <View
             role="region"
@@ -227,7 +227,7 @@ export function ExtensionUiChrome(props: {
             </Text>
           </View>
         )}
-      </For>
+      </ForValue>
     </>
   );
 }
@@ -343,7 +343,7 @@ export function ExtensionUiDialog(props: {
               </Show>
               <Show when={dialog.method === "select"}>
                 <View role="listbox" aria-label={dialog.title} class="gap-1">
-                  <For each={dialog.options ?? []}>
+                  <ForValue each={dialog.options ?? []}>
                     {(option) => (
                       <Button
                         variant="ghost"
@@ -355,7 +355,7 @@ export function ExtensionUiDialog(props: {
                         {option}
                       </Button>
                     )}
-                  </For>
+                  </ForValue>
                 </View>
               </Show>
               <Show when={dialog.method === "input"}>

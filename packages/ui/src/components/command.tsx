@@ -3,7 +3,7 @@ import {
   createEffect,
   createMemo,
   createSignal,
-  For,
+  For as ForValue,
   type JSX,
 } from "solid-js";
 import { match } from "ts-pattern";
@@ -105,7 +105,7 @@ export function Command(props: CommandProps): JSX.Element {
             {props.emptyText ?? "No results found."}
           </Text>
         ) : (
-          <For each={filtered()} keyed={false}>
+          <ForValue each={filtered()} keyed={false}>
             {(item) => (
               <View
                 id={item().id}
@@ -131,7 +131,7 @@ export function Command(props: CommandProps): JSX.Element {
                 )}
               </View>
             )}
-          </For>
+          </ForValue>
         )}
       </View>
     </View>

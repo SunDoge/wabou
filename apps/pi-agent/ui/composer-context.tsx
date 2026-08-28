@@ -18,7 +18,7 @@ import {
 import fileCode from "lucide-static/icons/file-code-2.svg?raw";
 import filesIcon from "lucide-static/icons/files.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For as ForValue, Show } from "solid-js";
 import { i18n, m } from "./i18n";
 
 export interface ComposerContextProps {
@@ -33,7 +33,7 @@ export function ComposerContextFiles(props: ComposerContextProps) {
         role="group"
         aria-label={i18n.message(m.context_files, {})}
       >
-        <For each={props.paths}>
+        <ForValue each={props.paths}>
           {(path) => (
             <Attachment size="sm" class="max-w-72">
               <AttachmentMedia>
@@ -58,7 +58,7 @@ export function ComposerContextFiles(props: ComposerContextProps) {
               </AttachmentActions>
             </Attachment>
           )}
-        </For>
+        </ForValue>
       </AttachmentGroup>
     </Show>
   );
