@@ -81,6 +81,7 @@ import { SessionTitle } from "./session-title";
 import { SessionUsage } from "./session-usage";
 import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
+import { ScopedHandleRegistry } from "./scoped-handle-registry";
 import { AgentTerminalPanel } from "./terminal-panel";
 import { TranscriptSearch } from "./transcript-search";
 import {
@@ -162,6 +163,7 @@ export function App() {
   const [sidePanel, setSidePanel] = createSignal<"files" | "changes">();
   const [terminalOpen, setTerminalOpen] = createSignal(false);
   const [terminalMounted, setTerminalMounted] = createSignal(false);
+  const [terminalOwnerId, setTerminalOwnerId] = createSignal<string>();
   const [deliveryMode, setDeliveryMode] =
     createSignal<ComposerDeliveryMode>("followUp");
   const [activeSearchItem, setActiveSearchItem] = createSignal<string>();
@@ -182,7 +184,7 @@ export function App() {
     Readonly<Record<string, string>>
   >({});
   const deliveredNotifications = new Set<string>();
-  const itemHandles = new Map<string, Handle>();
+  const itemHandles = new ScopedHandleRegistry<Handle>();
   let nextMessage = 1;
   let profilesHydrated = false;
   let settingsHydrated = false;
@@ -255,6 +257,21 @@ export function App() {
   };
   const active = () =>
     agents().find((agent) => agent.id === activeId()) ?? agents()[0];
+  const disposeTerminal = () => {
+    setTerminalOpen(false);
+    setTerminalMounted(false);
+    setTerminalOwnerId(undefined);
+  };
+  createEffect(
+    () => ({
+      activeId: activeId(),
+      mounted: terminalMounted(),
+      ownerId: terminalOwnerId(),
+    }),
+    ({ activeId, mounted, ownerId }) => {
+      if (mounted && ownerId !== activeId) disposeTerminal();
+    },
+  );
   const activeSession = () =>
     sessions().find(
       (session) =>
@@ -262,6 +279,15 @@ export function App() {
         session.sessionId === active().state.sessionId,
     );
   const activeSessionId = () => params().sessionId;
+  const itemHandleScope = () =>
+    `${activeId()}\0${active().state.sessionId ?? activeSessionId() ?? ""}`;
+  createEffect(
+    () => ({
+      scope: itemHandleScope(),
+      ids: active().state.items.map((item) => item.id),
+    }),
+    ({ scope, ids }) => itemHandles.synchronize(scope, ids),
+  );
   const refreshWorkspaceInfo = (cwd = active().cwd) => {
     if (!cwd.trim()) {
       setWorkspaceInfo(undefined);
@@ -513,6 +539,7 @@ export function App() {
   onCleanup(() => {
     unsubscribe();
     unsubscribeExtensionUi();
+    itemHandles.clear();
     profileWriter.flush();
     settingsWriter.flush();
   });
@@ -914,7 +941,10 @@ export function App() {
                   aria-pressed={terminalOpen()}
                   disabled={!active().cwd.trim()}
                   onClick={() => {
-                    if (!terminalOpen()) setTerminalMounted(true);
+                    if (!terminalOpen()) {
+                      setTerminalOwnerId(activeId());
+                      setTerminalMounted(true);
+                    }
                     setTerminalOpen((open) => !open);
                   }}
                 >
@@ -1026,7 +1056,9 @@ export function App() {
               <Show when={searchOpen()}>
                 <TranscriptSearch
                   items={active().state.items}
-                  resolveItem={(id) => itemHandles.get(id)}
+                  resolveItem={(id) =>
+                    itemHandles.resolve(itemHandleScope(), id)
+                  }
                   activeChanged={setActiveSearchItem}
                   close={() => setSearchOpen(false)}
                 />
@@ -1045,7 +1077,9 @@ export function App() {
                     <ConversationList
                       items={active().state.items}
                       activeSearchItem={activeSearchItem()}
-                      registerItem={(id, node) => itemHandles.set(id, node)}
+                      registerItem={(id, node) =>
+                        itemHandles.register(itemHandleScope(), id, node)
+                      }
                       fork={(item) =>
                         setPendingFork({
                           entryId: item.entryId ?? "",
@@ -1145,10 +1179,7 @@ export function App() {
               cwd={active().cwd}
               open={terminalOpen()}
               close={() => setTerminalOpen(false)}
-              dispose={() => {
-                setTerminalOpen(false);
-                setTerminalMounted(false);
-              }}
+              dispose={disposeTerminal}
             />
           </Show>
         </View>

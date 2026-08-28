@@ -191,11 +191,18 @@ test("opens and closes an embedded native terminal panel", async ({ page }) => {
   await terminal.press("Enter");
   await expect(terminal).toBeFocused();
 
-  await page.getByRole("button", { name: "Close terminal panel" }).click();
-  await expect(toggle).toBeUnpressed();
+  await page.getByRole("button", { name: "Project 2" }).click();
   await expect(
     page.getByRole("region", { name: "Terminal panel" }),
   ).toBeAbsent();
+
+  await page.getByRole("button", { name: "Workspace Agent" }).click();
+  await expect(
+    page.getByRole("region", { name: "Terminal panel" }),
+  ).toBeAbsent();
+  await expect(
+    page.getByRole("button", { name: "Toggle terminal" }),
+  ).toBeUnpressed();
 });
 
 test("keeps retained layout stable across repeated agent switches", async ({
