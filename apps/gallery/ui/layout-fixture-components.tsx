@@ -143,46 +143,57 @@ export function PiSessionBehaviorLayoutFixture() {
 
 export function PiAgentHeaderLayoutFixture() {
   return (
-    <View class="w-full h-14 min-w-0 px-5 border-b border-subtle bg-surface flex flex-row items-center justify-between gap-3">
-      <View class="min-w-0 flex-1 flex flex-col gap-0">
-        <Text class="font-semibold truncate">Implement session controls</Text>
-        <View class="min-w-0 flex flex-row items-center gap-2">
-          <Text class="min-w-0 flex-1 text-xs text-muted truncate">
-            Claude Sonnet 4.5 · medium thinking
-          </Text>
-          <AgentActivityStatus
-            state={{
-              ...initialAgentState,
-              connection: "running",
-              activity: { kind: "retrying", attempt: 2, maxAttempts: 3 },
-              queue: { steering: 1, followUp: 2 },
-            }}
+    <View class="w-full h-14 min-w-0 flex flex-row bg-canvas">
+      <SidebarHeader
+        aria-label="Pi agent sidebar header"
+        class="w-72 flex items-center gap-3 px-4"
+      >
+        <Text class="font-semibold">Pi Agent</Text>
+      </SidebarHeader>
+      <View
+        aria-label="Pi agent content header"
+        class="h-14 min-w-0 flex-1 px-5 border-b border-subtle bg-surface flex flex-row items-center justify-between gap-3"
+      >
+        <View class="min-w-0 flex-1 flex flex-col gap-0">
+          <Text class="font-semibold truncate">Implement session controls</Text>
+          <View class="min-w-0 flex flex-row items-center gap-2">
+            <Text class="min-w-0 flex-1 text-xs text-muted truncate">
+              Claude Sonnet 4.5 · medium thinking
+            </Text>
+            <AgentActivityStatus
+              state={{
+                ...initialAgentState,
+                connection: "running",
+                activity: { kind: "retrying", attempt: 2, maxAttempts: 3 },
+                queue: { steering: 1, followUp: 2 },
+              }}
+            />
+          </View>
+        </View>
+        <View class="flex-none flex flex-row items-center gap-1">
+          <ModelControls
+            models={[
+              {
+                provider: "anthropic",
+                id: "claude-sonnet-4-5",
+                name: "Claude Sonnet 4.5",
+                reasoning: true,
+                contextWindow: 200_000,
+              },
+            ]}
+            modelProvider="anthropic"
+            modelId="claude-sonnet-4-5"
+            thinking="medium"
+            thinkingLevels={["off", "medium", "high"]}
+            chooseModel={() => {}}
+            chooseThinking={() => {}}
+          />
+          <SessionActions
+            compact={() => {}}
+            clone={() => {}}
+            exportHtml={() => {}}
           />
         </View>
-      </View>
-      <View class="flex-none flex flex-row items-center gap-1">
-        <ModelControls
-          models={[
-            {
-              provider: "anthropic",
-              id: "claude-sonnet-4-5",
-              name: "Claude Sonnet 4.5",
-              reasoning: true,
-              contextWindow: 200_000,
-            },
-          ]}
-          modelProvider="anthropic"
-          modelId="claude-sonnet-4-5"
-          thinking="medium"
-          thinkingLevels={["off", "medium", "high"]}
-          chooseModel={() => {}}
-          chooseThinking={() => {}}
-        />
-        <SessionActions
-          compact={() => {}}
-          clone={() => {}}
-          exportHtml={() => {}}
-        />
       </View>
     </View>
   );

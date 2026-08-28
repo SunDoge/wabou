@@ -139,7 +139,7 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         waitMs: 220,
       },
       "component/PiAgentHeader": {
-        width: 720,
+        width: 1080,
         height: 56,
         render: PiAgentHeaderLayoutFixture,
       },

@@ -78,7 +78,7 @@ export function SidebarHeader(props: ViewProps): JSX.Element {
     <View
       {...props}
       class={mergeClasses(
-        "flex-none border-b border-subtle bg-surface",
+        "h-14 flex-none border-b border-subtle bg-surface",
         props.class,
       )}
     />

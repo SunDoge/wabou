@@ -9011,7 +9011,7 @@ function Sidebar(props) {
 }
 function SidebarHeader(props) {
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return mergeClasses("flex-none border-b border-subtle bg-surface", props.class);
+		return mergeClasses("h-14 flex-none border-b border-subtle bg-surface", props.class);
 	} }));
 }
 function SidebarSearch(props) {

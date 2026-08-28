@@ -79,8 +79,8 @@ export function Sidebar(props: SidebarProps) {
     );
   };
   return (
-    <SidebarRoot class="w-72 border-r border-subtle" elevation="floating">
-      <SidebarHeader class="flex items-center gap-3 px-4 py-4">
+    <SidebarRoot class="w-72 border-r border-subtle">
+      <SidebarHeader class="flex items-center gap-3 px-4">
         <Icon source={bot} size={19} class="text-accent" />
         <Text class="min-w-0 flex-1 font-semibold text-base">
           {i18n.message(m.app_name, {})}

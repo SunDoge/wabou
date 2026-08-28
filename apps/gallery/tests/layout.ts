@@ -256,6 +256,23 @@ const assertPiAgentToolbarLayout = (snapshot: LayoutSnapshot) => {
     });
 };
 
+const assertPiAgentHeaderLayout = (snapshot: LayoutSnapshot) => {
+  const sidebar = getLayoutNode(snapshot, {
+    name: "Pi agent sidebar header",
+  });
+  const content = getLayoutNode(snapshot, {
+    name: "Pi agent content header",
+  });
+  assertClose(sidebar.rect.y, content.rect.y, "Pi Agent header top edge");
+  assertClose(sidebar.rect.height, 56, "Pi Agent sidebar header height");
+  assertClose(content.rect.height, 56, "Pi Agent content header height");
+  assertClose(
+    layoutRectBottom(sidebar.rect),
+    layoutRectBottom(content.rect),
+    "Pi Agent header bottom edge",
+  );
+};
+
 const assertMarkdownInlineLayout = (snapshot: LayoutSnapshot) => {
   const candidates = snapshot.nodes.filter((node) => node.text != null);
   const paragraph = candidates.find(
@@ -304,6 +321,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/InputGroup": { assert: assertInputGroupLayout },
   "component/MarkdownInline": { assert: assertMarkdownInlineLayout },
   "component/Message": { assert: assertMessageLayout },
+  "component/PiAgentHeader": { assert: assertPiAgentHeaderLayout },
   "pi-agent/toolbar": { assert: assertPiAgentToolbarLayout },
 };
 const fixtureCase = (id: string) => {
