@@ -28,6 +28,7 @@ test("shows and dismisses a polite toast", () => {
   screen.getByRole("button", { name: "Save" }).click();
   const toast = screen.getByRole("status", { name: "Saved" });
   expect(toast.text).toContain("Changes are on disk.");
+  expect(toast.children[0]?.className).toContain("rounded-xl");
   expect(toast.transform).toEqual([1, 0, 0, 1, 0, 12]);
   screen.getByRole("button", { name: "Dismiss Saved" }).click();
   expect(screen.queryByRole("status", { name: "Saved" })).toBeNull();

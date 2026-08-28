@@ -3826,7 +3826,7 @@ function HoverCard(props) {
 		closeOnEscape: true,
 		restoreFocus: false,
 		get contentClass() {
-			return mergeClasses("min-w-56 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-lg border border-subtle bg-surface", props.contentClass);
+			return mergeClasses("min-w-56 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-xl border border-subtle bg-surface", props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -6897,7 +6897,7 @@ function Popover(props) {
 	const theme = useComponentsTheme();
 	return createComponent$1(Popover$1, mergeProps(props, {
 		get contentClass() {
-			return mergeClasses("min-w-48 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-lg border border-subtle bg-surface", props.contentClass);
+			return mergeClasses("min-w-48 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-xl border border-subtle bg-surface", props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -9597,9 +9597,13 @@ const treatment = (variant) => match(variant).with("default", () => ({
 	color: "text-danger-primary"
 })).exhaustive();
 function ToastContent(props) {
+	const theme = useComponentsTheme();
 	const style = () => treatment(props.input.variant ?? "default");
 	return createComponent$1(View, {
-		class: "w-full min-w-0 flex items-start gap-3 rounded-lg border border-subtle bg-surface p-3 shadow-md",
+		class: "w-full min-w-0 flex items-start gap-3 rounded-xl border border-subtle bg-surface p-4",
+		get shadows() {
+			return componentsElevation(theme(), "floating");
+		},
 		get children() {
 			return [
 				createComponent$1(Icon, {
@@ -9739,6 +9743,7 @@ function Toaster(props) {
 let tooltipId = 0;
 /** A delayed, non-interactive label for pointer and keyboard focus targets. */
 function Tooltip(props) {
+	const theme = useComponentsTheme();
 	const id = `wabou-tooltip-${++tooltipId}`;
 	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(props.defaultOpen ?? false);
 	const open = () => !props.disabled && (props.open ?? uncontrolledOpen());
@@ -9771,7 +9776,10 @@ function Tooltip(props) {
 		closeOnEscape: true,
 		restoreFocus: false,
 		get contentClass() {
-			return mergeClasses("max-w-xs rounded-md border border-subtle bg-surface px-2 py-1 shadow-md", props.contentClass);
+			return mergeClasses("max-w-xs rounded-lg border border-subtle bg-surface px-2 py-1.5", props.contentClass);
+		},
+		get contentShadows() {
+			return componentsElevation(theme(), "floating");
 		},
 		get motion() {
 			return props.motion;

@@ -28,6 +28,9 @@ test("opens on focus and closes with Escape", () => {
   expect(
     screen.getByRole("tooltip", { name: "Explains this action" }).text,
   ).toBe("Explains this action");
+  expect(
+    screen.getByRole("tooltip").closestByRole("presentation")?.className,
+  ).toContain("rounded-lg");
 
   trigger.press("Escape");
   expect(screen.queryByRole("tooltip")).toBeNull();

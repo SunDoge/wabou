@@ -1,3 +1,4 @@
+import { mergeClasses } from "@wabou/core/style";
 import checkCircle from "lucide-static/icons/circle-check.svg?raw";
 import info from "lucide-static/icons/info.svg?raw";
 import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
@@ -16,7 +17,7 @@ import {
   View,
 } from "../primitives";
 import { Button } from "./button";
-import { mergeClasses } from "@wabou/core/style";
+import { componentsElevation, useComponentsTheme } from "./theme";
 
 export type ToastVariant = "default" | "success" | "warning" | "destructive";
 
@@ -73,9 +74,13 @@ function ToastContent(props: {
   input: ToastInput;
   dismiss(): void;
 }): JSX.Element {
+  const theme = useComponentsTheme();
   const style = () => treatment(props.input.variant ?? "default");
   return (
-    <View class="w-full min-w-0 flex items-start gap-3 rounded-lg border border-subtle bg-surface p-3 shadow-md">
+    <View
+      class="w-full min-w-0 flex items-start gap-3 rounded-xl border border-subtle bg-surface p-4"
+      shadows={componentsElevation(theme(), "floating")}
+    >
       <Icon
         source={style().icon}
         class={mergeClasses("flex-none mt-0.5", style().color)}

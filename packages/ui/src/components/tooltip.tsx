@@ -1,9 +1,10 @@
 import type { Handle } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import { createSignal, type JSX, onCleanup } from "solid-js";
 import type { Placement } from "../primitives";
 import { Popover, Text } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import type { PopupMotionProps } from "./popover";
+import { componentsElevation, useComponentsTheme } from "./theme";
 import { createTooltipDelayController } from "./tooltip-state";
 
 export interface TooltipTriggerProps {
@@ -37,6 +38,7 @@ let tooltipId = 0;
 
 /** A delayed, non-interactive label for pointer and keyboard focus targets. */
 export function Tooltip(props: TooltipProps): JSX.Element {
+  const theme = useComponentsTheme();
   const id = `wabou-tooltip-${++tooltipId}`;
   const [uncontrolledOpen, setUncontrolledOpen] = createSignal(
     props.defaultOpen ?? false,
@@ -67,9 +69,10 @@ export function Tooltip(props: TooltipProps): JSX.Element {
       closeOnEscape
       restoreFocus={false}
       contentClass={mergeClasses(
-        "max-w-xs rounded-md border border-subtle bg-surface px-2 py-1 shadow-md",
+        "max-w-xs rounded-lg border border-subtle bg-surface px-2 py-1.5",
         props.contentClass,
       )}
+      contentShadows={componentsElevation(theme(), "floating")}
       motion={props.motion}
       trigger={(popover) =>
         props.trigger({

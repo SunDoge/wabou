@@ -1,11 +1,11 @@
 import type { Handle } from "@wabou/core/renderer";
 import type { Shadow } from "@wabou/core/style";
+import { mergeClasses } from "@wabou/core/style";
 import { type JSX, onCleanup } from "solid-js";
 import type { Placement } from "../primitives";
 import { Popover as HeadlessPopover } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
-import type { PopupMotionProps } from "./popover";
 import { createDelayedOpenController } from "./delayed-open";
+import type { PopupMotionProps } from "./popover";
 import { createControllableState } from "./state";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
@@ -69,7 +69,7 @@ export function HoverCard(props: HoverCardProps): JSX.Element {
       closeOnEscape
       restoreFocus={false}
       contentClass={mergeClasses(
-        "min-w-56 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-lg border border-subtle bg-surface",
+        "min-w-56 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-xl border border-subtle bg-surface",
         props.contentClass,
       )}
       contentShadows={

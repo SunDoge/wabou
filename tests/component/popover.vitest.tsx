@@ -36,7 +36,7 @@ test("opens a styled dialog surface and dismisses with Escape", () => {
   const popover = screen.getByRole("dialog", { name: "Formatting options" });
   assertInOverlayPlane(popover, "floating");
   expect(popover.className).toContain("bg-surface");
-  expect(popover.className).toContain("rounded-lg");
+  expect(popover.className).toContain("rounded-xl");
   expect(screen.getByRole("heading", { name: "Formatting" })).not.toBeNull();
   popover.press("Escape");
   expect(screen.queryByRole("dialog")).toBeNull();
