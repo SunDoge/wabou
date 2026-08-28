@@ -51,8 +51,8 @@ test("Pi Agent sidebar searches agents and sessions without flattening the hiera
   expect(createdSession).toBe(true);
   search.input("release notes");
 
-  expect(screen.queryByRole("button", { name: "Agent 1" })).toBeNull();
-  expect(screen.getByRole("button", { name: "Agent 2" })).toBeDefined();
+  expect(screen.queryByRole("button", { name: "Project 1" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Project 2" })).toBeDefined();
   screen.getByRole("button", { name: "Write release notes" }).click();
   expect(selected).toEqual(["agent-2", "session-docs"]);
 
@@ -104,7 +104,7 @@ test("shows sessions only under the active agent and keeps agent selection live"
   expect(
     screen.getByRole("button", { name: "Write release notes" }),
   ).toBeDefined();
-  screen.getByRole("button", { name: "Agent 1" }).click();
+  screen.getByRole("button", { name: "Project 1" }).click();
   expect(selected).toEqual(["agent-1"]);
 });
 
