@@ -140,7 +140,7 @@ test("creates a fresh session and restores the previous transcript", async ({
   const previousSession = page.getByRole("button", {
     name: "Deterministic test 1",
   });
-  await expect(previousSession).toBeSelected();
+  await expect(previousSession).toBeSelected({ timeout: 5_000 });
 
   await page.getByRole("button", { name: "New thread" }).click();
   const freshSession = page.getByRole("button", {
@@ -164,6 +164,63 @@ test("creates a fresh session and restores the previous transcript", async ({
   ).toHaveCount(1, { timeout: 5_000 });
 });
 
+test("renames the current session and refreshes its sidebar entry", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Rename session" }).click();
+  const name = page.getByRole("textbox", { name: "Session name" });
+  await name.press("a", { control: true });
+  await name.type("Reviewed fixture session");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await expect(
+    page.getByRole("button", { name: "Reviewed fixture session" }),
+  ).toHaveCount(1, { timeout: 5_000 });
+  await expect(
+    page.getByRole("button", { name: "Deterministic test 1" }),
+  ).toBeAbsent();
+});
+
+test("clones and compacts a session without losing its transcript", async ({
+  page,
+}) => {
+  const actions = page.getByRole("button", { name: "Session actions" });
+  await actions.click();
+  await page.getByRole("menuitem", { name: "Clone current branch" }).click();
+
+  const clone = page.getByRole("button", { name: "Deterministic test 3" });
+  await expect(clone).toBeSelected({ timeout: 5_000 });
+  await expect(
+    page.getByRole("label", {
+      name: "Fake Pi completed: Explain the fixture",
+    }),
+  ).toHaveCount(1, { timeout: 5_000 });
+
+  await actions.click();
+  await page.getByRole("menuitem", { name: "Compact context" }).click();
+  await expect(
+    page.getByRole("label", {
+      name: "Fake Pi completed: Explain the fixture",
+    }),
+  ).toHaveCount(1, { timeout: 5_000 });
+});
+
+test("exports the active session through the native save dialog", async ({
+  page,
+  effects,
+  files,
+}) => {
+  const exportPath = files.writeText("exports/session.html", "");
+  effects.respond("dialogSave", [exportPath]);
+  await page.getByRole("button", { name: "Session actions" }).click();
+  await page.getByRole("menuitem", { name: "Export as HTML" }).click();
+
+  await expect(
+    page.getByRole("label", { name: "Session exported" }),
+  ).toHaveCount(1, { timeout: 5_000 });
+  await page.getByRole("button", { name: "Dismiss Session exported" }).click();
+});
+
 test("aborts a running response and returns the session to ready", async ({
   page,
 }) => {
@@ -171,7 +228,9 @@ test("aborts a running response and returns the session to ready", async ({
     name: "Ask this agent to work in its repository…",
   });
   await composer.type("Wait for abort");
+  await expect(composer).toHaveValue("Wait for abort");
   await page.getByRole("button", { name: "Send" }).click();
+  await expect(composer).toHaveValue("", { timeout: 5_000 });
 
   const stop = page.getByRole("button", { name: "Stop" });
   await expect(stop).toBeEnabled({ timeout: 5_000 });

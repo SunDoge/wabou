@@ -13,6 +13,7 @@ struct FixtureState {
     thinking: String,
     session_id: String,
     session_file: PathBuf,
+    session_name: String,
     last_prompt: Option<String>,
     session_serial: u32,
     pending_response: bool,
@@ -40,10 +41,15 @@ impl FixtureState {
             .and_then(|value| value.to_str())
             .unwrap_or("wabou-fake-session")
             .to_owned();
-        let session_serial = session_id
+        let current_session_serial = session_id
             .strip_prefix("wabou-fake-session-")
             .and_then(|value| value.parse().ok())
             .unwrap_or(1);
+        let session_serial = current_session_serial.max(highest_session_serial(
+            session_file
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new(".")),
+        ));
         let last_prompt = if restored_session.is_some() {
             read_to_string(&session_file)
                 .ok()
@@ -66,6 +72,7 @@ impl FixtureState {
             thinking: "medium".to_owned(),
             session_id,
             session_file,
+            session_name: format!("Deterministic test {current_session_serial}"),
             last_prompt,
             session_serial,
             pending_response: false,
@@ -84,11 +91,38 @@ impl FixtureState {
         self.session_serial += 1;
         self.session_id = format!("wabou-fake-session-{}", self.session_serial);
         self.session_file = std::env::current_dir()?.join(format!("{}.jsonl", self.session_id));
+        self.session_name = format!("Deterministic test {}", self.session_serial);
         write(&self.session_file, [])?;
         self.last_prompt = None;
         self.pending_response = false;
         Ok(())
     }
+
+    fn clone_session(&mut self) -> io::Result<()> {
+        let last_prompt = self.last_prompt.clone();
+        self.create_session()?;
+        if let Some(prompt) = last_prompt {
+            self.persist_prompt(&prompt)?;
+        }
+        Ok(())
+    }
+}
+
+fn highest_session_serial(directory: &std::path::Path) -> u32 {
+    std::fs::read_dir(directory)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            entry
+                .path()
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .and_then(|stem| stem.strip_prefix("wabou-fake-session-"))
+                .and_then(|serial| serial.parse::<u32>().ok())
+        })
+        .max()
+        .unwrap_or(1)
 }
 
 fn trace(request: &Value) -> io::Result<()> {
@@ -187,7 +221,7 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
                 "thinkingLevel":state.thinking,
                 "sessionId":state.session_id,
                 "sessionFile":state.session_file,
-                "sessionName":format!("Deterministic test {}", state.session_serial),
+                "sessionName":state.session_name,
                 "autoCompactionEnabled":true,
                 "steeringMode":"one-at-a-time",
                 "followUpMode":"one-at-a-time"
@@ -282,6 +316,34 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
                 "type":"new_session",
                 "sessionId":state.session_id
             }))
+        }
+        "set_session_name" => {
+            state.session_name = request
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned();
+            response(request, json!({"name":state.session_name}))
+        }
+        "clone" => {
+            state.clone_session()?;
+            response(request, json!({"cancelled":false}))
+        }
+        "compact" => response(request, json!({"compacted":true})),
+        "export_html" => {
+            let path = request
+                .get("outputPath")
+                .and_then(Value::as_str)
+                .ok_or_else(|| io::Error::other("export path missing"))?;
+            write(
+                path,
+                format!(
+                    "<!doctype html><title>{}</title><p>{}</p>",
+                    state.session_name,
+                    state.last_prompt.as_deref().unwrap_or_default()
+                ),
+            )?;
+            response(request, json!({"path":path}))
         }
         "abort" => {
             if state.pending_response {

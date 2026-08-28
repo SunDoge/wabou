@@ -1,4 +1,5 @@
 import { renderComponent } from "@wabou/test/component";
+import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 import type { PiSession } from "../../apps/pi-agent/ui/api";
 import { Sidebar } from "../../apps/pi-agent/ui/sidebar";
@@ -136,5 +137,62 @@ test("uses the session id when the persisted session name is blank", () => {
 
   expect(screen.getByRole("button", { name: "01a047c5" }).text).toContain(
     "01a047c5",
+  );
+});
+
+test("updates the selected session when a keyed agent receives new state", () => {
+  const first = createAgentWorkspace(1);
+  first.state.sessionId = "session-one";
+  const sessions: PiSession[] = [
+    {
+      agentId: first.id,
+      sessionId: "session-one",
+      sessionFile: "/tmp/session-one.jsonl",
+      name: "Session one",
+      cwd: "/work/api",
+      updatedAt: 1,
+    },
+    {
+      agentId: first.id,
+      sessionId: "session-two",
+      sessionFile: "/tmp/session-two.jsonl",
+      name: "Session two",
+      cwd: "/work/api",
+      updatedAt: 2,
+    },
+  ];
+  const [agents, setAgents] = createSignal([first]);
+  const [visibleSessions, setVisibleSessions] = createSignal(sessions);
+  const screen = renderComponent(() => (
+    <Sidebar
+      agents={agents()}
+      sessions={visibleSessions()}
+      activeId={first.id}
+      select={() => {}}
+      selectSession={() => {}}
+      add={() => {}}
+      newSession={() => {}}
+      canCreateSession
+      openSettings={() => {}}
+    />
+  ));
+
+  expect(screen.getByRole("button", { name: "Session one" }).selected).toBe(
+    true,
+  );
+  setAgents((current) => [
+    {
+      ...current[0],
+      state: { ...current[0].state, sessionId: "session-two" },
+    },
+  ]);
+  setVisibleSessions([sessions[1], sessions[0]]);
+  screen.flush();
+
+  expect(screen.getByRole("button", { name: "Session one" }).selected).toBe(
+    false,
+  );
+  expect(screen.getByRole("button", { name: "Session two" }).selected).toBe(
+    true,
   );
 });

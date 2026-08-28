@@ -13,8 +13,8 @@ use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use wabou::{
-    CapabilityContract, HostMessage, HostMessageContext, HostMethod, JsonMethod, NativeCapability,
-    rquickjs,
+    AppDirectories, AppDirectoryConfig, CapabilityContract, HostMessage, HostMessageContext,
+    HostMethod, JsonMethod, NativeCapability, rquickjs,
 };
 
 pub const CAPABILITY: CapabilityContract = CapabilityContract::new("piAgent", 1);
@@ -1111,8 +1111,8 @@ fn validate_agent_profiles(agents: &[AgentProfile]) -> Result<(), String> {
 }
 
 fn session_catalog_path() -> Option<PathBuf> {
-    directories::ProjectDirs::from("dev", "Wabou", "Pi Agent")
-        .map(|dirs| dirs.data_local_dir().join("sessions.json"))
+    AppDirectories::resolve(&AppDirectoryConfig::new("dev", "Wabou", "Pi Agent"), ".")
+        .map(|dirs| dirs.local_data_dir.join("sessions.json"))
 }
 
 fn load_session_catalog() -> SessionCatalog {
@@ -1191,16 +1191,18 @@ fn remember_session(
         cwd: cwd.to_owned(),
         updated_at,
     };
-    if let Some(existing) = catalog
-        .sessions
-        .iter_mut()
-        .find(|existing| existing.session_id == session_id)
-    {
+    upsert_session(&mut catalog, entry);
+    let _ = persist_catalog(&catalog);
+}
+
+fn upsert_session(catalog: &mut SessionCatalog, entry: PiSession) {
+    if let Some(existing) = catalog.sessions.iter_mut().find(|existing| {
+        existing.agent_id == entry.agent_id && existing.session_id == entry.session_id
+    }) {
         *existing = entry;
     } else {
         catalog.sessions.push(entry);
     }
-    let _ = persist_catalog(&catalog);
 }
 
 fn validate_agent_id(agent_id: &str) -> Result<(), String> {
@@ -1216,12 +1218,18 @@ fn validate_agent_id(agent_id: &str) -> Result<(), String> {
 
 fn default_workspace(agent_id: &str) -> Result<String, String> {
     validate_agent_id(agent_id)?;
-    let user = directories::UserDirs::new()
-        .ok_or_else(|| "could not resolve the user home directory".to_owned())?;
-    let root = user
-        .document_dir()
-        .unwrap_or_else(|| user.home_dir())
-        .join("pi-agent");
+    let root = if std::env::var_os("WABOU_TEST_APP_DATA_ROOT").is_some() {
+        AppDirectories::resolve(&AppDirectoryConfig::new("dev", "Wabou", "Pi Agent"), ".")
+            .ok_or_else(|| "could not resolve isolated Pi Agent data directory".to_owned())?
+            .data_dir
+            .join("workspaces")
+    } else {
+        let user = directories::UserDirs::new()
+            .ok_or_else(|| "could not resolve the user home directory".to_owned())?;
+        user.document_dir()
+            .unwrap_or_else(|| user.home_dir())
+            .join("pi-agent")
+    };
     let workspace = root.join(agent_id);
     std::fs::create_dir_all(&workspace).map_err(|error| {
         format!(
@@ -2061,6 +2069,41 @@ mod tests {
         );
         assert!(!prune_missing_sessions(&mut catalog));
         let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn session_identity_is_scoped_to_its_agent() {
+        let session = |agent_id: &str, name: &str| PiSession {
+            agent_id: agent_id.to_owned(),
+            session_id: "shared-session-id".to_owned(),
+            session_file: format!("/{agent_id}/session.jsonl"),
+            name: Some(name.to_owned()),
+            cwd: format!("/{agent_id}"),
+            updated_at: 1,
+        };
+        let mut catalog = SessionCatalog::default();
+
+        upsert_session(&mut catalog, session("agent-1", "First"));
+        upsert_session(&mut catalog, session("agent-2", "Second"));
+        upsert_session(&mut catalog, session("agent-1", "Renamed"));
+
+        assert_eq!(catalog.sessions.len(), 2);
+        assert_eq!(
+            catalog
+                .sessions
+                .iter()
+                .find(|entry| entry.agent_id == "agent-1")
+                .and_then(|entry| entry.name.as_deref()),
+            Some("Renamed")
+        );
+        assert_eq!(
+            catalog
+                .sessions
+                .iter()
+                .find(|entry| entry.agent_id == "agent-2")
+                .and_then(|entry| entry.name.as_deref()),
+            Some("Second")
+        );
     }
 
     #[tokio::test]
