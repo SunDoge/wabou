@@ -63,6 +63,7 @@ impl NodeStore {
             self.solid_to_node.get(&parent)?,
             self.solid_to_node.get(&child)?,
         );
+        self.detach_for_move(child);
         self.children.entry(parent).or_default().push(child);
         self.logical_parent.insert(child, parent);
         Some(child)
@@ -78,19 +79,34 @@ impl NodeStore {
             self.solid_to_node.get(&parent)?,
             self.solid_to_node.get(&child)?,
         );
+        let &reference = self.solid_to_node.get(&reference)?;
+        if child == reference {
+            return Some(child);
+        }
+
+        // Solid's universal renderer uses append/insert-before for both initial
+        // insertion and keyed moves. Mirror DOM move semantics: a node has one
+        // logical parent and appears at most once in that parent's child list.
+        self.detach_for_move(child);
         let index = self
-            .solid_to_node
-            .get(&reference)
-            .and_then(|reference| {
-                self.children
-                    .get(&parent)
-                    .and_then(|children| children.iter().position(|node| node == reference))
-            })
+            .children
+            .get(&parent)
+            .and_then(|children| children.iter().position(|node| *node == reference))
             .unwrap_or_else(|| self.children.get(&parent).map_or(0, Vec::len));
         let children = self.children.entry(parent).or_default();
         children.insert(index.min(children.len()), child);
         self.logical_parent.insert(child, parent);
         Some(child)
+    }
+
+    fn detach_for_move(&mut self, child: NodeId) {
+        if let Some(parent) = self.logical_parent.remove(&child)
+            && let Some(children) = self.children.get_mut(&parent)
+        {
+            // `retain` also repairs a tree produced by an older duplicate
+            // insertion instead of leaving a stale occurrence behind.
+            children.retain(|node| *node != child);
+        }
     }
 
     pub(super) fn remove_child(&mut self, parent: NodeKey, child: NodeKey) -> bool {
@@ -178,5 +194,38 @@ mod tests {
 
         assert_eq!(store.children[&store.root].len(), 4096);
         assert!(store.tree.children(store.root).unwrap().is_empty());
+    }
+
+    #[test]
+    fn append_moves_nodes_without_duplicating_them() {
+        let mut store = NodeStore::new();
+        let parent = store.create_leaf(NodeKey::new(2, 1), Declared::default());
+        let child = store.create_leaf(NodeKey::new(3, 1), Declared::default());
+
+        store.append(NodeKey::ROOT, NodeKey::new(3, 1));
+        store.append(NodeKey::ROOT, NodeKey::new(3, 1));
+        assert_eq!(store.children[&store.root], [child]);
+
+        store.append(NodeKey::new(2, 1), NodeKey::new(3, 1));
+        assert!(store.children[&store.root].is_empty());
+        assert_eq!(store.children[&parent], [child]);
+        assert_eq!(store.logical_parent[&child], parent);
+    }
+
+    #[test]
+    fn insert_before_moves_existing_siblings_in_place() {
+        let mut store = NodeStore::new();
+        let first = store.create_leaf(NodeKey::new(2, 1), Declared::default());
+        let second = store.create_leaf(NodeKey::new(3, 1), Declared::default());
+        let third = store.create_leaf(NodeKey::new(4, 1), Declared::default());
+        for key in [NodeKey::new(2, 1), NodeKey::new(3, 1), NodeKey::new(4, 1)] {
+            store.append(NodeKey::ROOT, key);
+        }
+
+        store.insert_before(NodeKey::ROOT, NodeKey::new(4, 1), NodeKey::new(2, 1));
+        assert_eq!(store.children[&store.root], [third, first, second]);
+
+        store.insert_before(NodeKey::ROOT, NodeKey::new(2, 1), NodeKey::new(2, 1));
+        assert_eq!(store.children[&store.root], [third, first, second]);
     }
 }
