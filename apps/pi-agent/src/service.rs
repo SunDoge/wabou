@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     env,
     io::{BufRead as _, BufReader, Write as _},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
     sync::{Arc, Mutex},
 };
@@ -449,6 +449,12 @@ impl PiService {
 
     fn start(&self, request: StartRequest) -> Result<PiStatus, String> {
         validate_agent_id(&request.agent_id)?;
+        let session_file = request
+            .session_id
+            .as_deref()
+            .filter(|session_id| !session_id.trim().is_empty())
+            .map(|session_id| self.resolve_session_file(&request.agent_id, session_id))
+            .transpose()?;
         self.stop(&request.agent_id)?;
         let cwd = request
             .cwd
@@ -489,8 +495,8 @@ impl PiService {
         if let Some(model) = request.model.filter(|value| !value.trim().is_empty()) {
             command.args(["--model", model.trim()]);
         }
-        if let Some(session_id) = request.session_id.filter(|value| !value.trim().is_empty()) {
-            command.args(["--session", session_id.trim()]);
+        if let Some(session_file) = session_file {
+            command.arg("--session").arg(session_file);
         } else {
             command.arg("--continue");
         }
@@ -635,10 +641,13 @@ impl PiService {
     }
 
     fn sessions(&self, agent_id: &str) -> Result<Vec<PiSession>, String> {
-        let catalog = self
+        let mut catalog = self
             .sessions
             .lock()
             .map_err(|_| "Pi session catalog lock poisoned".to_owned())?;
+        if prune_missing_sessions(&mut catalog) {
+            persist_catalog(&catalog)?;
+        }
         let mut sessions = catalog
             .sessions
             .iter()
@@ -647,6 +656,18 @@ impl PiService {
             .collect::<Vec<_>>();
         sessions.sort_by_key(|session| std::cmp::Reverse(session.updated_at));
         Ok(sessions)
+    }
+
+    fn resolve_session_file(&self, agent_id: &str, session_id: &str) -> Result<PathBuf, String> {
+        let mut catalog = self
+            .sessions
+            .lock()
+            .map_err(|_| "Pi session catalog lock poisoned".to_owned())?;
+        if prune_missing_sessions(&mut catalog) {
+            persist_catalog(&catalog)?;
+        }
+        catalog_session_file(&catalog, agent_id, session_id)
+            .ok_or_else(|| format!("saved session `{session_id}` is no longer available"))
     }
 
     fn agents(&self) -> Result<Vec<AgentProfile>, String> {
@@ -708,6 +729,26 @@ fn load_session_catalog() -> SessionCatalog {
         .and_then(|path| std::fs::read(path).ok())
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
         .unwrap_or_default()
+}
+
+fn prune_missing_sessions(catalog: &mut SessionCatalog) -> bool {
+    let previous_len = catalog.sessions.len();
+    catalog
+        .sessions
+        .retain(|session| Path::new(&session.session_file).is_file());
+    catalog.sessions.len() != previous_len
+}
+
+fn catalog_session_file(
+    catalog: &SessionCatalog,
+    agent_id: &str,
+    session_id: &str,
+) -> Option<PathBuf> {
+    catalog
+        .sessions
+        .iter()
+        .find(|session| session.agent_id == agent_id && session.session_id == session_id)
+        .map(|session| PathBuf::from(&session.session_file))
 }
 
 fn persist_catalog(catalog: &SessionCatalog) -> Result<(), String> {
@@ -789,7 +830,7 @@ fn default_workspace(agent_id: &str) -> Result<String, String> {
     let root = user
         .document_dir()
         .unwrap_or_else(|| user.home_dir())
-        .join("Pi Agent");
+        .join("pi-agent");
     Ok(root.join(agent_id).display().to_string())
 }
 
@@ -1346,9 +1387,42 @@ mod tests {
                 .parent()
                 .and_then(|path| path.file_name())
                 .and_then(|name| name.to_str()),
-            Some("Pi Agent")
+            Some("pi-agent")
         );
         assert!(default_workspace("../escape").is_err());
+    }
+
+    #[test]
+    fn missing_session_files_are_removed_from_the_catalog() {
+        let directory = test_directory("session-catalog");
+        std::fs::create_dir_all(&directory).expect("fixture directory");
+        let existing = directory.join("existing.jsonl");
+        std::fs::write(&existing, "{}\n").expect("session fixture");
+        let session = |id: &str, path: &Path| PiSession {
+            agent_id: "agent-1".to_owned(),
+            session_id: id.to_owned(),
+            session_file: path.display().to_string(),
+            name: None,
+            cwd: directory.display().to_string(),
+            updated_at: 1,
+        };
+        let mut catalog = SessionCatalog {
+            sessions: vec![
+                session("existing", &existing),
+                session("missing", &directory.join("missing.jsonl")),
+            ],
+            agents: Vec::new(),
+        };
+
+        assert!(prune_missing_sessions(&mut catalog));
+        assert_eq!(catalog.sessions.len(), 1);
+        assert_eq!(catalog.sessions[0].session_id, "existing");
+        assert_eq!(
+            catalog_session_file(&catalog, "agent-1", "existing"),
+            Some(existing)
+        );
+        assert!(!prune_missing_sessions(&mut catalog));
+        let _ = std::fs::remove_dir_all(directory);
     }
 
     #[tokio::test]
