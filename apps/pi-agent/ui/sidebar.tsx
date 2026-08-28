@@ -34,6 +34,11 @@ interface SidebarProps {
   selectSession: (agentId: string, sessionId: string) => void;
 }
 
+export function sessionLabel(session: Pick<PiSession, "name" | "sessionId">) {
+  const name = session.name?.trim();
+  return name || session.sessionId.slice(0, 8);
+}
+
 export function Sidebar(props: SidebarProps) {
   const [query, setQuery] = createSignal("");
   const normalizedQuery = () => query().trim().toLocaleLowerCase();
@@ -47,7 +52,7 @@ export function Sidebar(props: SidebarProps) {
       return props.sessions.some(
         (session) =>
           session.agentId === agent.id &&
-          `${session.name ?? ""}\n${session.sessionId}`
+          `${sessionLabel(session)}\n${session.sessionId}`
             .toLocaleLowerCase()
             .includes(needle),
       );
@@ -68,7 +73,7 @@ export function Sidebar(props: SidebarProps) {
       return sessions;
     }
     return sessions.filter((session) =>
-      `${session.name ?? ""}\n${session.sessionId}`
+      `${sessionLabel(session)}\n${session.sessionId}`
         .toLocaleLowerCase()
         .includes(needle),
     );
@@ -152,9 +157,7 @@ export function Sidebar(props: SidebarProps) {
                       <View class="min-w-0 pl-5">
                         <SidebarMenuButton
                           class="pl-3 text-sm"
-                          aria-label={
-                            session().name ?? session().sessionId.slice(0, 8)
-                          }
+                          aria-label={sessionLabel(session())}
                           selected={
                             agent().state.sessionId === session().sessionId &&
                             agent().id === props.activeId
@@ -169,7 +172,7 @@ export function Sidebar(props: SidebarProps) {
                             class="flex-none text-muted"
                           />
                           <Text class="min-w-0 flex-1 truncate">
-                            {session().name ?? session().sessionId.slice(0, 8)}
+                            {sessionLabel(session())}
                           </Text>
                         </SidebarMenuButton>
                       </View>

@@ -107,3 +107,34 @@ test("shows sessions only under the active agent and keeps agent selection live"
   screen.getByRole("button", { name: "Agent 1" }).click();
   expect(selected).toEqual(["agent-1"]);
 });
+
+test("uses the session id when the persisted session name is blank", () => {
+  const agent = createAgentWorkspace(1);
+  agent.state.sessionId = "01a047c5-full-session-id";
+  const screen = renderComponent(() => (
+    <Sidebar
+      agents={[agent]}
+      sessions={[
+        {
+          agentId: agent.id,
+          sessionId: "01a047c5-full-session-id",
+          sessionFile: "/tmp/blank-name.jsonl",
+          name: "   ",
+          cwd: "/work/api",
+          updatedAt: 1,
+        },
+      ]}
+      activeId={agent.id}
+      select={() => {}}
+      selectSession={() => {}}
+      add={() => {}}
+      newSession={() => {}}
+      canCreateSession
+      openSettings={() => {}}
+    />
+  ));
+
+  expect(screen.getByRole("button", { name: "01a047c5" }).text).toContain(
+    "01a047c5",
+  );
+});

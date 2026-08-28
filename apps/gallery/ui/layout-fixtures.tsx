@@ -127,6 +127,14 @@ defineLayoutFixtures({
         openSettings={() => {}}
         sessions={[
           {
+            agentId: "agent-2",
+            sessionId: "blank-session",
+            sessionFile: "blank.jsonl",
+            name: "   ",
+            cwd: "/work/a-repository-with-a-long-name",
+            updatedAt: 3,
+          },
+          {
             agentId: "agent-1",
             sessionId: "hidden-session",
             sessionFile: "hidden.jsonl",
