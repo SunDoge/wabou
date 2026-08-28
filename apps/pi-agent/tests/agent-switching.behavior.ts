@@ -100,6 +100,36 @@ test("updates the agent through settings without losing its conversation", async
   ).toHaveCount(1);
 });
 
+test("creates a fresh session and restores the previous transcript", async ({
+  page,
+}) => {
+  const previousSession = page.getByRole("button", {
+    name: "Deterministic test 1",
+  });
+  await expect(previousSession).toBeSelected();
+
+  await page.getByRole("button", { name: "New thread" }).click();
+  const freshSession = page.getByRole("button", {
+    name: "Deterministic test 2",
+  });
+  await expect(freshSession).toBeSelected({ timeout: 5_000 });
+  await expect(previousSession).toBeDeselected();
+  await expect(
+    page.getByRole("label", {
+      name: "Fake Pi completed: Explain the fixture",
+    }),
+  ).toBeAbsent();
+
+  await previousSession.click();
+  await expect(previousSession).toBeSelected({ timeout: 5_000 });
+  await expect(freshSession).toBeDeselected();
+  await expect(
+    page.getByRole("label", {
+      name: "Fake Pi completed: Explain the fixture",
+    }),
+  ).toHaveCount(1, { timeout: 5_000 });
+});
+
 test("opens and closes an embedded native terminal panel", async ({ page }) => {
   const toggle = page.getByRole("button", { name: "Toggle terminal" });
   await expect(toggle).toBeEnabled();

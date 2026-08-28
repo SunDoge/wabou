@@ -1,5 +1,6 @@
-use std::fs::OpenOptions;
+use std::fs::{OpenOptions, read_to_string, write};
 use std::io::{self, BufRead as _, Write as _};
+use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
 
@@ -10,16 +11,64 @@ struct FixtureState {
     model_id: String,
     model_name: String,
     thinking: String,
+    session_id: String,
+    session_file: PathBuf,
+    last_prompt: Option<String>,
+    session_serial: u32,
 }
 
-impl Default for FixtureState {
-    fn default() -> Self {
-        Self {
+impl FixtureState {
+    fn from_args() -> io::Result<Self> {
+        let args = std::env::args_os().collect::<Vec<_>>();
+        let restored_session = args
+            .windows(2)
+            .find(|pair| pair[0] == "--session")
+            .map(|pair| PathBuf::from(&pair[1]));
+        let session_file = restored_session
+            .clone()
+            .unwrap_or(std::env::current_dir()?.join("wabou-fake-session.jsonl"));
+        let session_id = session_file
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or("wabou-fake-session")
+            .to_owned();
+        let session_serial = session_id
+            .strip_prefix("wabou-fake-session-")
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(1);
+        let last_prompt = if restored_session.is_some() {
+            read_to_string(&session_file)
+                .ok()
+                .filter(|value| !value.is_empty())
+        } else {
+            write(&session_file, [])?;
+            None
+        };
+        Ok(Self {
             model_provider: "wabou".to_owned(),
             model_id: "fake-model".to_owned(),
             model_name: "Fake model".to_owned(),
             thinking: "medium".to_owned(),
-        }
+            session_id,
+            session_file,
+            last_prompt,
+            session_serial,
+        })
+    }
+
+    fn persist_prompt(&mut self, message: &str) -> io::Result<()> {
+        write(&self.session_file, message)?;
+        self.last_prompt = Some(message.to_owned());
+        Ok(())
+    }
+
+    fn create_session(&mut self) -> io::Result<()> {
+        self.session_serial += 1;
+        self.session_id = format!("wabou-fake-session-{}", self.session_serial);
+        self.session_file = std::env::current_dir()?.join(format!("{}.jsonl", self.session_id));
+        write(&self.session_file, [])?;
+        self.last_prompt = None;
+        Ok(())
     }
 }
 
@@ -49,7 +98,8 @@ fn response(request: &Value, data: Value) -> io::Result<()> {
     }))
 }
 
-fn answer_prompt(message: &str) -> io::Result<()> {
+fn answer_prompt(state: &mut FixtureState, message: &str) -> io::Result<()> {
+    state.persist_prompt(message)?;
     emit(&json!({"type":"agent_start"}))?;
     emit(&json!({
         "type":"message_start",
@@ -103,9 +153,9 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
                     "name":state.model_name
                 },
                 "thinkingLevel":state.thinking,
-                "sessionId":"wabou-fake-session",
-                "sessionFile":std::env::current_dir()?.join(".wabou-fake-session.jsonl"),
-                "sessionName":"Deterministic test",
+                "sessionId":state.session_id,
+                "sessionFile":state.session_file,
+                "sessionName":format!("Deterministic test {}", state.session_serial),
                 "autoCompactionEnabled":true,
                 "steeringMode":"one-at-a-time",
                 "followUpMode":"one-at-a-time"
@@ -130,7 +180,16 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
                 "description":"Run a deterministic fixture command"
             }]}),
         ),
-        "get_messages" => response(request, json!({"messages":[]})),
+        "get_messages" => response(
+            request,
+            json!({"messages":state.last_prompt.as_ref().map_or_else(Vec::new, |message| vec![
+                json!({"role":"user","content":[{"type":"text","text":message}]}),
+                json!({"role":"assistant","content":[{
+                    "type":"text",
+                    "text":format!("Fake Pi completed: {message}")
+                }]})
+            ])}),
+        ),
         "get_session_stats" => response(
             request,
             json!({"inputTokens":12,"outputTokens":8,"totalTokens":20}),
@@ -168,23 +227,28 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
                 .to_owned();
             response(request, json!({"level":state.thinking}))
         }
-        "prompt" | "steer" | "follow_up" => answer_prompt(
-            request
+        "prompt" | "steer" | "follow_up" => {
+            let message = request
                 .get("message")
                 .and_then(Value::as_str)
-                .unwrap_or_default(),
-        ),
-        "new_session" => emit(&json!({
-            "type":"new_session",
-            "sessionId":"wabou-fake-session"
-        })),
+                .unwrap_or_default()
+                .to_owned();
+            answer_prompt(state, &message)
+        }
+        "new_session" => {
+            state.create_session()?;
+            emit(&json!({
+                "type":"new_session",
+                "sessionId":state.session_id
+            }))
+        }
         "abort" => emit(&json!({"type":"agent_settled"})),
         _ => response(request, json!({})),
     }
 }
 
 fn main() -> io::Result<()> {
-    let mut state = FixtureState::default();
+    let mut state = FixtureState::from_args()?;
     for line in io::stdin().lock().lines() {
         let line = line?;
         if line.trim().is_empty() {
