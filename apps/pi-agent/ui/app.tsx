@@ -335,7 +335,19 @@ export function App() {
               event.success === true,
           )
         ) {
-          void api.getMessages(id);
+          const stateEvent = batch.find(
+            (event) =>
+              event.type === "response" &&
+              event.command === "get_state" &&
+              event.success === true,
+          );
+          if (
+            stateEvent?.id === "wabou-bootstrap-state" ||
+            stateEvent?.id === "wabou-new-session-state" ||
+            stateEvent?.id === "wabou-clone-state"
+          ) {
+            void api.getMessages(id);
+          }
           void api.getSessionStats(id);
           void api.getCommands(id);
           void api.getModelOptions(id);
@@ -347,12 +359,6 @@ export function App() {
                 ...next,
               ]),
             );
-          const stateEvent = batch.find(
-            (event) =>
-              event.type === "response" &&
-              event.command === "get_state" &&
-              event.success === true,
-          );
           const data = stateEvent?.data as
             | Record<string, unknown>
             | null

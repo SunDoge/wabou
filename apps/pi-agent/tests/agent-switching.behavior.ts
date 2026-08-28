@@ -35,6 +35,34 @@ test("returns to an existing agent after creating a new one", async ({
   await first.click();
   await expect(first).toBeSelected();
   await expect(second).toBeDeselected();
+  await expect(
+    page.getByRole("label", {
+      name: "Fake Pi completed: Explain the fixture",
+    }),
+  ).toHaveCount(1);
+});
+
+test("changes model through the native combobox overlay", async ({ page }) => {
+  const model = page.getByRole("combobox", { name: "Choose model" });
+  await model.click();
+  await page.getByRole("option", { name: "Alternative model" }).click();
+  await expect(model).toHaveValue("Alternative model");
+  await expect(
+    page.getByRole("label", { name: "Alternative model · medium thinking" }),
+  ).toHaveCount(1);
+});
+
+test("preserves the active conversation across settings navigation", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("heading", { name: "Settings" }).waitFor();
+  await page.getByRole("button", { name: "Back to agents" }).click();
+  await expect(
+    page.getByRole("label", {
+      name: "Fake Pi completed: Explain the fixture",
+    }),
+  ).toHaveCount(1);
 });
 
 test("opens and closes an embedded native terminal panel", async ({ page }) => {

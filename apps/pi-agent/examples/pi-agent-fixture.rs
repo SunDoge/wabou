@@ -1,8 +1,36 @@
+use std::fs::OpenOptions;
 use std::io::{self, BufRead as _, Write as _};
 use std::thread;
 use std::time::Duration;
 
 use serde_json::{Value, json};
+
+struct FixtureState {
+    model_provider: String,
+    model_id: String,
+    model_name: String,
+    thinking: String,
+}
+
+impl Default for FixtureState {
+    fn default() -> Self {
+        Self {
+            model_provider: "wabou".to_owned(),
+            model_id: "fake-model".to_owned(),
+            model_name: "Fake model".to_owned(),
+            thinking: "medium".to_owned(),
+        }
+    }
+}
+
+fn trace(request: &Value) -> io::Result<()> {
+    let Some(path) = std::env::var_os("WABOU_FAKE_PI_TRACE") else {
+        return Ok(());
+    };
+    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+    serde_json::to_writer(&mut file, request)?;
+    file.write_all(b"\n")
+}
 
 fn emit(event: &Value) -> io::Result<()> {
     let mut stdout = io::stdout().lock();
@@ -60,7 +88,7 @@ fn answer_prompt(message: &str) -> io::Result<()> {
     emit(&json!({"type":"agent_settled"}))
 }
 
-fn handle(request: &Value) -> io::Result<()> {
+fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
     match request
         .get("type")
         .and_then(Value::as_str)
@@ -69,8 +97,12 @@ fn handle(request: &Value) -> io::Result<()> {
         "get_state" => response(
             request,
             json!({
-                "model":{"provider":"wabou","id":"fake-model","name":"Fake model"},
-                "thinkingLevel":"medium",
+                "model":{
+                    "provider":state.model_provider,
+                    "id":state.model_id,
+                    "name":state.model_name
+                },
+                "thinkingLevel":state.thinking,
                 "sessionId":"wabou-fake-session",
                 "sessionFile":std::env::current_dir()?.join(".wabou-fake-session.jsonl"),
                 "sessionName":"Deterministic test",
@@ -83,6 +115,8 @@ fn handle(request: &Value) -> io::Result<()> {
             request,
             json!({"models":[{
                 "provider":"wabou","id":"fake-model","name":"Fake model"
+            },{
+                "provider":"wabou","id":"alternative-model","name":"Alternative model"
             }]}),
         ),
         "get_available_thinking_levels" => {
@@ -101,6 +135,39 @@ fn handle(request: &Value) -> io::Result<()> {
             request,
             json!({"inputTokens":12,"outputTokens":8,"totalTokens":20}),
         ),
+        "set_model" => {
+            let id = request
+                .get("modelId")
+                .and_then(Value::as_str)
+                .unwrap_or("fake-model");
+            state.model_provider = request
+                .get("provider")
+                .and_then(Value::as_str)
+                .unwrap_or("wabou")
+                .to_owned();
+            state.model_id = id.to_owned();
+            state.model_name = if id == "alternative-model" {
+                "Alternative model".to_owned()
+            } else {
+                "Fake model".to_owned()
+            };
+            response(
+                request,
+                json!({
+                    "provider":state.model_provider,
+                    "id":state.model_id,
+                    "name":state.model_name
+                }),
+            )
+        }
+        "set_thinking_level" => {
+            state.thinking = request
+                .get("level")
+                .and_then(Value::as_str)
+                .unwrap_or("medium")
+                .to_owned();
+            response(request, json!({"level":state.thinking}))
+        }
         "prompt" | "steer" | "follow_up" => answer_prompt(
             request
                 .get("message")
@@ -117,13 +184,17 @@ fn handle(request: &Value) -> io::Result<()> {
 }
 
 fn main() -> io::Result<()> {
+    let mut state = FixtureState::default();
     for line in io::stdin().lock().lines() {
         let line = line?;
         if line.trim().is_empty() {
             continue;
         }
         match serde_json::from_str::<Value>(&line) {
-            Ok(request) => handle(&request)?,
+            Ok(request) => {
+                trace(&request)?;
+                handle(&request, &mut state)?;
+            }
             Err(error) => emit(&json!({
                 "type":"bridge_error",
                 "message":format!("invalid fixture request: {error}")

@@ -18,6 +18,7 @@ const applicationDependencyExceptions = new Map([
 ]);
 const rustApplicationDependencyExceptions = new Map([
   ["devtools", new Set(["wabou-devtools"])],
+  ["pi-agent", new Set(["wabou-terminal"])],
   ["terminal", new Set(["wabou-terminal"])],
 ]);
 
@@ -135,7 +136,9 @@ if (!changelog.includes(`## ${packageVersion} -`)) {
 }
 for (const entry of packages) {
   if (retiredPackages.has(entry.name)) {
-    throw new Error(`${entry.name} was folded into @wabou/ui and must not return`);
+    throw new Error(
+      `${entry.name} was folded into @wabou/ui and must not return`,
+    );
   }
   if (entry.private) {
     throw new Error(
