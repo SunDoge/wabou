@@ -49,6 +49,7 @@ import {
 } from "./composer-images";
 import { ConversationList } from "./conversation";
 import { ConversationWelcome } from "./conversation-welcome";
+import { createDeferredWriter } from "./deferred-writer";
 import {
   type AgentDraftLists,
   type AgentDrafts,
@@ -184,9 +185,18 @@ export function App() {
   const itemHandles = new Map<string, Handle>();
   let nextMessage = 1;
   let profilesHydrated = false;
-  let saveProfilesTimer: ReturnType<typeof setTimeout> | undefined;
   let settingsHydrated = false;
-  let saveSettingsTimer: ReturnType<typeof setTimeout> | undefined;
+  const profileWriter = createDeferredWriter({
+    write: (serialized: string) => api.saveAgents(JSON.parse(serialized)),
+    onError: (error) =>
+      console.error(`[pi-agent] could not save projects: ${String(error)}`),
+  });
+  const settingsWriter = createDeferredWriter({
+    write: (serialized: string) =>
+      api.saveAppSettings(JSON.parse(serialized)),
+    onError: (error) =>
+      console.error(`[pi-agent] could not save app settings: ${String(error)}`),
+  });
 
   void api
     .getAppSettings()
@@ -227,22 +237,14 @@ export function App() {
     () => JSON.stringify(agents().map(agentProfile)),
     (serialized) => {
       if (!profilesHydrated) return;
-      if (saveProfilesTimer !== undefined) clearTimeout(saveProfilesTimer);
-      saveProfilesTimer = setTimeout(() => {
-        saveProfilesTimer = undefined;
-        void api.saveAgents(JSON.parse(serialized));
-      }, 150);
+      profileWriter.schedule(serialized);
     },
   );
   createEffect(
     () => JSON.stringify(defaults()),
     (serialized) => {
       if (!settingsHydrated) return;
-      if (saveSettingsTimer !== undefined) clearTimeout(saveSettingsTimer);
-      saveSettingsTimer = setTimeout(() => {
-        saveSettingsTimer = undefined;
-        void api.saveAppSettings(JSON.parse(serialized));
-      }, 150);
+      settingsWriter.schedule(serialized);
     },
   );
   const activeId = () => {
@@ -511,7 +513,8 @@ export function App() {
   onCleanup(() => {
     unsubscribe();
     unsubscribeExtensionUi();
-    if (saveProfilesTimer !== undefined) clearTimeout(saveProfilesTimer);
+    profileWriter.flush();
+    settingsWriter.flush();
   });
 
   createEffect(
