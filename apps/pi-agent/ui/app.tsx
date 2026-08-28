@@ -82,6 +82,7 @@ import { SessionTitle } from "./session-title";
 import { SessionUsage } from "./session-usage";
 import { type AppSettings, SettingsPage } from "./settings";
 import { createPersistedRecord } from "./persisted-record";
+import { createOwnedOverlay } from "./owned-overlay";
 import { Sidebar } from "./sidebar";
 import { ScopedHandleRegistry } from "./scoped-handle-registry";
 import { AgentTerminalPanel } from "./terminal-panel";
@@ -176,7 +177,7 @@ export function App() {
   const [deliveryMode, setDeliveryMode] =
     createSignal<ComposerDeliveryMode>("followUp");
   const [activeSearchItem, setActiveSearchItem] = createSignal<string>();
-  const [pendingFork, setPendingFork] = createSignal<{
+  const pendingFork = createOwnedOverlay<{
     entryId: string;
     text: string;
   }>();
@@ -289,6 +290,7 @@ export function App() {
     () => {
       setSearchOpen(false);
       setActiveSearchItem(undefined);
+      pendingFork.retainOwner(activeId());
     },
   );
   const draft = () => readAgentDraft(drafts(), activeId(), activeSessionId());
@@ -1065,7 +1067,7 @@ export function App() {
                         itemHandles.register(itemHandleScope(), id, node)
                       }
                       fork={(item) =>
-                        setPendingFork({
+                        pendingFork.open(activeId(), {
                           entryId: item.entryId ?? "",
                           text: item.text,
                         })
@@ -1188,12 +1190,12 @@ export function App() {
         </Show>
       </Show>
       <SessionForkDialog
-        open={pendingFork() !== undefined}
-        cancel={() => setPendingFork(undefined)}
+        open={pendingFork.value() !== undefined}
+        cancel={pendingFork.close}
         confirm={() => {
-          const target = pendingFork();
-          if (target) void api.fork(activeId(), target.entryId);
-          setPendingFork(undefined);
+          const target = pendingFork.value();
+          if (target) void api.fork(target.ownerId, target.data.entryId);
+          pendingFork.close();
         }}
       />
       <ExtensionUiDialog
