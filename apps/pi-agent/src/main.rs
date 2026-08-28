@@ -24,7 +24,7 @@ fn main() -> Result<(), Whatever> {
                 .initial_inner_size(1180, 780)
                 .min_inner_size(820, 560),
         )
-        .json_capability(service::CAPABILITY, move |host| {
+        .capability(service::CAPABILITY, move |host| {
             service::mount(host, capability.clone())
         })
         .host_message_producer(move |context| service::stream_events(context, events.clone()))

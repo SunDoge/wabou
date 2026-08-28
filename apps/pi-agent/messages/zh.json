@@ -8,6 +8,7 @@
   "new_project": "添加项目",
   "projects": "项目",
   "workspace_not_selected": "选择工作区",
+  "changed_files": "{count} 项改动",
   "agents": "Agent 列表",
   "search_agents": "搜索 Agent 和会话",
   "clear_search": "清除搜索",

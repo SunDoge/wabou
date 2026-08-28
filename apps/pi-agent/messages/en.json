@@ -8,6 +8,7 @@
   "new_project": "Add project",
   "projects": "Projects",
   "workspace_not_selected": "Choose a workspace",
+  "changed_files": "{count} changed",
   "agents": "Agents",
   "search_agents": "Search agents and sessions",
   "clear_search": "Clear search",

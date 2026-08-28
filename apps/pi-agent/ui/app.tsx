@@ -19,6 +19,7 @@ import {
 } from "@wabou/ui";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
+import gitBranch from "lucide-static/icons/git-branch.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import send from "lucide-static/icons/send.svg?raw";
 import square from "lucide-static/icons/square.svg?raw";
@@ -29,7 +30,7 @@ import {
   reducePiEvent,
   reducePiEvents,
 } from "./agent-state";
-import { type PiSession, usePiApi } from "./api";
+import { type PiSession, type WorkspaceInfo, usePiApi } from "./api";
 import { CommandPicker } from "./command-picker";
 import {
   ComposerContextFiles,
@@ -144,6 +145,7 @@ export function App() {
     createAgentWorkspace(1),
   ]);
   const [sessions, setSessions] = createSignal<readonly PiSession[]>([]);
+  const [workspaceInfo, setWorkspaceInfo] = createSignal<WorkspaceInfo>();
   const [lastActiveId, setLastActiveId] = createSignal("agent-1");
   const [drafts, setDrafts] = createSignal<AgentDrafts>({});
   const [draftImages, setDraftImages] = createSignal<AgentDraftLists>({});
@@ -225,6 +227,19 @@ export function App() {
         session.sessionId === active().state.sessionId,
     );
   const activeSessionId = () => params().sessionId;
+  const refreshWorkspaceInfo = (cwd = active().cwd) => {
+    if (!cwd.trim()) {
+      setWorkspaceInfo(undefined);
+      return;
+    }
+    void api.workspaceInfo(cwd).then((info) => {
+      if (active().cwd === cwd) setWorkspaceInfo(info);
+    });
+  };
+  createEffect(
+    () => active().cwd,
+    (cwd) => refreshWorkspaceInfo(cwd),
+  );
   createEffect(
     () => `${activeId()}\0${activeSessionId() ?? ""}`,
     () => {
@@ -342,6 +357,7 @@ export function App() {
         }
         if (batch.some((event) => event.type === "agent_settled")) {
           void api.getSessionStats(id);
+          if (id === activeId()) refreshWorkspaceInfo();
         }
         if (
           batch.some(
@@ -782,6 +798,22 @@ export function App() {
                   <Text class="max-w-64 truncate text-xs text-muted">
                     {active().cwd}
                   </Text>
+                  <Show when={workspaceInfo()?.repository && workspaceInfo()?.branch}>
+                    <Text class="flex-none text-xs text-muted">·</Text>
+                    <View class="flex-none flex flex-row items-center gap-1">
+                      <Icon source={gitBranch} size={11} class="text-muted" />
+                      <Text class="max-w-32 truncate text-xs text-muted">
+                        {workspaceInfo()?.branch}
+                      </Text>
+                      <Show when={(workspaceInfo()?.changedFiles ?? 0) > 0}>
+                        <Text class="text-xs text-warning-primary">
+                          {i18n.message(m.changed_files, {
+                            count: workspaceInfo()?.changedFiles ?? 0,
+                          })}
+                        </Text>
+                      </Show>
+                    </View>
+                  </Show>
                   <Text class="flex-none text-xs text-muted">·</Text>
                   <Text class="min-w-0 flex-1 truncate text-xs text-muted">
                     {(active().state.model ?? active().model) ||

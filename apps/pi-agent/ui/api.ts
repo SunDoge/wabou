@@ -1,4 +1,5 @@
 import {
+  bindCapability,
   bindJsonCapability,
   type Host,
   hostMessages,
@@ -20,6 +21,12 @@ export interface PiSession {
   name?: string;
   cwd: string;
   updatedAt: number;
+}
+
+export interface WorkspaceInfo {
+  repository: boolean;
+  branch?: string;
+  changedFiles: number;
 }
 
 export interface PersistedAgentProfile {
@@ -61,6 +68,9 @@ interface PiCapability extends NativeJsonCapability {
   compactSession(request: string): string | PromiseLike<string>;
   exportSession(request: string): string | PromiseLike<string>;
   listWorkspaceFiles(request: string): string | PromiseLike<string>;
+  workspaceInfo(
+    request: { cwd: string },
+  ): WorkspaceInfo | PromiseLike<WorkspaceInfo>;
   respondExtensionUi(request: string): string | PromiseLike<string>;
   listAgents(request?: string): string | PromiseLike<string>;
   saveAgents(request: string): string | PromiseLike<string>;
@@ -74,7 +84,11 @@ interface PiHost extends Host {
 
 export function usePiApi() {
   const host = useHost<PiHost>();
-  const call = bindJsonCapability(host.piAgent, {
+  const capability = bindCapability(host.piAgent, {
+    name: "piAgent",
+    version: 1,
+  });
+  const call = bindJsonCapability(capability, {
     name: "piAgent",
     version: 1,
   });
@@ -135,6 +149,7 @@ export function usePiApi() {
       call<void>("exportSession", { agentId, outputPath }),
     listWorkspaceFiles: (cwd: string) =>
       call<string[]>("listWorkspaceFiles", { cwd }),
+    workspaceInfo: async (cwd: string) => capability.workspaceInfo({ cwd }),
     respondExtensionUi: (
       agentId: string,
       response:

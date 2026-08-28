@@ -12,10 +12,11 @@ use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use wabou::{
-    HostMessage, HostMessageContext, JsonCapability, JsonCapabilityContract, JsonMethod, rquickjs,
+    CapabilityContract, HostMessage, HostMessageContext, HostMethod, JsonMethod, NativeCapability,
+    rquickjs,
 };
 
-pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("piAgent", 1);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("piAgent", 1);
 const EVENT_TOPIC: &str = "pi.event";
 
 const GET_STATUS: JsonMethod<AgentRequest, PiStatus> = JsonMethod::new("getStatus");
@@ -46,6 +47,8 @@ const COMPACT_SESSION: JsonMethod<AgentRequest, ()> = JsonMethod::new("compactSe
 const EXPORT_SESSION: JsonMethod<ExportSessionRequest, ()> = JsonMethod::new("exportSession");
 const LIST_WORKSPACE_FILES: JsonMethod<WorkspaceFilesRequest, Vec<String>> =
     JsonMethod::new("listWorkspaceFiles");
+const WORKSPACE_INFO: HostMethod<WorkspaceFilesRequest, WorkspaceInfo> =
+    HostMethod::new("workspaceInfo");
 const RESPOND_EXTENSION_UI: JsonMethod<ExtensionUiResponseRequest, ()> =
     JsonMethod::new("respondExtensionUi");
 const LIST_AGENTS: JsonMethod<(), Vec<AgentProfile>> = JsonMethod::no_request("listAgents");
@@ -369,6 +372,56 @@ struct ExportSessionRequest {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct WorkspaceFilesRequest {
     cwd: PathBuf,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceInfo {
+    repository: bool,
+    branch: Option<String>,
+    changed_files: usize,
+}
+
+fn workspace_info(cwd: &Path) -> WorkspaceInfo {
+    let output = Command::new("git")
+        .args(["status", "--short", "--branch", "--untracked-files=normal"])
+        .current_dir(cwd)
+        .output();
+    let Ok(output) = output else {
+        return WorkspaceInfo {
+            repository: false,
+            branch: None,
+            changed_files: 0,
+        };
+    };
+    if !output.status.success() {
+        return WorkspaceInfo {
+            repository: false,
+            branch: None,
+            changed_files: 0,
+        };
+    }
+    parse_git_status(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn parse_git_status(status: &str) -> WorkspaceInfo {
+    let mut lines = status.lines();
+    let branch = lines.next().and_then(|line| {
+        line.strip_prefix("## ")
+            .and_then(|value| {
+                value
+                    .split_once("...")
+                    .map_or(Some(value), |(name, _)| Some(name))
+            })
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    });
+    WorkspaceInfo {
+        repository: true,
+        branch,
+        changed_files: lines.filter(|line| !line.trim().is_empty()).count(),
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -850,8 +903,16 @@ impl Drop for PiProcess {
     }
 }
 
-pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Result<()> {
+pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::Result<()> {
     capability.method(
+        WORKSPACE_INFO,
+        move |request: WorkspaceFilesRequest| async move {
+            tokio::task::spawn_blocking(move || workspace_info(&request.cwd))
+                .await
+                .map_err(|error| format!("workspace status task failed: {error}"))
+        },
+    )?;
+    capability.json_method(
         LIST_WORKSPACE_FILES,
         move |request: WorkspaceFilesRequest| async move {
             tokio::task::spawn_blocking(move || list_workspace_files(&request.cwd))
@@ -860,7 +921,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         },
     )?;
     let extension_ui = service.clone();
-    capability.method(
+    capability.json_method(
         RESPOND_EXTENSION_UI,
         move |request: ExtensionUiResponseRequest| {
             let service = extension_ui.clone();
@@ -870,46 +931,46 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
             }
         },
     )?;
-    capability.method(DEFAULT_WORKSPACE, |request: AgentRequest| async move {
+    capability.json_method(DEFAULT_WORKSPACE, |request: AgentRequest| async move {
         default_workspace(&request.agent_id)
     })?;
     let list_agents = service.clone();
-    capability.method(LIST_AGENTS, move |(): ()| {
+    capability.json_method(LIST_AGENTS, move |(): ()| {
         let service = list_agents.clone();
         async move { service.agents() }
     })?;
     let save_agents = service.clone();
-    capability.method(SAVE_AGENTS, move |agents: Vec<AgentProfile>| {
+    capability.json_method(SAVE_AGENTS, move |agents: Vec<AgentProfile>| {
         let service = save_agents.clone();
         async move { service.save_agents(agents) }
     })?;
     let delete_agent = service.clone();
-    capability.method(DELETE_AGENT, move |request: AgentRequest| {
+    capability.json_method(DELETE_AGENT, move |request: AgentRequest| {
         let service = delete_agent.clone();
         async move { service.delete_agent(&request.agent_id) }
     })?;
     let status = service.clone();
-    capability.method(GET_STATUS, move |request: AgentRequest| {
+    capability.json_method(GET_STATUS, move |request: AgentRequest| {
         let service = status.clone();
         async move { service.status(&request.agent_id) }
     })?;
     let start = service.clone();
-    capability.method(START, move |request: StartRequest| {
+    capability.json_method(START, move |request: StartRequest| {
         let service = start.clone();
         async move { service.start(request) }
     })?;
     let list_sessions = service.clone();
-    capability.method(LIST_SESSIONS, move |request: AgentRequest| {
+    capability.json_method(LIST_SESSIONS, move |request: AgentRequest| {
         let service = list_sessions.clone();
         async move { service.sessions(&request.agent_id) }
     })?;
     let get_messages = service.clone();
-    capability.method(GET_MESSAGES, move |request: AgentRequest| {
+    capability.json_method(GET_MESSAGES, move |request: AgentRequest| {
         let service = get_messages.clone();
         async move { service.send(&request.agent_id, json!({"type":"get_messages"})) }
     })?;
     let get_session_stats = service.clone();
-    capability.method(GET_SESSION_STATS, move |request: AgentRequest| {
+    capability.json_method(GET_SESSION_STATS, move |request: AgentRequest| {
         let service = get_session_stats.clone();
         async move {
             service.send(
@@ -919,7 +980,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let get_commands = service.clone();
-    capability.method(GET_COMMANDS, move |request: AgentRequest| {
+    capability.json_method(GET_COMMANDS, move |request: AgentRequest| {
         let service = get_commands.clone();
         async move {
             service.send(
@@ -929,7 +990,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let get_fork_messages = service.clone();
-    capability.method(GET_FORK_MESSAGES, move |request: AgentRequest| {
+    capability.json_method(GET_FORK_MESSAGES, move |request: AgentRequest| {
         let service = get_fork_messages.clone();
         async move {
             service.send(
@@ -939,7 +1000,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let fork = service.clone();
-    capability.method(FORK, move |request: ForkRequest| {
+    capability.json_method(FORK, move |request: ForkRequest| {
         let service = fork.clone();
         async move {
             service.send(
@@ -949,7 +1010,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let clone_session = service.clone();
-    capability.method(CLONE_SESSION, move |request: AgentRequest| {
+    capability.json_method(CLONE_SESSION, move |request: AgentRequest| {
         let service = clone_session.clone();
         async move {
             service.send(
@@ -963,7 +1024,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let compact_session = service.clone();
-    capability.method(COMPACT_SESSION, move |request: AgentRequest| {
+    capability.json_method(COMPACT_SESSION, move |request: AgentRequest| {
         let service = compact_session.clone();
         async move {
             service.send(
@@ -973,7 +1034,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let export_session = service.clone();
-    capability.method(EXPORT_SESSION, move |request: ExportSessionRequest| {
+    capability.json_method(EXPORT_SESSION, move |request: ExportSessionRequest| {
         let service = export_session.clone();
         async move {
             let output_path = request.output_path.trim();
@@ -987,7 +1048,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let prompt = service.clone();
-    capability.method(PROMPT, move |request: PromptRequest| {
+    capability.json_method(PROMPT, move |request: PromptRequest| {
         let service = prompt.clone();
         async move {
             let message = request.message.trim().to_owned();
@@ -1009,7 +1070,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let steer = service.clone();
-    capability.method(STEER, move |request: PromptRequest| {
+    capability.json_method(STEER, move |request: PromptRequest| {
         let service = steer.clone();
         async move {
             let message = request.message.trim().to_owned();
@@ -1031,7 +1092,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let follow_up = service.clone();
-    capability.method(FOLLOW_UP, move |request: PromptRequest| {
+    capability.json_method(FOLLOW_UP, move |request: PromptRequest| {
         let service = follow_up.clone();
         async move {
             let message = request.message.trim().to_owned();
@@ -1053,17 +1114,17 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let abort = service.clone();
-    capability.method(ABORT, move |request: AgentRequest| {
+    capability.json_method(ABORT, move |request: AgentRequest| {
         let service = abort.clone();
         async move { service.send(&request.agent_id, json!({"type":"abort"})) }
     })?;
     let stop = service.clone();
-    capability.method(STOP, move |request: AgentRequest| {
+    capability.json_method(STOP, move |request: AgentRequest| {
         let service = stop.clone();
         async move { service.stop(&request.agent_id) }
     })?;
     let new_session = service.clone();
-    capability.method(NEW_SESSION, move |request: AgentRequest| {
+    capability.json_method(NEW_SESSION, move |request: AgentRequest| {
         let service = new_session.clone();
         async move {
             service.send(&request.agent_id, json!({"type":"new_session"}))?;
@@ -1074,7 +1135,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let rename_session = service.clone();
-    capability.method(RENAME_SESSION, move |request: RenameSessionRequest| {
+    capability.json_method(RENAME_SESSION, move |request: RenameSessionRequest| {
         let service = rename_session.clone();
         async move {
             let name = request.name.trim();
@@ -1092,17 +1153,17 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let cycle_model = service.clone();
-    capability.method(CYCLE_MODEL, move |request: AgentRequest| {
+    capability.json_method(CYCLE_MODEL, move |request: AgentRequest| {
         let service = cycle_model.clone();
         async move { service.send(&request.agent_id, json!({"type":"cycle_model"})) }
     })?;
     let cycle_thinking = service.clone();
-    capability.method(CYCLE_THINKING, move |request: AgentRequest| {
+    capability.json_method(CYCLE_THINKING, move |request: AgentRequest| {
         let service = cycle_thinking.clone();
         async move { service.send(&request.agent_id, json!({"type":"cycle_thinking_level"})) }
     })?;
     let model_options = service.clone();
-    capability.method(GET_MODEL_OPTIONS, move |request: AgentRequest| {
+    capability.json_method(GET_MODEL_OPTIONS, move |request: AgentRequest| {
         let service = model_options.clone();
         async move {
             service.send(
@@ -1116,7 +1177,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let set_thinking = service.clone();
-    capability.method(SET_THINKING, move |request: SetThinkingRequest| {
+    capability.json_method(SET_THINKING, move |request: SetThinkingRequest| {
         let service = set_thinking.clone();
         async move {
             validate_thinking_level(&request.level)?;
@@ -1131,7 +1192,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let auto_compaction = service.clone();
-    capability.method(SET_AUTO_COMPACTION, move |request: ToggleRequest| {
+    capability.json_method(SET_AUTO_COMPACTION, move |request: ToggleRequest| {
         let service = auto_compaction.clone();
         async move {
             service.send(
@@ -1145,7 +1206,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let steering_mode = service.clone();
-    capability.method(SET_STEERING_MODE, move |request: QueueModeRequest| {
+    capability.json_method(SET_STEERING_MODE, move |request: QueueModeRequest| {
         let service = steering_mode.clone();
         async move {
             validate_queue_mode(&request.mode)?;
@@ -1160,7 +1221,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let follow_up_mode = service.clone();
-    capability.method(SET_FOLLOW_UP_MODE, move |request: QueueModeRequest| {
+    capability.json_method(SET_FOLLOW_UP_MODE, move |request: QueueModeRequest| {
         let service = follow_up_mode.clone();
         async move {
             validate_queue_mode(&request.mode)?;
@@ -1174,7 +1235,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
             )
         }
     })?;
-    capability.method(SET_MODEL, move |request: SetModelRequest| {
+    capability.json_method(SET_MODEL, move |request: SetModelRequest| {
         let service = service.clone();
         async move {
             service.send(
@@ -1390,6 +1451,28 @@ mod tests {
             Some("pi-agent")
         );
         assert!(default_workspace("../escape").is_err());
+    }
+
+    #[test]
+    fn git_status_summary_keeps_branch_and_change_count() {
+        assert_eq!(
+            parse_git_status(
+                "## feat/ui...origin/feat/ui [ahead 2]\n M src/main.rs\n?? notes.md\n"
+            ),
+            WorkspaceInfo {
+                repository: true,
+                branch: Some("feat/ui".to_owned()),
+                changed_files: 2,
+            }
+        );
+        assert_eq!(
+            parse_git_status("## main\n"),
+            WorkspaceInfo {
+                repository: true,
+                branch: Some("main".to_owned()),
+                changed_files: 0,
+            }
+        );
     }
 
     #[test]
