@@ -399,6 +399,38 @@ test("keeps retained layout stable across repeated agent switches", async ({
   ).toHaveCount(1);
 });
 
+test("attaches a native-picked image to the Pi prompt", async ({
+  page,
+  effects,
+  files,
+}) => {
+  const imagePath = files.writeText("attachments/fixture.png", "fixture");
+  effects.respond("dialogOpen", [imagePath]);
+  await page.getByRole("button", { name: "Attach images" }).click();
+
+  const attachments = page.getByRole("group", { name: "Attached images" });
+  await expect(attachments).toHaveCount(1);
+  await expect(
+    attachments.getByRole("button", { name: "Remove fixture.png" }),
+  ).toHaveCount(1);
+
+  const composer = page.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+  await composer.type("Inspect attached image");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  await expect(
+    page.getByRole("button", { name: "Remove fixture.png" }),
+  ).toBeAbsent({ timeout: 5_000 });
+  await expect(attachments).toHaveCount(1);
+  await expect(
+    page.getByRole("label", {
+      name: "Fixture received 1 image attachment",
+    }),
+  ).toHaveCount(1, { timeout: 5_000 });
+});
+
 test(
   "browses an isolated workspace and attaches a file as context",
   async ({ page, files }) => {

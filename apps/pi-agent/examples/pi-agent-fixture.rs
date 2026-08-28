@@ -218,6 +218,24 @@ fn answer_prompt(state: &mut FixtureState, message: &str) -> io::Result<()> {
     emit(&json!({"type":"agent_settled"}))
 }
 
+fn answer_image_prompt(image_count: usize) -> io::Result<()> {
+    emit(&json!({"type":"agent_start"}))?;
+    emit(&json!({
+        "type":"message_start",
+        "message":{"role":"assistant","content":[]}
+    }))?;
+    emit(&json!({
+        "type":"message_update",
+        "assistantMessageEvent":{
+            "type":"text_delta",
+            "delta":format!("Fixture received {image_count} image attachment")
+        }
+    }))?;
+    emit(&json!({"type":"message_end"}))?;
+    emit(&json!({"type":"agent_end"}))?;
+    emit(&json!({"type":"agent_settled"}))
+}
+
 fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
     match request
         .get("type")
@@ -322,7 +340,15 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_owned();
-            answer_prompt(state, &message)
+            let image_count = request
+                .get("images")
+                .and_then(Value::as_array)
+                .map_or(0, Vec::len);
+            if image_count == 0 {
+                answer_prompt(state, &message)
+            } else {
+                answer_image_prompt(image_count)
+            }
         }
         "new_session" => {
             state.create_session()?;
