@@ -122,9 +122,8 @@ struct StartRequest {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PromptRequest {
-    #[serde(rename = "agentId")]
     agent_id: String,
     message: String,
     #[serde(default)]
@@ -1233,6 +1232,21 @@ mod tests {
         assert!(validate_queue_mode("all").is_ok());
         assert!(validate_queue_mode("one-at-a-time").is_ok());
         assert!(validate_queue_mode("parallel").is_err());
+    }
+
+    #[test]
+    fn prompt_request_uses_the_javascript_camel_case_contract() {
+        let request: PromptRequest = serde_json::from_value(json!({
+            "agentId": "agent-1",
+            "message": "inspect these files",
+            "imagePaths": ["page.png"],
+            "contextPaths": ["src/main.rs"]
+        }))
+        .expect("camel-case prompt request");
+
+        assert_eq!(request.agent_id, "agent-1");
+        assert_eq!(request.image_paths, vec![PathBuf::from("page.png")]);
+        assert_eq!(request.context_paths, vec![PathBuf::from("src/main.rs")]);
     }
 
     #[test]
