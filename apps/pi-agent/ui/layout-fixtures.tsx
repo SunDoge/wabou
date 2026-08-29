@@ -345,7 +345,7 @@ defineLayoutFixtures({
             sessionFile: "/tmp/session-one.jsonl",
             name: "Fix the persistent workspace resource loading loop",
             cwd: project.cwd,
-            updatedAt: 2,
+            updatedAt: 1_787_907_300,
           },
           {
             agentId: project.id,
@@ -353,7 +353,7 @@ defineLayoutFixtures({
             sessionFile: "/tmp/session-two.jsonl",
             name: "Review release readiness",
             cwd: project.cwd,
-            updatedAt: 1,
+            updatedAt: 1_787_896_800,
           },
           {
             agentId: secondProject.id,
@@ -361,7 +361,7 @@ defineLayoutFixtures({
             sessionFile: "/tmp/session-docs.jsonl",
             name: "Polish the onboarding copy",
             cwd: secondProject.cwd,
-            updatedAt: 3,
+            updatedAt: 1_787_907_540,
           },
         ]}
         activeId={project.id}
@@ -370,6 +370,7 @@ defineLayoutFixtures({
         add={() => {}}
         newSession={() => {}}
         canCreateSession
+        nowSeconds={1_787_907_600}
         openSettings={() => {}}
       />
     ),

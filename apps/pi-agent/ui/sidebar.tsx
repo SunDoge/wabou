@@ -19,6 +19,7 @@ import messageSquare from "lucide-static/icons/message-square.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
 import { createMemo, createSignal, For as ForValue, Show } from "solid-js";
+import { match } from "ts-pattern";
 import { AgentSidebarStatus } from "./agent-activity";
 import type { PiSession } from "./api";
 import { i18n, m } from "./i18n";
@@ -34,11 +35,77 @@ interface SidebarProps {
   openSettings: () => void;
   sessions: readonly PiSession[];
   selectSession: (agentId: string, sessionId: string) => void;
+  /** Unix seconds. Supplying this keeps component and layout tests deterministic. */
+  nowSeconds?: number;
 }
 
 export function sessionLabel(session: Pick<PiSession, "name" | "sessionId">) {
   const name = session.name?.trim();
   return name || session.sessionId.slice(0, 8);
+}
+
+export type SessionRecency =
+  | { kind: "now" }
+  | { kind: "minutes"; value: number }
+  | { kind: "hours"; value: number }
+  | { kind: "days"; value: number }
+  | { kind: "date"; value: Date };
+
+export function sessionRecency(
+  updatedAt: number,
+  nowSeconds: number,
+): SessionRecency {
+  const elapsed = Math.max(0, Math.floor(nowSeconds - updatedAt));
+  if (elapsed < 60) return { kind: "now" };
+  if (elapsed < 3_600) {
+    return { kind: "minutes", value: Math.floor(elapsed / 60) };
+  }
+  if (elapsed < 86_400) {
+    return { kind: "hours", value: Math.floor(elapsed / 3_600) };
+  }
+  if (elapsed < 604_800) {
+    return { kind: "days", value: Math.floor(elapsed / 86_400) };
+  }
+  return { kind: "date", value: new Date(updatedAt * 1_000) };
+}
+
+export function sessionTimeLabel(
+  updatedAt: number,
+  nowSeconds: number,
+  locale = i18n.locale(),
+): string {
+  return match(sessionRecency(updatedAt, nowSeconds))
+    .with({ kind: "now" }, () => m.session_now({}, { locale }))
+    .with({ kind: "minutes" }, ({ value }) =>
+      m.session_minutes_ago({ count: value }, { locale }),
+    )
+    .with({ kind: "hours" }, ({ value }) =>
+      m.session_hours_ago({ count: value }, { locale }),
+    )
+    .with({ kind: "days" }, ({ value }) =>
+      m.session_days_ago({ count: value }, { locale }),
+    )
+    .with({ kind: "date" }, ({ value }) =>
+      new Intl.DateTimeFormat(locale, {
+        month: "short",
+        day: "numeric",
+        year:
+          value.getFullYear() === new Date(nowSeconds * 1_000).getFullYear()
+            ? undefined
+            : "numeric",
+      }).format(value),
+    )
+    .exhaustive();
+}
+
+export function sortSessionsByRecency(
+  sessions: readonly PiSession[],
+): PiSession[] {
+  return [...sessions].sort(
+    (left, right) =>
+      right.updatedAt - left.updatedAt ||
+      left.sessionId.localeCompare(right.sessionId),
+  );
 }
 
 export function activeSidebarValue(
@@ -60,6 +127,7 @@ export function activeSidebarValue(
 
 export function Sidebar(props: SidebarProps) {
   const [query, setQuery] = createSignal("");
+  const nowSeconds = props.nowSeconds ?? Date.now() / 1_000;
   const normalizedQuery = () => query().trim().toLocaleLowerCase();
   const visibleAgents = createMemo(() => {
     const needle = normalizedQuery();
@@ -82,8 +150,8 @@ export function Sidebar(props: SidebarProps) {
   );
   const visibleSessions = (agentId: string) => {
     const needle = normalizedQuery();
-    const sessions = props.sessions.filter(
-      (session) => session.agentId === agentId,
+    const sessions = sortSessionsByRecency(
+      props.sessions.filter((session) => session.agentId === agentId),
     );
     if (!needle) return sessions;
     const agent = props.agents.find((candidate) => candidate.id === agentId);
@@ -188,6 +256,9 @@ export function Sidebar(props: SidebarProps) {
                           />
                           <Text class="min-w-0 flex-1 truncate">
                             {sessionLabel(session())}
+                          </Text>
+                          <Text class="flex-none text-xs text-muted">
+                            {sessionTimeLabel(session().updatedAt, nowSeconds)}
                           </Text>
                         </SidebarMenuButton>
                       </View>

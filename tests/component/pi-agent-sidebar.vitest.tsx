@@ -2,8 +2,41 @@ import { renderComponent } from "@wabou/test/component";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 import type { PiSession } from "../../apps/pi-agent/ui/api";
-import { activeSidebarValue, Sidebar } from "../../apps/pi-agent/ui/sidebar";
+import {
+  activeSidebarValue,
+  Sidebar,
+  sessionRecency,
+  sessionTimeLabel,
+  sortSessionsByRecency,
+} from "../../apps/pi-agent/ui/sidebar";
 import { createAgentWorkspace } from "../../apps/pi-agent/ui/workspace";
+
+test("describes session recency without depending on wall-clock time", () => {
+  expect(sessionRecency(10_000, 10_059)).toEqual({ kind: "now" });
+  expect(sessionRecency(10_000, 10_300)).toEqual({
+    kind: "minutes",
+    value: 5,
+  });
+  expect(sessionRecency(10_000, 17_200)).toEqual({
+    kind: "hours",
+    value: 2,
+  });
+  expect(sessionTimeLabel(10_000, 10_300, "en")).toBe("5m");
+  expect(sessionTimeLabel(10_000, 10_300, "zh")).toBe("5 分钟");
+});
+
+test("sorts retained sessions newest-first with a deterministic tie break", () => {
+  const sessions = [
+    { sessionId: "b", updatedAt: 20 },
+    { sessionId: "c", updatedAt: 30 },
+    { sessionId: "a", updatedAt: 20 },
+  ] as PiSession[];
+
+  expect(sortSessionsByRecency(sessions).map((item) => item.sessionId)).toEqual(
+    ["c", "a", "b"],
+  );
+  expect(sessions.map((item) => item.sessionId)).toEqual(["b", "c", "a"]);
+});
 
 test("Pi Agent sidebar searches agents and sessions without flattening the hierarchy", () => {
   const agents = [createAgentWorkspace(1), createAgentWorkspace(2)];
@@ -100,6 +133,7 @@ test("shows retained sessions for every project and keeps navigation live", () =
       add={() => {}}
       newSession={() => {}}
       canCreateSession
+      nowSeconds={61}
       openSettings={() => {}}
     />
   ));
@@ -115,6 +149,15 @@ test("shows retained sessions for every project and keeps navigation live", () =
   expect(
     screen.getByRole("button", { name: "Write release notes" }).selected,
   ).toBe(true);
+  expect(
+    screen.getByRole("button", { name: "Write release notes" }).text,
+  ).toContain("Now");
+  expect(
+    screen
+      .getAllByRole("button")
+      .map((button) => button.name)
+      .filter((name) => name === "Fix API" || name === "Write release notes"),
+  ).toEqual(["Fix API", "Write release notes"]);
   inactiveSession.click();
   expect(selectedSessions).toEqual([["agent-1", "session-api"]]);
   screen.getByRole("button", { name: "Project 1" }).click();
