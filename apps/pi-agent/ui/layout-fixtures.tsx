@@ -9,8 +9,10 @@ import {
   MessageScrollerViewport,
   Text,
   View,
+  Workbench,
   WorkbenchContentColumn,
   WorkbenchHeader,
+  WorkbenchMain,
 } from "@wabou/ui";
 import { For } from "solid-js";
 import { AgentActivityStatus } from "./agent-activity";
@@ -58,7 +60,134 @@ const longConversation: readonly AgentItem[] = Array.from(
   }),
 );
 
+const shellSessions = [
+  {
+    agentId: project.id,
+    sessionId: "session-one",
+    sessionFile: "/tmp/session-one.jsonl",
+    name: "Review the retained renderer boundary",
+    cwd: project.cwd,
+    updatedAt: 1_787_907_300,
+  },
+] as const;
+
+function FullWorkbenchFixture() {
+  const state = {
+    ...initialAgentState,
+    connection: "ready" as const,
+    sessionId: "session-one",
+    modelProvider: "anthropic",
+    modelId: "claude-sonnet-4-5",
+    thinking: "medium" as const,
+    availableThinkingLevels: ["low", "medium", "high"] as const,
+    models: [
+      {
+        provider: "anthropic",
+        id: "claude-sonnet-4-5",
+        name: "Claude Sonnet 4.5",
+        reasoning: true,
+        contextWindow: 200_000,
+      },
+    ],
+    items: [
+      {
+        id: "request",
+        kind: "user" as const,
+        text: "Keep the full workbench readable at its minimum window size.",
+      },
+      {
+        id: "answer",
+        kind: "assistant" as const,
+        text: "The sidebar, conversation header, transcript and composer share one bounded desktop layout contract.",
+      },
+    ],
+  };
+  return (
+    <Workbench role="region" aria-label="Pi Agent workbench">
+      <Sidebar
+        agents={[project]}
+        sessions={shellSessions}
+        activeId={project.id}
+        select={() => {}}
+        selectSession={() => {}}
+        add={() => {}}
+        newSession={() => {}}
+        canCreateSession
+        nowSeconds={1_787_907_600}
+        openSettings={() => {}}
+      />
+      <WorkbenchMain role="region" aria-label="Conversation workspace">
+        <ConversationHeader
+          project={project.name}
+          branch="feat/layout-contract"
+          session="Review the retained renderer boundary"
+          state={state}
+          cwdAvailable
+          repository
+          terminalOpen={false}
+          filesOpen={false}
+          changesOpen={false}
+          searchOpen={false}
+          toggleTerminal={() => {}}
+          toggleFiles={() => {}}
+          toggleChanges={() => {}}
+          toggleSearch={() => {}}
+          newSession={() => {}}
+          compactSession={() => {}}
+          cloneSession={() => {}}
+          exportSession={() => {}}
+          abort={() => {}}
+        />
+        <MessageScroller class="flex-1 min-h-0">
+          <MessageScrollerViewport>
+            <MessageScrollerContent>
+              <WorkbenchContentColumn class="px-6 py-5">
+                <ConversationList items={state.items} />
+              </WorkbenchContentColumn>
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+        </MessageScroller>
+        <ConversationComposer
+          connection="ready"
+          project={project.name}
+          cwd={project.cwd}
+          draft=""
+          images={[]}
+          contextFiles={[]}
+          deliveryMode="followUp"
+          models={state.models}
+          modelProvider={state.modelProvider}
+          modelId={state.modelId}
+          thinking={state.thinking}
+          thinkingLevels={state.availableThinkingLevels}
+          commands={[]}
+          statuses={[]}
+          widgets={[]}
+          changeDraft={() => {}}
+          changeImages={() => {}}
+          changeContextFiles={() => {}}
+          changeDeliveryMode={() => {}}
+          chooseModel={() => {}}
+          chooseThinking={() => {}}
+          loadWorkspaceFiles={async () => []}
+          submit={() => {}}
+        />
+      </WorkbenchMain>
+    </Workbench>
+  );
+}
+
 defineLayoutFixtures({
+  "shell/full-workbench": {
+    width: 1_200,
+    height: 800,
+    render: FullWorkbenchFixture,
+  },
+  "shell/full-workbench-minimum": {
+    width: 720,
+    height: 640,
+    render: FullWorkbenchFixture,
+  },
   "shell/content-column-wide": {
     width: 1_200,
     height: 120,

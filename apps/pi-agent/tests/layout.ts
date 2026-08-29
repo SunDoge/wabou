@@ -10,6 +10,71 @@ import { renderAppLayout, renderLayoutFixtures } from "@wabou/test/layout/node";
 
 const directory = await mkdtemp(join(tmpdir(), "wabou-pi-agent-layout-"));
 
+function assertFullWorkbenchLayout(
+  fixture: Parameters<typeof getLayoutNode>[0],
+  viewportWidth: number,
+): void {
+  const shell = getLayoutNode(fixture, {
+    role: "region",
+    name: "Pi Agent workbench",
+  });
+  const main = getLayoutNode(fixture, {
+    role: "region",
+    name: "Conversation workspace",
+  });
+  const toolbar = getLayoutNode(fixture, {
+    role: "toolbar",
+    name: "Conversation actions",
+  });
+  const composer = getLayoutNode(fixture, {
+    role: "group",
+    name: "Ask this agent to work in its repository…",
+  });
+  const model = getLayoutNode(fixture, {
+    role: "combobox",
+    name: "Choose model",
+  });
+  const thinking = getLayoutNode(fixture, {
+    role: "combobox",
+    name: "Thinking level",
+  });
+
+  if (Math.abs(shell.rect.width - viewportWidth) > 0.5) {
+    throw new Error(
+      `workbench did not fill viewport: width=${shell.rect.width}, viewport=${viewportWidth}`,
+    );
+  }
+  if (Math.abs(main.rect.x - 240) > 0.5) {
+    throw new Error(
+      `workbench sidebar contract drifted: main x=${main.rect.x}`,
+    );
+  }
+  if (Math.abs(main.rect.width - (viewportWidth - 240)) > 0.5) {
+    throw new Error(
+      `main pane did not consume remaining width: width=${main.rect.width}`,
+    );
+  }
+  const mainRight = main.rect.x + main.rect.width;
+  for (const [name, node] of [
+    ["conversation toolbar", toolbar],
+    ["composer", composer],
+    ["model control", model],
+    ["thinking control", thinking],
+  ] as const) {
+    const right = node.rect.x + node.rect.width;
+    if (node.rect.x < main.rect.x - 0.5 || right > mainRight + 0.5) {
+      throw new Error(
+        `${name} escaped main pane: x=${node.rect.x}, right=${right}, pane=${main.rect.x}..${mainRight}`,
+      );
+    }
+  }
+  if (model.rect.width < 176 || thinking.rect.width < 112) {
+    throw new Error(
+      `composer controls lost readable widths: model=${model.rect.width}, thinking=${thinking.rect.width}`,
+    );
+  }
+}
+
 try {
   const snapshot = await renderAppLayout({
     app: "apps/pi-agent",
@@ -44,6 +109,20 @@ try {
   await renderLayoutFixtures({
     app: "apps/pi-agent",
     cases: [
+      {
+        id: "shell/full-workbench",
+        width: 1_200,
+        height: 800,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => assertFullWorkbenchLayout(fixture, 1_200),
+      },
+      {
+        id: "shell/full-workbench-minimum",
+        width: 720,
+        height: 640,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => assertFullWorkbenchLayout(fixture, 720),
+      },
       {
         id: "shell/content-column-wide",
         width: 1_200,
