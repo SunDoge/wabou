@@ -246,16 +246,17 @@ function resolvedTextBehavior(maxLines: number | undefined) {
   return {
     flags:
       TEXT_BEHAVIOR.AggregateDirectText |
-      (maxLines == null || maxLines === 1 ? TEXT_BEHAVIOR.SingleLine : 0),
+      (maxLines === 1 ? TEXT_BEHAVIOR.SingleLine : 0),
     maxLines: maxLines ?? 0,
   };
 }
 
 /**
- * A single measured text run.
+ * A measured text run that wraps within its available width by default.
  *
  * Static and reactive child text nodes are concatenated by the native host and
- * participate in the parent layout as one item.
+ * participate in the parent layout as one item. Use `maxLines={1}` or
+ * `whitespace-nowrap` when the text must remain on one line.
  */
 export function Text(props: TextProps): JSX.Element {
   // Validate the initial value before Solid owns the reactive spread. An

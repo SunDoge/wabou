@@ -94,6 +94,10 @@ fn render_to_image(
         let mut buf = Vec::new();
         renderer.render_to_vec(
             |painter| {
+                // The shared image renderer retains its painter between
+                // captures. Every screenshot is a complete frame, so discard
+                // commands from the previous capture before replaying it.
+                painter.reset();
                 painter.fill(
                     vello::peniko::Fill::NonZero,
                     Affine::IDENTITY,

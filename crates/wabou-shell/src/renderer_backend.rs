@@ -123,6 +123,11 @@ fn paint_frame(
     height: u32,
     base_color: Color,
 ) {
+    // Window renderers retain their backend scene between calls. The frame
+    // passed here is complete, not incremental, so reset the final painter as
+    // well as the backend-neutral recording scene. Without this, Vello's draw
+    // data grows every frame until its fixed bin-data allocation overflows.
+    painter.reset();
     painter.fill(
         Fill::NonZero,
         Affine::IDENTITY,
@@ -154,5 +159,27 @@ mod tests {
             anyrender::recording::RenderCommand::Fill(command)
                 if command.brush == Color::from_rgb8(12, 34, 56).into()
         ));
+    }
+
+    #[test]
+    fn frame_paint_replaces_the_previous_backend_scene() {
+        let mut target = anyrender::Scene::new();
+        let mut first = anyrender::Scene::new();
+        first.fill(
+            Fill::NonZero,
+            Affine::IDENTITY,
+            Color::WHITE,
+            None,
+            &Rect::new(0.0, 0.0, 10.0, 10.0),
+        );
+        paint_frame(&mut target, first, 20, 20, Color::BLACK);
+        assert_eq!(target.commands.len(), 2);
+
+        paint_frame(&mut target, anyrender::Scene::new(), 20, 20, Color::BLACK);
+        assert_eq!(
+            target.commands.len(),
+            1,
+            "the second frame must not retain commands from the first"
+        );
     }
 }

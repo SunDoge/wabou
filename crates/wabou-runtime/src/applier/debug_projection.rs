@@ -10,6 +10,23 @@ fn debug_rect([x0, y0, x1, y1]: [f32; 4]) -> wabou_devtools::Rect {
     }
 }
 
+fn debug_clip_rect(rect: [f32; 4], viewport: (u32, u32)) -> wabou_devtools::Rect {
+    let [mut x0, mut y0, mut x1, mut y1] = rect;
+    if !x0.is_finite() {
+        x0 = 0.0;
+    }
+    if !y0.is_finite() {
+        y0 = 0.0;
+    }
+    if !x1.is_finite() {
+        x1 = viewport.0 as f32;
+    }
+    if !y1.is_finite() {
+        y1 = viewport.1 as f32;
+    }
+    debug_rect([x0, y0, x1, y1])
+}
+
 fn intersect_rect(left: [f32; 4], right: [f32; 4]) -> [f32; 4] {
     [
         left[0].max(right[0]),
@@ -102,6 +119,7 @@ impl Applier {
         placed_by_id: &HashMap<NodeId, &PlacedNode>,
         css_transforms: &HashMap<NodeId, Affine>,
     ) -> wabou_devtools::DebugClipInfo {
+        let viewport = self.frame.last_viewport;
         let [cx, cy] = placed_node.content_origin;
         let [cw, ch] = placed_node.content_size;
         let border_transform = css_transforms[&placed_node.node_id];
@@ -124,7 +142,7 @@ impl Applier {
                         .unwrap_or(NodeKey::ROOT),
                     kind: "ancestor-overflow".into(),
                     coordinate_space: "layout-window-logical".into(),
-                    rect: debug_rect(rect),
+                    rect: debug_clip_rect(rect, viewport),
                     radius: ancestor.own_clip_radius,
                     transform: css_transforms[&node_id].as_coeffs(),
                 });
@@ -137,7 +155,7 @@ impl Applier {
                 node_id: id,
                 kind: "self-overflow".into(),
                 coordinate_space: "layout-window-logical".into(),
-                rect: debug_rect(rect),
+                rect: debug_clip_rect(rect, viewport),
                 radius: placed_node.own_clip_radius,
                 transform: border_transform.as_coeffs(),
             });
@@ -189,7 +207,7 @@ impl Applier {
                 node_id: id,
                 kind: "effective".into(),
                 coordinate_space: "window-logical".into(),
-                rect: debug_rect(rect),
+                rect: debug_clip_rect(rect, viewport),
                 radius,
                 transform: Affine::IDENTITY.as_coeffs(),
             });

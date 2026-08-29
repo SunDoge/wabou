@@ -386,6 +386,7 @@ describe("host primitives", () => {
     };
     try {
       Text({});
+      Text({ maxLines: 1 });
       Text({ maxLines: 2 });
       RichText({});
       Svg({ source: "<svg/>" });
@@ -397,13 +398,16 @@ describe("host primitives", () => {
     }
     expect(semantics).toEqual([
       ["role", "label"],
-      ["textBehavior", "3"],
+      ["textBehavior", "1"],
       ["textMaxLines", "0"],
+      ["role", "label"],
+      ["textBehavior", "3"],
+      ["textMaxLines", "1"],
       ["role", "label"],
       ["textBehavior", "1"],
       ["textMaxLines", "2"],
       ["role", "label"],
-      ["textBehavior", "7"],
+      ["textBehavior", "5"],
       ["textMaxLines", "0"],
       ["role", "img"],
       ["role", "img"],

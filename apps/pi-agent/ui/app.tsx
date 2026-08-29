@@ -25,8 +25,13 @@ import search from "lucide-static/icons/search.svg?raw";
 import send from "lucide-static/icons/send.svg?raw";
 import square from "lucide-static/icons/square.svg?raw";
 import squareTerminal from "lucide-static/icons/square-terminal.svg?raw";
-import { createEffect, createSignal, onCleanup, Show } from "solid-js";
-import { AgentActivityStatus } from "./agent-activity";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  Show,
+} from "solid-js";
 import {
   appendUserMessage,
   reconcileProcessConnection,
@@ -84,7 +89,7 @@ import { SessionForkDialog } from "./session-fork";
 import { SessionTitle } from "./session-title";
 import { SessionUsage } from "./session-usage";
 import { type AppSettings, SettingsPage } from "./settings";
-import { Sidebar } from "./sidebar";
+import { Sidebar, workspaceName } from "./sidebar";
 import { AgentTerminalPanel } from "./terminal-panel";
 import { TranscriptSearch } from "./transcript-search";
 import {
@@ -438,9 +443,7 @@ export function App() {
               ]),
             );
           const data = stateEvent?.data as
-            | Record<string, unknown>
-            | null
-            | undefined;
+            Record<string, unknown> | null | undefined;
           if (
             (stateEvent?.id === "wabou-new-session-state" ||
               stateEvent?.id === "wabou-clone-state") &&
@@ -473,8 +476,7 @@ export function App() {
             event.success === true,
         );
         const exported = exportEvent?.data as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         if (typeof exported?.path === "string") {
           toasts.success(i18n.message(m.export_complete, {}), {
             description: i18n.message(m.export_complete_detail, {
@@ -569,50 +571,51 @@ export function App() {
     profileWriter.flush();
   });
 
-  createEffect(
-    () =>
-      agents()
-        .map((agent) => agent.id)
-        .join("\0"),
-    (agentIds) => {
-      for (const id of agentIds.split("\0").filter(Boolean)) {
-        void api
-          .listSessions(id)
-          .then((next) =>
-            setSessions((current) => [
-              ...current.filter((session) => session.agentId !== id),
-              ...next,
-            ]),
-          );
-        void api
-          .getStatus(id)
-          .then((status) => {
-            updateAgent(id, (agent) => ({
-              ...agent,
-              cwd: status.cwd ?? agent.cwd,
-              state: {
-                ...agent.state,
-                connection: reconcileProcessConnection(
-                  agent.state.connection,
-                  status.running,
-                ),
-                error: status.error,
-              },
-            }));
-          })
-          .catch((error) => {
-            updateAgent(id, (agent) => ({
-              ...agent,
-              state: {
-                ...agent.state,
-                connection: "failed",
-                error: String(error),
-              },
-            }));
-          });
-      }
-    },
+  // Status updates replace agent objects. Keep the effect keyed by the stable ID
+  // value so those updates cannot start another status-polling cycle.
+  const agentIds = createMemo(() =>
+    agents()
+      .map((agent) => agent.id)
+      .join("\0"),
   );
+  createEffect(agentIds, (agentIds) => {
+    for (const id of agentIds.split("\0").filter(Boolean)) {
+      void api
+        .listSessions(id)
+        .then((next) =>
+          setSessions((current) => [
+            ...current.filter((session) => session.agentId !== id),
+            ...next,
+          ]),
+        );
+      void api
+        .getStatus(id)
+        .then((status) => {
+          updateAgent(id, (agent) => ({
+            ...agent,
+            cwd: status.cwd ?? agent.cwd,
+            state: {
+              ...agent.state,
+              connection: reconcileProcessConnection(
+                agent.state.connection,
+                status.running,
+              ),
+              error: status.error,
+            },
+          }));
+        })
+        .catch((error) => {
+          updateAgent(id, (agent) => ({
+            ...agent,
+            state: {
+              ...agent.state,
+              connection: "failed",
+              error: String(error),
+            },
+          }));
+        });
+    }
+  });
 
   const start = async (
     agent: AgentWorkspace = active(),
@@ -877,65 +880,13 @@ export function App() {
         }
       >
         <View class="flex-1 min-w-0 min-h-0 flex flex-col">
-          <View class="h-14 flex-none px-5 border-b border-subtle bg-surface flex items-center justify-between gap-3">
-            <View class="min-w-0 flex-1 overflow-hidden flex flex-row items-center gap-2">
-              <View class="min-w-0 flex-1 overflow-hidden flex flex-col gap-0">
-                <Text class="font-semibold">
-                  {activeSession()?.name ??
-                    active().state.sessionName ??
-                    active().name}
-                </Text>
-                <View class="min-w-0 flex flex-row items-center gap-2">
-                  <Icon
-                    source={folder}
-                    size={12}
-                    class="flex-none text-muted"
-                  />
-                  <Text class="max-w-64 truncate text-xs text-muted">
-                    {active().cwd}
-                  </Text>
-                  <Show
-                    when={
-                      workspaceInfo.latest()?.repository &&
-                      workspaceInfo.latest()?.branch
-                    }
-                  >
-                    <Text class="flex-none text-xs text-muted">·</Text>
-                    <View class="flex-none flex flex-row items-center gap-1">
-                      <Icon source={gitBranch} size={11} class="text-muted" />
-                      <Text class="max-w-32 truncate text-xs text-muted">
-                        {workspaceInfo.latest()?.branch}
-                      </Text>
-                      <Show
-                        when={(workspaceInfo.latest()?.changedFiles ?? 0) > 0}
-                      >
-                        <Text class="text-xs text-warning-primary">
-                          {i18n.message(m.changed_files, {
-                            count: workspaceInfo.latest()?.changedFiles ?? 0,
-                          })}
-                        </Text>
-                      </Show>
-                    </View>
-                  </Show>
-                  <Show
-                    when={
-                      active().state.connection === "ready" ||
-                      active().state.connection === "running"
-                    }
-                  >
-                    <Text class="flex-none text-xs text-muted">·</Text>
-                    <Text class="min-w-0 flex-1 truncate text-xs text-muted">
-                      {(active().state.model ?? active().model) ||
-                        i18n.message(m.no_model, {})}{" "}
-                      ·{" "}
-                      {i18n.message(m.thinking, {
-                        level: active().state.thinking ?? "default",
-                      })}
-                    </Text>
-                    <AgentActivityStatus state={active().state} />
-                  </Show>
-                </View>
-              </View>
+          <View class="h-12 flex-none px-4 bg-canvas flex items-center justify-between gap-3">
+            <View class="min-w-0 flex-1 overflow-hidden flex flex-row items-center gap-1">
+              <Text class="min-w-0 truncate text-sm font-medium text-secondary">
+                {activeSession()?.name ??
+                  active().state.sessionName ??
+                  active().name}
+              </Text>
               <Show when={active().state.sessionId}>
                 <SessionTitle
                   name={
@@ -951,7 +902,7 @@ export function App() {
                 active().state.connection === "running"
               }
             >
-              <View class="min-w-0 flex-none overflow-hidden flex flex-row items-center gap-1">
+              <View class="min-w-0 flex-none overflow-hidden flex flex-row items-center gap-0.5">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -995,21 +946,6 @@ export function App() {
                   >
                     <Icon source={gitBranch} size={15} />
                   </Button>
-                </Show>
-                <Show when={active().state.connection === "ready"}>
-                  <ModelControls
-                    models={active().state.models}
-                    modelProvider={active().state.modelProvider}
-                    modelId={active().state.modelId}
-                    thinking={active().state.thinking}
-                    thinkingLevels={active().state.availableThinkingLevels}
-                    chooseModel={(provider, modelId) =>
-                      void api.setModel(active().id, provider, modelId)
-                    }
-                    chooseThinking={(level) =>
-                      void api.setThinking(active().id, level)
-                    }
-                  />
                 </Show>
                 <Button
                   variant="ghost"
@@ -1082,7 +1018,7 @@ export function App() {
                 />
               </Show>
               <MessageScrollerViewport>
-                <MessageScrollerContent class="max-w-4xl mx-auto p-5">
+                <MessageScrollerContent class="max-w-3xl mx-auto px-6 py-5">
                   <Show
                     when={active().state.items.length > 0}
                     fallback={
@@ -1111,10 +1047,10 @@ export function App() {
               <MessageScrollerButton />
             </MessageScroller>
 
-            <View class="flex-none border-t border-subtle bg-surface p-4">
+            <View class="flex-none bg-canvas px-5 pt-3 pb-5">
               <View
                 data-wabou-owns="surface focus-ring"
-                class="max-w-4xl mx-auto min-w-0 rounded-xl border border-strong bg-input shadow-sm p-2 gap-2"
+                class="max-w-3xl mx-auto min-w-0 rounded-xl border border-subtle bg-input shadow-xs px-3 pt-3 pb-2 gap-2"
               >
                 <ExtensionUiChrome
                   statuses={extensionStatuses().filter(
@@ -1132,7 +1068,7 @@ export function App() {
                 />
                 <TextArea
                   chrome="none"
-                  class="h-20"
+                  class="h-16"
                   value={draft()}
                   aria-label={i18n.message(m.prompt_placeholder, {})}
                   placeholder={
@@ -1155,8 +1091,23 @@ export function App() {
                   )}
                   placement="belowEditor"
                 />
-                <View class="flex items-center justify-between gap-3 px-1">
-                  <View class="min-w-0 flex flex-row items-center gap-3">
+                <View class="flex items-center justify-between gap-2">
+                  <View class="min-w-0 flex flex-row items-center gap-1">
+                    <Show when={active().state.connection === "ready"}>
+                      <ModelControls
+                        models={active().state.models}
+                        modelProvider={active().state.modelProvider}
+                        modelId={active().state.modelId}
+                        thinking={active().state.thinking}
+                        thinkingLevels={active().state.availableThinkingLevels}
+                        chooseModel={(provider, modelId) =>
+                          void api.setModel(active().id, provider, modelId)
+                        }
+                        chooseThinking={(level) =>
+                          void api.setThinking(active().id, level)
+                        }
+                      />
+                    </Show>
                     <ComposerImagePicker paths={images()} change={setImages} />
                     <WorkspaceContextPicker
                       cwd={active().cwd}
@@ -1174,21 +1125,29 @@ export function App() {
                         change={setDeliveryMode}
                       />
                     </Show>
-                    <Text class="flex-none text-xs text-muted">
-                      {i18n.message(m.send_hint, {})}
-                    </Text>
-                    <SessionUsage stats={active().state.stats} />
                   </View>
                   <Button
+                    variant="secondary"
+                    size="icon"
+                    class="flex-none rounded-full border border-subtle"
+                    aria-label={
+                      active().state.connection === "running"
+                        ? i18n.message(m.queue, {})
+                        : i18n.message(m.send, {})
+                    }
                     disabled={!draft().trim()}
                     onClick={() => void submit()}
                   >
-                    <Icon source={send} size={14} />{" "}
-                    {active().state.connection === "running"
-                      ? i18n.message(m.queue, {})
-                      : i18n.message(m.send, {})}
+                    <Icon source={send} size={14} />
                   </Button>
                 </View>
+              </View>
+              <View class="max-w-3xl mx-auto min-w-0 px-3 pt-2 flex flex-row items-center justify-between gap-3">
+                <Text class="min-w-0 truncate text-xs text-muted">
+                  {workspaceName(active().cwd)} ·{" "}
+                  {i18n.message(m.send_hint, {})}
+                </Text>
+                <SessionUsage stats={active().state.stats} />
               </View>
             </View>
           </Show>

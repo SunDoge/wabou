@@ -79,18 +79,19 @@ export function Sidebar(props: SidebarProps) {
     );
   };
   return (
-    <SidebarRoot class="w-72 border-r border-subtle">
-      <SidebarHeader class="flex items-center gap-3 px-4">
-        <Icon source={bot} size={19} class="text-accent" />
-        <Text class="min-w-0 flex-1 font-semibold text-base">
+    <SidebarRoot class="w-60 border-r border-subtle bg-surface-muted">
+      <SidebarHeader class="h-12 border-0 bg-surface-muted flex items-center gap-2 px-4">
+        <Icon source={bot} size={16} class="text-secondary" />
+        <Text class="min-w-0 flex-1 text-sm font-semibold text-secondary">
           {i18n.message(m.app_name, {})}
         </Text>
       </SidebarHeader>
 
-      <SidebarContent contentClass="gap-3">
+      <SidebarContent contentClass="px-2 py-1 gap-2">
         <Show when={props.canCreateSession}>
           <Button
-            class="w-full justify-start shadow-xs"
+            variant="ghost"
+            class="w-full justify-start text-secondary shadow-none"
             onClick={props.newSession}
           >
             <Icon source={messageSquare} size={16} />
@@ -105,11 +106,12 @@ export function Sidebar(props: SidebarProps) {
             onValueChange={setQuery}
             placeholder={i18n.message(m.search_agents, {})}
             clearLabel={i18n.message(m.clear_search, {})}
+            class="border-transparent bg-transparent shadow-none"
           />
         </Show>
 
         <SidebarGroup>
-          <View class="px-2 flex flex-row items-center justify-between gap-2">
+          <View class="px-2 pt-2 flex flex-row items-center justify-between gap-2">
             <SidebarGroupLabel>
               {i18n.message(m.projects, {})}
             </SidebarGroupLabel>
@@ -127,7 +129,7 @@ export function Sidebar(props: SidebarProps) {
             {(agent) => (
               <View class="gap-1">
                 <SidebarMenuButton
-                  class="h-11"
+                  class="h-10 px-2"
                   aria-label={agent().name}
                   selected={agent().id === props.activeId}
                   onClick={() => props.select(agent().id)}
@@ -157,9 +159,9 @@ export function Sidebar(props: SidebarProps) {
                     keyed={(session) => session.sessionId}
                   >
                     {(session) => (
-                      <View class="min-w-0 pl-5">
+                      <View class="min-w-0 pl-3">
                         <SidebarMenuButton
-                          class="pl-3 text-sm"
+                          class="h-8 pl-2 text-sm"
                           aria-label={sessionLabel(session())}
                           selected={
                             agent().state.sessionId === session().sessionId &&
@@ -193,7 +195,7 @@ export function Sidebar(props: SidebarProps) {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter class="px-2 py-3">
+      <SidebarFooter class="border-0 bg-surface-muted px-2 py-2">
         <SidebarMenuButton onClick={props.openSettings}>
           <Icon source={settings} size={16} />
           {i18n.message(m.settings, {})}

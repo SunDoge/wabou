@@ -105,6 +105,28 @@ fn shadow_geometry(rect: Rect, node_radius: f64, shadow: &Shadow) -> (Rect, f64,
     (shadow_rect, radius, f64::from(shadow.std_dev))
 }
 
+fn visual_bounds(node: &PlacedNode) -> Rect {
+    let [x0, y0, x1, y1] = node.rect;
+    let border_box = Rect::new(x0 as f64, y0 as f64, x1 as f64, y1 as f64);
+    let outline = f64::from((node.paint.outline_width + node.paint.outline_offset.abs()).max(0.0));
+    let mut bounds = border_box.inflate(outline, outline);
+    for shadow in &node.paint.shadows {
+        let (shadow_rect, _, std_dev) =
+            shadow_geometry(border_box, node.paint.border_radius as f64, shadow);
+        let blur_extent = std_dev * 3.0;
+        bounds = bounds.union(shadow_rect.inflate(blur_extent, blur_extent));
+    }
+    bounds
+}
+
+fn paints_viewport(node: &PlacedNode, transform: Affine, viewport: Rect) -> bool {
+    let bounds = transform.transform_rect_bbox(visual_bounds(node));
+    bounds.x1 >= viewport.x0
+        && bounds.x0 <= viewport.x1
+        && bounds.y1 >= viewport.y0
+        && bounds.y0 <= viewport.y1
+}
+
 fn draw_scrollbars(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
     if node.scroll.opacity <= 0.0 {
         return;
@@ -501,6 +523,7 @@ pub fn build_scene_scaled(
     let device = Affine::scale(device_scale);
 
     let bg = Rect::new(0.0, 0.0, width as f64, height as f64);
+    let viewport = bg;
     scene.fill(Fill::NonZero, device, base_color, None, &bg);
 
     let mut transforms = HashMap::new();
@@ -510,7 +533,9 @@ pub fn build_scene_scaled(
             let SubtreeEvent::Exit(n) = event else {
                 unreachable!()
             };
-            if let Some(transform) = transforms.get(&n.node_id).copied() {
+            if let Some(transform) = transforms.get(&n.node_id).copied()
+                && paints_viewport(n, transform, viewport)
+            {
                 draw_scrollbars(scene, n, device * transform);
             }
             while layers
@@ -530,11 +555,11 @@ pub fn build_scene_scaled(
         let css_transform = resolve_node_transform(n, parent_transform);
         transforms.insert(n.node_id, css_transform);
         let node_transform = device * css_transform;
+        let paints_node = paints_viewport(n, css_transform, viewport);
 
-        // Do not cull an individual retained node here. Its opacity and clip
-        // layers apply to descendants, and a transformed descendant can still
-        // enter the viewport even when this node's own border box is outside.
-        // Subtree culling requires a conservative visual-subtree bound.
+        // Keep ancestor transform, opacity, and clip state even when this
+        // node's own visual bounds are offscreen: a transformed descendant can
+        // still enter the viewport. Only node-owned paint is culled here.
         if n.paint.opacity < 1.0 {
             scene.push_layer(
                 BlendMode::default(),
@@ -547,7 +572,9 @@ pub fn build_scene_scaled(
             layers.push(Layer::Opacity { depth: n.depth });
         }
 
-        draw_node_box(scene, n, node_transform);
+        if paints_node {
+            draw_node_box(scene, n, node_transform);
+        }
 
         if let Some([cx0, cy0, cx1, cy1]) = n.own_clip {
             let extent = f64::from(width.max(height)) * 4.0 + 4096.0;
@@ -568,11 +595,13 @@ pub fn build_scene_scaled(
             layers.push(Layer::Clip { depth: n.depth });
         }
 
-        draw_svg(scene, n, node_transform);
-        draw_vector_path(scene, n, node_transform);
-        draw_image(scene, n, node_transform);
+        if paints_node {
+            draw_svg(scene, n, node_transform);
+            draw_vector_path(scene, n, node_transform);
+            draw_image(scene, n, node_transform);
+        }
 
-        if let Some(ws) = &n.paint.widget {
+        if paints_node && let Some(ws) = &n.paint.widget {
             // Keep rounded widget clipping inside the fragment itself. Some
             // GPU backends do not reliably carry a parent clip across an
             // appended scene at HiDPI; local encoding also avoids mixing
@@ -598,7 +627,9 @@ pub fn build_scene_scaled(
             }
         }
 
-        draw_text(scene, n, tcx, node_transform, device_scale);
+        if paints_node {
+            draw_text(scene, n, tcx, node_transform, device_scale);
+        }
     }
     while layers.pop().is_some() {
         scene.pop_layer();
@@ -907,6 +938,49 @@ mod tests {
         // Sample the second option outside its text. Direct outline rendering
         // legitimately covers the old (20, 35) sample with the letter `o`.
         assert_eq!(image.get_pixel(80, 35).0, [51, 65, 85, 255]);
+    }
+
+    #[test]
+    fn offscreen_text_nodes_do_not_grow_the_encoded_frame() {
+        let mut nodes = Vec::new();
+        for index in 0..2_000_u64 {
+            let y = 1_000.0 + index as f32 * 24.0;
+            let mut text = placed_node(Paint {
+                text: Some("a long retained conversation line that is outside the viewport".into()),
+                text_color: Color::WHITE,
+                ..Paint::default()
+            });
+            text.node_id = taffy::tree::NodeId::from(index + 1);
+            text.rect = [0.0, y, 400.0, y + 20.0];
+            text.content_origin = [0.0, y];
+            nodes.push(text);
+        }
+        let mut visible = placed_node(Paint {
+            text: Some("visible".into()),
+            text_color: Color::WHITE,
+            ..Paint::default()
+        });
+        visible.node_id = taffy::tree::NodeId::from(2_001_u64);
+        visible.rect = [0.0, 10.0, 100.0, 30.0];
+        visible.content_origin = [0.0, 10.0];
+        nodes.push(visible);
+
+        let mut scene = Scene::new();
+        build_scene_scaled(
+            &mut scene,
+            &nodes,
+            &mut TextContext::new(),
+            400,
+            100,
+            Color::BLACK,
+            1.0,
+        );
+
+        assert!(
+            scene.commands.len() < 16,
+            "offscreen retained text expanded to {} frame commands",
+            scene.commands.len()
+        );
     }
 
     #[test]

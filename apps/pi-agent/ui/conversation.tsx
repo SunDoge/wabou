@@ -11,7 +11,6 @@ import {
   Icon,
   Markdown,
   Message,
-  MessageAvatar,
   MessageContent,
   MessageGroup,
   MessageHeader,
@@ -29,7 +28,6 @@ import fileCode from "lucide-static/icons/file-code-2.svg?raw";
 import gitBranch from "lucide-static/icons/git-branch.svg?raw";
 import image from "lucide-static/icons/image.svg?raw";
 import terminal from "lucide-static/icons/terminal.svg?raw";
-import user from "lucide-static/icons/user.svg?raw";
 import {
   createEffect,
   createSignal,
@@ -236,7 +234,7 @@ export function ConversationItem(props: {
   const messageVariant = () =>
     match(props.item)
       .with({ kind: "assistant" }, () => "ghost" as const)
-      .with({ kind: "user" }, () => "default" as const)
+      .with({ kind: "user" }, () => "secondary" as const)
       .with({ kind: "notice", tone: "error" }, () => "destructive" as const)
       .otherwise(() => "outline" as const);
   return (
@@ -248,11 +246,6 @@ export function ConversationItem(props: {
         }
       >
         <Message align={props.item.kind === "user" ? "end" : "start"}>
-          <Show when={props.item.kind === "user"}>
-            <MessageAvatar class="self-start bg-selected">
-              <Icon source={user} size={15} />
-            </MessageAvatar>
-          </Show>
           <MessageContent
             class={props.item.kind === "assistant" ? "gap-2" : undefined}
           >

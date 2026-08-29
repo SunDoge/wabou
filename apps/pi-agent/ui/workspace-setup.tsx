@@ -37,13 +37,13 @@ export function WorkspaceSetup(props: {
   };
   return (
     <View class="min-h-0 flex-1 overflow-y-auto bg-canvas flex items-center justify-center">
-      <View class="w-full max-w-2xl min-w-0 mx-auto px-8 py-12 gap-6">
-        <View class="w-full min-w-0 flex flex-row items-center gap-4 mb-2">
-          <View class="w-14 h-14 flex-none rounded-2xl bg-selected flex items-center justify-center shadow-sm">
-            <Icon source={bot} size={26} class="text-accent" />
+      <View class="w-full max-w-2xl min-w-0 mx-auto px-8 py-12 gap-5">
+        <View class="w-full min-w-0 flex flex-row items-center gap-3 mb-1">
+          <View class="w-11 h-11 flex-none rounded-xl bg-control flex items-center justify-center">
+            <Icon source={bot} size={21} class="text-secondary" />
           </View>
           <View class="min-w-0 flex-1 gap-2">
-            <Text class="text-xl font-semibold">
+            <Text class="text-lg font-semibold text-primary">
               {i18n.message(m.setup_welcome, {})}
             </Text>
             <Text class="text-sm text-muted whitespace-normal">
@@ -52,7 +52,7 @@ export function WorkspaceSetup(props: {
           </View>
         </View>
 
-        <View class="w-full min-w-0 rounded-xl border border-subtle bg-surface shadow-sm p-4 gap-4">
+        <View class="w-full min-w-0 rounded-xl border border-subtle bg-surface p-4 gap-3">
           <View class="min-w-0 flex flex-row items-center gap-3">
             <View class="w-9 h-9 flex-none rounded-lg bg-control flex items-center justify-center">
               <Icon source={folder} size={17} class="text-secondary" />
@@ -100,7 +100,8 @@ export function WorkspaceSetup(props: {
             </Button>
           </View>
           <Button
-            class="w-full"
+            variant="outline"
+            class="w-full border-strong bg-control text-primary shadow-none"
             disabled={!props.path.trim() || starting()}
             onClick={() => void start()}
           >
@@ -125,9 +126,11 @@ export function WorkspaceSetup(props: {
             />
           </View>
         ) : null}
-        <Text class="text-xs text-muted whitespace-normal">
-          {i18n.message(m.setup_safety, {})}
-        </Text>
+        <View class="w-full min-w-0 pt-1">
+          <Text class="text-xs text-muted whitespace-normal">
+            {i18n.message(m.setup_safety, {})}
+          </Text>
+        </View>
       </View>
     </View>
   );

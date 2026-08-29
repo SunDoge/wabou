@@ -27,12 +27,12 @@ export function ConversationWelcome(props: {
     },
   ];
   return (
-    <View class="min-h-80 items-center justify-center gap-5 py-10">
-      <View class="w-11 h-11 rounded-xl bg-selected flex items-center justify-center">
-        <Icon source={bot} size={21} class="text-accent" />
+    <View class="min-h-80 items-center justify-center gap-4 py-10">
+      <View class="w-10 h-10 rounded-xl bg-control flex items-center justify-center">
+        <Icon source={bot} size={19} class="text-secondary" />
       </View>
       <View class="items-center gap-1">
-        <Text class="text-xl font-semibold">
+        <Text class="text-lg font-semibold text-primary">
           {i18n.message(m.empty_workspace_title, {
             workspace: workspaceName(props.workspace),
           })}
@@ -41,15 +41,17 @@ export function ConversationWelcome(props: {
           {i18n.message(m.empty_detail, {})}
         </Text>
       </View>
-      <View class="w-full max-w-3xl flex flex-row gap-3">
+      <View class="w-full max-w-2xl flex flex-row gap-2">
         {prompts().map((item) => (
           <Button
             variant="outline"
-            class="h-auto min-w-0 flex-1 items-start justify-start p-4"
+            class="h-auto min-w-0 flex-1 items-start justify-start border-subtle bg-transparent p-3 shadow-none"
             onClick={() => props.choosePrompt(item.prompt)}
           >
-            <Icon source={item.icon} size={16} class="text-accent" />
-            <Text class="text-sm whitespace-normal">{item.title}</Text>
+            <Icon source={item.icon} size={15} class="text-muted" />
+            <Text class="text-sm text-secondary whitespace-normal">
+              {item.title}
+            </Text>
           </Button>
         ))}
       </View>
