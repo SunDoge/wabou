@@ -183,16 +183,18 @@ export function Sidebar(props: SidebarProps) {
           </SidebarMenuButton>
         </Show>
 
-        <Show when={props.sessions.length > 0}>
-          <SearchField
-            aria-label={i18n.message(m.search_agents, {})}
-            value={query()}
-            onValueChange={setQuery}
-            placeholder={i18n.message(m.search_short, {})}
-            clearLabel={i18n.message(m.clear_search, {})}
-            class="border-transparent bg-transparent shadow-none"
-          />
-        </Show>
+        <View class="min-w-0 flex-none">
+          <Show when={props.sessions.length > 0}>
+            <SearchField
+              aria-label={i18n.message(m.search_agents, {})}
+              value={query()}
+              onValueChange={setQuery}
+              placeholder={i18n.message(m.search_short, {})}
+              clearLabel={i18n.message(m.clear_search, {})}
+              class="border-transparent bg-transparent shadow-none"
+            />
+          </Show>
+        </View>
 
         <SidebarGroup>
           <View class="px-2 pt-2 flex flex-row items-center justify-between gap-2">

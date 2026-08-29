@@ -214,6 +214,47 @@ test("shows retained sessions for every project and keeps navigation live", () =
   expect(selected).toEqual(["agent-1"]);
 });
 
+test("keeps the new-thread action when the first retained session appears", () => {
+  const agent = createAgentWorkspace(1);
+  const [sessions, setSessions] = createSignal<readonly PiSession[]>([]);
+  const screen = renderComponent(() => (
+    <Sidebar
+      agents={[agent]}
+      sessions={sessions()}
+      activeId={agent.id}
+      select={() => {}}
+      selectSession={() => {}}
+      add={() => {}}
+      newSession={() => {}}
+      canCreateSession
+      openSettings={() => {}}
+    />
+  ));
+
+  expect(screen.getByRole("button", { name: "New thread" })).toBeDefined();
+  expect(
+    screen.queryByRole("textbox", { name: "Search agents and sessions" }),
+  ).toBeNull();
+
+  setSessions([
+    {
+      agentId: agent.id,
+      sessionId: "first-session",
+      sessionFile: "/tmp/first-session.jsonl",
+      name: "First session",
+      cwd: "/work/api",
+      updatedAt: 1,
+    },
+  ]);
+  screen.flush();
+
+  expect(screen.getByRole("button", { name: "New thread" })).toBeDefined();
+  expect(
+    screen.getByRole("textbox", { name: "Search agents and sessions" }),
+  ).toBeDefined();
+  expect(screen.getByRole("button", { name: "First session" })).toBeDefined();
+});
+
 test("collapses project sessions without hiding search results or changing selection", () => {
   const agent = createAgentWorkspace(1);
   agent.cwd = "/work/api";

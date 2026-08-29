@@ -15,6 +15,10 @@ test(
     const stop = page.getByRole("button", { name: "Stop" });
     await stop.waitFor({ timeout: 30_000 });
     await expect(stop).toBeAbsent({ timeout: 50_000 });
+    await page
+      .getByRole("button", { name: "Collapse sessions for Project 1" })
+      .waitFor({ timeout: 5_000 });
+    await page.getByRole("button", { name: "New thread" }).waitFor();
   },
   { timeout: 60_000 },
 );

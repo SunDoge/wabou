@@ -864,6 +864,7 @@ impl PiService {
 
         let stdout_events = self.events_tx.clone();
         let sessions = self.sessions.clone();
+        let settled_state_stdin = stdin.clone();
         let session_cwd = cwd.display().to_string();
         let stdout_agent_id = request.agent_id.clone();
         std::thread::Builder::new()
@@ -873,8 +874,23 @@ impl PiService {
                     match line {
                         Ok(line) if !line.is_empty() => match serde_json::from_str(&line) {
                             Ok(event) => {
+                                let follow_up = follow_up_request(&event);
                                 remember_session(&sessions, &stdout_agent_id, &session_cwd, &event);
                                 let _ = stdout_events.send(tag_event(&stdout_agent_id, event));
+                                if let Some(request) = follow_up
+                                    && let Err(error) =
+                                        write_rpc_request(&settled_state_stdin, &request)
+                                {
+                                    let _ = stdout_events.send(tag_event(
+                                        &stdout_agent_id,
+                                        json!({
+                                            "type":"bridge_error",
+                                            "message":format!(
+                                                "could not refresh Pi state after the turn settled: {error}"
+                                            )
+                                        }),
+                                    ));
+                                }
                             }
                             Err(error) => {
                                 let _ = stdout_events.send(tag_event(
@@ -949,10 +965,7 @@ impl PiService {
             .get(agent_id)
             .and_then(|process| process.stdin.clone())
             .ok_or_else(|| format!("Pi agent `{agent_id}` is not running"))?;
-        let mut stdin = stdin.lock().map_err(|_| "Pi stdin lock poisoned")?;
-        serde_json::to_writer(&mut *stdin, &value).map_err(|error| error.to_string())?;
-        stdin.write_all(b"\n").map_err(|error| error.to_string())?;
-        stdin.flush().map_err(|error| error.to_string())
+        write_rpc_request(&stdin, &value)
     }
 
     fn stop(&self, agent_id: &str) -> Result<(), String> {
@@ -1044,6 +1057,22 @@ impl PiService {
             .retain(|session| session.agent_id != agent_id);
         persist_catalog(&catalog)
     }
+}
+
+fn write_rpc_request(stdin: &Arc<Mutex<ChildStdin>>, value: &Value) -> Result<(), String> {
+    let mut stdin = stdin.lock().map_err(|_| "Pi stdin lock poisoned")?;
+    serde_json::to_writer(&mut *stdin, value).map_err(|error| error.to_string())?;
+    stdin.write_all(b"\n").map_err(|error| error.to_string())?;
+    stdin.flush().map_err(|error| error.to_string())
+}
+
+fn follow_up_request(event: &Value) -> Option<Value> {
+    (event.get("type").and_then(Value::as_str) == Some("agent_settled")).then(|| {
+        json!({
+            "id": "wabou-settled-state",
+            "type": "get_state"
+        })
+    })
 }
 
 fn configure_pi_command(command: &mut Command, request: &StartRequest) {
@@ -1821,6 +1850,18 @@ mod tests {
             tag_event("agent-2", json!({"type":"agent_start"}))["agentId"],
             "agent-2"
         );
+    }
+
+    #[test]
+    fn settled_turns_request_fresh_session_identity() {
+        assert_eq!(
+            follow_up_request(&json!({"type":"agent_settled"})),
+            Some(json!({
+                "id": "wabou-settled-state",
+                "type": "get_state"
+            }))
+        );
+        assert_eq!(follow_up_request(&json!({"type":"agent_end"})), None);
     }
 
     #[test]
