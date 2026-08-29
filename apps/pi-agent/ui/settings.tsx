@@ -12,6 +12,7 @@ import {
   FieldDescription,
   FieldLabel,
   Input,
+  mergeClasses,
   PageHeader,
   PageViewport,
   Separator,
@@ -19,7 +20,6 @@ import {
   Text,
   View,
 } from "@wabou/ui";
-import { mergeClasses } from "@wabou/core/style";
 import type { JSX } from "solid-js";
 import type { AgentQueueMode, AgentViewState } from "./agent-state";
 import { i18n, m } from "./i18n";

@@ -1,4 +1,4 @@
-import type { Handle } from "@wabou/core";
+import type { Handle } from "@wabou/ui";
 import { Command, type CommandItem, Dialog } from "@wabou/ui";
 
 export interface AppCommandPaletteProps {
