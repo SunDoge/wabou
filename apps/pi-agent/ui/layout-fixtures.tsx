@@ -20,6 +20,8 @@ project.model = "claude-sonnet-4-5";
 const secondProject = createAgentWorkspace(2);
 secondProject.name = "Release automation";
 secondProject.cwd = "/work/wabou/release-automation";
+secondProject.state.connection = "running";
+secondProject.state.activity = { kind: "compacting" };
 
 const appSettings: AppSettings = {
   locale: "en",

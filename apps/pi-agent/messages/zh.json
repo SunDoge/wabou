@@ -130,6 +130,8 @@
   "starter_verify_title": "运行项目检查",
   "starter_verify_prompt": "找出这个仓库的验证命令，运行相关检查，并修复第一个有意义的失败。",
   "working": "Pi 正在工作…",
+  "agent_status_failed": "Pi 因错误停止",
+  "agent_status_stopped": "Pi 未运行",
   "activity_responding": "正在回答…",
   "activity_compacting": "正在压缩上下文…",
   "activity_summarizing": "正在重试上下文摘要…",

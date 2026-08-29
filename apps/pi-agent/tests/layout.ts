@@ -102,6 +102,10 @@ try {
             role: "button",
             name: "Documentation workspace",
           });
+          getLayoutNode(fixture, {
+            role: "status",
+            name: "Compacting context…",
+          });
         },
       },
       {

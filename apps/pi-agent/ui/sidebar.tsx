@@ -19,6 +19,7 @@ import plus from "lucide-static/icons/plus.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
 import { createMemo, createSignal, For as ForValue, Show } from "solid-js";
 import type { PiSession } from "./api";
+import { AgentSidebarStatus } from "./agent-activity";
 import { i18n, m } from "./i18n";
 import type { AgentWorkspace } from "./workspace";
 
@@ -143,15 +144,7 @@ export function Sidebar(props: SidebarProps) {
                       {workspaceName(agent().cwd)}
                     </Text>
                   </View>
-                  <View
-                    class={
-                      agent().state.connection === "running"
-                        ? "w-2 h-2 flex-none rounded-full bg-accent"
-                        : agent().state.connection === "ready"
-                          ? "w-2 h-2 flex-none rounded-full bg-success-primary"
-                          : "w-2 h-2 flex-none rounded-full bg-strong"
-                    }
-                  />
+                  <AgentSidebarStatus state={agent().state} />
                 </SidebarMenuButton>
                 <Show when={agent().id === props.activeId || normalizedQuery()}>
                   <ForValue
