@@ -132,7 +132,7 @@ try {
           });
           const activity = getLayoutNode(fixture, {
             role: "button",
-            name: "Worked, 1 tool call",
+            name: "Worked · 1 tool call",
           });
           const copy = getLayoutNode(fixture, {
             role: "button",

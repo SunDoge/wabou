@@ -82,6 +82,35 @@ describe("Pi agent event projection", () => {
     });
   });
 
+  test("projects the Rust event clock into the completed tool turn", () => {
+    let state = reducePiEvent(initialAgentState, {
+      type: "agent_start",
+      receivedAtMs: 1_000,
+    });
+    state = reducePiEvent(state, {
+      type: "tool_execution_start",
+      toolCallId: "call-timed",
+      toolName: "read",
+      args: { path: "README.md" },
+    });
+    state = reducePiEvent(state, {
+      type: "tool_execution_end",
+      toolCallId: "call-timed",
+      result: { content: [{ type: "text", text: "ok" }] },
+    });
+    state = reducePiEvent(state, {
+      type: "agent_settled",
+      receivedAtMs: 13_200,
+    });
+
+    expect(state.items[0]).toMatchObject({
+      kind: "tool",
+      turnDurationMs: 12_200,
+    });
+    expect(state.turnStartedAtMs).toBeUndefined();
+    expect(state.turnStartItemIndex).toBeUndefined();
+  });
+
   test("places tool work before the retained assistant answer", () => {
     let state = reducePiEvent(initialAgentState, {
       type: "message_start",

@@ -38,6 +38,7 @@ import {
 } from "solid-js";
 import { match } from "ts-pattern";
 import type { AgentItem } from "./agent-state";
+import { i18n, m } from "./i18n";
 
 const TOOL_OUTPUT_PREVIEW_BYTES = 12_000;
 
@@ -178,6 +179,15 @@ export function summarizeToolInput(input: string): string {
   return compact.length > 88 ? `${compact.slice(0, 85)}…` : compact;
 }
 
+export function formatTurnDuration(durationMs: number): string {
+  const seconds = Math.max(0, Math.round(durationMs / 1_000));
+  if (seconds < 1) return "<1s";
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return remainder === 0 ? `${minutes}m` : `${minutes}m ${remainder}s`;
+}
+
 function ToolCall(props: { item: Extract<AgentItem, { kind: "tool" }> }) {
   const initiallyRunning = untrack(() => props.item.state === "running");
   const [open, setOpen] = createSignal(initiallyRunning);
@@ -277,7 +287,20 @@ export function ToolActivityGroup(props: {
   });
   const label = () => {
     const count = props.items.length;
-    return `${running() ? "Working" : "Worked"}, ${count} tool ${count === 1 ? "call" : "calls"}`;
+    const tools = i18n.message(
+      count === 1 ? m.tool_call_one : m.tool_call_many,
+      { count },
+    );
+    if (running()) return i18n.message(m.tool_activity_working, { tools });
+    const duration = props.items.findLast(
+      (item) => item.turnDurationMs !== undefined,
+    )?.turnDurationMs;
+    return duration === undefined
+      ? i18n.message(m.tool_activity_worked, { tools })
+      : i18n.message(m.tool_activity_worked_duration, {
+          duration: formatTurnDuration(duration),
+          tools,
+        });
   };
   return (
     <View class="w-full min-w-0 flex flex-col gap-1">

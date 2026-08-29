@@ -4,10 +4,17 @@ import { expect, test, vi } from "vitest";
 import {
   ConversationItem,
   ConversationList,
+  formatTurnDuration,
   groupConversationItems,
   summarizeToolInput,
   ToolActivityGroup,
 } from "../../apps/pi-agent/ui/conversation";
+
+test("formats completed turn duration without false precision", () => {
+  expect(formatTurnDuration(420)).toBe("<1s");
+  expect(formatTurnDuration(12_200)).toBe("12s");
+  expect(formatTurnDuration(84_000)).toBe("1m 24s");
+});
 
 test("Pi Agent renders assistant and user messages through Markdown", () => {
   const assistant = renderComponent(() => (
@@ -24,9 +31,7 @@ test("Pi Agent renders assistant and user messages through Markdown", () => {
   ).toContain("Added healthz");
   expect(
     JSON.stringify(
-      assistant
-        .getByRole("region", { name: "Assistant response" })
-        .snapshot(),
+      assistant.getByRole("region", { name: "Assistant response" }).snapshot(),
     ),
   ).toContain("text-base leading-relaxed text-primary");
   expect(assistant.getByRole("group", { name: "Code block" }).text).toContain(
@@ -222,12 +227,10 @@ test("Pi Agent folds adjacent completed tools into one turn activity group", () 
 
   const screen = renderComponent(() => <ConversationList items={items} />);
   const activity = screen.getByRole("button", {
-    name: "Worked, 2 tool calls",
+    name: "Worked · 2 tool calls",
   });
   expect(
-    activity.parent?.children.filter((node) =>
-      node.className.includes("h-px"),
-    ),
+    activity.parent?.children.filter((node) => node.className.includes("h-px")),
   ).toHaveLength(2);
   expect(activity.expanded).toBe(false);
   expect(screen.queryByRole("button", { name: "read: README.md" })).toBeNull();
@@ -281,8 +284,7 @@ test("Pi Agent folds reasoning-separated tool calls into one turn activity group
     kind: "tools",
     items: [{ id: "tool-1" }, { id: "tool-2" }, { id: "tool-3" }],
     reasoning: {
-      text:
-        "Inspect the workspace.\n\nCheck the manifest.\n\nSynthesize the answer.",
+      text: "Inspect the workspace.\n\nCheck the manifest.\n\nSynthesize the answer.",
       streaming: false,
     },
   });
@@ -310,10 +312,10 @@ test("Pi Agent folds reasoning-separated tool calls into one turn activity group
     />
   ));
   expect(
-    screen.getByRole("button", { name: "Worked, 2 tool calls" }),
+    screen.getByRole("button", { name: "Worked · 2 tool calls" }),
   ).toBeTruthy();
   expect(
-    screen.queryByRole("button", { name: "Worked, 1 tool call" }),
+    screen.queryByRole("button", { name: "Worked · 1 tool call" }),
   ).toBeNull();
 });
 
@@ -330,15 +332,41 @@ test("Pi Agent keeps live tool activity open and folds it after completion", () 
   ]);
   const screen = renderComponent(() => <ToolActivityGroup items={items()} />);
   expect(
-    screen.getByRole("button", { name: "Working, 1 tool call" }).expanded,
+    screen.getByRole("button", { name: "Working · 1 tool call" }).expanded,
   ).toBe(true);
 
-  setItems([{ ...items()[0]!, state: "success" }]);
+  const liveItem = items()[0];
+  if (!liveItem) throw new Error("expected live tool item");
+  setItems([{ ...liveItem, state: "success" }]);
   screen.flush();
 
   expect(
-    screen.getByRole("button", { name: "Worked, 1 tool call" }).expanded,
+    screen.getByRole("button", { name: "Worked · 1 tool call" }).expanded,
   ).toBe(false);
+});
+
+test("Pi Agent reports the measured duration of a completed tool turn", () => {
+  const screen = renderComponent(() => (
+    <ToolActivityGroup
+      items={[
+        {
+          id: "tool-measured",
+          kind: "tool",
+          name: "read",
+          state: "success",
+          input: "{}",
+          output: "ok",
+          turnDurationMs: 12_200,
+        },
+      ]}
+    />
+  ));
+
+  expect(
+    screen.getByRole("button", {
+      name: "Worked for 12s · 1 tool call",
+    }),
+  ).toBeTruthy();
 });
 
 test("Pi Agent distinguishes a queued follow-up from a sent message", () => {

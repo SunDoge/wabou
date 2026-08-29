@@ -1333,10 +1333,21 @@ fn default_workspace(agent_id: &str) -> Result<String, String> {
 }
 
 fn tag_event(agent_id: &str, mut event: Value) -> Value {
+    let received_at_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_millis() as u64);
+    tag_event_at(agent_id, &mut event, received_at_ms);
+    event
+}
+
+fn tag_event_at(agent_id: &str, event: &mut Value, received_at_ms: u64) {
     if let Some(object) = event.as_object_mut() {
         object.insert("agentId".to_owned(), Value::String(agent_id.to_owned()));
+        object.insert(
+            "receivedAtMs".to_owned(),
+            Value::Number(received_at_ms.into()),
+        );
     }
-    event
 }
 
 impl Drop for PiProcess {
@@ -1909,10 +1920,10 @@ mod tests {
 
     #[test]
     fn tags_events_with_their_agent_identity() {
-        assert_eq!(
-            tag_event("agent-2", json!({"type":"agent_start"}))["agentId"],
-            "agent-2"
-        );
+        let mut event = json!({"type":"agent_start"});
+        tag_event_at("agent-2", &mut event, 42);
+        assert_eq!(event["agentId"], "agent-2");
+        assert_eq!(event["receivedAtMs"], 42);
     }
 
     #[test]

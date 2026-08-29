@@ -46,6 +46,8 @@ export type AgentItem =
       state: "running" | "success" | "failed";
       input: string;
       output: string;
+      /** Total wall-clock time for the completed Pi turn owning this group. */
+      turnDurationMs?: number;
     }
   | { id: string; kind: "notice"; text: string; tone?: "default" | "error" };
 
@@ -109,6 +111,8 @@ export interface AgentViewState {
   runtimeLogs: readonly string[];
   items: readonly AgentItem[];
   activeAssistantId?: string;
+  turnStartedAtMs?: number;
+  turnStartItemIndex?: number;
   error?: string;
   model?: string;
   modelId?: string;
@@ -349,6 +353,33 @@ const insertBeforeItem = (
   return [...items.slice(0, index), item, ...items.slice(index)];
 };
 
+function completeTurnItems(
+  state: AgentViewState,
+  settledAtMs: number | undefined,
+): readonly AgentItem[] {
+  const items = state.items.map((item) =>
+    item.kind === "user" && item.queued ? { ...item, queued: false } : item,
+  );
+  if (
+    settledAtMs === undefined ||
+    state.turnStartedAtMs === undefined ||
+    state.turnStartItemIndex === undefined
+  ) {
+    return items;
+  }
+  const turnStartIndex = state.turnStartItemIndex;
+  const lastToolIndex = items.findLastIndex(
+    (item, index) => index >= turnStartIndex && item.kind === "tool",
+  );
+  if (lastToolIndex < 0) return items;
+  const duration = Math.max(0, settledAtMs - state.turnStartedAtMs);
+  return items.map((item, index) =>
+    index === lastToolIndex && item.kind === "tool"
+      ? { ...item, turnDurationMs: duration }
+      : item,
+  );
+}
+
 export function appendUserMessage(
   state: AgentViewState,
   id: string,
@@ -403,6 +434,8 @@ export function reducePiEvent(
       ...state,
       connection: "running" as const,
       activity: { kind: "responding" as const },
+      turnStartedAtMs: finiteNumber(event.receivedAtMs),
+      turnStartItemIndex: state.items.length,
     }))
     .with("queue_update", () => ({
       ...state,
@@ -583,9 +616,9 @@ export function reducePiEvent(
       activity: undefined,
       queue: { steering: 0, followUp: 0 },
       activeAssistantId: undefined,
-      items: state.items.map((item) =>
-        item.kind === "user" && item.queued ? { ...item, queued: false } : item,
-      ),
+      turnStartedAtMs: undefined,
+      turnStartItemIndex: undefined,
+      items: completeTurnItems(state, finiteNumber(event.receivedAtMs)),
     }))
     .with("message_start", () => {
       const message = record(event.message);
