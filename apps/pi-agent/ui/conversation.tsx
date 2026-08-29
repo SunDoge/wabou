@@ -220,12 +220,13 @@ export function ToolActivityGroup(props: {
     return `${running() ? "Working" : "Worked"}, ${count} tool ${count === 1 ? "call" : "calls"}`;
   };
   return (
-    <View class="w-full min-w-0 flex flex-col gap-1 pl-1">
-      <View class="w-full min-w-0 h-7 flex flex-row items-center">
+    <View class="w-full min-w-0 flex flex-col gap-1">
+      <View class="w-full min-w-0 h-7 flex flex-row items-center gap-3">
+        <View aria-hidden="true" class="h-px min-w-0 flex-1 bg-subtle" />
         <Button
           variant="ghost"
           size="sm"
-          class="h-7 min-w-0 justify-start px-1.5 gap-1.5 text-muted"
+          class="h-7 flex-none justify-center px-1.5 gap-1.5 text-muted"
           aria-label={label()}
           aria-expanded={open()}
           onClick={() => setOpen((value) => !value)}
@@ -246,6 +247,7 @@ export function ToolActivityGroup(props: {
             class={open() ? "rotate-90 text-muted" : "text-muted"}
           />
         </Button>
+        <View aria-hidden="true" class="h-px min-w-0 flex-1 bg-subtle" />
       </View>
       <CollapsiblePresence
         open={open()}

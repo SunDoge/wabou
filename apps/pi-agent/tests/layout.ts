@@ -130,7 +130,7 @@ try {
             role: "region",
             name: "Assistant response",
           });
-          getLayoutNode(fixture, {
+          const activity = getLayoutNode(fixture, {
             role: "button",
             name: "Worked, 1 tool call",
           });
@@ -146,6 +146,13 @@ try {
           if (Math.abs(copy.rect.x - response.rect.x) > 16) {
             throw new Error(
               `assistant copy action detached from response: response x=${response.rect.x}, copy x=${copy.rect.x}`,
+            );
+          }
+          const activityCenter = activity.rect.x + activity.rect.width / 2;
+          const responseCenter = response.rect.x + response.rect.width / 2;
+          if (Math.abs(activityCenter - responseCenter) > 2) {
+            throw new Error(
+              `tool activity divider was not centered: activity=${activityCenter}, response=${responseCenter}`,
             );
           }
         },
