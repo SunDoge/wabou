@@ -15,8 +15,8 @@ import { For } from "solid-js";
 import { AgentActivityStatus } from "./agent-activity";
 import { type AgentItem, initialAgentState } from "./agent-state";
 import { AppCommandPalette } from "./app-command-palette";
-import { ConversationItem, ConversationList } from "./conversation";
 import { ComposerAutocompleteList } from "./composer-autocomplete-list";
+import { ConversationItem, ConversationList } from "./conversation";
 import { ConversationComposer } from "./conversation-composer";
 import { ConversationContext } from "./conversation-context";
 import { ConversationHeader } from "./conversation-header";
@@ -214,6 +214,7 @@ defineLayoutFixtures({
       <View class="w-full h-full bg-canvas">
         <ConversationComposer
           connection="ready"
+          project="Wabou"
           cwd="/work/wabou/documentation-and-examples"
           draft="Explain why the retained renderer stays predictable."
           images={[]}
@@ -385,7 +386,15 @@ defineLayoutFixtures({
             sessionFile: "/tmp/session-two.jsonl",
             name: "Review release readiness",
             cwd: project.cwd,
-            updatedAt: 1_787_896_800,
+            updatedAt: 1_787_648_400,
+          },
+          {
+            agentId: project.id,
+            sessionId: "session-older",
+            sessionFile: "/tmp/session-older.jsonl",
+            name: "Audit the retained renderer",
+            cwd: project.cwd,
+            updatedAt: 1_787_043_600,
           },
           {
             agentId: secondProject.id,

@@ -72,6 +72,55 @@ export function sortSessionsByRecency(
   );
 }
 
+export type SessionRecencyGroup = "today" | "previous-seven-days" | "older";
+
+export interface GroupedSessions {
+  key: SessionRecencyGroup;
+  sessions: PiSession[];
+}
+
+/** Groups a project's history into stable, user-scannable time ranges. */
+export function groupSessionsByRecency(
+  sessions: readonly PiSession[],
+  nowSeconds: number,
+): GroupedSessions[] {
+  const groups = new Map<SessionRecencyGroup, PiSession[]>();
+  const startOfToday = new Date(nowSeconds * 1_000);
+  startOfToday.setHours(0, 0, 0, 0);
+  const todaySeconds = Math.floor(startOfToday.getTime() / 1_000);
+  const previousWeekSeconds = todaySeconds - 6 * 86_400;
+
+  for (const session of sortSessionsByRecency(sessions)) {
+    const key: SessionRecencyGroup =
+      session.updatedAt >= todaySeconds
+        ? "today"
+        : session.updatedAt >= previousWeekSeconds
+          ? "previous-seven-days"
+          : "older";
+    const group = groups.get(key) ?? [];
+    group.push(session);
+    groups.set(key, group);
+  }
+
+  return (["today", "previous-seven-days", "older"] as const).flatMap((key) => {
+    const grouped = groups.get(key);
+    return grouped ? [{ key, sessions: grouped }] : [];
+  });
+}
+
+export function sessionGroupLabel(
+  group: SessionRecencyGroup,
+  locale = i18n.locale(),
+): string {
+  return match(group)
+    .with("today", () => m.session_group_today({}, { locale }))
+    .with("previous-seven-days", () =>
+      m.session_group_previous_week({}, { locale }),
+    )
+    .with("older", () => m.session_group_older({}, { locale }))
+    .exhaustive();
+}
+
 /** Seconds until any relative session label can visibly change. */
 export function nextSessionClockDelay(
   sessions: readonly Pick<PiSession, "updatedAt">[],

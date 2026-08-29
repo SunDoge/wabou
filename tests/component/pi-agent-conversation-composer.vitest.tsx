@@ -5,6 +5,7 @@ import { ConversationComposer } from "../../apps/pi-agent/ui/conversation-compos
 
 const baseProps = {
   connection: "ready" as const,
+  project: "Wabou",
   cwd: "/work/wabou",
   draft: "Inspect the renderer",
   images: [] as readonly string[],
@@ -128,7 +129,5 @@ test("Pi Agent composer loads workspace files for inline at mentions", async () 
   );
   screen.getByRole("option", { name: "apps/pi-agent/ui/app.tsx" }).click();
   expect(editor.value).toBe("Inspect @apps/pi-agent/ui/app.tsx ");
-  expect(changeContextFiles).toHaveBeenCalledWith([
-    "apps/pi-agent/ui/app.tsx",
-  ]);
+  expect(changeContextFiles).toHaveBeenCalledWith(["apps/pi-agent/ui/app.tsx"]);
 });

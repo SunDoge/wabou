@@ -267,6 +267,9 @@ try {
             role: "button",
             name: "Polish the onboarding copy",
           });
+          getLayoutNode(fixture, { text: "Today" });
+          getLayoutNode(fixture, { text: "Previous 7 days" });
+          getLayoutNode(fixture, { text: "Older" });
           getLayoutNode(fixture, {
             role: "status",
             name: "Compacting context…",

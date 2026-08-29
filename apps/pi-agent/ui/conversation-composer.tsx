@@ -29,11 +29,11 @@ import type {
 } from "./agent-state";
 import { CommandPicker } from "./command-picker";
 import {
+  type ComposerAutocompleteRow,
   composerAutocompleteRows,
   detectComposerTrigger,
   normalizeComposerCursor,
   replaceComposerTrigger,
-  type ComposerAutocompleteRow,
 } from "./composer-autocomplete";
 import { ComposerAutocompleteList } from "./composer-autocomplete-list";
 import {
@@ -53,10 +53,10 @@ import {
 import { i18n, m } from "./i18n";
 import { ModelControls } from "./model-controls";
 import { SessionUsage } from "./session-usage";
-import { workspaceName } from "./sidebar";
 
 export interface ConversationComposerProps {
   connection: AgentConnection;
+  project: string;
   cwd: string;
   draft: string;
   images: readonly string[];
@@ -336,7 +336,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
       </View>
       <View class="max-w-3xl mx-auto min-w-0 px-3 pt-2 flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <Text class="min-w-40 flex-1 truncate text-xs text-muted">
-          {workspaceName(props.cwd)} · {i18n.message(m.send_hint, {})}
+          {props.project} · {i18n.message(m.send_hint, {})}
         </Text>
         <SessionUsage stats={props.stats} />
       </View>

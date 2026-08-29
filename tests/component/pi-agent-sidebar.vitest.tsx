@@ -5,6 +5,7 @@ import type { PiSession } from "../../apps/pi-agent/ui/api";
 import { Sidebar } from "../../apps/pi-agent/ui/sidebar";
 import {
   activeSidebarValue,
+  groupSessionsByRecency,
   nextSessionClockDelay,
   sessionRecency,
   sessionTimeLabel,
@@ -86,6 +87,48 @@ test("sorts retained sessions newest-first with a deterministic tie break", () =
     ["c", "a", "b"],
   );
   expect(sessions.map((item) => item.sessionId)).toEqual(["b", "c", "a"]);
+});
+
+test("groups retained sessions into stable scan ranges", () => {
+  const now = new Date(2026, 7, 30, 12, 0, 0).getTime() / 1_000;
+  const sessions = [
+    { sessionId: "older", updatedAt: now - 10 * 86_400 },
+    { sessionId: "today", updatedAt: now - 60 },
+    { sessionId: "week", updatedAt: now - 3 * 86_400 },
+  ] as PiSession[];
+
+  expect(
+    groupSessionsByRecency(sessions, now).map((group) => ({
+      key: group.key,
+      sessions: group.sessions.map((session) => session.sessionId),
+    })),
+  ).toEqual([
+    { key: "today", sessions: ["today"] },
+    { key: "previous-seven-days", sessions: ["week"] },
+    { key: "older", sessions: ["older"] },
+  ]);
+});
+
+test("does not expose managed workspace ids as project subtitles", () => {
+  const agent = createAgentWorkspace(1);
+  agent.cwd = "/data/pi-agent/workspaces/agent-1";
+  const screen = renderComponent(() => (
+    <Sidebar
+      agents={[agent]}
+      sessions={[]}
+      activeId={agent.id}
+      select={() => {}}
+      selectSession={() => {}}
+      add={() => {}}
+      newSession={() => {}}
+      canCreateSession
+      openSettings={() => {}}
+    />
+  ));
+
+  expect(screen.getByRole("button", { name: "Project 1" }).text).toBe(
+    "Project 1",
+  );
 });
 
 test("Pi Agent sidebar searches agents and sessions without flattening the hierarchy", () => {

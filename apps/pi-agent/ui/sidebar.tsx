@@ -33,7 +33,9 @@ import type { PiSession } from "./api";
 import { i18n, m } from "./i18n";
 import {
   activeSidebarValue,
+  groupSessionsByRecency,
   nextSessionClockDelay,
+  sessionGroupLabel,
   sessionLabel,
   sessionTimeLabel,
   sortSessionsByRecency,
@@ -218,7 +220,10 @@ export function Sidebar(props: SidebarProps) {
             <ForValue each={visibleAgents()} keyed={(agent) => agent.id}>
               {(agent) => {
                 const sessions = () => visibleSessions(agent().id);
+                const sessionGroups = () =>
+                  groupSessionsByRecency(sessions(), nowSeconds());
                 const expanded = () => sessionsExpanded(agent().id);
+                const showGroupLabels = () => sessionGroups().length > 1;
                 return (
                   <View class="gap-1">
                     <View class="min-w-0 flex flex-row items-center gap-0.5">
@@ -237,9 +242,15 @@ export function Sidebar(props: SidebarProps) {
                           <Text class="truncate text-sm font-medium">
                             {agent().name}
                           </Text>
-                          <Text class="truncate text-xs text-muted">
-                            {workspaceName(agent().cwd)}
-                          </Text>
+                          <Show
+                            when={workspaceDisplayName(agent().cwd, agent().id)}
+                          >
+                            {(name) => (
+                              <Text class="truncate text-xs text-muted">
+                                {name()}
+                              </Text>
+                            )}
+                          </Show>
                         </View>
                         <AgentSidebarStatus state={agent().state} />
                       </SidebarMenuButton>
@@ -267,37 +278,51 @@ export function Sidebar(props: SidebarProps) {
                     </View>
                     <Show when={expanded()}>
                       <ForValue
-                        each={sessions()}
-                        keyed={(session) => session.sessionId}
+                        each={sessionGroups()}
+                        keyed={(group) => group.key}
                       >
-                        {(session) => (
-                          <View class="min-w-0 pl-3">
-                            <SidebarMenuButton
-                              value={`session:${agent().id}:${session().sessionId}`}
-                              class="h-8 pl-2 text-sm"
-                              aria-label={sessionLabel(session())}
-                              onClick={() =>
-                                props.selectSession(
-                                  agent().id,
-                                  session().sessionId,
-                                )
-                              }
+                        {(group) => (
+                          <View class="min-w-0 gap-0.5">
+                            <Show when={showGroupLabels()}>
+                              <Text class="px-5 pt-1 text-xs font-medium text-muted">
+                                {sessionGroupLabel(group().key)}
+                              </Text>
+                            </Show>
+                            <ForValue
+                              each={group().sessions}
+                              keyed={(session) => session.sessionId}
                             >
-                              <Icon
-                                source={messageSquare}
-                                size={13}
-                                class="flex-none text-muted"
-                              />
-                              <Text class="min-w-0 flex-1 truncate">
-                                {sessionLabel(session())}
-                              </Text>
-                              <Text class="flex-none text-xs text-muted">
-                                {sessionTimeLabel(
-                                  session().updatedAt,
-                                  nowSeconds(),
-                                )}
-                              </Text>
-                            </SidebarMenuButton>
+                              {(session) => (
+                                <View class="min-w-0 pl-3">
+                                  <SidebarMenuButton
+                                    value={`session:${agent().id}:${session().sessionId}`}
+                                    class="h-8 pl-2 text-sm"
+                                    aria-label={sessionLabel(session())}
+                                    onClick={() =>
+                                      props.selectSession(
+                                        agent().id,
+                                        session().sessionId,
+                                      )
+                                    }
+                                  >
+                                    <Icon
+                                      source={messageSquare}
+                                      size={13}
+                                      class="flex-none text-muted"
+                                    />
+                                    <Text class="min-w-0 flex-1 truncate">
+                                      {sessionLabel(session())}
+                                    </Text>
+                                    <Text class="flex-none text-xs text-muted">
+                                      {sessionTimeLabel(
+                                        session().updatedAt,
+                                        nowSeconds(),
+                                      )}
+                                    </Text>
+                                  </SidebarMenuButton>
+                                </View>
+                              )}
+                            </ForValue>
                           </View>
                         )}
                       </ForValue>
@@ -329,4 +354,15 @@ export function workspaceName(path: string): string {
   const normalized = path.replace(/[\\/]+$/, "");
   if (!normalized) return i18n.message(m.workspace_not_selected, {});
   return normalized.split(/[\\/]/).at(-1) || normalized;
+}
+
+/** Avoid exposing managed storage ids such as `agent-1` as product copy. */
+export function workspaceDisplayName(
+  path: string,
+  agentId: string,
+): string | undefined {
+  const name = workspaceName(path);
+  return name === agentId || name === i18n.message(m.workspace_not_selected, {})
+    ? undefined
+    : name;
 }

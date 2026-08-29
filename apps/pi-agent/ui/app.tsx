@@ -1052,6 +1052,7 @@ export function App() {
 
             <ConversationComposer
               connection={active().state.connection}
+              project={active().name}
               cwd={active().cwd}
               draft={draft()}
               images={images()}
