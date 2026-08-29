@@ -1,9 +1,10 @@
 import { renderComponent } from "@wabou/test/component";
 import { createSignal } from "solid-js";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import type { PiSession } from "../../apps/pi-agent/ui/api";
 import {
   activeSidebarValue,
+  nextSessionClockDelay,
   Sidebar,
   sessionRecency,
   sessionTimeLabel,
@@ -23,6 +24,55 @@ test("describes session recency without depending on wall-clock time", () => {
   });
   expect(sessionTimeLabel(10_000, 10_300, "en")).toBe("5m");
   expect(sessionTimeLabel(10_000, 10_300, "zh")).toBe("5 分钟");
+});
+
+test("schedules only the next visible session-time transition", () => {
+  expect(nextSessionClockDelay([], 100)).toBeUndefined();
+  expect(nextSessionClockDelay([{ updatedAt: 100 }], 159)).toBe(1);
+  expect(nextSessionClockDelay([{ updatedAt: 100 }], 160)).toBe(60);
+  expect(nextSessionClockDelay([{ updatedAt: 100 }], 3_699)).toBe(1);
+  expect(
+    nextSessionClockDelay([{ updatedAt: 200 }, { updatedAt: 3_650 }], 3_699),
+  ).toBe(11);
+});
+
+test("refreshes relative session labels at their next visible boundary", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(100_000));
+  const agent = createAgentWorkspace(1);
+  const screen = renderComponent(() => (
+    <Sidebar
+      agents={[agent]}
+      sessions={[
+        {
+          agentId: agent.id,
+          sessionId: "recent",
+          sessionFile: "/tmp/recent.jsonl",
+          name: "Recent work",
+          cwd: "/work/api",
+          updatedAt: 100,
+        },
+      ]}
+      activeId={agent.id}
+      select={() => {}}
+      selectSession={() => {}}
+      add={() => {}}
+      newSession={() => {}}
+      canCreateSession
+      openSettings={() => {}}
+    />
+  ));
+
+  expect(screen.getByRole("button", { name: "Recent work" }).text).toContain(
+    "Now",
+  );
+  vi.advanceTimersByTime(60_000);
+  screen.flush();
+  expect(screen.getByRole("button", { name: "Recent work" }).text).toContain(
+    "1m",
+  );
+  screen.dispose();
+  vi.useRealTimers();
 });
 
 test("sorts retained sessions newest-first with a deterministic tie break", () => {

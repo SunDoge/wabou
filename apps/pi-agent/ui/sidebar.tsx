@@ -25,6 +25,7 @@ import {
   createMemo,
   createSignal,
   For as ForValue,
+  onCleanup,
   Show,
 } from "solid-js";
 import { match } from "ts-pattern";
@@ -116,6 +117,21 @@ export function sortSessionsByRecency(
   );
 }
 
+/** Seconds until any relative session label can visibly change. */
+export function nextSessionClockDelay(
+  sessions: readonly Pick<PiSession, "updatedAt">[],
+  nowSeconds: number,
+): number | undefined {
+  let next: number | undefined;
+  for (const session of sessions) {
+    const elapsed = Math.max(0, Math.floor(nowSeconds - session.updatedAt));
+    const step = elapsed < 3_600 ? 60 : elapsed < 604_800 ? 3_600 : 86_400;
+    const delay = Math.max(1, step - (elapsed % step));
+    next = next === undefined ? delay : Math.min(next, delay);
+  }
+  return next;
+}
+
 export function activeSidebarValue(
   agents: readonly AgentWorkspace[],
   activeId: string,
@@ -138,7 +154,37 @@ export function Sidebar(props: SidebarProps) {
   const [collapsedAgents, setCollapsedAgents] = createSignal<
     ReadonlySet<string>
   >(new Set());
-  const nowSeconds = props.nowSeconds ?? Date.now() / 1_000;
+  const [liveNowSeconds, setLiveNowSeconds] = createSignal(
+    Math.floor(Date.now() / 1_000),
+  );
+  const nowSeconds = () => props.nowSeconds ?? liveNowSeconds();
+  let clockTimer: ReturnType<typeof setTimeout> | undefined;
+  createEffect(
+    () =>
+      props.nowSeconds === undefined
+        ? {
+            now: liveNowSeconds(),
+            timestamps: props.sessions.map((session) => session.updatedAt),
+          }
+        : undefined,
+    (clock) => {
+      if (clockTimer !== undefined) clearTimeout(clockTimer);
+      clockTimer = undefined;
+      if (!clock) return;
+      const delay = nextSessionClockDelay(
+        clock.timestamps.map((updatedAt) => ({ updatedAt })),
+        clock.now,
+      );
+      if (delay === undefined) return;
+      clockTimer = setTimeout(
+        () => setLiveNowSeconds(Math.floor(Date.now() / 1_000)),
+        delay * 1_000,
+      );
+    },
+  );
+  onCleanup(() => {
+    if (clockTimer !== undefined) clearTimeout(clockTimer);
+  });
   const normalizedQuery = () => query().trim().toLocaleLowerCase();
   const visibleAgents = createMemo(() => {
     const needle = normalizedQuery();
@@ -341,7 +387,7 @@ export function Sidebar(props: SidebarProps) {
                               <Text class="flex-none text-xs text-muted">
                                 {sessionTimeLabel(
                                   session().updatedAt,
-                                  nowSeconds,
+                                  nowSeconds(),
                                 )}
                               </Text>
                             </SidebarMenuButton>
