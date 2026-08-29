@@ -67,6 +67,11 @@ export {
   createKeyedAsyncAction,
   type KeyedAsyncAction,
 } from "./glue/async-action";
+export {
+  type AsyncQuery,
+  type AsyncQueryOptions,
+  createAsyncQuery,
+} from "./glue/async-query";
 export { type Clipboard, clipboard, useClipboard } from "./glue/clipboard";
 export {
   type ColorPalette,
@@ -92,15 +97,15 @@ export {
   useDialog,
 } from "./glue/dialog";
 export {
-  createEventEffect,
-  type EventEffectOptions,
-} from "./glue/event-effect";
-export {
   type EntityKey,
   ForEntity,
   type ForEntityProps,
   validateEntityKeys,
 } from "./glue/entity-list";
+export {
+  createEventEffect,
+  type EventEffectOptions,
+} from "./glue/event-effect";
 export {
   type FileDropEvent,
   type FileDropHandler,
@@ -151,12 +156,13 @@ export {
   type NativeJsonCapability,
 } from "./glue/json-capability";
 export {
-  bindCapability,
-  type CapabilityClientOptions,
-  CapabilityError,
-  type NativeCapability,
-} from "./glue/native-capability";
+  type KeyboardModifiers,
+  subscribeKeyboardModifiers,
+  useKeyboardModifierChanges,
+  useKeyboardModifiers,
+} from "./glue/keyboard-modifiers";
 export {
+  createKvSignal,
   type Kv,
   KvAtomicOperation,
   type KvCheck,
@@ -169,21 +175,20 @@ export {
   type KvSignal,
   type KvValue,
   type KvVersionstamp,
-  createKvSignal,
   openKv,
 } from "./glue/kv";
-export {
-  type KeyboardModifiers,
-  subscribeKeyboardModifiers,
-  useKeyboardModifierChanges,
-  useKeyboardModifiers,
-} from "./glue/keyboard-modifiers";
 export {
   createLatestAsyncResource,
   type LatestAsyncResource,
   type LatestAsyncResourceOptions,
   type LatestAsyncResourceStatus,
 } from "./glue/latest-async-resource";
+export {
+  bindCapability,
+  type CapabilityClientOptions,
+  CapabilityError,
+  type NativeCapability,
+} from "./glue/native-capability";
 export {
   type NativeMenuItem,
   type NativeMenuOptions,

@@ -1,6 +1,6 @@
 import {
   Button,
-  createLatestAsyncResource,
+  createAsyncQuery,
   createToasts,
   currentWindow,
   type Handle,
@@ -255,12 +255,15 @@ export function App() {
   };
   const active = () =>
     agents().find((agent) => agent.id === activeId()) ?? agents()[0];
-  const workspaceInfo = createLatestAsyncResource({
+  const workspaceInfo = createAsyncQuery({
     source: () => active().cwd.trim() || undefined,
-    load: (cwd) => api.workspaceInfo(cwd),
+    // Repository metadata is decorative; losing it must not replace the app's
+    // root error boundary. Queries that affect the page should instead render
+    // through a local <Errored> boundary.
+    load: (cwd) => api.workspaceInfo(cwd).catch(() => undefined),
   });
   createEffect(
-    () => workspaceInfo.value(),
+    () => workspaceInfo.latest(),
     (info) => {
       if (info) setWorkspaceRevision((revision) => revision + 1);
     },
@@ -893,22 +896,22 @@ export function App() {
                   </Text>
                   <Show
                     when={
-                      workspaceInfo.value()?.repository &&
-                      workspaceInfo.value()?.branch
+                      workspaceInfo.latest()?.repository &&
+                      workspaceInfo.latest()?.branch
                     }
                   >
                     <Text class="flex-none text-xs text-muted">·</Text>
                     <View class="flex-none flex flex-row items-center gap-1">
                       <Icon source={gitBranch} size={11} class="text-muted" />
                       <Text class="max-w-32 truncate text-xs text-muted">
-                        {workspaceInfo.value()?.branch}
+                        {workspaceInfo.latest()?.branch}
                       </Text>
                       <Show
-                        when={(workspaceInfo.value()?.changedFiles ?? 0) > 0}
+                        when={(workspaceInfo.latest()?.changedFiles ?? 0) > 0}
                       >
                         <Text class="text-xs text-warning-primary">
                           {i18n.message(m.changed_files, {
-                            count: workspaceInfo.value()?.changedFiles ?? 0,
+                            count: workspaceInfo.latest()?.changedFiles ?? 0,
                           })}
                         </Text>
                       </Show>
@@ -978,7 +981,7 @@ export function App() {
                 >
                   <Icon source={folder} size={15} />
                 </Button>
-                <Show when={workspaceInfo.value()?.repository}>
+                <Show when={workspaceInfo.latest()?.repository}>
                   <Button
                     variant="ghost"
                     size="icon"

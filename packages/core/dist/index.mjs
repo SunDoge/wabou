@@ -7,7 +7,7 @@ import "./registry.mjs";
 import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
 import { ByteLengthQueuingStrategy, CountQueuingStrategy, ReadableByteStreamController, ReadableStream as ReadableStream$1, ReadableStreamBYOBReader, ReadableStreamBYOBRequest, ReadableStreamDefaultController, ReadableStreamDefaultReader, TransformStream, TransformStreamDefaultController, WritableStream, WritableStreamDefaultController, WritableStreamDefaultWriter } from "web-streams-polyfill";
 import { TextDecoderStream, TextEncoderStream } from "@stardazed/streams-text-encoding";
-import { For, createComponent as createComponent$1, createContext, createEffect, createMemo, createSignal, flush, getOwner, onCleanup, untrack, useContext } from "solid-js";
+import { For, createComponent as createComponent$1, createContext, createEffect, createMemo, createSignal, flush, getOwner, latest, onCleanup, refresh, resolve, untrack, useContext } from "solid-js";
 //#region src/polyfills/abort-controller.ts
 /** Install cancellation primitives when the embedding runtime lacks them. */
 function installAbortControllerPolyfill() {
@@ -1191,6 +1191,36 @@ function createKeyedAsyncAction(keyOf, action) {
 	};
 }
 //#endregion
+//#region src/glue/async-query.ts
+/**
+* Create a latest-wins query using Solid 2's native async graph.
+*
+* Promise ownership, stale-result suppression, pending propagation, and error
+* propagation belong to Solid. Wabou only adds AbortSignal lifecycle and an
+* explicit refresh operation.
+*/
+function createAsyncQuery(options) {
+	let controller;
+	const value = createMemo(() => {
+		const key = options.source();
+		controller?.abort();
+		controller = void 0;
+		if (key === void 0) return options.initialValue;
+		controller = new AbortController();
+		return options.load(key, { signal: controller.signal });
+	});
+	const latestValue = createMemo(() => latest(value), { loadingValue: options.initialValue });
+	onCleanup(() => controller?.abort());
+	return {
+		value,
+		latest: latestValue,
+		async refresh() {
+			refresh(value);
+			return resolve(value);
+		}
+	};
+}
+//#endregion
 //#region src/glue/color-theme.tsx
 const [current, setCurrent] = createSignal();
 let currentPalette;
@@ -1364,6 +1394,49 @@ function useColorTheme() {
 	return useContext(ColorThemeContext);
 }
 //#endregion
+//#region src/glue/entity-list.tsx
+function validateEntityKeys(values, by) {
+	const keys = /* @__PURE__ */ new Set();
+	for (const entity of values) {
+		const key = by(entity);
+		if (keys.has(key)) throw new Error(`ForEntity received duplicate key ${String(key)}`);
+		keys.add(key);
+	}
+	return values;
+}
+/**
+* Render stateful entities by a stable application key.
+*
+* The entity object itself is part of the identity contract: mutate its
+* internal signals/stores instead of replacing it with a new snapshot carrying
+* the same key. This keeps native widgets and other owned resources mounted.
+*/
+function ForEntity(props) {
+	const by = untrack(() => props.by);
+	const entities = createMemo(() => {
+		const values = props.each;
+		if (!values) return values;
+		return validateEntityKeys(values, by);
+	});
+	return createComponent$1(For, {
+		get each() {
+			return entities();
+		},
+		keyed: by,
+		get fallback() {
+			return props.fallback;
+		},
+		children: (item, index) => {
+			const entity = untrack(item);
+			const key = by(entity);
+			createEffect(item, (current) => {
+				if (current !== entity) throw new Error(`ForEntity key ${String(key)} replaced its entity object; keep the object stable and update its signals/store instead`);
+			});
+			return props.children(entity, index);
+		}
+	});
+}
+//#endregion
 //#region src/glue/event-effect.ts
 /**
 * Consume every new event from a retained feed exactly once and in sequence
@@ -1406,49 +1479,6 @@ function latestSequence(events, sequence) {
 	let latest = Number.NEGATIVE_INFINITY;
 	for (const event of events) latest = Math.max(latest, sequence(event));
 	return latest;
-}
-//#endregion
-//#region src/glue/entity-list.tsx
-function validateEntityKeys(values, by) {
-	const keys = /* @__PURE__ */ new Set();
-	for (const entity of values) {
-		const key = by(entity);
-		if (keys.has(key)) throw new Error(`ForEntity received duplicate key ${String(key)}`);
-		keys.add(key);
-	}
-	return values;
-}
-/**
-* Render stateful entities by a stable application key.
-*
-* The entity object itself is part of the identity contract: mutate its
-* internal signals/stores instead of replacing it with a new snapshot carrying
-* the same key. This keeps native widgets and other owned resources mounted.
-*/
-function ForEntity(props) {
-	const by = untrack(() => props.by);
-	const entities = createMemo(() => {
-		const values = props.each;
-		if (!values) return values;
-		return validateEntityKeys(values, by);
-	});
-	return createComponent$1(For, {
-		get each() {
-			return entities();
-		},
-		keyed: by,
-		get fallback() {
-			return props.fallback;
-		},
-		children: (item, index) => {
-			const entity = untrack(item);
-			const key = by(entity);
-			createEffect(item, (current) => {
-				if (current !== entity) throw new Error(`ForEntity key ${String(key)} replaced its entity object; keep the object stable and update its signals/store instead`);
-			});
-			return props.children(entity, index);
-		}
-	});
 }
 //#endregion
 //#region src/glue/host-resource.ts
@@ -2007,6 +2037,6 @@ function reconcileKeyedList(current, patch, keyOf) {
 	return ordered;
 }
 //#endregion
-export { AsyncActionConflictError, CapabilityError, ColorThemeProvider, Dynamic, EVENT_CODE, ForEntity, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, KvAtomicOperation, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createKvSignal, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, openKv, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys, writer };
+export { AsyncActionConflictError, CapabilityError, ColorThemeProvider, Dynamic, EVENT_CODE, ForEntity, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, KvAtomicOperation, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createAsyncQuery, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createKvSignal, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, openKv, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys, writer };
 
 //# sourceMappingURL=index.mjs.map
