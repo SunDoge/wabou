@@ -63,7 +63,7 @@ test("Pi Agent sidebar searches agents and sessions without flattening the hiera
   );
 });
 
-test("shows sessions only under the active agent and keeps agent selection live", () => {
+test("shows retained sessions for every project and keeps navigation live", () => {
   const agents = [createAgentWorkspace(1), createAgentWorkspace(2)];
   agents[0].cwd = "/work/api";
   agents[1].cwd = "/work/docs";
@@ -87,13 +87,16 @@ test("shows sessions only under the active agent and keeps agent selection live"
     },
   ];
   const selected: string[] = [];
+  const selectedSessions: [string, string][] = [];
   const screen = renderComponent(() => (
     <Sidebar
       agents={agents}
       sessions={sessions}
       activeId="agent-2"
       select={(id) => selected.push(id)}
-      selectSession={() => {}}
+      selectSession={(agentId, sessionId) =>
+        selectedSessions.push([agentId, sessionId])
+      }
       add={() => {}}
       newSession={() => {}}
       canCreateSession
@@ -101,7 +104,8 @@ test("shows sessions only under the active agent and keeps agent selection live"
     />
   ));
 
-  expect(screen.queryByRole("button", { name: "Fix API" })).toBeNull();
+  const inactiveSession = screen.getByRole("button", { name: "Fix API" });
+  expect(inactiveSession.selected).toBe(false);
   expect(
     screen.getByRole("button", { name: "Write release notes" }),
   ).toBeDefined();
@@ -111,6 +115,8 @@ test("shows sessions only under the active agent and keeps agent selection live"
   expect(
     screen.getByRole("button", { name: "Write release notes" }).selected,
   ).toBe(true);
+  inactiveSession.click();
+  expect(selectedSessions).toEqual([["agent-1", "session-api"]]);
   screen.getByRole("button", { name: "Project 1" }).click();
   expect(selected).toEqual(["agent-1"]);
 });

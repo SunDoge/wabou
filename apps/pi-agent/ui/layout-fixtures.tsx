@@ -15,10 +15,10 @@ import { For } from "solid-js";
 import { AgentActivityStatus } from "./agent-activity";
 import { type AgentItem, initialAgentState } from "./agent-state";
 import { AppCommandPalette } from "./app-command-palette";
-import { ConversationContext } from "./conversation-context";
-import { ConversationComposer } from "./conversation-composer";
-import { ConversationHeader } from "./conversation-header";
 import { ConversationItem, ConversationList } from "./conversation";
+import { ConversationComposer } from "./conversation-composer";
+import { ConversationContext } from "./conversation-context";
+import { ConversationHeader } from "./conversation-header";
 import { ConversationNavigator } from "./conversation-navigator";
 import { ModelControls } from "./model-controls";
 import { type AppSettings, SettingsPage } from "./settings";
@@ -354,6 +354,14 @@ defineLayoutFixtures({
             name: "Review release readiness",
             cwd: project.cwd,
             updatedAt: 1,
+          },
+          {
+            agentId: secondProject.id,
+            sessionId: "session-docs",
+            sessionFile: "/tmp/session-docs.jsonl",
+            name: "Polish the onboarding copy",
+            cwd: secondProject.cwd,
+            updatedAt: 3,
           },
         ]}
         activeId={project.id}

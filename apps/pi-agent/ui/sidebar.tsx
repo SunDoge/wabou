@@ -167,39 +167,32 @@ export function Sidebar(props: SidebarProps) {
                     </View>
                     <AgentSidebarStatus state={agent().state} />
                   </SidebarMenuButton>
-                  <Show
-                    when={agent().id === props.activeId || normalizedQuery()}
+                  <ForValue
+                    each={visibleSessions(agent().id)}
+                    keyed={(session) => session.sessionId}
                   >
-                    <ForValue
-                      each={visibleSessions(agent().id)}
-                      keyed={(session) => session.sessionId}
-                    >
-                      {(session) => (
-                        <View class="min-w-0 pl-3">
-                          <SidebarMenuButton
-                            value={`session:${agent().id}:${session().sessionId}`}
-                            class="h-8 pl-2 text-sm"
-                            aria-label={sessionLabel(session())}
-                            onClick={() =>
-                              props.selectSession(
-                                agent().id,
-                                session().sessionId,
-                              )
-                            }
-                          >
-                            <Icon
-                              source={messageSquare}
-                              size={13}
-                              class="flex-none text-muted"
-                            />
-                            <Text class="min-w-0 flex-1 truncate">
-                              {sessionLabel(session())}
-                            </Text>
-                          </SidebarMenuButton>
-                        </View>
-                      )}
-                    </ForValue>
-                  </Show>
+                    {(session) => (
+                      <View class="min-w-0 pl-3">
+                        <SidebarMenuButton
+                          value={`session:${agent().id}:${session().sessionId}`}
+                          class="h-8 pl-2 text-sm"
+                          aria-label={sessionLabel(session())}
+                          onClick={() =>
+                            props.selectSession(agent().id, session().sessionId)
+                          }
+                        >
+                          <Icon
+                            source={messageSquare}
+                            size={13}
+                            class="flex-none text-muted"
+                          />
+                          <Text class="min-w-0 flex-1 truncate">
+                            {sessionLabel(session())}
+                          </Text>
+                        </SidebarMenuButton>
+                      </View>
+                    )}
+                  </ForValue>
                 </View>
               )}
             </ForValue>

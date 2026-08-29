@@ -220,6 +220,10 @@ try {
             name: "Documentation workspace",
           });
           getLayoutNode(fixture, {
+            role: "button",
+            name: "Polish the onboarding copy",
+          });
+          getLayoutNode(fixture, {
             role: "status",
             name: "Compacting context…",
           });
