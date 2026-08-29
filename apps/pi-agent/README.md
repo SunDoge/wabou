@@ -48,3 +48,32 @@ cargo run -p wabou-cli -- test apps/pi-agent \
 ```
 
 `bun run verify:behavior` builds and injects this fixture automatically in CI.
+
+## Automated application verification
+
+Run the safe, fully automated Pi Agent gate with:
+
+```bash
+bun run verify:agent
+```
+
+It runs the complete deterministic behavior suite, then uses the real application
+host with the fixture to write a conversation screenshot and final DevTools tree
+under `target/wabou-test/pi-agent/`. More focused entry points are available:
+
+```bash
+bun run test:app:pi-agent
+bun run test:app:pi-agent:capture
+bun run test:app:pi-agent:native
+```
+
+The native smoke test requires a usable desktop session. Real provider testing is
+deliberately excluded from CI and the default gate because it uses credentials,
+network access, and provider credits. Run it only with explicit consent:
+
+```bash
+WABOU_RUN_REAL_PI=1 bun run test:app:pi-agent:real
+```
+
+Proxy variables are inherited by Bun, Pi, and provider requests. Use a dedicated,
+low-limit test credential; behavior traces can contain authored prompt text.

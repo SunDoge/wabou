@@ -5,16 +5,14 @@
     "tsconfig.json",
     "tsdown.config.ts"
   ],
+  "globalPassThroughEnv": ["WABOU_RUN_REAL_PI"],
   "tasks": {
     "generate": {
       "inputs": ["project.inlang/**", "messages/**", "package.json"],
       "outputs": ["ui/paraglide/**"]
     },
     "//#check:types": {
-      "dependsOn": [
-        "@wabou/gallery#generate",
-        "@wabou/pi-agent#generate"
-      ],
+      "dependsOn": ["@wabou/gallery#generate", "@wabou/pi-agent#generate"],
       "outputs": []
     },
     "build": {
