@@ -61,12 +61,20 @@ bun run wabou doctor
 bun run wabou dev apps/gallery
 bun run wabou dev apps/hackernews --devtools
 bun run wabou dev apps/gallery --rust-hot-reload
+bun run wabou clean apps/gallery
 ```
 
 `doctor` checks the required Rust and Bun tools, platform build dependencies,
 the selected application, and generated workspace package artifacts. It exits
 with a nonzero status when a required check fails, so it is also suitable for
 setup scripts and CI diagnostics.
+
+`wabou clean [APP]` removes the selected application's debug/release frontend
+bundles, its Vite dependency cache, and Wabou's frontend lock/cache directory.
+It does not touch Cargo's `target/` or installed dependencies. In the Wabou
+source workspace, pass `--packages` to additionally remove every local
+`packages/*/dist` directory; rebuild those package artifacts with
+`bun run packages:build` before the next application build.
 
 Development starts Vite and compiles the Rust host with the `wabou/vite` and
 `wabou/devtools` facade features. QuickJS imports the live Vite graph and

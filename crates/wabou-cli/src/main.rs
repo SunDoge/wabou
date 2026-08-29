@@ -14,6 +14,7 @@ use serde_json::Value;
 
 mod artifact;
 mod behavior_test;
+mod clean;
 mod config;
 mod devtools;
 mod doctor;
@@ -100,6 +101,14 @@ enum Commands {
         skip_behavior: bool,
         #[command(flatten)]
         cargo_features: CargoFeatures,
+    },
+    /// Remove generated JavaScript bundles and frontend caches.
+    Clean {
+        #[arg(value_name = "APP")]
+        app: Option<PathBuf>,
+        /// Also remove dist directories for local packages/* workspaces.
+        #[arg(long)]
+        packages: bool,
     },
     /// Start Vite, the Rust host, and live HMR.
     Dev {
@@ -379,6 +388,10 @@ fn main() -> Result<()> {
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
             check(&workspace, &app, skip_behavior, &cargo_features.values)
+        }
+        Commands::Clean { app, packages } => {
+            let (workspace, app) = resolve_app(app.as_deref())?;
+            clean::run(&workspace, &app, packages).map(|_| ())
         }
         Commands::Dev {
             app,
@@ -1244,6 +1257,18 @@ mod tests {
         };
         assert_eq!(app.as_deref(), Some(Path::new("apps/gallery")));
         assert!(skip_behavior);
+    }
+
+    #[test]
+    fn parses_clean_scope() {
+        let Cli {
+            command: Commands::Clean { app, packages },
+        } = Cli::try_parse_from(["wabou", "clean", "apps/gallery", "--packages"]).unwrap()
+        else {
+            panic!("expected clean command");
+        };
+        assert_eq!(app.as_deref(), Some(Path::new("apps/gallery")));
+        assert!(packages);
     }
 
     #[test]
