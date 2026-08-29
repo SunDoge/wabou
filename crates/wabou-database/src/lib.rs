@@ -1,18 +1,26 @@
-//! Versioned, embedded application databases backed by Turso.
+//! Versioned, embedded application databases and key-value storage backed by SQLite.
 //!
 //! This crate owns database lifecycle and schema migrations. Applications own
-//! their tables and expose domain-specific repositories instead of treating
-//! preferences and other structured data as an untyped key-value store.
+//! their tables and expose domain-specific repositories. [`KvStore`] provides
+//! a separate, explicitly namespaced document store for preferences and other
+//! small application records.
 
 #![warn(missing_docs)]
 
 use std::error::Error as StdError;
 use std::fmt;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
 use tokio::sync::{Mutex, MutexGuard};
 pub use turso::{Connection, Row, Rows, Value, params};
+
+mod kv;
+
+pub use kv::{
+    AtomicCommit, KvCheck, KvEntry, KvKey, KvKeyPart, KvListOptions, KvMutation, KvStore,
+    Versionstamp,
+};
 
 /// A schema change from version `version - 1` to `version`.
 #[derive(Clone, Copy, Debug)]
@@ -44,6 +52,14 @@ pub enum Error {
         /// Highest version supplied by this application.
         supported: u32,
     },
+    /// A hierarchical key is malformed.
+    InvalidKey(String),
+    /// A stored JSON document could not be encoded or decoded.
+    InvalidDocument(String),
+    /// A corrupt negative revision was read from SQLite.
+    InvalidVersionstamp(i64),
+    /// The SQLite signed integer revision range has been exhausted.
+    VersionstampExhausted,
 }
 
 impl fmt::Display for Error {
@@ -55,6 +71,13 @@ impl fmt::Display for Error {
                 formatter,
                 "database schema version {found} is newer than supported version {supported}"
             ),
+            Self::InvalidKey(message) | Self::InvalidDocument(message) => {
+                formatter.write_str(message)
+            }
+            Self::InvalidVersionstamp(value) => {
+                write!(formatter, "invalid negative KV versionstamp {value}")
+            }
+            Self::VersionstampExhausted => formatter.write_str("KV versionstamp exhausted"),
         }
     }
 }
@@ -63,7 +86,12 @@ impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             Self::Turso(error) => Some(error),
-            Self::InvalidMigrations(_) | Self::NewerSchema { .. } => None,
+            Self::InvalidMigrations(_)
+            | Self::NewerSchema { .. }
+            | Self::InvalidKey(_)
+            | Self::InvalidDocument(_)
+            | Self::InvalidVersionstamp(_)
+            | Self::VersionstampExhausted => None,
         }
     }
 }
@@ -100,6 +128,12 @@ impl Deref for WriteConnection<'_> {
 
     fn deref(&self) -> &Self::Target {
         &self.connection
+    }
+}
+
+impl DerefMut for WriteConnection<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.connection
     }
 }
 

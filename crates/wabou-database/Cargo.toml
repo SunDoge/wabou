@@ -5,6 +5,8 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 turso = { version = "0.8.0-pre.3", default-features = false }
 

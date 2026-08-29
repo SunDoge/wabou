@@ -27,6 +27,7 @@ mod image_resource;
 mod inline_context;
 mod json_capability;
 mod jsrt;
+mod kv;
 mod native_capability;
 mod persistent_cache;
 mod protocol;

@@ -157,6 +157,22 @@ export {
   type NativeCapability,
 } from "./glue/native-capability";
 export {
+  type Kv,
+  KvAtomicOperation,
+  type KvCheck,
+  type KvCommitResult,
+  type KvEntry,
+  type KvKey,
+  type KvKeyPart,
+  type KvListOptions,
+  type KvSetOptions,
+  type KvSignal,
+  type KvValue,
+  type KvVersionstamp,
+  createKvSignal,
+  openKv,
+} from "./glue/kv";
+export {
   type KeyboardModifiers,
   subscribeKeyboardModifiers,
   useKeyboardModifierChanges,

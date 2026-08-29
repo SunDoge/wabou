@@ -10,6 +10,7 @@ license.workspace = true
 
 [dependencies]
 wabou-bindgen = { workspace = true }
+wabou-database = { workspace = true }
 wabou-runtime = { workspace = true }
 wabou-tray = { workspace = true, optional = true }
 

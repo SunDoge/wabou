@@ -104,12 +104,20 @@ function locatorForAction(page, action) {
 	});
 }
 /** Execute a recorded trace against explicit page and window capabilities. */
-async function replayActions(actions, page, window, assertLocator, assertWindow) {
-	for (const action of actions) if (action.action === "respondToEffect") page.effects.respond(action.operation, action.result);
+async function replayActions(actions, page, window, files, assertLocator, assertWindow) {
+	const fixturePaths = /* @__PURE__ */ new Map();
+	const remapFixturePaths = (value) => {
+		if (typeof value === "string") return fixturePaths.get(value) ?? value;
+		if (Array.isArray(value)) return value.map(remapFixturePaths);
+		if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, remapFixturePaths(item)]));
+		return value;
+	};
+	for (const action of actions) if (action.action === "writeTextFile") fixturePaths.set(action.path, files.writeText(action.relativePath, action.contents));
+	else if (action.action === "respondToEffect") page.effects.respond(action.operation, remapFixturePaths(action.result));
 	else if (action.action === "nativeClose") await window.nativeClose(action.windowId, action.platform);
 	else if (action.action === "showWindow") await window.show(action.windowId);
 	else if (action.action === "resizeWindow") await window.resize(action.windowId, action.width, action.height);
-	else if (action.action === "fileDrop") await window.fileDrop(action.windowId, action.phase, action.paths);
+	else if (action.action === "fileDrop") await window.fileDrop(action.windowId, action.phase, action.paths.map((path) => fixturePaths.get(path) ?? path));
 	else if (action.action === "clickByRole") await locatorForAction(page, action).click(action.wait);
 	else if (action.action === "waitForByRole") await locatorForAction(page, action).waitFor(action.wait);
 	else if (action.action === "assertByRole") await assertLocator(locatorForAction(page, action), action);
@@ -600,6 +608,12 @@ const context = {
 		const result = JSON.parse(capability().writeTextFile(relativePath, contents));
 		if (result.error) throw new Error(result.error);
 		if (!result.path) throw new Error("native test fixture omitted its path");
+		trace.push({
+			action: "writeTextFile",
+			relativePath,
+			contents,
+			path: result.path
+		});
 		return result.path;
 	} }
 };
@@ -724,7 +738,7 @@ async function assertLocatorEventually(target, assertion, options = {}) {
 /** Register a previously recorded action trace as a behavior test. */
 function replay(actions) {
 	test("replay action trace", async ({ window }) => {
-		await replayActions(actions, context.page, window, replayLocatorAssertion, replayWindowAssertion);
+		await replayActions(actions, context.page, window, context.files, replayLocatorAssertion, replayWindowAssertion);
 	}, { timeout: replayTimeout(actions) });
 }
 async function replayLocatorAssertion(locator, action) {

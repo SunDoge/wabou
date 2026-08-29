@@ -535,6 +535,152 @@ type JsonCapabilityClient = <Response>(method: string, request?: unknown) => Pro
 /** Bind Wabou's versioned JSON capability transport to a typed app wrapper. */
 declare function bindJsonCapability<Capability extends NativeJsonCapability>(capability: Capability | undefined, options: JsonCapabilityClientOptions): JsonCapabilityClient;
 //#endregion
+//#region src/glue/kv.d.ts
+/** JSON-compatible values stored by the built-in KV service. */
+type KvValue = null | boolean | number | string | readonly KvValue[] | {
+  readonly [key: string]: KvValue;
+};
+/** One component of a hierarchical key. */
+type KvKeyPart = string | number | boolean | Uint8Array;
+/** Hierarchical key whose array boundaries define namespaces. */
+type KvKey = readonly KvKeyPart[];
+/** Decimal revision assigned by SQLite to an atomic commit. */
+type KvVersionstamp = string;
+interface KvEntry<T extends KvValue = KvValue> {
+  readonly key: KvKey;
+  readonly value: T;
+  readonly versionstamp: KvVersionstamp;
+  readonly expiresAt?: number;
+}
+interface KvSetOptions {
+  /** Remove the entry after this many milliseconds. */
+  expireIn?: number;
+}
+interface KvListOptions {
+  prefix?: KvKey;
+  limit?: number;
+  reverse?: boolean;
+}
+interface KvCheck {
+  key: KvKey;
+  /** `null` requires the key to be absent. */
+  versionstamp: KvVersionstamp | null;
+}
+interface KvCommitResult {
+  readonly committed: boolean;
+  readonly versionstamp?: KvVersionstamp;
+}
+type WireKeyPart = {
+  type: "string";
+  value: string;
+} | {
+  type: "i64";
+  value: string;
+} | {
+  type: "bytes";
+  value: number[];
+} | {
+  type: "bool";
+  value: boolean;
+};
+interface WireEntry {
+  key: WireKeyPart[];
+  value: KvValue;
+  versionstamp: string;
+  expiresAt: number | null;
+}
+interface NativeKvCapability extends NativeCapability {
+  get(request: {
+    key: WireKeyPart[];
+  }): Promise<WireEntry | null>;
+  set(request: {
+    key: WireKeyPart[];
+    value: KvValue;
+    expireIn?: number;
+  }): Promise<{
+    versionstamp: string;
+  }>;
+  delete(request: {
+    key: WireKeyPart[];
+  }): Promise<{
+    versionstamp: string;
+  }>;
+  list(request: {
+    prefix: WireKeyPart[];
+    limit: number;
+    reverse: boolean;
+  }): Promise<WireEntry[]>;
+  atomic(request: {
+    checks: {
+      key: WireKeyPart[];
+      versionstamp: string | null;
+    }[];
+    mutations: ({
+      type: "set";
+      key: WireKeyPart[];
+      value: KvValue;
+      expireIn?: number;
+    } | {
+      type: "delete";
+      key: WireKeyPart[];
+    })[];
+  }): Promise<{
+    committed: boolean;
+    versionstamp: string | null;
+  }>;
+}
+/** Fluent optimistic transaction committed as one SQLite transaction. */
+declare class KvAtomicOperation {
+  #private;
+  constructor(prefix: KvKey, native: NativeKvCapability);
+  check(check: KvCheck | Pick<KvEntry, "key" | "versionstamp">): this;
+  set(key: KvKey, value: KvValue, options?: KvSetOptions): this;
+  delete(key: KvKey): this;
+  commit(): Promise<KvCommitResult>;
+}
+/** Application-scoped view of the built-in SQLite KV service. */
+interface Kv {
+  get<T extends KvValue = KvValue>(key: KvKey): Promise<KvEntry<T> | null>;
+  set(key: KvKey, value: KvValue, options?: KvSetOptions): Promise<KvVersionstamp>;
+  delete(key: KvKey): Promise<KvVersionstamp>;
+  list<T extends KvValue = KvValue>(options?: KvListOptions): AsyncIterable<KvEntry<T>>;
+  atomic(): KvAtomicOperation;
+}
+interface KvSignal<T extends KvValue> {
+  /** Current local value; available immediately. */
+  readonly value: Accessor<T>;
+  /** Whether the initial durable read has settled. */
+  readonly ready: Accessor<boolean>;
+  /** Most recent load or write failure. */
+  readonly error: Accessor<unknown>;
+  /** Update locally and schedule persistence. */
+  set(next: T | ((previous: T) => T)): void;
+  /** Reload without overwriting a newer local edit. */
+  reload(): Promise<void>;
+  /** Immediately persist the latest pending value. */
+  flush(): Promise<void>;
+}
+/**
+ * Bind one explicit KV key to Solid state.
+ *
+ * The key is deliberately required: source location, signal creation order,
+ * and variable names are not stable persistence identities across HMR or
+ * refactors.
+ */
+declare function createKvSignal<T extends KvValue>(options: {
+  kv: Kv;
+  key: KvKey;
+  initial: T;
+  saveDelayMs?: number;
+}): KvSignal<T>;
+/**
+ * Open a namespaced view of the host's SQLite store.
+ *
+ * The host must opt in with `HostBuilder::kv()` and configure stable app
+ * directories. Prefixes are prepended by whole key parts, never string joined.
+ */
+declare function openKv(prefix?: KvKey): Kv;
+//#endregion
 //#region src/glue/latest-async-resource.d.ts
 interface LatestAsyncResourceOptions<K, T> {
   source: Accessor<K | undefined>;
@@ -621,5 +767,5 @@ interface KeyedListPatch<T, Key> {
  */
 declare function reconcileKeyedList<T, Key>(current: readonly T[], patch: KeyedListPatch<T, Key>, keyOf: (value: T) => Key): T[] | undefined;
 //#endregion
-export { Affine2D, type AppDirectories, type AppLifecycleEvent, type AppLifecycleState, type Application, type AsyncAction, AsyncActionConflictError, type AsyncActionResult, type BuiltinHost, type CalendarDateFields, type CapabilityClientOptions, CapabilityError, ClassValue, type Clipboard, type ColorPalette, type ColorThemeAnimation, type ColorThemeAnimationOptions, type ColorThemeController, type ColorThemeEasing, ColorThemeProvider, type CreateWindowOptions, type DebugOverlayOptions, type DebugOverlayPaintStats, type Dialog, type DialogFilter, Dynamic, DynamicProps, EVENT_CODE, type EntityKey, type EventEffectOptions, type FileDropEvent, type FileDropHandler, type FileDropPhase, type FileDropPosition, ForEntity, type ForEntityProps, type FrameStats, GRAPHIC_SOURCE, type GestureEvent, type GestureHandler, type GesturePhase, Handle, type Host, HostCapabilities, type HostJsonSubscriptionOptions, type HostMessage, type HostMessageAllHandler, type HostMessageHandler, HostProvider, type HostProviderProps, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, type JSX, type JsonCapabilityClient, type JsonCapabilityClientOptions, JsonCapabilityError, type JsonCapabilityMethodName, type KeyboardModifiers, type KeyedAsyncAction, KeyedListPatch, type LatestAsyncResource, type LatestAsyncResourceOptions, type LatestAsyncResourceStatus, type LayoutNodeMetrics, type LayoutRect, type LayoutScrollMetrics, type LayoutSnapshot, type LayoutTarget, type MessageDialogButtons, type MessageDialogLevel, type MessageDialogOptions, type MessageDialogResult, type NativeCapability, type NativeJsonCapability, type NativeMenuItem, type NativeMenuOptions, type NativeMenuPosition, NativeScrollbarStyle, type Notification, type NotificationOptions, OP, type OpenDialogOptions, PathBuilder, PathFillRule, PathLineCap, PathLineJoin, PathPoint, type PickDirectoryOptions, PlatformProvider, type PlatformProviderProps, type PlatformServices, Portal, type PortalProps, type RevisionedHostPatch, type RevisionedHostResource, type RevisionedHostResourceOptions, type RevisionedHostValue, RevisionedHostWaitError, type RevisionedHostWaitErrorReason, type RevisionedHostWaitOptions, STYLE_VALUE, type SaveDialogOptions, Shadow, ShadowOptions, StyleValueKind, TEXT_BEHAVIOR, TypedStyleValue, VectorPath, VectorPathPaint, VirtualList, type VirtualListProps, WabouBaseUtility, WabouBuiltinIntrinsicElements, WabouColorToken, WabouControlProps, WabouDynamicUtility, WabouElementProps, WabouEventTarget, WabouExposedSemanticRole, WabouGlobalPointerEventType, WabouGlobalPointerListener, WabouImageProps, WabouImeDeleteSurroundingEvent, WabouImePreeditEvent, WabouInputEvent, WabouInputProps, WabouIntrinsicElements, WabouKeyEvent, WabouNativeElements, WabouNativeTag, WabouNodeEvent, WabouPointerEvent, WabouPositionedEvent, WabouScrollEvent, WabouSemanticRole, WabouSpacingToken, WabouStaticUtility, type WabouStyle, WabouSvgProps, WabouSvgShapeProps, WabouTextCommitEvent, WabouTextSelectionChangeEvent, WabouUtility, WabouVectorPathProps, WabouWheelEvent, type WindowHandle, type WindowKey, type WindowMetrics, type WindowSizeQuery, type WindowState, type Writer, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys, writer };
+export { Affine2D, type AppDirectories, type AppLifecycleEvent, type AppLifecycleState, type Application, type AsyncAction, AsyncActionConflictError, type AsyncActionResult, type BuiltinHost, type CalendarDateFields, type CapabilityClientOptions, CapabilityError, ClassValue, type Clipboard, type ColorPalette, type ColorThemeAnimation, type ColorThemeAnimationOptions, type ColorThemeController, type ColorThemeEasing, ColorThemeProvider, type CreateWindowOptions, type DebugOverlayOptions, type DebugOverlayPaintStats, type Dialog, type DialogFilter, Dynamic, DynamicProps, EVENT_CODE, type EntityKey, type EventEffectOptions, type FileDropEvent, type FileDropHandler, type FileDropPhase, type FileDropPosition, ForEntity, type ForEntityProps, type FrameStats, GRAPHIC_SOURCE, type GestureEvent, type GestureHandler, type GesturePhase, Handle, type Host, HostCapabilities, type HostJsonSubscriptionOptions, type HostMessage, type HostMessageAllHandler, type HostMessageHandler, HostProvider, type HostProviderProps, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, type JSX, type JsonCapabilityClient, type JsonCapabilityClientOptions, JsonCapabilityError, type JsonCapabilityMethodName, type KeyboardModifiers, type KeyedAsyncAction, KeyedListPatch, type Kv, KvAtomicOperation, type KvCheck, type KvCommitResult, type KvEntry, type KvKey, type KvKeyPart, type KvListOptions, type KvSetOptions, type KvSignal, type KvValue, type KvVersionstamp, type LatestAsyncResource, type LatestAsyncResourceOptions, type LatestAsyncResourceStatus, type LayoutNodeMetrics, type LayoutRect, type LayoutScrollMetrics, type LayoutSnapshot, type LayoutTarget, type MessageDialogButtons, type MessageDialogLevel, type MessageDialogOptions, type MessageDialogResult, type NativeCapability, type NativeJsonCapability, type NativeMenuItem, type NativeMenuOptions, type NativeMenuPosition, NativeScrollbarStyle, type Notification, type NotificationOptions, OP, type OpenDialogOptions, PathBuilder, PathFillRule, PathLineCap, PathLineJoin, PathPoint, type PickDirectoryOptions, PlatformProvider, type PlatformProviderProps, type PlatformServices, Portal, type PortalProps, type RevisionedHostPatch, type RevisionedHostResource, type RevisionedHostResourceOptions, type RevisionedHostValue, RevisionedHostWaitError, type RevisionedHostWaitErrorReason, type RevisionedHostWaitOptions, STYLE_VALUE, type SaveDialogOptions, Shadow, ShadowOptions, StyleValueKind, TEXT_BEHAVIOR, TypedStyleValue, VectorPath, VectorPathPaint, VirtualList, type VirtualListProps, WabouBaseUtility, WabouBuiltinIntrinsicElements, WabouColorToken, WabouControlProps, WabouDynamicUtility, WabouElementProps, WabouEventTarget, WabouExposedSemanticRole, WabouGlobalPointerEventType, WabouGlobalPointerListener, WabouImageProps, WabouImeDeleteSurroundingEvent, WabouImePreeditEvent, WabouInputEvent, WabouInputProps, WabouIntrinsicElements, WabouKeyEvent, WabouNativeElements, WabouNativeTag, WabouNodeEvent, WabouPointerEvent, WabouPositionedEvent, WabouScrollEvent, WabouSemanticRole, WabouSpacingToken, WabouStaticUtility, type WabouStyle, WabouSvgProps, WabouSvgShapeProps, WabouTextCommitEvent, WabouTextSelectionChangeEvent, WabouUtility, WabouVectorPathProps, WabouWheelEvent, type WindowHandle, type WindowKey, type WindowMetrics, type WindowSizeQuery, type WindowState, type Writer, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createKvSignal, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, openKv, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys, writer };
 //# sourceMappingURL=index.d.mts.map

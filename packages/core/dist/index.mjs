@@ -1676,6 +1676,220 @@ function bindCapability(capability, options) {
 	return capability;
 }
 //#endregion
+//#region src/glue/kv.ts
+/** Fluent optimistic transaction committed as one SQLite transaction. */
+var KvAtomicOperation = class {
+	#prefix;
+	#native;
+	#checks = [];
+	#mutations = [];
+	constructor(prefix, native) {
+		this.#prefix = prefix;
+		this.#native = native;
+	}
+	check(check) {
+		this.#checks.push({
+			key: encodeKey(scopedKey(this.#prefix, check.key)),
+			versionstamp: check.versionstamp
+		});
+		return this;
+	}
+	set(key, value, options = {}) {
+		this.#mutations.push({
+			type: "set",
+			key: encodeKey(scopedKey(this.#prefix, key)),
+			value,
+			...encodeExpiry(options)
+		});
+		return this;
+	}
+	delete(key) {
+		this.#mutations.push({
+			type: "delete",
+			key: encodeKey(scopedKey(this.#prefix, key))
+		});
+		return this;
+	}
+	async commit() {
+		const result = await this.#native.atomic({
+			checks: this.#checks,
+			mutations: this.#mutations
+		});
+		return {
+			committed: result.committed,
+			...result.versionstamp === null ? {} : { versionstamp: result.versionstamp }
+		};
+	}
+};
+/**
+* Bind one explicit KV key to Solid state.
+*
+* The key is deliberately required: source location, signal creation order,
+* and variable names are not stable persistence identities across HMR or
+* refactors.
+*/
+function createKvSignal(options) {
+	const [value, setValue] = createSignal(() => options.initial, { ownedWrite: true });
+	const [ready, setReady] = createSignal(false);
+	const [error, setError] = createSignal();
+	let generation = 0;
+	let pending;
+	let timer;
+	let writer;
+	const reload = async () => {
+		const startedAt = generation;
+		try {
+			const entry = await options.kv.get(options.key);
+			if (generation === startedAt && entry !== null) setValue(() => entry.value);
+			setError(void 0);
+		} catch (cause) {
+			setError(cause);
+		} finally {
+			setReady(true);
+		}
+	};
+	const drain = async () => {
+		while (pending !== void 0) {
+			const next = pending;
+			pending = void 0;
+			try {
+				await options.kv.set(options.key, next);
+				setError(void 0);
+			} catch (cause) {
+				if (pending === void 0) pending = next;
+				setError(cause);
+				throw cause;
+			}
+		}
+	};
+	const flush = () => {
+		if (timer !== void 0) clearTimeout(timer);
+		timer = void 0;
+		if (writer) return writer;
+		writer = drain().finally(() => {
+			writer = void 0;
+		});
+		return writer;
+	};
+	const set = (next) => {
+		const resolved = typeof next === "function" ? next(value()) : next;
+		generation += 1;
+		setValue(() => resolved);
+		pending = resolved;
+		if (timer !== void 0) clearTimeout(timer);
+		timer = setTimeout(() => void flush().catch(() => {}), options.saveDelayMs ?? 150);
+	};
+	reload();
+	onCleanup(() => {
+		flush().catch(() => {});
+	});
+	return {
+		value,
+		ready,
+		error,
+		set,
+		reload,
+		flush
+	};
+}
+/**
+* Open a namespaced view of the host's SQLite store.
+*
+* The host must opt in with `HostBuilder::kv()` and configure stable app
+* directories. Prefixes are prepended by whole key parts, never string joined.
+*/
+function openKv(prefix = []) {
+	const native = bindCapability(useHost().kv, {
+		name: "kv",
+		version: 1
+	});
+	const namespace = [...prefix];
+	for (const part of namespace) encodePart(part);
+	return {
+		async get(key) {
+			const entry = await native.get({ key: encodeKey(scopedKey(namespace, key)) });
+			return entry === null ? null : decodeEntry(entry, namespace.length);
+		},
+		async set(key, value, options = {}) {
+			return (await native.set({
+				key: encodeKey(scopedKey(namespace, key)),
+				value,
+				...encodeExpiry(options)
+			})).versionstamp;
+		},
+		async delete(key) {
+			return (await native.delete({ key: encodeKey(scopedKey(namespace, key)) })).versionstamp;
+		},
+		async *list(options = {}) {
+			const limit = options.limit ?? 100;
+			if (!Number.isSafeInteger(limit) || limit < 0) throw new RangeError("KV list limit must be a non-negative safe integer");
+			const entries = await native.list({
+				prefix: encodeKey([...namespace, ...options.prefix ?? []], true),
+				limit,
+				reverse: options.reverse ?? false
+			});
+			for (const entry of entries) yield decodeEntry(entry, namespace.length);
+		},
+		atomic: () => new KvAtomicOperation(namespace, native)
+	};
+}
+function scopedKey(prefix, key) {
+	const scoped = [...prefix, ...key];
+	if (scoped.length === 0) throw new TypeError("KV keys must contain at least one part");
+	return scoped;
+}
+function encodeKey(key, allowEmpty = false) {
+	if (!allowEmpty && key.length === 0) throw new TypeError("KV keys must contain at least one part");
+	return key.map(encodePart);
+}
+function encodePart(part) {
+	if (typeof part === "string") return {
+		type: "string",
+		value: part
+	};
+	if (typeof part === "boolean") return {
+		type: "bool",
+		value: part
+	};
+	if (typeof part === "number") {
+		if (!Number.isSafeInteger(part)) throw new RangeError("numeric KV key parts must be safe integers");
+		return {
+			type: "i64",
+			value: String(part)
+		};
+	}
+	if (part instanceof Uint8Array) return {
+		type: "bytes",
+		value: Array.from(part)
+	};
+	throw new TypeError("unsupported KV key part");
+}
+function decodePart(part) {
+	switch (part.type) {
+		case "string":
+		case "bool": return part.value;
+		case "i64": {
+			const value = Number(part.value);
+			if (!Number.isSafeInteger(value)) throw new RangeError(`KV integer ${part.value} is not safe in JavaScript`);
+			return value;
+		}
+		case "bytes": return Uint8Array.from(part.value);
+	}
+}
+function decodeEntry(entry, prefixLength) {
+	return {
+		key: entry.key.slice(prefixLength).map(decodePart),
+		value: entry.value,
+		versionstamp: entry.versionstamp,
+		...entry.expiresAt === null ? {} : { expiresAt: entry.expiresAt }
+	};
+}
+function encodeExpiry(options) {
+	if (options.expireIn === void 0) return {};
+	if (!Number.isSafeInteger(options.expireIn) || options.expireIn < 0) throw new RangeError("KV expireIn must be a non-negative safe integer");
+	return { expireIn: options.expireIn };
+}
+//#endregion
 //#region src/glue/latest-async-resource.ts
 /**
 * Load the latest reactive key while exposing ordinary, non-suspending state.
@@ -1793,6 +2007,6 @@ function reconcileKeyedList(current, patch, keyOf) {
 	return ordered;
 }
 //#endregion
-export { AsyncActionConflictError, CapabilityError, ColorThemeProvider, Dynamic, EVENT_CODE, ForEntity, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys, writer };
+export { AsyncActionConflictError, CapabilityError, ColorThemeProvider, Dynamic, EVENT_CODE, ForEntity, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, KvAtomicOperation, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createKvSignal, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, openKv, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys, writer };
 
 //# sourceMappingURL=index.mjs.map

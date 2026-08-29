@@ -17,6 +17,10 @@
 #[cfg(feature = "bindings")]
 pub use wabou_bindgen::{Bindings, Capability, FunctionModule, NativeMethod, Type, specta};
 pub use wabou_bindgen::{CapabilityContract, HostMethod, JsonCapabilityContract, JsonMethod};
+pub use wabou_database::{
+    AtomicCommit as KvAtomicCommit, KvCheck, KvEntry, KvKey, KvKeyPart, KvListOptions, KvMutation,
+    KvStore, Versionstamp as KvVersionstamp,
+};
 pub use wabou_runtime::rquickjs;
 pub use wabou_runtime::vello::peniko::Color;
 pub use wabou_runtime::{

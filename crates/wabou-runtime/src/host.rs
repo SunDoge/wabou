@@ -52,6 +52,7 @@ use crate::bundle;
 use crate::headless_test::run_headless_test;
 use crate::json_capability::JsonCapability;
 use crate::jsrt::JsRuntime;
+use crate::kv::mount_kv_capability;
 use crate::native_capability::NativeCapability;
 use crate::test_report::finish_test_report;
 use crate::{HostMessageContext, HostMessageRouter};
@@ -672,6 +673,7 @@ pub struct HostBuilder {
     effect_trace: Option<EffectTraceConfig>,
     app_directory_config: Option<wabou_shell::AppDirectoryConfig>,
     persisted_window_size: Option<String>,
+    kv_enabled: bool,
     image_resources: crate::ImageResourceStore,
     js_runtime_options: crate::JsRuntimeOptions,
 }
@@ -706,6 +708,7 @@ impl HostBuilder {
             effect_trace: None,
             app_directory_config: None,
             persisted_window_size: None,
+            kv_enabled: false,
             image_resources: image_resources.clone(),
             js_runtime_options: crate::JsRuntimeOptions::default(),
         };
@@ -948,6 +951,15 @@ impl HostBuilder {
         self
     }
 
+    /// Enable the built-in SQLite-backed `kv` capability.
+    ///
+    /// The store is opened lazily at `storage/kv/default.sqlite3` and requires
+    /// [`Self::app_directories`] to provide a stable application identity.
+    pub fn kv(mut self) -> Self {
+        self.kv_enabled = true;
+        self
+    }
+
     /// Enable or disable the local, read-only DevTools socket. It defaults to
     /// enabled in debug builds and is absent from release builds unless opted in.
     pub fn devtools(mut self, enabled: bool) -> Self {
@@ -1072,6 +1084,21 @@ impl HostBuilder {
                 })
             })
             .transpose()?;
+        if self.kv_enabled {
+            let directories = app_directories
+                .as_ref()
+                .ok_or(crate::Error::MissingArgument {
+                    argument: "HostBuilder::app_directories before HostBuilder::kv",
+                })?;
+            let path = directories
+                .storage_namespace("kv")
+                .expect("framework KV namespace is valid")
+                .join("default.sqlite3");
+            let state = Arc::new(tokio::sync::OnceCell::new());
+            self.capabilities.push(Arc::new(move |js| {
+                mount_kv_capability(js, state.clone(), path.clone())
+            }));
+        }
         let service_context = HostServiceContext {
             app_directories: app_directories.clone(),
             behavior_test: test_controller.is_some(),

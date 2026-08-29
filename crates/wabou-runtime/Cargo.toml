@@ -53,6 +53,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 url = { workspace = true }
 vello = { workspace = true }
 wabou-bindgen = { workspace = true }
+wabou-database = { workspace = true }
 wabou-devtools = { workspace = true, optional = true }
 wabou-host-api = { workspace = true }
 wabou-shell = { workspace = true }

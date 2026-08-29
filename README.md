@@ -291,6 +291,7 @@ Read more about [styling](docs/style.md), [windows](docs/windows.md),
 [behavior testing](docs/testing.md),
 [performance profiling](docs/performance.md),
 [cross-compilation](docs/cross-compilation.md),
+[SQLite KV persistence](docs/kv.md),
 [JavaScript packages](docs/packages.md),
 [native widgets](docs/native-widgets.md),
 [host-to-JavaScript communication](docs/host-to-js.md), and

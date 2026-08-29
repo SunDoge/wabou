@@ -11181,6 +11181,7 @@ version = "0.1.0-alpha.3"
 dependencies = [
  "serde",
  "wabou-bindgen",
+ "wabou-database",
  "wabou-runtime",
  "wabou-tray",
 ]
@@ -11230,6 +11231,8 @@ dependencies = [
 name = "wabou-database"
 version = "0.1.0-alpha.3"
 dependencies = [
+ "serde",
+ "serde_json",
  "tokio",
  "turso",
  "uuid",
@@ -11317,6 +11320,7 @@ dependencies = [
  "url",
  "vello",
  "wabou-bindgen",
+ "wabou-database",
  "wabou-devtools",
  "wabou-host-api",
  "wabou-shell",

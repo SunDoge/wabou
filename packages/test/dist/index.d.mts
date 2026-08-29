@@ -271,6 +271,11 @@ interface TestResult {
   durationMs: number;
 }
 type TestAction = {
+  action: "writeTextFile";
+  relativePath: string;
+  contents: string;
+  path: string;
+} | {
   action: "respondToEffect";
   operation: TestEffectOperation;
   result: TestEffectResponseMap[TestEffectOperation];
