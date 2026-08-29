@@ -17,6 +17,11 @@ test("starts a deterministic Pi agent and renders its streamed response", async 
       name: "Fake Pi completed: Explain the fixture",
     }),
   ).toHaveCount(1, { timeout: 5_000 });
+  const toolActivity = page.getByRole("button", {
+    name: "Worked, 1 tool call",
+  });
+  await expect(toolActivity).toHaveCount(1);
+  await toolActivity.click();
   await expect(
     page.getByRole("button", { name: "read: README.md" }),
   ).toHaveCount(1);
@@ -156,19 +161,18 @@ test("returns to an existing agent after creating a new one", async ({
   await expect(second).toBeDeselected();
   await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Explain the fixture",
+      name: "Fake Pi completed: Verify the navigation rail",
     }),
   ).toHaveCount(1);
 });
 
 test("changes model through the native combobox overlay", async ({ page }) => {
   const model = page.getByRole("combobox", { name: "Choose model" });
+  const thinking = page.getByRole("combobox", { name: "Thinking level" });
   await model.click();
   await page.getByRole("option", { name: "Alternative model" }).click();
   await expect(model).toHaveValue("Alternative model");
-  await expect(
-    page.getByRole("label", { name: "Alternative model · medium thinking" }),
-  ).toHaveCount(1);
+  await expect(thinking).toHaveValue("medium");
 });
 
 test("updates project and app settings without losing its conversation", async ({
@@ -230,7 +234,7 @@ test("updates project and app settings without losing its conversation", async (
   ).toBeSelected();
   await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Explain the fixture",
+      name: "Fake Pi completed: Verify the navigation rail",
     }),
   ).toHaveCount(1);
 });
@@ -251,7 +255,7 @@ test("creates a fresh session and restores the previous transcript", async ({
   await expect(previousSession).toBeDeselected();
   await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Explain the fixture",
+      name: "Fake Pi completed: Verify the navigation rail",
     }),
   ).toBeAbsent();
 
@@ -260,7 +264,7 @@ test("creates a fresh session and restores the previous transcript", async ({
   await expect(freshSession).toBeDeselected();
   await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Explain the fixture",
+      name: "Fake Pi completed: Verify the navigation rail",
     }),
   ).toHaveCount(1, { timeout: 5_000 });
   await expect(
@@ -296,7 +300,7 @@ test("clones and compacts a session without losing its transcript", async ({
   await expect(clone).toBeSelected({ timeout: 5_000 });
   await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Explain the fixture",
+      name: "Fake Pi completed: Verify the navigation rail",
     }),
   ).toHaveCount(1, { timeout: 5_000 });
 
@@ -304,7 +308,7 @@ test("clones and compacts a session without losing its transcript", async ({
   await page.getByRole("menuitem", { name: "Compact context" }).click();
   await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Explain the fixture",
+      name: "Fake Pi completed: Verify the navigation rail",
     }),
   ).toHaveCount(1, { timeout: 5_000 });
   await expect(
@@ -351,7 +355,7 @@ test("aborts a running response and returns the session to ready", async ({
   ).toHaveValue("gpt-5");
   await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Explain the fixture",
+      name: "Fake Pi completed: Verify the navigation rail",
     }),
   ).toHaveCount(1);
 });
@@ -374,7 +378,7 @@ test("searches the retained transcript and closes without changing sessions", as
   ).toHaveCount(1);
   const search = page.getByRole("textbox", { name: "Search conversation" });
   await expect(search).toHaveCount(1);
-  await search.type("Explain the fixture");
+  await search.type("Verify the navigation rail");
 
   const previous = page.getByRole("button", { name: "Previous match" });
   const next = page.getByRole("button", { name: "Next match" });
@@ -470,7 +474,7 @@ test("keeps retained layout stable across repeated agent switches", async ({
 
   await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Explain the fixture",
+      name: "Fake Pi completed: Verify the navigation rail",
     }),
   ).toHaveCount(1);
 });
@@ -602,7 +606,7 @@ test("recovers after the Pi process exits unexpectedly", async ({ page }) => {
 });
 
 test(
-  "prepares a default workspace after deleting the last project",
+  "keeps one usable project instead of implicitly replacing the last one",
   async ({ page }) => {
     const deleteCurrentProject = async (name: string) => {
       await page.getByRole("button", { name: "Settings" }).click();
@@ -614,16 +618,15 @@ test(
 
     await deleteCurrentProject("Workspace Agent");
     await expect(
-      page.getByRole("button", { name: "Project 2" }),
+      page.getByRole("button", { name: "Deterministic test 1" }),
     ).toBeSelected();
-    await deleteCurrentProject("Project 2");
-
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("heading", { name: "Settings" }).waitFor();
+    await page.getByRole("textbox", { name: "Project name" }).wheel(5_000);
     await expect(
-      page.getByRole("button", { name: "Project 3" }),
-    ).toBeSelected();
-    await expect(page.getByRole("button", { name: "Start agent" })).toBeEnabled(
-      { timeout: 5_000 },
-    );
+      page.getByRole("button", { name: "Delete project" }),
+    ).toBeDisabled();
+    await page.getByRole("button", { name: "Back to projects" }).click();
   },
   { timeout: 15_000 },
 );

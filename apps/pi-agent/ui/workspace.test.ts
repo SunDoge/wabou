@@ -2,10 +2,22 @@ import { describe, expect, test } from "vitest";
 import {
   agentProfile,
   createAgentWorkspace,
+  resolveActiveAgentId,
   restoreAgentWorkspace,
 } from "./workspace";
 
 describe("Pi agent workspace", () => {
+  test("never resolves an identity that is absent from the workspace list", () => {
+    const agents = [{ id: "agent-2" }, { id: "agent-3" }];
+    expect(resolveActiveAgentId(agents, "agent-1", "agent-1")).toBe(
+      "agent-2",
+    );
+    expect(resolveActiveAgentId(agents, "agent-3", "agent-1")).toBe(
+      "agent-3",
+    );
+    expect(resolveActiveAgentId([], "agent-1", "agent-1")).toBeUndefined();
+  });
+
   test("creates isolated project identities and mutable configuration values", () => {
     const first = createAgentWorkspace(1);
     const second = createAgentWorkspace(2);

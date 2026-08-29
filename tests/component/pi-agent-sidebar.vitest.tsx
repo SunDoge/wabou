@@ -109,6 +109,34 @@ test("shows sessions only under the active agent and keeps agent selection live"
   expect(selected).toEqual(["agent-1"]);
 });
 
+test("updates an existing project row when the active agent changes", () => {
+  const agents = [createAgentWorkspace(1), createAgentWorkspace(2)];
+  const [activeId, setActiveId] = createSignal(agents[0].id);
+  const screen = renderComponent(() => (
+    <Sidebar
+      agents={agents}
+      sessions={[]}
+      activeId={activeId()}
+      select={setActiveId}
+      selectSession={() => {}}
+      add={() => {}}
+      newSession={() => {}}
+      canCreateSession
+      openSettings={() => {}}
+    />
+  ));
+
+  const first = screen.getByRole("button", { name: "Project 1" });
+  const second = screen.getByRole("button", { name: "Project 2" });
+  expect(first.selected).toBe(true);
+  expect(second.selected).toBe(false);
+
+  second.click();
+  screen.flush();
+  expect(first.selected).toBe(false);
+  expect(second.selected).toBe(true);
+});
+
 test("uses the session id when the persisted session name is blank", () => {
   const agent = createAgentWorkspace(1);
   agent.state.sessionId = "01a047c5-full-session-id";

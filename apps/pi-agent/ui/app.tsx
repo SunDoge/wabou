@@ -105,6 +105,7 @@ import {
   type AgentWorkspace,
   agentProfile,
   createAgentWorkspace,
+  resolveActiveAgentId,
   restoreAgentWorkspace,
 } from "./workspace";
 import { WorkspaceChangesPanel } from "./workspace-changes-panel";
@@ -263,10 +264,9 @@ export function App() {
     },
   );
   const activeId = () => {
-    const routeId = params().agentId;
-    return routeId && agents().some((agent) => agent.id === routeId)
-      ? routeId
-      : lastActiveId();
+    return (
+      resolveActiveAgentId(agents(), params().agentId, lastActiveId()) ?? ""
+    );
   };
   const active = () =>
     agents().find((agent) => agent.id === activeId()) ?? agents()[0];
@@ -725,7 +725,9 @@ export function App() {
   };
 
   const deleteActiveAgent = async () => {
+    if (agents().length <= 1) return;
     const removed = active();
+    const before = agents();
     try {
       await api.deleteAgent(removed.id);
     } catch (error) {
@@ -738,9 +740,26 @@ export function App() {
       }));
       return;
     }
-    setSessions((current) =>
-      current.filter((session) => session.agentId !== removed.id),
-    );
+    const remaining = before.filter((agent) => agent.id !== removed.id);
+    const next = remaining[0];
+    if (!next) return;
+    // Publish the replacement identity before removing the old object. The
+    // host event flush commits these consecutive writes together, and the
+    // settings route has no agent parameter, so resolveActiveAgentId selects
+    // `next` without exposing an absent project identity.
+    setLastActiveId(next.id);
+    setAgents(remaining);
+    // Keep the project settings surface open. Navigating while the alert
+    // dialog's click event is still unwinding can recursively re-enter Router
+    // Core; `/settings` already resolves the newly published active identity.
+    // Historical sessions are harmless here because every read is scoped by
+    // the surviving project IDs. Remove them after the dialog event has fully
+    // unwound so keyed sidebar reconciliation never runs inside its own click.
+    queueMicrotask(() => {
+      setSessions((current) =>
+        current.filter((session) => session.agentId !== removed.id),
+      );
+    });
     setDrafts((current) => removeAgentDrafts(current, removed.id));
     setDraftImages((current) => removeAgentDraftLists(current, removed.id));
     setDraftContext((current) => removeAgentDraftLists(current, removed.id));
@@ -755,24 +774,10 @@ export function App() {
     );
     setExtensionTitles((current) => {
       if (!(removed.id in current)) return current;
-      const next = { ...current };
-      delete next[removed.id];
-      return next;
+      const nextTitles = { ...current };
+      delete nextTitles[removed.id];
+      return nextTitles;
     });
-    const remaining = agents().filter((agent) => agent.id !== removed.id);
-    const next =
-      remaining[0] ??
-      createAgentWorkspace(
-        Math.max(
-          0,
-          ...agents().map(
-            (agent) => Number(agent.id.match(/^agent-(\d+)$/)?.[1]) || 0,
-          ),
-        ) + 1,
-      );
-    setAgents(remaining.length > 0 ? remaining : [next]);
-    setLastActiveId(next.id);
-    await navigate({ to: `/agents/${next.id}` });
     if (!next.cwd) prepareDefaultWorkspace(next.id);
   };
 
@@ -957,6 +962,7 @@ export function App() {
               app={defaults.value()}
               project={active()}
               state={active().state}
+              canDeleteProject={agents().length > 1}
               updateApp={defaults.update}
               updateProject={patchActive}
               deleteProject={() => void deleteActiveAgent()}
