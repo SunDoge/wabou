@@ -11,6 +11,7 @@ import {
   Icon,
   Markdown,
   Message,
+  MessageActions,
   MessageContent,
   MessageGroup,
   MessageHeader,
@@ -22,7 +23,9 @@ import {
   useReducedMotion,
   View,
 } from "@wabou/ui";
+import check from "lucide-static/icons/check.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
+import copy from "lucide-static/icons/copy.svg?raw";
 import fileCode from "lucide-static/icons/file-code-2.svg?raw";
 import gitBranch from "lucide-static/icons/git-branch.svg?raw";
 import image from "lucide-static/icons/image.svg?raw";
@@ -495,61 +498,33 @@ export function ConversationItem(props: {
                 : undefined
             }
           >
+            <Show when={props.item.kind === "notice"}>
+              <MessageHeader>System</MessageHeader>
+            </Show>
+            <Show when={props.item.kind === "user" && props.item.queued}>
+              <MessageHeader>
+                <View role="status" aria-label="Queued follow-up">
+                  <Badge variant="secondary">Queued</Badge>
+                </View>
+              </MessageHeader>
+            </Show>
             <Show
-              when={props.item.kind === "assistant"}
-              fallback={
-                <View class="flex flex-row items-center justify-between gap-2">
-                  <View class="flex flex-row items-center gap-2">
-                    <MessageHeader>
-                      {props.item.kind === "user" ? "You" : "System"}
-                    </MessageHeader>
-                    <Show
-                      when={props.item.kind === "user" && props.item.queued}
-                    >
-                      <View role="status" aria-label="Queued follow-up">
-                        <Badge variant="secondary">Queued</Badge>
-                      </View>
-                    </Show>
-                  </View>
-                  <CopyButton
-                    value={messageText()}
-                    variant="ghost"
-                    size="sm"
-                    idleLabel="Copy"
-                    copiedLabel="Copied"
-                    aria-label="Copy user message"
-                  />
-                  <Show when={props.item.kind === "user" && props.fork}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Fork from this message"
-                      onClick={() => props.fork?.()}
-                    >
-                      <Icon source={gitBranch} size={13} />
-                    </Button>
-                  </Show>
-                </View>
-              }
+              when={props.item.kind === "assistant" && props.item.streaming}
             >
-              <Show
-                when={props.item.kind === "assistant" && props.item.streaming}
+              <View
+                role="status"
+                aria-label="Pi is writing"
+                class="h-6 px-1 flex flex-row items-center gap-1.5"
               >
-                <View
-                  role="status"
-                  aria-label="Pi is writing"
-                  class="h-6 px-1 flex flex-row items-center gap-1.5"
-                >
-                  <Pulse
-                    aria-hidden="true"
-                    class="w-1.5 h-1.5 rounded-full bg-accent"
-                    from={0.3}
-                    to={1}
-                    duration={0.8}
-                  />
-                  <Text class="text-xs text-muted">Pi is writing</Text>
-                </View>
-              </Show>
+                <Pulse
+                  aria-hidden="true"
+                  class="w-1.5 h-1.5 rounded-full bg-accent"
+                  from={0.3}
+                  to={1}
+                  duration={0.8}
+                />
+                <Text class="text-xs text-muted">Pi is writing</Text>
+              </View>
             </Show>
             <Show
               when={props.item.kind === "assistant" && props.item.thinkingText}
@@ -654,17 +629,47 @@ export function ConversationItem(props: {
                 </Show>
               </BubbleContent>
             </Bubble>
-            <Show when={props.item.kind === "assistant" && messageText()}>
-              <View class="h-7 px-1 flex flex-row items-center justify-start">
+            <Show
+              when={
+                messageText() &&
+                (props.item.kind === "assistant" || props.item.kind === "user")
+              }
+            >
+              <MessageActions
+                aria-label={
+                  props.item.kind === "user"
+                    ? "User message actions"
+                    : "Assistant response actions"
+                }
+              >
                 <CopyButton
                   value={messageText()}
                   variant="ghost"
-                  size="sm"
+                  size="icon"
+                  class="w-7 h-7 text-muted"
                   idleLabel="Copy"
                   copiedLabel="Copied"
-                  aria-label="Copy assistant response"
-                />
-              </View>
+                  aria-label={
+                    props.item.kind === "user"
+                      ? "Copy user message"
+                      : "Copy assistant response"
+                  }
+                  copiedChildren={<Icon source={check} size={13} />}
+                >
+                  <Icon source={copy} size={13} />
+                </CopyButton>
+                <Show when={props.item.kind === "user" && props.fork}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    class="w-7 h-7 text-muted"
+                    aria-label="Fork from this message"
+                    onClick={() => props.fork?.()}
+                  >
+                    <Icon source={gitBranch} size={13} />
+                  </Button>
+                </Show>
+              </MessageActions>
             </Show>
           </MessageContent>
         </Message>

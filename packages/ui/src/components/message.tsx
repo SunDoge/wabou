@@ -1,3 +1,4 @@
+import { mergeClasses } from "@wabou/core/style";
 import { createContext, type JSX, omit, Show, useContext } from "solid-js";
 import { match } from "ts-pattern";
 import {
@@ -7,7 +8,6 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 export type MessageAlign = "start" | "end";
 export type BubbleVariant =
@@ -129,6 +129,31 @@ export function MessageHeader(props: TextProps): JSX.Element {
 }
 
 export const MessageFooter = MessageHeader;
+
+export function messageActionsClass(
+  align: MessageAlign = "start",
+  className?: string,
+): string {
+  return mergeClasses(
+    "h-7 px-1 flex flex-row items-center gap-1",
+    align === "end" ? "self-end justify-end" : "self-start justify-start",
+    className,
+  );
+}
+
+/** Compact, consistently aligned actions belonging to one message. */
+export function MessageActions(props: ViewProps): JSX.Element {
+  const context = useContext(MessageContext);
+  return (
+    <View
+      {...props}
+      role={props.role ?? "toolbar"}
+      class={messageActionsClass(context.align(), props.class)}
+    >
+      {props.children}
+    </View>
+  );
+}
 
 export function BubbleGroup(props: ViewProps): JSX.Element {
   return (

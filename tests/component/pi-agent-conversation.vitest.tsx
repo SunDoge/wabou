@@ -78,6 +78,9 @@ test("Pi Agent exposes streaming progress without wrapping assistant prose in a 
   expect(
     screen.getByRole("button", { name: "Copy assistant response" }),
   ).toBeTruthy();
+  expect(
+    screen.getByRole("toolbar", { name: "Assistant response actions" }).text,
+  ).toBe("");
 });
 
 test("Pi Agent messages enter with finite native motion", async () => {
@@ -410,6 +413,9 @@ test("Pi Agent keeps submitted image names visible and user messages copyable", 
   expect(
     screen.getByRole("button", { name: "Copy user message" }),
   ).toBeTruthy();
+  expect(
+    screen.getByRole("toolbar", { name: "User message actions" }).text,
+  ).toBe("");
   screen.getByRole("button", { name: "Fork from this message" }).click();
   expect(fork).toHaveBeenCalledOnce();
 });
