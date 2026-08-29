@@ -160,8 +160,31 @@ try {
             role: "textbox",
             name: "Ask this agent to work in its repository…",
           });
-          getLayoutNode(fixture, { role: "combobox", name: "Choose model" });
-          getLayoutNode(fixture, { role: "combobox", name: "Thinking level" });
+          const model = getLayoutNode(fixture, {
+            role: "combobox",
+            name: "Choose model",
+          });
+          const thinking = getLayoutNode(fixture, {
+            role: "combobox",
+            name: "Thinking level",
+          });
+          if (model.rect.width < 176) {
+            throw new Error(
+              `model control lost its readable width: width=${model.rect.width}`,
+            );
+          }
+          if (thinking.rect.width < 112) {
+            throw new Error(
+              `thinking control lost its readable width: width=${thinking.rect.width}`,
+            );
+          }
+          const thinkingLabel = getLayoutNode(fixture, { text: "medium" });
+          const paintedWidth = thinkingLabel.textMetrics?.lineBox.width ?? 0;
+          if (paintedWidth < 40) {
+            throw new Error(
+              `thinking value was visually truncated: painted width=${paintedWidth}`,
+            );
+          }
           getLayoutNode(fixture, { role: "button", name: "Send" });
         },
       },

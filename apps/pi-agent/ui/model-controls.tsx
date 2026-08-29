@@ -39,10 +39,10 @@ export function ModelControls(props: {
     props.thinkingLevels.map((level) => ({ value: level, label: level }));
 
   return (
-    <View class="min-w-0 flex-none flex flex-row items-center gap-0.5 overflow-hidden">
+    <View class="min-w-0 flex-none flex flex-row items-center gap-1 overflow-hidden">
       <Combobox
         aria-label={i18n.message(m.choose_model, {})}
-        class="w-36 border-transparent bg-transparent shadow-none"
+        class="w-44 border-transparent shadow-none"
         contentClass="w-80"
         options={modelOptions()}
         value={selectedModel()}
@@ -61,7 +61,7 @@ export function ModelControls(props: {
       />
       <Select
         aria-label={i18n.message(m.choose_thinking, {})}
-        class="w-20 border-transparent bg-transparent shadow-none"
+        class="w-28 border-transparent shadow-none"
         contentClass="w-40"
         options={thinkingOptions()}
         value={props.thinking}
