@@ -5,6 +5,7 @@ import { DiffViewer, Text, View, WorkbenchHeader } from "@wabou/ui";
 import { AgentActivityStatus } from "./agent-activity";
 import { initialAgentState } from "./agent-state";
 import { AppCommandPalette } from "./app-command-palette";
+import { ConversationContext } from "./conversation-context";
 import { ModelControls } from "./model-controls";
 import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
@@ -51,6 +52,21 @@ defineLayoutFixtures({
             }}
           />
         </View>
+        <View class="w-24 h-8 flex-none bg-control rounded-md" />
+      </WorkbenchHeader>
+    ),
+  },
+  "shell/conversation-context": {
+    width: 520,
+    height: 48,
+    render: () => (
+      <WorkbenchHeader class="w-full h-full bg-canvas justify-between">
+        <ConversationContext
+          project="Documentation workspace"
+          branch="feat/readable-conversation-chrome"
+          session="Explain why this renderer keeps the native boundary explicit"
+          state={initialAgentState}
+        />
         <View class="w-24 h-8 flex-none bg-control rounded-md" />
       </WorkbenchHeader>
     ),

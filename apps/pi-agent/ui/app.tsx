@@ -44,7 +44,6 @@ import {
   reducePiEvent,
   reducePiEvents,
 } from "./agent-state";
-import { AgentActivityStatus } from "./agent-activity";
 import { AppCommandPalette } from "./app-command-palette";
 import { type PiSession, usePiApi } from "./api";
 import { CommandPicker } from "./command-picker";
@@ -62,6 +61,7 @@ import {
   imageFileName,
 } from "./composer-images";
 import { ConversationList } from "./conversation";
+import { ConversationContext } from "./conversation-context";
 import { ConversationWelcome } from "./conversation-welcome";
 import { createDeferredWriter } from "./deferred-writer";
 import {
@@ -975,22 +975,26 @@ export function App() {
       >
         <WorkbenchMain>
           <WorkbenchHeader class="bg-canvas border-0 justify-between">
-            <View class="min-w-0 flex-1 overflow-hidden flex flex-row items-center gap-1">
-              <Text class="min-w-0 truncate text-sm font-medium text-secondary">
-                {activeSession()?.name ??
-                  active().state.sessionName ??
-                  active().name}
-              </Text>
-              <Show when={active().state.sessionId}>
-                <SessionTitle
-                  name={
-                    activeSession()?.name ?? active().state.sessionName ?? ""
-                  }
-                  rename={(name) => api.renameSession(active().id, name)}
-                />
-              </Show>
-              <AgentActivityStatus state={active().state} />
-            </View>
+            <ConversationContext
+              project={active().name}
+              branch={workspaceInfo.latest()?.branch}
+              session={
+                activeSession()?.name ??
+                active().state.sessionName ??
+                active().name
+              }
+              state={active().state}
+              titleAction={
+                <Show when={active().state.sessionId}>
+                  <SessionTitle
+                    name={
+                      activeSession()?.name ?? active().state.sessionName ?? ""
+                    }
+                    rename={(name) => api.renameSession(active().id, name)}
+                  />
+                </Show>
+              }
+            />
             <Show
               when={
                 active().state.connection === "ready" ||

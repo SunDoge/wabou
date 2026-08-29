@@ -63,6 +63,19 @@ try {
         },
       },
       {
+        id: "shell/conversation-context",
+        width: 520,
+        height: 48,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, {
+            role: "group",
+            name: "Documentation workspace, feat/readable-conversation-chrome, Explain why this renderer keeps the native boundary explicit",
+          });
+          getLayoutNode(fixture, { text: "feat/readable-conversation-chrome" });
+        },
+      },
+      {
         id: "workspace/files-panel",
         width: 420,
         height: 720,
