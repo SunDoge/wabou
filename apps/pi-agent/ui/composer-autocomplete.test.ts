@@ -2,10 +2,17 @@ import { describe, expect, test } from "vitest";
 import {
   composerAutocompleteRows,
   detectComposerTrigger,
+  normalizeComposerCursor,
   replaceComposerTrigger,
 } from "./composer-autocomplete";
 
 describe("Pi Agent composer autocomplete", () => {
+  test("normalizes stale cursor offsets against the current draft", () => {
+    expect(normalizeComposerCursor("", 20)).toBe(0);
+    expect(normalizeComposerCursor("a😀b", 2)).toBe(3);
+    expect(normalizeComposerCursor("a😀b", 3)).toBe(3);
+  });
+
   test("recognizes commands only at the start of the active line", () => {
     expect(detectComposerTrigger("/rev", 4)).toEqual({
       kind: "command",

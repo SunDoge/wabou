@@ -11,6 +11,20 @@ export interface ComposerTrigger {
   end: number;
 }
 
+/** Clamp an external/stale cursor to a valid JavaScript UTF-16 boundary. */
+export function normalizeComposerCursor(text: string, cursor: number): number {
+  const clamped = Math.max(0, Math.min(cursor, text.length));
+  if (clamped === 0 || clamped === text.length) return clamped;
+  const before = text.charCodeAt(clamped - 1);
+  const after = text.charCodeAt(clamped);
+  return before >= 0xd800 &&
+    before <= 0xdbff &&
+    after >= 0xdc00 &&
+    after <= 0xdfff
+    ? clamped + 1
+    : clamped;
+}
+
 export type ComposerAutocompleteRow =
   | { kind: "command"; id: string; label: string; description: string }
   | { kind: "file"; id: string; label: string; description: string };
@@ -20,7 +34,7 @@ export function detectComposerTrigger(
   text: string,
   cursor: number,
 ): ComposerTrigger | null {
-  const end = Math.max(0, Math.min(cursor, text.length));
+  const end = normalizeComposerCursor(text, cursor);
   const lineStart = text.lastIndexOf("\n", end - 1) + 1;
   const linePrefix = text.slice(lineStart, end);
   if (linePrefix.startsWith("/")) {

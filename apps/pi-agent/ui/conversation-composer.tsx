@@ -16,6 +16,7 @@ import {
   createEffect,
   createMemo,
   createSignal,
+  flush,
   Show,
   untrack,
 } from "solid-js";
@@ -30,6 +31,7 @@ import { CommandPicker } from "./command-picker";
 import {
   composerAutocompleteRows,
   detectComposerTrigger,
+  normalizeComposerCursor,
   replaceComposerTrigger,
   type ComposerAutocompleteRow,
 } from "./composer-autocomplete";
@@ -93,9 +95,11 @@ export function ConversationComposer(props: ConversationComposerProps) {
     if (props.draft.trim()) props.submit();
   };
   const changeDraft = (value: string, nextCursor = value.length) => {
-    authoredDraft = value;
-    setCursor(nextCursor);
-    props.changeDraft(value);
+    flush(() => {
+      authoredDraft = value;
+      props.changeDraft(value);
+      setCursor(nextCursor);
+    });
   };
   createEffect(
     () => props.draft,
@@ -110,6 +114,9 @@ export function ConversationComposer(props: ConversationComposerProps) {
   );
   const trigger = createMemo(() =>
     composerActive() ? detectComposerTrigger(props.draft, cursor()) : null,
+  );
+  const controlledCursor = createMemo(() =>
+    normalizeComposerCursor(props.draft, cursor()),
   );
   const triggerKey = createMemo(() => {
     const value = trigger();
@@ -236,7 +243,10 @@ export function ConversationComposer(props: ConversationComposerProps) {
               class="h-16"
               value={props.draft}
               widgetConfig={{
-                selection: { anchor: cursor(), head: cursor() },
+                selection: {
+                  anchor: controlledCursor(),
+                  head: controlledCursor(),
+                },
               }}
               aria-label={i18n.message(m.prompt_placeholder, {})}
               placeholder={
