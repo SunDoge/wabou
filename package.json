@@ -23,7 +23,7 @@
     "test:app:pi-agent:real": "bun run scripts/test-pi-agent.ts real",
     "test": "bun --conditions=browser --conditions=wabou-source test packages apps/*/ui scripts && vitest run && bun --conditions=browser --conditions=development --conditions=wabou-source test packages/core/src/renderer/hmr.test.ts",
     "test:layout": "bun run packages:build && cargo build --release -p wabou-cli && bun --conditions=wabou-source run apps/gallery/tests/layout.ts && bun --conditions=wabou-source run apps/pi-agent/tests/layout.ts",
-    "test:layout:quick": "WABOU_LAYOUT_SKIP_BUILD=1 bun --conditions=wabou-source run apps/gallery/tests/layout.ts && WABOU_LAYOUT_SKIP_BUILD=1 bun --conditions=wabou-source run apps/pi-agent/tests/layout.ts",
+    "test:layout:quick": "bun run scripts/test-layout.ts",
     "ci:local": "bash scripts/run-act.sh",
     "packages:build": "turbo run build --filter='./packages/*'",
     "packages:check": "bun run scripts/check-package-boundaries.ts && tsc -p tests/package-consumer/tsconfig.json && bun run scripts/check-ui-tarball.ts",

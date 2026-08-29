@@ -57,6 +57,8 @@ collision checks over full-tree snapshots.
 ```bash
 # Reuse the current release CLI and fixture bundle while editing TSX/styles.
 bun run test:layout:quick widgets/Button widgets/Card
+# Restrict the quick loop to one application when unrelated fixtures are dirty.
+bun run test:layout:quick --app pi-agent shell/sidebar
 
 # Rebuild packages, release CLI, and fixture bundle after Rust, dependency,
 # generated-output, or fixture-registry changes, and before committing.
