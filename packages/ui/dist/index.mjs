@@ -10685,7 +10685,7 @@ function createMutableStore(initial) {
 	return {
 		get: read,
 		set(next) {
-			const value = typeof next === "function" ? next(read()) : next;
+			const value = typeof next === "function" ? next(untrack(read)) : next;
 			write(() => value);
 		}
 	};

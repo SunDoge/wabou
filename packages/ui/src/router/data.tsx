@@ -41,7 +41,7 @@ function createMutableStore<T>(initial: T): RouterWritableStore<T> {
     set(next: T | ((previous: T) => T)) {
       const value =
         typeof next === "function"
-          ? (next as (previous: T) => T)(read())
+          ? (next as (previous: T) => T)(untrack(read))
           : next;
       write(() => value);
     },
