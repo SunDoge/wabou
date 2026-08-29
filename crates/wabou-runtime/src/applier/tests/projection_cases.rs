@@ -186,6 +186,10 @@ fn semantic_attributes_do_not_invalidate_style_or_layout() {
 
     assert!(applier.frame.projections.semantics_dirty);
     assert!(
+        FrameSource::has_anim(&applier),
+        "semantic-only updates must schedule a projection frame"
+    );
+    assert!(
         !applier
             .document
             .invalidation

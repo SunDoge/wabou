@@ -818,6 +818,10 @@ impl FrameSource for Applier {
             || self.runtime.reload.is_pending()
             || self.runtime.host_message_inbox.has_pending()
             || self.runtime.js.has_async_wake()
+            // Semantic-only host operations do not invalidate layout or
+            // paint, but their retained projection still needs one frame to
+            // become observable to AccessKit, DevTools, and behavior tests.
+            || self.frame.projections.semantics_dirty
             || !self.interaction.scroll.motions.is_empty()
             || self.document.invalidation.contains(InvalidationFlags::TICK)
     }

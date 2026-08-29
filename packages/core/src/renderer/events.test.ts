@@ -579,3 +579,33 @@ test("spread tracks reactive class getters across a host flush", () => {
     dispose();
   });
 });
+
+test("spread tracks reactive semantic boolean getters across a host flush", () => {
+  createRoot((dispose) => {
+    writer.flush();
+    const node = createElement("button");
+    const [selected, setSelected] = createSignal(false, { ownedWrite: true });
+    const attributes: Array<[string, string]> = [];
+    const setAttribute = writer.setAttribute.bind(writer);
+    writer.setAttribute = (_id, name, value) => attributes.push([name, value]);
+    try {
+      spread(
+        node,
+        {
+          get "aria-selected"() {
+            return selected();
+          },
+        },
+        false,
+      );
+      flush();
+      expect(attributes.at(-1)).toEqual(["aria-selected", "false"]);
+
+      flush(() => setSelected(true));
+      expect(attributes.at(-1)).toEqual(["aria-selected", "true"]);
+    } finally {
+      writer.setAttribute = setAttribute;
+      dispose();
+    }
+  });
+});
