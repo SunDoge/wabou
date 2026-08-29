@@ -23,8 +23,8 @@ lower layer remains suspect:
    Taffy geometry, overflow, clipping, collision, scroll ranges, and responsive
    layout. Run fixtures in one release CLI batch.
 4. **Native behavior tests** only for native hit testing, keyboard/IME, clipboard,
-   native widgets, multiple windows, tray, resize, drag/drop, or completed semantic
-   frames.
+   native widgets, multiple windows, tray, resize, drag/drop, child-process/service
+   boundaries, or completed semantic frames.
 5. **Headless pixel capture** only when geometry and semantics are correct but paint
    is wrong: glyph rasterization, shadows, rounded clips, image decoding, native
    widget paint, Vello scene composition, or transparency.
@@ -82,6 +82,12 @@ After changing a shared component, require:
 - a behavior test only for a genuinely native interaction;
 - a pixel capture only for a paint-specific regression.
 
+When an application provides a deterministic service/process fixture, use it for
+behavior tests instead of a live network service. Read the application's README or
+verification script for the required environment injection. This preserves the real
+Solid → capability → Rust service → child process → host-message path without making
+the test depend on credentials or remote output.
+
 ## Start with state
 
 Run:
@@ -93,7 +99,12 @@ git rev-parse --short HEAD
 
 Preserve unrelated changes. Record whether the user runs `dev`, `run`, or a packaged binary.
 
-Restart the native process after Rust changes. Vite/Solid HMR updates JS and Style IR only; it does not reload `wabou-shell`, `wabou-quick`, Vello scene code, or Rust widgets.
+Restart the native process after Rust changes. Vite/Solid HMR updates JS and Style IR only; it does not reload `wabou-shell`, `wabou-runtime`, Vello scene code, or Rust widgets.
+
+If a failure indicates stale frontend bundles or Vite caches, use `wabou clean
+[APP]` before rebuilding instead of manually deleting broad directories. Add
+`--packages` only when local package `dist` artifacts are themselves stale; the
+command intentionally does not replace `cargo clean` or dependency installation.
 
 ## Isolate the failing layer
 
@@ -236,6 +247,8 @@ platforms. Platform-specific outline behavior belongs in the single
   routing is in question.
 - Native input/window/tray bug: focused behavior scenario with semantic and state
   assertions.
+- Rust service, child-process, or host-message integration: deterministic application
+  fixture plus a focused behavior scenario.
 - Scene/backend bug: offscreen pixel test or a minimal platform reproduction.
 - Resize/maximize bug: dispatch real `WindowMetrics` transitions; do not test only the initial size.
 
@@ -253,6 +266,17 @@ bun run test:layout
 bun x tsc --noEmit
 git diff --check
 ```
+
+For a behavior run, select an explicit artifact directory while diagnosing:
+
+```bash
+bun run wabou test /path/to/app --artifacts /tmp/wabou-app-test
+```
+
+Do not infer success from the process exit alone. Read `report.json`, confirm the
+intended named tests ran, and use their `traceStart`/`traceEnd` ranges with
+`trace.json` when isolating a failure. A green deterministic behavior report proves
+the exercised semantic/native state machine, not GPU pixels or platform integration.
 
 Do not run every command mechanically; select commands that prove the changed layer.
 Run the full layout command before committing layout-affecting shared components.
