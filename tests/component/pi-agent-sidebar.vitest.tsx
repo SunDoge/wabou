@@ -2,10 +2,7 @@ import { renderComponent } from "@wabou/test/component";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 import type { PiSession } from "../../apps/pi-agent/ui/api";
-import {
-  projectRowSelected,
-  Sidebar,
-} from "../../apps/pi-agent/ui/sidebar";
+import { activeSidebarValue, Sidebar } from "../../apps/pi-agent/ui/sidebar";
 import { createAgentWorkspace } from "../../apps/pi-agent/ui/workspace";
 
 test("Pi Agent sidebar searches agents and sessions without flattening the hierarchy", () => {
@@ -118,7 +115,7 @@ test("shows sessions only under the active agent and keeps agent selection live"
   expect(selected).toEqual(["agent-1"]);
 });
 
-test("selects the project row only when it has no selected retained session", () => {
+test("resolves one active sidebar destination from project and session state", () => {
   const agent = createAgentWorkspace(1);
   const session: PiSession = {
     agentId: agent.id,
@@ -128,10 +125,16 @@ test("selects the project row only when it has no selected retained session", ()
     updatedAt: 1,
   };
 
-  expect(projectRowSelected(agent, agent.id, [session])).toBe(true);
+  expect(activeSidebarValue([agent], agent.id, [session])).toBe(
+    `project:${agent.id}`,
+  );
   agent.state.sessionId = session.sessionId;
-  expect(projectRowSelected(agent, agent.id, [session])).toBe(false);
-  expect(projectRowSelected(agent, "another-agent", [session])).toBe(false);
+  expect(activeSidebarValue([agent], agent.id, [session])).toBe(
+    `session:${agent.id}:${session.sessionId}`,
+  );
+  expect(activeSidebarValue([agent], "another-agent", [session])).toBe(
+    undefined,
+  );
 });
 
 test("updates an existing project row when the active agent changes", () => {
