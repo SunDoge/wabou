@@ -112,7 +112,7 @@ try {
         checks: ["visible-overflow", "text-collision"],
         assert: (fixture) => {
           getLayoutNode(fixture, { role: "region", name: "User message" });
-          getLayoutNode(fixture, {
+          const response = getLayoutNode(fixture, {
             role: "region",
             name: "Assistant response",
           });
@@ -120,10 +120,20 @@ try {
             role: "button",
             name: "Worked, 1 tool call",
           });
-          getLayoutNode(fixture, {
+          const copy = getLayoutNode(fixture, {
             role: "button",
             name: "Copy assistant response",
           });
+          if (response.rect.width < 600) {
+            throw new Error(
+              `assistant response did not fill the conversation column: width=${response.rect.width}`,
+            );
+          }
+          if (Math.abs(copy.rect.x - response.rect.x) > 16) {
+            throw new Error(
+              `assistant copy action detached from response: response x=${response.rect.x}, copy x=${copy.rect.x}`,
+            );
+          }
         },
       },
       {

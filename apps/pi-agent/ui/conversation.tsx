@@ -481,7 +481,10 @@ export function ConversationItem(props: {
                 }
               />
             </Show>
-            <Bubble variant={messageVariant()}>
+            <Bubble
+              variant={messageVariant()}
+              class={props.item.kind === "assistant" ? "w-full" : undefined}
+            >
               <BubbleContent
                 class={
                   props.item.kind === "assistant"
@@ -567,7 +570,7 @@ export function ConversationItem(props: {
               </BubbleContent>
             </Bubble>
             <Show when={props.item.kind === "assistant" && messageText()}>
-              <View class="h-7 px-1 flex flex-row items-center justify-end">
+              <View class="h-7 px-1 flex flex-row items-center justify-start">
                 <CopyButton
                   value={messageText()}
                   variant="ghost"
