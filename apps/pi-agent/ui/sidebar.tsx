@@ -40,6 +40,19 @@ export function sessionLabel(session: Pick<PiSession, "name" | "sessionId">) {
   return name || session.sessionId.slice(0, 8);
 }
 
+export function projectRowSelected(
+  agent: AgentWorkspace,
+  activeId: string,
+  sessions: readonly PiSession[],
+): boolean {
+  if (agent.id !== activeId) return false;
+  return !sessions.some(
+    (session) =>
+      session.agentId === agent.id &&
+      session.sessionId === agent.state.sessionId,
+  );
+}
+
 export function Sidebar(props: SidebarProps) {
   const [query, setQuery] = createSignal("");
   const normalizedQuery = () => query().trim().toLocaleLowerCase();
@@ -90,14 +103,10 @@ export function Sidebar(props: SidebarProps) {
 
       <SidebarContent contentClass="px-2 py-1 gap-2">
         <Show when={props.canCreateSession}>
-          <Button
-            variant="ghost"
-            class="w-full justify-start text-secondary shadow-none"
-            onClick={props.newSession}
-          >
+          <SidebarMenuButton class="h-8" onClick={props.newSession}>
             <Icon source={messageSquare} size={16} />
             {i18n.message(m.new_thread, {})}
-          </Button>
+          </SidebarMenuButton>
         </Show>
 
         <Show when={props.sessions.length > 0}>
@@ -105,7 +114,7 @@ export function Sidebar(props: SidebarProps) {
             aria-label={i18n.message(m.search_agents, {})}
             value={query()}
             onValueChange={setQuery}
-            placeholder={i18n.message(m.search_agents, {})}
+            placeholder={i18n.message(m.search_short, {})}
             clearLabel={i18n.message(m.clear_search, {})}
             class="border-transparent bg-transparent shadow-none"
           />
@@ -132,7 +141,11 @@ export function Sidebar(props: SidebarProps) {
                 <SidebarMenuButton
                   class="h-10 px-2"
                   aria-label={agent().name}
-                  selected={agent().id === props.activeId}
+                  selected={projectRowSelected(
+                    agent(),
+                    props.activeId,
+                    props.sessions,
+                  )}
                   onClick={() => props.select(agent().id)}
                 >
                   <Icon source={folder} size={15} class="text-secondary" />

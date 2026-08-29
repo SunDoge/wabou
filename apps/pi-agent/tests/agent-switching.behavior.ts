@@ -150,14 +150,19 @@ test("returns to an existing agent after creating a new one", async ({
   page,
 }) => {
   const first = page.getByRole("button", { name: "Project 1" });
-  await expect(first).toBeSelected();
+  const firstSession = page.getByRole("button", {
+    name: "Deterministic test 1",
+  });
+  await expect(first).toBeDeselected();
+  await expect(firstSession).toBeSelected();
 
   await page.getByRole("button", { name: "Add project" }).click();
   const second = page.getByRole("button", { name: "Project 2" });
   await expect(second).toBeSelected();
 
   await first.click();
-  await expect(first).toBeSelected();
+  await expect(first).toBeDeselected();
+  await expect(firstSession).toBeSelected();
   await expect(second).toBeDeselected();
   await expect(
     page.getByRole("label", {
@@ -231,6 +236,9 @@ test("updates project and app settings without losing its conversation", async (
   await page.getByRole("button", { name: "Back to projects" }).click();
   await expect(
     page.getByRole("button", { name: "Workspace Agent" }),
+  ).toBeDeselected();
+  await expect(
+    page.getByRole("button", { name: "Deterministic test 1" }),
   ).toBeSelected();
   await expect(
     page.getByRole("label", {
@@ -454,6 +462,9 @@ test("keeps retained layout stable across repeated agent switches", async ({
   page,
 }) => {
   const first = page.getByRole("button", { name: "Workspace Agent" });
+  const firstSession = page.getByRole("button", {
+    name: "Deterministic test 3",
+  });
   const second = page.getByRole("button", { name: "Project 2" });
   const composer = page.getByRole("textbox", {
     name: "Ask this agent to work in its repository…",
@@ -465,7 +476,8 @@ test("keeps retained layout stable across repeated agent switches", async ({
     await second.click();
     await expect(second).toBeSelected();
     await first.click();
-    await expect(first).toBeSelected();
+    await expect(first).toBeDeselected();
+    await expect(firstSession).toBeSelected();
     await expect(composer).toHaveBounds(initialComposer.bounds, {
       tolerance: 0.5,
     });
@@ -579,6 +591,9 @@ test(
     await page.getByRole("button", { name: "Workspace Agent" }).click();
     await expect(
       page.getByRole("button", { name: "Workspace Agent" }),
+    ).toBeDeselected();
+    await expect(
+      page.getByRole("button", { name: "Deterministic test 3" }),
     ).toBeSelected();
   },
   { timeout: 10_000 },

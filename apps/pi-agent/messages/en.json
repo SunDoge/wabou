@@ -11,6 +11,7 @@
   "changed_files": "{count} changed",
   "agents": "Agents",
   "search_agents": "Search agents and sessions",
+  "search_short": "Search",
   "clear_search": "Clear search",
   "search_transcript": "Search conversation",
   "command_palette": "Command palette",

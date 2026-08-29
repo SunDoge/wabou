@@ -2,7 +2,10 @@ import { renderComponent } from "@wabou/test/component";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 import type { PiSession } from "../../apps/pi-agent/ui/api";
-import { Sidebar } from "../../apps/pi-agent/ui/sidebar";
+import {
+  projectRowSelected,
+  Sidebar,
+} from "../../apps/pi-agent/ui/sidebar";
 import { createAgentWorkspace } from "../../apps/pi-agent/ui/workspace";
 
 test("Pi Agent sidebar searches agents and sessions without flattening the hierarchy", () => {
@@ -105,8 +108,30 @@ test("shows sessions only under the active agent and keeps agent selection live"
   expect(
     screen.getByRole("button", { name: "Write release notes" }),
   ).toBeDefined();
+  expect(screen.getByRole("button", { name: "Project 2" }).selected).toBe(
+    false,
+  );
+  expect(
+    screen.getByRole("button", { name: "Write release notes" }).selected,
+  ).toBe(true);
   screen.getByRole("button", { name: "Project 1" }).click();
   expect(selected).toEqual(["agent-1"]);
+});
+
+test("selects the project row only when it has no selected retained session", () => {
+  const agent = createAgentWorkspace(1);
+  const session: PiSession = {
+    agentId: agent.id,
+    sessionId: "retained-session",
+    sessionFile: "/tmp/retained-session.jsonl",
+    cwd: "/work/api",
+    updatedAt: 1,
+  };
+
+  expect(projectRowSelected(agent, agent.id, [session])).toBe(true);
+  agent.state.sessionId = session.sessionId;
+  expect(projectRowSelected(agent, agent.id, [session])).toBe(false);
+  expect(projectRowSelected(agent, "another-agent", [session])).toBe(false);
 });
 
 test("updates an existing project row when the active agent changes", () => {
