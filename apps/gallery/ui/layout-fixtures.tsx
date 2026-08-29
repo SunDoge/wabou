@@ -97,6 +97,23 @@ function PiAgentToolbarFixture() {
 }
 
 defineLayoutFixtures({
+  "foundations/muted-contrast": {
+    width: 480,
+    height: 180,
+    render: () => (
+      <View class="w-full h-full p-4 gap-3 bg-canvas">
+        <View class="px-3 py-2 bg-surface">
+          <Text class="text-sm text-muted">Muted text on a surface</Text>
+        </View>
+        <View class="px-3 py-2 bg-control">
+          <Text class="text-sm text-muted">Muted text on a control</Text>
+        </View>
+        <View class="px-3 py-2 bg-control-hover">
+          <Text class="text-sm text-muted">Muted text on hover</Text>
+        </View>
+      </View>
+    ),
+  },
   narrow: {
     width: 640,
     height: 480,

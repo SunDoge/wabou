@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import solid from "@solidjs/vite-plugin";
 import MagicString from "magic-string";
 import { parse } from "smol-toml";
 import {
@@ -11,7 +12,6 @@ import {
   type UserConfig,
   type UserConfigExport,
 } from "vite";
-import solid from "@solidjs/vite-plugin";
 import {
   type WabouColorThemeOptions,
   wabouStylePlugin,
@@ -95,7 +95,7 @@ export const defaultWabouColorThemes: WabouColorThemeOptions = {
         selected: "#e6efff",
         primary: "#171a1f",
         secondary: "#535b66",
-        muted: "#7c8694",
+        muted: "#606a77",
         subtle: "#dfe3e8",
         strong: "#c5cbd3",
         accent: "#2563eb",

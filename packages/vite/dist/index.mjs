@@ -2,10 +2,10 @@ import { presetWabou, resolveWabouUtility, validateWabouUtility, wabouUtilityMan
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, parse, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import solid from "@solidjs/vite-plugin";
 import MagicString from "magic-string";
 import { parse as parse$1 } from "smol-toml";
 import { defineConfig, mergeConfig } from "vite";
-import solid from "@solidjs/vite-plugin";
 import { readFile, readdir } from "node:fs/promises";
 import { createGenerator } from "@unocss/core";
 //#region src/style-compiler/vite.ts
@@ -320,7 +320,7 @@ const defaultWabouColorThemes = {
 				selected: "#e6efff",
 				primary: "#171a1f",
 				secondary: "#535b66",
-				muted: "#7c8694",
+				muted: "#606a77",
 				subtle: "#dfe3e8",
 				strong: "#c5cbd3",
 				accent: "#2563eb",
