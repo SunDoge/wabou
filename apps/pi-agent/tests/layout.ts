@@ -156,6 +156,14 @@ try {
             role: "button",
             name: "Worked · 1 tool call",
           });
+          const activityPreview = getLayoutNode(fixture, {
+            role: "list",
+            name: "Recent tool activity",
+          });
+          const recentRead = getLayoutNode(fixture, {
+            role: "listitem",
+            name: "Read crates/wabou-runtime/src/applier/frame_source.rs",
+          });
           const copy = getLayoutNode(fixture, {
             role: "button",
             name: "Copy assistant response",
@@ -175,6 +183,11 @@ try {
           if (Math.abs(activityCenter - responseCenter) > 2) {
             throw new Error(
               `tool activity divider was not centered: activity=${activityCenter}, response=${responseCenter}`,
+            );
+          }
+          if (recentRead.rect.width > activityPreview.contentRect.width) {
+            throw new Error(
+              `recent tool activity escaped its preview: item=${recentRead.rect.width}, preview=${activityPreview.contentRect.width}`,
             );
           }
         },

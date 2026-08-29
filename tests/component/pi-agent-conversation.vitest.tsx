@@ -4,6 +4,7 @@ import { expect, test, vi } from "vitest";
 import {
   ConversationItem,
   ConversationList,
+  describeToolActivity,
   formatTurnDuration,
   groupConversationItems,
   summarizeToolInput,
@@ -33,7 +34,7 @@ test("Pi Agent renders assistant and user messages through Markdown", () => {
     JSON.stringify(
       assistant.getByRole("region", { name: "Assistant response" }).snapshot(),
     ),
-  ).toContain("text-base leading-relaxed text-primary");
+  ).toContain("text-sm leading-relaxed text-primary");
   expect(assistant.getByRole("group", { name: "Code block" }).text).toContain(
     "curl /healthz",
   );
@@ -73,7 +74,7 @@ test("Pi Agent exposes streaming progress without wrapping assistant prose in a 
     "Pi is writing",
   );
   const response = screen.getByRole("region", { name: "Assistant response" });
-  expect(response.className).toContain("gap-3");
+  expect(response.className).toContain("gap-2.5");
   expect(response.parent?.className).toContain("w-full px-2 pb-3");
   expect(
     screen.getByRole("button", { name: "Copy assistant response" }),
@@ -237,11 +238,39 @@ test("Pi Agent folds adjacent completed tools into one turn activity group", () 
   ).toHaveLength(2);
   expect(activity.expanded).toBe(false);
   expect(screen.queryByRole("button", { name: "read: README.md" })).toBeNull();
+  expect(
+    screen.getByRole("list", { name: "Recent tool activity" }),
+  ).toBeTruthy();
+  expect(screen.getByRole("listitem", { name: "Read README.md" })).toBeTruthy();
+  expect(screen.getByRole("listitem", { name: "Ran cargo test" })).toBeTruthy();
   activity.click();
   expect(activity.expanded).toBe(true);
+  expect(
+    screen.queryByRole("list", { name: "Recent tool activity" }),
+  ).toBeNull();
   expect(screen.getByRole("button", { name: "Reasoning" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "read: README.md" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "bash: cargo test" })).toBeTruthy();
+});
+
+test("Pi Agent presents common tool names as readable activity verbs", () => {
+  const item = (name: string, input: Record<string, string>) => ({
+    id: name,
+    kind: "tool" as const,
+    name,
+    state: "success" as const,
+    input: JSON.stringify(input),
+    output: "ok",
+  });
+  expect(
+    describeToolActivity(item("read", { path: "src/main.ts" })),
+  ).toMatchObject({ verb: "Read", detail: "src/main.ts" });
+  expect(
+    describeToolActivity(item("apply_patch", { path: "src/main.ts" })),
+  ).toMatchObject({ verb: "Edited", detail: "src/main.ts" });
+  expect(
+    describeToolActivity(item("bash", { command: "bun test" })),
+  ).toMatchObject({ verb: "Ran", detail: "bun test" });
 });
 
 test("Pi Agent folds reasoning-separated tool calls into one turn activity group", () => {
