@@ -200,7 +200,7 @@ export function Sidebar(props: SidebarProps) {
 
         <SidebarGroup>
           <View class="px-2 pt-2 flex flex-row items-center justify-between gap-2">
-            <SidebarGroupLabel>
+            <SidebarGroupLabel class="text-secondary">
               {i18n.message(m.projects, {})}
             </SidebarGroupLabel>
             <Button
@@ -246,7 +246,7 @@ export function Sidebar(props: SidebarProps) {
                             when={workspaceDisplayName(agent().cwd, agent().id)}
                           >
                             {(name) => (
-                              <Text class="truncate text-xs text-muted">
+                              <Text class="truncate text-xs text-secondary">
                                 {name()}
                               </Text>
                             )}

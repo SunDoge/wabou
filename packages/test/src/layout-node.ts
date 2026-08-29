@@ -11,12 +11,14 @@ import {
   styleDiagnostics,
   textCollisionDiagnostics,
   visibleOverflowDiagnostics,
+  visualQualityDiagnostics,
 } from "./layout";
 
-export type LayoutGeometryCheck =
+export type LayoutFixtureCheck =
   | "visible-overflow"
   | "sibling-collision"
-  | "text-collision";
+  | "text-collision"
+  | "visual-quality";
 
 export interface RenderAppLayoutOptions {
   readonly app: string;
@@ -84,8 +86,8 @@ export interface LayoutFixtureCase {
   readonly waitMs?: number;
   /** Style parser rejections fail a fixture by default. */
   readonly allowStyleDiagnostics?: boolean;
-  /** Geometry checks are opt-in because overlays may intentionally overlap. */
-  readonly checks?: readonly LayoutGeometryCheck[];
+  /** Scene checks are opt-in because overlays and muted decoration may be intentional. */
+  readonly checks?: readonly LayoutFixtureCheck[];
   /** Run application-specific geometry or reactive-state assertions. */
   readonly assert?: (snapshot: LayoutSnapshot) => void | Promise<void>;
 }
@@ -98,7 +100,7 @@ export interface RenderLayoutFixturesOptions {
   readonly skipBuild?: boolean;
   readonly waitMs?: number;
   /** Checks applied to every auto-discovered fixture. */
-  readonly checks?: readonly LayoutGeometryCheck[];
+  readonly checks?: readonly LayoutFixtureCheck[];
   /** Per-fixture exceptions or assertions without repeating the full case list. */
   readonly overrides?: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>>;
   /** Executable and any fixed prefix arguments. Defaults to `["wabou"]`. */
@@ -177,7 +179,9 @@ export async function validateLayoutFixtureReport(
             ? visibleOverflowDiagnostics(result.snapshot)
             : check === "sibling-collision"
               ? siblingCollisionDiagnostics(result.snapshot)
-              : textCollisionDiagnostics(result.snapshot),
+              : check === "text-collision"
+                ? textCollisionDiagnostics(result.snapshot)
+                : visualQualityDiagnostics(result.snapshot),
         );
       }
       await fixture.assert?.(result.snapshot);

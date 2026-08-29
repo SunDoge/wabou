@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
   assertLayoutRectContains,
+  type LayoutSnapshot,
+  layoutColorContrast,
   layoutRectBottom,
   layoutRectRight,
-  type LayoutSnapshot,
   visibleOverflowDiagnostics,
+  visualQualityDiagnostics,
 } from "./layout";
 import { reactiveRuntimeDiagnostic } from "./layout-node";
 
@@ -45,7 +47,9 @@ describe("layout rect assertions", () => {
     expect(
       reactiveRuntimeDiagnostic("ERROR js: [REACTIVITY_HALTED] update ignored"),
     ).toContain("[REACTIVITY_HALTED]");
-    expect(reactiveRuntimeDiagnostic("ordinary renderer warning")).toBeUndefined();
+    expect(
+      reactiveRuntimeDiagnostic("ordinary renderer warning"),
+    ).toBeUndefined();
   });
 
   test("reports actionable context for visible overflow", () => {
@@ -84,11 +88,73 @@ describe("layout rect assertions", () => {
 
     const [diagnostic] = visibleOverflowDiagnostics(snapshot);
     expect(diagnostic?.message).toContain("extends 15.0px outside");
-    expect(diagnostic?.message).toContain('text="A filename that does not fit"');
+    expect(diagnostic?.message).toContain(
+      'text="A filename that does not fit"',
+    );
     expect(diagnostic?.message).toContain('name="Attachment row"');
     expect(diagnostic?.message).toContain("rect=(5.0,5.0 90.0x20.0)");
     expect(diagnostic?.message).toContain(
       'path: view#1:1["Attachment row"] > text#2:1',
     );
+  });
+
+  test("measures opaque theme color contrast", () => {
+    expect(layoutColorContrast("#000", "#fff")).toBeCloseTo(21, 4);
+    expect(layoutColorContrast("#777777", "#ffffff")).toBeCloseTo(4.478, 2);
+    expect(layoutColorContrast("#00000080", "#ffffff")).toBeUndefined();
+  });
+
+  test("reports weak text contrast and undersized interactive targets", () => {
+    const snapshot: LayoutSnapshot = {
+      status: {
+        viewportWidth: 200,
+        viewportHeight: 100,
+        deviceScale: 1,
+        nodeCount: 3,
+      },
+      nodes: [
+        {
+          id: { lo: 1, hi: 1 },
+          tag: "view",
+          classes: ["bg-surface"],
+          attrs: [],
+          rect: { x: 0, y: 0, width: 200, height: 100 },
+          contentRect: { x: 0, y: 0, width: 200, height: 100 },
+          styleDiagnostics: [],
+          computed: { background: "#ffffff" },
+        },
+        {
+          id: { lo: 2, hi: 1 },
+          parentId: { lo: 1, hi: 1 },
+          tag: "text",
+          text: "Barely visible",
+          classes: ["text-muted"],
+          attrs: [],
+          rect: { x: 8, y: 8, width: 90, height: 20 },
+          contentRect: { x: 8, y: 8, width: 90, height: 20 },
+          styleDiagnostics: [],
+          computed: { textColor: "#aaaaaa", fontSize: 14 },
+        },
+        {
+          id: { lo: 3, hi: 1 },
+          parentId: { lo: 1, hi: 1 },
+          tag: "button",
+          classes: ["w-5", "h-5"],
+          attrs: [["role", "button"]],
+          rect: { x: 120, y: 8, width: 20, height: 20 },
+          contentRect: { x: 120, y: 8, width: 20, height: 20 },
+          styleDiagnostics: [],
+          computed: { background: "#ffffff" },
+        },
+      ],
+    };
+
+    const diagnostics = visualQualityDiagnostics(snapshot);
+    expect(diagnostics.map((item) => item.code)).toEqual([
+      "low-text-contrast",
+      "interactive-target-too-small",
+    ]);
+    expect(diagnostics[0]?.message).toContain("2.32:1 text contrast");
+    expect(diagnostics[1]?.message).toContain("20.0x20.0");
   });
 });

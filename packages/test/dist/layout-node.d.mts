@@ -1,6 +1,6 @@
 import { LayoutSnapshot } from "./layout.mjs";
 //#region src/layout-node.d.ts
-type LayoutGeometryCheck = "visible-overflow" | "sibling-collision" | "text-collision";
+type LayoutFixtureCheck = "visible-overflow" | "sibling-collision" | "text-collision" | "visual-quality";
 interface RenderAppLayoutOptions {
   readonly app: string;
   readonly out: string;
@@ -28,8 +28,8 @@ interface LayoutFixtureCase {
   readonly waitMs?: number;
   /** Style parser rejections fail a fixture by default. */
   readonly allowStyleDiagnostics?: boolean;
-  /** Geometry checks are opt-in because overlays may intentionally overlap. */
-  readonly checks?: readonly LayoutGeometryCheck[];
+  /** Scene checks are opt-in because overlays and muted decoration may be intentional. */
+  readonly checks?: readonly LayoutFixtureCheck[];
   /** Run application-specific geometry or reactive-state assertions. */
   readonly assert?: (snapshot: LayoutSnapshot) => void | Promise<void>;
 }
@@ -41,7 +41,7 @@ interface RenderLayoutFixturesOptions {
   readonly skipBuild?: boolean;
   readonly waitMs?: number;
   /** Checks applied to every auto-discovered fixture. */
-  readonly checks?: readonly LayoutGeometryCheck[];
+  readonly checks?: readonly LayoutFixtureCheck[];
   /** Per-fixture exceptions or assertions without repeating the full case list. */
   readonly overrides?: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>>;
   /** Executable and any fixed prefix arguments. Defaults to `["wabou"]`. */
@@ -63,5 +63,5 @@ declare function validateLayoutFixtureReport(report: LayoutFixtureReport, fixtur
 declare function renderLayoutFixtures(options: RenderLayoutFixturesOptions): Promise<LayoutFixtureReport>;
 declare function renderAppLayout(options: RenderAppLayoutOptions): Promise<LayoutSnapshot>;
 //#endregion
-export { LayoutFixtureCase, LayoutFixtureReport, LayoutFixtureResult, LayoutGeometryCheck, RenderAppLayoutOptions, RenderLayoutFixturesOptions, layoutCommandArgs, parseLayoutFixtureReport, reactiveRuntimeDiagnostic, renderAppLayout, renderLayoutFixtures, validateLayoutFixtureReport };
+export { LayoutFixtureCase, LayoutFixtureCheck, LayoutFixtureReport, LayoutFixtureResult, RenderAppLayoutOptions, RenderLayoutFixturesOptions, layoutCommandArgs, parseLayoutFixtureReport, reactiveRuntimeDiagnostic, renderAppLayout, renderLayoutFixtures, validateLayoutFixtureReport };
 //# sourceMappingURL=layout-node.d.mts.map

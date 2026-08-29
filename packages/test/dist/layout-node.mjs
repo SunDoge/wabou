@@ -1,4 +1,4 @@
-import { assertNoLayoutDiagnostics, parseLayoutSnapshot, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics } from "./layout.mjs";
+import { assertNoLayoutDiagnostics, parseLayoutSnapshot, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics, visualQualityDiagnostics } from "./layout.mjs";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -56,7 +56,7 @@ async function validateLayoutFixtureReport(report, fixtures) {
 		if (!fixture) throw new Error(`unexpected Wabou layout fixture result \`${result.id}\``);
 		try {
 			if (!fixture.allowStyleDiagnostics) assertNoLayoutDiagnostics(styleDiagnostics(result.snapshot));
-			for (const check of fixture.checks ?? []) assertNoLayoutDiagnostics(check === "visible-overflow" ? visibleOverflowDiagnostics(result.snapshot) : check === "sibling-collision" ? siblingCollisionDiagnostics(result.snapshot) : textCollisionDiagnostics(result.snapshot));
+			for (const check of fixture.checks ?? []) assertNoLayoutDiagnostics(check === "visible-overflow" ? visibleOverflowDiagnostics(result.snapshot) : check === "sibling-collision" ? siblingCollisionDiagnostics(result.snapshot) : check === "text-collision" ? textCollisionDiagnostics(result.snapshot) : visualQualityDiagnostics(result.snapshot));
 			await fixture.assert?.(result.snapshot);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

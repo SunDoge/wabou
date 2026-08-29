@@ -78,6 +78,37 @@ const key = (id) => `${id.lo}:${id.hi}`;
 function attrs(node) {
 	return new Map(node.attrs);
 }
+function opaqueRgb(value) {
+	if (!value?.startsWith("#")) return null;
+	const hex = value.slice(1).toLowerCase();
+	if (hex.length === 3 || hex.length === 4) {
+		if (hex.length === 4 && hex[3] !== "f") return null;
+		return [...hex].map((part) => Number.parseInt(`${part}${part}`, 16));
+	}
+	if (hex.length === 8 && hex.slice(6) !== "ff") return null;
+	if (hex.length !== 6 && hex.length !== 8) return null;
+	return [
+		0,
+		2,
+		4
+	].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+}
+function relativeLuminance(rgb) {
+	const linear = rgb.map((channel) => {
+		const value = channel / 255;
+		return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+	});
+	return .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2];
+}
+/** Return the visual contrast ratio for two opaque hexadecimal colors. */
+function layoutColorContrast(foreground, background) {
+	const foregroundRgb = opaqueRgb(foreground);
+	const backgroundRgb = opaqueRgb(background);
+	if (!foregroundRgb || !backgroundRgb) return void 0;
+	const first = relativeLuminance(foregroundRgb);
+	const second = relativeLuminance(backgroundRgb);
+	return (Math.max(first, second) + .05) / (Math.min(first, second) + .05);
+}
 function layoutRole(node) {
 	return node.semantic?.role ?? attrs(node).get("role") ?? "";
 }
@@ -263,11 +294,50 @@ function styleDiagnostics(snapshot, options = {}) {
 		message
 	})));
 }
+/**
+* Opt-in visual legibility checks over the resolved native scene contract.
+* These intentionally consume computed colors and geometry rather than source
+* class names, so theme changes and component composition are covered too.
+*/
+function visualQualityDiagnostics(snapshot, options = {}) {
+	const minimumContrast = options.minimumTextContrast ?? 4.5;
+	const minimumTarget = options.minimumInteractiveTarget ?? 28;
+	const nodes = new Map(snapshot.nodes.map((node) => [key(node.id), node]));
+	const diagnostics = [];
+	for (const node of scopedNodes(snapshot, options.within)) {
+		const nodeAttrs = attrs(node);
+		if (nodeAttrs.get("aria-hidden") === "true") continue;
+		if (node.tag === "text" && node.text?.trim()) {
+			const foreground = node.computed.textColor;
+			let background = node.computed.background;
+			let ancestor = node.parentId ? nodes.get(key(node.parentId)) : void 0;
+			while (!background && ancestor) {
+				background = ancestor.computed.background;
+				ancestor = ancestor.parentId ? nodes.get(key(ancestor.parentId)) : void 0;
+			}
+			const contrast = foreground && background ? layoutColorContrast(foreground, background) : void 0;
+			if (contrast !== void 0 && contrast + .01 < minimumContrast) diagnostics.push({
+				code: "low-text-contrast",
+				node,
+				amount: contrast,
+				message: `${diagnosticNodeText(node)} has ${contrast.toFixed(2)}:1 text contrast (${foreground} on ${background}); expected at least ${minimumContrast.toFixed(2)}:1`
+			});
+		}
+		const role = layoutRole(node);
+		if ((role === "button" || role === "checkbox" || role === "combobox" || role === "radio" || role === "switch") && nodeAttrs.get("disabled") !== "true" && (node.rect.width + .01 < minimumTarget || node.rect.height + .01 < minimumTarget)) diagnostics.push({
+			code: "interactive-target-too-small",
+			node,
+			amount: Math.min(node.rect.width, node.rect.height),
+			message: `${diagnosticNodeText(node)} role=${role} is ${node.rect.width.toFixed(1)}x${node.rect.height.toFixed(1)}; expected both dimensions to be at least ${minimumTarget.toFixed(1)}px`
+		});
+	}
+	return diagnostics;
+}
 function assertNoLayoutDiagnostics(diagnostics) {
 	if (diagnostics.length === 0) return;
 	throw new Error(`layout diagnostics:\n${diagnostics.map((item) => `  - [${item.code}] ${item.message}`).join("\n")}`);
 }
 //#endregion
-export { assertLayoutRectContains, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics };
+export { assertLayoutRectContains, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutColorContrast, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics, visualQualityDiagnostics };
 
 //# sourceMappingURL=layout.mjs.map

@@ -113,14 +113,14 @@ try {
         id: "shell/full-workbench",
         width: 1_200,
         height: 800,
-        checks: ["visible-overflow", "text-collision"],
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
         assert: (fixture) => assertFullWorkbenchLayout(fixture, 1_200),
       },
       {
         id: "shell/full-workbench-minimum",
         width: 720,
         height: 640,
-        checks: ["visible-overflow", "text-collision"],
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
         assert: (fixture) => assertFullWorkbenchLayout(fixture, 720),
       },
       {
