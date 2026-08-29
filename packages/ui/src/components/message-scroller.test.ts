@@ -4,6 +4,7 @@ import {
   isMessageScrollNearEnd,
   messageScrollRange,
   messageScrollRevealDelta,
+  messageScrollStartDelta,
 } from "./message-scroller";
 
 describe("MessageScroller", () => {
@@ -73,5 +74,15 @@ describe("messageScrollRevealDelta", () => {
         12,
       ),
     ).toBe(42);
+  });
+
+  test("can intentionally align a visible turn to the reading start", () => {
+    expect(
+      messageScrollStartDelta(
+        viewport,
+        { x: 20, y: 180, width: 280, height: 40 },
+        24,
+      ),
+    ).toBe(56);
   });
 });

@@ -56,6 +56,40 @@ test("forks from a retained user message and restores it to the composer", async
   await expect(composer).toHaveValue("");
 });
 
+test("keeps conversation turn navigation synchronized with native scrolling", async ({
+  page,
+  window,
+}) => {
+  await window.resize(window.current, 1_180, 460);
+  const composer = page.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+  await composer.type("Verify the navigation rail");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(
+    page.getByRole("label", {
+      name: "Fake Pi completed: Verify the navigation rail",
+    }),
+  ).toHaveCount(1, { timeout: 5_000 });
+
+  const first = page.getByRole("button", {
+    name: "Jump to turn 1: Explain the fixture",
+  });
+  const second = page.getByRole("button", {
+    name: "Jump to turn 2: Verify the navigation rail",
+  });
+  await expect(second).toBeCurrent("step");
+
+  await page
+    .getByRole("region", { name: "Assistant response", index: 0 })
+    .wheel(-5_000);
+  await expect(first).toBeCurrent("step");
+
+  await second.click();
+  await expect(second).toBeCurrent("step");
+  await window.resize(window.current, 1_200, 800);
+});
+
 test("round-trips a Pi extension UI request through the native dialog", async ({
   page,
 }) => {

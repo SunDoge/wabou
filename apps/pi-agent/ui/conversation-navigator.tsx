@@ -41,7 +41,7 @@ export function ConversationNavigator(props: ConversationNavigatorProps) {
   const turns = () => conversationTurns(props.items);
 
   const reveal = (id: string) => {
-    scroller.scrollToAnchor(id, { margin: 24 });
+    scroller.scrollToAnchor(id, { margin: 24, align: "start" });
   };
 
   return (

@@ -28,6 +28,11 @@ import { Button, type ButtonProps } from "./button";
 
 export type MessageScrollDirection = "start" | "end";
 
+export interface MessageScrollIntoViewOptions {
+  margin?: number;
+  align?: "nearest" | "start";
+}
+
 export function messageScrollRange(
   contentHeight: number,
   viewportHeight: number,
@@ -62,14 +67,23 @@ export function messageScrollRevealDelta(
   return 0;
 }
 
+/** Vertical delta that places a target at the viewport's reading start. */
+export function messageScrollStartDelta(
+  viewport: LayoutRect,
+  target: LayoutRect,
+  margin = 12,
+): number {
+  return target.y - (viewport.y + Math.max(0, margin));
+}
+
 export interface MessageScrollerControls {
   followingEnd(): boolean;
   canScrollStart(): boolean;
   canScrollEnd(): boolean;
   activeAnchor(): string | undefined;
   scrollTo(direction: MessageScrollDirection): void;
-  scrollIntoView(target: Handle, options?: { margin?: number }): void;
-  scrollToAnchor(anchor: string, options?: { margin?: number }): void;
+  scrollIntoView(target: Handle, options?: MessageScrollIntoViewOptions): void;
+  scrollToAnchor(anchor: string, options?: MessageScrollIntoViewOptions): void;
 }
 
 interface MessageScrollerContextValue extends MessageScrollerControls {
@@ -150,6 +164,23 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
   let measuredAnchors: MessageAnchorRect[] = [];
 
   const updateActiveFromScroll = (position = scrollY()) => {
+    if (
+      followingEnd() &&
+      isMessageScrollNearEnd(
+        position,
+        contentSize.height(),
+        viewportSize.height(),
+        threshold(),
+      )
+    ) {
+      const last = measuredAnchors.reduce<MessageAnchorRect | undefined>(
+        (current, anchor) =>
+          !current || anchor.rect.y > current.rect.y ? anchor : current,
+        undefined,
+      );
+      setActiveAnchor(last?.id);
+      return;
+    }
     setActiveAnchor(
       activeMessageAnchor(
         {
@@ -255,11 +286,18 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
         (node) => node.id.lo === target.id.lo && node.id.hi === target.id.hi,
       );
       if (!viewportMetrics || !targetMetrics) return;
-      const delta = messageScrollRevealDelta(
-        viewportMetrics.rect,
-        targetMetrics.rect,
-        options?.margin,
-      );
+      const delta =
+        options?.align === "start"
+          ? messageScrollStartDelta(
+              viewportMetrics.rect,
+              targetMetrics.rect,
+              options.margin,
+            )
+          : messageScrollRevealDelta(
+              viewportMetrics.rect,
+              targetMetrics.rect,
+              options?.margin,
+            );
       if (delta === 0) return;
       setFollowingEnd(false);
       viewport.scrollBy({ top: delta });
