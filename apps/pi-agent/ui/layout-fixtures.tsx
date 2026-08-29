@@ -16,7 +16,7 @@ import { AgentActivityStatus } from "./agent-activity";
 import { type AgentItem, initialAgentState } from "./agent-state";
 import { AppCommandPalette } from "./app-command-palette";
 import { ConversationContext } from "./conversation-context";
-import { ConversationItem } from "./conversation";
+import { ConversationItem, ConversationList } from "./conversation";
 import { ConversationNavigator } from "./conversation-navigator";
 import { ModelControls } from "./model-controls";
 import { type AppSettings, SettingsPage } from "./settings";
@@ -103,6 +103,38 @@ defineLayoutFixtures({
             kind: "user",
             text: "# Review request\n\n- inspect `src/runtime.rs`\n- run **focused tests**\n\nKeep the native boundary explicit while fixing the long layout path.",
           }}
+        />
+      </View>
+    ),
+  },
+  "conversation/complete-turn": {
+    width: 680,
+    height: 620,
+    render: () => (
+      <View class="w-full h-full bg-canvas p-5">
+        <ConversationList
+          items={[
+            {
+              id: "request",
+              kind: "user",
+              text: "Review the current renderer and explain the highest-risk boundary before changing it.",
+            },
+            {
+              id: "read",
+              kind: "tool",
+              name: "read",
+              state: "success",
+              input: JSON.stringify({
+                path: "crates/wabou-runtime/src/applier/frame_source.rs",
+              }),
+              output: "Loaded the retained frame source and invalidation path.",
+            },
+            {
+              id: "answer",
+              kind: "assistant",
+              text: "## Finding\n\nSemantic-only updates were not scheduling a projection frame. The fix keeps layout untouched and invalidates only the semantic projection.\n\n- No extra layout pass\n- Existing visual frame remains stable\n- Native semantics receive the completed update",
+            },
+          ]}
         />
       </View>
     ),

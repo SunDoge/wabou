@@ -57,12 +57,15 @@ test("Pi Agent exposes streaming progress without wrapping assistant prose in a 
     />
   ));
 
-  expect(screen.getByRole("status", { name: "Pi is writing" }).text).toContain(
-    "Writing",
+  expect(screen.getByRole("status", { name: "Pi is writing" }).text).toBe(
+    "Pi is writing",
   );
   const response = screen.getByRole("region", { name: "Assistant response" });
   expect(response.className).toContain("gap-3");
   expect(response.parent?.className).toContain("w-full px-2 pb-3");
+  expect(
+    screen.getByRole("button", { name: "Copy assistant response" }),
+  ).toBeTruthy();
 });
 
 test("Pi Agent messages enter with finite native motion", async () => {

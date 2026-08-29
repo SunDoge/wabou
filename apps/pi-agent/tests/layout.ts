@@ -90,6 +90,27 @@ try {
         },
       },
       {
+        id: "conversation/complete-turn",
+        width: 680,
+        height: 620,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, { role: "region", name: "User message" });
+          getLayoutNode(fixture, {
+            role: "region",
+            name: "Assistant response",
+          });
+          getLayoutNode(fixture, {
+            role: "button",
+            name: "Worked, 1 tool call",
+          });
+          getLayoutNode(fixture, {
+            role: "button",
+            name: "Copy assistant response",
+          });
+        },
+      },
+      {
         id: "conversation/turn-navigator",
         width: 560,
         height: 420,

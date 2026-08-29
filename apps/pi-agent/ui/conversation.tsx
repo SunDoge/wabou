@@ -22,7 +22,6 @@ import {
   useReducedMotion,
   View,
 } from "@wabou/ui";
-import bot from "lucide-static/icons/bot.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import fileCode from "lucide-static/icons/file-code-2.svg?raw";
 import gitBranch from "lucide-static/icons/git-branch.svg?raw";
@@ -221,13 +220,12 @@ export function ToolActivityGroup(props: {
     return `${running() ? "Working" : "Worked"}, ${count} tool ${count === 1 ? "call" : "calls"}`;
   };
   return (
-    <View class="w-full min-w-0 flex flex-col gap-1">
-      <View class="w-full min-w-0 h-7 flex flex-row items-center gap-2">
-        <View class="h-px min-w-4 flex-1 border-t border-subtle" />
+    <View class="w-full min-w-0 flex flex-col gap-1 pl-1">
+      <View class="w-full min-w-0 h-7 flex flex-row items-center">
         <Button
           variant="ghost"
           size="sm"
-          class="h-7 flex-none px-1.5 gap-1.5 text-muted"
+          class="h-7 min-w-0 justify-start px-1.5 gap-1.5 text-muted"
           aria-label={label()}
           aria-expanded={open()}
           onClick={() => setOpen((value) => !value)}
@@ -248,7 +246,6 @@ export function ToolActivityGroup(props: {
             class={open() ? "rotate-90 text-muted" : "text-muted"}
           />
         </Button>
-        <View class="h-px min-w-4 flex-1 border-t border-subtle" />
       </View>
       <CollapsiblePresence
         open={open()}
@@ -407,7 +404,11 @@ export function ConversationItem(props: {
       >
         <Message align={props.item.kind === "user" ? "end" : "start"}>
           <MessageContent
-            class={props.item.kind === "assistant" ? "gap-2" : undefined}
+            class={
+              props.item.kind === "assistant"
+                ? "items-stretch gap-2"
+                : undefined
+            }
           >
             <Show
               when={props.item.kind === "assistant"}
@@ -446,42 +447,24 @@ export function ConversationItem(props: {
                 </View>
               }
             >
-              <View class="h-7 w-full px-2 flex flex-row items-center justify-between gap-2">
-                <View class="min-w-0 flex flex-row items-center gap-2">
-                  <View class="w-5 h-5 flex-none rounded-md bg-selected flex items-center justify-center text-accent">
-                    <Icon source={bot} size={13} />
-                  </View>
-                  <Text class="text-xs font-semibold text-secondary">Pi</Text>
-                  <Show
-                    when={
-                      props.item.kind === "assistant" && props.item.streaming
-                    }
-                  >
-                    <View
-                      role="status"
-                      aria-label="Pi is writing"
-                      class="flex flex-row items-center gap-1.5"
-                    >
-                      <Pulse
-                        aria-hidden="true"
-                        class="w-1.5 h-1.5 rounded-full bg-accent"
-                        from={0.3}
-                        to={1}
-                        duration={0.8}
-                      />
-                      <Text class="text-xs text-muted">Writing</Text>
-                    </View>
-                  </Show>
+              <Show
+                when={props.item.kind === "assistant" && props.item.streaming}
+              >
+                <View
+                  role="status"
+                  aria-label="Pi is writing"
+                  class="h-6 px-1 flex flex-row items-center gap-1.5"
+                >
+                  <Pulse
+                    aria-hidden="true"
+                    class="w-1.5 h-1.5 rounded-full bg-accent"
+                    from={0.3}
+                    to={1}
+                    duration={0.8}
+                  />
+                  <Text class="text-xs text-muted">Pi is writing</Text>
                 </View>
-                <CopyButton
-                  value={messageText()}
-                  variant="ghost"
-                  size="sm"
-                  idleLabel="Copy"
-                  copiedLabel="Copied"
-                  aria-label="Copy assistant response"
-                />
-              </View>
+              </Show>
             </Show>
             <Show
               when={props.item.kind === "assistant" && props.item.thinkingText}
@@ -583,6 +566,18 @@ export function ConversationItem(props: {
                 </Show>
               </BubbleContent>
             </Bubble>
+            <Show when={props.item.kind === "assistant" && messageText()}>
+              <View class="h-7 px-1 flex flex-row items-center justify-end">
+                <CopyButton
+                  value={messageText()}
+                  variant="ghost"
+                  size="sm"
+                  idleLabel="Copy"
+                  copiedLabel="Copied"
+                  aria-label="Copy assistant response"
+                />
+              </View>
+            </Show>
           </MessageContent>
         </Message>
       </Show>
