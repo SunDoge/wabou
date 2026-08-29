@@ -558,9 +558,20 @@ export function ConversationItem(props: {
                 <Show
                   when={props.item.kind === "assistant"}
                   fallback={
-                    <Text class="whitespace-normal text-sm">
-                      {messageText()}
-                    </Text>
+                    <Show
+                      when={props.item.kind === "user"}
+                      fallback={
+                        <Text class="whitespace-normal text-sm">
+                          {messageText()}
+                        </Text>
+                      }
+                    >
+                      <Markdown
+                        source={messageText()}
+                        variant="prompt"
+                        aria-label="User message"
+                      />
+                    </Show>
                   }
                 >
                   <Markdown

@@ -6,6 +6,7 @@ import { AgentActivityStatus } from "./agent-activity";
 import { initialAgentState } from "./agent-state";
 import { AppCommandPalette } from "./app-command-palette";
 import { ConversationContext } from "./conversation-context";
+import { ConversationItem } from "./conversation";
 import { ModelControls } from "./model-controls";
 import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
@@ -69,6 +70,21 @@ defineLayoutFixtures({
         />
         <View class="w-24 h-8 flex-none bg-control rounded-md" />
       </WorkbenchHeader>
+    ),
+  },
+  "conversation/prompt-markdown": {
+    width: 560,
+    height: 320,
+    render: () => (
+      <View class="w-full h-full bg-canvas p-6">
+        <ConversationItem
+          item={{
+            id: "prompt-markdown",
+            kind: "user",
+            text: "# Review request\n\n- inspect `src/runtime.rs`\n- run **focused tests**\n\nKeep the native boundary explicit while fixing the long layout path.",
+          }}
+        />
+      </View>
     ),
   },
   "shell/command-palette": {

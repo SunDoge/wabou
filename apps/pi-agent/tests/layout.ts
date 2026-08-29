@@ -76,6 +76,16 @@ try {
         },
       },
       {
+        id: "conversation/prompt-markdown",
+        width: 560,
+        height: 320,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, { role: "region", name: "User message" });
+          getLayoutNode(fixture, { text: "Review request" });
+        },
+      },
+      {
         id: "workspace/files-panel",
         width: 420,
         height: 720,

@@ -17,7 +17,7 @@ import {
 } from "./markdown-model";
 import { Separator } from "./separator";
 
-export type MarkdownVariant = "document" | "conversation";
+export type MarkdownVariant = "document" | "conversation" | "prompt";
 
 function runClass(run: MarkdownRun): string | undefined {
   return mergeClasses(
@@ -39,7 +39,7 @@ function InlineMarkdown(props: {
     <RichText
       class={mergeClasses(
         "min-w-0 whitespace-normal",
-        props.variant === "conversation"
+        props.variant === "conversation" || props.variant === "prompt"
           ? "text-sm leading-relaxed text-primary"
           : "text-base leading-relaxed text-secondary",
         props.class,
@@ -81,6 +81,11 @@ function Heading(props: {
   animateRun?: (run: MarkdownRun) => boolean;
 }): JSX.Element {
   const className = createMemo(() => {
+    if (props.variant === "prompt") {
+      return props.block.depth === 1
+        ? "text-base font-semibold text-primary whitespace-normal"
+        : "text-sm font-semibold text-primary whitespace-normal";
+    }
     if (props.variant === "conversation") {
       switch (props.block.depth) {
         case 1:
@@ -140,7 +145,7 @@ function MarkdownList(props: {
   return (
     <View
       class={
-        props.variant === "conversation"
+        props.variant === "conversation" || props.variant === "prompt"
           ? "flex flex-col gap-1.5"
           : "flex flex-col gap-2"
       }
@@ -314,7 +319,7 @@ export interface MarkdownProps {
   source: string;
   /** Repair an incomplete Markdown tail while text is still arriving. */
   streaming?: boolean;
-  /** Document typography by default; conversation keeps agent replies compact. */
+  /** Document typography by default; conversation and prompt stay message-sized. */
   variant?: MarkdownVariant;
   class?: string;
   "aria-label"?: string;
@@ -382,7 +387,11 @@ export function Markdown(props: MarkdownProps): JSX.Element {
       aria-label={props["aria-label"] ?? "Markdown"}
       class={mergeClasses(
         "min-w-0 flex flex-col",
-        variant() === "conversation" ? "gap-3" : "gap-4",
+        variant() === "document"
+          ? "gap-4"
+          : variant() === "prompt"
+            ? "gap-2"
+            : "gap-3",
         props.class,
       )}
     >

@@ -250,6 +250,22 @@ test("renders compact conversation Markdown including GFM tables", () => {
   expect(response.snapshot()).toMatchObject({ role: "region" });
 });
 
+test("keeps prompt Markdown compact inside a message bubble", () => {
+  const screen = renderComponent(() => (
+    <Markdown
+      variant="prompt"
+      aria-label="User prompt"
+      source={"# Request\n\n- inspect `src/main.rs`\n- run **tests**"}
+    />
+  ));
+
+  const prompt = screen.getByRole("region", { name: "User prompt" });
+  expect(prompt.className).toContain("gap-2");
+  expect(JSON.stringify(prompt.snapshot())).toContain("text-base");
+  expect(prompt.text).toContain("inspect src/main.rs");
+  expect(prompt.text).not.toContain("**");
+});
+
 test("repairs incomplete inline Markdown only while streaming", () => {
   const [streaming, setStreaming] = createSignal(true);
   const screen = renderComponent(() => (

@@ -9,7 +9,7 @@ import {
   ToolActivityGroup,
 } from "../../apps/pi-agent/ui/conversation";
 
-test("Pi Agent renders assistant Markdown but preserves user source text", () => {
+test("Pi Agent renders assistant and user messages through Markdown", () => {
   const assistant = renderComponent(() => (
     <ConversationItem
       item={{
@@ -29,11 +29,20 @@ test("Pi Agent renders assistant Markdown but preserves user source text", () =>
 
   const user = renderComponent(() => (
     <ConversationItem
-      item={{ id: "user-1", kind: "user", text: "**keep source**" }}
+      item={{
+        id: "user-1",
+        kind: "user",
+        text: "## Request\n\n**keep meaning** and run `cargo test`",
+      }}
     />
   ));
   expect(user.queryByRole("region", { name: "Assistant response" })).toBeNull();
-  expect(user.roots[0]?.text).toContain("**keep source**");
+  const prompt = user.getByRole("region", { name: "User message" });
+  expect(prompt.text).toContain("Requestkeep meaning and run cargo test");
+  expect(prompt.text).not.toContain("**");
+  expect(JSON.stringify(prompt.snapshot())).toContain(
+    "text-sm font-semibold text-primary",
+  );
 });
 
 test("Pi Agent exposes streaming progress without wrapping assistant prose in a card", () => {
