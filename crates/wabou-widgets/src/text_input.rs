@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 
 use anyrender::{PaintScene, Scene};
 use parley::{PlainEditor, PositionedLayoutItem};
+use serde::Deserialize;
 use vello::kurbo::{Affine, Rect};
 use vello::peniko::{Color, Fill};
 use wabou_shell::style::TextAlign;
@@ -60,6 +61,37 @@ enum PendingEdit {
     SelectWordAtPoint(f32, f32),
     SelectLineAtPoint(f32, f32),
     SelectAll,
+    SelectByteRange(usize, usize),
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TextInputConfig {
+    selection: TextInputSelection,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TextInputSelection {
+    anchor: usize,
+    head: usize,
+}
+
+fn utf16_offset_to_byte(text: &str, offset: usize) -> Option<usize> {
+    if offset == 0 {
+        return Some(0);
+    }
+    let mut utf16 = 0;
+    for (byte, character) in text.char_indices() {
+        utf16 += character.len_utf16();
+        if utf16 == offset {
+            return Some(byte + character.len_utf8());
+        }
+        if utf16 > offset {
+            return None;
+        }
+    }
+    (utf16 == offset).then_some(text.len())
 }
 
 /// Native single- or multiline plain-text editor backed by Parley.
@@ -480,6 +512,12 @@ impl TextInput {
                     PendingEdit::SelectWordAtPoint(x, y) => driver.select_word_at_point(x, y),
                     PendingEdit::SelectLineAtPoint(x, y) => driver.select_line_at_point(x, y),
                     PendingEdit::SelectAll => driver.select_all(),
+                    PendingEdit::SelectByteRange(anchor, head) if anchor == head => {
+                        driver.move_to_byte(anchor);
+                    }
+                    PendingEdit::SelectByteRange(anchor, head) => {
+                        driver.select_byte_range(anchor, head);
+                    }
                 }
             }
             driver.refresh_layout();
@@ -814,6 +852,22 @@ impl Widget for TextInput {
         CONTENT_CHANGED
     }
 
+    fn config_changed(&mut self, json: &str) -> Result<WidgetChanges, String> {
+        let config: TextInputConfig = wabou_shell::decode_widget_config(json)?;
+        let raw = self.editor.raw_text();
+        let anchor = utf16_offset_to_byte(raw, config.selection.anchor)
+            .ok_or_else(|| "TextInput selection anchor is not a UTF-16 boundary".to_owned())?;
+        let head = utf16_offset_to_byte(raw, config.selection.head)
+            .ok_or_else(|| "TextInput selection head is not a UTF-16 boundary".to_owned())?;
+        let current = self.editor.raw_selection();
+        if current.anchor().index() == anchor && current.focus().index() == head {
+            return Ok(WidgetChanges::empty());
+        }
+        self.queue(PendingEdit::SelectByteRange(anchor, head));
+        self.selection_kind = WidgetTextSelectionKind::Simple;
+        Ok(CONTENT_CHANGED)
+    }
+
     fn current_value(&self) -> Option<&str> {
         Some(&self.cached_value)
     }
@@ -1059,6 +1113,49 @@ mod tests {
         input.paint(200.0, 32.0, &mut tcx);
         let selection = input.text_selection().expect("caret selection");
         assert_eq!((selection.anchor, selection.head), (4, 4));
+    }
+
+    #[test]
+    fn text_input_config_controls_utf16_selection_without_echo_work() {
+        let mut input = TextInput::multiline();
+        input.attribute_changed("value", "a😀bc");
+        let mut tcx = TextContext::new();
+        input.paint(200.0, 64.0, &mut tcx);
+
+        let changes = input
+            .config_changed(r#"{"selection":{"anchor":3,"head":4}}"#)
+            .expect("valid UTF-16 selection");
+        assert!(changes.contains(WidgetChanges::REDRAW));
+        input.paint(200.0, 64.0, &mut tcx);
+
+        let selection = input.text_selection().expect("selection");
+        assert_eq!((selection.anchor, selection.head), (3, 4));
+        assert_eq!(selection.text.as_deref(), Some("b"));
+        assert!(
+            input
+                .config_changed(r#"{"selection":{"anchor":3,"head":4}}"#)
+                .expect("selection echo")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn text_input_config_rejects_split_surrogates_and_out_of_range_offsets() {
+        let mut input = TextInput::new();
+        input.attribute_changed("value", "a😀b");
+
+        assert_eq!(
+            input
+                .config_changed(r#"{"selection":{"anchor":2,"head":2}}"#)
+                .unwrap_err(),
+            "TextInput selection anchor is not a UTF-16 boundary"
+        );
+        assert_eq!(
+            input
+                .config_changed(r#"{"selection":{"anchor":5,"head":5}}"#)
+                .unwrap_err(),
+            "TextInput selection anchor is not a UTF-16 boundary"
+        );
     }
 
     #[test]
