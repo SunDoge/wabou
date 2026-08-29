@@ -244,6 +244,7 @@ test("renders compact conversation Markdown including GFM tables", () => {
   ));
 
   const response = screen.getByRole("region", { name: "Compact response" });
+  expect(response.className).toContain("w-full");
   expect(response.className).toContain("gap-3");
   expect(response.text).toContain("FileState");
   expect(response.text).toContain("api.tsUpdated");
@@ -260,6 +261,7 @@ test("keeps prompt Markdown compact inside a message bubble", () => {
   ));
 
   const prompt = screen.getByRole("region", { name: "User prompt" });
+  expect(prompt.className).not.toContain("w-full");
   expect(prompt.className).toContain("gap-2");
   expect(JSON.stringify(prompt.snapshot())).toContain("text-base");
   expect(prompt.text).toContain("inspect src/main.rs");

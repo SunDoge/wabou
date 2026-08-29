@@ -5926,7 +5926,7 @@ function Markdown(props) {
 			return props["aria-label"] ?? "Markdown";
 		},
 		get ["class"]() {
-			return mergeClasses("min-w-0 flex flex-col", variant() === "document" ? "gap-4" : variant() === "prompt" ? "gap-2" : "gap-3", props.class);
+			return mergeClasses("min-w-0 flex flex-col", variant() === "conversation" && "w-full", variant() === "document" ? "gap-4" : variant() === "prompt" ? "gap-2" : "gap-3", props.class);
 		},
 		get children() {
 			return createComponent$1(MarkdownBlocks, {

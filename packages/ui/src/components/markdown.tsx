@@ -387,6 +387,7 @@ export function Markdown(props: MarkdownProps): JSX.Element {
       aria-label={props["aria-label"] ?? "Markdown"}
       class={mergeClasses(
         "min-w-0 flex flex-col",
+        variant() === "conversation" && "w-full",
         variant() === "document"
           ? "gap-4"
           : variant() === "prompt"
