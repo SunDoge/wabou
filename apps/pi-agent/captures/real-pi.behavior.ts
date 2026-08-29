@@ -18,6 +18,11 @@ test(
     await page
       .getByRole("button", { name: "Collapse sessions for Project 1" })
       .waitFor({ timeout: 5_000 });
+    await page
+      .getByRole("button", {
+        name: "Inspect this workspace briefly and explain in one short paragrap…",
+      })
+      .waitFor();
     await page.getByRole("button", { name: "New thread" }).waitFor();
   },
   { timeout: 60_000 },

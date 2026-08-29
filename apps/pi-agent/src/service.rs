@@ -986,7 +986,19 @@ impl PiService {
             .sessions
             .lock()
             .map_err(|_| "Pi session catalog lock poisoned".to_owned())?;
-        if prune_missing_sessions(&mut catalog) {
+        let mut changed = prune_missing_sessions(&mut catalog);
+        for session in &mut catalog.sessions {
+            if session
+                .name
+                .as_deref()
+                .is_none_or(|name| name.trim().is_empty())
+                && let Some(name) = session_title_from_file(Path::new(&session.session_file))
+            {
+                session.name = Some(name);
+                changed = true;
+            }
+        }
+        if changed {
             persist_catalog(&catalog)?;
         }
         let mut sessions = catalog
@@ -1203,6 +1215,13 @@ fn remember_session(
     ) else {
         return;
     };
+    let name = data
+        .get("sessionName")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
+        .or_else(|| session_title_from_file(Path::new(session_file)));
     let updated_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |duration| duration.as_secs());
@@ -1213,15 +1232,59 @@ fn remember_session(
         agent_id: agent_id.to_owned(),
         session_id: session_id.to_owned(),
         session_file: session_file.to_owned(),
-        name: data
-            .get("sessionName")
-            .and_then(Value::as_str)
-            .map(str::to_owned),
+        name,
         cwd: cwd.to_owned(),
         updated_at,
     };
     upsert_session(&mut catalog, entry);
     let _ = persist_catalog(&catalog);
+}
+
+fn session_title_from_file(path: &Path) -> Option<String> {
+    let file = std::fs::File::open(path).ok()?;
+    for line in BufReader::new(file).lines().take(256) {
+        let Ok(line) = line else { continue };
+        let Ok(entry) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
+        let Some(message) = entry.get("message") else {
+            continue;
+        };
+        if message.get("role").and_then(Value::as_str) != Some("user") {
+            continue;
+        }
+        let Some(content) = message.get("content") else {
+            continue;
+        };
+        let text = match content {
+            Value::String(text) => text.clone(),
+            Value::Array(parts) => parts
+                .iter()
+                .filter(|part| part.get("type").and_then(Value::as_str) == Some("text"))
+                .filter_map(|part| part.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join(" "),
+            _ => continue,
+        };
+        if let Some(title) = compact_session_title(&text) {
+            return Some(title);
+        }
+    }
+    None
+}
+
+fn compact_session_title(text: &str) -> Option<String> {
+    const MAX_CHARS: usize = 64;
+    let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        return None;
+    }
+    let mut chars = normalized.chars();
+    let mut title = chars.by_ref().take(MAX_CHARS).collect::<String>();
+    if chars.next().is_some() {
+        title.push('…');
+    }
+    Some(title)
 }
 
 fn upsert_session(catalog: &mut SessionCatalog, entry: PiSession) {
@@ -2109,6 +2172,33 @@ mod tests {
             Some(existing)
         );
         assert!(!prune_missing_sessions(&mut catalog));
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn derives_a_unicode_safe_title_from_the_first_user_message() {
+        let directory = test_directory("session-title");
+        std::fs::create_dir_all(&directory).expect("fixture directory");
+        let session = directory.join("session.jsonl");
+        std::fs::write(
+            &session,
+            concat!(
+                "{\"type\":\"session\",\"id\":\"session\"}\n",
+                "{\"type\":\"message\",\"message\":{\"role\":\"assistant\",\"content\":[]}}\n",
+                "{\"type\":\"message\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"  日本語の   OCR\\n結果を確認する  \"}]}}\n"
+            ),
+        )
+        .expect("session fixture");
+
+        assert_eq!(
+            session_title_from_file(&session).as_deref(),
+            Some("日本語の OCR 結果を確認する")
+        );
+        let long = "界".repeat(80);
+        let title = compact_session_title(&long).expect("long title");
+        assert_eq!(title.chars().count(), 65);
+        assert!(title.ends_with('…'));
+
         let _ = std::fs::remove_dir_all(directory);
     }
 
