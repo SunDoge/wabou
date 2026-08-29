@@ -214,14 +214,28 @@ fn answer_prompt(state: &mut FixtureState, message: &str) -> io::Result<()> {
         "type":"message_update",
         "assistantMessageEvent":{"type":"text_delta","delta":"Fake Pi completed: "}
     }))?;
+    let response = assistant_response_suffix(message);
     thread::sleep(Duration::from_millis(15));
     emit(&json!({
         "type":"message_update",
-        "assistantMessageEvent":{"type":"text_delta","delta":message}
+        "assistantMessageEvent":{"type":"text_delta","delta":response}
     }))?;
     emit(&json!({"type":"message_end"}))?;
     emit(&json!({"type":"agent_end"}))?;
     emit(&json!({"type":"agent_settled"}))
+}
+
+fn assistant_response(message: &str) -> String {
+    format!("Fake Pi completed: {}", assistant_response_suffix(message))
+}
+
+fn assistant_response_suffix(message: &str) -> String {
+    if message != "Review the Wabou renderer" {
+        return message.to_owned();
+    }
+    format!(
+        "{message}\n\n## Renderer review\n\nThe retained UI boundary is ready for the next release.\n\n- **QuickJS + Solid** batches reactive updates.\n- **Taffy** keeps layout deterministic.\n- **Vello** paints the final scene.\n\n```sh\nbun run verify\n```\n\nAll focused checks passed."
+    )
 }
 
 fn answer_image_prompt(image_count: usize) -> io::Result<()> {
@@ -299,7 +313,7 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
                 json!({"role":"user","content":[{"type":"text","text":message}]}),
                 json!({"role":"assistant","content":[{
                     "type":"text",
-                    "text":format!("Fake Pi completed: {message}")
+                    "text":assistant_response(message)
                 }]})
             ])}),
         ),

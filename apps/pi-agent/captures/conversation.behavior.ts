@@ -6,11 +6,11 @@ test("captures a completed deterministic conversation", async ({ page }) => {
     name: "Ask this agent to work in its repository…",
   });
   await composer.waitFor();
-  await composer.type("Explain the fixture");
+  await composer.type("Review the Wabou renderer");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Explain the fixture",
+      name: "Fake Pi completed: Review the Wabou renderer",
     }),
   ).toHaveCount(1, { timeout: 5_000 });
 });
