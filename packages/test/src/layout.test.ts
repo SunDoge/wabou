@@ -146,6 +146,17 @@ describe("layout rect assertions", () => {
           styleDiagnostics: [],
           computed: { background: "#ffffff" },
         },
+        {
+          id: { lo: 4, hi: 1 },
+          parentId: { lo: 1, hi: 1 },
+          tag: "button",
+          classes: ["w-11", "h-6"],
+          attrs: [["role", "switch"]],
+          rect: { x: 145, y: 8, width: 44, height: 24 },
+          contentRect: { x: 145, y: 8, width: 44, height: 24 },
+          styleDiagnostics: [],
+          computed: { background: "#dddddd" },
+        },
       ],
     };
 

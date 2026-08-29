@@ -110,24 +110,20 @@ export function CollapsibleTrigger(props: CollapsibleTriggerProps) {
       unstyled
       disabled={context.disabled() || props.disabled}
       aria-expanded={context.open()}
-      class="w-full"
+      class={mergeClasses(
+        "w-full min-h-7 flex items-center justify-between gap-3",
+        props.class,
+      )}
       onClick={(event) => {
         props.onClick?.(event);
         if (!event.defaultPrevented) context.toggle();
       }}
     >
-      <View
-        class={mergeClasses(
-          "w-full flex items-center justify-between gap-3",
-          props.class,
-        )}
-      >
-        {props.children}
-        <DisclosureIndicator
-          open={context.open}
-          reducedMotion={context.reducedMotion}
-        />
-      </View>
+      {props.children}
+      <DisclosureIndicator
+        open={context.open}
+        reducedMotion={context.reducedMotion}
+      />
     </Button>
   );
 }
@@ -279,7 +275,10 @@ export function AccordionTrigger(props: AccordionTriggerProps) {
       unstyled
       disabled={root.disabled() || item.disabled() || props.disabled}
       aria-expanded={open()}
-      class="w-full"
+      class={mergeClasses(
+        "w-full py-4 flex items-center justify-between gap-4",
+        props.class,
+      )}
       ref={(node) => {
         unregister?.();
         unregister = root.register(
@@ -300,17 +299,10 @@ export function AccordionTrigger(props: AccordionTriggerProps) {
         }
       }}
     >
-      <View
-        class={mergeClasses(
-          "w-full py-4 flex items-center justify-between gap-4",
-          props.class,
-        )}
-      >
-        <Text class="min-w-0 whitespace-normal text-sm font-medium text-primary">
-          {props.children}
-        </Text>
-        <DisclosureIndicator open={open} reducedMotion={root.reducedMotion} />
-      </View>
+      <Text class="min-w-0 flex-1 whitespace-normal text-sm font-medium text-primary">
+        {props.children}
+      </Text>
+      <DisclosureIndicator open={open} reducedMotion={root.reducedMotion} />
     </Button>
   );
 }

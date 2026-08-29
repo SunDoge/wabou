@@ -322,6 +322,9 @@ const assertMarkdownConversationLayout = (snapshot: LayoutSnapshot) => {
 
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "foundations/muted-contrast": { checks: ["visual-quality"] as const },
+  "basics/NumberField": { checks: ["visual-quality"] as const },
+  "basics/Switch": { checks: ["visual-quality"] as const },
+  "widgets/Accordion": { checks: ["visual-quality"] as const },
   // Carousel tracks and message reactions deliberately extend past their
   // logical content box; their component-specific clipping is tested lower.
   "widgets/Carousel": { checks: ["sibling-collision"] as const },
@@ -336,7 +339,11 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/ImageViewport": {
     width: 720,
     height: 520,
+    checks: ["visual-quality"] as const,
     assert: assertImageViewportLayout,
+  },
+  "image-viewport/ImageViewport": {
+    checks: ["visual-quality"] as const,
   },
   "component/ImageList": {
     width: 360,

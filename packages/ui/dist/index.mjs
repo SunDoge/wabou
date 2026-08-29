@@ -2708,29 +2708,24 @@ function CollapsibleTrigger(props) {
 		get ["aria-expanded"]() {
 			return context.open();
 		},
-		class: "w-full",
+		get ["class"]() {
+			return mergeClasses("w-full min-h-7 flex items-center justify-between gap-3", props.class);
+		},
 		onClick: (event) => {
 			props.onClick?.(event);
 			if (!event.defaultPrevented) context.toggle();
 		},
 		get children() {
-			return createComponent$1(View, {
-				get ["class"]() {
-					return mergeClasses("w-full flex items-center justify-between gap-3", props.class);
+			return [memo(() => {
+				return props.children;
+			}), createComponent$1(DisclosureIndicator, {
+				get open() {
+					return context.open;
 				},
-				get children() {
-					return [memo(() => {
-						return props.children;
-					}), createComponent$1(DisclosureIndicator, {
-						get open() {
-							return context.open;
-						},
-						get reducedMotion() {
-							return context.reducedMotion;
-						}
-					})];
+				get reducedMotion() {
+					return context.reducedMotion;
 				}
-			});
+			})];
 		}
 	}));
 }
@@ -2846,7 +2841,9 @@ function AccordionTrigger(props) {
 		get ["aria-expanded"]() {
 			return open();
 		},
-		class: "w-full",
+		get ["class"]() {
+			return mergeClasses("w-full py-4 flex items-center justify-between gap-4", props.class);
+		},
 		ref: (node) => {
 			unregister?.();
 			unregister = root.register(item.value, node, () => root.disabled() || item.disabled() || (props.disabled ?? false));
@@ -2861,24 +2858,17 @@ function AccordionTrigger(props) {
 			if (!event.defaultPrevented && root.move(item.value, event.key)) event.preventDefault();
 		},
 		get children() {
-			return createComponent$1(View, {
-				get ["class"]() {
-					return mergeClasses("w-full py-4 flex items-center justify-between gap-4", props.class);
-				},
+			return [createComponent$1(Text, {
+				class: "min-w-0 flex-1 whitespace-normal text-sm font-medium text-primary",
 				get children() {
-					return [createComponent$1(Text, {
-						class: "min-w-0 whitespace-normal text-sm font-medium text-primary",
-						get children() {
-							return props.children;
-						}
-					}), createComponent$1(DisclosureIndicator, {
-						open,
-						get reducedMotion() {
-							return root.reducedMotion;
-						}
-					})];
+					return props.children;
 				}
-			});
+			}), createComponent$1(DisclosureIndicator, {
+				open,
+				get reducedMotion() {
+					return root.reducedMotion;
+				}
+			})];
 		}
 	}));
 }
@@ -4637,15 +4627,21 @@ function AnnotationLayer(props) {
 							get ["aria-label"]() {
 								return `Resize ${region.label ?? region.id}`;
 							},
-							class: "absolute w-3 h-3 rounded-sm border border-on-accent bg-accent cursor-pointer",
+							class: "absolute w-7 h-7 flex items-center justify-center bg-transparent cursor-pointer",
 							style: {
-								right: "0px",
-								bottom: "0px"
+								right: "-8px",
+								bottom: "-8px"
 							},
 							onPointerDown: (event) => beginRegion("resize", region, event),
 							onPointerMove: updateDrag,
 							onPointerUp: finish,
-							onPointerCancel: () => setInteraction()
+							onPointerCancel: () => setInteraction(),
+							get children() {
+								return createComponent$1(View, {
+									"aria-hidden": "true",
+									class: "w-3 h-3 rounded-sm border border-on-accent bg-accent pointer-events-none"
+								});
+							}
 						});
 					}
 				})
@@ -7694,7 +7690,7 @@ function NumberField(props) {
 			return [
 				createComponent$1(InputGroupButton, {
 					size: "icon",
-					class: "w-6 h-6 mx-0.5",
+					class: "w-7 h-7 mx-0.5",
 					get disabled() {
 						return !canDecrement();
 					},
@@ -7772,7 +7768,7 @@ function NumberField(props) {
 				})),
 				createComponent$1(InputGroupButton, {
 					size: "icon",
-					class: "w-6 h-6 mx-0.5",
+					class: "w-7 h-7 mx-0.5",
 					get disabled() {
 						return !canIncrement();
 					},

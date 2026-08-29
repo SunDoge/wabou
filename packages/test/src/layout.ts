@@ -622,6 +622,14 @@ export function visualQualityDiagnostics(
     }
 
     const role = layoutRole(node);
+    const minimumWidth =
+      options.minimumInteractiveTarget === undefined && role === "switch"
+        ? 40
+        : minimumTarget;
+    const minimumHeight =
+      options.minimumInteractiveTarget === undefined && role === "switch"
+        ? 24
+        : minimumTarget;
     if (
       (role === "button" ||
         role === "checkbox" ||
@@ -629,14 +637,14 @@ export function visualQualityDiagnostics(
         role === "radio" ||
         role === "switch") &&
       nodeAttrs.get("disabled") !== "true" &&
-      (node.rect.width + 0.01 < minimumTarget ||
-        node.rect.height + 0.01 < minimumTarget)
+      (node.rect.width + 0.01 < minimumWidth ||
+        node.rect.height + 0.01 < minimumHeight)
     ) {
       diagnostics.push({
         code: "interactive-target-too-small",
         node,
         amount: Math.min(node.rect.width, node.rect.height),
-        message: `${diagnosticNodeText(node)} role=${role} is ${node.rect.width.toFixed(1)}x${node.rect.height.toFixed(1)}; expected both dimensions to be at least ${minimumTarget.toFixed(1)}px`,
+        message: `${diagnosticNodeText(node)} role=${role} is ${node.rect.width.toFixed(1)}x${node.rect.height.toFixed(1)}; expected at least ${minimumWidth.toFixed(1)}x${minimumHeight.toFixed(1)}px`,
       });
     }
   }

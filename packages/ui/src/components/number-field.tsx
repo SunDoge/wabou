@@ -145,7 +145,7 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
     <InputGroup class={props.class}>
       <InputGroupButton
         size="icon"
-        class="w-6 h-6 mx-0.5"
+        class="w-7 h-7 mx-0.5"
         disabled={!canDecrement()}
         aria-label={props.decrementLabel ?? `Decrease ${props["aria-label"]}`}
         onClick={() => changeBy(-1, range().step)}
@@ -224,7 +224,7 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
       />
       <InputGroupButton
         size="icon"
-        class="w-6 h-6 mx-0.5"
+        class="w-7 h-7 mx-0.5"
         disabled={!canIncrement()}
         aria-label={props.incrementLabel ?? `Increase ${props["aria-label"]}`}
         onClick={() => changeBy(1, range().step)}

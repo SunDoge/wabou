@@ -94,6 +94,7 @@ test("collapsible forwards root, trigger and content contracts", () => {
   const trigger = screen.getByRole("button", {
     name: "Toggle advanced settings",
   });
+  expect(trigger.className).toContain("min-h-7");
   expect(trigger.expanded).toBe(true);
   expect(screen.getByRole("region", { name: "Advanced options" }).text).toBe(
     "Options",
@@ -157,6 +158,8 @@ test("accordion forwards its anatomy and roves focus across enabled triggers", (
 
   const first = screen.getByRole("button", { name: "First question" });
   const third = screen.getByRole("button", { name: "Third question" });
+  expect(first.className).toContain("py-4");
+  expect(first.className).toContain("w-full");
   first.focus();
   first.press("ArrowDown");
   expect(third.focused).toBe(true);

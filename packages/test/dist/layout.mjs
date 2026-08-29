@@ -324,11 +324,13 @@ function visualQualityDiagnostics(snapshot, options = {}) {
 			});
 		}
 		const role = layoutRole(node);
-		if ((role === "button" || role === "checkbox" || role === "combobox" || role === "radio" || role === "switch") && nodeAttrs.get("disabled") !== "true" && (node.rect.width + .01 < minimumTarget || node.rect.height + .01 < minimumTarget)) diagnostics.push({
+		const minimumWidth = options.minimumInteractiveTarget === void 0 && role === "switch" ? 40 : minimumTarget;
+		const minimumHeight = options.minimumInteractiveTarget === void 0 && role === "switch" ? 24 : minimumTarget;
+		if ((role === "button" || role === "checkbox" || role === "combobox" || role === "radio" || role === "switch") && nodeAttrs.get("disabled") !== "true" && (node.rect.width + .01 < minimumWidth || node.rect.height + .01 < minimumHeight)) diagnostics.push({
 			code: "interactive-target-too-small",
 			node,
 			amount: Math.min(node.rect.width, node.rect.height),
-			message: `${diagnosticNodeText(node)} role=${role} is ${node.rect.width.toFixed(1)}x${node.rect.height.toFixed(1)}; expected both dimensions to be at least ${minimumTarget.toFixed(1)}px`
+			message: `${diagnosticNodeText(node)} role=${role} is ${node.rect.width.toFixed(1)}x${node.rect.height.toFixed(1)}; expected at least ${minimumWidth.toFixed(1)}x${minimumHeight.toFixed(1)}px`
 		});
 	}
 	return diagnostics;

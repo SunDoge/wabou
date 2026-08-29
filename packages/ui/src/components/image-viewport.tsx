@@ -497,13 +497,18 @@ export function AnnotationLayer(props: AnnotationLayerProps): JSX.Element {
             <View
               role="button"
               aria-label={`Resize ${region.label ?? region.id}`}
-              class="absolute w-3 h-3 rounded-sm border border-on-accent bg-accent cursor-pointer"
-              style={{ right: "0px", bottom: "0px" }}
+              class="absolute w-7 h-7 flex items-center justify-center bg-transparent cursor-pointer"
+              style={{ right: "-8px", bottom: "-8px" }}
               onPointerDown={(event) => beginRegion("resize", region, event)}
               onPointerMove={updateDrag}
               onPointerUp={finish}
               onPointerCancel={() => setInteraction()}
-            />
+            >
+              <View
+                aria-hidden="true"
+                class="w-3 h-3 rounded-sm border border-on-accent bg-accent pointer-events-none"
+              />
+            </View>
           </View>
         )}
       </ForValue>

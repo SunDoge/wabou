@@ -102,6 +102,10 @@ test("creates and moves regions through the authored pointer path", () => {
   const viewport = screen.getByRole("group", { name: "Manga page" });
   viewport.resize({ width: 400, height: 300 });
   let dialogue = screen.getByRole("button", { name: "Dialogue" });
+  const resize = screen.getByRole("button", { name: "Resize Dialogue" });
+  expect(resize.className).toContain("w-7");
+  expect(resize.className).toContain("h-7");
+  expect(resize.children[0]?.className).toContain("w-3");
   expect(dialogue.style("left")).toBe("40px");
   expect(dialogue.style("top")).toBe("70px");
   expect(dialogue.style("width")).toBe("80px");
