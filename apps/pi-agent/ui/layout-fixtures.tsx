@@ -9,6 +9,7 @@ import {
   MessageScrollerViewport,
   Text,
   View,
+  WorkbenchContentColumn,
   WorkbenchHeader,
 } from "@wabou/ui";
 import { For } from "solid-js";
@@ -58,6 +59,19 @@ const longConversation: readonly AgentItem[] = Array.from(
 );
 
 defineLayoutFixtures({
+  "shell/content-column-wide": {
+    width: 1_200,
+    height: 120,
+    render: () => (
+      <View class="w-full h-full bg-canvas">
+        <WorkbenchContentColumn
+          role="region"
+          aria-label="Readable workbench content"
+          class="h-20 bg-surface"
+        />
+      </View>
+    ),
+  },
   "conversation/composer-autocomplete": {
     width: 384,
     height: 176,

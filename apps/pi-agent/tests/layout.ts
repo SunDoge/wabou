@@ -45,6 +45,28 @@ try {
     app: "apps/pi-agent",
     cases: [
       {
+        id: "shell/content-column-wide",
+        width: 1_200,
+        height: 120,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          const column = getLayoutNode(fixture, {
+            role: "region",
+            name: "Readable workbench content",
+          });
+          if (Math.abs(column.rect.width - 896) > 0.5) {
+            throw new Error(
+              `workbench content column did not honor its readable width: width=${column.rect.width}`,
+            );
+          }
+          if (Math.abs(column.rect.x - 152) > 0.5) {
+            throw new Error(
+              `workbench content column was not centered: x=${column.rect.x}`,
+            );
+          }
+        },
+      },
+      {
         id: "conversation/composer-autocomplete",
         width: 384,
         height: 176,

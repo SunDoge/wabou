@@ -15,6 +15,7 @@ import {
   useNavigate,
   useParams,
   Workbench,
+  WorkbenchContentColumn,
   WorkbenchMain,
 } from "@wabou/ui";
 import {
@@ -1020,30 +1021,32 @@ export function App() {
                 />
               </Show>
               <MessageScrollerViewport>
-                <MessageScrollerContent class="max-w-3xl mx-auto px-6 py-5">
-                  <Show
-                    when={active().state.items.length > 0}
-                    fallback={
-                      <ConversationWelcome
-                        workspace={active().cwd}
-                        choosePrompt={setDraft}
+                <MessageScrollerContent>
+                  <WorkbenchContentColumn class="px-6 py-5">
+                    <Show
+                      when={active().state.items.length > 0}
+                      fallback={
+                        <ConversationWelcome
+                          workspace={active().cwd}
+                          choosePrompt={setDraft}
+                        />
+                      }
+                    >
+                      <ConversationList
+                        items={active().state.items}
+                        activeSearchItem={activeSearchItem()}
+                        registerItem={(id, node) =>
+                          itemHandles.register(itemHandleScope(), id, node)
+                        }
+                        fork={(item) =>
+                          pendingFork.open(activeId(), {
+                            entryId: item.entryId ?? "",
+                            text: item.text,
+                          })
+                        }
                       />
-                    }
-                  >
-                    <ConversationList
-                      items={active().state.items}
-                      activeSearchItem={activeSearchItem()}
-                      registerItem={(id, node) =>
-                        itemHandles.register(itemHandleScope(), id, node)
-                      }
-                      fork={(item) =>
-                        pendingFork.open(activeId(), {
-                          entryId: item.entryId ?? "",
-                          text: item.text,
-                        })
-                      }
-                    />
-                  </Show>
+                    </Show>
+                  </WorkbenchContentColumn>
                 </MessageScrollerContent>
               </MessageScrollerViewport>
               <ConversationNavigator items={active().state.items} />

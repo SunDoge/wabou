@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   workbenchClass,
   workbenchContentClass,
+  workbenchContentColumnClass,
   workbenchFooterClass,
   workbenchHeaderClass,
   workbenchMainClass,
@@ -33,5 +34,13 @@ describe("workbench geometry contract", () => {
     expect(workbenchSidebarClass("w-72")).not.toContain("w-64");
     expect(workbenchHeaderClass("bg-canvas")).toContain("bg-canvas");
     expect(workbenchHeaderClass("bg-canvas")).not.toContain("bg-surface");
+  });
+
+  test("provides one readable desktop column that still shrinks", () => {
+    expect(workbenchContentColumnClass()).toContain("w-full");
+    expect(workbenchContentColumnClass()).toContain("max-w-4xl");
+    expect(workbenchContentColumnClass()).toContain("min-w-0");
+    expect(workbenchContentColumnClass("max-w-5xl")).toContain("max-w-5xl");
+    expect(workbenchContentColumnClass("max-w-5xl")).not.toContain("max-w-4xl");
   });
 });

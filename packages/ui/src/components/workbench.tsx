@@ -4,6 +4,7 @@ import { Sidebar, type SidebarProps } from "./sidebar";
 import {
   workbenchClass,
   workbenchContentClass,
+  workbenchContentColumnClass,
   workbenchFooterClass,
   workbenchHeaderClass,
   workbenchMainClass,
@@ -40,6 +41,14 @@ export function WorkbenchHeader(props: ViewProps): JSX.Element {
 export function WorkbenchContent(props: ViewProps): JSX.Element {
   const forwarded = omit(props, "class");
   return <View {...forwarded} class={workbenchContentClass(props.class)} />;
+}
+
+/** A centered 896px desktop content column that still shrinks with its pane. */
+export function WorkbenchContentColumn(props: ViewProps): JSX.Element {
+  const forwarded = omit(props, "class");
+  return (
+    <View {...forwarded} class={workbenchContentColumnClass(props.class)} />
+  );
 }
 
 /** Fixed chrome below the workbench content, such as a composer or status bar. */

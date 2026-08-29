@@ -27,6 +27,10 @@ export const workbenchContentClass = (className?: string) =>
     className,
   );
 
+/** Shared readable column for workbench transcripts, editors and composers. */
+export const workbenchContentColumnClass = (className?: string) =>
+  mergeClasses("w-full max-w-4xl mx-auto min-w-0", className);
+
 export const workbenchFooterClass = (className?: string) =>
   mergeClasses(
     "min-w-0 flex-none border-t border-subtle bg-surface",

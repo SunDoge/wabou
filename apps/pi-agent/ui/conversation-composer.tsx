@@ -9,6 +9,7 @@ import {
   TextArea,
   View,
   type WabouKeyEvent,
+  WorkbenchContentColumn,
   WorkbenchFooter,
 } from "@wabou/ui";
 import send from "lucide-static/icons/send.svg?raw";
@@ -203,11 +204,11 @@ export function ConversationComposer(props: ConversationComposerProps) {
 
   return (
     <WorkbenchFooter class="border-0 bg-canvas px-5 pt-3 pb-5">
-      <View
+      <WorkbenchContentColumn
         role="group"
         aria-label={i18n.message(m.prompt_placeholder, {})}
         data-wabou-owns="surface focus-ring"
-        class="max-w-3xl mx-auto min-w-0 rounded-xl border border-subtle bg-input shadow-xs px-3 pt-3 pb-2 gap-2"
+        class="rounded-xl border border-subtle bg-input shadow-xs px-3 pt-3 pb-2 gap-2"
       >
         <ExtensionUiChrome
           statuses={props.statuses}
@@ -333,13 +334,13 @@ export function ConversationComposer(props: ConversationComposerProps) {
             <Icon source={send} size={14} />
           </Button>
         </View>
-      </View>
-      <View class="max-w-3xl mx-auto min-w-0 px-3 pt-2 flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      </WorkbenchContentColumn>
+      <WorkbenchContentColumn class="px-3 pt-2 flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <Text class="min-w-40 flex-1 truncate text-xs text-muted">
           {props.project} · {i18n.message(m.send_hint, {})}
         </Text>
         <SessionUsage stats={props.stats} />
-      </View>
+      </WorkbenchContentColumn>
     </WorkbenchFooter>
   );
 }
