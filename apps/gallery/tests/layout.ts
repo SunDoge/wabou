@@ -264,8 +264,8 @@ const assertPiAgentHeaderLayout = (snapshot: LayoutSnapshot) => {
     name: "Pi agent content header",
   });
   assertClose(sidebar.rect.y, content.rect.y, "Pi Agent header top edge");
-  assertClose(sidebar.rect.height, 56, "Pi Agent sidebar header height");
-  assertClose(content.rect.height, 56, "Pi Agent content header height");
+  assertClose(sidebar.rect.height, 48, "Pi Agent sidebar header height");
+  assertClose(content.rect.height, 48, "Pi Agent content header height");
   assertClose(
     layoutRectBottom(sidebar.rect),
     layoutRectBottom(content.rect),

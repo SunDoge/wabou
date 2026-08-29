@@ -130,6 +130,7 @@ export * from "./toolbar";
 export * from "./tooltip";
 export * from "./tree-view";
 export * from "./typography";
+export * from "./workbench";
 
 export interface FpsProps {
   /** Controlled FPS value. When omitted, the component measures host frames. */

@@ -239,7 +239,8 @@ function dynamicTokenMatches(
       );
     case "color":
       return (
-        (colorTokens.has(colorAndOpacity[0] ?? "") &&
+        ((colorTokens.has(colorAndOpacity[0] ?? "") ||
+          /^[a-z][a-z0-9-]*$/.test(colorAndOpacity[0] ?? "")) &&
           (colorAndOpacity.length === 1 ||
             /^(?:100|\d{1,2})$/.test(colorAndOpacity[1] ?? ""))) ||
         /^\[#[0-9a-fA-F]{3,8}\](?:\/\d+)?$/.test(token)

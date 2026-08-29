@@ -1580,7 +1580,7 @@ function dynamicTokenMatches(resolver, token, allowAuto) {
 	switch (resolver) {
 		case "spacing": return spacingTokens.has(token) || allowAuto && token === "auto" || arbitraryLength.test(token);
 		case "dimension": return spacingTokens.has(token) || token === "full" || arbitraryLength.test(token) || barePercent.test(token) || fraction.test(token);
-		case "color": return colorTokens.has(colorAndOpacity[0] ?? "") && (colorAndOpacity.length === 1 || /^(?:100|\d{1,2})$/.test(colorAndOpacity[1] ?? "")) || /^\[#[0-9a-fA-F]{3,8}\](?:\/\d+)?$/.test(token);
+		case "color": return (colorTokens.has(colorAndOpacity[0] ?? "") || /^[a-z][a-z0-9-]*$/.test(colorAndOpacity[0] ?? "")) && (colorAndOpacity.length === 1 || /^(?:100|\d{1,2})$/.test(colorAndOpacity[1] ?? "")) || /^\[#[0-9a-fA-F]{3,8}\](?:\/\d+)?$/.test(token);
 		case "opacity": return /^\d+(?:\.\d+)?$/.test(token) && Number(token) >= 0 && Number(token) <= 100;
 		case "number":
 		case "scale":
@@ -1637,4 +1637,4 @@ function mergeClasses(...values) {
 //#endregion
 export { utilityConflictProperties as _, bool as a, mergeClasses as c, px as d, rgba as f, translate2d as g, shadow as h, auto as i, number as l, scale2d as m, StyleValueKind as n, classes as o, rotate2d as p, assertInlineStyleValue as r, isTypedStyleValue as s, STYLE_VALUE as t, percent as u, INLINE_STYLE_CONTRACT as v };
 
-//# sourceMappingURL=style-BT228Iak.mjs.map
+//# sourceMappingURL=style-BoQjkXmV.mjs.map

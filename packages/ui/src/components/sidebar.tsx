@@ -16,6 +16,7 @@ import {
   componentsElevation,
   useComponentsTheme,
 } from "./theme";
+import { workbenchHeaderClass } from "./workbench-style";
 
 export interface SidebarSearchGroup<Item> {
   label: string;
@@ -74,15 +75,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
 }
 
 export function SidebarHeader(props: ViewProps): JSX.Element {
-  return (
-    <View
-      {...props}
-      class={mergeClasses(
-        "h-14 flex-none border-b border-subtle bg-surface",
-        props.class,
-      )}
-    />
-  );
+  return <View {...props} class={workbenchHeaderClass(props.class)} />;
 }
 
 export function SidebarSearch(props: SearchFieldProps): JSX.Element {

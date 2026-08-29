@@ -89,6 +89,10 @@ describe("typed style", () => {
     expect(mergeClasses("translate-x-2", "translate-x-4")).toBe(
       "translate-x-4",
     );
+    expect(mergeClasses("bg-surface", "bg-canvas")).toBe("bg-canvas");
+    expect(mergeClasses("text-secondary", "text-brand/80")).toBe(
+      "text-brand/80",
+    );
   });
 
   test("preserves conditional and unknown third-party classes", () => {

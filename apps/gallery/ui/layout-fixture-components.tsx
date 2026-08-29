@@ -33,6 +33,7 @@ import {
   SidebarMenuButton,
   Text,
   View,
+  WorkbenchHeader,
 } from "@wabou/ui";
 import imageIcon from "lucide-static/icons/image.svg?raw";
 import { For as ForValue } from "solid-js";
@@ -143,16 +144,16 @@ export function PiSessionBehaviorLayoutFixture() {
 
 export function PiAgentHeaderLayoutFixture() {
   return (
-    <View class="w-full h-14 min-w-0 flex flex-row bg-canvas">
+    <View class="w-full h-12 min-w-0 flex flex-row bg-canvas">
       <SidebarHeader
         aria-label="Pi agent sidebar header"
         class="w-72 flex items-center gap-3 px-4"
       >
         <Text class="font-semibold">Pi Agent</Text>
       </SidebarHeader>
-      <View
+      <WorkbenchHeader
         aria-label="Pi agent content header"
-        class="h-14 min-w-0 flex-1 px-5 border-b border-subtle bg-surface flex flex-row items-center justify-between gap-3"
+        class="flex-1 justify-between"
       >
         <View class="min-w-0 flex-1 flex flex-col gap-0">
           <Text class="font-semibold truncate">Implement session controls</Text>
@@ -194,7 +195,7 @@ export function PiAgentHeaderLayoutFixture() {
             exportHtml={() => {}}
           />
         </View>
-      </View>
+      </WorkbenchHeader>
     </View>
   );
 }

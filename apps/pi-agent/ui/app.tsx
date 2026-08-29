@@ -17,6 +17,10 @@ import {
   useNavigate,
   useParams,
   View,
+  Workbench,
+  WorkbenchFooter,
+  WorkbenchHeader,
+  WorkbenchMain,
 } from "@wabou/ui";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
@@ -443,7 +447,9 @@ export function App() {
               ]),
             );
           const data = stateEvent?.data as
-            Record<string, unknown> | null | undefined;
+            | Record<string, unknown>
+            | null
+            | undefined;
           if (
             (stateEvent?.id === "wabou-new-session-state" ||
               stateEvent?.id === "wabou-clone-state") &&
@@ -476,7 +482,8 @@ export function App() {
             event.success === true,
         );
         const exported = exportEvent?.data as
-          Record<string, unknown> | undefined;
+          | Record<string, unknown>
+          | undefined;
         if (typeof exported?.path === "string") {
           toasts.success(i18n.message(m.export_complete, {}), {
             description: i18n.message(m.export_complete_detail, {
@@ -841,7 +848,7 @@ export function App() {
   };
 
   return (
-    <View class="w-full h-full min-w-0 min-h-0 flex bg-canvas text-primary">
+    <Workbench>
       <Sidebar
         agents={agents()}
         activeId={activeId()}
@@ -859,28 +866,30 @@ export function App() {
       <Show
         when={location().pathname !== "/settings"}
         fallback={
-          <SettingsPage
-            app={defaults.value()}
-            project={active()}
-            state={active().state}
-            updateApp={defaults.update}
-            updateProject={patchActive}
-            deleteProject={() => void deleteActiveAgent()}
-            setAutoCompaction={(enabled) =>
-              void api.setAutoCompaction(active().id, enabled)
-            }
-            setSteeringMode={(mode) =>
-              void api.setSteeringMode(active().id, mode)
-            }
-            setFollowUpMode={(mode) =>
-              void api.setFollowUpMode(active().id, mode)
-            }
-            close={() => navigate({ to: `/agents/${activeId()}` })}
-          />
+          <WorkbenchMain>
+            <SettingsPage
+              app={defaults.value()}
+              project={active()}
+              state={active().state}
+              updateApp={defaults.update}
+              updateProject={patchActive}
+              deleteProject={() => void deleteActiveAgent()}
+              setAutoCompaction={(enabled) =>
+                void api.setAutoCompaction(active().id, enabled)
+              }
+              setSteeringMode={(mode) =>
+                void api.setSteeringMode(active().id, mode)
+              }
+              setFollowUpMode={(mode) =>
+                void api.setFollowUpMode(active().id, mode)
+              }
+              close={() => navigate({ to: `/agents/${activeId()}` })}
+            />
+          </WorkbenchMain>
         }
       >
-        <View class="flex-1 min-w-0 min-h-0 flex flex-col">
-          <View class="h-12 flex-none px-4 bg-canvas flex items-center justify-between gap-3">
+        <WorkbenchMain>
+          <WorkbenchHeader class="bg-canvas border-0 justify-between">
             <View class="min-w-0 flex-1 overflow-hidden flex flex-row items-center gap-1">
               <Text class="min-w-0 truncate text-sm font-medium text-secondary">
                 {activeSession()?.name ??
@@ -984,7 +993,7 @@ export function App() {
                 </Show>
               </View>
             </Show>
-          </View>
+          </WorkbenchHeader>
 
           <Show
             when={
@@ -1047,7 +1056,7 @@ export function App() {
               <MessageScrollerButton />
             </MessageScroller>
 
-            <View class="flex-none bg-canvas px-5 pt-3 pb-5">
+            <WorkbenchFooter class="border-0 bg-canvas px-5 pt-3 pb-5">
               <View
                 data-wabou-owns="surface focus-ring"
                 class="max-w-3xl mx-auto min-w-0 rounded-xl border border-subtle bg-input shadow-xs px-3 pt-3 pb-2 gap-2"
@@ -1149,7 +1158,7 @@ export function App() {
                 </Text>
                 <SessionUsage stats={active().state.stats} />
               </View>
-            </View>
+            </WorkbenchFooter>
           </Show>
           <Show when={terminalMounted()}>
             <AgentTerminalPanel
@@ -1159,7 +1168,7 @@ export function App() {
               dispose={disposeTerminal}
             />
           </Show>
-        </View>
+        </WorkbenchMain>
         <Show when={sidePanel() === "files" && active().cwd.trim()}>
           <WorkspacePanel
             cwd={active().cwd}
@@ -1200,6 +1209,6 @@ export function App() {
         title={extensionTitles()[activeId()] || "Pi Agent · Wabou"}
       />
       <Toaster toasts={toasts} />
-    </View>
+    </Workbench>
   );
 }
