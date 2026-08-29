@@ -351,8 +351,8 @@ const assertMarkdownConversationLayout = (snapshot: LayoutSnapshot) => {
     throw new Error("conversation heading omitted its resolved font size");
   if (paragraph.computed.fontSize == null)
     throw new Error("conversation body omitted its resolved font size");
-  assertClose(heading.computed.fontSize, 16, "conversation heading size");
-  assertClose(paragraph.computed.fontSize, 14, "conversation body size");
+  assertClose(heading.computed.fontSize, 18, "conversation heading size");
+  assertClose(paragraph.computed.fontSize, 16, "conversation body size");
 };
 
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {

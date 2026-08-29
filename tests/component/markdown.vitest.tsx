@@ -232,7 +232,7 @@ test("renders reactive GFM as native semantic components", () => {
   expect(screen.queryByRole("group", { name: "Code block" })).toBeNull();
 });
 
-test("renders compact conversation Markdown including GFM tables", () => {
+test("renders readable conversation Markdown including GFM tables", () => {
   const screen = renderComponent(() => (
     <Markdown
       variant="conversation"
@@ -247,17 +247,17 @@ test("renders compact conversation Markdown including GFM tables", () => {
   expect(response.className).toContain("w-full");
   expect(response.className).toContain("gap-2.5");
   expect(JSON.stringify(response.snapshot())).toContain(
-    "text-sm leading-relaxed text-primary",
+    "text-base leading-relaxed text-primary",
   );
   expect(JSON.stringify(response.snapshot())).toContain(
-    "text-base font-semibold tracking-tight",
+    "text-lg font-semibold tracking-tight",
   );
   expect(response.text).toContain("FileState");
   expect(response.text).toContain("api.tsUpdated");
   expect(response.snapshot()).toMatchObject({ role: "region" });
 });
 
-test("keeps prompt Markdown compact inside a message bubble", () => {
+test("keeps prompt Markdown readable inside a message bubble", () => {
   const screen = renderComponent(() => (
     <Markdown
       variant="prompt"
