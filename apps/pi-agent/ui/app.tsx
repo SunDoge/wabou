@@ -44,6 +44,7 @@ import {
   reducePiEvent,
   reducePiEvents,
 } from "./agent-state";
+import { AgentActivityStatus } from "./agent-activity";
 import { AppCommandPalette } from "./app-command-palette";
 import { type PiSession, usePiApi } from "./api";
 import { CommandPicker } from "./command-picker";
@@ -988,6 +989,7 @@ export function App() {
                   rename={(name) => api.renameSession(active().id, name)}
                 />
               </Show>
+              <AgentActivityStatus state={active().state} />
             </View>
             <Show
               when={

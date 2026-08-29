@@ -41,6 +41,17 @@ try {
     app: "apps/pi-agent",
     cases: [
       {
+        id: "shell/agent-activity",
+        width: 520,
+        height: 48,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, { role: "status" });
+          getLayoutNode(fixture, { text: "Retrying 2/3…" });
+          getLayoutNode(fixture, { text: "3 queued" });
+        },
+      },
+      {
         id: "shell/command-palette",
         width: 720,
         height: 520,

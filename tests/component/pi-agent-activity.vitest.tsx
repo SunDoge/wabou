@@ -18,3 +18,14 @@ test("shows the concrete agent activity and queued work", () => {
   expect(screen.getByRole("status").text).toBe("Retrying 2/3…");
   expect(screen.roots[0]?.text).toContain("3 queued");
 });
+
+test("stays absent while an agent is idle with no queued work", () => {
+  const screen = renderComponent(() => (
+    <AgentActivityStatus
+      state={{ ...initialAgentState, connection: "ready" }}
+    />
+  ));
+
+  expect(screen.queryByRole("status")).toBeNull();
+  expect(screen.roots[0]?.text).toBe("");
+});

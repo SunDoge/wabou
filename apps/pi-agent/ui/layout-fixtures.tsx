@@ -1,7 +1,8 @@
 import "@wabou/ui";
 import "virtual:wabou-stylesheet";
 import { defineLayoutFixtures } from "@wabou/test/layout/fixtures";
-import { DiffViewer, View } from "@wabou/ui";
+import { DiffViewer, Text, View, WorkbenchHeader } from "@wabou/ui";
+import { AgentActivityStatus } from "./agent-activity";
 import { initialAgentState } from "./agent-state";
 import { AppCommandPalette } from "./app-command-palette";
 import { ModelControls } from "./model-controls";
@@ -30,6 +31,28 @@ const appSettings: AppSettings = {
 };
 
 defineLayoutFixtures({
+  "shell/agent-activity": {
+    width: 520,
+    height: 48,
+    render: () => (
+      <WorkbenchHeader class="w-full h-full bg-canvas justify-between">
+        <View class="min-w-0 flex-1 overflow-hidden flex flex-row items-center gap-1">
+          <Text class="min-w-0 flex-1 truncate text-sm">
+            Documentation workspace with a deliberately long conversation title
+          </Text>
+          <AgentActivityStatus
+            state={{
+              ...initialAgentState,
+              connection: "running",
+              activity: { kind: "retrying", attempt: 2, maxAttempts: 3 },
+              queue: { steering: 1, followUp: 2 },
+            }}
+          />
+        </View>
+        <View class="w-24 h-8 flex-none bg-control rounded-md" />
+      </WorkbenchHeader>
+    ),
+  },
   "shell/command-palette": {
     width: 720,
     height: 520,
