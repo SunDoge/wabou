@@ -39,9 +39,11 @@ function InlineMarkdown(props: {
     <RichText
       class={mergeClasses(
         "min-w-0 whitespace-normal",
-        props.variant === "conversation" || props.variant === "prompt"
-          ? "text-sm leading-relaxed text-primary"
-          : "text-base leading-relaxed text-secondary",
+        props.variant === "conversation"
+          ? "text-base leading-relaxed text-primary"
+          : props.variant === "prompt"
+            ? "text-sm leading-relaxed text-primary"
+            : "text-base leading-relaxed text-secondary",
         props.class,
       )}
     >
@@ -153,7 +155,13 @@ function MarkdownList(props: {
       <ForValue each={props.block.items}>
         {(item, index) => (
           <View class="min-w-0 flex flex-row items-start gap-2">
-            <Text aria-hidden="true" class="flex-none text-secondary">
+            <Text
+              aria-hidden="true"
+              class={mergeClasses(
+                "flex-none leading-relaxed text-secondary",
+                props.variant === "prompt" ? "text-sm" : "text-base",
+              )}
+            >
               {typeof item.checked === "boolean"
                 ? item.checked
                   ? "[x]"
@@ -306,7 +314,12 @@ function MarkdownBlock(props: {
       </Match>
       <Match when={literal()}>
         {(block) => (
-          <Text class="text-sm text-muted whitespace-normal">
+          <Text
+            class={mergeClasses(
+              "text-muted whitespace-normal leading-relaxed",
+              props.variant === "prompt" ? "text-sm" : "text-base",
+            )}
+          >
             {block().text}
           </Text>
         )}

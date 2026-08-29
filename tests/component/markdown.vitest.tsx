@@ -246,6 +246,9 @@ test("renders compact conversation Markdown including GFM tables", () => {
   const response = screen.getByRole("region", { name: "Compact response" });
   expect(response.className).toContain("w-full");
   expect(response.className).toContain("gap-3");
+  expect(JSON.stringify(response.snapshot())).toContain(
+    "text-base leading-relaxed text-primary",
+  );
   expect(response.text).toContain("FileState");
   expect(response.text).toContain("api.tsUpdated");
   expect(response.snapshot()).toMatchObject({ role: "region" });
