@@ -1,11 +1,12 @@
 import {
   MessageScroller,
   MessageScrollerContent,
+  MessageScrollerItem,
   MessageScrollerViewport,
   View,
 } from "@wabou/ui";
 import { renderComponent } from "@wabou/test/component";
-import { expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 import type { AgentItem } from "../../apps/pi-agent/ui/agent-state";
 import {
   ConversationNavigator,
@@ -30,21 +31,20 @@ const items: readonly AgentItem[] = [
   },
 ];
 
-function NavigatorHarness(props: {
-  source?: readonly AgentItem[];
-  resolveItem(id: string): undefined;
-}) {
+function NavigatorHarness(props: { source?: readonly AgentItem[] }) {
   return (
     <MessageScroller>
       <MessageScrollerViewport>
         <MessageScrollerContent>
-          <View class="h-96" />
+          <MessageScrollerItem anchor="user-1">
+            <View class="h-96" />
+          </MessageScrollerItem>
+          <MessageScrollerItem anchor="user-2">
+            <View class="h-96" />
+          </MessageScrollerItem>
         </MessageScrollerContent>
       </MessageScrollerViewport>
-      <ConversationNavigator
-        items={props.source ?? items}
-        resolveItem={props.resolveItem}
-      />
+      <ConversationNavigator items={props.source ?? items} />
     </MessageScroller>
   );
 }
@@ -62,10 +62,7 @@ test("Pi Agent derives one compact navigation target per user turn", () => {
 });
 
 test("Pi Agent exposes a quiet, accessible turn rail for long conversations", () => {
-  const resolveItem = vi.fn(() => undefined);
-  const screen = renderComponent(() => (
-    <NavigatorHarness resolveItem={resolveItem} />
-  ));
+  const screen = renderComponent(() => <NavigatorHarness />);
 
   const rail = screen.getByRole("group", { name: "Conversation turns" });
   expect(rail.className).toContain("pointer-events-none");
@@ -77,15 +74,13 @@ test("Pi Agent exposes a quiet, accessible turn rail for long conversations", ()
     "Jump to turn 2: Explain why this long prompt should remain concise in the conversation…",
   ]);
 
-  first.click();
-  expect(resolveItem).toHaveBeenCalledWith("user-1");
+  expect(() => first.click()).not.toThrow();
 });
 
 test("Pi Agent omits turn navigation until there is something to navigate", () => {
   const screen = renderComponent(() => (
     <NavigatorHarness
       source={[{ id: "user-1", kind: "user", text: "Only turn" }]}
-      resolveItem={() => undefined}
     />
   ));
   expect(

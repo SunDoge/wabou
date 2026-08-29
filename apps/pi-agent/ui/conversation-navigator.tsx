@@ -1,11 +1,4 @@
-import {
-  Button,
-  type Handle,
-  Text,
-  Tooltip,
-  useMessageScroller,
-  View,
-} from "@wabou/ui";
+import { Button, Text, Tooltip, useMessageScroller, View } from "@wabou/ui";
 import { For, Show } from "solid-js";
 import type { AgentItem } from "./agent-state";
 
@@ -40,7 +33,6 @@ export function conversationTurns(
 
 export interface ConversationNavigatorProps {
   items: readonly AgentItem[];
-  resolveItem(id: string): Handle | undefined;
 }
 
 /** A quiet, prompt-oriented rail for jumping through long conversations. */
@@ -49,8 +41,7 @@ export function ConversationNavigator(props: ConversationNavigatorProps) {
   const turns = () => conversationTurns(props.items);
 
   const reveal = (id: string) => {
-    const target = props.resolveItem(id);
-    if (target) scroller.scrollIntoView(target, { margin: 24 });
+    scroller.scrollToAnchor(id, { margin: 24 });
   };
 
   return (
@@ -74,6 +65,9 @@ export function ConversationNavigator(props: ConversationNavigatorProps) {
                     size="icon"
                     class="w-7 h-7 p-0 rounded-full"
                     aria-label={`Jump to turn ${turn.index + 1}: ${turn.prompt}`}
+                    aria-current={
+                      scroller.activeAnchor() === turn.id ? "step" : undefined
+                    }
                     onPointerEnter={tooltip.onPointerEnter}
                     onPointerLeave={tooltip.onPointerLeave}
                     onFocus={tooltip.onFocus}
@@ -83,7 +77,11 @@ export function ConversationNavigator(props: ConversationNavigatorProps) {
                   >
                     <View
                       aria-hidden="true"
-                      class="w-3 h-1 rounded-full bg-subtle"
+                      class={
+                        scroller.activeAnchor() === turn.id
+                          ? "w-4 h-1 rounded-full bg-accent"
+                          : "w-3 h-1 rounded-full bg-subtle"
+                      }
                     />
                   </Button>
                 )}

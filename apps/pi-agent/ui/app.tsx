@@ -1130,10 +1130,7 @@ export function App() {
                   </Show>
                 </MessageScrollerContent>
               </MessageScrollerViewport>
-              <ConversationNavigator
-                items={active().state.items}
-                resolveItem={(id) => itemHandles.resolve(itemHandleScope(), id)}
-              />
+              <ConversationNavigator items={active().state.items} />
               <MessageScrollerButton />
             </MessageScroller>
 

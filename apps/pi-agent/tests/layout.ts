@@ -107,6 +107,14 @@ try {
               `expected 12 conversation turns, got ${turns.length}`,
             );
           }
+          const current = turns.filter(
+            (node) => new Map(node.attrs).get("aria-current") === "step",
+          );
+          if (current.length !== 1) {
+            throw new Error(
+              `expected one active conversation turn, got ${current.length}`,
+            );
+          }
         },
       },
       {

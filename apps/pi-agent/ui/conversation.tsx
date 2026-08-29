@@ -618,9 +618,16 @@ export function ConversationList(props: {
               ? current.items.some((item) => item.id === props.activeSearchItem)
               : current.item.id === props.activeSearchItem;
           };
+          const anchor = () => {
+            const current = entry();
+            return current.kind !== "tools" && current.item.kind === "user"
+              ? current.item.id
+              : undefined;
+          };
           return (
             <MessageScrollerItem
               ref={register}
+              anchor={anchor()}
               class={highlighted() ? "rounded-lg bg-selected" : undefined}
             >
               <ConversationEntryContent entry={entry()} fork={props.fork} />

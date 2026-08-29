@@ -5,6 +5,7 @@ import {
   DiffViewer,
   MessageScroller,
   MessageScrollerContent,
+  MessageScrollerItem,
   MessageScrollerViewport,
   Text,
   View,
@@ -115,14 +116,15 @@ defineLayoutFixtures({
           <MessageScrollerViewport>
             <MessageScrollerContent class="max-w-lg mx-auto px-5 py-4">
               <For each={longConversation}>
-                {(item) => <ConversationItem item={item} />}
+                {(item) => (
+                  <MessageScrollerItem anchor={item.id}>
+                    <ConversationItem item={item} />
+                  </MessageScrollerItem>
+                )}
               </For>
             </MessageScrollerContent>
           </MessageScrollerViewport>
-          <ConversationNavigator
-            items={longConversation}
-            resolveItem={() => undefined}
-          />
+          <ConversationNavigator items={longConversation} />
         </MessageScroller>
       </View>
     ),
