@@ -1,11 +1,15 @@
 import { type PickDirectoryOptions, useDialog } from "@wabou/core";
 import folder from "lucide-static/icons/folder.svg?raw";
-import { createSignal, type JSX, omit } from "solid-js";
-import { Icon, View } from "../primitives";
-import { Button } from "./button";
 import { mergeClasses } from "@wabou/core/style";
+import { createSignal, type JSX, omit } from "solid-js";
+import { Icon } from "../primitives";
 import { directoryPickerOptions } from "./directory-picker-state";
-import { Input, type InputProps } from "./input";
+import {
+  InputGroup,
+  InputGroupButton,
+  InputGroupInput,
+} from "./forms";
+import type { InputProps } from "./input";
 
 export interface DirectoryPickerProps
   extends Omit<InputProps, "class" | "onInput" | "value"> {
@@ -58,21 +62,18 @@ export function DirectoryPicker(props: DirectoryPickerProps): JSX.Element {
   }
 
   return (
-    <View
-      class={mergeClasses(
-        "w-full min-w-0 flex items-center gap-2",
-        local.class,
-      )}
+    <InputGroup
+      disabled={Boolean(inputProps.disabled) || pending()}
+      class={local.class}
     >
-      <Input
+      <InputGroupInput
         {...inputProps}
-        class={mergeClasses("min-w-0 flex-1", local.inputClass)}
+        class={local.inputClass}
         value={local.value}
         onInput={(event) => local.onValueChange(event.currentTarget.value)}
       />
-      <Button
+      <InputGroupButton
         class={mergeClasses("flex-none", local.buttonClass)}
-        variant="outline"
         disabled={Boolean(inputProps.disabled) || pending()}
         aria-label={
           local.browseAriaLabel ?? local.browseLabel ?? "Browse directory"
@@ -83,7 +84,7 @@ export function DirectoryPicker(props: DirectoryPickerProps): JSX.Element {
         {pending()
           ? (local.pendingLabel ?? "Opening…")
           : (local.browseLabel ?? "Browse…")}
-      </Button>
-    </View>
+      </InputGroupButton>
+    </InputGroup>
   );
 }

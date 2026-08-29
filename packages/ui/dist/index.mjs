@@ -3139,6 +3139,309 @@ function directoryPickerOptions(value, options) {
 	};
 }
 //#endregion
+//#region src/components/label.tsx
+function resolveControl(control) {
+	return typeof control === "function" ? control() : control;
+}
+/** Text label that forwards pointer activation to an explicit native control. */
+function Label(props) {
+	const rest = omit(props, "class", "children", "disabled", "control", "onClick");
+	return createComponent$1(Text, mergeProps(rest, {
+		role: "label",
+		get ["aria-disabled"]() {
+			return props.disabled;
+		},
+		get ["class"]() {
+			return mergeClasses("min-w-0 text-sm font-medium text-primary", props.disabled ? "opacity-50" : "cursor-pointer", props.class);
+		},
+		onClick: (event) => {
+			props.onClick?.(event);
+			if (!props.disabled && !event.defaultPrevented) resolveControl(props.control)?.focus();
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+//#endregion
+//#region src/components/forms.tsx
+function fieldClass(orientation = "vertical", invalid = false, className) {
+	const layout = match(orientation).with("vertical", () => "flex-col gap-2").with("horizontal", () => "flex-row items-start gap-4").exhaustive();
+	return mergeClasses("w-full min-w-0 flex", layout, invalid && "text-danger-primary", className);
+}
+function Field(props) {
+	return createComponent$1(View, {
+		role: "group",
+		get ["class"]() {
+			return fieldClass(props.orientation, props.invalid ?? false, props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function FieldSet(props) {
+	return createComponent$1(View, {
+		role: "group",
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 flex flex-col gap-6", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function FieldLegend(props) {
+	return createComponent$1(Text, {
+		role: "heading",
+		get ["class"]() {
+			return mergeClasses("mb-1 font-medium text-primary", props.variant === "label" ? "text-sm" : "text-base", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function FieldGroup(props) {
+	return createComponent$1(View, {
+		get ["class"]() {
+			return mergeClasses("flex flex-col gap-4", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function FieldLabel(props) {
+	return createComponent$1(Label, props);
+}
+function FieldTitle(props) {
+	return createComponent$1(Text, {
+		get ["class"]() {
+			return mergeClasses("text-sm font-medium text-primary", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function FieldContent(props) {
+	return createComponent$1(View, {
+		get ["class"]() {
+			return mergeClasses("min-w-0 flex-1 flex flex-col gap-1", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function FieldDescription(props) {
+	return createComponent$1(Text, {
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 whitespace-normal text-xs text-muted", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function uniqueFieldErrors(errors) {
+	return [...new Set((errors ?? []).map((error) => error?.message).filter((message) => Boolean(message)))];
+}
+function fieldErrorLabel(explicit, children, messages) {
+	if (explicit) return explicit;
+	if (typeof children === "string") return children;
+	return messages.length > 0 ? messages.join(" ") : void 0;
+}
+function FieldError(props) {
+	const messages = () => uniqueFieldErrors(props.errors);
+	const label = () => fieldErrorLabel(props["aria-label"], props.children, messages());
+	return createComponent$1(View, {
+		role: "alert",
+		get ["aria-label"]() {
+			return label();
+		},
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 flex flex-col gap-1", props.class);
+		},
+		get children() {
+			return createComponent$1(Show, {
+				get when() {
+					return memo(() => {
+						return props.children !== void 0;
+					})() && props.children !== null;
+				},
+				get fallback() {
+					return createComponent$1(For, {
+						get each() {
+							return messages();
+						},
+						children: (message) => createComponent$1(Text, {
+							class: "w-full min-w-0 whitespace-normal text-xs text-danger-primary",
+							children: message
+						})
+					});
+				},
+				get children() {
+					return createComponent$1(Text, {
+						class: "w-full min-w-0 whitespace-normal text-xs text-danger-primary",
+						get children() {
+							return props.children;
+						}
+					});
+				}
+			});
+		}
+	});
+}
+function FieldSeparator(props) {
+	return createComponent$1(View, {
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 h-5 flex items-center gap-2", props.class);
+		},
+		get children() {
+			return [
+				createComponent$1(View, {
+					"aria-hidden": "true",
+					class: "flex-1 min-w-0 h-px bg-subtle"
+				}),
+				createComponent$1(Show, {
+					get when() {
+						return memo(() => {
+							return props.children !== void 0;
+						})() && props.children !== null;
+					},
+					get children() {
+						return createComponent$1(Text, {
+							class: "flex-none text-xs text-muted",
+							get children() {
+								return props.children;
+							}
+						});
+					}
+				}),
+				createComponent$1(View, {
+					"aria-hidden": "true",
+					class: "flex-1 min-w-0 h-px bg-subtle"
+				})
+			];
+		}
+	});
+}
+const InputGroupContext = createContext();
+function useInputGroup() {
+	return useContext(InputGroupContext);
+}
+function inputGroupClass(orientation, focused, invalid) {
+	return mergeClasses("relative w-full min-w-0 flex rounded-lg border shadow-xs", orientation === "horizontal" ? "h-8 flex-row items-center" : "h-auto flex-col items-stretch", invalid ? "border-danger" : focused ? "border-focus" : "border-strong");
+}
+function InputGroup(props) {
+	const focus = createFocusWithin();
+	let control;
+	const context = {
+		registerControl(node) {
+			control = node;
+		},
+		focusControl() {
+			if (!props.disabled) control?.focus();
+		}
+	};
+	const forwarded = omit(props, "children", "orientation", "invalid", "disabled", "surfaceClass", "class");
+	return createComponent$1(InputGroupContext, {
+		value: context,
+		get children() {
+			return createComponent$1(View, mergeProps(forwarded, () => {
+				return focus.bindings;
+			}, {
+				get role() {
+					return props.role ?? "group";
+				},
+				get ["aria-invalid"]() {
+					return props.invalid;
+				},
+				get ["aria-disabled"]() {
+					return props.disabled;
+				},
+				"data-wabou-owns": "surface focus-ring",
+				get ["class"]() {
+					return mergeClasses(inputGroupClass(props.orientation ?? "horizontal", focus.focusWithin(), props.invalid ?? false), props.surfaceClass ?? "bg-input", props.disabled && "opacity-50", props.class);
+				},
+				get children() {
+					return props.children;
+				}
+			}));
+		}
+	});
+}
+function InputGroupInput(props) {
+	const group = useInputGroup();
+	return createComponent$1(Input, mergeProps(props, {
+		ref: (node) => {
+			group?.registerControl(node);
+			props.ref?.(node);
+		},
+		chrome: "none",
+		get ["class"]() {
+			return mergeClasses("h-full flex-1 min-w-0", props.class);
+		}
+	}));
+}
+function inputGroupAddonClass(align) {
+	return match(align).with("inline-start", "inline-end", () => "h-full flex-none px-3 flex items-center justify-center gap-2 text-sm text-muted").with("block-start", "block-end", () => "w-full flex-none px-3 py-2 flex items-center justify-start gap-2 text-sm text-muted").exhaustive();
+}
+function InputGroupAddon(props) {
+	const group = useInputGroup();
+	const forwarded = omit(props, "align", "focusControl", "class", "onClick");
+	return createComponent$1(View, mergeProps(forwarded, {
+		get role() {
+			return props.role ?? "group";
+		},
+		get ["class"]() {
+			return mergeClasses(inputGroupAddonClass(props.align ?? "inline-start"), props.class);
+		},
+		onClick: (event) => {
+			if (props.focusControl ?? true) group?.focusControl();
+			props.onClick?.(event);
+		}
+	}));
+}
+function InputGroupText(props) {
+	return createComponent$1(Text, {
+		get ["class"]() {
+			return mergeClasses("flex-none text-sm text-muted", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function InputGroupButton(props) {
+	return createComponent$1(Button, mergeProps(props, {
+		get size() {
+			return props.size ?? "sm";
+		},
+		get variant() {
+			return props.variant ?? "ghost";
+		},
+		get ["class"]() {
+			return mergeClasses("mx-1", props.class);
+		}
+	}));
+}
+function InputGroupTextArea(props) {
+	const group = useInputGroup();
+	return createComponent$1(TextArea, mergeProps(props, {
+		ref: (node) => {
+			group?.registerControl(node);
+			props.ref?.(node);
+		},
+		"data-wabou-owns": "native-editor",
+		get ["class"]() {
+			return mergeClasses("w-full h-24 px-3 py-2 text-sm text-primary", props.class);
+		}
+	}));
+}
+//#endregion
 //#region src/components/directory-picker.tsx
 /** A controlled path input paired with the operating system directory picker. */
 function DirectoryPicker(props) {
@@ -3159,24 +3462,26 @@ function DirectoryPicker(props) {
 			setPending(false);
 		}
 	}
-	return createComponent$1(View, {
+	return createComponent$1(InputGroup, {
+		get disabled() {
+			return Boolean(inputProps.disabled) || pending();
+		},
 		get ["class"]() {
-			return mergeClasses("w-full min-w-0 flex items-center gap-2", local.class);
+			return local.class;
 		},
 		get children() {
-			return [createComponent$1(Input, mergeProps(inputProps, {
+			return [createComponent$1(InputGroupInput, mergeProps(inputProps, {
 				get ["class"]() {
-					return mergeClasses("min-w-0 flex-1", local.inputClass);
+					return local.inputClass;
 				},
 				get value() {
 					return local.value;
 				},
 				onInput: (event) => local.onValueChange(event.currentTarget.value)
-			})), createComponent$1(Button, {
+			})), createComponent$1(InputGroupButton, {
 				get ["class"]() {
 					return mergeClasses("flex-none", local.buttonClass);
 				},
-				variant: "outline",
 				get disabled() {
 					return Boolean(inputProps.disabled) || pending();
 				},
@@ -3684,309 +3989,6 @@ function EmptyContent(props) {
 		},
 		get children() {
 			return props.children;
-		}
-	}));
-}
-//#endregion
-//#region src/components/label.tsx
-function resolveControl(control) {
-	return typeof control === "function" ? control() : control;
-}
-/** Text label that forwards pointer activation to an explicit native control. */
-function Label(props) {
-	const rest = omit(props, "class", "children", "disabled", "control", "onClick");
-	return createComponent$1(Text, mergeProps(rest, {
-		role: "label",
-		get ["aria-disabled"]() {
-			return props.disabled;
-		},
-		get ["class"]() {
-			return mergeClasses("min-w-0 text-sm font-medium text-primary", props.disabled ? "opacity-50" : "cursor-pointer", props.class);
-		},
-		onClick: (event) => {
-			props.onClick?.(event);
-			if (!props.disabled && !event.defaultPrevented) resolveControl(props.control)?.focus();
-		},
-		get children() {
-			return props.children;
-		}
-	}));
-}
-//#endregion
-//#region src/components/forms.tsx
-function fieldClass(orientation = "vertical", invalid = false, className) {
-	const layout = match(orientation).with("vertical", () => "flex-col gap-2").with("horizontal", () => "flex-row items-start gap-4").exhaustive();
-	return mergeClasses("w-full min-w-0 flex", layout, invalid && "text-danger-primary", className);
-}
-function Field(props) {
-	return createComponent$1(View, {
-		role: "group",
-		get ["class"]() {
-			return fieldClass(props.orientation, props.invalid ?? false, props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-function FieldSet(props) {
-	return createComponent$1(View, {
-		role: "group",
-		get ["class"]() {
-			return mergeClasses("w-full min-w-0 flex flex-col gap-6", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-function FieldLegend(props) {
-	return createComponent$1(Text, {
-		role: "heading",
-		get ["class"]() {
-			return mergeClasses("mb-1 font-medium text-primary", props.variant === "label" ? "text-sm" : "text-base", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-function FieldGroup(props) {
-	return createComponent$1(View, {
-		get ["class"]() {
-			return mergeClasses("flex flex-col gap-4", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-function FieldLabel(props) {
-	return createComponent$1(Label, props);
-}
-function FieldTitle(props) {
-	return createComponent$1(Text, {
-		get ["class"]() {
-			return mergeClasses("text-sm font-medium text-primary", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-function FieldContent(props) {
-	return createComponent$1(View, {
-		get ["class"]() {
-			return mergeClasses("min-w-0 flex-1 flex flex-col gap-1", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-function FieldDescription(props) {
-	return createComponent$1(Text, {
-		get ["class"]() {
-			return mergeClasses("w-full min-w-0 whitespace-normal text-xs text-muted", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-function uniqueFieldErrors(errors) {
-	return [...new Set((errors ?? []).map((error) => error?.message).filter((message) => Boolean(message)))];
-}
-function fieldErrorLabel(explicit, children, messages) {
-	if (explicit) return explicit;
-	if (typeof children === "string") return children;
-	return messages.length > 0 ? messages.join(" ") : void 0;
-}
-function FieldError(props) {
-	const messages = () => uniqueFieldErrors(props.errors);
-	const label = () => fieldErrorLabel(props["aria-label"], props.children, messages());
-	return createComponent$1(View, {
-		role: "alert",
-		get ["aria-label"]() {
-			return label();
-		},
-		get ["class"]() {
-			return mergeClasses("w-full min-w-0 flex flex-col gap-1", props.class);
-		},
-		get children() {
-			return createComponent$1(Show, {
-				get when() {
-					return memo(() => {
-						return props.children !== void 0;
-					})() && props.children !== null;
-				},
-				get fallback() {
-					return createComponent$1(For, {
-						get each() {
-							return messages();
-						},
-						children: (message) => createComponent$1(Text, {
-							class: "w-full min-w-0 whitespace-normal text-xs text-danger-primary",
-							children: message
-						})
-					});
-				},
-				get children() {
-					return createComponent$1(Text, {
-						class: "w-full min-w-0 whitespace-normal text-xs text-danger-primary",
-						get children() {
-							return props.children;
-						}
-					});
-				}
-			});
-		}
-	});
-}
-function FieldSeparator(props) {
-	return createComponent$1(View, {
-		get ["class"]() {
-			return mergeClasses("w-full min-w-0 h-5 flex items-center gap-2", props.class);
-		},
-		get children() {
-			return [
-				createComponent$1(View, {
-					"aria-hidden": "true",
-					class: "flex-1 min-w-0 h-px bg-subtle"
-				}),
-				createComponent$1(Show, {
-					get when() {
-						return memo(() => {
-							return props.children !== void 0;
-						})() && props.children !== null;
-					},
-					get children() {
-						return createComponent$1(Text, {
-							class: "flex-none text-xs text-muted",
-							get children() {
-								return props.children;
-							}
-						});
-					}
-				}),
-				createComponent$1(View, {
-					"aria-hidden": "true",
-					class: "flex-1 min-w-0 h-px bg-subtle"
-				})
-			];
-		}
-	});
-}
-const InputGroupContext = createContext();
-function useInputGroup() {
-	return useContext(InputGroupContext);
-}
-function inputGroupClass(orientation, focused, invalid) {
-	return mergeClasses("relative w-full min-w-0 flex rounded-lg border shadow-xs", orientation === "horizontal" ? "h-8 flex-row items-center" : "h-auto flex-col items-stretch", invalid ? "border-danger" : focused ? "border-focus" : "border-strong");
-}
-function InputGroup(props) {
-	const focus = createFocusWithin();
-	let control;
-	const context = {
-		registerControl(node) {
-			control = node;
-		},
-		focusControl() {
-			if (!props.disabled) control?.focus();
-		}
-	};
-	const forwarded = omit(props, "children", "orientation", "invalid", "disabled", "surfaceClass", "class");
-	return createComponent$1(InputGroupContext, {
-		value: context,
-		get children() {
-			return createComponent$1(View, mergeProps(forwarded, () => {
-				return focus.bindings;
-			}, {
-				get role() {
-					return props.role ?? "group";
-				},
-				get ["aria-invalid"]() {
-					return props.invalid;
-				},
-				get ["aria-disabled"]() {
-					return props.disabled;
-				},
-				"data-wabou-owns": "surface focus-ring",
-				get ["class"]() {
-					return mergeClasses(inputGroupClass(props.orientation ?? "horizontal", focus.focusWithin(), props.invalid ?? false), props.surfaceClass ?? "bg-input", props.disabled && "opacity-50", props.class);
-				},
-				get children() {
-					return props.children;
-				}
-			}));
-		}
-	});
-}
-function InputGroupInput(props) {
-	const group = useInputGroup();
-	return createComponent$1(Input, mergeProps(props, {
-		ref: (node) => {
-			group?.registerControl(node);
-			props.ref?.(node);
-		},
-		chrome: "none",
-		get ["class"]() {
-			return mergeClasses("h-full flex-1 min-w-0", props.class);
-		}
-	}));
-}
-function inputGroupAddonClass(align) {
-	return match(align).with("inline-start", "inline-end", () => "h-full flex-none px-3 flex items-center justify-center gap-2 text-sm text-muted").with("block-start", "block-end", () => "w-full flex-none px-3 py-2 flex items-center justify-start gap-2 text-sm text-muted").exhaustive();
-}
-function InputGroupAddon(props) {
-	const group = useInputGroup();
-	const forwarded = omit(props, "align", "focusControl", "class", "onClick");
-	return createComponent$1(View, mergeProps(forwarded, {
-		get role() {
-			return props.role ?? "group";
-		},
-		get ["class"]() {
-			return mergeClasses(inputGroupAddonClass(props.align ?? "inline-start"), props.class);
-		},
-		onClick: (event) => {
-			if (props.focusControl ?? true) group?.focusControl();
-			props.onClick?.(event);
-		}
-	}));
-}
-function InputGroupText(props) {
-	return createComponent$1(Text, {
-		get ["class"]() {
-			return mergeClasses("flex-none text-sm text-muted", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-function InputGroupButton(props) {
-	return createComponent$1(Button, mergeProps(props, {
-		get size() {
-			return props.size ?? "sm";
-		},
-		get variant() {
-			return props.variant ?? "ghost";
-		},
-		get ["class"]() {
-			return mergeClasses("mx-1", props.class);
-		}
-	}));
-}
-function InputGroupTextArea(props) {
-	const group = useInputGroup();
-	return createComponent$1(TextArea, mergeProps(props, {
-		ref: (node) => {
-			group?.registerControl(node);
-			props.ref?.(node);
-		},
-		"data-wabou-owns": "native-editor",
-		get ["class"]() {
-			return mergeClasses("w-full h-24 px-3 py-2 text-sm text-primary", props.class);
 		}
 	}));
 }

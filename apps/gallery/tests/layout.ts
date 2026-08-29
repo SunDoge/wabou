@@ -222,6 +222,37 @@ const assertInputGroupLayout = (snapshot: LayoutSnapshot) => {
   );
 };
 
+const assertDirectoryPickerLayout = (snapshot: LayoutSnapshot) => {
+  const input = getLayoutNode(snapshot, {
+    role: "textbox",
+    name: "Fixture directory",
+  });
+  const browse = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Choose fixture directory",
+  });
+  if (
+    !input.parentId ||
+    !browse.parentId ||
+    input.parentId.lo !== browse.parentId.lo ||
+    input.parentId.hi !== browse.parentId.hi
+  ) {
+    throw new Error("directory input and browse action do not share one surface");
+  }
+  const group = snapshot.nodes.find(
+    (node) =>
+      node.id.lo === input.parentId?.lo && node.id.hi === input.parentId?.hi,
+  );
+  if (!group) throw new Error("directory picker surface is missing");
+  assertLayoutRectContains(group.contentRect, input.rect, {
+    label: "directory input",
+  });
+  assertLayoutRectContains(group.contentRect, browse.rect, {
+    label: "directory browse action",
+  });
+  assertClose(group.rect.height, 32, "directory picker height");
+};
+
 const assertMessageLayout = (snapshot: LayoutSnapshot) => {
   const group = getLayoutNode(snapshot, { name: "Fixture message group" });
   const bubble = getLayoutNode(snapshot, {
@@ -369,6 +400,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/QRCode": { assert: assertQrCodeLayout },
   "component/IconFrame": { assert: assertIconFrameLayout },
   "component/InputGroup": { assert: assertInputGroupLayout },
+  "component/DirectoryPicker": { assert: assertDirectoryPickerLayout },
   "component/MarkdownInline": { assert: assertMarkdownInlineLayout },
   "component/MarkdownConversation": {
     assert: assertMarkdownConversationLayout,

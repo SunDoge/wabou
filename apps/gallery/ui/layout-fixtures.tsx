@@ -1,5 +1,5 @@
 import { defineLayoutFixtures } from "@wabou/test/layout/fixtures";
-import { Button, Text, View } from "@wabou/ui";
+import { Button, DirectoryPicker, Text, View } from "@wabou/ui";
 import { createEffect, createSignal, onCleanup } from "solid-js";
 import { initialAgentState } from "../../pi-agent/ui/agent-state";
 import { ModelControls } from "../../pi-agent/ui/model-controls";
@@ -125,6 +125,21 @@ defineLayoutFixtures({
     render: () => <TrackedFixture name="wide" width="320px" />,
   },
   "effect/synchronous": () => <EffectFixture />,
+  "component/DirectoryPicker": {
+    width: 560,
+    height: 120,
+    render: () => (
+      <View class="w-full h-full p-6 bg-canvas">
+        <DirectoryPicker
+          aria-label="Fixture directory"
+          browseAriaLabel="Choose fixture directory"
+          browseLabel="Browse"
+          value="/home/user/a-project-with-a-long-directory-name"
+          onValueChange={() => {}}
+        />
+      </View>
+    ),
+  },
   "pi-agent/toolbar": {
     width: 892,
     height: 120,
