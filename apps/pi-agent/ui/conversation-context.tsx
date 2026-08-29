@@ -1,7 +1,7 @@
 import { Badge, Text, View } from "@wabou/ui";
-import { Show, type JSX } from "solid-js";
-import type { AgentViewState } from "./agent-state";
+import { type JSX, Show } from "solid-js";
 import { AgentActivityStatus } from "./agent-activity";
+import type { AgentViewState } from "./agent-state";
 
 export interface ConversationContextProps {
   project: string;
@@ -9,6 +9,11 @@ export interface ConversationContextProps {
   branch?: string;
   state: AgentViewState;
   titleAction?: JSX.Element;
+}
+
+export function compactBranchLabel(branch: string): string {
+  const maximum = 28;
+  return branch.length <= maximum ? branch : `…${branch.slice(1 - maximum)}`;
 }
 
 /** A compact project / branch / session breadcrumb for the conversation chrome. */
@@ -21,7 +26,7 @@ export function ConversationContext(props: ConversationContextProps) {
       aria-label={label()}
       class="min-w-0 flex-1 overflow-hidden flex flex-row items-center gap-2"
     >
-      <Text class="max-w-40 min-w-0 flex-none truncate text-xs font-semibold text-muted">
+      <Text class="max-w-28 min-w-0 flex-none truncate text-xs font-semibold text-muted">
         {props.project}
       </Text>
       <Text aria-hidden="true" class="flex-none text-xs text-muted">
@@ -31,7 +36,7 @@ export function ConversationContext(props: ConversationContextProps) {
         {(branch) => (
           <>
             <Badge variant="outline" class="h-5 flex-none px-2 text-xs">
-              {branch()}
+              {compactBranchLabel(branch())}
             </Badge>
             <Text aria-hidden="true" class="flex-none text-xs text-muted">
               /

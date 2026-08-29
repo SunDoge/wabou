@@ -17,6 +17,7 @@ import { type AgentItem, initialAgentState } from "./agent-state";
 import { AppCommandPalette } from "./app-command-palette";
 import { ConversationContext } from "./conversation-context";
 import { ConversationComposer } from "./conversation-composer";
+import { ConversationHeader } from "./conversation-header";
 import { ConversationItem, ConversationList } from "./conversation";
 import { ConversationNavigator } from "./conversation-navigator";
 import { ModelControls } from "./model-controls";
@@ -91,6 +92,40 @@ defineLayoutFixtures({
         />
         <View class="w-24 h-8 flex-none bg-control rounded-md" />
       </WorkbenchHeader>
+    ),
+  },
+  "shell/conversation-header": {
+    width: 480,
+    height: 48,
+    render: () => (
+      <ConversationHeader
+        project="Documentation workspace"
+        branch="feature/readable-conversation-header-with-long-actions"
+        session="Explain why this renderer keeps the native boundary explicit"
+        state={{
+          ...initialAgentState,
+          connection: "ready",
+          sessionId: "session-1",
+          items: [
+            { id: "request", kind: "user", text: "Inspect the renderer" },
+          ],
+        }}
+        cwdAvailable
+        repository
+        terminalOpen={false}
+        filesOpen={false}
+        changesOpen={false}
+        searchOpen={false}
+        toggleTerminal={() => {}}
+        toggleFiles={() => {}}
+        toggleChanges={() => {}}
+        toggleSearch={() => {}}
+        newSession={() => {}}
+        compactSession={() => {}}
+        cloneSession={() => {}}
+        exportSession={() => {}}
+        abort={() => {}}
+      />
     ),
   },
   "conversation/prompt-markdown": {

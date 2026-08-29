@@ -1,12 +1,10 @@
 import {
-  Button,
   type CommandItem,
   createAsyncQuery,
   createShortcuts,
   createToasts,
   currentWindow,
   type Handle,
-  Icon,
   MessageScroller,
   MessageScrollerButton,
   MessageScrollerContent,
@@ -16,17 +14,9 @@ import {
   useLocation,
   useNavigate,
   useParams,
-  View,
   Workbench,
-  WorkbenchHeader,
   WorkbenchMain,
 } from "@wabou/ui";
-import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
-import folder from "lucide-static/icons/folder.svg?raw";
-import gitBranch from "lucide-static/icons/git-branch.svg?raw";
-import search from "lucide-static/icons/search.svg?raw";
-import square from "lucide-static/icons/square.svg?raw";
-import squareTerminal from "lucide-static/icons/square-terminal.svg?raw";
 import {
   createEffect,
   createMemo,
@@ -46,7 +36,7 @@ import type { ComposerDeliveryMode } from "./composer-delivery";
 import { imageFileName } from "./composer-images";
 import { ConversationList } from "./conversation";
 import { ConversationComposer } from "./conversation-composer";
-import { ConversationContext } from "./conversation-context";
+import { ConversationHeader } from "./conversation-header";
 import { ConversationNavigator } from "./conversation-navigator";
 import { ConversationWelcome } from "./conversation-welcome";
 import { createDeferredWriter } from "./deferred-writer";
@@ -76,7 +66,6 @@ import { i18n, m } from "./i18n";
 import { createOwnedOverlay } from "./owned-overlay";
 import { createPersistedRecord } from "./persisted-record";
 import { ScopedHandleRegistry } from "./scoped-handle-registry";
-import { SessionActions } from "./session-actions";
 import { SessionForkDialog } from "./session-fork";
 import { SessionTitle } from "./session-title";
 import { type AppSettings, SettingsPage } from "./settings";
@@ -963,102 +952,41 @@ export function App() {
         }
       >
         <WorkbenchMain>
-          <WorkbenchHeader class="bg-canvas border-0 justify-between">
-            <ConversationContext
-              project={active().name}
-              branch={workspaceInfo.latest()?.branch}
-              session={
-                activeSession()?.name ??
-                active().state.sessionName ??
-                active().name
-              }
-              state={active().state}
-              titleAction={
-                <Show when={active().state.sessionId}>
-                  <SessionTitle
-                    name={
-                      activeSession()?.name ?? active().state.sessionName ?? ""
-                    }
-                    rename={(name) => api.renameSession(active().id, name)}
-                  />
-                </Show>
-              }
-            />
-            <Show
-              when={
-                active().state.connection === "ready" ||
-                active().state.connection === "running"
-              }
-            >
-              <View class="min-w-0 flex-none overflow-hidden flex flex-row items-center gap-0.5">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Toggle terminal"
-                  aria-pressed={terminalOpen()}
-                  disabled={!active().cwd.trim()}
-                  onClick={toggleTerminal}
-                >
-                  <Icon source={squareTerminal} size={15} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={i18n.message(m.workspace_files, {})}
-                  aria-pressed={sidePanel() === "files"}
-                  onClick={toggleFiles}
-                >
-                  <Icon source={folder} size={15} />
-                </Button>
-                <Show when={workspaceInfo.latest()?.repository}>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={i18n.message(m.code_changes, {})}
-                    aria-pressed={sidePanel() === "changes"}
-                    onClick={toggleChanges}
-                  >
-                    <Icon source={gitBranch} size={15} />
-                  </Button>
-                </Show>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={i18n.message(m.search_transcript, {})}
-                  disabled={active().state.items.length === 0}
-                  aria-pressed={searchOpen()}
-                  onClick={() => setSearchOpen((open) => !open)}
-                >
-                  <Icon source={search} size={15} />
-                </Button>
-                <Show when={active().state.connection === "ready"}>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={i18n.message(m.new_session, {})}
-                    onClick={startNewSession}
-                  >
-                    <Icon source={filePlus} size={15} />
-                  </Button>
-                  <SessionActions
-                    disabled={!active().state.sessionId}
-                    compact={() => void api.compactSession(active().id)}
-                    clone={() => void api.cloneSession(active().id)}
-                    exportHtml={() => void exportActiveSession()}
-                  />
-                </Show>
-                <Show when={active().state.connection === "running"}>
-                  <Button
-                    variant="outline"
-                    onClick={() => void api.abort(active().id)}
-                  >
-                    <Icon source={square} size={12} />{" "}
-                    {i18n.message(m.stop, {})}
-                  </Button>
-                </Show>
-              </View>
-            </Show>
-          </WorkbenchHeader>
+          <ConversationHeader
+            project={active().name}
+            branch={workspaceInfo.latest()?.branch}
+            session={
+              activeSession()?.name ??
+              active().state.sessionName ??
+              active().name
+            }
+            state={active().state}
+            titleAction={
+              <Show when={active().state.sessionId}>
+                <SessionTitle
+                  name={
+                    activeSession()?.name ?? active().state.sessionName ?? ""
+                  }
+                  rename={(name) => api.renameSession(active().id, name)}
+                />
+              </Show>
+            }
+            cwdAvailable={Boolean(active().cwd.trim())}
+            repository={Boolean(workspaceInfo.latest()?.repository)}
+            terminalOpen={terminalOpen()}
+            filesOpen={sidePanel() === "files"}
+            changesOpen={sidePanel() === "changes"}
+            searchOpen={searchOpen()}
+            toggleTerminal={toggleTerminal}
+            toggleFiles={toggleFiles}
+            toggleChanges={toggleChanges}
+            toggleSearch={() => setSearchOpen((open) => !open)}
+            newSession={startNewSession}
+            compactSession={() => void api.compactSession(active().id)}
+            cloneSession={() => void api.cloneSession(active().id)}
+            exportSession={() => void exportActiveSession()}
+            abort={() => void api.abort(active().id)}
+          />
 
           <Show
             when={

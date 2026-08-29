@@ -76,7 +76,23 @@ try {
             role: "group",
             name: "Documentation workspace, feat/readable-conversation-chrome, Explain why this renderer keeps the native boundary explicit",
           });
-          getLayoutNode(fixture, { text: "feat/readable-conversation-chrome" });
+          getLayoutNode(fixture, { text: "…eadable-conversation-chrome" });
+        },
+      },
+      {
+        id: "shell/conversation-header",
+        width: 480,
+        height: 48,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, {
+            role: "toolbar",
+            name: "Conversation actions",
+          });
+          getLayoutNode(fixture, { role: "button", name: "Toggle terminal" });
+          getLayoutNode(fixture, { role: "button", name: "Workspace files" });
+          getLayoutNode(fixture, { role: "button", name: "Code changes" });
+          getLayoutNode(fixture, { role: "button", name: "New session" });
         },
       },
       {
