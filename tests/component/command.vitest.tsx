@@ -47,3 +47,18 @@ test("renders a semantic empty state", () => {
   screen.getByRole("textbox", { name: "Commands" }).input("missing");
   expect(screen.getByRole("status").text).toBe("No results found.");
 });
+
+test("renders shortcut hints without changing the option's accessible name", () => {
+  const screen = renderComponent(() => (
+    <Command
+      aria-label="Commands"
+      items={[
+        { id: "search", label: "Search conversation", shortcut: "Ctrl F" },
+      ]}
+    />
+  ));
+
+  expect(
+    screen.getByRole("option", { name: "Search conversation" }).text,
+  ).toContain("Ctrl F");
+});

@@ -1,8 +1,9 @@
 import "@wabou/ui";
 import "virtual:wabou-stylesheet";
 import { defineLayoutFixtures } from "@wabou/test/layout/fixtures";
-import { DiffViewer } from "@wabou/ui";
+import { DiffViewer, View } from "@wabou/ui";
 import { initialAgentState } from "./agent-state";
+import { AppCommandPalette } from "./app-command-palette";
 import { ModelControls } from "./model-controls";
 import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
@@ -29,6 +30,41 @@ const appSettings: AppSettings = {
 };
 
 defineLayoutFixtures({
+  "shell/command-palette": {
+    width: 720,
+    height: 520,
+    render: () => (
+      <View class="w-full h-full bg-canvas">
+        <AppCommandPalette
+          open
+          label="Command palette"
+          placeholder="Search actions"
+          emptyText="No matching actions."
+          close={() => {}}
+          items={[
+            {
+              id: "new-session",
+              label: "New session",
+              description: "Start a clean conversation in this project.",
+              shortcut: "⌘/Ctrl N",
+            },
+            {
+              id: "search",
+              label: "Search conversation",
+              description: "Find text in the current conversation.",
+              shortcut: "⌘/Ctrl F",
+            },
+            {
+              id: "changes",
+              label: "Code changes",
+              description: "Review uncommitted repository changes.",
+              disabled: true,
+            },
+          ]}
+        />
+      </View>
+    ),
+  },
   "workspace/files-panel": {
     width: 420,
     height: 720,

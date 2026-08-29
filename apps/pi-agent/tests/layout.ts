@@ -41,6 +41,17 @@ try {
     app: "apps/pi-agent",
     cases: [
       {
+        id: "shell/command-palette",
+        width: 720,
+        height: 520,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, { role: "dialog", name: "Command palette" });
+          getLayoutNode(fixture, { role: "textbox", name: "Command palette" });
+          getLayoutNode(fixture, { role: "option", name: "New session" });
+        },
+      },
+      {
         id: "workspace/files-panel",
         width: 420,
         height: 720,

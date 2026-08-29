@@ -18,6 +18,8 @@ import { moveMenuHighlight } from "./menu-state";
 
 export interface CommandItem extends CommandStateItem {
   description?: string;
+  /** Human-readable platform shortcut, such as `Ctrl K` or `⌘ K`. */
+  shortcut?: string;
   onSelect?: () => void;
 }
 
@@ -125,10 +127,24 @@ export function Command(props: CommandProps): JSX.Element {
                 }
                 onClick={() => select(item().id)}
               >
-                <Text class="text-sm">{item().label}</Text>
-                {item().description && (
-                  <Text class="text-xs text-muted">{item().description}</Text>
-                )}
+                <View class="min-w-0 flex flex-row items-center justify-between gap-3">
+                  <View class="min-w-0 flex-1 flex flex-col">
+                    <Text class="min-w-0 truncate text-sm">{item().label}</Text>
+                    {item().description && (
+                      <Text class="min-w-0 truncate text-xs text-muted">
+                        {item().description}
+                      </Text>
+                    )}
+                  </View>
+                  {item().shortcut && (
+                    <Text
+                      aria-hidden="true"
+                      class="flex-none rounded border border-subtle bg-surface px-1.5 py-0.5 text-xs text-muted"
+                    >
+                      {item().shortcut}
+                    </Text>
+                  )}
+                </View>
               </View>
             )}
           </ForValue>

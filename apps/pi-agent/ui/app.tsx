@@ -1,6 +1,8 @@
 import {
   Button,
+  type CommandItem,
   createAsyncQuery,
+  createShortcuts,
   createToasts,
   currentWindow,
   type Handle,
@@ -42,6 +44,7 @@ import {
   reducePiEvent,
   reducePiEvents,
 } from "./agent-state";
+import { AppCommandPalette } from "./app-command-palette";
 import { type PiSession, usePiApi } from "./api";
 import { CommandPicker } from "./command-picker";
 import {
@@ -184,6 +187,7 @@ export function App() {
   const [draftImages, setDraftImages] = createSignal<AgentDraftLists>({});
   const [draftContext, setDraftContext] = createSignal<AgentDraftLists>({});
   const [searchOpen, setSearchOpen] = createSignal(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = createSignal(false);
   const [sidePanel, setSidePanel] = createSignal<"files" | "changes">();
   const [terminalOpen, setTerminalOpen] = createSignal(false);
   const [terminalMounted, setTerminalMounted] = createSignal(false);
@@ -847,8 +851,88 @@ export function App() {
     if (path) await api.exportSession(agent.id, path);
   };
 
+  const toggleTerminal = () => {
+    if (!active().cwd.trim()) return;
+    if (!terminalOpen()) {
+      setTerminalOwnerId(activeId());
+      setTerminalMounted(true);
+    }
+    setTerminalOpen((open) => !open);
+  };
+  const toggleFiles = () =>
+    setSidePanel((current) => (current === "files" ? undefined : "files"));
+  const toggleChanges = () =>
+    setSidePanel((current) => (current === "changes" ? undefined : "changes"));
+  const startNewSession = () => {
+    if (active().state.connection === "ready") {
+      void api.newSession(active().id);
+    }
+  };
+  const applicationCommands = createMemo<readonly CommandItem[]>(() => [
+    {
+      id: "new-session",
+      label: i18n.message(m.new_session, {}),
+      description: i18n.message(m.command_new_session_detail, {}),
+      shortcut: "⌘/Ctrl N",
+      disabled: active().state.connection !== "ready",
+      keywords: ["thread", "conversation"],
+      onSelect: startNewSession,
+    },
+    {
+      id: "search-conversation",
+      label: i18n.message(m.search_transcript, {}),
+      description: i18n.message(m.command_search_detail, {}),
+      shortcut: "⌘/Ctrl F",
+      disabled: active().state.items.length === 0,
+      keywords: ["find", "transcript"],
+      onSelect: () => setSearchOpen(true),
+    },
+    {
+      id: "toggle-terminal",
+      label: i18n.message(m.command_terminal, {}),
+      description: i18n.message(m.command_terminal_detail, {}),
+      shortcut: "⌘/Ctrl J",
+      disabled: !active().cwd.trim(),
+      keywords: ["shell", "console"],
+      onSelect: toggleTerminal,
+    },
+    {
+      id: "workspace-files",
+      label: i18n.message(m.workspace_files, {}),
+      description: i18n.message(m.command_files_detail, {}),
+      disabled: !active().cwd.trim(),
+      keywords: ["project", "browse"],
+      onSelect: toggleFiles,
+    },
+    {
+      id: "code-changes",
+      label: i18n.message(m.code_changes, {}),
+      description: i18n.message(m.command_changes_detail, {}),
+      disabled: !workspaceInfo.latest()?.repository,
+      keywords: ["git", "diff"],
+      onSelect: toggleChanges,
+    },
+    {
+      id: "settings",
+      label: i18n.message(m.settings, {}),
+      description: i18n.message(m.command_settings_detail, {}),
+      shortcut: "⌘/Ctrl ,",
+      keywords: ["preferences", "configuration"],
+      onSelect: () => void navigate({ to: "/settings" }),
+    },
+  ]);
+  const shortcuts = createShortcuts({
+    "Primary+K": () => setCommandPaletteOpen(true),
+    "Primary+N": startNewSession,
+    "Primary+F": () => {
+      if (active().state.items.length > 0) setSearchOpen(true);
+    },
+    "Primary+J": toggleTerminal,
+    "Primary+,": () => navigate({ to: "/settings" }),
+  });
+
   return (
-    <Workbench>
+    <Workbench {...shortcuts.bindings}>
       <Sidebar
         agents={agents()}
         activeId={activeId()}
@@ -918,13 +1002,7 @@ export function App() {
                   aria-label="Toggle terminal"
                   aria-pressed={terminalOpen()}
                   disabled={!active().cwd.trim()}
-                  onClick={() => {
-                    if (!terminalOpen()) {
-                      setTerminalOwnerId(activeId());
-                      setTerminalMounted(true);
-                    }
-                    setTerminalOpen((open) => !open);
-                  }}
+                  onClick={toggleTerminal}
                 >
                   <Icon source={squareTerminal} size={15} />
                 </Button>
@@ -933,11 +1011,7 @@ export function App() {
                   size="icon"
                   aria-label={i18n.message(m.workspace_files, {})}
                   aria-pressed={sidePanel() === "files"}
-                  onClick={() =>
-                    setSidePanel((current) =>
-                      current === "files" ? undefined : "files",
-                    )
-                  }
+                  onClick={toggleFiles}
                 >
                   <Icon source={folder} size={15} />
                 </Button>
@@ -947,11 +1021,7 @@ export function App() {
                     size="icon"
                     aria-label={i18n.message(m.code_changes, {})}
                     aria-pressed={sidePanel() === "changes"}
-                    onClick={() =>
-                      setSidePanel((current) =>
-                        current === "changes" ? undefined : "changes",
-                      )
-                    }
+                    onClick={toggleChanges}
                   >
                     <Icon source={gitBranch} size={15} />
                   </Button>
@@ -971,7 +1041,7 @@ export function App() {
                     variant="ghost"
                     size="icon"
                     aria-label={i18n.message(m.new_session, {})}
-                    onClick={() => void api.newSession(active().id)}
+                    onClick={startNewSession}
                   >
                     <Icon source={filePlus} size={15} />
                   </Button>
@@ -1207,6 +1277,14 @@ export function App() {
       />
       <ExtensionWindowTitle
         title={extensionTitles()[activeId()] || "Pi Agent · Wabou"}
+      />
+      <AppCommandPalette
+        open={commandPaletteOpen()}
+        items={applicationCommands()}
+        close={() => setCommandPaletteOpen(false)}
+        label={i18n.message(m.command_palette, {})}
+        placeholder={i18n.message(m.command_palette_search, {})}
+        emptyText={i18n.message(m.command_palette_empty, {})}
       />
       <Toaster toasts={toasts} />
     </Workbench>
