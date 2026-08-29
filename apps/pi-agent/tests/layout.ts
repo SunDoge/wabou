@@ -1,7 +1,11 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { getLayoutNode, queryLayoutNodes } from "@wabou/test/layout";
+import {
+  getLayoutNode,
+  layoutName,
+  queryLayoutNodes,
+} from "@wabou/test/layout";
 import { renderAppLayout, renderLayoutFixtures } from "@wabou/test/layout/node";
 
 const directory = await mkdtemp(join(tmpdir(), "wabou-pi-agent-layout-"));
@@ -83,6 +87,26 @@ try {
         assert: (fixture) => {
           getLayoutNode(fixture, { role: "region", name: "User message" });
           getLayoutNode(fixture, { text: "Review request" });
+        },
+      },
+      {
+        id: "conversation/turn-navigator",
+        width: 560,
+        height: 420,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, {
+            role: "group",
+            name: "Conversation turns",
+          });
+          const turns = queryLayoutNodes(fixture, { role: "button" }).filter(
+            (node) => layoutName(node).startsWith("Jump to turn "),
+          );
+          if (turns.length !== 12) {
+            throw new Error(
+              `expected 12 conversation turns, got ${turns.length}`,
+            );
+          }
         },
       },
       {

@@ -62,6 +62,7 @@ import {
 } from "./composer-images";
 import { ConversationList } from "./conversation";
 import { ConversationContext } from "./conversation-context";
+import { ConversationNavigator } from "./conversation-navigator";
 import { ConversationWelcome } from "./conversation-welcome";
 import { createDeferredWriter } from "./deferred-writer";
 import {
@@ -1129,6 +1130,10 @@ export function App() {
                   </Show>
                 </MessageScrollerContent>
               </MessageScrollerViewport>
+              <ConversationNavigator
+                items={active().state.items}
+                resolveItem={(id) => itemHandles.resolve(itemHandleScope(), id)}
+              />
               <MessageScrollerButton />
             </MessageScroller>
 

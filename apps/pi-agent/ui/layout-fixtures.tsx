@@ -1,12 +1,22 @@
 import "@wabou/ui";
 import "virtual:wabou-stylesheet";
 import { defineLayoutFixtures } from "@wabou/test/layout/fixtures";
-import { DiffViewer, Text, View, WorkbenchHeader } from "@wabou/ui";
+import {
+  DiffViewer,
+  MessageScroller,
+  MessageScrollerContent,
+  MessageScrollerViewport,
+  Text,
+  View,
+  WorkbenchHeader,
+} from "@wabou/ui";
+import { For } from "solid-js";
 import { AgentActivityStatus } from "./agent-activity";
-import { initialAgentState } from "./agent-state";
+import { type AgentItem, initialAgentState } from "./agent-state";
 import { AppCommandPalette } from "./app-command-palette";
 import { ConversationContext } from "./conversation-context";
 import { ConversationItem } from "./conversation";
+import { ConversationNavigator } from "./conversation-navigator";
 import { ModelControls } from "./model-controls";
 import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
@@ -33,6 +43,15 @@ const appSettings: AppSettings = {
   model: "claude-sonnet-4-5",
   subagentsEnabled: true,
 };
+
+const longConversation: readonly AgentItem[] = Array.from(
+  { length: 12 },
+  (_, index) => ({
+    id: `turn-${index + 1}`,
+    kind: "user" as const,
+    text: `Review step ${index + 1} and keep the native boundary explicit.`,
+  }),
+);
 
 defineLayoutFixtures({
   "shell/agent-activity": {
@@ -84,6 +103,27 @@ defineLayoutFixtures({
             text: "# Review request\n\n- inspect `src/runtime.rs`\n- run **focused tests**\n\nKeep the native boundary explicit while fixing the long layout path.",
           }}
         />
+      </View>
+    ),
+  },
+  "conversation/turn-navigator": {
+    width: 560,
+    height: 420,
+    render: () => (
+      <View class="w-full h-full bg-canvas p-4">
+        <MessageScroller>
+          <MessageScrollerViewport>
+            <MessageScrollerContent class="max-w-lg mx-auto px-5 py-4">
+              <For each={longConversation}>
+                {(item) => <ConversationItem item={item} />}
+              </For>
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+          <ConversationNavigator
+            items={longConversation}
+            resolveItem={() => undefined}
+          />
+        </MessageScroller>
       </View>
     ),
   },
