@@ -222,7 +222,7 @@ test("renders reactive GFM as native semantic components", () => {
   expect(screen.getByRole("group", { name: "Code block" }).text).toContain(
     "const ready = true",
   );
-  expect(screen.getByRole("button", { name: "Copy code" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Copy code" }).text).toBe("");
 
   setSource("A streamed **answer**.");
   screen.flush();

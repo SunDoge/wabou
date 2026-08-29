@@ -294,6 +294,22 @@ const assertMarkdownInlineLayout = (snapshot: LayoutSnapshot) => {
     );
 };
 
+const assertMarkdownConversationLayout = (snapshot: LayoutSnapshot) => {
+  const codeBlock = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Code block",
+  });
+  const copy = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Copy code",
+  });
+  assertLayoutRectContains(codeBlock.rect, copy.rect, {
+    label: "code copy action",
+  });
+  if (copy.text)
+    throw new Error(`code copy action exposed visual text: ${copy.text}`);
+};
+
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   // Carousel tracks and message reactions deliberately extend past their
   // logical content box; their component-specific clipping is tested lower.
@@ -320,6 +336,9 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/IconFrame": { assert: assertIconFrameLayout },
   "component/InputGroup": { assert: assertInputGroupLayout },
   "component/MarkdownInline": { assert: assertMarkdownInlineLayout },
+  "component/MarkdownConversation": {
+    assert: assertMarkdownConversationLayout,
+  },
   "component/Message": { assert: assertMessageLayout },
   "component/PiAgentHeader": { assert: assertPiAgentHeaderLayout },
   "pi-agent/toolbar": { assert: assertPiAgentToolbarLayout },

@@ -8,6 +8,8 @@ import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
 import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
 import arrowRight from "lucide-static/icons/arrow-right.svg?raw";
 import arrowUp from "lucide-static/icons/arrow-up.svg?raw";
+import check from "lucide-static/icons/check.svg?raw";
+import copy from "lucide-static/icons/copy.svg?raw";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import { CalendarDate, endOfMonth, isSameDay, startOfMonth, startOfWeek } from "@internationalized/date";
 import calendarIcon from "lucide-static/icons/calendar.svg?raw";
@@ -19,7 +21,6 @@ import pencil from "lucide-static/icons/pencil.svg?raw";
 import minus from "lucide-static/icons/minus.svg?raw";
 import { lexer } from "marked";
 import remend from "remend";
-import check from "lucide-static/icons/check.svg?raw";
 import ellipsis from "lucide-static/icons/ellipsis.svg?raw";
 import { NumberFormatter, NumberParser } from "@internationalized/number";
 import plus from "lucide-static/icons/plus.svg?raw";
@@ -1428,10 +1429,10 @@ function CodeBlock(props) {
 		},
 		get children() {
 			return [createComponent$1(View, {
-				class: "h-9 flex flex-row items-center justify-between gap-3 px-3 bg-control",
+				class: "h-8 flex flex-row items-center justify-between gap-3 pl-3 pr-1 bg-control",
 				get children() {
 					return [createComponent$1(Text, {
-						class: "min-w-0 text-xs text-muted",
+						class: "min-w-0 font-mono text-xs text-muted",
 						get children() {
 							return props.language ?? "text";
 						}
@@ -1443,7 +1444,8 @@ function CodeBlock(props) {
 								return props.code;
 							},
 							variant: "ghost",
-							size: "sm",
+							size: "icon",
+							class: "w-7 h-7 text-muted",
 							get idleLabel() {
 								return props.copyLabel;
 							},
@@ -1452,6 +1454,18 @@ function CodeBlock(props) {
 							},
 							get ["aria-label"]() {
 								return props.copyLabel;
+							},
+							get copiedChildren() {
+								return createComponent$1(Icon, {
+									source: check,
+									size: 13
+								});
+							},
+							get children() {
+								return createComponent$1(Icon, {
+									source: copy,
+									size: 13
+								});
 							}
 						});
 					})];

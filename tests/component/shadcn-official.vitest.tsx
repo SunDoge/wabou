@@ -182,10 +182,11 @@ test("renders a copyable code block and uses the clipboard capability", async ()
     </PlatformProvider>
   ));
   expect(screen.getByRole("group", { name: "Code block" })).not.toBeNull();
-  screen.getByRole("button", { name: "Copy" }).click();
-  await screen.waitFor(() => byText(screen, "Copied"));
+  const copy = screen.getByRole("button", { name: "Copy" });
+  expect(copy.text).toBe("");
+  copy.click();
+  await screen.waitFor(() => expect(copy.text).toBe(""));
   expect(writes).toEqual(["const ready = true"]);
-  expect(byText(screen, "Copied")).not.toBeNull();
 });
 
 test("renders timeline status and metadata", () => {
