@@ -16,7 +16,11 @@ const command = process.env.WABOU_LAYOUT_COMMAND
   ? process.env.WABOU_LAYOUT_COMMAND.split(" ").filter(Boolean)
   : [resolve("target/release/wabou")];
 const selected = process.argv.slice(2).filter(Boolean);
-const checks = ["visible-overflow", "sibling-collision"] as const;
+const checks = [
+  "visible-overflow",
+  "sibling-collision",
+  "visual-quality",
+] as const;
 
 const assertClose = (actual: number, expected: number, label: string) => {
   if (Math.abs(actual - expected) > 1)
@@ -321,15 +325,26 @@ const assertMarkdownConversationLayout = (snapshot: LayoutSnapshot) => {
 };
 
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
-  "foundations/muted-contrast": { checks: ["visual-quality"] as const },
-  "basics/NumberField": { checks: ["visual-quality"] as const },
-  "basics/Switch": { checks: ["visual-quality"] as const },
-  "widgets/Accordion": { checks: ["visual-quality"] as const },
+  // These two fixtures deliberately expose raw palette values rather than
+  // product UI. Contrast is documented by the swatches themselves and must
+  // not weaken the default quality contract for ordinary components.
+  "foundations/Colors": {
+    checks: ["visible-overflow", "sibling-collision"] as const,
+  },
+  "animation/Animation": {
+    checks: ["visible-overflow", "sibling-collision"] as const,
+  },
   // Carousel tracks and message reactions deliberately extend past their
   // logical content box; their component-specific clipping is tested lower.
-  "widgets/Carousel": { checks: ["sibling-collision"] as const },
+  "widgets/Carousel": {
+    checks: ["sibling-collision", "visual-quality"] as const,
+  },
   "widgets/Message": {
-    checks: ["sibling-collision", "text-collision"] as const,
+    checks: [
+      "sibling-collision",
+      "text-collision",
+      "visual-quality",
+    ] as const,
   },
   "component/Sidebar": { assert: assertSidebarLayout },
   "component/ScrollArea": { assert: assertScrollAreaLayout },
@@ -339,11 +354,12 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/ImageViewport": {
     width: 720,
     height: 520,
-    checks: ["visual-quality"] as const,
+    // Resize hit slop intentionally extends beyond the 2px visual region.
+    checks: ["sibling-collision", "visual-quality"] as const,
     assert: assertImageViewportLayout,
   },
   "image-viewport/ImageViewport": {
-    checks: ["visual-quality"] as const,
+    checks: ["sibling-collision", "visual-quality"] as const,
   },
   "component/ImageList": {
     width: 360,
