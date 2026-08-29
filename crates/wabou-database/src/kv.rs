@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 
 use crate::{Database, Error, Migration, Result};
@@ -136,8 +137,9 @@ impl KvStore {
     /// Read one unexpired entry.
     pub async fn get(&self, key: &[KvKeyPart]) -> Result<Option<KvEntry>> {
         let encoded = encode_key(key)?;
-        let connection = self.database.connect()?;
-        read_entry(&connection, &encoded, now_millis()).await
+        self.database
+            .call(move |connection| read_entry(connection, &encoded, now_millis()))
+            .await
     }
 
     /// Store one value and return its new revision.
@@ -187,21 +189,32 @@ impl KvStore {
                  ORDER BY key {direction} LIMIT ?3"
             )
         };
-        let connection = self.database.connect()?;
         let limit = i64::try_from(options.limit.min(10_000)).unwrap_or(10_000);
-        let mut rows = match upper {
-            Some(upper) => {
-                connection
-                    .query(&sql, (lower, upper, now_millis(), limit))
-                    .await?
-            }
-            None => connection.query(&sql, (lower, now_millis(), limit)).await?,
-        };
-        let mut entries = Vec::new();
-        while let Some(row) = rows.next().await? {
-            entries.push(decode_entry_row(&row)?);
-        }
-        Ok(entries)
+        self.database
+            .call(move |connection| {
+                let mut statement = connection.prepare(&sql)?;
+                let mut entries = Vec::new();
+                match upper {
+                    Some(upper) => {
+                        let rows = statement.query_map(
+                            (lower, upper, now_millis(), limit),
+                            decode_entry_row_sqlite,
+                        )?;
+                        for row in rows {
+                            entries.push(row??);
+                        }
+                    }
+                    None => {
+                        let rows = statement
+                            .query_map((lower, now_millis(), limit), decode_entry_row_sqlite)?;
+                        for row in rows {
+                            entries.push(row??);
+                        }
+                    }
+                }
+                Ok(entries)
+            })
+            .await
     }
 
     /// Check revisions and apply mutations in one SQLite transaction.
@@ -221,127 +234,129 @@ impl KvStore {
             }
         }
 
-        let mut connection = self.database.write_connection().await?;
-        let transaction = connection.transaction().await?;
-        let now = now_millis();
-        for check in checks {
-            let encoded = encode_key(&check.key)?;
-            let found = read_versionstamp(&transaction, &encoded, now).await?;
-            if found != check.versionstamp {
-                transaction.rollback().await?;
-                return Ok(AtomicCommit {
-                    committed: false,
-                    versionstamp: None,
-                });
-            }
-        }
+        let checks = checks.to_vec();
+        let mutations = mutations.to_vec();
+        self.database
+            .call(move |connection| {
+                let transaction = connection.transaction()?;
+                let now = now_millis();
+                for check in &checks {
+                    let encoded = encode_key(&check.key)?;
+                    let found = read_versionstamp(&transaction, &encoded, now)?;
+                    if found != check.versionstamp {
+                        transaction.rollback()?;
+                        return Ok(AtomicCommit {
+                            committed: false,
+                            versionstamp: None,
+                        });
+                    }
+                }
 
-        transaction
-            .execute(
-                "UPDATE kv_meta SET versionstamp = versionstamp + 1 WHERE singleton = 1",
-                (),
-            )
-            .await?;
-        let versionstamp = current_versionstamp(&transaction).await?;
-        for mutation in mutations {
-            match mutation {
-                KvMutation::Set {
-                    key,
-                    value,
-                    expires_at,
-                } => {
-                    let encoded = encode_key(key)?;
-                    let key_json = serde_json::to_string(key).map_err(json_error)?;
-                    let value_json = serde_json::to_string(value).map_err(json_error)?;
-                    transaction
-                        .execute(
-                            "INSERT INTO kv_entries \
-                             (key, key_json, value_json, versionstamp, expires_at) \
-                             VALUES (?1, ?2, ?3, ?4, ?5) \
-                             ON CONFLICT(key) DO UPDATE SET \
-                             key_json = excluded.key_json, value_json = excluded.value_json, \
-                             versionstamp = excluded.versionstamp, expires_at = excluded.expires_at",
-                            (
-                                encoded,
-                                key_json,
-                                value_json,
-                                versionstamp_to_i64(versionstamp)?,
-                                *expires_at,
-                            ),
-                        )
-                        .await?;
+                transaction.execute(
+                    "UPDATE kv_meta SET versionstamp = versionstamp + 1 WHERE singleton = 1",
+                    (),
+                )?;
+                let versionstamp = current_versionstamp(&transaction)?;
+                for mutation in &mutations {
+                    match mutation {
+                        KvMutation::Set {
+                            key,
+                            value,
+                            expires_at,
+                        } => {
+                            let encoded = encode_key(key)?;
+                            let key_json = serde_json::to_string(key).map_err(json_error)?;
+                            let value_json = serde_json::to_string(value).map_err(json_error)?;
+                            transaction.execute(
+                                "INSERT INTO kv_entries \
+                                 (key, key_json, value_json, versionstamp, expires_at) \
+                                 VALUES (?1, ?2, ?3, ?4, ?5) \
+                                 ON CONFLICT(key) DO UPDATE SET \
+                                 key_json = excluded.key_json, value_json = excluded.value_json, \
+                                 versionstamp = excluded.versionstamp, expires_at = excluded.expires_at",
+                                (
+                                    encoded,
+                                    key_json,
+                                    value_json,
+                                    versionstamp_to_i64(versionstamp)?,
+                                    *expires_at,
+                                ),
+                            )?;
+                        }
+                        KvMutation::Delete { key } => {
+                            transaction.execute(
+                                "DELETE FROM kv_entries WHERE key = ?1",
+                                [encode_key(key)?],
+                            )?;
+                        }
+                    }
                 }
-                KvMutation::Delete { key } => {
-                    transaction
-                        .execute("DELETE FROM kv_entries WHERE key = ?1", [encode_key(key)?])
-                        .await?;
-                }
-            }
-        }
-        transaction.commit().await?;
-        Ok(AtomicCommit {
-            committed: true,
-            versionstamp: Some(versionstamp),
-        })
+                transaction.commit()?;
+                Ok(AtomicCommit {
+                    committed: true,
+                    versionstamp: Some(versionstamp),
+                })
+            })
+            .await
     }
 }
 
-async fn read_entry(
-    connection: &crate::Connection,
-    encoded: &[u8],
-    now: i64,
-) -> Result<Option<KvEntry>> {
-    let mut rows = connection
-        .query(
+fn read_entry(connection: &crate::Connection, encoded: &[u8], now: i64) -> Result<Option<KvEntry>> {
+    connection
+        .query_row(
             "SELECT key_json, value_json, versionstamp, expires_at FROM kv_entries \
              WHERE key = ?1 AND (expires_at IS NULL OR expires_at > ?2)",
             (encoded, now),
+            decode_entry_row_sqlite,
         )
-        .await?;
-    rows.next()
-        .await?
-        .map(|row| decode_entry_row(&row))
+        .optional()?
         .transpose()
 }
 
-async fn read_versionstamp(
+fn read_versionstamp(
     connection: &crate::Connection,
     encoded: &[u8],
     now: i64,
 ) -> Result<Option<Versionstamp>> {
-    let mut rows = connection
-        .query(
+    connection
+        .query_row(
             "SELECT versionstamp FROM kv_entries \
              WHERE key = ?1 AND (expires_at IS NULL OR expires_at > ?2)",
             (encoded, now),
+            |row| row.get::<_, i64>(0),
         )
-        .await?;
-    rows.next()
-        .await?
-        .map(|row| i64_to_versionstamp(row.get::<i64>(0)?))
+        .optional()?
+        .map(i64_to_versionstamp)
         .transpose()
 }
 
-async fn current_versionstamp(connection: &crate::Connection) -> Result<Versionstamp> {
-    let mut rows = connection
-        .query("SELECT versionstamp FROM kv_meta WHERE singleton = 1", ())
-        .await?;
-    let row = rows
-        .next()
-        .await?
+fn current_versionstamp(connection: &crate::Connection) -> Result<Versionstamp> {
+    let value = connection
+        .query_row(
+            "SELECT versionstamp FROM kv_meta WHERE singleton = 1",
+            (),
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()?
         .ok_or_else(|| Error::InvalidMigrations("KV metadata row is missing".to_owned()))?;
-    i64_to_versionstamp(row.get::<i64>(0)?)
+    i64_to_versionstamp(value)
 }
 
 fn decode_entry_row(row: &crate::Row) -> Result<KvEntry> {
-    let key_json = row.get::<String>(0)?;
-    let value_json = row.get::<String>(1)?;
+    let key_json = row.get::<_, String>(0)?;
+    let value_json = row.get::<_, String>(1)?;
     Ok(KvEntry {
         key: serde_json::from_str(&key_json).map_err(json_error)?,
         value: serde_json::from_str(&value_json).map_err(json_error)?,
-        versionstamp: i64_to_versionstamp(row.get::<i64>(2)?)?,
-        expires_at: row.get::<Option<i64>>(3)?,
+        versionstamp: i64_to_versionstamp(row.get::<_, i64>(2)?)?,
+        expires_at: row.get::<_, Option<i64>>(3)?,
     })
+}
+
+fn decode_entry_row_sqlite(
+    row: &crate::Row<'_>,
+) -> std::result::Result<Result<KvEntry>, rusqlite::Error> {
+    Ok(decode_entry_row(row))
 }
 
 fn encode_key(key: &[KvKeyPart]) -> Result<Vec<u8>> {
