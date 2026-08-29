@@ -42,6 +42,7 @@ import type { AgentItem } from "./agent-state";
 const TOOL_OUTPUT_PREVIEW_BYTES = 12_000;
 
 type ToolItem = Extract<AgentItem, { kind: "tool" }>;
+type ToolReasoning = { text: string; streaming: boolean };
 
 export type ConversationEntry =
   | { id: string; kind: "item"; item: Exclude<AgentItem, ToolItem> }
@@ -49,47 +50,106 @@ export type ConversationEntry =
       id: string;
       kind: "tools";
       items: readonly ToolItem[];
-      reasoning?: { text: string; streaming: boolean };
+      reasoning?: ToolReasoning;
     };
+
+function mergeReasoning(
+  current: ToolReasoning | undefined,
+  next: ToolReasoning | undefined,
+): ToolReasoning | undefined {
+  if (!next?.text.trim()) return current;
+  if (!current?.text.trim()) return next;
+  return {
+    text: `${current.text.trimEnd()}\n\n${next.text.trimStart()}`,
+    streaming: current.streaming || next.streaming,
+  };
+}
 
 /** Fold adjacent tool events into the activity cluster produced by one turn. */
 export function groupConversationItems(
   items: readonly AgentItem[],
 ): readonly ConversationEntry[] {
   const entries: ConversationEntry[] = [];
-  for (const item of items) {
+  let pendingReasoning: ToolReasoning | undefined;
+  for (const [index, item] of items.entries()) {
     const previous = entries.at(-1);
     if (item.kind === "tool") {
       if (previous?.kind === "tools") {
         entries[entries.length - 1] = {
           ...previous,
           items: [...previous.items, item],
+          reasoning: mergeReasoning(previous.reasoning, pendingReasoning),
         };
       } else {
-        entries.push({ id: `tools:${item.id}`, kind: "tools", items: [item] });
+        entries.push({
+          id: `tools:${item.id}`,
+          kind: "tools",
+          items: [item],
+          reasoning: pendingReasoning,
+        });
       }
+      pendingReasoning = undefined;
       continue;
+    }
+    if (item.kind === "assistant" && item.thinkingText) {
+      const reasoning = {
+        text: item.thinkingText,
+        streaming: item.streaming === true,
+      };
+      if (previous?.kind === "tools") {
+        entries[entries.length - 1] = {
+          ...previous,
+          reasoning: mergeReasoning(previous.reasoning, reasoning),
+        };
+        if (!item.text.trim()) continue;
+        entries.push({
+          id: item.id,
+          kind: "item",
+          item: { ...item, thinkingText: undefined },
+        });
+        continue;
+      }
+      if (items[index + 1]?.kind === "tool" && !item.text.trim()) {
+        pendingReasoning = mergeReasoning(pendingReasoning, reasoning);
+        continue;
+      }
     }
     if (
       item.kind === "assistant" &&
-      item.thinkingText &&
-      previous?.kind === "tools"
+      !item.text.trim() &&
+      !item.thinkingText &&
+      (previous?.kind === "tools" || items[index + 1]?.kind === "tool")
     ) {
-      entries[entries.length - 1] = {
-        ...previous,
-        reasoning: {
-          text: item.thinkingText,
-          streaming: item.streaming === true,
-        },
-      };
-      entries.push({
-        id: item.id,
-        kind: "item",
-        item: { ...item, thinkingText: undefined },
-      });
       continue;
     }
+    if (pendingReasoning) {
+      entries.push({
+        id: `reasoning:${item.id}`,
+        kind: "item",
+        item: {
+          id: `reasoning:${item.id}`,
+          kind: "assistant",
+          text: "",
+          thinkingText: pendingReasoning.text,
+          streaming: pendingReasoning.streaming,
+        },
+      });
+      pendingReasoning = undefined;
+    }
     entries.push({ id: item.id, kind: "item", item });
+  }
+  if (pendingReasoning) {
+    entries.push({
+      id: "reasoning:tail",
+      kind: "item",
+      item: {
+        id: "reasoning:tail",
+        kind: "assistant",
+        text: "",
+        thinkingText: pendingReasoning.text,
+        streaming: pendingReasoning.streaming,
+      },
+    });
   }
   return entries;
 }

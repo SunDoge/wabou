@@ -238,6 +238,85 @@ test("Pi Agent folds adjacent completed tools into one turn activity group", () 
   expect(screen.getByRole("button", { name: "bash: cargo test" })).toBeTruthy();
 });
 
+test("Pi Agent folds reasoning-separated tool calls into one turn activity group", () => {
+  const tool = (id: string, name: string) => ({
+    id,
+    kind: "tool" as const,
+    name,
+    state: "success" as const,
+    input: JSON.stringify({ path: `${name}.ts` }),
+    output: "ok",
+  });
+  const entries = groupConversationItems([
+    {
+      id: "thinking-before",
+      kind: "assistant",
+      text: "",
+      thinkingText: "Inspect the workspace.",
+    },
+    tool("tool-1", "read"),
+    {
+      id: "thinking-between-1",
+      kind: "assistant",
+      text: "",
+      thinkingText: "Check the manifest.",
+    },
+    tool("tool-2", "read-package"),
+    {
+      id: "empty-lifecycle-message",
+      kind: "assistant",
+      text: "",
+    },
+    tool("tool-3", "read-cargo"),
+    {
+      id: "answer",
+      kind: "assistant",
+      text: "Wabou is a retained desktop UI runtime.",
+      thinkingText: "Synthesize the answer.",
+    },
+  ]);
+
+  expect(entries).toHaveLength(2);
+  expect(entries[0]).toMatchObject({
+    kind: "tools",
+    items: [{ id: "tool-1" }, { id: "tool-2" }, { id: "tool-3" }],
+    reasoning: {
+      text:
+        "Inspect the workspace.\n\nCheck the manifest.\n\nSynthesize the answer.",
+      streaming: false,
+    },
+  });
+  expect(entries[1]).toMatchObject({
+    kind: "item",
+    item: {
+      id: "answer",
+      text: "Wabou is a retained desktop UI runtime.",
+      thinkingText: undefined,
+    },
+  });
+
+  const screen = renderComponent(() => (
+    <ConversationList
+      items={[
+        tool("tool-1", "read"),
+        {
+          id: "thinking-between",
+          kind: "assistant",
+          text: "",
+          thinkingText: "Continue inspecting.",
+        },
+        tool("tool-2", "read-package"),
+      ]}
+    />
+  ));
+  expect(
+    screen.getByRole("button", { name: "Worked, 2 tool calls" }),
+  ).toBeTruthy();
+  expect(
+    screen.queryByRole("button", { name: "Worked, 1 tool call" }),
+  ).toBeNull();
+});
+
 test("Pi Agent keeps live tool activity open and folds it after completion", () => {
   const [items, setItems] = createSignal([
     {
