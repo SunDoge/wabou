@@ -9,6 +9,8 @@
   "session_minutes_ago": "{count} 分钟",
   "session_hours_ago": "{count} 小时",
   "session_days_ago": "{count} 天",
+  "collapse_project_sessions": "收起 {project} 的会话",
+  "expand_project_sessions": "展开 {project} 的会话",
   "new_project": "添加项目",
   "projects": "项目",
   "workspace_not_selected": "选择工作区",

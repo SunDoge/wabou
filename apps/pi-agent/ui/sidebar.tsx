@@ -14,11 +14,19 @@ import {
   View,
 } from "@wabou/ui";
 import bot from "lucide-static/icons/bot.svg?raw";
+import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
+import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import messageSquare from "lucide-static/icons/message-square.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
-import { createMemo, createSignal, For as ForValue, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For as ForValue,
+  Show,
+} from "solid-js";
 import { match } from "ts-pattern";
 import { AgentSidebarStatus } from "./agent-activity";
 import type { PiSession } from "./api";
@@ -127,6 +135,9 @@ export function activeSidebarValue(
 
 export function Sidebar(props: SidebarProps) {
   const [query, setQuery] = createSignal("");
+  const [collapsedAgents, setCollapsedAgents] = createSignal<
+    ReadonlySet<string>
+  >(new Set());
   const nowSeconds = props.nowSeconds ?? Date.now() / 1_000;
   const normalizedQuery = () => query().trim().toLocaleLowerCase();
   const visibleAgents = createMemo(() => {
@@ -148,6 +159,42 @@ export function Sidebar(props: SidebarProps) {
   const activeValue = createMemo(() =>
     activeSidebarValue(props.agents, props.activeId, props.sessions),
   );
+  const activeSessionKey = createMemo(() => {
+    const agent = props.agents.find(
+      (candidate) => candidate.id === props.activeId,
+    );
+    if (!agent?.state.sessionId) return undefined;
+    return props.sessions.some(
+      (session) =>
+        session.agentId === agent.id &&
+        session.sessionId === agent.state.sessionId,
+    )
+      ? `${agent.id}\0${agent.state.sessionId}`
+      : undefined;
+  });
+  let previousActiveSessionKey: string | undefined;
+  createEffect(activeSessionKey, (activeKey) => {
+    const previous = previousActiveSessionKey;
+    previousActiveSessionKey = activeKey;
+    if (!activeKey || activeKey === previous) return;
+    const activeAgentId = activeKey.slice(0, activeKey.indexOf("\0"));
+    setCollapsedAgents((current) => {
+      if (!current.has(activeAgentId)) return current;
+      const next = new Set(current);
+      next.delete(activeAgentId);
+      return next;
+    });
+  });
+  const sessionsExpanded = (agentId: string) =>
+    normalizedQuery().length > 0 || !collapsedAgents().has(agentId);
+  const toggleSessions = (agentId: string) => {
+    setCollapsedAgents((current) => {
+      const next = new Set(current);
+      if (next.has(agentId)) next.delete(agentId);
+      else next.add(agentId);
+      return next;
+    });
+  };
   const visibleSessions = (agentId: string) => {
     const needle = normalizedQuery();
     const sessions = sortSessionsByRecency(
@@ -216,56 +263,95 @@ export function Sidebar(props: SidebarProps) {
             value={activeValue()}
           >
             <ForValue each={visibleAgents()} keyed={(agent) => agent.id}>
-              {(agent) => (
-                <View class="gap-1">
-                  <SidebarMenuButton
-                    value={`project:${agent().id}`}
-                    class="h-10 px-2"
-                    aria-label={agent().name}
-                    onClick={() => props.select(agent().id)}
-                  >
-                    <Icon source={folder} size={15} class="text-secondary" />
-                    <View class="min-w-0 flex-1 gap-0">
-                      <Text class="truncate text-sm font-medium">
-                        {agent().name}
-                      </Text>
-                      <Text class="truncate text-xs text-muted">
-                        {workspaceName(agent().cwd)}
-                      </Text>
-                    </View>
-                    <AgentSidebarStatus state={agent().state} />
-                  </SidebarMenuButton>
-                  <ForValue
-                    each={visibleSessions(agent().id)}
-                    keyed={(session) => session.sessionId}
-                  >
-                    {(session) => (
-                      <View class="min-w-0 pl-3">
-                        <SidebarMenuButton
-                          value={`session:${agent().id}:${session().sessionId}`}
-                          class="h-8 pl-2 text-sm"
-                          aria-label={sessionLabel(session())}
-                          onClick={() =>
-                            props.selectSession(agent().id, session().sessionId)
-                          }
+              {(agent) => {
+                const sessions = () => visibleSessions(agent().id);
+                const expanded = () => sessionsExpanded(agent().id);
+                return (
+                  <View class="gap-1">
+                    <View class="min-w-0 flex flex-row items-center gap-0.5">
+                      <SidebarMenuButton
+                        value={`project:${agent().id}`}
+                        class="min-w-0 flex-1 h-10 px-2"
+                        aria-label={agent().name}
+                        onClick={() => props.select(agent().id)}
+                      >
+                        <Icon
+                          source={folder}
+                          size={15}
+                          class="text-secondary"
+                        />
+                        <View class="min-w-0 flex-1 gap-0">
+                          <Text class="truncate text-sm font-medium">
+                            {agent().name}
+                          </Text>
+                          <Text class="truncate text-xs text-muted">
+                            {workspaceName(agent().cwd)}
+                          </Text>
+                        </View>
+                        <AgentSidebarStatus state={agent().state} />
+                      </SidebarMenuButton>
+                      <Show when={sessions().length > 0}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          class="w-7 h-7 flex-none"
+                          aria-label={i18n.message(
+                            expanded()
+                              ? m.collapse_project_sessions
+                              : m.expand_project_sessions,
+                            { project: agent().name },
+                          )}
+                          aria-expanded={expanded()}
+                          onClick={() => toggleSessions(agent().id)}
                         >
                           <Icon
-                            source={messageSquare}
-                            size={13}
-                            class="flex-none text-muted"
+                            source={expanded() ? chevronDown : chevronRight}
+                            size={14}
+                            class="text-muted"
                           />
-                          <Text class="min-w-0 flex-1 truncate">
-                            {sessionLabel(session())}
-                          </Text>
-                          <Text class="flex-none text-xs text-muted">
-                            {sessionTimeLabel(session().updatedAt, nowSeconds)}
-                          </Text>
-                        </SidebarMenuButton>
-                      </View>
-                    )}
-                  </ForValue>
-                </View>
-              )}
+                        </Button>
+                      </Show>
+                    </View>
+                    <Show when={expanded()}>
+                      <ForValue
+                        each={sessions()}
+                        keyed={(session) => session.sessionId}
+                      >
+                        {(session) => (
+                          <View class="min-w-0 pl-3">
+                            <SidebarMenuButton
+                              value={`session:${agent().id}:${session().sessionId}`}
+                              class="h-8 pl-2 text-sm"
+                              aria-label={sessionLabel(session())}
+                              onClick={() =>
+                                props.selectSession(
+                                  agent().id,
+                                  session().sessionId,
+                                )
+                              }
+                            >
+                              <Icon
+                                source={messageSquare}
+                                size={13}
+                                class="flex-none text-muted"
+                              />
+                              <Text class="min-w-0 flex-1 truncate">
+                                {sessionLabel(session())}
+                              </Text>
+                              <Text class="flex-none text-xs text-muted">
+                                {sessionTimeLabel(
+                                  session().updatedAt,
+                                  nowSeconds,
+                                )}
+                              </Text>
+                            </SidebarMenuButton>
+                          </View>
+                        )}
+                      </ForValue>
+                    </Show>
+                  </View>
+                );
+              }}
             </ForValue>
           </SidebarMenu>
           <Show when={visibleAgents().length === 0}>

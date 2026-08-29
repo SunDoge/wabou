@@ -9,6 +9,8 @@
   "session_minutes_ago": "{count}m",
   "session_hours_ago": "{count}h",
   "session_days_ago": "{count}d",
+  "collapse_project_sessions": "Collapse sessions for {project}",
+  "expand_project_sessions": "Expand sessions for {project}",
   "new_project": "Add project",
   "projects": "Projects",
   "workspace_not_selected": "Choose a workspace",

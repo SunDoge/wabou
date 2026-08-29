@@ -164,6 +164,65 @@ test("shows retained sessions for every project and keeps navigation live", () =
   expect(selected).toEqual(["agent-1"]);
 });
 
+test("collapses project sessions without hiding search results or changing selection", () => {
+  const agent = createAgentWorkspace(1);
+  agent.cwd = "/work/api";
+  const sessions: PiSession[] = [
+    {
+      agentId: agent.id,
+      sessionId: "session-one",
+      sessionFile: "/tmp/session-one.jsonl",
+      name: "Fix API retries",
+      cwd: agent.cwd,
+      updatedAt: 100,
+    },
+    {
+      agentId: agent.id,
+      sessionId: "session-two",
+      sessionFile: "/tmp/session-two.jsonl",
+      name: "Document transport",
+      cwd: agent.cwd,
+      updatedAt: 90,
+    },
+  ];
+  const screen = renderComponent(() => (
+    <Sidebar
+      agents={[agent]}
+      sessions={sessions}
+      activeId={agent.id}
+      select={() => {}}
+      selectSession={() => {}}
+      add={() => {}}
+      newSession={() => {}}
+      canCreateSession
+      nowSeconds={120}
+      openSettings={() => {}}
+    />
+  ));
+
+  screen
+    .getByRole("button", { name: "Collapse sessions for Project 1" })
+    .click();
+  screen.flush();
+  expect(screen.queryByRole("button", { name: "Fix API retries" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Project 1" }).selected).toBe(true);
+
+  const search = screen.getByRole("textbox", {
+    name: "Search agents and sessions",
+  });
+  search.input("transport");
+  expect(
+    screen.getByRole("button", { name: "Document transport" }),
+  ).toBeDefined();
+
+  search.input("");
+  expect(
+    screen.queryByRole("button", { name: "Document transport" }),
+  ).toBeNull();
+  screen.getByRole("button", { name: "Expand sessions for Project 1" }).click();
+  expect(screen.getByRole("button", { name: "Fix API retries" })).toBeDefined();
+});
+
 test("resolves one active sidebar destination from project and session state", () => {
   const agent = createAgentWorkspace(1);
   const session: PiSession = {
@@ -285,6 +344,10 @@ test("updates the selected session when a keyed agent receives new state", () =>
   expect(screen.getByRole("button", { name: "Session one" }).selected).toBe(
     true,
   );
+  screen
+    .getByRole("button", { name: "Collapse sessions for Project 1" })
+    .click();
+  expect(screen.queryByRole("button", { name: "Session one" })).toBeNull();
   setAgents((current) => [
     {
       ...current[0],
@@ -294,6 +357,7 @@ test("updates the selected session when a keyed agent receives new state", () =>
   setVisibleSessions([sessions[1], sessions[0]]);
   screen.flush();
 
+  expect(screen.getByRole("button", { name: "Session one" })).toBeDefined();
   expect(screen.getByRole("button", { name: "Session one" }).selected).toBe(
     false,
   );
