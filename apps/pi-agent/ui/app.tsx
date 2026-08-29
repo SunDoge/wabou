@@ -11,8 +11,6 @@ import {
   MessageScrollerButton,
   MessageScrollerContent,
   MessageScrollerViewport,
-  Text,
-  TextArea,
   Toaster,
   useDialog,
   useLocation,
@@ -20,7 +18,6 @@ import {
   useParams,
   View,
   Workbench,
-  WorkbenchFooter,
   WorkbenchHeader,
   WorkbenchMain,
 } from "@wabou/ui";
@@ -28,7 +25,6 @@ import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import gitBranch from "lucide-static/icons/git-branch.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
-import send from "lucide-static/icons/send.svg?raw";
 import square from "lucide-static/icons/square.svg?raw";
 import squareTerminal from "lucide-static/icons/square-terminal.svg?raw";
 import {
@@ -44,23 +40,12 @@ import {
   reducePiEvent,
   reducePiEvents,
 } from "./agent-state";
-import { AppCommandPalette } from "./app-command-palette";
 import { type PiSession, usePiApi } from "./api";
-import { CommandPicker } from "./command-picker";
-import {
-  ComposerContextFiles,
-  WorkspaceContextPicker,
-} from "./composer-context";
-import {
-  ComposerDeliveryControl,
-  type ComposerDeliveryMode,
-} from "./composer-delivery";
-import {
-  ComposerImagePicker,
-  ComposerImages,
-  imageFileName,
-} from "./composer-images";
+import { AppCommandPalette } from "./app-command-palette";
+import type { ComposerDeliveryMode } from "./composer-delivery";
+import { imageFileName } from "./composer-images";
 import { ConversationList } from "./conversation";
+import { ConversationComposer } from "./conversation-composer";
 import { ConversationContext } from "./conversation-context";
 import { ConversationNavigator } from "./conversation-navigator";
 import { ConversationWelcome } from "./conversation-welcome";
@@ -77,7 +62,6 @@ import {
 } from "./drafts";
 import {
   type ExtensionUiAnswer,
-  ExtensionUiChrome,
   ExtensionUiDialog,
   type ExtensionUiDialogRequest,
   type ExtensionUiEffect,
@@ -89,16 +73,14 @@ import {
   reduceExtensionUiWidgets,
 } from "./extension-ui";
 import { i18n, m } from "./i18n";
-import { ModelControls } from "./model-controls";
 import { createOwnedOverlay } from "./owned-overlay";
 import { createPersistedRecord } from "./persisted-record";
 import { ScopedHandleRegistry } from "./scoped-handle-registry";
 import { SessionActions } from "./session-actions";
 import { SessionForkDialog } from "./session-fork";
 import { SessionTitle } from "./session-title";
-import { SessionUsage } from "./session-usage";
 import { type AppSettings, SettingsPage } from "./settings";
-import { Sidebar, workspaceName } from "./sidebar";
+import { Sidebar } from "./sidebar";
 import { AgentTerminalPanel } from "./terminal-panel";
 import { TranscriptSearch } from "./transcript-search";
 import {
@@ -1140,109 +1122,39 @@ export function App() {
               <MessageScrollerButton />
             </MessageScroller>
 
-            <WorkbenchFooter class="border-0 bg-canvas px-5 pt-3 pb-5">
-              <View
-                data-wabou-owns="surface focus-ring"
-                class="max-w-3xl mx-auto min-w-0 rounded-xl border border-subtle bg-input shadow-xs px-3 pt-3 pb-2 gap-2"
-              >
-                <ExtensionUiChrome
-                  statuses={extensionStatuses().filter(
-                    (status) => status.agentId === activeId(),
-                  )}
-                  widgets={extensionWidgets().filter(
-                    (widget) => widget.agentId === activeId(),
-                  )}
-                  placement="aboveEditor"
-                />
-                <ComposerImages paths={images()} change={setImages} />
-                <ComposerContextFiles
-                  paths={contextFiles()}
-                  change={setContextFiles}
-                />
-                <TextArea
-                  chrome="none"
-                  class="h-16"
-                  value={draft()}
-                  aria-label={i18n.message(m.prompt_placeholder, {})}
-                  placeholder={
-                    active().state.connection === "running"
-                      ? i18n.message(m.queue_follow_up, {})
-                      : i18n.message(m.prompt_placeholder, {})
-                  }
-                  onInput={(event) => setDraft(event.currentTarget.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && (event.mods & 1) === 0) {
-                      event.preventDefault();
-                      void submit();
-                    }
-                  }}
-                />
-                <ExtensionUiChrome
-                  statuses={[]}
-                  widgets={extensionWidgets().filter(
-                    (widget) => widget.agentId === activeId(),
-                  )}
-                  placement="belowEditor"
-                />
-                <View class="flex items-center justify-between gap-2">
-                  <View class="min-w-0 flex flex-row items-center gap-1">
-                    <Show when={active().state.connection === "ready"}>
-                      <ModelControls
-                        models={active().state.models}
-                        modelProvider={active().state.modelProvider}
-                        modelId={active().state.modelId}
-                        thinking={active().state.thinking}
-                        thinkingLevels={active().state.availableThinkingLevels}
-                        chooseModel={(provider, modelId) =>
-                          void api.setModel(active().id, provider, modelId)
-                        }
-                        chooseThinking={(level) =>
-                          void api.setThinking(active().id, level)
-                        }
-                      />
-                    </Show>
-                    <ComposerImagePicker paths={images()} change={setImages} />
-                    <WorkspaceContextPicker
-                      cwd={active().cwd}
-                      paths={contextFiles()}
-                      change={setContextFiles}
-                      loadFiles={api.listWorkspaceFiles}
-                    />
-                    <CommandPicker
-                      commands={active().state.commands}
-                      choose={setDraft}
-                    />
-                    <Show when={active().state.connection === "running"}>
-                      <ComposerDeliveryControl
-                        value={deliveryMode()}
-                        change={setDeliveryMode}
-                      />
-                    </Show>
-                  </View>
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    class="flex-none rounded-full border border-subtle"
-                    aria-label={
-                      active().state.connection === "running"
-                        ? i18n.message(m.queue, {})
-                        : i18n.message(m.send, {})
-                    }
-                    disabled={!draft().trim()}
-                    onClick={() => void submit()}
-                  >
-                    <Icon source={send} size={14} />
-                  </Button>
-                </View>
-              </View>
-              <View class="max-w-3xl mx-auto min-w-0 px-3 pt-2 flex flex-row items-center justify-between gap-3">
-                <Text class="min-w-0 truncate text-xs text-muted">
-                  {workspaceName(active().cwd)} ·{" "}
-                  {i18n.message(m.send_hint, {})}
-                </Text>
-                <SessionUsage stats={active().state.stats} />
-              </View>
-            </WorkbenchFooter>
+            <ConversationComposer
+              connection={active().state.connection}
+              cwd={active().cwd}
+              draft={draft()}
+              images={images()}
+              contextFiles={contextFiles()}
+              deliveryMode={deliveryMode()}
+              models={active().state.models}
+              modelProvider={active().state.modelProvider}
+              modelId={active().state.modelId}
+              thinking={active().state.thinking}
+              thinkingLevels={active().state.availableThinkingLevels}
+              commands={active().state.commands}
+              stats={active().state.stats}
+              statuses={extensionStatuses().filter(
+                (status) => status.agentId === activeId(),
+              )}
+              widgets={extensionWidgets().filter(
+                (widget) => widget.agentId === activeId(),
+              )}
+              changeDraft={setDraft}
+              changeImages={setImages}
+              changeContextFiles={setContextFiles}
+              changeDeliveryMode={setDeliveryMode}
+              chooseModel={(provider, modelId) =>
+                void api.setModel(active().id, provider, modelId)
+              }
+              chooseThinking={(level) =>
+                void api.setThinking(active().id, level)
+              }
+              loadWorkspaceFiles={api.listWorkspaceFiles}
+              submit={() => void submit()}
+            />
           </Show>
           <Show when={terminalMounted()}>
             <AgentTerminalPanel

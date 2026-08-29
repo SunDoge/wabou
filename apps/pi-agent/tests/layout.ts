@@ -111,6 +111,21 @@ try {
         },
       },
       {
+        id: "conversation/composer-narrow",
+        width: 420,
+        height: 240,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, {
+            role: "textbox",
+            name: "Ask this agent to work in its repository…",
+          });
+          getLayoutNode(fixture, { role: "combobox", name: "Choose model" });
+          getLayoutNode(fixture, { role: "combobox", name: "Thinking level" });
+          getLayoutNode(fixture, { role: "button", name: "Send" });
+        },
+      },
+      {
         id: "conversation/turn-navigator",
         width: 560,
         height: 420,

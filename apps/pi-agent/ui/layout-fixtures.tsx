@@ -16,6 +16,7 @@ import { AgentActivityStatus } from "./agent-activity";
 import { type AgentItem, initialAgentState } from "./agent-state";
 import { AppCommandPalette } from "./app-command-palette";
 import { ConversationContext } from "./conversation-context";
+import { ConversationComposer } from "./conversation-composer";
 import { ConversationItem, ConversationList } from "./conversation";
 import { ConversationNavigator } from "./conversation-navigator";
 import { ModelControls } from "./model-controls";
@@ -135,6 +136,65 @@ defineLayoutFixtures({
               text: "## Finding\n\nSemantic-only updates were not scheduling a projection frame. The fix keeps layout untouched and invalidates only the semantic projection.\n\n- No extra layout pass\n- Existing visual frame remains stable\n- Native semantics receive the completed update",
             },
           ]}
+        />
+      </View>
+    ),
+  },
+  "conversation/composer-narrow": {
+    width: 420,
+    height: 240,
+    render: () => (
+      <View class="w-full h-full bg-canvas">
+        <ConversationComposer
+          connection="ready"
+          cwd="/work/wabou/documentation-and-examples"
+          draft="Explain why the retained renderer stays predictable."
+          images={[]}
+          contextFiles={[]}
+          deliveryMode="followUp"
+          models={[
+            {
+              provider: "anthropic",
+              id: "claude-sonnet-4-5",
+              name: "Claude Sonnet 4.5 with a long visible label",
+              reasoning: true,
+              contextWindow: 200_000,
+            },
+          ]}
+          modelProvider="anthropic"
+          modelId="claude-sonnet-4-5"
+          thinking="medium"
+          thinkingLevels={["low", "medium", "high"]}
+          commands={[{ name: "review", source: "project" }]}
+          stats={{
+            userMessages: 4,
+            assistantMessages: 4,
+            toolCalls: 6,
+            totalMessages: 14,
+            tokens: {
+              input: 12_000,
+              output: 2_000,
+              cacheRead: 0,
+              cacheWrite: 0,
+              total: 14_000,
+            },
+            cost: 0.042,
+            contextUsage: {
+              tokens: 14_000,
+              contextWindow: 200_000,
+              percent: 7,
+            },
+          }}
+          statuses={[]}
+          widgets={[]}
+          changeDraft={() => {}}
+          changeImages={() => {}}
+          changeContextFiles={() => {}}
+          changeDeliveryMode={() => {}}
+          chooseModel={() => {}}
+          chooseThinking={() => {}}
+          loadWorkspaceFiles={async () => []}
+          submit={() => {}}
         />
       </View>
     ),
