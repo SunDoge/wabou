@@ -16,6 +16,7 @@ import { AgentActivityStatus } from "./agent-activity";
 import { type AgentItem, initialAgentState } from "./agent-state";
 import { AppCommandPalette } from "./app-command-palette";
 import { ConversationItem, ConversationList } from "./conversation";
+import { ComposerAutocompleteList } from "./composer-autocomplete-list";
 import { ConversationComposer } from "./conversation-composer";
 import { ConversationContext } from "./conversation-context";
 import { ConversationHeader } from "./conversation-header";
@@ -57,6 +58,37 @@ const longConversation: readonly AgentItem[] = Array.from(
 );
 
 defineLayoutFixtures({
+  "conversation/composer-autocomplete": {
+    width: 384,
+    height: 176,
+    render: () => (
+      <View class="w-full h-full bg-canvas p-3">
+        <View class="w-full min-w-0 rounded-xl border border-subtle bg-input shadow-md p-1.5">
+          <ComposerAutocompleteList
+            label="Commands"
+            highlighted="command:review"
+            rows={[
+              {
+                kind: "command",
+                id: "command:review",
+                label: "/review",
+                description: "Review the current workspace changes",
+              },
+              {
+                kind: "file",
+                id: "file:long",
+                label:
+                  "apps/pi-agent/ui/a-deliberately-long-workspace-file-name.tsx",
+                description: "Workspace file",
+              },
+            ]}
+            highlight={() => {}}
+            choose={() => {}}
+          />
+        </View>
+      </View>
+    ),
+  },
   "shell/agent-activity": {
     width: 520,
     height: 48,

@@ -135,6 +135,8 @@ export interface WabouElementProps {
   style?: string | WabouStyle;
   children?: JSX.Element;
   ref?: Handle | ((node: Handle) => void);
+  /** Complete typed configuration snapshot for a native widget implementation. */
+  widgetConfig?: object | readonly unknown[];
   role?: WabouSemanticRole;
   /** Enables native focus; negative values skip sequential navigation. */
   focusOrder?: number;

@@ -1,4 +1,5 @@
 import { renderComponent } from "@wabou/test/component";
+import { createSignal } from "solid-js";
 import { expect, test, vi } from "vitest";
 import { ConversationComposer } from "../../apps/pi-agent/ui/conversation-composer";
 
@@ -63,4 +64,71 @@ test("Pi Agent composer swaps configuration for delivery mode while running", ()
     screen.getByRole("combobox", { name: "Message delivery" }),
   ).toBeTruthy();
   expect(screen.getByRole("button", { name: "Queue" })).toBeTruthy();
+});
+
+test("Pi Agent composer completes an inline slash command without submitting", () => {
+  const submit = vi.fn();
+  const App = () => {
+    const [draft, setDraft] = createSignal("");
+    return (
+      <ConversationComposer
+        {...baseProps}
+        draft={draft()}
+        changeDraft={setDraft}
+        commands={[
+          { name: "review", source: "project", description: "Review changes" },
+          { name: "compact", source: "extension" },
+        ]}
+        submit={submit}
+      />
+    );
+  };
+  const screen = renderComponent(App);
+  const editor = screen.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+
+  editor.input("/rev");
+  expect(screen.getByRole("listbox", { name: "Commands" })).toBeTruthy();
+  expect(screen.getByRole("option", { name: "/review" }).selected).toBe(true);
+
+  editor.press("Enter");
+  expect(editor.value).toBe("/review ");
+  expect(submit).not.toHaveBeenCalled();
+  expect(screen.queryByRole("listbox", { name: "Commands" })).toBeNull();
+});
+
+test("Pi Agent composer loads workspace files for inline at mentions", async () => {
+  const changeContextFiles = vi.fn();
+  const App = () => {
+    const [draft, setDraft] = createSignal("");
+    return (
+      <ConversationComposer
+        {...baseProps}
+        draft={draft()}
+        changeDraft={setDraft}
+        changeContextFiles={changeContextFiles}
+        loadWorkspaceFiles={vi.fn(async () => [
+          "apps/pi-agent/ui/app.tsx",
+          "README.md",
+        ])}
+      />
+    );
+  };
+  const screen = renderComponent(App);
+  const editor = screen.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+
+  editor.input("Inspect @app");
+  await screen.waitFor(() =>
+    expect(
+      screen.getByRole("option", { name: "apps/pi-agent/ui/app.tsx" }),
+    ).toBeTruthy(),
+  );
+  screen.getByRole("option", { name: "apps/pi-agent/ui/app.tsx" }).click();
+  expect(editor.value).toBe("Inspect @apps/pi-agent/ui/app.tsx ");
+  expect(changeContextFiles).toHaveBeenCalledWith([
+    "apps/pi-agent/ui/app.tsx",
+  ]);
 });

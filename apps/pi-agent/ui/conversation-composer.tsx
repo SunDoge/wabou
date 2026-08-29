@@ -1,6 +1,24 @@
-import { Button, Icon, Text, TextArea, View, WorkbenchFooter } from "@wabou/ui";
+import {
+  Button,
+  createLatestAsyncResource,
+  type Handle,
+  Icon,
+  moveMenuHighlight,
+  Popover,
+  Text,
+  TextArea,
+  View,
+  type WabouKeyEvent,
+  WorkbenchFooter,
+} from "@wabou/ui";
 import send from "lucide-static/icons/send.svg?raw";
-import { Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  Show,
+  untrack,
+} from "solid-js";
 import type {
   AgentCommand,
   AgentConnection,
@@ -9,6 +27,13 @@ import type {
   AgentThinkingLevel,
 } from "./agent-state";
 import { CommandPicker } from "./command-picker";
+import {
+  composerAutocompleteRows,
+  detectComposerTrigger,
+  replaceComposerTrigger,
+  type ComposerAutocompleteRow,
+} from "./composer-autocomplete";
+import { ComposerAutocompleteList } from "./composer-autocomplete-list";
 import {
   ComposerContextFiles,
   WorkspaceContextPicker,
@@ -56,10 +81,119 @@ export interface ConversationComposerProps {
 
 /** Stable, independently testable boundary for the conversation's primary action. */
 export function ConversationComposer(props: ConversationComposerProps) {
+  const initialDraft = untrack(() => props.draft);
+  const [cursor, setCursor] = createSignal(initialDraft.length);
+  const [composerActive, setComposerActive] = createSignal(false);
+  const [highlighted, setHighlighted] = createSignal<string>();
+  const [dismissed, setDismissed] = createSignal<string>();
+  let editor: Handle | undefined;
+  let authoredDraft = initialDraft;
   const running = () => props.connection === "running";
   const submit = () => {
     if (props.draft.trim()) props.submit();
   };
+  const changeDraft = (value: string, nextCursor = value.length) => {
+    authoredDraft = value;
+    setCursor(nextCursor);
+    props.changeDraft(value);
+  };
+  createEffect(
+    () => props.draft,
+    (value) => {
+      if (value !== authoredDraft) {
+        setCursor(value.length);
+        setComposerActive(false);
+        setDismissed(undefined);
+      }
+      authoredDraft = value;
+    },
+  );
+  const trigger = createMemo(() =>
+    composerActive() ? detectComposerTrigger(props.draft, cursor()) : null,
+  );
+  const triggerKey = createMemo(() => {
+    const value = trigger();
+    return value
+      ? `${value.kind}:${value.start}:${value.end}:${value.query}`
+      : undefined;
+  });
+  const files = createLatestAsyncResource({
+    source: () =>
+      trigger()?.kind === "file" && props.cwd ? props.cwd : undefined,
+    load: (cwd) => props.loadWorkspaceFiles(cwd),
+  });
+  const autocompleteRows = createMemo(() => {
+    const value = trigger();
+    if (!value) return [];
+    return composerAutocompleteRows(
+      value,
+      props.commands,
+      (files.value() ?? []).filter(
+        (path) => !props.contextFiles.includes(path),
+      ),
+    );
+  });
+  const autocompleteOpen = createMemo(() => {
+    const key = triggerKey();
+    return Boolean(
+      key &&
+        key !== dismissed() &&
+        (autocompleteRows().length > 0 ||
+          (trigger()?.kind === "file" && files.loading())),
+    );
+  });
+  createEffect(autocompleteRows, (rows) => {
+    if (!rows.some((row) => row.id === untrack(highlighted))) {
+      setHighlighted(rows[0]?.id);
+    }
+  });
+
+  const chooseAutocomplete = (row: ComposerAutocompleteRow) => {
+    const value = trigger();
+    if (!value) return;
+    const replacement = replaceComposerTrigger(props.draft, value, row);
+    changeDraft(replacement.text, replacement.cursor);
+    if (row.kind === "file" && props.contextFiles.length < 8) {
+      props.changeContextFiles([...props.contextFiles, row.label]);
+    }
+    setDismissed(triggerKey());
+    editor?.focus();
+  };
+
+  const handleComposerKey = (event: WabouKeyEvent) => {
+    if (autocompleteOpen()) {
+      const rows = autocompleteRows();
+      const move =
+        event.key === "ArrowDown"
+          ? "next"
+          : event.key === "ArrowUp"
+            ? "previous"
+            : undefined;
+      if (move) {
+        event.preventDefault();
+        setHighlighted(moveMenuHighlight(rows, highlighted(), move));
+        return;
+      }
+      if (event.key === "Enter") {
+        const row = rows.find((candidate) => candidate.id === highlighted());
+        if (row) {
+          event.preventDefault();
+          chooseAutocomplete(row);
+          return;
+        }
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setDismissed(triggerKey());
+        return;
+      }
+    }
+    if (event.key === "Enter" && (event.mods & 1) === 0) {
+      event.preventDefault();
+      submit();
+    }
+  };
+
   return (
     <WorkbenchFooter class="border-0 bg-canvas px-5 pt-3 pb-5">
       <View
@@ -78,24 +212,67 @@ export function ConversationComposer(props: ConversationComposerProps) {
           paths={props.contextFiles}
           change={props.changeContextFiles}
         />
-        <TextArea
-          chrome="none"
-          class="h-16"
-          value={props.draft}
-          aria-label={i18n.message(m.prompt_placeholder, {})}
-          placeholder={
-            running()
-              ? i18n.message(m.queue_follow_up, {})
-              : i18n.message(m.prompt_placeholder, {})
-          }
-          onInput={(event) => props.changeDraft(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.mods & 1) === 0) {
-              event.preventDefault();
-              submit();
-            }
+        <Popover
+          contentRole="presentation"
+          popupRole="listbox"
+          placement="top-start"
+          open={autocompleteOpen()}
+          onOpenChange={(open) => {
+            if (!open) setDismissed(triggerKey());
           }}
-        />
+          outsidePointerStrategy="passthrough"
+          restoreFocus={false}
+          contentClass="w-96 max-h-72 p-1.5"
+          trigger={(popoverTrigger) => (
+            <TextArea
+              ref={(node) => {
+                editor = node;
+                popoverTrigger.ref(node);
+              }}
+              aria-haspopup={popoverTrigger["aria-haspopup"]}
+              aria-expanded={popoverTrigger["aria-expanded"]}
+              aria-activedescendant={highlighted()}
+              chrome="none"
+              class="h-16"
+              value={props.draft}
+              widgetConfig={{
+                selection: { anchor: cursor(), head: cursor() },
+              }}
+              aria-label={i18n.message(m.prompt_placeholder, {})}
+              placeholder={
+                running()
+                  ? i18n.message(m.queue_follow_up, {})
+                  : i18n.message(m.prompt_placeholder, {})
+              }
+              onInput={(event) => {
+                const value = event.currentTarget.value;
+                setComposerActive(true);
+                setDismissed(undefined);
+                changeDraft(value);
+              }}
+              onTextSelectionChange={(event) => {
+                setComposerActive(true);
+                setCursor(event.head ?? 0);
+                setDismissed(undefined);
+              }}
+              onFocus={() => setComposerActive(true)}
+              onKeyDown={handleComposerKey}
+            />
+          )}
+        >
+          <ComposerAutocompleteList
+            label={
+              trigger()?.kind === "command"
+                ? i18n.message(m.available_commands, {})
+                : i18n.message(m.context_files, {})
+            }
+            rows={autocompleteRows()}
+            highlighted={highlighted()}
+            loading={files.loading() && trigger()?.kind === "file"}
+            highlight={setHighlighted}
+            choose={chooseAutocomplete}
+          />
+        </Popover>
         <ExtensionUiChrome
           statuses={[]}
           widgets={props.widgets}
@@ -113,10 +290,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
               change={props.changeContextFiles}
               loadFiles={props.loadWorkspaceFiles}
             />
-            <CommandPicker
-              commands={props.commands}
-              choose={props.changeDraft}
-            />
+            <CommandPicker commands={props.commands} choose={changeDraft} />
             <View aria-hidden="true" class="h-5 w-px mx-1 bg-subtle" />
             <Show when={!running()}>
               <ModelControls

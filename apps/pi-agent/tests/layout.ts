@@ -45,6 +45,20 @@ try {
     app: "apps/pi-agent",
     cases: [
       {
+        id: "conversation/composer-autocomplete",
+        width: 384,
+        height: 176,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, { role: "listbox", name: "Commands" });
+          getLayoutNode(fixture, { role: "option", name: "/review" });
+          getLayoutNode(fixture, {
+            role: "option",
+            name: "apps/pi-agent/ui/a-deliberately-long-workspace-file-name.tsx",
+          });
+        },
+      },
+      {
         id: "shell/agent-activity",
         width: 520,
         height: 48,
