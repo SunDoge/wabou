@@ -2,14 +2,14 @@ import { renderComponent } from "@wabou/test/component";
 import { createSignal } from "solid-js";
 import { expect, test, vi } from "vitest";
 import type { PiSession } from "../../apps/pi-agent/ui/api";
+import { Sidebar } from "../../apps/pi-agent/ui/sidebar";
 import {
   activeSidebarValue,
   nextSessionClockDelay,
-  Sidebar,
   sessionRecency,
   sessionTimeLabel,
   sortSessionsByRecency,
-} from "../../apps/pi-agent/ui/sidebar";
+} from "../../apps/pi-agent/ui/sidebar-presentation";
 import { createAgentWorkspace } from "../../apps/pi-agent/ui/workspace";
 
 test("describes session recency without depending on wall-clock time", () => {
