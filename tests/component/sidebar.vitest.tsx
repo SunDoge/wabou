@@ -8,6 +8,7 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
+  SidebarMenu,
   SidebarMenuButton,
   SidebarSearch,
 } from "@wabou/ui";
@@ -46,6 +47,34 @@ test("filters items by group, label, or application keywords", () => {
   expect(filterSidebarGroups(groups, "missing", (item) => item.label)).toEqual(
     [],
   );
+});
+
+test("controls one selected sidebar destination while leaving actions neutral", () => {
+  const [value, setValue] = createSignal("files");
+  const screen = renderComponent(() => (
+    <SidebarMenu
+      aria-label="Destinations"
+      value={value()}
+      onValueChange={setValue}
+    >
+      <SidebarMenuButton value="files" aria-label="Files" />
+      <SidebarMenuButton value="search" aria-label="Search" />
+      <SidebarMenuButton aria-label="Create file" />
+    </SidebarMenu>
+  ));
+
+  const files = screen.getByRole("button", { name: "Files" });
+  const search = screen.getByRole("button", { name: "Search" });
+  const create = screen.getByRole("button", { name: "Create file" });
+  expect(files.selected).toBe(true);
+  expect(search.selected).toBe(false);
+  expect(create.selected).toBe(false);
+
+  search.click();
+  screen.flush();
+  expect(files.selected).toBe(false);
+  expect(search.selected).toBe(true);
+  expect(create.selected).toBe(false);
 });
 
 test("composes fixed chrome, searchable content, navigation and empty state", () => {
