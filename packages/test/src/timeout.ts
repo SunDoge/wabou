@@ -1,6 +1,23 @@
 export const MAX_TEST_TIMEOUT = 60_000;
 export const DEFAULT_TEST_TIMEOUT = 5_000;
-export const SUITE_TIMEOUT = 60_000;
+export const MAX_SUITE_TIMEOUT = 300_000;
+export const SUITE_TIMEOUT_OVERHEAD = 5_000;
+
+/**
+ * Bound a complete scenario by the tests it actually registered.
+ *
+ * A fixed suite timeout makes a healthy, larger scenario fail merely because
+ * it contains more independently bounded tests. The aggregate remains capped
+ * so a broken runner cannot keep the native host alive indefinitely.
+ */
+export function suiteTimeout(testTimeouts: readonly number[]): number {
+  let timeout = SUITE_TIMEOUT_OVERHEAD;
+  for (const test of testTimeouts) {
+    timeout += test;
+    if (timeout >= MAX_SUITE_TIMEOUT) return MAX_SUITE_TIMEOUT;
+  }
+  return timeout;
+}
 
 export function testTimeout(value: number | undefined): number {
   const timeout = value ?? DEFAULT_TEST_TIMEOUT;

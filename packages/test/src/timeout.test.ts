@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
   DEFAULT_TEST_TIMEOUT,
+  MAX_SUITE_TIMEOUT,
   MAX_TEST_TIMEOUT,
   replayTimeout,
-  SUITE_TIMEOUT,
+  suiteTimeout,
+  SUITE_TIMEOUT_OVERHEAD,
   SuiteTimeoutError,
   TestTimeoutError,
   testTimeout,
@@ -38,6 +40,14 @@ describe("test timeout", () => {
     ).toBe(MAX_TEST_TIMEOUT);
   });
 
+  test("derives the suite budget from independently bounded tests", () => {
+    expect(suiteTimeout([])).toBe(SUITE_TIMEOUT_OVERHEAD);
+    expect(suiteTimeout([5_000, 2_000, 7_500])).toBe(19_500);
+    expect(suiteTimeout(Array.from({ length: 100 }, () => 5_000))).toBe(
+      MAX_SUITE_TIMEOUT,
+    );
+  });
+
   test("returns completed work and reports the stalled test name", async () => {
     expect(await withTestTimeout("quick", 100, async () => 42)).toBe(42);
     await expect(
@@ -48,7 +58,6 @@ describe("test timeout", () => {
   });
 
   test("reports the active test when the complete suite budget expires", async () => {
-    expect(SUITE_TIMEOUT).toBe(MAX_TEST_TIMEOUT);
     await expect(
       withSuiteTimeout(
         1,

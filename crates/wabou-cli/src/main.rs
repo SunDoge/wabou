@@ -797,7 +797,11 @@ fn run(
 }
 
 fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<()> {
-    const HOST_TIMEOUT: Duration = Duration::from_secs(70);
+    // The JavaScript runner derives a bounded suite budget from its registered
+    // tests (currently capped at five minutes). Keep this watchdog outside that
+    // budget so it remains a final process-level fallback instead of killing a
+    // healthy large scenario before it can write a diagnostic report.
+    const HOST_TIMEOUT: Duration = Duration::from_secs(310);
     let test_dir = workspace.join("target/wabou-test").join(&app.name);
     fs::create_dir_all(&test_dir)?;
     let artifact_dir = options

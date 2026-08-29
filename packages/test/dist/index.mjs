@@ -143,7 +143,23 @@ async function replayActions(actions, page, window, files, assertLocator, assert
 //#region src/timeout.ts
 const MAX_TEST_TIMEOUT = 6e4;
 const DEFAULT_TEST_TIMEOUT = 5e3;
-const SUITE_TIMEOUT = 6e4;
+const MAX_SUITE_TIMEOUT = 3e5;
+const SUITE_TIMEOUT_OVERHEAD = 5e3;
+/**
+* Bound a complete scenario by the tests it actually registered.
+*
+* A fixed suite timeout makes a healthy, larger scenario fail merely because
+* it contains more independently bounded tests. The aggregate remains capped
+* so a broken runner cannot keep the native host alive indefinitely.
+*/
+function suiteTimeout(testTimeouts) {
+	let timeout = SUITE_TIMEOUT_OVERHEAD;
+	for (const test of testTimeouts) {
+		timeout += test;
+		if (timeout >= 3e5) return MAX_SUITE_TIMEOUT;
+	}
+	return timeout;
+}
 function testTimeout(value) {
 	const timeout = value ?? 5e3;
 	if (!Number.isFinite(timeout) || timeout <= 0 || timeout > 6e4) throw new RangeError(`test timeout must be a finite number between 1 and ${MAX_TEST_TIMEOUT}ms`);
@@ -1038,53 +1054,60 @@ async function run() {
 		traceEnd: 0,
 		durationMs: 0
 	});
-	if (registrationErrors.length === 0 && tests.length > 0) try {
-		await withSuiteTimeout(SUITE_TIMEOUT, async () => {
-			for (const entry of tests) {
-				const traceStart = trace.length;
-				const startedAt = performance.now();
-				activeTest = {
-					name: entry.name,
-					traceStart,
-					startedAt
-				};
-				try {
-					await withTestTimeout(entry.name, entry.timeout, () => entry.body(context));
-					const pendingEffects = capability().takePendingEffectFixtures();
-					if (pendingEffects !== "") throw new Error(`native effect fixture was not consumed: ${pendingEffects}`);
-					results.push({
+	if (registrationErrors.length === 0 && tests.length > 0) {
+		const suiteTimeoutMs = suiteTimeout(tests.map((entry) => entry.timeout));
+		console.info(`[wabou-test] running ${tests.length} tests (suite budget ${suiteTimeoutMs}ms)`);
+		try {
+			await withSuiteTimeout(suiteTimeoutMs, async () => {
+				for (const entry of tests) {
+					const traceStart = trace.length;
+					const startedAt = performance.now();
+					activeTest = {
 						name: entry.name,
-						passed: true,
 						traceStart,
-						traceEnd: trace.length,
-						durationMs: performance.now() - startedAt
-					});
-				} catch (error) {
-					capability().takePendingEffectFixtures();
-					results.push({
-						name: entry.name,
-						passed: false,
-						error: error instanceof Error ? `${error.message}${error.stack ? `\n${error.stack}` : ""}` : String(error),
-						traceStart,
-						traceEnd: trace.length,
-						durationMs: performance.now() - startedAt
-					});
-					if (error instanceof TestTimeoutError) break;
-				} finally {
-					activeTest = void 0;
+						startedAt
+					};
+					console.info(`[wabou-test] → ${entry.name}`);
+					try {
+						await withTestTimeout(entry.name, entry.timeout, () => entry.body(context));
+						const pendingEffects = capability().takePendingEffectFixtures();
+						if (pendingEffects !== "") throw new Error(`native effect fixture was not consumed: ${pendingEffects}`);
+						results.push({
+							name: entry.name,
+							passed: true,
+							traceStart,
+							traceEnd: trace.length,
+							durationMs: performance.now() - startedAt
+						});
+						console.info(`[wabou-test] ✓ ${entry.name} (${Math.round(performance.now() - startedAt)}ms)`);
+					} catch (error) {
+						capability().takePendingEffectFixtures();
+						results.push({
+							name: entry.name,
+							passed: false,
+							error: error instanceof Error ? `${error.message}${error.stack ? `\n${error.stack}` : ""}` : String(error),
+							traceStart,
+							traceEnd: trace.length,
+							durationMs: performance.now() - startedAt
+						});
+						console.error(`[wabou-test] ✗ ${entry.name}: ${error instanceof Error ? error.message : String(error)}`);
+						if (error instanceof TestTimeoutError) break;
+					} finally {
+						activeTest = void 0;
+					}
 				}
-			}
-		}, () => activeTest?.name);
-	} catch (error) {
-		if (!(error instanceof SuiteTimeoutError)) throw error;
-		results.push({
-			name: activeTest?.name ?? "test suite",
-			passed: false,
-			error: `${error.message}${error.stack ? `\n${error.stack}` : ""}`,
-			traceStart: activeTest?.traceStart ?? trace.length,
-			traceEnd: trace.length,
-			durationMs: activeTest === void 0 ? SUITE_TIMEOUT : performance.now() - activeTest.startedAt
-		});
+			}, () => activeTest?.name);
+		} catch (error) {
+			if (!(error instanceof SuiteTimeoutError)) throw error;
+			results.push({
+				name: activeTest?.name ?? "test suite",
+				passed: false,
+				error: `${error.message}${error.stack ? `\n${error.stack}` : ""}`,
+				traceStart: activeTest?.traceStart ?? trace.length,
+				traceEnd: trace.length,
+				durationMs: activeTest === void 0 ? suiteTimeoutMs : performance.now() - activeTest.startedAt
+			});
+		}
 	}
 	const report = {
 		version: 1,

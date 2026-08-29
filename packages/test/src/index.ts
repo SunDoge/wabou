@@ -27,7 +27,7 @@ import {
 import { replayActions } from "./replay";
 import {
   replayTimeout,
-  SUITE_TIMEOUT,
+  suiteTimeout,
   SuiteTimeoutError,
   TestTimeoutError,
   testTimeout,
@@ -1678,14 +1678,19 @@ async function run(): Promise<void> {
     });
   }
   if (registrationErrors.length === 0 && tests.length > 0) {
+    const suiteTimeoutMs = suiteTimeout(tests.map((entry) => entry.timeout));
+    console.info(
+      `[wabou-test] running ${tests.length} tests (suite budget ${suiteTimeoutMs}ms)`,
+    );
     try {
       await withSuiteTimeout(
-        SUITE_TIMEOUT,
+        suiteTimeoutMs,
         async () => {
           for (const entry of tests) {
             const traceStart = trace.length;
             const startedAt = performance.now();
             activeTest = { name: entry.name, traceStart, startedAt };
+            console.info(`[wabou-test] → ${entry.name}`);
             try {
               await withTestTimeout(entry.name, entry.timeout, () =>
                 entry.body(context),
@@ -1703,6 +1708,9 @@ async function run(): Promise<void> {
                 traceEnd: trace.length,
                 durationMs: performance.now() - startedAt,
               });
+              console.info(
+                `[wabou-test] ✓ ${entry.name} (${Math.round(performance.now() - startedAt)}ms)`,
+              );
             } catch (error) {
               capability().takePendingEffectFixtures();
               results.push({
@@ -1716,6 +1724,9 @@ async function run(): Promise<void> {
                 traceEnd: trace.length,
                 durationMs: performance.now() - startedAt,
               });
+              console.error(
+                `[wabou-test] ✗ ${entry.name}: ${error instanceof Error ? error.message : String(error)}`,
+              );
               if (error instanceof TestTimeoutError) break;
             } finally {
               activeTest = undefined;
@@ -1734,7 +1745,7 @@ async function run(): Promise<void> {
         traceEnd: trace.length,
         durationMs:
           activeTest === undefined
-            ? SUITE_TIMEOUT
+            ? suiteTimeoutMs
             : performance.now() - activeTest.startedAt,
       });
     }
