@@ -15,6 +15,8 @@ export interface LayoutComputedStyle {
   readonly overflowX?: string | null;
   readonly overflowY?: string | null;
   readonly overlayPlane?: string;
+  /** Resolved text size in logical pixels, suitable for typography contracts. */
+  readonly fontSize?: number | null;
 }
 
 export interface LayoutSemanticProjection {
@@ -369,7 +371,9 @@ function diagnosticNodeText(node: LayoutSnapshotNode): string {
   if (name) parts.push(`name=${JSON.stringify(compactText(name))}`);
   if (node.text) parts.push(`text=${JSON.stringify(compactText(node.text))}`);
   if (node.classes.length > 0)
-    parts.push(`class=${JSON.stringify(compactText(node.classes.join(" "), 120))}`);
+    parts.push(
+      `class=${JSON.stringify(compactText(node.classes.join(" "), 120))}`,
+    );
   parts.push(`rect=(${rectText(node.rect)})`);
   const overflowX = node.computed.overflowX ?? "Visible";
   const overflowY = node.computed.overflowY ?? "Visible";

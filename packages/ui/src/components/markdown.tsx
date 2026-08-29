@@ -40,7 +40,7 @@ function InlineMarkdown(props: {
       class={mergeClasses(
         "min-w-0 whitespace-normal",
         props.variant === "conversation"
-          ? "text-base leading-relaxed text-primary"
+          ? "text-sm leading-relaxed text-primary"
           : props.variant === "prompt"
             ? "text-sm leading-relaxed text-primary"
             : "text-base leading-relaxed text-secondary",
@@ -91,11 +91,11 @@ function Heading(props: {
     if (props.variant === "conversation") {
       switch (props.block.depth) {
         case 1:
-          return "text-xl font-semibold tracking-tight text-primary whitespace-normal";
-        case 2:
           return "text-lg font-semibold tracking-tight text-primary whitespace-normal";
-        case 3:
+        case 2:
           return "text-base font-semibold tracking-tight text-primary whitespace-normal";
+        case 3:
+          return "text-sm font-semibold tracking-tight text-primary whitespace-normal";
         default:
           return "text-sm font-semibold text-primary whitespace-normal";
       }
@@ -159,7 +159,7 @@ function MarkdownList(props: {
               aria-hidden="true"
               class={mergeClasses(
                 "flex-none leading-relaxed text-secondary",
-                props.variant === "prompt" ? "text-sm" : "text-base",
+                props.variant === "document" ? "text-base" : "text-sm",
               )}
             >
               {typeof item.checked === "boolean"
@@ -204,7 +204,8 @@ function MarkdownTable(props: {
               {(runs, columnIndex) => (
                 <View
                   class={mergeClasses(
-                    "min-w-0 flex-1 px-3 py-2",
+                    "min-w-0 flex-1",
+                    props.variant === "document" ? "px-3 py-2" : "px-2 py-1.5",
                     columnIndex() + 1 < row.length && "border-r border-subtle",
                   )}
                 >
@@ -317,7 +318,7 @@ function MarkdownBlock(props: {
           <Text
             class={mergeClasses(
               "text-muted whitespace-normal leading-relaxed",
-              props.variant === "prompt" ? "text-sm" : "text-base",
+              props.variant === "document" ? "text-base" : "text-sm",
             )}
           >
             {block().text}
@@ -405,7 +406,7 @@ export function Markdown(props: MarkdownProps): JSX.Element {
           ? "gap-4"
           : variant() === "prompt"
             ? "gap-2"
-            : "gap-3",
+            : "gap-2.5",
         props.class,
       )}
     >

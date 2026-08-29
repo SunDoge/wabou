@@ -295,6 +295,10 @@ const assertMarkdownInlineLayout = (snapshot: LayoutSnapshot) => {
 };
 
 const assertMarkdownConversationLayout = (snapshot: LayoutSnapshot) => {
+  const heading = getLayoutNode(snapshot, { text: "Change" });
+  const paragraph = getLayoutNode(snapshot, {
+    text: "Updated the request path and kept healthz backward compatible.",
+  });
   const codeBlock = getLayoutNode(snapshot, {
     role: "group",
     name: "Code block",
@@ -308,6 +312,12 @@ const assertMarkdownConversationLayout = (snapshot: LayoutSnapshot) => {
   });
   if (copy.text)
     throw new Error(`code copy action exposed visual text: ${copy.text}`);
+  if (heading.computed.fontSize == null)
+    throw new Error("conversation heading omitted its resolved font size");
+  if (paragraph.computed.fontSize == null)
+    throw new Error("conversation body omitted its resolved font size");
+  assertClose(heading.computed.fontSize, 16, "conversation heading size");
+  assertClose(paragraph.computed.fontSize, 14, "conversation body size");
 };
 
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {

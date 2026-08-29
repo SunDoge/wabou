@@ -14,6 +14,8 @@ interface LayoutComputedStyle {
   readonly overflowX?: string | null;
   readonly overflowY?: string | null;
   readonly overlayPlane?: string;
+  /** Resolved text size in logical pixels, suitable for typography contracts. */
+  readonly fontSize?: number | null;
 }
 interface LayoutSemanticProjection {
   readonly role: string;
