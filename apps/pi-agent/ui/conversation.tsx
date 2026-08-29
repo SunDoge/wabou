@@ -30,6 +30,7 @@ import image from "lucide-static/icons/image.svg?raw";
 import terminal from "lucide-static/icons/terminal.svg?raw";
 import {
   createEffect,
+  createMemo,
   createSignal,
   For as ForValue,
   type JSX,
@@ -40,6 +41,59 @@ import { match } from "ts-pattern";
 import type { AgentItem } from "./agent-state";
 
 const TOOL_OUTPUT_PREVIEW_BYTES = 12_000;
+
+type ToolItem = Extract<AgentItem, { kind: "tool" }>;
+
+export type ConversationEntry =
+  | { id: string; kind: "item"; item: Exclude<AgentItem, ToolItem> }
+  | {
+      id: string;
+      kind: "tools";
+      items: readonly ToolItem[];
+      reasoning?: { text: string; streaming: boolean };
+    };
+
+/** Fold adjacent tool events into the activity cluster produced by one turn. */
+export function groupConversationItems(
+  items: readonly AgentItem[],
+): readonly ConversationEntry[] {
+  const entries: ConversationEntry[] = [];
+  for (const item of items) {
+    const previous = entries.at(-1);
+    if (item.kind === "tool") {
+      if (previous?.kind === "tools") {
+        entries[entries.length - 1] = {
+          ...previous,
+          items: [...previous.items, item],
+        };
+      } else {
+        entries.push({ id: `tools:${item.id}`, kind: "tools", items: [item] });
+      }
+      continue;
+    }
+    if (
+      item.kind === "assistant" &&
+      item.thinkingText &&
+      previous?.kind === "tools"
+    ) {
+      entries[entries.length - 1] = {
+        ...previous,
+        reasoning: {
+          text: item.thinkingText,
+          streaming: item.streaming === true,
+        },
+      };
+      entries.push({
+        id: item.id,
+        kind: "item",
+        item: { ...item, thinkingText: undefined },
+      });
+      continue;
+    }
+    entries.push({ id: item.id, kind: "item", item });
+  }
+  return entries;
+}
 
 export function summarizeToolInput(input: string): string {
   try {
@@ -146,6 +200,112 @@ function ToolCall(props: { item: Extract<AgentItem, { kind: "tool" }> }) {
         </Show>
       </CollapsiblePresence>
     </View>
+  );
+}
+
+export function ToolActivityGroup(props: {
+  items: readonly ToolItem[];
+  reasoning?: { text: string; streaming: boolean };
+}) {
+  const running = () => props.items.some((item) => item.state === "running");
+  const initiallyRunning = untrack(running);
+  const [open, setOpen] = createSignal(initiallyRunning);
+  let wasRunning = initiallyRunning;
+  createEffect(running, (isRunning) => {
+    if (isRunning) setOpen(true);
+    else if (wasRunning) setOpen(false);
+    wasRunning = isRunning;
+  });
+  const label = () => {
+    const count = props.items.length;
+    return `${running() ? "Working" : "Worked"}, ${count} tool ${count === 1 ? "call" : "calls"}`;
+  };
+  return (
+    <View class="w-full min-w-0 flex flex-col gap-1">
+      <View class="w-full min-w-0 h-7 flex flex-row items-center gap-2">
+        <View class="h-px min-w-4 flex-1 border-t border-subtle" />
+        <Button
+          variant="ghost"
+          size="sm"
+          class="h-7 flex-none px-1.5 gap-1.5 text-muted"
+          aria-label={label()}
+          aria-expanded={open()}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <Show when={running()}>
+            <Pulse
+              aria-hidden="true"
+              class="w-1.5 h-1.5 rounded-full bg-accent"
+              from={0.3}
+              to={1}
+              duration={0.8}
+            />
+          </Show>
+          <Text class="text-xs font-medium text-muted">{label()}</Text>
+          <Icon
+            source={chevronRight}
+            size={11}
+            class={open() ? "rotate-90 text-muted" : "text-muted"}
+          />
+        </Button>
+        <View class="h-px min-w-4 flex-1 border-t border-subtle" />
+      </View>
+      <CollapsiblePresence
+        open={open()}
+        duration={0.16}
+        contentClass="min-w-0 ml-1.5 pl-3 pb-1 border-l border-subtle gap-2"
+      >
+        <Show when={props.reasoning}>
+          {(reasoning) => (
+            <Reasoning
+              text={reasoning().text}
+              streaming={reasoning().streaming}
+            />
+          )}
+        </Show>
+        <ForValue each={props.items} keyed={(item) => item.id}>
+          {(item) => <ToolCall item={item()} />}
+        </ForValue>
+      </CollapsiblePresence>
+    </View>
+  );
+}
+
+function ConversationEntryContent(props: {
+  entry: ConversationEntry;
+  fork?: (item: Extract<AgentItem, { kind: "user" }>) => void;
+}) {
+  const item = () => {
+    const current = props.entry;
+    if (current.kind !== "item") throw new Error("expected message entry");
+    return current.item;
+  };
+  const tools = () => {
+    const current = props.entry;
+    if (current.kind !== "tools") throw new Error("expected tool entry");
+    return current.items;
+  };
+  const reasoning = () => {
+    const current = props.entry;
+    return current.kind === "tools" ? current.reasoning : undefined;
+  };
+  const canFork = () => {
+    const current = item();
+    return current.kind === "user" && Boolean(current.entryId);
+  };
+  const fork = () => {
+    const current = item();
+    if (current.kind === "user" && current.entryId) props.fork?.(current);
+  };
+  return (
+    <Show
+      when={props.entry.kind === "tools"}
+      fallback={
+        <ConversationItem item={item()} fork={canFork() ? fork : undefined} />
+      }
+    >
+      <ToolActivityGroup items={tools()} reasoning={reasoning()} />
+    </Show>
   );
 }
 
@@ -426,33 +586,33 @@ export function ConversationList(props: {
   registerItem?: (id: string, node: Handle) => void;
   fork?: (item: Extract<AgentItem, { kind: "user" }>) => void;
 }) {
+  const entries = createMemo(() => groupConversationItems(props.items));
   return (
     <MessageGroup class="gap-5">
-      <ForValue each={props.items} keyed={(item) => item.id}>
-        {(item) => {
-          const canFork = () => {
-            const current = item();
-            return current.kind === "user" && Boolean(current.entryId);
-          };
-          const fork = () => {
-            const current = item();
-            if (current.kind === "user" && current.entryId) {
-              props.fork?.(current);
+      <ForValue each={entries()} keyed={(entry) => entry.id}>
+        {(entry) => {
+          const register = (node: Handle) => {
+            const current = entry();
+            if (current.kind === "tools") {
+              for (const item of current.items) {
+                props.registerItem?.(item.id, node);
+              }
+            } else {
+              props.registerItem?.(current.item.id, node);
             }
+          };
+          const highlighted = () => {
+            const current = entry();
+            return current.kind === "tools"
+              ? current.items.some((item) => item.id === props.activeSearchItem)
+              : current.item.id === props.activeSearchItem;
           };
           return (
             <MessageScrollerItem
-              ref={(node) => props.registerItem?.(item().id, node)}
-              class={
-                props.activeSearchItem === item().id
-                  ? "rounded-lg bg-selected"
-                  : undefined
-              }
+              ref={register}
+              class={highlighted() ? "rounded-lg bg-selected" : undefined}
             >
-              <ConversationItem
-                item={item()}
-                fork={canFork() ? fork : undefined}
-              />
+              <ConversationEntryContent entry={entry()} fork={props.fork} />
             </MessageScrollerItem>
           );
         }}

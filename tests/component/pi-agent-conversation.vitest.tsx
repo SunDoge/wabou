@@ -4,7 +4,9 @@ import { expect, test, vi } from "vitest";
 import {
   ConversationItem,
   ConversationList,
+  groupConversationItems,
   summarizeToolInput,
+  ToolActivityGroup,
 } from "../../apps/pi-agent/ui/conversation";
 
 test("Pi Agent renders assistant Markdown but preserves user source text", () => {
@@ -159,6 +161,81 @@ test("Pi Agent tool activity starts expanded and summarizes common arguments", (
 
   toggle.click();
   expect(toggle.expanded).toBe(false);
+});
+
+test("Pi Agent folds adjacent completed tools into one turn activity group", () => {
+  const items = [
+    { id: "user-1", kind: "user" as const, text: "Inspect it" },
+    {
+      id: "tool-1",
+      kind: "tool" as const,
+      name: "read",
+      state: "success" as const,
+      input: JSON.stringify({ path: "README.md" }),
+      output: "readme",
+    },
+    {
+      id: "tool-2",
+      kind: "tool" as const,
+      name: "bash",
+      state: "success" as const,
+      input: JSON.stringify({ command: "cargo test" }),
+      output: "ok",
+    },
+    {
+      id: "assistant-1",
+      kind: "assistant" as const,
+      thinkingText: "I inspected the project.",
+      text: "Done.",
+    },
+  ];
+  const entries = groupConversationItems(items);
+  expect(entries.map((entry) => entry.kind)).toEqual(["item", "tools", "item"]);
+  expect(entries[1]?.kind === "tools" && entries[1].items).toHaveLength(2);
+  expect(entries[1]?.kind === "tools" && entries[1].reasoning?.text).toBe(
+    "I inspected the project.",
+  );
+  expect(
+    entries[2]?.kind === "item" &&
+      entries[2].item.kind === "assistant" &&
+      entries[2].item.thinkingText,
+  ).toBeUndefined();
+
+  const screen = renderComponent(() => <ConversationList items={items} />);
+  const activity = screen.getByRole("button", {
+    name: "Worked, 2 tool calls",
+  });
+  expect(activity.expanded).toBe(false);
+  expect(screen.queryByRole("button", { name: "read: README.md" })).toBeNull();
+  activity.click();
+  expect(activity.expanded).toBe(true);
+  expect(screen.getByRole("button", { name: "Reasoning" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "read: README.md" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "bash: cargo test" })).toBeTruthy();
+});
+
+test("Pi Agent keeps live tool activity open and folds it after completion", () => {
+  const [items, setItems] = createSignal([
+    {
+      id: "tool-live",
+      kind: "tool" as const,
+      name: "bash",
+      state: "running" as const | "success",
+      input: JSON.stringify({ command: "cargo test" }),
+      output: "",
+    },
+  ]);
+  const screen = renderComponent(() => <ToolActivityGroup items={items()} />);
+  expect(
+    screen.getByRole("button", { name: "Working, 1 tool call" }).expanded,
+  ).toBe(true);
+
+  setItems([{ ...items()[0]!, state: "success" }]);
+  screen.flush();
+
+  expect(
+    screen.getByRole("button", { name: "Worked, 1 tool call" }).expanded,
+  ).toBe(false);
 });
 
 test("Pi Agent distinguishes a queued follow-up from a sent message", () => {

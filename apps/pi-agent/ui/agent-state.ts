@@ -338,6 +338,17 @@ const replaceItem = (
 ): readonly AgentItem[] =>
   items.map((item) => (item.id === id ? update(item) : item));
 
+const insertBeforeItem = (
+  items: readonly AgentItem[],
+  beforeId: string | undefined,
+  item: AgentItem,
+): readonly AgentItem[] => {
+  if (!beforeId) return [...items, item];
+  const index = items.findIndex((candidate) => candidate.id === beforeId);
+  if (index < 0) return [...items, item];
+  return [...items.slice(0, index), item, ...items.slice(index)];
+};
+
 export function appendUserMessage(
   state: AgentViewState,
   id: string,
@@ -625,17 +636,18 @@ export function reducePiEvent(
       const id = String(event.toolCallId ?? `tool-${state.items.length + 1}`);
       return {
         ...state,
-        items: [
-          ...state.items,
-          {
-            id,
-            kind: "tool" as const,
-            name: String(event.toolName ?? "tool"),
-            state: "running" as const,
-            input: JSON.stringify(event.args ?? {}, null, 2),
-            output: "",
-          },
-        ],
+        // Pi starts the assistant message before it emits tool events, then
+        // continues writing the final answer into that same message. Keep the
+        // retained message identity, but place work before the answer so the
+        // transcript reads reasoning → tools → response.
+        items: insertBeforeItem(state.items, state.activeAssistantId, {
+          id,
+          kind: "tool" as const,
+          name: String(event.toolName ?? "tool"),
+          state: "running" as const,
+          input: JSON.stringify(event.args ?? {}, null, 2),
+          output: "",
+        }),
       };
     })
     .with(P.union("tool_execution_update", "tool_execution_end"), () => {

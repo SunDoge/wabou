@@ -82,6 +82,31 @@ describe("Pi agent event projection", () => {
     });
   });
 
+  test("places tool work before the retained assistant answer", () => {
+    let state = reducePiEvent(initialAgentState, {
+      type: "message_start",
+      message: { role: "assistant", content: [] },
+    });
+    const assistantId = state.activeAssistantId;
+    state = reducePiEvent(state, {
+      type: "tool_execution_start",
+      toolCallId: "read-1",
+      toolName: "read",
+      args: { path: "README.md" },
+    });
+    state = reducePiEvent(state, {
+      type: "message_update",
+      assistantMessageEvent: { type: "text_delta", delta: "Finished." },
+    });
+
+    expect(state.items.map((item) => item.kind)).toEqual(["tool", "assistant"]);
+    expect(state.items[1]).toMatchObject({
+      id: assistantId,
+      kind: "assistant",
+      text: "Finished.",
+    });
+  });
+
   test("commits a batch of deltas and bootstrap state as one projection", () => {
     const state = reducePiEvents(initialAgentState, [
       { type: "process_start" },
