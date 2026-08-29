@@ -17,7 +17,7 @@ export const workbenchMainClass = (className?: string) =>
 
 export const workbenchHeaderClass = (className?: string) =>
   mergeClasses(
-    "h-12 min-w-0 flex-none px-4 flex flex-row items-center gap-3 border-b border-subtle bg-surface",
+    "w-full h-12 min-w-0 flex-none px-4 flex flex-row items-center gap-3 border-b border-subtle bg-surface",
     className,
   );
 

@@ -9126,7 +9126,7 @@ function ShortcutRecorder(props) {
 const workbenchClass = (className) => mergeClasses("w-full h-full min-w-0 min-h-0 flex flex-row overflow-hidden bg-canvas text-primary", className);
 const workbenchSidebarClass = (className) => mergeClasses("w-64 flex-none border-r border-subtle", className);
 const workbenchMainClass = (className) => mergeClasses("min-w-0 min-h-0 flex-1 flex flex-col overflow-hidden bg-canvas", className);
-const workbenchHeaderClass = (className) => mergeClasses("h-12 min-w-0 flex-none px-4 flex flex-row items-center gap-3 border-b border-subtle bg-surface", className);
+const workbenchHeaderClass = (className) => mergeClasses("w-full h-12 min-w-0 flex-none px-4 flex flex-row items-center gap-3 border-b border-subtle bg-surface", className);
 const workbenchContentClass = (className) => mergeClasses("min-w-0 min-h-0 flex-1 flex flex-col overflow-hidden bg-canvas", className);
 const workbenchFooterClass = (className) => mergeClasses("min-w-0 flex-none border-t border-subtle bg-surface", className);
 //#endregion

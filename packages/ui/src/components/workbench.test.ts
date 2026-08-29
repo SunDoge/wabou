@@ -19,6 +19,7 @@ describe("workbench geometry contract", () => {
 
   test("uses one chrome height for sidebar and main headers", () => {
     expect(workbenchHeaderClass()).toContain("h-12");
+    expect(workbenchHeaderClass()).toContain("w-full");
     expect(workbenchHeaderClass()).toContain("flex-none");
   });
 
