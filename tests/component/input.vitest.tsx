@@ -55,6 +55,27 @@ test("updates controlled single-line and multiline editors", () => {
   );
 });
 
+test("reports the native textarea caret in JavaScript UTF-16 offsets", () => {
+  let caret = -1;
+  const screen = renderComponent(() => (
+    <TextArea
+      aria-label="Prompt"
+      value="a😀b"
+      onTextSelectionChange={(event) => {
+        caret = event.head ?? -1;
+      }}
+    />
+  ));
+
+  screen.getByRole("textbox", { name: "Prompt" }).emit("textselectionchange", {
+    anchor: 3,
+    head: 3,
+    text: null,
+    kind: "simple",
+  });
+  expect(caret).toBe(3);
+});
+
 test("updates a controlled CodeEditor through the component input contract", () => {
   const App = () => {
     const [source, setSource] = createSignal("initial");

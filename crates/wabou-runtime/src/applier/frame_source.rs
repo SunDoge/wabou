@@ -483,6 +483,7 @@ impl FrameSource for Applier {
             self.frame.projections.semantics_dirty = false;
             // After paint applied pending edits, sync widget values → JS.
             self.flush_value_sync();
+            self.flush_selection_sync();
             #[cfg(any(feature = "devtools", test))]
             if projection_dirty || self.frame.projections.debug_dirty {
                 self.publish_debug_snapshot(&placed, tcx);

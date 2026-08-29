@@ -33,31 +33,13 @@ impl Applier {
                 || input.clone(),
                 |geometry| localize_widget_event(input, *geometry),
             );
-        let (result, selection) = {
+        let result = {
             let widget = self.document.widget_manager.widgets.get_mut(&node)?;
-            let result = widget.handle_event(&input);
-            let selection = result
-                .selection_changed()
-                .then(|| widget.text_selection())
-                .flatten();
-            (result, selection)
+            widget.handle_event(&input)
         };
         self.drain_widget_host_actions(node);
         self.drain_widget_node_events(node);
         self.invalidate_widget_changes(result.changes());
-        if let Some(selection) = selection {
-            let _ = self.dispatch_json(
-                target,
-                event::TEXTSELECTIONCHANGE,
-                &serde_json::json!({
-                    "anchor": selection.anchor,
-                    "head": selection.head,
-                    "text": selection.text,
-                    "kind": selection.kind.as_str(),
-                })
-                .to_string(),
-            );
-        }
         if !result.is_handled() {
             return None;
         }
@@ -69,6 +51,12 @@ impl Applier {
             self.document
                 .widget_manager
                 .pending_value_sync
+                .insert(target);
+        }
+        if result.selection_changed() {
+            self.document
+                .widget_manager
+                .pending_selection_sync
                 .insert(target);
         }
         Some(EventResponse {
@@ -175,6 +163,39 @@ impl Applier {
             }
             let payload = serde_json::json!({ "value": value }).to_string();
             let _ = self.dispatch_json(target, event::INPUT, &payload);
+        }
+    }
+
+    /// Dispatch fresh native-widget selections after deferred editor updates
+    /// have been applied during paint.
+    pub(super) fn flush_selection_sync(&mut self) {
+        for target in self
+            .document
+            .widget_manager
+            .pending_selection_sync
+            .drain()
+            .collect::<Vec<_>>()
+        {
+            let Some(&node) = self.document.node_store.solid_to_node.get(&target) else {
+                continue;
+            };
+            let Some(selection) = self
+                .document
+                .widget_manager
+                .widgets
+                .get(&node)
+                .and_then(|widget| widget.text_selection())
+            else {
+                continue;
+            };
+            let payload = serde_json::json!({
+                "anchor": selection.anchor,
+                "head": selection.head,
+                "text": selection.text,
+                "kind": selection.kind.as_str(),
+            })
+            .to_string();
+            let _ = self.dispatch_json(target, event::TEXTSELECTIONCHANGE, &payload);
         }
     }
 

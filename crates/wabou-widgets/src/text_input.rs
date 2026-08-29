@@ -21,7 +21,10 @@ use wabou_shell::text::{
 };
 use wabou_shell::{ImeEvent, KeyEvent, KeyPhase, PointerEvent, PointerPhase, UiEvent};
 
-use wabou_shell::{PaintContext, Widget, WidgetChanges, WidgetEventResult, WidgetStyle};
+use wabou_shell::{
+    PaintContext, Widget, WidgetChanges, WidgetEventResult, WidgetStyle, WidgetTextSelection,
+    WidgetTextSelectionKind,
+};
 
 const SELECTION_COLOR: Color = Color::from_rgba8(99, 102, 241, 80);
 const PLACEHOLDER_COLOR: Color = Color::from_rgb8(0x64, 0x74, 0x8b);
@@ -87,6 +90,7 @@ pub struct TextInput {
     read_only: bool,
     text_metrics: Option<SingleLineTextMetrics>,
     single_line_y_offset: f32,
+    selection_kind: WidgetTextSelectionKind,
 }
 
 impl Default for TextInput {
@@ -154,6 +158,7 @@ impl TextInput {
             read_only: false,
             text_metrics: None,
             single_line_y_offset: 0.0,
+            selection_kind: WidgetTextSelectionKind::Simple,
         }
     }
 
@@ -281,6 +286,11 @@ impl TextInput {
                         }
                     });
                     self.last_click = Some((now, local_x, local_y, clicks));
+                    self.selection_kind = match clicks {
+                        2 => WidgetTextSelectionKind::Word,
+                        3 => WidgetTextSelectionKind::Line,
+                        _ => WidgetTextSelectionKind::Simple,
+                    };
                     self.queue(match clicks {
                         2 => PendingEdit::SelectWordAtPoint(local_x, local_y),
                         3 => PendingEdit::SelectLineAtPoint(local_x, local_y),
@@ -288,18 +298,18 @@ impl TextInput {
                     });
                 }
                 self.selecting = true;
-                WidgetEventResult::HANDLED
+                WidgetEventResult::selection_changed_result()
             }
             PointerPhase::Move if self.selecting => {
                 let (local_x, local_y) = self.local_point(event.position.x, event.position.y);
                 self.queue(PendingEdit::ExtendToPoint(local_x, local_y));
-                WidgetEventResult::HANDLED
+                WidgetEventResult::selection_changed_result()
             }
             PointerPhase::Up if self.selecting => {
                 let (local_x, local_y) = self.local_point(event.position.x, event.position.y);
                 self.queue(PendingEdit::ExtendToPoint(local_x, local_y));
                 self.selecting = false;
-                WidgetEventResult::HANDLED
+                WidgetEventResult::selection_changed_result()
             }
             PointerPhase::Cancel if self.selecting => {
                 self.selecting = false;
@@ -323,6 +333,7 @@ impl TextInput {
     }
 
     fn handle_key(&mut self, event: &KeyEvent) -> WidgetEventResult {
+        self.selection_kind = WidgetTextSelectionKind::Simple;
         match event.key.as_str() {
             _ if event.matches_standard_shortcut(wabou_shell::StandardShortcut::Copy) => self
                 .editor
@@ -334,7 +345,7 @@ impl TextInput {
                     && let Some(text) = self.editor.selected_text().map(str::to_owned)
                 {
                     self.queue(PendingEdit::Delete);
-                    WidgetEventResult::copy_with_value_change(text)
+                    WidgetEventResult::copy_with_value_change(text).with_selection_changed()
                 } else {
                     WidgetEventResult::IGNORED
                 }
@@ -348,11 +359,11 @@ impl TextInput {
             }
             "Backspace" if self.editable() => {
                 self.queue(PendingEdit::Delete);
-                WidgetEventResult::VALUE_CHANGED
+                WidgetEventResult::VALUE_CHANGED.with_selection_changed()
             }
             "Delete" if self.editable() => {
                 self.queue(PendingEdit::DeleteForward);
-                WidgetEventResult::VALUE_CHANGED
+                WidgetEventResult::VALUE_CHANGED.with_selection_changed()
             }
             "ArrowLeft" => {
                 self.queue(Self::horizontal_edit(
@@ -360,7 +371,7 @@ impl TextInput {
                     event.modifiers.shift(),
                     event.modifiers.control() || event.modifiers.alt(),
                 ));
-                WidgetEventResult::HANDLED
+                WidgetEventResult::selection_changed_result()
             }
             "ArrowRight" => {
                 self.queue(Self::horizontal_edit(
@@ -368,7 +379,7 @@ impl TextInput {
                     event.modifiers.shift(),
                     event.modifiers.control() || event.modifiers.alt(),
                 ));
-                WidgetEventResult::HANDLED
+                WidgetEventResult::selection_changed_result()
             }
             "ArrowUp" if self.multiline => {
                 self.queue(if event.modifiers.shift() {
@@ -376,7 +387,7 @@ impl TextInput {
                 } else {
                     PendingEdit::MoveUp
                 });
-                WidgetEventResult::HANDLED
+                WidgetEventResult::selection_changed_result()
             }
             "ArrowDown" if self.multiline => {
                 self.queue(if event.modifiers.shift() {
@@ -384,11 +395,11 @@ impl TextInput {
                 } else {
                     PendingEdit::MoveDown
                 });
-                WidgetEventResult::HANDLED
+                WidgetEventResult::selection_changed_result()
             }
             "Enter" if self.multiline && self.editable() => {
                 self.queue(PendingEdit::Insert("\n".into()));
-                WidgetEventResult::value_changed_consuming_key_text()
+                WidgetEventResult::value_changed_consuming_key_text().with_selection_changed()
             }
             "Home" => {
                 self.queue(if event.modifiers.shift() {
@@ -396,7 +407,7 @@ impl TextInput {
                 } else {
                     PendingEdit::MoveToStart
                 });
-                WidgetEventResult::HANDLED
+                WidgetEventResult::selection_changed_result()
             }
             "End" => {
                 self.queue(if event.modifiers.shift() {
@@ -404,11 +415,11 @@ impl TextInput {
                 } else {
                     PendingEdit::MoveToEnd
                 });
-                WidgetEventResult::HANDLED
+                WidgetEventResult::selection_changed_result()
             }
             _ if event.matches_standard_shortcut(wabou_shell::StandardShortcut::SelectAll) => {
                 self.queue(PendingEdit::SelectAll);
-                WidgetEventResult::HANDLED
+                WidgetEventResult::selection_changed_result()
             }
             _ => WidgetEventResult::IGNORED,
         }
@@ -715,7 +726,8 @@ impl Widget for TextInput {
                     return WidgetEventResult::IGNORED;
                 }
                 self.queue(PendingEdit::Insert(filtered));
-                WidgetEventResult::VALUE_CHANGED
+                self.selection_kind = WidgetTextSelectionKind::Simple;
+                WidgetEventResult::VALUE_CHANGED.with_selection_changed()
             }
             UiEvent::Ime(ImeEvent::Preedit { text, cursor }) if self.editable() => {
                 if text.is_empty() {
@@ -731,7 +743,8 @@ impl Widget for TextInput {
                     WidgetEventResult::HANDLED
                 } else {
                     self.queue(PendingEdit::CommitCompose(text.clone()));
-                    WidgetEventResult::VALUE_CHANGED
+                    self.selection_kind = WidgetTextSelectionKind::Simple;
+                    WidgetEventResult::VALUE_CHANGED.with_selection_changed()
                 }
             }
             UiEvent::Ime(ImeEvent::DeleteSurrounding {
@@ -739,7 +752,8 @@ impl Widget for TextInput {
                 after_bytes,
             }) if self.editable() => {
                 self.queue(PendingEdit::DeleteSurrounding(*before_bytes, *after_bytes));
-                WidgetEventResult::VALUE_CHANGED
+                self.selection_kind = WidgetTextSelectionKind::Simple;
+                WidgetEventResult::VALUE_CHANGED.with_selection_changed()
             }
             UiEvent::Ime(ImeEvent::Disabled) => {
                 self.queue(PendingEdit::ClearCompose);
@@ -802,6 +816,22 @@ impl Widget for TextInput {
 
     fn current_value(&self) -> Option<&str> {
         Some(&self.cached_value)
+    }
+
+    fn text_selection(&self) -> Option<WidgetTextSelection> {
+        let raw = self.editor.raw_text();
+        let selection = self.editor.raw_selection();
+        let anchor_byte = selection.anchor().index().min(raw.len());
+        let head_byte = selection.focus().index().min(raw.len());
+        let range = selection.text_range();
+        Some(WidgetTextSelection {
+            anchor: raw[..anchor_byte].encode_utf16().count(),
+            head: raw[..head_byte].encode_utf16().count(),
+            text: (!selection.is_collapsed())
+                .then(|| raw.get(range).map(str::to_owned))
+                .flatten(),
+            kind: self.selection_kind,
+        })
     }
 
     fn accessibility(&self) -> wabou_shell::WidgetAccessibility {
@@ -1011,6 +1041,24 @@ mod tests {
                 .is_some_and(|text| !text.is_empty())
         );
         assert!(!input.selecting);
+        let selection = input.text_selection().expect("plain editor selection");
+        assert!(selection.anchor != selection.head);
+        assert!(selection.text.is_some_and(|text| !text.is_empty()));
+    }
+
+    #[test]
+    fn text_selection_reports_javascript_utf16_offsets() {
+        let mut input = TextInput::new();
+        input.attribute_changed("value", "a😀b");
+        input.focus_changed(true);
+        let mut tcx = TextContext::new();
+        input.paint(200.0, 32.0, &mut tcx);
+
+        let result = input.handle_event(&key("End"));
+        assert!(result.selection_changed());
+        input.paint(200.0, 32.0, &mut tcx);
+        let selection = input.text_selection().expect("caret selection");
+        assert_eq!((selection.anchor, selection.head), (4, 4));
     }
 
     #[test]

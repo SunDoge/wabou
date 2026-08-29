@@ -445,6 +445,15 @@ impl WidgetEventResult {
         Self::handled_with(WidgetChanges::REDRAW.union(WidgetChanges::SELECTION))
     }
 
+    /// Add selection synchronization to an existing handled result.
+    ///
+    /// Text editors commonly change value and caret in one operation. Keeping
+    /// this composable avoids dropping either half of that observable state.
+    pub const fn with_selection_changed(mut self) -> Self {
+        self.changes = self.changes.union(WidgetChanges::SELECTION);
+        self
+    }
+
     /// Consume a key event and suppress its following text event.
     pub const fn handled_consuming_key_text() -> Self {
         Self {

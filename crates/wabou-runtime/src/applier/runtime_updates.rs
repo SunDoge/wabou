@@ -394,6 +394,7 @@ impl Applier {
         self.frame.projections.semantic_snapshot = Arc::new(SemanticSnapshot::default());
         self.frame.projections.semantics_dirty = true;
         self.document.widget_manager.pending_value_sync.clear();
+        self.document.widget_manager.pending_selection_sync.clear();
         self.document.dirty_styles.clear();
         self.document
             .invalidation

@@ -127,6 +127,10 @@ fn text_input_updates_value_paints_and_dispatches_input() {
         id: NodeKey::new(2, 1),
         event_type: event::INPUT,
     });
+    applier.apply_op(&Op::AddEventListener {
+        id: NodeKey::new(2, 1),
+        event_type: event::TEXTSELECTIONCHANGE,
+    });
     let mut tcx = TextContext::new();
     // build_frame computes layout + paints widgets + drains value sync.
     applier.build_frame(&mut tcx, 800, 600);
@@ -187,6 +191,20 @@ fn text_input_updates_value_paints_and_dispatches_input() {
         .with(|ctx| ctx.eval::<String, _>("globalThis.dispatched[0][2]"))
         .unwrap();
     assert_eq!(payload, r#"{"value":"ab"}"#);
+    let selection_payload = applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<String, _>(format!(
+                "globalThis.dispatched.filter((entry) => entry[1] === {}).at(-1)[2]",
+                event::TEXTSELECTIONCHANGE
+            ))
+        })
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&selection_payload).unwrap(),
+        serde_json::json!({ "anchor": 2, "head": 2, "text": null, "kind": "simple" })
+    );
 
     applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
         phase: KeyPhase::Down,
