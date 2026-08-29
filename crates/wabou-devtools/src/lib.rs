@@ -17,6 +17,7 @@ use std::thread;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use wabou_host_api::DebugOverlayPaintStats;
+use wabou_host_api::FrameStats;
 pub use wabou_host_api::NodeKey;
 
 mod validation;
@@ -399,6 +400,9 @@ pub struct DebugStatus {
     /// Platform policy used when ordinary raster text must fall back to outlines.
     #[serde(default)]
     pub text_outline_fallback: String,
+    /// Timing metrics from the most recently presented frame, when available.
+    #[serde(default)]
+    pub frame_stats: Option<FrameStats>,
     /// Focused Solid node identifier.
     pub focused_node: Option<NodeKey>,
     /// Hovered Solid node identifier.
@@ -427,6 +431,7 @@ impl Default for DebugStatus {
             node_count: 0,
             text_backend: String::new(),
             text_outline_fallback: String::new(),
+            frame_stats: None,
             focused_node: None,
             hovered_node: None,
             overlay: DebugOverlay::default(),

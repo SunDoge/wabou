@@ -829,6 +829,16 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
     applier.set_semantics_enabled(true);
     applier.rebuild_semantic_snapshot(&placed);
     applier.frame.last_viewport = (800, 600);
+    FrameSource::push_frame_stats(
+        &mut applier,
+        &FrameStats {
+            build_frame_ms: 4.0,
+            scene_ms: 2.0,
+            present_ms: 3.0,
+            node_count: placed.len(),
+            ..Default::default()
+        },
+    );
     applier.publish_debug_snapshot(&placed, &mut TextContext::new());
     applier.handle_event(pointer(PointerPhase::Down, 20.0, 20.0, 1));
 
@@ -836,6 +846,10 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
     let snapshot = state.snapshot();
     assert_eq!(snapshot.status.viewport_width, 800);
     assert_eq!(snapshot.status.text_backend, "swash");
+    let frame_stats = snapshot.status.frame_stats.expect("frame stats");
+    assert_eq!(frame_stats.build_frame_ms, 4.0);
+    assert_eq!(frame_stats.scene_ms, 2.0);
+    assert_eq!(frame_stats.present_ms, 3.0);
     assert!(matches!(
         snapshot.status.text_outline_fallback.as_str(),
         "direct-native-weight" | "retained-synthetic-weight"

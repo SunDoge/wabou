@@ -199,7 +199,7 @@ impl std::fmt::Display for NodeKey {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(any(feature = "bindings", feature = "specta"), derive(specta::Type))]
 /// Timing and scene-size metrics for the most recently presented frame.
 pub struct FrameStats {

@@ -457,6 +457,17 @@ impl Applier {
                 node_count: nodes.len(),
                 text_backend: text_context.raster_backend_name().to_owned(),
                 text_outline_fallback: text_context.outline_fallback_name().to_owned(),
+                frame_stats: self.runtime.frame_stats.as_ref().and_then(|cell| {
+                    cell.borrow().map(|stats| wabou_host_api::FrameStats {
+                        build_frame_ms: stats.build_frame_ms,
+                        js_tick_ms: stats.js_tick_ms,
+                        scene_ms: stats.scene_ms,
+                        present_ms: stats.present_ms,
+                        node_count: stats.node_count,
+                        viewport_w: stats.viewport_w,
+                        viewport_h: stats.viewport_h,
+                    })
+                }),
                 focused_node: self.interaction.input.focused_target,
                 hovered_node: self.interaction.input.hovered_target,
                 overlay: Default::default(),
