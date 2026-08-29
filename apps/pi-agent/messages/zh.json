@@ -193,5 +193,6 @@
   "delete_agent_detail": "从桌面应用中移除这个项目及其会话引用。",
   "delete_agent_confirm": "删除 {name}？",
   "delete_agent_files_safe": "对应进程会停止，但不会删除 Pi 原始会话文件或仓库文件。",
+  "delete_last_project_disabled": "请先添加另一个项目，再移除当前项目。",
   "cancel": "取消"
 }

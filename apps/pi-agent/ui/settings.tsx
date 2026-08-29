@@ -7,11 +7,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   DirectoryPicker,
   Field,
   FieldDescription,
@@ -19,10 +14,13 @@ import {
   Input,
   PageHeader,
   PageViewport,
+  Separator,
   Switch,
   Text,
   View,
 } from "@wabou/ui";
+import { mergeClasses } from "@wabou/core/style";
+import type { JSX } from "solid-js";
 import type { AgentQueueMode, AgentViewState } from "./agent-state";
 import { i18n, m } from "./i18n";
 import { SessionBehaviorSettings } from "./session-behavior-settings";
@@ -37,11 +35,60 @@ export interface AppSettings {
   subagentsEnabled: boolean;
 }
 
+function SettingsSection(props: {
+  title: string;
+  description: string;
+  children: JSX.Element;
+  class?: string;
+}) {
+  return (
+    <View class="min-w-0 flex flex-col gap-3">
+      <View class="min-w-0 flex flex-col gap-1 px-1">
+        <Text role="heading" class="text-base font-semibold text-primary">
+          {props.title}
+        </Text>
+        <Text class="text-sm text-muted whitespace-normal">
+          {props.description}
+        </Text>
+      </View>
+      <View
+        class={mergeClasses(
+          "min-w-0 flex flex-col gap-5 rounded-xl border border-subtle bg-surface px-5 py-5",
+          props.class,
+        )}
+      >
+        {props.children}
+      </View>
+    </View>
+  );
+}
+
+function SettingsGroup(props: {
+  title: string;
+  description?: string;
+  children: JSX.Element;
+}) {
+  return (
+    <View class="min-w-0 flex flex-col gap-4">
+      <View class="min-w-0 flex flex-col gap-1">
+        <Text class="text-sm font-semibold text-primary">{props.title}</Text>
+        {props.description ? (
+          <Text class="text-sm text-muted whitespace-normal">
+            {props.description}
+          </Text>
+        ) : null}
+      </View>
+      <View class="min-w-0 flex flex-col gap-4">{props.children}</View>
+    </View>
+  );
+}
+
 export function SettingsPage(props: {
   app: AppSettings;
   updateApp: (patch: Partial<AppSettings>) => void;
   project: AgentWorkspace;
   state: AgentViewState;
+  canDeleteProject: boolean;
   updateProject: (patch: Partial<AgentWorkspace>) => void;
   close: () => void;
   deleteProject: () => void;
@@ -66,16 +113,13 @@ export function SettingsPage(props: {
           }
         />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {i18n.message(m.current_agent, { name: props.project.name })}
-            </CardTitle>
-            <CardDescription>
-              {i18n.message(m.current_agent_detail, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <SettingsSection
+          title={i18n.message(m.current_agent, {
+            name: props.project.name,
+          })}
+          description={i18n.message(m.current_agent_detail, {})}
+        >
+          <SettingsGroup title={i18n.message(m.workspace, {})}>
             <Field>
               <FieldLabel>{i18n.message(m.agent_name, {})}</FieldLabel>
               <Input
@@ -118,61 +162,49 @@ export function SettingsPage(props: {
                 placeholder={i18n.message(m.model_optional, {})}
               />
             </Field>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{i18n.message(m.session_behavior, {})}</CardTitle>
-            <CardDescription>
-              {i18n.message(m.session_behavior_detail, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          </SettingsGroup>
+          <Separator />
+          <SettingsGroup
+            title={i18n.message(m.session_behavior, {})}
+            description={i18n.message(m.session_behavior_detail, {})}
+          >
             <SessionBehaviorSettings
               state={props.state}
               setAutoCompaction={props.setAutoCompaction}
               setSteeringMode={props.setSteeringMode}
               setFollowUpMode={props.setFollowUpMode}
             />
-          </CardContent>
-        </Card>
+          </SettingsGroup>
+        </SettingsSection>
 
-        <Text class="text-xs font-semibold tracking-wide text-muted">
-          {i18n.message(m.application_settings, {})}
-        </Text>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{i18n.message(m.language, {})}</CardTitle>
-            <CardDescription>
-              {i18n.message(m.language_detail, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent class="flex-row">
-            <Button
-              variant={props.app.locale === "en" ? "default" : "outline"}
-              onClick={() => setLocale("en")}
-            >
-              {i18n.message(m.english, {})}
-            </Button>
-            <Button
-              variant={props.app.locale === "zh" ? "default" : "outline"}
-              onClick={() => setLocale("zh")}
-            >
-              {i18n.message(m.chinese, {})}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{i18n.message(m.subagents, {})}</CardTitle>
-            <CardDescription>
-              {i18n.message(m.subagents_detail, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <SettingsSection
+          title={i18n.message(m.application_settings, {})}
+          description={i18n.message(m.settings_intro, {})}
+        >
+          <SettingsGroup
+            title={i18n.message(m.language, {})}
+            description={i18n.message(m.language_detail, {})}
+          >
+            <View class="min-w-0 flex flex-row items-center gap-2">
+              <Button
+                variant={props.app.locale === "en" ? "default" : "outline"}
+                onClick={() => setLocale("en")}
+              >
+                {i18n.message(m.english, {})}
+              </Button>
+              <Button
+                variant={props.app.locale === "zh" ? "default" : "outline"}
+                onClick={() => setLocale("zh")}
+              >
+                {i18n.message(m.chinese, {})}
+              </Button>
+            </View>
+          </SettingsGroup>
+          <Separator />
+          <SettingsGroup
+            title={i18n.message(m.subagents, {})}
+            description={i18n.message(m.subagents_detail, {})}
+          >
             <Switch
               label={i18n.message(m.enable_subagents, {})}
               checked={props.app.subagentsEnabled}
@@ -183,17 +215,12 @@ export function SettingsPage(props: {
             <FieldDescription>
               {i18n.message(m.enable_subagents_detail, {})}
             </FieldDescription>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{i18n.message(m.default_provider, {})}</CardTitle>
-            <CardDescription>
-              {i18n.message(m.provider_detail, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          </SettingsGroup>
+          <Separator />
+          <SettingsGroup
+            title={i18n.message(m.default_provider, {})}
+            description={i18n.message(m.provider_detail, {})}
+          >
             <Field>
               <FieldLabel>{i18n.message(m.provider, {})}</FieldLabel>
               <Input
@@ -216,17 +243,12 @@ export function SettingsPage(props: {
                 }
               />
             </Field>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{i18n.message(m.default_proxy, {})}</CardTitle>
-            <CardDescription>
-              {i18n.message(m.proxy_detail, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          </SettingsGroup>
+          <Separator />
+          <SettingsGroup
+            title={i18n.message(m.default_proxy, {})}
+            description={i18n.message(m.proxy_detail, {})}
+          >
             <Field>
               <FieldLabel>{i18n.message(m.proxy_url, {})}</FieldLabel>
               <Input
@@ -249,35 +271,37 @@ export function SettingsPage(props: {
               />
               <FieldDescription>127.0.0.1, localhost</FieldDescription>
             </Field>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{i18n.message(m.runtime, {})}</CardTitle>
-            <CardDescription>
-              {i18n.message(m.runtime_kind, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          </SettingsGroup>
+          <Separator />
+          <SettingsGroup
+            title={i18n.message(m.runtime, {})}
+            description={i18n.message(m.runtime_kind, {})}
+          >
             <Text class="text-sm text-muted whitespace-normal">
               {i18n.message(m.runtime_detail, {})}
             </Text>
-          </CardContent>
-        </Card>
+          </SettingsGroup>
+        </SettingsSection>
 
-        <Card class="border-danger">
-          <CardHeader>
-            <CardTitle>{i18n.message(m.danger_zone, {})}</CardTitle>
-            <CardDescription>
-              {i18n.message(m.delete_agent_detail, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent class="items-start">
+        <SettingsSection
+          title={i18n.message(m.danger_zone, {})}
+          description={i18n.message(m.delete_agent_detail, {})}
+          class="border-danger"
+        >
+          <View class="min-w-0 flex flex-row items-center justify-between gap-4">
+            <Text class="min-w-0 flex-1 text-sm text-muted whitespace-normal">
+              {props.canDeleteProject
+                ? i18n.message(m.delete_agent_files_safe, {})
+                : i18n.message(m.delete_last_project_disabled, {})}
+            </Text>
             <AlertDialog
               aria-label={i18n.message(m.delete_agent, {})}
               trigger={(trigger) => (
-                <Button variant="destructive" {...trigger}>
+                <Button
+                  variant="destructive"
+                  {...trigger}
+                  disabled={!props.canDeleteProject}
+                >
                   {i18n.message(m.delete_agent, {})}
                 </Button>
               )}
@@ -301,14 +325,15 @@ export function SettingsPage(props: {
                   aria-label={i18n.message(m.delete_agent_confirm, {
                     name: props.project.name,
                   })}
+                  disabled={!props.canDeleteProject}
                   onClick={props.deleteProject}
                 >
                   {i18n.message(m.delete_agent, {})}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialog>
-          </CardContent>
-        </Card>
+          </View>
+        </SettingsSection>
       </View>
     </PageViewport>
   );

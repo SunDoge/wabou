@@ -25,6 +25,7 @@ test("Pi Agent settings separate project overrides from global network configura
         setDefaults((current) => ({ ...current, ...patch }))
       }
       project={agent()}
+      canDeleteProject
       state={{
         ...agent().state,
         connection: "ready",
@@ -74,4 +75,47 @@ test("Pi Agent settings separate project overrides from global network configura
   expect(dialog.text).toContain("Delete Build project?");
   dialog.getByRole("button", { name: "Delete Build project?" }).click();
   expect(deleted).toBe(1);
+});
+
+test("Pi Agent keeps the last project available", () => {
+  const project = createAgentWorkspace(1);
+  let deleted = 0;
+  const screen = renderComponent(() => (
+    <SettingsPage
+      app={{
+        locale: "en",
+        proxy: "",
+        noProxy: "127.0.0.1,localhost",
+        provider: "",
+        model: "",
+        subagentsEnabled: true,
+      }}
+      updateApp={() => {}}
+      project={project}
+      canDeleteProject={false}
+      state={{
+        ...project.state,
+        connection: "ready",
+        autoCompactionEnabled: true,
+        steeringMode: "one-at-a-time",
+        followUpMode: "one-at-a-time",
+      }}
+      updateProject={() => {}}
+      close={() => {}}
+      deleteProject={() => deleted++}
+      setAutoCompaction={() => {}}
+      setSteeringMode={() => {}}
+      setFollowUpMode={() => {}}
+    />
+  ));
+
+  const deleteProject = screen.getByRole("button", {
+    name: "Delete project",
+  });
+  expect(deleteProject.disabled).toBe(true);
+  expect(() => deleteProject.click()).toThrow("cannot click disabled");
+  expect(deleted).toBe(0);
+  expect(
+    screen.queryByRole("alertdialog", { name: "Delete project" }),
+  ).toBeNull();
 });

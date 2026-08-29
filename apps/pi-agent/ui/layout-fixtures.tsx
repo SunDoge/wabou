@@ -269,6 +269,7 @@ defineLayoutFixtures({
         app={appSettings}
         updateApp={() => {}}
         project={project}
+        canDeleteProject
         state={{
           ...initialAgentState,
           connection: "ready",
