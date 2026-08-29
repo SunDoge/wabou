@@ -1,4 +1,13 @@
-import { Badge, Text, View } from "@wabou/ui";
+import {
+  Badge,
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+  Text,
+  View,
+} from "@wabou/ui";
 import { type JSX, Show } from "solid-js";
 import { AgentActivityStatus } from "./agent-activity";
 import type { AgentViewState } from "./agent-state";
@@ -21,32 +30,34 @@ export function ConversationContext(props: ConversationContextProps) {
   const label = () =>
     [props.project, props.branch, props.session].filter(Boolean).join(", ");
   return (
-    <View
-      role="group"
-      aria-label={label()}
-      class="min-w-0 flex-1 overflow-hidden flex flex-row items-center gap-2"
-    >
-      <Text class="max-w-28 min-w-0 flex-none truncate text-xs font-semibold text-muted">
-        {props.project}
-      </Text>
-      <Text aria-hidden="true" class="flex-none text-xs text-muted">
-        /
-      </Text>
-      <Show when={props.branch}>
-        {(branch) => (
-          <>
-            <Badge variant="outline" class="h-5 flex-none px-2 text-xs">
-              {compactBranchLabel(branch())}
-            </Badge>
-            <Text aria-hidden="true" class="flex-none text-xs text-muted">
-              /
+    <View class="min-w-0 flex-1 overflow-hidden flex flex-row items-center gap-2">
+      <Breadcrumb aria-label={label()} class="min-w-0 flex-1 overflow-hidden">
+        <BreadcrumbList class="flex-nowrap overflow-hidden gap-1">
+          <BreadcrumbItem class="max-w-28 flex-none">
+            <Text class="min-w-0 truncate text-xs font-medium text-muted">
+              {props.project}
             </Text>
-          </>
-        )}
-      </Show>
-      <Text class="min-w-0 truncate text-sm font-semibold text-primary">
-        {props.session}
-      </Text>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator class="w-3" />
+          <Show when={props.branch}>
+            {(branch) => (
+              <>
+                <BreadcrumbItem class="flex-none">
+                  <Badge variant="outline" class="h-5 px-2 text-xs">
+                    {compactBranchLabel(branch())}
+                  </Badge>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator class="w-3" />
+              </>
+            )}
+          </Show>
+          <BreadcrumbItem class="min-w-0 flex-1 overflow-hidden">
+            <BreadcrumbPage class="truncate text-sm font-semibold">
+              {props.session}
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
       {props.titleAction}
       <AgentActivityStatus state={props.state} />
     </View>

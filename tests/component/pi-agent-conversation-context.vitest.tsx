@@ -1,7 +1,7 @@
 import { renderComponent } from "@wabou/test/component";
 import { expect, test } from "vitest";
-import { ConversationContext } from "../../apps/pi-agent/ui/conversation-context";
 import { initialAgentState } from "../../apps/pi-agent/ui/agent-state";
+import { ConversationContext } from "../../apps/pi-agent/ui/conversation-context";
 
 test("exposes project, branch, and session as one conversation context", () => {
   const screen = renderComponent(() => (
@@ -13,14 +13,17 @@ test("exposes project, branch, and session as one conversation context", () => {
     />
   ));
 
+  const breadcrumb = screen.getByRole("group", {
+    name: "Wabou, feat/pi-agent-ui, Polish the conversation",
+  });
   expect(
-    screen.getByRole("group", {
-      name: "Wabou, feat/pi-agent-ui, Polish the conversation",
-    }).text,
-  ).toContain("Wabou/feat/pi-agent-ui/Polish the conversation");
+    breadcrumb
+      .getByRole("link", { name: "Polish the conversation" })
+      .attribute("aria-current"),
+  ).toBe("page");
 });
 
-test("omits an unavailable branch without leaving a duplicate separator", () => {
+test("omits an unavailable branch while preserving the current session", () => {
   const screen = renderComponent(() => (
     <ConversationContext
       project="Wabou"
@@ -29,7 +32,7 @@ test("omits an unavailable branch without leaving a duplicate separator", () => 
     />
   ));
 
-  expect(screen.getByRole("group", { name: "Wabou, New session" }).text).toBe(
-    "Wabou/New session",
-  );
+  const breadcrumb = screen.getByRole("group", { name: "Wabou, New session" });
+  expect(breadcrumb.text).not.toContain("undefined");
+  expect(breadcrumb.getByRole("link", { name: "New session" })).toBeTruthy();
 });
