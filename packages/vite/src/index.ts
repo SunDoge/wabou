@@ -11,7 +11,7 @@ import {
   type UserConfig,
   type UserConfigExport,
 } from "vite";
-import solid from "vite-plugin-solid";
+import solid from "@solidjs/vite-plugin";
 import {
   type WabouColorThemeOptions,
   wabouStylePlugin,

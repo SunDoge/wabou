@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import MagicString from "magic-string";
 import { parse as parse$1 } from "smol-toml";
 import { defineConfig, mergeConfig } from "vite";
-import solid from "vite-plugin-solid";
+import solid from "@solidjs/vite-plugin";
 import { readFile, readdir } from "node:fs/promises";
 import { createGenerator } from "@unocss/core";
 //#region src/style-compiler/vite.ts
