@@ -1233,9 +1233,11 @@ fn run_gpui_windows(
     let reported_error = startup_error.clone();
     gpui_shell::application().run(move |cx| {
         gpui_base::init(cx);
+        let window_registry = crate::gpui_windows::GpuiWindowRegistry::default();
         let mut opened_windows = Vec::new();
         for (index, (applier, options, persistence)) in windows.into_iter().enumerate() {
-            let window_key = gpui_shell::initial_window_resource_key(index);
+            let window_key = window_registry.reserve();
+            debug_assert_eq!(window_key, gpui_shell::initial_window_resource_key(index));
             let bounds = gpui_shell::gpui::Bounds::centered(
                 None,
                 size(
@@ -1247,6 +1249,7 @@ fn run_gpui_windows(
             let title = options.title.clone();
             let widget_factories = widget_factories.clone();
             let test_controller = test_controller.clone();
+            let view_window_registry = window_registry.clone();
             let gpui_options = gpui_shell::gpui::WindowOptions {
                 window_bounds: Some(gpui_shell::gpui::WindowBounds::Windowed(bounds)),
                 titlebar: options.decorations.then(Default::default),
@@ -1272,6 +1275,7 @@ fn run_gpui_windows(
                             native_widget_factories: widget_factories,
                             test_controller,
                             window_key,
+                            window_registry: view_window_registry,
                         },
                         window,
                         cx,
@@ -1279,8 +1283,13 @@ fn run_gpui_windows(
                 })
             });
             match opened {
-                Ok(window) => opened_windows.push(window.into()),
+                Ok(window) => {
+                    let handle = window.into();
+                    assert!(window_registry.attach(window_key, handle));
+                    opened_windows.push(handle);
+                }
                 Err(error) => {
+                    window_registry.remove(window_key);
                     *reported_error.lock().expect("GPUI startup error lock") =
                         Some(error.to_string());
                     cx.quit();

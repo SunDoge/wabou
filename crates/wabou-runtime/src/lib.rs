@@ -18,6 +18,7 @@ mod effect_trace;
 mod error;
 mod gpui_controller;
 mod gpui_view;
+mod gpui_windows;
 mod host;
 #[cfg(test)]
 pub(crate) mod host_abi;

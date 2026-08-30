@@ -39,6 +39,7 @@ pub struct GpuiRuntimeView {
     native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
     test_controller: Option<crate::test_driver::TestController>,
     window_key: gpui_shell::WindowResourceKey,
+    window_registry: crate::gpui_windows::GpuiWindowRegistry,
     file_drag_paths: Vec<std::path::PathBuf>,
     file_drag_position: Option<gpui_shell::Point>,
 }
@@ -49,6 +50,7 @@ pub(crate) struct GpuiRuntimeViewOptions {
     pub(crate) native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
     pub(crate) test_controller: Option<crate::test_driver::TestController>,
     pub(crate) window_key: gpui_shell::WindowResourceKey,
+    pub(crate) window_registry: crate::gpui_windows::GpuiWindowRegistry,
 }
 
 enum GpuiTextControlState {
@@ -152,6 +154,7 @@ impl GpuiRuntimeView {
             native_widget_factories: options.native_widget_factories,
             test_controller: options.test_controller,
             window_key: options.window_key,
+            window_registry: options.window_registry,
             file_drag_paths: Vec::new(),
             file_drag_position: None,
         }
@@ -469,20 +472,8 @@ impl GpuiRuntimeView {
                 EffectResult::Unit
             }
             EffectPayload::AppDirsResolve(directories) => EffectResult::AppDirectories(directories),
-            EffectPayload::WindowControl { command, .. } => {
-                match command {
-                    WindowCommand::Close => window.remove_window(),
-                    WindowCommand::Minimize => window.minimize_window(),
-                    WindowCommand::SetMaximized(maximized) => {
-                        if window.is_maximized() != maximized {
-                            window.zoom_window();
-                        }
-                    }
-                    WindowCommand::SetTitle(title) => window.set_window_title(&title),
-                    WindowCommand::StartDragging => window.start_window_move(),
-                    WindowCommand::Show => window.activate_window(),
-                }
-                EffectResult::Unit
+            EffectPayload::WindowControl { window_id, command } => {
+                self.execute_window_command(window_id, command, window, cx)
             }
             EffectPayload::NotificationShow(notification) => {
                 if notification.title.trim().is_empty() {
@@ -533,6 +524,47 @@ impl GpuiRuntimeView {
             },
         };
         Some(EffectCompletion { id, op, result })
+    }
+
+    fn execute_window_command(
+        &mut self,
+        target: gpui_shell::WindowResourceKey,
+        command: WindowCommand,
+        current_window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> EffectResult {
+        let closes = matches!(command, WindowCommand::Close);
+        if target == self.window_key {
+            apply_window_command(current_window, command);
+            if closes {
+                self.window_registry.remove(target);
+            }
+            return EffectResult::Unit;
+        }
+
+        let Some(handle) = self.window_registry.resolve(target) else {
+            return EffectResult::Error {
+                code: EffectErrorCode::InvalidRequest,
+                message: format!("window `{target}` is not live"),
+            };
+        };
+        match handle.update(cx, move |_, window, _| {
+            apply_window_command(window, command)
+        }) {
+            Ok(()) => {
+                if closes {
+                    self.window_registry.remove(target);
+                }
+                EffectResult::Unit
+            }
+            Err(error) => {
+                self.window_registry.remove(target);
+                EffectResult::Error {
+                    code: EffectErrorCode::PlatformFailure,
+                    message: format!("failed to control window `{target}`: {error}"),
+                }
+            }
+        }
     }
 
     fn complete_path_prompt(
@@ -605,6 +637,21 @@ impl GpuiRuntimeView {
             });
         })
         .detach();
+    }
+}
+
+fn apply_window_command(window: &mut Window, command: WindowCommand) {
+    match command {
+        WindowCommand::Close => window.remove_window(),
+        WindowCommand::Minimize => window.minimize_window(),
+        WindowCommand::SetMaximized(maximized) => {
+            if window.is_maximized() != maximized {
+                window.zoom_window();
+            }
+        }
+        WindowCommand::SetTitle(title) => window.set_window_title(&title),
+        WindowCommand::StartDragging => window.start_window_move(),
+        WindowCommand::Show => window.activate_window(),
     }
 }
 
@@ -896,6 +943,7 @@ mod tests {
                             native_widget_factories: HashMap::new(),
                             test_controller: None,
                             window_key: gpui_shell::initial_window_resource_key(0),
+                            window_registry: crate::gpui_windows::GpuiWindowRegistry::default(),
                         },
                         window,
                         view_cx,
@@ -918,6 +966,83 @@ mod tests {
         );
     }
 
+    #[test]
+    fn gpui_window_commands_are_routed_to_the_registered_target() {
+        let platform = gpui_platform::current_platform(true);
+        let mut cx = HeadlessAppContext::new(platform.text_system());
+        let registry = crate::gpui_windows::GpuiWindowRegistry::default();
+        let first_key = registry.reserve();
+        let second_key = registry.reserve();
+
+        let first_registry = registry.clone();
+        let first = cx
+            .open_window(size(px(800.0), px(600.0)), move |window, app| {
+                app.new(|view_cx| {
+                    GpuiRuntimeView::new(
+                        test_controller(),
+                        GpuiRuntimeViewOptions {
+                            default_title: "First window".into(),
+                            window_size_persistence: None,
+                            native_widget_factories: HashMap::new(),
+                            test_controller: None,
+                            window_key: first_key,
+                            window_registry: first_registry,
+                        },
+                        window,
+                        view_cx,
+                    )
+                })
+            })
+            .expect("open first GPUI window");
+        assert!(registry.attach(first_key, first.into()));
+
+        let second_registry = registry.clone();
+        let second = cx
+            .open_window(size(px(640.0), px(480.0)), move |window, app| {
+                app.new(|view_cx| {
+                    GpuiRuntimeView::new(
+                        test_controller(),
+                        GpuiRuntimeViewOptions {
+                            default_title: "Second window".into(),
+                            window_size_persistence: None,
+                            native_widget_factories: HashMap::new(),
+                            test_controller: None,
+                            window_key: second_key,
+                            window_registry: second_registry,
+                        },
+                        window,
+                        view_cx,
+                    )
+                })
+            })
+            .expect("open second GPUI window");
+        assert!(registry.attach(second_key, second.into()));
+
+        let first_root = first.root(&mut cx).expect("first GPUI runtime root");
+        let result = cx
+            .update_window(first.into(), |_, window, app| {
+                first_root.update(app, |view, view_cx| {
+                    view.execute_window_command(second_key, WindowCommand::Close, window, view_cx)
+                })
+            })
+            .expect("update first GPUI window");
+
+        assert_eq!(result, EffectResult::Unit);
+        assert!(
+            registry.resolve(first_key).is_some(),
+            "routing a command must not affect the issuing window"
+        );
+        assert!(
+            registry.resolve(second_key).is_none(),
+            "closing a target must retire its Wabou window identity"
+        );
+        cx.run_until_parked();
+        assert!(
+            cx.update_window(second.into(), |_, _, _| ()).is_err(),
+            "the registered target, rather than the issuing window, must be closed"
+        );
+    }
+
     #[gpui_shell::gpui::test]
     fn gpui_window_snapshot_uses_logical_viewport_and_native_scale(cx: &mut TestAppContext) {
         let controller = test_controller();
@@ -930,6 +1055,7 @@ mod tests {
                     native_widget_factories: HashMap::new(),
                     test_controller: None,
                     window_key: gpui_shell::initial_window_resource_key(0),
+                    window_registry: crate::gpui_windows::GpuiWindowRegistry::default(),
                 },
                 window,
                 cx,
@@ -961,6 +1087,7 @@ mod tests {
                     native_widget_factories: HashMap::new(),
                     test_controller: None,
                     window_key: gpui_shell::initial_window_resource_key(0),
+                    window_registry: crate::gpui_windows::GpuiWindowRegistry::default(),
                 },
                 window,
                 cx,
@@ -1021,6 +1148,7 @@ mod tests {
                     native_widget_factories: HashMap::new(),
                     test_controller: None,
                     window_key: gpui_shell::initial_window_resource_key(0),
+                    window_registry: crate::gpui_windows::GpuiWindowRegistry::default(),
                 },
                 window,
                 cx,
