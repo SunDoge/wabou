@@ -6,6 +6,7 @@ describe("layout test selection", () => {
     expect(parseLayoutTestArgs([])).toEqual({
       apps: ["gallery", "pi-agent"],
       filters: [],
+      skipBuild: false,
     });
   });
 
@@ -13,16 +14,19 @@ describe("layout test selection", () => {
     expect(parseLayoutTestArgs(["component/Button"])).toEqual({
       apps: ["gallery"],
       filters: ["component/Button"],
+      skipBuild: false,
     });
     expect(parseLayoutTestArgs(["shell/sidebar"])).toEqual({
       apps: ["pi-agent"],
       filters: ["shell/sidebar"],
+      skipBuild: false,
     });
     expect(
       parseLayoutTestArgs(["component/Button", "conversation/complete-turn"]),
     ).toEqual({
       apps: ["gallery", "pi-agent"],
       filters: ["component/Button", "conversation/complete-turn"],
+      skipBuild: false,
     });
   });
 
@@ -31,11 +35,23 @@ describe("layout test selection", () => {
       {
         apps: ["pi-agent"],
         filters: ["shell/sidebar"],
+        skipBuild: false,
       },
     );
     expect(parseLayoutTestArgs(["--app=gallery", "component/Button"])).toEqual({
       apps: ["gallery"],
       filters: ["component/Button"],
+      skipBuild: false,
+    });
+  });
+
+  test("only reuses a fixture bundle when explicitly requested", () => {
+    expect(
+      parseLayoutTestArgs(["--skip-build", "conversation/complete-turn"]),
+    ).toEqual({
+      apps: ["pi-agent"],
+      filters: ["conversation/complete-turn"],
+      skipBuild: true,
     });
   });
 

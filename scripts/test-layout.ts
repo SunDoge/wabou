@@ -5,6 +5,8 @@ export type LayoutTestApp = "gallery" | "pi-agent";
 export interface LayoutTestSelection {
   apps: readonly LayoutTestApp[];
   filters: readonly string[];
+  /** Reuse an existing fixture bundle. Intended only for unchanged sources. */
+  skipBuild: boolean;
 }
 
 const ALL_APPS: readonly LayoutTestApp[] = ["gallery", "pi-agent"];
@@ -46,6 +48,7 @@ export function parseLayoutTestArgs(
   args: readonly string[],
 ): LayoutTestSelection {
   let app: LayoutTestApp | undefined;
+  let skipBuild = false;
   const filters: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
@@ -58,12 +61,16 @@ export function parseLayoutTestArgs(
       app = parseApp(argument.slice("--app=".length));
       continue;
     }
+    if (argument === "--skip-build") {
+      skipBuild = true;
+      continue;
+    }
     if (argument.startsWith("-")) {
       throw new Error(`unknown layout test option: ${argument}`);
     }
     filters.push(argument);
   }
-  return { apps: app ? [app] : inferApps(filters), filters };
+  return { apps: app ? [app] : inferApps(filters), filters, skipBuild };
 }
 
 async function runLayoutTests(selection: LayoutTestSelection): Promise<void> {
@@ -90,7 +97,10 @@ async function runLayoutTests(selection: LayoutTestSelection): Promise<void> {
     );
     const child = Bun.spawn(command, {
       cwd: root,
-      env: { ...process.env, WABOU_LAYOUT_SKIP_BUILD: "1" },
+      env: {
+        ...process.env,
+        WABOU_LAYOUT_SKIP_BUILD: selection.skipBuild ? "1" : "0",
+      },
       stdin: "inherit",
       stdout: "inherit",
       stderr: "inherit",

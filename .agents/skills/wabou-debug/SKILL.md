@@ -55,7 +55,7 @@ For real layout, add or reuse a fixture in
 collision checks over full-tree snapshots.
 
 ```bash
-# Reuse the current release CLI and fixture bundle while editing TSX/styles.
+# Reuse the current release CLI and rebuild the Vite fixture bundle.
 bun run test:layout:quick widgets/Button widgets/Card
 # Restrict the quick loop to one application when unrelated fixtures are dirty.
 bun run test:layout:quick --app pi-agent shell/sidebar
@@ -64,6 +64,11 @@ bun run test:layout:quick --app pi-agent shell/sidebar
 # generated-output, or fixture-registry changes, and before committing.
 bun run test:layout
 ```
+
+The quick command rebuilds the selected application's Vite fixture bundle by
+default, preventing TSX and style edits from being checked against stale
+JavaScript. Add `--skip-build` only when those sources are unchanged and the
+existing bundle is known to be current.
 
 The layout runner enables Solid development diagnostics. Treat
 `[STRICT_READ_UNTRACKED]` and `[REACTIVITY_HALTED]` as test failures, not ignorable

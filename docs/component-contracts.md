@@ -231,7 +231,7 @@ The Gallery regression command is the reference integration:
 # First run, after Rust changes, or before committing:
 bun run test:layout
 
-# Reuse the release CLI and compiled fixture bundle while editing TSX/styles:
+# Reuse the release CLI while rebuilding the small Vite fixture bundle:
 bun run test:layout:quick
 
 # Run only the affected fixture(s):
@@ -242,9 +242,12 @@ It compiles the fixture entry once and runs isolated high-risk components plus
 the existing component pages with the release CLI. On the current suite, the
 native evaluation of 85 fixtures is about 0.6 seconds after the bundle exists;
 the fixed QuickJS startup is paid once rather than once per component.
-`test:layout:quick` deliberately skips
-Vite and Rust builds, so use the full command after changing dependencies,
-generated package output, Rust, or the fixture registry itself.
+`test:layout:quick` deliberately skips Rust and package builds, but rebuilds the
+application fixture bundle so TSX and style edits cannot be tested against stale
+JavaScript. Pass `--skip-build` only when application and fixture sources are
+unchanged and an existing bundle is known to be current. Use the full command
+after changing dependencies, generated package output, Rust, or the fixture
+registry itself.
 
 The isolated reference fixtures cover `Sidebar`, `ScrollArea`, `Select`,
 `Dialog`, and `AdaptiveSplitPane`. They assert their component contracts using
