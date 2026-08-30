@@ -145,10 +145,7 @@ impl Applier {
     }
 
     fn run_javascript_tick(&mut self, width: u32, height: u32) -> bool {
-        let hmr = self.drain_hmr_batch();
-        if !matches!(hmr, HmrDrainResult::Idle) {
-            self.runtime.reload.record_result(hmr);
-        }
+        let _ = self.gpui.drain_hmr();
         self.drain_host_messages();
         self.dispatch_scroll_changes();
 

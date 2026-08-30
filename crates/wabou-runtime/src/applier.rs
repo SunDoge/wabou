@@ -88,9 +88,8 @@ use input_router::EventMask;
 use input_router::{HitClip, HitItem, HitNode, InputRouter, hit_contains};
 use node_store::NodeStore;
 use projections::FrameProjections;
-use reload::HmrBatch;
 #[cfg(test)]
-use reload::plan_hmr_batch;
+use reload::{HmrBatch, plan_hmr_batch};
 pub use reload::{HmrDrainResult, ReloadHandle, ReloadMsg};
 use resources::ResourceState;
 use scroll::{ScrollState, ScrollbarDrag, ScrollbarHit};

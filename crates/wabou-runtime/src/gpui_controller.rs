@@ -1,5 +1,6 @@
 //! GPUI-owned retained state for one JavaScript runtime.
 
+use crate::applier::reload::{HmrBatch, HmrDrainResult};
 use crate::{
     ImageResourceHandle, ImageResourceStore,
     host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, NumericEventData},
@@ -675,6 +676,110 @@ impl GpuiController {
         )
         .map(|result| result.0)
         .unwrap_or(false)
+    }
+
+    pub(crate) fn drain_hmr(&mut self) -> HmrDrainResult {
+        let Some(batch) = self.runtime.reload.drain() else {
+            return HmrDrainResult::Idle;
+        };
+        let result = self.apply_hmr_batch(batch);
+        self.runtime.reload.record_result(result.clone());
+        result
+    }
+
+    fn apply_hmr_batch(&mut self, batch: HmrBatch) -> HmrDrainResult {
+        if let Some(diagnostic) = batch.error {
+            tracing::error!(target: "hmr", diagnostic = %diagnostic, "Vite update failed; keeping last-good UI");
+            self.dispatch_application_message(crate::host_message::HostMessage::str(
+                "wabou:dev-server-error",
+                diagnostic.clone(),
+            ));
+            return HmrDrainResult::Error { diagnostic };
+        }
+        for path in &batch.css_paths {
+            tracing::warn!(
+                target: "hmr",
+                %path,
+                "ignoring native Vite css-update; layout styles use virtual:wabou-stylesheet"
+            );
+        }
+        if batch.full_reload {
+            let reason = batch
+                .full_reload_reason
+                .unwrap_or_else(|| "vite full-reload".into());
+            self.perform_full_reload(&reason);
+            return HmrDrainResult::FullReload { reason };
+        }
+
+        #[cfg(feature = "vite")]
+        let mut applied = 0usize;
+        #[cfg(not(feature = "vite"))]
+        let applied = batch.js_updates.len();
+        for update in batch.js_updates {
+            #[cfg(feature = "vite")]
+            match self.runtime.js.apply_hmr_update(
+                &update.path,
+                &update.accepted_path,
+                update.timestamp,
+                update.source,
+            ) {
+                Ok(true) => applied += 1,
+                Ok(false) => {
+                    let reason = format!("module declined or missing hot context: {}", update.path);
+                    self.perform_full_reload(&reason);
+                    return HmrDrainResult::FullReload { reason };
+                }
+                Err(error) => {
+                    let reason = format!("apply_hmr failed for {}: {error:?}", update.path);
+                    self.perform_full_reload(&reason);
+                    return HmrDrainResult::FullReload { reason };
+                }
+            }
+            #[cfg(not(feature = "vite"))]
+            let _ = update;
+        }
+        if applied > 0 || !batch.css_paths.is_empty() {
+            self.dispatch_dev_server_ready();
+            HmrDrainResult::Applied {
+                js_updates: applied,
+            }
+        } else {
+            HmrDrainResult::Idle
+        }
+    }
+
+    fn perform_full_reload(&mut self, reason: &str) {
+        tracing::warn!(target: "hmr", %reason, "performing in-process GPUI full reload");
+        #[cfg(feature = "vite")]
+        if let Some(entry) = self.runtime.reload.vite_entry().map(str::to_owned) {
+            match self.runtime.js.reboot_vite_entry(&entry) {
+                Ok(()) => {
+                    self.runtime.has_raf = true;
+                    self.dispatch_dev_server_ready();
+                }
+                Err(error) => tracing::error!(
+                    target: "hmr",
+                    %entry,
+                    ?error,
+                    "full reload re-import failed; keeping last-good GPUI tree"
+                ),
+            }
+            return;
+        }
+        tracing::error!(target: "hmr", %reason, "full reload requested without a Vite entry");
+    }
+
+    fn dispatch_dev_server_ready(&mut self) {
+        self.dispatch_application_message(crate::host_message::HostMessage::str(
+            "wabou:dev-server-ready",
+            "{}",
+        ));
+    }
+
+    fn dispatch_application_message(&mut self, message: crate::host_message::HostMessage) {
+        if let Err(error) = self.dispatch_host_frame(&[HostEvent::Application(message)]) {
+            tracing::error!(target: "bridge", ?error, "failed to dispatch application message");
+        }
     }
 
     /// Monotonically increasing count of non-empty JS-to-host frames.

@@ -75,20 +75,20 @@ impl ReloadHandle {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub(super) struct HmrBatch {
-    pub(super) full_reload: bool,
-    pub(super) full_reload_reason: Option<String>,
-    pub(super) js_updates: Vec<HmrJsUpdate>,
-    pub(super) css_paths: Vec<String>,
-    pub(super) error: Option<String>,
+pub(crate) struct HmrBatch {
+    pub(crate) full_reload: bool,
+    pub(crate) full_reload_reason: Option<String>,
+    pub(crate) js_updates: Vec<HmrJsUpdate>,
+    pub(crate) css_paths: Vec<String>,
+    pub(crate) error: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct HmrJsUpdate {
-    pub(super) path: String,
-    pub(super) accepted_path: String,
-    pub(super) timestamp: u64,
-    pub(super) source: String,
+pub(crate) struct HmrJsUpdate {
+    pub(crate) path: String,
+    pub(crate) accepted_path: String,
+    pub(crate) timestamp: u64,
+    pub(crate) source: String,
 }
 
 pub(crate) struct ReloadState {
@@ -117,7 +117,7 @@ impl ReloadState {
         }
     }
 
-    pub(super) fn drain(&self) -> Option<HmrBatch> {
+    pub(crate) fn drain(&self) -> Option<HmrBatch> {
         let messages = self.inbox.drain();
         (!messages.is_empty()).then(|| plan_hmr_batch(messages))
     }
@@ -135,7 +135,7 @@ impl ReloadState {
     }
 
     #[cfg(feature = "vite")]
-    pub(super) fn vite_entry(&self) -> Option<&str> {
+    pub(crate) fn vite_entry(&self) -> Option<&str> {
         self.vite_entry.as_deref()
     }
 
@@ -143,7 +143,7 @@ impl ReloadState {
         &self.last_result
     }
 
-    pub(super) fn record_result(&mut self, result: HmrDrainResult) {
+    pub(crate) fn record_result(&mut self, result: HmrDrainResult) {
         self.last_result = result;
     }
 }

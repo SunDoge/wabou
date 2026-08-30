@@ -190,13 +190,7 @@ impl Applier {
     /// `pending_css` / virtual stylesheet in the same frame). JS updates run
     /// next. Transform errors retain the last-good scene; declined updates or
     /// an explicit full-reload payload re-import the Vite entry when configured.
-    pub(super) fn drain_hmr_batch(&mut self) -> HmrDrainResult {
-        let Some(batch) = self.runtime.reload.drain() else {
-            return HmrDrainResult::Idle;
-        };
-        self.apply_hmr_batch(batch)
-    }
-
+    #[cfg(test)]
     pub(super) fn apply_hmr_batch(&mut self, batch: HmrBatch) -> HmrDrainResult {
         if let Some(diagnostic) = batch.error {
             tracing::error!(target: "hmr", diagnostic = %diagnostic, "Vite update failed; keeping last-good UI");
@@ -289,6 +283,7 @@ impl Applier {
     }
 
     /// Re-import the Vite entry while retaining the last-good native scene.
+    #[cfg(test)]
     pub(super) fn perform_full_reload(&mut self, reason: &str) {
         tracing::warn!(target: "hmr", %reason, "performing in-process full reload");
 
@@ -327,6 +322,7 @@ impl Applier {
         );
     }
 
+    #[cfg(test)]
     fn dispatch_dev_server_ready(&mut self) {
         let event = HostEvent::Application(crate::host_message::HostMessage::str(
             "wabou:dev-server-ready",
