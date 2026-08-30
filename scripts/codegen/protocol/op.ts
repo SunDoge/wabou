@@ -1,6 +1,6 @@
 // Codegen: emit Rust opcode + event-code constants from the TS source of truth
 // (packages/core/src/protocol/index.ts). Run with `bun run gen`. Output:
-// crates/wabou-runtime/src/gen/op.rs, which src/protocol.rs `include!`s.
+// crates/wabou-protocol/src/gen/op.rs, which src/protocol.rs `include!`s.
 //
 // Parsing is deliberately naive — the OP and EVENT_CODE objects are plain
 // `Name: 0xNN` / `Name: N` literals. If that shape ever changes, update the
@@ -15,7 +15,7 @@ const SRC = readFileSync(
   resolve(ROOT, "packages/core/src/protocol/index.ts"),
   "utf8",
 );
-const OUT = resolve(ROOT, "crates/wabou-runtime/src/gen/op.rs");
+const OUT = resolve(ROOT, "crates/wabou-protocol/src/gen/op.rs");
 
 interface Entry {
   /** TS name, e.g. CreateElement */

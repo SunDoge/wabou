@@ -12279,21 +12279,15 @@ name = "wabou"
 version = "0.1.0-alpha.3"
 dependencies = [
  "serde",
- "wabou-backend-winit-tray",
  "wabou-bindgen",
  "wabou-database",
  "wabou-runtime",
+ "wabou-tray",
 ]
 
 [[package]]
 name = "wabou-accessibility"
 version = "0.1.0-alpha.3"
-dependencies = [
- "accesskit",
- "accesskit_xplat",
- "raw-window-handle",
- "winit",
-]
 
 [[package]]
 name = "wabou-backend-winit"
@@ -12324,11 +12318,42 @@ dependencies = [
  "unicode-segmentation",
  "url",
  "vello",
- "wabou-accessibility",
+ "wabou-backend-winit-accessibility",
  "wabou-host-api",
  "wabou-shell-api",
  "wabou-style",
  "winit",
+]
+
+[[package]]
+name = "wabou-backend-winit-accessibility"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "accesskit",
+ "accesskit_xplat",
+ "raw-window-handle",
+ "wabou-accessibility",
+ "winit",
+]
+
+[[package]]
+name = "wabou-backend-winit-terminal"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "anyrender",
+ "libc",
+ "percent-encoding",
+ "rio-graphics",
+ "rio-vt",
+ "rustc-hash 2.1.3",
+ "serde_json",
+ "teletypewriter",
+ "tracing",
+ "vello",
+ "wabou-backend-winit",
+ "wabou-host-api",
+ "wabou-runtime",
+ "wabou-shell-api",
 ]
 
 [[package]]
@@ -12437,6 +12462,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "wabou-protocol"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "lasso",
+ "serde_json",
+ "snafu",
+ "wabou-host-api",
+]
+
+[[package]]
 name = "wabou-runtime"
 version = "0.1.0-alpha.3"
 dependencies = [
@@ -12455,7 +12490,6 @@ dependencies = [
  "gpui_ce_platform",
  "image",
  "jiff",
- "lasso",
  "open",
  "parley",
  "proptest",
@@ -12488,6 +12522,7 @@ dependencies = [
  "wabou-database",
  "wabou-devtools",
  "wabou-host-api",
+ "wabou-protocol",
  "wabou-shell",
  "wabou-style",
 ]
@@ -12546,7 +12581,6 @@ dependencies = [
 name = "wabou-terminal-core"
 version = "0.1.0-alpha.3"
 dependencies = [
- "anyrender",
  "libc",
  "percent-encoding",
  "rio-graphics",
@@ -12555,11 +12589,17 @@ dependencies = [
  "serde_json",
  "teletypewriter",
  "tracing",
- "vello",
- "wabou-backend-winit",
- "wabou-host-api",
- "wabou-runtime",
  "wabou-shell-api",
+]
+
+[[package]]
+name = "wabou-tray"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "flume 0.12.0",
+ "gtk",
+ "tray-icon",
+ "wabou-shell",
 ]
 
 [[package]]
