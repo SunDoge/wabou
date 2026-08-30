@@ -619,7 +619,7 @@ impl RuntimeSourceConfig {
         Ok(controller)
     }
 
-    fn create(
+    fn create_legacy(
         &self,
         window_key: gpui_shell::WindowResourceKey,
         window_options: &WindowOptions,
@@ -704,7 +704,7 @@ impl RuntimeSourceConfig {
     }
 
     #[cfg(feature = "vite")]
-    fn start_hmr(
+    fn start_legacy_hmr(
         &self,
         applier: &mut LegacyRuntimeController,
     ) -> crate::Result<Option<crate::HmrClient>> {
@@ -1353,7 +1353,7 @@ impl HostBuilder {
         for (index, options) in windows.into_iter().enumerate() {
             let window_key = gpui_shell::initial_window_resource_key(index);
             #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
-            let mut applier = runtime_sources.create(window_key, &options)?;
+            let mut applier = runtime_sources.create_legacy(window_key, &options)?;
             if index == 0
                 && let Some(script) = &test_script
             {
@@ -1364,7 +1364,7 @@ impl HostBuilder {
                     })?;
             }
             #[cfg(feature = "vite")]
-            if let Some(client) = runtime_sources.start_hmr(&mut applier)? {
+            if let Some(client) = runtime_sources.start_legacy_hmr(&mut applier)? {
                 hmr_clients.push(client);
             }
             sources.push((Box::new(applier) as Box<dyn crate::FrameSource>, options));
@@ -1391,11 +1391,11 @@ impl HostBuilder {
         let factory: crate::FrameSourceFactory = Arc::new(move |window_key, options| {
             #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
             let mut applier = child_sources
-                .create(window_key, options)
+                .create_legacy(window_key, options)
                 .map_err(|error| error.to_string())?;
             #[cfg(feature = "vite")]
             if let Some(client) = child_sources
-                .start_hmr(&mut applier)
+                .start_legacy_hmr(&mut applier)
                 .map_err(|error| error.to_string())?
             {
                 child_hmr_store.lock().unwrap().push(client);
