@@ -10,7 +10,6 @@ fn main() -> Result<(), Whatever> {
     HostBuilder::new()
         .app_directories("dev", "Wabou", "Gallery")
         .persist_window_size("main")
-        .widget("fractal", || Box::new(gallery::fractal::JuliaWidget::new()))
         .gpui_widget("fractal", gallery::fractal::gpui_factory())
         .window({
             let options = WindowOptions::new()

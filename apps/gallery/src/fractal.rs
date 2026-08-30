@@ -1,4 +1,4 @@
-//! Gallery-only Julia set widget used to demonstrate the external widget API.
+//! Gallery-only Julia set rendered as an application-defined GPUI widget.
 
 use std::{
     collections::HashMap,
@@ -6,50 +6,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use anyrender::PaintScene;
-
-use wabou::widget_api::{
-    PaintContext, UiEvent, Widget, WidgetChanges, WidgetEventResult,
-    vello::{
-        kurbo::Affine,
-        peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat},
-    },
-};
 use wabou::{NativeWidgetContext, gpui};
 
 const RENDER_SIZE: u32 = 480;
 const MAX_ITER: u32 = 160;
 const VIEW: f64 = 1.5;
-
-/// Interactive Julia set rendered by an application-defined native widget.
-pub struct JuliaWidget {
-    cx: f64,
-    cy: f64,
-    cached: Option<(f64, f64)>,
-    image: Option<ImageBrush>,
-}
-
-impl Default for JuliaWidget {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl JuliaWidget {
-    /// Creates the widget with its initial Julia-set parameters.
-    pub fn new() -> Self {
-        Self {
-            cx: 0.7885,
-            cy: 0.0,
-            cached: None,
-            image: None,
-        }
-    }
-
-    fn render(&self) -> Vec<u8> {
-        render_rgba(self.cx, self.cy)
-    }
-}
 
 /// Creates the GPUI-native Julia widget factory used by the default shell.
 ///
@@ -108,53 +69,6 @@ fn encode_gpui_image(cx: f64, cy: f64) -> gpui::Image {
     .write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
     .expect("encoding an in-memory Julia image cannot fail");
     gpui::Image::from_bytes(gpui::ImageFormat::Png, png)
-}
-
-impl Widget for JuliaWidget {
-    fn paint(&mut self, paint: &mut PaintContext<'_>) {
-        let key = (self.cx, self.cy);
-        if self.cached != Some(key) {
-            let data = ImageData {
-                data: Blob::new(Arc::new(self.render().into_boxed_slice())),
-                format: ImageFormat::Rgba8,
-                alpha_type: ImageAlphaType::Alpha,
-                width: RENDER_SIZE,
-                height: RENDER_SIZE,
-            };
-            self.image = Some(ImageBrush::new(data));
-            self.cached = Some(key);
-        }
-
-        if let Some(brush) = &self.image {
-            let [width, height] = paint.size();
-            paint.scene_mut().draw_image(
-                brush.into(),
-                Affine::scale_non_uniform(
-                    width as f64 / RENDER_SIZE as f64,
-                    height as f64 / RENDER_SIZE as f64,
-                ),
-            );
-        }
-    }
-
-    fn attribute_changed(&mut self, name: &str, value: &str) -> WidgetChanges {
-        if let Ok(value) = value.trim().parse::<f64>() {
-            match name {
-                "cx" => self.cx = value,
-                "cy" => self.cy = value,
-                _ => {}
-            }
-        }
-        WidgetChanges::REDRAW
-    }
-
-    fn handle_event(&mut self, _event: &UiEvent) -> WidgetEventResult {
-        WidgetEventResult::IGNORED
-    }
-
-    fn intrinsic_size(&self) -> Option<[f32; 2]> {
-        Some([384.0, 384.0])
-    }
 }
 
 fn julia_iter(zx: f64, zy: f64, cx: f64, cy: f64) -> (f64, u32) {
