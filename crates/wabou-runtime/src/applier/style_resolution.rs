@@ -696,7 +696,11 @@ impl Applier {
             .get(&node)
             .and_then(|declared| declared.image_resource)
             .and_then(|handle| self.document.resources.image_store.get(handle));
-        let image = resource_image.as_ref().map(|resource| resource.drawable());
+        let image = resource_image.as_ref().map(|resource| {
+            Arc::new(legacy_shell::image::RasterImage::from_rgba(
+                resource.to_rgba8(),
+            ))
+        });
         let host = HostPaint {
             text: resolved.host_text,
             text_runs: previous

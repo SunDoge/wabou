@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use slotmap::{DefaultKey, Key, KeyData, SlotMap};
 
 const MAX_SOURCE_PIXELS: u64 = 100 * 1024 * 1024;
-const MAX_DRAWABLE_DIMENSION: u32 = 4096;
 const MAX_NETWORK_RESOURCE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_CONCURRENT_NETWORK_LOADS: usize = 8;
 
@@ -39,11 +38,10 @@ impl ImageResourceHandle {
     }
 }
 
-/// One immutable source image plus a bounded renderer-ready derivative.
+/// One immutable source image plus its GPUI image representation.
 pub struct ImageResource {
     source: Arc<image::DynamicImage>,
     gpui: Arc<gpui_shell::gpui::Image>,
-    drawable: Arc<legacy_shell::image::RasterImage>,
 }
 
 impl ImageResource {
@@ -61,24 +59,12 @@ impl ImageResource {
             return Err("image dimensions exceed the source resource limit".into());
         }
         let source = Arc::new(image::load_from_memory(bytes).map_err(|error| error.to_string())?);
-        let drawable_rgba = if width > MAX_DRAWABLE_DIMENSION || height > MAX_DRAWABLE_DIMENSION {
-            source
-                .resize(
-                    MAX_DRAWABLE_DIMENSION,
-                    MAX_DRAWABLE_DIMENSION,
-                    image::imageops::FilterType::Triangle,
-                )
-                .into_rgba8()
-        } else {
-            source.to_rgba8()
-        };
         Ok(Self {
             source,
             gpui: Arc::new(gpui_shell::gpui::Image::from_bytes(
                 gpui_image_format(format)?,
                 bytes.to_vec(),
             )),
-            drawable: Arc::new(legacy_shell::image::RasterImage::from_rgba(drawable_rgba)),
         })
     }
 
@@ -97,8 +83,8 @@ impl ImageResource {
         self.gpui.clone()
     }
 
-    pub(crate) fn drawable(&self) -> Arc<legacy_shell::image::RasterImage> {
-        self.drawable.clone()
+    pub(crate) fn to_rgba8(&self) -> image::RgbaImage {
+        self.source.to_rgba8()
     }
 }
 
@@ -279,6 +265,6 @@ mod tests {
         let handle = store.create(&png).unwrap();
         let resource = store.get(handle).unwrap();
         assert_eq!(resource.dimensions(), (4_100, 1));
-        assert_eq!(resource.drawable().size(), [4_096.0, 1.0]);
+        assert_eq!(resource.to_rgba8().dimensions(), (4_100, 1));
     }
 }
