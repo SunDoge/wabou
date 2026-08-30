@@ -29,8 +29,8 @@ import {
   appendUserMessage,
   reconcileProcessConnection,
   reducePiEvent,
-  reducePiEvents,
 } from "./agent-state";
+import { subscribeAgentEvents } from "./agent-event-subscription";
 import { type PiSession, usePiApi } from "./api";
 import { AppCommandPalette } from "./app-command-palette";
 import type { ComposerDeliveryMode } from "./composer-delivery";
@@ -59,7 +59,6 @@ import {
   type ExtensionUiStatus,
   type ExtensionUiWidget,
   parseExtensionUiEffect,
-  parseExtensionUiRequest,
   reduceExtensionUiStatuses,
   reduceExtensionUiWidgets,
 } from "./extension-ui";
@@ -360,142 +359,21 @@ export function App() {
       });
   };
 
-  const unsubscribe = api.subscribe(
-    (events: readonly Record<string, unknown>[]) => {
-      const grouped = new Map<string, Record<string, unknown>[]>();
-      for (const event of events) {
-        const id =
-          typeof event.agentId === "string" ? event.agentId : "agent-1";
-        const group = grouped.get(id) ?? [];
-        group.push(event);
-        grouped.set(id, group);
-        const dialog = parseExtensionUiRequest(event);
-        if (dialog) {
-          setExtensionDialogs((current) =>
-            current.some(
-              (candidate) =>
-                candidate.agentId === dialog.agentId &&
-                candidate.id === dialog.id,
-            )
-              ? current
-              : [...current, dialog],
-          );
-        }
-        if (event.type === "process_exit") {
-          setExtensionDialogs((current) =>
-            current.filter((candidate) => candidate.agentId !== id),
-          );
-        }
-      }
-      for (const [id, batch] of grouped) {
-        updateAgent(id, (agent) => ({
-          ...agent,
-          state: reducePiEvents(agent.state, batch),
-        }));
-        if (
-          batch.some(
-            (event) =>
-              event.type === "response" &&
-              event.command === "get_state" &&
-              event.success === true,
-          )
-        ) {
-          const stateEvent = batch.find(
-            (event) =>
-              event.type === "response" &&
-              event.command === "get_state" &&
-              event.success === true,
-          );
-          if (
-            stateEvent?.id === "wabou-bootstrap-state" ||
-            stateEvent?.id === "wabou-new-session-state" ||
-            stateEvent?.id === "wabou-clone-state"
-          ) {
-            void api.getMessages(id);
-          }
-          void api.getSessionStats(id);
-          void api.getCommands(id);
-          void api.getModelOptions(id);
-          void api
-            .listSessions(id)
-            .then((next) =>
-              setSessions((current) => [
-                ...current.filter((session) => session.agentId !== id),
-                ...next,
-              ]),
-            );
-          const data = stateEvent?.data as
-            | Record<string, unknown>
-            | null
-            | undefined;
-          if (
-            (stateEvent?.id === "wabou-new-session-state" ||
-              stateEvent?.id === "wabou-clone-state") &&
-            id === activeId() &&
-            typeof data?.sessionId === "string"
-          ) {
-            void navigate({ to: `/agents/${id}/sessions/${data.sessionId}` });
-          }
-        }
-        if (batch.some((event) => event.type === "agent_settled")) {
-          void api.getSessionStats(id);
-          void api.getForkMessages(id);
-          if (id === activeId()) refreshWorkspaceInfo();
-        }
-        if (
-          batch.some(
-            (event) =>
-              event.type === "response" &&
-              event.command === "compact" &&
-              event.success === true,
-          )
-        ) {
-          void api.getMessages(id);
-          void api.getSessionStats(id);
-        }
-        const exportEvent = batch.find(
-          (event) =>
-            event.type === "response" &&
-            event.command === "export_html" &&
-            event.success === true,
-        );
-        const exported = exportEvent?.data as
-          | Record<string, unknown>
-          | undefined;
-        if (typeof exported?.path === "string") {
-          toasts.success(i18n.message(m.export_complete, {}), {
-            description: i18n.message(m.export_complete_detail, {
-              path: exported.path,
-            }),
-          });
-        }
-        if (
-          batch.some(
-            (event) =>
-              event.type === "response" &&
-              event.command === "get_messages" &&
-              event.success === true,
-          )
-        ) {
-          void api.getForkMessages(id);
-        }
-        const forkEvent = batch.find(
-          (event) =>
-            event.type === "response" &&
-            event.command === "fork" &&
-            event.success === true,
-        );
-        const forkData = forkEvent?.data as Record<string, unknown> | undefined;
-        if (forkEvent && forkData?.cancelled !== true) {
-          if (id === activeId() && typeof forkData?.text === "string") {
-            setDraft(forkData.text);
-          }
-          void api.getMessages(id);
-          void api.getSessionStats(id);
-        }
-      }
-    },
-  );
+  const unsubscribe = subscribeAgentEvents({
+    api,
+    activeAgentId: activeId,
+    updateAgent,
+    updateSessions: setSessions,
+    updateDialogs: setExtensionDialogs,
+    navigateToSession: (agentId, sessionId) =>
+      void navigate({ to: `/agents/${agentId}/sessions/${sessionId}` }),
+    refreshWorkspaceInfo,
+    restoreForkDraft: setDraft,
+    exported: (path) =>
+      toasts.success(i18n.message(m.export_complete, {}), {
+        description: i18n.message(m.export_complete_detail, { path }),
+      }),
+  });
   const unsubscribeExtensionUi = api.subscribe((events) => {
     for (const event of events) {
       const id = typeof event.agentId === "string" ? event.agentId : "agent-1";
