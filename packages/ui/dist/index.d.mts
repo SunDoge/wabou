@@ -1256,6 +1256,8 @@ declare function messageActionsClass(align?: MessageAlign, className?: string): 
 interface MessageActionsProps extends Omit<ViewProps, "class"> {
   /** Override the containing message direction for a local action rail. */
   align?: MessageAlign;
+  /** Keep actions visible, or reveal them while their message is hovered/focused. */
+  visibility?: "always" | "interaction";
   class?: string;
 }
 /** Compact, consistently aligned actions belonging to one message. */

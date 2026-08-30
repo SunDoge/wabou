@@ -586,6 +586,7 @@ export function ConversationItem(props: {
             >
               <MessageActions
                 align="end"
+                visibility="interaction"
                 aria-label={
                   props.item.kind === "user"
                     ? "User message actions"

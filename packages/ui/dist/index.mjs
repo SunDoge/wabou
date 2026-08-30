@@ -6239,9 +6239,13 @@ function MenubarMenu(props) {
 }
 //#endregion
 //#region src/components/message.tsx
-const MessageContext = createContext({ align: () => "start" });
+const MessageContext = createContext({
+	align: () => "start",
+	interacting: () => false
+});
 const BubbleContext = createContext({
 	align: () => "start",
+	interacting: () => false,
 	variant: () => "default"
 });
 function MessageGroup(props) {
@@ -6261,8 +6265,13 @@ function messageClass(align = "start", className) {
 	return mergeClasses("relative w-full min-w-0 flex gap-2 text-sm", align === "end" ? "flex-row-reverse" : "flex-row", className);
 }
 function Message(props) {
-	const forwarded = omit(props, "align", "class", "children");
-	const context = { align: () => props.align ?? "start" };
+	const hover = createHover();
+	const focus = createFocusWithin();
+	const forwarded = omit(props, "align", "class", "children", "onPointerEnter", "onPointerLeave", "onFocusIn", "onFocusOut");
+	const context = {
+		align: () => props.align ?? "start",
+		interacting: () => hover.hovered() || focus.focusWithin()
+	};
 	return createComponent$1(MessageContext, {
 		value: context,
 		get children() {
@@ -6272,6 +6281,22 @@ function Message(props) {
 				},
 				get ["class"]() {
 					return messageClass(context.align(), props.class);
+				},
+				onPointerEnter: (event) => {
+					hover.bindings.onPointerEnter();
+					props.onPointerEnter?.(event);
+				},
+				onPointerLeave: (event) => {
+					hover.bindings.onPointerLeave();
+					props.onPointerLeave?.(event);
+				},
+				onFocusIn: (event) => {
+					focus.bindings.onFocusIn();
+					props.onFocusIn?.(event);
+				},
+				onFocusOut: (event) => {
+					focus.bindings.onFocusOut();
+					props.onFocusOut?.(event);
 				},
 				get children() {
 					return props.children;
@@ -6319,13 +6344,14 @@ function messageActionsClass(align = "start", className) {
 /** Compact, consistently aligned actions belonging to one message. */
 function MessageActions(props) {
 	const context = useContext(MessageContext);
-	const forwarded = omit(props, "align", "class", "children");
+	const forwarded = omit(props, "align", "visibility", "class", "children");
+	const interactionClass = () => props.visibility === "interaction" && !context.interacting() ? "opacity-0 pointer-events-none" : "opacity-100";
 	return createComponent$1(View, mergeProps(forwarded, {
 		get role() {
 			return props.role ?? "toolbar";
 		},
 		get ["class"]() {
-			return messageActionsClass(props.align ?? context.align(), props.class);
+			return messageActionsClass(props.align ?? context.align(), mergeClasses(interactionClass(), props.class));
 		},
 		get children() {
 			return props.children;
@@ -6350,7 +6376,8 @@ function Bubble(props) {
 	const forwarded = omit(props, "variant", "align", "class", "children");
 	const context = {
 		variant: () => props.variant ?? "default",
-		align: () => props.align ?? message.align()
+		align: () => props.align ?? message.align(),
+		interacting: message.interacting
 	};
 	return createComponent$1(BubbleContext, {
 		value: context,

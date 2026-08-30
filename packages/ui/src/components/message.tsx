@@ -2,6 +2,8 @@ import { mergeClasses } from "@wabou/core/style";
 import { createContext, type JSX, omit, Show, useContext } from "solid-js";
 import { match } from "ts-pattern";
 import {
+  createFocusWithin,
+  createHover,
   Text,
   type TextProps,
   translate2d,
@@ -21,10 +23,12 @@ export type BubbleVariant =
 
 interface MessageContextValue {
   align(): MessageAlign;
+  interacting(): boolean;
 }
 
 const MessageContext = createContext<MessageContextValue>({
   align: () => "start",
+  interacting: () => false,
 });
 
 interface BubbleContextValue extends MessageContextValue {
@@ -33,6 +37,7 @@ interface BubbleContextValue extends MessageContextValue {
 
 const BubbleContext = createContext<BubbleContextValue>({
   align: () => "start",
+  interacting: () => false,
   variant: () => "default",
 });
 
@@ -65,9 +70,21 @@ export function messageClass(
 }
 
 export function Message(props: MessageProps): JSX.Element {
-  const forwarded = omit(props, "align", "class", "children");
+  const hover = createHover();
+  const focus = createFocusWithin();
+  const forwarded = omit(
+    props,
+    "align",
+    "class",
+    "children",
+    "onPointerEnter",
+    "onPointerLeave",
+    "onFocusIn",
+    "onFocusOut",
+  );
   const context: MessageContextValue = {
     align: () => props.align ?? "start",
+    interacting: () => hover.hovered() || focus.focusWithin(),
   };
   return (
     <MessageContext value={context}>
@@ -75,6 +92,22 @@ export function Message(props: MessageProps): JSX.Element {
         {...forwarded}
         role={props.role ?? "group"}
         class={messageClass(context.align(), props.class)}
+        onPointerEnter={(event) => {
+          hover.bindings.onPointerEnter();
+          props.onPointerEnter?.(event);
+        }}
+        onPointerLeave={(event) => {
+          hover.bindings.onPointerLeave();
+          props.onPointerLeave?.(event);
+        }}
+        onFocusIn={(event) => {
+          focus.bindings.onFocusIn();
+          props.onFocusIn?.(event);
+        }}
+        onFocusOut={(event) => {
+          focus.bindings.onFocusOut();
+          props.onFocusOut?.(event);
+        }}
       >
         {props.children}
       </View>
@@ -144,18 +177,27 @@ export function messageActionsClass(
 export interface MessageActionsProps extends Omit<ViewProps, "class"> {
   /** Override the containing message direction for a local action rail. */
   align?: MessageAlign;
+  /** Keep actions visible, or reveal them while their message is hovered/focused. */
+  visibility?: "always" | "interaction";
   class?: string;
 }
 
 /** Compact, consistently aligned actions belonging to one message. */
 export function MessageActions(props: MessageActionsProps): JSX.Element {
   const context = useContext(MessageContext);
-  const forwarded = omit(props, "align", "class", "children");
+  const forwarded = omit(props, "align", "visibility", "class", "children");
+  const interactionClass = () =>
+    props.visibility === "interaction" && !context.interacting()
+      ? "opacity-0 pointer-events-none"
+      : "opacity-100";
   return (
     <View
       {...forwarded}
       role={props.role ?? "toolbar"}
-      class={messageActionsClass(props.align ?? context.align(), props.class)}
+      class={messageActionsClass(
+        props.align ?? context.align(),
+        mergeClasses(interactionClass(), props.class),
+      )}
     >
       {props.children}
     </View>
@@ -198,6 +240,7 @@ export function Bubble(props: BubbleProps): JSX.Element {
   const context: BubbleContextValue = {
     variant: () => props.variant ?? "default",
     align: () => props.align ?? message.align(),
+    interacting: message.interacting,
   };
   return (
     <BubbleContext value={context}>
