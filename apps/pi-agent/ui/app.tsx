@@ -1,3 +1,4 @@
+import { openKv } from "@wabou/core";
 import {
   type CommandItem,
   createAsyncQuery,
@@ -42,16 +43,7 @@ import { ConversationComposer } from "./conversation-composer";
 import { ConversationHeader } from "./conversation-header";
 import { ConversationNavigator } from "./conversation-navigator";
 import { ConversationWelcome } from "./conversation-welcome";
-import {
-  type AgentDraftLists,
-  type AgentDrafts,
-  readAgentDraft,
-  readAgentDraftList,
-  removeAgentDraftLists,
-  removeAgentDrafts,
-  writeAgentDraft,
-  writeAgentDraftList,
-} from "./drafts";
+import { createAgentDraftController } from "./drafts";
 import {
   type ExtensionUiAnswer,
   ExtensionUiDialog,
@@ -130,12 +122,15 @@ export function App() {
     patchActive,
     prepareDefaultWorkspace,
   } = profiles;
+  const activeSessionId = () => params().sessionId;
+  const drafts = createAgentDraftController({
+    kv: openKv(["pi-agent"]),
+    activeAgentId: activeId,
+    activeSessionId,
+  });
   const [sessions, setSessions] = createSignal<readonly PiSession[]>([]);
   const sessionNavigation = createSessionNavigation();
   const [workspaceRevision, setWorkspaceRevision] = createSignal(0);
-  const [drafts, setDrafts] = createSignal<AgentDrafts>({});
-  const [draftImages, setDraftImages] = createSignal<AgentDraftLists>({});
-  const [draftContext, setDraftContext] = createSignal<AgentDraftLists>({});
   const [searchOpen, setSearchOpen] = createSignal(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = createSignal(false);
   const [sidePanel, setSidePanel] = createSignal<"files" | "changes">();
@@ -236,7 +231,6 @@ export function App() {
         session.agentId === activeId() &&
         session.sessionId === active().state.sessionId,
     );
-  const activeSessionId = () => params().sessionId;
   const itemHandleScope = () =>
     `${activeId()}\0${active().state.sessionId ?? activeSessionId() ?? ""}`;
   createEffect(
@@ -271,23 +265,12 @@ export function App() {
       setActiveSearchItem(undefined);
     },
   );
-  const draft = () => readAgentDraft(drafts(), activeId(), activeSessionId());
-  const setDraft = (value: string) =>
-    setDrafts((current) =>
-      writeAgentDraft(current, activeId(), activeSessionId(), value),
-    );
-  const images = () =>
-    readAgentDraftList(draftImages(), activeId(), activeSessionId());
-  const setImages = (paths: readonly string[]) =>
-    setDraftImages((current) =>
-      writeAgentDraftList(current, activeId(), activeSessionId(), paths),
-    );
-  const contextFiles = () =>
-    readAgentDraftList(draftContext(), activeId(), activeSessionId());
-  const setContextFiles = (paths: readonly string[]) =>
-    setDraftContext((current) =>
-      writeAgentDraftList(current, activeId(), activeSessionId(), paths),
-    );
+  const draft = drafts.draft;
+  const setDraft = drafts.setDraft;
+  const images = drafts.images;
+  const setImages = drafts.setImages;
+  const contextFiles = drafts.contextFiles;
+  const setContextFiles = drafts.setContextFiles;
   const pendingSubmissions = new Map<
     string,
     {
@@ -314,30 +297,11 @@ export function App() {
       pendingSubmissions.delete(requestId);
       if (!error) return;
       turnCheckpoints.discard(requestId);
-      setDrafts((current) =>
-        writeAgentDraft(
-          current,
-          submission.agentId,
-          submission.sessionId,
-          submission.message,
-        ),
-      );
-      setDraftImages((current) =>
-        writeAgentDraftList(
-          current,
-          submission.agentId,
-          submission.sessionId,
-          submission.images,
-        ),
-      );
-      setDraftContext((current) =>
-        writeAgentDraftList(
-          current,
-          submission.agentId,
-          submission.sessionId,
-          submission.contextFiles,
-        ),
-      );
+      drafts.restore(submission.agentId, submission.sessionId, {
+        text: submission.message,
+        images: submission.images,
+        contextFiles: submission.contextFiles,
+      });
     },
     settleFork: (agentId, error) => {
       const pending = pendingRewinds.get(agentId);
@@ -372,10 +336,7 @@ export function App() {
     updateStatuses: setExtensionStatuses,
     updateWidgets: setExtensionWidgets,
     updateTitles: setExtensionTitles,
-    writeEditorText: (agentId, sessionId, text) =>
-      setDrafts((current) =>
-        writeAgentDraft(current, agentId, sessionId, text),
-      ),
+    writeEditorText: drafts.setDraftFor,
   });
   onCleanup(() => {
     unsubscribe();
@@ -485,22 +446,10 @@ export function App() {
     const queueing = agent.state.connection === "running";
     if (agent.state.connection !== "ready" && !(await start())) return;
     const userMessageId = `user-${nextMessage++}`;
-    const repository = !queueing
-      ? (workspaceInfo.latest() ??
-        (await api.workspaceInfo(agent.cwd).catch(() => undefined)))
-      : undefined;
-    if (repository?.repository) {
-      try {
-        await turnCheckpoints.capture(userMessageId, agent.cwd, agent.id);
-      } catch (error) {
-        console.warn(
-          `[pi-agent] could not capture turn checkpoint: ${String(error)}`,
-        );
-      }
-    }
+    const submissionSessionId = activeSessionId();
     pendingSubmissions.set(userMessageId, {
       agentId: agent.id,
-      sessionId: activeSessionId(),
+      sessionId: submissionSessionId,
       message,
       images: attachedImages,
       contextFiles: attachedContext,
@@ -519,6 +468,22 @@ export function App() {
         attachedContext,
       ),
     }));
+    // Commit the optimistic UI before checkpoint/network awaits. Keeping the
+    // old native editor value alive across an async boundary lets a subsequent
+    // input event append to an already submitted prompt.
+    const repository = !queueing
+      ? (workspaceInfo.latest() ??
+        (await api.workspaceInfo(agent.cwd).catch(() => undefined)))
+      : undefined;
+    if (repository?.repository) {
+      try {
+        await turnCheckpoints.capture(userMessageId, agent.cwd, agent.id);
+      } catch (error) {
+        console.warn(
+          `[pi-agent] could not capture turn checkpoint: ${String(error)}`,
+        );
+      }
+    }
     try {
       await (queueing
         ? deliveryMode() === "steer"
@@ -546,9 +511,11 @@ export function App() {
     } catch (error) {
       pendingSubmissions.delete(userMessageId);
       turnCheckpoints.discard(userMessageId);
-      setDraft(message);
-      setImages(attachedImages);
-      setContextFiles(attachedContext);
+      drafts.restore(agent.id, submissionSessionId, {
+        text: message,
+        images: attachedImages,
+        contextFiles: attachedContext,
+      });
       updateAgent(agent.id, (current) => ({
         ...current,
         state: reducePiEvent(current.state, {
@@ -612,9 +579,13 @@ export function App() {
         current.filter((session) => session.agentId !== removed.id),
       );
     });
-    setDrafts((current) => removeAgentDrafts(current, removed.id));
-    setDraftImages((current) => removeAgentDraftLists(current, removed.id));
-    setDraftContext((current) => removeAgentDraftLists(current, removed.id));
+    await drafts
+      .removeAgent(removed.id)
+      .catch((error) =>
+        console.warn(
+          `[pi-agent] could not remove persisted project drafts: ${String(error)}`,
+        ),
+      );
     setExtensionDialogs((current) =>
       current.filter((request) => request.agentId !== removed.id),
     );

@@ -18,6 +18,7 @@ fn main() -> Result<(), Whatever> {
     let events = service.clone();
     HostBuilder::new()
         .app_directories("dev", "Wabou", "Pi Agent")
+        .kv()
         .persist_window_size("main")
         .window(
             WindowOptions::new()

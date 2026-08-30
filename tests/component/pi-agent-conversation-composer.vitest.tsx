@@ -2,8 +2,8 @@ import { renderComponent } from "@wabou/test/component";
 import { createSignal } from "solid-js";
 import { expect, test, vi } from "vitest";
 import {
-  composerEditorHeightClass,
   ConversationComposer,
+  composerEditorHeightClass,
 } from "../../apps/pi-agent/ui/conversation-composer";
 
 const baseProps = {
@@ -79,15 +79,36 @@ test("Pi Agent composer keeps the primary action and configuration discoverable"
   ).toBe("Inspect the renderer");
   expect(screen.getByRole("combobox", { name: "Choose model" })).toBeTruthy();
   expect(screen.getByRole("combobox", { name: "Thinking level" })).toBeTruthy();
-  const usage = screen.getByRole("status", { name: "Session usage" });
+  const usage = screen.getByRole("button", { name: "Session usage" });
   expect(usage.text).toContain("Context 5%");
   expect(usage.text).toContain("10k tokens");
   expect(usage.text).toContain("$0.024");
-  expect(usage.className).toContain("bg-control");
+  expect(usage.className).toContain("h-7");
   expect(screen.getByRole("button", { name: "Send" }).disabled).toBe(false);
 
   screen.getByRole("button", { name: "Send" }).click();
   expect(submit).toHaveBeenCalledOnce();
+});
+
+test("Pi Agent composer reflects an externally cleared controlled draft", () => {
+  const App = () => {
+    const [draft, setDraft] = createSignal("Send this request");
+    return (
+      <ConversationComposer
+        {...baseProps}
+        draft={draft()}
+        changeDraft={setDraft}
+        submit={() => setDraft("")}
+      />
+    );
+  };
+  const screen = renderComponent(App);
+  const editor = screen.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+
+  screen.getByRole("button", { name: "Send" }).click();
+  expect(editor.value).toBe("");
 });
 
 test("Pi Agent composer preserves a native range selection", () => {
