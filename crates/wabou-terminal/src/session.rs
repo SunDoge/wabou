@@ -2,6 +2,18 @@
 
 use super::*;
 
+/// Backend-neutral snapshot of the terminal viewport.
+///
+/// Renderers own shaping and painting. The terminal session only determines
+/// which logical rows are visible and the metrics used to size the PTY grid.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TerminalFrame {
+    pub lines: Vec<String>,
+    pub font_size: f32,
+    pub line_height: f32,
+    pub cell_width: f32,
+}
+
 /// An event emitted by the terminal session toward its JavaScript owner.
 ///
 /// The session owns this DTO so it does not depend on a particular native
@@ -213,8 +225,8 @@ impl TerminalWidget {
         }
     }
 
-    pub(super) fn gpui_visible_text(&mut self, width: f32, height: f32) -> Vec<String> {
-        self.resize(width, height, 1.0);
+    pub fn snapshot_frame(&mut self, width: f32, height: f32, device_scale: f64) -> TerminalFrame {
+        self.resize(width, height, device_scale);
         self.ensure_launched();
         self.update_cursor_blink();
         let mut terminal = self.terminal.lock();
@@ -228,7 +240,8 @@ impl TerminalWidget {
         );
         let _ = terminal.damage();
         terminal.reset_damage();
-        self.visible_rows
+        let lines = self
+            .visible_rows
             .iter()
             .map(|row| {
                 let mut text = String::with_capacity(self.size.columns);
@@ -245,7 +258,13 @@ impl TerminalWidget {
                 }
                 text.trim_end().to_owned()
             })
-            .collect()
+            .collect();
+        TerminalFrame {
+            lines,
+            font_size: self.font_size,
+            line_height: self.line_height,
+            cell_width: self.cell_width,
+        }
     }
 
     fn cursor_blinking(&self, terminal_blinking: bool) -> bool {

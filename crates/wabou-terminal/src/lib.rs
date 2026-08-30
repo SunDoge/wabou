@@ -64,7 +64,7 @@ use process::{
     validate_launch_command,
 };
 use rendering::*;
-pub use session::{TerminalEventKind, TerminalNodeEvent};
+pub use session::{TerminalEventKind, TerminalFrame, TerminalNodeEvent};
 
 const DEFAULT_COLUMNS: usize = 80;
 const DEFAULT_ROWS: usize = 24;

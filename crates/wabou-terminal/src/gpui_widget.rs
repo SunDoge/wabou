@@ -201,17 +201,19 @@ impl gpui::Render for GpuiTerminal {
                         let entity = entity.clone();
                         move |bounds, window, cx| {
                             entity.update(cx, |state, _cx| {
-                                let lines = state.terminal.gpui_visible_text(
+                                let frame = state.terminal.snapshot_frame(
                                     bounds.size.width.into(),
                                     bounds.size.height.into(),
+                                    window.scale_factor() as f64,
                                 );
                                 let style = gpui::TextStyle {
                                     color: gpui::rgb_to_hsla(gpui::rgb(0xe5e7eb)),
                                     font_family: "monospace".into(),
                                     ..Default::default()
                                 };
-                                let font_size = gpui::px(state.terminal.font_size);
-                                let shaped = lines
+                                let font_size = gpui::px(frame.font_size);
+                                let shaped = frame
+                                    .lines
                                     .into_iter()
                                     .map(|line| {
                                         let line: gpui::SharedString = line.into();
@@ -224,7 +226,7 @@ impl gpui::Render for GpuiTerminal {
                                         )
                                     })
                                     .collect::<Vec<_>>();
-                                (shaped, state.terminal.line_height)
+                                (shaped, frame.line_height)
                             })
                         }
                     },
