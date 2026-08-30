@@ -55,7 +55,6 @@ use wabou_style::IrValue;
 
 use crate::gpui_controller::GpuiController;
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
-use crate::host_message::HostMessageHandle;
 use crate::protocol::NodeKey;
 
 #[cfg(any(feature = "devtools", test))]
@@ -718,14 +717,6 @@ impl RuntimeController {
         }
     }
 
-    /// Monotonically increasing count of non-empty JS-to-host protocol frames.
-    ///
-    /// Deterministic headless drivers can use this to wait for UI commits
-    /// without inspecting private retained-tree state.
-    pub fn protocol_revision(&self) -> u64 {
-        self.runtime.protocol_revision
-    }
-
     #[cfg(test)]
     pub(crate) fn gpui_style(&self, key: NodeKey) -> Option<&gpui_shell::gpui::Style> {
         self.gpui.projection().style(key)
@@ -787,52 +778,6 @@ impl RuntimeController {
         }
     }
 
-    /// Boot the application after all RuntimeController-owned host bridges have been
-    /// installed. This ordering permits window APIs during initial render.
-    pub fn boot(&mut self, source: &str) -> rquickjs::Result<()> {
-        self.runtime.js.boot(source)
-    }
-
-    pub(crate) fn boot_with_source_map(
-        &mut self,
-        source: &str,
-        source_map: Option<&[u8]>,
-    ) -> rquickjs::Result<()> {
-        self.runtime.js.boot_with_source_map(source, source_map)
-    }
-
-    /// Evaluate an additional script in the booted application realm.
-    pub fn eval_script(&self, source: &str) -> rquickjs::Result<()> {
-        self.runtime.js.eval_script(source)
-    }
-
-    /// Evaluate a test-harness script with mapped guest exception details.
-    pub fn eval_script_diagnostic(&self, source: &str) -> Result<(), String> {
-        self.runtime.js.eval_script_diagnostic(source)
-    }
-
-    /// Evaluate a test-harness expression and return its string value.
-    pub fn eval_string(&self, source: &str) -> rquickjs::Result<String> {
-        self.runtime.js.eval_string(source)
-    }
-
-    #[cfg(feature = "vite")]
-    /// Boots an application entry module through the Vite development loader.
-    ///
-    /// Host bridges must already be installed, just as for [`Self::boot`].
-    pub fn boot_vite(&mut self, entry: &str) -> rquickjs::Result<()> {
-        self.runtime.js.boot_vite(entry)
-    }
-
-    pub(crate) fn set_effect_trace(&mut self, trace: crate::effect_trace::EffectTrace) {
-        self.runtime.effect_bridge.set_trace(trace);
-    }
-
-    /// Publish resolved application-private directories to native effects.
-    pub fn set_app_directories(&mut self, directories: gpui_shell::AppDirectories) {
-        self.runtime.effect_bridge.set_app_directories(directories);
-    }
-
     pub(crate) fn set_image_resource_store(&mut self, store: crate::ImageResourceStore) {
         self.gpui.set_image_resources(store.clone());
         self.document.resources.set_image_store(store);
@@ -844,25 +789,6 @@ impl RuntimeController {
         self.runtime.js.set_debug_state(state.clone());
         self.frame.projections.debug_state = Some(state);
         self.frame.projections.debug_dirty = true;
-    }
-
-    /// Cloneable handle for background tasks / streams to push application
-    /// messages toward JS (`host.subscribe` on the guest side).
-    pub fn host_message_handle(&self) -> HostMessageHandle {
-        self.runtime.host_message_handle.clone()
-    }
-
-    pub(crate) fn host_message_context(
-        &self,
-        window_key: gpui_shell::WindowResourceKey,
-    ) -> crate::HostMessageContext {
-        crate::HostMessageContext::new(
-            window_key,
-            self.host_message_handle(),
-            self.runtime.host_message_cancellation.clone(),
-            self.runtime.js.tokio_handle(),
-            self.runtime.host_tasks.clone(),
-        )
     }
 
     /// Snapshot the currently resolved style for a Solid node id.

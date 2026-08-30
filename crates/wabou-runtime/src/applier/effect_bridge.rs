@@ -103,11 +103,11 @@ impl EffectBridge {
         *self.action_wake.borrow_mut() = Some(wake);
     }
 
-    pub(super) fn set_trace(&self, trace: EffectTrace) {
+    pub(crate) fn set_trace(&self, trace: EffectTrace) {
         *self.trace.borrow_mut() = Some(trace);
     }
 
-    pub(super) fn set_app_directories(&self, directories: AppDirectories) {
+    pub(crate) fn set_app_directories(&self, directories: AppDirectories) {
         *self.app_directories.borrow_mut() = Some(directories);
     }
 
