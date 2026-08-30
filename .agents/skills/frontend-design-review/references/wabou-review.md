@@ -16,6 +16,23 @@ guidance in the parent skill as design intent rather than an implementation mand
 Figma and Storybook are optional references, not approval gates. Never invent a
 Figma comparison when none exists.
 
+## Design-system implementation model
+
+Classify visual decisions before editing JSX:
+
+1. **Global tokens** own reusable color roles, typography, spacing, radius,
+   elevation, and readable widths.
+2. **Component contracts** own control height, internal padding, icon/text
+   alignment, state variants, and repeated surface geometry.
+3. **Screen composition** owns page hierarchy and relationships between shared
+   components, but should not redefine their internal metrics.
+
+Prefer a shared component variant over repeating a nearby class recipe. Prefer a
+container relationship over nudging a child with a local offset. When a literal is
+truly screen-specific, keep it next to a named composition helper and test the
+relationship it encodes. After fixing one member of a component family, search for
+the same role across the repository before declaring the issue local.
+
 ## Required review sequence
 
 1. State the screen's primary job, primary action, density, visual tone, and the one
@@ -40,6 +57,9 @@ Figma comparison when none exists.
   viewport. Content must not silently overlap, clip, or become unreachable.
 - Repeated UI uses shared components or named composition patterns, not copied class
   strings with drifting metrics.
+- Fixed chrome, search/actions, scrollable content, and footers remain separate
+  structural regions. Scrolling a long list must not move the controls needed to
+  search, create, or leave that list.
 - Text, icons, controls, and headers align through component contracts; local optical
   offsets require a documented reason.
 - Every interactive component exposes hover, pressed, focus, disabled, and relevant
@@ -63,3 +83,6 @@ Keep the parent skill's three pillars, but attach evidence to each actionable fi
 
 Conclude with `Pass`, `Needs work`, or `Blocked`, and list the next highest-leverage
 change. Avoid broad aesthetic claims without an observable mechanism.
+
+The three-layer implementation discipline in this profile is informed by the
+MIT-licensed [frontend-ui-standards skill](https://github.com/MaxHan7/frontend-ui-standards-skill).
