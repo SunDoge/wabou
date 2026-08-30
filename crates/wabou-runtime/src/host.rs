@@ -47,7 +47,6 @@ use wabou_bindgen::JsonCapabilityContract;
 use wabou_bindgen::JsonMethod;
 
 use crate::applier::Applier;
-use crate::asset_cache::ResourceCache;
 use crate::bundle;
 use crate::headless_test::run_headless_test;
 use crate::json_capability::JsonCapability;
@@ -539,7 +538,6 @@ struct RuntimeSourceConfig {
     debug_state: Option<wabou_devtools::SharedDebugState>,
     effect_trace: Option<crate::effect_trace::EffectTrace>,
     app_directories: Option<wabou_shell::AppDirectories>,
-    asset_cache: Arc<ResourceCache>,
     image_resources: crate::ImageResourceStore,
 }
 
@@ -597,7 +595,6 @@ impl RuntimeSourceConfig {
             window_key,
         );
         install_host_message_producers(&self.host_message_producers, window_key, &applier);
-        applier.set_asset_cache(self.asset_cache.clone());
         applier.set_image_resource_store(self.image_resources.clone());
         if let Some(directories) = &self.app_directories {
             applier.set_app_directories(directories.clone());
@@ -1144,9 +1141,6 @@ impl HostBuilder {
         let windows = std::iter::once(self.window.clone())
             .chain(self.additional_windows.iter().cloned())
             .collect::<Vec<_>>();
-        let asset_cache = Arc::new(ResourceCache::memory_only());
-        self.image_resources.set_cache(asset_cache.clone());
-
         #[cfg(feature = "devtools")]
         let devtools_server = {
             let mut server = None;
@@ -1198,7 +1192,6 @@ impl HostBuilder {
             debug_state: devtools_server.1.clone(),
             effect_trace: effect_trace.clone(),
             app_directories: app_directories.clone(),
-            asset_cache: asset_cache.clone(),
             image_resources: self.image_resources.clone(),
         };
         #[cfg(feature = "vite")]

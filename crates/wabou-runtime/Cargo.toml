@@ -21,7 +21,6 @@ getrandom = { workspace = true }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
 jiff = { workspace = true }
 lasso = "0.7.3"
-moka = { workspace = true }
 open = { workspace = true }
 parley = { workspace = true }
 reqwest = {

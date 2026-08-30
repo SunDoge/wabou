@@ -429,7 +429,12 @@ impl Applier {
                 Some(image)
             } else {
                 let source: Arc<str> = Arc::from(source);
-                let cached_asset = self.document.resources.cache.svg(source.as_ref());
+                let cached_asset = self
+                    .document
+                    .resources
+                    .decoded_svg
+                    .get(source.as_ref())
+                    .cloned();
                 let asset = cached_asset.unwrap_or_else(|| {
                     let parsed = wabou_shell::svg::SvgImage::parse(&source)
                         .map(Arc::new)
@@ -439,8 +444,8 @@ impl Applier {
                     }
                     self.document
                         .resources
-                        .cache
-                        .insert_svg(source.to_string(), parsed.clone());
+                        .decoded_svg
+                        .insert(source.clone(), parsed.clone());
                     parsed
                 });
                 match asset {

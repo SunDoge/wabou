@@ -13,7 +13,6 @@ extern crate wabou_backend_winit as wabou_shell;
 
 mod actor;
 mod applier;
-mod asset_cache;
 mod atom;
 mod bundle;
 mod clock;

@@ -53,7 +53,6 @@ use wabou_shell::{
     SemanticSnapshot, SemanticStates, SemanticToggleState, UiEvent, WakeCallback,
 };
 
-use crate::asset_cache::ResourceCache;
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
 use crate::protocol::NodeKey;
 
@@ -885,10 +884,6 @@ impl Applier {
     /// Publish resolved application-private directories to native effects.
     pub fn set_app_directories(&mut self, directories: wabou_shell::AppDirectories) {
         self.runtime.effect_bridge.set_app_directories(directories);
-    }
-
-    pub(crate) fn set_asset_cache(&mut self, cache: Arc<ResourceCache>) {
-        self.document.resources.set_cache(cache);
     }
 
     pub(crate) fn set_image_resource_store(&mut self, store: crate::ImageResourceStore) {
