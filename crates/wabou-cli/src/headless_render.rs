@@ -57,6 +57,7 @@ pub(super) struct RenderOptions {
     pub(super) scale_factor: f64,
     pub(super) color_scheme: HeadlessColorScheme,
     pub(super) mode: Option<String>,
+    pub(super) fixture: Option<String>,
     pub(super) skip_build: bool,
     pub(super) with_host: bool,
     pub(super) scenario: Option<PathBuf>,
@@ -79,7 +80,7 @@ struct LayoutBatchManifest {
     cases: Vec<LayoutBatchCase>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct LayoutBatchCase {
     id: String,
@@ -467,6 +468,37 @@ fn run_layout_batch(
     Ok(())
 }
 
+fn mount_layout_fixture(applier: &mut Applier, id: &str) -> Result<LayoutBatchCase> {
+    let encoded = applier
+        .eval_string(
+            "typeof globalThis.__wabou_layout_fixture_cases === 'function' \
+                ? globalThis.__wabou_layout_fixture_cases() \
+                : '[]'",
+        )
+        .map_err(|error| format!("failed to list layout fixtures: {error:?}"))?;
+    let registered: Vec<LayoutBatchCase> = serde_json::from_str(&encoded)
+        .map_err(|error| format!("layout fixture registry returned invalid cases: {error}"))?;
+    let fixture = registered
+        .iter()
+        .find(|fixture| fixture.id == id)
+        .cloned()
+        .ok_or_else(|| {
+            let available = registered
+                .iter()
+                .map(|fixture| fixture.id.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("unknown layout fixture `{id}`; available fixtures: {available}")
+        })?;
+    let encoded_id = serde_json::to_string(id)?;
+    applier
+        .eval_script_diagnostic(&format!(
+            "globalThis.__wabou_layout_fixture_mount({encoded_id});"
+        ))
+        .map_err(|error| format!("failed to mount layout fixture `{id}`: {error}"))?;
+    Ok(fixture)
+}
+
 pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
     let RenderOptions {
         out,
@@ -477,6 +509,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         scale_factor,
         color_scheme,
         mode,
+        fixture,
         skip_build,
         with_host,
         wait_ms,
@@ -487,6 +520,9 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         return Err("--scale-factor must be a finite number greater than zero".into());
     }
     if *with_host {
+        if fixture.is_some() {
+            return Err("--fixture is not supported with --with-host".into());
+        }
         return run_with_host(workspace, app, options);
     }
     if !options.cargo_features.is_empty() {
@@ -496,7 +532,15 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         .ok()
         .and_then(|lo| wabou_shell::WindowResourceKey::from_parts(lo, 1))
         .ok_or("--window-id must be a non-zero 32-bit logical window id")?;
-    prepare_frontend(workspace, app, mode.as_deref(), *skip_build)?;
+    let frontend_mode = if fixture.is_some() {
+        if mode.as_deref().is_some_and(|mode| mode != "layout-test") {
+            return Err("--fixture requires Vite mode `layout-test`".into());
+        }
+        Some("layout-test")
+    } else {
+        mode.as_deref()
+    };
+    prepare_frontend(workspace, app, frontend_mode, *skip_build)?;
     let path = bundle_path(workspace, app, BuildProfile::Debug)?;
     let source = fs::read_to_string(&path).map_err(|error| {
         format!(
@@ -523,6 +567,10 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     applier
         .boot(&source)
         .map_err(|error| format!("cannot boot JavaScript bundle: {error:?}"))?;
+    let fixture = fixture
+        .as_deref()
+        .map(|id| mount_layout_fixture(&mut applier, id))
+        .transpose()?;
     if let Some(manifest_path) = batch {
         if !layout_only {
             return Err("--batch is only supported by `wabou layout`".into());
@@ -540,20 +588,36 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
             *color_scheme,
         );
     }
-    applier.set_device_scale(*scale_factor);
-    let physical_width = (f64::from(*width) * scale_factor)
+    let width = fixture
+        .as_ref()
+        .and_then(|fixture| fixture.width)
+        .unwrap_or(*width);
+    let height = fixture
+        .as_ref()
+        .and_then(|fixture| fixture.height)
+        .unwrap_or(*height);
+    let scale_factor = fixture
+        .as_ref()
+        .and_then(|fixture| fixture.scale_factor)
+        .unwrap_or(*scale_factor);
+    let wait_ms = fixture
+        .as_ref()
+        .and_then(|fixture| fixture.wait_ms)
+        .unwrap_or(*wait_ms);
+    applier.set_device_scale(scale_factor);
+    let physical_width = (f64::from(width) * scale_factor)
         .round()
         .clamp(1.0, f64::from(u32::MAX)) as u32;
-    let physical_height = (f64::from(*height) * scale_factor)
+    let physical_height = (f64::from(height) * scale_factor)
         .round()
         .clamp(1.0, f64::from(u32::MAX)) as u32;
     applier.handle_event(UiEvent::WindowMetrics(wabou_shell::WindowMetrics {
         window_key,
-        logical_width: *width,
-        logical_height: *height,
+        logical_width: width,
+        logical_height: height,
         physical_width,
         physical_height,
-        scale_factor: *scale_factor,
+        scale_factor,
         maximized: false,
         focused: true,
         outer_x: None,
@@ -563,17 +627,17 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     }));
     let mut text_context = TextContext::new();
     let mut profiler = wabou_shell::headless::HeadlessFrameProfiler::default();
-    let mut nodes = applier.build_frame(&mut text_context, *width, *height);
-    settle(&mut applier, &mut text_context, &mut nodes, *width, *height);
+    let mut nodes = applier.build_frame(&mut text_context, width, height);
+    settle(&mut applier, &mut text_context, &mut nodes, width, height);
     nodes = if *layout_only {
-        applier.build_frame(&mut text_context, *width, *height)
+        applier.build_frame(&mut text_context, width, height)
     } else {
         profiler.build(
             &mut applier,
             &mut text_context,
-            *width,
-            *height,
-            *scale_factor,
+            width,
+            height,
+            scale_factor,
             base_color,
         )
     };
@@ -583,19 +647,19 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     // Actions can start finite motion (for example a theme transition). Keep
     // driving frames after replay so --wait-ms describes the state being
     // captured rather than an idle delay before the interaction.
-    if *wait_ms > 0 {
-        let deadline = Instant::now() + Duration::from_millis(*wait_ms);
+    if wait_ms > 0 {
+        let deadline = Instant::now() + Duration::from_millis(wait_ms);
         while Instant::now() < deadline {
             thread::sleep(Duration::from_millis(10));
             nodes = if *layout_only {
-                applier.build_frame(&mut text_context, *width, *height)
+                applier.build_frame(&mut text_context, width, height)
             } else {
                 profiler.build(
                     &mut applier,
                     &mut text_context,
-                    *width,
-                    *height,
-                    *scale_factor,
+                    width,
+                    height,
+                    scale_factor,
                     base_color,
                 )
             };
@@ -607,16 +671,16 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
             render_metrics::RenderMetricsOptions {
                 path,
                 application: &app.name,
-                width: *width,
-                height: *height,
-                scale_factor: *scale_factor,
+                width,
+                height,
+                scale_factor,
                 samples: options.samples,
                 base_color,
             },
             &mut applier,
             &mut text_context,
         )?;
-        nodes = applier.build_frame(&mut text_context, *width, *height);
+        nodes = applier.build_frame(&mut text_context, width, height);
     }
 
     if let (Some(path), Some(state)) = (&options.snapshot, debug_state.as_ref()) {
@@ -624,7 +688,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         // The resulting nodes are passed unchanged into scene construction, so
         // the JSON and PNG describe one final logical frame.
         applier.set_debug_state(state.clone());
-        nodes = applier.build_frame(&mut text_context, *width, *height);
+        nodes = applier.build_frame(&mut text_context, width, height);
         if let Some(parent) = path
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
@@ -654,15 +718,15 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         &mut scene,
         &nodes,
         &mut text_context,
-        *width,
-        *height,
+        width,
+        height,
         base_color,
-        *scale_factor,
+        scale_factor,
     );
     // Keep bundle-only captures faithful to the native window path: debug
     // decorations are appended after the application scene and never
     // participate in layout, clipping, or hit testing.
-    applier.paint_debug_overlay(&mut scene, &nodes, &mut text_context, *scale_factor);
+    applier.paint_debug_overlay(&mut scene, &nodes, &mut text_context, scale_factor);
     let out_text = out
         .to_str()
         .ok_or_else(|| format!("output path is not valid UTF-8: {}", out.display()))?;

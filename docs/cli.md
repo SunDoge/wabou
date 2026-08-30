@@ -157,6 +157,22 @@ bindings, and behavior tests are skipped; failures are never rewritten
 automatically. For a pass without native behavior scenarios, use
 `--skip-behavior`; compile and unit checks still run.
 
+Render any named component layout fixture without adding an application-level
+screenshot scenario:
+
+```bash
+bun run wabou render apps/pi-agent \
+  --fixture conversation/complete-turn \
+  --out target/complete-turn.png \
+  --snapshot target/complete-turn.json
+```
+
+The command selects the application's `layout-test` bundle and reuses the
+fixture's declared viewport, device scale, and settling time. The PNG and
+DevTools snapshot therefore describe the same frame used by layout contracts.
+Use this for focused visual review after component behavior and geometry tests
+pass; it is not a replacement for those deterministic assertions.
+
 ## Run and package
 
 ```bash

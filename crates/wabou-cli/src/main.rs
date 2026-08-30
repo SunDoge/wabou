@@ -227,6 +227,13 @@ enum Commands {
         /// Vite mode used to select an application-owned render fixture.
         #[arg(long)]
         mode: Option<String>,
+        /// Render one named application layout fixture.
+        #[arg(
+            long,
+            value_name = "ID",
+            conflicts_with_all = ["mode", "with_host", "width", "height", "scale_factor"]
+        )]
+        fixture: Option<String>,
         /// Reuse an existing debug frontend bundle instead of invoking Vite.
         #[arg(long)]
         skip_build: bool,
@@ -512,6 +519,7 @@ fn main() -> Result<()> {
             scale_factor,
             color_scheme,
             mode,
+            fixture,
             skip_build,
             with_host,
             scenario,
@@ -538,6 +546,7 @@ fn main() -> Result<()> {
                     scale_factor,
                     color_scheme,
                     mode,
+                    fixture,
                     skip_build,
                     with_host,
                     scenario,
@@ -578,6 +587,7 @@ fn main() -> Result<()> {
                     scale_factor,
                     color_scheme,
                     mode,
+                    fixture: None,
                     skip_build,
                     with_host: false,
                     scenario: None,
@@ -1428,6 +1438,7 @@ mod tests {
                     scale_factor,
                     color_scheme,
                     mode,
+                    fixture,
                     skip_build,
                     with_host,
                     scenario,
@@ -1445,6 +1456,7 @@ mod tests {
         assert_eq!(scale_factor, 1.0);
         assert_eq!(color_scheme, HeadlessColorScheme::Light);
         assert_eq!(mode, None);
+        assert_eq!(fixture, None);
         assert!(!skip_build);
         assert!(!with_host);
         assert_eq!(scenario, None);
@@ -1460,6 +1472,7 @@ mod tests {
                     scale_factor,
                     color_scheme,
                     mode,
+                    fixture,
                     skip_build,
                     with_host,
                     scenario,
@@ -1512,6 +1525,7 @@ mod tests {
         assert_eq!(scale_factor, 2.0);
         assert_eq!(color_scheme, HeadlessColorScheme::Dark);
         assert_eq!(mode.as_deref(), Some("ui-test"));
+        assert_eq!(fixture, None);
         assert!(skip_build);
         assert!(with_host);
         assert_eq!(scenario, Some(PathBuf::from("captures/downloads.ts")));
@@ -1519,6 +1533,41 @@ mod tests {
         assert_eq!(click, [10.0, 20.0, 30.0, 40.0]);
         assert_eq!(wheel, [100.0, 200.0, 0.0, 360.0]);
         assert_eq!(key, ["Enter", "Escape"]);
+    }
+
+    #[test]
+    fn render_accepts_a_named_layout_fixture_and_rejects_viewport_overrides() {
+        let Cli {
+            command: Commands::Render { fixture, .. },
+        } = Cli::try_parse_from([
+            "wabou",
+            "render",
+            "apps/pi-agent",
+            "--out",
+            "fixture.png",
+            "--fixture",
+            "conversation/complete-turn",
+        ])
+        .unwrap()
+        else {
+            panic!("expected render command");
+        };
+        assert_eq!(fixture.as_deref(), Some("conversation/complete-turn"));
+
+        assert!(
+            Cli::try_parse_from([
+                "wabou",
+                "render",
+                "apps/pi-agent",
+                "--out",
+                "fixture.png",
+                "--fixture",
+                "conversation/complete-turn",
+                "--width",
+                "800",
+            ])
+            .is_err()
+        );
     }
 
     #[test]
