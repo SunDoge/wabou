@@ -1005,7 +1005,10 @@ export function App() {
             let rewind: PreparedRewind | undefined;
             try {
               const sessionId = agent.state.sessionId;
-              if (sessionId) {
+              const repository = sessionId
+                ? await api.workspaceInfo(agent.cwd)
+                : undefined;
+              if (sessionId && repository?.repository) {
                 rewind = await turnCheckpoints.prepareRewind(
                   agent.cwd,
                   sessionId,
