@@ -35,8 +35,7 @@ enum FileDropPhase {
     Dropped,
 }
 
-#[cfg(test)]
-impl From<FileDropPhase> for legacy_shell::FileDropPhase {
+impl From<FileDropPhase> for gpui_shell::FileDropPhase {
     fn from(value: FileDropPhase) -> Self {
         match value {
             FileDropPhase::Entered => Self::Entered,
@@ -894,7 +893,13 @@ impl TestController {
             } => {
                 TestActionResult::Query(gpui_locator_query_json(nodes, role, label, *index, scope))
             }
-            TestActionKind::FileDrop { .. } => TestActionResult::Handled(false),
+            TestActionKind::FileDrop { phase, paths, .. } => TestActionResult::Handled(
+                controller.dispatch_file_drop(gpui_shell::FileDropEvent {
+                    phase: (*phase).into(),
+                    paths: paths.clone(),
+                    position: None,
+                }),
+            ),
             _ => TestActionResult::Handled(false),
         };
         let _ = action.completion.send(result);
@@ -2094,6 +2099,42 @@ mod tests {
         assert!(driver.poll_gpui_source(
             gpui_shell::initial_window_resource_key(0),
             &[gpui_node(target, None, "button", "Save")],
+            &mut runtime,
+        ));
+        assert!(matches!(
+            completion.try_recv(),
+            Ok(TestActionResult::Handled(true))
+        ));
+    }
+
+    #[test]
+    fn gpui_test_driver_dispatches_file_drop_to_the_formal_runtime() {
+        use crate::runtime_session::RuntimeSession;
+
+        let js = crate::JsRuntime::new().expect("runtime");
+        js.eval_script(
+            "globalThis.__wabou_dispatch_host_frame = () => ({ needsTick: false, preventedEventIds: new Uint32Array() })",
+        )
+        .expect("host event fixture");
+        let mut runtime = crate::gpui_controller::GpuiController::new(RuntimeSession::new(
+            js,
+            gpui_shell::initial_window_resource_key(0),
+        ));
+        let driver = TestController::default();
+        let mut completion = driver.request(TestActionKind::FileDrop {
+            window_key: gpui_shell::initial_window_resource_key(0),
+            phase: FileDropPhase::Dropped,
+            paths: vec!["/tmp/example.torrent".into()],
+        });
+
+        assert!(driver.poll_gpui_source(
+            gpui_shell::initial_window_resource_key(0),
+            &[gpui_node(
+                wabou_host_api::NodeKey::ROOT,
+                None,
+                "view",
+                "Root",
+            )],
             &mut runtime,
         ));
         assert!(matches!(

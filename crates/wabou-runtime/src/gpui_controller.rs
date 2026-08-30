@@ -199,6 +199,32 @@ impl GpuiController {
         Ok(disposition)
     }
 
+    /// Publish a window-level native file-drag transition through the shared
+    /// host-to-JavaScript application-message frame.
+    pub(crate) fn dispatch_file_drop(&mut self, event: gpui_shell::FileDropEvent) -> bool {
+        let phase = match event.phase {
+            gpui_shell::FileDropPhase::Entered => "entered",
+            gpui_shell::FileDropPhase::Moved => "moved",
+            gpui_shell::FileDropPhase::Left => "left",
+            gpui_shell::FileDropPhase::Dropped => "dropped",
+        };
+        let payload = serde_json::json!({
+            "phase": phase,
+            "paths": event.paths.into_iter()
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            "position": event.position.map(|position| serde_json::json!({
+                "x": position.x,
+                "y": position.y,
+            })),
+        });
+        self.dispatch_host_frame(&[HostEvent::Application(crate::HostMessage::str(
+            "wabou:file-drop",
+            payload.to_string(),
+        ))])
+        .is_ok()
+    }
+
     pub fn dispatch_node_json(
         &mut self,
         target: wabou_host_api::NodeKey,
@@ -1001,6 +1027,71 @@ mod tests {
     use super::*;
     use crate::{JsRuntime, protocol::Op};
     use gpui_shell::NodeKey;
+
+    fn install_application_message_probe(js: &JsRuntime) {
+        js.eval_script(
+            r#"
+            globalThis.__host_got = [];
+            globalThis.__wabou_dispatch_host_frame = (u8) => {
+              const view = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+              const decoder = new TextDecoder();
+              let offset = 32;
+              const count = view.getUint32(24, true);
+              for (let index = 0; index < count; index++) {
+                const start = offset;
+                const kind = view.getUint8(offset);
+                const length = view.getUint32(offset + 4, true);
+                offset += 8;
+                if (kind === 3) {
+                  const topicLength = view.getUint16(offset, true);
+                  offset += 2;
+                  const topic = decoder.decode(u8.subarray(offset, offset + topicLength));
+                  offset += topicLength;
+                  const valueKind = u8[offset++];
+                  let payload = null;
+                  if (valueKind === 4) {
+                    const payloadLength = view.getUint16(offset, true);
+                    offset += 2;
+                    payload = decoder.decode(u8.subarray(offset, offset + payloadLength));
+                  }
+                  globalThis.__host_got.push({ topic, payload });
+                }
+                offset = start + length;
+              }
+              return { needsTick: false, preventedEventIds: new Uint32Array() };
+            };
+            "#,
+        )
+        .expect("install application-message probe");
+    }
+
+    #[test]
+    fn native_file_drop_reaches_javascript_through_gpui_controller() {
+        let js = JsRuntime::new().expect("runtime");
+        install_application_message_probe(&js);
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            gpui_shell::initial_window_resource_key(0),
+        ));
+
+        assert!(controller.dispatch_file_drop(gpui_shell::FileDropEvent {
+            phase: gpui_shell::FileDropPhase::Dropped,
+            paths: vec!["/tmp/one.yaml".into(), "/tmp/two.torrent".into()],
+            position: Some(gpui_shell::Point { x: 24.5, y: 31.0 }),
+        }));
+
+        let payload = controller
+            .eval_string(
+                "globalThis.__host_got.find((value) => value.topic === 'wabou:file-drop').payload",
+            )
+            .expect("read file-drop payload");
+        let payload: serde_json::Value = serde_json::from_str(&payload).expect("file-drop json");
+        assert_eq!(payload["phase"], "dropped");
+        assert_eq!(payload["paths"][0], "/tmp/one.yaml");
+        assert_eq!(payload["paths"][1], "/tmp/two.torrent");
+        assert_eq!(payload["position"]["x"], 24.5);
+        assert_eq!(payload["position"]["y"], 31.0);
+    }
 
     #[test]
     fn projected_listener_dispatches_and_preserves_cancellation() {

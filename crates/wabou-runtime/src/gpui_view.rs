@@ -9,9 +9,9 @@ use std::{
 use gpui_base::input::{Input, InputEvent, InputState, Textarea, TextareaState};
 use gpui_shell::WakeCallback;
 use gpui_shell::gpui::{
-    AppContext as _, ClipboardItem, Context, Entity, FocusHandle, IntoElement as _,
-    ParentElement as _, PathPromptOptions, PromptButton, PromptLevel, Render, Styled as _,
-    Subscription, SystemNotification, Task, Window, div,
+    AppContext as _, ClipboardItem, Context, DragMoveEvent, Entity, ExternalPaths, FocusHandle,
+    InteractiveElement as _, IntoElement as _, ParentElement as _, PathPromptOptions, PromptButton,
+    PromptLevel, Render, Styled as _, Subscription, SystemNotification, Task, Window, div,
 };
 
 use crate::gpui_controller::GpuiController;
@@ -39,6 +39,8 @@ pub struct GpuiRuntimeView {
     native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
     test_controller: Option<crate::test_driver::TestController>,
     window_key: gpui_shell::WindowResourceKey,
+    file_drag_paths: Vec<std::path::PathBuf>,
+    file_drag_position: Option<gpui_shell::Point>,
 }
 
 pub(crate) struct GpuiRuntimeViewOptions {
@@ -150,7 +152,49 @@ impl GpuiRuntimeView {
             native_widget_factories: options.native_widget_factories,
             test_controller: options.test_controller,
             window_key: options.window_key,
+            file_drag_paths: Vec::new(),
+            file_drag_position: None,
         }
+    }
+
+    fn handle_file_drag_move(&mut self, paths: &[std::path::PathBuf], position: gpui_shell::Point) {
+        let phase = if self.file_drag_paths.is_empty() {
+            self.file_drag_paths = paths.to_vec();
+            gpui_shell::FileDropPhase::Entered
+        } else {
+            gpui_shell::FileDropPhase::Moved
+        };
+        self.file_drag_position = Some(position);
+        let _ = self
+            .controller
+            .dispatch_file_drop(gpui_shell::FileDropEvent {
+                phase,
+                paths: self.file_drag_paths.clone(),
+                position: Some(position),
+            });
+    }
+
+    fn finish_file_drag(&mut self, dropped_paths: Option<&[std::path::PathBuf]>) {
+        if self.file_drag_paths.is_empty() && dropped_paths.is_none() {
+            return;
+        }
+        let phase = if dropped_paths.is_some() {
+            gpui_shell::FileDropPhase::Dropped
+        } else {
+            gpui_shell::FileDropPhase::Left
+        };
+        let paths = dropped_paths
+            .map(<[std::path::PathBuf]>::to_vec)
+            .unwrap_or_else(|| std::mem::take(&mut self.file_drag_paths));
+        self.file_drag_paths.clear();
+        let position = self.file_drag_position.take();
+        let _ = self
+            .controller
+            .dispatch_file_drop(gpui_shell::FileDropEvent {
+                phase,
+                paths,
+                position,
+            });
     }
 
     fn synchronize_text_controls(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -713,9 +757,40 @@ impl Render for GpuiRuntimeView {
         let native_controls = Rc::new(std::cell::RefCell::new(native_controls));
         let native: gpui_shell::ProjectedNativeElementFactory =
             Rc::new(move |key| native_controls.borrow_mut().remove(&key));
-        self.controller
+        let projected = self
+            .controller
             .interactive_element(input, self.focus.clone(), text_input, Some(native))
-            .expect("the canonical Wabou root remains retained")
+            .expect("the canonical Wabou root remains retained");
+        let drag_view = cx.weak_entity();
+        let drop_view = drag_view.clone();
+        let leave_view = drag_view.clone();
+        div()
+            .size_full()
+            .on_drag_move(move |event: &DragMoveEvent<ExternalPaths>, _, cx| {
+                let paths = event.drag(cx).paths().to_vec();
+                let position = gpui_shell::Point {
+                    x: event.event.position.x.into(),
+                    y: event.event.position.y.into(),
+                };
+                let _ = drag_view.update(cx, |view, cx| {
+                    view.handle_file_drag_move(&paths, position);
+                    cx.notify();
+                });
+            })
+            .on_drop(move |paths: &ExternalPaths, _, cx| {
+                let paths = paths.paths().to_vec();
+                let _ = drop_view.update(cx, |view, cx| {
+                    view.finish_file_drag(Some(&paths));
+                    cx.notify();
+                });
+            })
+            .on_mouse_exit(move |_, _, cx| {
+                let _ = leave_view.update(cx, |view, cx| {
+                    view.finish_file_drag(None);
+                    cx.notify();
+                });
+            })
+            .child(projected)
     }
 }
 
