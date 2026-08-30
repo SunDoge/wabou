@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use gpui::{
     AnyElement, App, Bounds, DispatchPhase, Element, ElementId, FocusHandle, GlobalElementId,
@@ -21,6 +21,27 @@ use crate::{
 /// state into the lightweight projection cache.
 pub type ProjectedNativeElementFactory = Rc<dyn Fn(NodeKey) -> Option<AnyElement>>;
 
+pub(crate) type ProjectedLayoutBounds = Rc<RefCell<BTreeMap<NodeKey, Bounds<Pixels>>>>;
+
+#[derive(Clone, Default)]
+pub(crate) struct ProjectedElementContext {
+    pub(crate) input: Option<ProjectedInputSink>,
+    pub(crate) root_focus: Option<FocusHandle>,
+    pub(crate) text_input: Option<ProjectedTextInputState>,
+    pub(crate) native: Option<ProjectedNativeElementFactory>,
+    pub(crate) layout_bounds: Option<ProjectedLayoutBounds>,
+}
+
+impl ProjectedElementContext {
+    fn for_child(&self) -> Self {
+        Self {
+            root_focus: None,
+            text_input: None,
+            ..self.clone()
+        }
+    }
+}
+
 /// A lightweight GPUI element generated from one Wabou retained node.
 ///
 /// GPUI drops element objects after each frame. Stable state survives through
@@ -32,21 +53,19 @@ pub struct ProjectedElement {
     input: Option<ProjectedInputSink>,
     root_focus: Option<FocusHandle>,
     text_input: Option<ProjectedTextInputState>,
+    layout_bounds: Option<ProjectedLayoutBounds>,
 }
 
 impl ProjectedElement {
     pub(crate) fn from_tree(
         tree: &ProjectionTree,
         key: NodeKey,
-        input: Option<ProjectedInputSink>,
-        root_focus: Option<FocusHandle>,
-        text_input: Option<ProjectedTextInputState>,
-        native: Option<ProjectedNativeElementFactory>,
+        context: ProjectedElementContext,
         ancestor_blocked: bool,
     ) -> Result<Self, ProjectionError> {
         let node = tree.node(key).ok_or(ProjectionError::MissingNode(key))?;
         let interaction_blocked = ancestor_blocked || node.interaction_blocked;
-        let native_child = native.as_ref().and_then(|factory| factory(key));
+        let native_child = context.native.as_ref().and_then(|factory| factory(key));
         let mut children =
             Vec::with_capacity(node.children.len() + usize::from(node.text.is_some()));
         if let Some(native_child) = native_child {
@@ -59,25 +78,18 @@ impl ProjectedElement {
         }
         for child in &node.children {
             children.push(
-                Self::from_tree(
-                    tree,
-                    *child,
-                    input.clone(),
-                    None,
-                    None,
-                    native.clone(),
-                    interaction_blocked,
-                )?
-                .into_any_element(),
+                Self::from_tree(tree, *child, context.for_child(), interaction_blocked)?
+                    .into_any_element(),
             );
         }
         Ok(Self {
             key,
             style: node.style.clone(),
             children,
-            input: (!interaction_blocked).then_some(input).flatten(),
-            root_focus,
-            text_input,
+            input: (!interaction_blocked).then_some(context.input).flatten(),
+            root_focus: context.root_focus,
+            text_input: context.text_input,
+            layout_bounds: context.layout_bounds,
         })
     }
 }
@@ -225,6 +237,9 @@ impl Element for ProjectedElement {
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
+        if let Some(layout_bounds) = &self.layout_bounds {
+            layout_bounds.borrow_mut().insert(self.key, bounds);
+        }
         let text_style = self.style.text_style().cloned();
         let overflow_mask = self.style.overflow_mask(bounds, window.rem_size());
         if let Some(focus) = &self.root_focus {
@@ -407,7 +422,8 @@ mod tests {
         .unwrap();
 
         let element =
-            ProjectedElement::from_tree(&tree, key, None, None, None, None, false).unwrap();
+            ProjectedElement::from_tree(&tree, key, ProjectedElementContext::default(), false)
+                .unwrap();
         assert_eq!(element.id(), Some(key.gpui_element_id()));
     }
 
@@ -471,8 +487,16 @@ mod tests {
             None
         });
 
-        ProjectedElement::from_tree(&tree, NodeKey::ROOT, None, None, None, Some(factory), false)
-            .unwrap();
+        ProjectedElement::from_tree(
+            &tree,
+            NodeKey::ROOT,
+            ProjectedElementContext {
+                native: Some(factory),
+                ..Default::default()
+            },
+            false,
+        )
+        .unwrap();
 
         assert_eq!(*seen.borrow(), [NodeKey::ROOT, old, recreated]);
     }
@@ -503,11 +527,68 @@ mod tests {
             .unwrap();
         let input: ProjectedInputSink = Rc::new(|_, _| {});
 
-        let root =
-            ProjectedElement::from_tree(&tree, NodeKey::ROOT, Some(input), None, None, None, false)
-                .unwrap();
+        let root = ProjectedElement::from_tree(
+            &tree,
+            NodeKey::ROOT,
+            ProjectedElementContext {
+                input: Some(input),
+                ..Default::default()
+            },
+            false,
+        )
+        .unwrap();
 
         assert!(root.input.is_none());
+    }
+
+    #[gpui::test]
+    fn prepaint_publishes_actual_gpui_layout_bounds(cx: &mut TestAppContext) {
+        struct LayoutHost;
+        impl gpui::Render for LayoutHost {
+            fn render(
+                &mut self,
+                _window: &mut Window,
+                _cx: &mut Context<Self>,
+            ) -> impl IntoElement {
+                div()
+            }
+        }
+
+        let key = NodeKey::new(29, 3);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            Style::default(),
+            Some("measured".into()),
+            crate::ProjectedNodeKind::Text,
+        )
+        .unwrap();
+        let bounds = ProjectedLayoutBounds::default();
+        let observed = bounds.clone();
+        let element = ProjectedElement::from_tree(
+            &tree,
+            key,
+            ProjectedElementContext {
+                layout_bounds: Some(bounds),
+                ..Default::default()
+            },
+            false,
+        )
+        .unwrap();
+
+        let (_host, window) = cx.add_window_view(|_, _| LayoutHost);
+        window.draw(
+            point(px(7.0), px(11.0)),
+            gpui::size(px(320.0), px(200.0)),
+            |_, _| element,
+        );
+
+        let bounds = observed.borrow()[&key];
+        assert_eq!(bounds.origin, point(px(7.0), px(11.0)));
+        assert!(bounds.size.width > px(0.0));
+        assert!(bounds.size.height > px(0.0));
     }
 
     #[test]

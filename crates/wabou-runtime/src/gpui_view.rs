@@ -212,6 +212,11 @@ impl GpuiRuntimeView {
         }
     }
 
+    #[cfg(test)]
+    fn layout_snapshot(&self) -> Vec<gpui_shell::GpuiLayoutNode> {
+        self.controller.layout_snapshot()
+    }
+
     fn handle_input(&mut self, event: gpui_shell::ProjectedInputEvent, cx: &mut Context<Self>) {
         let mut response = self.controller.handle_input(event);
         if let Some(request) = response.clipboard.take() {
@@ -751,6 +756,12 @@ mod tests {
             assert_eq!(window.bounds().size, size(px(800.0), px(600.0)));
         })
         .expect("layout and draw the projected Solid frame");
+        let root = handle.root(&mut cx).expect("GPUI runtime root entity");
+        let snapshot = cx.read_entity(&root, |view, _| view.layout_snapshot());
+        assert!(
+            snapshot.iter().any(|node| node.key == NodeKey::new(2, 1)),
+            "the real GPUI prepaint pass must publish bounds for the Solid fixture"
+        );
     }
 
     #[gpui_shell::gpui::test]

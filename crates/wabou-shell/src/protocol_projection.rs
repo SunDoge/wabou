@@ -33,6 +33,17 @@ pub struct GpuiNativeWidget {
         std::collections::BTreeMap<crate::gpui::SharedString, crate::gpui::SharedString>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct GpuiLayoutNode {
+    pub key: NodeKey,
+    pub kind: ProjectedNodeKind,
+    pub parent: Option<NodeKey>,
+    pub attributes:
+        std::collections::BTreeMap<crate::gpui::SharedString, crate::gpui::SharedString>,
+    pub text: Option<crate::gpui::SharedString>,
+    pub bounds: crate::gpui::Bounds<crate::gpui::Pixels>,
+}
+
 #[derive(Debug)]
 pub struct GpuiProjection {
     tree: ProjectionTree,
@@ -42,6 +53,7 @@ pub struct GpuiProjection {
     classes: std::collections::HashMap<NodeKey, Vec<String>>,
     style_diagnostics: std::collections::HashMap<NodeKey, Vec<String>>,
     inline_styles: std::collections::HashMap<NodeKey, std::collections::BTreeMap<String, IrValue>>,
+    layout_bounds: crate::element::ProjectedLayoutBounds,
 }
 
 impl Default for GpuiProjection {
@@ -71,6 +83,7 @@ impl GpuiProjection {
             classes: std::collections::HashMap::new(),
             style_diagnostics: std::collections::HashMap::new(),
             inline_styles: std::collections::HashMap::new(),
+            layout_bounds: Default::default(),
         }
     }
 
@@ -216,6 +229,7 @@ impl GpuiProjection {
                 Op::DropNode { id } => {
                     let removed = self.tree.remove(*id)?;
                     for key in removed {
+                        self.layout_bounds.borrow_mut().remove(&key);
                         self.inline_styles.remove(&key);
                         self.classes.remove(&key);
                         self.style_diagnostics.remove(&key);
@@ -248,6 +262,9 @@ impl GpuiProjection {
     /// Publish structure, text, and resolved-style changes as one GPUI update.
     #[must_use]
     pub fn finish_frame(&mut self) -> bool {
+        self.layout_bounds
+            .borrow_mut()
+            .retain(|key, _| self.tree.node(*key).is_some());
         !self.tree.commit().is_empty()
     }
 
@@ -364,8 +381,32 @@ impl GpuiProjection {
         text_input: crate::ProjectedTextInputState,
         native: Option<crate::ProjectedNativeElementFactory>,
     ) -> Result<crate::ProjectedElement, ProjectionError> {
+        self.tree.interactive_element_with_layout_bounds(
+            root,
+            input,
+            focus,
+            text_input,
+            native,
+            self.layout_bounds.clone(),
+        )
+    }
+
+    pub fn layout_snapshot(&self) -> Vec<GpuiLayoutNode> {
+        let bounds = self.layout_bounds.borrow();
         self.tree
-            .interactive_element(root, input, focus, text_input, native)
+            .keys()
+            .filter_map(|key| {
+                let node = self.tree.node(key)?;
+                Some(GpuiLayoutNode {
+                    key,
+                    kind: node.kind.clone(),
+                    parent: node.parent,
+                    attributes: node.attributes.clone(),
+                    text: node.text.clone(),
+                    bounds: *bounds.get(&key)?,
+                })
+            })
+            .collect()
     }
 
     pub fn update_style(

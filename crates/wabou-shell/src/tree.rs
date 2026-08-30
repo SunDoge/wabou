@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use gpui::{SharedString, Style};
 
+use crate::element::ProjectedElementContext;
 use crate::{
     DirtyKind, FrameBatch, NodeKey, PendingNode, ProjectedElement, ProjectedInputSink,
     ProjectedNativeElementFactory,
@@ -94,7 +95,7 @@ impl ProjectionTree {
     /// The objects are intentionally ephemeral; their stable GPUI element IDs
     /// preserve state and paint caches across frames.
     pub fn element(&self, root: NodeKey) -> Result<ProjectedElement, ProjectionError> {
-        ProjectedElement::from_tree(self, root, None, None, None, None, false)
+        ProjectedElement::from_tree(self, root, ProjectedElementContext::default(), false)
     }
 
     /// Materialize a root whose GPUI hit targets emit typed pointer events.
@@ -109,10 +110,36 @@ impl ProjectionTree {
         ProjectedElement::from_tree(
             self,
             root,
-            Some(input),
-            Some(focus),
-            Some(text_input),
-            native,
+            ProjectedElementContext {
+                input: Some(input),
+                root_focus: Some(focus),
+                text_input: Some(text_input),
+                native,
+                layout_bounds: None,
+            },
+            false,
+        )
+    }
+
+    pub(crate) fn interactive_element_with_layout_bounds(
+        &self,
+        root: NodeKey,
+        input: ProjectedInputSink,
+        focus: gpui::FocusHandle,
+        text_input: crate::ProjectedTextInputState,
+        native: Option<ProjectedNativeElementFactory>,
+        layout_bounds: crate::element::ProjectedLayoutBounds,
+    ) -> Result<ProjectedElement, ProjectionError> {
+        ProjectedElement::from_tree(
+            self,
+            root,
+            ProjectedElementContext {
+                input: Some(input),
+                root_focus: Some(focus),
+                text_input: Some(text_input),
+                native,
+                layout_bounds: Some(layout_bounds),
+            },
             false,
         )
     }
