@@ -163,6 +163,157 @@ pub fn utility_value(value: &crate::Value) -> IrValue {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedDeclaration {
+    pub property: String,
+    pub value: IrValue,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CascadeResult {
+    pub declarations: Vec<ResolvedDeclaration>,
+    pub diagnostics: Vec<String>,
+}
+
+/// Resolve universal rules, authored classes, and supported runtime utilities
+/// using Wabou's deterministic class-list cascade.
+pub fn resolve_classes(sheet: &StyleSheet, classes: &[&str]) -> CascadeResult {
+    let active_colors = sheet
+        .color_themes
+        .as_ref()
+        .and_then(|themes| themes.themes.get(&themes.default))
+        .map(|theme| &theme.colors);
+    let mut utility_theme = sheet.theme.clone();
+    if let Some(colors) = active_colors {
+        utility_theme
+            .colors
+            .extend(colors.iter().map(|(name, color)| (name.clone(), *color)));
+    }
+
+    let mut declarations = Vec::new();
+    let mut diagnostics = Vec::new();
+    for rule in &sheet.rules {
+        if rule.class_name != "*" {
+            continue;
+        }
+        append_rule(&mut declarations, rule, 0);
+    }
+    for (class_position, class_name) in classes.iter().enumerate() {
+        let mut matched = false;
+        for rule in &sheet.rules {
+            if rule.class_name == *class_name {
+                matched = true;
+                append_rule(&mut declarations, rule, class_position + 1);
+            }
+        }
+        if matched || sheet.ignores_class(class_name) {
+            continue;
+        }
+        let semantic_color = ["bg-", "border-", "text-"]
+            .iter()
+            .find_map(|prefix| class_name.strip_prefix(prefix))
+            .filter(|token| active_colors.is_some_and(|colors| colors.contains_key(*token)));
+        match crate::parse_utility_with_theme(class_name, &utility_theme) {
+            Ok(utility) => {
+                for (declaration_index, declaration) in utility.declarations.into_iter().enumerate()
+                {
+                    let value = if let (Some(token), crate::Value::Color { .. }) =
+                        (semantic_color, &declaration.value)
+                    {
+                        IrValue::Color {
+                            value: IrColor::Token {
+                                name: token.to_owned(),
+                            },
+                        }
+                    } else {
+                        utility_value(&declaration.value)
+                    };
+                    declarations.push((
+                        false,
+                        10,
+                        class_position + 1,
+                        0,
+                        declaration_index,
+                        declaration.property,
+                        value,
+                    ));
+                }
+            }
+            Err(error) => diagnostics.push(format!(".{class_name}: {error}")),
+        }
+    }
+    declarations.sort_by_key(
+        |(important, specificity, class_position, source_order, index, _, _)| {
+            (
+                *important,
+                *specificity,
+                *class_position,
+                *source_order,
+                *index,
+            )
+        },
+    );
+    CascadeResult {
+        declarations: declarations
+            .into_iter()
+            .map(|(_, _, _, _, _, property, value)| ResolvedDeclaration {
+                property,
+                value: resolve_color_tokens(value, active_colors),
+            })
+            .collect(),
+        diagnostics,
+    }
+}
+
+fn append_rule(
+    declarations: &mut Vec<(bool, u16, usize, u32, usize, String, IrValue)>,
+    rule: &StyleRule,
+    class_position: usize,
+) {
+    for (declaration_index, declaration) in rule.declarations.iter().enumerate() {
+        declarations.push((
+            declaration.important,
+            rule.specificity,
+            class_position,
+            rule.source_order,
+            declaration_index,
+            declaration.property.clone(),
+            declaration.value.clone(),
+        ));
+    }
+}
+
+fn resolve_color_tokens(
+    value: IrValue,
+    colors: Option<&std::collections::HashMap<String, u32>>,
+) -> IrValue {
+    match value {
+        IrValue::Color {
+            value: IrColor::Token { name },
+        } => colors.and_then(|colors| colors.get(&name)).map_or_else(
+            || IrValue::Color {
+                value: IrColor::Token { name: name.clone() },
+            },
+            |rgba| IrValue::Color {
+                value: IrColor::Literal { rgba: *rgba },
+            },
+        ),
+        IrValue::List { values } => IrValue::List {
+            values: values
+                .into_iter()
+                .map(|value| resolve_color_tokens(value, colors))
+                .collect(),
+        },
+        IrValue::Record { fields } => IrValue::Record {
+            fields: fields
+                .into_iter()
+                .map(|(name, value)| (name, resolve_color_tokens(value, colors)))
+                .collect(),
+        },
+        value => value,
+    }
+}
+
 #[doc(hidden)]
 pub mod fixture {
     use std::collections::HashMap;
@@ -268,5 +419,73 @@ mod tests {
             serde_json::from_str::<StylesheetUpdate>(json).unwrap(),
             StylesheetUpdate::Ir(_)
         ));
+    }
+
+    #[test]
+    fn class_cascade_is_backend_neutral_and_preserves_class_order() {
+        let sheet = fixture::sheet(vec![
+            fixture::rule(
+                "*",
+                vec![fixture::declaration("opacity", fixture::number(0.5))],
+            ),
+            fixture::rule(
+                "narrow",
+                vec![fixture::declaration("width", fixture::px(120.0))],
+            ),
+            fixture::rule(
+                "wide",
+                vec![fixture::declaration("width", fixture::px(320.0))],
+            ),
+        ]);
+
+        let resolved = resolve_classes(&sheet, &["narrow", "wide", "flex"]);
+        assert!(resolved.diagnostics.is_empty());
+        assert_eq!(
+            resolved
+                .declarations
+                .iter()
+                .filter(|declaration| declaration.property == "width")
+                .map(|declaration| declaration.value.clone())
+                .collect::<Vec<_>>(),
+            [fixture::px(120.0), fixture::px(320.0)]
+        );
+        assert!(
+            resolved
+                .declarations
+                .iter()
+                .any(|declaration| declaration.property == "display")
+        );
+    }
+
+    #[test]
+    fn class_cascade_resolves_active_theme_tokens_before_backend_projection() {
+        let sheet = StyleSheet::builder()
+            .color_themes(ColorThemes {
+                default: "light".into(),
+                themes: std::collections::HashMap::from([(
+                    "light".into(),
+                    ColorTheme {
+                        _appearance: Appearance::Light,
+                        colors: std::collections::HashMap::from([("accent".into(), 0x1234_56ff)]),
+                    },
+                )]),
+            })
+            .rules(vec![fixture::rule(
+                "accent-text",
+                vec![fixture::declaration(
+                    "color",
+                    fixture::color_token("accent"),
+                )],
+            )])
+            .build();
+
+        let resolved = resolve_classes(&sheet, &["accent-text"]);
+        assert_eq!(
+            resolved.declarations,
+            [ResolvedDeclaration {
+                property: "color".into(),
+                value: fixture::color(0x1234_56ff),
+            }]
+        );
     }
 }
