@@ -641,7 +641,6 @@ impl RuntimeSourceConfig {
 
 /// Application-facing builder for windows, widgets, capabilities, and tooling.
 pub struct HostBuilder {
-    shell_backend: HostShellBackend,
     base_color: Color,
     window: WindowOptions,
     additional_windows: Vec<WindowOptions>,
@@ -661,17 +660,6 @@ pub struct HostBuilder {
     js_runtime_options: crate::JsRuntimeOptions,
 }
 
-/// Native shell selected for an application host.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum HostShellBackend {
-    /// GPUI-CE owns windows, layout, text, input, and painting.
-    #[default]
-    Gpui,
-    /// Winit + AnyRender backend retained only for capabilities still awaiting
-    /// direct GPUI implementations.
-    LegacyWinit,
-}
-
 impl Default for HostBuilder {
     fn default() -> Self {
         Self::new()
@@ -689,7 +677,6 @@ impl HostBuilder {
     /// Create a builder using an image registry also owned by application Rust code.
     pub fn with_image_resources(image_resources: crate::ImageResourceStore) -> Self {
         let builder = Self {
-            shell_backend: HostShellBackend::Gpui,
             base_color: style::parse_color("#0f172a")
                 .unwrap_or_else(|| Color::from_rgb8(0x0f, 0x17, 0x2a)),
             window: WindowOptions::default(),
@@ -756,15 +743,6 @@ impl HostBuilder {
                 async move { Ok::<_, String>(resources.remove(handle)) }
             })
         })
-    }
-
-    /// Select the native shell implementation.
-    ///
-    /// GPUI is available during the migration so applications can validate
-    /// the new retained projection without changing their Solid code.
-    pub fn shell_backend(mut self, backend: HostShellBackend) -> Self {
-        self.shell_backend = backend;
-        self
     }
 
     /// Register or override a widget factory for `tag`. When the SolidJS app
@@ -1018,12 +996,6 @@ impl HostBuilder {
         self
     }
 
-    /// Install a native integration that shares Wabou's platform event loop.
-    pub fn extension(mut self, extension: impl ShellExtension + 'static) -> Self {
-        self.extensions.push(Box::new(extension));
-        self
-    }
-
     /// Install a GPUI-native application lifecycle extension.
     ///
     /// This is deliberately separate from the legacy winit `ShellExtension`:
@@ -1074,19 +1046,6 @@ impl HostBuilder {
     }
 
     fn run_once(mut self) -> crate::Result<crate::RunOutcome> {
-        if let Ok(shell) = std::env::var("WABOU_SHELL") {
-            self.shell_backend = match shell.as_str() {
-                "gpui" => HostShellBackend::Gpui,
-                "legacy-winit" => HostShellBackend::LegacyWinit,
-                _ => {
-                    return Err(crate::Error::GpuiShell {
-                        message: format!(
-                            "unknown WABOU_SHELL value `{shell}`; expected `gpui` or `legacy-winit`"
-                        ),
-                    });
-                }
-            };
-        }
         #[cfg(feature = "rust-hot-reload")]
         dioxus_devtools::connect_subsecond();
 
@@ -1138,6 +1097,10 @@ impl HostBuilder {
         });
         let headless_test = test_controller.is_some()
             && std::env::var("WABOU_TEST_HEADLESS").is_ok_and(|value| value != "0");
+        // Native behavior scenarios still use the old deterministic harness
+        // until its GPUI replacement lands. This is not an application backend
+        // selector: normal applications always run the GPUI host.
+        let legacy_behavior_harness = test_controller.is_some();
         if let Some(controller) = &test_controller {
             let capability_controller = controller.clone();
             self.capabilities
@@ -1189,7 +1152,7 @@ impl HostBuilder {
                     .local_data_dir
                     .join("window-state")
                     .join(format!("{key}.json"));
-                if self.shell_backend == HostShellBackend::Gpui {
+                if !legacy_behavior_harness {
                     let (persistence, restored) = wabou_shell_gpui::WindowSizePersistence::restore(
                         path,
                         self.window.initial_inner_size,
@@ -1272,7 +1235,7 @@ impl HostBuilder {
         };
         #[cfg(feature = "vite")]
         let mut hmr_clients = Vec::new();
-        if self.shell_backend == HostShellBackend::Gpui {
+        if !legacy_behavior_harness {
             if !self.extensions.is_empty() {
                 return Err(crate::Error::GpuiShell {
                     message: "shell extensions have not migrated to GPUI yet".into(),
@@ -1506,8 +1469,8 @@ fn install_host_message_producers(
 mod tests {
     use super::{
         HostBuilder, HostService, HostServiceContext, HostServiceHandle, HostServicesGuard,
-        HostShellBackend, JsonCapabilityContract, install_host_message_producers,
-        managed_host_service, start_host_services,
+        JsonCapabilityContract, install_host_message_producers, managed_host_service,
+        start_host_services,
     };
     use crate::host_message::{HostMessagePayload, HostTaskTracker, host_message_channel};
     use crate::json_capability::{JsonCapability, invoke_json_method};
@@ -1522,18 +1485,6 @@ mod tests {
             behavior_test: false,
             headless: false,
         }
-    }
-
-    #[test]
-    fn new_hosts_use_gpui_unless_an_application_explicitly_selects_legacy_winit() {
-        assert_eq!(HostShellBackend::default(), HostShellBackend::Gpui);
-        assert_eq!(HostBuilder::new().shell_backend, HostShellBackend::Gpui);
-        assert_eq!(
-            HostBuilder::new()
-                .shell_backend(HostShellBackend::LegacyWinit)
-                .shell_backend,
-            HostShellBackend::LegacyWinit
-        );
     }
 
     #[derive(serde::Deserialize)]

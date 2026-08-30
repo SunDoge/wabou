@@ -27,13 +27,12 @@ pub use wabou_runtime::vello::peniko::Color;
 pub use wabou_runtime::{
     AppDirectories, AppDirectoryConfig, Error, ExtensionContext, HostBuilder, HostMessage,
     HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload, HostMessageRouter,
-    HostService, HostServiceContext, HostServiceHandle, HostShellBackend, ImageResource,
-    ImageResourceHandle, ImageResourceStore, JsonCapability, ManagedHostService, NativeCapability,
-    NativeWidgetContext, NativeWidgetFactory, NativeWidgetMount, PersistentJsonCache,
-    RendererBackend, Result, RevisionedHostPublication, RevisionedHostPublisher,
-    RevisionedHostSnapshot, SerialWorker, ShellExtension, WindowInputMode, WindowLevel,
-    WindowMetrics, WindowOptions, WindowResourceKey, initial_window_resource_key,
-    managed_host_service, widget_api,
+    HostService, HostServiceContext, HostServiceHandle, ImageResource, ImageResourceHandle,
+    ImageResourceStore, JsonCapability, ManagedHostService, NativeCapability, NativeWidgetContext,
+    NativeWidgetFactory, NativeWidgetMount, PersistentJsonCache, RendererBackend, Result,
+    RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker,
+    ShellExtension, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions, WindowResourceKey,
+    initial_window_resource_key, managed_host_service, widget_api,
 };
 pub use wabou_runtime::{PaintScene, anyrender};
 #[cfg(feature = "tray")]

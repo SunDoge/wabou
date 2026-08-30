@@ -56,8 +56,8 @@ pub use config::AppConfig;
 pub use error::{Error, Result};
 pub use gpui_view::GpuiRuntimeView;
 pub use host::{
-    HostBuilder, HostService, HostServiceContext, HostServiceHandle, HostShellBackend,
-    ManagedHostService, managed_host_service,
+    HostBuilder, HostService, HostServiceContext, HostServiceHandle, ManagedHostService,
+    managed_host_service,
 };
 pub use host_frame::{
     HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, NumericEventData, ResizeObservation,
