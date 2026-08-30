@@ -82,6 +82,7 @@ rust-hot-reload = ["dep:dioxus-devtools"]
 vite = ["dep:tungstenite", "dep:ureq"]
 
 [dev-dependencies]
+gpui-platform.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 image = { workspace = true, features = ["png"] }
 proptest = "1"

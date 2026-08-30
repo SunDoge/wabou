@@ -12428,6 +12428,7 @@ dependencies = [
  "getrandom 0.4.3",
  "gpui-ce",
  "gpui_ce_components_base",
+ "gpui_ce_platform",
  "image",
  "jiff",
  "lasso",

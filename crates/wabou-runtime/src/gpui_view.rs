@@ -685,7 +685,7 @@ mod tests {
     use crate::JsRuntime;
     use wabou_host_api::NodeKey;
     use wabou_shell::{EffectId, EffectScope, OpenDialogRequest};
-    use wabou_shell_gpui::gpui::TestAppContext;
+    use wabou_shell_gpui::gpui::{HeadlessAppContext, TestAppContext, px, size};
 
     #[test]
     fn gpui_wakes_are_coalesced_until_the_ui_task_drains_them() {
@@ -722,6 +722,39 @@ mod tests {
         let _root = applier
             .gpui_element()
             .expect("the completed Solid tree must materialize for GPUI");
+    }
+
+    #[test]
+    fn solid_frame_draws_in_a_real_platform_headless_window() {
+        let platform = gpui_platform::current_platform(true);
+        let mut cx = HeadlessAppContext::new(platform.text_system());
+        let handle = cx
+            .open_window(size(px(800.0), px(600.0)), |window, app| {
+                let runtime = JsRuntime::new().expect("QuickJS runtime");
+                let mut applier = Applier::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+                applier
+                    .boot(include_str!("gen/test-runtime.js"))
+                    .expect("boot generated Solid runtime fixture");
+                assert!(applier.build_gpui_frame(800, 600));
+                app.new(|view_cx| {
+                    GpuiRuntimeView::new(
+                        applier,
+                        "Headless GPUI fixture".into(),
+                        None,
+                        HashMap::new(),
+                        window,
+                        view_cx,
+                    )
+                })
+            })
+            .expect("open a hidden GPUI window with the platform text system");
+
+        cx.run_until_parked();
+        cx.update_window(handle.into(), |_, window, app| {
+            let _ = window.draw(app);
+            assert_eq!(window.bounds().size, size(px(800.0), px(600.0)));
+        })
+        .expect("layout and draw the projected Solid frame");
     }
 
     #[wabou_shell_gpui::gpui::test]
