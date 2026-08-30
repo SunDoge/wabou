@@ -85,9 +85,9 @@ pub use wabou_shell::{
     run_windows_with_factory, run_windows_with_factory_and_extensions, style,
 };
 pub use wabou_shell_gpui::{
-    AppDirectories, AppDirectoryConfig, NativeWidgetContext, NativeWidgetFactory, RendererBackend,
-    WindowInputMode, WindowLevel, WindowMetrics, WindowOptions, WindowResourceKey, gpui,
-    initial_window_resource_key,
+    AppDirectories, AppDirectoryConfig, NativeWidgetContext, NativeWidgetFactory,
+    NativeWidgetMount, RendererBackend, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
+    WindowResourceKey, gpui, initial_window_resource_key,
 };
 pub use widget::WidgetFactory;
 pub use widget::{

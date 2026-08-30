@@ -794,6 +794,29 @@ impl HostBuilder {
         + Sync
         + 'static,
     ) -> Self {
+        self.gpui_widget_factories.insert(
+            tag.into(),
+            Arc::new(move |context, window, cx| {
+                wabou_shell_gpui::NativeWidgetMount::stateless(factory(context, window, cx))
+            }),
+        );
+        self
+    }
+
+    /// Register a GPUI native widget that may retain a typed entity for the
+    /// lifetime of its generational Solid node.
+    pub fn gpui_entity_widget(
+        mut self,
+        tag: impl Into<String>,
+        factory: impl for<'a> Fn(
+            wabou_shell_gpui::NativeWidgetContext<'a>,
+            &mut wabou_shell_gpui::gpui::Window,
+            &mut wabou_shell_gpui::gpui::App,
+        ) -> wabou_shell_gpui::NativeWidgetMount
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
         self.gpui_widget_factories
             .insert(tag.into(), Arc::new(factory));
         self

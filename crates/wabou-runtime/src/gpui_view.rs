@@ -34,6 +34,7 @@ pub struct GpuiRuntimeView {
     focus: FocusHandle,
     default_title: String,
     text_controls: BTreeMap<wabou_host_api::NodeKey, GpuiTextControlState>,
+    native_widget_entities: BTreeMap<wabou_host_api::NodeKey, wabou_shell_gpui::gpui::AnyEntity>,
     window_size_persistence: Option<wabou_shell_gpui::WindowSizePersistence>,
     native_widget_factories: HashMap<String, wabou_shell_gpui::NativeWidgetFactory>,
 }
@@ -133,6 +134,7 @@ impl GpuiRuntimeView {
             focus,
             default_title,
             text_controls: BTreeMap::new(),
+            native_widget_entities: BTreeMap::new(),
             window_size_persistence,
             native_widget_factories,
         }
@@ -649,19 +651,29 @@ impl Render for GpuiRuntimeView {
         let widgets = self
             .applier
             .gpui_native_widgets(|tag| self.native_widget_factories.contains_key(tag));
+        self.native_widget_entities
+            .retain(|key, _| widgets.iter().any(|widget| widget.key == *key));
         for widget in &widgets {
             let factory = self
                 .native_widget_factories
                 .get(widget.tag.as_ref())
                 .expect("native widget descriptors are filtered by the registry");
-            native_controls.insert(
-                widget.key,
-                factory(
-                    wabou_shell_gpui::NativeWidgetContext::new(widget.key, &widget.attributes),
-                    window,
-                    cx,
+            let mount = factory(
+                wabou_shell_gpui::NativeWidgetContext::new(
+                    widget.key,
+                    &widget.attributes,
+                    self.native_widget_entities.get(&widget.key),
                 ),
+                window,
+                cx,
             );
+            let (element, entity) = mount.into_parts();
+            if let Some(entity) = entity {
+                self.native_widget_entities.insert(widget.key, entity);
+            } else {
+                self.native_widget_entities.remove(&widget.key);
+            }
+            native_controls.insert(widget.key, element);
         }
         let native_controls = Rc::new(std::cell::RefCell::new(native_controls));
         let native: wabou_shell_gpui::ProjectedNativeElementFactory =
