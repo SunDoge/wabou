@@ -601,7 +601,7 @@ impl Applier {
     }
 
     pub(super) fn has_listener_in_chain(&self, solid_id: NodeKey, code: u8) -> bool {
-        self.gpui_projection.has_listener_in_chain(solid_id, code)
+        self.gpui.projection().has_listener_in_chain(solid_id, code)
     }
 
     pub(super) fn listener_target_in_chain(

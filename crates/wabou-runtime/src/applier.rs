@@ -53,6 +53,7 @@ use vello::peniko::Color;
 use vello::peniko::Fill;
 use wabou_style::IrValue;
 
+use crate::gpui_controller::GpuiController;
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
 use crate::host_message::HostMessageHandle;
 use crate::protocol::NodeKey;
@@ -499,7 +500,7 @@ pub struct RuntimeController {
     document: DocumentState,
     interaction: InteractionState,
     frame: FrameState,
-    gpui_projection: gpui_shell::GpuiProjection,
+    gpui: GpuiController,
 }
 
 /// Compatibility name used only by the legacy Winit projection modules.
@@ -711,17 +712,17 @@ impl RuntimeController {
 
     #[cfg(test)]
     pub(crate) fn gpui_style(&self, key: NodeKey) -> Option<&gpui_shell::gpui::Style> {
-        self.gpui_projection.style(key)
+        self.gpui.projection().style(key)
     }
 
     #[cfg(test)]
     pub(crate) fn gpui_revision(&self) -> u64 {
-        self.gpui_projection.revision()
+        self.gpui.projection().revision()
     }
 
     #[cfg(test)]
     pub(crate) fn gpui_contains(&self, key: NodeKey) -> bool {
-        self.gpui_projection.contains(key)
+        self.gpui.projection().contains(key)
     }
 
     /// Build an applier over an already-booted [`JsRuntime`] (the host owns
@@ -767,7 +768,7 @@ impl RuntimeController {
             document: DocumentState::new(atoms, widget_factories, base_color),
             interaction: InteractionState::new(),
             frame: FrameState::new(FrameProjections::new(layout_metrics), resize_targets),
-            gpui_projection: gpui_shell::GpuiProjection::new(),
+            gpui: GpuiController::default(),
         }
     }
 
@@ -818,6 +819,7 @@ impl RuntimeController {
     }
 
     pub(crate) fn set_image_resource_store(&mut self, store: crate::ImageResourceStore) {
+        self.gpui.set_image_resources(store.clone());
         self.document.resources.set_image_store(store);
     }
 

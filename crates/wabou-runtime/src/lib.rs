@@ -20,6 +20,7 @@ mod clock;
 mod config;
 mod effect_trace;
 mod error;
+mod gpui_controller;
 mod gpui_view;
 mod headless_test;
 mod host;

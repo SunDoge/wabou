@@ -22,7 +22,7 @@ impl Applier {
                 for diagnostic in &sheet.diagnostics {
                     tracing::warn!(target: "stylesheet", %diagnostic);
                 }
-                if let Err(error) = self.gpui_projection.set_stylesheet(sheet.clone()) {
+                if let Err(error) = self.gpui.projection_mut().set_stylesheet(sheet.clone()) {
                     tracing::error!(target: "stylesheet", %error, "failed to install GPUI stylesheet");
                 }
                 let (rule_index, universal_rules) = {
@@ -100,7 +100,7 @@ impl Applier {
             .and_then(|sheet| sheet.color_themes.as_ref())
             .and_then(|themes| themes.themes.get(&name));
         if let Some(theme) = selected {
-            if let Err(error) = self.gpui_projection.set_color_theme(&name) {
+            if let Err(error) = self.gpui.projection_mut().set_color_theme(&name) {
                 tracing::error!(target: "stylesheet", %error, "failed to select GPUI color theme");
             }
             if self.document.style.active_color_theme.as_deref() != Some(name.as_str()) {
@@ -138,7 +138,11 @@ impl Applier {
         };
         if tokens.len() == colors.len() {
             let palette = tokens.into_iter().zip(colors).collect::<HashMap<_, _>>();
-            if let Err(error) = self.gpui_projection.set_color_palette(palette.clone()) {
+            if let Err(error) = self
+                .gpui
+                .projection_mut()
+                .set_color_palette(palette.clone())
+            {
                 tracing::error!(target: "stylesheet", %error, "failed to install GPUI color palette");
             }
             self.document.style.active_theme_colors = Arc::new(palette);
@@ -285,14 +289,14 @@ impl Applier {
                 .invalidation
                 .remove(InvalidationFlags::INHERIT);
         }
-        self.gpui_projection.finish_frame()
+        self.gpui.projection_mut().finish_frame()
     }
 
     #[cfg(test)]
     pub(crate) fn gpui_element(
         &self,
     ) -> Result<gpui_shell::ProjectedElement, gpui_shell::ProjectionError> {
-        self.gpui_projection.tree_element(NodeKey::ROOT)
+        self.gpui.projection().tree_element(NodeKey::ROOT)
     }
 
     pub(crate) fn gpui_interactive_element(
@@ -302,7 +306,7 @@ impl Applier {
         text_input: gpui_shell::ProjectedTextInputState,
         native: Option<gpui_shell::ProjectedNativeElementFactory>,
     ) -> Result<gpui_shell::ProjectedElement, gpui_shell::ProjectionError> {
-        self.gpui_projection.interactive_tree_element(
+        self.gpui.projection().interactive_tree_element(
             NodeKey::ROOT,
             input,
             focus,
@@ -312,14 +316,14 @@ impl Applier {
     }
 
     pub(crate) fn gpui_text_controls(&self) -> Vec<gpui_shell::GpuiTextControl> {
-        self.gpui_projection.text_controls()
+        self.gpui.projection().text_controls()
     }
 
     pub(crate) fn gpui_native_widgets(
         &self,
         accepts: impl FnMut(&str) -> bool,
     ) -> Vec<gpui_shell::GpuiNativeWidget> {
-        self.gpui_projection.native_widgets(accepts)
+        self.gpui.projection().native_widgets(accepts)
     }
 
     pub(crate) fn gpui_commit_text_value(&mut self, target: NodeKey, value: &str) -> bool {
@@ -475,7 +479,7 @@ impl FrameSource for Applier {
         }
         // Publish only after structural operations, class resolution, HMR
         // stylesheets, and inheritance have all settled for this Solid flush.
-        let _ = self.gpui_projection.finish_frame();
+        let _ = self.gpui.projection_mut().finish_frame();
         {
             #[cfg(feature = "profiling")]
             let span = tracing::trace_span!(target: "wabou::perf", "quick.widgets.measure");
