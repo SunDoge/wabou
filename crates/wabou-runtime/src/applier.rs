@@ -528,58 +528,13 @@ impl LegacyRuntimeController {
         event: gpui_shell::ProjectedInputEvent,
     ) -> EventResponse {
         match event {
-            gpui_shell::ProjectedInputEvent::Pointer(event) => self.handle_gpui_pointer(event),
+            gpui_shell::ProjectedInputEvent::Pointer(event) => {
+                self.gpui.handle_projected_pointer(event)
+            }
             gpui_shell::ProjectedInputEvent::Wheel(event) => self.handle_gpui_wheel(event),
             gpui_shell::ProjectedInputEvent::Key(event) => self.handle_gpui_key(event),
             gpui_shell::ProjectedInputEvent::Ime(event) => self.handle_gpui_ime(event),
         }
-    }
-
-    fn handle_gpui_pointer(&mut self, event: gpui_shell::ProjectedPointerEvent) -> EventResponse {
-        let phase = match event.phase {
-            gpui_shell::ProjectedPointerPhase::Move => PointerPhase::Move,
-            gpui_shell::ProjectedPointerPhase::Down => PointerPhase::Down,
-            gpui_shell::ProjectedPointerPhase::Up => PointerPhase::Up,
-        };
-        let button = event.button.map(|button| match button {
-            gpui_shell::ProjectedPointerButton::Primary => PointerButton::Primary,
-            gpui_shell::ProjectedPointerButton::Auxiliary => PointerButton::Auxiliary,
-            gpui_shell::ProjectedPointerButton::Secondary => PointerButton::Secondary,
-            gpui_shell::ProjectedPointerButton::Other => PointerButton::Other(0),
-        });
-        let mut modifiers = Modifiers::empty();
-        modifiers.set(Modifiers::SHIFT, event.shift);
-        modifiers.set(Modifiers::CONTROL, event.control);
-        modifiers.set(Modifiers::ALT, event.alt);
-        modifiers.set(Modifiers::META, event.platform);
-        let button_mask = match button {
-            Some(PointerButton::Primary) => 1,
-            Some(PointerButton::Secondary) => 2,
-            Some(PointerButton::Auxiliary) => 4,
-            _ => 0,
-        };
-        let buttons = match phase {
-            PointerPhase::Down | PointerPhase::Move => button_mask,
-            PointerPhase::Up => 0,
-            _ => unreachable!("GPUI emits only move/down/up here"),
-        };
-        self.interaction.input.target_override = Some(event.target);
-        let response = FrameSource::handle_event(
-            self,
-            UiEvent::Pointer(gpui_shell::PointerEvent {
-                phase,
-                position: gpui_shell::Point {
-                    x: f64::from(event.x),
-                    y: f64::from(event.y),
-                },
-                button,
-                buttons,
-                modifiers,
-                properties: gpui_shell::PointerProperties::default(),
-            }),
-        );
-        self.interaction.input.target_override = None;
-        response
     }
 
     fn handle_gpui_wheel(&mut self, event: gpui_shell::ProjectedWheelEvent) -> EventResponse {
