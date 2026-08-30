@@ -48,6 +48,8 @@ export function responsiveGridColumnCount(options: {
   gap?: number;
   maxColumns?: ResponsiveGridColumnCount;
   initialColumns?: ResponsiveGridColumnCount;
+  itemCount?: number;
+  balanceLastRow?: boolean;
 }): ResponsiveGridColumnCount {
   const maxColumns = options.maxColumns ?? 4;
   if (!Number.isFinite(options.width) || options.width <= 0) {
@@ -58,10 +60,20 @@ export function responsiveGridColumnCount(options: {
   }
   const gap = Math.max(0, options.gap ?? 16);
   const minColumnWidth = Math.max(1, options.minColumnWidth);
-  return Math.min(
+  const columns = Math.min(
     maxColumns,
     Math.max(1, Math.floor((options.width + gap) / (minColumnWidth + gap))),
   ) as ResponsiveGridColumnCount;
+  const itemCount = Math.max(0, Math.floor(options.itemCount ?? 0));
+  if (
+    options.balanceLastRow &&
+    itemCount > 1 &&
+    columns > 1 &&
+    itemCount % columns === 1
+  ) {
+    return (columns - 1) as ResponsiveGridColumnCount;
+  }
+  return columns;
 }
 
 export function responsiveGridRemainderCount(
@@ -82,6 +94,10 @@ export interface ResponsiveGridProps
   maxColumns?: ResponsiveGridColumnCount;
   /** Safe column count used until the native container has been measured. */
   initialColumns?: ResponsiveGridColumnCount;
+  /** Number of rendered cells, used by optional last-row balancing. */
+  itemCount?: number;
+  /** Reduce the column count when it would leave one orphaned final cell. */
+  balanceLastRow?: boolean;
   class?: string;
   ref?: ViewProps["ref"];
 }
@@ -101,6 +117,8 @@ export function ResponsiveGrid(props: ResponsiveGridProps): JSX.Element {
       gap: props.gap,
       maxColumns: props.maxColumns,
       initialColumns: props.initialColumns,
+      itemCount: props.itemCount,
+      balanceLastRow: props.balanceLastRow,
     }),
   );
   const rest = omit(
@@ -110,6 +128,8 @@ export function ResponsiveGrid(props: ResponsiveGridProps): JSX.Element {
     "gap",
     "maxColumns",
     "initialColumns",
+    "itemCount",
+    "balanceLastRow",
     "class",
     "ref",
   );

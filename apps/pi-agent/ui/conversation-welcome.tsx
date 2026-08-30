@@ -52,6 +52,7 @@ export function ConversationWelcome(props: {
       </View>
       <PromptSuggestions
         class="max-w-3xl"
+        itemCount={prompts().length}
         role="group"
         aria-label={i18n.message(m.starter_prompts, {})}
       >

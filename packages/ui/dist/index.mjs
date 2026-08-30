@@ -5069,7 +5069,10 @@ function responsiveGridColumnCount(options) {
 	if (!Number.isFinite(options.width) || options.width <= 0) return Math.min(options.initialColumns ?? 1, maxColumns);
 	const gap = Math.max(0, options.gap ?? 16);
 	const minColumnWidth = Math.max(1, options.minColumnWidth);
-	return Math.min(maxColumns, Math.max(1, Math.floor((options.width + gap) / (minColumnWidth + gap))));
+	const columns = Math.min(maxColumns, Math.max(1, Math.floor((options.width + gap) / (minColumnWidth + gap))));
+	const itemCount = Math.max(0, Math.floor(options.itemCount ?? 0));
+	if (options.balanceLastRow && itemCount > 1 && columns > 1 && itemCount % columns === 1) return columns - 1;
+	return columns;
 }
 function responsiveGridRemainderCount(itemCount, columns) {
 	const remainder = Math.max(0, Math.floor(itemCount)) % columns;
@@ -5088,9 +5091,11 @@ function ResponsiveGrid(props) {
 		minColumnWidth: props.minColumnWidth,
 		gap: props.gap,
 		maxColumns: props.maxColumns,
-		initialColumns: props.initialColumns
+		initialColumns: props.initialColumns,
+		itemCount: props.itemCount,
+		balanceLastRow: props.balanceLastRow
 	}));
-	const rest = omit(props, "children", "minColumnWidth", "gap", "maxColumns", "initialColumns", "class", "ref");
+	const rest = omit(props, "children", "minColumnWidth", "gap", "maxColumns", "initialColumns", "itemCount", "balanceLastRow", "class", "ref");
 	const state = {
 		columns,
 		width: measured.width,
@@ -6542,7 +6547,7 @@ function MessageScroller(props) {
 	const host = useHost$1();
 	const forwarded = omit(props, "followEnd", "endThreshold", "class", "children");
 	const [scrollY, setScrollY] = createSignal(0);
-	const [followingEnd, setFollowingEnd] = createSignal(props.followEnd ?? true);
+	const [followingEnd, setFollowingEnd] = createSignal(untrack(() => props.followEnd ?? true));
 	const [activeAnchor, setActiveAnchor] = createSignal();
 	const threshold = () => Math.max(0, props.endThreshold ?? 24);
 	let viewport;
@@ -6595,8 +6600,8 @@ function MessageScroller(props) {
 			measureAnchors();
 		});
 	};
-	const scheduleEnd = () => {
-		if (!followingEnd() || !viewport) return;
+	const scheduleEnd = (force = false) => {
+		if (!force && !followingEnd() || !viewport) return;
 		if (endFrame !== void 0) cancelAnimationFrame(endFrame);
 		endFrame = requestAnimationFrame(() => {
 			endFrame = void 0;
@@ -6607,6 +6612,15 @@ function MessageScroller(props) {
 		scheduleEnd();
 		scheduleAnchorMeasure();
 	};
+	createEffect(() => props.followEnd, (next, previous) => {
+		if (next === void 0 || next === previous) return;
+		setFollowingEnd(next);
+		if (next) scheduleEnd(true);
+		else if (endFrame !== void 0) {
+			cancelAnimationFrame(endFrame);
+			endFrame = void 0;
+		}
+	});
 	const viewportSize = createMeasuredSize({ onChange: geometryChanged });
 	const contentSize = createMeasuredSize({ onChange: geometryChanged });
 	const range = () => messageScrollRange(contentSize.height(), viewportSize.height());
@@ -8106,6 +8120,10 @@ function PromptSuggestions(props) {
 			return props.maxColumns ?? 3;
 		},
 		initialColumns: 1,
+		get itemCount() {
+			return props.itemCount;
+		},
+		balanceLastRow: true,
 		get gap() {
 			return props.gap ?? 8;
 		},

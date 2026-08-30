@@ -7,8 +7,13 @@ import { ResponsiveGrid, type ResponsiveGridProps } from "./layout";
 export interface PromptSuggestionsProps
   extends Omit<
     ResponsiveGridProps,
-    "gap" | "initialColumns" | "maxColumns" | "minColumnWidth"
+    | "gap"
+    | "initialColumns"
+    | "maxColumns"
+    | "minColumnWidth"
+    | "balanceLastRow"
   > {
+  itemCount?: number;
   minColumnWidth?: number;
   maxColumns?: 1 | 2 | 3;
   gap?: number;
@@ -23,6 +28,8 @@ export function PromptSuggestions(props: PromptSuggestionsProps): JSX.Element {
       minColumnWidth={props.minColumnWidth ?? 176}
       maxColumns={props.maxColumns ?? 3}
       initialColumns={1}
+      itemCount={props.itemCount}
+      balanceLastRow
       gap={props.gap ?? 8}
       class={mergeClasses("w-full", props.class)}
     />

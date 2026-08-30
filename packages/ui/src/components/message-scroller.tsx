@@ -14,6 +14,7 @@ import {
   omit,
   onCleanup,
   Show,
+  untrack,
   useContext,
 } from "solid-js";
 import {
@@ -154,7 +155,9 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
     "children",
   );
   const [scrollY, setScrollY] = createSignal(0);
-  const [followingEnd, setFollowingEnd] = createSignal(props.followEnd ?? true);
+  const [followingEnd, setFollowingEnd] = createSignal(
+    untrack(() => props.followEnd ?? true),
+  );
   const [activeAnchor, setActiveAnchor] = createSignal<string>();
   const threshold = () => Math.max(0, props.endThreshold ?? 24);
   let viewport: Handle | undefined;
@@ -239,8 +242,8 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
     });
   };
 
-  const scheduleEnd = () => {
-    if (!followingEnd() || !viewport) return;
+  const scheduleEnd = (force = false) => {
+    if ((!force && !followingEnd()) || !viewport) return;
     if (endFrame !== undefined) cancelAnimationFrame(endFrame);
     endFrame = requestAnimationFrame(() => {
       endFrame = undefined;
@@ -252,6 +255,19 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
     scheduleEnd();
     scheduleAnchorMeasure();
   };
+  createEffect(
+    () => props.followEnd,
+    (next, previous) => {
+      if (next === undefined || next === previous) return;
+      setFollowingEnd(next);
+      if (next) {
+        scheduleEnd(true);
+      } else if (endFrame !== undefined) {
+        cancelAnimationFrame(endFrame);
+        endFrame = undefined;
+      }
+    },
+  );
   const viewportSize = createMeasuredSize({ onChange: geometryChanged });
   const contentSize = createMeasuredSize({ onChange: geometryChanged });
   const range = () =>

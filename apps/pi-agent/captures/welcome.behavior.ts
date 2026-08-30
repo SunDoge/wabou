@@ -14,4 +14,7 @@ test("captures responsive starter prompts", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Plan a feature" }),
   ).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Scroll to end" }),
+  ).toHaveCount(0);
 });

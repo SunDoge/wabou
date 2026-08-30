@@ -646,6 +646,17 @@ try {
               throw new Error("starter prompt escaped its responsive group");
             }
           }
+          const widths = new Set(
+            suggestions.map((suggestion) => suggestion.rect.width.toFixed(1)),
+          );
+          const columns = new Set(
+            suggestions.map((suggestion) => suggestion.rect.x.toFixed(1)),
+          );
+          if (widths.size !== 1 || columns.size !== 1) {
+            throw new Error(
+              `narrow starter prompts should form one balanced column: widths=${[...widths].join(",")}; x=${[...columns].join(",")}`,
+            );
+          }
         },
       },
       {

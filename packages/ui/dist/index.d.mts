@@ -1142,6 +1142,8 @@ declare function responsiveGridColumnCount(options: {
   gap?: number;
   maxColumns?: ResponsiveGridColumnCount;
   initialColumns?: ResponsiveGridColumnCount;
+  itemCount?: number;
+  balanceLastRow?: boolean;
 }): ResponsiveGridColumnCount;
 declare function responsiveGridRemainderCount(itemCount: number, columns: ResponsiveGridColumnCount): number;
 interface ResponsiveGridProps extends Omit<ViewProps, "children" | "class" | "ref"> {
@@ -1153,6 +1155,10 @@ interface ResponsiveGridProps extends Omit<ViewProps, "children" | "class" | "re
   maxColumns?: ResponsiveGridColumnCount;
   /** Safe column count used until the native container has been measured. */
   initialColumns?: ResponsiveGridColumnCount;
+  /** Number of rendered cells, used by optional last-row balancing. */
+  itemCount?: number;
+  /** Reduce the column count when it would leave one orphaned final cell. */
+  balanceLastRow?: boolean;
   class?: string;
   ref?: ViewProps["ref"];
 }
@@ -1579,7 +1585,8 @@ interface ProgressProps extends Omit<ProgressRootProps, "children" | "class"> {
 declare function Progress(props: ProgressProps): JSX.Element;
 //#endregion
 //#region src/components/prompt-suggestion.d.ts
-interface PromptSuggestionsProps extends Omit<ResponsiveGridProps, "gap" | "initialColumns" | "maxColumns" | "minColumnWidth"> {
+interface PromptSuggestionsProps extends Omit<ResponsiveGridProps, "gap" | "initialColumns" | "maxColumns" | "minColumnWidth" | "balanceLastRow"> {
+  itemCount?: number;
   minColumnWidth?: number;
   maxColumns?: 1 | 2 | 3;
   gap?: number;

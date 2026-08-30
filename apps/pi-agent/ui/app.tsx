@@ -919,7 +919,10 @@ export function App() {
               />
             }
           >
-            <MessageScroller class="flex-1 min-h-0" followEnd>
+            <MessageScroller
+              class="flex-1 min-h-0"
+              followEnd={active().state.items.length > 0}
+            >
               <Show when={searchOpen()}>
                 <TranscriptSearch
                   items={active().state.items}
@@ -955,8 +958,10 @@ export function App() {
                   </WorkbenchContentColumn>
                 </MessageScrollerContent>
               </MessageScrollerViewport>
-              <ConversationNavigator items={active().state.items} />
-              <MessageScrollerButton />
+              <Show when={active().state.items.length > 0}>
+                <ConversationNavigator items={active().state.items} />
+                <MessageScrollerButton />
+              </Show>
             </MessageScroller>
 
             <ConversationComposer
