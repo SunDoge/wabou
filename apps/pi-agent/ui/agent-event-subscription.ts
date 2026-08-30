@@ -28,6 +28,7 @@ export interface AgentEventSubscriptionOptions {
   refreshWorkspaceInfo: () => void;
   restoreForkDraft: (text: string) => void;
   settleRequest: (agentId: string, requestId: string, error?: string) => void;
+  settleFork: (agentId: string, error?: string) => void;
   exported: (path: string) => void;
 }
 
@@ -75,6 +76,15 @@ export function subscribeAgentEvents(
           event.success === true
             ? undefined
             : String(event.error ?? "Pi request failed"),
+        );
+      }
+      if (event.type === "response" && event.command === "fork") {
+        const data = event.data as Record<string, unknown> | undefined;
+        options.settleFork(
+          id,
+          event.success === true && data?.cancelled !== true
+            ? undefined
+            : String(event.error ?? "Pi fork was cancelled"),
         );
       }
       const dialog = parseExtensionUiRequest(event);

@@ -204,7 +204,7 @@
   "image_attachment": "图片附件",
   "remove_attachment": "移除 {name}",
   "fork_session": "从这条消息创建分支？",
-  "fork_session_detail": "之后的消息会离开当前分支。Pi 会保留会话树，并将这条提示词放回输入框供你修改。",
+  "fork_session_detail": "之后的消息会离开当前分支。如果存在 Git 检查点，工作区也会恢复到发送这条提示词之前。Pi 会保留会话树，并将提示词放回输入框供你修改。",
   "fork": "创建分支",
   "add_context_file": "添加上下文文件",
   "context_files": "上下文文件",

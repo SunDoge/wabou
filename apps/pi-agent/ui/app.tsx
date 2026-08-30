@@ -70,6 +70,10 @@ import { Sidebar } from "./sidebar";
 import { SkillsPage } from "./skills-page";
 import { AgentTerminalPanel } from "./terminal-panel";
 import { TranscriptSearch } from "./transcript-search";
+import {
+  type PreparedRewind,
+  TurnCheckpointCoordinator,
+} from "./turn-checkpoints";
 import { type AgentWorkspace, createAgentWorkspace } from "./workspace";
 import { WorkspaceChangesPanel } from "./workspace-changes-panel";
 import { WorkspacePanel } from "./workspace-panel";
@@ -155,6 +159,11 @@ export function App() {
     Readonly<Record<string, string>>
   >({});
   const itemHandles = new ScopedHandleRegistry<Handle>();
+  const turnCheckpoints = new TurnCheckpointCoordinator(api);
+  const pendingRewinds = new Map<
+    string,
+    { cwd: string; rewind: PreparedRewind }
+  >();
   let nextMessage = 1;
   const workspaceInfo = createAsyncQuery({
     source: () => active().cwd.trim() || undefined,
@@ -267,6 +276,7 @@ export function App() {
       if (!submission || submission.agentId !== agentId) return;
       pendingSubmissions.delete(requestId);
       if (!error) return;
+      turnCheckpoints.discard(requestId);
       setDrafts((current) =>
         writeAgentDraft(
           current,
@@ -291,6 +301,19 @@ export function App() {
           submission.contextFiles,
         ),
       );
+    },
+    settleFork: (agentId, error) => {
+      const pending = pendingRewinds.get(agentId);
+      if (!pending) return;
+      pendingRewinds.delete(agentId);
+      if (!error) return;
+      void turnCheckpoints
+        .rollback(pending.cwd, pending.rewind)
+        .catch((rollbackError) =>
+          toasts.error("Could not restore the safety checkpoint", {
+            description: String(rollbackError),
+          }),
+        );
     },
     exported: (path) =>
       toasts.success(i18n.message(m.export_complete, {}), {
@@ -369,6 +392,16 @@ export function App() {
     }
   });
 
+  createEffect(
+    () => ({
+      cwd: active().cwd,
+      sessionId: active().state.sessionId,
+      items: active().state.items,
+    }),
+    ({ cwd, sessionId, items }) =>
+      turnCheckpoints.synchronize(cwd, sessionId, items),
+  );
+
   const start = async (
     agent: AgentWorkspace = active(),
     sessionId?: string,
@@ -415,6 +448,15 @@ export function App() {
     const queueing = agent.state.connection === "running";
     if (agent.state.connection !== "ready" && !(await start())) return;
     const userMessageId = `user-${nextMessage++}`;
+    if (!queueing && workspaceInfo.latest()?.repository) {
+      try {
+        await turnCheckpoints.capture(userMessageId, agent.cwd, agent.id);
+      } catch (error) {
+        console.warn(
+          `[pi-agent] could not capture turn checkpoint: ${String(error)}`,
+        );
+      }
+    }
     pendingSubmissions.set(userMessageId, {
       agentId: agent.id,
       sessionId: activeSessionId(),
@@ -462,6 +504,7 @@ export function App() {
           ));
     } catch (error) {
       pendingSubmissions.delete(userMessageId);
+      turnCheckpoints.discard(userMessageId);
       setDraft(message);
       setImages(attachedImages);
       setContextFiles(attachedContext);
@@ -952,8 +995,43 @@ export function App() {
         cancel={pendingFork.close}
         confirm={() => {
           const target = pendingFork.value();
-          if (target) void api.fork(target.ownerId, target.data.entryId);
           pendingFork.close();
+          if (!target) return;
+          void (async () => {
+            const agent = agents().find(
+              (candidate) => candidate.id === target.ownerId,
+            );
+            if (!agent) return;
+            let rewind: PreparedRewind | undefined;
+            try {
+              const sessionId = agent.state.sessionId;
+              if (sessionId) {
+                rewind = await turnCheckpoints.prepareRewind(
+                  agent.cwd,
+                  sessionId,
+                  target.data.entryId,
+                );
+              }
+              if (rewind) {
+                pendingRewinds.set(agent.id, { cwd: agent.cwd, rewind });
+              }
+              await api.fork(agent.id, target.data.entryId);
+            } catch (error) {
+              pendingRewinds.delete(agent.id);
+              if (rewind) {
+                await turnCheckpoints
+                  .rollback(agent.cwd, rewind)
+                  .catch((rollbackError) =>
+                    console.error(
+                      `[pi-agent] rewind rollback failed: ${String(rollbackError)}`,
+                    ),
+                  );
+              }
+              toasts.error("Could not fork from this message", {
+                description: String(error),
+              });
+            }
+          })();
         }}
       />
       <ExtensionUiDialog

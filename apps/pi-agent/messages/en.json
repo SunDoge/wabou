@@ -204,7 +204,7 @@
   "image_attachment": "Image attachment",
   "remove_attachment": "Remove {name}",
   "fork_session": "Fork from this message?",
-  "fork_session_detail": "Later messages leave the active branch. Pi keeps the session tree and returns this prompt to the composer for editing.",
+  "fork_session_detail": "Later messages leave the active branch. When a Git checkpoint is available, the workspace also returns to its state before this prompt. Pi keeps the session tree and returns the prompt to the composer for editing.",
   "fork": "Fork",
   "add_context_file": "Add context file",
   "context_files": "Context files",
