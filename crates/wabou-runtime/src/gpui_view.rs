@@ -656,10 +656,11 @@ impl Render for GpuiRuntimeView {
                 .expect("native widget descriptors are filtered by the registry");
             native_controls.insert(
                 widget.key,
-                factory(wabou_shell_gpui::NativeWidgetContext::new(
-                    widget.key,
-                    &widget.attributes,
-                )),
+                factory(
+                    wabou_shell_gpui::NativeWidgetContext::new(widget.key, &widget.attributes),
+                    window,
+                    cx,
+                ),
             );
         }
         let native_controls = Rc::new(std::cell::RefCell::new(native_controls));

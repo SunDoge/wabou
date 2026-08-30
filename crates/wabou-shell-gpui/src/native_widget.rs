@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use gpui::{AnyElement, SharedString};
+use gpui::{AnyElement, App, SharedString, Window};
 
 use crate::NodeKey;
 
@@ -45,9 +45,15 @@ impl<'a> NativeWidgetContext<'a> {
 /// Factory that materializes an application-owned GPUI element for one node.
 ///
 /// GPUI elements are intentionally ephemeral; stable state belongs in GPUI
-/// entities or application caches keyed by [`NativeWidgetContext::key`].
-pub type NativeWidgetFactory =
-    Arc<dyn for<'a> Fn(NativeWidgetContext<'a>) -> AnyElement + Send + Sync + 'static>;
+/// entities or application caches keyed by [`NativeWidgetContext::key`]. The
+/// native application context is supplied so factories can create those
+/// entities instead of being limited to stateless elements.
+pub type NativeWidgetFactory = Arc<
+    dyn for<'a> Fn(NativeWidgetContext<'a>, &mut Window, &mut App) -> AnyElement
+        + Send
+        + Sync
+        + 'static,
+>;
 
 #[cfg(test)]
 mod tests {

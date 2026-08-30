@@ -18,11 +18,14 @@ const VIEW: f64 = 1.5;
 /// GPUI element. Attribute changes select a deterministic image while ordinary
 /// frame rebuilds reuse the already encoded source.
 pub fn gpui_factory()
--> impl for<'a> Fn(NativeWidgetContext<'a>) -> gpui::AnyElement + Send + Sync + 'static {
+-> impl for<'a> Fn(NativeWidgetContext<'a>, &mut gpui::Window, &mut gpui::App) -> gpui::AnyElement
++ Send
++ Sync
++ 'static {
     use gpui::{IntoElement as _, Styled as _};
 
     let images = Arc::new(Mutex::new(HashMap::<(u64, u64), Arc<gpui::Image>>::new()));
-    move |context| {
+    move |context, _window, _cx| {
         let cx = context
             .attribute("cx")
             .and_then(|value| value.parse::<f64>().ok())

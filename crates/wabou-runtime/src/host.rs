@@ -787,6 +787,8 @@ impl HostBuilder {
         tag: impl Into<String>,
         factory: impl for<'a> Fn(
             wabou_shell_gpui::NativeWidgetContext<'a>,
+            &mut wabou_shell_gpui::gpui::Window,
+            &mut wabou_shell_gpui::gpui::App,
         ) -> wabou_shell_gpui::gpui::AnyElement
         + Send
         + Sync
