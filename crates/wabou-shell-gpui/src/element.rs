@@ -7,9 +7,9 @@ use gpui::{
 
 use crate::{
     GpuiNodeKeyExt, NodeKey, ProjectedInputEvent, ProjectedInputSink, ProjectedKeyEvent,
-    ProjectedKeyPhase, ProjectedPointerButton, ProjectedPointerEvent, ProjectedPointerPhase,
-    ProjectedTextInputState, ProjectedWheelEvent, ProjectedWheelPhase, ProjectionError,
-    ProjectionTree,
+    ProjectedKeyPhase, ProjectedNode, ProjectedNodeKind, ProjectedPointerButton,
+    ProjectedPointerEvent, ProjectedPointerPhase, ProjectedTextInputState, ProjectedWheelEvent,
+    ProjectedWheelPhase, ProjectionError, ProjectionTree,
 };
 
 /// A lightweight GPUI element generated from one Wabou retained node.
@@ -36,7 +36,7 @@ impl ProjectedElement {
         let node = tree.node(key).ok_or(ProjectionError::MissingNode(key))?;
         let mut children =
             Vec::with_capacity(node.children.len() + usize::from(node.text.is_some()));
-        if let Some(text) = &node.text {
+        if let Some(text) = projected_text(node) {
             children.push(div().child(text.clone()).into_any_element());
         }
         if let Some(image) = &node.image {
@@ -55,6 +55,22 @@ impl ProjectedElement {
             text_input,
         })
     }
+}
+
+fn projected_text(node: &ProjectedNode) -> Option<&gpui::SharedString> {
+    node.text.as_ref().or_else(|| {
+        let ProjectedNodeKind::Element(tag) = &node.kind else {
+            return None;
+        };
+        matches!(tag.as_ref(), "input" | "textarea")
+            .then(|| {
+                node.attributes
+                    .get("value")
+                    .filter(|value| !value.is_empty())
+                    .or_else(|| node.attributes.get("placeholder"))
+            })
+            .flatten()
+    })
 }
 
 fn key_event(
@@ -351,6 +367,34 @@ mod tests {
 
         let element = ProjectedElement::from_tree(&tree, key, None, None, None).unwrap();
         assert_eq!(element.id(), Some(key.gpui_element_id()));
+    }
+
+    #[test]
+    fn text_controls_project_value_then_placeholder_without_web_dom_defaults() {
+        let key = NodeKey::new(19, 4);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("input".into()),
+        )
+        .unwrap();
+        tree.update_attribute(key, "placeholder".into(), "Search".into())
+            .unwrap();
+        assert_eq!(
+            projected_text(tree.node(key).unwrap()).map(AsRef::as_ref),
+            Some("Search")
+        );
+
+        tree.update_attribute(key, "value".into(), "typed".into())
+            .unwrap();
+        assert_eq!(
+            projected_text(tree.node(key).unwrap()).map(AsRef::as_ref),
+            Some("typed")
+        );
     }
 
     #[test]
