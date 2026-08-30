@@ -91,7 +91,7 @@ pub(super) struct HmrJsUpdate {
     pub(super) source: String,
 }
 
-pub(super) struct ReloadState {
+pub(crate) struct ReloadState {
     sender: UiInboxSender<ReloadMsg>,
     inbox: UiInbox<ReloadMsg>,
     vite_entry: Option<String>,

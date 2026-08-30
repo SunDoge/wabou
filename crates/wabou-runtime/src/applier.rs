@@ -11,13 +11,12 @@
 //! (deterministic, sweep-driven) to keep frames recordable/replayable.
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::Arc;
 #[cfg(test)]
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
-use tokio_util::sync::CancellationToken;
 
 #[cfg(any(feature = "devtools", test))]
 use anyrender::PaintScene;
@@ -55,11 +54,12 @@ use vello::peniko::Fill;
 use wabou_style::IrValue;
 
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
+use crate::host_message::HostMessageHandle;
 use crate::protocol::NodeKey;
 
 #[cfg(any(feature = "devtools", test))]
 mod debug_projection;
-mod effect_bridge;
+pub(crate) mod effect_bridge;
 mod focus;
 mod frame_source;
 mod input_router;
@@ -67,7 +67,7 @@ mod interaction;
 mod node_store;
 mod projections;
 mod protocol_apply;
-mod reload;
+pub(crate) mod reload;
 mod resources;
 mod runtime_updates;
 mod scroll;
@@ -77,23 +77,20 @@ mod text_selection;
 mod widget_bridge;
 mod widget_manager;
 use crate::atom::{Atom, AtomPool};
-use crate::host_message::{
-    DEFAULT_HOST_MESSAGE_CAPACITY, HostMessageHandle, HostMessageInbox, host_message_channel,
-};
 use crate::inline_context::{InlineFormattingContext, NodeFacts};
 use crate::jsrt::{JsRuntime, LayoutMetric, LayoutMetricsSnapshot, LayoutRect, ResizeTargets};
 use crate::protocol::{Frame, Op, decode_frame};
 use crate::protocol::{event, event_data};
+use crate::runtime_session::RuntimeSession;
 use crate::style_ir::{self, StyleSheet, StylesheetUpdate};
-use effect_bridge::EffectBridge;
 #[cfg(test)]
 use input_router::EventMask;
 use input_router::{HitClip, HitItem, HitNode, InputRouter, hit_contains};
 use node_store::NodeStore;
 use projections::FrameProjections;
+use reload::HmrBatch;
 #[cfg(test)]
 use reload::plan_hmr_batch;
-use reload::{HmrBatch, ReloadState};
 pub use reload::{HmrDrainResult, ReloadHandle, ReloadMsg};
 use resources::ResourceState;
 use scroll::{ScrollState, ScrollbarDrag, ScrollbarHit};
@@ -346,70 +343,6 @@ const INHERITED_PROPERTIES: &[&str] = &[
     "user-select",
     "cursor",
 ];
-
-/// QuickJS and host-bridge state with one shared cancellation lifetime.
-struct RuntimeSession {
-    js: JsRuntime,
-    has_raf: bool,
-    protocol_revision: u64,
-    reload: ReloadState,
-    pending_css: Option<Rc<RefCell<Option<StylesheetUpdate>>>>,
-    pending_color_theme: Option<Rc<RefCell<Option<String>>>>,
-    pending_color_palette: Option<Rc<RefCell<Option<Vec<u32>>>>>,
-    pending_fonts: Option<Rc<RefCell<Vec<Vec<u8>>>>>,
-    frame_stats: Option<Rc<RefCell<Option<FrameStats>>>>,
-    pending_host_actions: Rc<RefCell<VecDeque<gpui_shell::HostAction>>>,
-    effect_bridge: EffectBridge,
-    wake_callback: Option<WakeCallback>,
-    host_message_inbox: HostMessageInbox,
-    host_message_handle: HostMessageHandle,
-    host_message_cancellation: CancellationToken,
-    host_tasks: Arc<crate::host_message::HostTaskTracker>,
-}
-
-impl Drop for RuntimeSession {
-    fn drop(&mut self) {
-        self.host_message_cancellation.cancel();
-        if !self
-            .host_tasks
-            .wait_for_idle(std::time::Duration::from_secs(1))
-        {
-            tracing::warn!("host message producers did not stop before runtime shutdown");
-        }
-    }
-}
-
-impl RuntimeSession {
-    fn new(js: JsRuntime, window_key: gpui_shell::WindowResourceKey) -> Self {
-        let pending_css = js.pending_css_handle();
-        let pending_color_theme = js.pending_color_theme_handle();
-        let pending_color_palette = js.pending_color_palette_handle();
-        let pending_fonts = js.pending_fonts_handle();
-        let frame_stats = js.frame_stats_handle();
-        let pending_host_actions = Rc::new(RefCell::new(VecDeque::new()));
-        let effect_bridge = EffectBridge::install(&js, window_key);
-        let (host_message_handle, host_message_inbox) =
-            host_message_channel(DEFAULT_HOST_MESSAGE_CAPACITY);
-        Self {
-            js,
-            has_raf: true,
-            protocol_revision: 0,
-            reload: ReloadState::default(),
-            pending_css: Some(pending_css),
-            pending_color_theme: Some(pending_color_theme),
-            pending_color_palette: Some(pending_color_palette),
-            pending_fonts: Some(pending_fonts),
-            frame_stats: Some(frame_stats),
-            pending_host_actions,
-            effect_bridge,
-            wake_callback: None,
-            host_message_inbox,
-            host_message_handle,
-            host_message_cancellation: CancellationToken::new(),
-            host_tasks: Arc::new(crate::host_message::HostTaskTracker::default()),
-        }
-    }
-}
 
 struct DocumentState {
     node_store: NodeStore,

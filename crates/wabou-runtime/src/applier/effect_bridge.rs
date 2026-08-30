@@ -15,7 +15,7 @@ use gpui_shell::{
 static NEXT_EFFECT_ID: AtomicU32 = AtomicU32::new(1);
 
 #[derive(Clone)]
-pub(super) struct EffectBridge {
+pub(crate) struct EffectBridge {
     effects: Rc<RefCell<VecDeque<EffectRequest>>>,
     action_wake: Rc<RefCell<Option<WakeCallback>>>,
     pending: Rc<RefCell<HashSet<u32>>>,
@@ -25,7 +25,7 @@ pub(super) struct EffectBridge {
 }
 
 impl EffectBridge {
-    pub(super) fn install(js: &JsRuntime, window_key: gpui_shell::WindowResourceKey) -> Self {
+    pub(crate) fn install(js: &JsRuntime, window_key: gpui_shell::WindowResourceKey) -> Self {
         let bridge = Self {
             effects: Rc::new(RefCell::new(VecDeque::new())),
             action_wake: Rc::new(RefCell::new(None)),

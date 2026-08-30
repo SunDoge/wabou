@@ -37,6 +37,7 @@ mod native_capability;
 mod persistent_cache;
 mod protocol;
 pub mod resource;
+mod runtime_session;
 mod serial_worker;
 mod source_map;
 use wabou_style::stylesheet as style_ir;
