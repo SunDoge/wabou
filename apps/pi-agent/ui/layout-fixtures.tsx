@@ -141,7 +141,7 @@ function FullWorkbenchFixture() {
         <MessageScroller class="flex-1 min-h-0">
           <MessageScrollerViewport>
             <MessageScrollerContent>
-              <WorkbenchContentColumn class="px-6 py-5">
+              <WorkbenchContentColumn class="max-w-5xl px-6 py-5">
                 <ConversationList items={state.items} />
               </WorkbenchContentColumn>
             </MessageScrollerContent>
@@ -196,7 +196,7 @@ defineLayoutFixtures({
         <WorkbenchContentColumn
           role="region"
           aria-label="Readable workbench content"
-          class="h-20 bg-surface"
+          class="max-w-5xl h-20 bg-surface"
         />
       </View>
     ),

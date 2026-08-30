@@ -1022,7 +1022,7 @@ export function App() {
               </Show>
               <MessageScrollerViewport>
                 <MessageScrollerContent>
-                  <WorkbenchContentColumn class="px-6 py-5">
+                  <WorkbenchContentColumn class="max-w-5xl px-6 py-5">
                     <Show
                       when={active().state.items.length > 0}
                       fallback={

@@ -219,7 +219,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
         role="group"
         aria-label={i18n.message(m.prompt_placeholder, {})}
         data-wabou-owns="surface focus-ring"
-        class="rounded-xl border border-subtle bg-input shadow-xs px-3 pt-3 pb-2 gap-2"
+        class="max-w-5xl rounded-xl border border-subtle bg-input shadow-xs px-3 pt-3 pb-2 gap-2"
       >
         <ExtensionUiChrome
           statuses={props.statuses}
@@ -344,7 +344,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
           </Button>
         </View>
       </WorkbenchContentColumn>
-      <WorkbenchContentColumn class="px-3 pt-2 flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <WorkbenchContentColumn class="max-w-5xl px-3 pt-2 flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <Text class="min-w-40 flex-1 truncate text-xs text-muted">
           {props.project} · {i18n.message(m.send_hint, {})}
         </Text>

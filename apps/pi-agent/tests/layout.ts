@@ -133,12 +133,12 @@ try {
             role: "region",
             name: "Readable workbench content",
           });
-          if (Math.abs(column.rect.width - 896) > 0.5) {
+          if (Math.abs(column.rect.width - 1_024) > 0.5) {
             throw new Error(
               `workbench content column did not honor its readable width: width=${column.rect.width}`,
             );
           }
-          if (Math.abs(column.rect.x - 152) > 0.5) {
+          if (Math.abs(column.rect.x - 88) > 0.5) {
             throw new Error(
               `workbench content column was not centered: x=${column.rect.x}`,
             );
