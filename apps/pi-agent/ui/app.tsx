@@ -31,6 +31,7 @@ import {
   reducePiEvent,
 } from "./agent-state";
 import { subscribeAgentEvents } from "./agent-event-subscription";
+import { createAgentProfiles } from "./agent-profiles";
 import { type PiSession, usePiApi } from "./api";
 import { AppCommandPalette } from "./app-command-palette";
 import type { ComposerDeliveryMode } from "./composer-delivery";
@@ -40,7 +41,6 @@ import { ConversationComposer } from "./conversation-composer";
 import { ConversationHeader } from "./conversation-header";
 import { ConversationNavigator } from "./conversation-navigator";
 import { ConversationWelcome } from "./conversation-welcome";
-import { createDeferredWriter } from "./deferred-writer";
 import {
   type AgentDraftLists,
   type AgentDrafts,
@@ -71,10 +71,7 @@ import { AgentTerminalPanel } from "./terminal-panel";
 import { TranscriptSearch } from "./transcript-search";
 import {
   type AgentWorkspace,
-  agentProfile,
   createAgentWorkspace,
-  resolveActiveAgentId,
-  restoreAgentWorkspace,
 } from "./workspace";
 import { WorkspaceChangesPanel } from "./workspace-changes-panel";
 import { WorkspacePanel } from "./workspace-panel";
@@ -115,12 +112,22 @@ export function App() {
     () => defaults.value().locale,
     (locale) => i18n.set(locale),
   );
-  const [agents, setAgents] = createSignal<readonly AgentWorkspace[]>([
-    createAgentWorkspace(1),
-  ]);
+  const profiles = createAgentProfiles({
+    api,
+    routeAgentId: () => params().agentId,
+  });
+  const {
+    agents,
+    setAgents,
+    active,
+    activeId,
+    setLastActiveId,
+    updateAgent,
+    patchActive,
+    prepareDefaultWorkspace,
+  } = profiles;
   const [sessions, setSessions] = createSignal<readonly PiSession[]>([]);
   const [workspaceRevision, setWorkspaceRevision] = createSignal(0);
-  const [lastActiveId, setLastActiveId] = createSignal("agent-1");
   const [drafts, setDrafts] = createSignal<AgentDrafts>({});
   const [draftImages, setDraftImages] = createSignal<AgentDraftLists>({});
   const [draftContext, setDraftContext] = createSignal<AgentDraftLists>({});
@@ -151,59 +158,6 @@ export function App() {
   >({});
   const itemHandles = new ScopedHandleRegistry<Handle>();
   let nextMessage = 1;
-  let profilesHydrated = false;
-  let restoredProfiles: boolean | undefined;
-  const profileWriter = createDeferredWriter({
-    write: (serialized: string) => api.saveAgents(JSON.parse(serialized)),
-    onError: (error) =>
-      console.error(`[pi-agent] could not save projects: ${String(error)}`),
-    equals: Object.is,
-  });
-
-  void api
-    .listAgents()
-    .then(async (profiles) => {
-      if (profiles.length > 0) {
-        restoredProfiles = true;
-        const restored = profiles.map(restoreAgentWorkspace);
-        setAgents(restored);
-        setLastActiveId(restored[0].id);
-      } else {
-        restoredProfiles = false;
-        const cwd = await api.defaultWorkspace("agent-1");
-        setAgents((current) =>
-          current.map((agent) =>
-            agent.id === "agent-1" && !agent.cwd ? { ...agent, cwd } : agent,
-          ),
-        );
-      }
-    })
-    .catch((error) => {
-      console.error(
-        `[pi-agent] could not prepare the default workspace: ${String(error)}`,
-      );
-    })
-    .finally(() => {
-      profilesHydrated = true;
-      const serialized = JSON.stringify(agents().map(agentProfile));
-      if (restoredProfiles === true) profileWriter.prime(serialized);
-      else if (restoredProfiles === false) profileWriter.schedule(serialized);
-    });
-
-  createEffect(
-    () => JSON.stringify(agents().map(agentProfile)),
-    (serialized) => {
-      if (!profilesHydrated) return;
-      profileWriter.schedule(serialized);
-    },
-  );
-  const activeId = () => {
-    return (
-      resolveActiveAgentId(agents(), params().agentId, lastActiveId()) ?? ""
-    );
-  };
-  const active = () =>
-    agents().find((agent) => agent.id === activeId()) ?? agents()[0];
   const workspaceInfo = createAsyncQuery({
     source: () => active().cwd.trim() || undefined,
     // Repository metadata is decorative; losing it must not replace the app's
@@ -290,38 +244,6 @@ export function App() {
     setDraftContext((current) =>
       writeAgentDraftList(current, activeId(), activeSessionId(), paths),
     );
-  createEffect(
-    () => params().agentId,
-    (routeId) => {
-      if (routeId && agents().some((agent) => agent.id === routeId)) {
-        setLastActiveId(routeId);
-      }
-    },
-  );
-  const updateAgent = (
-    id: string,
-    update: (agent: AgentWorkspace) => AgentWorkspace,
-  ) =>
-    setAgents((current) =>
-      current.map((agent) => (agent.id === id ? update(agent) : agent)),
-    );
-  const patchActive = (patch: Partial<AgentWorkspace>) => {
-    const id = active().id;
-    updateAgent(id, (agent) => ({ ...agent, ...patch }));
-  };
-  const prepareDefaultWorkspace = (id: string) => {
-    void api
-      .defaultWorkspace(id)
-      .then((cwd) => {
-        updateAgent(id, (agent) => (agent.cwd ? agent : { ...agent, cwd }));
-      })
-      .catch((error) => {
-        console.error(
-          `[pi-agent] could not prepare the default workspace: ${String(error)}`,
-        );
-      });
-  };
-
   const unsubscribe = subscribeAgentEvents({
     api,
     activeAgentId: activeId,
@@ -361,7 +283,6 @@ export function App() {
     unsubscribe();
     unsubscribeExtensionUi();
     itemHandles.clear();
-    profileWriter.flush();
   });
 
   // Status updates replace agent objects. Keep the effect keyed by the stable ID
@@ -501,7 +422,7 @@ export function App() {
     setAgents((current) => [...current, agent]);
     setLastActiveId(agent.id);
     void navigate({ to: `/agents/${agent.id}` });
-    prepareDefaultWorkspace(agent.id);
+    void prepareDefaultWorkspace(agent.id);
   };
 
   const deleteActiveAgent = async () => {
@@ -558,7 +479,7 @@ export function App() {
       delete nextTitles[removed.id];
       return nextTitles;
     });
-    if (!next.cwd) prepareDefaultWorkspace(next.id);
+    if (!next.cwd) void prepareDefaultWorkspace(next.id);
   };
 
   const selectAgent = (id: string) => {
