@@ -161,7 +161,7 @@
   "stop": "停止",
   "empty_title": "今天要构建什么？",
   "empty_workspace_title": "使用 Pi 开发 {workspace}",
-  "empty_detail": "打开多个项目，每个项目都有自己的工作区、Pi 进程和会话。",
+  "empty_detail": "选择一个入门任务，或在下方输入自己的任务。发送第一条消息时 Pi 会自动启动。",
   "starter_prompts": "入门任务",
   "starter_explain_title": "了解这个项目",
   "starter_explain_prompt": "解释这个仓库的结构，并建议一个合适的首个任务。",

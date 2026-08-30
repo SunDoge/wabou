@@ -1,9 +1,13 @@
 import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
   Icon,
   PromptSuggestion,
   PromptSuggestions,
-  Text,
-  View,
 } from "@wabou/ui";
 import bot from "lucide-static/icons/bot.svg?raw";
 import gitPullRequest from "lucide-static/icons/git-pull-request.svg?raw";
@@ -36,36 +40,40 @@ export function ConversationWelcome(props: {
     },
   ];
   return (
-    <View class="min-h-80 items-center justify-center gap-5 py-10">
-      <View class="w-11 h-11 rounded-xl bg-selected flex items-center justify-center">
-        <Icon source={bot} size={21} class="text-accent" />
-      </View>
-      <View class="items-center gap-1">
-        <Text class="text-xl font-semibold text-primary">
+    <Empty variant="plain" class="min-h-0 p-0 py-5 gap-4">
+      <EmptyHeader class="max-w-xl gap-2">
+        <EmptyMedia
+          variant="icon"
+          class="w-11 h-11 mb-1 rounded-xl bg-selected"
+        >
+          <Icon source={bot} size={21} class="text-accent" />
+        </EmptyMedia>
+        <EmptyTitle class="text-xl font-semibold">
           {i18n.message(m.empty_workspace_title, {
             workspace: workspaceName(props.workspace),
           })}
-        </Text>
-        <Text class="max-w-xl text-sm text-secondary text-center whitespace-normal">
+        </EmptyTitle>
+        <EmptyDescription class="max-w-xl text-secondary">
           {i18n.message(m.empty_detail, {})}
-        </Text>
-      </View>
-      <PromptSuggestions
-        class="max-w-3xl"
-        itemCount={prompts().length}
-        role="group"
-        aria-label={i18n.message(m.starter_prompts, {})}
-      >
-        {prompts().map((item) => (
-          <PromptSuggestion
-            icon={item.icon}
-            title={item.title}
-            description={item.description}
-            onClick={() => props.choosePrompt(item.prompt)}
-          />
-        ))}
-      </PromptSuggestions>
-    </View>
+        </EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent class="max-w-3xl">
+        <PromptSuggestions
+          itemCount={prompts().length}
+          role="group"
+          aria-label={i18n.message(m.starter_prompts, {})}
+        >
+          {prompts().map((item) => (
+            <PromptSuggestion
+              icon={item.icon}
+              title={item.title}
+              description={item.description}
+              onClick={() => props.choosePrompt(item.prompt)}
+            />
+          ))}
+        </PromptSuggestions>
+      </EmptyContent>
+    </Empty>
   );
 }
 

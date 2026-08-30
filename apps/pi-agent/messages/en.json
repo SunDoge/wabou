@@ -161,7 +161,7 @@
   "stop": "Stop",
   "empty_title": "What are we building?",
   "empty_workspace_title": "Build {workspace} with Pi",
-  "empty_detail": "Open several projects, each with its own workspace, Pi process, and sessions.",
+  "empty_detail": "Choose a starter task or write your own below. Pi starts automatically when you send the first message.",
   "starter_prompts": "Starter prompts",
   "starter_explain_title": "Understand this project",
   "starter_explain_prompt": "Explain this repository's structure and suggest a good first task.",
