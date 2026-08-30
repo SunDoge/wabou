@@ -57,7 +57,7 @@ use crate::test_report::finish_test_report;
 use crate::{HostMessageContext, HostMessageRouter};
 use crate::{WindowOptions, run_windows_with_factory_and_extensions, style};
 use legacy_shell::{ShellExtension, WidgetFactory};
-use wabou_backend_winit_widgets::{SecretStore, builtin_factories, password_input_factory};
+use wabou_backend_winit_widgets::builtin_factories;
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;
@@ -790,13 +790,6 @@ impl HostBuilder {
     ) -> Self {
         self.gpui_widget_factories
             .insert(tag.into(), Arc::new(factory));
-        self
-    }
-
-    /// Register the framework password widget backed by a Rust-only secret store.
-    pub fn password_inputs(mut self, secrets: SecretStore) -> Self {
-        self.widget_factories
-            .insert("password-input".into(), password_input_factory(secrets));
         self
     }
 
