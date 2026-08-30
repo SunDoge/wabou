@@ -1,8 +1,8 @@
 use motrix_wabou::downloads;
 use snafu::{ResultExt, Whatever};
 use wabou::{
-    AppDirectoryConfig, Color, HostBuilder, HostMessage, HostMessageRouter, WindowOptions,
-    initial_window_resource_key,
+    AppDirectoryConfig, Color, HostBuilder, HostMessage, HostMessageRouter, HostShellBackend,
+    WindowOptions, initial_window_resource_key,
 };
 use wabou::{SystemTray, TrayImage};
 
@@ -67,6 +67,9 @@ fn main() -> Result<(), Whatever> {
         })
         .hide_window_on_close(main_window);
     let mut host = HostBuilder::new()
+        // System tray lifecycle is the last shell extension still hosted by
+        // the reference Winit backend.
+        .shell_backend(HostShellBackend::LegacyWinit)
         .base_color(Color::TRANSPARENT)
         .app_directory_config(directory_config)
         .persist_window_size("main")

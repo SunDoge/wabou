@@ -1,11 +1,12 @@
 //! Native host executable for the terminal example.
 
 use snafu::{ResultExt, Whatever};
-use wabou::{HostBuilder, WindowOptions};
+use wabou::{HostBuilder, HostShellBackend, WindowOptions};
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
     HostBuilder::new()
+        .shell_backend(HostShellBackend::LegacyWinit)
         .widget("terminal", wabou_terminal::terminal_widget)
         .window(
             WindowOptions::new()

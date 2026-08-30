@@ -663,11 +663,12 @@ pub struct HostBuilder {
 /// Native shell selected for an application host.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum HostShellBackend {
-    /// Existing Winit + AnyRender backend retained during migration.
-    #[default]
-    Winit,
     /// GPUI-CE owns windows, layout, text, input, and painting.
+    #[default]
     Gpui,
+    /// Winit + AnyRender backend retained only for capabilities still awaiting
+    /// direct GPUI implementations.
+    LegacyWinit,
 }
 
 impl Default for HostBuilder {
@@ -687,7 +688,7 @@ impl HostBuilder {
     /// Create a builder using an image registry also owned by application Rust code.
     pub fn with_image_resources(image_resources: crate::ImageResourceStore) -> Self {
         let builder = Self {
-            shell_backend: HostShellBackend::Winit,
+            shell_backend: HostShellBackend::Gpui,
             base_color: style::parse_color("#0f172a")
                 .unwrap_or_else(|| Color::from_rgb8(0x0f, 0x17, 0x2a)),
             window: WindowOptions::default(),
@@ -1035,12 +1036,12 @@ impl HostBuilder {
     fn run_once(mut self) -> crate::Result<crate::RunOutcome> {
         if let Ok(shell) = std::env::var("WABOU_SHELL") {
             self.shell_backend = match shell.as_str() {
-                "winit" => HostShellBackend::Winit,
                 "gpui" => HostShellBackend::Gpui,
+                "legacy-winit" => HostShellBackend::LegacyWinit,
                 _ => {
                     return Err(crate::Error::GpuiShell {
                         message: format!(
-                            "unknown WABOU_SHELL value `{shell}`; expected `gpui` or `winit`"
+                            "unknown WABOU_SHELL value `{shell}`; expected `gpui` or `legacy-winit`"
                         ),
                     });
                 }
@@ -1441,8 +1442,8 @@ fn install_host_message_producers(
 mod tests {
     use super::{
         HostBuilder, HostService, HostServiceContext, HostServiceHandle, HostServicesGuard,
-        JsonCapabilityContract, install_host_message_producers, managed_host_service,
-        start_host_services,
+        HostShellBackend, JsonCapabilityContract, install_host_message_producers,
+        managed_host_service, start_host_services,
     };
     use crate::host_message::{HostMessagePayload, HostTaskTracker, host_message_channel};
     use crate::json_capability::{JsonCapability, invoke_json_method};
@@ -1457,6 +1458,18 @@ mod tests {
             behavior_test: false,
             headless: false,
         }
+    }
+
+    #[test]
+    fn new_hosts_use_gpui_unless_an_application_explicitly_selects_legacy_winit() {
+        assert_eq!(HostShellBackend::default(), HostShellBackend::Gpui);
+        assert_eq!(HostBuilder::new().shell_backend, HostShellBackend::Gpui);
+        assert_eq!(
+            HostBuilder::new()
+                .shell_backend(HostShellBackend::LegacyWinit)
+                .shell_backend,
+            HostShellBackend::LegacyWinit
+        );
     }
 
     #[derive(serde::Deserialize)]
