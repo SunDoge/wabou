@@ -30,7 +30,15 @@ fn main() {
         root_style.padding.bottom = px(24.0).into();
         root_style.padding.left = px(24.0).into();
         root_style.background = Some(hsla(220.0 / 360.0, 0.25, 0.96, 1.0).into());
-        tree.insert(root, None, 0, root_style, None).unwrap();
+        tree.insert(
+            root,
+            None,
+            0,
+            root_style,
+            None,
+            wabou_shell::ProjectedNodeKind::Root,
+        )
+        .unwrap();
 
         let mut child_style = gpui::Style::default();
         child_style.padding.top = px(20.0).into();
@@ -48,6 +56,7 @@ fn main() {
             0,
             child_style,
             Some("Solid retained frame rendered by GPUI-CE".into()),
+            wabou_shell::ProjectedNodeKind::Text,
         )
         .unwrap();
         let _ = tree.commit();

@@ -21,7 +21,7 @@ pub use input::{
 };
 pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
 pub use style::{StyleDiagnostic, StyleProjection};
-pub use tree::{ProjectedNode, ProjectionError, ProjectionTree};
+pub use tree::{ProjectedNode, ProjectedNodeKind, ProjectionError, ProjectionTree};
 
 /// Thread-safe callback used by background producers to wake the UI loop.
 pub type WakeCallback = Arc<dyn Fn() + Send + Sync>;

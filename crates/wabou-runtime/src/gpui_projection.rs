@@ -6,9 +6,11 @@
 
 use wabou_shell::style::{IrColor, IrLength, IrValue};
 use wabou_shell_gpui::{
-    DirtyKind, NodeKey, ProjectionError, ProjectionTree, StyleDiagnostic, StyleProjection,
+    DirtyKind, NodeKey, ProjectedNodeKind, ProjectionError, ProjectionTree, StyleDiagnostic,
+    StyleProjection,
 };
 
+use crate::atom::AtomPool;
 use crate::protocol::{Frame, Op};
 
 #[derive(Debug)]
@@ -19,8 +21,15 @@ pub(crate) struct GpuiProjection {
 impl GpuiProjection {
     pub(crate) fn new() -> Self {
         let mut tree = ProjectionTree::default();
-        tree.insert(NodeKey::ROOT, None, 0, gpui_style(), None)
-            .expect("the canonical projection root is unique");
+        tree.insert(
+            NodeKey::ROOT,
+            None,
+            0,
+            gpui_style(),
+            None,
+            ProjectedNodeKind::Root,
+        )
+        .expect("the canonical projection root is unique");
         let _ = tree.commit();
         Self { tree }
     }
@@ -30,15 +39,29 @@ impl GpuiProjection {
     /// Resolved styles are projected later while the legacy applier processes
     /// the same frame. `finish_frame` is therefore the only commit point: GPUI
     /// never observes a newly attached node with the previous/default style.
-    pub(crate) fn apply_ops(&mut self, frame: &Frame<'_>) -> Result<(), ProjectionError> {
+    pub(crate) fn apply_ops(
+        &mut self,
+        frame: &Frame<'_>,
+        atoms: &AtomPool,
+    ) -> Result<(), ProjectionError> {
         for op in &frame.ops {
             match op {
-                Op::CreateElement { id, .. } => {
-                    self.tree.insert_detached(*id, gpui_style(), None)?;
+                Op::CreateElement { id, tag } => {
+                    let tag = atoms.resolve(*tag).unwrap_or("unknown");
+                    self.tree.insert_detached(
+                        *id,
+                        gpui_style(),
+                        None,
+                        ProjectedNodeKind::Element(tag.into()),
+                    )?;
                 }
                 Op::CreateText { id, text } => {
-                    self.tree
-                        .insert_detached(*id, gpui_style(), Some((*text).into()))?;
+                    self.tree.insert_detached(
+                        *id,
+                        gpui_style(),
+                        Some((*text).into()),
+                        ProjectedNodeKind::Text,
+                    )?;
                 }
                 Op::AppendChild { parent, child } => {
                     let index = self
@@ -67,6 +90,17 @@ impl GpuiProjection {
                 Op::RemoveChild { child, .. } => self.tree.detach(*child)?,
                 Op::SetText { id, text } => {
                     self.tree.update_text(*id, Some((*text).into()))?;
+                }
+                Op::SetAttribute { id, name, value } => {
+                    if let Some(name) = atoms.resolve(*name) {
+                        self.tree
+                            .update_attribute(*id, name.into(), (*value).into())?;
+                    }
+                }
+                Op::RemoveAttribute { id, name } => {
+                    if let Some(name) = atoms.resolve(*name) {
+                        self.tree.remove_attribute(*id, name)?;
+                    }
                 }
                 _ => {}
             }
@@ -201,7 +235,6 @@ fn gpui_style() -> wabou_shell_gpui::gpui::Style {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::atom::Atom;
 
     fn key(lo: u32) -> NodeKey {
         NodeKey::new(lo, 1)
@@ -210,32 +243,37 @@ mod tests {
     #[test]
     fn completed_solid_frame_projects_structure_and_text_with_protocol_identity() {
         let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
         projection
-            .apply_ops(&Frame {
-                seq: 1,
-                ops: vec![
-                    Op::CreateElement {
-                        id: key(2),
-                        tag: Atom::from_raw(1),
-                    },
-                    Op::CreateText {
-                        id: key(3),
-                        text: "hello GPUI",
-                    },
-                    Op::AppendChild {
-                        parent: NodeKey::ROOT,
-                        child: key(2),
-                    },
-                    Op::AppendChild {
-                        parent: key(2),
-                        child: key(3),
-                    },
-                    Op::SetText {
-                        id: key(3),
-                        text: "updated once per flush",
-                    },
-                ],
-            })
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::CreateText {
+                            id: key(3),
+                            text: "hello GPUI",
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(2),
+                        },
+                        Op::AppendChild {
+                            parent: key(2),
+                            child: key(3),
+                        },
+                        Op::SetText {
+                            id: key(3),
+                            text: "updated once per flush",
+                        },
+                    ],
+                },
+                &atoms,
+            )
             .unwrap();
 
         assert!(projection.finish_frame());
@@ -243,6 +281,10 @@ mod tests {
         let tree = projection.tree();
         assert_eq!(tree.node(NodeKey::ROOT).unwrap().children, [key(2)]);
         assert_eq!(tree.node(key(2)).unwrap().children, [key(3)]);
+        assert_eq!(
+            tree.node(key(2)).unwrap().kind,
+            ProjectedNodeKind::Element("view".into())
+        );
         assert_eq!(
             tree.node(key(3)).unwrap().text.as_deref(),
             Some("updated once per flush")
@@ -252,21 +294,26 @@ mod tests {
     #[test]
     fn structure_and_style_publish_in_one_commit() {
         let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
         let initial_revision = projection.revision();
         projection
-            .apply_ops(&Frame {
-                seq: 1,
-                ops: vec![
-                    Op::CreateElement {
-                        id: key(2),
-                        tag: Atom::from_raw(1),
-                    },
-                    Op::AppendChild {
-                        parent: NodeKey::ROOT,
-                        child: key(2),
-                    },
-                ],
-            })
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(2),
+                        },
+                    ],
+                },
+                &atoms,
+            )
             .unwrap();
         projection
             .apply_style_declaration(

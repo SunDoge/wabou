@@ -4,6 +4,17 @@ use gpui::{SharedString, Style};
 
 use crate::{DirtyKind, FrameBatch, NodeKey, PendingNode, ProjectedElement, ProjectedInputSink};
 
+/// Explicit semantic kind retained for every projected protocol node.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProjectedNodeKind {
+    /// Canonical application root, not authored by JSX.
+    Root,
+    /// Authored element tag. Custom/native widget names are preserved verbatim.
+    Element(SharedString),
+    /// Text node emitted by the Solid renderer.
+    Text,
+}
+
 /// One lightweight cached node in the GPUI projection.
 ///
 /// It is not application state. The Solid/runtime retained tree remains
@@ -11,12 +22,15 @@ use crate::{DirtyKind, FrameBatch, NodeKey, PendingNode, ProjectedElement, Proje
 #[derive(Clone, Debug)]
 pub struct ProjectedNode {
     pub key: NodeKey,
+    pub kind: ProjectedNodeKind,
     pub parent: Option<NodeKey>,
     /// Whether this node participates in the projected element tree.
     pub attached: bool,
     pub children: Vec<NodeKey>,
     pub style: Style,
     pub text: Option<SharedString>,
+    /// Authored attributes after the latest completed Solid flush.
+    pub attributes: BTreeMap<SharedString, SharedString>,
 }
 
 /// Structural projection failure, always reported before GPUI sees a frame.
@@ -84,6 +98,7 @@ impl ProjectionTree {
         index: usize,
         style: Style,
         text: Option<SharedString>,
+        kind: ProjectedNodeKind,
     ) -> Result<(), ProjectionError> {
         match parent {
             Some(parent) => {
@@ -102,7 +117,7 @@ impl ProjectionTree {
             }
             None => {}
         }
-        self.insert_detached(key, style, text)?;
+        self.insert_detached(key, style, text, kind)?;
         match parent {
             Some(parent) => self.attach_child(key, parent, index),
             None => self.attach_root(key, index),
@@ -115,6 +130,7 @@ impl ProjectionTree {
         key: NodeKey,
         style: Style,
         text: Option<SharedString>,
+        kind: ProjectedNodeKind,
     ) -> Result<(), ProjectionError> {
         if self.nodes.contains_key(&key) {
             return Err(ProjectionError::DuplicateNode(key));
@@ -124,11 +140,13 @@ impl ProjectionTree {
             key,
             ProjectedNode {
                 key,
+                kind,
                 parent: None,
                 attached: false,
                 children: Vec::new(),
                 style,
                 text,
+                attributes: BTreeMap::new(),
             },
         );
         self.dirty.invalidate(
@@ -263,6 +281,39 @@ impl ProjectionTree {
         Ok(())
     }
 
+    /// Set one authored attribute without publishing a partial frame.
+    pub fn update_attribute(
+        &mut self,
+        key: NodeKey,
+        name: SharedString,
+        value: SharedString,
+    ) -> Result<(), ProjectionError> {
+        self.nodes
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?
+            .attributes
+            .insert(name, value);
+        self.dirty.invalidate(
+            key,
+            DirtyKind::LAYOUT | DirtyKind::PAINT | DirtyKind::SEMANTICS,
+        );
+        Ok(())
+    }
+
+    /// Remove one authored attribute without publishing a partial frame.
+    pub fn remove_attribute(&mut self, key: NodeKey, name: &str) -> Result<(), ProjectionError> {
+        self.nodes
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?
+            .attributes
+            .remove(name);
+        self.dirty.invalidate(
+            key,
+            DirtyKind::LAYOUT | DirtyKind::PAINT | DirtyKind::SEMANTICS,
+        );
+        Ok(())
+    }
+
     pub fn remove(&mut self, key: NodeKey) -> Result<Vec<NodeKey>, ProjectionError> {
         let parent = self
             .nodes
@@ -341,8 +392,15 @@ mod tests {
         let index = parent
             .and_then(|parent| tree.node(parent).map(|node| node.children.len()))
             .unwrap_or_else(|| tree.roots().len());
-        tree.insert(key(node), parent, index, Style::default(), None)
-            .unwrap();
+        tree.insert(
+            key(node),
+            parent,
+            index,
+            Style::default(),
+            None,
+            ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
     }
 
     #[test]
@@ -396,8 +454,13 @@ mod tests {
         let mut tree = ProjectionTree::default();
         insert(&mut tree, 1, None);
         insert(&mut tree, 2, None);
-        tree.insert_detached(key(3), Style::default(), Some("retained".into()))
-            .unwrap();
+        tree.insert_detached(
+            key(3),
+            Style::default(),
+            Some("retained".into()),
+            ProjectedNodeKind::Text,
+        )
+        .unwrap();
 
         assert!(!tree.node(key(3)).unwrap().attached);
         tree.attach_child(key(3), key(1), 0).unwrap();
@@ -421,11 +484,25 @@ mod tests {
         insert(&mut tree, 1, None);
 
         assert_eq!(
-            tree.insert(key(1), None, 1, Style::default(), None),
+            tree.insert(
+                key(1),
+                None,
+                1,
+                Style::default(),
+                None,
+                ProjectedNodeKind::Element("view".into()),
+            ),
             Err(ProjectionError::DuplicateNode(key(1)))
         );
         assert_eq!(
-            tree.insert(key(2), Some(key(99)), 0, Style::default(), None),
+            tree.insert(
+                key(2),
+                Some(key(99)),
+                0,
+                Style::default(),
+                None,
+                ProjectedNodeKind::Element("view".into()),
+            ),
             Err(ProjectionError::MissingParent(key(99)))
         );
         assert!(tree.node(key(2)).is_none());

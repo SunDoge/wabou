@@ -336,8 +336,15 @@ mod tests {
     fn generated_element_uses_the_retained_generational_identity() {
         let key = NodeKey::new(17, 4);
         let mut tree = ProjectionTree::default();
-        tree.insert(key, None, 0, Style::default(), Some("hello".into()))
-            .unwrap();
+        tree.insert(
+            key,
+            None,
+            0,
+            Style::default(),
+            Some("hello".into()),
+            crate::ProjectedNodeKind::Text,
+        )
+        .unwrap();
 
         let element = ProjectedElement::from_tree(&tree, key, None, None, None).unwrap();
         assert_eq!(element.id(), Some(key.gpui_element_id()));
@@ -439,6 +446,7 @@ mod tests {
                 0,
                 Style::default(),
                 Some("input".into()),
+                crate::ProjectedNodeKind::Root,
             )
             .unwrap();
             let focus = cx.focus_handle();
