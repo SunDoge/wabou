@@ -1,5 +1,5 @@
 [package]
-name = "wabou-tray"
+name = "wabou-backend-winit-tray"
 version.workspace = true
 edition = "2024"
 license.workspace = true

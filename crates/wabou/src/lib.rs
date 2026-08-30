@@ -37,7 +37,7 @@ pub use wabou_runtime::{
 };
 pub use wabou_runtime::{PaintScene, anyrender};
 #[cfg(feature = "tray")]
-pub use wabou_tray::{SystemTray, TrayImage};
+pub use wabou_backend_winit_tray::{SystemTray, TrayImage};
 
 #[cfg(test)]
 mod tests {

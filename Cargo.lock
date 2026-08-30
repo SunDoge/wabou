@@ -12279,10 +12279,10 @@ name = "wabou"
 version = "0.1.0-alpha.3"
 dependencies = [
  "serde",
+ "wabou-backend-winit-tray",
  "wabou-bindgen",
  "wabou-database",
  "wabou-runtime",
- "wabou-tray",
 ]
 
 [[package]]
@@ -12329,6 +12329,15 @@ dependencies = [
  "wabou-shell-api",
  "wabou-style",
  "winit",
+]
+
+[[package]]
+name = "wabou-backend-winit-tray"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "gtk",
+ "tray-icon",
+ "wabou-backend-winit",
 ]
 
 [[package]]
@@ -12542,15 +12551,6 @@ dependencies = [
  "wabou-runtime",
  "wabou-shell",
  "wabou-shell-api",
-]
-
-[[package]]
-name = "wabou-tray"
-version = "0.1.0-alpha.3"
-dependencies = [
- "gtk",
- "tray-icon",
- "wabou-backend-winit",
 ]
 
 [[package]]

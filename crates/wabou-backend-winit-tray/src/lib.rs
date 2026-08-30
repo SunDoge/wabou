@@ -1,4 +1,4 @@
-//! Optional system-tray integration for Wabou applications.
+//! Legacy winit system-tray integration for Wabou applications.
 //!
 //! This crate contains the GTK/AppIndicator dependency on Linux so applications
 //! that do not use a tray icon do not pay for it.
