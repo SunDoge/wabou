@@ -61,6 +61,21 @@ test("forks from a retained user message and restores it to the composer", async
   await expect(composer).toHaveValue("");
 });
 
+test("switches between project and recent session grouping", async ({ page }) => {
+  await page
+    .getByRole("button", { name: "Group sessions by recency" })
+    .click();
+  await expect(page.getByRole("label", { name: "Today" })).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Deterministic test 1" }),
+  ).toBeEnabled();
+
+  await page
+    .getByRole("button", { name: "Group sessions by project" })
+    .click();
+  await expect(page.getByRole("button", { name: "Project 1" })).toBeEnabled();
+});
+
 test("keeps conversation turn navigation synchronized with native scrolling", async ({
   page,
   window,

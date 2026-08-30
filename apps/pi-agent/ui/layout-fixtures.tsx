@@ -172,6 +172,7 @@ function FullWorkbenchFixture() {
     <Workbench role="region" aria-label="Pi Agent workbench">
       <Sidebar
         agents={[activeProject]}
+        initialGrouping="recent"
         sessions={shellSessions}
         activeId={project.id}
         select={() => {}}
@@ -596,6 +597,7 @@ defineLayoutFixtures({
     render: () => (
       <Sidebar
         agents={[project, secondProject]}
+        initialGrouping="projects"
         sessions={[
           {
             agentId: project.id,
