@@ -652,6 +652,7 @@ pub struct HostBuilder {
     services: Vec<(Arc<dyn HostService>, bool)>,
     devtools: bool,
     extensions: Vec<Box<dyn ShellExtension>>,
+    application_extensions: Vec<Box<dyn wabou_shell_gpui::ApplicationExtension>>,
     effect_trace: Option<EffectTraceConfig>,
     app_directory_config: Option<wabou_shell_gpui::AppDirectoryConfig>,
     persisted_window_size: Option<String>,
@@ -700,6 +701,7 @@ impl HostBuilder {
             services: Vec::new(),
             devtools: cfg!(all(debug_assertions, feature = "devtools")),
             extensions: Vec::new(),
+            application_extensions: Vec::new(),
             effect_trace: None,
             app_directory_config: None,
             persisted_window_size: None,
@@ -1022,6 +1024,19 @@ impl HostBuilder {
         self
     }
 
+    /// Install a GPUI-native application lifecycle extension.
+    ///
+    /// This is deliberately separate from the legacy winit `ShellExtension`:
+    /// implementations receive GPUI window handles after startup and live for
+    /// the complete GPUI application lifetime.
+    pub fn application_extension(
+        mut self,
+        extension: impl wabou_shell_gpui::ApplicationExtension,
+    ) -> Self {
+        self.application_extensions.push(Box::new(extension));
+        self
+    }
+
     /// Record replay-safe native effects to `path` when the application exits.
     /// Clipboard and third-party payloads are excluded because they may contain secrets.
     pub fn record_effects(mut self, path: impl Into<PathBuf>) -> Self {
@@ -1280,7 +1295,11 @@ impl HostBuilder {
                         .flatten(),
                 ));
             }
-            run_gpui_windows(gpui_sources, runtime_sources.gpui_widget_factories.clone())?;
+            run_gpui_windows(
+                gpui_sources,
+                runtime_sources.gpui_widget_factories.clone(),
+                self.application_extensions,
+            )?;
             #[cfg(feature = "vite")]
             drop(hmr_clients);
             #[cfg(feature = "devtools")]
@@ -1289,6 +1308,11 @@ impl HostBuilder {
             return Ok(crate::RunOutcome::Exit);
         }
         let mut sources = Vec::with_capacity(windows.len());
+        if !self.application_extensions.is_empty() {
+            return Err(crate::Error::GpuiShell {
+                message: "GPUI application extensions cannot run in the legacy winit host".into(),
+            });
+        }
         for (index, options) in windows.into_iter().enumerate() {
             let window_key = wabou_shell_gpui::initial_window_resource_key(index);
             #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
@@ -1376,6 +1400,7 @@ fn run_gpui_windows(
         Option<wabou_shell_gpui::WindowSizePersistence>,
     )>,
     widget_factories: HashMap<String, wabou_shell_gpui::NativeWidgetFactory>,
+    mut application_extensions: Vec<Box<dyn wabou_shell_gpui::ApplicationExtension>>,
 ) -> crate::Result<()> {
     use wabou_shell_gpui::gpui::{AppContext as _, px, size};
 
@@ -1383,6 +1408,7 @@ fn run_gpui_windows(
     let reported_error = startup_error.clone();
     wabou_shell_gpui::application().run(move |cx| {
         gpui_base::init(cx);
+        let mut opened_windows = Vec::new();
         for (applier, options, persistence) in windows {
             let bounds = wabou_shell_gpui::gpui::Bounds::centered(
                 None,
@@ -1421,11 +1447,24 @@ fn run_gpui_windows(
                     )
                 })
             });
-            if let Err(error) = opened {
-                *reported_error.lock().expect("GPUI startup error lock") = Some(error.to_string());
-                cx.quit();
-                return;
+            match opened {
+                Ok(window) => opened_windows.push(window.into()),
+                Err(error) => {
+                    *reported_error.lock().expect("GPUI startup error lock") =
+                        Some(error.to_string());
+                    cx.quit();
+                    return;
+                }
             }
+        }
+        if let Err(message) = wabou_shell_gpui::install_application_extensions(
+            std::mem::take(&mut application_extensions),
+            &opened_windows,
+            cx,
+        ) {
+            *reported_error.lock().expect("GPUI startup error lock") = Some(message);
+            cx.quit();
+            return;
         }
         cx.activate(true);
     });

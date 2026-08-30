@@ -4,6 +4,7 @@
 //! projects completed Solid flushes into GPUI. The projection boundary is
 //! deliberately frame-oriented: individual property writes never notify GPUI.
 
+mod application_extension;
 mod element;
 mod input;
 mod native_widget;
@@ -47,3 +48,6 @@ pub use window_state::WindowSizePersistence;
 pub fn application() -> gpui::Application {
     gpui_platform::application()
 }
+pub use application_extension::{
+    ApplicationExtension, ApplicationExtensionContext, install_application_extensions,
+};
