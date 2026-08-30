@@ -12,6 +12,8 @@ use crate::{DirtyKind, FrameBatch, NodeKey, PendingNode, ProjectedElement};
 pub struct ProjectedNode {
     pub key: NodeKey,
     pub parent: Option<NodeKey>,
+    /// Whether this node participates in the projected element tree.
+    pub attached: bool,
     pub children: Vec<NodeKey>,
     pub style: Style,
     pub text: Option<SharedString>,
@@ -72,16 +74,6 @@ impl ProjectionTree {
         style: Style,
         text: Option<SharedString>,
     ) -> Result<(), ProjectionError> {
-        if self.nodes.contains_key(&key) {
-            return Err(ProjectionError::DuplicateNode(key));
-        }
-        if parent == Some(key) {
-            return Err(ProjectionError::ParentCycle {
-                node: key,
-                parent: key,
-            });
-        }
-
         match parent {
             Some(parent) => {
                 let child_count = self
@@ -95,33 +87,39 @@ impl ProjectionTree {
                 }
             }
             None if index > self.roots.len() => {
-                // A root has no parent key, so report the inserted key as the
-                // structural owner of the invalid root position.
                 return Err(ProjectionError::InvalidChildIndex { parent: key, index });
             }
             None => {}
+        }
+        self.insert_detached(key, style, text)?;
+        match parent {
+            Some(parent) => self.attach_child(key, parent, index),
+            None => self.attach_root(key, index),
+        }
+    }
+
+    /// Register a node created by Solid before it is inserted into the UI tree.
+    pub fn insert_detached(
+        &mut self,
+        key: NodeKey,
+        style: Style,
+        text: Option<SharedString>,
+    ) -> Result<(), ProjectionError> {
+        if self.nodes.contains_key(&key) {
+            return Err(ProjectionError::DuplicateNode(key));
         }
 
         self.nodes.insert(
             key,
             ProjectedNode {
                 key,
-                parent,
+                parent: None,
+                attached: false,
                 children: Vec::new(),
                 style,
                 text,
             },
         );
-        if let Some(parent) = parent {
-            self.nodes
-                .get_mut(&parent)
-                .expect("parent was validated")
-                .children
-                .insert(index, key);
-            self.invalidate_layout_chain(parent);
-        } else {
-            self.roots.insert(index, key);
-        }
         self.dirty.invalidate(
             key,
             DirtyKind::LAYOUT
@@ -131,6 +129,95 @@ impl ProjectionTree {
                 | DirtyKind::SEMANTICS,
         );
         Ok(())
+    }
+
+    /// Insert or move a retained node under a parent at an explicit child index.
+    pub fn attach_child(
+        &mut self,
+        key: NodeKey,
+        parent: NodeKey,
+        index: usize,
+    ) -> Result<(), ProjectionError> {
+        if !self.nodes.contains_key(&key) {
+            return Err(ProjectionError::MissingNode(key));
+        }
+        if !self.nodes.contains_key(&parent) {
+            return Err(ProjectionError::MissingParent(parent));
+        }
+        let mut ancestor = Some(parent);
+        while let Some(current) = ancestor {
+            if current == key {
+                return Err(ProjectionError::ParentCycle { node: key, parent });
+            }
+            ancestor = self.nodes.get(&current).and_then(|node| node.parent);
+        }
+
+        let moving_within_parent =
+            self.nodes[&key].parent == Some(parent) && self.nodes[&key].attached;
+        let child_count = self.nodes[&parent].children.len() - usize::from(moving_within_parent);
+        if index > child_count {
+            return Err(ProjectionError::InvalidChildIndex { parent, index });
+        }
+
+        self.detach_from_location(key);
+        self.nodes
+            .get_mut(&parent)
+            .expect("parent was validated")
+            .children
+            .insert(index, key);
+        let node = self.nodes.get_mut(&key).expect("child was validated");
+        node.parent = Some(parent);
+        node.attached = true;
+        self.invalidate_layout_chain(parent);
+        self.dirty
+            .invalidate(key, DirtyKind::LAYOUT | DirtyKind::PAINT);
+        Ok(())
+    }
+
+    /// Detach a node without destroying its retained identity or subtree.
+    pub fn detach(&mut self, key: NodeKey) -> Result<(), ProjectionError> {
+        if !self.nodes.contains_key(&key) {
+            return Err(ProjectionError::MissingNode(key));
+        }
+        self.detach_from_location(key);
+        self.dirty
+            .invalidate(key, DirtyKind::LAYOUT | DirtyKind::PAINT);
+        Ok(())
+    }
+
+    fn attach_root(&mut self, key: NodeKey, index: usize) -> Result<(), ProjectionError> {
+        if index > self.roots.len() {
+            return Err(ProjectionError::InvalidChildIndex { parent: key, index });
+        }
+        self.roots.insert(index, key);
+        self.nodes
+            .get_mut(&key)
+            .expect("node was just inserted")
+            .attached = true;
+        Ok(())
+    }
+
+    fn detach_from_location(&mut self, key: NodeKey) {
+        let (parent, attached) = {
+            let node = &self.nodes[&key];
+            (node.parent, node.attached)
+        };
+        if !attached {
+            return;
+        }
+        if let Some(parent) = parent {
+            self.nodes
+                .get_mut(&parent)
+                .expect("attached parent remains retained")
+                .children
+                .retain(|child| *child != key);
+            self.invalidate_layout_chain(parent);
+        } else {
+            self.roots.retain(|root| *root != key);
+        }
+        let node = self.nodes.get_mut(&key).expect("node remains retained");
+        node.parent = None;
+        node.attached = false;
     }
 
     pub fn update_style(
@@ -181,7 +268,7 @@ impl ProjectionTree {
                 .children
                 .retain(|child| *child != key);
             self.invalidate_layout_chain(parent);
-        } else {
+        } else if self.nodes[&key].attached {
             self.roots.retain(|root| *root != key);
         }
 
@@ -294,6 +381,30 @@ mod tests {
     }
 
     #[test]
+    fn solid_created_nodes_can_attach_move_and_detach_without_changing_identity() {
+        let mut tree = ProjectionTree::default();
+        insert(&mut tree, 1, None);
+        insert(&mut tree, 2, None);
+        tree.insert_detached(key(3), Style::default(), Some("retained".into()))
+            .unwrap();
+
+        assert!(!tree.node(key(3)).unwrap().attached);
+        tree.attach_child(key(3), key(1), 0).unwrap();
+        assert_eq!(tree.node(key(1)).unwrap().children, [key(3)]);
+        assert_eq!(tree.node(key(3)).unwrap().parent, Some(key(1)));
+
+        tree.attach_child(key(3), key(2), 0).unwrap();
+        assert!(tree.node(key(1)).unwrap().children.is_empty());
+        assert_eq!(tree.node(key(2)).unwrap().children, [key(3)]);
+        assert_eq!(tree.node(key(3)).unwrap().text.as_deref(), Some("retained"));
+
+        tree.detach(key(3)).unwrap();
+        assert!(!tree.node(key(3)).unwrap().attached);
+        assert_eq!(tree.node(key(3)).unwrap().parent, None);
+        assert!(tree.node(key(2)).unwrap().children.is_empty());
+    }
+
+    #[test]
     fn rejects_duplicate_and_dangling_identity_before_gpui_render() {
         let mut tree = ProjectionTree::default();
         insert(&mut tree, 1, None);
@@ -306,6 +417,7 @@ mod tests {
             tree.insert(key(2), Some(key(99)), 0, Style::default(), None),
             Err(ProjectionError::MissingParent(key(99)))
         );
+        assert!(tree.node(key(2)).is_none());
     }
 
     #[test]
