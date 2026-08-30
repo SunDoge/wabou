@@ -48,6 +48,23 @@ the same suite deliberately covers both schemes:
 }
 ```
 
+Capture discovery only treats `captures/**/*.behavior.ts` as scenarios. When
+an application needs a deterministic child process, local service, or other
+host dependency, add `captures/setup.ts` with a default async function that
+returns environment overrides:
+
+```ts
+export default async function prepareCaptures() {
+  // Build or start the deterministic fixture here.
+  return { MY_APP_FIXTURE: "/absolute/path/to/fixture" };
+}
+```
+
+The setup runs once per application before its first authored capture and is
+skipped by `--check-existing`. This keeps the generic capture command faithful
+to the application's real host boundary without silently contacting live
+services.
+
 `wabou layout` also accepts `--color-scheme light|dark` for theme-dependent
 layout fixtures. Prefer one structural fixture when geometry is theme-neutral;
 author both variants only when typography or token differences can change the

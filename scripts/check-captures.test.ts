@@ -9,6 +9,7 @@ import {
   interactionContractDiagnostics,
   parseCaptureArguments,
   pngDimensions,
+  prepareCaptureEnvironment,
   rejectedStyleDiagnostics,
   selectCaptureCases,
   semanticRelationshipDiagnostics,
@@ -32,9 +33,12 @@ async function fixture(): Promise<string> {
   await mkdir(join(root, "apps", "demo", "captures", "nested"), {
     recursive: true,
   });
-  await writeFile(join(root, "apps", "demo", "captures", "wide.ts"), "");
   await writeFile(
-    join(root, "apps", "demo", "captures", "nested", "compact.ts"),
+    join(root, "apps", "demo", "captures", "wide.behavior.ts"),
+    "",
+  );
+  await writeFile(
+    join(root, "apps", "demo", "captures", "nested", "compact.behavior.ts"),
     "",
   );
   return root;
@@ -80,7 +84,7 @@ describe("authored capture discovery", () => {
     const captures = await discoverCaptureCases(root);
     expect(selectCaptureCases(captures, [])).toBe(captures);
     expect(
-      selectCaptureCases(captures, ["apps/demo/captures/wide.ts"]),
+      selectCaptureCases(captures, ["apps/demo/captures/wide.behavior.ts"]),
     ).toEqual([captures[1]]);
     expect(() =>
       selectCaptureCases(captures, ["apps/demo/captures/missing.ts"]),
@@ -94,7 +98,7 @@ describe("authored capture discovery", () => {
       JSON.stringify({
         defaults: { width: 1200, height: 800, waitMs: 100 },
         overrides: {
-          "nested/compact.ts": {
+          "nested/compact.behavior.ts": {
             width: 700,
             height: 500,
             scaleFactor: 2,
@@ -108,9 +112,9 @@ describe("authored capture discovery", () => {
     expect(await discoverCaptureCases(root)).toEqual([
       {
         application: "apps/demo",
-        scenario: "apps/demo/captures/nested/compact.ts",
-        output: "target/wabou-captures/demo/nested/compact.png",
-        snapshot: "target/wabou-captures/demo/nested/compact.json",
+        scenario: "apps/demo/captures/nested/compact.behavior.ts",
+        output: "target/wabou-captures/demo/nested/compact.behavior.png",
+        snapshot: "target/wabou-captures/demo/nested/compact.behavior.json",
         width: 700,
         height: 500,
         scaleFactor: 2,
@@ -125,9 +129,9 @@ describe("authored capture discovery", () => {
       },
       {
         application: "apps/demo",
-        scenario: "apps/demo/captures/wide.ts",
-        output: "target/wabou-captures/demo/wide.png",
-        snapshot: "target/wabou-captures/demo/wide.json",
+        scenario: "apps/demo/captures/wide.behavior.ts",
+        output: "target/wabou-captures/demo/wide.behavior.png",
+        snapshot: "target/wabou-captures/demo/wide.behavior.json",
         width: 1200,
         height: 800,
         scaleFactor: 1,
@@ -163,6 +167,20 @@ describe("authored capture discovery", () => {
     await expect(discoverCaptureCases(root)).rejects.toThrow(
       "defaults.colorScheme must be light or dark",
     );
+  });
+
+  test("loads application capture setup without discovering it as a scenario", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "apps", "demo", "captures", "setup.ts"),
+      'export default async () => ({ WABOU_CAPTURE_FIXTURE: "ready" });\n',
+    );
+
+    expect(await discoverCaptureCases(root)).toHaveLength(2);
+    expect(
+      (await prepareCaptureEnvironment("apps/demo", root))
+        .WABOU_CAPTURE_FIXTURE,
+    ).toBe("ready");
   });
 
   test("only later captures reuse the already built application bundle", () => {

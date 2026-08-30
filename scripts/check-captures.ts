@@ -1,5 +1,6 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { basename, dirname, relative, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const root = resolve(import.meta.dir, "..");
 
@@ -28,6 +29,8 @@ export interface CaptureCase extends CaptureViewport {
   output: string;
   snapshot: string;
 }
+
+export type CaptureEnvironment = Record<string, string | undefined>;
 
 interface SnapshotRect {
   x: number;
@@ -313,7 +316,7 @@ async function loadConfig(captureDirectory: string): Promise<CaptureConfig> {
 export async function discoverCaptureCases(
   workspaceRoot = root,
 ): Promise<CaptureCase[]> {
-  const glob = new Bun.Glob("apps/*/captures/**/*.ts");
+  const glob = new Bun.Glob("apps/*/captures/**/*.behavior.ts");
   const sources: string[] = [];
   for await (const source of glob.scan({
     cwd: workspaceRoot,
@@ -363,6 +366,40 @@ export async function discoverCaptureCases(
     }
   }
   return cases;
+}
+
+/**
+ * Prepare deterministic host dependencies for an application's authored
+ * captures. A captures/setup.ts module may default-export an async function
+ * returning environment overrides. It runs once per application and is never
+ * treated as a capture scenario.
+ */
+export async function prepareCaptureEnvironment(
+  application: string,
+  workspaceRoot = root,
+): Promise<CaptureEnvironment> {
+  const setup = resolve(workspaceRoot, application, "captures/setup.ts");
+  if (!(await Bun.file(setup).exists())) return { ...process.env };
+  const module = (await import(pathToFileURL(setup).href)) as {
+    default?: unknown;
+  };
+  if (typeof module.default !== "function") {
+    throw new Error(`${setup} must default-export a capture setup function`);
+  }
+  const overrides: unknown = await module.default();
+  if (
+    overrides === null ||
+    typeof overrides !== "object" ||
+    Array.isArray(overrides)
+  ) {
+    throw new Error(`${setup} must return an environment object`);
+  }
+  for (const [name, value] of Object.entries(overrides)) {
+    if (value !== undefined && typeof value !== "string") {
+      throw new Error(`${setup} returned a non-string value for ${name}`);
+    }
+  }
+  return { ...process.env, ...(overrides as CaptureEnvironment) };
 }
 
 function snapshotNumber(value: unknown, path: string): number {
@@ -1321,7 +1358,9 @@ export function parseCaptureArguments(arguments_: string[]): CaptureArguments {
     else if (argument === "--scenario") {
       const scenario = arguments_[++index];
       if (!scenario || scenario.startsWith("--")) {
-        throw new Error("--scenario requires an apps/*/captures/**/*.ts path");
+        throw new Error(
+          "--scenario requires an apps/*/captures/**/*.behavior.ts path",
+        );
       }
       parsed.scenarios.push(scenario.replaceAll("\\", "/"));
     } else {
@@ -1370,6 +1409,10 @@ async function main(): Promise<void> {
 
   const checkExisting = arguments_.checkExisting;
   const builtApplications = new Set<string>();
+  const applicationEnvironments = new Map<
+    string,
+    Promise<CaptureEnvironment>
+  >();
   for (const capture of captures) {
     const output = resolve(root, capture.output);
     if (!checkExisting) {
@@ -1379,8 +1422,14 @@ async function main(): Promise<void> {
         capture,
         builtApplications.has(capture.application),
       );
+      let environment = applicationEnvironments.get(capture.application);
+      if (!environment) {
+        environment = prepareCaptureEnvironment(capture.application);
+        applicationEnvironments.set(capture.application, environment);
+      }
       const child = Bun.spawn(args, {
         cwd: root,
+        env: await environment,
         stdin: "inherit",
         stdout: "inherit",
         stderr: "inherit",
