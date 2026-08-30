@@ -1,6 +1,6 @@
 use bon::Builder;
 use serde::Deserialize;
-use wabou_shell::style::IrValue;
+use wabou_style::{IrColor, IrLength, IrValue};
 
 pub const VERSION: u16 = 6;
 
@@ -137,20 +137,14 @@ pub(crate) fn utility_value(value: &wabou_style::Value) -> IrValue {
         wabou_style::Value::Number { value } => IrValue::Number { value: *value },
         wabou_style::Value::Length { value } => IrValue::Length {
             value: match value {
-                wabou_style::Length::Px { value } => {
-                    wabou_shell::style::IrLength::Px { value: *value }
-                }
-                wabou_style::Length::Percent { value } => {
-                    wabou_shell::style::IrLength::Percent { value: *value }
-                }
-                wabou_style::Length::Auto => wabou_shell::style::IrLength::Auto,
+                wabou_style::Length::Px { value } => IrLength::Px { value: *value },
+                wabou_style::Length::Percent { value } => IrLength::Percent { value: *value },
+                wabou_style::Length::Auto => IrLength::Auto,
             },
         },
         wabou_style::Value::Color { value } => IrValue::Color {
             value: match value {
-                wabou_style::Color::Literal { rgba } => {
-                    wabou_shell::style::IrColor::Literal { rgba: *rgba }
-                }
+                wabou_style::Color::Literal { rgba } => IrColor::Literal { rgba: *rgba },
             },
         },
         wabou_style::Value::List { values } => IrValue::List {
@@ -168,8 +162,6 @@ pub(crate) fn utility_value(value: &wabou_style::Value) -> IrValue {
 #[cfg(test)]
 pub(crate) mod fixture {
     use std::collections::HashMap;
-
-    use wabou_shell::style::{IrColor, IrLength};
 
     use super::*;
 

@@ -433,8 +433,8 @@ fn native_utility_fallback_resolves_without_a_stylesheet() {
     assert_eq!(
         snapshot.transforms,
         vec![wabou_shell::style::PaintTransform::Translate(
-            wabou_shell::style::IrLength::Px { value: 16.0 },
-            wabou_shell::style::IrLength::Px { value: 0.0 },
+            wabou_style::IrLength::Px { value: 16.0 },
+            wabou_style::IrLength::Px { value: 0.0 },
         )]
     );
 }
@@ -579,8 +579,8 @@ fn utility_order_is_last_wins_and_transform_components_compose() {
         snapshot.transforms,
         vec![
             wabou_shell::style::PaintTransform::Translate(
-                wabou_shell::style::IrLength::Px { value: 8.0 },
-                wabou_shell::style::IrLength::Px { value: 24.0 },
+                wabou_style::IrLength::Px { value: 8.0 },
+                wabou_style::IrLength::Px { value: 24.0 },
             ),
             wabou_shell::style::PaintTransform::Scale(1.5, 1.5),
             wabou_shell::style::PaintTransform::Rotate(std::f32::consts::FRAC_PI_4),

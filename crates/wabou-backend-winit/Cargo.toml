@@ -38,6 +38,7 @@ winit = { workspace = true }
 wabou-accessibility = { workspace = true }
 wabou-host-api = { workspace = true }
 wabou-shell-api = { workspace = true }
+wabou-style = { workspace = true }
 
 [features]
 profiling = []

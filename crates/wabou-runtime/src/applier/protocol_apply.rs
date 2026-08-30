@@ -108,7 +108,7 @@ fn decode_vector_path(data: &[u8]) -> Option<Arc<wabou_shell::style::VectorPath>
 
 fn style_value_ir(value: crate::protocol::StyleValue) -> IrValue {
     use crate::protocol::StyleValue;
-    use wabou_shell::style::IrLength;
+    use wabou_style::{IrColor, IrLength};
 
     match value {
         StyleValue::Px(value) => IrValue::Length {
@@ -120,7 +120,7 @@ fn style_value_ir(value: crate::protocol::StyleValue) -> IrValue {
         StyleValue::Number(value) => IrValue::Number { value },
         StyleValue::Boolean(value) => IrValue::Boolean { value },
         StyleValue::Color(rgba) => IrValue::Color {
-            value: wabou_shell::style::IrColor::Literal { rgba },
+            value: IrColor::Literal { rgba },
         },
         StyleValue::Auto => IrValue::Length {
             value: IrLength::Auto,
@@ -311,7 +311,7 @@ impl Applier {
             .iter()
             .map(|shadow| {
                 let length = |value| IrValue::Length {
-                    value: wabou_shell::style::IrLength::Px { value },
+                    value: wabou_style::IrLength::Px { value },
                 };
                 let mut fields = HashMap::from([
                     ("x".to_owned(), length(shadow.offset_x)),
@@ -321,7 +321,7 @@ impl Applier {
                     (
                         "color".to_owned(),
                         IrValue::Color {
-                            value: wabou_shell::style::IrColor::Literal { rgba: shadow.color },
+                            value: wabou_style::IrColor::Literal { rgba: shadow.color },
                         },
                     ),
                 ]);

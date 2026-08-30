@@ -10,6 +10,7 @@ use std::sync::Arc;
 use taffy::prelude::*;
 use taffy::style::{GridTemplateArea, GridTemplateAreas, GridTemplateRepetition};
 use vello::peniko::Color;
+pub use wabou_style::{IrColor, IrLength, IrValue};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 /// Resolved horizontal alignment for shaped text.
@@ -23,104 +24,6 @@ pub enum TextAlign {
     End,
     /// Expand inter-word spacing to fill each eligible line.
     Justify,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, PartialEq)]
-#[serde(tag = "unit", rename_all = "kebab-case")]
-/// Length representation accepted by the runtime Style IR.
-pub enum IrLength {
-    /// Logical-pixel length.
-    Px {
-        /// Logical-pixel magnitude.
-        value: f32,
-    },
-    /// Parent-relative ratio in Taffy's `0.0..=1.0` representation.
-    Percent {
-        /// Parent-relative ratio.
-        value: f32,
-    },
-    /// Automatic value resolved by layout.
-    Auto,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, PartialEq)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-/// Color representation accepted by the runtime Style IR.
-pub enum IrColor {
-    /// Packed RGBA channels in network byte order (`0xRRGGBBAA`).
-    Literal {
-        /// Packed channel value.
-        rgba: u32,
-    },
-    /// Theme token resolved before paint application.
-    Token {
-        /// Theme color name.
-        name: String,
-    },
-}
-
-#[derive(Debug, Clone, serde::Deserialize, PartialEq)]
-#[serde(tag = "type", rename_all = "kebab-case")]
-/// Typed value transported from the style compiler to the Rust backend.
-pub enum IrValue {
-    /// Property-specific closed-vocabulary keyword.
-    Keyword {
-        /// Canonical keyword spelling.
-        value: String,
-    },
-    /// Boolean value.
-    Boolean {
-        /// Boolean payload.
-        value: bool,
-    },
-    /// Finite unitless number.
-    Number {
-        /// Numeric payload.
-        value: f32,
-    },
-    /// Typed layout length.
-    Length {
-        /// Length payload.
-        value: IrLength,
-    },
-    /// Typed color.
-    Color {
-        /// Color payload.
-        value: IrColor,
-    },
-    /// Ordered composite value.
-    List {
-        /// Child values.
-        values: Vec<IrValue>,
-    },
-    /// Named composite value.
-    Record {
-        /// Child values keyed by schema field name.
-        fields: HashMap<String, IrValue>,
-    },
-}
-
-impl IrValue {
-    fn keyword(&self) -> Option<&str> {
-        match self {
-            Self::Keyword { value } => Some(value),
-            _ => None,
-        }
-    }
-
-    fn number(&self) -> Option<f32> {
-        match self {
-            Self::Number { value } => Some(*value),
-            _ => None,
-        }
-    }
-
-    fn length(&self) -> Option<&IrLength> {
-        match self {
-            Self::Length { value } => Some(value),
-            _ => None,
-        }
-    }
 }
 
 fn field<'a>(value: &'a IrValue, name: &str) -> Option<&'a IrValue> {

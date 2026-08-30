@@ -94,11 +94,11 @@ fn record_style_source(
 fn resolve_color_tokens(value: &IrValue, colors: &HashMap<String, u32>) -> IrValue {
     match value {
         IrValue::Color {
-            value: wabou_shell::style::IrColor::Token { name },
+            value: wabou_style::IrColor::Token { name },
         } => colors.get(name).map_or_else(
             || value.clone(),
             |rgba| IrValue::Color {
-                value: wabou_shell::style::IrColor::Literal { rgba: *rgba },
+                value: wabou_style::IrColor::Literal { rgba: *rgba },
             },
         ),
         IrValue::List { values } => IrValue::List {
@@ -924,7 +924,7 @@ impl Applier {
                     (semantic_color.as_ref(), &declaration.value)
                 {
                     IrValue::Color {
-                        value: wabou_shell::style::IrColor::Token {
+                        value: wabou_style::IrColor::Token {
                             name: token.clone(),
                         },
                     }

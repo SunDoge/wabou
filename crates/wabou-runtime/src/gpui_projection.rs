@@ -4,11 +4,11 @@
 //! the presentation path. It makes protocol ordering and retained identity
 //! executable against the new backend before window ownership switches over.
 
-use wabou_shell::style::{IrColor, IrLength, IrValue};
 use wabou_shell_gpui::{
     DirtyKind, NodeKey, ProjectedNodeKind, ProjectionError, ProjectionTree, StyleDiagnostic,
     StyleProjection,
 };
+use wabou_style::{IrColor, IrLength, IrValue};
 
 use crate::atom::AtomPool;
 use crate::protocol::{Frame, GRAPHIC_SOURCE_RESOURCE_RASTER, GRAPHIC_SOURCE_SVG, Op};

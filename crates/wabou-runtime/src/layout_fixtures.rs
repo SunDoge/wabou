@@ -23,6 +23,7 @@ use taffy::TraversePartialTree;
 use vello::peniko::Color;
 use wabou_shell::layout::PlacedNode;
 use wabou_shell::{FrameSource, TextContext};
+use wabou_style::IrValue;
 
 use super::{Applier, ComputedNodeSnapshot, InvalidationFlags};
 use crate::atom::Atom;
@@ -153,7 +154,7 @@ fn almost(a: f32, b: f32) {
     );
 }
 
-fn flex_none() -> wabou_shell::style::IrValue {
+fn flex_none() -> IrValue {
     record([
         ("grow", number(0.0)),
         ("shrink", number(0.0)),
@@ -161,7 +162,7 @@ fn flex_none() -> wabou_shell::style::IrValue {
     ])
 }
 
-fn flex_one() -> wabou_shell::style::IrValue {
+fn flex_one() -> IrValue {
     record([
         ("grow", number(1.0)),
         ("shrink", number(1.0)),

@@ -41,7 +41,7 @@ use wabou_shell::scrollbar::{
     hit as scrollbar_hit,
 };
 use wabou_shell::style::{
-    self, DeclaredPaint, HostPaint, InheritedPaint, IrValue, OverlayPlane, Paint, PaintTransform,
+    self, DeclaredPaint, HostPaint, InheritedPaint, OverlayPlane, Paint, PaintTransform,
     ScrollbarStyle, ScrollbarVisibility, TextAlign,
 };
 use wabou_shell::text::TextContext;
@@ -52,6 +52,7 @@ use wabou_shell::{
     PointerPhase, SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole,
     SemanticSnapshot, SemanticStates, SemanticToggleState, UiEvent, WakeCallback,
 };
+use wabou_style::IrValue;
 
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
 use crate::protocol::NodeKey;
@@ -163,7 +164,7 @@ const CLASS_RESOLUTION_CACHE_CAPACITY: usize = 1024;
 #[derive(Clone)]
 struct ResolvedClassDeclaration {
     property: String,
-    value: wabou_shell::style::IrValue,
+    value: IrValue,
     #[cfg(any(feature = "devtools", test))]
     source: Option<Atom>,
 }

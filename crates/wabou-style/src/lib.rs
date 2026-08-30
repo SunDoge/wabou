@@ -5,11 +5,13 @@
 
 #![warn(missing_docs)]
 
+mod ir;
 mod manifest;
 mod model;
 mod rules;
 mod theme;
 
+pub use ir::{IrColor, IrLength, IrValue};
 pub use manifest::{MANIFEST_VERSION, manifest, manifest_with_theme};
 pub use model::{
     Color, Declaration, DynamicPrefix, DynamicRule, Length, Manifest, ParsedUtility, Theme, Value,
