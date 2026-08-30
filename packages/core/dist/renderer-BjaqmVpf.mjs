@@ -961,18 +961,21 @@ function Dynamic(props) {
 function registerRoot(root) {
 	if (typeof WeakRef !== "undefined") nodesByKey.set(root.id, new WeakRef(root));
 }
-/** Dispose callback for the last `mount()` — used by in-process HMR full reload. */
-let activeMountDispose = null;
-let mountedRoot = null;
-const overlayRoots = /* @__PURE__ */ new Map();
+const rendererGlobal = globalThis;
+const mountState = rendererGlobal.__wabou_renderer_mount_state ?? {
+	activeMountDispose: null,
+	mountedRoot: null,
+	overlayRoots: /* @__PURE__ */ new Map()
+};
+rendererGlobal.__wabou_renderer_mount_state = mountState;
 /** Current native window root, used by renderer-level facilities like Portal. */
 function getMountRoot() {
-	if (!mountedRoot) throw new Error("Portal must be rendered inside mount()");
-	return mountedRoot;
+	if (!mountState.mountedRoot) throw new Error("Portal must be rendered inside mount()");
+	return mountState.mountedRoot;
 }
 /** Acquire the shared synthetic host root for one public overlay plane. */
 function acquireOverlayRoot(plane) {
-	const existing = overlayRoots.get(plane);
+	const existing = mountState.overlayRoots.get(plane);
 	if (existing) {
 		existing.users++;
 		return existing.node;
@@ -990,27 +993,27 @@ function acquireOverlayRoot(plane) {
 		}
 	}, false);
 	insertNode(getMountRoot(), node, void 0);
-	overlayRoots.set(plane, {
+	mountState.overlayRoots.set(plane, {
 		node,
 		users: 1
 	});
 	return node;
 }
 function releaseOverlayRoot(plane) {
-	const entry = overlayRoots.get(plane);
+	const entry = mountState.overlayRoots.get(plane);
 	if (!entry || --entry.users > 0) return;
-	overlayRoots.delete(plane);
+	mountState.overlayRoots.delete(plane);
 	if (entry.node.parent) removeNode(entry.node.parent, entry.node);
 }
 /** Mount a Solid application into the host-provided root node. */
 function mount(code) {
-	if (activeMountDispose) {
+	if (mountState.activeMountDispose) {
 		try {
-			activeMountDispose();
+			mountState.activeMountDispose();
 		} catch (error) {
 			__wabou_log("error", `mount dispose before remount failed: ${error}`);
 		}
-		activeMountDispose = null;
+		mountState.activeMountDispose = null;
 	}
 	const root = {
 		id: ROOT_NODE_KEY,
@@ -1022,22 +1025,26 @@ function mount(code) {
 		next: null,
 		...imperativeMethods(ROOT_NODE_KEY)
 	};
-	mountedRoot = root;
-	overlayRoots.clear();
+	mountState.mountedRoot = root;
+	mountState.overlayRoots.clear();
 	registerRoot(root);
 	const dispose = render(code, root);
-	activeMountDispose = () => {
+	let disposed = false;
+	const disposeMount = () => {
+		if (disposed) return;
+		disposed = true;
 		dispose();
-		overlayRoots.clear();
-		if (mountedRoot === root) mountedRoot = null;
+		if (mountState.mountedRoot === root) {
+			mountState.overlayRoots.clear();
+			mountState.mountedRoot = null;
+		}
+		if (mountState.activeMountDispose === disposeMount) mountState.activeMountDispose = null;
 		runSweep();
 		writer.flush();
 	};
+	mountState.activeMountDispose = disposeMount;
 	return () => {
-		if (activeMountDispose) {
-			activeMountDispose();
-			activeMountDispose = null;
-		}
+		disposeMount();
 	};
 }
 /**
@@ -1195,4 +1202,4 @@ function eventName(code) {
 //#endregion
 export { writer as A, releaseOverlayRoot as C, setProp as D, runSweep as E, defaultHost as F, useHost as I, PathBuilder as L, createFps as M, Portal as N, setTransform2D as O, HostProvider as P, isVectorPath as R, registerRoot as S, render as T, mergeProps as _, createElement as a, reconcileControlledInputValues as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, VirtualList as j, spread as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, removeNode as w, ref as x, observeGlobalPointerEvent as y };
 
-//# sourceMappingURL=renderer-D4xA-ZT5.mjs.map
+//# sourceMappingURL=renderer-BjaqmVpf.mjs.map

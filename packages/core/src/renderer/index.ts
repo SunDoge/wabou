@@ -969,24 +969,40 @@ export function registerRoot(root: Handle): void {
   }
 }
 
-/** Dispose callback for the last `mount()` — used by in-process HMR full reload. */
-let activeMountDispose: (() => void) | null = null;
-let mountedRoot: Handle | null = null;
 type PublicOverlayPlane = "floating" | "modal";
-const overlayRoots = new Map<
-  PublicOverlayPlane,
-  { node: Handle; users: number }
->();
+interface RendererMountState {
+  activeMountDispose: (() => void) | null;
+  mountedRoot: Handle | null;
+  overlayRoots: Map<PublicOverlayPlane, { node: Handle; users: number }>;
+}
+
+type RendererGlobal = typeof globalThis & {
+  __wabou_renderer_mount_state?: RendererMountState;
+};
+
+// A cache-busted Vite graph can evaluate a second copy of this module inside
+// the same QuickJS runtime. Mount ownership therefore belongs to the runtime,
+// not to one ESM instance; otherwise both copies retain an application root.
+const rendererGlobal = globalThis as RendererGlobal;
+const mountState =
+  rendererGlobal.__wabou_renderer_mount_state ??
+  ({
+    activeMountDispose: null,
+    mountedRoot: null,
+    overlayRoots: new Map(),
+  } satisfies RendererMountState);
+rendererGlobal.__wabou_renderer_mount_state = mountState;
 
 /** Current native window root, used by renderer-level facilities like Portal. */
 export function getMountRoot(): Handle {
-  if (!mountedRoot) throw new Error("Portal must be rendered inside mount()");
-  return mountedRoot;
+  if (!mountState.mountedRoot)
+    throw new Error("Portal must be rendered inside mount()");
+  return mountState.mountedRoot;
 }
 
 /** Acquire the shared synthetic host root for one public overlay plane. */
 export function acquireOverlayRoot(plane: PublicOverlayPlane): Handle {
-  const existing = overlayRoots.get(plane);
+  const existing = mountState.overlayRoots.get(plane);
   if (existing) {
     existing.users++;
     return existing.node;
@@ -1008,14 +1024,14 @@ export function acquireOverlayRoot(plane: PublicOverlayPlane): Handle {
     false,
   );
   insertNode(getMountRoot(), node, undefined);
-  overlayRoots.set(plane, { node, users: 1 });
+  mountState.overlayRoots.set(plane, { node, users: 1 });
   return node;
 }
 
 export function releaseOverlayRoot(plane: PublicOverlayPlane): void {
-  const entry = overlayRoots.get(plane);
+  const entry = mountState.overlayRoots.get(plane);
   if (!entry || --entry.users > 0) return;
-  overlayRoots.delete(plane);
+  mountState.overlayRoots.delete(plane);
   if (entry.node.parent) removeNode(entry.node.parent, entry.node);
 }
 
@@ -1023,13 +1039,13 @@ export function releaseOverlayRoot(plane: PublicOverlayPlane): void {
 export function mount(code: () => JSX.Element): () => void {
   // Full-reload re-imports the entry and calls mount again; tear down the
   // previous tree first so DropNode ops free host boxes and slot ids.
-  if (activeMountDispose) {
+  if (mountState.activeMountDispose) {
     try {
-      activeMountDispose();
+      mountState.activeMountDispose();
     } catch (error) {
       __wabou_log("error", `mount dispose before remount failed: ${error}`);
     }
-    activeMountDispose = null;
+    mountState.activeMountDispose = null;
   }
   const root: Handle = {
     id: ROOT_NODE_KEY,
@@ -1041,22 +1057,28 @@ export function mount(code: () => JSX.Element): () => void {
     next: null,
     ...imperativeMethods(ROOT_NODE_KEY),
   };
-  mountedRoot = root;
-  overlayRoots.clear();
+  mountState.mountedRoot = root;
+  mountState.overlayRoots.clear();
   registerRoot(root);
   const dispose = render(code, root);
-  activeMountDispose = () => {
+  let disposed = false;
+  const disposeMount = () => {
+    if (disposed) return;
+    disposed = true;
     dispose();
-    overlayRoots.clear();
-    if (mountedRoot === root) mountedRoot = null;
+    if (mountState.mountedRoot === root) {
+      mountState.overlayRoots.clear();
+      mountState.mountedRoot = null;
+    }
+    if (mountState.activeMountDispose === disposeMount) {
+      mountState.activeMountDispose = null;
+    }
     runSweep();
     writer.flush();
   };
+  mountState.activeMountDispose = disposeMount;
   return () => {
-    if (activeMountDispose) {
-      activeMountDispose();
-      activeMountDispose = null;
-    }
+    disposeMount();
   };
 }
 
