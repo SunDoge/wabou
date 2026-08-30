@@ -6,8 +6,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use crate::effect_trace::{EffectTrace, TraceSubmission};
 use crate::jsrt::JsRuntime;
 
-use wabou_shell_gpui::WakeCallback;
-use wabou_shell_gpui::{
+use gpui_shell::WakeCallback;
+use gpui_shell::{
     AppDirectories, EffectCompletion, EffectId, EffectOp, EffectPayload, EffectRequest,
     EffectResult, EffectScope,
 };
@@ -25,7 +25,7 @@ pub(super) struct EffectBridge {
 }
 
 impl EffectBridge {
-    pub(super) fn install(js: &JsRuntime, window_key: wabou_shell_gpui::WindowResourceKey) -> Self {
+    pub(super) fn install(js: &JsRuntime, window_key: gpui_shell::WindowResourceKey) -> Self {
         let bridge = Self {
             effects: Rc::new(RefCell::new(VecDeque::new())),
             action_wake: Rc::new(RefCell::new(None)),
@@ -38,7 +38,7 @@ impl EffectBridge {
         bridge
     }
 
-    fn install_functions(&self, js: &JsRuntime, window_key: wabou_shell_gpui::WindowResourceKey) {
+    fn install_functions(&self, js: &JsRuntime, window_key: gpui_shell::WindowResourceKey) {
         let submit_bridge = self.clone();
         js.with(|ctx| -> rquickjs::Result<()> {
             ctx.globals().set(
@@ -147,14 +147,14 @@ impl EffectBridge {
 
 pub(super) fn decode_effect_payload(
     op: EffectOp,
-    window_key: wabou_shell_gpui::WindowResourceKey,
+    window_key: gpui_shell::WindowResourceKey,
     payload_json: String,
     app_directories: Option<&AppDirectories>,
 ) -> EffectPayload {
     let invalid = |message: String| EffectPayload::Invalid { op, message };
     match op {
-        wabou_shell_gpui::effect::builtin::CLIPBOARD_READ => EffectPayload::ClipboardRead,
-        wabou_shell_gpui::effect::builtin::CLIPBOARD_WRITE => {
+        gpui_shell::effect::builtin::CLIPBOARD_READ => EffectPayload::ClipboardRead,
+        gpui_shell::effect::builtin::CLIPBOARD_WRITE => {
             #[derive(serde::Deserialize)]
             struct Request {
                 text: String,
@@ -163,9 +163,9 @@ pub(super) fn decode_effect_payload(
                 .map(|request| EffectPayload::ClipboardWrite { text: request.text })
                 .unwrap_or_else(|error| invalid(error.to_string()))
         }
-        wabou_shell_gpui::effect::builtin::WINDOW_CREATE => {
+        gpui_shell::effect::builtin::WINDOW_CREATE => {
             let value: serde_json::Value = serde_json::from_str(&payload_json).unwrap_or_default();
-            let mut options = wabou_shell_gpui::WindowOptions::new();
+            let mut options = gpui_shell::WindowOptions::new();
             if let Some(title) = value.get("title").and_then(|value| value.as_str()) {
                 options = options.title(title);
             }
@@ -190,13 +190,13 @@ pub(super) fn decode_effect_payload(
             }
             if let Some(window_level) = value.get("windowLevel").and_then(|value| value.as_str()) {
                 options = options.window_level(match window_level {
-                    "alwaysOnBottom" => wabou_shell_gpui::WindowLevel::AlwaysOnBottom,
-                    "alwaysOnTop" => wabou_shell_gpui::WindowLevel::AlwaysOnTop,
-                    _ => wabou_shell_gpui::WindowLevel::Normal,
+                    "alwaysOnBottom" => gpui_shell::WindowLevel::AlwaysOnBottom,
+                    "alwaysOnTop" => gpui_shell::WindowLevel::AlwaysOnTop,
+                    _ => gpui_shell::WindowLevel::Normal,
                 });
             }
             if value.get("inputMode").and_then(|value| value.as_str()) == Some("passthrough") {
-                options = options.input_mode(wabou_shell_gpui::WindowInputMode::Passthrough);
+                options = options.input_mode(gpui_shell::WindowInputMode::Passthrough);
             }
             if let (Some(width), Some(height)) = (
                 value.get("minWidth").and_then(|value| value.as_u64()),
@@ -204,39 +204,38 @@ pub(super) fn decode_effect_payload(
             ) {
                 options = options.min_inner_size(width as u32, height as u32);
             }
-            EffectPayload::WindowCreate(wabou_shell_gpui::effect::WindowCreateRequest { options })
+            EffectPayload::WindowCreate(gpui_shell::effect::WindowCreateRequest { options })
         }
-        wabou_shell_gpui::effect::builtin::WINDOW_CLOSE
-        | wabou_shell_gpui::effect::builtin::WINDOW_SET_MAXIMIZED
-        | wabou_shell_gpui::effect::builtin::WINDOW_SET_TITLE
-        | wabou_shell_gpui::effect::builtin::WINDOW_MINIMIZE
-        | wabou_shell_gpui::effect::builtin::WINDOW_START_DRAGGING
-        | wabou_shell_gpui::effect::builtin::WINDOW_SHOW => {
+        gpui_shell::effect::builtin::WINDOW_CLOSE
+        | gpui_shell::effect::builtin::WINDOW_SET_MAXIMIZED
+        | gpui_shell::effect::builtin::WINDOW_SET_TITLE
+        | gpui_shell::effect::builtin::WINDOW_MINIMIZE
+        | gpui_shell::effect::builtin::WINDOW_START_DRAGGING
+        | gpui_shell::effect::builtin::WINDOW_SHOW => {
             let value: serde_json::Value = serde_json::from_str(&payload_json).unwrap_or_default();
             let target = value
                 .get("windowId")
                 .and_then(|value| {
-                    serde_json::from_value::<wabou_shell_gpui::WindowResourceKey>(value.clone())
-                        .ok()
+                    serde_json::from_value::<gpui_shell::WindowResourceKey>(value.clone()).ok()
                 })
                 .unwrap_or(window_key);
-            let command = if op == wabou_shell_gpui::effect::builtin::WINDOW_CLOSE {
-                wabou_shell_gpui::WindowCommand::Close
-            } else if op == wabou_shell_gpui::effect::builtin::WINDOW_MINIMIZE {
-                wabou_shell_gpui::WindowCommand::Minimize
-            } else if op == wabou_shell_gpui::effect::builtin::WINDOW_START_DRAGGING {
-                wabou_shell_gpui::WindowCommand::StartDragging
-            } else if op == wabou_shell_gpui::effect::builtin::WINDOW_SET_MAXIMIZED {
-                wabou_shell_gpui::WindowCommand::SetMaximized(
+            let command = if op == gpui_shell::effect::builtin::WINDOW_CLOSE {
+                gpui_shell::WindowCommand::Close
+            } else if op == gpui_shell::effect::builtin::WINDOW_MINIMIZE {
+                gpui_shell::WindowCommand::Minimize
+            } else if op == gpui_shell::effect::builtin::WINDOW_START_DRAGGING {
+                gpui_shell::WindowCommand::StartDragging
+            } else if op == gpui_shell::effect::builtin::WINDOW_SET_MAXIMIZED {
+                gpui_shell::WindowCommand::SetMaximized(
                     value
                         .get("value")
                         .and_then(|value| value.as_bool())
                         .unwrap_or(false),
                 )
-            } else if op == wabou_shell_gpui::effect::builtin::WINDOW_SHOW {
-                wabou_shell_gpui::WindowCommand::Show
+            } else if op == gpui_shell::effect::builtin::WINDOW_SHOW {
+                gpui_shell::WindowCommand::Show
             } else {
-                wabou_shell_gpui::WindowCommand::SetTitle(
+                gpui_shell::WindowCommand::SetTitle(
                     value
                         .get("title")
                         .and_then(|value| value.as_str())
@@ -249,44 +248,42 @@ pub(super) fn decode_effect_payload(
                 command,
             }
         }
-        wabou_shell_gpui::effect::builtin::CONTEXT_MENU_SHOW => {
-            serde_json::from_str::<wabou_shell_gpui::ContextMenuRequest>(&payload_json)
+        gpui_shell::effect::builtin::CONTEXT_MENU_SHOW => {
+            serde_json::from_str::<gpui_shell::ContextMenuRequest>(&payload_json)
                 .map(EffectPayload::ContextMenuShow)
                 .unwrap_or_else(|error| invalid(error.to_string()))
         }
-        wabou_shell_gpui::effect::builtin::APP_DIRS_RESOLVE => app_directories
+        gpui_shell::effect::builtin::APP_DIRS_RESOLVE => app_directories
             .cloned()
             .map(EffectPayload::AppDirsResolve)
             .unwrap_or_else(|| invalid("application directories are not configured".into())),
-        wabou_shell_gpui::effect::builtin::DIALOG_OPEN => {
-            serde_json::from_str::<wabou_shell_gpui::OpenDialogRequest>(&payload_json)
+        gpui_shell::effect::builtin::DIALOG_OPEN => {
+            serde_json::from_str::<gpui_shell::OpenDialogRequest>(&payload_json)
                 .map(EffectPayload::DialogOpen)
                 .unwrap_or_else(|error| invalid(error.to_string()))
         }
-        wabou_shell_gpui::effect::builtin::DIALOG_SAVE => {
-            serde_json::from_str::<wabou_shell_gpui::SaveDialogRequest>(&payload_json)
+        gpui_shell::effect::builtin::DIALOG_SAVE => {
+            serde_json::from_str::<gpui_shell::SaveDialogRequest>(&payload_json)
                 .map(EffectPayload::DialogSave)
                 .unwrap_or_else(|error| invalid(error.to_string()))
         }
-        wabou_shell_gpui::effect::builtin::DIALOG_PICK_DIRECTORY => {
-            serde_json::from_str::<wabou_shell_gpui::PickDirectoryRequest>(&payload_json)
+        gpui_shell::effect::builtin::DIALOG_PICK_DIRECTORY => {
+            serde_json::from_str::<gpui_shell::PickDirectoryRequest>(&payload_json)
                 .map(EffectPayload::DialogPickDirectory)
                 .unwrap_or_else(|error| invalid(error.to_string()))
         }
-        wabou_shell_gpui::effect::builtin::DIALOG_MESSAGE => {
-            serde_json::from_str::<wabou_shell_gpui::MessageDialogRequest>(&payload_json)
+        gpui_shell::effect::builtin::DIALOG_MESSAGE => {
+            serde_json::from_str::<gpui_shell::MessageDialogRequest>(&payload_json)
                 .map(EffectPayload::DialogMessage)
                 .unwrap_or_else(|error| invalid(error.to_string()))
         }
-        wabou_shell_gpui::effect::builtin::NOTIFICATION_SHOW => {
-            serde_json::from_str::<wabou_shell_gpui::NotificationRequest>(&payload_json)
+        gpui_shell::effect::builtin::NOTIFICATION_SHOW => {
+            serde_json::from_str::<gpui_shell::NotificationRequest>(&payload_json)
                 .map(EffectPayload::NotificationShow)
                 .unwrap_or_else(|error| invalid(error.to_string()))
         }
-        wabou_shell_gpui::effect::builtin::APPLICATION_EXIT => EffectPayload::ApplicationExit,
-        wabou_shell_gpui::effect::builtin::APPLICATION_RELAUNCH => {
-            EffectPayload::ApplicationRelaunch
-        }
+        gpui_shell::effect::builtin::APPLICATION_EXIT => EffectPayload::ApplicationExit,
+        gpui_shell::effect::builtin::APPLICATION_RELAUNCH => EffectPayload::ApplicationRelaunch,
         _ => EffectPayload::Extension {
             op,
             bytes: payload_json.into_bytes(),

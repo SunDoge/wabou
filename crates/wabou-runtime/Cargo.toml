@@ -58,7 +58,9 @@ wabou-database = { workspace = true }
 wabou-devtools = { workspace = true, optional = true }
 wabou-host-api = { workspace = true }
 wabou-backend-winit = { workspace = true }
-wabou-shell-gpui = { workspace = true }
+# Temporary internal alias while the legacy Winit applier is extracted from
+# this crate. The published package remains the canonical `wabou-shell`.
+gpui-shell = { package = "wabou-shell", path = "../wabou-shell" }
 gpui-base = { workspace = true }
 wabou-style = { workspace = true }
 wabou-backend-winit-widgets = { workspace = true }

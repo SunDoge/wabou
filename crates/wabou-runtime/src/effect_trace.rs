@@ -3,11 +3,11 @@ use std::io::Write;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use serde::{Deserialize, Serialize};
-use wabou_shell_gpui::{
+use gpui_shell::{
     EFFECT_ABI_VERSION, EffectCompletion, EffectErrorCode, EffectOp, EffectRequest, EffectResult,
     EffectTapeEntry,
 };
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -235,8 +235,8 @@ impl EffectTrace {
 }
 
 fn safe_to_record(op: EffectOp) -> bool {
-    op == wabou_shell_gpui::effect::builtin::WINDOW_CLOSE
-        || op == wabou_shell_gpui::effect::builtin::WINDOW_SET_MAXIMIZED
+    op == gpui_shell::effect::builtin::WINDOW_CLOSE
+        || op == gpui_shell::effect::builtin::WINDOW_SET_MAXIMIZED
 }
 
 fn same_request_ignoring_id(expected: &EffectRequest, actual: &EffectRequest) -> bool {
@@ -246,10 +246,10 @@ fn same_request_ignoring_id(expected: &EffectRequest, actual: &EffectRequest) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wabou_shell_gpui::{EffectId, EffectPayload, EffectScope, WindowCommand};
+    use gpui_shell::{EffectId, EffectPayload, EffectScope, WindowCommand};
 
     fn title(id: u32, title: &str) -> EffectRequest {
-        let window_key = wabou_shell_gpui::initial_window_resource_key(0);
+        let window_key = gpui_shell::initial_window_resource_key(0);
         EffectRequest {
             id: EffectId(id),
             scope: EffectScope::Window(window_key),
@@ -314,7 +314,7 @@ mod tests {
         let trace = EffectTrace::record(false);
         let request = EffectRequest {
             id: EffectId(1),
-            scope: EffectScope::Window(wabou_shell_gpui::initial_window_resource_key(0)),
+            scope: EffectScope::Window(gpui_shell::initial_window_resource_key(0)),
             payload: EffectPayload::ClipboardWrite {
                 text: "secret".into(),
             },
@@ -333,15 +333,15 @@ mod tests {
         let trace = EffectTrace::fixtures();
         trace
             .enqueue_fixture(
-                wabou_shell_gpui::effect::builtin::DIALOG_PICK_DIRECTORY,
+                gpui_shell::effect::builtin::DIALOG_PICK_DIRECTORY,
                 EffectResult::DialogPaths(Some(vec!["/tmp/downloads".to_owned()])),
             )
             .unwrap();
         let request = EffectRequest {
             id: EffectId(41),
-            scope: EffectScope::Window(wabou_shell_gpui::initial_window_resource_key(0)),
-            payload: wabou_shell_gpui::EffectPayload::DialogPickDirectory(
-                wabou_shell_gpui::PickDirectoryRequest {
+            scope: EffectScope::Window(gpui_shell::initial_window_resource_key(0)),
+            payload: gpui_shell::EffectPayload::DialogPickDirectory(
+                gpui_shell::PickDirectoryRequest {
                     title: Some("Downloads".to_owned()),
                     directory: None,
                 },

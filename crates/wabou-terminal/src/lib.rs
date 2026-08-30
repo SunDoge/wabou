@@ -1,8 +1,8 @@
 use std::{ops::Range, sync::Arc};
 
 use gpui::{AppContext as _, IntoElement as _, ParentElement as _, Styled as _};
+use wabou_shell::{NativeWidgetContext, NativeWidgetMount, gpui};
 use wabou_shell_api::{KeyEvent, KeyLocation, KeyPhase, Modifiers, UiEvent, WakeCallback};
-use wabou_shell_gpui::{NativeWidgetContext, NativeWidgetMount, gpui};
 
 use wabou_terminal_core::{TerminalColor, TerminalInputResult, TerminalWidget};
 

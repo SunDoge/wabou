@@ -54,6 +54,11 @@ mod widget;
 pub use applier::{Applier, ComputedNodeSnapshot, HmrDrainResult, ReloadHandle, ReloadMsg};
 pub use config::AppConfig;
 pub use error::{Error, Result};
+pub use gpui_shell::{
+    AppDirectories, AppDirectoryConfig, NativeWidgetContext, NativeWidgetFactory,
+    NativeWidgetMount, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
+    WindowResourceKey, gpui, initial_window_resource_key,
+};
 pub use gpui_view::GpuiRuntimeView;
 pub use host::{
     HostBuilder, HostService, HostServiceContext, HostServiceHandle, ManagedHostService,
@@ -80,11 +85,6 @@ pub use vello;
 use wabou_shell::{
     FrameSource, FrameSourceFactory, RunOutcome, TextContext,
     run_windows_with_factory_and_extensions, style,
-};
-pub use wabou_shell_gpui::{
-    AppDirectories, AppDirectoryConfig, NativeWidgetContext, NativeWidgetFactory,
-    NativeWidgetMount, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
-    WindowResourceKey, gpui, initial_window_resource_key,
 };
 
 #[cfg(feature = "vite")]

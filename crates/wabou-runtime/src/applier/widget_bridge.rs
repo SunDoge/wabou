@@ -71,10 +71,10 @@ impl Applier {
     pub(super) fn enqueue_widget_host_action(
         &mut self,
         node: NodeId,
-        action: wabou_shell_gpui::HostAction,
+        action: gpui_shell::HostAction,
     ) {
         let action = match action {
-            wabou_shell_gpui::HostAction::ReadClipboard { request_id } => {
+            gpui_shell::HostAction::ReadClipboard { request_id } => {
                 let host_request_id = self.document.widget_manager.next_host_action_id;
                 self.document.widget_manager.next_host_action_id = (self
                     .document
@@ -87,7 +87,7 @@ impl Applier {
                     .widget_manager
                     .host_action_routes
                     .insert(host_request_id, (node, request_id));
-                wabou_shell_gpui::HostAction::ReadClipboard {
+                gpui_shell::HostAction::ReadClipboard {
                     request_id: host_request_id,
                 }
             }
@@ -427,19 +427,19 @@ impl Applier {
 
 fn localize_widget_event(input: &UiEvent, geometry: wabou_shell::WidgetGeometry) -> UiEvent {
     let transform = Affine::new(geometry.window_to_local);
-    let local = |point: wabou_shell_gpui::Point| {
+    let local = |point: gpui_shell::Point| {
         let point = transform * Point::new(point.x, point.y);
-        wabou_shell_gpui::Point {
+        gpui_shell::Point {
             x: point.x,
             y: point.y,
         }
     };
     match input {
-        UiEvent::Pointer(pointer) => UiEvent::Pointer(wabou_shell_gpui::PointerEvent {
+        UiEvent::Pointer(pointer) => UiEvent::Pointer(gpui_shell::PointerEvent {
             position: local(pointer.position),
             ..*pointer
         }),
-        UiEvent::Wheel(wheel) => UiEvent::Wheel(wabou_shell_gpui::WheelEvent {
+        UiEvent::Wheel(wheel) => UiEvent::Wheel(gpui_shell::WheelEvent {
             position: local(wheel.position),
             ..*wheel
         }),
@@ -465,34 +465,34 @@ mod tests {
     fn pointer_events_are_localized_at_the_widget_boundary() {
         let event = UiEvent::Pointer(PointerEvent {
             phase: PointerPhase::Down,
-            position: wabou_shell_gpui::Point { x: 120.0, y: 30.0 },
+            position: gpui_shell::Point { x: 120.0, y: 30.0 },
             button: Some(PointerButton::Primary),
             buttons: 1,
             modifiers: Modifiers::default(),
-            properties: wabou_shell_gpui::PointerProperties::default(),
+            properties: gpui_shell::PointerProperties::default(),
         });
 
         let UiEvent::Pointer(local) = localize_widget_event(&event, geometry()) else {
             panic!("expected pointer event");
         };
-        assert_eq!(local.position, wabou_shell_gpui::Point { x: 10.0, y: 5.0 });
+        assert_eq!(local.position, gpui_shell::Point { x: 10.0, y: 5.0 });
     }
 
     #[test]
     fn wheel_position_is_localized_without_changing_the_delta() {
         let event = UiEvent::Wheel(WheelEvent {
-            position: wabou_shell_gpui::Point { x: 120.0, y: 30.0 },
+            position: gpui_shell::Point { x: 120.0, y: 30.0 },
             delta_x: 3.0,
             delta_y: -8.0,
-            delta_mode: wabou_shell_gpui::WheelDeltaMode::Pixel,
-            phase: wabou_shell_gpui::GesturePhase::Changed,
+            delta_mode: gpui_shell::WheelDeltaMode::Pixel,
+            phase: gpui_shell::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         });
 
         let UiEvent::Wheel(local) = localize_widget_event(&event, geometry()) else {
             panic!("expected wheel event");
         };
-        assert_eq!(local.position, wabou_shell_gpui::Point { x: 10.0, y: 5.0 });
+        assert_eq!(local.position, gpui_shell::Point { x: 10.0, y: 5.0 });
         assert_eq!((local.delta_x, local.delta_y), (3.0, -8.0));
     }
 }

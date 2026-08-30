@@ -4,7 +4,7 @@
 //! the presentation path. It makes protocol ordering and retained identity
 //! executable against the new backend before window ownership switches over.
 
-use wabou_shell_gpui::{
+use gpui_shell::{
     DirtyKind, NodeKey, ProjectedNodeKind, ProjectionError, ProjectionTree, StyleDiagnostic,
     StyleProjection,
 };
@@ -26,11 +26,9 @@ pub(crate) struct GpuiTextControl {
 #[derive(Clone, Debug)]
 pub(crate) struct GpuiNativeWidget {
     pub key: NodeKey,
-    pub tag: wabou_shell_gpui::gpui::SharedString,
-    pub attributes: std::collections::BTreeMap<
-        wabou_shell_gpui::gpui::SharedString,
-        wabou_shell_gpui::gpui::SharedString,
-    >,
+    pub tag: gpui_shell::gpui::SharedString,
+    pub attributes:
+        std::collections::BTreeMap<gpui_shell::gpui::SharedString, gpui_shell::gpui::SharedString>,
 }
 
 #[derive(Debug)]
@@ -126,12 +124,10 @@ impl GpuiProjection {
                 Op::SetGraphicSource { id, kind, source } => match *kind {
                     GRAPHIC_SOURCE_SVG => self.tree.update_image(
                         *id,
-                        Some(std::sync::Arc::new(
-                            wabou_shell_gpui::gpui::Image::from_bytes(
-                                wabou_shell_gpui::gpui::ImageFormat::Svg,
-                                source.as_bytes().to_vec(),
-                            ),
-                        )),
+                        Some(std::sync::Arc::new(gpui_shell::gpui::Image::from_bytes(
+                            gpui_shell::gpui::ImageFormat::Svg,
+                            source.as_bytes().to_vec(),
+                        ))),
                     )?,
                     GRAPHIC_SOURCE_RESOURCE_RASTER => {
                         let image = parse_image_handle(source)
@@ -237,18 +233,18 @@ impl GpuiProjection {
     pub(crate) fn tree_element(
         &self,
         root: NodeKey,
-    ) -> Result<wabou_shell_gpui::ProjectedElement, ProjectionError> {
+    ) -> Result<gpui_shell::ProjectedElement, ProjectionError> {
         self.tree.element(root)
     }
 
     pub(crate) fn interactive_tree_element(
         &self,
         root: NodeKey,
-        input: wabou_shell_gpui::ProjectedInputSink,
-        focus: wabou_shell_gpui::gpui::FocusHandle,
-        text_input: wabou_shell_gpui::ProjectedTextInputState,
-        native: Option<wabou_shell_gpui::ProjectedNativeElementFactory>,
-    ) -> Result<wabou_shell_gpui::ProjectedElement, ProjectionError> {
+        input: gpui_shell::ProjectedInputSink,
+        focus: gpui_shell::gpui::FocusHandle,
+        text_input: gpui_shell::ProjectedTextInputState,
+        native: Option<gpui_shell::ProjectedNativeElementFactory>,
+    ) -> Result<gpui_shell::ProjectedElement, ProjectionError> {
         self.tree
             .interactive_element(root, input, focus, text_input, native)
     }
@@ -256,7 +252,7 @@ impl GpuiProjection {
     pub(crate) fn update_style(
         &mut self,
         key: NodeKey,
-        style: wabou_shell_gpui::gpui::Style,
+        style: gpui_shell::gpui::Style,
     ) -> Result<(), ProjectionError> {
         self.tree
             .update_style(key, style, DirtyKind::LAYOUT | DirtyKind::PAINT)
@@ -286,7 +282,7 @@ impl GpuiProjection {
     }
 
     #[cfg(test)]
-    pub(crate) fn style(&self, key: NodeKey) -> Option<&wabou_shell_gpui::gpui::Style> {
+    pub(crate) fn style(&self, key: NodeKey) -> Option<&gpui_shell::gpui::Style> {
         self.tree.node(key).map(|node| &node.style)
     }
 }
@@ -347,8 +343,8 @@ fn tooling_value(value: &IrValue) -> Option<wabou_style::Value> {
     })
 }
 
-fn gpui_style() -> wabou_shell_gpui::gpui::Style {
-    wabou_shell_gpui::gpui::Style::default()
+fn gpui_style() -> gpui_shell::gpui::Style {
+    gpui_shell::gpui::Style::default()
 }
 
 #[cfg(test)]
@@ -497,7 +493,7 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .format(),
-            wabou_shell_gpui::gpui::ImageFormat::Png
+            gpui_shell::gpui::ImageFormat::Png
         );
 
         projection

@@ -101,14 +101,14 @@ pub trait HostService: Send + Sync {
 /// Read-only environment available while a host-owned service starts.
 #[derive(Clone, Debug)]
 pub struct HostServiceContext {
-    app_directories: Option<wabou_shell_gpui::AppDirectories>,
+    app_directories: Option<gpui_shell::AppDirectories>,
     behavior_test: bool,
     headless: bool,
 }
 
 impl HostServiceContext {
     /// Return the application directories resolved by the host, when configured.
-    pub fn app_directories(&self) -> Option<&wabou_shell_gpui::AppDirectories> {
+    pub fn app_directories(&self) -> Option<&gpui_shell::AppDirectories> {
         self.app_directories.as_ref()
     }
 
@@ -533,19 +533,19 @@ struct RuntimeSourceConfig {
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
     widget_factories: HashMap<String, WidgetFactory>,
-    gpui_widget_factories: HashMap<String, wabou_shell_gpui::NativeWidgetFactory>,
+    gpui_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
     base_color: Color,
     #[cfg(feature = "devtools")]
     debug_state: Option<wabou_devtools::SharedDebugState>,
     effect_trace: Option<crate::effect_trace::EffectTrace>,
-    app_directories: Option<wabou_shell_gpui::AppDirectories>,
+    app_directories: Option<gpui_shell::AppDirectories>,
     image_resources: crate::ImageResourceStore,
 }
 
 impl RuntimeSourceConfig {
     fn create(
         &self,
-        window_key: wabou_shell_gpui::WindowResourceKey,
+        window_key: gpui_shell::WindowResourceKey,
         window_options: &WindowOptions,
     ) -> crate::Result<Applier> {
         #[cfg(feature = "vite")]
@@ -645,15 +645,15 @@ pub struct HostBuilder {
     window: WindowOptions,
     additional_windows: Vec<WindowOptions>,
     widget_factories: HashMap<String, WidgetFactory>,
-    gpui_widget_factories: HashMap<String, wabou_shell_gpui::NativeWidgetFactory>,
+    gpui_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
     services: Vec<(Arc<dyn HostService>, bool)>,
     devtools: bool,
     extensions: Vec<Box<dyn ShellExtension>>,
-    application_extensions: Vec<Box<dyn wabou_shell_gpui::ApplicationExtension>>,
+    application_extensions: Vec<Box<dyn gpui_shell::ApplicationExtension>>,
     effect_trace: Option<EffectTraceConfig>,
-    app_directory_config: Option<wabou_shell_gpui::AppDirectoryConfig>,
+    app_directory_config: Option<gpui_shell::AppDirectoryConfig>,
     persisted_window_size: Option<String>,
     kv_enabled: bool,
     image_resources: crate::ImageResourceStore,
@@ -754,10 +754,10 @@ impl HostBuilder {
         mut self,
         tag: impl Into<String>,
         factory: impl for<'a> Fn(
-            wabou_shell_gpui::NativeWidgetContext<'a>,
-            &mut wabou_shell_gpui::gpui::Window,
-            &mut wabou_shell_gpui::gpui::App,
-        ) -> wabou_shell_gpui::gpui::AnyElement
+            gpui_shell::NativeWidgetContext<'a>,
+            &mut gpui_shell::gpui::Window,
+            &mut gpui_shell::gpui::App,
+        ) -> gpui_shell::gpui::AnyElement
         + Send
         + Sync
         + 'static,
@@ -765,7 +765,7 @@ impl HostBuilder {
         self.gpui_widget_factories.insert(
             tag.into(),
             Arc::new(move |context, window, cx| {
-                wabou_shell_gpui::NativeWidgetMount::stateless(factory(context, window, cx))
+                gpui_shell::NativeWidgetMount::stateless(factory(context, window, cx))
             }),
         );
         self
@@ -777,10 +777,10 @@ impl HostBuilder {
         mut self,
         tag: impl Into<String>,
         factory: impl for<'a> Fn(
-            wabou_shell_gpui::NativeWidgetContext<'a>,
-            &mut wabou_shell_gpui::gpui::Window,
-            &mut wabou_shell_gpui::gpui::App,
-        ) -> wabou_shell_gpui::NativeWidgetMount
+            gpui_shell::NativeWidgetContext<'a>,
+            &mut gpui_shell::gpui::Window,
+            &mut gpui_shell::gpui::App,
+        ) -> gpui_shell::NativeWidgetMount
         + Send
         + Sync
         + 'static,
@@ -937,7 +937,7 @@ impl HostBuilder {
         organization: impl Into<String>,
         application: impl Into<String>,
     ) -> Self {
-        self.app_directory_config(wabou_shell_gpui::AppDirectoryConfig::new(
+        self.app_directory_config(gpui_shell::AppDirectoryConfig::new(
             qualifier,
             organization,
             application,
@@ -945,7 +945,7 @@ impl HostBuilder {
     }
 
     /// Set an already constructed stable application directory identity.
-    pub fn app_directory_config(mut self, config: wabou_shell_gpui::AppDirectoryConfig) -> Self {
+    pub fn app_directory_config(mut self, config: gpui_shell::AppDirectoryConfig) -> Self {
         self.app_directory_config = Some(config);
         self
     }
@@ -991,7 +991,7 @@ impl HostBuilder {
     /// the complete GPUI application lifetime.
     pub fn application_extension(
         mut self,
-        extension: impl wabou_shell_gpui::ApplicationExtension,
+        extension: impl gpui_shell::ApplicationExtension,
     ) -> Self {
         self.application_extensions.push(Box::new(extension));
         self
@@ -1105,7 +1105,7 @@ impl HostBuilder {
             .as_ref()
             .map(|config| {
                 let resource = bundle::resource_directory()?;
-                wabou_shell_gpui::AppDirectories::resolve(config, resource).ok_or_else(|| {
+                gpui_shell::AppDirectories::resolve(config, resource).ok_or_else(|| {
                     crate::Error::AppDirectories {
                         application: "configured application".into(),
                     }
@@ -1141,7 +1141,7 @@ impl HostBuilder {
                     .join("window-state")
                     .join(format!("{key}.json"));
                 if !legacy_behavior_harness {
-                    let (persistence, restored) = wabou_shell_gpui::WindowSizePersistence::restore(
+                    let (persistence, restored) = gpui_shell::WindowSizePersistence::restore(
                         path,
                         self.window.initial_inner_size,
                         self.window.min_inner_size,
@@ -1151,7 +1151,7 @@ impl HostBuilder {
                 } else {
                     let persistence = wabou_shell::WindowSizePersistence::restore(
                         path,
-                        wabou_shell_gpui::initial_window_resource_key(0),
+                        gpui_shell::initial_window_resource_key(0),
                         &mut self.window,
                     );
                     // Observe close before a tray extension consumes the request.
@@ -1231,7 +1231,7 @@ impl HostBuilder {
             }
             let mut gpui_sources = Vec::with_capacity(windows.len());
             for (index, options) in windows.into_iter().enumerate() {
-                let window_key = wabou_shell_gpui::initial_window_resource_key(index);
+                let window_key = gpui_shell::initial_window_resource_key(index);
                 #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
                 let mut applier = runtime_sources.create(window_key, &options)?;
                 #[cfg(feature = "vite")]
@@ -1265,7 +1265,7 @@ impl HostBuilder {
             });
         }
         for (index, options) in windows.into_iter().enumerate() {
-            let window_key = wabou_shell_gpui::initial_window_resource_key(index);
+            let window_key = gpui_shell::initial_window_resource_key(index);
             #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
             let mut applier = runtime_sources.create(window_key, &options)?;
             if index == 0
@@ -1348,20 +1348,20 @@ fn run_gpui_windows(
     windows: Vec<(
         Applier,
         WindowOptions,
-        Option<wabou_shell_gpui::WindowSizePersistence>,
+        Option<gpui_shell::WindowSizePersistence>,
     )>,
-    widget_factories: HashMap<String, wabou_shell_gpui::NativeWidgetFactory>,
-    mut application_extensions: Vec<Box<dyn wabou_shell_gpui::ApplicationExtension>>,
+    widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
+    mut application_extensions: Vec<Box<dyn gpui_shell::ApplicationExtension>>,
 ) -> crate::Result<()> {
-    use wabou_shell_gpui::gpui::{AppContext as _, px, size};
+    use gpui_shell::gpui::{AppContext as _, px, size};
 
     let startup_error = Arc::new(std::sync::Mutex::new(None));
     let reported_error = startup_error.clone();
-    wabou_shell_gpui::application().run(move |cx| {
+    gpui_shell::application().run(move |cx| {
         gpui_base::init(cx);
         let mut opened_windows = Vec::new();
         for (applier, options, persistence) in windows {
-            let bounds = wabou_shell_gpui::gpui::Bounds::centered(
+            let bounds = gpui_shell::gpui::Bounds::centered(
                 None,
                 size(
                     px(options.initial_inner_size.0 as f32),
@@ -1371,17 +1371,17 @@ fn run_gpui_windows(
             );
             let title = options.title.clone();
             let widget_factories = widget_factories.clone();
-            let gpui_options = wabou_shell_gpui::gpui::WindowOptions {
-                window_bounds: Some(wabou_shell_gpui::gpui::WindowBounds::Windowed(bounds)),
+            let gpui_options = gpui_shell::gpui::WindowOptions {
+                window_bounds: Some(gpui_shell::gpui::WindowBounds::Windowed(bounds)),
                 titlebar: options.decorations.then(Default::default),
                 is_resizable: options.resizable,
                 window_min_size: options
                     .min_inner_size
                     .map(|(width, height)| size(px(width as f32), px(height as f32))),
                 window_background: if options.transparent {
-                    wabou_shell_gpui::gpui::WindowBackgroundAppearance::Transparent
+                    gpui_shell::gpui::WindowBackgroundAppearance::Transparent
                 } else {
-                    wabou_shell_gpui::gpui::WindowBackgroundAppearance::Opaque
+                    gpui_shell::gpui::WindowBackgroundAppearance::Opaque
                 },
                 ..Default::default()
             };
@@ -1408,7 +1408,7 @@ fn run_gpui_windows(
                 }
             }
         }
-        if let Err(message) = wabou_shell_gpui::install_application_extensions(
+        if let Err(message) = gpui_shell::install_application_extensions(
             std::mem::take(&mut application_extensions),
             &opened_windows,
             cx,
@@ -1445,7 +1445,7 @@ pub(crate) fn relaunch_current_process() -> crate::Result<()> {
 
 fn install_host_message_producers(
     producers: &[HostMessageProducer],
-    window_key: wabou_shell_gpui::WindowResourceKey,
+    window_key: gpui_shell::WindowResourceKey,
     applier: &Applier,
 ) {
     for producer in producers {
@@ -2049,7 +2049,7 @@ mod tests {
 
         for producer in &builder.host_message_producers {
             producer(crate::HostMessageContext::new(
-                wabou_shell_gpui::WindowResourceKey::from_parts(7, 1).unwrap(),
+                gpui_shell::WindowResourceKey::from_parts(7, 1).unwrap(),
                 handle.clone(),
                 cancellation.clone(),
                 runtime.handle().clone(),
@@ -2086,7 +2086,7 @@ mod tests {
             Applier::from_runtime(runtime, vello::peniko::Color::from_rgb8(0x00, 0x00, 0x00));
         install_host_message_producers(
             &builder.host_message_producers,
-            wabou_shell_gpui::WindowResourceKey::from_parts(3, 1).unwrap(),
+            gpui_shell::WindowResourceKey::from_parts(3, 1).unwrap(),
             &applier,
         );
         started_rx

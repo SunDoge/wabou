@@ -27,7 +27,7 @@ fn host_messages_dispatch_without_waiting_for_a_render_frame() {
     assert!(FrameSource::poll_async(&mut applier));
     assert!(matches!(
         FrameSource::take_effect(&mut applier).map(|request| request.payload),
-        Some(wabou_shell_gpui::EffectPayload::ApplicationExit)
+        Some(gpui_shell::EffectPayload::ApplicationExit)
     ));
 }
 
@@ -140,8 +140,8 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let response = applier.handle_event(UiEvent::WindowMetrics(wabou_shell_gpui::WindowMetrics {
-        window_key: wabou_shell_gpui::WindowResourceKey::from_parts(1, 1).unwrap(),
+    let response = applier.handle_event(UiEvent::WindowMetrics(gpui_shell::WindowMetrics {
+        window_key: gpui_shell::WindowResourceKey::from_parts(1, 1).unwrap(),
         logical_width: 800,
         logical_height: 600,
         physical_width: 1600,
@@ -152,7 +152,7 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
         outer_x: Some(120),
         outer_y: Some(80),
         occluded: false,
-        color_scheme: Some(wabou_shell_gpui::ColorScheme::Dark),
+        color_scheme: Some(gpui_shell::ColorScheme::Dark),
     }));
     assert!(response.request_redraw);
     assert_eq!(applier.frame.device_scale, 2.0);
@@ -181,10 +181,10 @@ fn native_file_drop_reaches_js_with_paths_and_logical_position() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let response = applier.handle_event(UiEvent::FileDrop(wabou_shell_gpui::FileDropEvent {
-        phase: wabou_shell_gpui::FileDropPhase::Dropped,
+    let response = applier.handle_event(UiEvent::FileDrop(gpui_shell::FileDropEvent {
+        phase: gpui_shell::FileDropPhase::Dropped,
         paths: vec!["/tmp/one.yaml".into(), "/tmp/two.torrent".into()],
-        position: Some(wabou_shell_gpui::Point { x: 24.5, y: 31.0 }),
+        position: Some(gpui_shell::Point { x: 24.5, y: 31.0 }),
     }));
     assert!(response.request_redraw);
     let payload = applier
@@ -209,10 +209,10 @@ fn native_gesture_reaches_js_with_explicit_non_dom_semantics() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let response = applier.handle_event(UiEvent::Gesture(wabou_shell_gpui::GestureEvent::Pan {
+    let response = applier.handle_event(UiEvent::Gesture(gpui_shell::GestureEvent::Pan {
         delta_x: 12.5,
         delta_y: -4.0,
-        phase: wabou_shell_gpui::GesturePhase::Changed,
+        phase: gpui_shell::GesturePhase::Changed,
     }));
     assert!(response.request_redraw);
     let payload = applier
@@ -237,7 +237,7 @@ fn application_lifecycle_reaches_js_without_a_render_frame() {
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let response = applier.handle_event(UiEvent::AppLifecycle(
-        wabou_shell_gpui::AppLifecycleEvent::MemoryWarning,
+        gpui_shell::AppLifecycleEvent::MemoryWarning,
     ));
     assert!(response.request_redraw);
     let payload = applier
@@ -259,7 +259,7 @@ fn modifier_changes_reach_js_as_typed_host_state() {
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let response = applier.handle_event(UiEvent::ModifiersChanged(
-        wabou_shell_gpui::Modifiers::CONTROL | wabou_shell_gpui::Modifiers::SHIFT,
+        gpui_shell::Modifiers::CONTROL | gpui_shell::Modifiers::SHIFT,
     ));
     assert!(response.request_redraw);
     let payload = applier
@@ -283,7 +283,7 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
         js,
         builtin_factories(),
         Color::BLACK,
-        wabou_shell_gpui::WindowResourceKey::from_parts(17, 1).unwrap(),
+        gpui_shell::WindowResourceKey::from_parts(17, 1).unwrap(),
     );
     applier
         .boot(CORE_FIXTURE)
@@ -323,7 +323,7 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
     );
     let create_request = match applier.take_effect() {
         Some(request) => {
-            let wabou_shell_gpui::EffectPayload::WindowCreate(window) = &request.payload else {
+            let gpui_shell::EffectPayload::WindowCreate(window) = &request.payload else {
                 panic!("unexpected effect: {:?}", request.payload)
             };
             let options = &window.options;
@@ -336,26 +336,26 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
         }
         None => panic!("missing create-window effect"),
     };
-    let created_key = wabou_shell_gpui::WindowResourceKey::from_parts(42, 3).unwrap();
-    applier.complete_effect(wabou_shell_gpui::EffectCompletion {
+    let created_key = gpui_shell::WindowResourceKey::from_parts(42, 3).unwrap();
+    applier.complete_effect(gpui_shell::EffectCompletion {
         id: create_request.id,
-        op: wabou_shell_gpui::effect::builtin::WINDOW_CREATE,
-        result: wabou_shell_gpui::EffectResult::Window(created_key),
+        op: gpui_shell::effect::builtin::WINDOW_CREATE,
+        result: gpui_shell::EffectResult::Window(created_key),
     });
     for _ in 0..4 {
         applier.runtime.js.poll_async_runtime();
     }
     for command in [
-        wabou_shell_gpui::WindowCommand::SetTitle("Renamed".into()),
-        wabou_shell_gpui::WindowCommand::Minimize,
-        wabou_shell_gpui::WindowCommand::SetMaximized(true),
-        wabou_shell_gpui::WindowCommand::StartDragging,
-        wabou_shell_gpui::WindowCommand::Show,
-        wabou_shell_gpui::WindowCommand::Close,
+        gpui_shell::WindowCommand::SetTitle("Renamed".into()),
+        gpui_shell::WindowCommand::Minimize,
+        gpui_shell::WindowCommand::SetMaximized(true),
+        gpui_shell::WindowCommand::StartDragging,
+        gpui_shell::WindowCommand::Show,
+        gpui_shell::WindowCommand::Close,
     ] {
         assert_eq!(
             applier.take_effect().map(|request| request.payload),
-            Some(wabou_shell_gpui::EffectPayload::WindowControl {
+            Some(gpui_shell::EffectPayload::WindowControl {
                 window_id: created_key,
                 command,
             })
@@ -391,9 +391,9 @@ fn clipboard_bridge_routes_native_completions_back_to_javascript() {
         .expect("call public clipboard bridge");
 
     let write_request = match applier.take_effect() {
-        Some(wabou_shell_gpui::EffectRequest {
+        Some(gpui_shell::EffectRequest {
             id,
-            payload: wabou_shell_gpui::EffectPayload::ClipboardWrite { text },
+            payload: gpui_shell::EffectPayload::ClipboardWrite { text },
             ..
         }) => {
             assert_eq!(text, "hello");
@@ -403,25 +403,25 @@ fn clipboard_bridge_routes_native_completions_back_to_javascript() {
     };
     assert_ne!(write_request.0, 0);
     let read_request = match applier.take_effect() {
-        Some(wabou_shell_gpui::EffectRequest {
+        Some(gpui_shell::EffectRequest {
             id,
-            payload: wabou_shell_gpui::EffectPayload::ClipboardRead,
+            payload: gpui_shell::EffectPayload::ClipboardRead,
             ..
         }) => id,
         effect => panic!("unexpected read effect: {effect:?}"),
     };
     assert_ne!(read_request, write_request);
 
-    applier.complete_effect(wabou_shell_gpui::EffectCompletion {
+    applier.complete_effect(gpui_shell::EffectCompletion {
         id: write_request,
-        op: wabou_shell_gpui::effect::builtin::CLIPBOARD_WRITE,
-        result: wabou_shell_gpui::EffectResult::Unit,
+        op: gpui_shell::effect::builtin::CLIPBOARD_WRITE,
+        result: gpui_shell::EffectResult::Unit,
     });
     applier.runtime.js.poll_async_runtime();
-    applier.complete_effect(wabou_shell_gpui::EffectCompletion {
+    applier.complete_effect(gpui_shell::EffectCompletion {
         id: read_request,
-        op: wabou_shell_gpui::effect::builtin::CLIPBOARD_READ,
-        result: wabou_shell_gpui::EffectResult::ClipboardText(Some("world".into())),
+        op: gpui_shell::effect::builtin::CLIPBOARD_READ,
+        result: gpui_shell::EffectResult::ClipboardText(Some("world".into())),
     });
     for _ in 0..4 {
         applier.runtime.js.poll_async_runtime();
@@ -465,11 +465,11 @@ fn dialog_and_notification_bridges_route_typed_effects_and_completions() {
     let dialog = applier.take_effect().expect("dialog effect");
     assert!(matches!(
         dialog.payload,
-        wabou_shell_gpui::EffectPayload::DialogOpen(wabou_shell_gpui::OpenDialogRequest {
+        gpui_shell::EffectPayload::DialogOpen(gpui_shell::OpenDialogRequest {
             multiple: true,
             ref filters,
             ..
-        }) if filters == &[wabou_shell_gpui::DialogFilter {
+        }) if filters == &[gpui_shell::DialogFilter {
             name: "Text".into(),
             extensions: vec!["txt".into()],
         }]
@@ -477,22 +477,22 @@ fn dialog_and_notification_bridges_route_typed_effects_and_completions() {
     let notification = applier.take_effect().expect("notification effect");
     assert!(matches!(
         notification.payload,
-        wabou_shell_gpui::EffectPayload::NotificationShow(wabou_shell_gpui::NotificationRequest {
+        gpui_shell::EffectPayload::NotificationShow(gpui_shell::NotificationRequest {
             ref title,
             silent: true,
             ..
         }) if title == "Ready"
     ));
 
-    applier.complete_effect(wabou_shell_gpui::EffectCompletion {
+    applier.complete_effect(gpui_shell::EffectCompletion {
         id: notification.id,
-        op: wabou_shell_gpui::effect::builtin::NOTIFICATION_SHOW,
-        result: wabou_shell_gpui::EffectResult::Unit,
+        op: gpui_shell::effect::builtin::NOTIFICATION_SHOW,
+        result: gpui_shell::EffectResult::Unit,
     });
-    applier.complete_effect(wabou_shell_gpui::EffectCompletion {
+    applier.complete_effect(gpui_shell::EffectCompletion {
         id: dialog.id,
-        op: wabou_shell_gpui::effect::builtin::DIALOG_OPEN,
-        result: wabou_shell_gpui::EffectResult::DialogPaths(Some(vec!["/tmp/note.txt".into()])),
+        op: gpui_shell::effect::builtin::DIALOG_OPEN,
+        result: gpui_shell::EffectResult::DialogPaths(Some(vec!["/tmp/note.txt".into()])),
     });
     for _ in 0..4 {
         applier.runtime.js.poll_async_runtime();
@@ -520,8 +520,8 @@ fn replayed_effect_completion_wakes_javascript_jobs() {
     let trace = crate::effect_trace::EffectTrace::fixtures();
     trace
         .enqueue_fixture(
-            wabou_shell_gpui::effect::builtin::DIALOG_PICK_DIRECTORY,
-            wabou_shell_gpui::EffectResult::DialogPaths(Some(vec!["/tmp/wabou".into()])),
+            gpui_shell::effect::builtin::DIALOG_PICK_DIRECTORY,
+            gpui_shell::EffectResult::DialogPaths(Some(vec!["/tmp/wabou".into()])),
         )
         .expect("queue dialog fixture");
     applier.runtime.effect_bridge.set_trace(trace);
@@ -600,8 +600,8 @@ fn window_runtimes_keep_globals_and_action_queues_isolated() {
             window_id,
         )
     };
-    let mut first = make(wabou_shell_gpui::WindowResourceKey::from_parts(1, 1).unwrap());
-    let mut second = make(wabou_shell_gpui::WindowResourceKey::from_parts(2, 1).unwrap());
+    let mut first = make(gpui_shell::WindowResourceKey::from_parts(1, 1).unwrap());
+    let mut second = make(gpui_shell::WindowResourceKey::from_parts(2, 1).unwrap());
     first
         .boot(r#"globalThis.localState = 'first'; __wabou_effect_submit(2, 2, '{"windowId":{"lo":1,"hi":1}}')"#)
         .expect("boot first");
@@ -630,16 +630,16 @@ fn window_runtimes_keep_globals_and_action_queues_isolated() {
     assert_ne!(first_effect.id, second_effect.id);
     assert_eq!(
         first_effect.payload,
-        wabou_shell_gpui::EffectPayload::WindowControl {
-            window_id: wabou_shell_gpui::WindowResourceKey::from_parts(1, 1).unwrap(),
-            command: wabou_shell_gpui::WindowCommand::Close,
+        gpui_shell::EffectPayload::WindowControl {
+            window_id: gpui_shell::WindowResourceKey::from_parts(1, 1).unwrap(),
+            command: gpui_shell::WindowCommand::Close,
         }
     );
     assert_eq!(
         second_effect.payload,
-        wabou_shell_gpui::EffectPayload::WindowControl {
-            window_id: wabou_shell_gpui::WindowResourceKey::from_parts(2, 1).unwrap(),
-            command: wabou_shell_gpui::WindowCommand::Close,
+        gpui_shell::EffectPayload::WindowControl {
+            window_id: gpui_shell::WindowResourceKey::from_parts(2, 1).unwrap(),
+            command: gpui_shell::WindowCommand::Close,
         }
     );
     assert_eq!(first.take_effect(), None);

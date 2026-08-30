@@ -175,7 +175,7 @@ struct CachedClassResolution {
     diagnostics: Vec<String>,
 }
 
-fn key_event_payload(key: &wabou_shell_gpui::KeyEvent) -> String {
+fn key_event_payload(key: &gpui_shell::KeyEvent) -> String {
     serde_json::json!({
         "key": key.key,
         "keyWithoutModifiers": key.key_without_modifiers,
@@ -358,7 +358,7 @@ struct RuntimeSession {
     pending_color_palette: Option<Rc<RefCell<Option<Vec<u32>>>>>,
     pending_fonts: Option<Rc<RefCell<Vec<Vec<u8>>>>>,
     frame_stats: Option<Rc<RefCell<Option<FrameStats>>>>,
-    pending_host_actions: Rc<RefCell<VecDeque<wabou_shell_gpui::HostAction>>>,
+    pending_host_actions: Rc<RefCell<VecDeque<gpui_shell::HostAction>>>,
     effect_bridge: EffectBridge,
     wake_callback: Option<WakeCallback>,
     host_message_inbox: HostMessageInbox,
@@ -380,7 +380,7 @@ impl Drop for RuntimeSession {
 }
 
 impl RuntimeSession {
-    fn new(js: JsRuntime, window_key: wabou_shell_gpui::WindowResourceKey) -> Self {
+    fn new(js: JsRuntime, window_key: gpui_shell::WindowResourceKey) -> Self {
         let pending_css = js.pending_css_handle();
         let pending_color_theme = js.pending_color_theme_handle();
         let pending_color_palette = js.pending_color_palette_handle();
@@ -572,32 +572,27 @@ pub struct Applier {
 impl Applier {
     pub(crate) fn handle_gpui_input(
         &mut self,
-        event: wabou_shell_gpui::ProjectedInputEvent,
+        event: gpui_shell::ProjectedInputEvent,
     ) -> EventResponse {
         match event {
-            wabou_shell_gpui::ProjectedInputEvent::Pointer(event) => {
-                self.handle_gpui_pointer(event)
-            }
-            wabou_shell_gpui::ProjectedInputEvent::Wheel(event) => self.handle_gpui_wheel(event),
-            wabou_shell_gpui::ProjectedInputEvent::Key(event) => self.handle_gpui_key(event),
-            wabou_shell_gpui::ProjectedInputEvent::Ime(event) => self.handle_gpui_ime(event),
+            gpui_shell::ProjectedInputEvent::Pointer(event) => self.handle_gpui_pointer(event),
+            gpui_shell::ProjectedInputEvent::Wheel(event) => self.handle_gpui_wheel(event),
+            gpui_shell::ProjectedInputEvent::Key(event) => self.handle_gpui_key(event),
+            gpui_shell::ProjectedInputEvent::Ime(event) => self.handle_gpui_ime(event),
         }
     }
 
-    fn handle_gpui_pointer(
-        &mut self,
-        event: wabou_shell_gpui::ProjectedPointerEvent,
-    ) -> EventResponse {
+    fn handle_gpui_pointer(&mut self, event: gpui_shell::ProjectedPointerEvent) -> EventResponse {
         let phase = match event.phase {
-            wabou_shell_gpui::ProjectedPointerPhase::Move => PointerPhase::Move,
-            wabou_shell_gpui::ProjectedPointerPhase::Down => PointerPhase::Down,
-            wabou_shell_gpui::ProjectedPointerPhase::Up => PointerPhase::Up,
+            gpui_shell::ProjectedPointerPhase::Move => PointerPhase::Move,
+            gpui_shell::ProjectedPointerPhase::Down => PointerPhase::Down,
+            gpui_shell::ProjectedPointerPhase::Up => PointerPhase::Up,
         };
         let button = event.button.map(|button| match button {
-            wabou_shell_gpui::ProjectedPointerButton::Primary => PointerButton::Primary,
-            wabou_shell_gpui::ProjectedPointerButton::Auxiliary => PointerButton::Auxiliary,
-            wabou_shell_gpui::ProjectedPointerButton::Secondary => PointerButton::Secondary,
-            wabou_shell_gpui::ProjectedPointerButton::Other => PointerButton::Other(0),
+            gpui_shell::ProjectedPointerButton::Primary => PointerButton::Primary,
+            gpui_shell::ProjectedPointerButton::Auxiliary => PointerButton::Auxiliary,
+            gpui_shell::ProjectedPointerButton::Secondary => PointerButton::Secondary,
+            gpui_shell::ProjectedPointerButton::Other => PointerButton::Other(0),
         });
         let mut modifiers = Modifiers::empty();
         modifiers.set(Modifiers::SHIFT, event.shift);
@@ -618,39 +613,39 @@ impl Applier {
         self.interaction.input.target_override = Some(event.target);
         let response = FrameSource::handle_event(
             self,
-            UiEvent::Pointer(wabou_shell_gpui::PointerEvent {
+            UiEvent::Pointer(gpui_shell::PointerEvent {
                 phase,
-                position: wabou_shell_gpui::Point {
+                position: gpui_shell::Point {
                     x: f64::from(event.x),
                     y: f64::from(event.y),
                 },
                 button,
                 buttons,
                 modifiers,
-                properties: wabou_shell_gpui::PointerProperties::default(),
+                properties: gpui_shell::PointerProperties::default(),
             }),
         );
         self.interaction.input.target_override = None;
         response
     }
 
-    fn handle_gpui_wheel(&mut self, event: wabou_shell_gpui::ProjectedWheelEvent) -> EventResponse {
+    fn handle_gpui_wheel(&mut self, event: gpui_shell::ProjectedWheelEvent) -> EventResponse {
         let mut modifiers = Modifiers::empty();
         modifiers.set(Modifiers::SHIFT, event.shift);
         modifiers.set(Modifiers::CONTROL, event.control);
         modifiers.set(Modifiers::ALT, event.alt);
         modifiers.set(Modifiers::META, event.platform);
         let phase = match event.phase {
-            wabou_shell_gpui::ProjectedWheelPhase::Started => GesturePhase::Started,
-            wabou_shell_gpui::ProjectedWheelPhase::Changed => GesturePhase::Changed,
-            wabou_shell_gpui::ProjectedWheelPhase::Ended => GesturePhase::Ended,
-            wabou_shell_gpui::ProjectedWheelPhase::Cancelled => GesturePhase::Cancelled,
+            gpui_shell::ProjectedWheelPhase::Started => GesturePhase::Started,
+            gpui_shell::ProjectedWheelPhase::Changed => GesturePhase::Changed,
+            gpui_shell::ProjectedWheelPhase::Ended => GesturePhase::Ended,
+            gpui_shell::ProjectedWheelPhase::Cancelled => GesturePhase::Cancelled,
         };
         self.interaction.input.target_override = Some(event.target);
         let response = FrameSource::handle_event(
             self,
-            UiEvent::Wheel(wabou_shell_gpui::WheelEvent {
-                position: wabou_shell_gpui::Point {
+            UiEvent::Wheel(gpui_shell::WheelEvent {
+                position: gpui_shell::Point {
                     x: f64::from(event.x),
                     y: f64::from(event.y),
                 },
@@ -660,18 +655,18 @@ impl Applier {
                     * if event.precise {
                         1.0
                     } else {
-                        wabou_shell_gpui::WHEEL_LINE_DELTA
+                        gpui_shell::WHEEL_LINE_DELTA
                     },
                 delta_y: -f64::from(event.delta_y)
                     * if event.precise {
                         1.0
                     } else {
-                        wabou_shell_gpui::WHEEL_LINE_DELTA
+                        gpui_shell::WHEEL_LINE_DELTA
                     },
                 delta_mode: if event.precise {
-                    wabou_shell_gpui::WheelDeltaMode::Pixel
+                    gpui_shell::WheelDeltaMode::Pixel
                 } else {
-                    wabou_shell_gpui::WheelDeltaMode::Line
+                    gpui_shell::WheelDeltaMode::Line
                 },
                 phase,
                 modifiers,
@@ -681,15 +676,15 @@ impl Applier {
         response
     }
 
-    fn handle_gpui_key(&mut self, event: wabou_shell_gpui::ProjectedKeyEvent) -> EventResponse {
+    fn handle_gpui_key(&mut self, event: gpui_shell::ProjectedKeyEvent) -> EventResponse {
         let mut modifiers = Modifiers::empty();
         modifiers.set(Modifiers::SHIFT, event.shift);
         modifiers.set(Modifiers::CONTROL, event.control);
         modifiers.set(Modifiers::ALT, event.alt);
         modifiers.set(Modifiers::META, event.platform);
         let phase = match event.phase {
-            wabou_shell_gpui::ProjectedKeyPhase::Down => KeyPhase::Down,
-            wabou_shell_gpui::ProjectedKeyPhase::Up => KeyPhase::Up,
+            gpui_shell::ProjectedKeyPhase::Down => KeyPhase::Down,
+            gpui_shell::ProjectedKeyPhase::Up => KeyPhase::Up,
         };
         let text = (phase == KeyPhase::Down
             && !event.control
@@ -700,7 +695,7 @@ impl Applier {
             .filter(|text| text.chars().any(|character| !character.is_control()));
         let mut response = FrameSource::handle_event(
             self,
-            UiEvent::Key(wabou_shell_gpui::KeyEvent {
+            UiEvent::Key(gpui_shell::KeyEvent {
                 phase,
                 key: event.key_char.clone().unwrap_or_else(|| event.key.clone()),
                 key_without_modifiers: event.key.clone(),
@@ -709,7 +704,7 @@ impl Applier {
                 code: event.key,
                 text: event.key_char.clone(),
                 text_with_all_modifiers: event.key_char,
-                location: wabou_shell_gpui::KeyLocation::Standard,
+                location: gpui_shell::KeyLocation::Standard,
                 modifiers,
                 repeat: event.repeat,
                 synthetic: false,
@@ -728,30 +723,28 @@ impl Applier {
         response
     }
 
-    fn handle_gpui_ime(&mut self, event: wabou_shell_gpui::ProjectedImeEvent) -> EventResponse {
+    fn handle_gpui_ime(&mut self, event: gpui_shell::ProjectedImeEvent) -> EventResponse {
         let event = match event {
-            wabou_shell_gpui::ProjectedImeEvent::Commit(text) => {
-                wabou_shell_gpui::ImeEvent::Commit(text)
-            }
-            wabou_shell_gpui::ProjectedImeEvent::Preedit { text, cursor } => {
-                wabou_shell_gpui::ImeEvent::Preedit { text, cursor }
+            gpui_shell::ProjectedImeEvent::Commit(text) => gpui_shell::ImeEvent::Commit(text),
+            gpui_shell::ProjectedImeEvent::Preedit { text, cursor } => {
+                gpui_shell::ImeEvent::Preedit { text, cursor }
             }
         };
         FrameSource::handle_event(self, UiEvent::Ime(event))
     }
 
-    pub(crate) fn gpui_text_input_state(&self) -> wabou_shell_gpui::ProjectedTextInputState {
+    pub(crate) fn gpui_text_input_state(&self) -> gpui_shell::ProjectedTextInputState {
         let Some(target) = self.interaction.input.focused_target else {
-            return wabou_shell_gpui::ProjectedTextInputState::default();
+            return gpui_shell::ProjectedTextInputState::default();
         };
         let Some(node) = self.document.node_store.solid_to_node.get(&target) else {
-            return wabou_shell_gpui::ProjectedTextInputState::default();
+            return gpui_shell::ProjectedTextInputState::default();
         };
         let Some(widget) = self.document.widget_manager.widgets.get(node) else {
-            return wabou_shell_gpui::ProjectedTextInputState::default();
+            return gpui_shell::ProjectedTextInputState::default();
         };
         let selection = widget.text_selection();
-        wabou_shell_gpui::ProjectedTextInputState {
+        gpui_shell::ProjectedTextInputState {
             accepts_text: widget.accepts_text_input(),
             text: widget.current_value().map(str::to_owned),
             selection: selection.as_ref().map(|selection| {
@@ -780,7 +773,7 @@ impl Applier {
     }
 
     #[cfg(test)]
-    pub(crate) fn gpui_style(&self, key: NodeKey) -> Option<&wabou_shell_gpui::gpui::Style> {
+    pub(crate) fn gpui_style(&self, key: NodeKey) -> Option<&gpui_shell::gpui::Style> {
         self.gpui_projection.style(key)
     }
 
@@ -811,7 +804,7 @@ impl Applier {
             js,
             widget_factories,
             base_color,
-            wabou_shell_gpui::initial_window_resource_key(0),
+            gpui_shell::initial_window_resource_key(0),
         )
     }
 
@@ -820,7 +813,7 @@ impl Applier {
         js: JsRuntime,
         widget_factories: HashMap<String, wabou_shell::WidgetFactory>,
         base_color: Color,
-        window_key: wabou_shell_gpui::WindowResourceKey,
+        window_key: gpui_shell::WindowResourceKey,
     ) -> Self {
         let layout_metrics = js.layout_metrics_handle();
         let atoms = js.atom_pool_handle();
@@ -883,7 +876,7 @@ impl Applier {
     }
 
     /// Publish resolved application-private directories to native effects.
-    pub fn set_app_directories(&mut self, directories: wabou_shell_gpui::AppDirectories) {
+    pub fn set_app_directories(&mut self, directories: gpui_shell::AppDirectories) {
         self.runtime.effect_bridge.set_app_directories(directories);
     }
 
@@ -907,7 +900,7 @@ impl Applier {
 
     pub(crate) fn host_message_context(
         &self,
-        window_key: wabou_shell_gpui::WindowResourceKey,
+        window_key: gpui_shell::WindowResourceKey,
     ) -> crate::HostMessageContext {
         crate::HostMessageContext::new(
             window_key,
@@ -928,7 +921,7 @@ impl Applier {
 }
 
 impl Applier {
-    fn cancel_pointer_gesture(&mut self, pointer: wabou_shell_gpui::PointerEvent) -> bool {
+    fn cancel_pointer_gesture(&mut self, pointer: gpui_shell::PointerEvent) -> bool {
         self.interaction.input.update_pointer(&pointer);
         self.interaction.text_selection.next_scroll = None;
         let pointer_id = pointer.properties.id;
@@ -1000,9 +993,9 @@ impl Applier {
         }
         let mut changed = false;
         for route in active {
-            changed |= self.cancel_pointer_gesture(wabou_shell_gpui::PointerEvent {
+            changed |= self.cancel_pointer_gesture(gpui_shell::PointerEvent {
                 phase: PointerPhase::Cancel,
-                position: wabou_shell_gpui::Point {
+                position: gpui_shell::Point {
                     x: route.position.0,
                     y: route.position.1,
                 },

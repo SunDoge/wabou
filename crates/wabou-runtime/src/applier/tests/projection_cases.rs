@@ -562,19 +562,19 @@ fn focused_js_node_receives_complete_ime_lifecycle_and_commit_sources() {
     }
 
     for input in [
-        UiEvent::Ime(wabou_shell_gpui::ImeEvent::Enabled),
-        UiEvent::Ime(wabou_shell_gpui::ImeEvent::Preedit {
+        UiEvent::Ime(gpui_shell::ImeEvent::Enabled),
+        UiEvent::Ime(gpui_shell::ImeEvent::Preedit {
             text: "かな".into(),
             cursor: Some((0, 3)),
         }),
-        UiEvent::Ime(wabou_shell_gpui::ImeEvent::DeleteSurrounding {
+        UiEvent::Ime(gpui_shell::ImeEvent::DeleteSurrounding {
             before_bytes: 3,
             after_bytes: 0,
         }),
-        UiEvent::Ime(wabou_shell_gpui::ImeEvent::Commit("仮名".into())),
+        UiEvent::Ime(gpui_shell::ImeEvent::Commit("仮名".into())),
         UiEvent::TextInput("x".into()),
         UiEvent::Paste("pasted".into()),
-        UiEvent::Ime(wabou_shell_gpui::ImeEvent::Disabled),
+        UiEvent::Ime(gpui_shell::ImeEvent::Disabled),
     ] {
         applier.handle_event(input);
     }
@@ -694,8 +694,8 @@ fn dragging_outside_pressed_target_keeps_the_js_pointer_capture() {
 #[test]
 fn simultaneous_pointers_keep_independent_capture_state() {
     let mut applier = interactive_applier();
-    let first_id = wabou_shell_gpui::PointerId { lo: 7, hi: 1 };
-    let second_id = wabou_shell_gpui::PointerId { lo: 8, hi: 1 };
+    let first_id = gpui_shell::PointerId { lo: 7, hi: 1 };
+    let second_id = gpui_shell::PointerId { lo: 8, hi: 1 };
     let event = |phase, id, primary, x, buttons| {
         UiEvent::Pointer(PointerEvent {
             phase,
@@ -703,9 +703,9 @@ fn simultaneous_pointers_keep_independent_capture_state() {
             button: Some(PointerButton::Primary),
             buttons,
             modifiers: Modifiers::default(),
-            properties: wabou_shell_gpui::PointerProperties {
+            properties: gpui_shell::PointerProperties {
                 id,
-                pointer_type: wabou_shell_gpui::PointerType::Touch,
+                pointer_type: gpui_shell::PointerType::Touch,
                 primary,
                 ..Default::default()
             },

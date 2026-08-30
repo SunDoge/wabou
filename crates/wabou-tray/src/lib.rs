@@ -10,8 +10,8 @@ use std::rc::Rc;
 use tray_icon::TrayIcon;
 use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIconBuilder};
-use wabou_shell_gpui::gpui::{AnyWindowHandle, App, AsyncApp, Task};
-use wabou_shell_gpui::{ApplicationExtension, ApplicationExtensionContext};
+use wabou_shell::gpui::{AnyWindowHandle, App, AsyncApp, Task};
+use wabou_shell::{ApplicationExtension, ApplicationExtensionContext};
 
 type Action = Box<dyn FnMut(&mut TrayContext<'_>)>;
 

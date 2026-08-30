@@ -44,14 +44,14 @@ fn set_focus_contained(applier: &mut Applier, id: u32) {
 #[test]
 fn window_effect_rejects_an_unknown_renderer_instead_of_falling_back() {
     let payload = decode_effect_payload(
-        wabou_shell_gpui::effect::builtin::WINDOW_CREATE,
-        wabou_shell_gpui::initial_window_resource_key(0),
+        gpui_shell::effect::builtin::WINDOW_CREATE,
+        gpui_shell::initial_window_resource_key(0),
         r#"{"renderer":"browser"}"#.to_owned(),
         None,
     );
     assert!(matches!(
         payload,
-        wabou_shell_gpui::EffectPayload::Invalid { message, .. }
+        gpui_shell::EffectPayload::Invalid { message, .. }
             if message == "unknown renderer backend `browser`"
     ));
 }
@@ -478,30 +478,30 @@ fn protocol_keyed_moves_keep_logical_and_taffy_trees_unique() {
 
 #[test]
 fn app_directory_effect_uses_host_configuration_only() {
-    let directories = wabou_shell_gpui::AppDirectories::resolve(
-        &wabou_shell_gpui::AppDirectoryConfig::new("dev", "Wabou", "Effect Test"),
+    let directories = gpui_shell::AppDirectories::resolve(
+        &gpui_shell::AppDirectoryConfig::new("dev", "Wabou", "Effect Test"),
         "/app/resources",
     )
     .unwrap();
     let configured = decode_effect_payload(
-        wabou_shell_gpui::effect::builtin::APP_DIRS_RESOLVE,
-        wabou_shell_gpui::initial_window_resource_key(0),
+        gpui_shell::effect::builtin::APP_DIRS_RESOLVE,
+        gpui_shell::initial_window_resource_key(0),
         "null".into(),
         Some(&directories),
     );
     assert_eq!(
         configured,
-        wabou_shell_gpui::EffectPayload::AppDirsResolve(directories)
+        gpui_shell::EffectPayload::AppDirsResolve(directories)
     );
 
     assert!(matches!(
         decode_effect_payload(
-            wabou_shell_gpui::effect::builtin::APP_DIRS_RESOLVE,
-            wabou_shell_gpui::initial_window_resource_key(0),
+            gpui_shell::effect::builtin::APP_DIRS_RESOLVE,
+            gpui_shell::initial_window_resource_key(0),
             r#"{"application":"other"}"#.into(),
             None,
         ),
-        wabou_shell_gpui::EffectPayload::Invalid { .. }
+        gpui_shell::EffectPayload::Invalid { .. }
     ));
 }
 
@@ -509,14 +509,14 @@ fn app_directory_effect_uses_host_configuration_only() {
 fn window_show_effect_restores_a_logical_window() {
     assert_eq!(
         decode_effect_payload(
-            wabou_shell_gpui::effect::builtin::WINDOW_SHOW,
-            wabou_shell_gpui::initial_window_resource_key(0),
+            gpui_shell::effect::builtin::WINDOW_SHOW,
+            gpui_shell::initial_window_resource_key(0),
             "null".into(),
             None,
         ),
-        wabou_shell_gpui::EffectPayload::WindowControl {
-            window_id: wabou_shell_gpui::initial_window_resource_key(0),
-            command: wabou_shell_gpui::WindowCommand::Show,
+        gpui_shell::EffectPayload::WindowControl {
+            window_id: gpui_shell::initial_window_resource_key(0),
+            command: gpui_shell::WindowCommand::Show,
         }
     );
 }
@@ -525,21 +525,21 @@ fn window_show_effect_restores_a_logical_window() {
 fn application_exit_effect_is_process_scoped_and_payload_free() {
     assert_eq!(
         decode_effect_payload(
-            wabou_shell_gpui::effect::builtin::APPLICATION_EXIT,
-            wabou_shell_gpui::initial_window_resource_key(0),
+            gpui_shell::effect::builtin::APPLICATION_EXIT,
+            gpui_shell::initial_window_resource_key(0),
             "null".into(),
             None,
         ),
-        wabou_shell_gpui::EffectPayload::ApplicationExit
+        gpui_shell::EffectPayload::ApplicationExit
     );
     assert_eq!(
         decode_effect_payload(
-            wabou_shell_gpui::effect::builtin::APPLICATION_RELAUNCH,
-            wabou_shell_gpui::initial_window_resource_key(0),
+            gpui_shell::effect::builtin::APPLICATION_RELAUNCH,
+            gpui_shell::initial_window_resource_key(0),
             "null".into(),
             None,
         ),
-        wabou_shell_gpui::EffectPayload::ApplicationRelaunch
+        gpui_shell::EffectPayload::ApplicationRelaunch
     );
 }
 
@@ -550,7 +550,7 @@ fn key_payload_keeps_physical_modifiers_separate_from_primary() {
     } else {
         Modifiers::CONTROL
     };
-    let event = wabou_shell_gpui::KeyEvent {
+    let event = gpui_shell::KeyEvent {
         phase: KeyPhase::Down,
         key: "t".into(),
         key_without_modifiers: "t".into(),
@@ -580,11 +580,11 @@ fn key_payload_keeps_physical_modifiers_separate_from_primary() {
     assert_eq!(payload["primary"], false);
 }
 
-struct HostActionWidget(Option<wabou_shell_gpui::HostAction>);
+struct HostActionWidget(Option<gpui_shell::HostAction>);
 
-struct EventHostActionWidget(Option<wabou_shell_gpui::HostAction>);
+struct EventHostActionWidget(Option<gpui_shell::HostAction>);
 
-struct UnmountActionWidget(Option<wabou_shell_gpui::HostAction>);
+struct UnmountActionWidget(Option<gpui_shell::HostAction>);
 
 struct LifecycleWidget(Arc<std::sync::Mutex<Vec<&'static str>>>);
 
@@ -593,8 +593,8 @@ struct VisibilityLifecycleWidget(Arc<std::sync::Mutex<Vec<&'static str>>>);
 struct NodeEventWidget(Option<crate::widget::WidgetNodeEvent>);
 
 struct ClipboardReadWidget {
-    action: Option<wabou_shell_gpui::HostAction>,
-    completed: Arc<std::sync::Mutex<Vec<wabou_shell_gpui::HostActionResult>>>,
+    action: Option<gpui_shell::HostAction>,
+    completed: Arc<std::sync::Mutex<Vec<gpui_shell::HostActionResult>>>,
 }
 
 struct WheelCaptureWidget(Arc<std::sync::Mutex<Vec<Point>>>);
@@ -660,7 +660,7 @@ impl crate::widget::Widget for HostActionWidget {
         self.0.is_some()
     }
 
-    fn take_host_action(&mut self) -> Option<wabou_shell_gpui::HostAction> {
+    fn take_host_action(&mut self) -> Option<gpui_shell::HostAction> {
         self.0.take()
     }
 }
@@ -672,7 +672,7 @@ impl crate::widget::Widget for EventHostActionWidget {
         crate::widget::WidgetEventResult::HANDLED
     }
 
-    fn take_host_action(&mut self) -> Option<wabou_shell_gpui::HostAction> {
+    fn take_host_action(&mut self) -> Option<gpui_shell::HostAction> {
         self.0.take()
     }
 }
@@ -681,10 +681,10 @@ impl crate::widget::Widget for UnmountActionWidget {
     fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
 
     fn unmount(&mut self) {
-        self.0 = Some(wabou_shell_gpui::HostAction::SetWindowTitle(None));
+        self.0 = Some(gpui_shell::HostAction::SetWindowTitle(None));
     }
 
-    fn take_host_action(&mut self) -> Option<wabou_shell_gpui::HostAction> {
+    fn take_host_action(&mut self) -> Option<gpui_shell::HostAction> {
         self.0.take()
     }
 }
@@ -760,11 +760,11 @@ impl crate::widget::Widget for ClipboardReadWidget {
         self.action.is_some()
     }
 
-    fn take_host_action(&mut self) -> Option<wabou_shell_gpui::HostAction> {
+    fn take_host_action(&mut self) -> Option<gpui_shell::HostAction> {
         self.action.take()
     }
 
-    fn complete_host_action(&mut self, result: wabou_shell_gpui::HostActionResult) {
+    fn complete_host_action(&mut self, result: gpui_shell::HostActionResult) {
         self.completed.lock().unwrap().push(result);
     }
 }
@@ -833,7 +833,7 @@ fn prevented_keydown_never_reaches_the_focused_widget() {
         .insert(node, Box::new(KeyCaptureWidget(received.clone())));
     applier.interaction.input.focused_target = Some(NodeKey::new(2, 1));
 
-    let response = applier.handle_event(UiEvent::Key(wabou_shell_gpui::KeyEvent {
+    let response = applier.handle_event(UiEvent::Key(gpui_shell::KeyEvent {
         phase: KeyPhase::Down,
         key: "t".into(),
         key_without_modifiers: "t".into(),
@@ -868,7 +868,7 @@ fn prevented_keydown_never_reaches_the_focused_widget() {
             )
         })
         .unwrap();
-    applier.handle_event(UiEvent::Key(wabou_shell_gpui::KeyEvent {
+    applier.handle_event(UiEvent::Key(gpui_shell::KeyEvent {
         phase: KeyPhase::Down,
         key: "x".into(),
         key_without_modifiers: "x".into(),
@@ -1054,12 +1054,12 @@ fn wheel_routing_preserves_pointer_position_for_widgets() {
     applier.interaction.input.hovered_target = Some(NodeKey::new(1, 1));
     applier.interaction.input.pointer_position = (42.0, 73.0);
 
-    let response = applier.handle_event(UiEvent::Wheel(wabou_shell_gpui::WheelEvent {
+    let response = applier.handle_event(UiEvent::Wheel(gpui_shell::WheelEvent {
         position: Point { x: 42.0, y: 73.0 },
         delta_x: 0.0,
         delta_y: -40.0,
-        delta_mode: wabou_shell_gpui::WheelDeltaMode::Pixel,
-        phase: wabou_shell_gpui::GesturePhase::Changed,
+        delta_mode: gpui_shell::WheelDeltaMode::Pixel,
+        phase: gpui_shell::GesturePhase::Changed,
         modifiers: Modifiers::default(),
     }));
 
@@ -1158,14 +1158,14 @@ fn widget_host_actions_reach_the_frame_source() {
     applier.document.widget_manager.widgets.insert(
         applier.document.node_store.root,
         Box::new(HostActionWidget(Some(
-            wabou_shell_gpui::HostAction::SetWindowTitle(Some("terminal".into())),
+            gpui_shell::HostAction::SetWindowTitle(Some("terminal".into())),
         ))),
     );
 
     assert!(FrameSource::poll_async(&mut applier));
     assert_eq!(
         FrameSource::take_host_action(&mut applier),
-        Some(wabou_shell_gpui::HostAction::SetWindowTitle(Some(
+        Some(gpui_shell::HostAction::SetWindowTitle(Some(
             "terminal".into()
         )))
     );
@@ -1211,7 +1211,7 @@ fn widget_event_host_actions_are_available_without_an_async_poll() {
     applier.document.widget_manager.widgets.insert(
         applier.document.node_store.root,
         Box::new(EventHostActionWidget(Some(
-            wabou_shell_gpui::HostAction::OpenUrl("https://example.com".into()),
+            gpui_shell::HostAction::OpenUrl("https://example.com".into()),
         ))),
     );
 
@@ -1221,7 +1221,7 @@ fn widget_event_host_actions_are_available_without_an_async_poll() {
     assert!(response.handled);
     assert_eq!(
         FrameSource::take_host_action(&mut applier),
-        Some(wabou_shell_gpui::HostAction::OpenUrl(
+        Some(gpui_shell::HostAction::OpenUrl(
             "https://example.com".into()
         ))
     );
@@ -1249,7 +1249,7 @@ fn dropping_a_widget_drains_unmount_host_actions_before_routing_is_removed() {
 
     assert_eq!(
         FrameSource::take_host_action(&mut applier),
-        Some(wabou_shell_gpui::HostAction::SetWindowTitle(None))
+        Some(gpui_shell::HostAction::SetWindowTitle(None))
     );
     assert!(!applier.document.widget_manager.widgets.contains_key(&node));
 }
@@ -1363,21 +1363,21 @@ fn clipboard_read_completions_route_to_the_requesting_widget() {
     applier.document.widget_manager.widgets.insert(
         applier.document.node_store.root,
         Box::new(ClipboardReadWidget {
-            action: Some(wabou_shell_gpui::HostAction::ReadClipboard { request_id: 7 }),
+            action: Some(gpui_shell::HostAction::ReadClipboard { request_id: 7 }),
             completed: first_completed.clone(),
         }),
     );
     applier.document.widget_manager.widgets.insert(
         second_node,
         Box::new(ClipboardReadWidget {
-            action: Some(wabou_shell_gpui::HostAction::ReadClipboard { request_id: 7 }),
+            action: Some(gpui_shell::HostAction::ReadClipboard { request_id: 7 }),
             completed: second_completed.clone(),
         }),
     );
 
     assert!(FrameSource::poll_async(&mut applier));
     let mut requests = Vec::new();
-    while let Some(wabou_shell_gpui::HostAction::ReadClipboard { request_id }) =
+    while let Some(gpui_shell::HostAction::ReadClipboard { request_id }) =
         FrameSource::take_host_action(&mut applier)
     {
         requests.push(request_id);
@@ -1393,7 +1393,7 @@ fn clipboard_read_completions_route_to_the_requesting_widget() {
         };
         FrameSource::complete_host_action(
             &mut applier,
-            wabou_shell_gpui::HostActionResult::Clipboard {
+            gpui_shell::HostActionResult::Clipboard {
                 request_id,
                 text: Some(text.into()),
             },
@@ -1401,14 +1401,14 @@ fn clipboard_read_completions_route_to_the_requesting_widget() {
     }
     assert_eq!(
         *first_completed.lock().unwrap(),
-        vec![wabou_shell_gpui::HostActionResult::Clipboard {
+        vec![gpui_shell::HostActionResult::Clipboard {
             request_id: 7,
             text: Some("first".into()),
         }]
     );
     assert_eq!(
         *second_completed.lock().unwrap(),
-        vec![wabou_shell_gpui::HostActionResult::Clipboard {
+        vec![gpui_shell::HostActionResult::Clipboard {
             request_id: 7,
             text: Some("second".into()),
         }]
@@ -1433,7 +1433,7 @@ fn pointer_with_button(
         button: Some(button),
         buttons,
         modifiers: Modifiers::default(),
-        properties: wabou_shell_gpui::PointerProperties::default(),
+        properties: gpui_shell::PointerProperties::default(),
     })
 }
 
@@ -1890,7 +1890,7 @@ fn focused_widget_can_consume_tab_before_default_focus_traversal() {
     applier.interaction.input.focused_target = Some(NodeKey::new(2, 1));
     applier.interaction.input.focus_order = vec![nk(2), nk(3)];
 
-    let response = applier.handle_event(UiEvent::Key(wabou_shell_gpui::KeyEvent {
+    let response = applier.handle_event(UiEvent::Key(gpui_shell::KeyEvent {
         phase: KeyPhase::Down,
         key: "Tab".into(),
         key_without_modifiers: "Tab".into(),

@@ -45,7 +45,7 @@ impl Default for StyleState {
 struct ResolvedNodeStyle {
     layout: taffy::Style,
     paint: DeclaredPaint,
-    gpui_style: wabou_shell_gpui::gpui::Style,
+    gpui_style: gpui_shell::gpui::Style,
     host_text: Option<Arc<str>>,
     host_intrinsic: Option<[f32; 2]>,
     display_explicit: bool,
@@ -1005,7 +1005,7 @@ impl Applier {
                 ..taffy::Style::default()
             };
             let mut paint = DeclaredPaint::default();
-            let mut gpui_style = wabou_shell_gpui::StyleProjection::default();
+            let mut gpui_style = gpui_shell::StyleProjection::default();
             let mut display_explicit = false;
             let mut diagnostics = Vec::new();
             #[cfg(any(feature = "devtools", test))]

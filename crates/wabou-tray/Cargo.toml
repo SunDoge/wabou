@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 flume.workspace = true
 tray-icon = { version = "0.24.2", default-features = false, features = ["gtk"] }
-wabou-shell-gpui.workspace = true
+wabou-shell.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18.2"

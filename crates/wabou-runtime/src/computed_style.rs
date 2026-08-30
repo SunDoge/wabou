@@ -116,9 +116,9 @@ fn stylesheet_pushed_during_javascript_tick_applies_in_the_same_frame() {
     );
     assert_eq!(
         applier.gpui_style(id).unwrap().text.color,
-        Some(wabou_shell_gpui::gpui::rgb_to_hsla(
-            wabou_shell_gpui::gpui::rgba(0x3366ccff),
-        )),
+        Some(gpui_shell::gpui::rgb_to_hsla(gpui_shell::gpui::rgba(
+            0x3366ccff
+        ),)),
         "the same resolved cascade must feed the GPUI projection",
     );
 }

@@ -282,17 +282,17 @@ impl Applier {
     #[cfg(test)]
     pub(crate) fn gpui_element(
         &self,
-    ) -> Result<wabou_shell_gpui::ProjectedElement, wabou_shell_gpui::ProjectionError> {
+    ) -> Result<gpui_shell::ProjectedElement, gpui_shell::ProjectionError> {
         self.gpui_projection.tree_element(NodeKey::ROOT)
     }
 
     pub(crate) fn gpui_interactive_element(
         &self,
-        input: wabou_shell_gpui::ProjectedInputSink,
-        focus: wabou_shell_gpui::gpui::FocusHandle,
-        text_input: wabou_shell_gpui::ProjectedTextInputState,
-        native: Option<wabou_shell_gpui::ProjectedNativeElementFactory>,
-    ) -> Result<wabou_shell_gpui::ProjectedElement, wabou_shell_gpui::ProjectionError> {
+        input: gpui_shell::ProjectedInputSink,
+        focus: gpui_shell::gpui::FocusHandle,
+        text_input: gpui_shell::ProjectedTextInputState,
+        native: Option<gpui_shell::ProjectedNativeElementFactory>,
+    ) -> Result<gpui_shell::ProjectedElement, gpui_shell::ProjectionError> {
         self.gpui_projection.interactive_tree_element(
             NodeKey::ROOT,
             input,
@@ -351,25 +351,19 @@ impl Applier {
         FrameSource::handle_event(self, event)
     }
 
-    pub(crate) fn take_runtime_host_action(&mut self) -> Option<wabou_shell_gpui::HostAction> {
+    pub(crate) fn take_runtime_host_action(&mut self) -> Option<gpui_shell::HostAction> {
         FrameSource::take_host_action(self)
     }
 
-    pub(crate) fn complete_runtime_host_action(
-        &mut self,
-        result: wabou_shell_gpui::HostActionResult,
-    ) {
+    pub(crate) fn complete_runtime_host_action(&mut self, result: gpui_shell::HostActionResult) {
         FrameSource::complete_host_action(self, result);
     }
 
-    pub(crate) fn take_runtime_effect(&mut self) -> Option<wabou_shell_gpui::EffectRequest> {
+    pub(crate) fn take_runtime_effect(&mut self) -> Option<gpui_shell::EffectRequest> {
         FrameSource::take_effect(self)
     }
 
-    pub(crate) fn complete_runtime_effect(
-        &mut self,
-        completion: wabou_shell_gpui::EffectCompletion,
-    ) {
+    pub(crate) fn complete_runtime_effect(&mut self, completion: gpui_shell::EffectCompletion) {
         FrameSource::complete_effect(self, completion);
     }
 
@@ -1118,13 +1112,13 @@ impl FrameSource for Applier {
             || overlay_changed
     }
 
-    fn take_host_action(&mut self) -> Option<wabou_shell_gpui::HostAction> {
+    fn take_host_action(&mut self) -> Option<gpui_shell::HostAction> {
         self.runtime.pending_host_actions.borrow_mut().pop_front()
     }
 
-    fn complete_host_action(&mut self, result: wabou_shell_gpui::HostActionResult) {
+    fn complete_host_action(&mut self, result: gpui_shell::HostActionResult) {
         match result {
-            wabou_shell_gpui::HostActionResult::Clipboard { request_id, text } => {
+            gpui_shell::HostActionResult::Clipboard { request_id, text } => {
                 let Some((node, widget_request_id)) = self
                     .document
                     .widget_manager
@@ -1134,13 +1128,13 @@ impl FrameSource for Applier {
                     return;
                 };
                 if let Some(widget) = self.document.widget_manager.widgets.get_mut(&node) {
-                    widget.complete_host_action(wabou_shell_gpui::HostActionResult::Clipboard {
+                    widget.complete_host_action(gpui_shell::HostActionResult::Clipboard {
                         request_id: widget_request_id,
                         text,
                     });
                 }
             }
-            wabou_shell_gpui::HostActionResult::ClipboardWrite {
+            gpui_shell::HostActionResult::ClipboardWrite {
                 request_id,
                 success,
             } => {
@@ -1149,18 +1143,18 @@ impl FrameSource for Applier {
         }
     }
 
-    fn take_effect(&mut self) -> Option<wabou_shell_gpui::EffectRequest> {
+    fn take_effect(&mut self) -> Option<gpui_shell::EffectRequest> {
         self.runtime.effect_bridge.take(&self.runtime.js)
     }
 
-    fn complete_effect(&mut self, completion: wabou_shell_gpui::EffectCompletion) {
+    fn complete_effect(&mut self, completion: gpui_shell::EffectCompletion) {
         self.runtime
             .effect_bridge
             .complete(&self.runtime.js, completion);
     }
 
     #[cfg(any(feature = "devtools", test))]
-    fn take_screenshot_request(&mut self) -> Option<wabou_shell_gpui::ScreenshotRequest> {
+    fn take_screenshot_request(&mut self) -> Option<gpui_shell::ScreenshotRequest> {
         let (path, file) = self
             .frame
             .projections
@@ -1169,11 +1163,11 @@ impl FrameSource for Applier {
             .write()
             .ok()?
             .take_screenshot_request()?;
-        Some(wabou_shell_gpui::ScreenshotRequest { path, file })
+        Some(gpui_shell::ScreenshotRequest { path, file })
     }
 
     #[cfg(not(any(feature = "devtools", test)))]
-    fn take_screenshot_request(&mut self) -> Option<wabou_shell_gpui::ScreenshotRequest> {
+    fn take_screenshot_request(&mut self) -> Option<gpui_shell::ScreenshotRequest> {
         None
     }
 
