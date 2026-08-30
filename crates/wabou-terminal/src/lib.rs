@@ -4,6 +4,8 @@
 //! PTY events). This crate is the frontend adapter: it translates Wabou input
 //! to PTY bytes and pulls Rio's visible grid into a retained AnyRender scene.
 
+extern crate wabou_backend_winit as wabou_shell;
+
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;

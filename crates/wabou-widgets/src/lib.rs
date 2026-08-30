@@ -3,6 +3,8 @@
 
 #![warn(missing_docs)]
 
+extern crate wabou_backend_winit as wabou_shell;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 

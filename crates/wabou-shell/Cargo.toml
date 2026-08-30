@@ -6,7 +6,7 @@ edition = "2024"
 license.workspace = true
 
 [lib]
-name = "wabou_shell"
+name = "wabou_backend_winit"
 path = "src/lib.rs"
 
 [dependencies]

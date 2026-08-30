@@ -7,6 +7,10 @@
 
 #![warn(missing_docs)]
 
+// Transitional source alias: production call sites are being moved to the
+// GPUI shell while the Winit backend remains available as a migration oracle.
+extern crate wabou_backend_winit as wabou_shell;
+
 mod actor;
 mod applier;
 mod asset_cache;

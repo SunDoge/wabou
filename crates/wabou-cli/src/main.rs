@@ -1,5 +1,7 @@
 //! Command-line entry point for developing, building, and testing Wabou apps.
 
+extern crate wabou_backend_winit as wabou_shell;
+
 use std::env;
 use std::error::Error;
 use std::fs;
