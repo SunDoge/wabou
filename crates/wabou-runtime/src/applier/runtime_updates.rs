@@ -186,8 +186,8 @@ impl Applier {
     ///
     /// **Order:** native CSS updates are logged only (Style IR arrives via
     /// `pending_css` / virtual stylesheet in the same frame). JS updates run
-    /// next; any reject/error or explicit full-reload payload resets the scene
-    /// and re-imports the Vite entry when configured.
+    /// next. Transform errors retain the last-good scene; declined updates or
+    /// an explicit full-reload payload re-import the Vite entry when configured.
     pub(super) fn drain_hmr_batch(&mut self) -> HmrDrainResult {
         let Some(batch) = self.runtime.reload.drain() else {
             return HmrDrainResult::Idle;
@@ -275,6 +275,7 @@ impl Applier {
             }
         }
         if applied > 0 || !batch.css_paths.is_empty() {
+            self.dispatch_dev_server_ready();
             // CSS-only batches still report Applied (Style IR may have updated
             // via pending_css in the same frame).
             HmrDrainResult::Applied {
@@ -302,6 +303,7 @@ impl Applier {
                             .invalidation
                             .insert(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
                         self.runtime.has_raf = true;
+                        self.dispatch_dev_server_ready();
                     }
                     Err(e) => {
                         tracing::error!(
@@ -321,6 +323,16 @@ impl Applier {
             %reason,
             "full reload requested but no vite entry is configured — restart wabou-runtime"
         );
+    }
+
+    fn dispatch_dev_server_ready(&mut self) {
+        let event = HostEvent::Application(crate::host_message::HostMessage::str(
+            "wabou:dev-server-ready",
+            "{}",
+        ));
+        if let Err(error) = self.dispatch_host_frame(&[event]) {
+            tracing::error!(target: "hmr", ?error, "failed to clear the Vite diagnostic in JavaScript");
+        }
     }
 
     /// Clear all application-owned retained state while preserving the host root.

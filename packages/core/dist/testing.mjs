@@ -4,7 +4,11 @@ import { n as dispatchHostMessage, t as dispatchResizeObservation } from "./resi
 function dispatchFileDropEvent(event) {
 	dispatchHostMessage("wabou:file-drop", JSON.stringify(event));
 }
+/** Publish an arbitrary application message in component tests. */
+function dispatchHostMessageForTest(topic, payload) {
+	dispatchHostMessage(topic, payload);
+}
 //#endregion
-export { dispatchFileDropEvent, dispatchResizeObservation };
+export { dispatchFileDropEvent, dispatchHostMessageForTest, dispatchResizeObservation };
 
 //# sourceMappingURL=testing.mjs.map

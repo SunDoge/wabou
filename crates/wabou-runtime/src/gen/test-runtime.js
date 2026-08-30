@@ -10165,17 +10165,21 @@
       nodesByKey.set(root.id, new WeakRef(root));
     }
   }
-  var activeMountDispose = null;
-  var mountedRoot = null;
-  var overlayRoots = new Map;
+  var rendererGlobal = globalThis;
+  var mountState = rendererGlobal.__wabou_renderer_mount_state ?? {
+    activeMountDispose: null,
+    mountedRoot: null,
+    overlayRoots: new Map
+  };
+  rendererGlobal.__wabou_renderer_mount_state = mountState;
   function mount(code) {
-    if (activeMountDispose) {
+    if (mountState.activeMountDispose) {
       try {
-        activeMountDispose();
+        mountState.activeMountDispose();
       } catch (error) {
         __wabou_log("error", `mount dispose before remount failed: ${error}`);
       }
-      activeMountDispose = null;
+      mountState.activeMountDispose = null;
     }
     const root = {
       id: ROOT_NODE_KEY,
@@ -10187,23 +10191,29 @@
       next: null,
       ...imperativeMethods(ROOT_NODE_KEY)
     };
-    mountedRoot = root;
-    overlayRoots.clear();
+    mountState.mountedRoot = root;
+    mountState.overlayRoots.clear();
     registerRoot(root);
     const dispose = render(code, root);
-    activeMountDispose = () => {
+    let disposed = false;
+    const disposeMount = () => {
+      if (disposed)
+        return;
+      disposed = true;
       dispose();
-      overlayRoots.clear();
-      if (mountedRoot === root)
-        mountedRoot = null;
+      if (mountState.mountedRoot === root) {
+        mountState.overlayRoots.clear();
+        mountState.mountedRoot = null;
+      }
+      if (mountState.activeMountDispose === disposeMount) {
+        mountState.activeMountDispose = null;
+      }
       runSweep();
       writer.flush();
     };
+    mountState.activeMountDispose = disposeMount;
     return () => {
-      if (activeMountDispose) {
-        activeMountDispose();
-        activeMountDispose = null;
-      }
+      disposeMount();
     };
   }
   function dispatchEvent(solidId, eventCode, payloadStr, numericData) {

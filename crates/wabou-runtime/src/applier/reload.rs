@@ -223,4 +223,20 @@ mod tests {
 
         assert_eq!(batch.error.as_deref(), Some(r#"{"message":"latest"}"#));
     }
+
+    #[test]
+    fn vite_error_takes_priority_over_a_same_frame_full_reload() {
+        let batch = super::plan_hmr_batch([
+            ReloadMsg::FullReload,
+            ReloadMsg::Error {
+                diagnostic: r#"{"message":"transform failed"}"#.into(),
+            },
+        ]);
+
+        assert!(batch.full_reload);
+        assert_eq!(
+            batch.error.as_deref(),
+            Some(r#"{"message":"transform failed"}"#)
+        );
+    }
 }

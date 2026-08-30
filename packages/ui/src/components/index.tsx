@@ -36,6 +36,7 @@ export * from "./context-menu";
 export * from "./copy-button";
 export * from "./data-table";
 export * from "./date-picker";
+export * from "./dev-server-error";
 export * from "./dialog";
 export * from "./diff-viewer";
 export * from "./direction";

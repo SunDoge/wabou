@@ -701,6 +701,47 @@ fn hmr_batch_preserves_js_update_order() {
 }
 
 #[test]
+fn vite_transform_error_does_not_reload_or_duplicate_the_last_good_scene() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let view = applier.document.atoms.borrow_mut().intern("view");
+    let child = NodeKey::new(2, 1);
+    applier.apply_op(&Op::CreateElement {
+        id: child,
+        tag: view,
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: NodeKey::ROOT,
+        child,
+    });
+
+    let result = applier.apply_hmr_batch(plan_hmr_batch([
+        ReloadMsg::FullReload,
+        ReloadMsg::Error {
+            diagnostic: r#"{"message":"transform failed"}"#.into(),
+        },
+    ]));
+
+    assert!(matches!(result, HmrDrainResult::Error { .. }));
+    assert_eq!(
+        applier
+            .document
+            .node_store
+            .tree
+            .child_count(applier.document.node_store.root),
+        1,
+        "a transform error must leave the one last-good application root intact"
+    );
+    assert!(
+        applier
+            .document
+            .node_store
+            .solid_to_node
+            .contains_key(&child)
+    );
+}
+
+#[test]
 fn failed_full_reload_keeps_the_last_good_scene_interactive() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);

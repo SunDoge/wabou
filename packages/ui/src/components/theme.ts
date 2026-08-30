@@ -7,6 +7,7 @@ import {
   type ParentProps,
   useContext,
 } from "solid-js";
+import { DevServerErrorOverlay } from "./dev-server-error";
 
 export type ComponentsTheme = "light" | "dark";
 export type ComponentsElevation = "raised" | "floating" | "modal";
@@ -94,13 +95,21 @@ export type ComponentsProviderProps = ParentProps<{
   theme?: ComponentsTheme;
 }>;
 
+function ComponentsRoot(props: ParentProps): JSX.Element {
+  return [props.children, createComponent(DevServerErrorOverlay, {})];
+}
+
 export function ComponentsProvider(
   props: ComponentsProviderProps,
 ): JSX.Element {
   return createComponent(ThemeContext, {
     value: { theme: () => props.theme ?? "light" },
     get children() {
-      return props.children;
+      return createComponent(ComponentsRoot, {
+        get children() {
+          return props.children;
+        },
+      });
     },
   });
 }
