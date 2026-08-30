@@ -1,10 +1,8 @@
-//! A Wabou terminal widget backed by `rio-vt`.
+//! Backend-neutral terminal state backed by `rio-vt`.
 //!
 //! `rio-vt` owns terminal semantics (VT parsing, grid, cursor, scrollback and
-//! PTY events). This crate is the frontend adapter: it translates Wabou input
-//! to PTY bytes and pulls Rio's visible grid into a retained AnyRender scene.
-
-extern crate wabou_backend_winit as wabou_shell;
+//! PTY events). Native widget crates translate Wabou input into this state and
+//! paint the renderer-neutral [`TerminalFrame`] output.
 
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
@@ -13,13 +11,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use anyrender::{PaintScene, Scene};
 use rio_vt::ansi::CursorShape;
-use rio_vt::config::colors::term::TermColors;
-use rio_vt::config::colors::{AnsiColor, ColorRgb, NamedColor};
+use rio_vt::config::colors::{AnsiColor, NamedColor};
 use rio_vt::crosswords::grid::Scroll;
 use rio_vt::crosswords::grid::row::Row;
-use rio_vt::crosswords::pos::{Column, CursorState, Line, Pos, Side};
+use rio_vt::crosswords::pos::{Column, Line, Pos, Side};
 use rio_vt::crosswords::square::{ContentTag, Extras, Square, Wide};
 use rio_vt::crosswords::style::{Style, StyleFlags};
 use rio_vt::crosswords::{Crosswords, CrosswordsSize, Mode};
@@ -30,48 +26,30 @@ use rio_vt::performer::handler::Processor;
 use rio_vt::selection::{Selection, SelectionRange, SelectionType};
 use rustc_hash::FxHashMap;
 use teletypewriter::{WinsizeBuilder, create_pty_with_spawn};
-use vello::kurbo::{Affine, Rect, Stroke};
-use vello::peniko::{Color, Fill};
-#[cfg(test)]
-use wabou_runtime::{Widget, WidgetEventResult, WidgetNodeEvent, WidgetStyle, event};
-#[cfg(test)]
-use wabou_shell::{
-    style::Paint,
-    text::{TextContext, layout_text_styled},
-};
 use wabou_shell_api::{
-    HostAction, HostActionResult, ImeEvent, KeyPhase, Modifiers, PointerButton, PointerPhase,
-    UiEvent, WHEEL_LINE_DELTA, WakeCallback,
+    HostAction, ImeEvent, KeyPhase, Modifiers, PointerButton, PointerPhase, UiEvent,
+    WHEEL_LINE_DELTA, WakeCallback,
 };
 
-mod box_drawing;
 mod color;
 mod graphics;
 mod input_encoding;
 mod kitty_keyboard;
-mod legacy_graphics;
-mod legacy_widget;
 mod process;
-mod rendering;
 mod selection;
 mod session;
 
 pub use color::TerminalColor;
 use graphics::TerminalGraphics;
+pub use graphics::TerminalImage;
 use input_encoding::*;
-use legacy_graphics::KittyLayer;
-#[cfg(test)]
-use legacy_widget::legacy_color;
-pub use legacy_widget::terminal_widget;
-#[cfg(test)]
-use process::quote_windows_command_arg;
 use process::{
     LaunchConfig, default_shell_command, pty_spawn_parts, spawn_child_reaper,
     validate_launch_command,
 };
-use rendering::*;
 pub use session::{
-    TerminalEventKind, TerminalFrame, TerminalInputResult, TerminalInvalidation, TerminalNodeEvent,
+    TerminalCell, TerminalEventKind, TerminalFrame, TerminalInputResult, TerminalInvalidation,
+    TerminalNodeEvent, TerminalRow,
 };
 
 const DEFAULT_COLUMNS: usize = 80;
@@ -82,12 +60,6 @@ const DEFAULT_LINE_HEIGHT: f32 = 18.0;
 const DEFAULT_CELL_WIDTH: f32 = 8.4;
 const DEFAULT_SELECTION_BACKGROUND: TerminalColor = TerminalColor::rgba(59, 130, 246, 105);
 const SELECTION_DRAG_THRESHOLD: f64 = 4.0;
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum CursorVisual {
-    Filled(Rect),
-    Hollow(Rect),
-}
 
 type Terminal = Crosswords<TerminalListener>;
 type PtySend = Arc<dyn Fn(Msg) + Send + Sync>;
@@ -858,6 +830,3 @@ impl TerminalWidget {
         ));
     }
 }
-
-#[cfg(test)]
-mod tests;

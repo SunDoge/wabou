@@ -5,7 +5,6 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
-anyrender.workspace = true
 percent-encoding = "2"
 rio-graphics = "0.5.5"
 rio-vt = "0.5.5"
@@ -13,13 +12,7 @@ rustc-hash = "2"
 serde_json = { workspace = true }
 teletypewriter = "0.5.5"
 tracing = { workspace = true }
-vello = { workspace = true }
-wabou-runtime = { workspace = true }
-wabou-backend-winit = { workspace = true }
 wabou-shell-api = { workspace = true }
 
 [target."cfg(unix)".dependencies]
 libc = "0.2"
-
-[dev-dependencies]
-wabou-host-api = { workspace = true }

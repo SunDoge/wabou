@@ -2,6 +2,27 @@
 
 use super::*;
 
+fn cell_text(square: Square, extra: Option<&Extras>) -> String {
+    let mut text = String::from(square.c());
+    if let Some(extra) = extra {
+        text.extend(extra.zerowidth.iter().copied());
+    }
+    text
+}
+
+fn selection_contains_square(selection: SelectionRange, point: Pos, square: Square) -> bool {
+    if selection.contains(point) {
+        return true;
+    }
+    match square.wide() {
+        Wide::Wide => selection.contains(Pos::new(point.row, point.col + 1)),
+        Wide::Spacer if point.col.0 > 0 => {
+            selection.contains(Pos::new(point.row, Column(point.col.0 - 1)))
+        }
+        _ => false,
+    }
+}
+
 /// Backend-neutral snapshot of the terminal viewport.
 ///
 /// Renderers own shaping and painting. The terminal session only determines
@@ -15,6 +36,7 @@ pub struct TerminalFrame {
     pub line_height: f32,
     pub cell_width: f32,
     pub font_family: Arc<str>,
+    pub images: Vec<TerminalImage>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -268,6 +290,7 @@ impl TerminalWidget {
     pub fn snapshot_frame(&mut self, width: f32, height: f32, device_scale: f64) -> TerminalFrame {
         self.resize(width, height, device_scale);
         self.ensure_launched();
+        self.tick_selection_autoscroll();
         self.update_cursor_blink();
         let mut terminal = self.terminal.lock();
         let damage = terminal.peek_damage_event().unwrap_or(TerminalDamage::Noop);
@@ -427,6 +450,7 @@ impl TerminalWidget {
             line_height: self.line_height,
             cell_width: self.cell_width,
             font_family: self.font_family.clone(),
+            images: self.graphics.snapshot(),
         }
     }
 

@@ -11,17 +11,21 @@ pub(super) struct CachedGraphic {
     pub(super) height: usize,
 }
 
+/// Renderer-neutral decoded terminal image resource.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalImage {
+    pub key: u64,
+    pub pixels: Arc<Vec<u8>>,
+    pub width: usize,
+    pub height: usize,
+}
+
 #[derive(Default)]
 pub(crate) struct TerminalGraphics {
     pub(super) images: HashMap<u64, CachedGraphic>,
 }
 
 impl TerminalGraphics {
-    #[cfg(test)]
-    pub(crate) fn contains(&self, key: u64) -> bool {
-        self.images.contains_key(&key)
-    }
-
     pub(crate) fn apply_updates(&mut self, queues: UpdateQueues) {
         for key in queues.remove_queue {
             self.images.remove(&key);
@@ -32,6 +36,18 @@ impl TerminalGraphics {
         for (image_id, graphic) in queues.pending_images {
             self.insert(kitty_image_key(image_id), graphic);
         }
+    }
+
+    pub(crate) fn snapshot(&self) -> Vec<TerminalImage> {
+        self.images
+            .iter()
+            .map(|(&key, image)| TerminalImage {
+                key,
+                pixels: image.pixels.clone(),
+                width: image.width,
+                height: image.height,
+            })
+            .collect()
     }
 
     fn insert(&mut self, key: u64, graphic: GraphicData) {

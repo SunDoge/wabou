@@ -80,7 +80,7 @@ pub(super) fn validate_working_directory(cwd: Option<&str>) -> std::io::Result<(
 }
 
 /// Quote one argv item for the Windows `CommandLineToArgvW` rules.
-#[cfg(any(windows, test))]
+#[cfg(windows)]
 pub(super) fn quote_windows_command_arg(value: &str) -> String {
     if !value.is_empty()
         && !value
