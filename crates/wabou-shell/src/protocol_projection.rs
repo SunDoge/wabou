@@ -39,8 +39,7 @@ pub struct GpuiProjection {
     stylesheet: Option<wabou_style::stylesheet::StyleSheet>,
     classes: std::collections::HashMap<NodeKey, Vec<String>>,
     style_diagnostics: std::collections::HashMap<NodeKey, Vec<String>>,
-    inline_styles:
-        std::collections::HashMap<NodeKey, std::collections::BTreeMap<String, wabou_style::Value>>,
+    inline_styles: std::collections::HashMap<NodeKey, std::collections::BTreeMap<String, IrValue>>,
 }
 
 impl Default for GpuiProjection {
@@ -149,10 +148,19 @@ impl GpuiProjection {
                         self.recompute_style(*id)?;
                     }
                 }
+                Op::SetStyle { id, prop, value } => {
+                    if let Some(property) = atoms.resolve(*prop) {
+                        self.inline_styles
+                            .entry(*id)
+                            .or_default()
+                            .insert(property.to_owned(), wabou_style::parse_inline_value(value));
+                        self.recompute_style(*id)?;
+                    }
+                }
                 Op::SetShadows { id, shadows } => {
                     self.inline_styles.entry(*id).or_default().insert(
                         "box-shadow".to_owned(),
-                        wabou_style::Value::List {
+                        IrValue::List {
                             values: shadows.iter().copied().map(protocol_shadow_value).collect(),
                         },
                     );
@@ -374,10 +382,7 @@ impl GpuiProjection {
         }
         if let Some(styles) = self.inline_styles.get(&key) {
             for (property, value) in styles {
-                if let Err(diagnostic) = projection.apply(&wabou_style::Declaration {
-                    property: property.clone(),
-                    value: value.clone(),
-                }) {
+                if let Some(diagnostic) = project_ir(&mut projection, property, value) {
                     diagnostics.push(format!("{diagnostic:?}"));
                 }
             }
@@ -405,39 +410,39 @@ impl GpuiProjection {
     }
 }
 
-fn protocol_style_value(value: StyleValue) -> wabou_style::Value {
+fn protocol_style_value(value: StyleValue) -> IrValue {
     match value {
-        StyleValue::Px(value) => wabou_style::Value::Length {
-            value: wabou_style::Length::Px { value },
+        StyleValue::Px(value) => IrValue::Length {
+            value: IrLength::Px { value },
         },
-        StyleValue::Percent(value) => wabou_style::Value::Length {
-            value: wabou_style::Length::Percent { value },
+        StyleValue::Percent(value) => IrValue::Length {
+            value: IrLength::Percent { value },
         },
-        StyleValue::Number(value) => wabou_style::Value::Number { value },
-        StyleValue::Boolean(value) => wabou_style::Value::Boolean { value },
-        StyleValue::Color(rgba) => wabou_style::Value::Color {
-            value: wabou_style::Color::Literal { rgba },
+        StyleValue::Number(value) => IrValue::Number { value },
+        StyleValue::Boolean(value) => IrValue::Boolean { value },
+        StyleValue::Color(rgba) => IrValue::Color {
+            value: IrColor::Literal { rgba },
         },
-        StyleValue::Auto => wabou_style::Value::Length {
-            value: wabou_style::Length::Auto,
+        StyleValue::Auto => IrValue::Length {
+            value: IrLength::Auto,
         },
     }
 }
 
-fn protocol_shadow_value(shadow: ShadowValue) -> wabou_style::Value {
-    let px = |value| wabou_style::Value::Length {
-        value: wabou_style::Length::Px { value },
+fn protocol_shadow_value(shadow: ShadowValue) -> IrValue {
+    let px = |value| IrValue::Length {
+        value: IrLength::Px { value },
     };
-    wabou_style::Value::Record {
-        fields: std::collections::BTreeMap::from([
+    IrValue::Record {
+        fields: std::collections::HashMap::from([
             ("x".to_owned(), px(shadow.offset_x)),
             ("y".to_owned(), px(shadow.offset_y)),
             ("spread".to_owned(), px(shadow.spread)),
             ("stdDev".to_owned(), px(shadow.std_dev)),
             (
                 "color".to_owned(),
-                wabou_style::Value::Color {
-                    value: wabou_style::Color::Literal { rgba: shadow.color },
+                IrValue::Color {
+                    value: IrColor::Literal { rgba: shadow.color },
                 },
             ),
         ]),
@@ -663,6 +668,50 @@ mod tests {
         let style = projection.style(key(2)).unwrap();
         assert_eq!(style.size.width, Length::Auto);
         assert_eq!(style.opacity, Some(0.625));
+    }
+
+    #[test]
+    fn string_inline_styles_share_the_neutral_cascade() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        let width = atoms.intern("width");
+        let background = atoms.intern("background-color");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::SetStyle {
+                            id: key(2),
+                            prop: width,
+                            value: "20rem",
+                        },
+                        Op::SetStyle {
+                            id: key(2),
+                            prop: background,
+                            value: "#123",
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        let style = projection.style(key(2)).unwrap();
+        assert_eq!(
+            style.size.width,
+            Length::Definite(DefiniteLength::Absolute(crate::gpui::px(320.0).into()))
+        );
+        assert_eq!(
+            style.background,
+            Some(crate::gpui::rgba(0x1122_33ff).into())
+        );
     }
 
     #[test]
