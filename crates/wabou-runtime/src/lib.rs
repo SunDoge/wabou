@@ -86,6 +86,7 @@ pub use wabou_shell::{
     run_window_with_options, run_window_with_size, run_windows, run_windows_with_factory,
     run_windows_with_factory_and_extensions, style,
 };
+pub use wabou_shell_gpui::{NativeWidgetContext, NativeWidgetFactory, gpui};
 pub use widget::WidgetFactory;
 pub use widget::{
     Canvas, MeasureContext, PaintContext, PasswordInput, SecretStore, TextInput, Widget,

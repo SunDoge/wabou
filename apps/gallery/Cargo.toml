@@ -13,6 +13,7 @@ path = "examples/wabou-bindgen.rs"
 
 [dependencies]
 anyrender.workspace = true
+image = { workspace = true, features = ["png"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 snafu = { workspace = true }

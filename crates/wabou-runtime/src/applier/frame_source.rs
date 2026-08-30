@@ -306,6 +306,13 @@ impl Applier {
         self.gpui_projection.text_controls()
     }
 
+    pub(crate) fn gpui_native_widgets(
+        &self,
+        accepts: impl FnMut(&str) -> bool,
+    ) -> Vec<crate::gpui_projection::GpuiNativeWidget> {
+        self.gpui_projection.native_widgets(accepts)
+    }
+
     pub(crate) fn gpui_commit_text_value(&mut self, target: NodeKey, value: &str) -> bool {
         let Some(&node) = self.document.node_store.solid_to_node.get(&target) else {
             return false;

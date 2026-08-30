@@ -533,6 +533,7 @@ struct RuntimeSourceConfig {
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
     widget_factories: HashMap<String, WidgetFactory>,
+    gpui_widget_factories: HashMap<String, wabou_shell_gpui::NativeWidgetFactory>,
     base_color: Color,
     #[cfg(feature = "devtools")]
     debug_state: Option<wabou_devtools::SharedDebugState>,
@@ -645,6 +646,7 @@ pub struct HostBuilder {
     window: WindowOptions,
     additional_windows: Vec<WindowOptions>,
     widget_factories: HashMap<String, WidgetFactory>,
+    gpui_widget_factories: HashMap<String, wabou_shell_gpui::NativeWidgetFactory>,
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
     services: Vec<(Arc<dyn HostService>, bool)>,
@@ -691,6 +693,7 @@ impl HostBuilder {
             window: WindowOptions::default(),
             additional_windows: Vec::new(),
             widget_factories: builtin_factories(),
+            gpui_widget_factories: HashMap::new(),
             capabilities: Vec::new(),
             host_message_producers: Vec::new(),
             services: Vec::new(),
@@ -770,6 +773,26 @@ impl HostBuilder {
         factory: impl Fn() -> Box<dyn Widget> + 'static,
     ) -> Self {
         self.widget_factories.insert(tag.into(), Arc::new(factory));
+        self
+    }
+
+    /// Register an application-defined GPUI element for an explicit Solid tag.
+    ///
+    /// This is the native-widget path used by the GPUI shell. The factory is
+    /// evaluated while materializing a frame; stable state should live in a
+    /// GPUI entity or application cache keyed by `context.key()`.
+    pub fn gpui_widget(
+        mut self,
+        tag: impl Into<String>,
+        factory: impl for<'a> Fn(
+            wabou_shell_gpui::NativeWidgetContext<'a>,
+        ) -> wabou_shell_gpui::gpui::AnyElement
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        self.gpui_widget_factories
+            .insert(tag.into(), Arc::new(factory));
         self
     }
 
@@ -1198,6 +1221,7 @@ impl HostBuilder {
             capabilities: self.capabilities.clone(),
             host_message_producers: self.host_message_producers.clone(),
             widget_factories: self.widget_factories.clone(),
+            gpui_widget_factories: self.gpui_widget_factories.clone(),
             base_color: self.base_color,
             #[cfg(feature = "devtools")]
             debug_state: devtools_server.1.clone(),
@@ -1230,7 +1254,7 @@ impl HostBuilder {
                         .flatten(),
                 ));
             }
-            run_gpui_windows(gpui_sources)?;
+            run_gpui_windows(gpui_sources, runtime_sources.gpui_widget_factories.clone())?;
             #[cfg(feature = "vite")]
             drop(hmr_clients);
             #[cfg(feature = "devtools")]
@@ -1325,6 +1349,7 @@ fn run_gpui_windows(
         WindowOptions,
         Option<wabou_shell_gpui::WindowSizePersistence>,
     )>,
+    widget_factories: HashMap<String, wabou_shell_gpui::NativeWidgetFactory>,
 ) -> crate::Result<()> {
     use wabou_shell_gpui::gpui::{AppContext as _, px, size};
 
@@ -1342,6 +1367,7 @@ fn run_gpui_windows(
                 cx,
             );
             let title = options.title.clone();
+            let widget_factories = widget_factories.clone();
             let gpui_options = wabou_shell_gpui::gpui::WindowOptions {
                 window_bounds: Some(wabou_shell_gpui::gpui::WindowBounds::Windowed(bounds)),
                 titlebar: options.decorations.then(Default::default),
@@ -1358,7 +1384,16 @@ fn run_gpui_windows(
             };
             let opened = cx.open_window(gpui_options, move |window, cx| {
                 window.set_window_title(&title);
-                cx.new(|cx| crate::GpuiRuntimeView::new(applier, title, persistence, window, cx))
+                cx.new(|cx| {
+                    crate::GpuiRuntimeView::new(
+                        applier,
+                        title,
+                        persistence,
+                        widget_factories,
+                        window,
+                        cx,
+                    )
+                })
             });
             if let Err(error) = opened {
                 *reported_error.lock().expect("GPUI startup error lock") = Some(error.to_string());

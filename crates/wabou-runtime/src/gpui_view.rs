@@ -1,6 +1,10 @@
 //! GPUI view owning one Wabou JavaScript runtime.
 
-use std::{collections::BTreeMap, rc::Rc, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    rc::Rc,
+    sync::Arc,
+};
 
 use gpui_base::input::{Input, InputEvent, InputState, Textarea, TextareaState};
 use wabou_shell_gpui::WakeCallback;
@@ -31,6 +35,7 @@ pub struct GpuiRuntimeView {
     default_title: String,
     text_controls: BTreeMap<wabou_host_api::NodeKey, GpuiTextControlState>,
     window_size_persistence: Option<wabou_shell_gpui::WindowSizePersistence>,
+    native_widget_factories: HashMap<String, wabou_shell_gpui::NativeWidgetFactory>,
 }
 
 enum GpuiTextControlState {
@@ -96,6 +101,7 @@ impl GpuiRuntimeView {
         mut applier: Applier,
         default_title: String,
         window_size_persistence: Option<wabou_shell_gpui::WindowSizePersistence>,
+        native_widget_factories: HashMap<String, wabou_shell_gpui::NativeWidgetFactory>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -128,6 +134,7 @@ impl GpuiRuntimeView {
             default_title,
             text_controls: BTreeMap::new(),
             window_size_persistence,
+            native_widget_factories,
         }
     }
 
@@ -642,12 +649,28 @@ impl Render for GpuiRuntimeView {
             // transitional root handler active would commit IME text twice.
             text_input.accepts_text = false;
         }
-        let native_controls = Rc::new(std::cell::RefCell::new(
-            self.text_controls
-                .iter()
-                .map(|(key, state)| (*key, state.element()))
-                .collect::<BTreeMap<_, _>>(),
-        ));
+        let mut native_controls = self
+            .text_controls
+            .iter()
+            .map(|(key, state)| (*key, state.element()))
+            .collect::<BTreeMap<_, _>>();
+        let widgets = self
+            .applier
+            .gpui_native_widgets(|tag| self.native_widget_factories.contains_key(tag));
+        for widget in &widgets {
+            let factory = self
+                .native_widget_factories
+                .get(widget.tag.as_ref())
+                .expect("native widget descriptors are filtered by the registry");
+            native_controls.insert(
+                widget.key,
+                factory(wabou_shell_gpui::NativeWidgetContext::new(
+                    widget.key,
+                    &widget.attributes,
+                )),
+            );
+        }
+        let native_controls = Rc::new(std::cell::RefCell::new(native_controls));
         let native: wabou_shell_gpui::ProjectedNativeElementFactory =
             Rc::new(move |key| native_controls.borrow_mut().remove(&key));
         self.applier
@@ -706,7 +729,14 @@ mod tests {
         let runtime = JsRuntime::new().expect("QuickJS runtime");
         let applier = Applier::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
         let (view, cx) = cx.add_window_view(move |window, cx| {
-            GpuiRuntimeView::new(applier, "Clipboard test".into(), None, window, cx)
+            GpuiRuntimeView::new(
+                applier,
+                "Clipboard test".into(),
+                None,
+                HashMap::new(),
+                window,
+                cx,
+            )
         });
 
         let write = cx.update(|window, app| {
@@ -756,7 +786,14 @@ mod tests {
         let runtime = JsRuntime::new().expect("QuickJS runtime");
         let applier = Applier::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
         let (view, cx) = cx.add_window_view(move |window, cx| {
-            GpuiRuntimeView::new(applier, "Dialog test".into(), None, window, cx)
+            GpuiRuntimeView::new(
+                applier,
+                "Dialog test".into(),
+                None,
+                HashMap::new(),
+                window,
+                cx,
+            )
         });
 
         let completion = cx.update(|window, app| {

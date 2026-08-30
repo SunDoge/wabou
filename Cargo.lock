@@ -3473,6 +3473,7 @@ name = "gallery"
 version = "0.1.0"
 dependencies = [
  "anyrender",
+ "image",
  "serde",
  "serde_json",
  "snafu",

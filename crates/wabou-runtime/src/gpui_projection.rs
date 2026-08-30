@@ -23,6 +23,16 @@ pub(crate) struct GpuiTextControl {
     pub readonly: bool,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct GpuiNativeWidget {
+    pub key: NodeKey,
+    pub tag: wabou_shell_gpui::gpui::SharedString,
+    pub attributes: std::collections::BTreeMap<
+        wabou_shell_gpui::gpui::SharedString,
+        wabou_shell_gpui::gpui::SharedString,
+    >,
+}
+
 #[derive(Debug)]
 pub(crate) struct GpuiProjection {
     tree: ProjectionTree,
@@ -163,6 +173,31 @@ impl GpuiProjection {
             .iter()
             .flat_map(|root| self.text_controls_below(*root))
             .collect()
+    }
+
+    pub(crate) fn native_widgets(
+        &self,
+        mut accepts: impl FnMut(&str) -> bool,
+    ) -> Vec<GpuiNativeWidget> {
+        let mut widgets = Vec::new();
+        let mut pending = self.tree.roots().to_vec();
+        while let Some(key) = pending.pop() {
+            let Some(node) = self.tree.node(key) else {
+                continue;
+            };
+            pending.extend(node.children.iter().rev().copied());
+            let ProjectedNodeKind::Element(tag) = &node.kind else {
+                continue;
+            };
+            if accepts(tag.as_ref()) {
+                widgets.push(GpuiNativeWidget {
+                    key,
+                    tag: tag.clone(),
+                    attributes: node.attributes.clone(),
+                });
+            }
+        }
+        widgets
     }
 
     fn text_controls_below(&self, root: NodeKey) -> Vec<GpuiTextControl> {
@@ -576,5 +611,72 @@ mod tests {
                 .collect::<Vec<_>>(),
             [key(3)]
         );
+    }
+
+    #[test]
+    fn native_widget_descriptors_preserve_authored_state_and_generational_identity() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let fractal = atoms.intern("fractal");
+        let view = atoms.intern("view");
+        let center_x = atoms.intern("center-x");
+        let recreated = NodeKey::new(2, 7);
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: recreated,
+                            tag: fractal,
+                        },
+                        Op::SetAttribute {
+                            id: recreated,
+                            name: center_x,
+                            value: "-0.745",
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: recreated,
+                        },
+                        Op::CreateElement {
+                            id: key(3),
+                            tag: view,
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(3),
+                        },
+                    ],
+                },
+                &atoms,
+                &crate::ImageResourceStore::default(),
+            )
+            .unwrap();
+
+        let widgets = projection.native_widgets(|tag| tag == "fractal");
+        assert_eq!(widgets.len(), 1);
+        assert_eq!(widgets[0].key, recreated);
+        assert_eq!(widgets[0].tag.as_ref(), "fractal");
+        assert_eq!(
+            widgets[0].attributes.get("center-x").map(AsRef::as_ref),
+            Some("-0.745")
+        );
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 2,
+                    ops: vec![Op::RemoveChild {
+                        parent: NodeKey::ROOT,
+                        child: recreated,
+                    }],
+                },
+                &atoms,
+                &crate::ImageResourceStore::default(),
+            )
+            .unwrap();
+        assert!(projection.native_widgets(|tag| tag == "fractal").is_empty());
     }
 }
