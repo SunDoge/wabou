@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     applier::{effect_bridge::EffectBridge, reload::ReloadState},
+    atom::AtomPool,
     host_message::{
         DEFAULT_HOST_MESSAGE_CAPACITY, HostMessageHandle, HostMessageInbox, host_message_channel,
     },
@@ -21,6 +22,7 @@ use gpui_shell::{FrameStats, HostAction, WakeCallback, WindowResourceKey};
 /// therefore compose it without making the JavaScript host backend-aware.
 pub(crate) struct RuntimeSession {
     pub(crate) js: JsRuntime,
+    pub(crate) atoms: Rc<RefCell<AtomPool>>,
     pub(crate) has_raf: bool,
     pub(crate) protocol_revision: u64,
     pub(crate) reload: ReloadState,
@@ -40,6 +42,7 @@ pub(crate) struct RuntimeSession {
 
 impl RuntimeSession {
     pub(crate) fn new(js: JsRuntime, window_key: WindowResourceKey) -> Self {
+        let atoms = js.atom_pool_handle();
         let pending_css = js.pending_css_handle();
         let pending_color_theme = js.pending_color_theme_handle();
         let pending_color_palette = js.pending_color_palette_handle();
@@ -51,6 +54,7 @@ impl RuntimeSession {
             host_message_channel(DEFAULT_HOST_MESSAGE_CAPACITY);
         Self {
             js,
+            atoms,
             has_raf: true,
             protocol_revision: 0,
             reload: ReloadState::default(),

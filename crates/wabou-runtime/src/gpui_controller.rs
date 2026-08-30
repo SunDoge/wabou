@@ -4,7 +4,6 @@ use crate::{
     ImageResourceHandle, ImageResourceStore, protocol::Frame, runtime_session::RuntimeSession,
 };
 use gpui_shell::{GpuiProjection, ProjectionError};
-use wabou_protocol::AtomPool;
 use wabou_style::stylesheet::{StyleSheet, StylesheetUpdate};
 
 /// Renderer-side state consumed exclusively by the GPUI application runtime.
@@ -30,12 +29,9 @@ impl GpuiController {
         self.image_resources = resources;
     }
 
-    pub(crate) fn apply_frame(
-        &mut self,
-        frame: &Frame<'_>,
-        atoms: &AtomPool,
-    ) -> Result<(), ProjectionError> {
-        self.projection.apply_ops(frame, atoms, |source| {
+    pub(crate) fn apply_frame(&mut self, frame: &Frame<'_>) -> Result<(), ProjectionError> {
+        let atoms = self.runtime.atoms.borrow();
+        self.projection.apply_ops(frame, &atoms, |source| {
             let (lo, hi) = source.split_once(':')?;
             let handle = ImageResourceHandle {
                 lo: lo.parse().ok()?,
