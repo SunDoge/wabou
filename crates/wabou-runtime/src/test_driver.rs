@@ -10,7 +10,6 @@ use std::sync::{
 use rquickjs::{Function, prelude::Async};
 use serde::Deserialize;
 use tokio::sync::oneshot;
-use wabou_shell::window_lifecycle::{WindowCapabilities, WindowLifecycle, WindowPresence};
 use wabou_shell::{
     ExtensionContext, FileDropEvent, FileDropPhase, ImeEvent, KeyEvent, KeyLocation, KeyPhase,
     ShellExtension, WakeCallback, WheelEvent,
@@ -19,6 +18,7 @@ use wabou_shell::{
     FrameSource, Modifiers, Point, PointerButton, PointerEvent, PointerPhase, SemanticRole,
     SemanticSnapshot, UiEvent,
 };
+use wabou_shell_gpui::{WindowCapabilities, WindowIntent, WindowLifecycle, WindowPresence};
 
 const CAPABILITY: &str = "test";
 const MAX_FIXTURE_BYTES: usize = 16 * 1024 * 1024;
@@ -943,17 +943,16 @@ fn apply_headless_action(state: &mut TestState, action: TestAction) {
             mutable_visibility,
         } => state.windows.get_mut(&window_key).is_some_and(|snapshot| {
             snapshot.lifecycle.transition(
-                wabou_shell::window_lifecycle::WindowIntent::Hide,
+                WindowIntent::Hide,
                 WindowCapabilities { mutable_visibility },
             );
             true
         }),
         TestActionKind::ShowWindow(window_key) => {
             state.windows.get_mut(&window_key).is_some_and(|snapshot| {
-                snapshot.lifecycle.transition(
-                    wabou_shell::window_lifecycle::WindowIntent::Show,
-                    WindowCapabilities::default(),
-                );
+                snapshot
+                    .lifecycle
+                    .transition(WindowIntent::Show, WindowCapabilities::default());
                 true
             })
         }
