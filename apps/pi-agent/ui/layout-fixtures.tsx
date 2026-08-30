@@ -64,6 +64,33 @@ const longConversation: readonly AgentItem[] = Array.from(
   }),
 );
 
+const completeTurn: readonly AgentItem[] = [
+  {
+    id: "request",
+    kind: "user",
+    text: "Review the current renderer and explain the highest-risk boundary before changing it.",
+  },
+  {
+    id: "read",
+    kind: "tool",
+    name: "read",
+    state: "success",
+    input: JSON.stringify({
+      path: "crates/wabou-runtime/src/applier/frame_source.rs",
+    }),
+    output: "Loaded the retained frame source and invalidation path.",
+  },
+  {
+    id: "answer",
+    kind: "assistant",
+    text: "## Finding\n\nSemantic-only updates were not scheduling a projection frame. The fix keeps layout untouched and invalidates only the semantic projection.\n\n- No extra layout pass\n- Existing visual frame remains stable\n- Native semantics receive the completed update",
+  },
+];
+
+function CompleteTurnFixture() {
+  return <ConversationList items={completeTurn} />;
+}
+
 const shellSessions = [
   {
     agentId: project.id,
@@ -362,30 +389,16 @@ defineLayoutFixtures({
     height: 620,
     render: () => (
       <View class="w-full h-full bg-canvas p-5">
-        <ConversationList
-          items={[
-            {
-              id: "request",
-              kind: "user",
-              text: "Review the current renderer and explain the highest-risk boundary before changing it.",
-            },
-            {
-              id: "read",
-              kind: "tool",
-              name: "read",
-              state: "success",
-              input: JSON.stringify({
-                path: "crates/wabou-runtime/src/applier/frame_source.rs",
-              }),
-              output: "Loaded the retained frame source and invalidation path.",
-            },
-            {
-              id: "answer",
-              kind: "assistant",
-              text: "## Finding\n\nSemantic-only updates were not scheduling a projection frame. The fix keeps layout untouched and invalidates only the semantic projection.\n\n- No extra layout pass\n- Existing visual frame remains stable\n- Native semantics receive the completed update",
-            },
-          ]}
-        />
+        <CompleteTurnFixture />
+      </View>
+    ),
+  },
+  "conversation/complete-turn-narrow": {
+    width: 420,
+    height: 700,
+    render: () => (
+      <View class="w-full h-full bg-canvas p-4">
+        <CompleteTurnFixture />
       </View>
     ),
   },

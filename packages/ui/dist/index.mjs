@@ -5586,7 +5586,7 @@ function runClass(run) {
 function InlineMarkdown(props) {
 	return createComponent$1(RichText, {
 		get ["class"]() {
-			return mergeClasses("min-w-0 whitespace-normal", props.variant === "conversation" ? "text-sm leading-relaxed text-primary" : props.variant === "prompt" ? "text-sm leading-relaxed text-primary" : "text-base leading-relaxed text-secondary", props.class);
+			return mergeClasses("min-w-0 whitespace-normal", props.variant === "conversation" ? "text-base leading-relaxed text-primary" : props.variant === "prompt" ? "text-sm leading-relaxed text-primary" : "text-base leading-relaxed text-secondary", props.class);
 		},
 		get children() {
 			return createComponent$1(For, {
@@ -5692,7 +5692,7 @@ function MarkdownList(props) {
 						return [createComponent$1(Text, {
 							"aria-hidden": "true",
 							get ["class"]() {
-								return mergeClasses("flex-none leading-relaxed text-secondary", props.variant === "document" ? "text-base" : "text-sm");
+								return mergeClasses("flex-none leading-relaxed text-secondary", props.variant === "prompt" ? "text-sm" : "text-base");
 							},
 							get children() {
 								return memo(() => {

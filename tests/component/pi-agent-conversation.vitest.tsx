@@ -33,7 +33,7 @@ test("Pi Agent renders assistant and user messages through Markdown", () => {
     JSON.stringify(
       assistant.getByRole("region", { name: "Assistant response" }).snapshot(),
     ),
-  ).toContain("text-sm leading-relaxed text-primary");
+  ).toContain("text-base leading-relaxed text-primary");
   expect(assistant.getByRole("group", { name: "Code block" }).text).toContain(
     "curl /healthz",
   );

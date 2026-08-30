@@ -247,7 +247,7 @@ test("renders readable conversation Markdown including GFM tables", () => {
   expect(response.className).toContain("w-full");
   expect(response.className).toContain("gap-2.5");
   expect(JSON.stringify(response.snapshot())).toContain(
-    "text-sm leading-relaxed text-primary",
+    "text-base leading-relaxed text-primary",
   );
   expect(JSON.stringify(response.snapshot())).toContain(
     "text-base font-semibold tracking-tight",

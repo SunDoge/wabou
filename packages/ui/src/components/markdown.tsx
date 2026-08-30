@@ -40,7 +40,7 @@ function InlineMarkdown(props: {
       class={mergeClasses(
         "min-w-0 whitespace-normal",
         props.variant === "conversation"
-          ? "text-sm leading-relaxed text-primary"
+          ? "text-base leading-relaxed text-primary"
           : props.variant === "prompt"
             ? "text-sm leading-relaxed text-primary"
             : "text-base leading-relaxed text-secondary",
@@ -159,7 +159,7 @@ function MarkdownList(props: {
               aria-hidden="true"
               class={mergeClasses(
                 "flex-none leading-relaxed text-secondary",
-                props.variant === "document" ? "text-base" : "text-sm",
+                props.variant === "prompt" ? "text-sm" : "text-base",
               )}
             >
               {typeof item.checked === "boolean"
