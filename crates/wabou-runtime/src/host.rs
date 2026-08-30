@@ -1167,12 +1167,40 @@ impl HostBuilder {
             image_resources: self.image_resources.clone(),
         };
         #[cfg(feature = "vite")]
-        let mut hmr_clients = Vec::new();
+        let hmr_clients = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let controller_sources = runtime_sources.clone();
+        #[cfg(feature = "vite")]
+        let controller_hmr_clients = hmr_clients.clone();
+        let controller_factory = std::rc::Rc::new(
+            move |window_key: gpui_shell::WindowResourceKey,
+                  options: &WindowOptions|
+                  -> Result<crate::gpui_controller::GpuiController, String> {
+                #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
+                let mut controller = controller_sources
+                    .create_gpui(window_key, options)
+                    .map_err(|error| error.to_string())?;
+                #[cfg(feature = "vite")]
+                if let Some(client) = controller_sources
+                    .start_gpui_hmr(&mut controller)
+                    .map_err(|error| error.to_string())?
+                {
+                    controller_hmr_clients.borrow_mut().push(client);
+                }
+                Ok(controller)
+            },
+        );
+        let gpui_windows = crate::gpui_windows::GpuiApplicationWindows::new(
+            controller_factory,
+            runtime_sources.native_widget_factories.clone(),
+            test_controller.clone(),
+        );
         let mut gpui_sources = Vec::with_capacity(windows.len());
         for (index, options) in windows.into_iter().enumerate() {
-            let window_key = gpui_shell::initial_window_resource_key(index);
-            #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
-            let mut controller = runtime_sources.create_gpui(window_key, &options)?;
+            let window_key = gpui_windows.reserve();
+            debug_assert_eq!(window_key, gpui_shell::initial_window_resource_key(index));
+            let controller = gpui_windows
+                .create_controller(window_key, &options)
+                .map_err(|message| crate::Error::GpuiShell { message })?;
             if index == 0
                 && let Some(script) = &test_script
             {
@@ -1182,11 +1210,8 @@ impl HostBuilder {
                         message: format!("failed to evaluate GPUI test scenario: {message}"),
                     })?;
             }
-            #[cfg(feature = "vite")]
-            if let Some(client) = runtime_sources.start_gpui_hmr(&mut controller)? {
-                hmr_clients.push(client);
-            }
             gpui_sources.push((
+                window_key,
                 controller,
                 options,
                 (index == 0)
@@ -1194,12 +1219,7 @@ impl HostBuilder {
                     .flatten(),
             ));
         }
-        run_gpui_windows(
-            gpui_sources,
-            runtime_sources.native_widget_factories.clone(),
-            self.application_extensions,
-            test_controller.clone(),
-        )?;
+        run_gpui_windows(gpui_sources, gpui_windows, self.application_extensions)?;
         if recording_effects && let (Some(trace), Some(path)) = (&effect_trace, trace_path) {
             trace
                 .write(&path)
@@ -1209,7 +1229,7 @@ impl HostBuilder {
             finish_test_report(controller)?;
         }
         #[cfg(feature = "vite")]
-        drop(hmr_clients);
+        hmr_clients.borrow_mut().clear();
         #[cfg(feature = "devtools")]
         drop(devtools_server);
         services.finish()?;
@@ -1219,84 +1239,32 @@ impl HostBuilder {
 
 fn run_gpui_windows(
     windows: Vec<(
+        gpui_shell::WindowResourceKey,
         crate::gpui_controller::GpuiController,
         WindowOptions,
         Option<gpui_shell::WindowSizePersistence>,
     )>,
-    widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
+    gpui_windows: std::rc::Rc<crate::gpui_windows::GpuiApplicationWindows>,
     mut application_extensions: Vec<Box<dyn gpui_shell::ApplicationExtension>>,
-    test_controller: Option<crate::test_driver::TestController>,
 ) -> crate::Result<()> {
-    use gpui_shell::gpui::{AppContext as _, px, size};
-
     let startup_error = Arc::new(std::sync::Mutex::new(None));
     let reported_error = startup_error.clone();
-    let window_registry = crate::gpui_windows::GpuiWindowRegistry::default();
     let native_close_subscription = std::rc::Rc::new(std::cell::RefCell::new(None));
     let retained_close_subscription = native_close_subscription.clone();
-    let app_window_registry = window_registry.clone();
+    let app_gpui_windows = gpui_windows.clone();
     gpui_shell::application().run(move |cx| {
         gpui_base::init(cx);
         *retained_close_subscription.borrow_mut() =
-            Some(app_window_registry.observe_native_closes(cx));
+            Some(app_gpui_windows.observe_native_closes(cx));
         let mut opened_windows = Vec::new();
-        for (index, (applier, options, persistence)) in windows.into_iter().enumerate() {
-            let window_key = window_registry.reserve();
-            debug_assert_eq!(window_key, gpui_shell::initial_window_resource_key(index));
-            let bounds = gpui_shell::gpui::Bounds::centered(
-                None,
-                size(
-                    px(options.initial_inner_size.0 as f32),
-                    px(options.initial_inner_size.1 as f32),
-                ),
-                cx,
-            );
-            let title = options.title.clone();
-            let widget_factories = widget_factories.clone();
-            let test_controller = test_controller.clone();
-            let view_window_registry = window_registry.clone();
-            let gpui_options = gpui_shell::gpui::WindowOptions {
-                window_bounds: Some(gpui_shell::gpui::WindowBounds::Windowed(bounds)),
-                titlebar: options.decorations.then(Default::default),
-                is_resizable: options.resizable,
-                window_min_size: options
-                    .min_inner_size
-                    .map(|(width, height)| size(px(width as f32), px(height as f32))),
-                window_background: if options.transparent {
-                    gpui_shell::gpui::WindowBackgroundAppearance::Transparent
-                } else {
-                    gpui_shell::gpui::WindowBackgroundAppearance::Opaque
-                },
-                ..Default::default()
-            };
-            let opened = cx.open_window(gpui_options, move |window, cx| {
-                window.set_window_title(&title);
-                cx.new(|cx| {
-                    crate::GpuiRuntimeView::new(
-                        applier,
-                        crate::gpui_view::GpuiRuntimeViewOptions {
-                            default_title: title,
-                            window_size_persistence: persistence,
-                            native_widget_factories: widget_factories,
-                            test_controller,
-                            window_key,
-                            window_registry: view_window_registry,
-                        },
-                        window,
-                        cx,
-                    )
-                })
-            });
-            match opened {
+        for (window_key, controller, options, persistence) in windows {
+            match app_gpui_windows.open_controller(window_key, controller, options, persistence, cx)
+            {
                 Ok(window) => {
-                    let handle = window.into();
-                    assert!(window_registry.attach(window_key, handle));
-                    opened_windows.push(handle);
+                    opened_windows.push(window);
                 }
                 Err(error) => {
-                    window_registry.remove(window_key);
-                    *reported_error.lock().expect("GPUI startup error lock") =
-                        Some(error.to_string());
+                    *reported_error.lock().expect("GPUI startup error lock") = Some(error);
                     cx.quit();
                     return;
                 }

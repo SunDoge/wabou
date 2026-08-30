@@ -39,7 +39,7 @@ pub struct GpuiRuntimeView {
     native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
     test_controller: Option<crate::test_driver::TestController>,
     window_key: gpui_shell::WindowResourceKey,
-    window_registry: crate::gpui_windows::GpuiWindowRegistry,
+    window_host: std::rc::Rc<crate::gpui_windows::GpuiApplicationWindows>,
     file_drag_paths: Vec<std::path::PathBuf>,
     file_drag_position: Option<gpui_shell::Point>,
 }
@@ -50,7 +50,7 @@ pub(crate) struct GpuiRuntimeViewOptions {
     pub(crate) native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
     pub(crate) test_controller: Option<crate::test_driver::TestController>,
     pub(crate) window_key: gpui_shell::WindowResourceKey,
-    pub(crate) window_registry: crate::gpui_windows::GpuiWindowRegistry,
+    pub(crate) window_host: std::rc::Rc<crate::gpui_windows::GpuiApplicationWindows>,
 }
 
 enum GpuiTextControlState {
@@ -154,7 +154,7 @@ impl GpuiRuntimeView {
             native_widget_factories: options.native_widget_factories,
             test_controller: options.test_controller,
             window_key: options.window_key,
-            window_registry: options.window_registry,
+            window_host: options.window_host,
             file_drag_paths: Vec::new(),
             file_drag_position: None,
         }
@@ -472,6 +472,15 @@ impl GpuiRuntimeView {
                 EffectResult::Unit
             }
             EffectPayload::AppDirsResolve(directories) => EffectResult::AppDirectories(directories),
+            EffectPayload::WindowCreate(request) => {
+                match self.window_host.create(request.options, cx) {
+                    Ok(window) => EffectResult::Window(window),
+                    Err(message) => EffectResult::Error {
+                        code: EffectErrorCode::PlatformFailure,
+                        message,
+                    },
+                }
+            }
             EffectPayload::WindowControl { window_id, command } => {
                 self.execute_window_command(window_id, command, window, cx)
             }
@@ -512,8 +521,7 @@ impl GpuiRuntimeView {
                 code: EffectErrorCode::InvalidRequest,
                 message,
             },
-            EffectPayload::WindowCreate(_)
-            | EffectPayload::ContextMenuShow(_)
+            EffectPayload::ContextMenuShow(_)
             | EffectPayload::DialogOpen(_)
             | EffectPayload::DialogSave(_)
             | EffectPayload::DialogPickDirectory(_)
@@ -537,12 +545,12 @@ impl GpuiRuntimeView {
         if target == self.window_key {
             apply_window_command(current_window, command);
             if closes {
-                self.window_registry.remove(target);
+                self.window_host.remove(target);
             }
             return EffectResult::Unit;
         }
 
-        let Some(handle) = self.window_registry.resolve(target) else {
+        let Some(handle) = self.window_host.resolve(target) else {
             return EffectResult::Error {
                 code: EffectErrorCode::InvalidRequest,
                 message: format!("window `{target}` is not live"),
@@ -553,12 +561,12 @@ impl GpuiRuntimeView {
         }) {
             Ok(()) => {
                 if closes {
-                    self.window_registry.remove(target);
+                    self.window_host.remove(target);
                 }
                 EffectResult::Unit
             }
             Err(error) => {
-                self.window_registry.remove(target);
+                self.window_host.remove(target);
                 EffectResult::Error {
                     code: EffectErrorCode::PlatformFailure,
                     message: format!("failed to control window `{target}`: {error}"),
@@ -876,7 +884,9 @@ mod tests {
     use super::*;
     use crate::{JsRuntime, runtime_session::RuntimeSession};
     use gpui_shell::gpui::{HeadlessAppContext, TestAppContext, px, size};
-    use gpui_shell::{EffectId, EffectScope, OpenDialogRequest};
+    use gpui_shell::{
+        EffectId, EffectScope, OpenDialogRequest, WindowCreateRequest, WindowOptions,
+    };
     use wabou_host_api::NodeKey;
 
     fn test_controller() -> GpuiController {
@@ -884,6 +894,14 @@ mod tests {
             JsRuntime::new().expect("QuickJS runtime"),
             gpui_shell::initial_window_resource_key(0),
         ))
+    }
+
+    fn test_window_host() -> std::rc::Rc<crate::gpui_windows::GpuiApplicationWindows> {
+        crate::gpui_windows::GpuiApplicationWindows::new(
+            std::rc::Rc::new(|_, _| Ok(test_controller())),
+            HashMap::new(),
+            None,
+        )
     }
 
     #[test]
@@ -943,7 +961,7 @@ mod tests {
                             native_widget_factories: HashMap::new(),
                             test_controller: None,
                             window_key: gpui_shell::initial_window_resource_key(0),
-                            window_registry: crate::gpui_windows::GpuiWindowRegistry::default(),
+                            window_host: test_window_host(),
                         },
                         window,
                         view_cx,
@@ -970,11 +988,11 @@ mod tests {
     fn gpui_window_commands_are_routed_to_the_registered_target() {
         let platform = gpui_platform::current_platform(true);
         let mut cx = HeadlessAppContext::new(platform.text_system());
-        let registry = crate::gpui_windows::GpuiWindowRegistry::default();
-        let first_key = registry.reserve();
-        let second_key = registry.reserve();
+        let window_host = test_window_host();
+        let first_key = window_host.reserve();
+        let second_key = window_host.reserve();
 
-        let first_registry = registry.clone();
+        let first_window_host = window_host.clone();
         let first = cx
             .open_window(size(px(800.0), px(600.0)), move |window, app| {
                 app.new(|view_cx| {
@@ -986,7 +1004,7 @@ mod tests {
                             native_widget_factories: HashMap::new(),
                             test_controller: None,
                             window_key: first_key,
-                            window_registry: first_registry,
+                            window_host: first_window_host,
                         },
                         window,
                         view_cx,
@@ -994,9 +1012,9 @@ mod tests {
                 })
             })
             .expect("open first GPUI window");
-        assert!(registry.attach(first_key, first.into()));
+        assert!(window_host.attach(first_key, first.into()));
 
-        let second_registry = registry.clone();
+        let second_window_host = window_host.clone();
         let second = cx
             .open_window(size(px(640.0), px(480.0)), move |window, app| {
                 app.new(|view_cx| {
@@ -1008,7 +1026,7 @@ mod tests {
                             native_widget_factories: HashMap::new(),
                             test_controller: None,
                             window_key: second_key,
-                            window_registry: second_registry,
+                            window_host: second_window_host,
                         },
                         window,
                         view_cx,
@@ -1016,7 +1034,7 @@ mod tests {
                 })
             })
             .expect("open second GPUI window");
-        assert!(registry.attach(second_key, second.into()));
+        assert!(window_host.attach(second_key, second.into()));
 
         let first_root = first.root(&mut cx).expect("first GPUI runtime root");
         let result = cx
@@ -1029,11 +1047,11 @@ mod tests {
 
         assert_eq!(result, EffectResult::Unit);
         assert!(
-            registry.resolve(first_key).is_some(),
+            window_host.resolve(first_key).is_some(),
             "routing a command must not affect the issuing window"
         );
         assert!(
-            registry.resolve(second_key).is_none(),
+            window_host.resolve(second_key).is_none(),
             "closing a target must retire its Wabou window identity"
         );
         cx.run_until_parked();
@@ -1047,9 +1065,9 @@ mod tests {
     fn native_gpui_close_retires_the_wabou_window_identity() {
         let platform = gpui_platform::current_platform(true);
         let mut cx = HeadlessAppContext::new(platform.text_system());
-        let registry = crate::gpui_windows::GpuiWindowRegistry::default();
-        let window_key = registry.reserve();
-        let view_registry = registry.clone();
+        let window_host = test_window_host();
+        let window_key = window_host.reserve();
+        let view_window_host = window_host.clone();
         let handle = cx
             .open_window(size(px(640.0), px(480.0)), move |window, app| {
                 app.new(|view_cx| {
@@ -1061,7 +1079,7 @@ mod tests {
                             native_widget_factories: HashMap::new(),
                             test_controller: None,
                             window_key,
-                            window_registry: view_registry,
+                            window_host: view_window_host,
                         },
                         window,
                         view_cx,
@@ -1069,16 +1087,83 @@ mod tests {
                 })
             })
             .expect("open GPUI window");
-        assert!(registry.attach(window_key, handle.into()));
-        let _close_subscription = cx.update(|app| registry.observe_native_closes(app));
+        assert!(window_host.attach(window_key, handle.into()));
+        let _close_subscription = cx.update(|app| window_host.observe_native_closes(app));
 
         cx.update_window(handle.into(), |_, window, _| window.remove_window())
             .expect("close GPUI window through the native lifecycle");
         cx.run_until_parked();
 
         assert!(
-            registry.resolve(window_key).is_none(),
+            window_host.resolve(window_key).is_none(),
             "native close notifications must retire the public generational key"
+        );
+    }
+
+    #[test]
+    fn gpui_window_create_effect_opens_an_independent_registered_runtime() {
+        let platform = gpui_platform::current_platform(true);
+        let mut cx = HeadlessAppContext::new(platform.text_system());
+        let window_host = test_window_host();
+        let root_key = window_host.reserve();
+        let root_window_host = window_host.clone();
+        let root = cx
+            .open_window(size(px(800.0), px(600.0)), move |window, app| {
+                app.new(|view_cx| {
+                    GpuiRuntimeView::new(
+                        test_controller(),
+                        GpuiRuntimeViewOptions {
+                            default_title: "Root window".into(),
+                            window_size_persistence: None,
+                            native_widget_factories: HashMap::new(),
+                            test_controller: None,
+                            window_key: root_key,
+                            window_host: root_window_host,
+                        },
+                        window,
+                        view_cx,
+                    )
+                })
+            })
+            .expect("open root GPUI window");
+        assert!(window_host.attach(root_key, root.into()));
+        let root_view = root.root(&mut cx).expect("root GPUI runtime view");
+
+        let completion = cx
+            .update_window(root.into(), |_, window, app| {
+                root_view.update(app, |view, view_cx| {
+                    view.execute_effect(
+                        EffectRequest {
+                            id: EffectId(4),
+                            scope: EffectScope::Runtime,
+                            payload: EffectPayload::WindowCreate(WindowCreateRequest {
+                                options: WindowOptions::new()
+                                    .title("Created by JavaScript")
+                                    .initial_inner_size(420, 280),
+                            }),
+                        },
+                        window,
+                        view_cx,
+                    )
+                    .expect("window creation completes synchronously")
+                })
+            })
+            .expect("dispatch create-window effect");
+        let EffectResult::Window(child_key) = completion.result else {
+            panic!("expected a window resource, got {:?}", completion.result);
+        };
+        let child = window_host
+            .resolve(child_key)
+            .expect("created window must be registered");
+
+        cx.run_until_parked();
+        cx.update_window(child, |_, window, _| {
+            assert_eq!(window.bounds().size, size(px(420.0), px(280.0)));
+        })
+        .expect("inspect created GPUI window");
+        assert!(
+            window_host.resolve(root_key).is_some(),
+            "creating a child must preserve the source runtime"
         );
     }
 
@@ -1094,7 +1179,7 @@ mod tests {
                     native_widget_factories: HashMap::new(),
                     test_controller: None,
                     window_key: gpui_shell::initial_window_resource_key(0),
-                    window_registry: crate::gpui_windows::GpuiWindowRegistry::default(),
+                    window_host: test_window_host(),
                 },
                 window,
                 cx,
@@ -1126,7 +1211,7 @@ mod tests {
                     native_widget_factories: HashMap::new(),
                     test_controller: None,
                     window_key: gpui_shell::initial_window_resource_key(0),
-                    window_registry: crate::gpui_windows::GpuiWindowRegistry::default(),
+                    window_host: test_window_host(),
                 },
                 window,
                 cx,
@@ -1187,7 +1272,7 @@ mod tests {
                     native_widget_factories: HashMap::new(),
                     test_controller: None,
                     window_key: gpui_shell::initial_window_resource_key(0),
-                    window_registry: crate::gpui_windows::GpuiWindowRegistry::default(),
+                    window_host: test_window_host(),
                 },
                 window,
                 cx,
