@@ -133,7 +133,7 @@ impl Applier {
         &mut self,
         events: &[HostEvent],
     ) -> rquickjs::Result<crate::jsrt::HostFrameDisposition> {
-        let disposition = self.runtime.js.dispatch_host_frame(events)?;
+        let disposition = self.gpui.dispatch_host_frame_raw(events)?;
         if !disposition.protocol_frame.is_empty() {
             tracing::trace!(
                 target: "bridge",

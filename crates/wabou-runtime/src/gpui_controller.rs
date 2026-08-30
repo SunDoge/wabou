@@ -1,7 +1,8 @@
 //! GPUI-owned retained state for one JavaScript runtime.
 
 use crate::{
-    ImageResourceHandle, ImageResourceStore, protocol::Frame, runtime_session::RuntimeSession,
+    ImageResourceHandle, ImageResourceStore, host_frame::HostEvent, jsrt::HostFrameDisposition,
+    protocol::Frame, runtime_session::RuntimeSession,
 };
 use gpui_shell::{GpuiProjection, ProjectionError};
 use wabou_style::stylesheet::{StyleSheet, StylesheetUpdate};
@@ -138,6 +139,13 @@ impl GpuiController {
 
     pub(crate) fn record_protocol_frame(&mut self) {
         self.runtime.protocol_revision = self.runtime.protocol_revision.wrapping_add(1);
+    }
+
+    pub(crate) fn dispatch_host_frame_raw(
+        &mut self,
+        events: &[HostEvent],
+    ) -> rquickjs::Result<HostFrameDisposition> {
+        self.runtime.js.dispatch_host_frame(events)
     }
 
     /// Monotonically increasing count of non-empty JS-to-host frames.
