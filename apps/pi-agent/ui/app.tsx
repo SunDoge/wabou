@@ -55,13 +55,10 @@ import {
   type ExtensionUiAnswer,
   ExtensionUiDialog,
   type ExtensionUiDialogRequest,
-  type ExtensionUiEffect,
   type ExtensionUiStatus,
   type ExtensionUiWidget,
-  parseExtensionUiEffect,
-  reduceExtensionUiStatuses,
-  reduceExtensionUiWidgets,
 } from "./extension-ui";
+import { subscribeExtensionUi } from "./extension-ui-subscription";
 import { i18n, m } from "./i18n";
 import { createOwnedOverlay } from "./owned-overlay";
 import { createPersistedRecord } from "./persisted-record";
@@ -89,39 +86,6 @@ function ExtensionWindowTitle(props: { title: string }) {
     (title) => currentWindow().setTitle(title),
   );
   return null;
-}
-
-function dispatchExtensionUiEffect(
-  event: Record<string, unknown>,
-  handlers: {
-    notify(effect: Extract<ExtensionUiEffect, { kind: "notify" }>): void;
-    status(effect: Extract<ExtensionUiEffect, { kind: "status" }>): void;
-    widget(effect: Extract<ExtensionUiEffect, { kind: "widget" }>): void;
-    title(effect: Extract<ExtensionUiEffect, { kind: "title" }>): void;
-    editorText(
-      effect: Extract<ExtensionUiEffect, { kind: "editorText" }>,
-    ): void;
-  },
-) {
-  const effect = parseExtensionUiEffect(event);
-  if (!effect) return;
-  switch (effect.kind) {
-    case "notify":
-      handlers.notify(effect);
-      break;
-    case "status":
-      handlers.status(effect);
-      break;
-    case "widget":
-      handlers.widget(effect);
-      break;
-    case "title":
-      handlers.title(effect);
-      break;
-    case "editorText":
-      handlers.editorText(effect);
-      break;
-  }
 }
 
 export function App() {
@@ -185,7 +149,6 @@ export function App() {
   const [extensionTitles, setExtensionTitles] = createSignal<
     Readonly<Record<string, string>>
   >({});
-  const deliveredNotifications = new Set<string>();
   const itemHandles = new ScopedHandleRegistry<Handle>();
   let nextMessage = 1;
   let profilesHydrated = false;
@@ -374,58 +337,25 @@ export function App() {
         description: i18n.message(m.export_complete_detail, { path }),
       }),
   });
-  const unsubscribeExtensionUi = api.subscribe((events) => {
-    for (const event of events) {
-      const id = typeof event.agentId === "string" ? event.agentId : "agent-1";
-      dispatchExtensionUiEffect(event, {
-        notify: (effect) => {
-          const notificationKey = `${effect.agentId}\0${effect.id}`;
-          if (deliveredNotifications.has(notificationKey)) return;
-          deliveredNotifications.add(notificationKey);
-          const title =
-            agents().find((agent) => agent.id === effect.agentId)?.name ??
-            effect.agentId;
-          const input = { description: effect.message };
-          if (effect.tone === "error") toasts.error(title, input);
-          else if (effect.tone === "warning") toasts.warning(title, input);
-          else toasts.show({ title, ...input });
-        },
-        status: (effect) =>
-          setExtensionStatuses((current) =>
-            reduceExtensionUiStatuses(current, effect),
-          ),
-        widget: (effect) =>
-          setExtensionWidgets((current) =>
-            reduceExtensionUiWidgets(current, effect),
-          ),
-        title: (effect) =>
-          setExtensionTitles((current) => ({
-            ...current,
-            [effect.agentId]: effect.title,
-          })),
-        editorText: (effect) => {
-          const sessionId = agents().find(
-            (agent) => agent.id === effect.agentId,
-          )?.state.sessionId;
-          setDrafts((current) =>
-            writeAgentDraft(current, effect.agentId, sessionId, effect.text),
-          );
-        },
-      });
-      if (event.type !== "process_exit") continue;
-      setExtensionStatuses((current) =>
-        current.filter((candidate) => candidate.agentId !== id),
-      );
-      setExtensionWidgets((current) =>
-        current.filter((candidate) => candidate.agentId !== id),
-      );
-      setExtensionTitles((current) => {
-        if (!(id in current)) return current;
-        const next = { ...current };
-        delete next[id];
-        return next;
-      });
-    }
+  const unsubscribeExtensionUi = subscribeExtensionUi({
+    api,
+    agentName: (agentId) =>
+      agents().find((agent) => agent.id === agentId)?.name ?? agentId,
+    sessionId: (agentId) =>
+      agents().find((agent) => agent.id === agentId)?.state.sessionId,
+    notify: (effect, title) => {
+      const input = { description: effect.message };
+      if (effect.tone === "error") toasts.error(title, input);
+      else if (effect.tone === "warning") toasts.warning(title, input);
+      else toasts.show({ title, ...input });
+    },
+    updateStatuses: setExtensionStatuses,
+    updateWidgets: setExtensionWidgets,
+    updateTitles: setExtensionTitles,
+    writeEditorText: (agentId, sessionId, text) =>
+      setDrafts((current) =>
+        writeAgentDraft(current, agentId, sessionId, text),
+      ),
   });
   onCleanup(() => {
     unsubscribe();
