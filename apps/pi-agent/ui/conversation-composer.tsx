@@ -156,9 +156,9 @@ export function ConversationComposer(props: ConversationComposerProps) {
     const key = triggerKey();
     return Boolean(
       key &&
-      key !== dismissed() &&
-      (autocompleteRows().length > 0 ||
-        (trigger()?.kind === "file" && files.loading())),
+        key !== dismissed() &&
+        (autocompleteRows().length > 0 ||
+          (trigger()?.kind === "file" && files.loading())),
     );
   });
   createEffect(autocompleteRows, (rows) => {
@@ -221,6 +221,9 @@ export function ConversationComposer(props: ConversationComposerProps) {
         data-wabou-owns="surface focus-ring"
         class="max-w-5xl rounded-xl border border-subtle bg-input shadow-xs px-3 pt-3 pb-2 gap-2"
       >
+        <View class="w-full min-w-0 flex flex-row justify-end">
+          <SessionUsage stats={props.stats} />
+        </View>
         <ExtensionUiChrome
           statuses={props.statuses}
           widgets={props.widgets}
@@ -344,11 +347,10 @@ export function ConversationComposer(props: ConversationComposerProps) {
           </Button>
         </View>
       </WorkbenchContentColumn>
-      <WorkbenchContentColumn class="max-w-5xl px-3 pt-2 flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <WorkbenchContentColumn class="max-w-5xl px-3 pt-2">
         <Text class="min-w-40 flex-1 truncate text-xs text-muted">
           {props.project} · {i18n.message(m.send_hint, {})}
         </Text>
-        <SessionUsage stats={props.stats} />
       </WorkbenchContentColumn>
     </WorkbenchFooter>
   );

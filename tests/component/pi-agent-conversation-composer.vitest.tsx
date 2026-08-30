@@ -24,6 +24,25 @@ const baseProps = {
   thinking: "medium" as const,
   thinkingLevels: ["low", "medium", "high"] as const,
   commands: [{ name: "review", source: "project" }],
+  stats: {
+    userMessages: 2,
+    assistantMessages: 2,
+    toolCalls: 1,
+    totalMessages: 5,
+    tokens: {
+      input: 8_000,
+      output: 2_000,
+      cacheRead: 0,
+      cacheWrite: 0,
+      total: 10_000,
+    },
+    cost: 0.024,
+    contextUsage: {
+      tokens: 10_000,
+      contextWindow: 200_000,
+      percent: 5,
+    },
+  },
   statuses: [],
   widgets: [],
   changeDraft: vi.fn(),
@@ -49,6 +68,11 @@ test("Pi Agent composer keeps the primary action and configuration discoverable"
   ).toBe("Inspect the renderer");
   expect(screen.getByRole("combobox", { name: "Choose model" })).toBeTruthy();
   expect(screen.getByRole("combobox", { name: "Thinking level" })).toBeTruthy();
+  const usage = screen.getByRole("status", { name: "Session usage" });
+  expect(usage.text).toContain("Context 5%");
+  expect(usage.text).toContain("10k tokens");
+  expect(usage.text).toContain("$0.024");
+  expect(usage.className).toContain("bg-control");
   expect(screen.getByRole("button", { name: "Send" }).disabled).toBe(false);
 
   screen.getByRole("button", { name: "Send" }).click();

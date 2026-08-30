@@ -26,7 +26,7 @@ export function SessionUsage(props: { stats?: AgentSessionStats }) {
         <View
           role="status"
           aria-label={i18n.message(m.session_usage, {})}
-          class="min-w-0 flex flex-row items-center gap-2"
+          class="min-w-0 h-7 px-2 rounded-md bg-control flex flex-row items-center gap-2"
         >
           <Show
             when={context() && percent() !== null && percent() !== undefined}

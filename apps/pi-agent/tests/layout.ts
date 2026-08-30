@@ -283,9 +283,13 @@ try {
         height: 240,
         checks: ["visible-overflow", "text-collision"],
         assert: (fixture) => {
-          getLayoutNode(fixture, {
+          const editor = getLayoutNode(fixture, {
             role: "textbox",
             name: "Ask this agent to work in its repository…",
+          });
+          const usage = getLayoutNode(fixture, {
+            role: "status",
+            name: "Session usage",
           });
           const model = getLayoutNode(fixture, {
             role: "combobox",
@@ -303,6 +307,11 @@ try {
           if (thinking.rect.width < 112) {
             throw new Error(
               `thinking control lost its readable width: width=${thinking.rect.width}`,
+            );
+          }
+          if (usage.rect.y >= editor.rect.y || usage.rect.width < 120) {
+            throw new Error(
+              `session usage did not retain its composer status row: usage=${usage.rect.x},${usage.rect.y} ${usage.rect.width}x${usage.rect.height}; editor y=${editor.rect.y}`,
             );
           }
           const thinkingLabel = getLayoutNode(fixture, { text: "medium" });
