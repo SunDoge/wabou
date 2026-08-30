@@ -1,4 +1,6 @@
 import { Button, Icon, View, WorkbenchHeader } from "@wabou/ui";
+import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
+import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import gitBranch from "lucide-static/icons/git-branch.svg?raw";
@@ -23,6 +25,10 @@ export interface ConversationHeaderProps {
   filesOpen: boolean;
   changesOpen: boolean;
   searchOpen: boolean;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+  goBack?(): void;
+  goForward?(): void;
   toggleTerminal(): void;
   toggleFiles(): void;
   toggleChanges(): void;
@@ -40,13 +46,39 @@ export function ConversationHeader(props: ConversationHeaderProps) {
     props.state.connection === "ready" || props.state.connection === "running";
   return (
     <WorkbenchHeader class="bg-canvas border-0 justify-between">
-      <ConversationContext
-        project={props.project}
-        branch={props.branch}
-        session={props.session}
-        state={props.state}
-        titleAction={props.titleAction}
-      />
+      <View class="min-w-0 flex-1 flex flex-row items-center gap-1">
+        <View
+          role="group"
+          aria-label={i18n.message(m.session_navigation, {})}
+          class="flex-none flex flex-row items-center gap-0"
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={i18n.message(m.previous_session, {})}
+            disabled={!props.canGoBack}
+            onClick={props.goBack}
+          >
+            <Icon source={chevronLeft} size={15} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={i18n.message(m.next_session, {})}
+            disabled={!props.canGoForward}
+            onClick={props.goForward}
+          >
+            <Icon source={chevronRight} size={15} />
+          </Button>
+        </View>
+        <ConversationContext
+          project={props.project}
+          branch={props.branch}
+          session={props.session}
+          state={props.state}
+          titleAction={props.titleAction}
+        />
+      </View>
       <Show when={interactive()}>
         <View
           role="toolbar"

@@ -294,6 +294,16 @@ test("creates a fresh session and restores the previous transcript", async ({
   await expect(
     page.getByRole("button", { name: "Search conversation" }),
   ).toHaveCount(1);
+
+  const back = page.getByRole("button", { name: "Previous session" });
+  const forward = page.getByRole("button", { name: "Next session" });
+  await expect(back).toBeEnabled();
+  await expect(forward).toBeDisabled();
+  await back.click();
+  await expect(freshSession).toBeSelected({ timeout: 5_000 });
+  await expect(forward).toBeEnabled();
+  await forward.click();
+  await expect(previousSession).toBeSelected({ timeout: 5_000 });
 });
 
 test("renames the current session and refreshes its sidebar entry", async ({
