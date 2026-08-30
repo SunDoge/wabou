@@ -35,8 +35,9 @@ the same role across the repository before declaring the issue local.
 
 ## Required review sequence
 
-1. State the screen's primary job, primary action, density, visual tone, and the one
-   product-specific idea that should distinguish it.
+1. For a new screen or substantial visual rewrite, complete
+   `wabou-product-ui-brief.md`. For a narrow fix, state the owning contract and
+   intended observable result instead.
 2. Inventory existing Wabou components and tokens before creating local primitives.
 3. Review hierarchy, alignment, spacing rhythm, typography, color roles, elevation,
    interaction states, loading/empty/error states, and resize behavior.

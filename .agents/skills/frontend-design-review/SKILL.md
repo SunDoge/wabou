@@ -56,6 +56,11 @@ When this skill is used in the Wabou repository, read and apply
 browser-, Figma-, and Storybook-specific proof with Wabou's component, layout,
 semantic, native-behavior, and pixel evidence.
 
+For a new screen or a substantial visual rewrite, also read
+[references/wabou-product-ui-brief.md](references/wabou-product-ui-brief.md) and
+write its compact brief before editing JSX. Skip the brief for narrow fixes whose
+owning component contract and intended result are already explicit.
+
 ### Design System Workflow
 
 **Before implementing:**
