@@ -57,13 +57,6 @@ wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
     return false;
   }
   const previous = record.current;
-  for (const dispose of previous.disposed) {
-    try {
-      dispose(record.data);
-    } catch (error) {
-      console.error(`[wabou-hmr] dispose failed for ${path}`, error);
-    }
-  }
   record.loading = true;
   record.next = null;
   try {
@@ -73,6 +66,13 @@ wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
     if (!next || next.invalidated) {
       console.warn(`[wabou-hmr] update for ${path} was invalidated/declined; host will full-reload`);
       return false;
+    }
+    for (const dispose of previous.disposed) {
+      try {
+        dispose(record.data);
+      } catch (error) {
+        console.error(`[wabou-hmr] dispose failed for ${path}`, error);
+      }
     }
     record.current = next;
     for (const accept of previous.accepted) {

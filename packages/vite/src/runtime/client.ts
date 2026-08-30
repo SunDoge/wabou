@@ -113,13 +113,6 @@ wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
   }
 
   const previous = record.current;
-  for (const dispose of previous.disposed) {
-    try {
-      dispose(record.data);
-    } catch (error) {
-      console.error(`[wabou-hmr] dispose failed for ${path}`, error);
-    }
-  }
   record.loading = true;
   record.next = null;
 
@@ -132,6 +125,16 @@ wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
         `[wabou-hmr] update for ${path} was invalidated/declined; host will full-reload`,
       );
       return false;
+    }
+    // Loading can still fail because a transformed module imports another
+    // module that Vite has not made ready yet. Keep the current module's
+    // effects/resources alive until its replacement is known to be usable.
+    for (const dispose of previous.disposed) {
+      try {
+        dispose(record.data);
+      } catch (error) {
+        console.error(`[wabou-hmr] dispose failed for ${path}`, error);
+      }
     }
     record.current = next;
     for (const accept of previous.accepted) {

@@ -36,3 +36,28 @@ test("successful full reload commits the replacement hot records", () => {
   expect(committed.data).not.toBe(current.data);
   expect(committed.data.revision).toBe("replacement");
 });
+
+test("failed partial update keeps current module resources alive", async () => {
+  const owner = `/live-${Date.now()}.tsx`;
+  const current = createHotContext(owner);
+  let disposals = 0;
+  current.dispose(() => disposals++);
+
+  const apply = (
+    globalThis as typeof globalThis & {
+      __wabou_apply_hmr: (
+        path: string,
+        acceptedPath: string,
+        timestamp: number,
+      ) => Promise<boolean>;
+    }
+  ).__wabou_apply_hmr;
+  const accepted = await apply(
+    owner,
+    `/missing-wabou-hmr-module-${Date.now()}.tsx`,
+    Date.now(),
+  );
+
+  expect(accepted).toBe(false);
+  expect(disposals).toBe(0);
+});
