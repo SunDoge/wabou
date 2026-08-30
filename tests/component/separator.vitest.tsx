@@ -1,5 +1,5 @@
 import { renderComponent } from "@wabou/test/component";
-import { Separator } from "@wabou/ui";
+import { LabeledSeparator, Separator, Text } from "@wabou/ui";
 import { expect, test } from "vitest";
 
 test("keeps decorative separators out of the semantic tree by default", () => {
@@ -29,4 +29,20 @@ test("exposes meaningful separators with their authored orientation", () => {
   expect(separator.attribute("aria-hidden")).toBe(null);
   expect(separator.className).toContain("w-px");
   expect(separator.className).toContain("h-full");
+});
+
+test("labeled separator keeps bounded content between two flexible rules", () => {
+  const screen = renderComponent(() => (
+    <LabeledSeparator role="group" aria-label="Turn boundary">
+      <Text>Worked for 12s</Text>
+    </LabeledSeparator>
+  ));
+
+  const separator = screen.getByRole("group", { name: "Turn boundary" });
+  expect(separator.children).toHaveLength(3);
+  expect(separator.children[0]?.className).toContain("flex-1");
+  expect(separator.children[0]?.className).toContain("h-px");
+  expect(separator.children[1]?.className).toContain("max-w-4/5");
+  expect(separator.children[2]?.className).toContain("flex-1");
+  expect(separator.children[2]?.className).toContain("h-px");
 });

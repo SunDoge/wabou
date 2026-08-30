@@ -274,9 +274,40 @@ try {
               `assistant copy action detached from response end: response right=${responseRight}, copy right=${copyRight}`,
             );
           }
-          if (Math.abs(activity.rect.x - response.rect.x) > 12) {
+          const activityCenter = activity.rect.x + activity.rect.width / 2;
+          const responseCenter = response.rect.x + response.rect.width / 2;
+          if (Math.abs(activityCenter - responseCenter) > 12) {
             throw new Error(
-              `tool activity did not align with the conversation column: activity x=${activity.rect.x}, response x=${response.rect.x}`,
+              `tool activity did not center on the conversation column: activity center=${activityCenter}, response center=${responseCenter}`,
+            );
+          }
+          const activityContent = fixture.nodes.find(
+            (node) =>
+              node.id.lo === activity.parentId?.lo &&
+              node.id.hi === activity.parentId?.hi,
+          );
+          const activityBoundary = fixture.nodes.find(
+            (node) =>
+              node.id.lo === activityContent?.parentId?.lo &&
+              node.id.hi === activityContent?.parentId?.hi,
+          );
+          if (!activityBoundary) {
+            throw new Error(
+              "tool activity lost its labeled separator boundary",
+            );
+          }
+          const rules = fixture.nodes.filter(
+            (node) =>
+              node.parentId?.lo === activityBoundary.id.lo &&
+              node.parentId?.hi === activityBoundary.id.hi &&
+              node.classes.includes("h-px"),
+          );
+          if (
+            rules.length !== 2 ||
+            rules.some((rule) => rule.rect.width < 80)
+          ) {
+            throw new Error(
+              `tool activity boundary must retain two visible rules: ${rules.map((rule) => rule.rect.width).join(", ")}`,
             );
           }
           if (

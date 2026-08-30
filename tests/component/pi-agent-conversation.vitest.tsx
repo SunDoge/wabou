@@ -277,10 +277,12 @@ test("Pi Agent folds adjacent completed tools into one turn activity group", () 
     name: "Worked · 2 tool calls",
   });
   expect(activity.className).toContain("text-secondary");
-  expect(activity.parent?.className).toContain("w-full");
+  expect(activity.parent?.parent?.className).toContain("w-full");
   expect(
-    activity.parent?.children.filter((node) => node.className.includes("h-px")),
-  ).toHaveLength(0);
+    activity.parent?.parent?.children.filter((node) =>
+      node.className.includes("h-px"),
+    ),
+  ).toHaveLength(2);
   expect(activity.expanded).toBe(false);
   expect(screen.queryByRole("button", { name: "read: README.md" })).toBeNull();
   expect(
@@ -432,6 +434,10 @@ test("Pi Agent reports the measured duration of a completed tool turn", () => {
   }).parent;
   expect(activityRow?.className).toContain("items-center");
   expect(activityRow?.children).toHaveLength(1);
+  const boundary = activityRow?.parent;
+  expect(boundary?.children).toHaveLength(3);
+  expect(boundary?.children[0]?.className).toContain("h-px");
+  expect(boundary?.children[2]?.className).toContain("h-px");
 });
 
 test("Pi Agent distinguishes a queued follow-up from a sent message", () => {

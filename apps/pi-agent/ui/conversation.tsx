@@ -8,6 +8,7 @@ import {
   createKeyframeAnimation,
   type Handle,
   Icon,
+  LabeledSeparator,
   Markdown,
   Message,
   MessageActions,
@@ -281,11 +282,11 @@ export function ToolActivityGroup(props: {
   };
   return (
     <View class="w-full min-w-0 flex flex-col gap-1">
-      <View class="w-full min-w-0 flex flex-row items-center">
+      <LabeledSeparator>
         <Button
           variant="ghost"
           size="sm"
-          class="h-7 min-w-0 max-w-full flex-none px-1.5 gap-1.5 text-secondary"
+          class="h-7 min-w-0 max-w-full px-1.5 gap-1.5 text-secondary"
           aria-label={label()}
           aria-expanded={open()}
           onClick={() => setOpen((value) => !value)}
@@ -308,7 +309,7 @@ export function ToolActivityGroup(props: {
             {label()}
           </Text>
         </Button>
-      </View>
+      </LabeledSeparator>
       <CollapsiblePresence
         open={open()}
         duration={0.16}
