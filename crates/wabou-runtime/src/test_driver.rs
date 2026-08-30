@@ -108,6 +108,13 @@ enum TestActionResult {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub(crate) enum GpuiWindowTestCommand {
+    Hide { mutable_visibility: bool },
+    Show,
+    Resize { width: u32, height: u32 },
+}
+
+#[derive(Clone, Copy, Debug)]
 struct WindowSnapshot {
     lifecycle: WindowLifecycle,
     viewport: Option<(u32, u32)>,
@@ -838,6 +845,63 @@ impl TestController {
             _ => TestActionResult::Handled(false),
         };
         let _ = action.completion.send(result);
+        true
+    }
+
+    pub(crate) fn poll_gpui_window_action(
+        &self,
+        window_key: WindowKey,
+        mut execute: impl FnMut(GpuiWindowTestCommand) -> bool,
+    ) -> bool {
+        let action = self.state.lock().ok().and_then(|mut state| {
+            let index = state.actions.iter().position(|action| {
+                matches!(
+                    &action.kind,
+                    TestActionKind::NativeClose { window_key: target, .. }
+                        | TestActionKind::ShowWindow(target)
+                        | TestActionKind::ResizeWindow { window_key: target, .. }
+                        if *target == window_key
+                )
+            })?;
+            state.actions.remove(index)
+        });
+        let Some(action) = action else {
+            return false;
+        };
+        let command = match action.kind {
+            TestActionKind::NativeClose {
+                mutable_visibility, ..
+            } => GpuiWindowTestCommand::Hide { mutable_visibility },
+            TestActionKind::ShowWindow(_) => GpuiWindowTestCommand::Show,
+            TestActionKind::ResizeWindow { width, height, .. } => {
+                GpuiWindowTestCommand::Resize { width, height }
+            }
+            _ => unreachable!("GPUI window action filter and mapping stay aligned"),
+        };
+        let handled = execute(command);
+        if handled && let Ok(mut state) = self.state.lock() {
+            let snapshot = state.windows.entry(window_key).or_insert(WindowSnapshot {
+                lifecycle: WindowLifecycle::visible(),
+                viewport: None,
+            });
+            match command {
+                GpuiWindowTestCommand::Hide { mutable_visibility } => {
+                    let _ = snapshot.lifecycle.transition(
+                        WindowIntent::Hide,
+                        WindowCapabilities { mutable_visibility },
+                    );
+                }
+                GpuiWindowTestCommand::Show => {
+                    let _ = snapshot
+                        .lifecycle
+                        .transition(WindowIntent::Show, WindowCapabilities::default());
+                }
+                GpuiWindowTestCommand::Resize { width, height } => {
+                    snapshot.viewport = Some((width, height));
+                }
+            }
+        }
+        let _ = action.completion.send(TestActionResult::Handled(handled));
         true
     }
 }
@@ -2268,6 +2332,65 @@ mod tests {
         assert_eq!(
             controller.window_viewport_json(key(1)),
             r#"{"x":0,"y":0,"width":900,"height":600}"#
+        );
+    }
+
+    #[test]
+    fn gpui_window_actions_update_the_shared_test_snapshot() {
+        let controller = TestController::default();
+        let window_key = key(1);
+        controller.connect_gpui_window(window_key, Arc::new(|| {}));
+
+        let resize = controller.request(TestActionKind::ResizeWindow {
+            window_key,
+            width: 900,
+            height: 600,
+        });
+        assert!(
+            controller.poll_gpui_window_action(window_key, |command| matches!(
+                command,
+                GpuiWindowTestCommand::Resize {
+                    width: 900,
+                    height: 600
+                }
+            ))
+        );
+        assert!(matches!(
+            resize.blocking_recv(),
+            Ok(TestActionResult::Handled(true))
+        ));
+        assert_eq!(
+            controller.window_viewport_json(window_key),
+            r#"{"x":0,"y":0,"width":900,"height":600}"#
+        );
+
+        let hide = controller.request(TestActionKind::NativeClose {
+            window_key,
+            mutable_visibility: true,
+        });
+        assert!(
+            controller.poll_gpui_window_action(window_key, |command| matches!(
+                command,
+                GpuiWindowTestCommand::Hide {
+                    mutable_visibility: true
+                }
+            ))
+        );
+        assert!(matches!(
+            hide.blocking_recv(),
+            Ok(TestActionResult::Handled(true))
+        ));
+        assert_eq!(
+            controller
+                .state
+                .lock()
+                .unwrap()
+                .windows
+                .get(&window_key)
+                .unwrap()
+                .lifecycle
+                .presence(),
+            WindowPresence::Hidden
         );
     }
 

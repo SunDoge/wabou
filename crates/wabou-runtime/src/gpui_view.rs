@@ -616,14 +616,38 @@ impl Render for GpuiRuntimeView {
         }
         let _ = self.controller.advance_frame();
         self.synchronize_text_controls(window, cx);
-        if let Some(test_controller) = self.test_controller.clone()
-            && test_controller.poll_gpui_source(
+        if let Some(test_controller) = self.test_controller.clone() {
+            let window_action =
+                test_controller.poll_gpui_window_action(self.window_key, |command| match command {
+                    crate::test_driver::GpuiWindowTestCommand::Hide { mutable_visibility } => {
+                        if mutable_visibility {
+                            cx.hide();
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    crate::test_driver::GpuiWindowTestCommand::Show => {
+                        cx.activate(true);
+                        window.activate_window();
+                        true
+                    }
+                    crate::test_driver::GpuiWindowTestCommand::Resize { width, height } => {
+                        window.resize(gpui_shell::gpui::size(
+                            gpui_shell::gpui::px(width as f32),
+                            gpui_shell::gpui::px(height as f32),
+                        ));
+                        true
+                    }
+                });
+            let source_action = test_controller.poll_gpui_source(
                 self.window_key,
                 &self.layout_snapshot(),
                 &mut self.controller,
-            )
-        {
-            cx.notify();
+            );
+            if window_action || source_action {
+                cx.notify();
+            }
         }
         if self.drain_host_actions(window, cx) {
             cx.notify();
