@@ -20,6 +20,10 @@ pub struct GpuiController {
     projection: GpuiProjection,
     image_resources: ImageResourceStore,
     next_host_event_id: u32,
+    hovered_target: Option<wabou_host_api::NodeKey>,
+    pressed_targets: std::collections::BTreeMap<u8, wabou_host_api::NodeKey>,
+    pointer_buttons: u32,
+    last_primary_click: Option<(std::time::Instant, wabou_host_api::NodeKey, f32, f32)>,
 }
 
 impl GpuiController {
@@ -29,6 +33,10 @@ impl GpuiController {
             projection: GpuiProjection::new(),
             image_resources: ImageResourceStore::default(),
             next_host_event_id: 0,
+            hovered_target: None,
+            pressed_targets: std::collections::BTreeMap::new(),
+            pointer_buttons: 0,
+            last_primary_click: None,
         }
     }
     pub(crate) fn set_image_resources(&mut self, resources: ImageResourceStore) {
@@ -222,6 +230,197 @@ impl GpuiController {
         self.next_host_event_id
     }
 
+    pub fn handle_projected_pointer(
+        &mut self,
+        input: gpui_shell::ProjectedPointerEvent,
+    ) -> gpui_shell::EventResponse {
+        use gpui_shell::{ProjectedPointerButton as Button, ProjectedPointerPhase as Phase};
+        use wabou_protocol::{event, event_data};
+
+        let button = input.button.map_or(0, |button| match button {
+            Button::Primary => 0,
+            Button::Auxiliary => 1,
+            Button::Secondary => 2,
+            Button::Other => 3,
+        });
+        let button_mask = input.button.map_or(0, |button| match button {
+            Button::Primary => 1,
+            Button::Secondary => 2,
+            Button::Auxiliary => 4,
+            Button::Other => 8,
+        });
+        match input.phase {
+            Phase::Down => self.pointer_buttons |= button_mask,
+            Phase::Up => self.pointer_buttons &= !button_mask,
+            Phase::Move => {}
+        }
+
+        let mut data = [0.0; event_data::LEN];
+        data[event_data::CLIENT_X as usize] = f64::from(input.x);
+        data[event_data::CLIENT_Y as usize] = f64::from(input.y);
+        data[event_data::OFFSET_X as usize] = f64::from(input.local_x);
+        data[event_data::OFFSET_Y as usize] = f64::from(input.local_y);
+        data[event_data::BUTTON as usize] = f64::from(button);
+        data[event_data::BUTTONS as usize] = f64::from(self.pointer_buttons);
+        let mut modifiers = gpui_shell::Modifiers::empty();
+        modifiers.set(gpui_shell::Modifiers::SHIFT, input.shift);
+        modifiers.set(gpui_shell::Modifiers::CONTROL, input.control);
+        modifiers.set(gpui_shell::Modifiers::ALT, input.alt);
+        modifiers.set(gpui_shell::Modifiers::META, input.platform);
+        data[event_data::MODS as usize] = f64::from(modifiers.bits());
+        data[event_data::POINTER_ID_LO as usize] = 1.0;
+        data[event_data::POINTER_TYPE as usize] = 0.0;
+        data[event_data::PRIMARY as usize] = 1.0;
+        for slot in [
+            event_data::PRESSURE,
+            event_data::TANGENTIAL_PRESSURE,
+            event_data::TILT_X,
+            event_data::TILT_Y,
+            event_data::TWIST,
+        ] {
+            data[slot as usize] = f64::NAN;
+        }
+
+        let mut handled = false;
+        if self.hovered_target != Some(input.target) {
+            if let Some(previous) = self.hovered_target.take() {
+                handled |= self
+                    .dispatch_node_numeric(
+                        previous,
+                        event::POINTEROUT,
+                        data,
+                        event_data::TWIST as usize + 1,
+                        false,
+                    )
+                    .map(|value| value.0)
+                    .unwrap_or(false);
+                handled |= self
+                    .dispatch_node_numeric(
+                        previous,
+                        event::POINTERLEAVE,
+                        data,
+                        event_data::TWIST as usize + 1,
+                        false,
+                    )
+                    .map(|value| value.0)
+                    .unwrap_or(false);
+            }
+            self.hovered_target = Some(input.target);
+            handled |= self
+                .dispatch_node_numeric(
+                    input.target,
+                    event::POINTEROVER,
+                    data,
+                    event_data::TWIST as usize + 1,
+                    false,
+                )
+                .map(|value| value.0)
+                .unwrap_or(false);
+            handled |= self
+                .dispatch_node_numeric(
+                    input.target,
+                    event::POINTERENTER,
+                    data,
+                    event_data::TWIST as usize + 1,
+                    false,
+                )
+                .map(|value| value.0)
+                .unwrap_or(false);
+        }
+
+        match input.phase {
+            Phase::Move => {
+                handled |= self
+                    .dispatch_node_numeric(
+                        input.target,
+                        event::POINTERMOVE,
+                        data,
+                        event_data::TWIST as usize + 1,
+                        false,
+                    )
+                    .map(|value| value.0)
+                    .unwrap_or(false);
+            }
+            Phase::Down => {
+                self.pressed_targets.insert(button, input.target);
+                handled |= self
+                    .dispatch_node_numeric(
+                        input.target,
+                        event::POINTERDOWN,
+                        data,
+                        event_data::TWIST as usize + 1,
+                        false,
+                    )
+                    .map(|value| value.0)
+                    .unwrap_or(false);
+            }
+            Phase::Up => {
+                let pressed = self.pressed_targets.remove(&button);
+                let release_target = pressed.unwrap_or(input.target);
+                handled |= self
+                    .dispatch_node_numeric(
+                        release_target,
+                        event::POINTERUP,
+                        data,
+                        event_data::TWIST as usize + 1,
+                        false,
+                    )
+                    .map(|value| value.0)
+                    .unwrap_or(false);
+                if pressed == Some(input.target) {
+                    let activation = if button == 2 {
+                        Some(event::CONTEXTMENU)
+                    } else if button == 0 {
+                        Some(event::CLICK)
+                    } else {
+                        None
+                    };
+                    if let Some(code) = activation {
+                        handled |= self
+                            .dispatch_node_numeric(
+                                input.target,
+                                code,
+                                data,
+                                event_data::TWIST as usize + 1,
+                                true,
+                            )
+                            .map(|value| value.0)
+                            .unwrap_or(false);
+                    }
+                    if button == 0 {
+                        let now = std::time::Instant::now();
+                        let double = self.last_primary_click.is_some_and(|(then, target, x, y)| {
+                            target == input.target
+                                && now.duration_since(then) <= std::time::Duration::from_millis(400)
+                                && (input.x - x).abs() <= 4.0
+                                && (input.y - y).abs() <= 4.0
+                        });
+                        if double {
+                            handled |= self
+                                .dispatch_node_numeric(
+                                    input.target,
+                                    event::DBLCLICK,
+                                    data,
+                                    event_data::TWIST as usize + 1,
+                                    true,
+                                )
+                                .map(|value| value.0)
+                                .unwrap_or(false);
+                            self.last_primary_click = None;
+                        } else {
+                            self.last_primary_click = Some((now, input.target, input.x, input.y));
+                        }
+                    }
+                }
+            }
+        }
+        gpui_shell::EventResponse {
+            handled,
+            request_redraw: handled,
+            ..gpui_shell::EventResponse::default()
+        }
+    }
+
     /// Monotonically increasing count of non-empty JS-to-host frames.
     pub fn protocol_revision(&self) -> u64 {
         self.runtime.protocol_revision
@@ -372,6 +571,107 @@ mod tests {
                 )
                 .expect("ignore absent listener"),
             (false, false)
+        );
+    }
+
+    #[test]
+    fn projected_pointer_sequence_uses_gpui_target_and_local_coordinates() {
+        let js = JsRuntime::new().expect("runtime");
+        js.eval_script(
+            r#"
+            globalThis.receivedEvents = [];
+            globalThis.__wabou_dispatch_host_frame = (bytes) => {
+              const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+              const record = 40;
+              const code = view.getUint8(record + 8);
+              const payloadKind = view.getUint8(record + 9);
+              const values = [];
+              if (payloadKind === 1) {
+                const count = view.getUint16(record + 10, true);
+                for (let index = 0; index < count; index++) {
+                  values.push(view.getFloat64(record + 16 + index * 8, true));
+                }
+              }
+              globalThis.receivedEvents.push([code, values]);
+              return { needsTick: false, preventedEventIds: new Uint32Array() };
+            };
+            "#,
+        )
+        .expect("install host-frame hook");
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            gpui_shell::initial_window_resource_key(0),
+        ));
+        let button = controller.runtime.atoms.borrow_mut().intern("button");
+        let target = NodeKey::new(7, 3);
+        let listeners = [
+            wabou_protocol::event::POINTEROVER,
+            wabou_protocol::event::POINTERENTER,
+            wabou_protocol::event::POINTERDOWN,
+            wabou_protocol::event::POINTERUP,
+            wabou_protocol::event::CLICK,
+        ];
+        let mut ops = vec![Op::CreateElement {
+            id: target,
+            tag: button,
+        }];
+        ops.extend(listeners.map(|event_type| Op::AddEventListener {
+            id: target,
+            event_type,
+        }));
+        controller
+            .apply_frame(&Frame { seq: 1, ops })
+            .expect("project listeners");
+
+        let event = |phase| gpui_shell::ProjectedPointerEvent {
+            target,
+            phase,
+            x: 110.0,
+            y: 75.0,
+            local_x: 10.0,
+            local_y: 15.0,
+            button: Some(gpui_shell::ProjectedPointerButton::Primary),
+            shift: false,
+            control: false,
+            alt: false,
+            platform: false,
+        };
+        assert!(
+            controller
+                .handle_projected_pointer(event(gpui_shell::ProjectedPointerPhase::Down))
+                .handled
+        );
+        assert!(
+            controller
+                .handle_projected_pointer(event(gpui_shell::ProjectedPointerPhase::Up))
+                .handled
+        );
+
+        let trace = controller
+            .eval_string("JSON.stringify(globalThis.receivedEvents)")
+            .expect("read pointer trace");
+        let trace: serde_json::Value = serde_json::from_str(&trace).expect("parse pointer trace");
+        let events = trace.as_array().expect("event array");
+        assert_eq!(
+            events
+                .iter()
+                .map(|event| event[0].as_u64().unwrap() as u8)
+                .collect::<Vec<_>>(),
+            [
+                wabou_protocol::event::POINTEROVER,
+                wabou_protocol::event::POINTERENTER,
+                wabou_protocol::event::POINTERDOWN,
+                wabou_protocol::event::POINTERUP,
+                wabou_protocol::event::CLICK,
+            ]
+        );
+        assert_eq!(
+            events[2][1][wabou_protocol::event_data::OFFSET_X as usize],
+            10.0
+        );
+        assert_eq!(
+            events[2][1][wabou_protocol::event_data::OFFSET_Y as usize],
+            15.0
         );
     }
 }
