@@ -782,6 +782,9 @@ impl TestController {
         nodes: &[gpui_shell::GpuiLayoutNode],
         controller: &mut crate::gpui_controller::GpuiController,
     ) -> bool {
+        if nodes.is_empty() {
+            return false;
+        }
         let action = self.state.lock().ok().and_then(|mut state| {
             let index = state.actions.iter().position(|action| {
                 matches!(action_window_key(&action.kind), Some(target) if target == window_key)
@@ -1876,6 +1879,69 @@ mod tests {
             snapshot["snapshot"]["bounds"],
             serde_json::json!({ "x": 10.0, "y": 20.0, "width": 100.0, "height": 40.0 })
         );
+    }
+
+    #[test]
+    fn gpui_test_driver_clicks_the_projected_protocol_target() {
+        use crate::{protocol::Op, runtime_session::RuntimeSession};
+
+        let js = crate::JsRuntime::new().expect("runtime");
+        js.eval_script(
+            "globalThis.__wabou_dispatch_host_frame = () => ({ needsTick: false, preventedEventIds: new Uint32Array() })",
+        )
+        .expect("host event fixture");
+        let atoms = js.atom_pool_handle();
+        let (button, aria_label) = {
+            let mut atoms = atoms.borrow_mut();
+            (atoms.intern("button"), atoms.intern("aria-label"))
+        };
+        let target = wabou_host_api::NodeKey::new(31, 2);
+        let mut runtime = crate::gpui_controller::GpuiController::new(RuntimeSession::new(
+            js,
+            gpui_shell::initial_window_resource_key(0),
+        ));
+        runtime
+            .apply_frame(&crate::protocol::Frame {
+                seq: 1,
+                ops: vec![
+                    Op::CreateElement {
+                        id: target,
+                        tag: button,
+                    },
+                    Op::SetAttribute {
+                        id: target,
+                        name: aria_label,
+                        value: "Save",
+                    },
+                    Op::AddEventListener {
+                        id: target,
+                        event_type: wabou_protocol::event::CLICK,
+                    },
+                    Op::AppendChild {
+                        parent: wabou_host_api::NodeKey::ROOT,
+                        child: target,
+                    },
+                ],
+            })
+            .expect("project button");
+        let driver = TestController::default();
+        let mut completion = driver.request(TestActionKind::ClickByRole {
+            window_key: gpui_shell::initial_window_resource_key(0),
+            role: "button".into(),
+            label: "Save".into(),
+            index: None,
+            scope: Vec::new(),
+        });
+
+        assert!(driver.poll_gpui_source(
+            gpui_shell::initial_window_resource_key(0),
+            &[gpui_node(target, None, "button", "Save")],
+            &mut runtime,
+        ));
+        assert!(matches!(
+            completion.try_recv(),
+            Ok(TestActionResult::Handled(true))
+        ));
     }
 
     #[test]
