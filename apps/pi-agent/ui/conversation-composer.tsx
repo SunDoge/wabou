@@ -45,6 +45,7 @@ import {
   type ComposerDeliveryMode,
 } from "./composer-delivery";
 import { ComposerImagePicker, ComposerImages } from "./composer-images";
+import { ConversationWorkspaceStatus } from "./conversation-workspace-status";
 import {
   ExtensionUiChrome,
   type ExtensionUiStatus,
@@ -58,6 +59,8 @@ export interface ConversationComposerProps {
   connection: AgentConnection;
   project: string;
   cwd: string;
+  branch?: string;
+  repository?: boolean;
   draft: string;
   images: readonly string[];
   contextFiles: readonly string[];
@@ -221,7 +224,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
   };
 
   return (
-    <WorkbenchFooter class="border-0 bg-canvas px-5 pt-3 pb-5">
+    <WorkbenchFooter class="border-0 bg-canvas px-5 pt-3 pb-3 gap-1">
       <WorkbenchContentColumn
         role="group"
         aria-label={i18n.message(m.prompt_placeholder, {})}
@@ -354,6 +357,12 @@ export function ConversationComposer(props: ConversationComposerProps) {
           </Button>
         </View>
       </WorkbenchContentColumn>
+      <ConversationWorkspaceStatus
+        project={props.project}
+        branch={props.branch}
+        repository={props.repository === true}
+        connection={props.connection}
+      />
     </WorkbenchFooter>
   );
 }

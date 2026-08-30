@@ -217,6 +217,8 @@ function FullWorkbenchFixture() {
           connection="ready"
           project={activeProject.name}
           cwd={activeProject.cwd}
+          branch="feat/conversation-status"
+          repository
           draft=""
           images={[]}
           contextFiles={[]}
@@ -411,6 +413,8 @@ defineLayoutFixtures({
           connection="ready"
           project="Wabou"
           cwd="/work/wabou/documentation-and-examples"
+          branch="feat/a-very-long-branch-name-for-narrow-layouts"
+          repository
           draft="Explain why the retained renderer stays predictable."
           images={[]}
           contextFiles={[]}

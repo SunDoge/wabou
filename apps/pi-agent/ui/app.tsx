@@ -934,6 +934,8 @@ export function App() {
               connection={active().state.connection}
               project={active().name}
               cwd={active().cwd}
+              branch={workspaceInfo.latest()?.branch}
+              repository={workspaceInfo.latest()?.repository}
               draft={draft()}
               images={images()}
               contextFiles={contextFiles()}

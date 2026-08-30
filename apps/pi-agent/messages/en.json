@@ -171,6 +171,8 @@
   "starter_verify_detail": "Discover the right validation commands and fix a failure.",
   "starter_verify_prompt": "Discover this repository's validation commands, run the relevant checks, and fix the first meaningful failure.",
   "working": "Pi is working…",
+  "local": "Local",
+  "workspace_status": "Workspace status",
   "agent_status_failed": "Pi stopped with an error",
   "agent_status_stopped": "Pi is not running",
   "activity_responding": "Responding…",
