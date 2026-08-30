@@ -287,6 +287,15 @@ impl GpuiProjection {
             .collect()
     }
 
+    pub fn update_authored_attribute(
+        &mut self,
+        key: NodeKey,
+        name: &str,
+        value: &str,
+    ) -> Result<(), ProjectionError> {
+        self.tree.update_attribute(key, name.into(), value.into())
+    }
+
     pub fn native_widgets(&self, mut accepts: impl FnMut(&str) -> bool) -> Vec<GpuiNativeWidget> {
         let mut widgets = Vec::new();
         let mut pending = self.tree.roots().to_vec();
