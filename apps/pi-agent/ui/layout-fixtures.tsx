@@ -606,4 +606,30 @@ defineLayoutFixtures({
       />
     ),
   },
+  "settings/application-defaults": {
+    width: 760,
+    height: 680,
+    render: () => (
+      <SettingsPage
+        app={appSettings}
+        updateApp={() => {}}
+        project={project}
+        canDeleteProject
+        state={{
+          ...initialAgentState,
+          connection: "ready",
+          autoCompactionEnabled: true,
+          steeringMode: "one-at-a-time",
+          followUpMode: "one-at-a-time",
+        }}
+        updateProject={() => {}}
+        close={() => {}}
+        deleteProject={() => {}}
+        setAutoCompaction={() => {}}
+        setSteeringMode={() => {}}
+        setFollowUpMode={() => {}}
+        defaultSection="application"
+      />
+    ),
+  },
 });

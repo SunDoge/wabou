@@ -94,6 +94,7 @@
   "queue_mode_all": "全部排队消息",
   "language": "语言",
   "application_settings": "应用设置",
+  "application_settings_detail": "这台设备上所有项目共享的默认设置。",
   "language_detail": "选择这个桌面客户端使用的界面语言。",
   "english": "English",
   "chinese": "中文",

@@ -94,6 +94,7 @@
   "queue_mode_all": "All queued messages",
   "language": "Language",
   "application_settings": "Application settings",
+  "application_settings_detail": "Defaults shared by every project on this device.",
   "language_detail": "Choose the interface language for this desktop client.",
   "english": "English",
   "chinese": "中文",

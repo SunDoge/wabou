@@ -7,7 +7,7 @@ import {
 } from "../../apps/pi-agent/ui/settings";
 import { createAgentWorkspace } from "../../apps/pi-agent/ui/workspace";
 
-test("Pi Agent settings separate project overrides from global network configuration", () => {
+function renderSettings(canDeleteProject = true) {
   const [defaults, setDefaults] = createSignal<AppSettings>({
     locale: "en",
     proxy: "",
@@ -25,7 +25,7 @@ test("Pi Agent settings separate project overrides from global network configura
         setDefaults((current) => ({ ...current, ...patch }))
       }
       project={agent()}
-      canDeleteProject
+      canDeleteProject={canDeleteProject}
       state={{
         ...agent().state,
         connection: "ready",
@@ -43,6 +43,11 @@ test("Pi Agent settings separate project overrides from global network configura
       setFollowUpMode={() => {}}
     />
   ));
+  return { screen, defaults, agent, deleted: () => deleted };
+}
+
+test("Pi Agent settings separate project overrides from global network configuration", () => {
+  const { screen, defaults, agent, deleted } = renderSettings();
 
   screen.getByRole("textbox", { name: "Project name" }).input("Build project");
   expect(agent().name).toBe("Build project");
@@ -54,6 +59,12 @@ test("Pi Agent settings separate project overrides from global network configura
     provider: "openai",
     model: "gpt-5",
   });
+  expect(
+    screen.queryByRole("textbox", { name: "Default proxy URL" }),
+  ).toBeNull();
+
+  screen.getByRole("tab", { name: "Application settings" }).click();
+  expect(screen.queryByRole("textbox", { name: "Project name" })).toBeNull();
   screen
     .getByRole("textbox", { name: "Default proxy URL" })
     .input("http://127.0.0.1:7890");
@@ -70,51 +81,23 @@ test("Pi Agent settings separate project overrides from global network configura
   screen.getByRole("button", { name: "English" }).click();
   expect(defaults().locale).toBe("en");
 
+  screen.getByRole("tab", { name: "Configure Build project" }).click();
   screen.getByRole("button", { name: "Delete project" }).click();
   const dialog = screen.getByRole("alertdialog", { name: "Delete project" });
   expect(dialog.text).toContain("Delete Build project?");
   dialog.getByRole("button", { name: "Delete Build project?" }).click();
-  expect(deleted).toBe(1);
+  expect(deleted()).toBe(1);
 });
 
 test("Pi Agent keeps the last project available", () => {
-  const project = createAgentWorkspace(1);
-  let deleted = 0;
-  const screen = renderComponent(() => (
-    <SettingsPage
-      app={{
-        locale: "en",
-        proxy: "",
-        noProxy: "127.0.0.1,localhost",
-        provider: "",
-        model: "",
-        subagentsEnabled: true,
-      }}
-      updateApp={() => {}}
-      project={project}
-      canDeleteProject={false}
-      state={{
-        ...project.state,
-        connection: "ready",
-        autoCompactionEnabled: true,
-        steeringMode: "one-at-a-time",
-        followUpMode: "one-at-a-time",
-      }}
-      updateProject={() => {}}
-      close={() => {}}
-      deleteProject={() => deleted++}
-      setAutoCompaction={() => {}}
-      setSteeringMode={() => {}}
-      setFollowUpMode={() => {}}
-    />
-  ));
-
+  const { screen, deleted } = renderSettings(false);
   const deleteProject = screen.getByRole("button", {
     name: "Delete project",
   });
+
   expect(deleteProject.disabled).toBe(true);
   expect(() => deleteProject.click()).toThrow("cannot click disabled");
-  expect(deleted).toBe(0);
+  expect(deleted()).toBe(0);
   expect(
     screen.queryByRole("alertdialog", { name: "Delete project" }),
   ).toBeNull();

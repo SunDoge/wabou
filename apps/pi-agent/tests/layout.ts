@@ -406,6 +406,32 @@ try {
           getLayoutNode(fixture, { text: "Settings" });
           getLayoutNode(fixture, { role: "textbox", name: "Project name" });
           getLayoutNode(fixture, { role: "textbox", name: "Workspace" });
+          const tabs = queryLayoutNodes(fixture, { role: "tab" });
+          if (tabs.length !== 2)
+            throw new Error(
+              `expected two settings scope tabs, found ${tabs.length}`,
+            );
+          getLayoutNode(fixture, { text: "Configure Documentation workspace" });
+          getLayoutNode(fixture, { text: "Application settings" });
+          getLayoutNode(fixture, { text: "Danger zone" });
+        },
+      },
+      {
+        id: "settings/application-defaults",
+        width: 760,
+        height: 680,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, { text: "Settings" });
+          getLayoutNode(fixture, {
+            role: "textbox",
+            name: "Default provider",
+          });
+          getLayoutNode(fixture, {
+            role: "textbox",
+            name: "Default proxy URL",
+          });
+          getLayoutNode(fixture, { text: "Runtime" });
         },
       },
     ],
