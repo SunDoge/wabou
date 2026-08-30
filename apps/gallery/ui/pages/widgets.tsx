@@ -143,6 +143,11 @@ import {
   Spinner,
   Text,
   Toaster,
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
   Tooltip,
   View,
 } from "@wabou/ui";
@@ -959,6 +964,48 @@ export function MessagePage() {
             </MessageContent>
           </Message>
         </MessageGroup>
+      </Preview>
+    </View>
+  );
+}
+
+export function ToolPage() {
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Tool invocation">
+        <Tool
+          class="w-full max-w-[640px]"
+          defaultOpen
+          role="group"
+          aria-label="Read source tool call"
+        >
+          <ToolHeader
+            title="read"
+            summary="crates/wabou-runtime/src/host.rs"
+            status="success"
+          />
+          <ToolContent role="region" aria-label="Read source details">
+            <ToolInput
+              code={'{"path":"crates/wabou-runtime/src/host.rs"}'}
+              language="json"
+            />
+            <ToolOutput code="Loaded 240 lines" language="text" />
+          </ToolContent>
+        </Tool>
+      </Preview>
+      <Preview title="Automation states">
+        <View class="w-full max-w-[640px] flex flex-col gap-3">
+          <Tool role="group" aria-label="Running command tool call">
+            <ToolHeader
+              title="bash"
+              summary="cargo test -p wabou-runtime"
+              status="running"
+            />
+          </Tool>
+          <Tool role="group" aria-label="Failed edit tool call">
+            <ToolHeader title="edit" summary="src/runtime.rs" status="failed" />
+          </Tool>
+        </View>
       </Preview>
     </View>
   );

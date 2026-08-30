@@ -126,6 +126,7 @@ export {
 export * from "./timeline";
 export * from "./title-bar";
 export * from "./toast";
+export * from "./tool";
 export * from "./toolbar";
 export * from "./tooltip";
 export * from "./tree-view";

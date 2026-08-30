@@ -28,6 +28,7 @@ import {
   ScrollAreaLayoutFixture,
   SelectLayoutFixture,
   SidebarLayoutFixture,
+  ToolLayoutFixture,
 } from "./layout-fixture-components";
 import * as animation from "./pages/animation";
 import * as basics from "./pages/basics";
@@ -137,6 +138,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         height: 520,
         render: PiConversationLayoutFixture,
         waitMs: 220,
+      },
+      "component/Tool": {
+        width: 560,
+        height: 420,
+        render: ToolLayoutFixture,
       },
       "component/PiAgentHeader": {
         width: 1080,

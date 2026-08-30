@@ -89,6 +89,7 @@ type ComponentId =
   | "item"
   | "attachment"
   | "message"
+  | "tool"
   | "message-scroller"
   | "button-group"
   | "toolbar"
@@ -160,6 +161,7 @@ const groups: Array<{
       { id: "item", name: "Item" },
       { id: "attachment", name: "Attachment" },
       { id: "message", name: "Message" },
+      { id: "tool", name: "Tool" },
       { id: "message-scroller", name: "Message scroller" },
       { id: "chart", name: "Chart experiment" },
       { id: "markdown", name: "Markdown" },
@@ -300,6 +302,7 @@ const descriptions: Record<ComponentId, string> = {
     "Displays native file and transfer state using reusable media, content and action slots.",
   message:
     "Composes aligned avatars, metadata, bubbles, reactions and timeline markers.",
+  tool: "Presents automation parameters, results and status in an explicit disclosure.",
   "message-scroller":
     "Follows appended messages until the user explicitly scrolls away from the end.",
   "button-group":
@@ -400,6 +403,7 @@ import {
   SelectPage,
   SheetPage,
   ToastPage,
+  ToolPage,
   TooltipPage,
 } from "./pages/widgets";
 
@@ -696,6 +700,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "message"}>
                     <MessagePage />
+                  </Match>
+                  <Match when={selected() === "tool"}>
+                    <ToolPage />
                   </Match>
                   <Match when={selected() === "message-scroller"}>
                     <MessageScrollerPage />

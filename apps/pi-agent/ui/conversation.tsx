@@ -3,7 +3,6 @@ import {
   Bubble,
   BubbleContent,
   Button,
-  CodeBlock,
   CollapsiblePresence,
   CopyButton,
   createKeyframeAnimation,
@@ -19,6 +18,11 @@ import {
   number,
   Pulse,
   Text,
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
   translate2d,
   useReducedMotion,
   View,
@@ -210,68 +214,37 @@ function ToolCall(props: { item: Extract<AgentItem, { kind: "tool" }> }) {
       : value;
   };
   return (
-    <View class="w-full min-w-0 overflow-hidden rounded-lg border border-subtle bg-surface shadow-xs">
-      <View class="min-h-10 px-3 flex items-center gap-2 bg-control">
-        <View class="relative w-5 h-5 flex-none flex items-center justify-center">
-          <Icon source={terminal} size={14} />
-          <Show when={props.item.state === "running"}>
-            <Pulse
-              aria-hidden="true"
-              class="absolute right-0 bottom-0 w-1.5 h-1.5 rounded-full bg-accent"
-              from={0.35}
-              to={1}
-              duration={0.9}
-            />
-          </Show>
-        </View>
-        <Button
-          variant="ghost"
-          size="sm"
-          class="flex-1 min-w-0 justify-start gap-2"
-          aria-label={`${props.item.name}: ${summarizeToolInput(props.item.input)}`}
-          aria-expanded={open()}
-          onClick={() => setOpen((value) => !value)}
-        >
-          <Icon
-            source={chevronRight}
-            size={12}
-            class={open() ? "rotate-90 text-muted" : "text-muted"}
-          />
-          <Text class="flex-none text-sm font-semibold text-primary">
-            {props.item.name}
-          </Text>
-          <Text class="min-w-0 flex-1 truncate text-left text-xs text-muted">
-            {summarizeToolInput(props.item.input)}
-          </Text>
-        </Button>
-        <Badge
-          variant={props.item.state === "failed" ? "destructive" : "secondary"}
-        >
-          {props.item.state}
-        </Badge>
-      </View>
-      <CollapsiblePresence
-        open={open()}
-        duration={0.16}
-        contentClass="min-w-0 border-t border-subtle"
-      >
-        <CodeBlock
+    <Tool
+      open={open()}
+      onOpenChange={setOpen}
+      role="group"
+      aria-label={`${props.item.name} tool call`}
+    >
+      <ToolHeader
+        title={props.item.name}
+        summary={summarizeToolInput(props.item.input)}
+        status={props.item.state}
+        icon={terminal}
+      />
+      <ToolContent>
+        <ToolInput
           code={props.item.input}
           language="input"
           copyable={false}
-          class="border-0 rounded-none"
+          codeClass="border-0"
         />
         <Show when={props.item.output}>
-          <View class="min-w-0 max-h-64 overflow-y-auto border-t border-subtle">
-            <CodeBlock
+          <View class="min-w-0 max-h-64 overflow-y-auto">
+            <ToolOutput
               code={preview()}
               language="output"
-              class="border-0 rounded-none"
+              error={props.item.state === "failed"}
+              codeClass="border-0"
             />
           </View>
         </Show>
-      </CollapsiblePresence>
-    </View>
+      </ToolContent>
+    </Tool>
   );
 }
 

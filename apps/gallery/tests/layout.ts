@@ -73,6 +73,32 @@ const assertScrollAreaLayout = (snapshot: LayoutSnapshot) => {
     throw new Error("ScrollArea fixture did not produce a real scroll range");
 };
 
+const assertToolLayout = (snapshot: LayoutSnapshot) => {
+  const root = getLayoutNode(snapshot, { role: "group", name: "Tool fixture" });
+  const trigger = getLayoutNode(snapshot, {
+    role: "button",
+    name: "read: crates/wabou-runtime/src/host.rs: Completed",
+  });
+  const details = getLayoutNode(snapshot, {
+    role: "region",
+    name: "Tool details",
+  });
+  const summary = getLayoutNode(snapshot, {
+    text: "crates/wabou-runtime/src/host.rs",
+  });
+  assertLayoutRectContains(root.rect, trigger.rect, {
+    label: "tool header",
+  });
+  assertLayoutRectContains(root.rect, details.rect, {
+    label: "tool details",
+  });
+  assertLayoutRectContains(trigger.contentRect, summary.rect, {
+    label: "tool summary",
+  });
+  if (trigger.rect.height < 40)
+    throw new Error(`tool trigger is too short: ${trigger.rect.height}`);
+};
+
 const assertSelectLayout = (snapshot: LayoutSnapshot) => {
   const trigger = getLayoutNode(snapshot, {
     role: "combobox",
@@ -390,6 +416,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
     ] as const,
   },
   "component/Sidebar": { assert: assertSidebarLayout },
+  "component/Tool": { assert: assertToolLayout },
   "component/ScrollArea": { assert: assertScrollAreaLayout },
   "component/Select": { assert: assertSelectLayout },
   "component/Dialog": { assert: assertDialogLayout },

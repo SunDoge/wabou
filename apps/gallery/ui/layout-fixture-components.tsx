@@ -33,6 +33,11 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   Text,
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
   View,
   WorkbenchHeader,
 } from "@wabou/ui";
@@ -96,6 +101,27 @@ export function PiConversationLayoutFixture() {
           output: "running 245 tests",
         }}
       />
+    </View>
+  );
+}
+
+export function ToolLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-5 bg-canvas">
+      <Tool defaultOpen reducedMotion role="group" aria-label="Tool fixture">
+        <ToolHeader
+          title="read"
+          summary="crates/wabou-runtime/src/host.rs"
+          status="success"
+        />
+        <ToolContent role="region" aria-label="Tool details">
+          <ToolInput
+            code={'{"path":"crates/wabou-runtime/src/host.rs"}'}
+            language="json"
+          />
+          <ToolOutput code="Loaded 240 lines" language="text" />
+        </ToolContent>
+      </Tool>
     </View>
   );
 }
