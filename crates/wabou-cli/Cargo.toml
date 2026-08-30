@@ -24,5 +24,5 @@ toml = "0.9"
 wabou-devtools = { workspace = true }
 wabou-runtime = { workspace = true, features = ["devtools"] }
 wabou-backend-winit = { workspace = true }
-wabou-widgets = { workspace = true }
+wabou-backend-winit-widgets = { workspace = true }
 vello = { workspace = true }

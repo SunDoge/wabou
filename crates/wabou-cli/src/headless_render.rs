@@ -552,7 +552,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         JsRuntime::new().map_err(|error| format!("cannot create JavaScript runtime: {error:?}"))?;
 
     let base_color = AppConfig::new("").base_color;
-    let mut factories = wabou_widgets::builtin_factories();
+    let mut factories = wabou_backend_winit_widgets::builtin_factories();
     factories.insert(
         "password-input".into(),
         Arc::new(|| Box::new(PasswordInput::new(SecretStore::default()))),

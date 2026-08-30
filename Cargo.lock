@@ -12331,6 +12331,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "wabou-backend-winit-widgets"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "anyrender",
+ "image",
+ "parley",
+ "serde",
+ "tracing",
+ "unicode-width",
+ "vello",
+ "wabou-backend-winit",
+ "zeroize",
+]
+
+[[package]]
 name = "wabou-bindgen"
 version = "0.1.0-alpha.3"
 dependencies = [
@@ -12356,9 +12371,9 @@ dependencies = [
  "toml 0.9.12+spec-1.1.0",
  "vello",
  "wabou-backend-winit",
+ "wabou-backend-winit-widgets",
  "wabou-devtools",
  "wabou-runtime",
- "wabou-widgets",
 ]
 
 [[package]]
@@ -12458,13 +12473,13 @@ dependencies = [
  "url",
  "vello",
  "wabou-backend-winit",
+ "wabou-backend-winit-widgets",
  "wabou-bindgen",
  "wabou-database",
  "wabou-devtools",
  "wabou-host-api",
  "wabou-shell",
  "wabou-style",
- "wabou-widgets",
 ]
 
 [[package]]
@@ -12534,21 +12549,6 @@ dependencies = [
  "gtk",
  "tray-icon",
  "wabou-backend-winit",
-]
-
-[[package]]
-name = "wabou-widgets"
-version = "0.1.0-alpha.3"
-dependencies = [
- "anyrender",
- "image",
- "parley",
- "serde",
- "tracing",
- "unicode-width",
- "vello",
- "wabou-backend-winit",
- "zeroize",
 ]
 
 [[package]]

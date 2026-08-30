@@ -74,7 +74,7 @@ themed, shadcn-inspired recipes. Those are development boundaries, while
 On the Rust side, applications use the `wabou` facade from a pinned Git tag.
 The facade is deliberately not on crates.io for the first preview, allowing
 internal crates to be merged or renamed without reserving permanent public
-crate names. `wabou-runtime`, `wabou-shell`, `wabou-widgets`, and the remaining
+crate names. `wabou-runtime`, `wabou-shell`, `wabou-backend-winit-widgets`, and the remaining
 workspace crates are implementation details; the preview tag and the facade
 are the supported Rust boundary. Optional widget and code-generation crates may
 be added alongside `wabou`, but must not replace it as the application runtime.

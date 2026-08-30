@@ -1,5 +1,5 @@
 [package]
-name = "wabou-widgets"
+name = "wabou-backend-winit-widgets"
 version.workspace = true
 edition = "2024"
 

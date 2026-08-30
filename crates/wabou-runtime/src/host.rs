@@ -56,8 +56,8 @@ use crate::native_capability::NativeCapability;
 use crate::test_report::finish_test_report;
 use crate::{HostMessageContext, HostMessageRouter};
 use crate::{ShellExtension, WindowOptions, run_windows_with_factory_and_extensions, style};
+use wabou_backend_winit_widgets::{SecretStore, builtin_factories, password_input_factory};
 use wabou_shell::{Widget, WidgetFactory};
-use wabou_widgets::{SecretStore, builtin_factories, password_input_factory};
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;

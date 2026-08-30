@@ -33,7 +33,7 @@ wabou-shell-gpui = { package = "wabou-shell", path = "crates/wabou-shell-gpui" }
 wabou-style = { path = "crates/wabou-style" }
 wabou-terminal = { path = "crates/wabou-terminal" }
 wabou-tray = { path = "crates/wabou-tray" }
-wabou-widgets = { path = "crates/wabou-widgets" }
+wabou-backend-winit-widgets = { path = "crates/wabou-backend-winit-widgets" }
 
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
 arc-swap = "1.9.2"

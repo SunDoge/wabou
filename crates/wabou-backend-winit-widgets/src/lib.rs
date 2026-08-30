@@ -1,5 +1,5 @@
-//! Built-in native widgets implemented exclusively through `wabou-shell`'s
-//! public [`wabou_shell::Widget`] contract.
+//! Legacy native widgets implemented exclusively through
+//! `wabou-backend-winit`'s public [`wabou_shell::Widget`] contract.
 
 #![warn(missing_docs)]
 
