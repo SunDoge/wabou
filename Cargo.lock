@@ -12482,6 +12482,7 @@ dependencies = [
  "wabou-database",
  "wabou-devtools",
  "wabou-host-api",
+ "wabou-shell",
  "wabou-style",
  "wabou-widgets",
 ]
@@ -12494,6 +12495,7 @@ dependencies = [
  "gpui-ce",
  "gpui_ce_platform",
  "slotmap",
+ "wabou-host-api",
  "wabou-style",
 ]
 

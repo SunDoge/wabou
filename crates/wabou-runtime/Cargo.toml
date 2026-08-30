@@ -57,6 +57,7 @@ wabou-database = { workspace = true }
 wabou-devtools = { workspace = true, optional = true }
 wabou-host-api = { workspace = true }
 wabou-backend-winit = { workspace = true }
+wabou-shell-gpui = { workspace = true }
 wabou-style = { workspace = true }
 wabou-widgets = { workspace = true }
 

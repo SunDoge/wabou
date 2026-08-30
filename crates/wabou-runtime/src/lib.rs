@@ -20,6 +20,7 @@ mod clock;
 mod config;
 mod effect_trace;
 mod error;
+mod gpui_projection;
 mod headless_test;
 mod host;
 #[cfg(test)]

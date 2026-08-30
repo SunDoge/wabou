@@ -26,7 +26,7 @@ wabou-runtime = { path = "crates/wabou-runtime" }
 # Transitional Winit/AnyRender implementation. New platform work belongs in
 # `wabou-shell`, which is being rebuilt on GPUI-CE.
 wabou-backend-winit = { path = "crates/wabou-shell" }
-wabou-shell = { path = "crates/wabou-shell-gpui" }
+wabou-shell-gpui = { package = "wabou-shell", path = "crates/wabou-shell-gpui" }
 wabou-style = { path = "crates/wabou-style" }
 wabou-terminal = { path = "crates/wabou-terminal" }
 wabou-tray = { path = "crates/wabou-tray" }
