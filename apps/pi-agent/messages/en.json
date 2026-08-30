@@ -93,6 +93,7 @@
   "refresh_skills": "Refresh skills",
   "refresh": "Refresh",
   "settings_intro": "Configure the current project, session behavior, and app-wide defaults.",
+  "project_settings": "Project settings",
   "current_agent": "Configure {name}",
   "current_agent_detail": "Choose the workspace and optional provider/model overrides for this project.",
   "session_behavior": "Session behavior",

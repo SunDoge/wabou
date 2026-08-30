@@ -17,6 +17,7 @@ import {
 import { For } from "solid-js";
 import { AgentActivityStatus } from "./agent-activity";
 import { type AgentItem, initialAgentState } from "./agent-state";
+import type { PiSkill } from "./api";
 import { AppCommandPalette } from "./app-command-palette";
 import { ComposerAutocompleteList } from "./composer-autocomplete-list";
 import { ConversationItem, ConversationList } from "./conversation";
@@ -25,7 +26,6 @@ import { ConversationContext } from "./conversation-context";
 import { ConversationHeader } from "./conversation-header";
 import { ConversationNavigator } from "./conversation-navigator";
 import { ModelControls } from "./model-controls";
-import type { PiSkill } from "./api";
 import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
 import { SkillsPage } from "./skills-page";
@@ -666,6 +666,31 @@ defineLayoutFixtures({
         setSteeringMode={() => {}}
         setFollowUpMode={() => {}}
         defaultSection="application"
+      />
+    ),
+  },
+  "settings/project-narrow": {
+    width: 480,
+    height: 680,
+    render: () => (
+      <SettingsPage
+        app={appSettings}
+        updateApp={() => {}}
+        project={project}
+        canDeleteProject
+        state={{
+          ...initialAgentState,
+          connection: "ready",
+          autoCompactionEnabled: true,
+          steeringMode: "one-at-a-time",
+          followUpMode: "one-at-a-time",
+        }}
+        updateProject={() => {}}
+        close={() => {}}
+        deleteProject={() => {}}
+        setAutoCompaction={() => {}}
+        setSteeringMode={() => {}}
+        setFollowUpMode={() => {}}
       />
     ),
   },

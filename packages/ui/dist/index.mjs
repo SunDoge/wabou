@@ -7836,7 +7836,7 @@ function PageViewport(props) {
 }
 const pageHeaderClass = (className, stacked = false) => mergeClasses("min-w-0 min-h-12 flex-none flex justify-between gap-4", stacked ? "flex-col items-stretch" : "flex-row items-center", className);
 const pageHeaderTitleClass = () => "whitespace-nowrap text-2xl font-semibold text-primary";
-const pageHeaderDescriptionClass = () => "truncate text-sm text-secondary";
+const pageHeaderDescriptionClass = (stacked = false) => mergeClasses("text-sm text-secondary", stacked ? "whitespace-normal" : "truncate");
 /** Consistent page title, supporting text and trailing application actions. */
 function PageHeader(props) {
 	return createComponent$1(View, {
@@ -7864,7 +7864,7 @@ function PageHeader(props) {
 								},
 								children: (description) => createComponent$1(Text, {
 									get ["class"]() {
-										return pageHeaderDescriptionClass();
+										return pageHeaderDescriptionClass(props.stacked);
 									},
 									get children() {
 										return description();

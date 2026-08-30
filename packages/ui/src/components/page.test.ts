@@ -26,5 +26,8 @@ describe("PageViewport layout contract", () => {
     expect(pageHeaderClass(undefined, true)).toContain("flex-col");
     expect(pageHeaderTitleClass()).toContain("text-primary");
     expect(pageHeaderDescriptionClass()).toContain("text-secondary");
+    expect(pageHeaderDescriptionClass()).toContain("truncate");
+    expect(pageHeaderDescriptionClass(true)).toContain("whitespace-normal");
+    expect(pageHeaderDescriptionClass(true)).not.toContain("truncate");
   });
 });

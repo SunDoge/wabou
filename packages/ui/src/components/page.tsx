@@ -67,8 +67,11 @@ export const pageHeaderClass = (className?: string, stacked = false) =>
 export const pageHeaderTitleClass = () =>
   "whitespace-nowrap text-2xl font-semibold text-primary";
 
-export const pageHeaderDescriptionClass = () =>
-  "truncate text-sm text-secondary";
+export const pageHeaderDescriptionClass = (stacked = false) =>
+  mergeClasses(
+    "text-sm text-secondary",
+    stacked ? "whitespace-normal" : "truncate",
+  );
 
 export interface PageHeaderProps {
   title: string;
@@ -93,7 +96,9 @@ export function PageHeader(props: PageHeaderProps): JSX.Element {
           </Text>
           <Show when={props.description}>
             {(description) => (
-              <Text class={pageHeaderDescriptionClass()}>{description()}</Text>
+              <Text class={pageHeaderDescriptionClass(props.stacked)}>
+                {description()}
+              </Text>
             )}
           </Show>
         </View>

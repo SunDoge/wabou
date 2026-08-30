@@ -508,7 +508,7 @@ try {
             throw new Error(
               `expected two settings scope tabs, found ${tabs.length}`,
             );
-          getLayoutNode(fixture, { text: "Configure Documentation workspace" });
+          getLayoutNode(fixture, { text: "Project settings" });
           getLayoutNode(fixture, { text: "Application settings" });
           getLayoutNode(fixture, { text: "Danger zone" });
         },
@@ -529,6 +529,32 @@ try {
             name: "Default proxy URL",
           });
           getLayoutNode(fixture, { text: "Runtime" });
+        },
+      },
+      {
+        id: "settings/project-narrow",
+        width: 480,
+        height: 680,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => {
+          const section = getLayoutNode(fixture, {
+            role: "group",
+            name: "Workspace",
+          });
+          const name = getLayoutNode(fixture, {
+            role: "textbox",
+            name: "Project name",
+          });
+          if (name.rect.x > section.contentRect.x + 24) {
+            throw new Error(
+              `narrow settings kept a fixed label column: section x=${section.contentRect.x}, field x=${name.rect.x}`,
+            );
+          }
+          if (name.rect.width < 300) {
+            throw new Error(
+              `narrow settings field lost usable width: ${name.rect.width}`,
+            );
+          }
         },
       },
     ],

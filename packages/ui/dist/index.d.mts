@@ -1522,7 +1522,7 @@ interface PageViewportProps extends Omit<ScrollAreaProps, "class" | "contentClas
 declare function PageViewport(props: PageViewportProps): JSX.Element;
 declare const pageHeaderClass: (className?: string, stacked?: boolean) => string;
 declare const pageHeaderTitleClass: () => string;
-declare const pageHeaderDescriptionClass: () => string;
+declare const pageHeaderDescriptionClass: (stacked?: boolean) => string;
 interface PageHeaderProps {
   title: string;
   description?: string;

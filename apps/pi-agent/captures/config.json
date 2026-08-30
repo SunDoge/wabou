@@ -9,6 +9,10 @@
   "overrides": {
     "conversation-dark.behavior.ts": {
       "colorScheme": "dark"
+    },
+    "settings.behavior.ts": {
+      "width": 720,
+      "height": 640
     }
   }
 }

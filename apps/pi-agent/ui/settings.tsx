@@ -7,6 +7,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   Button,
+  createContainerMatch,
   DirectoryPicker,
   Field,
   FieldDescription,
@@ -45,9 +46,23 @@ function SettingsSection(props: {
   children: JSX.Element;
   class?: string;
 }) {
+  const compact = createContainerMatch({ maxWidth: 640 });
   return (
-    <View class="min-w-0 flex flex-row items-start gap-7">
-      <View class="w-52 flex-none flex flex-col gap-1 pt-1">
+    <View
+      ref={compact.ref}
+      role="group"
+      aria-label={props.title}
+      class={mergeClasses(
+        "min-w-0 flex items-start",
+        compact.matches() ? "flex-col gap-3" : "flex-row gap-7",
+      )}
+    >
+      <View
+        class={mergeClasses(
+          "flex-none flex flex-col gap-1 pt-1",
+          compact.matches() ? "w-full" : "w-52",
+        )}
+      >
         <Text role="heading" class="text-base font-semibold text-primary">
           {props.title}
         </Text>
@@ -57,7 +72,7 @@ function SettingsSection(props: {
       </View>
       <View
         class={mergeClasses(
-          "min-w-0 flex-1 flex flex-col gap-5 rounded-xl border border-subtle bg-surface px-5 py-5 shadow-xs",
+          "w-full min-w-0 flex-1 flex flex-col gap-5 rounded-xl border border-subtle bg-surface px-5 py-5 shadow-xs",
           props.class,
         )}
       >
@@ -101,16 +116,21 @@ export function SettingsPage(props: {
   setFollowUpMode: (mode: AgentQueueMode) => void;
   defaultSection?: "project" | "application";
 }) {
+  const compact = createContainerMatch({ maxWidth: 640 });
   const setLocale = (locale: AppSettings["locale"]) => {
     i18n.set(locale);
     props.updateApp({ locale });
   };
   return (
     <PageViewport class="bg-canvas" contentClass="p-8">
-      <View class="w-full max-w-5xl mx-auto flex flex-col gap-6 pb-8">
+      <View
+        ref={compact.ref}
+        class="w-full max-w-5xl mx-auto flex flex-col gap-6 pb-8"
+      >
         <PageHeader
           title={i18n.message(m.settings, {})}
           description={i18n.message(m.settings_intro, {})}
+          stacked={compact.matches()}
           actions={
             <Button variant="outline" onClick={props.close}>
               {i18n.message(m.back_to_agents, {})}
@@ -123,7 +143,7 @@ export function SettingsPage(props: {
         >
           <TabsList aria-label={i18n.message(m.settings, {})}>
             <TabsTrigger value="project">
-              {i18n.message(m.current_agent, { name: props.project.name })}
+              {i18n.message(m.project_settings, {})}
             </TabsTrigger>
             <TabsTrigger value="application">
               {i18n.message(m.application_settings, {})}
