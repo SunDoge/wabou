@@ -4,7 +4,7 @@ use gpui::{AppContext as _, IntoElement as _, ParentElement as _, Styled as _};
 use wabou_shell_api::{KeyEvent, KeyLocation, KeyPhase, Modifiers, UiEvent, WakeCallback};
 use wabou_shell_gpui::{NativeWidgetContext, NativeWidgetMount, gpui};
 
-use super::TerminalWidget;
+use super::{TerminalWidget, widget_impl::TerminalInputResult};
 
 struct GpuiTerminal {
     terminal: TerminalWidget,
@@ -13,6 +13,26 @@ struct GpuiTerminal {
 }
 
 impl GpuiTerminal {
+    fn apply_input_result(
+        &mut self,
+        result: TerminalInputResult,
+        cx: &mut gpui::Context<Self>,
+    ) -> bool {
+        match result {
+            TerminalInputResult::Clipboard(wabou_shell_api::ClipboardRequest::Write(text)) => {
+                cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+                true
+            }
+            TerminalInputResult::Clipboard(wabou_shell_api::ClipboardRequest::Read) => {
+                if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
+                    let _ = self.terminal.dispatch_native_event(&UiEvent::Paste(text));
+                }
+                true
+            }
+            result => result.is_handled(),
+        }
+    }
+
     fn key_event(event: &gpui::KeyDownEvent) -> KeyEvent {
         let source = &event.keystroke.modifiers;
         let mut modifiers = Modifiers::empty();
@@ -166,7 +186,8 @@ impl gpui::Render for GpuiTerminal {
                         || key.modifiers.meta()
                     {
                         entity.update(cx, |state, cx| {
-                            if state.terminal.dispatch_native_event(&UiEvent::Key(key)) {
+                            let result = state.terminal.dispatch_native_event(&UiEvent::Key(key));
+                            if state.apply_input_result(result, cx) {
                                 cx.notify();
                             }
                         });

@@ -1,5 +1,31 @@
 use super::*;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum TerminalInputResult {
+    Ignored,
+    Handled,
+    HandledConsumingText,
+    Clipboard(wabou_shell_api::ClipboardRequest),
+}
+
+impl TerminalInputResult {
+    pub(super) const fn is_handled(&self) -> bool {
+        !matches!(self, Self::Ignored)
+    }
+
+    fn into_legacy(self) -> WidgetEventResult {
+        match self {
+            Self::Ignored => WidgetEventResult::IGNORED,
+            Self::Handled => WidgetEventResult::HANDLED,
+            Self::HandledConsumingText => WidgetEventResult::handled_consuming_key_text(),
+            Self::Clipboard(wabou_shell_api::ClipboardRequest::Read) => WidgetEventResult::paste(),
+            Self::Clipboard(wabou_shell_api::ClipboardRequest::Write(text)) => {
+                WidgetEventResult::copy(text)
+            }
+        }
+    }
+}
+
 /// Factory suitable for `HostBuilder::widget("terminal", terminal_widget)`.
 pub fn terminal_widget() -> Box<dyn Widget> {
     Box::new(TerminalWidget::lazy_default_shell())
@@ -50,8 +76,8 @@ impl TerminalWidget {
         let _ = <Self as Widget>::attribute_changed(self, name, value);
     }
 
-    pub(super) fn dispatch_native_event(&mut self, event: &UiEvent) -> bool {
-        <Self as Widget>::handle_event(self, event).is_handled()
+    pub(super) fn dispatch_native_event(&mut self, event: &UiEvent) -> TerminalInputResult {
+        self.handle_native_event(event)
     }
 
     pub(super) fn install_native_wake(&mut self, wake: WakeCallback) {
@@ -60,6 +86,32 @@ impl TerminalWidget {
 
     pub(super) fn poll_native_events(&mut self) -> bool {
         <Self as Widget>::poll_async(self)
+    }
+
+    fn handle_native_event(&mut self, event: &UiEvent) -> TerminalInputResult {
+        match event {
+            UiEvent::Pointer(pointer) => self.handle_pointer_event(pointer),
+            UiEvent::TextInput(text) | UiEvent::Ime(ImeEvent::Commit(text)) => {
+                if self.exit_reported {
+                    return TerminalInputResult::Handled;
+                }
+                self.begin_terminal_input();
+                self.send_bytes(text.as_bytes().to_vec());
+                TerminalInputResult::Handled
+            }
+            UiEvent::Paste(text) => {
+                if self.exit_reported {
+                    return TerminalInputResult::Handled;
+                }
+                let bracketed = self.terminal.lock().mode().contains(Mode::BRACKETED_PASTE);
+                self.begin_terminal_input();
+                self.send_bytes(encode_paste(text, bracketed));
+                TerminalInputResult::Handled
+            }
+            UiEvent::Key(key) => self.handle_key_event(key),
+            UiEvent::Wheel(wheel) => self.handle_wheel_event(wheel),
+            _ => TerminalInputResult::Ignored,
+        }
     }
 
     pub(super) fn gpui_visible_text(&mut self, width: f32, height: f32) -> Vec<String> {
@@ -424,7 +476,7 @@ impl TerminalWidget {
     fn handle_pointer_event(
         &mut self,
         pointer: &wabou_shell_api::PointerEvent,
-    ) -> WidgetEventResult {
+    ) -> TerminalInputResult {
         if pointer.phase == PointerPhase::Down && pointer.button != Some(PointerButton::Primary) {
             self.last_click = None;
         }
@@ -439,7 +491,7 @@ impl TerminalWidget {
                 origin: (pointer.position.x, pointer.position.y),
                 cancelled: false,
             });
-            return WidgetEventResult::HANDLED;
+            return TerminalInputResult::Handled;
         }
         if let Some(pending) = self.pending_hyperlink.as_mut()
             && pointer.phase == PointerPhase::Move
@@ -447,7 +499,7 @@ impl TerminalWidget {
             let distance = (pointer.position.x - pending.origin.0)
                 .hypot(pointer.position.y - pending.origin.1);
             pending.cancelled |= distance > SELECTION_DRAG_THRESHOLD;
-            return WidgetEventResult::HANDLED;
+            return TerminalInputResult::Handled;
         }
         if pointer.phase == PointerPhase::Up
             && let Some(pending) = self.pending_hyperlink.take()
@@ -461,13 +513,13 @@ impl TerminalWidget {
                 self.pending_host_actions
                     .push_back(HostAction::OpenUrl(pending.url));
             }
-            return WidgetEventResult::HANDLED;
+            return TerminalInputResult::Handled;
         }
         if pointer.phase == PointerPhase::Cancel && self.pending_hyperlink.take().is_some() {
-            return WidgetEventResult::HANDLED;
+            return TerminalInputResult::Handled;
         }
         if !self.selecting && self.report_pointer(pointer) {
-            return WidgetEventResult::HANDLED;
+            return TerminalInputResult::Handled;
         }
         match (pointer.phase, pointer.button, self.selecting) {
             (PointerPhase::Down, Some(PointerButton::Primary), _) => {
@@ -476,27 +528,27 @@ impl TerminalWidget {
                     pointer.position.y,
                     pointer.modifiers,
                 );
-                WidgetEventResult::HANDLED
+                TerminalInputResult::Handled
             }
             (PointerPhase::Move, _, true) => {
                 self.update_selection(pointer.position.x, pointer.position.y);
-                WidgetEventResult::HANDLED
+                TerminalInputResult::Handled
             }
             (PointerPhase::Up, _, true) => {
                 self.update_selection(pointer.position.x, pointer.position.y);
                 self.finish_selection_gesture();
-                WidgetEventResult::HANDLED
+                TerminalInputResult::Handled
             }
             (PointerPhase::Cancel, _, true) => {
                 self.last_click = None;
                 self.finish_selection_gesture();
-                WidgetEventResult::HANDLED
+                TerminalInputResult::Handled
             }
-            _ => WidgetEventResult::IGNORED,
+            _ => TerminalInputResult::Ignored,
         }
     }
 
-    fn handle_key_event(&mut self, key: &wabou_shell_api::KeyEvent) -> WidgetEventResult {
+    fn handle_key_event(&mut self, key: &wabou_shell_api::KeyEvent) -> TerminalInputResult {
         if key.phase == KeyPhase::Down {
             self.last_click = None;
         }
@@ -504,23 +556,27 @@ impl TerminalWidget {
             if key.phase == KeyPhase::Down {
                 self.select_all();
             }
-            return WidgetEventResult::HANDLED;
+            return TerminalInputResult::Handled;
         }
         if terminal_clipboard_shortcut(key.modifiers) && key.key.eq_ignore_ascii_case("c") {
             return if key.phase == KeyPhase::Down {
                 self.selected_text()
-                    .map_or(WidgetEventResult::HANDLED, WidgetEventResult::copy)
+                    .map_or(TerminalInputResult::Handled, |text| {
+                        TerminalInputResult::Clipboard(wabou_shell_api::ClipboardRequest::Write(
+                            text,
+                        ))
+                    })
             } else {
-                WidgetEventResult::HANDLED
+                TerminalInputResult::Handled
             };
         }
         if terminal_clipboard_shortcut(key.modifiers) && key.key.eq_ignore_ascii_case("v") {
             return if self.exit_reported {
-                WidgetEventResult::HANDLED
+                TerminalInputResult::Handled
             } else if key.phase == KeyPhase::Down {
-                WidgetEventResult::paste()
+                TerminalInputResult::Clipboard(wabou_shell_api::ClipboardRequest::Read)
             } else {
-                WidgetEventResult::HANDLED
+                TerminalInputResult::Handled
             };
         }
         let mode = self.terminal.lock().mode();
@@ -530,25 +586,25 @@ impl TerminalWidget {
             && let Some(scroll) = scrollback_key(&key.key)
         {
             self.terminal.lock().scroll_display(scroll);
-            return WidgetEventResult::HANDLED;
+            return TerminalInputResult::Handled;
         }
         if self.exit_reported {
-            return WidgetEventResult::HANDLED;
+            return TerminalInputResult::Handled;
         }
         let bytes = self.key_bytes(key);
         if bytes.is_empty() {
-            return WidgetEventResult::IGNORED;
+            return TerminalInputResult::Ignored;
         }
         self.begin_terminal_input();
         self.send_bytes(bytes);
         if key.phase == KeyPhase::Down {
-            WidgetEventResult::handled_consuming_key_text()
+            TerminalInputResult::HandledConsumingText
         } else {
-            WidgetEventResult::HANDLED
+            TerminalInputResult::Handled
         }
     }
 
-    fn handle_wheel_event(&mut self, wheel: &wabou_shell_api::WheelEvent) -> WidgetEventResult {
+    fn handle_wheel_event(&mut self, wheel: &wabou_shell_api::WheelEvent) -> TerminalInputResult {
         self.last_click = None;
         let context = self.wheel_context(wheel);
         let lines = self.wheel_lines.push(context, wheel.delta_y);
@@ -562,7 +618,7 @@ impl TerminalWidget {
         }
         // Fractional trackpad input remains terminal-owned until it reaches a
         // complete grid line.
-        WidgetEventResult::HANDLED
+        TerminalInputResult::Handled
     }
 }
 
@@ -698,29 +754,7 @@ impl Widget for TerminalWidget {
     }
 
     fn handle_event(&mut self, event: &UiEvent) -> WidgetEventResult {
-        match event {
-            UiEvent::Pointer(pointer) => self.handle_pointer_event(pointer),
-            UiEvent::TextInput(text) | UiEvent::Ime(ImeEvent::Commit(text)) => {
-                if self.exit_reported {
-                    return WidgetEventResult::HANDLED;
-                }
-                self.begin_terminal_input();
-                self.send_bytes(text.as_bytes().to_vec());
-                WidgetEventResult::HANDLED
-            }
-            UiEvent::Paste(text) => {
-                if self.exit_reported {
-                    return WidgetEventResult::HANDLED;
-                }
-                let bracketed = self.terminal.lock().mode().contains(Mode::BRACKETED_PASTE);
-                self.begin_terminal_input();
-                self.send_bytes(encode_paste(text, bracketed));
-                WidgetEventResult::HANDLED
-            }
-            UiEvent::Key(key) => self.handle_key_event(key),
-            UiEvent::Wheel(wheel) => self.handle_wheel_event(wheel),
-            _ => WidgetEventResult::IGNORED,
-        }
+        self.handle_native_event(event).into_legacy()
     }
 
     fn attribute_changed(&mut self, name: &str, value: &str) -> WidgetChanges {
