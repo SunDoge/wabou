@@ -33,7 +33,7 @@ export function SessionBehaviorSettings(props: {
           }
           onCheckedChange={props.setAutoCompaction}
         />
-        <FieldDescription>
+        <FieldDescription class="text-secondary">
           {i18n.message(m.auto_compaction_detail, {})}
         </FieldDescription>
       </Field>
@@ -48,7 +48,7 @@ export function SessionBehaviorSettings(props: {
             props.setSteeringMode(value as AgentQueueMode)
           }
         />
-        <FieldDescription>
+        <FieldDescription class="text-secondary">
           {i18n.message(m.steering_queue_mode_detail, {})}
         </FieldDescription>
       </Field>
@@ -63,7 +63,7 @@ export function SessionBehaviorSettings(props: {
             props.setFollowUpMode(value as AgentQueueMode)
           }
         />
-        <FieldDescription>
+        <FieldDescription class="text-secondary">
           {i18n.message(m.follow_up_queue_mode_detail, {})}
         </FieldDescription>
       </Field>

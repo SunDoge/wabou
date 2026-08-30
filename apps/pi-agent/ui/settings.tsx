@@ -51,7 +51,7 @@ function SettingsSection(props: {
         <Text role="heading" class="text-base font-semibold text-primary">
           {props.title}
         </Text>
-        <Text class="text-sm text-muted whitespace-normal">
+        <Text class="text-sm text-secondary whitespace-normal">
           {props.description}
         </Text>
       </View>
@@ -77,7 +77,7 @@ function SettingsGroup(props: {
       <View class="min-w-0 flex flex-col gap-1">
         <Text class="text-sm font-semibold text-primary">{props.title}</Text>
         {props.description ? (
-          <Text class="text-sm text-muted whitespace-normal">
+          <Text class="text-sm text-secondary whitespace-normal">
             {props.description}
           </Text>
         ) : null}
@@ -201,7 +201,7 @@ export function SettingsPage(props: {
               class="border-danger"
             >
               <View class="min-w-0 flex flex-row items-center justify-between gap-4">
-                <Text class="min-w-0 flex-1 text-sm text-muted whitespace-normal">
+                <Text class="min-w-0 flex-1 text-sm text-secondary whitespace-normal">
                   {props.canDeleteProject
                     ? i18n.message(m.delete_agent_files_safe, {})
                     : i18n.message(m.delete_last_project_disabled, {})}
@@ -284,7 +284,7 @@ export function SettingsPage(props: {
                     props.updateApp({ subagentsEnabled })
                   }
                 />
-                <FieldDescription>
+                <FieldDescription class="text-secondary">
                   {i18n.message(m.enable_subagents_detail, {})}
                 </FieldDescription>
               </SettingsGroup>
@@ -341,7 +341,9 @@ export function SettingsPage(props: {
                       props.updateApp({ noProxy: event.currentTarget.value })
                     }
                   />
-                  <FieldDescription>127.0.0.1, localhost</FieldDescription>
+                  <FieldDescription class="text-secondary">
+                    127.0.0.1, localhost
+                  </FieldDescription>
                 </Field>
               </SettingsGroup>
               <Separator />
@@ -349,7 +351,7 @@ export function SettingsPage(props: {
                 title={i18n.message(m.runtime, {})}
                 description={i18n.message(m.runtime_kind, {})}
               >
-                <Text class="text-sm text-muted whitespace-normal">
+                <Text class="text-sm text-secondary whitespace-normal">
                   {i18n.message(m.runtime_detail, {})}
                 </Text>
               </SettingsGroup>

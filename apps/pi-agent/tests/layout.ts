@@ -475,7 +475,7 @@ try {
         id: "settings/project-and-application",
         width: 760,
         height: 680,
-        checks: ["visible-overflow", "text-collision"],
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
         assert: (fixture) => {
           getLayoutNode(fixture, { text: "Settings" });
           getLayoutNode(fixture, { role: "textbox", name: "Project name" });
@@ -494,7 +494,7 @@ try {
         id: "settings/application-defaults",
         width: 760,
         height: 680,
-        checks: ["visible-overflow", "text-collision"],
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
         assert: (fixture) => {
           getLayoutNode(fixture, { text: "Settings" });
           getLayoutNode(fixture, {
