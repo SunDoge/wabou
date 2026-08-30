@@ -1,5 +1,35 @@
 //! Backend-neutral results produced by the terminal session state machine.
 
+/// An event emitted by the terminal session toward its JavaScript owner.
+///
+/// The session owns this DTO so it does not depend on a particular native
+/// widget backend. Adapters translate it into their backend event envelope.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalNodeEvent {
+    pub kind: TerminalEventKind,
+    pub json: String,
+}
+
+impl TerminalNodeEvent {
+    pub(super) fn json(kind: TerminalEventKind, json: impl Into<String>) -> Self {
+        Self {
+            kind,
+            json: json.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalEventKind {
+    Exit,
+    Progress,
+    Notification,
+    TitleChange,
+    CurrentDirectoryChange,
+    SelectionChange,
+    Bell,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum TerminalInputResult {
     Ignored,

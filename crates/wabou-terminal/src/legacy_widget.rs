@@ -1,5 +1,6 @@
 use super::*;
 use crate::session::{TerminalInputResult, TerminalInvalidation};
+use wabou_runtime::{Widget, WidgetChanges, WidgetEventResult, WidgetNodeEvent, WidgetStyle};
 
 impl TerminalInputResult {
     fn into_legacy(self) -> WidgetEventResult {
@@ -22,6 +23,25 @@ impl TerminalInvalidation {
             (true, false) => WidgetChanges::MEASURE,
             (false, true) => WidgetChanges::REDRAW,
             (false, false) => WidgetChanges::empty(),
+        }
+    }
+}
+
+impl From<TerminalNodeEvent> for WidgetNodeEvent {
+    fn from(event: TerminalNodeEvent) -> Self {
+        Self {
+            event_code: match event.kind {
+                TerminalEventKind::Exit => wabou_runtime::event::TERMINALEXIT,
+                TerminalEventKind::Progress => wabou_runtime::event::TERMINALPROGRESS,
+                TerminalEventKind::Notification => wabou_runtime::event::TERMINALNOTIFICATION,
+                TerminalEventKind::TitleChange => wabou_runtime::event::TERMINALTITLECHANGE,
+                TerminalEventKind::CurrentDirectoryChange => {
+                    wabou_runtime::event::TERMINALCWDCHANGE
+                }
+                TerminalEventKind::SelectionChange => wabou_runtime::event::TERMINALSELECTIONCHANGE,
+                TerminalEventKind::Bell => wabou_runtime::event::TERMINALBELL,
+            },
+            json: event.json,
         }
     }
 }
@@ -967,7 +987,7 @@ impl Widget for TerminalWidget {
     }
 
     fn take_node_event(&mut self) -> Option<WidgetNodeEvent> {
-        self.pending_node_events.pop_front()
+        self.pending_node_events.pop_front().map(Into::into)
     }
 
     fn complete_host_action(&mut self, result: HostActionResult) {

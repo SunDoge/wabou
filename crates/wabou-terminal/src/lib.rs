@@ -32,8 +32,8 @@ use rustc_hash::FxHashMap;
 use teletypewriter::{WinsizeBuilder, create_pty_with_spawn};
 use vello::kurbo::{Affine, Rect, Stroke};
 use vello::peniko::{Color, Fill};
-use wabou_runtime::{Widget, WidgetChanges, WidgetNodeEvent, WidgetStyle};
-use wabou_runtime::{WidgetEventResult, event};
+#[cfg(test)]
+use wabou_runtime::{Widget, WidgetEventResult, WidgetNodeEvent, WidgetStyle, event};
 #[cfg(test)]
 use wabou_shell::style::Paint;
 use wabou_shell::text::{TextContext, layout_text_styled};
@@ -64,6 +64,7 @@ use process::{
     validate_launch_command,
 };
 use rendering::*;
+pub use session::{TerminalEventKind, TerminalNodeEvent};
 
 const DEFAULT_COLUMNS: usize = 80;
 const DEFAULT_ROWS: usize = 24;
@@ -283,7 +284,7 @@ pub struct TerminalWidget {
     launch_error: Option<String>,
     pending_input: Vec<u8>,
     pending_host_actions: VecDeque<HostAction>,
-    pending_node_events: VecDeque<WidgetNodeEvent>,
+    pending_node_events: VecDeque<TerminalNodeEvent>,
     last_reported_selection: TerminalSelectionSnapshot,
     last_reported_directory: Option<PathBuf>,
     pending_clipboard_loads: HashMap<u64, ClipboardFormatter>,
@@ -499,8 +500,8 @@ impl TerminalWidget {
         self.pty_send = None;
         self.next_cursor_blink = None;
         self.pending_clipboard_loads.clear();
-        self.pending_node_events.push_back(WidgetNodeEvent::json(
-            event::TERMINALEXIT,
+        self.pending_node_events.push_back(TerminalNodeEvent::json(
+            TerminalEventKind::Exit,
             r#"{"reason":"exit"}"#,
         ));
     }
@@ -803,7 +804,7 @@ impl TerminalWidget {
                 self.pending_host_actions
                     .push_back(HostAction::RequestAttention);
                 self.pending_node_events
-                    .push_back(WidgetNodeEvent::json(event::TERMINALBELL, "{}"));
+                    .push_back(TerminalNodeEvent::json(TerminalEventKind::Bell, "{}"));
             }
             RioEvent::CloseTerminal(_) | RioEvent::Exit | RioEvent::Quit => {
                 self.report_exit_once();
@@ -816,14 +817,14 @@ impl TerminalWidget {
                     ProgressState::Indeterminate => "indeterminate",
                     ProgressState::Pause => "pause",
                 };
-                self.pending_node_events.push_back(WidgetNodeEvent::json(
-                    event::TERMINALPROGRESS,
+                self.pending_node_events.push_back(TerminalNodeEvent::json(
+                    TerminalEventKind::Progress,
                     serde_json::json!({ "state": state, "progress": report.progress }).to_string(),
                 ));
             }
             RioEvent::DesktopNotification { title, body } => {
-                self.pending_node_events.push_back(WidgetNodeEvent::json(
-                    event::TERMINALNOTIFICATION,
+                self.pending_node_events.push_back(TerminalNodeEvent::json(
+                    TerminalEventKind::Notification,
                     serde_json::json!({ "title": title, "body": body }).to_string(),
                 ))
             }
@@ -837,8 +838,8 @@ impl TerminalWidget {
             self.pending_host_actions
                 .push_back(HostAction::SetWindowTitle(title.clone()));
         }
-        self.pending_node_events.push_back(WidgetNodeEvent::json(
-            event::TERMINALTITLECHANGE,
+        self.pending_node_events.push_back(TerminalNodeEvent::json(
+            TerminalEventKind::TitleChange,
             serde_json::json!({ "title": title, "subtitle": subtitle }).to_string(),
         ));
     }
@@ -856,8 +857,8 @@ impl TerminalWidget {
         let path = percent_encoding::percent_decode_str(&encoded_path)
             .decode_utf8_lossy()
             .into_owned();
-        self.pending_node_events.push_back(WidgetNodeEvent::json(
-            event::TERMINALCWDCHANGE,
+        self.pending_node_events.push_back(TerminalNodeEvent::json(
+            TerminalEventKind::CurrentDirectoryChange,
             serde_json::json!({ "path": path }).to_string(),
         ));
     }

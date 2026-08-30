@@ -28,8 +28,8 @@ impl TerminalWidget {
             return;
         }
         self.last_reported_selection = selection.clone();
-        self.pending_node_events.push_back(WidgetNodeEvent::json(
-            event::TERMINALSELECTIONCHANGE,
+        self.pending_node_events.push_back(TerminalNodeEvent::json(
+            TerminalEventKind::SelectionChange,
             serde_json::json!({ "text": selection.text, "kind": selection.kind }).to_string(),
         ));
     }
