@@ -9471,7 +9471,7 @@ function SidebarMenuButton(props) {
 		get ["aria-selected"]() {
 			return selected();
 		},
-		class: (state) => mergeClasses("w-full min-w-0 h-8 px-3 justify-start gap-2.5 rounded-lg border border-transparent text-sm", state.pressed ? "bg-control-pressed text-primary" : state.hovered ? "bg-control-hover text-primary" : state.selected ? "border-subtle bg-surface text-primary shadow-xs" : "bg-transparent text-secondary", state.focusVisible && "border-focus", props.class),
+		class: (state) => mergeClasses("w-full min-w-0 h-8 px-3 justify-start gap-2.5 rounded-lg border border-transparent text-sm", state.pressed ? "bg-control-pressed text-primary" : state.hovered ? "bg-control-hover text-primary" : state.selected ? "bg-selected text-primary" : "bg-transparent text-secondary", state.focusVisible && "border-focus", props.class),
 		onClick: (event) => {
 			if (props.value !== void 0 && menu.managed) menu.select(props.value);
 			props.onClick?.(event);

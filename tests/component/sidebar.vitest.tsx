@@ -69,9 +69,9 @@ test("controls one selected sidebar destination while leaving actions neutral", 
   expect(files.selected).toBe(true);
   expect(search.selected).toBe(false);
   expect(create.selected).toBe(false);
-  expect(files.className).toContain("border-subtle");
-  expect(files.className).toContain("bg-surface");
-  expect(files.className).toContain("shadow-xs");
+  expect(files.className).toContain("border-transparent");
+  expect(files.className).toContain("bg-selected");
+  expect(files.className).not.toContain("shadow-xs");
   expect(search.className).toContain("border-transparent");
 
   search.click();
@@ -80,7 +80,7 @@ test("controls one selected sidebar destination while leaving actions neutral", 
   expect(search.selected).toBe(true);
   expect(create.selected).toBe(false);
   expect(files.className).toContain("border-transparent");
-  expect(search.className).toContain("border-subtle");
+  expect(search.className).toContain("bg-selected");
 });
 
 test("composes fixed chrome, searchable content, navigation and empty state", () => {

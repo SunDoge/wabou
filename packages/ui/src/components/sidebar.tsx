@@ -227,7 +227,7 @@ export function SidebarMenuButton(props: SidebarMenuButtonProps): JSX.Element {
             : state.hovered
               ? "bg-control-hover text-primary"
               : state.selected
-                ? "border-subtle bg-surface text-primary shadow-xs"
+                ? "bg-selected text-primary"
                 : "bg-transparent text-secondary",
           state.focusVisible && "border-focus",
           props.class,

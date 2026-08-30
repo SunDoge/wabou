@@ -501,10 +501,18 @@ try {
               `project scroll region overlaps fixed sidebar controls: projects y=${projects.rect.y}; search bottom=${searchBottom}`,
             );
           }
-          getLayoutNode(fixture, {
+          const activeProject = getLayoutNode(fixture, {
             role: "button",
             name: "Documentation workspace",
           });
+          if (
+            !activeProject.classes.includes("bg-selected") ||
+            activeProject.classes.includes("shadow-xs")
+          ) {
+            throw new Error(
+              `selected sidebar destinations must use a flat selection fill: ${activeProject.classes.join(" ")}`,
+            );
+          }
           getLayoutNode(fixture, {
             role: "button",
             name: "Polish the onboarding copy",

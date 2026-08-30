@@ -429,13 +429,16 @@ test("uses the session id when the persisted session name is blank", () => {
       add={() => {}}
       newSession={() => {}}
       canCreateSession
+      nowSeconds={301}
       openSettings={() => {}}
     />
   ));
 
-  expect(screen.getByRole("button", { name: "01a047c5" }).text).toContain(
-    "01a047c5",
-  );
+  const session = screen.getByRole("button", { name: "01a047c5" });
+  expect(session.text).toContain("01a047c5");
+  expect(
+    session.children.find((child) => child.text === "5m")?.className,
+  ).toContain("text-secondary");
 });
 
 test("updates the selected session when a keyed agent receives new state", () => {

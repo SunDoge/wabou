@@ -304,36 +304,51 @@ export function Sidebar(props: SidebarProps) {
                               each={group().sessions}
                               keyed={(session) => session.sessionId}
                             >
-                              {(session) => (
-                                <View class="min-w-0 pl-3">
-                                  <SidebarMenuButton
-                                    value={`session:${agent().id}:${session().sessionId}`}
-                                    class="h-8 pl-2 text-sm"
-                                    aria-label={sessionLabel(session())}
-                                    onClick={() =>
-                                      props.selectSession(
-                                        agent().id,
-                                        session().sessionId,
-                                      )
-                                    }
-                                  >
-                                    <Icon
-                                      source={messageSquare}
-                                      size={13}
-                                      class="flex-none text-muted"
-                                    />
-                                    <Text class="min-w-0 flex-1 truncate">
-                                      {sessionLabel(session())}
-                                    </Text>
-                                    <Text class="flex-none text-xs text-muted">
-                                      {sessionTimeLabel(
-                                        session().updatedAt,
-                                        nowSeconds(),
-                                      )}
-                                    </Text>
-                                  </SidebarMenuButton>
-                                </View>
-                              )}
+                              {(session) => {
+                                const selected = () =>
+                                  activeSessionKey() ===
+                                  `${agent().id}\0${session().sessionId}`;
+                                return (
+                                  <View class="min-w-0 pl-3">
+                                    <SidebarMenuButton
+                                      value={`session:${agent().id}:${session().sessionId}`}
+                                      class="h-8 pl-2 text-sm"
+                                      aria-label={sessionLabel(session())}
+                                      onClick={() =>
+                                        props.selectSession(
+                                          agent().id,
+                                          session().sessionId,
+                                        )
+                                      }
+                                    >
+                                      <Icon
+                                        source={messageSquare}
+                                        size={13}
+                                        class={
+                                          selected()
+                                            ? "flex-none text-secondary"
+                                            : "flex-none text-muted"
+                                        }
+                                      />
+                                      <Text class="min-w-0 flex-1 truncate">
+                                        {sessionLabel(session())}
+                                      </Text>
+                                      <Text
+                                        class={
+                                          selected()
+                                            ? "flex-none text-xs text-secondary"
+                                            : "flex-none text-xs text-muted"
+                                        }
+                                      >
+                                        {sessionTimeLabel(
+                                          session().updatedAt,
+                                          nowSeconds(),
+                                        )}
+                                      </Text>
+                                    </SidebarMenuButton>
+                                  </View>
+                                );
+                              }}
                             </ForValue>
                           </View>
                         )}
