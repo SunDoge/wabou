@@ -54,6 +54,10 @@ const READ_WORKSPACE_FILE: HostMethod<ReadWorkspaceFileRequest, WorkspaceFilePre
     HostMethod::new("readWorkspaceFile");
 const WORKSPACE_CHANGES: HostMethod<WorkspaceFilesRequest, WorkspaceChanges> =
     HostMethod::new("workspaceChanges");
+const CAPTURE_CHECKPOINT: HostMethod<
+    crate::checkpoint::CaptureCheckpointRequest,
+    crate::checkpoint::WorktreeCheckpoint,
+> = HostMethod::new("captureCheckpoint");
 const LIST_SKILLS: HostMethod<WorkspaceFilesRequest, Vec<SkillEntry>> =
     HostMethod::new("listSkills");
 const RESPOND_EXTENSION_UI: JsonMethod<ExtensionUiResponseRequest, ()> =
@@ -660,7 +664,9 @@ fn truncate_utf8(mut value: String, max_bytes: usize) -> String {
     value
 }
 
-fn repository_changed_paths(repository: &gix::Repository) -> Result<BTreeSet<PathBuf>, String> {
+pub(crate) fn repository_changed_paths(
+    repository: &gix::Repository,
+) -> Result<BTreeSet<PathBuf>, String> {
     let platform = repository
         .status(gix::progress::Discard)
         .map_err(|error| format!("could not inspect repository status: {error}"))?
@@ -1496,6 +1502,20 @@ impl Drop for PiProcess {
 }
 
 pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::Result<()> {
+    capability.method(
+        CAPTURE_CHECKPOINT,
+        move |request: crate::checkpoint::CaptureCheckpointRequest| async move {
+            tokio::task::spawn_blocking(move || {
+                crate::checkpoint::capture_worktree(
+                    &request.cwd,
+                    &request.namespace,
+                    u64::from(request.sequence),
+                )
+            })
+            .await
+            .map_err(|error| format!("checkpoint capture task failed: {error}"))?
+        },
+    )?;
     capability.method(
         LIST_SKILLS,
         move |request: WorkspaceFilesRequest| async move {

@@ -1,3 +1,4 @@
+mod checkpoint;
 mod service;
 
 use snafu::{ResultExt, Whatever};

@@ -46,6 +46,12 @@ export interface WorkspaceChanges {
   files: readonly WorkspaceFileChange[];
 }
 
+export interface WorktreeCheckpoint {
+  commitId: string;
+  gitRef: string;
+  skippedPaths: string[];
+}
+
 export interface PiSkill {
   id: string;
   name: string;
@@ -114,6 +120,11 @@ interface PiCapability extends NativeJsonCapability {
   workspaceChanges(request: {
     cwd: string;
   }): WorkspaceChanges | PromiseLike<WorkspaceChanges>;
+  captureCheckpoint(request: {
+    cwd: string;
+    namespace: string;
+    sequence: number;
+  }): WorktreeCheckpoint | PromiseLike<WorktreeCheckpoint>;
   listSkills(request: { cwd: string }): PiSkill[] | PromiseLike<PiSkill[]>;
   respondExtensionUi(request: string): string | PromiseLike<string>;
   listAgents(request?: string): string | PromiseLike<string>;
@@ -226,6 +237,11 @@ export function usePiApi() {
       capability.readWorkspaceFile({ cwd, path }),
     workspaceChanges: async (cwd: string) =>
       capability.workspaceChanges({ cwd }),
+    captureCheckpoint: async (
+      cwd: string,
+      namespace: string,
+      sequence: number,
+    ) => capability.captureCheckpoint({ cwd, namespace, sequence }),
     listSkills: async (cwd: string) => capability.listSkills({ cwd }),
     respondExtensionUi: (
       agentId: string,
