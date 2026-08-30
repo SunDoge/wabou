@@ -4,7 +4,7 @@ use gpui::{AppContext as _, IntoElement as _, ParentElement as _, Styled as _};
 use wabou_shell_api::{KeyEvent, KeyLocation, KeyPhase, Modifiers, UiEvent, WakeCallback};
 use wabou_shell_gpui::{NativeWidgetContext, NativeWidgetMount, gpui};
 
-use super::{TerminalWidget, widget_impl::TerminalInputResult};
+use super::{TerminalWidget, session::TerminalInputResult};
 
 struct GpuiTerminal {
     terminal: TerminalWidget,

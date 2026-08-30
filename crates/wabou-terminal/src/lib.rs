@@ -47,14 +47,16 @@ mod gpui_widget;
 mod graphics;
 mod input_encoding;
 mod kitty_keyboard;
+mod legacy_widget;
 mod process;
 mod rendering;
 mod selection;
-mod widget_impl;
+mod session;
 
 pub use gpui_widget::gpui_terminal_factory;
 use graphics::{KittyLayer, TerminalGraphics};
 use input_encoding::*;
+pub use legacy_widget::terminal_widget;
 #[cfg(test)]
 use process::quote_windows_command_arg;
 use process::{
@@ -62,7 +64,6 @@ use process::{
     validate_launch_command,
 };
 use rendering::*;
-pub use widget_impl::terminal_widget;
 
 const DEFAULT_COLUMNS: usize = 80;
 const DEFAULT_ROWS: usize = 24;

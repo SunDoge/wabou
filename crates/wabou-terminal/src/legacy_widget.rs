@@ -1,18 +1,7 @@
 use super::*;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum TerminalInputResult {
-    Ignored,
-    Handled,
-    HandledConsumingText,
-    Clipboard(wabou_shell_api::ClipboardRequest),
-}
+use crate::session::{TerminalInputResult, TerminalInvalidation};
 
 impl TerminalInputResult {
-    pub(super) const fn is_handled(&self) -> bool {
-        !matches!(self, Self::Ignored)
-    }
-
     fn into_legacy(self) -> WidgetEventResult {
         match self {
             Self::Ignored => WidgetEventResult::IGNORED,
@@ -26,22 +15,7 @@ impl TerminalInputResult {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(super) struct TerminalInvalidation {
-    measure: bool,
-    redraw: bool,
-}
-
 impl TerminalInvalidation {
-    const REDRAW: Self = Self {
-        measure: false,
-        redraw: true,
-    };
-    const MEASURE_AND_REDRAW: Self = Self {
-        measure: true,
-        redraw: true,
-    };
-
     fn into_legacy(self) -> WidgetChanges {
         match (self.measure, self.redraw) {
             (true, true) => WidgetChanges::MEASURE | WidgetChanges::REDRAW,
@@ -52,7 +26,8 @@ impl TerminalInvalidation {
     }
 }
 
-/// Factory suitable for `HostBuilder::widget("terminal", terminal_widget)`.
+/// Legacy AnyRender factory suitable for
+/// `HostBuilder::widget("terminal", terminal_widget)`.
 pub fn terminal_widget() -> Box<dyn Widget> {
     Box::new(TerminalWidget::lazy_default_shell())
 }
