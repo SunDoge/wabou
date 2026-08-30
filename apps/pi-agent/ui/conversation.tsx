@@ -9,6 +9,7 @@ import {
   type Handle,
   Icon,
   Markdown,
+  Marker,
   Message,
   MessageActions,
   MessageContent,
@@ -284,30 +285,34 @@ export function ToolActivityGroup(props: {
   };
   return (
     <View class="w-full min-w-0 flex flex-col gap-1">
-      <Button
-        variant="ghost"
-        size="sm"
-        class="h-7 self-start flex-none px-1.5 gap-1.5 text-secondary"
-        aria-label={label()}
-        aria-expanded={open()}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <Icon
-          source={chevronRight}
-          size={11}
-          class={open() ? "rotate-90 text-muted" : "text-muted"}
-        />
-        <Show when={running()}>
-          <Pulse
-            aria-hidden="true"
-            class="w-1.5 h-1.5 rounded-full bg-accent"
-            from={0.3}
-            to={1}
-            duration={0.8}
+      <Marker variant="separator" class="gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          class="h-7 min-w-0 flex-none px-1.5 gap-1.5 text-secondary"
+          aria-label={label()}
+          aria-expanded={open()}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <Icon
+            source={chevronRight}
+            size={11}
+            class={open() ? "rotate-90 text-muted" : "text-muted"}
           />
-        </Show>
-        <Text class="text-xs font-medium text-secondary">{label()}</Text>
-      </Button>
+          <Show when={running()}>
+            <Pulse
+              aria-hidden="true"
+              class="w-1.5 h-1.5 rounded-full bg-accent"
+              from={0.3}
+              to={1}
+              duration={0.8}
+            />
+          </Show>
+          <Text class="min-w-0 truncate text-xs font-medium text-secondary">
+            {label()}
+          </Text>
+        </Button>
+      </Marker>
       <CollapsiblePresence
         open={open()}
         duration={0.16}
