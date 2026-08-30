@@ -8,6 +8,8 @@ interface RenderAppLayoutOptions {
   readonly width?: number;
   readonly height?: number;
   readonly scaleFactor?: number;
+  /** Native system color scheme exposed to the fixture application. */
+  readonly colorScheme?: "light" | "dark";
   readonly mode?: string;
   readonly skipBuild?: boolean;
   readonly waitMs?: number;
@@ -38,6 +40,8 @@ interface RenderLayoutFixturesOptions {
   /** Use `"all"` to run every fixture registered by the compiled entry. */
   readonly cases: readonly LayoutFixtureCase[] | "all";
   readonly mode?: string;
+  /** Native system color scheme exposed to every fixture in this batch. */
+  readonly colorScheme?: "light" | "dark";
   readonly skipBuild?: boolean;
   readonly waitMs?: number;
   /** Checks applied to every auto-discovered fixture. */

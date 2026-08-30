@@ -1,3 +1,4 @@
+import { ColorThemeProvider, useWindow } from "@wabou/core";
 import { mount } from "@wabou/core/renderer";
 import { createComponent, type JSX } from "solid-js";
 
@@ -20,6 +21,15 @@ export interface ComponentFixtureOptions {
   readonly scaleFactor?: number;
   readonly waitMs?: number;
   readonly wrap?: (content: JSX.Element) => JSX.Element;
+}
+
+export interface LayoutFixtureOptions {
+  /**
+   * Map the native system color scheme to an authored theme name. Fixtures
+   * follow `light`/`dark` by default; pass `false` when the application owns a
+   * fixed or custom theme inside its fixture wrapper.
+   */
+  readonly colorTheme?: false | ((scheme: "light" | "dark") => string);
 }
 
 declare global {
@@ -69,7 +79,10 @@ export function defineComponentFixtures(
  * preceding Solid owner before rendering the next case, so effects and event
  * handlers retain ordinary Solid cleanup semantics while QuickJS is reused.
  */
-export function defineLayoutFixtures(fixtures: LayoutFixtureRegistry): void {
+export function defineLayoutFixtures(
+  fixtures: LayoutFixtureRegistry,
+  options: LayoutFixtureOptions = {},
+): void {
   const entries = Object.entries(fixtures);
   if (entries.length === 0)
     throw new Error("defineLayoutFixtures requires at least one fixture");
@@ -99,6 +112,20 @@ export function defineLayoutFixtures(fixtures: LayoutFixtureRegistry): void {
     const fixture = registry.get(id);
     if (!fixture) throw new Error(`unknown Wabou layout fixture \`${id}\``);
     dispose?.();
-    dispose = mount(fixture.render);
+    dispose = mount(() => {
+      const colorTheme = options.colorTheme;
+      if (colorTheme === false) return createComponent(fixture.render, {});
+      const window = useWindow();
+      return createComponent(ColorThemeProvider, {
+        get theme() {
+          const scheme = window.colorScheme();
+          return colorTheme?.(scheme) ?? scheme;
+        },
+        transition: false,
+        get children() {
+          return createComponent(fixture.render, {});
+        },
+      });
+    });
   };
 }

@@ -27,6 +27,8 @@ export interface RenderAppLayoutOptions {
   readonly width?: number;
   readonly height?: number;
   readonly scaleFactor?: number;
+  /** Native system color scheme exposed to the fixture application. */
+  readonly colorScheme?: "light" | "dark";
   readonly mode?: string;
   readonly skipBuild?: boolean;
   readonly waitMs?: number;
@@ -58,6 +60,8 @@ export function layoutCommandArgs(
     args.push("--height", String(options.height));
   if (options.scaleFactor !== undefined)
     args.push("--scale-factor", String(options.scaleFactor));
+  if (options.colorScheme !== undefined)
+    args.push("--color-scheme", options.colorScheme);
   if (options.mode !== undefined) args.push("--mode", options.mode);
   if (options.skipBuild) args.push("--skip-build");
   if (options.waitMs !== undefined)
@@ -97,6 +101,8 @@ export interface RenderLayoutFixturesOptions {
   /** Use `"all"` to run every fixture registered by the compiled entry. */
   readonly cases: readonly LayoutFixtureCase[] | "all";
   readonly mode?: string;
+  /** Native system color scheme exposed to every fixture in this batch. */
+  readonly colorScheme?: "light" | "dark";
   readonly skipBuild?: boolean;
   readonly waitMs?: number;
   /** Checks applied to every auto-discovered fixture. */
@@ -229,6 +235,7 @@ export async function renderLayoutFixtures(
       out,
       batch: manifest,
       mode: options.mode,
+      colorScheme: options.colorScheme,
       skipBuild: options.skipBuild,
       waitMs: options.waitMs,
       command: options.command,

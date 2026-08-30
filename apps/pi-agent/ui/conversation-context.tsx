@@ -34,7 +34,7 @@ export function ConversationContext(props: ConversationContextProps) {
       <Breadcrumb aria-label={label()} class="min-w-0 flex-1 overflow-hidden">
         <BreadcrumbList class="flex-nowrap overflow-hidden gap-1">
           <BreadcrumbItem class="max-w-28 flex-none">
-            <Text class="min-w-0 truncate text-xs font-medium text-muted">
+            <Text class="min-w-0 truncate text-xs font-medium text-secondary">
               {props.project}
             </Text>
           </BreadcrumbItem>

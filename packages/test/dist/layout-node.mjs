@@ -24,6 +24,7 @@ function layoutCommandArgs(options) {
 	if (options.width !== void 0) args.push("--width", String(options.width));
 	if (options.height !== void 0) args.push("--height", String(options.height));
 	if (options.scaleFactor !== void 0) args.push("--scale-factor", String(options.scaleFactor));
+	if (options.colorScheme !== void 0) args.push("--color-scheme", options.colorScheme);
 	if (options.mode !== void 0) args.push("--mode", options.mode);
 	if (options.skipBuild) args.push("--skip-build");
 	if (options.waitMs !== void 0) args.push("--wait-ms", String(options.waitMs));
@@ -89,6 +90,7 @@ async function renderLayoutFixtures(options) {
 			out,
 			batch: manifest,
 			mode: options.mode,
+			colorScheme: options.colorScheme,
 			skipBuild: options.skipBuild,
 			waitMs: options.waitMs,
 			command: options.command

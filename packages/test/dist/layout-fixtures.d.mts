@@ -17,6 +17,14 @@ interface ComponentFixtureOptions {
   readonly waitMs?: number;
   readonly wrap?: (content: JSX.Element) => JSX.Element;
 }
+interface LayoutFixtureOptions {
+  /**
+   * Map the native system color scheme to an authored theme name. Fixtures
+   * follow `light`/`dark` by default; pass `false` when the application owns a
+   * fixed or custom theme inside its fixture wrapper.
+   */
+  readonly colorTheme?: false | ((scheme: "light" | "dark") => string);
+}
 declare global {
   var __wabou_layout_fixture_mount: ((id: string) => void) | undefined;
   var __wabou_layout_fixture_ids: (() => string) | undefined;
@@ -34,7 +42,7 @@ declare function defineComponentFixtures(fixtures: LayoutFixtureRegistry, option
  * preceding Solid owner before rendering the next case, so effects and event
  * handlers retain ordinary Solid cleanup semantics while QuickJS is reused.
  */
-declare function defineLayoutFixtures(fixtures: LayoutFixtureRegistry): void;
+declare function defineLayoutFixtures(fixtures: LayoutFixtureRegistry, options?: LayoutFixtureOptions): void;
 //#endregion
-export { ComponentFixtureOptions, LayoutFixture, LayoutFixtureDefinition, LayoutFixtureEntry, LayoutFixtureRegistry, defineComponentFixtures, defineLayoutFixtures };
+export { ComponentFixtureOptions, LayoutFixture, LayoutFixtureDefinition, LayoutFixtureEntry, LayoutFixtureOptions, LayoutFixtureRegistry, defineComponentFixtures, defineLayoutFixtures };
 //# sourceMappingURL=layout-fixtures.d.mts.map

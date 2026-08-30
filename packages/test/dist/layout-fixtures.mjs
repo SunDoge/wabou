@@ -1,4 +1,5 @@
 import { mount } from "@wabou/core/renderer";
+import { ColorThemeProvider, useWindow } from "@wabou/core";
 import { createComponent } from "solid-js";
 //#region src/layout-fixtures.ts
 function normalizeFixture(entry) {
@@ -30,7 +31,7 @@ function defineComponentFixtures(fixtures, options = {}) {
 * preceding Solid owner before rendering the next case, so effects and event
 * handlers retain ordinary Solid cleanup semantics while QuickJS is reused.
 */
-function defineLayoutFixtures(fixtures) {
+function defineLayoutFixtures(fixtures, options = {}) {
 	const entries = Object.entries(fixtures);
 	if (entries.length === 0) throw new Error("defineLayoutFixtures requires at least one fixture");
 	const registry = /* @__PURE__ */ new Map();
@@ -53,7 +54,21 @@ function defineLayoutFixtures(fixtures) {
 		const fixture = registry.get(id);
 		if (!fixture) throw new Error(`unknown Wabou layout fixture \`${id}\``);
 		dispose?.();
-		dispose = mount(fixture.render);
+		dispose = mount(() => {
+			const colorTheme = options.colorTheme;
+			if (colorTheme === false) return createComponent(fixture.render, {});
+			const window = useWindow();
+			return createComponent(ColorThemeProvider, {
+				get theme() {
+					const scheme = window.colorScheme();
+					return colorTheme?.(scheme) ?? scheme;
+				},
+				transition: false,
+				get children() {
+					return createComponent(fixture.render, {});
+				}
+			});
+		});
 	};
 }
 //#endregion

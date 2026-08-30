@@ -9,7 +9,7 @@ import {
   visibleOverflowDiagnostics,
   visualQualityDiagnostics,
 } from "./layout";
-import { reactiveRuntimeDiagnostic } from "./layout-node";
+import { layoutCommandArgs, reactiveRuntimeDiagnostic } from "./layout-node";
 
 describe("layout rect assertions", () => {
   test("reports stable right and bottom edges", () => {
@@ -85,6 +85,15 @@ describe("layout rect assertions", () => {
     expect(
       reactiveRuntimeDiagnostic("ordinary renderer warning"),
     ).toBeUndefined();
+  });
+
+  test("forwards an explicit native color scheme to layout fixtures", () => {
+    const args = layoutCommandArgs({
+      app: "apps/gallery",
+      out: "/tmp/layout.json",
+      colorScheme: "dark",
+    });
+    expect(args.slice(-2)).toEqual(["--color-scheme", "dark"]);
   });
 
   test("reports actionable context for visible overflow", () => {

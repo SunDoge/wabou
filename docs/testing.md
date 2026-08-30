@@ -53,6 +53,21 @@ layout fixtures. Prefer one structural fixture when geometry is theme-neutral;
 author both variants only when typography or token differences can change the
 layout.
 
+`defineLayoutFixtures` follows the native `WindowMetrics.colorScheme` by
+default and selects the matching `light` or `dark` compiled theme. Applications
+whose authored theme names differ can map them explicitly:
+
+```tsx
+defineLayoutFixtures(fixtures, {
+  colorTheme: (scheme) => (scheme === "dark" ? "midnight" : "daylight"),
+});
+```
+
+Pass `{ colorTheme: false }` only when the fixture wrapper deliberately owns a
+fixed `ColorThemeProvider`. Node-side tests can set `colorScheme` on
+`renderAppLayout` or `renderLayoutFixtures`; this is forwarded to the same
+native CLI contract rather than emulating theme resolution in the test runner.
+
 ## Component unit tests
 
 Component anatomy is governed by the
