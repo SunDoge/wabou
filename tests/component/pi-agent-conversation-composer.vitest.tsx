@@ -1,7 +1,10 @@
 import { renderComponent } from "@wabou/test/component";
 import { createSignal } from "solid-js";
 import { expect, test, vi } from "vitest";
-import { ConversationComposer } from "../../apps/pi-agent/ui/conversation-composer";
+import {
+  composerEditorHeightClass,
+  ConversationComposer,
+} from "../../apps/pi-agent/ui/conversation-composer";
 
 const baseProps = {
   connection: "ready" as const,
@@ -54,6 +57,14 @@ const baseProps = {
   loadWorkspaceFiles: vi.fn(async () => []),
   submit: vi.fn(),
 };
+
+test("Pi Agent composer grows from a compact idle editor", () => {
+  expect(composerEditorHeightClass("")).toBe("h-12");
+  expect(composerEditorHeightClass("Short request")).toBe("h-12");
+  expect(composerEditorHeightClass("First line\nSecond line")).toBe("h-16");
+  expect(composerEditorHeightClass("One\nTwo\nThree")).toBe("h-20");
+  expect(composerEditorHeightClass("1\n2\n3\n4\n5")).toBe("h-24");
+});
 
 test("Pi Agent composer keeps the primary action and configuration discoverable", () => {
   const submit = vi.fn();

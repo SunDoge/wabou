@@ -5,7 +5,6 @@ import {
   Icon,
   moveMenuHighlight,
   Popover,
-  Text,
   TextArea,
   View,
   type WabouKeyEvent,
@@ -85,6 +84,14 @@ export interface ConversationComposerProps {
 interface ComposerSelection {
   anchor: number;
   head: number;
+}
+
+export function composerEditorHeightClass(draft: string): string {
+  const lines = draft.split("\n").length;
+  if (lines >= 5 || draft.length > 240) return "h-24";
+  if (lines >= 3 || draft.length > 120) return "h-20";
+  if (lines >= 2 || draft.length > 48) return "h-16";
+  return "h-12";
 }
 
 /** Stable, independently testable boundary for the conversation's primary action. */
@@ -255,7 +262,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
               aria-expanded={popoverTrigger["aria-expanded"]}
               aria-activedescendant={highlighted()}
               chrome="none"
-              class="h-16"
+              class={composerEditorHeightClass(props.draft)}
               value={props.draft}
               widgetConfig={{
                 selection: controlledSelection(),
@@ -345,11 +352,6 @@ export function ConversationComposer(props: ConversationComposerProps) {
           >
             <Icon source={send} size={14} />
           </Button>
-        </View>
-        <View class="min-w-0 border-t border-subtle pt-2 px-1">
-          <Text class="w-full min-w-0 truncate text-xs text-secondary">
-            {props.project} · {i18n.message(m.send_hint, {})}
-          </Text>
         </View>
       </WorkbenchContentColumn>
     </WorkbenchFooter>

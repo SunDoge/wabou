@@ -31,6 +31,10 @@ function assertFullWorkbenchLayout(
     role: "group",
     name: "Ask this agent to work in its repository…",
   });
+  const editor = getLayoutNode(fixture, {
+    role: "textbox",
+    name: "Ask this agent to work in its repository…",
+  });
   const model = getLayoutNode(fixture, {
     role: "combobox",
     name: "Choose model",
@@ -76,6 +80,15 @@ function assertFullWorkbenchLayout(
   if (model.rect.width < 176 || thinking.rect.width < 112) {
     throw new Error(
       `composer controls lost readable widths: model=${model.rect.width}, thinking=${thinking.rect.width}`,
+    );
+  }
+  const compactSurfaceLimit = viewportWidth >= 1_000 ? 112 : 144;
+  if (
+    editor.rect.height > 48 ||
+    composer.rect.height > compactSurfaceLimit
+  ) {
+    throw new Error(
+      `empty workbench composer lost its compact density: editor=${editor.rect.height}, surface=${composer.rect.height}, limit=${compactSurfaceLimit}`,
     );
   }
   if (
@@ -303,9 +316,6 @@ try {
             role: "combobox",
             name: "Thinking level",
           });
-          const hint = getLayoutNode(fixture, {
-            text: "Wabou · Enter to send · Shift+Enter for newline",
-          });
           if (model.rect.width < 176) {
             throw new Error(
               `model control lost its readable width: width=${model.rect.width}`,
@@ -325,16 +335,9 @@ try {
             role: "group",
             name: "Ask this agent to work in its repository…",
           });
-          if (
-            hint.rect.x < composer.contentRect.x - 0.5 ||
-            hint.rect.y < composer.contentRect.y - 0.5 ||
-            hint.rect.x + hint.rect.width >
-              composer.contentRect.x + composer.contentRect.width + 0.5 ||
-            hint.rect.y + hint.rect.height >
-              composer.contentRect.y + composer.contentRect.height + 0.5
-          ) {
+          if (editor.rect.height > 64 || composer.rect.height > 192) {
             throw new Error(
-              `composer hint escaped its surface: hint=${hint.rect.x},${hint.rect.y} ${hint.rect.width}x${hint.rect.height}; composer=${composer.contentRect.x},${composer.contentRect.y} ${composer.contentRect.width}x${composer.contentRect.height}`,
+              `content composer grew beyond its bounded state: editor=${editor.rect.height}, surface=${composer.rect.height}`,
             );
           }
           const thinkingLabel = getLayoutNode(fixture, { text: "medium" });
