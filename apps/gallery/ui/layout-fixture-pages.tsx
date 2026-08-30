@@ -12,6 +12,7 @@ import {
   ImageListLayoutFixture,
   ImageViewportLayoutFixture,
   InputGroupLayoutFixture,
+  LabeledSeparatorLayoutFixture,
   MarkdownConversationLayoutFixture,
   MarkdownInlineLayoutFixture,
   MessageLayoutFixture,
@@ -129,6 +130,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 360,
         height: 120,
         render: MarkdownInlineLayoutFixture,
+      },
+      "component/LabeledSeparator": {
+        width: 560,
+        height: 96,
+        render: LabeledSeparatorLayoutFixture,
       },
       "component/MarkdownConversation": {
         width: 720,

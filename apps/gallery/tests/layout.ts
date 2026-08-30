@@ -423,6 +423,33 @@ const assertMarkdownInlineLayout = (snapshot: LayoutSnapshot) => {
     );
 };
 
+const assertLabeledSeparatorLayout = (snapshot: LayoutSnapshot) => {
+  const group = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Labeled separator fixture",
+  });
+  const children = snapshot.nodes.filter(
+    (node) =>
+      node.parentId?.lo === group.id.lo && node.parentId.hi === group.id.hi,
+  );
+  const rules = children
+    .filter((node) => node.rect.height <= 1.5)
+    .sort((left, right) => left.rect.x - right.rect.x);
+  if (rules.length !== 2)
+    throw new Error(`labeled separator exposed ${rules.length} rules`);
+  const [left, right] = rules;
+  if (!left || !right || left.rect.width < 24 || right.rect.width < 24) {
+    throw new Error("labeled separator collapsed a flexible rule");
+  }
+  assertClose(left.rect.width, right.rect.width, "separator rule symmetry");
+  assertLayoutRectContains(group.contentRect, left.rect, {
+    label: "left separator rule",
+  });
+  assertLayoutRectContains(group.contentRect, right.rect, {
+    label: "right separator rule",
+  });
+};
+
 const assertMarkdownConversationLayout = (snapshot: LayoutSnapshot) => {
   const heading = getLayoutNode(snapshot, { text: "Change" });
   const paragraph = getLayoutNode(snapshot, {
@@ -499,6 +526,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/InputGroup": { assert: assertInputGroupLayout },
   "component/DirectoryPicker": { assert: assertDirectoryPickerLayout },
   "component/MarkdownInline": { assert: assertMarkdownInlineLayout },
+  "component/LabeledSeparator": { assert: assertLabeledSeparatorLayout },
   "component/MarkdownConversation": {
     assert: assertMarkdownConversationLayout,
   },

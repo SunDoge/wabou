@@ -18,6 +18,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
   InputGroupText,
+  LabeledSeparator,
   Markdown,
   Message,
   MessageContent,
@@ -80,6 +81,18 @@ export function MarkdownConversationLayoutFixture() {
           "## Change\n\nUpdated the request path and kept `healthz` backward compatible.\n\n- Added validation\n- Preserved existing callers\n\n| Check | Result |\n| --- | --- |\n| Types | Passed |\n| Layout | Passed |\n\n```sh\ncargo test -p server\n```"
         }
       />
+    </View>
+  );
+}
+
+export function LabeledSeparatorLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-5 bg-canvas">
+      <LabeledSeparator role="group" aria-label="Labeled separator fixture">
+        <Text class="text-sm text-muted">
+          Worked for 12s · 3 tool calls with a deliberately long label
+        </Text>
+      </LabeledSeparator>
     </View>
   );
 }
