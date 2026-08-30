@@ -1,5 +1,5 @@
 [package]
-name = "wabou-shell"
+name = "wabou-backend-winit"
 version.workspace = true
 edition = "2024"
 

@@ -56,7 +56,7 @@ wabou-bindgen = { workspace = true }
 wabou-database = { workspace = true }
 wabou-devtools = { workspace = true, optional = true }
 wabou-host-api = { workspace = true }
-wabou-shell = { workspace = true }
+wabou-backend-winit = { workspace = true }
 wabou-style = { workspace = true }
 wabou-widgets = { workspace = true }
 
@@ -72,8 +72,8 @@ ureq = { version = "3.3", optional = true }
 [features]
 default = []
 devtools = ["dep:wabou-devtools"]
-profiling = ["dep:tracing-chrome", "wabou-shell/profiling"]
-renderer-skia = ["wabou-shell/renderer-skia"]
+profiling = ["dep:tracing-chrome", "wabou-backend-winit/profiling"]
+renderer-skia = ["wabou-backend-winit/renderer-skia"]
 rust-hot-reload = ["dep:dioxus-devtools"]
 # Live vite dev-server integration (module fetching + HMR). Step 2.
 vite = ["dep:tungstenite", "dep:ureq"]

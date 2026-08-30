@@ -1,0 +1,15 @@
+[package]
+name = "wabou-shell"
+version.workspace = true
+edition = "2024"
+description = "GPUI-CE platform and retained-frame shell for Wabou."
+publish = false
+
+license.workspace = true
+
+[dependencies]
+bitflags.workspace = true
+gpui.workspace = true
+gpui-platform.workspace = true
+slotmap.workspace = true
+

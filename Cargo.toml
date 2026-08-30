@@ -14,6 +14,8 @@ anyrender = "0.13.0"
 anyrender-skia = { package = "anyrender_skia", version = "0.11.0" }
 anyrender-svg = { package = "anyrender_svg", version = "0.14.0", default-features = false }
 anyrender-vello = { package = "anyrender_vello", version = "0.14.0" }
+gpui = { package = "gpui-ce", version = "0.2.2" }
+gpui-platform = { package = "gpui_ce_platform", version = "0.1.0", features = ["wayland", "x11"] }
 wabou = { path = "crates/wabou" }
 wabou-accessibility = { path = "crates/wabou-accessibility" }
 wabou-bindgen = { path = "crates/wabou-bindgen", default-features = false }
@@ -21,7 +23,10 @@ wabou-database = { path = "crates/wabou-database" }
 wabou-devtools = { path = "crates/wabou-devtools", default-features = false }
 wabou-host-api = { path = "crates/wabou-host-api" }
 wabou-runtime = { path = "crates/wabou-runtime" }
-wabou-shell = { path = "crates/wabou-shell" }
+# Transitional Winit/AnyRender implementation. New platform work belongs in
+# `wabou-shell`, which is being rebuilt on GPUI-CE.
+wabou-backend-winit = { path = "crates/wabou-shell" }
+wabou-shell = { path = "crates/wabou-shell-gpui" }
 wabou-style = { path = "crates/wabou-style" }
 wabou-terminal = { path = "crates/wabou-terminal" }
 wabou-tray = { path = "crates/wabou-tray" }

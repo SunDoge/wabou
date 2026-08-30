@@ -6,7 +6,7 @@ license.workspace = true
 
 [dependencies]
 tray-icon = { version = "0.24.2", default-features = false, features = ["gtk"] }
-wabou-shell = { workspace = true }
+wabou-backend-winit = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18.2"

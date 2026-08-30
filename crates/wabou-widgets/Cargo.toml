@@ -16,5 +16,5 @@ serde = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
 unicode-width = { workspace = true }
 vello = { workspace = true }
-wabou-shell = { workspace = true }
+wabou-backend-winit = { workspace = true }
 zeroize = { workspace = true }
