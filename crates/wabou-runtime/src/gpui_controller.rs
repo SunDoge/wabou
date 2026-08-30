@@ -26,6 +26,7 @@ pub struct GpuiController {
     pointer_buttons: u32,
     last_primary_click: Option<(std::time::Instant, wabou_host_api::NodeKey, f32, f32)>,
     focused_target: Option<wabou_host_api::NodeKey>,
+    last_window_metrics: Option<gpui_shell::WindowMetrics>,
 }
 
 impl GpuiController {
@@ -40,6 +41,7 @@ impl GpuiController {
             pointer_buttons: 0,
             last_primary_click: None,
             focused_target: None,
+            last_window_metrics: None,
         }
     }
     pub(crate) fn set_image_resources(&mut self, resources: ImageResourceStore) {
@@ -223,6 +225,41 @@ impl GpuiController {
             payload.to_string(),
         ))])
         .is_ok()
+    }
+
+    /// Publish an authoritative GPUI window snapshot when its observable state
+    /// changed since the previous completed frame.
+    pub(crate) fn update_window_metrics(&mut self, metrics: gpui_shell::WindowMetrics) -> bool {
+        if self.last_window_metrics == Some(metrics) {
+            return false;
+        }
+        let payload = serde_json::json!({
+            "windowId": metrics.window_key,
+            "logicalWidth": metrics.logical_width,
+            "logicalHeight": metrics.logical_height,
+            "physicalWidth": metrics.physical_width,
+            "physicalHeight": metrics.physical_height,
+            "scaleFactor": metrics.scale_factor,
+            "maximized": metrics.maximized,
+            "focused": metrics.focused,
+            "outerX": metrics.outer_x,
+            "outerY": metrics.outer_y,
+            "occluded": metrics.occluded,
+            "colorScheme": metrics.color_scheme.map(|scheme| match scheme {
+                gpui_shell::ColorScheme::Light => "light",
+                gpui_shell::ColorScheme::Dark => "dark",
+            }),
+        });
+        let published = self
+            .dispatch_host_frame(&[HostEvent::Application(crate::HostMessage::str(
+                "wabou:window-metrics",
+                payload.to_string(),
+            ))])
+            .is_ok();
+        if published {
+            self.last_window_metrics = Some(metrics);
+        }
+        published
     }
 
     pub fn dispatch_node_json(
@@ -1091,6 +1128,50 @@ mod tests {
         assert_eq!(payload["paths"][1], "/tmp/two.torrent");
         assert_eq!(payload["position"]["x"], 24.5);
         assert_eq!(payload["position"]["y"], 31.0);
+    }
+
+    #[test]
+    fn gpui_window_metrics_reach_javascript_once_per_distinct_snapshot() {
+        let js = JsRuntime::new().expect("runtime");
+        install_application_message_probe(&js);
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            gpui_shell::initial_window_resource_key(0),
+        ));
+        let metrics = gpui_shell::WindowMetrics {
+            window_key: gpui_shell::initial_window_resource_key(0),
+            logical_width: 800,
+            logical_height: 600,
+            physical_width: 1600,
+            physical_height: 1200,
+            scale_factor: 2.0,
+            maximized: true,
+            focused: true,
+            outer_x: Some(120),
+            outer_y: Some(80),
+            occluded: false,
+            color_scheme: Some(gpui_shell::ColorScheme::Dark),
+        };
+
+        assert!(controller.update_window_metrics(metrics));
+        assert!(!controller.update_window_metrics(metrics));
+
+        let messages = controller
+            .eval_string(
+                "JSON.stringify(globalThis.__host_got.filter((value) => value.topic === 'wabou:window-metrics'))",
+            )
+            .expect("read window-metrics messages");
+        let messages: serde_json::Value = serde_json::from_str(&messages).expect("message json");
+        assert_eq!(messages.as_array().map(Vec::len), Some(1));
+        let payload: serde_json::Value =
+            serde_json::from_str(messages[0]["payload"].as_str().expect("payload string"))
+                .expect("window-metrics payload");
+        assert_eq!(payload["windowId"], serde_json::json!({ "lo": 1, "hi": 1 }));
+        assert_eq!(payload["logicalWidth"], 800);
+        assert_eq!(payload["physicalWidth"], 1600);
+        assert_eq!(payload["scaleFactor"], 2.0);
+        assert_eq!(payload["focused"], true);
+        assert_eq!(payload["colorScheme"], "dark");
     }
 
     #[test]

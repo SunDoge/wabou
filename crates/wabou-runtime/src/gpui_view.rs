@@ -197,6 +197,34 @@ impl GpuiRuntimeView {
             });
     }
 
+    fn window_metrics(&self, window: &Window) -> gpui_shell::WindowMetrics {
+        let viewport = window.viewport_size();
+        let logical_width = f32::from(viewport.width).round().max(1.0) as u32;
+        let logical_height = f32::from(viewport.height).round().max(1.0) as u32;
+        let scale_factor = f64::from(window.scale_factor()).max(f64::EPSILON);
+        let outer = window.bounds().origin;
+        let color_scheme = match window.appearance() {
+            gpui_shell::gpui::WindowAppearance::Light
+            | gpui_shell::gpui::WindowAppearance::VibrantLight => gpui_shell::ColorScheme::Light,
+            gpui_shell::gpui::WindowAppearance::Dark
+            | gpui_shell::gpui::WindowAppearance::VibrantDark => gpui_shell::ColorScheme::Dark,
+        };
+        gpui_shell::WindowMetrics {
+            window_key: self.window_key,
+            logical_width,
+            logical_height,
+            physical_width: (f64::from(logical_width) * scale_factor).round() as u32,
+            physical_height: (f64::from(logical_height) * scale_factor).round() as u32,
+            scale_factor,
+            maximized: window.is_maximized(),
+            focused: window.is_window_active(),
+            outer_x: Some(f32::from(outer.x).round() as i32),
+            outer_y: Some(f32::from(outer.y).round() as i32),
+            occluded: false,
+            color_scheme: Some(color_scheme),
+        }
+    }
+
     fn synchronize_text_controls(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let descriptors = self.controller.text_controls();
         self.text_controls
@@ -649,6 +677,8 @@ impl Render for GpuiRuntimeView {
         cx: &mut Context<Self>,
     ) -> impl gpui_shell::gpui::IntoElement {
         let viewport = window.viewport_size();
+        let metrics = self.window_metrics(window);
+        self.controller.update_window_metrics(metrics);
         if let Some(persistence) = &mut self.window_size_persistence {
             let width: f32 = viewport.width.into();
             let height: f32 = viewport.height.into();
@@ -886,6 +916,37 @@ mod tests {
             snapshot.iter().any(|node| node.key == NodeKey::new(2, 1)),
             "the real GPUI prepaint pass must publish bounds for the Solid fixture"
         );
+    }
+
+    #[gpui_shell::gpui::test]
+    fn gpui_window_snapshot_uses_logical_viewport_and_native_scale(cx: &mut TestAppContext) {
+        let controller = test_controller();
+        let (view, cx) = cx.add_window_view(move |window, cx| {
+            GpuiRuntimeView::new(
+                controller,
+                GpuiRuntimeViewOptions {
+                    default_title: "Metrics test".into(),
+                    window_size_persistence: None,
+                    native_widget_factories: HashMap::new(),
+                    test_controller: None,
+                    window_key: gpui_shell::initial_window_resource_key(0),
+                },
+                window,
+                cx,
+            )
+        });
+
+        let metrics = cx.update(|window, app| {
+            window.resize(size(px(640.0), px(360.0)));
+            window.set_scale_factor(2.0);
+            window.bounds_changed(app);
+            view.read(app).window_metrics(window)
+        });
+        assert_eq!(metrics.logical_width, 640);
+        assert_eq!(metrics.logical_height, 360);
+        assert_eq!(metrics.physical_width, 1280);
+        assert_eq!(metrics.physical_height, 720);
+        assert_eq!(metrics.scale_factor, 2.0);
     }
 
     #[gpui_shell::gpui::test]
