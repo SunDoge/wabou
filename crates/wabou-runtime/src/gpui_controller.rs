@@ -5,6 +5,7 @@ use crate::{
 };
 use gpui_shell::{GpuiProjection, ProjectionError};
 use wabou_protocol::AtomPool;
+use wabou_style::stylesheet::{StyleSheet, StylesheetUpdate};
 
 /// Renderer-side state consumed exclusively by the GPUI application runtime.
 ///
@@ -52,6 +53,64 @@ impl GpuiController {
 
     pub(crate) fn projection_mut(&mut self) -> &mut GpuiProjection {
         &mut self.projection
+    }
+
+    pub(crate) fn take_stylesheet_update(&mut self) -> Option<StylesheetUpdate> {
+        self.runtime.pending_css.as_ref()?.borrow_mut().take()
+    }
+
+    pub(crate) fn install_stylesheet(&mut self, sheet: StyleSheet) -> Result<(), String> {
+        self.projection.set_stylesheet(sheet)
+    }
+
+    pub(crate) fn take_color_theme(&mut self) -> Option<String> {
+        self.runtime
+            .pending_color_theme
+            .as_ref()?
+            .borrow_mut()
+            .take()
+    }
+
+    pub(crate) fn select_color_theme(&mut self, name: &str) -> Result<bool, String> {
+        self.projection.set_color_theme(name)
+    }
+
+    pub(crate) fn take_color_palette(&mut self) -> Option<Vec<u32>> {
+        self.runtime
+            .pending_color_palette
+            .as_ref()?
+            .borrow_mut()
+            .take()
+    }
+
+    pub(crate) fn install_color_palette(
+        &mut self,
+        colors: std::collections::HashMap<String, u32>,
+    ) -> Result<bool, String> {
+        self.projection.set_color_palette(colors)
+    }
+
+    pub(crate) fn prepare_js_tick(&mut self) {
+        self.runtime.js.take_async_wake();
+        self.runtime.js.poll_async_runtime();
+    }
+
+    pub(crate) fn tick_js(&mut self) -> rquickjs::Result<Vec<u8>> {
+        let (bytes, has_raf) = self.runtime.js.tick()?;
+        self.runtime.has_raf = has_raf;
+        Ok(bytes)
+    }
+
+    pub(crate) fn fail_js_tick(&mut self) {
+        self.runtime.has_raf = false;
+    }
+
+    pub(crate) fn finish_js_tick(&mut self) {
+        self.runtime.js.poll_async_runtime();
+    }
+
+    pub(crate) fn record_protocol_frame(&mut self) {
+        self.runtime.protocol_revision = self.runtime.protocol_revision.wrapping_add(1);
     }
 
     /// Monotonically increasing count of non-empty JS-to-host frames.

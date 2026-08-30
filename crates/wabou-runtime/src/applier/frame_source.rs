@@ -11,10 +11,7 @@ impl Applier {
     }
 
     fn drain_pending_stylesheet(&mut self) {
-        let Some(pending) = self.runtime.pending_css.clone() else {
-            return;
-        };
-        let Some(update) = pending.borrow_mut().take() else {
+        let Some(update) = self.gpui.take_stylesheet_update() else {
             return;
         };
         match update {
@@ -22,7 +19,7 @@ impl Applier {
                 for diagnostic in &sheet.diagnostics {
                     tracing::warn!(target: "stylesheet", %diagnostic);
                 }
-                if let Err(error) = self.gpui.projection_mut().set_stylesheet(sheet.clone()) {
+                if let Err(error) = self.gpui.install_stylesheet(sheet.clone()) {
                     tracing::error!(target: "stylesheet", %error, "failed to install GPUI stylesheet");
                 }
                 let (rule_index, universal_rules) = {
@@ -86,10 +83,7 @@ impl Applier {
     }
 
     fn drain_pending_color_theme(&mut self) {
-        let Some(pending) = self.runtime.pending_color_theme.clone() else {
-            return;
-        };
-        let Some(name) = pending.borrow_mut().take() else {
+        let Some(name) = self.gpui.take_color_theme() else {
             return;
         };
         let selected = self
@@ -100,7 +94,7 @@ impl Applier {
             .and_then(|sheet| sheet.color_themes.as_ref())
             .and_then(|themes| themes.themes.get(&name));
         if let Some(theme) = selected {
-            if let Err(error) = self.gpui.projection_mut().set_color_theme(&name) {
+            if let Err(error) = self.gpui.select_color_theme(&name) {
                 tracing::error!(target: "stylesheet", %error, "failed to select GPUI color theme");
             }
             if self.document.style.active_color_theme.as_deref() != Some(name.as_str()) {
@@ -115,10 +109,7 @@ impl Applier {
     }
 
     fn drain_pending_color_palette(&mut self) {
-        let Some(pending) = self.runtime.pending_color_palette.clone() else {
-            return;
-        };
-        let Some(colors) = pending.borrow_mut().take() else {
+        let Some(colors) = self.gpui.take_color_palette() else {
             return;
         };
         let tokens = self
@@ -138,11 +129,7 @@ impl Applier {
         };
         if tokens.len() == colors.len() {
             let palette = tokens.into_iter().zip(colors).collect::<HashMap<_, _>>();
-            if let Err(error) = self
-                .gpui
-                .projection_mut()
-                .set_color_palette(palette.clone())
-            {
+            if let Err(error) = self.gpui.install_color_palette(palette.clone()) {
                 tracing::error!(target: "stylesheet", %error, "failed to install GPUI color palette");
             }
             self.document.style.active_theme_colors = Arc::new(palette);
@@ -171,20 +158,19 @@ impl Applier {
             let span = tracing::trace_span!(target: "wabou::perf", "quick.js_tick");
             #[cfg(feature = "profiling")]
             let _guard = span.enter();
-            self.runtime.js.tick()
+            self.gpui.tick_js()
         };
-        let (bytes, has_raf) = match result {
+        let bytes = match result {
             Ok(result) => result,
             Err(error) => {
                 tracing::error!(target: "bridge", "JS tick failed: {error:?}");
-                self.runtime.has_raf = false;
+                self.gpui.fail_js_tick();
                 return false;
             }
         };
         let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
         self.frame.js_tick_ema = self.frame.js_tick_ema * 0.9 + elapsed_ms * 0.1;
         self.frame.last_viewport = (width, height);
-        self.runtime.has_raf = has_raf;
         if !bytes.is_empty() {
             let decoded = {
                 #[cfg(feature = "profiling")]
@@ -199,7 +185,7 @@ impl Applier {
             };
             match decoded {
                 Ok(frame) => {
-                    self.runtime.protocol_revision = self.runtime.protocol_revision.wrapping_add(1);
+                    self.gpui.record_protocol_frame();
                     #[cfg(any(feature = "devtools", test))]
                     if let Some(state) = &self.frame.projections.debug_state
                         && let Ok(mut state) = state.write()
@@ -242,7 +228,7 @@ impl Applier {
                 Err(error) => tracing::error!(target: "bridge", "decode frame failed: {error}"),
             }
         }
-        self.runtime.js.poll_async_runtime();
+        self.gpui.finish_js_tick();
         true
     }
 
@@ -253,8 +239,7 @@ impl Applier {
     /// consume the same completed Solid flush and resolved cascade.
     fn advance_runtime_frame(&mut self, width: u32, height: u32) -> bool {
         self.document.invalidation.remove(InvalidationFlags::TICK);
-        self.runtime.js.take_async_wake();
-        self.runtime.js.poll_async_runtime();
+        self.gpui.prepare_js_tick();
         self.drain_pending_stylesheet();
         self.drain_pending_color_theme();
         self.drain_pending_color_palette();
