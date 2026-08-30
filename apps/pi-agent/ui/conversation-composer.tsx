@@ -5,10 +5,13 @@ import {
   Icon,
   moveMenuHighlight,
   Popover,
+  PromptComposer,
+  PromptComposerStatus,
+  PromptComposerToolbar,
+  PromptComposerTools,
   TextArea,
   View,
   type WabouKeyEvent,
-  WorkbenchContentColumn,
   WorkbenchFooter,
 } from "@wabou/ui";
 import send from "lucide-static/icons/send.svg?raw";
@@ -225,15 +228,13 @@ export function ConversationComposer(props: ConversationComposerProps) {
 
   return (
     <WorkbenchFooter class="border-0 bg-canvas px-5 pt-3 pb-3 gap-1">
-      <WorkbenchContentColumn
-        role="group"
+      <PromptComposer
         aria-label={i18n.message(m.prompt_placeholder, {})}
-        data-wabou-owns="surface focus-ring"
-        class="rounded-xl border border-subtle bg-input shadow-xs px-3 pt-3 pb-2 gap-2"
+        class="max-w-4xl mx-auto"
       >
-        <View class="w-full min-w-0 flex flex-row justify-end">
+        <PromptComposerStatus>
           <SessionUsage stats={props.stats} />
-        </View>
+        </PromptComposerStatus>
         <ExtensionUiChrome
           statuses={props.statuses}
           widgets={props.widgets}
@@ -311,8 +312,8 @@ export function ConversationComposer(props: ConversationComposerProps) {
           widgets={props.widgets}
           placement="belowEditor"
         />
-        <View class="min-w-0 flex flex-row flex-wrap items-center justify-between gap-1.5">
-          <View class="min-w-0 flex-1 flex flex-row flex-wrap items-center gap-0.5">
+        <PromptComposerToolbar aria-label="Prompt controls">
+          <PromptComposerTools aria-label="Prompt tools">
             <ComposerImagePicker
               paths={props.images}
               change={props.changeImages}
@@ -342,7 +343,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
                 change={props.changeDeliveryMode}
               />
             </Show>
-          </View>
+          </PromptComposerTools>
           <Button
             variant="secondary"
             size="icon"
@@ -355,8 +356,8 @@ export function ConversationComposer(props: ConversationComposerProps) {
           >
             <Icon source={send} size={14} />
           </Button>
-        </View>
-      </WorkbenchContentColumn>
+        </PromptComposerToolbar>
+      </PromptComposer>
       <ConversationWorkspaceStatus
         project={props.project}
         branch={props.branch}
