@@ -698,7 +698,7 @@ function App() {
                         <View class="flex flex-wrap gap-1">
                           <ForValue each={node().classes}>
                             {(value) => (
-                              <Text class="px-2 py-1 rounded bg-control text-xs text-warning-primary">
+                              <Text class="px-2 py-1 rounded bg-control text-xs text-muted">
                                 .{value}
                               </Text>
                             )}
