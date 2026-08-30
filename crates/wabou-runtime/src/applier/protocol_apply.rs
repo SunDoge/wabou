@@ -573,7 +573,16 @@ impl Applier {
         let image_store = self.document.resources.image_store.clone();
         if let Err(error) =
             self.gpui_projection
-                .apply_ops(frame, &self.document.atoms.borrow(), &image_store)
+                .apply_ops(frame, &self.document.atoms.borrow(), |source| {
+                    let (lo, hi) = source.split_once(':')?;
+                    let handle = crate::ImageResourceHandle {
+                        lo: lo.parse().ok()?,
+                        hi: hi.parse().ok()?,
+                    };
+                    image_store
+                        .get(handle)
+                        .map(|resource| resource.gpui_image())
+                })
         {
             tracing::error!(?error, "failed to project Solid frame into GPUI");
         }

@@ -57,7 +57,7 @@ impl GpuiTextControlState {
 
     fn synchronize(
         &self,
-        descriptor: &crate::gpui_projection::GpuiTextControl,
+        descriptor: &gpui_shell::GpuiTextControl,
         window: &mut Window,
         cx: &mut Context<GpuiRuntimeView>,
     ) {

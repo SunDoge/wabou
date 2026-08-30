@@ -1,20 +1,19 @@
-//! Transitional projection from the existing Solid protocol into GPUI.
-//!
-//! This mirrors completed protocol frames while the old Winit renderer remains
-//! the presentation path. It makes protocol ordering and retained identity
-//! executable against the new backend before window ownership switches over.
+//! Retained GPUI projection of completed Solid protocol frames.
 
-use gpui_shell::{
+// This is an internal runtime seam re-exported across workspace crates while
+// the old applier is extracted. It is not a stable application-facing API.
+#![allow(missing_docs)]
+
+use crate::{
     DirtyKind, NodeKey, ProjectedNodeKind, ProjectionError, ProjectionTree, StyleDiagnostic,
     StyleProjection,
 };
 use wabou_style::{IrColor, IrLength, IrValue};
 
-use crate::atom::AtomPool;
-use crate::protocol::{Frame, GRAPHIC_SOURCE_RESOURCE_RASTER, GRAPHIC_SOURCE_SVG, Op};
+use wabou_protocol::{AtomPool, Frame, GRAPHIC_SOURCE_RESOURCE_RASTER, GRAPHIC_SOURCE_SVG, Op};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct GpuiTextControl {
+pub struct GpuiTextControl {
     pub key: NodeKey,
     pub multiline: bool,
     pub value: String,
@@ -24,20 +23,26 @@ pub(crate) struct GpuiTextControl {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct GpuiNativeWidget {
+pub struct GpuiNativeWidget {
     pub key: NodeKey,
-    pub tag: gpui_shell::gpui::SharedString,
+    pub tag: crate::gpui::SharedString,
     pub attributes:
-        std::collections::BTreeMap<gpui_shell::gpui::SharedString, gpui_shell::gpui::SharedString>,
+        std::collections::BTreeMap<crate::gpui::SharedString, crate::gpui::SharedString>,
 }
 
 #[derive(Debug)]
-pub(crate) struct GpuiProjection {
+pub struct GpuiProjection {
     tree: ProjectionTree,
 }
 
+impl Default for GpuiProjection {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GpuiProjection {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         let mut tree = ProjectionTree::default();
         tree.insert(
             NodeKey::ROOT,
@@ -57,11 +62,11 @@ impl GpuiProjection {
     /// Resolved styles are projected later while the legacy applier processes
     /// the same frame. `finish_frame` is therefore the only commit point: GPUI
     /// never observes a newly attached node with the previous/default style.
-    pub(crate) fn apply_ops(
+    pub fn apply_ops(
         &mut self,
         frame: &Frame<'_>,
         atoms: &AtomPool,
-        images: &crate::ImageResourceStore,
+        mut resolve_raster: impl FnMut(&str) -> Option<std::sync::Arc<crate::gpui::Image>>,
     ) -> Result<(), ProjectionError> {
         for op in &frame.ops {
             match op {
@@ -124,16 +129,13 @@ impl GpuiProjection {
                 Op::SetGraphicSource { id, kind, source } => match *kind {
                     GRAPHIC_SOURCE_SVG => self.tree.update_image(
                         *id,
-                        Some(std::sync::Arc::new(gpui_shell::gpui::Image::from_bytes(
-                            gpui_shell::gpui::ImageFormat::Svg,
+                        Some(std::sync::Arc::new(crate::gpui::Image::from_bytes(
+                            crate::gpui::ImageFormat::Svg,
                             source.as_bytes().to_vec(),
                         ))),
                     )?,
                     GRAPHIC_SOURCE_RESOURCE_RASTER => {
-                        let image = parse_image_handle(source)
-                            .and_then(|handle| images.get(handle))
-                            .map(|resource| resource.gpui_image());
-                        self.tree.update_image(*id, image)?;
+                        self.tree.update_image(*id, resolve_raster(source))?;
                     }
                     _ => {}
                 },
@@ -150,20 +152,20 @@ impl GpuiProjection {
 
     /// Publish structure, text, and resolved-style changes as one GPUI update.
     #[must_use]
-    pub(crate) fn finish_frame(&mut self) -> bool {
+    pub fn finish_frame(&mut self) -> bool {
         !self.tree.commit().is_empty()
     }
 
-    #[cfg(test)]
-    pub(crate) fn revision(&self) -> u64 {
+    #[doc(hidden)]
+    pub fn revision(&self) -> u64 {
         self.tree.revision()
     }
 
-    pub(crate) fn contains(&self, key: NodeKey) -> bool {
+    pub fn contains(&self, key: NodeKey) -> bool {
         self.tree.node(key).is_some()
     }
 
-    pub(crate) fn text_controls(&self) -> Vec<GpuiTextControl> {
+    pub fn text_controls(&self) -> Vec<GpuiTextControl> {
         self.tree
             .roots()
             .iter()
@@ -171,10 +173,7 @@ impl GpuiProjection {
             .collect()
     }
 
-    pub(crate) fn native_widgets(
-        &self,
-        mut accepts: impl FnMut(&str) -> bool,
-    ) -> Vec<GpuiNativeWidget> {
+    pub fn native_widgets(&self, mut accepts: impl FnMut(&str) -> bool) -> Vec<GpuiNativeWidget> {
         let mut widgets = Vec::new();
         let mut pending = self.tree.roots().to_vec();
         while let Some(key) = pending.pop() {
@@ -229,36 +228,33 @@ impl GpuiProjection {
         controls
     }
 
-    #[cfg(test)]
-    pub(crate) fn tree_element(
-        &self,
-        root: NodeKey,
-    ) -> Result<gpui_shell::ProjectedElement, ProjectionError> {
+    #[doc(hidden)]
+    pub fn tree_element(&self, root: NodeKey) -> Result<crate::ProjectedElement, ProjectionError> {
         self.tree.element(root)
     }
 
-    pub(crate) fn interactive_tree_element(
+    pub fn interactive_tree_element(
         &self,
         root: NodeKey,
-        input: gpui_shell::ProjectedInputSink,
-        focus: gpui_shell::gpui::FocusHandle,
-        text_input: gpui_shell::ProjectedTextInputState,
-        native: Option<gpui_shell::ProjectedNativeElementFactory>,
-    ) -> Result<gpui_shell::ProjectedElement, ProjectionError> {
+        input: crate::ProjectedInputSink,
+        focus: crate::gpui::FocusHandle,
+        text_input: crate::ProjectedTextInputState,
+        native: Option<crate::ProjectedNativeElementFactory>,
+    ) -> Result<crate::ProjectedElement, ProjectionError> {
         self.tree
             .interactive_element(root, input, focus, text_input, native)
     }
 
-    pub(crate) fn update_style(
+    pub fn update_style(
         &mut self,
         key: NodeKey,
-        style: gpui_shell::gpui::Style,
+        style: crate::gpui::Style,
     ) -> Result<(), ProjectionError> {
         self.tree
             .update_style(key, style, DirtyKind::LAYOUT | DirtyKind::PAINT)
     }
 
-    pub(crate) fn apply_style_declaration(
+    pub fn apply_style_declaration(
         &mut self,
         key: NodeKey,
         property: &str,
@@ -281,21 +277,13 @@ impl GpuiProjection {
         &self.tree
     }
 
-    #[cfg(test)]
-    pub(crate) fn style(&self, key: NodeKey) -> Option<&gpui_shell::gpui::Style> {
+    #[doc(hidden)]
+    pub fn style(&self, key: NodeKey) -> Option<&crate::gpui::Style> {
         self.tree.node(key).map(|node| &node.style)
     }
 }
 
-fn parse_image_handle(source: &str) -> Option<crate::ImageResourceHandle> {
-    let (lo, hi) = source.split_once(':')?;
-    Some(crate::ImageResourceHandle {
-        lo: lo.parse().ok()?,
-        hi: hi.parse().ok()?,
-    })
-}
-
-pub(crate) fn project_ir(
+pub fn project_ir(
     projection: &mut StyleProjection,
     property: &str,
     value: &IrValue,
@@ -343,8 +331,8 @@ fn tooling_value(value: &IrValue) -> Option<wabou_style::Value> {
     })
 }
 
-fn gpui_style() -> gpui_shell::gpui::Style {
-    gpui_shell::gpui::Style::default()
+fn gpui_style() -> crate::gpui::Style {
+    crate::gpui::Style::default()
 }
 
 #[cfg(test)]
@@ -389,7 +377,7 @@ mod tests {
                     ],
                 },
                 &atoms,
-                &crate::ImageResourceStore::default(),
+                |_| None,
             )
             .unwrap();
 
@@ -430,7 +418,7 @@ mod tests {
                     ],
                 },
                 &atoms,
-                &crate::ImageResourceStore::default(),
+                |_| None,
             )
             .unwrap();
         projection
@@ -455,13 +443,15 @@ mod tests {
         let mut projection = GpuiProjection::new();
         let mut atoms = AtomPool::default();
         let image_tag = atoms.intern("img");
-        let images = crate::ImageResourceStore::default();
         let mut png = Vec::new();
         image::codecs::png::PngEncoder::new(&mut png)
             .write_image(&[1, 2, 3, 255], 1, 1, image::ExtendedColorType::Rgba8)
             .unwrap();
-        let handle = images.create(&png).unwrap();
-        let source = format!("{}:{}", handle.lo, handle.hi);
+        let raster = std::sync::Arc::new(crate::gpui::Image::from_bytes(
+            crate::gpui::ImageFormat::Png,
+            png,
+        ));
+        let source = "image:1";
 
         projection
             .apply_ops(
@@ -475,12 +465,12 @@ mod tests {
                         Op::SetGraphicSource {
                             id: key(2),
                             kind: GRAPHIC_SOURCE_RESOURCE_RASTER,
-                            source: &source,
+                            source,
                         },
                     ],
                 },
                 &atoms,
-                &images,
+                |_| Some(raster.clone()),
             )
             .unwrap();
 
@@ -493,7 +483,7 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .format(),
-            gpui_shell::gpui::ImageFormat::Png
+            crate::gpui::ImageFormat::Png
         );
 
         projection
@@ -506,7 +496,7 @@ mod tests {
                     }],
                 },
                 &atoms,
-                &images,
+                |_| None,
             )
             .unwrap();
         assert!(projection.tree().node(key(2)).unwrap().image.is_none());
@@ -560,7 +550,7 @@ mod tests {
                     ],
                 },
                 &atoms,
-                &crate::ImageResourceStore::default(),
+                |_| None,
             )
             .unwrap();
 
@@ -596,7 +586,7 @@ mod tests {
                     }],
                 },
                 &atoms,
-                &crate::ImageResourceStore::default(),
+                |_| None,
             )
             .unwrap();
         assert_eq!(
@@ -647,7 +637,7 @@ mod tests {
                     ],
                 },
                 &atoms,
-                &crate::ImageResourceStore::default(),
+                |_| None,
             )
             .unwrap();
 
@@ -670,7 +660,7 @@ mod tests {
                     }],
                 },
                 &atoms,
-                &crate::ImageResourceStore::default(),
+                |_| None,
             )
             .unwrap();
         assert!(projection.native_widgets(|tag| tag == "fractal").is_empty());

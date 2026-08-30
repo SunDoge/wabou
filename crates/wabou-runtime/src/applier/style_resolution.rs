@@ -1022,7 +1022,7 @@ impl Applier {
                 let value = &declaration.value;
                 display_explicit |= property == "display";
                 let value = resolve_color_tokens(value, &active_theme_colors);
-                let _ = crate::gpui_projection::project_ir(&mut gpui_style, property, &value);
+                let _ = gpui_shell::project_ir(&mut gpui_style, property, &value);
                 if style::apply_ir(&mut layout, &mut paint, property, &value) {
                     #[cfg(any(feature = "devtools", test))]
                     record_style_source(
@@ -1048,7 +1048,7 @@ impl Applier {
                 if let Some(property) = atoms.resolve(*property) {
                     display_explicit |= property == "display";
                     let ir = resolve_color_tokens(&value.ir(), &active_theme_colors);
-                    let _ = crate::gpui_projection::project_ir(&mut gpui_style, property, &ir);
+                    let _ = gpui_shell::project_ir(&mut gpui_style, property, &ir);
                     if style::apply_ir(&mut layout, &mut paint, property, &ir) {
                         #[cfg(any(feature = "devtools", test))]
                         record_style_source(&mut cascade, property, StyleDeclarationSource::Inline);

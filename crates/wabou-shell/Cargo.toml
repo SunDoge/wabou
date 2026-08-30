@@ -16,9 +16,11 @@ serde_json.workspace = true
 slotmap.workspace = true
 tracing.workspace = true
 wabou-host-api.workspace = true
+wabou-protocol.workspace = true
 wabou-shell-api.workspace = true
 wabou-style.workspace = true
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }
+image = { workspace = true, features = ["png"] }
 tempfile = "3"

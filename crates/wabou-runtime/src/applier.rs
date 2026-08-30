@@ -566,7 +566,7 @@ pub struct Applier {
     document: DocumentState,
     interaction: InteractionState,
     frame: FrameState,
-    gpui_projection: crate::gpui_projection::GpuiProjection,
+    gpui_projection: gpui_shell::GpuiProjection,
 }
 
 impl Applier {
@@ -830,7 +830,7 @@ impl Applier {
             document: DocumentState::new(atoms, widget_factories, base_color),
             interaction: InteractionState::new(),
             frame: FrameState::new(FrameProjections::new(layout_metrics), resize_targets),
-            gpui_projection: crate::gpui_projection::GpuiProjection::new(),
+            gpui_projection: gpui_shell::GpuiProjection::new(),
         }
     }
 

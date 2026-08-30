@@ -9,6 +9,7 @@ mod element;
 mod input;
 mod native_widget;
 mod projection;
+mod protocol_projection;
 mod style;
 mod tree;
 mod window_state;
@@ -23,6 +24,7 @@ pub use input::{
 };
 pub use native_widget::{NativeWidgetContext, NativeWidgetFactory, NativeWidgetMount};
 pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
+pub use protocol_projection::{GpuiNativeWidget, GpuiProjection, GpuiTextControl, project_ir};
 pub use style::{StyleDiagnostic, StyleProjection};
 pub use tree::{ProjectedNode, ProjectedNodeKind, ProjectionError, ProjectionTree};
 pub use wabou_shell_api::event::*;

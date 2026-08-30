@@ -302,14 +302,14 @@ impl Applier {
         )
     }
 
-    pub(crate) fn gpui_text_controls(&self) -> Vec<crate::gpui_projection::GpuiTextControl> {
+    pub(crate) fn gpui_text_controls(&self) -> Vec<gpui_shell::GpuiTextControl> {
         self.gpui_projection.text_controls()
     }
 
     pub(crate) fn gpui_native_widgets(
         &self,
         accepts: impl FnMut(&str) -> bool,
-    ) -> Vec<crate::gpui_projection::GpuiNativeWidget> {
+    ) -> Vec<gpui_shell::GpuiNativeWidget> {
         self.gpui_projection.native_widgets(accepts)
     }
 
