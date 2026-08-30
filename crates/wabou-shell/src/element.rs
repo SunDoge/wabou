@@ -42,8 +42,10 @@ impl ProjectedElement {
         root_focus: Option<FocusHandle>,
         text_input: Option<ProjectedTextInputState>,
         native: Option<ProjectedNativeElementFactory>,
+        ancestor_blocked: bool,
     ) -> Result<Self, ProjectionError> {
         let node = tree.node(key).ok_or(ProjectionError::MissingNode(key))?;
+        let interaction_blocked = ancestor_blocked || node.interaction_blocked;
         let native_child = native.as_ref().and_then(|factory| factory(key));
         let mut children =
             Vec::with_capacity(node.children.len() + usize::from(node.text.is_some()));
@@ -57,15 +59,23 @@ impl ProjectedElement {
         }
         for child in &node.children {
             children.push(
-                Self::from_tree(tree, *child, input.clone(), None, None, native.clone())?
-                    .into_any_element(),
+                Self::from_tree(
+                    tree,
+                    *child,
+                    input.clone(),
+                    None,
+                    None,
+                    native.clone(),
+                    interaction_blocked,
+                )?
+                .into_any_element(),
             );
         }
         Ok(Self {
             key,
             style: node.style.clone(),
             children,
-            input,
+            input: (!interaction_blocked).then_some(input).flatten(),
             root_focus,
             text_input,
         })
@@ -381,7 +391,8 @@ mod tests {
         )
         .unwrap();
 
-        let element = ProjectedElement::from_tree(&tree, key, None, None, None, None).unwrap();
+        let element =
+            ProjectedElement::from_tree(&tree, key, None, None, None, None, false).unwrap();
         assert_eq!(element.id(), Some(key.gpui_element_id()));
     }
 
@@ -445,9 +456,43 @@ mod tests {
             None
         });
 
-        ProjectedElement::from_tree(&tree, NodeKey::ROOT, None, None, None, Some(factory)).unwrap();
+        ProjectedElement::from_tree(&tree, NodeKey::ROOT, None, None, None, Some(factory), false)
+            .unwrap();
 
         assert_eq!(*seen.borrow(), [NodeKey::ROOT, old, recreated]);
+    }
+
+    #[test]
+    fn blocked_interaction_policy_removes_native_input_from_the_subtree() {
+        let child = NodeKey::new(27, 1);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            NodeKey::ROOT,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Root,
+        )
+        .unwrap();
+        tree.insert(
+            child,
+            Some(NodeKey::ROOT),
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("button".into()),
+        )
+        .unwrap();
+        tree.update_interaction_policy(NodeKey::ROOT, None, true, false)
+            .unwrap();
+        let input: ProjectedInputSink = Rc::new(|_, _| {});
+
+        let root =
+            ProjectedElement::from_tree(&tree, NodeKey::ROOT, Some(input), None, None, None, false)
+                .unwrap();
+
+        assert!(root.input.is_none());
     }
 
     #[test]
