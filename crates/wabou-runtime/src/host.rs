@@ -463,24 +463,6 @@ impl Drop for HostServicesGuard {
     }
 }
 
-struct ResourceCacheShutdownGuard {
-    cache: Arc<ResourceCache>,
-}
-
-impl ResourceCacheShutdownGuard {
-    fn new(cache: Arc<ResourceCache>) -> Self {
-        Self { cache }
-    }
-}
-
-impl Drop for ResourceCacheShutdownGuard {
-    fn drop(&mut self) {
-        if let Err(error) = self.cache.shutdown() {
-            tracing::warn!(%error, "failed to gracefully close persistent asset cache");
-        }
-    }
-}
-
 #[cfg(feature = "profiling")]
 fn init_tracing() -> Option<tracing_chrome::FlushGuard> {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
@@ -1162,17 +1144,7 @@ impl HostBuilder {
         let windows = std::iter::once(self.window.clone())
             .chain(self.additional_windows.iter().cloned())
             .collect::<Vec<_>>();
-        let asset_cache = Arc::new(if let Some(directories) = &app_directories {
-            ResourceCache::with_disk(&directories.cache_dir).unwrap_or_else(|error| {
-                tracing::warn!(%error, "failed to enable persistent asset cache");
-                ResourceCache::memory_only()
-            })
-        } else {
-            ResourceCache::memory_only()
-        });
-        // Declared immediately after the cache so it runs on successful exit
-        // and on every later `?` path, before the cache-owned runtime is dropped.
-        let _asset_cache_shutdown = ResourceCacheShutdownGuard::new(asset_cache.clone());
+        let asset_cache = Arc::new(ResourceCache::memory_only());
         self.image_resources.set_cache(asset_cache.clone());
 
         #[cfg(feature = "devtools")]

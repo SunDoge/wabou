@@ -1,24 +1,17 @@
-//! Shared memory/disk cache for raw resources and their decoded forms.
+//! Shared in-memory cache for raw resources and their decoded forms.
 
-use std::path::Path;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime};
 
-use foyer::{
-    BlockEngineConfig, Cache, CacheBuilder, DeviceBuilder, FsDeviceBuilder, HybridCache,
-    HybridCacheBuilder, HybridCachePolicy, PsyncIoEngineConfig,
-};
+use moka::sync::Cache;
 
 use wabou_shell::svg::SvgImage;
 
 const DECODED_SVG_ENTRIES: usize = 256;
-const RAW_MEMORY_ENTRIES: usize = 256;
 const ENCODED_MEMORY_BYTES: usize = 16 * 1024 * 1024;
-const ENCODED_DISK_BYTES: usize = 256 * 1024 * 1024;
 const MAX_NETWORK_RESOURCE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_CONCURRENT_NETWORK_LOADS: usize = 8;
 const NETWORK_IMAGE_MAX_AGE: Duration = Duration::from_secs(7 * 24 * 60 * 60);
-const RAW_ENVELOPE_MAGIC: &[u8; 4] = b"WRC1";
 
 pub type SvgAsset = Result<Arc<SvgImage>, Arc<str>>;
 
@@ -65,17 +58,14 @@ struct MemoryRawResource {
     stored_at: SystemTime,
 }
 
-enum RawResourceCache {
-    Memory(Cache<String, MemoryRawResource>),
-    Hybrid(HybridCache<String, Vec<u8>>),
-}
-
-/// Raw resources use a memory or hybrid memory/file cache. Decoded resources
-/// stay memory-only because renderer objects are not stable disk data.
+/// Raw and decoded resources stay in memory for the application lifetime.
+///
+/// Explicit image handles own decoded application resources. This cache only
+/// deduplicates network bytes and SVG parsing within a process; persistent
+/// application data belongs to the separate application cache APIs.
 pub struct ResourceCache {
-    raw: RawResourceCache,
+    raw: Cache<String, MemoryRawResource>,
     decoded_svgs: Cache<String, SvgAsset>,
-    runtime: Option<Arc<tokio::runtime::Runtime>>,
     http: reqwest::Client,
     network_slots: Arc<tokio::sync::Semaphore>,
 }
@@ -83,11 +73,8 @@ pub struct ResourceCache {
 impl std::fmt::Debug for ResourceCache {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ResourceCache")
-            .field(
-                "disk_enabled",
-                &matches!(self.raw, RawResourceCache::Hybrid(_)),
-            )
-            .field("decoded_svgs", &self.decoded_svgs.usage())
+            .field("raw_entries", &self.raw.entry_count())
+            .field("decoded_svgs", &self.decoded_svgs.entry_count())
             .finish()
     }
 }
@@ -103,58 +90,24 @@ impl ResourceCache {
     }
 
     pub fn memory_only() -> Self {
+        let raw = Cache::builder()
+            .max_capacity(ENCODED_MEMORY_BYTES as u64)
+            .weigher(|key: &String, value: &MemoryRawResource| {
+                key.len()
+                    .saturating_add(value.bytes.len())
+                    .min(u32::MAX as usize) as u32
+            })
+            .build();
         Self {
-            raw: RawResourceCache::Memory(CacheBuilder::new(RAW_MEMORY_ENTRIES).build()),
-            decoded_svgs: CacheBuilder::new(DECODED_SVG_ENTRIES).build(),
-            runtime: None,
+            raw,
+            decoded_svgs: Cache::new(DECODED_SVG_ENTRIES as u64),
             http: Self::http_client(),
             network_slots: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_NETWORK_LOADS)),
         }
     }
 
-    pub fn with_disk(cache_dir: &Path) -> Result<Self, String> {
-        let runtime = Arc::new(
-            tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(2)
-                .enable_all()
-                .build()
-                .map_err(|error| error.to_string())?,
-        );
-        let resources_dir = cache_dir.join("wabou-resources-v2");
-        std::fs::create_dir_all(&resources_dir).map_err(|error| error.to_string())?;
-        let device = FsDeviceBuilder::new(&resources_dir)
-            .with_capacity(ENCODED_DISK_BYTES)
-            .build()
-            .map_err(|error| error.to_string())?;
-        let spawner = runtime.handle().clone().into();
-        let raw = runtime
-            .block_on(
-                HybridCacheBuilder::new()
-                    .with_name("wabou-resources")
-                    .with_policy(HybridCachePolicy::WriteOnInsertion)
-                    .with_flush_on_close(false)
-                    .memory(ENCODED_MEMORY_BYTES)
-                    .with_weighter(|key: &String, value: &Vec<u8>| key.len() + value.len())
-                    .storage()
-                    .with_io_engine_config(PsyncIoEngineConfig::new())
-                    .with_engine_config(BlockEngineConfig::new(device))
-                    .with_spawner(spawner)
-                    .build(),
-            )
-            .map_err(|error| error.to_string())?;
-        Ok(Self {
-            raw: RawResourceCache::Hybrid(raw),
-            decoded_svgs: CacheBuilder::new(DECODED_SVG_ENTRIES).build(),
-            runtime: Some(runtime),
-            http: Self::http_client(),
-            network_slots: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_NETWORK_LOADS)),
-        })
-    }
-
     pub fn svg(&self, key: &str) -> Option<SvgAsset> {
-        self.decoded_svgs
-            .get(key)
-            .map(|entry| entry.value().clone())
+        self.decoded_svgs.get(key)
     }
 
     pub fn insert_svg(&self, key: impl Into<String>, value: SvgAsset) {
@@ -163,38 +116,15 @@ impl ResourceCache {
 
     pub async fn raw(&self, namespace: ResourceNamespace, identifier: &str) -> Option<Arc<[u8]>> {
         let key = namespace.key(identifier);
-        match &self.raw {
-            RawResourceCache::Memory(cache) => {
-                let entry = cache.get(&key)?;
-                if namespace.max_age.is_some_and(|max_age| {
-                    entry
-                        .value()
-                        .stored_at
-                        .elapsed()
-                        .is_ok_and(|age| age > max_age)
-                }) {
-                    drop(entry);
-                    cache.remove(&key);
-                    None
-                } else {
-                    Some(entry.value().bytes.clone())
-                }
-            }
-            RawResourceCache::Hybrid(cache) => {
-                let entry = cache.get(&key).await.ok().flatten()?;
-                let value = entry.value();
-                let (stored_at, bytes) = Self::decode_raw_envelope(value)?;
-                if namespace
-                    .max_age
-                    .is_some_and(|max_age| stored_at.elapsed().is_ok_and(|age| age > max_age))
-                {
-                    drop(entry);
-                    cache.remove(&key);
-                    None
-                } else {
-                    Some(Arc::from(bytes))
-                }
-            }
+        let entry = self.raw.get(&key)?;
+        if namespace
+            .max_age
+            .is_some_and(|max_age| entry.stored_at.elapsed().is_ok_and(|age| age > max_age))
+        {
+            self.raw.invalidate(&key);
+            None
+        } else {
+            Some(entry.bytes)
         }
     }
 
@@ -206,42 +136,13 @@ impl ResourceCache {
     ) {
         let key = namespace.key(identifier);
         let value = value.into();
-        match &self.raw {
-            RawResourceCache::Memory(cache) => {
-                cache.insert(
-                    key,
-                    MemoryRawResource {
-                        bytes: value,
-                        stored_at: SystemTime::now(),
-                    },
-                );
-            }
-            RawResourceCache::Hybrid(cache) => {
-                cache.insert(key, Self::encode_raw_envelope(&value));
-            }
-        }
-    }
-
-    fn encode_raw_envelope(value: &[u8]) -> Vec<u8> {
-        let stored_at = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let mut encoded = Vec::with_capacity(RAW_ENVELOPE_MAGIC.len() + 8 + value.len());
-        encoded.extend_from_slice(RAW_ENVELOPE_MAGIC);
-        encoded.extend_from_slice(&stored_at.to_le_bytes());
-        encoded.extend_from_slice(value);
-        encoded
-    }
-
-    fn decode_raw_envelope(value: &[u8]) -> Option<(SystemTime, &[u8])> {
-        let timestamp = value
-            .strip_prefix(RAW_ENVELOPE_MAGIC)?
-            .get(..8)?
-            .try_into()
-            .ok()
-            .map(u64::from_le_bytes)?;
-        Some((UNIX_EPOCH + Duration::from_secs(timestamp), &value[12..]))
+        self.raw.insert(
+            key,
+            MemoryRawResource {
+                bytes: value,
+                stored_at: SystemTime::now(),
+            },
+        );
     }
 
     /// Fetch a bounded remote image using the cache-wide connection pool and
@@ -302,23 +203,10 @@ impl ResourceCache {
         Ok(bytes)
     }
 
-    /// Close persistent storage while its dedicated runtime is still alive.
-    ///
-    /// Foyer also initiates a close from `Drop`, but that close is asynchronous.
-    /// Waiting here prevents the runtime from cancelling storage flusher and
-    /// reclaim tasks during application teardown.
-    pub(crate) fn shutdown(&self) -> Result<(), String> {
-        let (RawResourceCache::Hybrid(cache), Some(runtime)) = (&self.raw, &self.runtime) else {
-            return Ok(());
-        };
-        runtime
-            .block_on(cache.close())
-            .map_err(|error| error.to_string())
-    }
-
     #[cfg(test)]
     pub fn decoded_svg_entries(&self) -> usize {
-        self.decoded_svgs.usage()
+        self.decoded_svgs.run_pending_tasks();
+        self.decoded_svgs.entry_count() as usize
     }
 }
 
@@ -354,28 +242,6 @@ mod tests {
             cache.svg("invalid").unwrap().unwrap_err().as_ref(),
             "bad SVG"
         );
-    }
-
-    #[test]
-    fn hybrid_cache_round_trips_encoded_bytes() {
-        let directory = tempfile::tempdir().unwrap();
-        let cache = ResourceCache::with_disk(directory.path()).unwrap();
-        cache.insert_raw(
-            ResourceNamespace::NETWORK_IMAGE,
-            "https://example.test/icon.png",
-            vec![1, 2, 3, 4],
-        );
-
-        let bytes = cache.runtime.as_ref().unwrap().block_on(cache.raw(
-            ResourceNamespace::NETWORK_IMAGE,
-            "https://example.test/icon.png",
-        ));
-        assert_eq!(bytes.as_deref(), Some([1, 2, 3, 4].as_slice()));
-        assert!(directory.path().join("wabou-resources-v2").is_dir());
-        cache.shutdown().unwrap();
-        // Closing is idempotent, which lets teardown guards cover every exit
-        // path without coordinating with callers that already shut down.
-        cache.shutdown().unwrap();
     }
 
     #[test]

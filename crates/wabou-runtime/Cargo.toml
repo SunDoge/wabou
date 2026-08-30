@@ -15,13 +15,13 @@ arc-swap = { workspace = true }
 bitflags = { workspace = true }
 bon = { workspace = true }
 dioxus-devtools = { workspace = true, optional = true }
-foyer = "0.22.3"
 flume = { workspace = true }
 futures-lite = "2"
 getrandom = { workspace = true }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
 jiff = { workspace = true }
 lasso = "0.7.3"
+moka = { workspace = true }
 open = { workspace = true }
 parley = { workspace = true }
 reqwest = {
@@ -45,7 +45,7 @@ sourcemap = "9.2.2"
 sys-locale = { workspace = true }
 taffy = { workspace = true, features = ["content_size", "parse"] }
 tempfile = "3"
-tokio = { workspace = true, features = ["fs", "rt-multi-thread", "sync", "time"] }
+tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 tracing = { workspace = true }
 tracing-chrome = { version = "0.7.2", optional = true }
