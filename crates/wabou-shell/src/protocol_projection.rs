@@ -260,6 +260,25 @@ impl GpuiProjection {
         self.tree.node(key).is_some()
     }
 
+    /// Whether `target` or one of its retained ancestors listens for `event_type`.
+    ///
+    /// Event bubbling is a guest-runtime concern; the native shell only needs
+    /// this query to avoid crossing the JS boundary when no handler can run.
+    pub fn has_listener_in_chain(&self, mut target: NodeKey, event_type: u8) -> bool {
+        loop {
+            let Some(node) = self.tree.node(target) else {
+                return false;
+            };
+            if node.listeners.contains(&event_type) {
+                return true;
+            }
+            let Some(parent) = node.parent else {
+                return false;
+            };
+            target = parent;
+        }
+    }
+
     pub fn text_controls(&self) -> Vec<GpuiTextControl> {
         self.tree
             .roots()
@@ -671,6 +690,7 @@ mod tests {
         assert_eq!(node.focus_order, Some(7));
         assert!(node.focus_contained);
         assert!(!node.interaction_blocked);
+        assert!(projection.has_listener_in_chain(key(2), wabou_protocol::event::CLICK));
 
         projection
             .apply_ops(
@@ -686,6 +706,7 @@ mod tests {
             )
             .unwrap();
         assert!(projection.tree().node(key(2)).unwrap().listeners.is_empty());
+        assert!(!projection.has_listener_in_chain(key(2), wabou_protocol::event::CLICK));
     }
 
     #[test]
