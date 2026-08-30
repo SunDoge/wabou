@@ -448,7 +448,11 @@ export function App() {
     const queueing = agent.state.connection === "running";
     if (agent.state.connection !== "ready" && !(await start())) return;
     const userMessageId = `user-${nextMessage++}`;
-    if (!queueing && workspaceInfo.latest()?.repository) {
+    const repository = !queueing
+      ? (workspaceInfo.latest() ??
+        (await api.workspaceInfo(agent.cwd).catch(() => undefined)))
+      : undefined;
+    if (repository?.repository) {
       try {
         await turnCheckpoints.capture(userMessageId, agent.cwd, agent.id);
       } catch (error) {
