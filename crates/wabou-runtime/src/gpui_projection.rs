@@ -11,7 +11,7 @@ use wabou_shell_gpui::{
 };
 
 use crate::atom::AtomPool;
-use crate::protocol::{Frame, Op};
+use crate::protocol::{Frame, GRAPHIC_SOURCE_RESOURCE_RASTER, GRAPHIC_SOURCE_SVG, Op};
 
 #[derive(Debug)]
 pub(crate) struct GpuiProjection {
@@ -43,6 +43,7 @@ impl GpuiProjection {
         &mut self,
         frame: &Frame<'_>,
         atoms: &AtomPool,
+        images: &crate::ImageResourceStore,
     ) -> Result<(), ProjectionError> {
         for op in &frame.ops {
             match op {
@@ -101,6 +102,29 @@ impl GpuiProjection {
                     if let Some(name) = atoms.resolve(*name) {
                         self.tree.remove_attribute(*id, name)?;
                     }
+                }
+                Op::SetGraphicSource { id, kind, source } => match *kind {
+                    GRAPHIC_SOURCE_SVG => self.tree.update_image(
+                        *id,
+                        Some(std::sync::Arc::new(
+                            wabou_shell_gpui::gpui::Image::from_bytes(
+                                wabou_shell_gpui::gpui::ImageFormat::Svg,
+                                source.as_bytes().to_vec(),
+                            ),
+                        )),
+                    )?,
+                    GRAPHIC_SOURCE_RESOURCE_RASTER => {
+                        let image = parse_image_handle(source)
+                            .and_then(|handle| images.get(handle))
+                            .map(|resource| resource.gpui_image());
+                        self.tree.update_image(*id, image)?;
+                    }
+                    _ => {}
+                },
+                Op::ClearGraphicSource { id, kind }
+                    if matches!(*kind, GRAPHIC_SOURCE_SVG | GRAPHIC_SOURCE_RESOURCE_RASTER) =>
+                {
+                    self.tree.update_image(*id, None)?
                 }
                 _ => {}
             }
@@ -180,6 +204,14 @@ impl GpuiProjection {
     }
 }
 
+fn parse_image_handle(source: &str) -> Option<crate::ImageResourceHandle> {
+    let (lo, hi) = source.split_once(':')?;
+    Some(crate::ImageResourceHandle {
+        lo: lo.parse().ok()?,
+        hi: hi.parse().ok()?,
+    })
+}
+
 pub(crate) fn project_ir(
     projection: &mut StyleProjection,
     property: &str,
@@ -235,6 +267,7 @@ fn gpui_style() -> wabou_shell_gpui::gpui::Style {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use image::ImageEncoder as _;
 
     fn key(lo: u32) -> NodeKey {
         NodeKey::new(lo, 1)
@@ -273,6 +306,7 @@ mod tests {
                     ],
                 },
                 &atoms,
+                &crate::ImageResourceStore::default(),
             )
             .unwrap();
 
@@ -313,6 +347,7 @@ mod tests {
                     ],
                 },
                 &atoms,
+                &crate::ImageResourceStore::default(),
             )
             .unwrap();
         projection
@@ -330,5 +365,67 @@ mod tests {
         assert_eq!(projection.revision(), initial_revision + 1);
         assert!(!projection.finish_frame());
         assert_eq!(projection.revision(), initial_revision + 1);
+    }
+
+    #[test]
+    fn graphic_sources_project_to_gpui_images_and_clear_explicitly() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let image_tag = atoms.intern("img");
+        let images = crate::ImageResourceStore::default();
+        let mut png = Vec::new();
+        image::codecs::png::PngEncoder::new(&mut png)
+            .write_image(&[1, 2, 3, 255], 1, 1, image::ExtendedColorType::Rgba8)
+            .unwrap();
+        let handle = images.create(&png).unwrap();
+        let source = format!("{}:{}", handle.lo, handle.hi);
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: image_tag,
+                        },
+                        Op::SetGraphicSource {
+                            id: key(2),
+                            kind: GRAPHIC_SOURCE_RESOURCE_RASTER,
+                            source: &source,
+                        },
+                    ],
+                },
+                &atoms,
+                &images,
+            )
+            .unwrap();
+
+        assert_eq!(
+            projection
+                .tree()
+                .node(key(2))
+                .unwrap()
+                .image
+                .as_ref()
+                .unwrap()
+                .format(),
+            wabou_shell_gpui::gpui::ImageFormat::Png
+        );
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 2,
+                    ops: vec![Op::ClearGraphicSource {
+                        id: key(2),
+                        kind: GRAPHIC_SOURCE_RESOURCE_RASTER,
+                    }],
+                },
+                &atoms,
+                &images,
+            )
+            .unwrap();
+        assert!(projection.tree().node(key(2)).unwrap().image.is_none());
     }
 }

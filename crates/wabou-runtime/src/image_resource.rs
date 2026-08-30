@@ -42,6 +42,7 @@ impl ImageResourceHandle {
 /// One immutable source image plus a bounded renderer-ready derivative.
 pub struct ImageResource {
     source: Arc<image::DynamicImage>,
+    gpui: Arc<wabou_shell_gpui::gpui::Image>,
     drawable: Arc<wabou_shell::image::RasterImage>,
 }
 
@@ -50,6 +51,9 @@ impl ImageResource {
         let reader = image::ImageReader::new(std::io::Cursor::new(bytes))
             .with_guessed_format()
             .map_err(|error| error.to_string())?;
+        let format = reader
+            .format()
+            .ok_or_else(|| "image format could not be determined".to_owned())?;
         let (width, height) = reader
             .into_dimensions()
             .map_err(|error| error.to_string())?;
@@ -70,6 +74,10 @@ impl ImageResource {
         };
         Ok(Self {
             source,
+            gpui: Arc::new(wabou_shell_gpui::gpui::Image::from_bytes(
+                gpui_image_format(format)?,
+                bytes.to_vec(),
+            )),
             drawable: Arc::new(wabou_shell::image::RasterImage::from_rgba(drawable_rgba)),
         })
     }
@@ -84,9 +92,31 @@ impl ImageResource {
         self.source.to_rgb8()
     }
 
+    /// Lazily decoded and cached by GPUI when an image element first paints.
+    pub(crate) fn gpui_image(&self) -> Arc<wabou_shell_gpui::gpui::Image> {
+        self.gpui.clone()
+    }
+
     pub(crate) fn drawable(&self) -> Arc<wabou_shell::image::RasterImage> {
         self.drawable.clone()
     }
+}
+
+fn gpui_image_format(
+    format: image::ImageFormat,
+) -> Result<wabou_shell_gpui::gpui::ImageFormat, String> {
+    use wabou_shell_gpui::gpui::ImageFormat as Gpui;
+    Ok(match format {
+        image::ImageFormat::Png => Gpui::Png,
+        image::ImageFormat::Jpeg => Gpui::Jpeg,
+        image::ImageFormat::WebP => Gpui::Webp,
+        image::ImageFormat::Gif => Gpui::Gif,
+        image::ImageFormat::Bmp => Gpui::Bmp,
+        image::ImageFormat::Tiff => Gpui::Tiff,
+        image::ImageFormat::Ico => Gpui::Ico,
+        image::ImageFormat::Pnm => Gpui::Pnm,
+        other => return Err(format!("image format {other:?} is not supported by GPUI")),
+    })
 }
 
 #[derive(Default)]

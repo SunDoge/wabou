@@ -39,6 +39,9 @@ impl ProjectedElement {
         if let Some(text) = &node.text {
             children.push(div().child(text.clone()).into_any_element());
         }
+        if let Some(image) = &node.image {
+            children.push(gpui::img(image.clone()).size_full().into_any_element());
+        }
         for child in &node.children {
             children
                 .push(Self::from_tree(tree, *child, input.clone(), None, None)?.into_any_element());

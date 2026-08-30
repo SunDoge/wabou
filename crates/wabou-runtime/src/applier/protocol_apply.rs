@@ -570,9 +570,10 @@ impl Applier {
 
     /// Decode + apply one frame's ops in order.
     pub(super) fn apply_frame(&mut self, frame: &Frame) {
-        if let Err(error) = self
-            .gpui_projection
-            .apply_ops(frame, &self.document.atoms.borrow())
+        let image_store = self.document.resources.image_store.clone();
+        if let Err(error) =
+            self.gpui_projection
+                .apply_ops(frame, &self.document.atoms.borrow(), &image_store)
         {
             tracing::error!(?error, "failed to project Solid frame into GPUI");
         }

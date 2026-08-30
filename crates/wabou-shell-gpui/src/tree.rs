@@ -29,6 +29,8 @@ pub struct ProjectedNode {
     pub children: Vec<NodeKey>,
     pub style: Style,
     pub text: Option<SharedString>,
+    /// Optional GPUI-owned display asset projected from a graphic source.
+    pub image: Option<std::sync::Arc<gpui::Image>>,
     /// Authored attributes after the latest completed Solid flush.
     pub attributes: BTreeMap<SharedString, SharedString>,
 }
@@ -146,6 +148,7 @@ impl ProjectionTree {
                 children: Vec::new(),
                 style,
                 text,
+                image: None,
                 attributes: BTreeMap::new(),
             },
         );
@@ -277,6 +280,22 @@ impl ProjectionTree {
             .text = text;
         self.dirty
             .invalidate(key, DirtyKind::TEXT | DirtyKind::LAYOUT | DirtyKind::PAINT);
+        self.invalidate_layout_ancestors(key);
+        Ok(())
+    }
+
+    /// Replace the display image attached to one retained node.
+    pub fn update_image(
+        &mut self,
+        key: NodeKey,
+        image: Option<std::sync::Arc<gpui::Image>>,
+    ) -> Result<(), ProjectionError> {
+        self.nodes
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?
+            .image = image;
+        self.dirty
+            .invalidate(key, DirtyKind::LAYOUT | DirtyKind::PAINT);
         self.invalidate_layout_ancestors(key);
         Ok(())
     }
