@@ -83,10 +83,7 @@ function assertFullWorkbenchLayout(
     );
   }
   const compactSurfaceLimit = viewportWidth >= 1_000 ? 112 : 144;
-  if (
-    editor.rect.height > 48 ||
-    composer.rect.height > compactSurfaceLimit
-  ) {
+  if (editor.rect.height > 48 || composer.rect.height > compactSurfaceLimit) {
     throw new Error(
       `empty workbench composer lost its compact density: editor=${editor.rect.height}, surface=${composer.rect.height}, limit=${compactSurfaceLimit}`,
     );
@@ -509,8 +506,26 @@ try {
         height: 96,
         checks: ["visible-overflow", "text-collision"],
         assert: (fixture) => {
-          getLayoutNode(fixture, { role: "combobox", name: "Choose model" });
-          getLayoutNode(fixture, { role: "combobox", name: "Thinking level" });
+          const model = getLayoutNode(fixture, {
+            role: "combobox",
+            name: "Choose model",
+          });
+          const thinking = getLayoutNode(fixture, {
+            role: "combobox",
+            name: "Thinking level",
+          });
+          for (const trigger of [model, thinking]) {
+            if (Math.abs(trigger.rect.height - 32) > 0.5) {
+              throw new Error(
+                `header picker must use compact 32px geometry; got ${trigger.rect.height}px`,
+              );
+            }
+            if (!trigger.classes.includes("bg-transparent")) {
+              throw new Error(
+                `header picker must use the quiet ghost surface; classes=${trigger.classes.join(" ")}`,
+              );
+            }
+          }
         },
       },
       {

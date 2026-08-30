@@ -628,22 +628,24 @@ defineLayoutFixtures({
     width: 480,
     height: 96,
     render: () => (
-      <ModelControls
-        models={[
-          {
-            provider: "anthropic",
-            id: "claude-sonnet-4-5",
-            name: "Claude Sonnet 4.5",
-            reasoning: true,
-          },
-        ]}
-        modelProvider="anthropic"
-        modelId="claude-sonnet-4-5"
-        thinking="medium"
-        thinkingLevels={["off", "medium", "high"]}
-        chooseModel={() => {}}
-        chooseThinking={() => {}}
-      />
+      <View class="w-full h-full flex items-center bg-canvas p-4">
+        <ModelControls
+          models={[
+            {
+              provider: "anthropic",
+              id: "claude-sonnet-4-5",
+              name: "Claude Sonnet 4.5",
+              reasoning: true,
+            },
+          ]}
+          modelProvider="anthropic"
+          modelId="claude-sonnet-4-5"
+          thinking="medium"
+          thinkingLevels={["off", "medium", "high"]}
+          chooseModel={() => {}}
+          chooseThinking={() => {}}
+        />
+      </View>
     ),
   },
   "settings/project-and-application": {

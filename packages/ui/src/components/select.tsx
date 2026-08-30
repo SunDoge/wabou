@@ -18,7 +18,11 @@ import {
   type SelectCommand,
 } from "../primitives/interactions";
 import type { PopupMotionProps } from "./popover";
-import { selectControlsId } from "./select-semantics";
+import {
+  type PickerTriggerVariant,
+  pickerTriggerClass,
+  selectControlsId,
+} from "./select-semantics";
 import {
   componentsControlSize,
   componentsElevation,
@@ -44,6 +48,7 @@ export interface SelectProps extends PopupMotionProps {
   placeholder?: string;
   "aria-label": string;
   class?: string;
+  triggerVariant?: PickerTriggerVariant;
   contentClass?: string;
   contentShadows?: readonly Shadow[] | null;
   onValueChange?: (value: string) => void;
@@ -158,9 +163,9 @@ export function Select(props: SelectProps): JSX.Element {
           }}
           class={(state) =>
             mergeClasses(
-              "w-72 overflow-hidden justify-between border bg-input shadow-xs",
+              "w-72 overflow-hidden justify-between border",
               componentsControlSize("default"),
-              state.focused ? "border-focus" : "border-subtle",
+              pickerTriggerClass(props.triggerVariant ?? "default", state),
               props.class,
             )
           }

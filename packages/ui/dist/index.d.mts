@@ -336,6 +336,9 @@ declare function PopoverFooter(props: {
   class?: string;
 }): JSX.Element;
 //#endregion
+//#region src/components/select-semantics.d.ts
+type PickerTriggerVariant = "default" | "ghost";
+//#endregion
 //#region src/components/combobox.d.ts
 interface ComboboxOption extends CommandItem {
   value: string;
@@ -352,6 +355,7 @@ interface ComboboxProps extends PopupMotionProps {
   searchPlaceholder?: string;
   emptyText?: string;
   class?: string;
+  triggerVariant?: PickerTriggerVariant;
   contentClass?: string;
   contentShadows?: readonly Shadow[] | null;
   onValueChange?: (value: string) => void;
@@ -1352,6 +1356,7 @@ interface SelectProps extends PopupMotionProps {
   placeholder?: string;
   "aria-label": string;
   class?: string;
+  triggerVariant?: PickerTriggerVariant;
   contentClass?: string;
   contentShadows?: readonly Shadow[] | null;
   onValueChange?: (value: string) => void;

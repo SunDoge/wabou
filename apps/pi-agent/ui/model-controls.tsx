@@ -42,7 +42,8 @@ export function ModelControls(props: {
     <View class="min-w-0 flex-none flex flex-row items-center gap-1 overflow-hidden">
       <Combobox
         aria-label={i18n.message(m.choose_model, {})}
-        class="w-44 border-transparent shadow-none"
+        triggerVariant="ghost"
+        class="w-44 h-8 px-2"
         contentClass="w-80"
         options={modelOptions()}
         value={selectedModel()}
@@ -61,7 +62,8 @@ export function ModelControls(props: {
       />
       <Select
         aria-label={i18n.message(m.choose_thinking, {})}
-        class="w-28 border-transparent shadow-none"
+        triggerVariant="ghost"
+        class="w-28 h-8 px-2"
         contentClass="w-40"
         options={thinkingOptions()}
         value={props.thinking}

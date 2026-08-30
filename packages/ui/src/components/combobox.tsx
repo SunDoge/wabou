@@ -7,6 +7,10 @@ import { Button as HeadlessButton, Icon, Popover, Text } from "../primitives";
 import { Command, type CommandItem } from "./command";
 import type { PopupMotionProps } from "./popover";
 import {
+  type PickerTriggerVariant,
+  pickerTriggerClass,
+} from "./select-semantics";
+import {
   componentsControlSize,
   componentsElevation,
   useComponentsTheme,
@@ -28,6 +32,7 @@ export interface ComboboxProps extends PopupMotionProps {
   searchPlaceholder?: string;
   emptyText?: string;
   class?: string;
+  triggerVariant?: PickerTriggerVariant;
   contentClass?: string;
   contentShadows?: readonly Shadow[] | null;
   onValueChange?: (value: string) => void;
@@ -99,9 +104,9 @@ export function Combobox(props: ComboboxProps): JSX.Element {
           }}
           class={(state) =>
             mergeClasses(
-              "w-72 overflow-hidden justify-between border bg-input shadow-xs",
+              "w-72 overflow-hidden justify-between border",
               componentsControlSize("default"),
-              state.focused ? "border-focus" : "border-subtle",
+              pickerTriggerClass(props.triggerVariant ?? "default", state),
               props.class,
             )
           }

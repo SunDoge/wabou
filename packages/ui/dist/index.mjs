@@ -1437,7 +1437,7 @@ function CodeBlock(props) {
 				class: "h-8 flex flex-row items-center justify-between gap-3 pl-3 pr-1 bg-control",
 				get children() {
 					return [createComponent$1(Text, {
-						class: "min-w-0 font-mono text-xs text-muted",
+						class: "min-w-0 font-mono text-xs text-secondary",
 						get children() {
 							return props.language ?? "text";
 						}
@@ -1674,6 +1674,17 @@ function Command(props) {
 	});
 }
 //#endregion
+//#region src/components/select-semantics.ts
+function pickerTriggerClass(variant, state) {
+	const focus = state.focused ? "border-focus" : "border-transparent";
+	if (variant === "default") return mergeClasses("bg-input shadow-xs", state.focused ? "border-focus" : "border-subtle");
+	return mergeClasses(state.pressed ? "bg-control-pressed" : state.hovered ? "bg-control-hover" : "bg-transparent", "shadow-none", focus);
+}
+/** Keep semantic ID references live for the same lifetime as the popup node. */
+function selectControlsId(listboxId, open) {
+	return open ? listboxId : void 0;
+}
+//#endregion
 //#region src/components/combobox.tsx
 /** A searchable single-value picker built from Popover and Command. */
 function Combobox(props) {
@@ -1741,7 +1752,7 @@ function Combobox(props) {
 				trigger = node;
 				popover.ref(node);
 			},
-			class: (state) => mergeClasses("w-72 overflow-hidden justify-between border bg-input shadow-xs", componentsControlSize("default"), state.focused ? "border-focus" : "border-subtle", props.class),
+			class: (state) => mergeClasses("w-72 overflow-hidden justify-between border", componentsControlSize("default"), pickerTriggerClass(props.triggerVariant ?? "default", state), props.class),
 			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 			get onClick() {
 				return popover.onClick;
@@ -6796,12 +6807,6 @@ function MessageScrollerButton(props) {
 	});
 }
 //#endregion
-//#region src/components/select-semantics.ts
-/** Keep semantic ID references live for the same lifetime as the popup node. */
-function selectControlsId(listboxId, open) {
-	return open ? listboxId : void 0;
-}
-//#endregion
 //#region src/components/select.tsx
 const ITEM_HEIGHT = 40;
 const VISIBLE_ITEMS = 6;
@@ -6891,7 +6896,7 @@ function Select(props) {
 				trigger = node;
 				popover.ref(node);
 			},
-			class: (state) => mergeClasses("w-72 overflow-hidden justify-between border bg-input shadow-xs", componentsControlSize("default"), state.focused ? "border-focus" : "border-subtle", props.class),
+			class: (state) => mergeClasses("w-72 overflow-hidden justify-between border", componentsControlSize("default"), pickerTriggerClass(props.triggerVariant ?? "default", state), props.class),
 			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 			get onClick() {
 				return popover.onClick;

@@ -43,6 +43,10 @@ test("searches Pi models and reports the exact provider and model id", () => {
 
   const model = screen.getByRole("combobox", { name: "Choose model" });
   expect(model.text).toContain("Claude Sonnet 4.5");
+  expect(model.className).toContain("bg-transparent");
+  expect(model.className).toContain("h-8");
+  model.hover();
+  expect(model.className).toContain("bg-control-hover");
   model.click();
   screen.getByRole("textbox", { name: "Choose model search" }).input("openai");
   screen.getByRole("option", { name: "GPT-5.2 Codex" }).click();
