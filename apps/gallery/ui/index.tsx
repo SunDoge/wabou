@@ -47,6 +47,7 @@ type ComponentId =
   | "toggle"
   | "tabs"
   | "progress"
+  | "prompt-suggestion"
   | "slider"
   | "rating"
   | "fps"
@@ -162,6 +163,7 @@ const groups: Array<{
       { id: "item", name: "Item" },
       { id: "attachment", name: "Attachment" },
       { id: "message", name: "Message" },
+      { id: "prompt-suggestion", name: "Prompt suggestion" },
       { id: "reasoning", name: "Reasoning" },
       { id: "tool", name: "Tool" },
       { id: "message-scroller", name: "Message scroller" },
@@ -240,6 +242,8 @@ const descriptions: Record<ComponentId, string> = {
   toggle: "A two-state button for formatting, filters and compact toolbars.",
   tabs: "Organizes related panels with keyboard-operable native tab semantics.",
   progress: "Shows completion for a task or a long-running operation.",
+  "prompt-suggestion":
+    "Offers container-responsive starter actions without owning their prompt payloads.",
   slider:
     "Selects a numeric value with pointer dragging and keyboard controls.",
   rating:
@@ -403,6 +407,7 @@ import {
   NavigationMenuPage,
   PaginationPage,
   PopoverPage,
+  PromptSuggestionPage,
   ReasoningPage,
   ResizablePage,
   SelectPage,
@@ -705,6 +710,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "message"}>
                     <MessagePage />
+                  </Match>
+                  <Match when={selected() === "prompt-suggestion"}>
+                    <PromptSuggestionPage />
                   </Match>
                   <Match when={selected() === "reasoning"}>
                     <ReasoningPage />

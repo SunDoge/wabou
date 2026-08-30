@@ -122,6 +122,41 @@ const assertReasoningLayout = (snapshot: LayoutSnapshot) => {
     throw new Error(`reasoning trigger is too short: ${trigger.rect.height}`);
 };
 
+const assertPromptSuggestionLayout = (snapshot: LayoutSnapshot) => {
+  const group = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Prompt suggestion fixture",
+  });
+  const review = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Review current changes",
+  });
+  const verify = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Run project checks",
+  });
+  const plan = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Plan a feature",
+  });
+  for (const suggestion of [review, verify, plan]) {
+    assertLayoutRectContains(group.rect, suggestion.rect, {
+      label: "prompt suggestion",
+    });
+    if (suggestion.rect.width < 176) {
+      throw new Error(
+        `prompt suggestion lost readable width: ${suggestion.rect.width}`,
+      );
+    }
+  }
+  if (Math.abs(review.rect.y - verify.rect.y) > 0.5) {
+    throw new Error("prompt suggestions did not form a two-column first row");
+  }
+  if (plan.rect.y <= review.rect.y) {
+    throw new Error("third prompt suggestion did not wrap to the next row");
+  }
+};
+
 const assertSelectLayout = (snapshot: LayoutSnapshot) => {
   const trigger = getLayoutNode(snapshot, {
     role: "combobox",
@@ -439,6 +474,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/Sidebar": { assert: assertSidebarLayout },
   "component/Tool": { assert: assertToolLayout },
   "component/Reasoning": { assert: assertReasoningLayout },
+  "component/PromptSuggestion": { assert: assertPromptSuggestionLayout },
   "component/ScrollArea": { assert: assertScrollAreaLayout },
   "component/Select": { assert: assertSelectLayout },
   "component/Dialog": { assert: assertDialogLayout },

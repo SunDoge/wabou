@@ -24,6 +24,7 @@ import {
   PiModelControlsLayoutFixture,
   PiSessionBehaviorLayoutFixture,
   PiTranscriptSearchLayoutFixture,
+  PromptSuggestionLayoutFixture,
   QRCodeLayoutFixture,
   ReasoningLayoutFixture,
   ScrollAreaLayoutFixture,
@@ -149,6 +150,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 600,
         height: 240,
         render: ReasoningLayoutFixture,
+      },
+      "component/PromptSuggestion": {
+        width: 420,
+        height: 260,
+        render: PromptSuggestionLayoutFixture,
       },
       "component/PiAgentHeader": {
         width: 1080,

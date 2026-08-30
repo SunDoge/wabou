@@ -23,6 +23,8 @@ import {
   MessageContent,
   MessageGroup,
   MessageScroller,
+  PromptSuggestion,
+  PromptSuggestions,
   QRCode,
   Reasoning,
   ReasoningContent,
@@ -147,6 +149,27 @@ export function ReasoningLayoutFixture() {
           </Text>
         </ReasoningContent>
       </Reasoning>
+    </View>
+  );
+}
+
+export function PromptSuggestionLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-5 bg-canvas">
+      <PromptSuggestions role="group" aria-label="Prompt suggestion fixture">
+        <PromptSuggestion
+          title="Review current changes"
+          description="Find the highest-risk issue."
+        />
+        <PromptSuggestion
+          title="Run project checks"
+          description="Discover the validation commands."
+        />
+        <PromptSuggestion
+          title="Plan a feature"
+          description="Turn an idea into an implementation path."
+        />
+      </PromptSuggestions>
     </View>
   );
 }

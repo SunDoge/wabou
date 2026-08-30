@@ -74,6 +74,7 @@ export * from "./number-field";
 export * from "./page";
 export * from "./popover";
 export * from "./progress";
+export * from "./prompt-suggestion";
 export * from "./property-list";
 export * from "./qr-code";
 export * from "./rating";

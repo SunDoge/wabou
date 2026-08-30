@@ -25,6 +25,7 @@ import { ConversationComposer } from "./conversation-composer";
 import { ConversationContext } from "./conversation-context";
 import { ConversationHeader } from "./conversation-header";
 import { ConversationNavigator } from "./conversation-navigator";
+import { ConversationWelcome } from "./conversation-welcome";
 import { ModelControls } from "./model-controls";
 import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
@@ -692,6 +693,15 @@ defineLayoutFixtures({
         setSteeringMode={() => {}}
         setFollowUpMode={() => {}}
       />
+    ),
+  },
+  "conversation/welcome-narrow": {
+    width: 480,
+    height: 420,
+    render: () => (
+      <View class="w-full h-full min-w-0 px-6 bg-canvas">
+        <ConversationWelcome workspace="/work/wabou" choosePrompt={() => {}} />
+      </View>
     ),
   },
 });

@@ -131,6 +131,8 @@ import {
   PopoverFooter,
   PopoverHeader,
   PopoverTitle,
+  PromptSuggestion,
+  PromptSuggestions,
   Reasoning,
   ReasoningContent,
   ReasoningTrigger,
@@ -1042,6 +1044,32 @@ export function ReasoningPage() {
             </ReasoningContent>
           </Reasoning>
         </View>
+      </Preview>
+    </View>
+  );
+}
+
+export function PromptSuggestionPage() {
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Starter prompts">
+        <PromptSuggestions class="max-w-[720px]">
+          <PromptSuggestion
+            icon={rocket}
+            title="Build the next feature"
+            description="Turn an idea into a concrete implementation path."
+          />
+          <PromptSuggestion
+            icon={search}
+            title="Review current changes"
+            description="Find the highest-risk issue and a useful next step."
+          />
+          <PromptSuggestion
+            icon={triangleAlert}
+            title="Fix a failing check"
+            description="Discover validation commands and resolve one failure."
+          />
+        </PromptSuggestions>
       </Preview>
     </View>
   );

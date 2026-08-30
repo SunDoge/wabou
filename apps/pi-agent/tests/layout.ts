@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import {
   getLayoutNode,
   layoutName,
+  layoutRectRight,
   queryLayoutNodes,
 } from "@wabou/test/layout";
 import { renderAppLayout, renderLayoutFixtures } from "@wabou/test/layout/node";
@@ -554,6 +555,39 @@ try {
             throw new Error(
               `narrow settings field lost usable width: ${name.rect.width}`,
             );
+          }
+        },
+      },
+      {
+        id: "conversation/welcome-narrow",
+        width: 480,
+        height: 420,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, { text: "Build wabou with Pi" });
+          const group = getLayoutNode(fixture, {
+            role: "group",
+            name: "Starter prompts",
+          });
+          const suggestions = queryLayoutNodes(fixture, { role: "button" });
+          if (suggestions.length !== 3) {
+            throw new Error(
+              `expected three starter prompts, found ${suggestions.length}`,
+            );
+          }
+          for (const suggestion of suggestions) {
+            if (suggestion.rect.width < 176) {
+              throw new Error(
+                `starter prompt lost readable width: ${suggestion.rect.width}`,
+              );
+            }
+            if (
+              suggestion.rect.x < group.contentRect.x - 0.5 ||
+              layoutRectRight(suggestion.rect) >
+                layoutRectRight(group.contentRect) + 0.5
+            ) {
+              throw new Error("starter prompt escaped its responsive group");
+            }
           }
         },
       },
