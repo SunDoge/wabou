@@ -1308,6 +1308,7 @@ fn run_gpui_windows(windows: Vec<(Applier, WindowOptions)>) -> crate::Result<()>
     let startup_error = Arc::new(std::sync::Mutex::new(None));
     let reported_error = startup_error.clone();
     wabou_shell_gpui::application().run(move |cx| {
+        gpui_base::init(cx);
         for (applier, options) in windows {
             let bounds = wabou_shell_gpui::gpui::Bounds::centered(
                 None,

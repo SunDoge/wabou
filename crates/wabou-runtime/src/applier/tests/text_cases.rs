@@ -265,6 +265,63 @@ fn text_input_updates_value_paints_and_dispatches_input() {
 }
 
 #[test]
+fn gpui_text_change_updates_the_exact_control_and_dispatches_once() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (input, value) = {
+        let mut atoms = applier.document.atoms.borrow_mut();
+        (atoms.intern("input"), atoms.intern("value"))
+    };
+    let target = NodeKey::new(7, 3);
+    applier.apply_op(&Op::CreateElement {
+        id: target,
+        tag: input,
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: target,
+        name: value,
+        value: "before",
+    });
+    applier.apply_op(&Op::AddEventListener {
+        id: target,
+        event_type: event::INPUT,
+    });
+
+    assert!(applier.gpui_commit_text_value(target, "after"));
+    let node = applier.document.node_store.solid_to_node[&target];
+    assert_eq!(
+        applier.document.node_store.declared[&node].attrs[&value].as_ref(),
+        "after"
+    );
+    let dispatched = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<String, _>("JSON.stringify(globalThis.dispatched)"))
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&dispatched).unwrap(),
+        serde_json::json!([[target.lo, event::INPUT, r#"{"value":"after"}"#]])
+    );
+    let dispatched_key = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<String, _>("JSON.stringify(globalThis.dispatchedKeys[0])"))
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&dispatched_key).unwrap(),
+        serde_json::json!([target.lo, target.hi, event::INPUT, r#"{"value":"after"}"#])
+    );
+
+    assert!(!applier.gpui_commit_text_value(NodeKey::new(7, 2), "stale"));
+    assert_eq!(
+        applier.document.node_store.declared[&node].attrs[&value].as_ref(),
+        "after",
+        "a stale generation must never mutate the recreated control"
+    );
+}
+
+#[test]
 fn code_editor_drag_selection_survives_native_pointer_routing() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);

@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 
 use gpui::{SharedString, Style};
 
-use crate::{DirtyKind, FrameBatch, NodeKey, PendingNode, ProjectedElement, ProjectedInputSink};
+use crate::{
+    DirtyKind, FrameBatch, NodeKey, PendingNode, ProjectedElement, ProjectedInputSink,
+    ProjectedNativeElementFactory,
+};
 
 /// Explicit semantic kind retained for every projected protocol node.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -79,7 +82,7 @@ impl ProjectionTree {
     /// The objects are intentionally ephemeral; their stable GPUI element IDs
     /// preserve state and paint caches across frames.
     pub fn element(&self, root: NodeKey) -> Result<ProjectedElement, ProjectionError> {
-        ProjectedElement::from_tree(self, root, None, None, None)
+        ProjectedElement::from_tree(self, root, None, None, None, None)
     }
 
     /// Materialize a root whose GPUI hit targets emit typed pointer events.
@@ -89,8 +92,16 @@ impl ProjectionTree {
         input: ProjectedInputSink,
         focus: gpui::FocusHandle,
         text_input: crate::ProjectedTextInputState,
+        native: Option<ProjectedNativeElementFactory>,
     ) -> Result<ProjectedElement, ProjectionError> {
-        ProjectedElement::from_tree(self, root, Some(input), Some(focus), Some(text_input))
+        ProjectedElement::from_tree(
+            self,
+            root,
+            Some(input),
+            Some(focus),
+            Some(text_input),
+            native,
+        )
     }
 
     pub fn insert(

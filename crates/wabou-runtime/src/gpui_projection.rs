@@ -13,6 +13,16 @@ use wabou_shell_gpui::{
 use crate::atom::AtomPool;
 use crate::protocol::{Frame, GRAPHIC_SOURCE_RESOURCE_RASTER, GRAPHIC_SOURCE_SVG, Op};
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct GpuiTextControl {
+    pub key: NodeKey,
+    pub multiline: bool,
+    pub value: String,
+    pub placeholder: String,
+    pub disabled: bool,
+    pub readonly: bool,
+}
+
 #[derive(Debug)]
 pub(crate) struct GpuiProjection {
     tree: ProjectionTree,
@@ -147,6 +157,47 @@ impl GpuiProjection {
         self.tree.node(key).is_some()
     }
 
+    pub(crate) fn text_controls(&self) -> Vec<GpuiTextControl> {
+        self.tree
+            .roots()
+            .iter()
+            .flat_map(|root| self.text_controls_below(*root))
+            .collect()
+    }
+
+    fn text_controls_below(&self, root: NodeKey) -> Vec<GpuiTextControl> {
+        let mut controls = Vec::new();
+        let mut pending = vec![root];
+        while let Some(key) = pending.pop() {
+            let Some(node) = self.tree.node(key) else {
+                continue;
+            };
+            pending.extend(node.children.iter().rev().copied());
+            let ProjectedNodeKind::Element(tag) = &node.kind else {
+                continue;
+            };
+            if !matches!(tag.as_ref(), "input" | "textarea") {
+                continue;
+            }
+            controls.push(GpuiTextControl {
+                key,
+                multiline: tag.as_ref() == "textarea",
+                value: node
+                    .attributes
+                    .get("value")
+                    .map_or_else(String::new, ToString::to_string),
+                placeholder: node
+                    .attributes
+                    .get("placeholder")
+                    .map_or_else(String::new, ToString::to_string),
+                disabled: node.attributes.contains_key("disabled"),
+                readonly: node.attributes.contains_key("readonly")
+                    || node.attributes.contains_key("readOnly"),
+            });
+        }
+        controls
+    }
+
     #[cfg(test)]
     pub(crate) fn tree_element(
         &self,
@@ -161,9 +212,10 @@ impl GpuiProjection {
         input: wabou_shell_gpui::ProjectedInputSink,
         focus: wabou_shell_gpui::gpui::FocusHandle,
         text_input: wabou_shell_gpui::ProjectedTextInputState,
+        native: Option<wabou_shell_gpui::ProjectedNativeElementFactory>,
     ) -> Result<wabou_shell_gpui::ProjectedElement, ProjectionError> {
         self.tree
-            .interactive_element(root, input, focus, text_input)
+            .interactive_element(root, input, focus, text_input, native)
     }
 
     pub(crate) fn update_style(
@@ -427,5 +479,102 @@ mod tests {
             )
             .unwrap();
         assert!(projection.tree().node(key(2)).unwrap().image.is_none());
+    }
+
+    #[test]
+    fn text_control_descriptors_follow_attached_generational_nodes_and_authored_state() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let input = atoms.intern("input");
+        let textarea = atoms.intern("textarea");
+        let value = atoms.intern("value");
+        let placeholder = atoms.intern("placeholder");
+        let disabled = atoms.intern("disabled");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: input,
+                        },
+                        Op::SetAttribute {
+                            id: key(2),
+                            name: value,
+                            value: "typed",
+                        },
+                        Op::SetAttribute {
+                            id: key(2),
+                            name: placeholder,
+                            value: "Search",
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(2),
+                        },
+                        Op::CreateElement {
+                            id: key(3),
+                            tag: textarea,
+                        },
+                        Op::SetAttribute {
+                            id: key(3),
+                            name: disabled,
+                            value: "",
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(3),
+                        },
+                    ],
+                },
+                &atoms,
+                &crate::ImageResourceStore::default(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            projection.text_controls(),
+            vec![
+                GpuiTextControl {
+                    key: key(2),
+                    multiline: false,
+                    value: "typed".into(),
+                    placeholder: "Search".into(),
+                    disabled: false,
+                    readonly: false,
+                },
+                GpuiTextControl {
+                    key: key(3),
+                    multiline: true,
+                    value: String::new(),
+                    placeholder: String::new(),
+                    disabled: true,
+                    readonly: false,
+                },
+            ]
+        );
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 2,
+                    ops: vec![Op::RemoveChild {
+                        parent: NodeKey::ROOT,
+                        child: key(2),
+                    }],
+                },
+                &atoms,
+                &crate::ImageResourceStore::default(),
+            )
+            .unwrap();
+        assert_eq!(
+            projection
+                .text_controls()
+                .into_iter()
+                .map(|control| control.key)
+                .collect::<Vec<_>>(),
+            [key(3)]
+        );
     }
 }

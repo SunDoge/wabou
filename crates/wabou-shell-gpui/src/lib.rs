@@ -13,6 +13,7 @@ mod style;
 mod tree;
 
 pub use element::ProjectedElement;
+pub use element::ProjectedNativeElementFactory;
 pub use gpui;
 pub use input::{
     ProjectedImeEvent, ProjectedInputEvent, ProjectedInputHandler, ProjectedInputSink,

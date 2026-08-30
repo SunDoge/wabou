@@ -1442,6 +1442,7 @@ fn install_host_frame_test_hook(js: &JsRuntime) {
         ctx.eval::<(), _>(
             r#"
       globalThis.dispatched = [];
+      globalThis.dispatchedKeys = [];
       globalThis.resizeChanges = [];
       globalThis.__host_got = [];
       globalThis.__wabou_dispatch_host_frame = (u8) => {
@@ -1453,7 +1454,7 @@ fn install_host_frame_test_hook(js: &JsRuntime) {
           const start = o, kind = view.getUint8(o), len = view.getUint32(o + 4, true);
           o += 8;
           if (kind === 1) {
-            const id = view.getUint32(o, true), code = view.getUint8(o + 8);
+            const id = view.getUint32(o, true), generation = view.getUint32(o + 4, true), code = view.getUint8(o + 8);
             const payloadKind = view.getUint8(o + 9); o += 16;
             let payload = "";
             if (payloadKind === 2) {
@@ -1461,6 +1462,7 @@ fn install_host_frame_test_hook(js: &JsRuntime) {
               payload = dec.decode(u8.subarray(o, o + size));
             }
             globalThis.dispatched.push([id, code, payload]);
+            globalThis.dispatchedKeys.push([id, generation, code, payload]);
           } else if (kind === 2) {
             globalThis.resizeChanges.push([
               view.getUint32(o, true), view.getFloat32(o + 8, true), view.getFloat32(o + 12, true)

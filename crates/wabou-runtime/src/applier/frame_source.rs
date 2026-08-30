@@ -291,9 +291,45 @@ impl Applier {
         input: wabou_shell_gpui::ProjectedInputSink,
         focus: wabou_shell_gpui::gpui::FocusHandle,
         text_input: wabou_shell_gpui::ProjectedTextInputState,
+        native: Option<wabou_shell_gpui::ProjectedNativeElementFactory>,
     ) -> Result<wabou_shell_gpui::ProjectedElement, wabou_shell_gpui::ProjectionError> {
-        self.gpui_projection
-            .interactive_tree_element(NodeKey::ROOT, input, focus, text_input)
+        self.gpui_projection.interactive_tree_element(
+            NodeKey::ROOT,
+            input,
+            focus,
+            text_input,
+            native,
+        )
+    }
+
+    pub(crate) fn gpui_text_controls(&self) -> Vec<crate::gpui_projection::GpuiTextControl> {
+        self.gpui_projection.text_controls()
+    }
+
+    pub(crate) fn gpui_commit_text_value(&mut self, target: NodeKey, value: &str) -> bool {
+        let Some(&node) = self.document.node_store.solid_to_node.get(&target) else {
+            return false;
+        };
+        let value_atom = self.document.atoms.borrow_mut().intern("value");
+        if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
+            declared.attrs.insert(value_atom, Arc::from(value));
+        }
+        let payload = serde_json::json!({ "value": value }).to_string();
+        self.dispatch_json(target, event::INPUT, &payload)
+    }
+
+    pub(crate) fn gpui_set_text_focus(&mut self, target: NodeKey, focused: bool) -> bool {
+        if focused {
+            self.set_focused_target(Some(target))
+        } else if self.interaction.input.focused_target == Some(target) {
+            self.set_focused_target(None)
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn gpui_focused_target(&self) -> Option<NodeKey> {
+        self.interaction.input.focused_target
     }
 }
 

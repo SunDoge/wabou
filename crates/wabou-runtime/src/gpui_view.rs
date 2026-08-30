@@ -1,11 +1,13 @@
 //! GPUI view owning one Wabou JavaScript runtime.
 
-use std::{rc::Rc, sync::Arc};
+use std::{collections::BTreeMap, rc::Rc, sync::Arc};
 
+use gpui_base::input::{Input, InputEvent, InputState, Textarea, TextareaState};
 use wabou_shell_gpui::WakeCallback;
 use wabou_shell_gpui::gpui::{
-    ClipboardItem, Context, FocusHandle, PathPromptOptions, PromptButton, PromptLevel, Render,
-    SystemNotification, Task, Window,
+    AppContext as _, ClipboardItem, Context, Entity, FocusHandle, IntoElement as _,
+    ParentElement as _, PathPromptOptions, PromptButton, PromptLevel, Render, Styled as _,
+    Subscription, SystemNotification, Task, Window, div,
 };
 
 use crate::{Applier, FrameSource};
@@ -27,6 +29,63 @@ pub struct GpuiRuntimeView {
     _wake_task: Task<()>,
     focus: FocusHandle,
     default_title: String,
+    text_controls: BTreeMap<wabou_host_api::NodeKey, GpuiTextControlState>,
+}
+
+enum GpuiTextControlState {
+    Input {
+        state: Entity<InputState>,
+        _subscription: Subscription,
+    },
+    Textarea {
+        state: Entity<TextareaState>,
+        _subscription: Subscription,
+    },
+}
+
+impl GpuiTextControlState {
+    fn is_multiline(&self) -> bool {
+        matches!(self, Self::Textarea { .. })
+    }
+
+    fn synchronize(
+        &self,
+        descriptor: &crate::gpui_projection::GpuiTextControl,
+        window: &mut Window,
+        cx: &mut Context<GpuiRuntimeView>,
+    ) {
+        macro_rules! synchronize {
+            ($state:expr) => {
+                $state.update(cx, |state, cx| {
+                    if state.value().as_ref() != descriptor.value {
+                        state.set_value(descriptor.value.clone(), window, cx);
+                    }
+                    if state.presentation().placeholder().as_ref() != descriptor.placeholder {
+                        state.set_placeholder(descriptor.placeholder.clone(), window, cx);
+                    }
+                    state.set_disabled(descriptor.disabled, cx);
+                    state.set_readonly(descriptor.readonly, cx);
+                })
+            };
+        }
+        match self {
+            Self::Input { state, .. } => synchronize!(state),
+            Self::Textarea { state, .. } => synchronize!(state),
+        }
+    }
+
+    fn element(&self) -> wabou_shell_gpui::gpui::AnyElement {
+        match self {
+            Self::Input { state, .. } => div()
+                .size_full()
+                .child(Input::new(state))
+                .into_any_element(),
+            Self::Textarea { state, .. } => div()
+                .size_full()
+                .child(Textarea::new(state))
+                .into_any_element(),
+        }
+    }
 }
 
 impl GpuiRuntimeView {
@@ -65,6 +124,78 @@ impl GpuiRuntimeView {
             _wake_task: wake_task,
             focus,
             default_title,
+            text_controls: BTreeMap::new(),
+        }
+    }
+
+    fn synchronize_text_controls(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let descriptors = self.applier.gpui_text_controls();
+        self.text_controls
+            .retain(|key, _| descriptors.iter().any(|descriptor| descriptor.key == *key));
+
+        for descriptor in descriptors {
+            let needs_recreate = self
+                .text_controls
+                .get(&descriptor.key)
+                .is_some_and(|state| state.is_multiline() != descriptor.multiline);
+            if needs_recreate {
+                self.text_controls.remove(&descriptor.key);
+            }
+            if let std::collections::btree_map::Entry::Vacant(entry) =
+                self.text_controls.entry(descriptor.key)
+            {
+                let key = descriptor.key;
+                let control =
+                    if descriptor.multiline {
+                        let state = cx.new(|cx| TextareaState::new(window, cx));
+                        let subscription = cx.subscribe(&state, move |view, state, event, cx| {
+                            let value = matches!(event, InputEvent::Change)
+                                .then(|| state.read(cx).value().to_string());
+                            let focused = match event {
+                                InputEvent::Focus => Some(true),
+                                InputEvent::Blur => Some(false),
+                                _ => None,
+                            };
+                            let changed = value.as_deref().is_some_and(|value| {
+                                view.applier.gpui_commit_text_value(key, value)
+                            }) | focused.is_some_and(|focused| {
+                                view.applier.gpui_set_text_focus(key, focused)
+                            });
+                            if changed {
+                                cx.notify();
+                            }
+                        });
+                        GpuiTextControlState::Textarea {
+                            state,
+                            _subscription: subscription,
+                        }
+                    } else {
+                        let state = cx.new(|cx| InputState::new(window, cx));
+                        let subscription = cx.subscribe(&state, move |view, state, event, cx| {
+                            let value = matches!(event, InputEvent::Change)
+                                .then(|| state.read(cx).value().to_string());
+                            let focused = match event {
+                                InputEvent::Focus => Some(true),
+                                InputEvent::Blur => Some(false),
+                                _ => None,
+                            };
+                            let changed = value.as_deref().is_some_and(|value| {
+                                view.applier.gpui_commit_text_value(key, value)
+                            }) | focused.is_some_and(|focused| {
+                                view.applier.gpui_set_text_focus(key, focused)
+                            });
+                            if changed {
+                                cx.notify();
+                            }
+                        });
+                        GpuiTextControlState::Input {
+                            state,
+                            _subscription: subscription,
+                        }
+                    };
+                entry.insert(control);
+            }
+            self.text_controls[&descriptor.key].synchronize(&descriptor, window, cx);
         }
     }
 
@@ -469,6 +600,7 @@ impl Render for GpuiRuntimeView {
         let _ = self
             .applier
             .build_gpui_frame(viewport.width.into(), viewport.height.into());
+        self.synchronize_text_controls(window, cx);
         if self.drain_host_actions(window, cx) {
             cx.notify();
         }
@@ -488,9 +620,26 @@ impl Render for GpuiRuntimeView {
                 view.handle_input(event, cx);
             });
         });
-        let text_input = self.applier.gpui_text_input_state();
+        let mut text_input = self.applier.gpui_text_input_state();
+        if self
+            .applier
+            .gpui_focused_target()
+            .is_some_and(|target| self.text_controls.contains_key(&target))
+        {
+            // The child InputState owns the platform input handler. Keeping the
+            // transitional root handler active would commit IME text twice.
+            text_input.accepts_text = false;
+        }
+        let native_controls = Rc::new(std::cell::RefCell::new(
+            self.text_controls
+                .iter()
+                .map(|(key, state)| (*key, state.element()))
+                .collect::<BTreeMap<_, _>>(),
+        ));
+        let native: wabou_shell_gpui::ProjectedNativeElementFactory =
+            Rc::new(move |key| native_controls.borrow_mut().remove(&key));
         self.applier
-            .gpui_interactive_element(input, self.focus.clone(), text_input)
+            .gpui_interactive_element(input, self.focus.clone(), text_input, Some(native))
             .expect("the canonical Wabou root remains retained")
     }
 }

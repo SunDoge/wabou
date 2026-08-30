@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use gpui::{
     AnyElement, App, Bounds, DispatchPhase, Element, ElementId, FocusHandle, GlobalElementId,
     Hitbox, HitboxBehavior, InspectorElementId, IntoElement, KeyDownEvent, KeyUpEvent, LayoutId,
@@ -11,6 +13,13 @@ use crate::{
     ProjectedPointerEvent, ProjectedPointerPhase, ProjectedTextInputState, ProjectedWheelEvent,
     ProjectedWheelPhase, ProjectionError, ProjectionTree,
 };
+
+/// Produces a GPUI-owned native control for a retained Wabou node.
+///
+/// The callback is evaluated once while materializing a frame. It lets the
+/// runtime preserve platform control state in `Entity<T>` without moving that
+/// state into the lightweight projection cache.
+pub type ProjectedNativeElementFactory = Rc<dyn Fn(NodeKey) -> Option<AnyElement>>;
 
 /// A lightweight GPUI element generated from one Wabou retained node.
 ///
@@ -32,19 +41,25 @@ impl ProjectedElement {
         input: Option<ProjectedInputSink>,
         root_focus: Option<FocusHandle>,
         text_input: Option<ProjectedTextInputState>,
+        native: Option<ProjectedNativeElementFactory>,
     ) -> Result<Self, ProjectionError> {
         let node = tree.node(key).ok_or(ProjectionError::MissingNode(key))?;
+        let native_child = native.as_ref().and_then(|factory| factory(key));
         let mut children =
             Vec::with_capacity(node.children.len() + usize::from(node.text.is_some()));
-        if let Some(text) = projected_text(node) {
+        if let Some(native_child) = native_child {
+            children.push(native_child);
+        } else if let Some(text) = projected_text(node) {
             children.push(div().child(text.clone()).into_any_element());
         }
         if let Some(image) = &node.image {
             children.push(gpui::img(image.clone()).size_full().into_any_element());
         }
         for child in &node.children {
-            children
-                .push(Self::from_tree(tree, *child, input.clone(), None, None)?.into_any_element());
+            children.push(
+                Self::from_tree(tree, *child, input.clone(), None, None, native.clone())?
+                    .into_any_element(),
+            );
         }
         Ok(Self {
             key,
@@ -322,6 +337,7 @@ impl Element for ProjectedElement {
 
         if let (Some(input), Some(focus), Some(state)) =
             (&self.input, &self.root_focus, &self.text_input)
+            && state.accepts_text
         {
             window.handle_input(
                 focus,
@@ -365,7 +381,7 @@ mod tests {
         )
         .unwrap();
 
-        let element = ProjectedElement::from_tree(&tree, key, None, None, None).unwrap();
+        let element = ProjectedElement::from_tree(&tree, key, None, None, None, None).unwrap();
         assert_eq!(element.id(), Some(key.gpui_element_id()));
     }
 
@@ -395,6 +411,43 @@ mod tests {
             projected_text(tree.node(key).unwrap()).map(AsRef::as_ref),
             Some("typed")
         );
+    }
+
+    #[test]
+    fn native_factories_receive_full_generational_keys_once_per_retained_node() {
+        let old = NodeKey::new(27, 1);
+        let recreated = NodeKey::new(27, 2);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            NodeKey::ROOT,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Root,
+        )
+        .unwrap();
+        for (index, key) in [old, recreated].into_iter().enumerate() {
+            tree.insert(
+                key,
+                Some(NodeKey::ROOT),
+                index,
+                Style::default(),
+                None,
+                crate::ProjectedNodeKind::Element("input".into()),
+            )
+            .unwrap();
+        }
+        let seen = Rc::new(RefCell::new(Vec::new()));
+        let captured = seen.clone();
+        let factory: ProjectedNativeElementFactory = Rc::new(move |key| {
+            captured.borrow_mut().push(key);
+            None
+        });
+
+        ProjectedElement::from_tree(&tree, NodeKey::ROOT, None, None, None, Some(factory)).unwrap();
+
+        assert_eq!(*seen.borrow(), [NodeKey::ROOT, old, recreated]);
     }
 
     #[test]
@@ -473,6 +526,7 @@ mod tests {
                         accepts_text: true,
                         ..Default::default()
                     },
+                    None,
                 )
                 .expect("input projection")
         }
