@@ -5,12 +5,16 @@
 //! deliberately frame-oriented: individual property writes never notify GPUI.
 
 mod element;
+mod input;
 mod projection;
 mod style;
 mod tree;
 
 pub use element::ProjectedElement;
 pub use gpui;
+pub use input::{
+    ProjectedInputSink, ProjectedPointerButton, ProjectedPointerEvent, ProjectedPointerPhase,
+};
 pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
 pub use style::{StyleDiagnostic, StyleProjection};
 pub use tree::{ProjectedNode, ProjectionError, ProjectionTree};

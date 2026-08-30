@@ -570,6 +570,56 @@ pub struct Applier {
 }
 
 impl Applier {
+    pub(crate) fn handle_gpui_pointer(
+        &mut self,
+        event: wabou_shell_gpui::ProjectedPointerEvent,
+    ) -> EventResponse {
+        let phase = match event.phase {
+            wabou_shell_gpui::ProjectedPointerPhase::Move => PointerPhase::Move,
+            wabou_shell_gpui::ProjectedPointerPhase::Down => PointerPhase::Down,
+            wabou_shell_gpui::ProjectedPointerPhase::Up => PointerPhase::Up,
+        };
+        let button = event.button.map(|button| match button {
+            wabou_shell_gpui::ProjectedPointerButton::Primary => PointerButton::Primary,
+            wabou_shell_gpui::ProjectedPointerButton::Auxiliary => PointerButton::Auxiliary,
+            wabou_shell_gpui::ProjectedPointerButton::Secondary => PointerButton::Secondary,
+            wabou_shell_gpui::ProjectedPointerButton::Other => PointerButton::Other(0),
+        });
+        let mut modifiers = Modifiers::empty();
+        modifiers.set(Modifiers::SHIFT, event.shift);
+        modifiers.set(Modifiers::CONTROL, event.control);
+        modifiers.set(Modifiers::ALT, event.alt);
+        modifiers.set(Modifiers::META, event.platform);
+        let button_mask = match button {
+            Some(PointerButton::Primary) => 1,
+            Some(PointerButton::Secondary) => 2,
+            Some(PointerButton::Auxiliary) => 4,
+            _ => 0,
+        };
+        let buttons = match phase {
+            PointerPhase::Down | PointerPhase::Move => button_mask,
+            PointerPhase::Up => 0,
+            _ => unreachable!("GPUI emits only move/down/up here"),
+        };
+        self.interaction.input.target_override = Some(event.target);
+        let response = FrameSource::handle_event(
+            self,
+            UiEvent::Pointer(wabou_shell::PointerEvent {
+                phase,
+                position: wabou_shell::Point {
+                    x: f64::from(event.x),
+                    y: f64::from(event.y),
+                },
+                button,
+                buttons,
+                modifiers,
+                properties: wabou_shell::PointerProperties::default(),
+            }),
+        );
+        self.interaction.input.target_override = None;
+        response
+    }
+
     /// Monotonically increasing count of non-empty JS-to-host protocol frames.
     ///
     /// Deterministic headless drivers can use this to wait for UI commits

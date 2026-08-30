@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use gpui::{SharedString, Style};
 
-use crate::{DirtyKind, FrameBatch, NodeKey, PendingNode, ProjectedElement};
+use crate::{DirtyKind, FrameBatch, NodeKey, PendingNode, ProjectedElement, ProjectedInputSink};
 
 /// One lightweight cached node in the GPUI projection.
 ///
@@ -63,7 +63,16 @@ impl ProjectionTree {
     /// The objects are intentionally ephemeral; their stable GPUI element IDs
     /// preserve state and paint caches across frames.
     pub fn element(&self, root: NodeKey) -> Result<ProjectedElement, ProjectionError> {
-        ProjectedElement::from_tree(self, root)
+        ProjectedElement::from_tree(self, root, None)
+    }
+
+    /// Materialize a root whose GPUI hit targets emit typed pointer events.
+    pub fn interactive_element(
+        &self,
+        root: NodeKey,
+        input: ProjectedInputSink,
+    ) -> Result<ProjectedElement, ProjectionError> {
+        ProjectedElement::from_tree(self, root, Some(input))
     }
 
     pub fn insert(

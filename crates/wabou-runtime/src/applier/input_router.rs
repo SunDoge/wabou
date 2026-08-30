@@ -119,6 +119,8 @@ pub(super) struct InputRouter {
     pub(super) focus_order: Vec<NodeKey>,
     pub(super) window_focused: bool,
     pub(super) hit_items: Vec<HitItem>,
+    /// Explicit target supplied by a native backend with authoritative hit testing.
+    pub(super) target_override: Option<NodeKey>,
 }
 
 impl InputRouter {
@@ -130,6 +132,9 @@ impl InputRouter {
     }
 
     pub(super) fn hit_test(&self, x: f64, y: f64) -> Option<NodeKey> {
+        if let Some(target) = self.target_override {
+            return Some(target);
+        }
         let point = Point::new(x, y);
         for item in self.hit_items.iter().rev() {
             match item {
@@ -206,5 +211,22 @@ mod tests {
             router.local_position(NodeKey::new(7, 1), 145.0, 95.0),
             (25.0, 15.0)
         );
+    }
+
+    #[test]
+    fn authoritative_backend_target_overrides_legacy_geometry_for_one_event() {
+        let mut router = InputRouter::new();
+        router.hit_items.push(HitItem::Content(HitNode {
+            solid_id: NodeKey::new(2, 1),
+            rect: [0.0, 0.0, 100.0, 100.0],
+            transform: Affine::IDENTITY,
+            clips: Vec::new(),
+            pointer_events: true,
+        }));
+        router.target_override = Some(NodeKey::new(9, 3));
+
+        assert_eq!(router.hit_test(50.0, 50.0), Some(NodeKey::new(9, 3)));
+        router.target_override = None;
+        assert_eq!(router.hit_test(50.0, 50.0), Some(NodeKey::new(2, 1)));
     }
 }

@@ -279,10 +279,19 @@ impl Applier {
         self.gpui_projection.finish_frame()
     }
 
+    #[cfg(test)]
     pub(crate) fn gpui_element(
         &self,
     ) -> Result<wabou_shell_gpui::ProjectedElement, wabou_shell_gpui::ProjectionError> {
         self.gpui_projection.tree_element(NodeKey::ROOT)
+    }
+
+    pub(crate) fn gpui_interactive_element(
+        &self,
+        input: wabou_shell_gpui::ProjectedInputSink,
+    ) -> Result<wabou_shell_gpui::ProjectedElement, wabou_shell_gpui::ProjectionError> {
+        self.gpui_projection
+            .interactive_tree_element(NodeKey::ROOT, input)
     }
 }
 

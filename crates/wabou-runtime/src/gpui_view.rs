@@ -1,5 +1,7 @@
 //! GPUI view owning one Wabou JavaScript runtime.
 
+use std::rc::Rc;
+
 use wabou_shell_gpui::gpui::{Context, Render, Window};
 
 use crate::{Applier, FrameSource};
@@ -37,7 +39,7 @@ impl Render for GpuiRuntimeView {
     fn render(
         &mut self,
         window: &mut Window,
-        _cx: &mut Context<Self>,
+        cx: &mut Context<Self>,
     ) -> impl wabou_shell_gpui::gpui::IntoElement {
         let viewport = window.viewport_size();
         let _ = self
@@ -50,8 +52,17 @@ impl Render for GpuiRuntimeView {
             window.request_animation_frame();
         }
 
+        let view = cx.weak_entity();
+        let input = Rc::new(move |event, cx: &mut wabou_shell_gpui::gpui::App| {
+            let _ = view.update(cx, |view, cx| {
+                let response = view.applier.handle_gpui_pointer(event);
+                if response.request_redraw {
+                    cx.notify();
+                }
+            });
+        });
         self.applier
-            .gpui_element()
+            .gpui_interactive_element(input)
             .expect("the canonical Wabou root remains retained")
     }
 }

@@ -89,11 +89,20 @@ impl GpuiProjection {
         self.tree.node(key).is_some()
     }
 
+    #[cfg(test)]
     pub(crate) fn tree_element(
         &self,
         root: NodeKey,
     ) -> Result<wabou_shell_gpui::ProjectedElement, ProjectionError> {
         self.tree.element(root)
+    }
+
+    pub(crate) fn interactive_tree_element(
+        &self,
+        root: NodeKey,
+        input: wabou_shell_gpui::ProjectedInputSink,
+    ) -> Result<wabou_shell_gpui::ProjectedElement, ProjectionError> {
+        self.tree.interactive_element(root, input)
     }
 
     pub(crate) fn update_style(
