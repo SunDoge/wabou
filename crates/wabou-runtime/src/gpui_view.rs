@@ -3,7 +3,7 @@
 use std::{rc::Rc, sync::Arc};
 
 use wabou_shell_gpui::WakeCallback;
-use wabou_shell_gpui::gpui::{Context, Render, Task, Window};
+use wabou_shell_gpui::gpui::{Context, FocusHandle, Render, Task, Window};
 
 use crate::{Applier, FrameSource};
 
@@ -18,12 +18,13 @@ pub struct GpuiRuntimeView {
     // Retaining the task ties the async bridge to the lifetime of this view.
     // The task itself only owns a weak entity handle, so this is not a cycle.
     _wake_task: Task<()>,
+    focus: FocusHandle,
 }
 
 impl GpuiRuntimeView {
     /// Wrap an already configured and booted Wabou runtime.
     #[must_use]
-    pub fn new(mut applier: Applier, cx: &mut Context<Self>) -> Self {
+    pub fn new(mut applier: Applier, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let (wake, receiver) = gpui_wake_channel();
         FrameSource::set_wake_callback(&mut applier, wake);
 
@@ -44,9 +45,12 @@ impl GpuiRuntimeView {
             }
         });
 
+        let focus = cx.focus_handle();
+        window.focus(&focus, cx);
         Self {
             applier,
             _wake_task: wake_task,
+            focus,
         }
     }
 
@@ -100,7 +104,7 @@ impl Render for GpuiRuntimeView {
             });
         });
         self.applier
-            .gpui_interactive_element(input)
+            .gpui_interactive_element(input, self.focus.clone())
             .expect("the canonical Wabou root remains retained")
     }
 }

@@ -101,8 +101,9 @@ impl GpuiProjection {
         &self,
         root: NodeKey,
         input: wabou_shell_gpui::ProjectedInputSink,
+        focus: wabou_shell_gpui::gpui::FocusHandle,
     ) -> Result<wabou_shell_gpui::ProjectedElement, ProjectionError> {
-        self.tree.interactive_element(root, input)
+        self.tree.interactive_element(root, input, focus)
     }
 
     pub(crate) fn update_style(

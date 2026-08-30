@@ -1,14 +1,14 @@
 use gpui::{
-    AnyElement, App, Bounds, DispatchPhase, Element, ElementId, GlobalElementId, Hitbox,
-    HitboxBehavior, InspectorElementId, IntoElement, LayoutId, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, Pixels, ScrollDelta, ScrollWheelEvent, TouchPhase, Visibility,
-    Window, div, prelude::*,
+    AnyElement, App, Bounds, DispatchPhase, Element, ElementId, FocusHandle, GlobalElementId,
+    Hitbox, HitboxBehavior, InspectorElementId, IntoElement, KeyDownEvent, KeyUpEvent, LayoutId,
+    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, ScrollDelta,
+    ScrollWheelEvent, TouchPhase, Visibility, Window, div, prelude::*,
 };
 
 use crate::{
-    GpuiNodeKeyExt, NodeKey, ProjectedInputEvent, ProjectedInputSink, ProjectedPointerButton,
-    ProjectedPointerEvent, ProjectedPointerPhase, ProjectedWheelEvent, ProjectedWheelPhase,
-    ProjectionError, ProjectionTree,
+    GpuiNodeKeyExt, NodeKey, ProjectedInputEvent, ProjectedInputSink, ProjectedKeyEvent,
+    ProjectedKeyPhase, ProjectedPointerButton, ProjectedPointerEvent, ProjectedPointerPhase,
+    ProjectedWheelEvent, ProjectedWheelPhase, ProjectionError, ProjectionTree,
 };
 
 /// A lightweight GPUI element generated from one Wabou retained node.
@@ -20,6 +20,7 @@ pub struct ProjectedElement {
     style: gpui::Style,
     children: Vec<AnyElement>,
     input: Option<ProjectedInputSink>,
+    root_focus: Option<FocusHandle>,
 }
 
 impl ProjectedElement {
@@ -27,6 +28,7 @@ impl ProjectedElement {
         tree: &ProjectionTree,
         key: NodeKey,
         input: Option<ProjectedInputSink>,
+        root_focus: Option<FocusHandle>,
     ) -> Result<Self, ProjectionError> {
         let node = tree.node(key).ok_or(ProjectionError::MissingNode(key))?;
         let mut children =
@@ -35,14 +37,32 @@ impl ProjectedElement {
             children.push(div().child(text.clone()).into_any_element());
         }
         for child in &node.children {
-            children.push(Self::from_tree(tree, *child, input.clone())?.into_any_element());
+            children.push(Self::from_tree(tree, *child, input.clone(), None)?.into_any_element());
         }
         Ok(Self {
             key,
             style: node.style.clone(),
             children,
             input,
+            root_focus,
         })
+    }
+}
+
+fn key_event(
+    phase: ProjectedKeyPhase,
+    keystroke: &gpui::Keystroke,
+    repeat: bool,
+) -> ProjectedKeyEvent {
+    ProjectedKeyEvent {
+        phase,
+        key: keystroke.key.clone(),
+        key_char: keystroke.key_char.clone(),
+        repeat,
+        shift: keystroke.modifiers.shift,
+        control: keystroke.modifiers.control,
+        alt: keystroke.modifiers.alt,
+        platform: keystroke.modifiers.platform,
     }
 }
 
@@ -149,6 +169,9 @@ impl Element for ProjectedElement {
     ) -> Self::PrepaintState {
         let text_style = self.style.text_style().cloned();
         let overflow_mask = self.style.overflow_mask(bounds, window.rem_size());
+        if let Some(focus) = &self.root_focus {
+            window.set_focus_handle(focus, cx);
+        }
         let hitbox = self
             .input
             .as_ref()
@@ -244,6 +267,35 @@ impl Element for ProjectedElement {
             });
         }
 
+        if let (Some(input), Some(_focus)) = (&self.input, &self.root_focus) {
+            let down_input = input.clone();
+            window.on_key_event(move |event: &KeyDownEvent, phase, _window, cx| {
+                if phase == DispatchPhase::Bubble {
+                    down_input(
+                        ProjectedInputEvent::Key(key_event(
+                            ProjectedKeyPhase::Down,
+                            &event.keystroke,
+                            event.is_held,
+                        )),
+                        cx,
+                    );
+                }
+            });
+            let up_input = input.clone();
+            window.on_key_event(move |event: &KeyUpEvent, phase, _window, cx| {
+                if phase == DispatchPhase::Bubble {
+                    up_input(
+                        ProjectedInputEvent::Key(key_event(
+                            ProjectedKeyPhase::Up,
+                            &event.keystroke,
+                            false,
+                        )),
+                        cx,
+                    );
+                }
+            });
+        }
+
         let text_style = self.style.text_style().cloned();
         let overflow_mask = self.style.overflow_mask(bounds, window.rem_size());
         self.style.paint(bounds, window, cx, |window, cx| {
@@ -261,7 +313,7 @@ impl Element for ProjectedElement {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::{Modifiers, Style, point, px};
+    use gpui::{Keystroke, Modifiers, Style, point, px};
 
     #[test]
     fn generated_element_uses_the_retained_generational_identity() {
@@ -270,7 +322,7 @@ mod tests {
         tree.insert(key, None, 0, Style::default(), Some("hello".into()))
             .unwrap();
 
-        let element = ProjectedElement::from_tree(&tree, key, None).unwrap();
+        let element = ProjectedElement::from_tree(&tree, key, None, None).unwrap();
         assert_eq!(element.id(), Some(key.gpui_element_id()));
     }
 
@@ -306,5 +358,30 @@ mod tests {
                 platform: false,
             }
         );
+    }
+
+    #[test]
+    fn key_projection_keeps_layout_key_character_and_repeat_separate() {
+        let event = key_event(
+            ProjectedKeyPhase::Down,
+            &Keystroke {
+                modifiers: Modifiers {
+                    shift: true,
+                    control: false,
+                    alt: false,
+                    platform: false,
+                    function: false,
+                },
+                key: "a".into(),
+                key_char: Some("A".into()),
+            },
+            true,
+        );
+
+        assert_eq!(event.phase, ProjectedKeyPhase::Down);
+        assert_eq!(event.key, "a");
+        assert_eq!(event.key_char.as_deref(), Some("A"));
+        assert!(event.repeat);
+        assert!(event.shift);
     }
 }

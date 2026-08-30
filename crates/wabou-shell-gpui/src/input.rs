@@ -94,12 +94,44 @@ pub struct ProjectedWheelEvent {
 }
 
 /// Input transition emitted from one retained GPUI hit target.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ProjectedInputEvent {
     /// Pointer movement or button transition.
     Pointer(ProjectedPointerEvent),
     /// Wheel or trackpad transition.
     Wheel(ProjectedWheelEvent),
+    /// Keyboard transition delivered through the GPUI root focus handle.
+    Key(ProjectedKeyEvent),
+}
+
+/// Keyboard phase independent of GPUI's event types.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectedKeyPhase {
+    /// A key was pressed or repeated.
+    Down,
+    /// A key was released.
+    Up,
+}
+
+/// Keyboard transition normalized at the GPUI shell boundary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProjectedKeyEvent {
+    /// Press or release phase.
+    pub phase: ProjectedKeyPhase,
+    /// GPUI's layout-independent key identity.
+    pub key: String,
+    /// Character produced by the active layout, when available.
+    pub key_char: Option<String>,
+    /// Whether this is an automatic repeat.
+    pub repeat: bool,
+    /// Whether Shift is held.
+    pub shift: bool,
+    /// Whether Control is held.
+    pub control: bool,
+    /// Whether Alt/Option is held.
+    pub alt: bool,
+    /// Whether Command/Super/Windows is held.
+    pub platform: bool,
 }
 
 /// UI-thread callback installed while a projection is materialized.

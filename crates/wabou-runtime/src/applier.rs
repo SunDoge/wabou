@@ -579,6 +579,7 @@ impl Applier {
                 self.handle_gpui_pointer(event)
             }
             wabou_shell_gpui::ProjectedInputEvent::Wheel(event) => self.handle_gpui_wheel(event),
+            wabou_shell_gpui::ProjectedInputEvent::Key(event) => self.handle_gpui_key(event),
         }
     }
 
@@ -676,6 +677,50 @@ impl Applier {
             }),
         );
         self.interaction.input.target_override = None;
+        response
+    }
+
+    fn handle_gpui_key(&mut self, event: wabou_shell_gpui::ProjectedKeyEvent) -> EventResponse {
+        let mut modifiers = Modifiers::empty();
+        modifiers.set(Modifiers::SHIFT, event.shift);
+        modifiers.set(Modifiers::CONTROL, event.control);
+        modifiers.set(Modifiers::ALT, event.alt);
+        modifiers.set(Modifiers::META, event.platform);
+        let phase = match event.phase {
+            wabou_shell_gpui::ProjectedKeyPhase::Down => KeyPhase::Down,
+            wabou_shell_gpui::ProjectedKeyPhase::Up => KeyPhase::Up,
+        };
+        let text = (phase == KeyPhase::Down && !event.control && !event.platform)
+            .then(|| event.key_char.clone())
+            .flatten()
+            .filter(|text| text.chars().any(|character| !character.is_control()));
+        let mut response = FrameSource::handle_event(
+            self,
+            UiEvent::Key(wabou_shell::KeyEvent {
+                phase,
+                key: event.key_char.clone().unwrap_or_else(|| event.key.clone()),
+                key_without_modifiers: event.key.clone(),
+                // GPUI-CE exposes a stable layout-independent key here, but no
+                // separate physical scan code or keyboard section.
+                code: event.key,
+                text: event.key_char.clone(),
+                text_with_all_modifiers: event.key_char,
+                location: wabou_shell::KeyLocation::Standard,
+                modifiers,
+                repeat: event.repeat,
+                synthetic: false,
+            }),
+        );
+        if let Some(text) = text.filter(|_| !response.consume_key_text) {
+            let committed = FrameSource::handle_event(self, UiEvent::TextInput(text));
+            response.handled |= committed.handled;
+            response.request_redraw |= committed.request_redraw;
+            response.consume_key_text |= committed.consume_key_text;
+            response.text_input = committed.text_input.or(response.text_input);
+            if committed.clipboard.is_some() {
+                response.clipboard = committed.clipboard;
+            }
+        }
         response
     }
 
