@@ -46,7 +46,7 @@ use vello::peniko::Color;
 use wabou_bindgen::JsonCapabilityContract;
 use wabou_bindgen::JsonMethod;
 
-use crate::applier::RuntimeController;
+use crate::applier::LegacyRuntimeController;
 use crate::bundle;
 use crate::headless_test::run_headless_test;
 use crate::json_capability::JsonCapability;
@@ -547,7 +547,7 @@ impl RuntimeSourceConfig {
         &self,
         window_key: gpui_shell::WindowResourceKey,
         window_options: &WindowOptions,
-    ) -> crate::Result<RuntimeController> {
+    ) -> crate::Result<LegacyRuntimeController> {
         #[cfg(feature = "vite")]
         let js = match &self.source {
             ApplicationSource::Vite { url, .. } => {
@@ -585,7 +585,7 @@ impl RuntimeSourceConfig {
         .context(crate::error::JavaScriptSnafu {
             operation: "install native window creation options",
         })?;
-        let mut applier = RuntimeController::from_runtime_with_factories_and_window(
+        let mut applier = LegacyRuntimeController::from_runtime_with_factories_and_window(
             js,
             self.widget_factories.clone(),
             if window_options.transparent {
@@ -630,7 +630,7 @@ impl RuntimeSourceConfig {
     #[cfg(feature = "vite")]
     fn start_hmr(
         &self,
-        applier: &mut RuntimeController,
+        applier: &mut LegacyRuntimeController,
     ) -> crate::Result<Option<crate::HmrClient>> {
         let ApplicationSource::Vite { url, entry } = &self.source else {
             return Ok(None);
@@ -1342,7 +1342,7 @@ impl HostBuilder {
 
 fn run_gpui_windows(
     windows: Vec<(
-        RuntimeController,
+        LegacyRuntimeController,
         WindowOptions,
         Option<gpui_shell::WindowSizePersistence>,
     )>,
@@ -1442,7 +1442,7 @@ pub(crate) fn relaunch_current_process() -> crate::Result<()> {
 fn install_host_message_producers(
     producers: &[HostMessageProducer],
     window_key: gpui_shell::WindowResourceKey,
-    applier: &RuntimeController,
+    applier: &LegacyRuntimeController,
 ) {
     for producer in producers {
         producer(applier.host_message_context(window_key));
@@ -1458,7 +1458,7 @@ mod tests {
     };
     use crate::host_message::{HostMessagePayload, HostTaskTracker, host_message_channel};
     use crate::json_capability::{JsonCapability, invoke_json_method};
-    use crate::{HostMessageContext, JsRuntime, RuntimeController};
+    use crate::{HostMessageContext, JsRuntime, LegacyRuntimeController};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use wabou_bindgen::JsonMethod;
@@ -2078,7 +2078,7 @@ mod tests {
             });
         });
         let runtime = JsRuntime::new().unwrap();
-        let applier = RuntimeController::from_runtime(
+        let applier = LegacyRuntimeController::from_runtime(
             runtime,
             vello::peniko::Color::from_rgb8(0x00, 0x00, 0x00),
         );

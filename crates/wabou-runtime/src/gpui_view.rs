@@ -14,7 +14,7 @@ use gpui_shell::gpui::{
     Subscription, SystemNotification, Task, Window, div,
 };
 
-use crate::RuntimeController;
+use crate::LegacyRuntimeController;
 use gpui_shell::{
     ClipboardRequest, EffectCompletion, EffectErrorCode, EffectPayload, EffectRequest,
     EffectResult, HostAction, HostActionResult, UiEvent, WindowCommand,
@@ -27,7 +27,7 @@ use gpui_shell::{
 /// resulting retained projection. It intentionally does not create one GPUI
 /// entity per Solid node.
 pub struct GpuiRuntimeView {
-    controller: RuntimeController,
+    controller: LegacyRuntimeController,
     // Retaining the task ties the async bridge to the lifetime of this view.
     // The task itself only owns a weak entity handle, so this is not a cycle.
     _wake_task: Task<()>,
@@ -99,7 +99,7 @@ impl GpuiRuntimeView {
     /// Wrap an already configured and booted Wabou runtime.
     #[must_use]
     pub fn new(
-        mut controller: RuntimeController,
+        mut controller: LegacyRuntimeController,
         default_title: String,
         window_size_persistence: Option<gpui_shell::WindowSizePersistence>,
         native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
@@ -212,12 +212,12 @@ impl GpuiRuntimeView {
 
     /// Borrow the underlying runtime for host integration during migration.
     #[must_use]
-    pub fn controller(&self) -> &RuntimeController {
+    pub fn controller(&self) -> &LegacyRuntimeController {
         &self.controller
     }
 
     /// Mutably borrow the underlying runtime for host integration.
-    pub fn applier_mut(&mut self) -> &mut RuntimeController {
+    pub fn applier_mut(&mut self) -> &mut LegacyRuntimeController {
         &mut self.controller
     }
 
@@ -710,7 +710,7 @@ mod tests {
     fn real_solid_writer_frame_materializes_as_a_gpui_tree() {
         let runtime = JsRuntime::new().expect("QuickJS runtime");
         let mut controller =
-            RuntimeController::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+            LegacyRuntimeController::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
         controller
             .boot(include_str!("gen/test-runtime.js"))
             .expect("boot generated Solid runtime fixture");
@@ -733,8 +733,10 @@ mod tests {
         let handle = cx
             .open_window(size(px(800.0), px(600.0)), |window, app| {
                 let runtime = JsRuntime::new().expect("QuickJS runtime");
-                let mut controller =
-                    RuntimeController::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+                let mut controller = LegacyRuntimeController::from_runtime(
+                    runtime,
+                    vello::peniko::Color::TRANSPARENT,
+                );
                 controller
                     .boot(include_str!("gen/test-runtime.js"))
                     .expect("boot generated Solid runtime fixture");
@@ -764,7 +766,7 @@ mod tests {
     fn gpui_effect_executor_uses_the_platform_clipboard(cx: &mut TestAppContext) {
         let runtime = JsRuntime::new().expect("QuickJS runtime");
         let controller =
-            RuntimeController::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+            LegacyRuntimeController::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
         let (view, cx) = cx.add_window_view(move |window, cx| {
             GpuiRuntimeView::new(
                 controller,
@@ -822,7 +824,7 @@ mod tests {
     fn gpui_effect_executor_uses_the_platform_path_prompt(cx: &mut TestAppContext) {
         let runtime = JsRuntime::new().expect("QuickJS runtime");
         let controller =
-            RuntimeController::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+            LegacyRuntimeController::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
         let (view, cx) = cx.add_window_view(move |window, cx| {
             GpuiRuntimeView::new(
                 controller,

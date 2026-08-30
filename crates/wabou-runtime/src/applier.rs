@@ -331,7 +331,7 @@ bitflags::bitflags! {
 /// CSS properties that inherit to descendants. A SetStyle touching one of
 /// these (or the `font` shorthand) must take the slow path — re-derive + run
 /// the inherit pass — so children see the new value. Other inline properties
-/// take [`RuntimeController::apply_inline_ir_fast`].
+/// take [`LegacyRuntimeController::apply_inline_ir_fast`].
 const INHERITED_PROPERTIES: &[&str] = &[
     "color",
     "font-size",
@@ -493,8 +493,8 @@ impl FrameState {
 }
 
 /// Coordinates one transactional JS protocol consumer and its retained native
-/// document. Subsystems own their state; `RuntimeController` owns frame ordering.
-pub struct RuntimeController {
+/// document. Subsystems own their state; `LegacyRuntimeController` owns frame ordering.
+pub struct LegacyRuntimeController {
     document: DocumentState,
     interaction: InteractionState,
     frame: FrameState,
@@ -504,7 +504,7 @@ pub struct RuntimeController {
 // Transitional field forwarding while legacy tests are moved to their own
 // crate. Production ownership already lives in `GpuiController`; removing
 // these impls is part of deleting the legacy controller, not a public API.
-impl std::ops::Deref for RuntimeController {
+impl std::ops::Deref for LegacyRuntimeController {
     type Target = GpuiController;
 
     fn deref(&self) -> &Self::Target {
@@ -512,7 +512,7 @@ impl std::ops::Deref for RuntimeController {
     }
 }
 
-impl std::ops::DerefMut for RuntimeController {
+impl std::ops::DerefMut for LegacyRuntimeController {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.gpui
     }
@@ -520,9 +520,9 @@ impl std::ops::DerefMut for RuntimeController {
 
 /// Compatibility name used only by the legacy Winit projection modules.
 #[doc(hidden)]
-pub type Applier = RuntimeController;
+pub type Applier = LegacyRuntimeController;
 
-impl RuntimeController {
+impl LegacyRuntimeController {
     pub(crate) fn handle_gpui_input(
         &mut self,
         event: gpui_shell::ProjectedInputEvent,
@@ -800,7 +800,7 @@ impl RuntimeController {
     }
 }
 
-impl RuntimeController {
+impl LegacyRuntimeController {
     fn cancel_pointer_gesture(&mut self, pointer: gpui_shell::PointerEvent) -> bool {
         self.interaction.input.update_pointer(&pointer);
         self.interaction.text_selection.next_scroll = None;
