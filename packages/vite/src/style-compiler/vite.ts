@@ -55,6 +55,26 @@ export interface WabouColorThemeOptions {
 
 type CompiledColorThemes = NonNullable<WabouStyleSheet["colorThemes"]>;
 
+export interface ColorContrastDiagnostic {
+  theme: string;
+  foreground: string;
+  background: string;
+  ratio: number;
+  minimum: number;
+}
+
+const TEXT_CONTRAST_PAIRS = [
+  ["primary", "canvas"],
+  ["primary", "surface"],
+  ["secondary", "canvas"],
+  ["secondary", "surface"],
+  ["muted", "canvas"],
+  ["muted", "surface"],
+  ["on-accent", "accent"],
+  ["danger-primary", "danger-surface"],
+  ["success-primary", "success-surface"],
+] as const;
+
 function parseThemeColor(value: string, theme: string, token: string): number {
   const match = value.match(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/);
   if (!match)
@@ -64,6 +84,70 @@ function parseThemeColor(value: string, theme: string, token: string): number {
   const hex = match[1];
   const parsed = Number.parseInt(hex, 16);
   return hex.length === 6 ? ((parsed << 8) | 0xff) >>> 0 : parsed >>> 0;
+}
+
+function colorChannels(rgba: number): [number, number, number, number] {
+  return [
+    (rgba >>> 24) / 255,
+    ((rgba >>> 16) & 0xff) / 255,
+    ((rgba >>> 8) & 0xff) / 255,
+    (rgba & 0xff) / 255,
+  ];
+}
+
+function relativeLuminance([red, green, blue]: readonly number[]): number {
+  const linear = [red, green, blue].map((channel) =>
+    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+  );
+  return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!;
+}
+
+function colorContrastRatio(
+  foreground: number,
+  background: number,
+): number | undefined {
+  const [fr, fg, fb, fa] = colorChannels(foreground);
+  const [br, bg, bb, ba] = colorChannels(background);
+  if (ba !== 1) return;
+  const composed = [
+    fr * fa + br * (1 - fa),
+    fg * fa + bg * (1 - fa),
+    fb * fa + bb * (1 - fa),
+  ];
+  const foregroundLuminance = relativeLuminance(composed);
+  const backgroundLuminance = relativeLuminance([br, bg, bb]);
+  return (
+    (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
+    (Math.min(foregroundLuminance, backgroundLuminance) + 0.05)
+  );
+}
+
+/** Audit semantic text pairs that official components render as normal-sized text. */
+export function auditColorThemeContrast(
+  themes?: CompiledColorThemes,
+  minimum = 4.5,
+): ColorContrastDiagnostic[] {
+  if (!themes) return [];
+  const diagnostics: ColorContrastDiagnostic[] = [];
+  for (const [theme, definition] of Object.entries(themes.themes)) {
+    for (const [foreground, background] of TEXT_CONTRAST_PAIRS) {
+      const foregroundColor = definition.colors[foreground];
+      const backgroundColor = definition.colors[background];
+      if (foregroundColor === undefined || backgroundColor === undefined)
+        continue;
+      const ratio = colorContrastRatio(foregroundColor, backgroundColor);
+      if (ratio !== undefined && ratio < minimum) {
+        diagnostics.push({
+          theme,
+          foreground,
+          background,
+          ratio,
+          minimum,
+        });
+      }
+    }
+  }
+  return diagnostics;
 }
 
 export function compileColorThemes(
@@ -287,6 +371,7 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
   const sources = new Map<string, string>();
   const sourceRoots = new Set([options.root]);
   const colorThemes = compileColorThemes(options.colorThemes);
+  const contrastDiagnostics = auditColorThemeContrast(colorThemes);
   const semanticTokens = new Set(
     Object.keys(colorThemes?.themes[colorThemes.default]?.colors ?? {}),
   );
@@ -377,7 +462,7 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
   return {
     name: "wabou-style-compiler",
     enforce: "pre",
-    async configResolved() {
+    async configResolved(config) {
       // Candidate recognition uses the same generated theme manifest as
       // compilation and the native runtime fallback.
       referenceGenerator = await createGenerator({
@@ -392,6 +477,11 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
           ],
         ],
       });
+      for (const diagnostic of contrastDiagnostics) {
+        config.logger.warn(
+          `[wabou-style] ${diagnostic.theme}.${diagnostic.foreground} has ${diagnostic.ratio.toFixed(2)}:1 contrast on ${diagnostic.background}; expected at least ${diagnostic.minimum}:1 for normal text`,
+        );
+      }
     },
     async buildStart() {
       const workspacePackages = await findWorkspacePackages(options.root);

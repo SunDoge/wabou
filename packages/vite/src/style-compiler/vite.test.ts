@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
 import {
+  auditColorThemeContrast,
   assertSupportedWabouCandidates,
   compileWabouUtilities,
   compileColorThemes,
@@ -121,6 +122,40 @@ describe("utility source extraction", () => {
         },
       }),
     ).toThrow("missing: primary");
+  });
+
+  test("reports semantic text tokens that wash out against app surfaces", () => {
+    const themes = compileColorThemes({
+      default: "light",
+      themes: {
+        light: {
+          appearance: "light",
+          colors: {
+            canvas: "#f7f7f8",
+            surface: "#ffffff",
+            primary: "#242424",
+            secondary: "#666666",
+            muted: "#929292",
+          },
+        },
+      },
+    });
+
+    expect(auditColorThemeContrast(themes)).toEqual([
+      expect.objectContaining({
+        theme: "light",
+        foreground: "muted",
+        background: "canvas",
+        minimum: 4.5,
+      }),
+      expect.objectContaining({
+        theme: "light",
+        foreground: "muted",
+        background: "surface",
+        minimum: 4.5,
+      }),
+    ]);
+    expect(auditColorThemeContrast(themes)[0]?.ratio).toBeCloseTo(2.91, 2);
   });
 
   test("only exposes explicit JSX class props to UnoCSS", () => {

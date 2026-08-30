@@ -17,12 +17,74 @@ function matchesClassPattern(candidate, pattern) {
 function filterIgnoredClasses(candidates, patterns = []) {
 	return [...candidates].filter((candidate) => !patterns.some((pattern) => matchesClassPattern(candidate, pattern)));
 }
+const TEXT_CONTRAST_PAIRS = [
+	["primary", "canvas"],
+	["primary", "surface"],
+	["secondary", "canvas"],
+	["secondary", "surface"],
+	["muted", "canvas"],
+	["muted", "surface"],
+	["on-accent", "accent"],
+	["danger-primary", "danger-surface"],
+	["success-primary", "success-surface"]
+];
 function parseThemeColor(value, theme, token) {
 	const match = value.match(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/);
 	if (!match) throw new Error(`invalid color theme value for ${theme}.${token}; expected #RRGGBB or #RRGGBBAA`);
 	const hex = match[1];
 	const parsed = Number.parseInt(hex, 16);
 	return hex.length === 6 ? (parsed << 8 | 255) >>> 0 : parsed >>> 0;
+}
+function colorChannels(rgba) {
+	return [
+		(rgba >>> 24) / 255,
+		(rgba >>> 16 & 255) / 255,
+		(rgba >>> 8 & 255) / 255,
+		(rgba & 255) / 255
+	];
+}
+function relativeLuminance([red, green, blue]) {
+	const linear = [
+		red,
+		green,
+		blue
+	].map((channel) => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4);
+	return .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2];
+}
+function colorContrastRatio(foreground, background) {
+	const [fr, fg, fb, fa] = colorChannels(foreground);
+	const [br, bg, bb, ba] = colorChannels(background);
+	if (ba !== 1) return;
+	const foregroundLuminance = relativeLuminance([
+		fr * fa + br * (1 - fa),
+		fg * fa + bg * (1 - fa),
+		fb * fa + bb * (1 - fa)
+	]);
+	const backgroundLuminance = relativeLuminance([
+		br,
+		bg,
+		bb
+	]);
+	return (Math.max(foregroundLuminance, backgroundLuminance) + .05) / (Math.min(foregroundLuminance, backgroundLuminance) + .05);
+}
+/** Audit semantic text pairs that official components render as normal-sized text. */
+function auditColorThemeContrast(themes, minimum = 4.5) {
+	if (!themes) return [];
+	const diagnostics = [];
+	for (const [theme, definition] of Object.entries(themes.themes)) for (const [foreground, background] of TEXT_CONTRAST_PAIRS) {
+		const foregroundColor = definition.colors[foreground];
+		const backgroundColor = definition.colors[background];
+		if (foregroundColor === void 0 || backgroundColor === void 0) continue;
+		const ratio = colorContrastRatio(foregroundColor, backgroundColor);
+		if (ratio !== void 0 && ratio < minimum) diagnostics.push({
+			theme,
+			foreground,
+			background,
+			ratio,
+			minimum
+		});
+	}
+	return diagnostics;
 }
 function compileColorThemes(options) {
 	if (!options) return;
@@ -163,6 +225,7 @@ function wabouStylePlugin(options) {
 	const sources = /* @__PURE__ */ new Map();
 	const sourceRoots = /* @__PURE__ */ new Set([options.root]);
 	const colorThemes = compileColorThemes(options.colorThemes);
+	const contrastDiagnostics = auditColorThemeContrast(colorThemes);
 	const semanticTokens = new Set(Object.keys(colorThemes?.themes[colorThemes.default]?.colors ?? {}));
 	const ignoredClassPatterns = [.../* @__PURE__ */ new Set([...DEFAULT_IGNORED_CLASS_PATTERNS, ...options.ignoreClasses ?? []])];
 	let stylesheet = {
@@ -223,11 +286,12 @@ function wabouStylePlugin(options) {
 	return {
 		name: "wabou-style-compiler",
 		enforce: "pre",
-		async configResolved() {
+		async configResolved(config) {
 			referenceGenerator = await createGenerator({
 				presets: [presetWabou()],
 				rules: [[/^(?:bg|text|border)-(.+)$/, ([, token]) => semanticTokens.has(token) ? { "--wabou-semantic-color": token } : void 0]]
 			});
+			for (const diagnostic of contrastDiagnostics) config.logger.warn(`[wabou-style] ${diagnostic.theme}.${diagnostic.foreground} has ${diagnostic.ratio.toFixed(2)}:1 contrast on ${diagnostic.background}; expected at least ${diagnostic.minimum}:1 for normal text`);
 		},
 		async buildStart() {
 			const workspacePackages = await findWorkspacePackages(options.root);
