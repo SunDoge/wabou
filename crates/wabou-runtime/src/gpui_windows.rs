@@ -51,6 +51,26 @@ impl GpuiWindowRegistry {
         let key = GpuiWindowSlot::from(KeyData::from_ffi(key.as_ffi()));
         self.entries.borrow_mut().remove(key).flatten()
     }
+
+    pub(crate) fn observe_native_closes(
+        &self,
+        cx: &gpui_shell::gpui::App,
+    ) -> gpui_shell::gpui::Subscription {
+        let registry = self.clone();
+        cx.on_window_closed(move |_, window_id| {
+            let key = {
+                let entries = registry.entries.borrow();
+                entries.iter().find_map(|(key, handle)| {
+                    handle
+                        .is_some_and(|handle| handle.window_id() == window_id)
+                        .then_some(key)
+                })
+            };
+            if let Some(key) = key {
+                registry.entries.borrow_mut().remove(key);
+            }
+        })
+    }
 }
 
 #[cfg(test)]

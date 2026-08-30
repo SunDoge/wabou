@@ -1043,6 +1043,45 @@ mod tests {
         );
     }
 
+    #[test]
+    fn native_gpui_close_retires_the_wabou_window_identity() {
+        let platform = gpui_platform::current_platform(true);
+        let mut cx = HeadlessAppContext::new(platform.text_system());
+        let registry = crate::gpui_windows::GpuiWindowRegistry::default();
+        let window_key = registry.reserve();
+        let view_registry = registry.clone();
+        let handle = cx
+            .open_window(size(px(640.0), px(480.0)), move |window, app| {
+                app.new(|view_cx| {
+                    GpuiRuntimeView::new(
+                        test_controller(),
+                        GpuiRuntimeViewOptions {
+                            default_title: "Native close".into(),
+                            window_size_persistence: None,
+                            native_widget_factories: HashMap::new(),
+                            test_controller: None,
+                            window_key,
+                            window_registry: view_registry,
+                        },
+                        window,
+                        view_cx,
+                    )
+                })
+            })
+            .expect("open GPUI window");
+        assert!(registry.attach(window_key, handle.into()));
+        let _close_subscription = cx.update(|app| registry.observe_native_closes(app));
+
+        cx.update_window(handle.into(), |_, window, _| window.remove_window())
+            .expect("close GPUI window through the native lifecycle");
+        cx.run_until_parked();
+
+        assert!(
+            registry.resolve(window_key).is_none(),
+            "native close notifications must retire the public generational key"
+        );
+    }
+
     #[gpui_shell::gpui::test]
     fn gpui_window_snapshot_uses_logical_viewport_and_native_scale(cx: &mut TestAppContext) {
         let controller = test_controller();

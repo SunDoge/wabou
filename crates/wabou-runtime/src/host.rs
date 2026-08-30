@@ -1231,9 +1231,14 @@ fn run_gpui_windows(
 
     let startup_error = Arc::new(std::sync::Mutex::new(None));
     let reported_error = startup_error.clone();
+    let window_registry = crate::gpui_windows::GpuiWindowRegistry::default();
+    let native_close_subscription = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let retained_close_subscription = native_close_subscription.clone();
+    let app_window_registry = window_registry.clone();
     gpui_shell::application().run(move |cx| {
         gpui_base::init(cx);
-        let window_registry = crate::gpui_windows::GpuiWindowRegistry::default();
+        *retained_close_subscription.borrow_mut() =
+            Some(app_window_registry.observe_native_closes(cx));
         let mut opened_windows = Vec::new();
         for (index, (applier, options, persistence)) in windows.into_iter().enumerate() {
             let window_key = window_registry.reserve();
@@ -1308,6 +1313,7 @@ fn run_gpui_windows(
         }
         cx.activate(true);
     });
+    drop(native_close_subscription);
     match startup_error
         .lock()
         .expect("GPUI startup error lock")
