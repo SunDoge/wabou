@@ -430,6 +430,10 @@ try {
             role: "button",
             name: "New thread",
           });
+          const projects = getLayoutNode(fixture, {
+            role: "region",
+            name: "Projects",
+          });
           if (newThread.rect.height < 36 || newThread.rect.width < 220) {
             throw new Error(
               `primary sidebar action lost its control surface: ${newThread.rect.width}x${newThread.rect.height}`,
@@ -442,6 +446,12 @@ try {
           ) {
             throw new Error(
               `sidebar search escaped the primary action column: search=${search.rect.x}..${search.rect.x + search.rect.width}; action=${newThread.rect.x}..${newThread.rect.x + newThread.rect.width}`,
+            );
+          }
+          const searchBottom = search.rect.y + search.rect.height;
+          if (projects.rect.y < searchBottom - 0.5) {
+            throw new Error(
+              `project scroll region overlaps fixed sidebar controls: projects y=${projects.rect.y}; search bottom=${searchBottom}`,
             );
           }
           getLayoutNode(fixture, {

@@ -1,7 +1,6 @@
 import {
   Button,
   Icon,
-  SearchField,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
@@ -10,6 +9,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   Sidebar as SidebarRoot,
+  SidebarSearch,
   Text,
   View,
 } from "@wabou/ui";
@@ -180,8 +180,8 @@ export function Sidebar(props: SidebarProps) {
         </Text>
       </SidebarHeader>
 
-      <SidebarContent contentClass="px-2 py-1 gap-2">
-        <Show when={props.canCreateSession}>
+      <Show when={props.canCreateSession}>
+        <View class="flex-none bg-surface px-2 pt-2">
           <Button
             variant="outline"
             class="w-full h-9 px-3 justify-start gap-2.5"
@@ -191,20 +191,24 @@ export function Sidebar(props: SidebarProps) {
             <Icon source={messageSquare} size={16} />
             {i18n.message(m.new_thread, {})}
           </Button>
-        </Show>
-
-        <View class="min-w-0 flex-none">
-          <Show when={props.sessions.length > 0}>
-            <SearchField
-              aria-label={i18n.message(m.search_agents, {})}
-              value={query()}
-              onValueChange={setQuery}
-              placeholder={i18n.message(m.search_short, {})}
-              clearLabel={i18n.message(m.clear_search, {})}
-            />
-          </Show>
         </View>
+      </Show>
 
+      <Show when={props.sessions.length > 0}>
+        <SidebarSearch
+          aria-label={i18n.message(m.search_agents, {})}
+          value={query()}
+          onValueChange={setQuery}
+          placeholder={i18n.message(m.search_short, {})}
+          clearLabel={i18n.message(m.clear_search, {})}
+        />
+      </Show>
+
+      <SidebarContent
+        role="region"
+        aria-label={i18n.message(m.projects, {})}
+        contentClass="px-2 py-1 gap-2"
+      >
         <SidebarGroup>
           <View class="px-2 pt-2 flex flex-row items-center justify-between gap-2">
             <SidebarGroupLabel class="text-secondary">
