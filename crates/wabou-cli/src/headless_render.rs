@@ -26,6 +26,28 @@ use super::process::{configure_test_backend, wait_for_managed_child};
 use super::project::App;
 use super::{Result, behavior_test_runtime, build_behavior_host, ensure, manifest, render_metrics};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, clap::ValueEnum)]
+pub(super) enum HeadlessColorScheme {
+    Light,
+    Dark,
+}
+
+impl HeadlessColorScheme {
+    const fn shell(self) -> wabou_shell::ColorScheme {
+        match self {
+            Self::Light => wabou_shell::ColorScheme::Light,
+            Self::Dark => wabou_shell::ColorScheme::Dark,
+        }
+    }
+
+    const fn environment_value(self) -> &'static str {
+        match self {
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+}
+
 pub(super) struct RenderOptions {
     pub(super) out: PathBuf,
     pub(super) batch: Option<PathBuf>,
@@ -33,6 +55,7 @@ pub(super) struct RenderOptions {
     pub(super) height: u32,
     pub(super) window_id: u64,
     pub(super) scale_factor: f64,
+    pub(super) color_scheme: HeadlessColorScheme,
     pub(super) mode: Option<String>,
     pub(super) skip_build: bool,
     pub(super) with_host: bool,
@@ -275,6 +298,7 @@ fn run_layout_batch(
     manifest_path: &Path,
     out: &Path,
     wait_ms: u64,
+    color_scheme: HeadlessColorScheme,
 ) -> Result<()> {
     let mut manifest: LayoutBatchManifest = serde_json::from_slice(&fs::read(manifest_path)?)
         .map_err(|error| {
@@ -363,7 +387,7 @@ fn run_layout_batch(
             outer_x: None,
             outer_y: None,
             occluded: false,
-            color_scheme: Some(wabou_shell::ColorScheme::Light),
+            color_scheme: Some(color_scheme.shell()),
         }));
         let mut nodes = applier.build_frame(&mut text, case.width, case.height);
         settle(applier, &mut text, &mut nodes, case.width, case.height);
@@ -416,6 +440,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         height,
         window_id,
         scale_factor,
+        color_scheme,
         mode,
         skip_build,
         with_host,
@@ -477,6 +502,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
             manifest_path,
             out,
             *wait_ms,
+            *color_scheme,
         );
     }
     applier.set_device_scale(*scale_factor);
@@ -498,7 +524,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         outer_x: None,
         outer_y: None,
         occluded: false,
-        color_scheme: Some(wabou_shell::ColorScheme::Light),
+        color_scheme: Some(color_scheme.shell()),
     }));
     let mut text_context = TextContext::new();
     let mut profiler = wabou_shell::headless::HeadlessFrameProfiler::default();
@@ -685,6 +711,10 @@ fn run_with_host(workspace: &Path, app: &App, options: &RenderOptions) -> Result
         .env("WABOU_TEST_VIEWPORT_WIDTH", options.width.to_string())
         .env("WABOU_TEST_VIEWPORT_HEIGHT", options.height.to_string())
         .env("WABOU_TEST_SCALE_FACTOR", options.scale_factor.to_string())
+        .env(
+            "WABOU_TEST_COLOR_SCHEME",
+            options.color_scheme.environment_value(),
+        )
         .env(
             "WABOU_TEST_CAPTURE_WINDOW_ID",
             options.window_id.to_string(),

@@ -13,6 +13,46 @@ remain separate CI steps. Expensive all-target checks, replay variants,
 standalone scaffold builds, captures, HiDPI renders, and performance sampling
 belong to local pre-release verification rather than every pushed commit.
 
+## Authored captures and themes
+
+Use authored captures only when component behavior and layout contracts already
+pass but paint, typography, elevation, or theme contrast still needs visual
+evidence. `wabou render` accepts an explicit system color scheme so a headless
+run does not silently validate only the light theme:
+
+```bash
+bun run wabou render apps/gallery \
+  --scenario apps/gallery/captures/alert.ts \
+  --color-scheme dark \
+  --out /tmp/gallery-dark.png \
+  --snapshot /tmp/gallery-dark.json
+```
+
+Application capture suites can set the same contract in
+`captures/config.json`. The default is `light`; use per-scenario overrides when
+the same suite deliberately covers both schemes:
+
+```json
+{
+  "defaults": {
+    "width": 1200,
+    "height": 850,
+    "scaleFactor": 1,
+    "colorScheme": "light"
+  },
+  "overrides": {
+    "settings-dark.ts": {
+      "colorScheme": "dark"
+    }
+  }
+}
+```
+
+`wabou layout` also accepts `--color-scheme light|dark` for theme-dependent
+layout fixtures. Prefer one structural fixture when geometry is theme-neutral;
+author both variants only when typography or token differences can change the
+layout.
+
 ## Component unit tests
 
 Component anatomy is governed by the

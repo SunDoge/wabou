@@ -43,7 +43,7 @@ use config::{
 use devtools::InspectCommand;
 use frontend::{build as build_frontend, build_test_script};
 use headless_render::{
-    RenderOptions, actions_from_matches as render_actions_from_matches,
+    HeadlessColorScheme, RenderOptions, actions_from_matches as render_actions_from_matches,
     legacy_actions as legacy_render_actions, run as render,
 };
 #[cfg(test)]
@@ -221,6 +221,9 @@ enum Commands {
         /// Device scale used for widget encoding and physical PNG dimensions.
         #[arg(long, default_value_t = 1.0)]
         scale_factor: f64,
+        /// System color scheme exposed to the application during capture.
+        #[arg(long, value_enum, default_value = "light")]
+        color_scheme: HeadlessColorScheme,
         /// Vite mode used to select an application-owned render fixture.
         #[arg(long)]
         mode: Option<String>,
@@ -292,6 +295,9 @@ enum Commands {
         /// Logical device scale used by text and native-widget measurement.
         #[arg(long, default_value_t = 1.0)]
         scale_factor: f64,
+        /// System color scheme exposed to layout fixtures.
+        #[arg(long, value_enum, default_value = "light")]
+        color_scheme: HeadlessColorScheme,
         /// Vite mode used to select an application-owned fixture.
         #[arg(long)]
         mode: Option<String>,
@@ -504,6 +510,7 @@ fn main() -> Result<()> {
             height,
             window_id,
             scale_factor,
+            color_scheme,
             mode,
             skip_build,
             with_host,
@@ -529,6 +536,7 @@ fn main() -> Result<()> {
                     height,
                     window_id,
                     scale_factor,
+                    color_scheme,
                     mode,
                     skip_build,
                     with_host,
@@ -552,6 +560,7 @@ fn main() -> Result<()> {
             height,
             window_id,
             scale_factor,
+            color_scheme,
             mode,
             skip_build,
             wait_ms,
@@ -567,6 +576,7 @@ fn main() -> Result<()> {
                     height,
                     window_id,
                     scale_factor,
+                    color_scheme,
                     mode,
                     skip_build,
                     with_host: false,
@@ -1416,6 +1426,7 @@ mod tests {
                 Commands::Render {
                     window_id,
                     scale_factor,
+                    color_scheme,
                     mode,
                     skip_build,
                     with_host,
@@ -1432,6 +1443,7 @@ mod tests {
         };
         assert_eq!(window_id, 1);
         assert_eq!(scale_factor, 1.0);
+        assert_eq!(color_scheme, HeadlessColorScheme::Light);
         assert_eq!(mode, None);
         assert!(!skip_build);
         assert!(!with_host);
@@ -1446,6 +1458,7 @@ mod tests {
                 Commands::Render {
                     window_id,
                     scale_factor,
+                    color_scheme,
                     mode,
                     skip_build,
                     with_host,
@@ -1465,6 +1478,8 @@ mod tests {
             "7",
             "--scale-factor",
             "2",
+            "--color-scheme",
+            "dark",
             "--mode",
             "ui-test",
             "--skip-build",
@@ -1495,6 +1510,7 @@ mod tests {
         };
         assert_eq!(window_id, 7);
         assert_eq!(scale_factor, 2.0);
+        assert_eq!(color_scheme, HeadlessColorScheme::Dark);
         assert_eq!(mode.as_deref(), Some("ui-test"));
         assert!(skip_build);
         assert!(with_host);

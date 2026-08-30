@@ -98,6 +98,7 @@ describe("authored capture discovery", () => {
             width: 700,
             height: 500,
             scaleFactor: 2,
+            colorScheme: "dark",
             checkTextContainment: false,
           },
         },
@@ -113,6 +114,7 @@ describe("authored capture discovery", () => {
         width: 700,
         height: 500,
         scaleFactor: 2,
+        colorScheme: "dark",
         waitMs: 100,
         checkTextContainment: false,
         checkStyleDiagnostics: true,
@@ -129,6 +131,7 @@ describe("authored capture discovery", () => {
         width: 1200,
         height: 800,
         scaleFactor: 1,
+        colorScheme: "light",
         waitMs: 100,
         checkTextContainment: true,
         checkStyleDiagnostics: true,
@@ -150,6 +153,18 @@ describe("authored capture discovery", () => {
     await expect(discoverCaptureCases(root)).rejects.toThrow("removed.ts");
   });
 
+  test("rejects unsupported capture color schemes", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "apps", "demo", "captures", "config.json"),
+      JSON.stringify({ defaults: { colorScheme: "system" } }),
+    );
+
+    await expect(discoverCaptureCases(root)).rejects.toThrow(
+      "defaults.colorScheme must be light or dark",
+    );
+  });
+
   test("only later captures reuse the already built application bundle", () => {
     const capture = {
       application: "apps/demo",
@@ -159,6 +174,7 @@ describe("authored capture discovery", () => {
       width: 800,
       height: 600,
       scaleFactor: 1,
+      colorScheme: "light" as const,
       waitMs: 250,
       checkTextContainment: true,
       checkStyleDiagnostics: true,
@@ -168,9 +184,14 @@ describe("authored capture discovery", () => {
       checkInteractionContracts: true,
     };
 
-    expect(captureCommand(capture, false)).not.toContain("--skip-build");
+    const command = captureCommand(capture, false);
+    expect(command).not.toContain("--skip-build");
     expect(captureCommand(capture, true)).toContain("--skip-build");
-    expect(captureCommand(capture, false)).toContain(capture.snapshot);
+    expect(command).toContain(capture.snapshot);
+    expect(command.slice(command.indexOf("--color-scheme"), -2)).toEqual([
+      "--color-scheme",
+      "light",
+    ]);
   });
 
   test("validates that a snapshot describes the requested final frame", () => {
@@ -182,6 +203,7 @@ describe("authored capture discovery", () => {
       width: 800,
       height: 600,
       scaleFactor: 2,
+      colorScheme: "light" as const,
       waitMs: 250,
       checkTextContainment: true,
       checkStyleDiagnostics: true,
@@ -622,6 +644,7 @@ describe("authored capture discovery", () => {
       width: 100,
       height: 100,
       scaleFactor: 1,
+      colorScheme: "light" as const,
       waitMs: 0,
       checkTextContainment: true,
       checkStyleDiagnostics: true,

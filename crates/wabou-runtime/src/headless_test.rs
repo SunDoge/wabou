@@ -12,6 +12,7 @@ pub(super) struct HeadlessViewport {
     pub(super) height: u32,
     pub(super) scale_factor: f64,
     pub(super) window_index: usize,
+    pub(super) color_scheme: wabou_shell::ColorScheme,
 }
 
 impl HeadlessViewport {
@@ -44,6 +45,20 @@ impl HeadlessViewport {
         let height = parse("WABOU_TEST_VIEWPORT_HEIGHT", 720_u32)?;
         let scale_factor = parse("WABOU_TEST_SCALE_FACTOR", 1.0_f64)?;
         let window_id = parse("WABOU_TEST_CAPTURE_WINDOW_ID", 1_u32)?;
+        let color_scheme = match std::env::var("WABOU_TEST_COLOR_SCHEME")
+            .as_deref()
+            .unwrap_or("light")
+        {
+            "light" => wabou_shell::ColorScheme::Light,
+            "dark" => wabou_shell::ColorScheme::Dark,
+            value => {
+                return Err(crate::Error::TestScenario {
+                    message: format!(
+                        "invalid WABOU_TEST_COLOR_SCHEME {value:?}; expected light or dark"
+                    ),
+                });
+            }
+        };
         if width == 0 || height == 0 {
             return Err(crate::Error::TestScenario {
                 message: "headless viewport dimensions must be greater than zero".into(),
@@ -64,6 +79,7 @@ impl HeadlessViewport {
             height,
             scale_factor,
             window_index,
+            color_scheme,
         })
     }
 
@@ -129,7 +145,7 @@ pub(super) fn run_headless_test(
                 outer_x: None,
                 outer_y: None,
                 occluded: false,
-                color_scheme: Some(wabou_shell::ColorScheme::Light),
+                color_scheme: Some(viewport.color_scheme),
             }));
             last_nodes[index] = profilers[index].build(
                 source.as_mut(),
@@ -332,11 +348,16 @@ mod tests {
             height: 601,
             scale_factor: 1.5,
             window_index: 0,
+            color_scheme: wabou_shell::ColorScheme::Dark,
         };
 
         assert_eq!(viewport.physical_width(), 1202);
         assert_eq!(viewport.physical_height(), 902);
         assert_eq!(viewport.physical_width_for(640), 960);
         assert_eq!(viewport.with_logical_size(640, 480).window_index, 0);
+        assert_eq!(
+            viewport.with_logical_size(640, 480).color_scheme,
+            wabou_shell::ColorScheme::Dark
+        );
     }
 }

@@ -7,6 +7,7 @@ interface CaptureViewport {
   width: number;
   height: number;
   scaleFactor: number;
+  colorScheme: "light" | "dark";
   waitMs: number;
   checkTextContainment: boolean;
   checkStyleDiagnostics: boolean;
@@ -123,6 +124,8 @@ export function captureCommand(
     String(capture.height),
     "--scale-factor",
     String(capture.scaleFactor),
+    "--color-scheme",
+    capture.colorScheme,
     "--wait-ms",
     String(capture.waitMs),
   ];
@@ -134,6 +137,7 @@ const fallbackViewport: CaptureViewport = {
   width: 1440,
   height: 900,
   scaleFactor: 1,
+  colorScheme: "light",
   waitMs: 250,
   checkTextContainment: true,
   checkStyleDiagnostics: true,
@@ -146,6 +150,7 @@ const viewportKeys = new Set([
   "width",
   "height",
   "scaleFactor",
+  "colorScheme",
   "waitMs",
   "checkTextContainment",
   "checkStyleDiagnostics",
@@ -211,6 +216,12 @@ function parseViewport(
       0.25,
       8,
     );
+  if (record.colorScheme !== undefined) {
+    if (record.colorScheme !== "light" && record.colorScheme !== "dark") {
+      throw new Error(`${name}.colorScheme must be light or dark`);
+    }
+    viewport.colorScheme = record.colorScheme;
+  }
   if (record.waitMs !== undefined)
     viewport.waitMs = finiteNumber(
       record.waitMs,
