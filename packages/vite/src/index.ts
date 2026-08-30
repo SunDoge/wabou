@@ -75,7 +75,7 @@ export const defaultWabouColorThemes: WabouColorThemeOptions = {
         accent: "#4c8dff",
         "accent-hover": "#6aa1ff",
         "accent-pressed": "#397ce8",
-        "on-accent": "#ffffff",
+        "on-accent": "#121418",
         danger: "#ef4444",
         "danger-hover": "#dc2626",
         "danger-pressed": "#b91c1c",

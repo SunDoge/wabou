@@ -8,7 +8,7 @@ import {
   hasWabouWorkspaceSources,
   wabouPlugins,
 } from "./index";
-import { compileColorThemes } from "./style-compiler";
+import { auditColorThemeContrast, compileColorThemes } from "./style-compiler";
 
 describe("@wabou/vite", () => {
   const buildEnvironment = [
@@ -85,6 +85,7 @@ describe("@wabou/vite", () => {
         ].sort(),
       );
     }
+    expect(auditColorThemeContrast(compiled!)).toEqual([]);
   });
 
   test("defines conventional entry and bundle output", async () => {

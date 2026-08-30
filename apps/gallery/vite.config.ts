@@ -42,7 +42,7 @@ export default defineWabouConfig(({ mode }) => ({
           accent: "#8b5cf6",
           "accent-hover": "#7c3aed",
           "accent-pressed": "#6d28d9",
-          "on-accent": "#ffffff",
+          "on-accent": "#0f0f0f",
           danger: "#fb7185",
           "danger-hover": "#f43f5e",
           "danger-pressed": "#e11d48",
