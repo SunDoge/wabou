@@ -1,33 +1,22 @@
 use std::collections::BTreeMap;
 
 use bitflags::bitflags;
+pub use wabou_host_api::NodeKey;
 
-/// Stable generational identity shared by the Solid protocol and GPUI projection.
-///
-/// Both halves remain explicit so deleting and recreating a node cannot make a
-/// stale JavaScript handle address a new GPUI element.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct NodeKey {
-    pub index: u32,
-    pub generation: u32,
-}
-
-impl NodeKey {
-    #[must_use]
-    pub const fn new(index: u32, generation: u32) -> Self {
-        Self { index, generation }
-    }
-
+/// GPUI-specific operations on Wabou's canonical protocol node identity.
+pub trait GpuiNodeKeyExt {
     /// Losslessly encode this retained identity for GPUI's element-state path.
     ///
     /// GPUI creates transient [`gpui::LayoutId`] values while requesting
     /// layout. They must never escape into the Solid protocol. `ElementId`, in
     /// contrast, is the stable identity GPUI uses to preserve element state
     /// across frames.
-    #[must_use]
-    pub const fn gpui_element_id(self) -> gpui::ElementId {
-        let packed = ((self.generation as u64) << u32::BITS) | self.index as u64;
-        gpui::ElementId::Integer(packed)
+    fn gpui_element_id(self) -> gpui::ElementId;
+}
+
+impl GpuiNodeKeyExt for NodeKey {
+    fn gpui_element_id(self) -> gpui::ElementId {
+        gpui::ElementId::Integer(self.into())
     }
 }
 
@@ -140,14 +129,17 @@ mod tests {
 
     #[test]
     fn node_key_maps_losslessly_to_stable_gpui_element_identity() {
-        let oldest = NodeKey::new(u32::MAX, 0).gpui_element_id();
-        let recreated = NodeKey::new(u32::MAX, 1).gpui_element_id();
+        let oldest = NodeKey::new(u32::MAX, 1).gpui_element_id();
+        let recreated = NodeKey::new(u32::MAX, 3).gpui_element_id();
         let highest = NodeKey::new(u32::MAX, u32::MAX).gpui_element_id();
 
-        assert_eq!(oldest, gpui::ElementId::Integer(u32::MAX as u64));
+        assert_eq!(
+            oldest,
+            gpui::ElementId::Integer((1_u64 << u32::BITS) | u32::MAX as u64)
+        );
         assert_eq!(
             recreated,
-            gpui::ElementId::Integer((1_u64 << u32::BITS) | u32::MAX as u64)
+            gpui::ElementId::Integer((3_u64 << u32::BITS) | u32::MAX as u64)
         );
         assert_eq!(highest, gpui::ElementId::Integer(u64::MAX));
         assert_ne!(oldest, recreated);

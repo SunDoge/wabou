@@ -12,4 +12,5 @@ bitflags.workspace = true
 gpui.workspace = true
 gpui-platform.workspace = true
 slotmap.workspace = true
+wabou-host-api.workspace = true
 wabou-style.workspace = true

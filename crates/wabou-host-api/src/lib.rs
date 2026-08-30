@@ -132,7 +132,7 @@ mod resource_key_tests {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[cfg_attr(any(feature = "bindings", feature = "specta"), derive(specta::Type))]
 /// Full-width generational identity for one retained node.
 pub struct NodeKey {

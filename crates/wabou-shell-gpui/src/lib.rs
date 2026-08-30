@@ -11,7 +11,7 @@ mod tree;
 
 pub use element::ProjectedElement;
 pub use gpui;
-pub use projection::{DirtyKind, FrameBatch, NodeKey, PendingNode};
+pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
 pub use style::{StyleDiagnostic, StyleProjection};
 pub use tree::{ProjectedNode, ProjectionError, ProjectionTree};
 

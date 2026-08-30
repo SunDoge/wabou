@@ -3,7 +3,7 @@ use gpui::{
     LayoutId, Pixels, Visibility, Window, div, prelude::*,
 };
 
-use crate::{NodeKey, ProjectionError, ProjectionTree};
+use crate::{GpuiNodeKeyExt, NodeKey, ProjectionError, ProjectionTree};
 
 /// A lightweight GPUI element generated from one Wabou retained node.
 ///
