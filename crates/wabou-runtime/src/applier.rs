@@ -34,9 +34,9 @@ use legacy_shell::text::TextContext;
 #[cfg(any(feature = "devtools", test))]
 use legacy_shell::text::layout_text_styled;
 use legacy_shell::{
-    EventResponse, FrameSource, FrameStats, GesturePhase, KeyPhase, Modifiers, PointerButton,
-    PointerPhase, SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole,
-    SemanticSnapshot, SemanticStates, SemanticToggleState, UiEvent, WakeCallback,
+    EventResponse, FrameSource, FrameStats, KeyPhase, Modifiers, PointerButton, PointerPhase,
+    SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
+    SemanticStates, SemanticToggleState, UiEvent, WakeCallback,
 };
 use parley::{
     Affinity, Layout,
@@ -531,57 +531,12 @@ impl LegacyRuntimeController {
             gpui_shell::ProjectedInputEvent::Pointer(event) => {
                 self.gpui.handle_projected_pointer(event)
             }
-            gpui_shell::ProjectedInputEvent::Wheel(event) => self.handle_gpui_wheel(event),
+            gpui_shell::ProjectedInputEvent::Wheel(event) => {
+                self.gpui.handle_projected_wheel(event)
+            }
             gpui_shell::ProjectedInputEvent::Key(event) => self.handle_gpui_key(event),
             gpui_shell::ProjectedInputEvent::Ime(event) => self.handle_gpui_ime(event),
         }
-    }
-
-    fn handle_gpui_wheel(&mut self, event: gpui_shell::ProjectedWheelEvent) -> EventResponse {
-        let mut modifiers = Modifiers::empty();
-        modifiers.set(Modifiers::SHIFT, event.shift);
-        modifiers.set(Modifiers::CONTROL, event.control);
-        modifiers.set(Modifiers::ALT, event.alt);
-        modifiers.set(Modifiers::META, event.platform);
-        let phase = match event.phase {
-            gpui_shell::ProjectedWheelPhase::Started => GesturePhase::Started,
-            gpui_shell::ProjectedWheelPhase::Changed => GesturePhase::Changed,
-            gpui_shell::ProjectedWheelPhase::Ended => GesturePhase::Ended,
-            gpui_shell::ProjectedWheelPhase::Cancelled => GesturePhase::Cancelled,
-        };
-        self.interaction.input.target_override = Some(event.target);
-        let response = FrameSource::handle_event(
-            self,
-            UiEvent::Wheel(gpui_shell::WheelEvent {
-                position: gpui_shell::Point {
-                    x: f64::from(event.x),
-                    y: f64::from(event.y),
-                },
-                // GPUI reports the direction content should move, whereas Wabou
-                // exposes the scroll-position delta, matching the legacy shell.
-                delta_x: -f64::from(event.delta_x)
-                    * if event.precise {
-                        1.0
-                    } else {
-                        gpui_shell::WHEEL_LINE_DELTA
-                    },
-                delta_y: -f64::from(event.delta_y)
-                    * if event.precise {
-                        1.0
-                    } else {
-                        gpui_shell::WHEEL_LINE_DELTA
-                    },
-                delta_mode: if event.precise {
-                    gpui_shell::WheelDeltaMode::Pixel
-                } else {
-                    gpui_shell::WheelDeltaMode::Line
-                },
-                phase,
-                modifiers,
-            }),
-        );
-        self.interaction.input.target_override = None;
-        response
     }
 
     fn handle_gpui_key(&mut self, event: gpui_shell::ProjectedKeyEvent) -> EventResponse {

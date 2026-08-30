@@ -421,6 +421,53 @@ impl GpuiController {
         }
     }
 
+    pub fn handle_projected_wheel(
+        &mut self,
+        input: gpui_shell::ProjectedWheelEvent,
+    ) -> gpui_shell::EventResponse {
+        use wabou_protocol::{event, event_data};
+
+        let mut modifiers = gpui_shell::Modifiers::empty();
+        modifiers.set(gpui_shell::Modifiers::SHIFT, input.shift);
+        modifiers.set(gpui_shell::Modifiers::CONTROL, input.control);
+        modifiers.set(gpui_shell::Modifiers::ALT, input.alt);
+        modifiers.set(gpui_shell::Modifiers::META, input.platform);
+        let scale = if input.precise {
+            1.0
+        } else {
+            gpui_shell::WHEEL_LINE_DELTA
+        };
+        let mut data = [0.0; event_data::LEN];
+        data[event_data::CLIENT_X as usize] = f64::from(input.x);
+        data[event_data::CLIENT_Y as usize] = f64::from(input.y);
+        data[event_data::OFFSET_X as usize] = f64::from(input.local_x);
+        data[event_data::OFFSET_Y as usize] = f64::from(input.local_y);
+        data[event_data::MODS as usize] = f64::from(modifiers.bits());
+        data[event_data::DELTA_X as usize] = -f64::from(input.delta_x) * scale;
+        data[event_data::DELTA_Y as usize] = -f64::from(input.delta_y) * scale;
+        data[event_data::PHASE as usize] = match input.phase {
+            gpui_shell::ProjectedWheelPhase::Started => 0.0,
+            gpui_shell::ProjectedWheelPhase::Changed => 1.0,
+            gpui_shell::ProjectedWheelPhase::Ended => 2.0,
+            gpui_shell::ProjectedWheelPhase::Cancelled => 3.0,
+        };
+        let handled = self
+            .dispatch_node_numeric(
+                input.target,
+                event::WHEEL,
+                data,
+                event_data::PHASE as usize + 1,
+                true,
+            )
+            .map(|value| value.0)
+            .unwrap_or(false);
+        gpui_shell::EventResponse {
+            handled,
+            request_redraw: handled,
+            ..gpui_shell::EventResponse::default()
+        }
+    }
+
     /// Monotonically increasing count of non-empty JS-to-host frames.
     pub fn protocol_revision(&self) -> u64 {
         self.runtime.protocol_revision
