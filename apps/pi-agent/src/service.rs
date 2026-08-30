@@ -58,6 +58,10 @@ const CAPTURE_CHECKPOINT: HostMethod<
     crate::checkpoint::CaptureCheckpointRequest,
     crate::checkpoint::WorktreeCheckpoint,
 > = HostMethod::new("captureCheckpoint");
+const RESTORE_CHECKPOINT: HostMethod<
+    crate::checkpoint::RestoreCheckpointRequest,
+    crate::checkpoint::WorktreeRestore,
+> = HostMethod::new("restoreCheckpoint");
 const LIST_SKILLS: HostMethod<WorkspaceFilesRequest, Vec<SkillEntry>> =
     HostMethod::new("listSkills");
 const RESPOND_EXTENSION_UI: JsonMethod<ExtensionUiResponseRequest, ()> =
@@ -1502,6 +1506,21 @@ impl Drop for PiProcess {
 }
 
 pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::Result<()> {
+    capability.method(
+        RESTORE_CHECKPOINT,
+        move |request: crate::checkpoint::RestoreCheckpointRequest| async move {
+            tokio::task::spawn_blocking(move || {
+                crate::checkpoint::restore_worktree(
+                    &request.cwd,
+                    &request.commit_id,
+                    &request.namespace,
+                    u64::from(request.sequence),
+                )
+            })
+            .await
+            .map_err(|error| format!("checkpoint restore task failed: {error}"))?
+        },
+    )?;
     capability.method(
         CAPTURE_CHECKPOINT,
         move |request: crate::checkpoint::CaptureCheckpointRequest| async move {

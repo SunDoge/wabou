@@ -52,6 +52,11 @@ export interface WorktreeCheckpoint {
   skippedPaths: string[];
 }
 
+export interface WorktreeRestore {
+  safetyCheckpoint: WorktreeCheckpoint;
+  changedPaths: string[];
+}
+
 export interface PiSkill {
   id: string;
   name: string;
@@ -125,6 +130,12 @@ interface PiCapability extends NativeJsonCapability {
     namespace: string;
     sequence: number;
   }): WorktreeCheckpoint | PromiseLike<WorktreeCheckpoint>;
+  restoreCheckpoint(request: {
+    cwd: string;
+    commitId: string;
+    namespace: string;
+    sequence: number;
+  }): WorktreeRestore | PromiseLike<WorktreeRestore>;
   listSkills(request: { cwd: string }): PiSkill[] | PromiseLike<PiSkill[]>;
   respondExtensionUi(request: string): string | PromiseLike<string>;
   listAgents(request?: string): string | PromiseLike<string>;
@@ -242,6 +253,12 @@ export function usePiApi() {
       namespace: string,
       sequence: number,
     ) => capability.captureCheckpoint({ cwd, namespace, sequence }),
+    restoreCheckpoint: async (
+      cwd: string,
+      commitId: string,
+      namespace: string,
+      sequence: number,
+    ) => capability.restoreCheckpoint({ cwd, commitId, namespace, sequence }),
     listSkills: async (cwd: string) => capability.listSkills({ cwd }),
     respondExtensionUi: (
       agentId: string,

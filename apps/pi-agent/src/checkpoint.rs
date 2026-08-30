@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 use gix::{bstr::ByteSlice as _, object::tree::EntryKind, refs::transaction::PreviousValue};
 use serde::{Deserialize, Serialize};
@@ -11,12 +14,34 @@ pub(crate) struct CaptureCheckpointRequest {
     pub(crate) sequence: u32,
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct RestoreCheckpointRequest {
+    pub(crate) cwd: PathBuf,
+    pub(crate) commit_id: String,
+    pub(crate) namespace: String,
+    pub(crate) sequence: u32,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct WorktreeCheckpoint {
     pub(crate) commit_id: String,
     pub(crate) git_ref: String,
     pub(crate) skipped_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WorktreeRestore {
+    pub(crate) safety_checkpoint: WorktreeCheckpoint,
+    pub(crate) changed_paths: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TreeFile {
+    kind: EntryKind,
+    oid: gix::ObjectId,
 }
 
 pub(crate) fn capture_worktree(
@@ -121,6 +146,169 @@ pub(crate) fn capture_worktree(
     })
 }
 
+pub(crate) fn restore_worktree(
+    cwd: &Path,
+    commit_id: &str,
+    namespace: &str,
+    sequence: u64,
+) -> Result<WorktreeRestore, String> {
+    let safety_checkpoint = capture_worktree(cwd, &format!("{namespace}-safety"), sequence)?;
+    let repository = gix::open(cwd)
+        .map_err(|error| format!("{} is not a Git repository: {error}", cwd.display()))?;
+    let root = repository
+        .workdir()
+        .ok_or_else(|| "worktree checkpoints require a non-bare repository".to_owned())?;
+    let target = commit_tree(&repository, commit_id)?;
+    let current = commit_tree(&repository, &safety_checkpoint.commit_id)?;
+    let changed_paths = changed_tree_paths(&current, &target);
+
+    if let Err(error) = apply_tree_changes(&repository, root, &current, &target, &changed_paths) {
+        let rollback_paths = changed_tree_paths(&target, &current);
+        let rollback = apply_tree_changes(&repository, root, &target, &current, &rollback_paths);
+        return Err(match rollback {
+            Ok(()) => format!("could not restore checkpoint; safety snapshot restored: {error}"),
+            Err(rollback_error) => format!(
+                "could not restore checkpoint ({error}); safety rollback also failed ({rollback_error})"
+            ),
+        });
+    }
+
+    Ok(WorktreeRestore {
+        safety_checkpoint,
+        changed_paths,
+    })
+}
+
+fn commit_tree(
+    repository: &gix::Repository,
+    commit_id: &str,
+) -> Result<BTreeMap<String, TreeFile>, String> {
+    let id = gix::ObjectId::from_hex(commit_id.as_bytes())
+        .map_err(|error| format!("invalid checkpoint commit id: {error}"))?;
+    let commit = repository
+        .find_commit(id)
+        .map_err(|error| format!("could not read checkpoint commit {commit_id}: {error}"))?;
+    let tree = commit
+        .tree()
+        .map_err(|error| format!("could not read checkpoint tree {commit_id}: {error}"))?;
+    tree.traverse()
+        .breadthfirst
+        .files()
+        .map_err(|error| format!("could not traverse checkpoint tree: {error}"))?
+        .into_iter()
+        .map(|entry| {
+            let path = entry
+                .filepath
+                .to_str()
+                .map_err(|_| "checkpoint paths must be valid UTF-8".to_owned())?
+                .to_owned();
+            repository_path(Path::new(&path))?;
+            Ok((
+                path,
+                TreeFile {
+                    kind: entry.mode.kind(),
+                    oid: entry.oid,
+                },
+            ))
+        })
+        .collect()
+}
+
+fn changed_tree_paths(
+    current: &BTreeMap<String, TreeFile>,
+    target: &BTreeMap<String, TreeFile>,
+) -> Vec<String> {
+    current
+        .keys()
+        .chain(target.keys())
+        .filter(|path| current.get(*path) != target.get(*path))
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn apply_tree_changes(
+    repository: &gix::Repository,
+    root: &Path,
+    current: &BTreeMap<String, TreeFile>,
+    target: &BTreeMap<String, TreeFile>,
+    changed_paths: &[String],
+) -> Result<(), String> {
+    for path in changed_paths
+        .iter()
+        .filter(|path| !target.contains_key(*path))
+    {
+        remove_worktree_path(root, path)?;
+    }
+    for path in changed_paths {
+        let Some(file) = target.get(path) else {
+            continue;
+        };
+        if file.kind == EntryKind::Commit {
+            return Err(format!("cannot restore submodule path `{path}`"));
+        }
+        let object = repository
+            .find_object(file.oid)
+            .map_err(|error| format!("could not read checkpoint object for {path}: {error}"))?;
+        write_worktree_path(root, path, file.kind, &object.data)?;
+    }
+    for path in changed_paths
+        .iter()
+        .filter(|path| current.contains_key(*path))
+    {
+        remove_empty_parents(root, path);
+    }
+    Ok(())
+}
+
+fn remove_worktree_path(root: &Path, relative: &str) -> Result<(), String> {
+    let path = root.join(relative);
+    match std::fs::symlink_metadata(&path) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
+            std::fs::remove_dir_all(&path)
+        }
+        Ok(_) => std::fs::remove_file(&path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(format!("could not inspect {}: {error}", path.display())),
+    }
+    .map_err(|error| format!("could not remove {}: {error}", path.display()))
+}
+
+fn write_worktree_path(
+    root: &Path,
+    relative: &str,
+    kind: EntryKind,
+    contents: &[u8],
+) -> Result<(), String> {
+    let path = root.join(relative);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
+    }
+    if std::fs::symlink_metadata(&path).is_ok() {
+        remove_worktree_path(root, relative)?;
+    }
+    if kind == EntryKind::Link {
+        create_symlink(contents, &path)?;
+    } else {
+        std::fs::write(&path, contents)
+            .map_err(|error| format!("could not write {}: {error}", path.display()))?;
+        set_executable(&path, kind == EntryKind::BlobExecutable)?;
+    }
+    Ok(())
+}
+
+fn remove_empty_parents(root: &Path, relative: &str) {
+    let mut parent = root.join(relative).parent().map(Path::to_path_buf);
+    while let Some(path) = parent {
+        if path == root || std::fs::remove_dir(&path).is_err() {
+            break;
+        }
+        parent = path.parent().map(Path::to_path_buf);
+    }
+}
+
 fn repository_path(path: &Path) -> Result<String, String> {
     let value = path
         .to_str()
@@ -178,6 +366,51 @@ fn symlink_contents(path: &Path) -> Result<Vec<u8>, String> {
 fn os_string_bytes(path: PathBuf) -> Result<Vec<u8>, String> {
     use std::os::unix::ffi::OsStrExt as _;
     Ok(path.as_os_str().as_bytes().to_vec())
+}
+
+#[cfg(unix)]
+fn create_symlink(target: &[u8], path: &Path) -> Result<(), String> {
+    use std::os::{unix::ffi::OsStrExt as _, unix::fs::symlink};
+    symlink(std::ffi::OsStr::from_bytes(target), path)
+        .map_err(|error| format!("could not create symlink {}: {error}", path.display()))
+}
+
+#[cfg(windows)]
+fn create_symlink(target: &[u8], path: &Path) -> Result<(), String> {
+    let target = std::str::from_utf8(target)
+        .map_err(|_| "symlink targets must be valid UTF-8 on Windows".to_owned())?;
+    std::os::windows::fs::symlink_file(target, path)
+        .map_err(|error| format!("could not create symlink {}: {error}", path.display()))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn create_symlink(_target: &[u8], path: &Path) -> Result<(), String> {
+    Err(format!(
+        "restoring symlinks is not supported on this platform: {}",
+        path.display()
+    ))
+}
+
+#[cfg(unix)]
+fn set_executable(path: &Path, executable: bool) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt as _;
+    let mut permissions = std::fs::metadata(path)
+        .map_err(|error| format!("could not inspect {}: {error}", path.display()))?
+        .permissions();
+    let mut mode = permissions.mode();
+    if executable {
+        mode |= 0o111;
+    } else {
+        mode &= !0o111;
+    }
+    permissions.set_mode(mode);
+    std::fs::set_permissions(path, permissions)
+        .map_err(|error| format!("could not set permissions for {}: {error}", path.display()))
+}
+
+#[cfg(not(unix))]
+fn set_executable(_path: &Path, _executable: bool) -> Result<(), String> {
+    Ok(())
 }
 
 #[cfg(not(unix))]
@@ -274,6 +507,35 @@ mod tests {
                 .lookup_entry_by_path("removed.txt")
                 .expect("removed lookup")
                 .is_none()
+        );
+
+        std::fs::write(root.join("tracked.txt"), "after checkpoint\n").expect("later edit");
+        std::fs::remove_file(root.join("untracked.txt")).expect("later removal");
+        std::fs::write(root.join("later.txt"), "later\n").expect("later untracked file");
+        let restore = restore_worktree(&root, &checkpoint.commit_id, "session:one", 8)
+            .expect("restored checkpoint");
+
+        assert_eq!(
+            std::fs::read_to_string(root.join("tracked.txt")).expect("restored tracked file"),
+            "changed\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("untracked.txt")).expect("restored untracked file"),
+            "new\n"
+        );
+        assert!(!root.join("later.txt").exists());
+        assert_eq!(
+            repository.head_id().expect("HEAD after restore").detach(),
+            commit.detach()
+        );
+        assert_eq!(std::fs::read(repository.index_path()).ok(), index_before);
+        assert_eq!(
+            restore.safety_checkpoint.git_ref,
+            "refs/wabou/pi-agent/session-one-safety/8"
+        );
+        assert_eq!(
+            restore.changed_paths,
+            ["later.txt", "tracked.txt", "untracked.txt"]
         );
         std::fs::remove_dir_all(root).expect("cleanup");
     }
