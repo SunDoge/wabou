@@ -41,6 +41,41 @@ fn terminal_scene(width: f32, height: f32, background: Color) -> Scene {
 }
 
 impl TerminalWidget {
+    pub(super) fn gpui_visible_text(&mut self, width: f32, height: f32) -> Vec<String> {
+        self.resize(width, height, 1.0);
+        self.ensure_launched();
+        self.update_cursor_blink();
+        let mut terminal = self.terminal.lock();
+        let damage = terminal.peek_damage_event().unwrap_or(TerminalDamage::Noop);
+        terminal.snapshot_visible(
+            &damage,
+            self.size.columns,
+            &mut self.visible_rows,
+            &mut self.visible_styles,
+            &mut self.visible_extras,
+        );
+        let _ = terminal.damage();
+        terminal.reset_damage();
+        self.visible_rows
+            .iter()
+            .map(|row| {
+                let mut text = String::with_capacity(self.size.columns);
+                for column in 0..self.size.columns.min(row.inner.len()) {
+                    let square = row[Column(column)];
+                    if !matches!(square.wide(), Wide::Spacer | Wide::LeadingSpacer) {
+                        let character = square.c();
+                        text.push(if character.is_control() {
+                            ' '
+                        } else {
+                            character
+                        });
+                    }
+                }
+                text.trim_end().to_owned()
+            })
+            .collect()
+    }
+
     fn cursor_blinking(&self, terminal_blinking: bool) -> bool {
         self.cursor_blink.unwrap_or(terminal_blinking)
     }

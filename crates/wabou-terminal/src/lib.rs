@@ -43,6 +43,7 @@ use wabou_shell_api::{
 };
 
 mod box_drawing;
+mod gpui_widget;
 mod graphics;
 mod input_encoding;
 mod kitty_keyboard;
@@ -51,6 +52,7 @@ mod rendering;
 mod selection;
 mod widget_impl;
 
+pub use gpui_widget::gpui_terminal_factory;
 use graphics::{KittyLayer, TerminalGraphics};
 use input_encoding::*;
 #[cfg(test)]

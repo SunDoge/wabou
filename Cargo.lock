@@ -12510,6 +12510,8 @@ name = "wabou-terminal"
 version = "0.1.0-alpha.3"
 dependencies = [
  "anyrender",
+ "flume 0.12.0",
+ "gpui-ce",
  "libc",
  "percent-encoding",
  "rio-graphics",
@@ -12520,6 +12522,7 @@ dependencies = [
  "tracing",
  "vello",
  "wabou-backend-winit",
+ "wabou-host-api",
  "wabou-runtime",
  "wabou-shell-api",
 ]

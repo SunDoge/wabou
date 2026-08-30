@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 anyrender.workspace = true
+flume = { workspace = true }
 percent-encoding = "2"
 rio-graphics = "0.5.5"
 rio-vt = "0.5.5"
@@ -20,3 +21,7 @@ wabou-shell-api = { workspace = true }
 
 [target."cfg(unix)".dependencies]
 libc = "0.2"
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+wabou-host-api = { workspace = true }
