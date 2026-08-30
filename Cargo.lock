@@ -12305,7 +12305,6 @@ dependencies = [
  "anyrender_vello",
  "arboard",
  "bitflags 2.13.1",
- "directories",
  "futures-util",
  "image",
  "lru 0.18.1",
@@ -12327,6 +12326,7 @@ dependencies = [
  "vello",
  "wabou-accessibility",
  "wabou-host-api",
+ "wabou-shell-api",
  "winit",
 ]
 
@@ -12480,7 +12480,18 @@ dependencies = [
  "tempfile",
  "tracing",
  "wabou-host-api",
+ "wabou-shell-api",
  "wabou-style",
+]
+
+[[package]]
+name = "wabou-shell-api"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "directories",
+ "serde",
+ "serde_json",
+ "wabou-host-api",
 ]
 
 [[package]]

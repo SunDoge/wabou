@@ -25,6 +25,7 @@ wabou-database = { path = "crates/wabou-database" }
 wabou-devtools = { path = "crates/wabou-devtools", default-features = false }
 wabou-host-api = { path = "crates/wabou-host-api" }
 wabou-runtime = { path = "crates/wabou-runtime" }
+wabou-shell-api = { path = "crates/wabou-shell-api" }
 # Transitional Winit/AnyRender implementation. New platform work belongs in
 # `wabou-shell`, which is being rebuilt on GPUI-CE.
 wabou-backend-winit = { path = "crates/wabou-shell" }

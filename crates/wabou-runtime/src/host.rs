@@ -101,14 +101,14 @@ pub trait HostService: Send + Sync {
 /// Read-only environment available while a host-owned service starts.
 #[derive(Clone, Debug)]
 pub struct HostServiceContext {
-    app_directories: Option<wabou_shell::AppDirectories>,
+    app_directories: Option<wabou_shell_gpui::AppDirectories>,
     behavior_test: bool,
     headless: bool,
 }
 
 impl HostServiceContext {
     /// Return the application directories resolved by the host, when configured.
-    pub fn app_directories(&self) -> Option<&wabou_shell::AppDirectories> {
+    pub fn app_directories(&self) -> Option<&wabou_shell_gpui::AppDirectories> {
         self.app_directories.as_ref()
     }
 
@@ -538,14 +538,14 @@ struct RuntimeSourceConfig {
     #[cfg(feature = "devtools")]
     debug_state: Option<wabou_devtools::SharedDebugState>,
     effect_trace: Option<crate::effect_trace::EffectTrace>,
-    app_directories: Option<wabou_shell::AppDirectories>,
+    app_directories: Option<wabou_shell_gpui::AppDirectories>,
     image_resources: crate::ImageResourceStore,
 }
 
 impl RuntimeSourceConfig {
     fn create(
         &self,
-        window_key: wabou_shell::WindowResourceKey,
+        window_key: wabou_shell_gpui::WindowResourceKey,
         window_options: &WindowOptions,
     ) -> crate::Result<Applier> {
         #[cfg(feature = "vite")]
@@ -653,7 +653,7 @@ pub struct HostBuilder {
     devtools: bool,
     extensions: Vec<Box<dyn ShellExtension>>,
     effect_trace: Option<EffectTraceConfig>,
-    app_directory_config: Option<wabou_shell::AppDirectoryConfig>,
+    app_directory_config: Option<wabou_shell_gpui::AppDirectoryConfig>,
     persisted_window_size: Option<String>,
     kv_enabled: bool,
     image_resources: crate::ImageResourceStore,
@@ -944,7 +944,7 @@ impl HostBuilder {
         organization: impl Into<String>,
         application: impl Into<String>,
     ) -> Self {
-        self.app_directory_config(wabou_shell::AppDirectoryConfig::new(
+        self.app_directory_config(wabou_shell_gpui::AppDirectoryConfig::new(
             qualifier,
             organization,
             application,
@@ -952,7 +952,7 @@ impl HostBuilder {
     }
 
     /// Set an already constructed stable application directory identity.
-    pub fn app_directory_config(mut self, config: wabou_shell::AppDirectoryConfig) -> Self {
+    pub fn app_directory_config(mut self, config: wabou_shell_gpui::AppDirectoryConfig) -> Self {
         self.app_directory_config = Some(config);
         self
     }
@@ -1114,7 +1114,7 @@ impl HostBuilder {
             .as_ref()
             .map(|config| {
                 let resource = bundle::resource_directory()?;
-                wabou_shell::AppDirectories::resolve(config, resource).ok_or_else(|| {
+                wabou_shell_gpui::AppDirectories::resolve(config, resource).ok_or_else(|| {
                     crate::Error::AppDirectories {
                         application: "configured application".into(),
                     }
@@ -1160,7 +1160,7 @@ impl HostBuilder {
                 } else {
                     let persistence = wabou_shell::WindowSizePersistence::restore(
                         path,
-                        wabou_shell::initial_window_resource_key(0),
+                        wabou_shell_gpui::initial_window_resource_key(0),
                         &mut self.window,
                     );
                     // Observe close before a tray extension consumes the request.
@@ -1240,7 +1240,7 @@ impl HostBuilder {
             }
             let mut gpui_sources = Vec::with_capacity(windows.len());
             for (index, options) in windows.into_iter().enumerate() {
-                let window_key = wabou_shell::initial_window_resource_key(index);
+                let window_key = wabou_shell_gpui::initial_window_resource_key(index);
                 #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
                 let mut applier = runtime_sources.create(window_key, &options)?;
                 #[cfg(feature = "vite")]
@@ -1265,7 +1265,7 @@ impl HostBuilder {
         }
         let mut sources = Vec::with_capacity(windows.len());
         for (index, options) in windows.into_iter().enumerate() {
-            let window_key = wabou_shell::initial_window_resource_key(index);
+            let window_key = wabou_shell_gpui::initial_window_resource_key(index);
             #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
             let mut applier = runtime_sources.create(window_key, &options)?;
             if index == 0
@@ -1430,7 +1430,7 @@ pub(crate) fn relaunch_current_process() -> crate::Result<()> {
 
 fn install_host_message_producers(
     producers: &[HostMessageProducer],
-    window_key: wabou_shell::WindowResourceKey,
+    window_key: wabou_shell_gpui::WindowResourceKey,
     applier: &Applier,
 ) {
     for producer in producers {
@@ -2046,7 +2046,7 @@ mod tests {
 
         for producer in &builder.host_message_producers {
             producer(crate::HostMessageContext::new(
-                wabou_shell::WindowResourceKey::from_parts(7, 1).unwrap(),
+                wabou_shell_gpui::WindowResourceKey::from_parts(7, 1).unwrap(),
                 handle.clone(),
                 cancellation.clone(),
                 runtime.handle().clone(),
@@ -2083,7 +2083,7 @@ mod tests {
             Applier::from_runtime(runtime, vello::peniko::Color::from_rgb8(0x00, 0x00, 0x00));
         install_host_message_producers(
             &builder.host_message_producers,
-            wabou_shell::WindowResourceKey::from_parts(3, 1).unwrap(),
+            wabou_shell_gpui::WindowResourceKey::from_parts(3, 1).unwrap(),
             &applier,
         );
         started_rx

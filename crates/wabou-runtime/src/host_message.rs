@@ -263,7 +263,7 @@ where
 #[derive(Default)]
 struct HostMessageRouterInner {
     next_generation: AtomicU64,
-    routes: Mutex<HashMap<wabou_shell::WindowResourceKey, (u64, HostMessageHandle)>>,
+    routes: Mutex<HashMap<wabou_shell_gpui::WindowResourceKey, (u64, HostMessageHandle)>>,
 }
 
 impl HostMessageRouter {
@@ -275,7 +275,7 @@ impl HostMessageRouter {
     /// Send a message to the current JavaScript runtime for `window_key`.
     pub fn send_to(
         &self,
-        window_key: wabou_shell::WindowResourceKey,
+        window_key: wabou_shell_gpui::WindowResourceKey,
         message: HostMessage,
     ) -> Result<(), HostMessageError> {
         let handle = self
@@ -307,7 +307,7 @@ impl HostMessageRouter {
         });
     }
 
-    fn detach(&self, window_key: wabou_shell::WindowResourceKey, generation: u64) {
+    fn detach(&self, window_key: wabou_shell_gpui::WindowResourceKey, generation: u64) {
         if let Ok(mut routes) = self.inner.routes.lock()
             && routes
                 .get(&window_key)
@@ -325,7 +325,7 @@ impl HostMessageRouter {
 /// stop even when they have no message ready to send.
 #[derive(Clone)]
 pub struct HostMessageContext {
-    window_key: wabou_shell::WindowResourceKey,
+    window_key: wabou_shell_gpui::WindowResourceKey,
     messages: HostMessageHandle,
     cancellation: CancellationToken,
     runtime: tokio::runtime::Handle,
@@ -334,7 +334,7 @@ pub struct HostMessageContext {
 
 impl HostMessageContext {
     pub(crate) fn new(
-        window_key: wabou_shell::WindowResourceKey,
+        window_key: wabou_shell_gpui::WindowResourceKey,
         messages: HostMessageHandle,
         cancellation: CancellationToken,
         runtime: tokio::runtime::Handle,
@@ -350,7 +350,7 @@ impl HostMessageContext {
     }
 
     /// Typed generational identity of the owning native window.
-    pub fn window_key(&self) -> wabou_shell::WindowResourceKey {
+    pub fn window_key(&self) -> wabou_shell_gpui::WindowResourceKey {
         self.window_key
     }
 
@@ -624,7 +624,7 @@ mod tests {
         let (messages, _inbox) = host_message_channel(2);
         let cancellation = CancellationToken::new();
         let context = HostMessageContext::new(
-            wabou_shell::WindowResourceKey::from_parts(9, 1).unwrap(),
+            wabou_shell_gpui::WindowResourceKey::from_parts(9, 1).unwrap(),
             messages,
             cancellation.clone(),
             tokio::runtime::Handle::current(),
@@ -641,7 +641,7 @@ mod tests {
     #[tokio::test]
     async fn router_tracks_the_current_runtime_for_each_window() {
         let router = HostMessageRouter::new();
-        let window_key = wabou_shell::WindowResourceKey::from_parts(9, 1).unwrap();
+        let window_key = wabou_shell_gpui::WindowResourceKey::from_parts(9, 1).unwrap();
         assert_eq!(
             router.send_to(window_key, HostMessage::null("before")),
             Err(HostMessageError::WindowUnavailable)
@@ -679,7 +679,7 @@ mod tests {
     #[tokio::test]
     async fn stale_runtime_cleanup_does_not_remove_a_replacement_route() {
         let router = HostMessageRouter::new();
-        let window_key = wabou_shell::WindowResourceKey::from_parts(9, 1).unwrap();
+        let window_key = wabou_shell_gpui::WindowResourceKey::from_parts(9, 1).unwrap();
         let (old_messages, _old_inbox) = host_message_channel(2);
         let old_cancellation = CancellationToken::new();
         router.attach(HostMessageContext::new(

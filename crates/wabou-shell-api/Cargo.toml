@@ -1,0 +1,15 @@
+[package]
+name = "wabou-shell-api"
+version.workspace = true
+edition = "2024"
+description = "Backend-neutral native shell contracts for Wabou."
+publish = false
+license.workspace = true
+
+[dependencies]
+directories.workspace = true
+serde = { workspace = true, features = ["derive"] }
+wabou-host-api.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

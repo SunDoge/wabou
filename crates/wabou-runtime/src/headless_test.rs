@@ -113,7 +113,7 @@ pub(super) fn run_headless_test(
     let viewport = HeadlessViewport::from_environment()?;
 
     controller.initialize_headless(
-        (0..sources.len()).map(wabou_shell::initial_window_resource_key),
+        (0..sources.len()).map(wabou_shell_gpui::initial_window_resource_key),
         viewport.width,
         viewport.height,
     );
@@ -128,7 +128,7 @@ pub(super) fn run_headless_test(
         .collect::<Vec<_>>();
     while !controller.has_report() && Instant::now() < deadline {
         for (index, (source, _)) in sources.iter_mut().enumerate() {
-            let window_key = wabou_shell::initial_window_resource_key(index);
+            let window_key = wabou_shell_gpui::initial_window_resource_key(index);
             let (width, height) = controller
                 .headless_viewport(window_key)
                 .unwrap_or((viewport.width, viewport.height));
@@ -165,7 +165,7 @@ pub(super) fn run_headless_test(
     // Capture only after two additional host frames have settled that work.
     for _ in 0..2 {
         for (index, (source, _)) in sources.iter_mut().enumerate() {
-            let window_key = wabou_shell::initial_window_resource_key(index);
+            let window_key = wabou_shell_gpui::initial_window_resource_key(index);
             let (width, height) = controller
                 .headless_viewport(window_key)
                 .unwrap_or((viewport.width, viewport.height));
@@ -173,7 +173,7 @@ pub(super) fn run_headless_test(
         }
     }
 
-    let capture_window = wabou_shell::initial_window_resource_key(viewport.window_index);
+    let capture_window = wabou_shell_gpui::initial_window_resource_key(viewport.window_index);
     let capture_viewport = controller
         .headless_viewport(capture_window)
         .map(|(width, height)| viewport.with_logical_size(width, height))
@@ -249,11 +249,11 @@ fn write_headless_snapshot(
 
 fn drain_headless_effects(source: &mut dyn FrameSource) {
     while let Some(request) = source.take_effect() {
-        source.complete_effect(wabou_shell::EffectCompletion {
+        source.complete_effect(wabou_shell_gpui::EffectCompletion {
             id: request.id,
             op: request.payload.op(),
-            result: wabou_shell::EffectResult::Error {
-                code: wabou_shell::EffectErrorCode::Unsupported,
+            result: wabou_shell_gpui::EffectResult::Error {
+                code: wabou_shell_gpui::EffectErrorCode::Unsupported,
                 message: format!(
                     "native effect {:?} has no deterministic test fixture",
                     request.payload.op()

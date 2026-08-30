@@ -15,9 +15,9 @@ use wabou_shell_gpui::gpui::{
 };
 
 use crate::{Applier, FrameSource};
-use wabou_shell::{
-    ClipboardRequest, EffectCompletion, EffectErrorCode, EffectPayload, EffectRequest,
-    EffectResult, HostAction, HostActionResult, UiEvent, WindowCommand,
+use wabou_shell::{ClipboardRequest, HostAction, HostActionResult, UiEvent};
+use wabou_shell_gpui::{
+    EffectCompletion, EffectErrorCode, EffectPayload, EffectRequest, EffectResult, WindowCommand,
 };
 
 /// A coarse GPUI entity for one Solid application runtime.
@@ -377,8 +377,8 @@ impl GpuiRuntimeView {
 
     fn execute_synchronous_effect(
         &mut self,
-        id: wabou_shell::EffectId,
-        op: wabou_shell::EffectOp,
+        id: wabou_shell_gpui::EffectId,
+        op: wabou_shell_gpui::EffectOp,
         payload: EffectPayload,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -461,8 +461,8 @@ impl GpuiRuntimeView {
 
     fn complete_path_prompt(
         &self,
-        id: wabou_shell::EffectId,
-        op: wabou_shell::EffectOp,
+        id: wabou_shell_gpui::EffectId,
+        op: wabou_shell_gpui::EffectOp,
         receiver: futures_channel::oneshot::Receiver<
             anyhow::Result<Option<Vec<std::path::PathBuf>>>,
         >,
@@ -487,8 +487,8 @@ impl GpuiRuntimeView {
 
     fn complete_save_prompt(
         &self,
-        id: wabou_shell::EffectId,
-        op: wabou_shell::EffectOp,
+        id: wabou_shell_gpui::EffectId,
+        op: wabou_shell_gpui::EffectOp,
         receiver: futures_channel::oneshot::Receiver<anyhow::Result<Option<std::path::PathBuf>>>,
         cx: &mut Context<Self>,
     ) {
@@ -513,8 +513,8 @@ impl GpuiRuntimeView {
 
     fn complete_message_prompt(
         &self,
-        id: wabou_shell::EffectId,
-        op: wabou_shell::EffectOp,
+        id: wabou_shell_gpui::EffectId,
+        op: wabou_shell_gpui::EffectOp,
         receiver: futures_channel::oneshot::Receiver<usize>,
         results: Vec<&'static str>,
         cx: &mut Context<Self>,
@@ -552,28 +552,28 @@ fn platform_effect_error(error: impl std::fmt::Display) -> EffectResult {
     }
 }
 
-fn message_prompt_level(level: wabou_shell::MessageDialogLevel) -> PromptLevel {
+fn message_prompt_level(level: wabou_shell_gpui::MessageDialogLevel) -> PromptLevel {
     match level {
-        wabou_shell::MessageDialogLevel::Info => PromptLevel::Info,
-        wabou_shell::MessageDialogLevel::Warning => PromptLevel::Warning,
-        wabou_shell::MessageDialogLevel::Error => PromptLevel::Critical,
+        wabou_shell_gpui::MessageDialogLevel::Info => PromptLevel::Info,
+        wabou_shell_gpui::MessageDialogLevel::Warning => PromptLevel::Warning,
+        wabou_shell_gpui::MessageDialogLevel::Error => PromptLevel::Critical,
     }
 }
 
 fn message_prompt_buttons(
-    buttons: wabou_shell::MessageDialogButtons,
+    buttons: wabou_shell_gpui::MessageDialogButtons,
 ) -> (Vec<PromptButton>, Vec<&'static str>) {
     match buttons {
-        wabou_shell::MessageDialogButtons::Ok => (vec![PromptButton::ok("OK")], vec!["ok"]),
-        wabou_shell::MessageDialogButtons::OkCancel => (
+        wabou_shell_gpui::MessageDialogButtons::Ok => (vec![PromptButton::ok("OK")], vec!["ok"]),
+        wabou_shell_gpui::MessageDialogButtons::OkCancel => (
             vec![PromptButton::ok("OK"), PromptButton::cancel("Cancel")],
             vec!["ok", "cancel"],
         ),
-        wabou_shell::MessageDialogButtons::YesNo => (
+        wabou_shell_gpui::MessageDialogButtons::YesNo => (
             vec![PromptButton::ok("Yes"), PromptButton::cancel("No")],
             vec!["yes", "no"],
         ),
-        wabou_shell::MessageDialogButtons::YesNoCancel => (
+        wabou_shell_gpui::MessageDialogButtons::YesNoCancel => (
             vec![
                 PromptButton::ok("Yes"),
                 PromptButton::new("No"),
@@ -684,8 +684,8 @@ mod tests {
     use super::*;
     use crate::JsRuntime;
     use wabou_host_api::NodeKey;
-    use wabou_shell::{EffectId, EffectScope, OpenDialogRequest};
     use wabou_shell_gpui::gpui::{HeadlessAppContext, TestAppContext, px, size};
+    use wabou_shell_gpui::{EffectId, EffectScope, OpenDialogRequest};
 
     #[test]
     fn gpui_wakes_are_coalesced_until_the_ui_task_drains_them() {
@@ -862,10 +862,11 @@ mod tests {
 
     #[test]
     fn message_prompt_buttons_preserve_wabou_result_names() {
-        let (_, results) = message_prompt_buttons(wabou_shell::MessageDialogButtons::YesNoCancel);
+        let (_, results) =
+            message_prompt_buttons(wabou_shell_gpui::MessageDialogButtons::YesNoCancel);
         assert_eq!(results, ["yes", "no", "cancel"]);
         assert!(matches!(
-            message_prompt_level(wabou_shell::MessageDialogLevel::Error),
+            message_prompt_level(wabou_shell_gpui::MessageDialogLevel::Error),
             PromptLevel::Critical
         ));
     }

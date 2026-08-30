@@ -1111,11 +1111,11 @@ impl FrameSource for Applier {
         }
     }
 
-    fn take_effect(&mut self) -> Option<wabou_shell::EffectRequest> {
+    fn take_effect(&mut self) -> Option<wabou_shell_gpui::EffectRequest> {
         self.runtime.effect_bridge.take(&self.runtime.js)
     }
 
-    fn complete_effect(&mut self, completion: wabou_shell::EffectCompletion) {
+    fn complete_effect(&mut self, completion: wabou_shell_gpui::EffectCompletion) {
         self.runtime
             .effect_bridge
             .complete(&self.runtime.js, completion);

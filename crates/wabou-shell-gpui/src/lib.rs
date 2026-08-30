@@ -26,6 +26,17 @@ pub use native_widget::{NativeWidgetContext, NativeWidgetFactory};
 pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
 pub use style::{StyleDiagnostic, StyleProjection};
 pub use tree::{ProjectedNode, ProjectedNodeKind, ProjectionError, ProjectionTree};
+pub use wabou_shell_api::{
+    AppDirectories, AppDirectoryConfig, CapabilityId, ContextMenuItem, ContextMenuRequest,
+    DialogFilter, EFFECT_ABI_VERSION, EffectCompletion, EffectDispatch, EffectErrorCode,
+    EffectExecutor, EffectId, EffectOp, EffectPayload, EffectRequest, EffectResult, EffectScope,
+    EffectTapeEntry, MenuPosition, MessageDialogButtons, MessageDialogLevel, MessageDialogRequest,
+    MethodId, NotificationRequest, OpenDialogRequest, PickDirectoryRequest,
+    RecordingEffectExecutor, RendererBackend, ReplayEffectExecutor, SaveDialogRequest,
+    WindowCommand, WindowCreateRequest, WindowInputMode, WindowLevel, WindowOptions,
+    WindowResourceKey, initial_window_resource_key,
+};
+pub use wabou_shell_api::{app_dirs, effect, window};
 pub use window_state::WindowSizePersistence;
 
 /// Thread-safe callback used by background producers to wake the UI loop.

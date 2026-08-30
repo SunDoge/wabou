@@ -23,7 +23,7 @@ use wabou_shell::{
 const CAPABILITY: &str = "test";
 const MAX_FIXTURE_BYTES: usize = 16 * 1024 * 1024;
 static NEXT_FIXTURE_DIRECTORY: AtomicU64 = AtomicU64::new(1);
-type WindowKey = wabou_shell::WindowResourceKey;
+type WindowKey = wabou_shell_gpui::WindowResourceKey;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -503,12 +503,12 @@ impl TestController {
                     ctx.clone(),
                     move |capability: u32, method: u16, result_json: String| {
                         let result =
-                            serde_json::from_str::<wabou_shell::EffectResult>(&result_json)
+                            serde_json::from_str::<wabou_shell_gpui::EffectResult>(&result_json)
                                 .map_err(|error| format!("invalid effect fixture result: {error}"));
                         result
                             .and_then(|result| {
                                 effects.effects.enqueue_fixture(
-                                    wabou_shell::EffectOp::new(capability, method),
+                                    wabou_shell_gpui::EffectOp::new(capability, method),
                                     result,
                                 )
                             })

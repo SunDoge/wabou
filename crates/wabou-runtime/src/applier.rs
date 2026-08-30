@@ -379,7 +379,7 @@ impl Drop for RuntimeSession {
 }
 
 impl RuntimeSession {
-    fn new(js: JsRuntime, window_key: wabou_shell::WindowResourceKey) -> Self {
+    fn new(js: JsRuntime, window_key: wabou_shell_gpui::WindowResourceKey) -> Self {
         let pending_css = js.pending_css_handle();
         let pending_color_theme = js.pending_color_theme_handle();
         let pending_color_palette = js.pending_color_palette_handle();
@@ -810,7 +810,7 @@ impl Applier {
             js,
             widget_factories,
             base_color,
-            wabou_shell::initial_window_resource_key(0),
+            wabou_shell_gpui::initial_window_resource_key(0),
         )
     }
 
@@ -819,7 +819,7 @@ impl Applier {
         js: JsRuntime,
         widget_factories: HashMap<String, wabou_shell::WidgetFactory>,
         base_color: Color,
-        window_key: wabou_shell::WindowResourceKey,
+        window_key: wabou_shell_gpui::WindowResourceKey,
     ) -> Self {
         let layout_metrics = js.layout_metrics_handle();
         let atoms = js.atom_pool_handle();
@@ -882,7 +882,7 @@ impl Applier {
     }
 
     /// Publish resolved application-private directories to native effects.
-    pub fn set_app_directories(&mut self, directories: wabou_shell::AppDirectories) {
+    pub fn set_app_directories(&mut self, directories: wabou_shell_gpui::AppDirectories) {
         self.runtime.effect_bridge.set_app_directories(directories);
     }
 
@@ -906,7 +906,7 @@ impl Applier {
 
     pub(crate) fn host_message_context(
         &self,
-        window_key: wabou_shell::WindowResourceKey,
+        window_key: wabou_shell_gpui::WindowResourceKey,
     ) -> crate::HostMessageContext {
         crate::HostMessageContext::new(
             window_key,

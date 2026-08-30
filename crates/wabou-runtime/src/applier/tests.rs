@@ -44,14 +44,14 @@ fn set_focus_contained(applier: &mut Applier, id: u32) {
 #[test]
 fn window_effect_rejects_an_unknown_renderer_instead_of_falling_back() {
     let payload = decode_effect_payload(
-        wabou_shell::effect::builtin::WINDOW_CREATE,
-        wabou_shell::initial_window_resource_key(0),
+        wabou_shell_gpui::effect::builtin::WINDOW_CREATE,
+        wabou_shell_gpui::initial_window_resource_key(0),
         r#"{"renderer":"browser"}"#.to_owned(),
         None,
     );
     assert!(matches!(
         payload,
-        wabou_shell::EffectPayload::Invalid { message, .. }
+        wabou_shell_gpui::EffectPayload::Invalid { message, .. }
             if message == "unknown renderer backend `browser`"
     ));
 }
@@ -478,30 +478,30 @@ fn protocol_keyed_moves_keep_logical_and_taffy_trees_unique() {
 
 #[test]
 fn app_directory_effect_uses_host_configuration_only() {
-    let directories = wabou_shell::AppDirectories::resolve(
-        &wabou_shell::AppDirectoryConfig::new("dev", "Wabou", "Effect Test"),
+    let directories = wabou_shell_gpui::AppDirectories::resolve(
+        &wabou_shell_gpui::AppDirectoryConfig::new("dev", "Wabou", "Effect Test"),
         "/app/resources",
     )
     .unwrap();
     let configured = decode_effect_payload(
-        wabou_shell::effect::builtin::APP_DIRS_RESOLVE,
-        wabou_shell::initial_window_resource_key(0),
+        wabou_shell_gpui::effect::builtin::APP_DIRS_RESOLVE,
+        wabou_shell_gpui::initial_window_resource_key(0),
         "null".into(),
         Some(&directories),
     );
     assert_eq!(
         configured,
-        wabou_shell::EffectPayload::AppDirsResolve(directories)
+        wabou_shell_gpui::EffectPayload::AppDirsResolve(directories)
     );
 
     assert!(matches!(
         decode_effect_payload(
-            wabou_shell::effect::builtin::APP_DIRS_RESOLVE,
-            wabou_shell::initial_window_resource_key(0),
+            wabou_shell_gpui::effect::builtin::APP_DIRS_RESOLVE,
+            wabou_shell_gpui::initial_window_resource_key(0),
             r#"{"application":"other"}"#.into(),
             None,
         ),
-        wabou_shell::EffectPayload::Invalid { .. }
+        wabou_shell_gpui::EffectPayload::Invalid { .. }
     ));
 }
 
@@ -509,14 +509,14 @@ fn app_directory_effect_uses_host_configuration_only() {
 fn window_show_effect_restores_a_logical_window() {
     assert_eq!(
         decode_effect_payload(
-            wabou_shell::effect::builtin::WINDOW_SHOW,
-            wabou_shell::initial_window_resource_key(0),
+            wabou_shell_gpui::effect::builtin::WINDOW_SHOW,
+            wabou_shell_gpui::initial_window_resource_key(0),
             "null".into(),
             None,
         ),
-        wabou_shell::EffectPayload::WindowControl {
-            window_id: wabou_shell::initial_window_resource_key(0),
-            command: wabou_shell::WindowCommand::Show,
+        wabou_shell_gpui::EffectPayload::WindowControl {
+            window_id: wabou_shell_gpui::initial_window_resource_key(0),
+            command: wabou_shell_gpui::WindowCommand::Show,
         }
     );
 }
@@ -525,21 +525,21 @@ fn window_show_effect_restores_a_logical_window() {
 fn application_exit_effect_is_process_scoped_and_payload_free() {
     assert_eq!(
         decode_effect_payload(
-            wabou_shell::effect::builtin::APPLICATION_EXIT,
-            wabou_shell::initial_window_resource_key(0),
+            wabou_shell_gpui::effect::builtin::APPLICATION_EXIT,
+            wabou_shell_gpui::initial_window_resource_key(0),
             "null".into(),
             None,
         ),
-        wabou_shell::EffectPayload::ApplicationExit
+        wabou_shell_gpui::EffectPayload::ApplicationExit
     );
     assert_eq!(
         decode_effect_payload(
-            wabou_shell::effect::builtin::APPLICATION_RELAUNCH,
-            wabou_shell::initial_window_resource_key(0),
+            wabou_shell_gpui::effect::builtin::APPLICATION_RELAUNCH,
+            wabou_shell_gpui::initial_window_resource_key(0),
             "null".into(),
             None,
         ),
-        wabou_shell::EffectPayload::ApplicationRelaunch
+        wabou_shell_gpui::EffectPayload::ApplicationRelaunch
     );
 }
 
