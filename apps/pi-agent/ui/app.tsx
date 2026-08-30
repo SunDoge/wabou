@@ -28,6 +28,7 @@ import {
 import { subscribeAgentEvents } from "./agent-event-subscription";
 import { createAgentProfiles } from "./agent-profiles";
 import {
+  type AgentItem,
   appendUserMessage,
   reconcileProcessConnection,
   reducePiEvent,
@@ -146,6 +147,9 @@ export function App() {
     entryId: string;
     text: string;
   }>();
+  const [forkCheckpoint, setForkCheckpoint] = createSignal<
+    "checking" | "available" | "unavailable"
+  >("unavailable");
   const [extensionDialogs, setExtensionDialogs] = createSignal<
     readonly ExtensionUiDialogRequest[]
   >([]);
@@ -172,6 +176,37 @@ export function App() {
     // through a local <Errored> boundary.
     load: (cwd) => api.workspaceInfo(cwd).catch(() => undefined),
   });
+  const openFork = (item: Extract<AgentItem, { kind: "user" }>) => {
+    const agent = active();
+    const entryId = item.entryId;
+    if (!entryId) return;
+    pendingFork.open(agent.id, { entryId, text: item.text });
+    setForkCheckpoint("checking");
+    void (async () => {
+      try {
+        const sessionId = agent.state.sessionId;
+        const info = sessionId
+          ? (workspaceInfo.latest() ?? (await api.workspaceInfo(agent.cwd)))
+          : undefined;
+        const checkpoint =
+          sessionId && info?.repository
+            ? await api.findCheckpoint(agent.cwd, sessionId, entryId)
+            : undefined;
+        const current = pendingFork.value();
+        if (current?.ownerId === agent.id && current.data.entryId === entryId) {
+          setForkCheckpoint(checkpoint ? "available" : "unavailable");
+        }
+      } catch (error) {
+        console.warn(
+          `[pi-agent] could not inspect turn checkpoint: ${String(error)}`,
+        );
+        const current = pendingFork.value();
+        if (current?.ownerId === agent.id && current.data.entryId === entryId) {
+          setForkCheckpoint("unavailable");
+        }
+      }
+    })();
+  };
   createEffect(
     () => workspaceInfo.latest(),
     (info) => {
@@ -915,12 +950,7 @@ export function App() {
                         registerItem={(id, node) =>
                           itemHandles.register(itemHandleScope(), id, node)
                         }
-                        fork={(item) =>
-                          pendingFork.open(activeId(), {
-                            entryId: item.entryId ?? "",
-                            text: item.text,
-                          })
-                        }
+                        fork={openFork}
                       />
                     </Show>
                   </WorkbenchContentColumn>
@@ -998,7 +1028,11 @@ export function App() {
       </Show>
       <SessionForkDialog
         open={pendingFork.value() !== undefined}
-        cancel={pendingFork.close}
+        checkpoint={forkCheckpoint()}
+        cancel={() => {
+          pendingFork.close();
+          setForkCheckpoint("unavailable");
+        }}
         confirm={() => {
           const target = pendingFork.value();
           pendingFork.close();
