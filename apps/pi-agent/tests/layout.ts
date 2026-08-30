@@ -247,9 +247,11 @@ try {
               `assistant response did not fill the conversation column: width=${response.rect.width}`,
             );
           }
-          if (Math.abs(copy.rect.x - response.rect.x) > 16) {
+          const responseRight = response.rect.x + response.rect.width;
+          const copyRight = copy.rect.x + copy.rect.width;
+          if (Math.abs(copyRight - responseRight) > 16) {
             throw new Error(
-              `assistant copy action detached from response: response x=${response.rect.x}, copy x=${copy.rect.x}`,
+              `assistant copy action detached from response end: response right=${responseRight}, copy right=${copyRight}`,
             );
           }
           if (activityRules.length !== 2) {

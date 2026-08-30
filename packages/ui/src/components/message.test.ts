@@ -31,4 +31,11 @@ describe("Message anatomy", () => {
     expect(messageActionsClass("end")).toContain("self-end");
     expect(messageActionsClass("end")).toContain("justify-end");
   });
+
+  test("allows a response action rail to align independently", () => {
+    const responseActions = messageActionsClass("end", "text-secondary");
+    expect(responseActions).toContain("self-end");
+    expect(responseActions).toContain("justify-end");
+    expect(responseActions).toContain("text-secondary");
+  });
 });

@@ -141,14 +141,21 @@ export function messageActionsClass(
   );
 }
 
+export interface MessageActionsProps extends Omit<ViewProps, "class"> {
+  /** Override the containing message direction for a local action rail. */
+  align?: MessageAlign;
+  class?: string;
+}
+
 /** Compact, consistently aligned actions belonging to one message. */
-export function MessageActions(props: ViewProps): JSX.Element {
+export function MessageActions(props: MessageActionsProps): JSX.Element {
   const context = useContext(MessageContext);
+  const forwarded = omit(props, "align", "class", "children");
   return (
     <View
-      {...props}
+      {...forwarded}
       role={props.role ?? "toolbar"}
-      class={messageActionsClass(context.align(), props.class)}
+      class={messageActionsClass(props.align ?? context.align(), props.class)}
     >
       {props.children}
     </View>

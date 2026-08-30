@@ -6314,12 +6314,13 @@ function messageActionsClass(align = "start", className) {
 /** Compact, consistently aligned actions belonging to one message. */
 function MessageActions(props) {
 	const context = useContext(MessageContext);
-	return createComponent$1(View, mergeProps(props, {
+	const forwarded = omit(props, "align", "class", "children");
+	return createComponent$1(View, mergeProps(forwarded, {
 		get role() {
 			return props.role ?? "toolbar";
 		},
 		get ["class"]() {
-			return messageActionsClass(context.align(), props.class);
+			return messageActionsClass(props.align ?? context.align(), props.class);
 		},
 		get children() {
 			return props.children;
