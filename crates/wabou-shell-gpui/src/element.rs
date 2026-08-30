@@ -1,6 +1,6 @@
 use gpui::{
     AnyElement, App, Bounds, Element, ElementId, GlobalElementId, InspectorElementId, IntoElement,
-    LayoutId, Pixels, Window, div, prelude::*,
+    LayoutId, Pixels, Visibility, Window, div, prelude::*,
 };
 
 use crate::{NodeKey, ProjectionError, ProjectionTree};
@@ -76,29 +76,47 @@ impl Element for ProjectedElement {
         &mut self,
         _id: Option<&GlobalElementId>,
         _inspector_id: Option<&InspectorElementId>,
-        _bounds: Bounds<Pixels>,
+        bounds: Bounds<Pixels>,
         _request_layout: &mut Self::RequestLayoutState,
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
-        for child in &mut self.children {
-            child.prepaint(window, cx);
-        }
+        let text_style = self.style.text_style().cloned();
+        let overflow_mask = self.style.overflow_mask(bounds, window.rem_size());
+        window.with_text_style(text_style, |window| {
+            window.with_content_mask(overflow_mask, |window| {
+                for child in &mut self.children {
+                    child.prepaint(window, cx);
+                }
+            });
+        });
     }
 
     fn paint(
         &mut self,
         _id: Option<&GlobalElementId>,
         _inspector_id: Option<&InspectorElementId>,
-        _bounds: Bounds<Pixels>,
+        bounds: Bounds<Pixels>,
         _request_layout: &mut Self::RequestLayoutState,
         _prepaint: &mut Self::PrepaintState,
         window: &mut Window,
         cx: &mut App,
     ) {
-        for child in &mut self.children {
-            child.paint(window, cx);
+        if self.style.visibility == Visibility::Hidden {
+            return;
         }
+
+        let text_style = self.style.text_style().cloned();
+        let overflow_mask = self.style.overflow_mask(bounds, window.rem_size());
+        self.style.paint(bounds, window, cx, |window, cx| {
+            window.with_text_style(text_style, |window| {
+                window.with_content_mask(overflow_mask, |window| {
+                    for child in &mut self.children {
+                        child.paint(window, cx);
+                    }
+                });
+            });
+        });
     }
 }
 
