@@ -15,8 +15,8 @@
 
 use std::collections::HashMap;
 
+use legacy_shell::FrameSource;
 use vello::peniko::Color;
-use wabou_shell::FrameSource;
 
 use super::{Applier, InvalidationFlags};
 use crate::jsrt::JsRuntime;
@@ -101,7 +101,7 @@ fn stylesheet_pushed_during_javascript_tick_applies_in_the_same_frame() {
         "an incomplete runtime frame must not be visible to GPUI",
     );
 
-    applier.build_frame(&mut wabou_shell::TextContext::new(), 800, 600);
+    applier.build_frame(&mut legacy_shell::TextContext::new(), 800, 600);
 
     assert_eq!(
         applier.gpui_revision(),
@@ -171,7 +171,7 @@ fn growing_regions_shrink_by_default_without_changing_intrinsic_controls() {
         ],
     );
 
-    let mut text = wabou_shell::TextContext::new();
+    let mut text = legacy_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
 
     assert_eq!(
@@ -265,7 +265,7 @@ fn class_cascade_resolves_into_computed_snapshot() {
         )],
     );
 
-    let mut text = wabou_shell::TextContext::new();
+    let mut text = legacy_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
     let snapshot = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
 
@@ -337,7 +337,7 @@ fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
             .build(),
     ));
 
-    let mut text = wabou_shell::TextContext::new();
+    let mut text = legacy_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
     assert_eq!(
         applier
@@ -417,7 +417,7 @@ fn native_utility_fallback_resolves_without_a_stylesheet() {
         ],
     });
 
-    let mut text = wabou_shell::TextContext::new();
+    let mut text = legacy_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
     let snapshot = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
     assert_eq!(snapshot.layout.display, taffy::Display::Flex);
@@ -432,7 +432,7 @@ fn native_utility_fallback_resolves_without_a_stylesheet() {
     );
     assert_eq!(
         snapshot.transforms,
-        vec![wabou_shell::style::PaintTransform::Translate(
+        vec![legacy_shell::style::PaintTransform::Translate(
             wabou_style::IrLength::Px { value: 16.0 },
             wabou_style::IrLength::Px { value: 0.0 },
         )]
@@ -517,7 +517,7 @@ fn runtime_utility_fallback_uses_the_stylesheet_theme() {
         crate::style_ir::StyleSheet::builder().theme(theme).build(),
     ));
 
-    let mut text = wabou_shell::TextContext::new();
+    let mut text = legacy_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
 
     assert_eq!(
@@ -571,19 +571,19 @@ fn utility_order_is_last_wins_and_transform_components_compose() {
         ],
     });
 
-    let mut text = wabou_shell::TextContext::new();
+    let mut text = legacy_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
     let snapshot = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
     assert_eq!(snapshot.layout.size.width, taffy::Dimension::length(32.0));
     assert_eq!(
         snapshot.transforms,
         vec![
-            wabou_shell::style::PaintTransform::Translate(
+            legacy_shell::style::PaintTransform::Translate(
                 wabou_style::IrLength::Px { value: 8.0 },
                 wabou_style::IrLength::Px { value: 24.0 },
             ),
-            wabou_shell::style::PaintTransform::Scale(1.5, 1.5),
-            wabou_shell::style::PaintTransform::Rotate(std::f32::consts::FRAC_PI_4),
+            legacy_shell::style::PaintTransform::Scale(1.5, 1.5),
+            legacy_shell::style::PaintTransform::Rotate(std::f32::consts::FRAC_PI_4),
         ]
     );
 }
@@ -623,7 +623,7 @@ fn typed_inline_style_reaches_layout_without_string_parsing() {
         ],
     });
 
-    let mut text = wabou_shell::TextContext::new();
+    let mut text = legacy_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
     let snapshot = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
     assert_eq!(snapshot.layout.size.width, taffy::Dimension::length(123.5));
@@ -655,7 +655,7 @@ fn unknown_runtime_utility_is_recorded_for_diagnostics() {
         ],
     });
 
-    let mut text = wabou_shell::TextContext::new();
+    let mut text = legacy_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
 
     assert!(matches!(
@@ -704,7 +704,7 @@ fn ignored_runtime_class_never_becomes_a_utility_diagnostic() {
             .build(),
     ));
 
-    let mut text = wabou_shell::TextContext::new();
+    let mut text = legacy_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
 
     assert!(!applier.document.style.utility_cache.contains_key(&lucide));
@@ -766,7 +766,7 @@ fn runtime_utility_fallback_resolves_semantic_theme_colors_as_tokens() {
         StyleSheet::builder().color_themes(themes).build(),
     ));
 
-    let mut text = wabou_shell::TextContext::new();
+    let mut text = legacy_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
     assert!(
         !applier
@@ -878,7 +878,7 @@ fn replacing_class_resets_previous_declarations() {
             },
         ],
     });
-    let mut text = wabou_shell::TextContext::new();
+    let mut text = legacy_shell::TextContext::new();
     applier.build_frame(&mut text, 200, 100);
     assert_eq!(
         applier
@@ -949,7 +949,7 @@ fn inline_style_wins_over_class_for_same_property() {
             },
         ],
     });
-    let mut text = wabou_shell::TextContext::new();
+    let mut text = legacy_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
     let snap = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
     assert_eq!(snap.layout.size.width, taffy::Dimension::length(200.0));
@@ -1007,7 +1007,7 @@ fn white_space_nowrap_inherits_to_text_computed_style() {
             vec![declaration("white-space", keyword("nowrap"))],
         )],
     );
-    let mut text = wabou_shell::TextContext::new();
+    let mut text = legacy_shell::TextContext::new();
     applier.build_frame(&mut text, 200, 100);
     assert!(
         !applier
@@ -1065,7 +1065,7 @@ fn font_color_inherits_from_parent_class() {
             ],
         )],
     );
-    let mut text = wabou_shell::TextContext::new();
+    let mut text = legacy_shell::TextContext::new();
     applier.build_frame(&mut text, 400, 200);
     let child = applier.computed_node_snapshot(NodeKey::new(3, 1)).unwrap();
     assert_eq!(child.text_color, Color::from_rgb8(0xff, 0x00, 0x00));

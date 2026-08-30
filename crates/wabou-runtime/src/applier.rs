@@ -22,6 +22,23 @@ use tokio_util::sync::CancellationToken;
 #[cfg(any(feature = "devtools", test))]
 use anyrender::PaintScene;
 use anyrender::Scene;
+use legacy_shell::layout::{self, PlacedNode, SubtreeEvent, subtree_events};
+use legacy_shell::scrollbar::{
+    ScrollAxis, ScrollbarPart, ScrollbarTarget, drag_ratio as scrollbar_drag_ratio,
+    hit as scrollbar_hit,
+};
+use legacy_shell::style::{
+    self, DeclaredPaint, HostPaint, InheritedPaint, OverlayPlane, Paint, PaintTransform,
+    ScrollbarStyle, ScrollbarVisibility, TextAlign,
+};
+use legacy_shell::text::TextContext;
+#[cfg(any(feature = "devtools", test))]
+use legacy_shell::text::layout_text_styled;
+use legacy_shell::{
+    EventResponse, FrameSource, FrameStats, GesturePhase, KeyPhase, Modifiers, PointerButton,
+    PointerPhase, SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole,
+    SemanticSnapshot, SemanticStates, SemanticToggleState, UiEvent, WakeCallback,
+};
 use parley::{
     Affinity, Layout,
     editing::{Cursor, Selection},
@@ -35,23 +52,6 @@ use vello::kurbo::{Rect, Stroke};
 use vello::peniko::Color;
 #[cfg(any(feature = "devtools", test))]
 use vello::peniko::Fill;
-use wabou_shell::layout::{self, PlacedNode, SubtreeEvent, subtree_events};
-use wabou_shell::scrollbar::{
-    ScrollAxis, ScrollbarPart, ScrollbarTarget, drag_ratio as scrollbar_drag_ratio,
-    hit as scrollbar_hit,
-};
-use wabou_shell::style::{
-    self, DeclaredPaint, HostPaint, InheritedPaint, OverlayPlane, Paint, PaintTransform,
-    ScrollbarStyle, ScrollbarVisibility, TextAlign,
-};
-use wabou_shell::text::TextContext;
-#[cfg(any(feature = "devtools", test))]
-use wabou_shell::text::layout_text_styled;
-use wabou_shell::{
-    EventResponse, FrameSource, FrameStats, GesturePhase, KeyPhase, Modifiers, PointerButton,
-    PointerPhase, SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole,
-    SemanticSnapshot, SemanticStates, SemanticToggleState, UiEvent, WakeCallback,
-};
 use wabou_style::IrValue;
 
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
@@ -241,7 +241,7 @@ struct Declared {
     /// Application-visible decoded image resource.
     image_resource: Option<crate::ImageResourceHandle>,
     /// Decoded local-coordinate vector path.
-    vector_path: Option<Arc<wabou_shell::style::VectorPath>>,
+    vector_path: Option<Arc<legacy_shell::style::VectorPath>>,
 }
 
 impl Declared {
@@ -273,7 +273,7 @@ pub struct ComputedNodeSnapshot {
     /// Resolved static transforms.
     pub transforms: Vec<PaintTransform>,
     /// Resolved outer shadows.
-    pub shadows: Vec<wabou_shell::style::Shadow>,
+    pub shadows: Vec<legacy_shell::style::Shadow>,
     /// Uniform border radius in logical pixels.
     pub border_radius: f32,
     /// Uniform border width and color.
@@ -285,7 +285,7 @@ pub struct ComputedNodeSnapshot {
     /// Outline color.
     pub outline_color: Option<Color>,
     /// Resolved platform cursor.
-    pub cursor: wabou_shell::style::CursorStyle,
+    pub cursor: legacy_shell::style::CursorStyle,
     /// Resolved text color.
     pub text_color: Color,
     /// Resolved font size in logical pixels.
@@ -432,7 +432,7 @@ struct DocumentState {
 impl DocumentState {
     fn new(
         atoms: Rc<RefCell<AtomPool>>,
-        widget_factories: HashMap<Atom, wabou_shell::WidgetFactory>,
+        widget_factories: HashMap<Atom, legacy_shell::WidgetFactory>,
         base_color: Color,
     ) -> Self {
         Self {
@@ -797,7 +797,7 @@ impl Applier {
     /// Like `from_runtime` but with a widget factory registry (from `HostBuilder`).
     pub fn from_runtime_with_factories(
         js: JsRuntime,
-        widget_factories: HashMap<String, wabou_shell::WidgetFactory>,
+        widget_factories: HashMap<String, legacy_shell::WidgetFactory>,
         base_color: Color,
     ) -> Self {
         Self::from_runtime_with_factories_and_window(
@@ -811,7 +811,7 @@ impl Applier {
     /// Build an applier with explicit widget factories and a typed window key.
     pub fn from_runtime_with_factories_and_window(
         js: JsRuntime,
-        widget_factories: HashMap<String, wabou_shell::WidgetFactory>,
+        widget_factories: HashMap<String, legacy_shell::WidgetFactory>,
         base_color: Color,
         window_key: gpui_shell::WindowResourceKey,
     ) -> Self {

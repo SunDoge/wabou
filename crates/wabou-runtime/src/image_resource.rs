@@ -43,7 +43,7 @@ impl ImageResourceHandle {
 pub struct ImageResource {
     source: Arc<image::DynamicImage>,
     gpui: Arc<gpui_shell::gpui::Image>,
-    drawable: Arc<wabou_shell::image::RasterImage>,
+    drawable: Arc<legacy_shell::image::RasterImage>,
 }
 
 impl ImageResource {
@@ -78,7 +78,7 @@ impl ImageResource {
                 gpui_image_format(format)?,
                 bytes.to_vec(),
             )),
-            drawable: Arc::new(wabou_shell::image::RasterImage::from_rgba(drawable_rgba)),
+            drawable: Arc::new(legacy_shell::image::RasterImage::from_rgba(drawable_rgba)),
         })
     }
 
@@ -97,7 +97,7 @@ impl ImageResource {
         self.gpui.clone()
     }
 
-    pub(crate) fn drawable(&self) -> Arc<wabou_shell::image::RasterImage> {
+    pub(crate) fn drawable(&self) -> Arc<legacy_shell::image::RasterImage> {
         self.drawable.clone()
     }
 }

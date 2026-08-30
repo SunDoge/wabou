@@ -306,7 +306,7 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
                 hit.placed.rect,
                 hit.placed.own_clip,
                 hit.placed.scroll.range,
-                wabou_shell::scrollbar::thumb(&hit.placed, ScrollAxis::Vertical)
+                legacy_shell::scrollbar::thumb(&hit.placed, ScrollAxis::Vertical)
             ))
             .collect::<Vec<_>>()
     );

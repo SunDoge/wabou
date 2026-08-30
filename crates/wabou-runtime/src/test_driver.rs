@@ -8,17 +8,17 @@ use std::sync::{
 };
 
 use gpui_shell::{WindowCapabilities, WindowIntent, WindowLifecycle, WindowPresence};
-use rquickjs::{Function, prelude::Async};
-use serde::Deserialize;
-use tokio::sync::oneshot;
-use wabou_shell::{
+use legacy_shell::{
     ExtensionContext, FileDropEvent, FileDropPhase, ImeEvent, KeyEvent, KeyLocation, KeyPhase,
     ShellExtension, WakeCallback, WheelEvent,
 };
-use wabou_shell::{
+use legacy_shell::{
     FrameSource, Modifiers, Point, PointerButton, PointerEvent, PointerPhase, SemanticRole,
     SemanticSnapshot, UiEvent,
 };
+use rquickjs::{Function, prelude::Async};
+use serde::Deserialize;
+use tokio::sync::oneshot;
 
 const CAPABILITY: &str = "test";
 const MAX_FIXTURE_BYTES: usize = 16 * 1024 * 1024;
@@ -1424,10 +1424,10 @@ mod tests {
     impl FrameSource for SemanticSource {
         fn build_frame(
             &mut self,
-            _tcx: &mut wabou_shell::TextContext,
+            _tcx: &mut legacy_shell::TextContext,
             _width: u32,
             _height: u32,
-        ) -> Vec<wabou_shell::layout::PlacedNode> {
+        ) -> Vec<legacy_shell::layout::PlacedNode> {
             Vec::new()
         }
 

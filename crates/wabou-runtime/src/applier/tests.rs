@@ -165,7 +165,7 @@ fn debug_layout_overlay_encodes_visible_scene_geometry() {
         .take_screenshot_request()
         .expect("take secure screenshot request");
     assert_eq!(requested_path, output);
-    wabou_shell::renderer::render_to_png_file(
+    legacy_shell::renderer::render_to_png_file(
         &enabled_scene,
         120,
         80,
@@ -248,8 +248,14 @@ fn selected_debug_overlay_distinguishes_border_and_content_boxes() {
         "wabou-debug-overlay-box-model-{}.png",
         std::process::id()
     ));
-    wabou_shell::renderer::render_to_png(&scene, 130, 100, Color::WHITE, &output.to_string_lossy())
-        .expect("render selected debug overlay");
+    legacy_shell::renderer::render_to_png(
+        &scene,
+        130,
+        100,
+        Color::WHITE,
+        &output.to_string_lossy(),
+    )
+    .expect("render selected debug overlay");
     let pixels = image::open(&output)
         .expect("open selected debug overlay png")
         .into_rgba8();
@@ -608,18 +614,18 @@ struct MeasuringWidget([f32; 2]);
 struct StyleAwareMeasuringWidget(Arc<std::sync::Mutex<Vec<&'static str>>>);
 
 impl crate::widget::Widget for TextInputStateWidget {
-    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
 
     fn current_value(&self) -> Option<&str> {
         Some("a😀b")
     }
 
-    fn text_selection(&self) -> Option<wabou_shell::WidgetTextSelection> {
-        Some(wabou_shell::WidgetTextSelection {
+    fn text_selection(&self) -> Option<legacy_shell::WidgetTextSelection> {
+        Some(legacy_shell::WidgetTextSelection {
             anchor: 3,
             head: 1,
             text: Some("😀".into()),
-            kind: wabou_shell::WidgetTextSelectionKind::Simple,
+            kind: legacy_shell::WidgetTextSelectionKind::Simple,
         })
     }
 
@@ -633,7 +639,7 @@ impl crate::widget::Widget for MeasuringWidget {
         Some(cx.resolve_size(self.0))
     }
 
-    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
 }
 
 impl crate::widget::Widget for StyleAwareMeasuringWidget {
@@ -650,11 +656,11 @@ impl crate::widget::Widget for StyleAwareMeasuringWidget {
         Some(cx.resolve_size([100.0, 40.0]))
     }
 
-    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
 }
 
 impl crate::widget::Widget for HostActionWidget {
-    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
 
     fn poll_async(&mut self) -> bool {
         self.0.is_some()
@@ -666,7 +672,7 @@ impl crate::widget::Widget for HostActionWidget {
 }
 
 impl crate::widget::Widget for EventHostActionWidget {
-    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
 
     fn handle_event(&mut self, _event: &UiEvent) -> crate::widget::WidgetEventResult {
         crate::widget::WidgetEventResult::HANDLED
@@ -678,7 +684,7 @@ impl crate::widget::Widget for EventHostActionWidget {
 }
 
 impl crate::widget::Widget for UnmountActionWidget {
-    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
 
     fn unmount(&mut self) {
         self.0 = Some(gpui_shell::HostAction::SetWindowTitle(None));
@@ -690,7 +696,7 @@ impl crate::widget::Widget for UnmountActionWidget {
 }
 
 impl crate::widget::Widget for LifecycleWidget {
-    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
 
     fn focus_changed(&mut self, focused: bool) -> crate::widget::WidgetChanges {
         self.0
@@ -719,7 +725,7 @@ impl crate::widget::Widget for LifecycleWidget {
 }
 
 impl crate::widget::Widget for VisibilityLifecycleWidget {
-    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {
+    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {
         self.0.lock().unwrap().push("paint");
     }
 
@@ -742,7 +748,7 @@ impl crate::widget::Widget for VisibilityLifecycleWidget {
 }
 
 impl crate::widget::Widget for NodeEventWidget {
-    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
 
     fn poll_async(&mut self) -> bool {
         self.0.is_some()
@@ -754,7 +760,7 @@ impl crate::widget::Widget for NodeEventWidget {
 }
 
 impl crate::widget::Widget for ClipboardReadWidget {
-    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
 
     fn poll_async(&mut self) -> bool {
         self.action.is_some()
@@ -770,7 +776,7 @@ impl crate::widget::Widget for ClipboardReadWidget {
 }
 
 impl crate::widget::Widget for WheelCaptureWidget {
-    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
 
     fn handle_event(&mut self, event: &UiEvent) -> crate::widget::WidgetEventResult {
         if let UiEvent::Wheel(wheel) = event {
@@ -783,7 +789,7 @@ impl crate::widget::Widget for WheelCaptureWidget {
 }
 
 impl crate::widget::Widget for KeyCaptureWidget {
-    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
 
     fn handle_event(&mut self, event: &UiEvent) -> crate::widget::WidgetEventResult {
         if matches!(event, UiEvent::Key(_)) {
@@ -1414,7 +1420,7 @@ fn clipboard_read_completions_route_to_the_requesting_widget() {
         }]
     );
 }
-use wabou_shell::{Point, PointerEvent};
+use legacy_shell::{Point, PointerEvent};
 
 fn pointer(phase: PointerPhase, x: f64, y: f64, buttons: u32) -> UiEvent {
     pointer_with_button(phase, x, y, buttons, PointerButton::Primary)

@@ -91,7 +91,7 @@ impl EffectBridge {
                 )?,
             )?;
             ctx.globals()
-                .set("__wabou_effect_abi", wabou_shell::EFFECT_ABI_VERSION)?;
+                .set("__wabou_effect_abi", legacy_shell::EFFECT_ABI_VERSION)?;
             ctx.globals().set("__wabou_window_id_lo", window_key.lo())?;
             ctx.globals().set("__wabou_window_id_hi", window_key.hi())?;
             Ok(())

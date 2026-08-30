@@ -56,8 +56,8 @@ use crate::native_capability::NativeCapability;
 use crate::test_report::finish_test_report;
 use crate::{HostMessageContext, HostMessageRouter};
 use crate::{WindowOptions, run_windows_with_factory_and_extensions, style};
+use legacy_shell::{ShellExtension, WidgetFactory};
 use wabou_backend_winit_widgets::{SecretStore, builtin_factories, password_input_factory};
-use wabou_shell::{ShellExtension, WidgetFactory};
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;
@@ -1149,7 +1149,7 @@ impl HostBuilder {
                     self.window.initial_inner_size = restored;
                     gpui_window_size_persistence = Some(persistence);
                 } else {
-                    let persistence = wabou_shell::WindowSizePersistence::restore(
+                    let persistence = legacy_shell::WindowSizePersistence::restore(
                         path,
                         gpui_shell::initial_window_resource_key(0),
                         &mut self.window,

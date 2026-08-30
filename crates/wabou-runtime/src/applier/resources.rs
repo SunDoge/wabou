@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use taffy::NodeId;
 
-type SvgAsset = Result<Arc<wabou_shell::svg::SvgImage>, Arc<str>>;
+type SvgAsset = Result<Arc<legacy_shell::svg::SvgImage>, Arc<str>>;
 
 /// Retained SVG cache plus the explicit application image registry.
 ///
@@ -11,7 +11,7 @@ type SvgAsset = Result<Arc<wabou_shell::svg::SvgImage>, Arc<str>>;
 /// lifecycle instead of a set of unrelated `Applier` maps.
 #[derive(Default)]
 pub(super) struct ResourceState {
-    pub(super) svg: HashMap<NodeId, (Arc<str>, Arc<wabou_shell::svg::SvgImage>)>,
+    pub(super) svg: HashMap<NodeId, (Arc<str>, Arc<legacy_shell::svg::SvgImage>)>,
     pub(super) decoded_svg: HashMap<Arc<str>, SvgAsset>,
     pub(super) image_store: crate::ImageResourceStore,
 }

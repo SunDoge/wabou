@@ -46,7 +46,7 @@ pub enum Error {
     #[snafu(display("window host failed: {source}"))]
     Shell {
         /// Underlying shell error.
-        source: wabou_shell::Error,
+        source: legacy_shell::Error,
     },
 
     /// GPUI shell configuration or startup failed during migration.

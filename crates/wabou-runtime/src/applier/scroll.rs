@@ -19,7 +19,7 @@ pub(super) struct ScrollState {
     pub(super) styles: HashMap<NodeId, ScrollbarStyle>,
     pub(super) placed_rects: HashMap<NodeId, [f32; 4]>,
     pub(super) hits: Vec<ScrollbarHit>,
-    pub(super) metrics: HashMap<NodeId, wabou_shell::layout::ScrollMetrics>,
+    pub(super) metrics: HashMap<NodeId, legacy_shell::layout::ScrollMetrics>,
     pub(super) drag: Option<ScrollbarDrag>,
     pub(super) hovered: Option<(NodeId, ScrollAxis)>,
     pub(super) activity: HashMap<NodeId, Instant>,

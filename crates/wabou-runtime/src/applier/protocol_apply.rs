@@ -1,6 +1,6 @@
 use super::*;
 
-fn decode_vector_path(data: &[u8]) -> Option<Arc<wabou_shell::style::VectorPath>> {
+fn decode_vector_path(data: &[u8]) -> Option<Arc<legacy_shell::style::VectorPath>> {
     use vello::kurbo::{BezPath, Cap, Join, Stroke};
 
     const MAGIC: u32 = 0x3150_4257;
@@ -94,7 +94,7 @@ fn decode_vector_path(data: &[u8]) -> Option<Arc<wabou_shell::style::VectorPath>
         2 => Join::Bevel,
         _ => Join::Miter,
     };
-    Some(Arc::new(wabou_shell::style::VectorPath {
+    Some(Arc::new(legacy_shell::style::VectorPath {
         path: Arc::new(path),
         fill: color(fill),
         stroke: color(stroke),
@@ -429,7 +429,7 @@ impl Applier {
         {
             widget.attribute_changed(name, value)
         } else {
-            wabou_shell::WidgetChanges::empty()
+            legacy_shell::WidgetChanges::empty()
         };
         self.invalidate_widget_changes(widget_changes);
         self.frame.projections.semantics_dirty = true;
@@ -554,7 +554,7 @@ impl Applier {
         {
             widget.attribute_removed(name)
         } else {
-            wabou_shell::WidgetChanges::empty()
+            legacy_shell::WidgetChanges::empty()
         };
         self.invalidate_widget_changes(widget_changes);
         self.frame.projections.semantics_dirty = true;

@@ -1128,7 +1128,7 @@ fn protocol_shadows_apply_vello_parameters_without_string_parsing() {
         .unwrap();
     assert_eq!(
         paint.shadows,
-        vec![wabou_shell::style::Shadow {
+        vec![legacy_shell::style::Shadow {
             offset_x: 3.0,
             offset_y: 7.0,
             spread: -2.0,

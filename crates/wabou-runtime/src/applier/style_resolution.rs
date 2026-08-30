@@ -436,7 +436,7 @@ impl Applier {
                     .get(source.as_ref())
                     .cloned();
                 let asset = cached_asset.unwrap_or_else(|| {
-                    let parsed = wabou_shell::svg::SvgImage::parse(&source)
+                    let parsed = legacy_shell::svg::SvgImage::parse(&source)
                         .map(Arc::new)
                         .map_err(|error| Arc::<str>::from(error.to_string()));
                     if let Err(error) = &parsed {
@@ -516,7 +516,7 @@ impl Applier {
         &self,
         node: NodeId,
         text: &mut String,
-        runs: &mut Vec<wabou_shell::text::TextRun>,
+        runs: &mut Vec<legacy_shell::text::TextRun>,
         ancestor_opacity: f32,
     ) {
         let Some(decl) = self.document.node_store.declared.get(&node) else {
@@ -529,11 +529,11 @@ impl Applier {
             text.push_str(value);
             let end = text.len();
             if start != end {
-                let mut color = wabou_shell::text::brush_for_color(
+                let mut color = legacy_shell::text::brush_for_color(
                     paint.map(|p| p.text_color).unwrap_or(Color::BLACK),
                 );
                 color[3] = ((color[3] as f32) * opacity.clamp(0.0, 1.0)).round() as u8;
-                runs.push(wabou_shell::text::TextRun {
+                runs.push(legacy_shell::text::TextRun {
                     range: start..end,
                     font_size: paint.map(|p| p.font_size).unwrap_or(16.0),
                     font_weight: paint.map(|p| p.font_weight).unwrap_or(400.0),

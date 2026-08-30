@@ -532,7 +532,7 @@ impl Applier {
                 .parent_node_id
                 .and_then(|parent| transforms.get(&parent).copied())
                 .unwrap_or(Affine::IDENTITY);
-            let transform = wabou_shell::scene::resolve_node_transform(node, parent_transform);
+            let transform = legacy_shell::scene::resolve_node_transform(node, parent_transform);
             let mut clips = node
                 .parent_node_id
                 .and_then(|parent| clip_chains.get(&parent).cloned())

@@ -1,15 +1,16 @@
-//! wabou-runtime: QuickJS + SolidJS host driving wabou-shell's renderer.
+//! wabou-runtime: QuickJS + SolidJS host driving the GPUI wabou-shell.
 //!
 //! SolidJS (via `solid-js/universal`) emits binary DOM-mutation ops into a
 //! `Writer`; one `requestAnimationFrame` tick per frame flushes them to Rust;
-//! [`Applier`] decodes + applies them to a retained taffy tree; wabou-shell
-//! lays out + rasterises at vsync. Modeled on blitz-js.
+//! [`Applier`] decodes and applies them to the retained GPUI projection. The
+//! old Winit/Vello applier remains temporarily available only as a migration
+//! oracle and is never an application-selectable backend.
 
 #![warn(missing_docs)]
 
-// Transitional source alias: production call sites are being moved to the
-// GPUI shell while the Winit backend remains available as a migration oracle.
-extern crate wabou_backend_winit as wabou_shell;
+// Kept only for the legacy debug projection while its in-flight extraction is
+// completed. New runtime code must name `legacy_shell` explicitly.
+extern crate legacy_shell as wabou_shell;
 
 mod actor;
 mod applier;
@@ -74,16 +75,16 @@ pub use host_message::{
 pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use json_capability::JsonCapability;
 pub use jsrt::{DEFAULT_QUICKJS_STACK_SIZE, JsRuntime, JsRuntimeOptions};
+use legacy_shell::{
+    FrameSource, FrameSourceFactory, RunOutcome, TextContext,
+    run_windows_with_factory_and_extensions, style,
+};
 pub use native_capability::NativeCapability;
 pub use persistent_cache::PersistentJsonCache;
 /// Generated event codes shared with native widget adapters.
 pub use protocol::event;
 pub use rquickjs;
 pub use serial_worker::SerialWorker;
-use wabou_shell::{
-    FrameSource, FrameSourceFactory, RunOutcome, TextContext,
-    run_windows_with_factory_and_extensions, style,
-};
 
 #[cfg(feature = "vite")]
 pub use vite::{HmrClient, ViteError, start_hmr_client, vite_url_from_env};

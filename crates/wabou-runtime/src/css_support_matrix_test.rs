@@ -1,5 +1,5 @@
 //! Contract test: every property in the shared CSS support matrix must be
-//! accepted by `wabou_shell::style::apply_ir`. The matrix is the TypeScript
+//! accepted by `legacy_shell::style::apply_ir`. The matrix is the TypeScript
 //! compiler's allowlist — if Rust returns `false`, the compiler would emit IR
 //! the host ignores (layout "looks fine" but wrong).
 
@@ -7,8 +7,8 @@
 mod tests {
     use std::collections::HashMap;
 
+    use legacy_shell::style::{DeclaredPaint, IrValue, apply_ir};
     use serde::Deserialize;
-    use wabou_shell::style::{DeclaredPaint, IrValue, apply_ir};
 
     use crate::style_ir::StyleSheet;
 

@@ -71,7 +71,7 @@ impl Applier {
             let Some(&target) = self.document.node_store.node_to_solid.get(&node.node_id) else {
                 continue;
             };
-            let layout = wabou_shell::text::layout_text_styled_overflow(
+            let layout = legacy_shell::text::layout_text_styled_overflow(
                 tcx,
                 text.clone(),
                 node.paint.font_size,
@@ -80,7 +80,7 @@ impl Applier {
                 node.paint.letter_spacing,
                 node.paint.line_height,
                 node.paint.text_align,
-                wabou_shell::text::brush_for_color(node.paint.text_color),
+                legacy_shell::text::brush_for_color(node.paint.text_color),
                 node.paint.text_runs.clone(),
                 node.paint.font_family.as_ref(),
                 (node.paint.wrap_text || node.paint.text_ellipsis)

@@ -1,17 +1,17 @@
 use super::*;
 
 impl Applier {
-    pub(super) fn invalidate_widget_changes(&mut self, changes: wabou_shell::WidgetChanges) {
+    pub(super) fn invalidate_widget_changes(&mut self, changes: legacy_shell::WidgetChanges) {
         if changes
-            .intersects(wabou_shell::WidgetChanges::VALUE | wabou_shell::WidgetChanges::SEMANTICS)
+            .intersects(legacy_shell::WidgetChanges::VALUE | legacy_shell::WidgetChanges::SEMANTICS)
         {
             self.frame.projections.semantics_dirty = true;
         }
         if changes
-            .intersects(wabou_shell::WidgetChanges::MEASURE | wabou_shell::WidgetChanges::LAYOUT)
+            .intersects(legacy_shell::WidgetChanges::MEASURE | legacy_shell::WidgetChanges::LAYOUT)
         {
             self.document.invalidation.insert(InvalidationFlags::LAYOUT);
-        } else if changes.contains(wabou_shell::WidgetChanges::REDRAW) {
+        } else if changes.contains(legacy_shell::WidgetChanges::REDRAW) {
             self.document
                 .invalidation
                 .insert(InvalidationFlags::GEOMETRY);
@@ -249,12 +249,12 @@ impl Applier {
 
     /// Deliver resolved content styles before widget measurement.
     pub(super) fn sync_widget_styles(&mut self) {
-        let mut changes = wabou_shell::WidgetChanges::empty();
+        let mut changes = legacy_shell::WidgetChanges::empty();
         for (&node, widget) in &mut self.document.widget_manager.widgets {
             let Some(paint) = self.document.node_store.tree.get_node_context(node) else {
                 continue;
             };
-            let style = wabou_shell::WidgetStyle::from(paint);
+            let style = legacy_shell::WidgetStyle::from(paint);
             if self.document.widget_manager.styles.get(&node) != Some(&style) {
                 changes |= widget.style_changed(&style);
                 self.document.widget_manager.styles.insert(node, style);
@@ -273,7 +273,7 @@ impl Applier {
             .filter(|node| node.content_size[0] > 0.0 && node.content_size[1] > 0.0)
             .map(|node| node.node_id)
             .collect::<HashSet<_>>();
-        let mut visibility_changes = wabou_shell::WidgetChanges::empty();
+        let mut visibility_changes = legacy_shell::WidgetChanges::empty();
         let mut visibility_changed_nodes = Vec::new();
         for (&node, widget) in &mut self.document.widget_manager.widgets {
             let is_visible = visible.contains(&node);
@@ -297,7 +297,7 @@ impl Applier {
                 .parent_node_id
                 .and_then(|parent| transforms.get(&parent).copied())
                 .unwrap_or(Affine::IDENTITY);
-            let transform = wabou_shell::scene::resolve_node_transform(n, parent_transform);
+            let transform = legacy_shell::scene::resolve_node_transform(n, parent_transform);
             transforms.insert(n.node_id, transform);
             if let Some(w) = self.document.widget_manager.widgets.get_mut(&n.node_id) {
                 let window_to_local = Affine::translate((
@@ -305,7 +305,7 @@ impl Applier {
                     -f64::from(n.content_origin[1]),
                 )) * transform.inverse();
                 let [width, height] = n.content_size;
-                let geometry = wabou_shell::WidgetGeometry {
+                let geometry = legacy_shell::WidgetGeometry {
                     content_size: [width, height],
                     device_scale: self.frame.device_scale,
                     local_to_window: window_to_local.inverse().as_coeffs(),
@@ -322,7 +322,7 @@ impl Applier {
                     let border_inset = n.border_widths.into_iter().fold(0.0_f32, f32::max);
                     let inner_radius =
                         (f64::from(n.paint.border_radius) - f64::from(border_inset)).max(0.0);
-                    let mut paint = wabou_shell::PaintContext::new_clipped_at(
+                    let mut paint = legacy_shell::PaintContext::new_clipped_at(
                         width,
                         height,
                         inner_radius,
@@ -386,11 +386,11 @@ impl Applier {
             .widgets
             .iter_mut()
             .filter_map(|(&node, widget)| {
-                let mut cx = wabou_shell::MeasureContext::new(
+                let mut cx = legacy_shell::MeasureContext::new(
                     [None, None],
                     [
-                        wabou_shell::WidgetAvailableSpace::MaxContent,
-                        wabou_shell::WidgetAvailableSpace::MaxContent,
+                        legacy_shell::WidgetAvailableSpace::MaxContent,
+                        legacy_shell::WidgetAvailableSpace::MaxContent,
                     ],
                     self.frame.device_scale,
                     tcx,
@@ -425,7 +425,7 @@ impl Applier {
     }
 }
 
-fn localize_widget_event(input: &UiEvent, geometry: wabou_shell::WidgetGeometry) -> UiEvent {
+fn localize_widget_event(input: &UiEvent, geometry: legacy_shell::WidgetGeometry) -> UiEvent {
     let transform = Affine::new(geometry.window_to_local);
     let local = |point: gpui_shell::Point| {
         let point = transform * Point::new(point.x, point.y);
@@ -450,10 +450,10 @@ fn localize_widget_event(input: &UiEvent, geometry: wabou_shell::WidgetGeometry)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wabou_shell::{Modifiers, PointerButton, PointerEvent, PointerPhase, WheelEvent};
+    use legacy_shell::{Modifiers, PointerButton, PointerEvent, PointerPhase, WheelEvent};
 
-    fn geometry() -> wabou_shell::WidgetGeometry {
-        wabou_shell::WidgetGeometry {
+    fn geometry() -> legacy_shell::WidgetGeometry {
+        legacy_shell::WidgetGeometry {
             content_size: [200.0, 100.0],
             device_scale: 2.0,
             local_to_window: [2.0, 0.0, 0.0, 2.0, 100.0, 20.0],

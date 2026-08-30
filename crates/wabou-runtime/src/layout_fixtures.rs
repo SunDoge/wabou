@@ -19,10 +19,10 @@
 
 use std::collections::HashMap;
 
+use legacy_shell::layout::PlacedNode;
+use legacy_shell::{FrameSource, TextContext};
 use taffy::TraversePartialTree;
 use vello::peniko::Color;
-use wabou_shell::layout::PlacedNode;
-use wabou_shell::{FrameSource, TextContext};
 use wabou_style::IrValue;
 
 use super::{Applier, ComputedNodeSnapshot, InvalidationFlags};

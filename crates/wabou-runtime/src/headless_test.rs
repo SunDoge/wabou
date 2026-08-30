@@ -124,7 +124,7 @@ pub(super) fn run_headless_test(
     let mut text = crate::TextContext::new();
     let mut last_nodes = vec![Vec::new(); sources.len()];
     let mut profilers = (0..sources.len())
-        .map(|_| wabou_shell::headless::HeadlessFrameProfiler::default())
+        .map(|_| legacy_shell::headless::HeadlessFrameProfiler::default())
         .collect::<Vec<_>>();
     while !controller.has_report() && Instant::now() < deadline {
         for (index, (source, _)) in sources.iter_mut().enumerate() {
@@ -265,7 +265,7 @@ fn drain_headless_effects(source: &mut dyn FrameSource) {
 
 fn render_headless_failure(
     source: &mut dyn FrameSource,
-    last_nodes: &[Vec<wabou_shell::layout::PlacedNode>],
+    last_nodes: &[Vec<legacy_shell::layout::PlacedNode>],
     text: &mut crate::TextContext,
     base_color: Color,
     viewport: HeadlessViewport,
@@ -291,7 +291,7 @@ fn render_headless_failure(
 
 fn render_headless_capture(
     source: &mut dyn FrameSource,
-    last_nodes: &[Vec<wabou_shell::layout::PlacedNode>],
+    last_nodes: &[Vec<legacy_shell::layout::PlacedNode>],
     text: &mut crate::TextContext,
     base_color: Color,
     viewport: HeadlessViewport,
@@ -315,7 +315,7 @@ fn render_headless_capture(
         })?;
     }
     let mut scene = anyrender::Scene::new();
-    wabou_shell::scene::build_scene_scaled(
+    legacy_shell::scene::build_scene_scaled(
         &mut scene,
         nodes,
         text,
@@ -325,7 +325,7 @@ fn render_headless_capture(
         viewport.scale_factor,
     );
     source.paint_debug_overlay(&mut scene, nodes, text, viewport.scale_factor);
-    wabou_shell::renderer::render_to_png(
+    legacy_shell::renderer::render_to_png(
         &scene,
         viewport.physical_width(),
         viewport.physical_height(),
