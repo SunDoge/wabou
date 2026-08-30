@@ -213,7 +213,8 @@ test("updates project and app settings without losing its conversation", async (
   const configuredModel = page.getByRole("textbox", { name: "Model" });
   await configuredModel.type("gpt-5");
   await expect(configuredModel).toHaveValue("gpt-5");
-  await configuredModel.wheel(1_200);
+  await page.getByRole("tab", { name: "Application settings" }).click();
+  await page.getByRole("textbox", { name: "Default provider" }).wheel(1_200);
   const proxy = page.getByRole("textbox", { name: "Default proxy URL" });
   await proxy.type("http://127.0.0.1:7890");
   await expect(proxy).toHaveValue("http://127.0.0.1:7890");
@@ -229,7 +230,7 @@ test("updates project and app settings without losing its conversation", async (
   await page.getByRole("button", { name: "返回项目" }).click();
   await page.getByRole("button", { name: "设置" }).click();
   await page.getByRole("heading", { name: "设置" }).waitFor();
-  await page.getByRole("textbox", { name: "项目名称" }).wheel(800);
+  await page.getByRole("tab", { name: "应用设置" }).click();
   await page.getByRole("button", { name: "English" }).click();
   await page.getByRole("heading", { name: "Settings" }).waitFor();
 
