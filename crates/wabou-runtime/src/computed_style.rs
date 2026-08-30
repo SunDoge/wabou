@@ -102,6 +102,13 @@ fn stylesheet_pushed_during_javascript_tick_applies_in_the_same_frame() {
         Color::from_rgba8(0x33, 0x66, 0xcc, 0xff),
         "HMR stylesheet and refreshed component must commit atomically",
     );
+    assert_eq!(
+        applier.gpui_style(id).unwrap().text.color,
+        Some(wabou_shell_gpui::gpui::rgb_to_hsla(
+            wabou_shell_gpui::gpui::rgba(0x3366ccff),
+        )),
+        "the same resolved cascade must feed the GPUI projection",
+    );
 }
 
 #[test]

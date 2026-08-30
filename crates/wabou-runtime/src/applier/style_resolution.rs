@@ -45,6 +45,7 @@ impl Default for StyleState {
 struct ResolvedNodeStyle {
     layout: taffy::Style,
     paint: DeclaredPaint,
+    gpui_style: wabou_shell_gpui::gpui::Style,
     host_text: Option<Arc<str>>,
     host_intrinsic: Option<[f32; 2]>,
     display_explicit: bool,
@@ -634,10 +635,24 @@ impl Applier {
                 .tree
                 .set_node_context(node, Some(paint));
         }
+        if let Some(&solid_id) = self.document.node_store.node_to_solid.get(&node)
+            && self.gpui_projection.contains(solid_id)
+        {
+            let _ = self
+                .gpui_projection
+                .apply_style_declaration(solid_id, prop, ir);
+        }
         true
     }
 
     fn install_resolved_style(&mut self, node: NodeId, resolved: ResolvedNodeStyle) {
+        if let Some(&solid_id) = self.document.node_store.node_to_solid.get(&node)
+            && self.gpui_projection.contains(solid_id)
+        {
+            let _ = self
+                .gpui_projection
+                .update_style(solid_id, resolved.gpui_style.clone());
+        }
         let previous_layout = self.document.node_store.tree.style(node).ok().cloned();
         let projection_changed = previous_layout.as_ref().is_some_and(|previous| {
             previous.display != resolved.layout.display
@@ -985,6 +1000,7 @@ impl Applier {
                 ..taffy::Style::default()
             };
             let mut paint = DeclaredPaint::default();
+            let mut gpui_style = wabou_shell_gpui::StyleProjection::default();
             let mut display_explicit = false;
             let mut diagnostics = Vec::new();
             #[cfg(any(feature = "devtools", test))]
@@ -1001,6 +1017,7 @@ impl Applier {
                 let value = &declaration.value;
                 display_explicit |= property == "display";
                 let value = resolve_color_tokens(value, &active_theme_colors);
+                let _ = crate::gpui_projection::project_ir(&mut gpui_style, property, &value);
                 if style::apply_ir(&mut layout, &mut paint, property, &value) {
                     #[cfg(any(feature = "devtools", test))]
                     record_style_source(
@@ -1025,7 +1042,8 @@ impl Applier {
             for (property, value) in &decl.inline {
                 if let Some(property) = atoms.resolve(*property) {
                     display_explicit |= property == "display";
-                    let ir = value.ir();
+                    let ir = resolve_color_tokens(&value.ir(), &active_theme_colors);
+                    let _ = crate::gpui_projection::project_ir(&mut gpui_style, property, &ir);
                     if style::apply_ir(&mut layout, &mut paint, property, &ir) {
                         #[cfg(any(feature = "devtools", test))]
                         record_style_source(&mut cascade, property, StyleDeclarationSource::Inline);
@@ -1119,6 +1137,7 @@ impl Applier {
             ResolvedNodeStyle {
                 layout,
                 paint,
+                gpui_style: gpui_style.into_style(),
                 host_text,
                 host_intrinsic,
                 display_explicit,

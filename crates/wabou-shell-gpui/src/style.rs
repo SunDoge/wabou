@@ -23,6 +23,12 @@ pub struct StyleProjection {
 }
 
 impl StyleProjection {
+    /// Continue projecting declarations over an already resolved GPUI style.
+    #[must_use]
+    pub fn from_style(style: Style) -> Self {
+        Self { style }
+    }
+
     #[must_use]
     pub fn style(&self) -> &Style {
         &self.style

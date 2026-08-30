@@ -578,6 +578,11 @@ impl Applier {
         self.runtime.protocol_revision
     }
 
+    #[cfg(test)]
+    pub(crate) fn gpui_style(&self, key: NodeKey) -> Option<&wabou_shell_gpui::gpui::Style> {
+        self.gpui_projection.style(key)
+    }
+
     /// Build an applier over an already-booted [`JsRuntime`] (the host owns
     /// boot: `JsRuntime::new().boot(js)` for the static-bundle path, or
     /// `JsRuntime::new_vite(url).boot_vite(entry)` for dev mode).
