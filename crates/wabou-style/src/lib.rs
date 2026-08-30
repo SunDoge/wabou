@@ -9,6 +9,7 @@ mod ir;
 mod manifest;
 mod model;
 mod rules;
+pub mod stylesheet;
 mod theme;
 
 pub use ir::{IrColor, IrLength, IrValue};

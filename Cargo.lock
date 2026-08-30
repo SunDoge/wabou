@@ -12562,6 +12562,7 @@ dependencies = [
 name = "wabou-style"
 version = "0.1.0-alpha.3"
 dependencies = [
+ "bon",
  "serde",
  "serde_json",
  "winnow 1.0.4",

@@ -1,23 +1,27 @@
+//! Versioned stylesheet IR shared by JavaScript tooling and native shells.
+
+#![allow(missing_docs)]
+
+use crate::{IrColor, IrLength, IrValue};
 use bon::Builder;
 use serde::Deserialize;
-use wabou_style::{IrColor, IrLength, IrValue};
 
 pub const VERSION: u16 = 6;
 
 #[derive(Clone, Deserialize)]
 #[serde(untagged)]
-pub(crate) enum StylesheetUpdate {
+pub enum StylesheetUpdate {
     Ir(StyleSheet),
 }
 
 #[derive(Builder, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct StyleSheet {
+pub struct StyleSheet {
     #[builder(default = VERSION)]
     pub version: u16,
     #[serde(default)]
     #[builder(default)]
-    pub theme: wabou_style::Theme,
+    pub theme: crate::Theme,
     #[serde(default, rename = "colorThemes")]
     pub color_themes: Option<ColorThemes>,
     #[serde(default)]
@@ -32,13 +36,13 @@ pub(crate) struct StyleSheet {
 }
 
 #[derive(Clone, Deserialize)]
-pub(crate) struct ColorThemes {
+pub struct ColorThemes {
     pub default: String,
     pub themes: std::collections::HashMap<String, ColorTheme>,
 }
 
 #[derive(Clone, Deserialize)]
-pub(crate) struct ColorTheme {
+pub struct ColorTheme {
     #[serde(rename = "appearance")]
     pub _appearance: Appearance,
     pub colors: std::collections::HashMap<String, u32>,
@@ -46,14 +50,14 @@ pub(crate) struct ColorTheme {
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-pub(crate) enum Appearance {
+pub enum Appearance {
     Light,
     Dark,
 }
 
 #[derive(Builder, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct StyleRule {
+pub struct StyleRule {
     #[builder(into)]
     pub class_name: String,
     pub declarations: Vec<StyleDeclaration>,
@@ -64,7 +68,7 @@ pub(crate) struct StyleRule {
 }
 
 #[derive(Builder, Clone, Deserialize)]
-pub(crate) struct StyleDeclaration {
+pub struct StyleDeclaration {
     #[builder(into)]
     pub property: String,
     pub value: IrValue,
@@ -128,29 +132,29 @@ fn glob_matches(pattern: &str, candidate: &str) -> bool {
     p == pattern.len()
 }
 
-pub(crate) fn utility_value(value: &wabou_style::Value) -> IrValue {
+pub fn utility_value(value: &crate::Value) -> IrValue {
     match value {
-        wabou_style::Value::Keyword { value } => IrValue::Keyword {
+        crate::Value::Keyword { value } => IrValue::Keyword {
             value: value.clone(),
         },
-        wabou_style::Value::Boolean { value } => IrValue::Boolean { value: *value },
-        wabou_style::Value::Number { value } => IrValue::Number { value: *value },
-        wabou_style::Value::Length { value } => IrValue::Length {
+        crate::Value::Boolean { value } => IrValue::Boolean { value: *value },
+        crate::Value::Number { value } => IrValue::Number { value: *value },
+        crate::Value::Length { value } => IrValue::Length {
             value: match value {
-                wabou_style::Length::Px { value } => IrLength::Px { value: *value },
-                wabou_style::Length::Percent { value } => IrLength::Percent { value: *value },
-                wabou_style::Length::Auto => IrLength::Auto,
+                crate::Length::Px { value } => IrLength::Px { value: *value },
+                crate::Length::Percent { value } => IrLength::Percent { value: *value },
+                crate::Length::Auto => IrLength::Auto,
             },
         },
-        wabou_style::Value::Color { value } => IrValue::Color {
+        crate::Value::Color { value } => IrValue::Color {
             value: match value {
-                wabou_style::Color::Literal { rgba } => IrColor::Literal { rgba: *rgba },
+                crate::Color::Literal { rgba } => IrColor::Literal { rgba: *rgba },
             },
         },
-        wabou_style::Value::List { values } => IrValue::List {
+        crate::Value::List { values } => IrValue::List {
             values: values.iter().map(utility_value).collect(),
         },
-        wabou_style::Value::Record { fields } => IrValue::Record {
+        crate::Value::Record { fields } => IrValue::Record {
             fields: fields
                 .iter()
                 .map(|(key, value)| (key.clone(), utility_value(value)))
@@ -159,8 +163,8 @@ pub(crate) fn utility_value(value: &wabou_style::Value) -> IrValue {
     }
 }
 
-#[cfg(test)]
-pub(crate) mod fixture {
+#[doc(hidden)]
+pub mod fixture {
     use std::collections::HashMap;
 
     use super::*;

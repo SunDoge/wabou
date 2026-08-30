@@ -39,7 +39,7 @@ mod protocol;
 pub mod resource;
 mod serial_worker;
 mod source_map;
-mod style_ir;
+use wabou_style::stylesheet as style_ir;
 mod test_driver;
 mod test_report;
 mod ui_inbox;
