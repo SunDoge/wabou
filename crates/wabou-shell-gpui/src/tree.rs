@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use gpui::{SharedString, Style};
 
-use crate::{DirtyKind, FrameBatch, NodeKey, PendingNode};
+use crate::{DirtyKind, FrameBatch, NodeKey, PendingNode, ProjectedElement};
 
 /// One lightweight cached node in the GPUI projection.
 ///
@@ -54,6 +54,14 @@ impl ProjectionTree {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
+    }
+
+    /// Materialize a fresh GPUI element tree for one retained root.
+    ///
+    /// The objects are intentionally ephemeral; their stable GPUI element IDs
+    /// preserve state and paint caches across frames.
+    pub fn element(&self, root: NodeKey) -> Result<ProjectedElement, ProjectionError> {
+        ProjectedElement::from_tree(self, root)
     }
 
     pub fn insert(

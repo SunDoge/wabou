@@ -4,10 +4,12 @@
 //! projects completed Solid flushes into GPUI. The projection boundary is
 //! deliberately frame-oriented: individual property writes never notify GPUI.
 
+mod element;
 mod projection;
 mod style;
 mod tree;
 
+pub use element::ProjectedElement;
 pub use gpui;
 pub use projection::{DirtyKind, FrameBatch, NodeKey, PendingNode};
 pub use style::{StyleDiagnostic, StyleProjection};
