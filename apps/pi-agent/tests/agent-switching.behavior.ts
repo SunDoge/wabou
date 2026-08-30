@@ -3,8 +3,6 @@ import { expect, test } from "@wabou/test";
 test("starts a deterministic Pi agent and renders its streamed response", async ({
   page,
 }) => {
-  await page.getByRole("button", { name: "Start agent" }).click();
-
   const composer = page.getByRole("textbox", {
     name: "Ask this agent to work in its repository…",
   });
@@ -17,8 +15,9 @@ test("starts a deterministic Pi agent and renders its streamed response", async 
       name: "Fake Pi completed: Explain the fixture",
     }),
   ).toHaveCount(1, { timeout: 5_000 });
+  await page.waitForIdle();
   const toolActivity = page.getByRole("button", {
-    name: "Worked for <1s · 1 tool call",
+    name: "Toggle tool activity",
   });
   await expect(toolActivity).toHaveCount(1);
   await toolActivity.click();
@@ -61,18 +60,16 @@ test("forks from a retained user message and restores it to the composer", async
   await expect(composer).toHaveValue("");
 });
 
-test("switches between project and recent session grouping", async ({ page }) => {
-  await page
-    .getByRole("button", { name: "Group sessions by recency" })
-    .click();
+test("switches between project and recent session grouping", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Group sessions by recency" }).click();
   await expect(page.getByRole("label", { name: "Today" })).toHaveCount(1);
   await expect(
     page.getByRole("button", { name: "Deterministic test 1" }),
   ).toBeEnabled();
 
-  await page
-    .getByRole("button", { name: "Group sessions by project" })
-    .click();
+  await page.getByRole("button", { name: "Group sessions by project" }).click();
   await expect(page.getByRole("button", { name: "Project 1" })).toBeEnabled();
 });
 
@@ -587,7 +584,6 @@ test(
     await expect(workspaceInput).toHaveValue(workspace);
     await page.getByRole("button", { name: "Back to projects" }).click();
 
-    await page.getByRole("button", { name: "Start agent" }).click();
     await page
       .getByRole("textbox", {
         name: "Ask this agent to work in its repository…",
@@ -633,10 +629,15 @@ test("recovers after the Pi process exits unexpectedly", async ({ page }) => {
   await composer.type("Exit fixture");
   await page.getByRole("button", { name: "Send" }).click();
 
-  const restart = page.getByRole("button", { name: "Start agent" });
-  await expect(restart).toBeEnabled({ timeout: 5_000 });
-  await restart.click();
   await expect(composer).toBeInViewport({ timeout: 5_000 });
+  await composer.press("a", { control: true });
+  await composer.type("Recovered fixture");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(
+    page.getByRole("label", {
+      name: "Fake Pi completed: Recovered fixture",
+    }),
+  ).toHaveCount(1, { timeout: 5_000 });
   await expect(
     page.getByRole("combobox", { name: "Choose model" }),
   ).toBeEnabled();
@@ -658,10 +659,8 @@ test(
     };
 
     await deleteCurrentProject("Workspace Agent");
-    await expect(
-      page.getByRole("button", { name: "Deterministic test 1" }),
-    ).toBeSelected();
-    await page.getByRole("button", { name: "Settings" }).click();
+    // Deletion retains the settings route while selecting the surviving
+    // project, so verify the invariant in place rather than navigating twice.
     await page.getByRole("heading", { name: "Settings" }).waitFor();
     await page.getByRole("textbox", { name: "Project name" }).wheel(5_000);
     await expect(

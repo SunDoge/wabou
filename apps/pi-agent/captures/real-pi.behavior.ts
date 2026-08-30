@@ -3,7 +3,6 @@ import { expect, test } from "@wabou/test";
 test(
   "captures a completed real Pi conversation",
   async ({ page }) => {
-    await page.getByRole("button", { name: "Start agent" }).click();
     const composer = page.getByRole("textbox", {
       name: "Ask this agent to work in its repository…",
     });

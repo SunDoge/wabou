@@ -287,7 +287,7 @@ export function ToolActivityGroup(props: {
           variant="ghost"
           size="sm"
           class="h-7 min-w-0 max-w-full px-1.5 gap-1.5 text-secondary"
-          aria-label={label()}
+          aria-label={i18n.message(m.tool_activity_toggle, {})}
           aria-expanded={open()}
           onClick={() => setOpen((value) => !value)}
         >

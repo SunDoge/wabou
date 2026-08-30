@@ -119,7 +119,7 @@ export function subscribeAgentEvents(
           stateEvent.id === "wabou-new-session-state" ||
           stateEvent.id === "wabou-clone-state"
         ) {
-          void api.getMessages(id);
+          void api.getMessages(id, `${String(stateEvent.id)}-messages`);
         }
         void api.getSessionStats(id);
         void api.getCommands(id);
@@ -149,7 +149,7 @@ export function subscribeAgentEvents(
         if (id === options.activeAgentId()) options.refreshWorkspaceInfo();
       }
       if (successfulResponse(batch, "compact")) {
-        void api.getMessages(id);
+        void api.getMessages(id, "wabou-compact-messages");
         void api.getSessionStats(id);
       }
 
@@ -170,7 +170,7 @@ export function subscribeAgentEvents(
         ) {
           options.restoreForkDraft(forkData.text);
         }
-        void api.getMessages(id);
+        void api.getMessages(id, "wabou-fork-messages");
         void api.getSessionStats(id);
       }
     }

@@ -900,11 +900,7 @@ export function App() {
           />
 
           <Show
-            when={
-              active().cwd.trim() &&
-              (active().state.connection === "ready" ||
-                active().state.connection === "running")
-            }
+            when={active().cwd.trim()}
             fallback={
               <WorkspaceSetup
                 path={active().cwd}
@@ -966,6 +962,18 @@ export function App() {
 
             <ConversationComposer
               connection={active().state.connection}
+              error={
+                active().state.error &&
+                !active().state.items.some(
+                  (item) =>
+                    item.kind === "notice" &&
+                    item.tone === "error" &&
+                    item.text === active().state.error,
+                )
+                  ? active().state.error
+                  : undefined
+              }
+              runtimeLog={active().state.runtimeLogs.at(-1)}
               project={active().name}
               cwd={active().cwd}
               branch={workspaceInfo.latest()?.branch}

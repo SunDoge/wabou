@@ -82,3 +82,36 @@ test("Pi Agent header swaps session actions for a stop action while running", ()
   screen.getByRole("button", { name: "Stop" }).click();
   expect(abort).toHaveBeenCalledOnce();
 });
+
+test("Pi Agent keeps local workspace actions available while the process is stopped", () => {
+  const toggleFiles = vi.fn();
+  const screen = renderComponent(() => (
+    <ConversationHeader
+      project="Wabou"
+      session="Local workspace"
+      state={{ ...readyState, connection: "stopped" }}
+      cwdAvailable
+      repository
+      terminalOpen={false}
+      filesOpen={false}
+      changesOpen={false}
+      searchOpen={false}
+      toggleTerminal={() => {}}
+      toggleFiles={toggleFiles}
+      toggleChanges={() => {}}
+      toggleSearch={() => {}}
+      newSession={() => {}}
+      compactSession={() => {}}
+      cloneSession={() => {}}
+      exportSession={() => {}}
+      abort={() => {}}
+    />
+  ));
+
+  const files = screen.getByRole("button", { name: "Workspace files" });
+  expect(files.disabled).toBe(false);
+  files.click();
+  expect(toggleFiles).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("button", { name: "New session" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+});

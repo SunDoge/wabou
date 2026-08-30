@@ -17,6 +17,7 @@
   "tool_activity_working": "Working · {tools}",
   "tool_activity_worked": "Worked · {tools}",
   "tool_activity_worked_duration": "Worked for {duration} · {tools}",
+  "tool_activity_toggle": "Toggle tool activity",
   "tool_activity_recent": "Recent tool activity",
   "tool_activity_read": "Read",
   "tool_activity_edited": "Edited",

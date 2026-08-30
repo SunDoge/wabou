@@ -17,6 +17,7 @@
   "tool_activity_working": "正在执行 · {tools}",
   "tool_activity_worked": "已完成 · {tools}",
   "tool_activity_worked_duration": "用时 {duration} · {tools}",
+  "tool_activity_toggle": "展开或收起工具活动",
   "tool_activity_recent": "最近的工具活动",
   "tool_activity_read": "读取",
   "tool_activity_edited": "编辑",

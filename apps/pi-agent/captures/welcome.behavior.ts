@@ -1,7 +1,6 @@
 import { expect, test } from "@wabou/test";
 
 test("captures responsive starter prompts", async ({ page }) => {
-  await page.getByRole("button", { name: "Start agent" }).click();
   await expect(
     page.getByRole("group", { name: "Starter prompts" }),
   ).toHaveCount(1);

@@ -38,7 +38,7 @@ const SET_AUTO_COMPACTION: JsonMethod<ToggleRequest, ()> = JsonMethod::new("setA
 const SET_STEERING_MODE: JsonMethod<QueueModeRequest, ()> = JsonMethod::new("setSteeringMode");
 const SET_FOLLOW_UP_MODE: JsonMethod<QueueModeRequest, ()> = JsonMethod::new("setFollowUpMode");
 const LIST_SESSIONS: JsonMethod<AgentRequest, Vec<PiSession>> = JsonMethod::new("listSessions");
-const GET_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getMessages");
+const GET_MESSAGES: JsonMethod<SnapshotRequest, ()> = JsonMethod::new("getMessages");
 const GET_SESSION_STATS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getSessionStats");
 const GET_COMMANDS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getCommands");
 const GET_FORK_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getForkMessages");
@@ -419,6 +419,13 @@ async fn append_workspace_context(
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct AgentRequest {
     agent_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SnapshotRequest {
+    agent_id: String,
+    request_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1667,9 +1674,14 @@ pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::
         async move { service.sessions(&request.agent_id) }
     })?;
     let get_messages = service.clone();
-    capability.json_method(GET_MESSAGES, move |request: AgentRequest| {
+    capability.json_method(GET_MESSAGES, move |request: SnapshotRequest| {
         let service = get_messages.clone();
-        async move { service.send(&request.agent_id, json!({"type":"get_messages"})) }
+        async move {
+            service.send(
+                &request.agent_id,
+                json!({"id":request.request_id,"type":"get_messages"}),
+            )
+        }
     })?;
     let get_session_stats = service.clone();
     capability.json_method(GET_SESSION_STATS, move |request: AgentRequest| {
@@ -2056,6 +2068,18 @@ mod tests {
         assert_eq!(request.request_id, "user-1");
         assert_eq!(request.image_paths, vec![PathBuf::from("page.png")]);
         assert_eq!(request.context_paths, vec![PathBuf::from("src/main.rs")]);
+    }
+
+    #[test]
+    fn snapshot_request_carries_a_camel_case_freshness_id() {
+        let request: SnapshotRequest = serde_json::from_value(json!({
+            "agentId": "agent-1",
+            "requestId": "wabou-bootstrap-state-messages"
+        }))
+        .expect("camel-case snapshot request");
+
+        assert_eq!(request.agent_id, "agent-1");
+        assert_eq!(request.request_id, "wabou-bootstrap-state-messages");
     }
 
     #[test]

@@ -82,6 +82,29 @@ describe("Pi agent event projection", () => {
     });
   });
 
+  test("does not let stale bootstrap history erase a live tool turn", () => {
+    let state = reducePiEvent(initialAgentState, {
+      type: "tool_execution_start",
+      toolCallId: "call-live",
+      toolName: "read",
+      args: { path: "README.md" },
+    });
+    state = reducePiEvent(state, {
+      type: "response",
+      id: "wabou-bootstrap-state-messages",
+      command: "get_messages",
+      success: true,
+      data: {
+        messages: [
+          { role: "user", content: [{ type: "text", text: "Inspect" }] },
+        ],
+      },
+    });
+
+    expect(state.items).toHaveLength(1);
+    expect(state.items[0]).toMatchObject({ id: "call-live", kind: "tool" });
+  });
+
   test("projects the Rust event clock into the completed tool turn", () => {
     let state = reducePiEvent(initialAgentState, {
       type: "agent_start",

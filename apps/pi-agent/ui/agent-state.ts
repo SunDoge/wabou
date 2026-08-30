@@ -544,6 +544,14 @@ export function reducePiEvent(
       }
       const data = record(event.data);
       if (event.command === "get_messages") {
+        // Bootstrap history can return after the first live turn. Do not let
+        // that older snapshot erase richer tool and reasoning events.
+        if (
+          event.id === "wabou-bootstrap-state-messages" &&
+          state.items.length > 0
+        ) {
+          return state;
+        }
         return {
           ...state,
           items: restoredItems(data),

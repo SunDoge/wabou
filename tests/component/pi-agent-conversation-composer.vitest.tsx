@@ -90,6 +90,47 @@ test("Pi Agent composer keeps the primary action and configuration discoverable"
   expect(submit).toHaveBeenCalledOnce();
 });
 
+test("keeps the composer mounted and exposes Pi connection failures", () => {
+  const [connection, setConnection] = createSignal<"ready" | "failed">("ready");
+  const screen = renderComponent(() => (
+    <ConversationComposer
+      {...baseProps}
+      connection={connection()}
+      error={
+        connection() === "failed" ? "API authentication failed" : undefined
+      }
+      runtimeLog="Pi runtime warning"
+    />
+  ));
+  const composer = screen.getByRole("group", {
+    name: "Ask this agent to work in its repository…",
+  });
+  const identity = composer.identity;
+
+  setConnection("failed");
+  screen.flush();
+
+  expect(
+    screen.getByRole("group", {
+      name: "Ask this agent to work in its repository…",
+    }).identity,
+  ).toEqual(identity);
+  expect(screen.getByRole("alert").text).toContain("API authentication failed");
+});
+
+test("surfaces the latest Pi runtime diagnostic while the process is alive", () => {
+  const screen = renderComponent(() => (
+    <ConversationComposer
+      {...baseProps}
+      runtimeLog="Provider rejected credentials"
+    />
+  ));
+
+  expect(
+    screen.getByRole("status", { name: "Workspace status" }).text,
+  ).toContain("Provider rejected credentials");
+});
+
 test("Pi Agent composer reflects an externally cleared controlled draft", () => {
   const App = () => {
     const [draft, setDraft] = createSignal("Send this request");

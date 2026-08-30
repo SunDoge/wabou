@@ -146,7 +146,10 @@ interface PiCapability extends NativeJsonCapability {
     cwd: string;
     sessionId: string;
     entryId: string;
-  }): WorktreeCheckpoint | undefined | PromiseLike<WorktreeCheckpoint | undefined>;
+  }):
+    | WorktreeCheckpoint
+    | undefined
+    | PromiseLike<WorktreeCheckpoint | undefined>;
   listSkills(request: { cwd: string }): PiSkill[] | PromiseLike<PiSkill[]>;
   respondExtensionUi(request: string): string | PromiseLike<string>;
   listAgents(request?: string): string | PromiseLike<string>;
@@ -239,7 +242,8 @@ export function usePiApi() {
       call<void>("renameSession", { agentId, name }),
     listSessions: (agentId: string) =>
       call<PiSession[]>("listSessions", { agentId }),
-    getMessages: (agentId: string) => call<void>("getMessages", { agentId }),
+    getMessages: (agentId: string, requestId: string) =>
+      call<void>("getMessages", { agentId, requestId }),
     getSessionStats: (agentId: string) =>
       call<void>("getSessionStats", { agentId }),
     getCommands: (agentId: string) => call<void>("getCommands", { agentId }),
@@ -276,11 +280,8 @@ export function usePiApi() {
       sessionId: string,
       entryId: string,
     ) => capability.retainCheckpoint({ cwd, commitId, sessionId, entryId }),
-    findCheckpoint: async (
-      cwd: string,
-      sessionId: string,
-      entryId: string,
-    ) => capability.findCheckpoint({ cwd, sessionId, entryId }),
+    findCheckpoint: async (cwd: string, sessionId: string, entryId: string) =>
+      capability.findCheckpoint({ cwd, sessionId, entryId }),
     listSkills: async (cwd: string) => capability.listSkills({ cwd }),
     respondExtensionUi: (
       agentId: string,

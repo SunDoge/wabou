@@ -60,6 +60,8 @@ import { SessionUsage } from "./session-usage";
 
 export interface ConversationComposerProps {
   connection: AgentConnection;
+  error?: string;
+  runtimeLog?: string;
   project: string;
   cwd: string;
   branch?: string;
@@ -363,6 +365,8 @@ export function ConversationComposer(props: ConversationComposerProps) {
         branch={props.branch}
         repository={props.repository === true}
         connection={props.connection}
+        error={props.error}
+        runtimeLog={props.runtimeLog}
       />
     </WorkbenchFooter>
   );

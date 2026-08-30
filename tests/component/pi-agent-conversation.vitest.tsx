@@ -274,8 +274,9 @@ test("Pi Agent folds adjacent completed tools into one turn activity group", () 
 
   const screen = renderComponent(() => <ConversationList items={items} />);
   const activity = screen.getByRole("button", {
-    name: "Worked · 2 tool calls",
+    name: "Toggle tool activity",
   });
+  expect(activity.parent?.text).toContain("Worked · 2 tool calls");
   expect(activity.className).toContain("text-secondary");
   expect(activity.parent?.parent?.className).toContain("w-full");
   expect(
@@ -369,11 +370,13 @@ test("Pi Agent folds reasoning-separated tool calls into one turn activity group
     />
   ));
   expect(
-    screen.getByRole("button", { name: "Worked · 2 tool calls" }),
+    screen.getByRole("button", { name: "Toggle tool activity" }),
   ).toBeTruthy();
   expect(
-    screen.queryByRole("button", { name: "Worked · 1 tool call" }),
-  ).toBeNull();
+    screen
+      .getAllByRole("button")
+      .filter((button) => button.name === "Toggle tool activity"),
+  ).toHaveLength(1);
 });
 
 test("Pi Agent keeps live tool activity compact and user-expandable", () => {
@@ -389,12 +392,12 @@ test("Pi Agent keeps live tool activity compact and user-expandable", () => {
   ]);
   const screen = renderComponent(() => <ToolActivityGroup items={items()} />);
   expect(
-    screen.getByRole("button", { name: "Working · 1 tool call" }).expanded,
+    screen.getByRole("button", { name: "Toggle tool activity" }).expanded,
   ).toBe(false);
 
-  screen.getByRole("button", { name: "Working · 1 tool call" }).click();
+  screen.getByRole("button", { name: "Toggle tool activity" }).click();
   expect(
-    screen.getByRole("button", { name: "Working · 1 tool call" }).expanded,
+    screen.getByRole("button", { name: "Toggle tool activity" }).expanded,
   ).toBe(true);
 
   const liveItem = items()[0];
@@ -403,7 +406,7 @@ test("Pi Agent keeps live tool activity compact and user-expandable", () => {
   screen.flush();
 
   expect(
-    screen.getByRole("button", { name: "Worked · 1 tool call" }).expanded,
+    screen.getByRole("button", { name: "Toggle tool activity" }).expanded,
   ).toBe(true);
 });
 
@@ -425,13 +428,12 @@ test("Pi Agent reports the measured duration of a completed tool turn", () => {
   ));
 
   expect(
-    screen.getByRole("button", {
-      name: "Worked for 12s · 1 tool call",
-    }),
+    screen.getByRole("button", { name: "Toggle tool activity" }),
   ).toBeTruthy();
   const activityRow = screen.getByRole("button", {
-    name: "Worked for 12s · 1 tool call",
+    name: "Toggle tool activity",
   }).parent;
+  expect(activityRow?.text).toContain("Worked for 12s · 1 tool call");
   expect(activityRow?.className).toContain("items-center");
   expect(activityRow?.children).toHaveLength(1);
   const boundary = activityRow?.parent;

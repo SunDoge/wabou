@@ -3,10 +3,6 @@ import { expect, test } from "@wabou/test";
 test("keeps the conversation and draft when a prompt request fails", async ({
   page,
 }) => {
-  await page
-    .getByRole("button", { name: "Start agent" })
-    .click({ timeout: 100 })
-    .catch(() => {});
   const composer = page.getByRole("textbox", {
     name: "Ask this agent to work in its repository…",
   });
@@ -27,14 +23,14 @@ test("keeps the conversation and draft when a prompt request fails", async ({
   ).toHaveCount(2, { timeout: 5_000 });
   await expect(composer).toHaveValue("Reject request", { timeout: 5_000 });
 
-  // Leave the shared deterministic suite in its normal stopped state.
+  // Leave the shared deterministic suite stopped while retaining the local
+  // workspace surface. A later prompt can lazily restart Pi.
   await composer.press("a", { control: true });
   await composer.press("Backspace");
   await composer.type("Exit fixture");
   await page.getByRole("button", { name: "Send" }).click();
+  await expect(composer).toBeInViewport({ timeout: 5_000 });
   await expect(
-    page.getByRole("button", { name: "Start agent" }),
-  ).toBeInViewport({
-    timeout: 5_000,
-  });
+    page.getByRole("button", { name: "Workspace files" }),
+  ).toBeEnabled();
 });

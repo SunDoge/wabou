@@ -10,12 +10,14 @@ export function ConversationWorkspaceStatus(props: {
   branch?: string;
   repository: boolean;
   connection: AgentConnection;
+  error?: string;
+  runtimeLog?: string;
 }) {
   const active = () =>
     props.connection === "ready" || props.connection === "running";
   return (
     <View
-      role="status"
+      role={props.connection === "failed" ? "alert" : "status"}
       aria-label={i18n.message(m.workspace_status, {})}
       class="w-full max-w-4xl mx-auto min-w-0 h-6 px-1 flex flex-row items-center gap-3 text-xs text-muted"
     >
@@ -32,13 +34,37 @@ export function ConversationWorkspaceStatus(props: {
               : "w-1.5 h-1.5 rounded-full bg-muted"
           }
         />
-        <Text class="whitespace-nowrap">
+        <Text
+          class={
+            props.connection === "failed"
+              ? "whitespace-nowrap text-danger-primary"
+              : "whitespace-nowrap"
+          }
+        >
           {i18n.message(
-            props.connection === "running" ? m.working : m.local,
+            props.connection === "running"
+              ? m.working
+              : props.connection === "failed"
+                ? m.agent_status_failed
+                : props.connection === "stopped"
+                  ? m.agent_status_stopped
+                  : m.local,
             {},
           )}
         </Text>
       </View>
+      <Show when={props.error}>
+        {(error) => (
+          <Text class="min-w-0 flex-1 truncate text-danger-primary">
+            {error()}
+          </Text>
+        )}
+      </Show>
+      <Show when={!props.error && props.runtimeLog}>
+        <Text class="min-w-0 flex-1 truncate text-muted">
+          {props.runtimeLog}
+        </Text>
+      </Show>
       <Show when={props.repository && props.branch}>
         <View class="min-w-0 flex flex-row items-center gap-1.5">
           <Icon source={gitBranch} size={12} class="flex-none" />
