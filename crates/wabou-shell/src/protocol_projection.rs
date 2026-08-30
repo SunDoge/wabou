@@ -36,6 +36,9 @@ pub struct GpuiNativeWidget {
 #[derive(Debug)]
 pub struct GpuiProjection {
     tree: ProjectionTree,
+    stylesheet: Option<wabou_style::stylesheet::StyleSheet>,
+    classes: std::collections::HashMap<NodeKey, Vec<String>>,
+    style_diagnostics: std::collections::HashMap<NodeKey, Vec<String>>,
     inline_styles:
         std::collections::HashMap<NodeKey, std::collections::BTreeMap<String, wabou_style::Value>>,
 }
@@ -61,6 +64,9 @@ impl GpuiProjection {
         let _ = tree.commit();
         Self {
             tree,
+            stylesheet: None,
+            classes: std::collections::HashMap::new(),
+            style_diagnostics: std::collections::HashMap::new(),
             inline_styles: std::collections::HashMap::new(),
         }
     }
@@ -140,7 +146,7 @@ impl GpuiProjection {
                             .entry(*id)
                             .or_default()
                             .insert(property.to_owned(), protocol_style_value(*value));
-                        self.recompute_inline_style(*id)?;
+                        self.recompute_style(*id)?;
                     }
                 }
                 Op::SetShadows { id, shadows } => {
@@ -150,7 +156,7 @@ impl GpuiProjection {
                             values: shadows.iter().copied().map(protocol_shadow_value).collect(),
                         },
                     );
-                    self.recompute_inline_style(*id)?;
+                    self.recompute_style(*id)?;
                 }
                 Op::RemoveStyle { id, prop } => {
                     if let Some(property) = atoms.resolve(*prop) {
@@ -163,13 +169,25 @@ impl GpuiProjection {
                         if remove_entry {
                             self.inline_styles.remove(id);
                         }
-                        self.recompute_inline_style(*id)?;
+                        self.recompute_style(*id)?;
                     }
+                }
+                Op::SetClassName { id, classes } => {
+                    self.classes.insert(
+                        *id,
+                        classes
+                            .iter()
+                            .filter_map(|class| atoms.resolve(*class).map(str::to_owned))
+                            .collect(),
+                    );
+                    self.recompute_style(*id)?;
                 }
                 Op::DropNode { id } => {
                     let removed = self.tree.remove(*id)?;
                     for key in removed {
                         self.inline_styles.remove(&key);
+                        self.classes.remove(&key);
+                        self.style_diagnostics.remove(&key);
                     }
                 }
                 Op::SetGraphicSource { id, kind, source } => match *kind {
@@ -318,15 +336,56 @@ impl GpuiProjection {
         Ok(diagnostic)
     }
 
-    fn recompute_inline_style(&mut self, key: NodeKey) -> Result<(), ProjectionError> {
+    pub fn set_stylesheet(
+        &mut self,
+        stylesheet: wabou_style::stylesheet::StyleSheet,
+    ) -> Result<(), String> {
+        stylesheet.validate().map_err(str::to_owned)?;
+        self.stylesheet = Some(stylesheet);
+        let keys = self
+            .tree
+            .keys()
+            .filter(|key| *key != NodeKey::ROOT)
+            .collect::<Vec<_>>();
+        for key in keys {
+            self.recompute_style(key)
+                .map_err(|error| format!("cannot recompute {key}: {error:?}"))?;
+        }
+        Ok(())
+    }
+
+    fn recompute_style(&mut self, key: NodeKey) -> Result<(), ProjectionError> {
         let mut projection = StyleProjection::default();
+        let mut diagnostics = Vec::new();
+        if let Some(stylesheet) = &self.stylesheet {
+            let classes = self.classes.get(&key).map_or(&[][..], Vec::as_slice);
+            let resolved = wabou_style::stylesheet::resolve_classes(
+                stylesheet,
+                &classes.iter().map(String::as_str).collect::<Vec<_>>(),
+            );
+            diagnostics.extend(resolved.diagnostics);
+            for declaration in resolved.declarations {
+                if let Some(diagnostic) =
+                    project_ir(&mut projection, &declaration.property, &declaration.value)
+                {
+                    diagnostics.push(format!("{diagnostic:?}"));
+                }
+            }
+        }
         if let Some(styles) = self.inline_styles.get(&key) {
             for (property, value) in styles {
-                let _ = projection.apply(&wabou_style::Declaration {
+                if let Err(diagnostic) = projection.apply(&wabou_style::Declaration {
                     property: property.clone(),
                     value: value.clone(),
-                });
+                }) {
+                    diagnostics.push(format!("{diagnostic:?}"));
+                }
             }
+        }
+        if diagnostics.is_empty() {
+            self.style_diagnostics.remove(&key);
+        } else {
+            self.style_diagnostics.insert(key, diagnostics);
         }
         self.update_style(key, projection.into_style())
     }
@@ -339,6 +398,10 @@ impl GpuiProjection {
     #[doc(hidden)]
     pub fn style(&self, key: NodeKey) -> Option<&crate::gpui::Style> {
         self.tree.node(key).map(|node| &node.style)
+    }
+
+    pub fn style_diagnostics(&self, key: NodeKey) -> &[String] {
+        self.style_diagnostics.get(&key).map_or(&[], Vec::as_slice)
     }
 }
 
@@ -705,6 +768,67 @@ mod tests {
         assert_eq!(
             shadows[1].offset,
             crate::gpui::point(crate::gpui::px(-2.0), crate::gpui::px(4.0))
+        );
+    }
+
+    #[test]
+    fn stylesheet_classes_project_without_the_legacy_document() {
+        use wabou_style::stylesheet::fixture::{declaration, px, rule, sheet};
+
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        let panel = atoms.intern("panel");
+        let width = atoms.intern("width");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::SetClassName {
+                            id: key(2),
+                            classes: vec![panel],
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        projection
+            .set_stylesheet(sheet(vec![rule(
+                "panel",
+                vec![declaration("width", px(320.0))],
+            )]))
+            .unwrap();
+
+        assert_eq!(
+            projection.style(key(2)).unwrap().size.width,
+            Length::Definite(DefiniteLength::Absolute(crate::gpui::px(320.0).into()))
+        );
+        assert!(projection.style_diagnostics(key(2)).is_empty());
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 2,
+                    ops: vec![Op::SetStyleValue {
+                        id: key(2),
+                        prop: width,
+                        value: StyleValue::Px(480.0),
+                    }],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        assert_eq!(
+            projection.style(key(2)).unwrap().size.width,
+            Length::Definite(DefiniteLength::Absolute(crate::gpui::px(480.0).into()))
         );
     }
 

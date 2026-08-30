@@ -8,13 +8,13 @@ use serde::Deserialize;
 
 pub const VERSION: u16 = 6;
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(untagged)]
 pub enum StylesheetUpdate {
     Ir(StyleSheet),
 }
 
-#[derive(Builder, Clone, Deserialize)]
+#[derive(Builder, Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StyleSheet {
     #[builder(default = VERSION)]
@@ -35,13 +35,13 @@ pub struct StyleSheet {
     pub rules: Vec<StyleRule>,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct ColorThemes {
     pub default: String,
     pub themes: std::collections::HashMap<String, ColorTheme>,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct ColorTheme {
     #[serde(rename = "appearance")]
     pub _appearance: Appearance,
@@ -55,7 +55,7 @@ pub enum Appearance {
     Dark,
 }
 
-#[derive(Builder, Clone, Deserialize)]
+#[derive(Builder, Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StyleRule {
     #[builder(into)]
@@ -67,7 +67,7 @@ pub struct StyleRule {
     pub source_order: u32,
 }
 
-#[derive(Builder, Clone, Deserialize)]
+#[derive(Builder, Clone, Debug, Deserialize)]
 pub struct StyleDeclaration {
     #[builder(into)]
     pub property: String,

@@ -67,6 +67,10 @@ impl ProjectionTree {
         &self.roots
     }
 
+    pub fn keys(&self) -> impl Iterator<Item = NodeKey> + '_ {
+        self.nodes.keys().copied()
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.nodes.len()

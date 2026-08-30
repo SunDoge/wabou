@@ -22,6 +22,9 @@ impl Applier {
                 for diagnostic in &sheet.diagnostics {
                     tracing::warn!(target: "stylesheet", %diagnostic);
                 }
+                if let Err(error) = self.gpui_projection.set_stylesheet(sheet.clone()) {
+                    tracing::error!(target: "stylesheet", %error, "failed to install GPUI stylesheet");
+                }
                 let (rule_index, universal_rules) = {
                     let mut atoms = self.document.atoms.borrow_mut();
                     let mut rule_index: HashMap<Atom, Vec<usize>> = HashMap::new();
