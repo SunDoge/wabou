@@ -1,3 +1,5 @@
+//! Backend-neutral Vite reload state shared by runtime hosts.
+
 use std::sync::mpsc;
 
 use gpui_shell::WakeCallback;

@@ -59,7 +59,6 @@ use crate::protocol::NodeKey;
 
 #[cfg(any(feature = "devtools", test))]
 mod debug_projection;
-pub(crate) mod effect_bridge;
 mod focus;
 mod frame_source;
 mod input_router;
@@ -67,7 +66,6 @@ mod interaction;
 mod node_store;
 mod projections;
 mod protocol_apply;
-pub(crate) mod reload;
 mod resources;
 mod runtime_updates;
 mod scroll;
@@ -81,6 +79,10 @@ use crate::inline_context::{InlineFormattingContext, NodeFacts};
 use crate::jsrt::{JsRuntime, LayoutMetric, LayoutMetricsSnapshot, LayoutRect, ResizeTargets};
 use crate::protocol::{Frame, Op, decode_frame};
 use crate::protocol::{event, event_data};
+#[cfg(test)]
+use crate::reload::ReloadMsg;
+#[cfg(test)]
+use crate::reload::{HmrBatch, HmrDrainResult, plan_hmr_batch};
 use crate::runtime_session::RuntimeSession;
 use crate::style_ir::{self, StyleSheet, StylesheetUpdate};
 #[cfg(test)]
@@ -88,9 +90,6 @@ use input_router::EventMask;
 use input_router::{HitClip, HitItem, HitNode, InputRouter, hit_contains};
 use node_store::NodeStore;
 use projections::FrameProjections;
-#[cfg(test)]
-use reload::{HmrBatch, plan_hmr_batch};
-pub use reload::{HmrDrainResult, ReloadHandle, ReloadMsg};
 use resources::ResourceState;
 use scroll::{ScrollState, ScrollbarDrag, ScrollbarHit};
 use style_resolution::StyleState;

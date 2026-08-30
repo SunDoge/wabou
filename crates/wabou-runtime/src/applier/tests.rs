@@ -1,5 +1,5 @@
-use super::effect_bridge::decode_effect_payload;
 use super::*;
+use crate::effect_bridge::decode_effect_payload;
 
 fn set_text_behavior(applier: &mut Applier, id: u32) {
     let id = nk(id);

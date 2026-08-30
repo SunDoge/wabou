@@ -1,6 +1,6 @@
 //! GPUI-owned retained state for one JavaScript runtime.
 
-use crate::applier::reload::{HmrBatch, HmrDrainResult};
+use crate::reload::{HmrBatch, HmrDrainResult};
 use crate::{
     ImageResourceHandle, ImageResourceStore,
     host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, NumericEventData},

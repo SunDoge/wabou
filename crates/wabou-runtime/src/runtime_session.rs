@@ -5,12 +5,13 @@ use std::{cell::RefCell, collections::VecDeque, rc::Rc, sync::Arc};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    applier::{effect_bridge::EffectBridge, reload::ReloadState},
     atom::AtomPool,
+    effect_bridge::EffectBridge,
     host_message::{
         DEFAULT_HOST_MESSAGE_CAPACITY, HostMessageHandle, HostMessageInbox, host_message_channel,
     },
     jsrt::JsRuntime,
+    reload::ReloadState,
     style_ir::StylesheetUpdate,
 };
 use gpui_shell::{FrameStats, HostAction, WakeCallback, WindowResourceKey};

@@ -19,6 +19,7 @@ mod atom;
 mod bundle;
 mod clock;
 mod config;
+mod effect_bridge;
 mod effect_trace;
 mod error;
 mod gpui_controller;
@@ -38,6 +39,7 @@ mod kv;
 mod native_capability;
 mod persistent_cache;
 mod protocol;
+mod reload;
 pub mod resource;
 mod runtime_session;
 mod serial_worker;
@@ -54,7 +56,6 @@ pub mod vite;
 #[cfg(test)]
 mod widget;
 
-pub use applier::{HmrDrainResult, ReloadHandle, ReloadMsg};
 pub use config::AppConfig;
 pub use error::{Error, Result};
 pub use gpui_shell::{
@@ -86,6 +87,7 @@ pub use native_capability::NativeCapability;
 pub use persistent_cache::PersistentJsonCache;
 /// Generated event codes shared with native widget adapters.
 pub use protocol::event;
+pub use reload::{HmrDrainResult, ReloadHandle, ReloadMsg};
 pub use rquickjs;
 pub use serial_worker::SerialWorker;
 

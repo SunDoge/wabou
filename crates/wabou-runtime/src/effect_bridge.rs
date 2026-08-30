@@ -1,3 +1,5 @@
+//! Backend-neutral native effect queue for one JavaScript runtime.
+
 use std::cell::RefCell;
 use std::collections::{HashSet, VecDeque};
 use std::rc::Rc;

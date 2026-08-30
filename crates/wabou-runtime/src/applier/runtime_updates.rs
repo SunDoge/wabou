@@ -1,4 +1,5 @@
 use super::*;
+use crate::reload::{HmrDrainResult, ReloadHandle};
 
 impl Applier {
     pub(super) fn handle_modifiers_changed(
