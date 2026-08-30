@@ -580,6 +580,7 @@ impl Applier {
             }
             wabou_shell_gpui::ProjectedInputEvent::Wheel(event) => self.handle_gpui_wheel(event),
             wabou_shell_gpui::ProjectedInputEvent::Key(event) => self.handle_gpui_key(event),
+            wabou_shell_gpui::ProjectedInputEvent::Ime(event) => self.handle_gpui_ime(event),
         }
     }
 
@@ -690,7 +691,10 @@ impl Applier {
             wabou_shell_gpui::ProjectedKeyPhase::Down => KeyPhase::Down,
             wabou_shell_gpui::ProjectedKeyPhase::Up => KeyPhase::Up,
         };
-        let text = (phase == KeyPhase::Down && !event.control && !event.platform)
+        let text = (phase == KeyPhase::Down
+            && !event.control
+            && !event.platform
+            && !self.gpui_text_input_state().accepts_text)
             .then(|| event.key_char.clone())
             .flatten()
             .filter(|text| text.chars().any(|character| !character.is_control()));
@@ -722,6 +726,49 @@ impl Applier {
             }
         }
         response
+    }
+
+    fn handle_gpui_ime(&mut self, event: wabou_shell_gpui::ProjectedImeEvent) -> EventResponse {
+        let event = match event {
+            wabou_shell_gpui::ProjectedImeEvent::Commit(text) => {
+                wabou_shell::ImeEvent::Commit(text)
+            }
+            wabou_shell_gpui::ProjectedImeEvent::Preedit { text, cursor } => {
+                wabou_shell::ImeEvent::Preedit { text, cursor }
+            }
+        };
+        FrameSource::handle_event(self, UiEvent::Ime(event))
+    }
+
+    pub(crate) fn gpui_text_input_state(&self) -> wabou_shell_gpui::ProjectedTextInputState {
+        let Some(target) = self.interaction.input.focused_target else {
+            return wabou_shell_gpui::ProjectedTextInputState::default();
+        };
+        let Some(node) = self.document.node_store.solid_to_node.get(&target) else {
+            return wabou_shell_gpui::ProjectedTextInputState::default();
+        };
+        let Some(widget) = self.document.widget_manager.widgets.get(node) else {
+            return wabou_shell_gpui::ProjectedTextInputState::default();
+        };
+        let selection = widget.text_selection();
+        wabou_shell_gpui::ProjectedTextInputState {
+            accepts_text: widget.accepts_text_input(),
+            text: widget.current_value().map(str::to_owned),
+            selection: selection.as_ref().map(|selection| {
+                selection.anchor.min(selection.head)..selection.anchor.max(selection.head)
+            }),
+            selection_reversed: selection
+                .as_ref()
+                .is_some_and(|selection| selection.head < selection.anchor),
+            cursor_bounds: self.interaction.ime_cursor_area.map(|bounds| {
+                [
+                    bounds[0] as f32,
+                    bounds[1] as f32,
+                    bounds[2] as f32,
+                    bounds[3] as f32,
+                ]
+            }),
+        }
     }
 
     /// Monotonically increasing count of non-empty JS-to-host protocol frames.

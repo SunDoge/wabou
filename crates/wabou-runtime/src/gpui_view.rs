@@ -103,8 +103,9 @@ impl Render for GpuiRuntimeView {
                 }
             });
         });
+        let text_input = self.applier.gpui_text_input_state();
         self.applier
-            .gpui_interactive_element(input, self.focus.clone())
+            .gpui_interactive_element(input, self.focus.clone(), text_input)
             .expect("the canonical Wabou root remains retained")
     }
 }

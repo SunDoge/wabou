@@ -63,7 +63,7 @@ impl ProjectionTree {
     /// The objects are intentionally ephemeral; their stable GPUI element IDs
     /// preserve state and paint caches across frames.
     pub fn element(&self, root: NodeKey) -> Result<ProjectedElement, ProjectionError> {
-        ProjectedElement::from_tree(self, root, None, None)
+        ProjectedElement::from_tree(self, root, None, None, None)
     }
 
     /// Materialize a root whose GPUI hit targets emit typed pointer events.
@@ -72,8 +72,9 @@ impl ProjectionTree {
         root: NodeKey,
         input: ProjectedInputSink,
         focus: gpui::FocusHandle,
+        text_input: crate::ProjectedTextInputState,
     ) -> Result<ProjectedElement, ProjectionError> {
-        ProjectedElement::from_tree(self, root, Some(input), Some(focus))
+        ProjectedElement::from_tree(self, root, Some(input), Some(focus), Some(text_input))
     }
 
     pub fn insert(

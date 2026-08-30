@@ -601,9 +601,32 @@ struct WheelCaptureWidget(Arc<std::sync::Mutex<Vec<Point>>>);
 
 struct KeyCaptureWidget(Arc<std::sync::Mutex<usize>>);
 
+struct TextInputStateWidget;
+
 struct MeasuringWidget([f32; 2]);
 
 struct StyleAwareMeasuringWidget(Arc<std::sync::Mutex<Vec<&'static str>>>);
+
+impl crate::widget::Widget for TextInputStateWidget {
+    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
+
+    fn current_value(&self) -> Option<&str> {
+        Some("a😀b")
+    }
+
+    fn text_selection(&self) -> Option<wabou_shell::WidgetTextSelection> {
+        Some(wabou_shell::WidgetTextSelection {
+            anchor: 3,
+            head: 1,
+            text: Some("😀".into()),
+            kind: wabou_shell::WidgetTextSelectionKind::Simple,
+        })
+    }
+
+    fn accepts_text_input(&self) -> bool {
+        true
+    }
+}
 
 impl crate::widget::Widget for MeasuringWidget {
     fn measure(&mut self, cx: &mut crate::widget::MeasureContext<'_>) -> Option<[f32; 2]> {
@@ -1884,6 +1907,32 @@ fn focused_widget_can_consume_tab_before_default_focus_traversal() {
         Some(NodeKey::new(2, 1))
     );
     assert_eq!(*received.lock().unwrap(), 1);
+}
+
+#[test]
+fn gpui_text_input_snapshot_uses_the_focused_widgets_utf16_contract() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let div = applier.document.atoms.borrow_mut().intern("div");
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
+    applier
+        .document
+        .widget_manager
+        .widgets
+        .insert(node, Box::new(TextInputStateWidget));
+    applier.interaction.input.focused_target = Some(NodeKey::new(2, 1));
+    applier.interaction.ime_cursor_area = Some([12.0, 18.0, 14.0, 36.0]);
+
+    let state = applier.gpui_text_input_state();
+    assert!(state.accepts_text);
+    assert_eq!(state.text.as_deref(), Some("a😀b"));
+    assert_eq!(state.selection, Some(1..3));
+    assert!(state.selection_reversed);
+    assert_eq!(state.cursor_bounds, Some([12.0, 18.0, 14.0, 36.0]));
 }
 
 mod overlay_cases;

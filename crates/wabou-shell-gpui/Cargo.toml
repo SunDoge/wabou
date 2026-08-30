@@ -14,3 +14,6 @@ gpui-platform.workspace = true
 slotmap.workspace = true
 wabou-host-api.workspace = true
 wabou-style.workspace = true
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }

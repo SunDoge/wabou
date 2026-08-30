@@ -8,7 +8,8 @@ use gpui::{
 use crate::{
     GpuiNodeKeyExt, NodeKey, ProjectedInputEvent, ProjectedInputSink, ProjectedKeyEvent,
     ProjectedKeyPhase, ProjectedPointerButton, ProjectedPointerEvent, ProjectedPointerPhase,
-    ProjectedWheelEvent, ProjectedWheelPhase, ProjectionError, ProjectionTree,
+    ProjectedTextInputState, ProjectedWheelEvent, ProjectedWheelPhase, ProjectionError,
+    ProjectionTree,
 };
 
 /// A lightweight GPUI element generated from one Wabou retained node.
@@ -21,6 +22,7 @@ pub struct ProjectedElement {
     children: Vec<AnyElement>,
     input: Option<ProjectedInputSink>,
     root_focus: Option<FocusHandle>,
+    text_input: Option<ProjectedTextInputState>,
 }
 
 impl ProjectedElement {
@@ -29,6 +31,7 @@ impl ProjectedElement {
         key: NodeKey,
         input: Option<ProjectedInputSink>,
         root_focus: Option<FocusHandle>,
+        text_input: Option<ProjectedTextInputState>,
     ) -> Result<Self, ProjectionError> {
         let node = tree.node(key).ok_or(ProjectionError::MissingNode(key))?;
         let mut children =
@@ -37,7 +40,8 @@ impl ProjectedElement {
             children.push(div().child(text.clone()).into_any_element());
         }
         for child in &node.children {
-            children.push(Self::from_tree(tree, *child, input.clone(), None)?.into_any_element());
+            children
+                .push(Self::from_tree(tree, *child, input.clone(), None, None)?.into_any_element());
         }
         Ok(Self {
             key,
@@ -45,6 +49,7 @@ impl ProjectedElement {
             children,
             input,
             root_focus,
+            text_input,
         })
     }
 }
@@ -296,6 +301,16 @@ impl Element for ProjectedElement {
             });
         }
 
+        if let (Some(input), Some(focus), Some(state)) =
+            (&self.input, &self.root_focus, &self.text_input)
+        {
+            window.handle_input(
+                focus,
+                crate::ProjectedInputHandler::new(input.clone(), state.clone()),
+                cx,
+            );
+        }
+
         let text_style = self.style.text_style().cloned();
         let overflow_mask = self.style.overflow_mask(bounds, window.rem_size());
         self.style.paint(bounds, window, cx, |window, cx| {
@@ -313,7 +328,9 @@ impl Element for ProjectedElement {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::{Keystroke, Modifiers, Style, point, px};
+    use std::{cell::RefCell, rc::Rc};
+
+    use gpui::{Context, Keystroke, Modifiers, Style, TestAppContext, point, px};
 
     #[test]
     fn generated_element_uses_the_retained_generational_identity() {
@@ -322,7 +339,7 @@ mod tests {
         tree.insert(key, None, 0, Style::default(), Some("hello".into()))
             .unwrap();
 
-        let element = ProjectedElement::from_tree(&tree, key, None, None).unwrap();
+        let element = ProjectedElement::from_tree(&tree, key, None, None, None).unwrap();
         assert_eq!(element.id(), Some(key.gpui_element_id()));
     }
 
@@ -383,5 +400,64 @@ mod tests {
         assert_eq!(event.key_char.as_deref(), Some("A"));
         assert!(event.repeat);
         assert!(event.shift);
+    }
+
+    struct InputHarness {
+        tree: ProjectionTree,
+        focus: FocusHandle,
+        input: ProjectedInputSink,
+    }
+
+    impl gpui::Render for InputHarness {
+        fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+            self.tree
+                .interactive_element(
+                    NodeKey::ROOT,
+                    self.input.clone(),
+                    self.focus.clone(),
+                    ProjectedTextInputState {
+                        accepts_text: true,
+                        ..Default::default()
+                    },
+                )
+                .expect("input projection")
+        }
+    }
+
+    #[gpui::test]
+    fn gpui_input_handler_commits_each_platform_character_once(cx: &mut TestAppContext) {
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let captured = events.clone();
+        let input: ProjectedInputSink = Rc::new(move |event, _| {
+            captured.borrow_mut().push(event);
+        });
+        let (_view, cx) = cx.add_window_view(move |window, cx| {
+            let mut tree = ProjectionTree::default();
+            tree.insert(
+                NodeKey::ROOT,
+                None,
+                0,
+                Style::default(),
+                Some("input".into()),
+            )
+            .unwrap();
+            let focus = cx.focus_handle();
+            window.focus(&focus, cx);
+            InputHarness { tree, focus, input }
+        });
+
+        cx.simulate_input("日本");
+
+        let events = events.borrow();
+        let commits = events
+            .iter()
+            .filter_map(|event| match event {
+                ProjectedInputEvent::Ime(crate::ProjectedImeEvent::Commit(text)) => {
+                    Some(text.as_str())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(commits, ["日", "本"], "all projected events: {events:?}");
     }
 }

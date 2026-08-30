@@ -290,9 +290,10 @@ impl Applier {
         &self,
         input: wabou_shell_gpui::ProjectedInputSink,
         focus: wabou_shell_gpui::gpui::FocusHandle,
+        text_input: wabou_shell_gpui::ProjectedTextInputState,
     ) -> Result<wabou_shell_gpui::ProjectedElement, wabou_shell_gpui::ProjectionError> {
         self.gpui_projection
-            .interactive_tree_element(NodeKey::ROOT, input, focus)
+            .interactive_tree_element(NodeKey::ROOT, input, focus, text_input)
     }
 }
 
