@@ -28,6 +28,8 @@ export interface WabouViteOptions {
   globalName?: string;
   /** Additional Vite configuration merged over Wabou defaults. */
   vite?: UserConfig;
+  /** Resolve Wabou workspace packages from source. Auto-detected in this repository. */
+  workspaceSource?: boolean;
   /** Named semantic color palettes compiled into Wabou Style IR. */
   theme?: WabouColorThemeOptions;
   /** Treat insufficient semantic text contrast as a warning or build error. */
@@ -121,6 +123,26 @@ export type WabouViteOptionsExport =
   | WabouViteOptions
   | ((environment: ConfigEnv) => WabouViteOptions);
 
+function wabouWorkspaceRoot(start: string): string | undefined {
+  let directory = resolve(start);
+  for (;;) {
+    if (
+      existsSync(resolve(directory, "packages/ui/src/index.ts")) &&
+      existsSync(resolve(directory, "packages/core/src/index.ts"))
+    ) {
+      return directory;
+    }
+    const parent = resolve(directory, "..");
+    if (parent === directory) return;
+    directory = parent;
+  }
+}
+
+/** Detect a Wabou source workspace while allowing applications to live below it. */
+export function hasWabouWorkspaceSources(start: string): boolean {
+  return wabouWorkspaceRoot(start) !== undefined;
+}
+
 function configureDependencyOptimizer(): Plugin {
   return {
     name: "wabou-configure-deps-optimizer",
@@ -193,7 +215,13 @@ function resolveWabouConfig(
       : sourceMap === "false"
         ? false
         : (manifestSourceMap(root) ?? debug);
-  const renderer = fileURLToPath(import.meta.resolve("@wabou/core/renderer"));
+  const workspaceRoot = wabouWorkspaceRoot(root);
+  const workspaceSource =
+    options.workspaceSource ?? workspaceRoot !== undefined;
+  const renderer =
+    workspaceSource && workspaceRoot
+      ? resolve(workspaceRoot, "packages/core/src/renderer.ts")
+      : fileURLToPath(import.meta.resolve("@wabou/core/renderer"));
   const defaults: UserConfig = {
     define: {
       "process.env.NODE_ENV": JSON.stringify(
@@ -214,6 +242,7 @@ function resolveWabouConfig(
       // reactive graph. Package-manager store paths otherwise allow Vite to
       // bundle duplicate runtimes that cannot observe each other's signals.
       dedupe: ["solid-js"],
+      conditions: workspaceSource ? ["wabou-source"] : undefined,
       alias: {
         "@wabou/core/renderer": renderer,
         "solid-js/web": renderer,

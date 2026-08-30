@@ -20,8 +20,12 @@ interface WabouViteOptions {
   globalName?: string;
   /** Additional Vite configuration merged over Wabou defaults. */
   vite?: UserConfig;
+  /** Resolve Wabou workspace packages from source. Auto-detected in this repository. */
+  workspaceSource?: boolean;
   /** Named semantic color palettes compiled into Wabou Style IR. */
   theme?: WabouColorThemeOptions;
+  /** Treat insufficient semantic text contrast as a warning or build error. */
+  themeContrast?: "warn" | "error";
   /** Ignore third-party metadata classes. Supports `*` globs. */
   ignoreClasses?: string[];
   /** ECMA-402 locale and time-zone data included in the application bundle. */
@@ -41,10 +45,12 @@ interface WabouIntlOptions {
  */
 declare const defaultWabouColorThemes: WabouColorThemeOptions;
 type WabouViteOptionsExport = WabouViteOptions | ((environment: ConfigEnv) => WabouViteOptions);
+/** Detect a Wabou source workspace while allowing applications to live below it. */
+declare function hasWabouWorkspaceSources(start: string): boolean;
 /** Plugins required for Solid to target Wabou instead of the browser DOM. */
-declare function wabouPlugins(root?: string, theme?: WabouColorThemeOptions, ignoreClasses?: string[], intl?: WabouIntlOptions, entry?: string): Plugin[];
+declare function wabouPlugins(root?: string, theme?: WabouColorThemeOptions, ignoreClasses?: string[], intl?: WabouIntlOptions, entry?: string, themeContrast?: "warn" | "error"): Plugin[];
 /** Define the complete conventional Vite configuration for a Wabou app. */
 declare function defineWabouConfig(options: WabouViteOptionsExport): UserConfigExport;
 //#endregion
-export { WabouIntlOptions, WabouViteOptions, WabouViteOptionsExport, defaultWabouColorThemes, defineWabouConfig, wabouPlugins };
+export { WabouIntlOptions, WabouViteOptions, WabouViteOptionsExport, defaultWabouColorThemes, defineWabouConfig, hasWabouWorkspaceSources, wabouPlugins };
 //# sourceMappingURL=index.d.mts.map

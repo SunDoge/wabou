@@ -128,16 +128,16 @@ are optional shortcuts such as `"build": "wabou build"`. Build customization
 belongs in `vite.config.ts`, where it applies consistently to development,
 tests, rendering, and packaging.
 
-When running directly from the Wabou source workspace, the CLI checks the
-runtime entrypoints declared by every `packages/*/package.json` before starting
-Vite. Package builds are scheduled by Turbo according to workspace
-dependencies, cached independently, and promoted into each `dist/` directory
-atomically. The preflight lists missing files and asks for
-`bun run packages:build`; unchanged packages are restored from the Turbo cache.
-Source-to-artifact drift is checked deterministically by `bun run gen:check` in
-CI rather than guessed by the runtime CLI;
-standalone applications and published packages do not incur this workspace-only
-check.
+When running directly from the Wabou source workspace, `@wabou/vite`
+automatically enables the packages' `wabou-source` export condition. HMR,
+captures, and application builds therefore see package source edits without a
+manual package rebuild. Turbo still builds publishable package artifacts
+according to workspace dependencies, caches them independently, and promotes
+them into each `dist/` directory atomically. Run `bun run packages:build` when
+validating package consumers or preparing a release. Source-to-artifact drift
+is checked deterministically by `bun run gen:check` in CI; standalone
+applications and published packages continue to resolve compiled `dist`
+artifacts.
 
 ## Application verification
 

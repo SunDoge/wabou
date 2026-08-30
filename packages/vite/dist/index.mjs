@@ -315,6 +315,10 @@ function wabouStylePlugin(options) {
 		name: "wabou-style-compiler",
 		enforce: "pre",
 		async configResolved(config) {
+			if (options.themeContrast === "error" && contrastDiagnostics.length > 0) throw new Error(`Wabou theme contrast validation failed:\n${contrastDiagnostics.map((diagnostic) => {
+				const suggestion = diagnostic.suggestedColor ? `; try ${diagnostic.suggestedColor}` : "";
+				return `  - ${diagnostic.theme}.${diagnostic.foreground} has ${diagnostic.ratio.toFixed(2)}:1 contrast on ${diagnostic.background}; expected at least ${diagnostic.minimum}:1${suggestion}`;
+			}).join("\n")}`);
 			referenceGenerator = await createGenerator({
 				presets: [presetWabou()],
 				rules: [[/^(?:bg|text|border)-(.+)$/, ([, token]) => semanticTokens.has(token) ? { "--wabou-semantic-color": token } : void 0]]
@@ -434,6 +438,19 @@ const defaultWabouColorThemes = {
 		}
 	}
 };
+function wabouWorkspaceRoot(start) {
+	let directory = resolve(start);
+	for (;;) {
+		if (existsSync(resolve(directory, "packages/ui/src/index.ts")) && existsSync(resolve(directory, "packages/core/src/index.ts"))) return directory;
+		const parent = resolve(directory, "..");
+		if (parent === directory) return;
+		directory = parent;
+	}
+}
+/** Detect a Wabou source workspace while allowing applications to live below it. */
+function hasWabouWorkspaceSources(start) {
+	return wabouWorkspaceRoot(start) !== void 0;
+}
 function configureDependencyOptimizer() {
 	return {
 		name: "wabou-configure-deps-optimizer",
@@ -447,13 +464,14 @@ function configureDependencyOptimizer() {
 	};
 }
 /** Plugins required for Solid to target Wabou instead of the browser DOM. */
-function wabouPlugins(root = process.cwd(), theme, ignoreClasses, intl, entry = "ui/index.tsx") {
+function wabouPlugins(root = process.cwd(), theme, ignoreClasses, intl, entry = "ui/index.tsx", themeContrast = "warn") {
 	return [
 		wabouIntlPlugin(root, entry, intl ?? manifestIntl(root)),
 		wabouStylePlugin({
 			root,
 			colorThemes: theme ?? defaultWabouColorThemes,
-			ignoreClasses
+			ignoreClasses,
+			themeContrast
 		}),
 		...solid({ solid: {
 			generate: "universal",
@@ -473,12 +491,15 @@ function resolveWabouConfig(options, environment) {
 	const sourceMap = process.env.WABOU_SOURCE_MAP;
 	const debug = process.env.WABOU_ENV_DEBUG === "true" || environment.command === "serve";
 	const sourcemap = sourceMap === "true" ? true : sourceMap === "false" ? false : manifestSourceMap(root) ?? debug;
-	const renderer = fileURLToPath(import.meta.resolve("@wabou/core/renderer"));
+	const workspaceRoot = wabouWorkspaceRoot(root);
+	const workspaceSource = options.workspaceSource ?? workspaceRoot !== void 0;
+	const renderer = workspaceSource && workspaceRoot ? resolve(workspaceRoot, "packages/core/src/renderer.ts") : fileURLToPath(import.meta.resolve("@wabou/core/renderer"));
 	const defaults = {
 		define: { "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? (environment.command === "serve" ? "development" : "production")) },
-		plugins: wabouPlugins(root, options.theme, options.ignoreClasses, options.intl, options.entry ?? "ui/index.tsx"),
+		plugins: wabouPlugins(root, options.theme, options.ignoreClasses, options.intl, options.entry ?? "ui/index.tsx", options.themeContrast),
 		resolve: {
 			dedupe: ["solid-js"],
+			conditions: workspaceSource ? ["wabou-source"] : void 0,
 			alias: {
 				"@wabou/core/renderer": renderer,
 				"solid-js/web": renderer
@@ -599,6 +620,6 @@ function readManifest(root) {
 	}
 }
 //#endregion
-export { defaultWabouColorThemes, defineWabouConfig, wabouPlugins };
+export { defaultWabouColorThemes, defineWabouConfig, hasWabouWorkspaceSources, wabouPlugins };
 
 //# sourceMappingURL=index.mjs.map
