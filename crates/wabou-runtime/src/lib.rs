@@ -2,7 +2,7 @@
 //!
 //! SolidJS (via `solid-js/universal`) emits binary DOM-mutation ops into a
 //! `Writer`; one `requestAnimationFrame` tick per frame flushes them to Rust;
-//! [`Applier`] decodes and applies them to the retained GPUI projection. The
+//! [`RuntimeController`] decodes and applies them to the retained GPUI projection. The
 //! old Winit/Vello applier remains temporarily available only as a migration
 //! oracle and is never an application-selectable backend.
 
@@ -51,7 +51,7 @@ pub mod vite;
 #[cfg(test)]
 mod widget;
 
-pub(crate) use applier::Applier;
+pub(crate) use applier::RuntimeController;
 pub use applier::{HmrDrainResult, ReloadHandle, ReloadMsg};
 pub use config::AppConfig;
 pub use error::{Error, Result};
@@ -93,7 +93,7 @@ pub use serial_worker::SerialWorker;
 /// module will disappear when the layout oracle has moved out of the runtime.
 #[doc(hidden)]
 pub mod legacy_headless {
-    pub use crate::applier::{Applier, ComputedNodeSnapshot};
+    pub use crate::applier::{ComputedNodeSnapshot, RuntimeController as Applier};
 }
 
 #[cfg(feature = "vite")]

@@ -334,7 +334,7 @@ bitflags::bitflags! {
 /// CSS properties that inherit to descendants. A SetStyle touching one of
 /// these (or the `font` shorthand) must take the slow path — re-derive + run
 /// the inherit pass — so children see the new value. Other inline properties
-/// take [`Applier::apply_inline_ir_fast`].
+/// take [`RuntimeController::apply_inline_ir_fast`].
 const INHERITED_PROPERTIES: &[&str] = &[
     "color",
     "font-size",
@@ -560,8 +560,8 @@ impl FrameState {
 }
 
 /// Coordinates one transactional JS protocol consumer and its retained native
-/// document. Subsystems own their state; `Applier` owns frame ordering.
-pub struct Applier {
+/// document. Subsystems own their state; `RuntimeController` owns frame ordering.
+pub struct RuntimeController {
     runtime: RuntimeSession,
     document: DocumentState,
     interaction: InteractionState,
@@ -569,7 +569,11 @@ pub struct Applier {
     gpui_projection: gpui_shell::GpuiProjection,
 }
 
-impl Applier {
+/// Compatibility name used only by the legacy Winit projection modules.
+#[doc(hidden)]
+pub type Applier = RuntimeController;
+
+impl RuntimeController {
     pub(crate) fn handle_gpui_input(
         &mut self,
         event: gpui_shell::ProjectedInputEvent,
@@ -834,7 +838,7 @@ impl Applier {
         }
     }
 
-    /// Boot the application after all Applier-owned host bridges have been
+    /// Boot the application after all RuntimeController-owned host bridges have been
     /// installed. This ordering permits window APIs during initial render.
     pub fn boot(&mut self, source: &str) -> rquickjs::Result<()> {
         self.runtime.js.boot(source)
@@ -920,7 +924,7 @@ impl Applier {
     }
 }
 
-impl Applier {
+impl RuntimeController {
     fn cancel_pointer_gesture(&mut self, pointer: gpui_shell::PointerEvent) -> bool {
         self.interaction.input.update_pointer(&pointer);
         self.interaction.text_selection.next_scroll = None;

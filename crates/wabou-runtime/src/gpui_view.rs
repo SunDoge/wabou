@@ -14,7 +14,7 @@ use gpui_shell::gpui::{
     Subscription, SystemNotification, Task, Window, div,
 };
 
-use crate::Applier;
+use crate::RuntimeController;
 use gpui_shell::{
     ClipboardRequest, EffectCompletion, EffectErrorCode, EffectPayload, EffectRequest,
     EffectResult, HostAction, HostActionResult, UiEvent, WindowCommand,
@@ -27,7 +27,7 @@ use gpui_shell::{
 /// resulting retained projection. It intentionally does not create one GPUI
 /// entity per Solid node.
 pub struct GpuiRuntimeView {
-    applier: Applier,
+    controller: RuntimeController,
     // Retaining the task ties the async bridge to the lifetime of this view.
     // The task itself only owns a weak entity handle, so this is not a cycle.
     _wake_task: Task<()>,
@@ -99,7 +99,7 @@ impl GpuiRuntimeView {
     /// Wrap an already configured and booted Wabou runtime.
     #[must_use]
     pub fn new(
-        mut applier: Applier,
+        mut controller: RuntimeController,
         default_title: String,
         window_size_persistence: Option<gpui_shell::WindowSizePersistence>,
         native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
@@ -107,7 +107,7 @@ impl GpuiRuntimeView {
         cx: &mut Context<Self>,
     ) -> Self {
         let (wake, receiver) = gpui_wake_channel();
-        applier.install_runtime_wake(wake);
+        controller.install_runtime_wake(wake);
 
         let wake_task = cx.spawn(async move |view, cx| {
             while receiver.recv_async().await.is_ok() {
@@ -116,7 +116,7 @@ impl GpuiRuntimeView {
                         // Drain work immediately instead of waiting for an unrelated
                         // input event or animation frame. The following render pass
                         // publishes any resulting Solid mutation batch to GPUI.
-                        let _ = view.applier.poll_runtime();
+                        let _ = view.controller.poll_runtime();
                         cx.notify();
                     })
                     .is_err()
@@ -129,7 +129,7 @@ impl GpuiRuntimeView {
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         Self {
-            applier,
+            controller,
             _wake_task: wake_task,
             focus,
             default_title,
@@ -141,7 +141,7 @@ impl GpuiRuntimeView {
     }
 
     fn synchronize_text_controls(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let descriptors = self.applier.gpui_text_controls();
+        let descriptors = self.controller.gpui_text_controls();
         self.text_controls
             .retain(|key, _| descriptors.iter().any(|descriptor| descriptor.key == *key));
 
@@ -157,54 +157,53 @@ impl GpuiRuntimeView {
                 self.text_controls.entry(descriptor.key)
             {
                 let key = descriptor.key;
-                let control =
-                    if descriptor.multiline {
-                        let state = cx.new(|cx| TextareaState::new(window, cx));
-                        let subscription = cx.subscribe(&state, move |view, state, event, cx| {
-                            let value = matches!(event, InputEvent::Change)
-                                .then(|| state.read(cx).value().to_string());
-                            let focused = match event {
-                                InputEvent::Focus => Some(true),
-                                InputEvent::Blur => Some(false),
-                                _ => None,
-                            };
-                            let changed = value.as_deref().is_some_and(|value| {
-                                view.applier.gpui_commit_text_value(key, value)
-                            }) | focused.is_some_and(|focused| {
-                                view.applier.gpui_set_text_focus(key, focused)
-                            });
-                            if changed {
-                                cx.notify();
-                            }
+                let control = if descriptor.multiline {
+                    let state = cx.new(|cx| TextareaState::new(window, cx));
+                    let subscription = cx.subscribe(&state, move |view, state, event, cx| {
+                        let value = matches!(event, InputEvent::Change)
+                            .then(|| state.read(cx).value().to_string());
+                        let focused = match event {
+                            InputEvent::Focus => Some(true),
+                            InputEvent::Blur => Some(false),
+                            _ => None,
+                        };
+                        let changed = value.as_deref().is_some_and(|value| {
+                            view.controller.gpui_commit_text_value(key, value)
+                        }) | focused.is_some_and(|focused| {
+                            view.controller.gpui_set_text_focus(key, focused)
                         });
-                        GpuiTextControlState::Textarea {
-                            state,
-                            _subscription: subscription,
+                        if changed {
+                            cx.notify();
                         }
-                    } else {
-                        let state = cx.new(|cx| InputState::new(window, cx));
-                        let subscription = cx.subscribe(&state, move |view, state, event, cx| {
-                            let value = matches!(event, InputEvent::Change)
-                                .then(|| state.read(cx).value().to_string());
-                            let focused = match event {
-                                InputEvent::Focus => Some(true),
-                                InputEvent::Blur => Some(false),
-                                _ => None,
-                            };
-                            let changed = value.as_deref().is_some_and(|value| {
-                                view.applier.gpui_commit_text_value(key, value)
-                            }) | focused.is_some_and(|focused| {
-                                view.applier.gpui_set_text_focus(key, focused)
-                            });
-                            if changed {
-                                cx.notify();
-                            }
+                    });
+                    GpuiTextControlState::Textarea {
+                        state,
+                        _subscription: subscription,
+                    }
+                } else {
+                    let state = cx.new(|cx| InputState::new(window, cx));
+                    let subscription = cx.subscribe(&state, move |view, state, event, cx| {
+                        let value = matches!(event, InputEvent::Change)
+                            .then(|| state.read(cx).value().to_string());
+                        let focused = match event {
+                            InputEvent::Focus => Some(true),
+                            InputEvent::Blur => Some(false),
+                            _ => None,
+                        };
+                        let changed = value.as_deref().is_some_and(|value| {
+                            view.controller.gpui_commit_text_value(key, value)
+                        }) | focused.is_some_and(|focused| {
+                            view.controller.gpui_set_text_focus(key, focused)
                         });
-                        GpuiTextControlState::Input {
-                            state,
-                            _subscription: subscription,
+                        if changed {
+                            cx.notify();
                         }
-                    };
+                    });
+                    GpuiTextControlState::Input {
+                        state,
+                        _subscription: subscription,
+                    }
+                };
                 entry.insert(control);
             }
             self.text_controls[&descriptor.key].synchronize(&descriptor, window, cx);
@@ -213,17 +212,17 @@ impl GpuiRuntimeView {
 
     /// Borrow the underlying runtime for host integration during migration.
     #[must_use]
-    pub fn applier(&self) -> &Applier {
-        &self.applier
+    pub fn controller(&self) -> &RuntimeController {
+        &self.controller
     }
 
     /// Mutably borrow the underlying runtime for host integration.
-    pub fn applier_mut(&mut self) -> &mut Applier {
-        &mut self.applier
+    pub fn applier_mut(&mut self) -> &mut RuntimeController {
+        &mut self.controller
     }
 
     fn handle_input(&mut self, event: gpui_shell::ProjectedInputEvent, cx: &mut Context<Self>) {
-        let mut response = self.applier.handle_gpui_input(event);
+        let mut response = self.controller.handle_gpui_input(event);
         if let Some(request) = response.clipboard.take() {
             match request {
                 ClipboardRequest::Write(text) => {
@@ -235,7 +234,7 @@ impl GpuiRuntimeView {
                         .and_then(|clipboard| clipboard.text())
                         .filter(|text| !text.is_empty());
                     if let Some(text) = text {
-                        let pasted = self.applier.dispatch_runtime_event(UiEvent::Paste(text));
+                        let pasted = self.controller.dispatch_runtime_event(UiEvent::Paste(text));
                         response.handled |= pasted.handled;
                         response.request_redraw |= pasted.request_redraw;
                     }
@@ -249,7 +248,7 @@ impl GpuiRuntimeView {
 
     fn drain_host_actions(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let mut handled = false;
-        while let Some(action) = self.applier.take_runtime_host_action() {
+        while let Some(action) = self.controller.take_runtime_host_action() {
             handled = true;
             match action {
                 HostAction::OpenUrl(url) => {
@@ -264,17 +263,18 @@ impl GpuiRuntimeView {
                 }
                 HostAction::WriteClipboard { request_id, text } => {
                     cx.write_to_clipboard(ClipboardItem::new_string(text));
-                    self.applier
-                        .complete_runtime_host_action(HostActionResult::ClipboardWrite {
+                    self.controller.complete_runtime_host_action(
+                        HostActionResult::ClipboardWrite {
                             request_id,
                             success: true,
-                        });
+                        },
+                    );
                 }
                 HostAction::ReadClipboard { request_id } => {
                     let text = cx
                         .read_from_clipboard()
                         .and_then(|clipboard| clipboard.text());
-                    self.applier
+                    self.controller
                         .complete_runtime_host_action(HostActionResult::Clipboard {
                             request_id,
                             text,
@@ -291,11 +291,11 @@ impl GpuiRuntimeView {
 
     fn drain_effects(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let mut handled = false;
-        while let Some(request) = self.applier.take_runtime_effect() {
+        while let Some(request) = self.controller.take_runtime_effect() {
             handled = true;
             let completion = self.execute_effect(request, window, cx);
             if let Some(completion) = completion {
-                self.applier.complete_runtime_effect(completion);
+                self.controller.complete_runtime_effect(completion);
             }
         }
         handled
@@ -471,7 +471,7 @@ impl GpuiRuntimeView {
                 Err(error) => platform_effect_error(error),
             };
             let _ = view.update(cx, |view, cx| {
-                view.applier
+                view.controller
                     .complete_runtime_effect(EffectCompletion { id, op, result });
                 cx.notify();
             });
@@ -495,7 +495,7 @@ impl GpuiRuntimeView {
                 Err(error) => platform_effect_error(error),
             };
             let _ = view.update(cx, |view, cx| {
-                view.applier
+                view.controller
                     .complete_runtime_effect(EffectCompletion { id, op, result });
                 cx.notify();
             });
@@ -519,7 +519,7 @@ impl GpuiRuntimeView {
                 Err(error) => platform_effect_error(error),
             };
             let _ = view.update(cx, |view, cx| {
-                view.applier
+                view.controller
                     .complete_runtime_effect(EffectCompletion { id, op, result });
                 cx.notify();
             });
@@ -607,7 +607,7 @@ impl Render for GpuiRuntimeView {
             );
         }
         let _ = self
-            .applier
+            .controller
             .build_gpui_frame(viewport.width.into(), viewport.height.into());
         self.synchronize_text_controls(window, cx);
         if self.drain_host_actions(window, cx) {
@@ -617,7 +617,7 @@ impl Render for GpuiRuntimeView {
             cx.notify();
         }
 
-        if self.applier.runtime_has_animation() {
+        if self.controller.runtime_has_animation() {
             // GPUI associates this request with the currently rendering view
             // and notifies only that entity on the next platform frame.
             window.request_animation_frame();
@@ -629,9 +629,9 @@ impl Render for GpuiRuntimeView {
                 view.handle_input(event, cx);
             });
         });
-        let mut text_input = self.applier.gpui_text_input_state();
+        let mut text_input = self.controller.gpui_text_input_state();
         if self
-            .applier
+            .controller
             .gpui_focused_target()
             .is_some_and(|target| self.text_controls.contains_key(&target))
         {
@@ -645,7 +645,7 @@ impl Render for GpuiRuntimeView {
             .map(|(key, state)| (*key, state.element()))
             .collect::<BTreeMap<_, _>>();
         let widgets = self
-            .applier
+            .controller
             .gpui_native_widgets(|tag| self.native_widget_factories.contains_key(tag));
         self.native_widget_entities
             .retain(|key, _| widgets.iter().any(|widget| widget.key == *key));
@@ -674,7 +674,7 @@ impl Render for GpuiRuntimeView {
         let native_controls = Rc::new(std::cell::RefCell::new(native_controls));
         let native: gpui_shell::ProjectedNativeElementFactory =
             Rc::new(move |key| native_controls.borrow_mut().remove(&key));
-        self.applier
+        self.controller
             .gpui_interactive_element(input, self.focus.clone(), text_input, Some(native))
             .expect("the canonical Wabou root remains retained")
     }
@@ -709,18 +709,19 @@ mod tests {
     #[test]
     fn real_solid_writer_frame_materializes_as_a_gpui_tree() {
         let runtime = JsRuntime::new().expect("QuickJS runtime");
-        let mut applier = Applier::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
-        applier
+        let mut controller =
+            RuntimeController::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+        controller
             .boot(include_str!("gen/test-runtime.js"))
             .expect("boot generated Solid runtime fixture");
 
-        assert!(applier.build_gpui_frame(800, 600));
-        assert_eq!(applier.protocol_revision(), 1);
+        assert!(controller.build_gpui_frame(800, 600));
+        assert_eq!(controller.protocol_revision(), 1);
         assert!(
-            applier.gpui_contains(NodeKey::new(2, 1)),
+            controller.gpui_contains(NodeKey::new(2, 1)),
             "the fixture's mounted <main> must cross the binary writer boundary"
         );
-        let _root = applier
+        let _root = controller
             .gpui_element()
             .expect("the completed Solid tree must materialize for GPUI");
     }
@@ -732,14 +733,15 @@ mod tests {
         let handle = cx
             .open_window(size(px(800.0), px(600.0)), |window, app| {
                 let runtime = JsRuntime::new().expect("QuickJS runtime");
-                let mut applier = Applier::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
-                applier
+                let mut controller =
+                    RuntimeController::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+                controller
                     .boot(include_str!("gen/test-runtime.js"))
                     .expect("boot generated Solid runtime fixture");
-                assert!(applier.build_gpui_frame(800, 600));
+                assert!(controller.build_gpui_frame(800, 600));
                 app.new(|view_cx| {
                     GpuiRuntimeView::new(
-                        applier,
+                        controller,
                         "Headless GPUI fixture".into(),
                         None,
                         HashMap::new(),
@@ -761,10 +763,11 @@ mod tests {
     #[gpui_shell::gpui::test]
     fn gpui_effect_executor_uses_the_platform_clipboard(cx: &mut TestAppContext) {
         let runtime = JsRuntime::new().expect("QuickJS runtime");
-        let applier = Applier::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+        let controller =
+            RuntimeController::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
         let (view, cx) = cx.add_window_view(move |window, cx| {
             GpuiRuntimeView::new(
-                applier,
+                controller,
                 "Clipboard test".into(),
                 None,
                 HashMap::new(),
@@ -818,10 +821,11 @@ mod tests {
     #[gpui_shell::gpui::test]
     fn gpui_effect_executor_uses_the_platform_path_prompt(cx: &mut TestAppContext) {
         let runtime = JsRuntime::new().expect("QuickJS runtime");
-        let applier = Applier::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+        let controller =
+            RuntimeController::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
         let (view, cx) = cx.add_window_view(move |window, cx| {
             GpuiRuntimeView::new(
-                applier,
+                controller,
                 "Dialog test".into(),
                 None,
                 HashMap::new(),

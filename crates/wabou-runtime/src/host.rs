@@ -46,7 +46,7 @@ use vello::peniko::Color;
 use wabou_bindgen::JsonCapabilityContract;
 use wabou_bindgen::JsonMethod;
 
-use crate::applier::Applier;
+use crate::applier::RuntimeController;
 use crate::bundle;
 use crate::headless_test::run_headless_test;
 use crate::json_capability::JsonCapability;
@@ -547,7 +547,7 @@ impl RuntimeSourceConfig {
         &self,
         window_key: gpui_shell::WindowResourceKey,
         window_options: &WindowOptions,
-    ) -> crate::Result<Applier> {
+    ) -> crate::Result<RuntimeController> {
         #[cfg(feature = "vite")]
         let js = match &self.source {
             ApplicationSource::Vite { url, .. } => {
@@ -585,7 +585,7 @@ impl RuntimeSourceConfig {
         .context(crate::error::JavaScriptSnafu {
             operation: "install native window creation options",
         })?;
-        let mut applier = Applier::from_runtime_with_factories_and_window(
+        let mut applier = RuntimeController::from_runtime_with_factories_and_window(
             js,
             self.widget_factories.clone(),
             if window_options.transparent {
@@ -628,7 +628,10 @@ impl RuntimeSourceConfig {
     }
 
     #[cfg(feature = "vite")]
-    fn start_hmr(&self, applier: &mut Applier) -> crate::Result<Option<crate::HmrClient>> {
+    fn start_hmr(
+        &self,
+        applier: &mut RuntimeController,
+    ) -> crate::Result<Option<crate::HmrClient>> {
         let ApplicationSource::Vite { url, entry } = &self.source else {
             return Ok(None);
         };
@@ -1023,7 +1026,7 @@ impl HostBuilder {
         self
     }
 
-    /// Build the JsRuntime + Applier + run the winit event loop.
+    /// Build the JavaScript runtime and run it in the GPUI application shell.
     pub fn run(self) -> crate::Result<()> {
         let outcome = self.run_once()?;
         if outcome == crate::RunOutcome::Relaunch && std::env::var_os("WABOU_TEST_SCRIPT").is_none()
@@ -1346,7 +1349,7 @@ impl HostBuilder {
 
 fn run_gpui_windows(
     windows: Vec<(
-        Applier,
+        RuntimeController,
         WindowOptions,
         Option<gpui_shell::WindowSizePersistence>,
     )>,
@@ -1446,7 +1449,7 @@ pub(crate) fn relaunch_current_process() -> crate::Result<()> {
 fn install_host_message_producers(
     producers: &[HostMessageProducer],
     window_key: gpui_shell::WindowResourceKey,
-    applier: &Applier,
+    applier: &RuntimeController,
 ) {
     for producer in producers {
         producer(applier.host_message_context(window_key));
@@ -1462,7 +1465,7 @@ mod tests {
     };
     use crate::host_message::{HostMessagePayload, HostTaskTracker, host_message_channel};
     use crate::json_capability::{JsonCapability, invoke_json_method};
-    use crate::{Applier, HostMessageContext, JsRuntime};
+    use crate::{HostMessageContext, JsRuntime, RuntimeController};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use wabou_bindgen::JsonMethod;
@@ -2082,8 +2085,10 @@ mod tests {
             });
         });
         let runtime = JsRuntime::new().unwrap();
-        let applier =
-            Applier::from_runtime(runtime, vello::peniko::Color::from_rgb8(0x00, 0x00, 0x00));
+        let applier = RuntimeController::from_runtime(
+            runtime,
+            vello::peniko::Color::from_rgb8(0x00, 0x00, 0x00),
+        );
         install_host_message_producers(
             &builder.host_message_producers,
             gpui_shell::WindowResourceKey::from_parts(3, 1).unwrap(),
