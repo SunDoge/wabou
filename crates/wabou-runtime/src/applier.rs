@@ -48,9 +48,9 @@ use wabou_shell::text::TextContext;
 #[cfg(any(feature = "devtools", test))]
 use wabou_shell::text::layout_text_styled;
 use wabou_shell::{
-    EventResponse, FrameSource, FrameStats, KeyPhase, Modifiers, PointerButton, PointerPhase,
-    SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
-    SemanticStates, SemanticToggleState, UiEvent, WakeCallback,
+    EventResponse, FrameSource, FrameStats, GesturePhase, KeyPhase, Modifiers, PointerButton,
+    PointerPhase, SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole,
+    SemanticSnapshot, SemanticStates, SemanticToggleState, UiEvent, WakeCallback,
 };
 
 use crate::asset_cache::ResourceCache;
@@ -570,7 +570,19 @@ pub struct Applier {
 }
 
 impl Applier {
-    pub(crate) fn handle_gpui_pointer(
+    pub(crate) fn handle_gpui_input(
+        &mut self,
+        event: wabou_shell_gpui::ProjectedInputEvent,
+    ) -> EventResponse {
+        match event {
+            wabou_shell_gpui::ProjectedInputEvent::Pointer(event) => {
+                self.handle_gpui_pointer(event)
+            }
+            wabou_shell_gpui::ProjectedInputEvent::Wheel(event) => self.handle_gpui_wheel(event),
+        }
+    }
+
+    fn handle_gpui_pointer(
         &mut self,
         event: wabou_shell_gpui::ProjectedPointerEvent,
     ) -> EventResponse {
@@ -614,6 +626,53 @@ impl Applier {
                 buttons,
                 modifiers,
                 properties: wabou_shell::PointerProperties::default(),
+            }),
+        );
+        self.interaction.input.target_override = None;
+        response
+    }
+
+    fn handle_gpui_wheel(&mut self, event: wabou_shell_gpui::ProjectedWheelEvent) -> EventResponse {
+        let mut modifiers = Modifiers::empty();
+        modifiers.set(Modifiers::SHIFT, event.shift);
+        modifiers.set(Modifiers::CONTROL, event.control);
+        modifiers.set(Modifiers::ALT, event.alt);
+        modifiers.set(Modifiers::META, event.platform);
+        let phase = match event.phase {
+            wabou_shell_gpui::ProjectedWheelPhase::Started => GesturePhase::Started,
+            wabou_shell_gpui::ProjectedWheelPhase::Changed => GesturePhase::Changed,
+            wabou_shell_gpui::ProjectedWheelPhase::Ended => GesturePhase::Ended,
+            wabou_shell_gpui::ProjectedWheelPhase::Cancelled => GesturePhase::Cancelled,
+        };
+        self.interaction.input.target_override = Some(event.target);
+        let response = FrameSource::handle_event(
+            self,
+            UiEvent::Wheel(wabou_shell::WheelEvent {
+                position: wabou_shell::Point {
+                    x: f64::from(event.x),
+                    y: f64::from(event.y),
+                },
+                // GPUI reports the direction content should move, whereas Wabou
+                // exposes the scroll-position delta, matching the legacy shell.
+                delta_x: -f64::from(event.delta_x)
+                    * if event.precise {
+                        1.0
+                    } else {
+                        wabou_shell::WHEEL_LINE_DELTA
+                    },
+                delta_y: -f64::from(event.delta_y)
+                    * if event.precise {
+                        1.0
+                    } else {
+                        wabou_shell::WHEEL_LINE_DELTA
+                    },
+                delta_mode: if event.precise {
+                    wabou_shell::WheelDeltaMode::Pixel
+                } else {
+                    wabou_shell::WheelDeltaMode::Line
+                },
+                phase,
+                modifiers,
             }),
         );
         self.interaction.input.target_override = None;

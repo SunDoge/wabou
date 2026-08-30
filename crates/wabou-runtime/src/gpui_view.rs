@@ -93,7 +93,7 @@ impl Render for GpuiRuntimeView {
         let view = cx.weak_entity();
         let input = Rc::new(move |event, cx: &mut wabou_shell_gpui::gpui::App| {
             let _ = view.update(cx, |view, cx| {
-                let response = view.applier.handle_gpui_pointer(event);
+                let response = view.applier.handle_gpui_input(event);
                 if response.request_redraw {
                     cx.notify();
                 }

@@ -15,7 +15,8 @@ mod tree;
 pub use element::ProjectedElement;
 pub use gpui;
 pub use input::{
-    ProjectedInputSink, ProjectedPointerButton, ProjectedPointerEvent, ProjectedPointerPhase,
+    ProjectedInputEvent, ProjectedInputSink, ProjectedPointerButton, ProjectedPointerEvent,
+    ProjectedPointerPhase, ProjectedWheelEvent, ProjectedWheelPhase,
 };
 pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
 pub use style::{StyleDiagnostic, StyleProjection};

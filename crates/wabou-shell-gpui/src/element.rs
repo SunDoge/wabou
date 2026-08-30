@@ -1,12 +1,14 @@
 use gpui::{
     AnyElement, App, Bounds, DispatchPhase, Element, ElementId, GlobalElementId, Hitbox,
     HitboxBehavior, InspectorElementId, IntoElement, LayoutId, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, Pixels, Visibility, Window, div, prelude::*,
+    MouseMoveEvent, MouseUpEvent, Pixels, ScrollDelta, ScrollWheelEvent, TouchPhase, Visibility,
+    Window, div, prelude::*,
 };
 
 use crate::{
-    GpuiNodeKeyExt, NodeKey, ProjectedInputSink, ProjectedPointerButton, ProjectedPointerEvent,
-    ProjectedPointerPhase, ProjectionError, ProjectionTree,
+    GpuiNodeKeyExt, NodeKey, ProjectedInputEvent, ProjectedInputSink, ProjectedPointerButton,
+    ProjectedPointerEvent, ProjectedPointerPhase, ProjectedWheelEvent, ProjectedWheelPhase,
+    ProjectionError, ProjectionTree,
 };
 
 /// A lightweight GPUI element generated from one Wabou retained node.
@@ -70,6 +72,31 @@ fn pointer_event(
         control: modifiers.control,
         alt: modifiers.alt,
         platform: modifiers.platform,
+    }
+}
+
+fn wheel_event(key: NodeKey, event: &ScrollWheelEvent) -> ProjectedWheelEvent {
+    let (delta_x, delta_y, precise) = match event.delta {
+        ScrollDelta::Pixels(delta) => (f32::from(delta.x), f32::from(delta.y), true),
+        ScrollDelta::Lines(delta) => (delta.x, delta.y, false),
+    };
+    ProjectedWheelEvent {
+        target: key,
+        x: event.position.x.into(),
+        y: event.position.y.into(),
+        delta_x,
+        delta_y,
+        precise,
+        phase: match event.touch_phase {
+            TouchPhase::Started => ProjectedWheelPhase::Started,
+            TouchPhase::Moved => ProjectedWheelPhase::Changed,
+            TouchPhase::Ended => ProjectedWheelPhase::Ended,
+            TouchPhase::Cancelled => ProjectedWheelPhase::Cancelled,
+        },
+        shift: event.modifiers.shift,
+        control: event.modifiers.control,
+        alt: event.modifiers.alt,
+        platform: event.modifiers.platform,
     }
 }
 
@@ -157,13 +184,13 @@ impl Element for ProjectedElement {
             window.on_mouse_event(move |event: &MouseDownEvent, phase, window, cx| {
                 if phase == DispatchPhase::Bubble && down_hitbox.is_hovered(window) {
                     down_input(
-                        pointer_event(
+                        ProjectedInputEvent::Pointer(pointer_event(
                             key,
                             ProjectedPointerPhase::Down,
                             event.position,
                             Some(event.button),
                             event.modifiers,
-                        ),
+                        )),
                         cx,
                     );
                     cx.stop_propagation();
@@ -175,13 +202,13 @@ impl Element for ProjectedElement {
             window.on_mouse_event(move |event: &MouseUpEvent, phase, window, cx| {
                 if phase == DispatchPhase::Bubble && up_hitbox.is_hovered(window) {
                     up_input(
-                        pointer_event(
+                        ProjectedInputEvent::Pointer(pointer_event(
                             key,
                             ProjectedPointerPhase::Up,
                             event.position,
                             Some(event.button),
                             event.modifiers,
-                        ),
+                        )),
                         cx,
                     );
                     cx.stop_propagation();
@@ -193,15 +220,25 @@ impl Element for ProjectedElement {
             window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
                 if phase == DispatchPhase::Bubble && move_hitbox.is_hovered(window) {
                     move_input(
-                        pointer_event(
+                        ProjectedInputEvent::Pointer(pointer_event(
                             key,
                             ProjectedPointerPhase::Move,
                             event.position,
                             event.pressed_button,
                             event.modifiers,
-                        ),
+                        )),
                         cx,
                     );
+                    cx.stop_propagation();
+                }
+            });
+
+            let wheel_input = input.clone();
+            let wheel_hitbox = hitbox.clone();
+            let key = self.key;
+            window.on_mouse_event(move |event: &ScrollWheelEvent, phase, window, cx| {
+                if phase == DispatchPhase::Bubble && wheel_hitbox.should_handle_scroll(window) {
+                    wheel_input(ProjectedInputEvent::Wheel(wheel_event(key, event)), cx);
                     cx.stop_propagation();
                 }
             });
@@ -224,7 +261,7 @@ impl Element for ProjectedElement {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::Style;
+    use gpui::{Modifiers, Style, point, px};
 
     #[test]
     fn generated_element_uses_the_retained_generational_identity() {
@@ -235,5 +272,39 @@ mod tests {
 
         let element = ProjectedElement::from_tree(&tree, key, None).unwrap();
         assert_eq!(element.id(), Some(key.gpui_element_id()));
+    }
+
+    #[test]
+    fn wheel_projection_preserves_native_units_phase_and_target() {
+        let key = NodeKey::new(23, 5);
+        let event = ScrollWheelEvent {
+            position: point(px(40.0), px(80.0)),
+            delta: ScrollDelta::Pixels(point(px(-2.5), px(12.0))),
+            modifiers: Modifiers {
+                shift: true,
+                control: false,
+                alt: true,
+                platform: false,
+                function: false,
+            },
+            touch_phase: TouchPhase::Started,
+        };
+
+        assert_eq!(
+            wheel_event(key, &event),
+            ProjectedWheelEvent {
+                target: key,
+                x: 40.0,
+                y: 80.0,
+                delta_x: -2.5,
+                delta_y: 12.0,
+                precise: true,
+                phase: ProjectedWheelPhase::Started,
+                shift: true,
+                control: false,
+                alt: true,
+                platform: false,
+            }
+        );
     }
 }

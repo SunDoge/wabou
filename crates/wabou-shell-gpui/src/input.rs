@@ -53,5 +53,54 @@ pub struct ProjectedPointerEvent {
     pub platform: bool,
 }
 
+/// Native wheel phase independent of GPUI's platform representation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProjectedWheelPhase {
+    /// A precise gesture started.
+    Started,
+    /// The wheel or gesture changed.
+    Changed,
+    /// A precise gesture ended.
+    Ended,
+    /// The platform cancelled the gesture.
+    Cancelled,
+}
+
+/// Wheel transition targeted by GPUI hit testing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ProjectedWheelEvent {
+    /// Deepest projected node selected by GPUI hit testing.
+    pub target: NodeKey,
+    /// Window-logical horizontal coordinate.
+    pub x: f32,
+    /// Window-logical vertical coordinate.
+    pub y: f32,
+    /// Horizontal delta in source units.
+    pub delta_x: f32,
+    /// Vertical delta in source units.
+    pub delta_y: f32,
+    /// Whether the source units are precise logical pixels rather than lines.
+    pub precise: bool,
+    /// Native gesture lifecycle.
+    pub phase: ProjectedWheelPhase,
+    /// Whether Shift is held.
+    pub shift: bool,
+    /// Whether Control is held.
+    pub control: bool,
+    /// Whether Alt/Option is held.
+    pub alt: bool,
+    /// Whether Command/Super/Windows is held.
+    pub platform: bool,
+}
+
+/// Input transition emitted from one retained GPUI hit target.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ProjectedInputEvent {
+    /// Pointer movement or button transition.
+    Pointer(ProjectedPointerEvent),
+    /// Wheel or trackpad transition.
+    Wheel(ProjectedWheelEvent),
+}
+
 /// UI-thread callback installed while a projection is materialized.
-pub type ProjectedInputSink = Rc<dyn Fn(ProjectedPointerEvent, &mut App)>;
+pub type ProjectedInputSink = Rc<dyn Fn(ProjectedInputEvent, &mut App)>;
