@@ -640,21 +640,27 @@ fn host_theme_defaults_are_opt_in_and_osc_overrides_them() {
     widget.style_changed(&WidgetStyle::from(&paint));
     assert_eq!(
         widget.theme_foreground,
-        named_color(NamedColor::Foreground, true)
+        color::terminal_named_color(NamedColor::Foreground, true)
     );
     widget.attribute_changed("inherit-theme", "true");
     widget.style_changed(&WidgetStyle::from(&paint));
-    assert_eq!(widget.theme_foreground, Color::from_rgb8(0x11, 0x22, 0x33));
-    assert_eq!(widget.theme_background, Color::from_rgb8(0x44, 0x55, 0x66));
+    assert_eq!(
+        widget.theme_foreground,
+        TerminalColor::rgb(0x11, 0x22, 0x33)
+    );
+    assert_eq!(
+        widget.theme_background,
+        TerminalColor::rgb(0x44, 0x55, 0x66)
+    );
 
     widget.attribute_changed("inherit-theme", "false");
     assert_eq!(
         widget.theme_foreground,
-        named_color(NamedColor::Foreground, true)
+        color::terminal_named_color(NamedColor::Foreground, true)
     );
     assert_eq!(
         widget.theme_background,
-        named_color(NamedColor::Background, false)
+        color::terminal_named_color(NamedColor::Background, false)
     );
     widget.attribute_changed("inherit-theme", "true");
     widget.style_changed(&WidgetStyle::from(&paint));
@@ -671,8 +677,8 @@ fn host_theme_defaults_are_opt_in_and_osc_overrides_them() {
             AnsiColor::Named(NamedColor::Foreground),
             true,
             &colors,
-            widget.theme_foreground,
-            widget.theme_background,
+            legacy_color(widget.theme_foreground),
+            legacy_color(widget.theme_background),
         ),
         Color::from_rgb8(1, 2, 3)
     );
@@ -680,7 +686,7 @@ fn host_theme_defaults_are_opt_in_and_osc_overrides_them() {
     assert!(!widget.inherit_theme);
     assert_eq!(
         widget.theme_foreground,
-        named_color(NamedColor::Foreground, true)
+        color::terminal_named_color(NamedColor::Foreground, true)
     );
 }
 

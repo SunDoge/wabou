@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use anyrender::{PaintScene, Scene};
 use rio_vt::ansi::CursorShape;
-use rio_vt::config::colors::term::{COUNT as TERMINAL_COLOR_COUNT, TermColors};
+use rio_vt::config::colors::term::TermColors;
 use rio_vt::config::colors::{AnsiColor, ColorRgb, NamedColor};
 use rio_vt::crosswords::grid::Scroll;
 use rio_vt::crosswords::grid::row::Row;
@@ -45,6 +45,7 @@ use wabou_shell_api::{
 };
 
 mod box_drawing;
+mod color;
 mod graphics;
 mod input_encoding;
 mod kitty_keyboard;
@@ -54,8 +55,11 @@ mod rendering;
 mod selection;
 mod session;
 
+pub use color::TerminalColor;
 use graphics::{KittyLayer, TerminalGraphics};
 use input_encoding::*;
+#[cfg(test)]
+use legacy_widget::legacy_color;
 pub use legacy_widget::terminal_widget;
 #[cfg(test)]
 use process::quote_windows_command_arg;
@@ -74,7 +78,7 @@ const DEFAULT_SCROLLBACK: usize = 10_000;
 const DEFAULT_FONT_SIZE: f32 = 14.0;
 const DEFAULT_LINE_HEIGHT: f32 = 18.0;
 const DEFAULT_CELL_WIDTH: f32 = 8.4;
-const DEFAULT_SELECTION_BACKGROUND: Color = Color::from_rgba8(59, 130, 246, 105);
+const DEFAULT_SELECTION_BACKGROUND: TerminalColor = TerminalColor::rgba(59, 130, 246, 105);
 const SELECTION_DRAG_THRESHOLD: f64 = 4.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -308,10 +312,10 @@ pub struct TerminalWidget {
     selecting: bool,
     selection_pointer_origin: Option<(f64, f64)>,
     selection_dragged: bool,
-    selection_background: Color,
-    selection_foreground: Option<Color>,
-    theme_foreground: Color,
-    theme_background: Color,
+    selection_background: TerminalColor,
+    selection_foreground: Option<TerminalColor>,
+    theme_foreground: TerminalColor,
+    theme_background: TerminalColor,
     inherit_theme: bool,
     selection_drag_point: Option<(f64, f64)>,
     next_selection_scroll: Option<Instant>,
@@ -389,8 +393,8 @@ impl TerminalWidget {
             selection_dragged: false,
             selection_background: DEFAULT_SELECTION_BACKGROUND,
             selection_foreground: None,
-            theme_foreground: named_color(NamedColor::Foreground, true),
-            theme_background: named_color(NamedColor::Background, false),
+            theme_foreground: color::terminal_named_color(NamedColor::Foreground, true),
+            theme_background: color::terminal_named_color(NamedColor::Background, false),
             inherit_theme: false,
             selection_drag_point: None,
             next_selection_scroll: None,
@@ -770,7 +774,7 @@ impl TerminalWidget {
             RioEvent::ColorRequest(_, index, formatter) => {
                 let colors = self.terminal.lock().colors;
                 self.send_bytes(
-                    formatter(terminal_color(
+                    formatter(color::terminal_query_color(
                         index,
                         &colors,
                         self.theme_foreground,

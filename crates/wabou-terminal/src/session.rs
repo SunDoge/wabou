@@ -172,20 +172,22 @@ impl TerminalWidget {
                 self.sync_window_title = enabled;
             }
             "selection-background" => {
-                if let Some(color) = wabou_shell::style::parse_color(value) {
+                if let Some(color) = color::parse_terminal_color(value) {
                     self.selection_background = color;
                 }
             }
             "selection-foreground" => {
-                if let Some(color) = wabou_shell::style::parse_color(value) {
+                if let Some(color) = color::parse_terminal_color(value) {
                     self.selection_foreground = Some(color);
                 }
             }
             "inherit-theme" => {
                 self.inherit_theme = matches!(value, "" | "true" | "1");
                 if !self.inherit_theme {
-                    self.theme_foreground = named_color(NamedColor::Foreground, true);
-                    self.theme_background = named_color(NamedColor::Background, false);
+                    self.theme_foreground =
+                        color::terminal_named_color(NamedColor::Foreground, true);
+                    self.theme_background =
+                        color::terminal_named_color(NamedColor::Background, false);
                 }
             }
             _ => {}

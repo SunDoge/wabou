@@ -319,36 +319,6 @@ pub(super) fn indexed_color(index: u8) -> Color {
     Color::from_rgb8(gray, gray, gray)
 }
 
-pub(super) fn terminal_color(
-    index: usize,
-    colors: &TermColors,
-    theme_foreground: Color,
-    theme_background: Color,
-) -> ColorRgb {
-    let color = if let Some(color) = (index < TERMINAL_COLOR_COUNT)
-        .then(|| colors[index])
-        .flatten()
-    {
-        color_from_array(color)
-    } else {
-        match index {
-            index if index < 256 => indexed_color(index as u8),
-            index
-                if index == NamedColor::Foreground as usize
-                    || index == NamedColor::LightForeground as usize
-                    || index == NamedColor::DimForeground as usize =>
-            {
-                theme_foreground
-            }
-            index if index == NamedColor::Background as usize => theme_background,
-            index if index == NamedColor::Cursor as usize => named_color(NamedColor::Cursor, true),
-            _ => named_color(NamedColor::Foreground, true),
-        }
-    };
-    let [r, g, b, _] = color.to_rgba8().to_u8_array();
-    ColorRgb { r, g, b }
-}
-
 pub(super) fn dim(color: Color) -> Color {
     let [r, g, b, a] = color.to_rgba8().to_u8_array();
     Color::from_rgba8(

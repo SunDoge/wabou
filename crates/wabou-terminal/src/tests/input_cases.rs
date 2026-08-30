@@ -209,22 +209,22 @@ fn terminal_selection_colors_are_themeable_and_removable() {
     widget.attribute_changed("selection-foreground", "rgb(240 241 242)");
     assert_eq!(
         widget.selection_background,
-        Color::from_rgba8(0x11, 0x22, 0x33, 0x80)
+        TerminalColor::rgba(0x11, 0x22, 0x33, 0x80)
     );
     assert_eq!(
         widget.selection_foreground,
-        Some(Color::from_rgb8(240, 241, 242))
+        Some(TerminalColor::rgb(240, 241, 242))
     );
 
     widget.attribute_changed("selection-background", "not-a-color");
     widget.attribute_changed("selection-foreground", "not-a-color");
     assert_eq!(
         widget.selection_background,
-        Color::from_rgba8(0x11, 0x22, 0x33, 0x80)
+        TerminalColor::rgba(0x11, 0x22, 0x33, 0x80)
     );
     assert_eq!(
         widget.selection_foreground,
-        Some(Color::from_rgb8(240, 241, 242))
+        Some(TerminalColor::rgb(240, 241, 242))
     );
 
     widget.attribute_removed("selection-background");

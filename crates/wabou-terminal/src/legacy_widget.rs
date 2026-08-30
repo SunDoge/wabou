@@ -3,6 +3,32 @@ use crate::session::{TerminalInputResult, TerminalInvalidation};
 use wabou_runtime::{Widget, WidgetChanges, WidgetEventResult, WidgetNodeEvent, WidgetStyle};
 use wabou_shell::text::{TextContext, layout_text_styled};
 
+pub(crate) fn legacy_color(color: TerminalColor) -> Color {
+    let [r, g, b, a] = color.components();
+    Color::from_rgba8(r, g, b, a)
+}
+
+fn terminal_color_from_legacy(color: Color) -> TerminalColor {
+    let [r, g, b, a] = color.to_rgba8().to_u8_array();
+    TerminalColor::rgba(r, g, b, a)
+}
+
+fn legacy_terminal_ansi_color(
+    color: AnsiColor,
+    foreground: bool,
+    colors: &TermColors,
+    theme_foreground: TerminalColor,
+    theme_background: TerminalColor,
+) -> Color {
+    legacy_color(color::resolve_ansi_color(
+        color,
+        foreground,
+        colors,
+        theme_foreground,
+        theme_background,
+    ))
+}
+
 impl TerminalInputResult {
     fn into_legacy(self) -> WidgetEventResult {
         match self {
@@ -210,7 +236,7 @@ impl TerminalWidget {
                 self.cell_width,
                 self.line_height,
                 device_scale,
-                self.selection_background,
+                legacy_color(self.selection_background),
             );
         }
     }
@@ -231,14 +257,14 @@ impl TerminalWidget {
         default_background: Color,
         device_scale: f64,
     ) {
-        let mut foreground = terminal_ansi_color(
+        let mut foreground = legacy_terminal_ansi_color(
             style.fg,
             true,
             colors,
             self.theme_foreground,
             self.theme_background,
         );
-        let mut background = terminal_ansi_color(
+        let mut background = legacy_terminal_ansi_color(
             style.bg,
             false,
             colors,
@@ -267,7 +293,7 @@ impl TerminalWidget {
                 self.cell_width,
                 self.line_height,
                 device_scale,
-                self.selection_background,
+                legacy_color(self.selection_background),
             );
         }
         if style.flags.contains(StyleFlags::HIDDEN) {
@@ -277,7 +303,7 @@ impl TerminalWidget {
             foreground = dim(foreground);
         }
         if selected && let Some(selection_foreground) = self.selection_foreground {
-            foreground = selection_foreground;
+            foreground = legacy_color(selection_foreground);
         }
         draw_cell_decorations(
             scene,
@@ -288,9 +314,12 @@ impl TerminalWidget {
             style,
             foreground,
             colors,
-            self.theme_foreground,
-            self.theme_background,
-            selected.then_some(self.selection_foreground).flatten(),
+            legacy_color(self.theme_foreground),
+            legacy_color(self.theme_background),
+            selected
+                .then_some(self.selection_foreground)
+                .flatten()
+                .map(legacy_color),
         );
         if cell_has_no_glyph(square, character) {
             return;
@@ -368,7 +397,7 @@ impl TerminalWidget {
         ) else {
             return;
         };
-        let color = terminal_ansi_color(
+        let color = legacy_terminal_ansi_color(
             AnsiColor::Named(NamedColor::Cursor),
             true,
             colors,
@@ -477,7 +506,7 @@ impl Widget for TerminalWidget {
                 terminal.lines_evicted() as i64 + terminal.history_size() as i64,
             )
         };
-        let default_background = terminal_ansi_color(
+        let default_background = legacy_terminal_ansi_color(
             AnsiColor::Named(NamedColor::Background),
             false,
             &colors,
@@ -589,10 +618,12 @@ impl Widget for TerminalWidget {
         if !self.inherit_theme {
             return WidgetChanges::empty();
         }
-        self.theme_foreground = style.color;
-        self.theme_background = style
-            .background
-            .unwrap_or_else(|| named_color(NamedColor::Background, false));
+        self.theme_foreground = terminal_color_from_legacy(style.color);
+        self.theme_background = terminal_color_from_legacy(
+            style
+                .background
+                .unwrap_or_else(|| named_color(NamedColor::Background, false)),
+        );
         WidgetChanges::REDRAW
     }
 
@@ -698,8 +729,8 @@ impl Widget for TerminalWidget {
             "selection-foreground" => self.selection_foreground = None,
             "inherit-theme" => {
                 self.inherit_theme = false;
-                self.theme_foreground = named_color(NamedColor::Foreground, true);
-                self.theme_background = named_color(NamedColor::Background, false);
+                self.theme_foreground = color::terminal_named_color(NamedColor::Foreground, true);
+                self.theme_background = color::terminal_named_color(NamedColor::Background, false);
             }
             "font-size" => {
                 self.font_size = DEFAULT_FONT_SIZE;
