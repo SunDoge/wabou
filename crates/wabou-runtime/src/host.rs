@@ -919,8 +919,8 @@ impl HostBuilder {
     }
 
     /// Set the viewport clear color behind the retained root.
-    pub fn base_color(mut self, color: Color) -> Self {
-        self.base_color = color;
+    pub fn base_color(mut self, color: gpui_shell::RgbaColor) -> Self {
+        self.base_color = Color::from_rgba8(color.red, color.green, color.blue, color.alpha);
         self
     }
 

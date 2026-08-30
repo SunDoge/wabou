@@ -3,6 +3,7 @@
 #![warn(missing_docs)]
 
 pub mod app_dirs;
+pub mod color;
 pub mod effect;
 #[path = "generated/effect_abi.rs"]
 mod effect_abi;
@@ -11,6 +12,7 @@ pub mod window;
 pub mod window_lifecycle;
 
 pub use app_dirs::{AppDirectories, AppDirectoryConfig};
+pub use color::RgbaColor;
 pub use effect::{
     CapabilityId, ContextMenuItem, ContextMenuRequest, DialogFilter, EFFECT_ABI_VERSION,
     EffectCompletion, EffectDispatch, EffectErrorCode, EffectExecutor, EffectId, EffectOp,

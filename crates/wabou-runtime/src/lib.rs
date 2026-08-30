@@ -56,7 +56,7 @@ pub use config::AppConfig;
 pub use error::{Error, Result};
 pub use gpui_shell::{
     AppDirectories, AppDirectoryConfig, NativeWidgetContext, NativeWidgetFactory,
-    NativeWidgetMount, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
+    NativeWidgetMount, RgbaColor, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
     WindowResourceKey, gpui, initial_window_resource_key,
 };
 pub use gpui_view::GpuiRuntimeView;
@@ -81,7 +81,6 @@ pub use persistent_cache::PersistentJsonCache;
 pub use protocol::event;
 pub use rquickjs;
 pub use serial_worker::SerialWorker;
-pub use vello;
 use wabou_shell::{
     FrameSource, FrameSourceFactory, RunOutcome, TextContext,
     run_windows_with_factory_and_extensions, style,

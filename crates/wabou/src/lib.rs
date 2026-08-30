@@ -21,9 +21,9 @@ pub use wabou_database::{
     AtomicCommit as KvAtomicCommit, KvCheck, KvEntry, KvKey, KvKeyPart, KvListOptions, KvMutation,
     KvStore, Versionstamp as KvVersionstamp,
 };
+pub use wabou_runtime::RgbaColor as Color;
 pub use wabou_runtime::gpui;
 pub use wabou_runtime::rquickjs;
-pub use wabou_runtime::vello::peniko::Color;
 pub use wabou_runtime::{
     AppDirectories, AppDirectoryConfig, Error, HostBuilder, HostMessage, HostMessageContext,
     HostMessageError, HostMessageHandle, HostMessagePayload, HostMessageRouter, HostService,
