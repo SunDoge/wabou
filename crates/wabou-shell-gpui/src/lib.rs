@@ -6,10 +6,12 @@
 
 mod projection;
 mod style;
+mod tree;
 
 pub use gpui;
 pub use projection::{DirtyKind, FrameBatch, NodeKey, PendingNode};
 pub use style::{StyleDiagnostic, StyleProjection};
+pub use tree::{ProjectedNode, ProjectionError, ProjectionTree};
 
 /// Run a GPUI application using Wabou's selected platform implementation.
 ///

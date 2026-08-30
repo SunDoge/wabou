@@ -6,7 +6,7 @@ use bitflags::bitflags;
 ///
 /// Both halves remain explicit so deleting and recreating a node cannot make a
 /// stale JavaScript handle address a new GPUI element.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct NodeKey {
     pub index: u32,
     pub generation: u32,
