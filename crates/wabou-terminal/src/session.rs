@@ -45,7 +45,7 @@ pub enum TerminalEventKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum TerminalInputResult {
+pub enum TerminalInputResult {
     Ignored,
     Handled,
     HandledConsumingText,
@@ -53,13 +53,13 @@ pub(super) enum TerminalInputResult {
 }
 
 impl TerminalInputResult {
-    pub(super) const fn is_handled(&self) -> bool {
+    pub const fn is_handled(&self) -> bool {
         !matches!(self, Self::Ignored)
     }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(super) struct TerminalInvalidation {
+pub struct TerminalInvalidation {
     pub(super) measure: bool,
     pub(super) redraw: bool,
 }
@@ -73,6 +73,14 @@ impl TerminalInvalidation {
         measure: true,
         redraw: true,
     };
+
+    pub const fn needs_measure(self) -> bool {
+        self.measure
+    }
+
+    pub const fn needs_redraw(self) -> bool {
+        self.redraw
+    }
 }
 
 impl TerminalWidget {
@@ -88,11 +96,7 @@ impl TerminalWidget {
         self.metrics_dirty = false;
     }
 
-    pub(super) fn apply_native_attribute(
-        &mut self,
-        name: &str,
-        value: &str,
-    ) -> TerminalInvalidation {
+    pub fn apply_native_attribute(&mut self, name: &str, value: &str) -> TerminalInvalidation {
         match name {
             "command" if !self.launch_started || self.spawn_error.is_some() => {
                 self.launch_started = false;
@@ -199,15 +203,15 @@ impl TerminalWidget {
         }
     }
 
-    pub(super) fn dispatch_native_event(&mut self, event: &UiEvent) -> TerminalInputResult {
+    pub fn dispatch_native_event(&mut self, event: &UiEvent) -> TerminalInputResult {
         self.handle_native_event(event)
     }
 
-    pub(super) fn install_native_wake(&mut self, wake: WakeCallback) {
+    pub fn install_native_wake(&mut self, wake: WakeCallback) {
         self.listener.set_wake(wake);
     }
 
-    pub(super) fn poll_native_events(&mut self) -> bool {
+    pub fn poll_native_events(&mut self) -> bool {
         self.handle_rio_events()
     }
 

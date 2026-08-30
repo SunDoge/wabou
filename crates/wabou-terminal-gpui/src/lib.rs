@@ -4,7 +4,7 @@ use gpui::{AppContext as _, IntoElement as _, ParentElement as _, Styled as _};
 use wabou_shell_api::{KeyEvent, KeyLocation, KeyPhase, Modifiers, UiEvent, WakeCallback};
 use wabou_shell_gpui::{NativeWidgetContext, NativeWidgetMount, gpui};
 
-use super::{TerminalWidget, session::TerminalInputResult};
+use wabou_terminal_core::{TerminalInputResult, TerminalWidget};
 
 struct GpuiTerminal {
     terminal: TerminalWidget,
@@ -168,8 +168,8 @@ impl gpui::Render for GpuiTerminal {
             .bg(gpui::rgb(0x111827))
             .text_color(gpui::rgb(0xe5e7eb))
             .font_family("monospace")
-            .text_size(gpui::px(self.terminal.font_size))
-            .line_height(gpui::px(self.terminal.line_height))
+            .text_size(gpui::px(self.terminal.font_size()))
+            .line_height(gpui::px(self.terminal.line_height()))
             .track_focus(&self.focus)
             .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
                 window.focus(&focus, cx);
@@ -206,7 +206,7 @@ impl gpui::Render for GpuiTerminal {
                                     font_family: "monospace".into(),
                                     ..Default::default()
                                 };
-                                let font_size = gpui::px(state.terminal.font_size);
+                                let font_size = gpui::px(state.terminal.font_size());
                                 let sample: gpui::SharedString = "0".into();
                                 let sample_run = style.to_run(sample.len());
                                 let sample = window.text_system().shape_line(
@@ -217,7 +217,7 @@ impl gpui::Render for GpuiTerminal {
                                 );
                                 state.terminal.set_font_metrics(
                                     sample.width().into(),
-                                    state.terminal.line_height,
+                                    state.terminal.line_height(),
                                 );
                                 let frame = state.terminal.snapshot_frame(
                                     bounds.size.width.into(),

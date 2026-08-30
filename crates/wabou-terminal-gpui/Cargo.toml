@@ -1,0 +1,17 @@
+[package]
+name = "wabou-terminal"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+description = "GPUI-CE terminal widget for Wabou."
+
+[dependencies]
+flume.workspace = true
+gpui.workspace = true
+wabou-host-api.workspace = true
+wabou-shell-api.workspace = true
+wabou-shell-gpui.workspace = true
+wabou-terminal-core.workspace = true
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }

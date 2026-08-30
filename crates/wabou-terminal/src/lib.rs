@@ -45,7 +45,6 @@ use wabou_shell_api::{
 };
 
 mod box_drawing;
-mod gpui_widget;
 mod graphics;
 mod input_encoding;
 mod kitty_keyboard;
@@ -55,7 +54,6 @@ mod rendering;
 mod selection;
 mod session;
 
-pub use gpui_widget::gpui_terminal_factory;
 use graphics::{KittyLayer, TerminalGraphics};
 use input_encoding::*;
 pub use legacy_widget::terminal_widget;
@@ -66,7 +64,9 @@ use process::{
     validate_launch_command,
 };
 use rendering::*;
-pub use session::{TerminalEventKind, TerminalFrame, TerminalNodeEvent};
+pub use session::{
+    TerminalEventKind, TerminalFrame, TerminalInputResult, TerminalInvalidation, TerminalNodeEvent,
+};
 
 const DEFAULT_COLUMNS: usize = 80;
 const DEFAULT_ROWS: usize = 24;
@@ -423,10 +423,20 @@ impl TerminalWidget {
         widget
     }
 
-    fn lazy_default_shell() -> Self {
+    pub fn lazy_default_shell() -> Self {
         let mut widget = Self::default();
         widget.launch = Some(LaunchConfig::default_shell());
         widget
+    }
+
+    /// Requested terminal font size in logical pixels.
+    pub fn font_size(&self) -> f32 {
+        self.font_size
+    }
+
+    /// Current terminal line height in logical pixels.
+    pub fn line_height(&self) -> f32 {
+        self.line_height
     }
 
     fn ensure_launched(&mut self) {
