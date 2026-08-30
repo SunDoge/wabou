@@ -25,6 +25,7 @@ import {
   PiSessionBehaviorLayoutFixture,
   PiTranscriptSearchLayoutFixture,
   QRCodeLayoutFixture,
+  ReasoningLayoutFixture,
   ScrollAreaLayoutFixture,
   SelectLayoutFixture,
   SidebarLayoutFixture,
@@ -143,6 +144,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 560,
         height: 420,
         render: ToolLayoutFixture,
+      },
+      "component/Reasoning": {
+        width: 600,
+        height: 240,
+        render: ReasoningLayoutFixture,
       },
       "component/PiAgentHeader": {
         width: 1080,

@@ -77,6 +77,7 @@ export * from "./progress";
 export * from "./property-list";
 export * from "./qr-code";
 export * from "./rating";
+export * from "./reasoning";
 export * from "./resizable";
 export * from "./search-field";
 export * from "./select";

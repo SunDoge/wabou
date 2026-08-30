@@ -99,6 +99,29 @@ const assertToolLayout = (snapshot: LayoutSnapshot) => {
     throw new Error(`tool trigger is too short: ${trigger.rect.height}`);
 };
 
+const assertReasoningLayout = (snapshot: LayoutSnapshot) => {
+  const root = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Reasoning fixture",
+  });
+  const trigger = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Reasoning",
+  });
+  const details = getLayoutNode(snapshot, {
+    role: "region",
+    name: "Reasoning details",
+  });
+  assertLayoutRectContains(root.rect, trigger.rect, {
+    label: "reasoning trigger",
+  });
+  assertLayoutRectContains(root.rect, details.rect, {
+    label: "reasoning details",
+  });
+  if (trigger.rect.height < 36)
+    throw new Error(`reasoning trigger is too short: ${trigger.rect.height}`);
+};
+
 const assertSelectLayout = (snapshot: LayoutSnapshot) => {
   const trigger = getLayoutNode(snapshot, {
     role: "combobox",
@@ -271,7 +294,9 @@ const assertDirectoryPickerLayout = (snapshot: LayoutSnapshot) => {
     input.parentId.lo !== browse.parentId.lo ||
     input.parentId.hi !== browse.parentId.hi
   ) {
-    throw new Error("directory input and browse action do not share one surface");
+    throw new Error(
+      "directory input and browse action do not share one surface",
+    );
   }
   const group = snapshot.nodes.find(
     (node) =>
@@ -409,14 +434,11 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
     checks: ["sibling-collision", "visual-quality"] as const,
   },
   "widgets/Message": {
-    checks: [
-      "sibling-collision",
-      "text-collision",
-      "visual-quality",
-    ] as const,
+    checks: ["sibling-collision", "text-collision", "visual-quality"] as const,
   },
   "component/Sidebar": { assert: assertSidebarLayout },
   "component/Tool": { assert: assertToolLayout },
+  "component/Reasoning": { assert: assertReasoningLayout },
   "component/ScrollArea": { assert: assertScrollAreaLayout },
   "component/Select": { assert: assertSelectLayout },
   "component/Dialog": { assert: assertDialogLayout },

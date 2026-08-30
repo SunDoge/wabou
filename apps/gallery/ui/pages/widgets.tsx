@@ -131,6 +131,9 @@ import {
   PopoverFooter,
   PopoverHeader,
   PopoverTitle,
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
@@ -1005,6 +1008,39 @@ export function ToolPage() {
           <Tool role="group" aria-label="Failed edit tool call">
             <ToolHeader title="edit" summary="src/runtime.rs" status="failed" />
           </Tool>
+        </View>
+      </Preview>
+    </View>
+  );
+}
+
+export function ReasoningPage() {
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Model reasoning">
+        <View class="w-full max-w-[640px] flex flex-col gap-3">
+          <Reasoning
+            defaultOpen
+            reducedMotion
+            role="group"
+            aria-label="Completed reasoning"
+          >
+            <ReasoningTrigger />
+            <ReasoningContent role="region" aria-label="Completed details">
+              <Text class="whitespace-normal text-sm text-secondary">
+                I checked the active route, preserved the selected session and
+                verified the layout before applying the change.
+              </Text>
+            </ReasoningContent>
+          </Reasoning>
+          <Reasoning role="group" aria-label="Streaming reasoning">
+            <ReasoningTrigger streaming />
+            <ReasoningContent role="region" aria-label="Streaming details">
+              <Text class="whitespace-normal text-sm text-secondary">
+                Inspecting the retained tree and current selection.
+              </Text>
+            </ReasoningContent>
+          </Reasoning>
         </View>
       </Preview>
     </View>

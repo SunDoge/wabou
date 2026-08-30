@@ -24,6 +24,9 @@ import {
   MessageGroup,
   MessageScroller,
   QRCode,
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
   ScrollArea,
   Select,
   Sidebar,
@@ -122,6 +125,28 @@ export function ToolLayoutFixture() {
           <ToolOutput code="Loaded 240 lines" language="text" />
         </ToolContent>
       </Tool>
+    </View>
+  );
+}
+
+export function ReasoningLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-5 bg-canvas">
+      <Reasoning
+        class="max-w-[560px]"
+        defaultOpen
+        reducedMotion
+        role="group"
+        aria-label="Reasoning fixture"
+      >
+        <ReasoningTrigger label="Reasoning" />
+        <ReasoningContent role="region" aria-label="Reasoning details">
+          <Text class="whitespace-normal text-sm text-secondary">
+            Inspect the route state, preserve the active session, then verify
+            the result with a focused layout contract.
+          </Text>
+        </ReasoningContent>
+      </Reasoning>
     </View>
   );
 }

@@ -17,6 +17,9 @@ import {
   MessageScrollerItem,
   number,
   Pulse,
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
   Text,
   Tool,
   ToolContent,
@@ -315,7 +318,7 @@ export function ToolActivityGroup(props: {
       >
         <Show when={props.reasoning}>
           {(reasoning) => (
-            <Reasoning
+            <ConversationReasoning
               text={reasoning().text}
               streaming={reasoning().streaming}
             />
@@ -367,7 +370,7 @@ function ConversationEntryContent(props: {
   );
 }
 
-function Reasoning(props: { text: string; streaming: boolean }) {
+function ConversationReasoning(props: { text: string; streaming: boolean }) {
   const initiallyStreaming = untrack(() => props.streaming);
   const [open, setOpen] = createSignal(initiallyStreaming);
   let wasStreaming = initiallyStreaming;
@@ -380,45 +383,17 @@ function Reasoning(props: { text: string; streaming: boolean }) {
     },
   );
   return (
-    <View class="w-full min-w-0 overflow-hidden rounded-lg border border-subtle bg-surface-muted">
-      <Button
-        variant="ghost"
-        size="sm"
-        class="w-full min-w-0 justify-start gap-2 px-3"
-        aria-expanded={open()}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <Icon
-          source={chevronRight}
-          size={13}
-          class={open() ? "rotate-90 text-muted" : "text-muted"}
-        />
-        <Text class="min-w-0 flex-1 text-left text-xs font-medium text-secondary">
-          {props.streaming ? "Thinking" : "Reasoning"}
-        </Text>
-        <Show when={props.streaming}>
-          <Pulse
-            aria-hidden="true"
-            class="w-1.5 h-1.5 rounded-full bg-accent"
-            from={0.3}
-            to={1}
-            duration={0.8}
-          />
-        </Show>
-      </Button>
-      <CollapsiblePresence
-        open={open()}
-        duration={0.16}
-        contentClass="min-w-0 border-t border-subtle px-3 py-2"
-      >
+    <Reasoning open={open()} onOpenChange={setOpen}>
+      <ReasoningTrigger streaming={props.streaming} />
+      <ReasoningContent>
         <Markdown
           source={props.text}
           variant="conversation"
           aria-label="Model reasoning"
           class="gap-2"
         />
-      </CollapsiblePresence>
-    </View>
+      </ReasoningContent>
+    </Reasoning>
   );
 }
 
@@ -502,7 +477,7 @@ export function ConversationItem(props: {
             <Show
               when={props.item.kind === "assistant" && props.item.thinkingText}
             >
-              <Reasoning
+              <ConversationReasoning
                 text={
                   props.item.kind === "assistant"
                     ? (props.item.thinkingText ?? "")

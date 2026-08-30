@@ -89,6 +89,7 @@ type ComponentId =
   | "item"
   | "attachment"
   | "message"
+  | "reasoning"
   | "tool"
   | "message-scroller"
   | "button-group"
@@ -161,6 +162,7 @@ const groups: Array<{
       { id: "item", name: "Item" },
       { id: "attachment", name: "Attachment" },
       { id: "message", name: "Message" },
+      { id: "reasoning", name: "Reasoning" },
       { id: "tool", name: "Tool" },
       { id: "message-scroller", name: "Message scroller" },
       { id: "chart", name: "Chart experiment" },
@@ -302,6 +304,8 @@ const descriptions: Record<ComponentId, string> = {
     "Displays native file and transfer state using reusable media, content and action slots.",
   message:
     "Composes aligned avatars, metadata, bubbles, reactions and timeline markers.",
+  reasoning:
+    "Discloses model reasoning and streaming progress without owning provider data.",
   tool: "Presents automation parameters, results and status in an explicit disclosure.",
   "message-scroller":
     "Follows appended messages until the user explicitly scrolls away from the end.",
@@ -399,6 +403,7 @@ import {
   NavigationMenuPage,
   PaginationPage,
   PopoverPage,
+  ReasoningPage,
   ResizablePage,
   SelectPage,
   SheetPage,
@@ -700,6 +705,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "message"}>
                     <MessagePage />
+                  </Match>
+                  <Match when={selected() === "reasoning"}>
+                    <ReasoningPage />
                   </Match>
                   <Match when={selected() === "tool"}>
                     <ToolPage />
