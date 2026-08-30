@@ -21,6 +21,7 @@ import {
   LabeledSeparator,
   Markdown,
   Message,
+  MessageActions,
   MessageContent,
   MessageGroup,
   MessageScroller,
@@ -510,13 +511,30 @@ export function MessageLayoutFixture() {
   return (
     <View class="w-full p-4">
       <MessageGroup aria-label="Fixture message group">
-        <Message>
+        <Message aria-label="Fixture failed message">
           <View class="w-8 h-8 flex-none rounded-full bg-control" />
           <MessageContent>
             <Bubble variant="destructive">
               <BubbleContent aria-label="Fixture failed message bubble">
                 <Text class="whitespace-normal text-sm">
                   Delivery failed. Retry from the action menu.
+                </Text>
+              </BubbleContent>
+            </Bubble>
+            <MessageActions
+              visibility="interaction"
+              aria-label="Fixture message actions"
+            >
+              <Button size="sm">Retry</Button>
+            </MessageActions>
+          </MessageContent>
+        </Message>
+        <Message aria-label="Fixture following message">
+          <MessageContent>
+            <Bubble variant="ghost">
+              <BubbleContent>
+                <Text class="whitespace-normal text-sm">
+                  Ready to continue.
                 </Text>
               </BubbleContent>
             </Bubble>

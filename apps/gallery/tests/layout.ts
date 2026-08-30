@@ -355,6 +355,11 @@ const assertMessageLayout = (snapshot: LayoutSnapshot) => {
   const text = getLayoutNode(snapshot, {
     text: "Delivery failed. Retry from the action menu.",
   });
+  const first = getLayoutNode(snapshot, { name: "Fixture failed message" });
+  const following = getLayoutNode(snapshot, {
+    name: "Fixture following message",
+  });
+  const actions = getLayoutNode(snapshot, { name: "Fixture message actions" });
   assertLayoutRectContains(group.contentRect, bubble.rect, {
     label: "message bubble",
   });
@@ -363,6 +368,17 @@ const assertMessageLayout = (snapshot: LayoutSnapshot) => {
   });
   if (text.rect.width < 180)
     throw new Error(`message text was compressed to ${text.rect.width}px`);
+  const gap = following.rect.y - layoutRectBottom(first.rect);
+  if (Math.abs(gap - 12) > 0.5) {
+    throw new Error(
+      `hidden message actions changed transcript rhythm: gap=${gap}px`,
+    );
+  }
+  if (actions.rect.y !== first.rect.y) {
+    throw new Error(
+      `message actions did not overlay their owner: actions y=${actions.rect.y}, message y=${first.rect.y}`,
+    );
+  }
 };
 
 const assertPiAgentToolbarLayout = (snapshot: LayoutSnapshot) => {

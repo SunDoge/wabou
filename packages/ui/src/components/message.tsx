@@ -186,16 +186,28 @@ export interface MessageActionsProps extends Omit<ViewProps, "class"> {
 export function MessageActions(props: MessageActionsProps): JSX.Element {
   const context = useContext(MessageContext);
   const forwarded = omit(props, "align", "visibility", "class", "children");
-  const interactionClass = () =>
-    props.visibility === "interaction" && !context.interacting()
-      ? "opacity-0 pointer-events-none"
-      : "opacity-100";
+  const align = () => props.align ?? context.align();
+  const ownerAlign = () => context.align();
+  const interactionClass = () => {
+    if (props.visibility !== "interaction") return "opacity-100";
+    return mergeClasses(
+      // Contextual actions belong to the message but must not add an empty
+      // row to every transcript entry while they are hidden. Put them in the
+      // unused side of the message so revealing them never reflows the turn.
+      "absolute top-0 left-0 z-10 w-full",
+      // The full-width rail uses flex justification because an absolute
+      // child's align-self static position is not portable across Taffy and
+      // browser flex implementations.
+      ownerAlign() === "end" ? "justify-start" : "justify-end",
+      context.interacting() ? "opacity-100" : "opacity-0 pointer-events-none",
+    );
+  };
   return (
     <View
       {...forwarded}
       role={props.role ?? "toolbar"}
       class={messageActionsClass(
-        props.align ?? context.align(),
+        align(),
         mergeClasses(interactionClass(), props.class),
       )}
     >
