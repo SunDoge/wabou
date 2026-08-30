@@ -346,11 +346,11 @@ export function ConversationComposer(props: ConversationComposerProps) {
             <Icon source={send} size={14} />
           </Button>
         </View>
-      </WorkbenchContentColumn>
-      <WorkbenchContentColumn class="max-w-5xl px-3 pt-2">
-        <Text class="min-w-40 flex-1 truncate text-xs text-muted">
-          {props.project} · {i18n.message(m.send_hint, {})}
-        </Text>
+        <View class="min-w-0 border-t border-subtle pt-2 px-1">
+          <Text class="w-full min-w-0 truncate text-xs text-secondary">
+            {props.project} · {i18n.message(m.send_hint, {})}
+          </Text>
+        </View>
       </WorkbenchContentColumn>
     </WorkbenchFooter>
   );

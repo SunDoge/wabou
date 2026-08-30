@@ -299,6 +299,9 @@ try {
             role: "combobox",
             name: "Thinking level",
           });
+          const hint = getLayoutNode(fixture, {
+            text: "Wabou · Enter to send · Shift+Enter for newline",
+          });
           if (model.rect.width < 176) {
             throw new Error(
               `model control lost its readable width: width=${model.rect.width}`,
@@ -312,6 +315,22 @@ try {
           if (usage.rect.y >= editor.rect.y || usage.rect.width < 120) {
             throw new Error(
               `session usage did not retain its composer status row: usage=${usage.rect.x},${usage.rect.y} ${usage.rect.width}x${usage.rect.height}; editor y=${editor.rect.y}`,
+            );
+          }
+          const composer = getLayoutNode(fixture, {
+            role: "group",
+            name: "Ask this agent to work in its repository…",
+          });
+          if (
+            hint.rect.x < composer.contentRect.x - 0.5 ||
+            hint.rect.y < composer.contentRect.y - 0.5 ||
+            hint.rect.x + hint.rect.width >
+              composer.contentRect.x + composer.contentRect.width + 0.5 ||
+            hint.rect.y + hint.rect.height >
+              composer.contentRect.y + composer.contentRect.height + 0.5
+          ) {
+            throw new Error(
+              `composer hint escaped its surface: hint=${hint.rect.x},${hint.rect.y} ${hint.rect.width}x${hint.rect.height}; composer=${composer.contentRect.x},${composer.contentRect.y} ${composer.contentRect.width}x${composer.contentRect.height}`,
             );
           }
           const thinkingLabel = getLayoutNode(fixture, { text: "medium" });
