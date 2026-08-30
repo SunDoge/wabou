@@ -37,6 +37,16 @@ pub struct GpuiRuntimeView {
     native_widget_entities: BTreeMap<wabou_host_api::NodeKey, gpui_shell::gpui::AnyEntity>,
     window_size_persistence: Option<gpui_shell::WindowSizePersistence>,
     native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
+    test_controller: Option<crate::test_driver::TestController>,
+    window_key: gpui_shell::WindowResourceKey,
+}
+
+pub(crate) struct GpuiRuntimeViewOptions {
+    pub(crate) default_title: String,
+    pub(crate) window_size_persistence: Option<gpui_shell::WindowSizePersistence>,
+    pub(crate) native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
+    pub(crate) test_controller: Option<crate::test_driver::TestController>,
+    pub(crate) window_key: gpui_shell::WindowResourceKey,
 }
 
 enum GpuiTextControlState {
@@ -98,16 +108,17 @@ impl GpuiTextControlState {
 impl GpuiRuntimeView {
     /// Wrap an already configured and booted Wabou runtime.
     #[must_use]
-    pub fn new(
+    pub(crate) fn new(
         mut controller: GpuiController,
-        default_title: String,
-        window_size_persistence: Option<gpui_shell::WindowSizePersistence>,
-        native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
+        options: GpuiRuntimeViewOptions,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let (wake, receiver) = gpui_wake_channel();
-        controller.install_runtime_wake(wake);
+        controller.install_runtime_wake(wake.clone());
+        if let Some(test_controller) = &options.test_controller {
+            test_controller.connect_gpui_window(options.window_key, wake);
+        }
 
         let wake_task = cx.spawn(async move |view, cx| {
             while receiver.recv_async().await.is_ok() {
@@ -132,11 +143,13 @@ impl GpuiRuntimeView {
             controller,
             _wake_task: wake_task,
             focus,
-            default_title,
+            default_title: options.default_title,
             text_controls: BTreeMap::new(),
             native_widget_entities: BTreeMap::new(),
-            window_size_persistence,
-            native_widget_factories,
+            window_size_persistence: options.window_size_persistence,
+            native_widget_factories: options.native_widget_factories,
+            test_controller: options.test_controller,
+            window_key: options.window_key,
         }
     }
 
@@ -212,7 +225,6 @@ impl GpuiRuntimeView {
         }
     }
 
-    #[cfg(test)]
     fn layout_snapshot(&self) -> Vec<gpui_shell::GpuiLayoutNode> {
         self.controller.layout_snapshot()
     }
@@ -604,6 +616,15 @@ impl Render for GpuiRuntimeView {
         }
         let _ = self.controller.advance_frame();
         self.synchronize_text_controls(window, cx);
+        if let Some(test_controller) = self.test_controller.clone()
+            && test_controller.poll_gpui_source(
+                self.window_key,
+                &self.layout_snapshot(),
+                &mut self.controller,
+            )
+        {
+            cx.notify();
+        }
         if self.drain_host_actions(window, cx) {
             cx.notify();
         }
@@ -740,9 +761,13 @@ mod tests {
                 app.new(|view_cx| {
                     GpuiRuntimeView::new(
                         controller,
-                        "Headless GPUI fixture".into(),
-                        None,
-                        HashMap::new(),
+                        GpuiRuntimeViewOptions {
+                            default_title: "Headless GPUI fixture".into(),
+                            window_size_persistence: None,
+                            native_widget_factories: HashMap::new(),
+                            test_controller: None,
+                            window_key: gpui_shell::initial_window_resource_key(0),
+                        },
                         window,
                         view_cx,
                     )
@@ -770,9 +795,13 @@ mod tests {
         let (view, cx) = cx.add_window_view(move |window, cx| {
             GpuiRuntimeView::new(
                 controller,
-                "Clipboard test".into(),
-                None,
-                HashMap::new(),
+                GpuiRuntimeViewOptions {
+                    default_title: "Clipboard test".into(),
+                    window_size_persistence: None,
+                    native_widget_factories: HashMap::new(),
+                    test_controller: None,
+                    window_key: gpui_shell::initial_window_resource_key(0),
+                },
                 window,
                 cx,
             )
@@ -826,9 +855,13 @@ mod tests {
         let (view, cx) = cx.add_window_view(move |window, cx| {
             GpuiRuntimeView::new(
                 controller,
-                "Dialog test".into(),
-                None,
-                HashMap::new(),
+                GpuiRuntimeViewOptions {
+                    default_title: "Dialog test".into(),
+                    window_size_persistence: None,
+                    native_widget_factories: HashMap::new(),
+                    test_controller: None,
+                    window_key: gpui_shell::initial_window_resource_key(0),
+                },
                 window,
                 cx,
             )

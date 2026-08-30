@@ -1336,6 +1336,7 @@ impl HostBuilder {
                 gpui_sources,
                 runtime_sources.native_widget_factories.clone(),
                 self.application_extensions,
+                test_controller.clone(),
             )?;
             #[cfg(feature = "vite")]
             drop(hmr_clients);
@@ -1438,6 +1439,7 @@ fn run_gpui_windows(
     )>,
     widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
     mut application_extensions: Vec<Box<dyn gpui_shell::ApplicationExtension>>,
+    test_controller: Option<crate::test_driver::TestController>,
 ) -> crate::Result<()> {
     use gpui_shell::gpui::{AppContext as _, px, size};
 
@@ -1446,7 +1448,8 @@ fn run_gpui_windows(
     gpui_shell::application().run(move |cx| {
         gpui_base::init(cx);
         let mut opened_windows = Vec::new();
-        for (applier, options, persistence) in windows {
+        for (index, (applier, options, persistence)) in windows.into_iter().enumerate() {
+            let window_key = gpui_shell::initial_window_resource_key(index);
             let bounds = gpui_shell::gpui::Bounds::centered(
                 None,
                 size(
@@ -1457,6 +1460,7 @@ fn run_gpui_windows(
             );
             let title = options.title.clone();
             let widget_factories = widget_factories.clone();
+            let test_controller = test_controller.clone();
             let gpui_options = gpui_shell::gpui::WindowOptions {
                 window_bounds: Some(gpui_shell::gpui::WindowBounds::Windowed(bounds)),
                 titlebar: options.decorations.then(Default::default),
@@ -1476,9 +1480,13 @@ fn run_gpui_windows(
                 cx.new(|cx| {
                     crate::GpuiRuntimeView::new(
                         applier,
-                        title,
-                        persistence,
-                        widget_factories,
+                        crate::gpui_view::GpuiRuntimeViewOptions {
+                            default_title: title,
+                            window_size_persistence: persistence,
+                            native_widget_factories: widget_factories,
+                            test_controller,
+                            window_key,
+                        },
                         window,
                         cx,
                     )

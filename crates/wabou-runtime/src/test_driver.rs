@@ -199,6 +199,19 @@ impl TestController {
         }
     }
 
+    pub(crate) fn connect_gpui_window(&self, window_key: WindowKey, wake: WakeCallback) {
+        if let Ok(mut state) = self.state.lock() {
+            state.wake = Some(wake);
+            state.windows.insert(
+                window_key,
+                WindowSnapshot {
+                    lifecycle: WindowLifecycle::visible(),
+                    viewport: None,
+                },
+            );
+        }
+    }
+
     fn request(&self, kind: TestActionKind) -> oneshot::Receiver<TestActionResult> {
         let (completion, receiver) = oneshot::channel();
         let wake = {
@@ -761,6 +774,289 @@ impl TestController {
                 .map(|(window_key, snapshot)| semantic_snapshot_json(window_key, &snapshot))
                 .collect::<Vec<_>>(),
         })
+    }
+
+    pub(crate) fn poll_gpui_source(
+        &self,
+        window_key: WindowKey,
+        nodes: &[gpui_shell::GpuiLayoutNode],
+        controller: &mut crate::gpui_controller::GpuiController,
+    ) -> bool {
+        let action = self.state.lock().ok().and_then(|mut state| {
+            let index = state.actions.iter().position(|action| {
+                matches!(action_window_key(&action.kind), Some(target) if target == window_key)
+                    && action_requires_source_poll(&action.kind)
+            })?;
+            state.actions.remove(index)
+        });
+        let Some(action) = action else {
+            return false;
+        };
+        let result = match &action.kind {
+            TestActionKind::WaitForIdle(_) => TestActionResult::Handled(true),
+            TestActionKind::ClickByRole {
+                role,
+                label,
+                index,
+                scope,
+                ..
+            } => TestActionResult::Handled(
+                gpui_locator(nodes, role, label, *index, scope, false)
+                    .is_some_and(|node| click_gpui_target(controller, node)),
+            ),
+            TestActionKind::InputByRole {
+                role,
+                label,
+                input,
+                index,
+                scope,
+                ..
+            } => TestActionResult::Handled(
+                gpui_locator(
+                    nodes,
+                    role,
+                    label,
+                    *index,
+                    scope,
+                    input_allows_disabled_target(input),
+                )
+                .is_some_and(|node| input_gpui_target(controller, node, input)),
+            ),
+            TestActionKind::QueryByRole {
+                role,
+                label,
+                index,
+                scope,
+                ..
+            } => {
+                TestActionResult::Query(gpui_locator_query_json(nodes, role, label, *index, scope))
+            }
+            TestActionKind::FileDrop { .. } => TestActionResult::Handled(false),
+            _ => TestActionResult::Handled(false),
+        };
+        let _ = action.completion.send(result);
+        true
+    }
+}
+
+fn gpui_node_role(node: &gpui_shell::GpuiLayoutNode) -> Option<&str> {
+    node.attributes.get("role").map(AsRef::as_ref).or_else(|| {
+        let gpui_shell::ProjectedNodeKind::Element(tag) = &node.kind else {
+            return None;
+        };
+        match tag.as_ref() {
+            "button" => Some("button"),
+            "textarea" => Some("textbox"),
+            "input" => match node.attributes.get("type").map(AsRef::as_ref) {
+                Some("checkbox") => Some("checkbox"),
+                Some("radio") => Some("radio"),
+                _ => Some("textbox"),
+            },
+            "select" => Some("combobox"),
+            _ => None,
+        }
+    })
+}
+
+fn gpui_node_label<'a>(
+    nodes: &'a [gpui_shell::GpuiLayoutNode],
+    node: &'a gpui_shell::GpuiLayoutNode,
+) -> Option<String> {
+    if let Some(label) = node.attributes.get("aria-label") {
+        return Some(label.to_string());
+    }
+    let mut text = String::new();
+    let mut pending = vec![node.key];
+    while let Some(parent) = pending.pop() {
+        for child in nodes
+            .iter()
+            .filter(|candidate| candidate.parent == Some(parent))
+        {
+            if let Some(value) = &child.text {
+                text.push_str(value);
+            }
+            pending.push(child.key);
+        }
+    }
+    (!text.is_empty()).then_some(text)
+}
+
+fn gpui_descends_from(
+    nodes: &[gpui_shell::GpuiLayoutNode],
+    mut key: wabou_host_api::NodeKey,
+    ancestor: wabou_host_api::NodeKey,
+) -> bool {
+    while let Some(node) = nodes.iter().find(|node| node.key == key) {
+        let Some(parent) = node.parent else {
+            return false;
+        };
+        if parent == ancestor {
+            return true;
+        }
+        key = parent;
+    }
+    false
+}
+
+fn gpui_locator<'a>(
+    nodes: &'a [gpui_shell::GpuiLayoutNode],
+    role: &str,
+    label: &str,
+    index: Option<usize>,
+    scope: &[TestLocatorSelector],
+    allow_disabled: bool,
+) -> Option<&'a gpui_shell::GpuiLayoutNode> {
+    let mut owner = None;
+    for selector in scope {
+        let matches = nodes
+            .iter()
+            .filter(|node| owner.is_none_or(|owner| gpui_descends_from(nodes, node.key, owner)))
+            .filter(|node| gpui_node_role(node) == Some(selector.role.as_str()))
+            .filter(|node| gpui_node_label(nodes, node).as_deref() == Some(selector.name.as_str()))
+            .collect::<Vec<_>>();
+        owner = selector
+            .index
+            .and_then(|index| matches.get(index).copied())
+            .or_else(|| (matches.len() == 1).then(|| matches[0]))
+            .map(|node| node.key);
+        owner?;
+    }
+    let mut matches = nodes
+        .iter()
+        .filter(|node| owner.is_none_or(|owner| gpui_descends_from(nodes, node.key, owner)))
+        .filter(|node| gpui_node_role(node) == Some(role))
+        .filter(|node| gpui_node_label(nodes, node).as_deref() == Some(label))
+        .filter(|node| allow_disabled || !node.attributes.contains_key("disabled"));
+    match index {
+        Some(index) => matches.nth(index),
+        None => {
+            let node = matches.next()?;
+            matches.next().is_none().then_some(node)
+        }
+    }
+}
+
+fn gpui_locator_query_json(
+    nodes: &[gpui_shell::GpuiLayoutNode],
+    role: &str,
+    label: &str,
+    index: Option<usize>,
+    scope: &[TestLocatorSelector],
+) -> Option<String> {
+    let matches = nodes
+        .iter()
+        .filter(|node| gpui_node_role(node) == Some(role))
+        .filter(|node| gpui_node_label(nodes, node).as_deref() == Some(label))
+        .collect::<Vec<_>>();
+    let selected = gpui_locator(nodes, role, label, index, scope, true)?;
+    Some(
+        serde_json::json!({
+            "matchCount": matches.len(),
+            "snapshot": {
+                "name": gpui_node_label(nodes, selected),
+                "value": selected.attributes.get("value"),
+                "bounds": {
+                    "x": f32::from(selected.bounds.origin.x),
+                    "y": f32::from(selected.bounds.origin.y),
+                    "width": f32::from(selected.bounds.size.width),
+                    "height": f32::from(selected.bounds.size.height),
+                },
+                "disabled": selected.attributes.contains_key("disabled"),
+                "focused": false,
+            }
+        })
+        .to_string(),
+    )
+}
+
+fn gpui_pointer_event(
+    node: &gpui_shell::GpuiLayoutNode,
+    phase: gpui_shell::ProjectedPointerPhase,
+) -> gpui_shell::ProjectedPointerEvent {
+    let width = f32::from(node.bounds.size.width);
+    let height = f32::from(node.bounds.size.height);
+    gpui_shell::ProjectedPointerEvent {
+        target: node.key,
+        phase,
+        x: f32::from(node.bounds.origin.x) + width * 0.5,
+        y: f32::from(node.bounds.origin.y) + height * 0.5,
+        local_x: width * 0.5,
+        local_y: height * 0.5,
+        button: Some(gpui_shell::ProjectedPointerButton::Primary),
+        shift: false,
+        control: false,
+        alt: false,
+        platform: false,
+    }
+}
+
+fn click_gpui_target(
+    controller: &mut crate::gpui_controller::GpuiController,
+    node: &gpui_shell::GpuiLayoutNode,
+) -> bool {
+    let down = controller.handle_projected_pointer(gpui_pointer_event(
+        node,
+        gpui_shell::ProjectedPointerPhase::Down,
+    ));
+    let up = controller.handle_projected_pointer(gpui_pointer_event(
+        node,
+        gpui_shell::ProjectedPointerPhase::Up,
+    ));
+    down.handled || up.handled
+}
+
+fn input_gpui_target(
+    controller: &mut crate::gpui_controller::GpuiController,
+    node: &gpui_shell::GpuiLayoutNode,
+    input: &TestInput,
+) -> bool {
+    match input {
+        TestInput::Probe => true,
+        TestInput::Text { text } | TestInput::Ime { text } => {
+            controller.set_text_focus(node.key, true);
+            controller
+                .handle_projected_ime(gpui_shell::ProjectedImeEvent::Commit(text.clone()))
+                .handled
+        }
+        TestInput::Paste { text } => {
+            controller.set_text_focus(node.key, true);
+            controller.dispatch_paste(text.clone()).handled
+        }
+        TestInput::Key { key, modifiers } => {
+            controller.set_text_focus(node.key, true);
+            controller
+                .handle_projected_key(gpui_shell::ProjectedKeyEvent {
+                    phase: gpui_shell::ProjectedKeyPhase::Down,
+                    key: key.clone(),
+                    key_char: (key.chars().count() == 1).then(|| key.clone()),
+                    repeat: false,
+                    shift: modifiers & 1 != 0,
+                    control: modifiers & 2 != 0,
+                    alt: modifiers & 4 != 0,
+                    platform: modifiers & 8 != 0,
+                })
+                .handled
+        }
+        TestInput::Wheel { delta_x, delta_y } => {
+            controller
+                .handle_projected_wheel(gpui_shell::ProjectedWheelEvent {
+                    target: node.key,
+                    x: f32::from(node.bounds.origin.x),
+                    y: f32::from(node.bounds.origin.y),
+                    local_x: 0.0,
+                    local_y: 0.0,
+                    delta_x: *delta_x as f32,
+                    delta_y: *delta_y as f32,
+                    precise: true,
+                    phase: gpui_shell::ProjectedWheelPhase::Changed,
+                    shift: false,
+                    control: false,
+                    alt: false,
+                    platform: false,
+                })
+                .handled
+        }
+        TestInput::Drag { .. } => click_gpui_target(controller, node),
     }
 }
 
@@ -1415,6 +1711,31 @@ fn click_events(node: &gpui_shell::SemanticNode) -> [UiEvent; 2] {
 mod tests {
     use super::*;
 
+    fn gpui_node(
+        key: wabou_host_api::NodeKey,
+        parent: Option<wabou_host_api::NodeKey>,
+        tag: &str,
+        label: &str,
+    ) -> gpui_shell::GpuiLayoutNode {
+        gpui_shell::GpuiLayoutNode {
+            key,
+            kind: gpui_shell::ProjectedNodeKind::Element(tag.into()),
+            parent,
+            attributes: [("aria-label".into(), label.into())].into(),
+            text: None,
+            bounds: gpui_shell::gpui::Bounds {
+                origin: gpui_shell::gpui::point(
+                    gpui_shell::gpui::px(10.0),
+                    gpui_shell::gpui::px(20.0),
+                ),
+                size: gpui_shell::gpui::size(
+                    gpui_shell::gpui::px(100.0),
+                    gpui_shell::gpui::px(40.0),
+                ),
+            },
+        }
+    }
+
     fn key(lo: u32) -> WindowKey {
         WindowKey::from_parts(lo, 1).unwrap()
     }
@@ -1520,6 +1841,41 @@ mod tests {
             serde_json::json!({ "x": 10.0, "y": 20.0, "width": 100.0, "height": 40.0 })
         );
         assert_eq!(snapshot["current"], "page");
+    }
+
+    #[test]
+    fn gpui_locator_uses_explicit_roles_labels_scopes_and_real_bounds() {
+        let group = gpui_node(wabou_host_api::NodeKey::new(10, 1), None, "view", "Toolbar");
+        let mut group = group;
+        group.attributes.insert("role".into(), "group".into());
+        let button = gpui_node(
+            wabou_host_api::NodeKey::new(11, 1),
+            Some(group.key),
+            "button",
+            "Save",
+        );
+        let nodes = vec![group, button];
+        let found = gpui_locator(
+            &nodes,
+            "button",
+            "Save",
+            None,
+            &[TestLocatorSelector {
+                role: "group".into(),
+                name: "Toolbar".into(),
+                index: None,
+            }],
+            false,
+        )
+        .expect("scoped GPUI locator");
+        assert_eq!(found.key, wabou_host_api::NodeKey::new(11, 1));
+        let snapshot = gpui_locator_query_json(&nodes, "button", "Save", None, &[])
+            .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
+            .expect("GPUI locator snapshot");
+        assert_eq!(
+            snapshot["snapshot"]["bounds"],
+            serde_json::json!({ "x": 10.0, "y": 20.0, "width": 100.0, "height": 40.0 })
+        );
     }
 
     #[test]

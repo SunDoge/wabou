@@ -515,7 +515,6 @@ impl GpuiController {
         )
     }
 
-    #[cfg(test)]
     pub(crate) fn layout_snapshot(&self) -> Vec<gpui_shell::GpuiLayoutNode> {
         self.projection.layout_snapshot()
     }
