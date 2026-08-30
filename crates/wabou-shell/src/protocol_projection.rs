@@ -10,7 +10,9 @@ use crate::{
 };
 use wabou_style::{IrColor, IrLength, IrValue};
 
-use wabou_protocol::{AtomPool, Frame, GRAPHIC_SOURCE_RESOURCE_RASTER, GRAPHIC_SOURCE_SVG, Op};
+use wabou_protocol::{
+    AtomPool, Frame, GRAPHIC_SOURCE_RESOURCE_RASTER, GRAPHIC_SOURCE_SVG, Op, StyleValue,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GpuiTextControl {
@@ -33,6 +35,8 @@ pub struct GpuiNativeWidget {
 #[derive(Debug)]
 pub struct GpuiProjection {
     tree: ProjectionTree,
+    inline_styles:
+        std::collections::HashMap<NodeKey, std::collections::BTreeMap<String, wabou_style::Value>>,
 }
 
 impl Default for GpuiProjection {
@@ -54,7 +58,10 @@ impl GpuiProjection {
         )
         .expect("the canonical projection root is unique");
         let _ = tree.commit();
-        Self { tree }
+        Self {
+            tree,
+            inline_styles: std::collections::HashMap::new(),
+        }
     }
 
     /// Apply the structural part of one Solid flush without publishing it.
@@ -124,6 +131,35 @@ impl GpuiProjection {
                 Op::RemoveAttribute { id, name } => {
                     if let Some(name) = atoms.resolve(*name) {
                         self.tree.remove_attribute(*id, name)?;
+                    }
+                }
+                Op::SetStyleValue { id, prop, value } => {
+                    if let Some(property) = atoms.resolve(*prop) {
+                        self.inline_styles
+                            .entry(*id)
+                            .or_default()
+                            .insert(property.to_owned(), protocol_style_value(*value));
+                        self.recompute_inline_style(*id)?;
+                    }
+                }
+                Op::RemoveStyle { id, prop } => {
+                    if let Some(property) = atoms.resolve(*prop) {
+                        let remove_entry = if let Some(styles) = self.inline_styles.get_mut(id) {
+                            styles.remove(property);
+                            styles.is_empty()
+                        } else {
+                            false
+                        };
+                        if remove_entry {
+                            self.inline_styles.remove(id);
+                        }
+                        self.recompute_inline_style(*id)?;
+                    }
+                }
+                Op::DropNode { id } => {
+                    let removed = self.tree.remove(*id)?;
+                    for key in removed {
+                        self.inline_styles.remove(&key);
                     }
                 }
                 Op::SetGraphicSource { id, kind, source } => match *kind {
@@ -272,6 +308,19 @@ impl GpuiProjection {
         Ok(diagnostic)
     }
 
+    fn recompute_inline_style(&mut self, key: NodeKey) -> Result<(), ProjectionError> {
+        let mut projection = StyleProjection::default();
+        if let Some(styles) = self.inline_styles.get(&key) {
+            for (property, value) in styles {
+                let _ = projection.apply(&wabou_style::Declaration {
+                    property: property.clone(),
+                    value: value.clone(),
+                });
+            }
+        }
+        self.update_style(key, projection.into_style())
+    }
+
     #[cfg(test)]
     fn tree(&self) -> &ProjectionTree {
         &self.tree
@@ -280,6 +329,25 @@ impl GpuiProjection {
     #[doc(hidden)]
     pub fn style(&self, key: NodeKey) -> Option<&crate::gpui::Style> {
         self.tree.node(key).map(|node| &node.style)
+    }
+}
+
+fn protocol_style_value(value: StyleValue) -> wabou_style::Value {
+    match value {
+        StyleValue::Px(value) => wabou_style::Value::Length {
+            value: wabou_style::Length::Px { value },
+        },
+        StyleValue::Percent(value) => wabou_style::Value::Length {
+            value: wabou_style::Length::Percent { value },
+        },
+        StyleValue::Number(value) => wabou_style::Value::Number { value },
+        StyleValue::Boolean(value) => wabou_style::Value::Boolean { value },
+        StyleValue::Color(rgba) => wabou_style::Value::Color {
+            value: wabou_style::Color::Literal { rgba },
+        },
+        StyleValue::Auto => wabou_style::Value::Length {
+            value: wabou_style::Length::Auto,
+        },
     }
 }
 
@@ -338,6 +406,7 @@ fn gpui_style() -> crate::gpui::Style {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gpui::{DefiniteLength, Length};
     use image::ImageEncoder as _;
 
     fn key(lo: u32) -> NodeKey {
@@ -436,6 +505,121 @@ mod tests {
         assert_eq!(projection.revision(), initial_revision + 1);
         assert!(!projection.finish_frame());
         assert_eq!(projection.revision(), initial_revision + 1);
+    }
+
+    #[test]
+    fn typed_inline_styles_apply_and_remove_without_the_legacy_applier() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        let width = atoms.intern("width");
+        let opacity = atoms.intern("opacity");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::SetStyleValue {
+                            id: key(2),
+                            prop: width,
+                            value: StyleValue::Px(320.0),
+                        },
+                        Op::SetStyleValue {
+                            id: key(2),
+                            prop: opacity,
+                            value: StyleValue::Number(0.625),
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(2),
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        assert!(projection.finish_frame());
+        let style = projection.style(key(2)).unwrap();
+        assert_eq!(
+            style.size.width,
+            Length::Definite(DefiniteLength::Absolute(crate::gpui::px(320.0).into()))
+        );
+        assert_eq!(style.opacity, Some(0.625));
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 2,
+                    ops: vec![Op::RemoveStyle {
+                        id: key(2),
+                        prop: width,
+                    }],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        assert!(projection.finish_frame());
+        let style = projection.style(key(2)).unwrap();
+        assert_eq!(style.size.width, Length::Auto);
+        assert_eq!(style.opacity, Some(0.625));
+    }
+
+    #[test]
+    fn dropped_nodes_do_not_retain_inline_style_state() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        let width = atoms.intern("width");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::SetStyleValue {
+                            id: key(2),
+                            prop: width,
+                            value: StyleValue::Px(320.0),
+                        },
+                        Op::DropNode { id: key(2) },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        assert!(!projection.contains(key(2)));
+
+        let recreated = NodeKey::new(2, 2);
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 2,
+                    ops: vec![Op::CreateElement {
+                        id: recreated,
+                        tag: view,
+                    }],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        assert_eq!(
+            projection.style(recreated).unwrap().size.width,
+            Length::Auto
+        );
     }
 
     #[test]
