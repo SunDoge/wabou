@@ -496,11 +496,27 @@ impl FrameState {
 /// Coordinates one transactional JS protocol consumer and its retained native
 /// document. Subsystems own their state; `RuntimeController` owns frame ordering.
 pub struct RuntimeController {
-    runtime: RuntimeSession,
     document: DocumentState,
     interaction: InteractionState,
     frame: FrameState,
     gpui: GpuiController,
+}
+
+// Transitional field forwarding while legacy tests are moved to their own
+// crate. Production ownership already lives in `GpuiController`; removing
+// these impls is part of deleting the legacy controller, not a public API.
+impl std::ops::Deref for RuntimeController {
+    type Target = GpuiController;
+
+    fn deref(&self) -> &Self::Target {
+        &self.gpui
+    }
+}
+
+impl std::ops::DerefMut for RuntimeController {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.gpui
+    }
 }
 
 /// Compatibility name used only by the legacy Winit projection modules.
@@ -764,11 +780,10 @@ impl RuntimeController {
             .map(|(k, v)| (atoms.borrow_mut().intern(&k), v))
             .collect();
         Self {
-            runtime: RuntimeSession::new(js, window_key),
             document: DocumentState::new(atoms, widget_factories, base_color),
             interaction: InteractionState::new(),
             frame: FrameState::new(FrameProjections::new(layout_metrics), resize_targets),
-            gpui: GpuiController::default(),
+            gpui: GpuiController::new(RuntimeSession::new(js, window_key)),
         }
     }
 
