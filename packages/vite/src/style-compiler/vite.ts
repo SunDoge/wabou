@@ -2,13 +2,13 @@ import type { Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, parse, sep } from "node:path";
 import { createGenerator } from "@unocss/core";
+import type { ModuleNode, Plugin } from "vite";
 import {
   presetWabou,
   resolveWabouUtility,
   validateWabouUtility,
   wabouUtilityManifest,
 } from "../preset";
-import type { ModuleNode, Plugin } from "vite";
 import {
   STYLE_IR_VERSION,
   type StyleRule,
@@ -20,6 +20,8 @@ const DEFAULT_IGNORED_CLASS_PATTERNS = ["lucide", "lucide-*"];
 export interface WabouStylePluginOptions {
   root: string;
   colorThemes?: WabouColorThemeOptions;
+  /** How semantic text contrast violations are reported. Defaults to `warn`. */
+  themeContrast?: "warn" | "error";
   /** Metadata classes that are not Wabou utilities. Supports `*` globs. */
   ignoreClasses?: string[];
 }
@@ -517,6 +519,18 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
     name: "wabou-style-compiler",
     enforce: "pre",
     async configResolved(config) {
+      if (options.themeContrast === "error" && contrastDiagnostics.length > 0) {
+        throw new Error(
+          `Wabou theme contrast validation failed:\n${contrastDiagnostics
+            .map((diagnostic) => {
+              const suggestion = diagnostic.suggestedColor
+                ? `; try ${diagnostic.suggestedColor}`
+                : "";
+              return `  - ${diagnostic.theme}.${diagnostic.foreground} has ${diagnostic.ratio.toFixed(2)}:1 contrast on ${diagnostic.background}; expected at least ${diagnostic.minimum}:1${suggestion}`;
+            })
+            .join("\n")}`,
+        );
+      }
       // Candidate recognition uses the same generated theme manifest as
       // compilation and the native runtime fallback.
       referenceGenerator = await createGenerator({

@@ -30,6 +30,8 @@ export interface WabouViteOptions {
   vite?: UserConfig;
   /** Named semantic color palettes compiled into Wabou Style IR. */
   theme?: WabouColorThemeOptions;
+  /** Treat insufficient semantic text contrast as a warning or build error. */
+  themeContrast?: "warn" | "error";
   /** Ignore third-party metadata classes. Supports `*` globs. */
   ignoreClasses?: string[];
   /** ECMA-402 locale and time-zone data included in the application bundle. */
@@ -144,6 +146,7 @@ export function wabouPlugins(
   ignoreClasses?: string[],
   intl?: WabouIntlOptions,
   entry = "ui/index.tsx",
+  themeContrast: "warn" | "error" = "warn",
 ): Plugin[] {
   return [
     wabouIntlPlugin(root, entry, intl ?? manifestIntl(root)),
@@ -151,6 +154,7 @@ export function wabouPlugins(
       root,
       colorThemes: theme ?? defaultWabouColorThemes,
       ignoreClasses,
+      themeContrast,
     }),
     ...solid({
       solid: { generate: "universal", moduleName: "@wabou/core/renderer" },
@@ -203,6 +207,7 @@ function resolveWabouConfig(
       options.ignoreClasses,
       options.intl,
       options.entry ?? "ui/index.tsx",
+      options.themeContrast,
     ),
     resolve: {
       // Published Wabou packages and application source must share one Solid

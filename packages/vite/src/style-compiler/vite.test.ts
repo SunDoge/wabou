@@ -1,14 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
 import {
-  auditColorThemeContrast,
   assertSupportedWabouCandidates,
-  compileWabouUtilities,
+  auditColorThemeContrast,
   compileColorThemes,
+  compileWabouUtilities,
   extractUtilitySource,
-  findWorkspacePackages,
   filterIgnoredClasses,
+  findWorkspacePackages,
   matchesClassPattern,
+  wabouStylePlugin,
 } from "./vite";
 
 describe("utility source extraction", () => {
@@ -157,6 +158,35 @@ describe("utility source extraction", () => {
     ]);
     expect(auditColorThemeContrast(themes)[0]?.ratio).toBeCloseTo(2.91, 2);
     expect(auditColorThemeContrast(themes)[0]?.suggestedColor).toBe("#717171");
+  });
+
+  test("can reject low-contrast application themes during configuration", async () => {
+    const plugin = wabouStylePlugin({
+      root: "/app",
+      themeContrast: "error",
+      colorThemes: {
+        default: "light",
+        themes: {
+          light: {
+            appearance: "light",
+            colors: {
+              canvas: "#f7f7f8",
+              surface: "#ffffff",
+              primary: "#242424",
+              muted: "#929292",
+            },
+          },
+        },
+      },
+    });
+
+    const configure = plugin.configResolved;
+    expect(typeof configure).toBe("function");
+    await expect(
+      (configure as (config: unknown) => Promise<void>)({}),
+    ).rejects.toThrow(
+      "light.muted has 2.91:1 contrast on canvas; expected at least 4.5:1; try #717171",
+    );
   });
 
   test("only exposes explicit JSX class props to UnoCSS", () => {
