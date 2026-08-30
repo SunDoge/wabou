@@ -4,7 +4,12 @@ use gpui::{AppContext as _, IntoElement as _, ParentElement as _, Styled as _};
 use wabou_shell_api::{KeyEvent, KeyLocation, KeyPhase, Modifiers, UiEvent, WakeCallback};
 use wabou_shell_gpui::{NativeWidgetContext, NativeWidgetMount, gpui};
 
-use wabou_terminal_core::{TerminalInputResult, TerminalWidget};
+use wabou_terminal_core::{TerminalColor, TerminalInputResult, TerminalWidget};
+
+fn gpui_color(color: TerminalColor) -> gpui::Rgba {
+    let [r, g, b, a] = color.components();
+    gpui::rgba((u32::from(r) << 24) | (u32::from(g) << 16) | (u32::from(b) << 8) | u32::from(a))
+}
 
 struct GpuiTerminal {
     terminal: TerminalWidget,
@@ -165,9 +170,7 @@ impl gpui::Render for GpuiTerminal {
             .relative()
             .size_full()
             .overflow_hidden()
-            .bg(gpui::rgb(0x111827))
-            .text_color(gpui::rgb(0xe5e7eb))
-            .font_family("monospace")
+            .bg(gpui::transparent_black())
             .text_size(gpui::px(self.terminal.font_size()))
             .line_height(gpui::px(self.terminal.line_height()))
             .track_focus(&self.focus)
@@ -203,7 +206,7 @@ impl gpui::Render for GpuiTerminal {
                             entity.update(cx, |state, _cx| {
                                 let style = gpui::TextStyle {
                                     color: gpui::rgb_to_hsla(gpui::rgb(0xe5e7eb)),
-                                    font_family: "monospace".into(),
+                                    font_family: state.terminal.font_family().to_owned().into(),
                                     ..Default::default()
                                 };
                                 let font_size = gpui::px(state.terminal.font_size());
@@ -225,39 +228,74 @@ impl gpui::Render for GpuiTerminal {
                                     window.scale_factor() as f64,
                                 );
                                 let font_size = gpui::px(frame.font_size);
-                                let shaped = frame
-                                    .lines
-                                    .into_iter()
-                                    .map(|line| {
-                                        let line: gpui::SharedString = line.into();
-                                        let run = style.to_run(line.len());
-                                        window.text_system().shape_line(
-                                            line,
+                                let mut shaped = Vec::new();
+                                for (row, terminal_row) in frame.rows.into_iter().enumerate() {
+                                    for cell in terminal_row.cells {
+                                        let text: gpui::SharedString = cell.text.into();
+                                        let mut style = gpui::TextStyle {
+                                            color: gpui::rgb_to_hsla(gpui_color(cell.foreground)),
+                                            font_family: frame.font_family.to_string().into(),
+                                            ..Default::default()
+                                        };
+                                        style.font_weight = if cell.bold {
+                                            gpui::FontWeight::BOLD
+                                        } else {
+                                            gpui::FontWeight::NORMAL
+                                        };
+                                        style.font_style = if cell.italic {
+                                            gpui::FontStyle::Italic
+                                        } else {
+                                            gpui::FontStyle::Normal
+                                        };
+                                        let run = style.to_run(text.len());
+                                        let line = window.text_system().shape_line(
+                                            text,
                                             font_size,
                                             &[run],
                                             None,
-                                        )
-                                    })
-                                    .collect::<Vec<_>>();
-                                (shaped, frame.line_height)
+                                        );
+                                        shaped.push((row, cell.column, cell.background, line));
+                                    }
+                                }
+                                (
+                                    shaped,
+                                    frame.background,
+                                    frame.cell_width,
+                                    frame.line_height,
+                                )
                             })
                         }
                     },
                     {
                         let entity = entity.clone();
                         let focus = self.focus.clone();
-                        move |bounds, (lines, line_height), window, cx| {
+                        move |bounds,
+                              (cells, frame_background, cell_width, line_height),
+                              window,
+                              cx| {
                             window.handle_input(
                                 &focus,
                                 gpui::ElementInputHandler::new(bounds, entity),
                                 cx,
                             );
+                            window.paint_quad(gpui::fill(bounds, gpui_color(frame_background)));
+                            let cell_width = gpui::px(cell_width);
                             let line_height = gpui::px(line_height);
-                            for (index, line) in lines.iter().enumerate() {
-                                let origin = gpui::point(
-                                    bounds.left(),
-                                    bounds.top() + line_height * index as f32,
-                                );
+                            for (row, column, cell_background, line) in cells {
+                                let cell_bounds = gpui::Bounds {
+                                    origin: gpui::point(
+                                        bounds.left() + cell_width * column as f32,
+                                        bounds.top() + line_height * row as f32,
+                                    ),
+                                    size: gpui::size(cell_width, line_height),
+                                };
+                                if cell_background != frame_background {
+                                    window.paint_quad(gpui::fill(
+                                        cell_bounds,
+                                        gpui_color(cell_background),
+                                    ));
+                                }
+                                let origin = gpui::point(cell_bounds.left(), cell_bounds.top());
                                 let _ = line.paint(
                                     origin,
                                     line_height,

@@ -445,6 +445,11 @@ impl TerminalWidget {
         self.line_height
     }
 
+    /// Font family requested by the terminal's host attributes.
+    pub fn font_family(&self) -> &str {
+        &self.font_family
+    }
+
     fn ensure_launched(&mut self) {
         if self.launch_started || self.launch_error.is_some() {
             return;
