@@ -67,12 +67,10 @@ import { SessionForkDialog } from "./session-fork";
 import { SessionTitle } from "./session-title";
 import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
+import { SkillsPage } from "./skills-page";
 import { AgentTerminalPanel } from "./terminal-panel";
 import { TranscriptSearch } from "./transcript-search";
-import {
-  type AgentWorkspace,
-  createAgentWorkspace,
-} from "./workspace";
+import { type AgentWorkspace, createAgentWorkspace } from "./workspace";
 import { WorkspaceChangesPanel } from "./workspace-changes-panel";
 import { WorkspacePanel } from "./workspace-panel";
 import { WorkspaceSetup } from "./workspace-setup";
@@ -621,6 +619,14 @@ export function App() {
       onSelect: toggleChanges,
     },
     {
+      id: "skills",
+      label: i18n.message(m.skills, {}),
+      description: i18n.message(m.command_skills_detail, {}),
+      disabled: !active().cwd.trim(),
+      keywords: ["skill", "prompt", "extension"],
+      onSelect: () => void navigate({ to: "/skills" }),
+    },
+    {
       id: "settings",
       label: i18n.message(m.settings, {}),
       description: i18n.message(m.command_settings_detail, {}),
@@ -638,6 +644,16 @@ export function App() {
     "Primary+J": toggleTerminal,
     "Primary+,": () => navigate({ to: "/settings" }),
   });
+  const activePage = (): "agents" | "skills" | "settings" => {
+    switch (location().pathname) {
+      case "/skills":
+        return "skills";
+      case "/settings":
+        return "settings";
+      default:
+        return "agents";
+    }
+  };
 
   return (
     <Workbench {...shortcuts.bindings}>
@@ -648,6 +664,8 @@ export function App() {
         add={addAgent}
         newSession={() => void api.newSession(active().id)}
         canCreateSession={active().state.connection === "ready"}
+        activePage={activePage()}
+        openSkills={() => navigate({ to: "/skills" })}
         openSettings={() => navigate({ to: "/settings" })}
         sessions={sessions()}
         selectSession={(agentId, sessionId) =>
@@ -656,28 +674,43 @@ export function App() {
       />
 
       <Show
-        when={location().pathname !== "/settings"}
+        when={
+          location().pathname !== "/settings" &&
+          location().pathname !== "/skills"
+        }
         fallback={
           <WorkbenchMain>
-            <SettingsPage
-              app={defaults.value()}
-              project={active()}
-              state={active().state}
-              canDeleteProject={agents().length > 1}
-              updateApp={defaults.update}
-              updateProject={patchActive}
-              deleteProject={() => void deleteActiveAgent()}
-              setAutoCompaction={(enabled) =>
-                void api.setAutoCompaction(active().id, enabled)
+            <Show
+              when={location().pathname === "/skills"}
+              fallback={
+                <SettingsPage
+                  app={defaults.value()}
+                  project={active()}
+                  state={active().state}
+                  canDeleteProject={agents().length > 1}
+                  updateApp={defaults.update}
+                  updateProject={patchActive}
+                  deleteProject={() => void deleteActiveAgent()}
+                  setAutoCompaction={(enabled) =>
+                    void api.setAutoCompaction(active().id, enabled)
+                  }
+                  setSteeringMode={(mode) =>
+                    void api.setSteeringMode(active().id, mode)
+                  }
+                  setFollowUpMode={(mode) =>
+                    void api.setFollowUpMode(active().id, mode)
+                  }
+                  close={() => navigate({ to: `/agents/${activeId()}` })}
+                />
               }
-              setSteeringMode={(mode) =>
-                void api.setSteeringMode(active().id, mode)
-              }
-              setFollowUpMode={(mode) =>
-                void api.setFollowUpMode(active().id, mode)
-              }
-              close={() => navigate({ to: `/agents/${activeId()}` })}
-            />
+            >
+              <SkillsPage
+                cwd={active().cwd}
+                project={active().name}
+                load={api.listSkills}
+                close={() => navigate({ to: `/agents/${activeId()}` })}
+              />
+            </Show>
           </WorkbenchMain>
         }
       >

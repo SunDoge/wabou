@@ -54,6 +54,8 @@ const READ_WORKSPACE_FILE: HostMethod<ReadWorkspaceFileRequest, WorkspaceFilePre
     HostMethod::new("readWorkspaceFile");
 const WORKSPACE_CHANGES: HostMethod<WorkspaceFilesRequest, WorkspaceChanges> =
     HostMethod::new("workspaceChanges");
+const LIST_SKILLS: HostMethod<WorkspaceFilesRequest, Vec<SkillEntry>> =
+    HostMethod::new("listSkills");
 const RESPOND_EXTENSION_UI: JsonMethod<ExtensionUiResponseRequest, ()> =
     JsonMethod::new("respondExtensionUi");
 const LIST_AGENTS: JsonMethod<(), Vec<AgentProfile>> = JsonMethod::no_request("listAgents");
@@ -495,6 +497,139 @@ struct WorkspaceFilePreview {
 #[serde(rename_all = "camelCase")]
 struct WorkspaceChanges {
     files: Vec<WorkspaceFileChange>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct SkillEntry {
+    id: String,
+    name: String,
+    description: String,
+    scope: &'static str,
+    source: &'static str,
+    path: String,
+    content: String,
+}
+
+#[derive(Clone)]
+struct SkillRoot {
+    path: PathBuf,
+    scope: &'static str,
+    source: &'static str,
+}
+
+const MAX_SKILLS: usize = 200;
+const MAX_SKILL_BYTES: u64 = 256 * 1024;
+
+fn skill_metadata(contents: &str, fallback: &str) -> (String, String) {
+    let mut name = fallback.to_owned();
+    let mut description = String::new();
+    let Some(frontmatter) = contents.strip_prefix("---\n") else {
+        return (name, description);
+    };
+    let Some((frontmatter, _)) = frontmatter.split_once("\n---") else {
+        return (name, description);
+    };
+    for line in frontmatter.lines() {
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        let value = value.trim().trim_matches(['\'', '"']);
+        match key.trim() {
+            "name" if !value.is_empty() => name = value.to_owned(),
+            "description" if !value.is_empty() => description = value.to_owned(),
+            _ => {}
+        }
+    }
+    (name, description)
+}
+
+fn scan_skill_roots(roots: &[SkillRoot]) -> Result<Vec<SkillEntry>, String> {
+    let mut skills = Vec::new();
+    let mut seen = BTreeSet::new();
+    for root in roots {
+        let entries = match std::fs::read_dir(&root.path) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(format!(
+                    "could not read skill directory {}: {error}",
+                    root.path.display()
+                ));
+            }
+        };
+        for entry in entries.flatten() {
+            if skills.len() >= MAX_SKILLS {
+                break;
+            }
+            let directory = entry.path();
+            let skill_file = directory.join("SKILL.md");
+            let Ok(metadata) = skill_file.metadata() else {
+                continue;
+            };
+            if !metadata.is_file() || metadata.len() > MAX_SKILL_BYTES {
+                continue;
+            }
+            let canonical = directory
+                .canonicalize()
+                .unwrap_or_else(|_| directory.clone());
+            if !seen.insert((root.scope, canonical.clone())) {
+                continue;
+            }
+            let contents = std::fs::read_to_string(&skill_file).map_err(|error| {
+                format!("could not read skill {}: {error}", skill_file.display())
+            })?;
+            let fallback = directory
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("skill");
+            let (name, description) = skill_metadata(&contents, fallback);
+            skills.push(SkillEntry {
+                id: format!("{}:{}", root.scope, canonical.display()),
+                name,
+                description,
+                scope: root.scope,
+                source: root.source,
+                path: directory.display().to_string(),
+                content: contents,
+            });
+        }
+    }
+    skills.sort_by(|left, right| {
+        (left.scope != "project", left.name.to_ascii_lowercase())
+            .cmp(&(right.scope != "project", right.name.to_ascii_lowercase()))
+    });
+    Ok(skills)
+}
+
+fn list_skills(cwd: &Path) -> Result<Vec<SkillEntry>, String> {
+    let mut roots = vec![
+        SkillRoot {
+            path: cwd.join(".pi/skills"),
+            scope: "project",
+            source: "pi",
+        },
+        SkillRoot {
+            path: cwd.join(".agents/skills"),
+            scope: "project",
+            source: "shared",
+        },
+    ];
+    if let Some(base) = directories::BaseDirs::new() {
+        roots.extend([
+            SkillRoot {
+                path: base.home_dir().join(".pi/agent/skills"),
+                scope: "user",
+                source: "pi",
+            },
+            SkillRoot {
+                path: base.home_dir().join(".agents/skills"),
+                scope: "user",
+                source: "shared",
+            },
+        ]);
+    }
+    scan_skill_roots(&roots)
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -1361,6 +1496,14 @@ impl Drop for PiProcess {
 
 pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::Result<()> {
     capability.method(
+        LIST_SKILLS,
+        move |request: WorkspaceFilesRequest| async move {
+            tokio::task::spawn_blocking(move || list_skills(&request.cwd))
+                .await
+                .map_err(|error| format!("skill scan task failed: {error}"))?
+        },
+    )?;
+    capability.method(
         WORKSPACE_INFO,
         move |request: WorkspaceFilesRequest| async move {
             tokio::task::spawn_blocking(move || workspace_info(&request.cwd))
@@ -1831,6 +1974,47 @@ mod tests {
         assert_eq!(request.agent_id, "agent-1");
         assert_eq!(request.image_paths, vec![PathBuf::from("page.png")]);
         assert_eq!(request.context_paths, vec![PathBuf::from("src/main.rs")]);
+    }
+
+    #[test]
+    fn skill_catalog_reads_pi_and_shared_roots_with_project_precedence() {
+        let root = test_directory("skills");
+        let project = root.join("project");
+        let user = root.join("user");
+        let project_skill = project.join("review");
+        let user_skill = user.join("deploy");
+        std::fs::create_dir_all(&project_skill).expect("project skill directory");
+        std::fs::create_dir_all(&user_skill).expect("user skill directory");
+        std::fs::write(
+            project_skill.join("SKILL.md"),
+            "---\nname: review\ndescription: Review the current change\n---\n# Review",
+        )
+        .expect("project skill");
+        std::fs::write(user_skill.join("SKILL.md"), "# Deploy safely").expect("user skill");
+        std::fs::create_dir_all(project.join("not-a-skill")).expect("plain directory");
+
+        let skills = scan_skill_roots(&[
+            SkillRoot {
+                path: project,
+                scope: "project",
+                source: "pi",
+            },
+            SkillRoot {
+                path: user,
+                scope: "user",
+                source: "shared",
+            },
+        ])
+        .expect("skill catalog");
+
+        assert_eq!(skills.len(), 2);
+        assert_eq!(skills[0].name, "review");
+        assert_eq!(skills[0].description, "Review the current change");
+        assert_eq!(skills[0].scope, "project");
+        assert_eq!(skills[1].name, "deploy");
+        assert_eq!(skills[1].scope, "user");
+        assert_eq!(skills[1].source, "shared");
+        std::fs::remove_dir_all(root).expect("remove skill fixture");
     }
 
     #[test]

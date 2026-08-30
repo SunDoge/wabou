@@ -20,6 +20,7 @@ import folder from "lucide-static/icons/folder.svg?raw";
 import messageSquare from "lucide-static/icons/message-square.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
+import sparkles from "lucide-static/icons/sparkles.svg?raw";
 import {
   createEffect,
   createMemo,
@@ -49,6 +50,8 @@ interface SidebarProps {
   add: () => void;
   newSession: () => void;
   canCreateSession: boolean;
+  activePage?: "agents" | "skills" | "settings";
+  openSkills?: () => void;
   openSettings: () => void;
   sessions: readonly PiSession[];
   selectSession: (agentId: string, sessionId: string) => void;
@@ -341,10 +344,16 @@ export function Sidebar(props: SidebarProps) {
       </SidebarContent>
 
       <SidebarFooter class="border-0 bg-surface-muted px-2 py-2">
-        <SidebarMenuButton onClick={props.openSettings}>
-          <Icon source={settings} size={16} />
-          {i18n.message(m.settings, {})}
-        </SidebarMenuButton>
+        <SidebarMenu value={props.activePage ?? "agents"}>
+          <SidebarMenuButton value="skills" onClick={props.openSkills}>
+            <Icon source={sparkles} size={16} />
+            {i18n.message(m.skills, {})}
+          </SidebarMenuButton>
+          <SidebarMenuButton value="settings" onClick={props.openSettings}>
+            <Icon source={settings} size={16} />
+            {i18n.message(m.settings, {})}
+          </SidebarMenuButton>
+        </SidebarMenu>
       </SidebarFooter>
     </SidebarRoot>
   );

@@ -46,6 +46,16 @@ export interface WorkspaceChanges {
   files: readonly WorkspaceFileChange[];
 }
 
+export interface PiSkill {
+  id: string;
+  name: string;
+  description: string;
+  scope: "project" | "user";
+  source: "pi" | "shared";
+  path: string;
+  content: string;
+}
+
 export interface PersistedAgentProfile {
   id: string;
   name: string;
@@ -104,6 +114,7 @@ interface PiCapability extends NativeJsonCapability {
   workspaceChanges(request: {
     cwd: string;
   }): WorkspaceChanges | PromiseLike<WorkspaceChanges>;
+  listSkills(request: { cwd: string }): PiSkill[] | PromiseLike<PiSkill[]>;
   respondExtensionUi(request: string): string | PromiseLike<string>;
   listAgents(request?: string): string | PromiseLike<string>;
   saveAgents(request: string): string | PromiseLike<string>;
@@ -191,6 +202,7 @@ export function usePiApi() {
       capability.readWorkspaceFile({ cwd, path }),
     workspaceChanges: async (cwd: string) =>
       capability.workspaceChanges({ cwd }),
+    listSkills: async (cwd: string) => capability.listSkills({ cwd }),
     respondExtensionUi: (
       agentId: string,
       response:

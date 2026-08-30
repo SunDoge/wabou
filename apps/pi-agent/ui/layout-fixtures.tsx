@@ -25,8 +25,10 @@ import { ConversationContext } from "./conversation-context";
 import { ConversationHeader } from "./conversation-header";
 import { ConversationNavigator } from "./conversation-navigator";
 import { ModelControls } from "./model-controls";
+import type { PiSkill } from "./api";
 import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
+import { SkillsPage } from "./skills-page";
 import { createAgentWorkspace } from "./workspace";
 import { WorkspacePanel } from "./workspace-panel";
 
@@ -70,6 +72,29 @@ const shellSessions = [
     updatedAt: 1_787_907_300,
   },
 ] as const;
+
+const skillFixtures: readonly PiSkill[] = [
+  {
+    id: "project:frontend-review",
+    name: "Frontend design review",
+    description: "Review native application surfaces before implementation.",
+    scope: "project",
+    source: "shared",
+    path: "/work/wabou/.agents/skills/frontend-design-review",
+    content:
+      "# Frontend design review\n\nStart from the primary task, then verify hierarchy, spacing, states, and layout resilience.\n\n## Evidence\n\n- Component behavior\n- Layout geometry\n- Native interaction",
+  },
+  {
+    id: "user:release",
+    name: "Release checklist",
+    description: "Prepare a repeatable release without pushing automatically.",
+    scope: "user",
+    source: "pi",
+    path: "/home/user/.pi/agent/skills/release",
+    content:
+      "# Release checklist\n\nRun verification and report the tag command.",
+  },
+];
 
 function FullWorkbenchFixture() {
   const state = {
@@ -479,6 +504,18 @@ defineLayoutFixtures({
           text: "# Workspace preview\n\nA real layout fixture for the file inspector.",
         })}
         addContext={() => {}}
+        close={() => {}}
+      />
+    ),
+  },
+  "skills/catalog": {
+    width: 960,
+    height: 720,
+    render: () => (
+      <SkillsPage
+        cwd={project.cwd}
+        project={project.name}
+        load={async () => skillFixtures}
         close={() => {}}
       />
     ),

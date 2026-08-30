@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
   pageHeaderClass,
+  pageHeaderDescriptionClass,
+  pageHeaderTitleClass,
   pageViewportClass,
   pageViewportContentClass,
 } from "./page";
@@ -22,5 +24,7 @@ describe("PageViewport layout contract", () => {
     expect(pageHeaderClass()).toContain("flex-none");
     expect(pageHeaderClass()).toContain("min-h-12");
     expect(pageHeaderClass(undefined, true)).toContain("flex-col");
+    expect(pageHeaderTitleClass()).toContain("text-primary");
+    expect(pageHeaderDescriptionClass()).toContain("text-secondary");
   });
 });

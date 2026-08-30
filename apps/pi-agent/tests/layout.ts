@@ -347,6 +347,25 @@ try {
         },
       },
       {
+        id: "skills/catalog",
+        width: 960,
+        height: 720,
+        waitMs: 20,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, { text: "Skills" });
+          getLayoutNode(fixture, { role: "textbox", name: "Search skills" });
+          getLayoutNode(fixture, {
+            role: "button",
+            name: "Frontend design review",
+          });
+          getLayoutNode(fixture, {
+            role: "region",
+            name: "Frontend design review",
+          });
+        },
+      },
+      {
         id: "workspace/diff-viewer",
         width: 640,
         height: 520,

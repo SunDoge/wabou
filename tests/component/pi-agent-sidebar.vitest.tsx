@@ -499,3 +499,31 @@ test("updates the selected session when a keyed agent receives new state", () =>
     true,
   );
 });
+
+test("exposes Skills as a stable application destination", () => {
+  const agent = createAgentWorkspace(1);
+  const openSkills = vi.fn();
+  const openSettings = vi.fn();
+  const screen = renderComponent(() => (
+    <Sidebar
+      agents={[agent]}
+      sessions={[]}
+      activeId={agent.id}
+      activePage="skills"
+      select={() => {}}
+      selectSession={() => {}}
+      add={() => {}}
+      newSession={() => {}}
+      canCreateSession
+      openSkills={openSkills}
+      openSettings={openSettings}
+    />
+  ));
+
+  const skills = screen.getByRole("button", { name: "Skills" });
+  expect(skills.selected).toBe(true);
+  skills.click();
+  expect(openSkills).toHaveBeenCalledTimes(1);
+  screen.getByRole("button", { name: "Settings" }).click();
+  expect(openSettings).toHaveBeenCalledTimes(1);
+});

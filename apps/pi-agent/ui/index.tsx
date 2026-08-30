@@ -27,8 +27,12 @@ const settings = new BaseRoute({
   getParentRoute: () => root,
   path: "settings",
 });
+const skills = new BaseRoute({
+  getParentRoute: () => root,
+  path: "skills",
+});
 const router = createDataRouter({
-  routeTree: root.addChildren([index, agent, session, settings]),
+  routeTree: root.addChildren([index, agent, session, skills, settings]),
   context: {},
 });
 
