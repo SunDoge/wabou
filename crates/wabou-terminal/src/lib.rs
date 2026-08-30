@@ -49,6 +49,7 @@ mod color;
 mod graphics;
 mod input_encoding;
 mod kitty_keyboard;
+mod legacy_graphics;
 mod legacy_widget;
 mod process;
 mod rendering;
@@ -56,8 +57,9 @@ mod selection;
 mod session;
 
 pub use color::TerminalColor;
-use graphics::{KittyLayer, TerminalGraphics};
+use graphics::TerminalGraphics;
 use input_encoding::*;
+use legacy_graphics::KittyLayer;
 #[cfg(test)]
 use legacy_widget::legacy_color;
 pub use legacy_widget::terminal_widget;
