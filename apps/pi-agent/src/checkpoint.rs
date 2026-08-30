@@ -23,6 +23,23 @@ pub(crate) struct RestoreCheckpointRequest {
     pub(crate) sequence: u32,
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct RetainCheckpointRequest {
+    pub(crate) cwd: PathBuf,
+    pub(crate) commit_id: String,
+    pub(crate) session_id: String,
+    pub(crate) entry_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct FindCheckpointRequest {
+    pub(crate) cwd: PathBuf,
+    pub(crate) session_id: String,
+    pub(crate) entry_id: String,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct WorktreeCheckpoint {
@@ -177,6 +194,75 @@ pub(crate) fn restore_worktree(
         safety_checkpoint,
         changed_paths,
     })
+}
+
+pub(crate) fn retain_for_entry(
+    cwd: &Path,
+    commit_id: &str,
+    session_id: &str,
+    entry_id: &str,
+) -> Result<WorktreeCheckpoint, String> {
+    let repository = gix::open(cwd)
+        .map_err(|error| format!("{} is not a Git repository: {error}", cwd.display()))?;
+    let commit_id = gix::ObjectId::from_hex(commit_id.as_bytes())
+        .map_err(|error| format!("invalid checkpoint commit id: {error}"))?;
+    repository
+        .find_commit(commit_id)
+        .map_err(|error| format!("could not read checkpoint commit {commit_id}: {error}"))?;
+    let git_ref = entry_ref(session_id, entry_id);
+    repository
+        .reference(
+            git_ref.as_str(),
+            commit_id,
+            PreviousValue::Any,
+            "wabou checkpoint entry",
+        )
+        .map_err(|error| format!("could not retain checkpoint entry reference: {error}"))?;
+    Ok(WorktreeCheckpoint {
+        commit_id: commit_id.to_string(),
+        git_ref,
+        skipped_paths: Vec::new(),
+    })
+}
+
+pub(crate) fn find_for_entry(
+    cwd: &Path,
+    session_id: &str,
+    entry_id: &str,
+) -> Result<Option<WorktreeCheckpoint>, String> {
+    let repository = gix::open(cwd)
+        .map_err(|error| format!("{} is not a Git repository: {error}", cwd.display()))?;
+    let git_ref = entry_ref(session_id, entry_id);
+    let Some(reference) = repository
+        .try_find_reference(git_ref.as_str())
+        .map_err(|error| format!("could not find checkpoint entry reference: {error}"))?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(WorktreeCheckpoint {
+        commit_id: reference.id().to_string(),
+        git_ref,
+        skipped_paths: Vec::new(),
+    }))
+}
+
+fn entry_ref(session_id: &str, entry_id: &str) -> String {
+    format!(
+        "refs/wabou/pi-agent/entries/{}/{}",
+        encode_ref_component(session_id),
+        encode_ref_component(entry_id)
+    )
+}
+
+fn encode_ref_component(value: &str) -> String {
+    if value.is_empty() {
+        return "empty".to_owned();
+    }
+    value
+        .as_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn commit_tree(
@@ -486,6 +572,16 @@ mod tests {
         assert_eq!(std::fs::read(repository.index_path()).ok(), index_before);
         assert_eq!(checkpoint.git_ref, "refs/wabou/pi-agent/session-one/7");
         assert!(checkpoint.skipped_paths.is_empty());
+        let retained = retain_for_entry(&root, &checkpoint.commit_id, "session/one", "entry:7")
+            .expect("retained entry checkpoint");
+        assert_eq!(
+            find_for_entry(&root, "session/one", "entry:7").expect("checkpoint lookup"),
+            Some(retained)
+        );
+        assert_eq!(
+            find_for_entry(&root, "session/one", "missing").expect("missing checkpoint lookup"),
+            None
+        );
         let checkpoint_commit = repository
             .find_commit(
                 gix::ObjectId::from_hex(checkpoint.commit_id.as_bytes()).expect("checkpoint id"),

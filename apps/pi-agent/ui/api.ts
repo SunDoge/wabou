@@ -136,6 +136,17 @@ interface PiCapability extends NativeJsonCapability {
     namespace: string;
     sequence: number;
   }): WorktreeRestore | PromiseLike<WorktreeRestore>;
+  retainCheckpoint(request: {
+    cwd: string;
+    commitId: string;
+    sessionId: string;
+    entryId: string;
+  }): WorktreeCheckpoint | PromiseLike<WorktreeCheckpoint>;
+  findCheckpoint(request: {
+    cwd: string;
+    sessionId: string;
+    entryId: string;
+  }): WorktreeCheckpoint | undefined | PromiseLike<WorktreeCheckpoint | undefined>;
   listSkills(request: { cwd: string }): PiSkill[] | PromiseLike<PiSkill[]>;
   respondExtensionUi(request: string): string | PromiseLike<string>;
   listAgents(request?: string): string | PromiseLike<string>;
@@ -259,6 +270,17 @@ export function usePiApi() {
       namespace: string,
       sequence: number,
     ) => capability.restoreCheckpoint({ cwd, commitId, namespace, sequence }),
+    retainCheckpoint: async (
+      cwd: string,
+      commitId: string,
+      sessionId: string,
+      entryId: string,
+    ) => capability.retainCheckpoint({ cwd, commitId, sessionId, entryId }),
+    findCheckpoint: async (
+      cwd: string,
+      sessionId: string,
+      entryId: string,
+    ) => capability.findCheckpoint({ cwd, sessionId, entryId }),
     listSkills: async (cwd: string) => capability.listSkills({ cwd }),
     respondExtensionUi: (
       agentId: string,

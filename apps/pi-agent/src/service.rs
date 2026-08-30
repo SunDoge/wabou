@@ -62,6 +62,14 @@ const RESTORE_CHECKPOINT: HostMethod<
     crate::checkpoint::RestoreCheckpointRequest,
     crate::checkpoint::WorktreeRestore,
 > = HostMethod::new("restoreCheckpoint");
+const RETAIN_CHECKPOINT: HostMethod<
+    crate::checkpoint::RetainCheckpointRequest,
+    crate::checkpoint::WorktreeCheckpoint,
+> = HostMethod::new("retainCheckpoint");
+const FIND_CHECKPOINT: HostMethod<
+    crate::checkpoint::FindCheckpointRequest,
+    Option<crate::checkpoint::WorktreeCheckpoint>,
+> = HostMethod::new("findCheckpoint");
 const LIST_SKILLS: HostMethod<WorkspaceFilesRequest, Vec<SkillEntry>> =
     HostMethod::new("listSkills");
 const RESPOND_EXTENSION_UI: JsonMethod<ExtensionUiResponseRequest, ()> =
@@ -1506,6 +1514,35 @@ impl Drop for PiProcess {
 }
 
 pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::Result<()> {
+    capability.method(
+        FIND_CHECKPOINT,
+        move |request: crate::checkpoint::FindCheckpointRequest| async move {
+            tokio::task::spawn_blocking(move || {
+                crate::checkpoint::find_for_entry(
+                    &request.cwd,
+                    &request.session_id,
+                    &request.entry_id,
+                )
+            })
+            .await
+            .map_err(|error| format!("checkpoint lookup task failed: {error}"))?
+        },
+    )?;
+    capability.method(
+        RETAIN_CHECKPOINT,
+        move |request: crate::checkpoint::RetainCheckpointRequest| async move {
+            tokio::task::spawn_blocking(move || {
+                crate::checkpoint::retain_for_entry(
+                    &request.cwd,
+                    &request.commit_id,
+                    &request.session_id,
+                    &request.entry_id,
+                )
+            })
+            .await
+            .map_err(|error| format!("checkpoint retention task failed: {error}"))?
+        },
+    )?;
     capability.method(
         RESTORE_CHECKPOINT,
         move |request: crate::checkpoint::RestoreCheckpointRequest| async move {
