@@ -219,7 +219,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
         role="group"
         aria-label={i18n.message(m.prompt_placeholder, {})}
         data-wabou-owns="surface focus-ring"
-        class="max-w-5xl rounded-xl border border-subtle bg-input shadow-xs px-3 pt-3 pb-2 gap-2"
+        class="rounded-xl border border-subtle bg-input shadow-xs px-3 pt-3 pb-2 gap-2"
       >
         <View class="w-full min-w-0 flex flex-row justify-end">
           <SessionUsage stats={props.stats} />

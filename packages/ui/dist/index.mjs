@@ -5575,7 +5575,7 @@ function runClass(run) {
 function InlineMarkdown(props) {
 	return createComponent$1(RichText, {
 		get ["class"]() {
-			return mergeClasses("min-w-0 whitespace-normal", props.variant === "conversation" ? "text-base leading-relaxed text-primary" : props.variant === "prompt" ? "text-base leading-relaxed text-primary" : "text-base leading-relaxed text-secondary", props.class);
+			return mergeClasses("min-w-0 whitespace-normal", props.variant === "conversation" ? "text-sm leading-relaxed text-primary" : props.variant === "prompt" ? "text-sm leading-relaxed text-primary" : "text-base leading-relaxed text-secondary", props.class);
 		},
 		get children() {
 			return createComponent$1(For, {
@@ -5617,12 +5617,12 @@ function MarkdownSpan(props) {
 }
 function Heading(props) {
 	const className = createMemo(() => {
-		if (props.variant === "prompt") return props.block.depth === 1 ? "text-lg font-semibold tracking-tight text-primary whitespace-normal" : "text-base font-semibold text-primary whitespace-normal";
+		if (props.variant === "prompt") return props.block.depth === 1 ? "text-base font-semibold tracking-tight text-primary whitespace-normal" : "text-sm font-semibold text-primary whitespace-normal";
 		if (props.variant === "conversation") switch (props.block.depth) {
-			case 1: return "text-xl font-semibold tracking-tight text-primary whitespace-normal";
-			case 2: return "text-lg font-semibold tracking-tight text-primary whitespace-normal";
-			case 3: return "text-base font-semibold tracking-tight text-primary whitespace-normal";
-			default: return "text-base font-semibold text-primary whitespace-normal";
+			case 1: return "text-lg font-semibold tracking-tight text-primary whitespace-normal";
+			case 2: return "text-base font-semibold tracking-tight text-primary whitespace-normal";
+			case 3: return "text-sm font-semibold tracking-tight text-primary whitespace-normal";
+			default: return "text-sm font-semibold text-primary whitespace-normal";
 		}
 		switch (props.block.depth) {
 			case 1: return "text-4xl font-bold text-primary";
@@ -5680,7 +5680,9 @@ function MarkdownList(props) {
 					get children() {
 						return [createComponent$1(Text, {
 							"aria-hidden": "true",
-							class: "flex-none text-base leading-relaxed text-secondary",
+							get ["class"]() {
+								return mergeClasses("flex-none leading-relaxed text-secondary", props.variant === "document" ? "text-base" : "text-sm");
+							},
 							get children() {
 								return memo(() => {
 									return typeof item.checked === "boolean";

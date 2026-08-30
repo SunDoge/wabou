@@ -247,10 +247,10 @@ test("renders readable conversation Markdown including GFM tables", () => {
   expect(response.className).toContain("w-full");
   expect(response.className).toContain("gap-2.5");
   expect(JSON.stringify(response.snapshot())).toContain(
-    "text-base leading-relaxed text-primary",
+    "text-sm leading-relaxed text-primary",
   );
   expect(JSON.stringify(response.snapshot())).toContain(
-    "text-lg font-semibold tracking-tight",
+    "text-base font-semibold tracking-tight",
   );
   expect(response.text).toContain("FileState");
   expect(response.text).toContain("api.tsUpdated");
@@ -269,7 +269,7 @@ test("keeps prompt Markdown readable inside a message bubble", () => {
   const prompt = screen.getByRole("region", { name: "User prompt" });
   expect(prompt.className).not.toContain("w-full");
   expect(prompt.className).toContain("gap-2");
-  expect(JSON.stringify(prompt.snapshot())).toContain("text-base");
+  expect(JSON.stringify(prompt.snapshot())).toContain("text-sm");
   expect(prompt.text).toContain("inspect src/main.rs");
   expect(prompt.text).not.toContain("**");
 });

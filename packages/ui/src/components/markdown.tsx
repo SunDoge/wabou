@@ -40,9 +40,9 @@ function InlineMarkdown(props: {
       class={mergeClasses(
         "min-w-0 whitespace-normal",
         props.variant === "conversation"
-          ? "text-base leading-relaxed text-primary"
+          ? "text-sm leading-relaxed text-primary"
           : props.variant === "prompt"
-            ? "text-base leading-relaxed text-primary"
+            ? "text-sm leading-relaxed text-primary"
             : "text-base leading-relaxed text-secondary",
         props.class,
       )}
@@ -85,19 +85,19 @@ function Heading(props: {
   const className = createMemo(() => {
     if (props.variant === "prompt") {
       return props.block.depth === 1
-        ? "text-lg font-semibold tracking-tight text-primary whitespace-normal"
-        : "text-base font-semibold text-primary whitespace-normal";
+        ? "text-base font-semibold tracking-tight text-primary whitespace-normal"
+        : "text-sm font-semibold text-primary whitespace-normal";
     }
     if (props.variant === "conversation") {
       switch (props.block.depth) {
         case 1:
-          return "text-xl font-semibold tracking-tight text-primary whitespace-normal";
-        case 2:
           return "text-lg font-semibold tracking-tight text-primary whitespace-normal";
-        case 3:
+        case 2:
           return "text-base font-semibold tracking-tight text-primary whitespace-normal";
+        case 3:
+          return "text-sm font-semibold tracking-tight text-primary whitespace-normal";
         default:
-          return "text-base font-semibold text-primary whitespace-normal";
+          return "text-sm font-semibold text-primary whitespace-normal";
       }
     }
     switch (props.block.depth) {
@@ -157,7 +157,10 @@ function MarkdownList(props: {
           <View class="min-w-0 flex flex-row items-start gap-2">
             <Text
               aria-hidden="true"
-              class="flex-none text-base leading-relaxed text-secondary"
+              class={mergeClasses(
+                "flex-none leading-relaxed text-secondary",
+                props.variant === "document" ? "text-base" : "text-sm",
+              )}
             >
               {typeof item.checked === "boolean"
                 ? item.checked

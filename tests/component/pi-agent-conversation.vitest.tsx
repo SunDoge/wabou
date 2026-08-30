@@ -33,7 +33,7 @@ test("Pi Agent renders assistant and user messages through Markdown", () => {
     JSON.stringify(
       assistant.getByRole("region", { name: "Assistant response" }).snapshot(),
     ),
-  ).toContain("text-base leading-relaxed text-primary");
+  ).toContain("text-sm leading-relaxed text-primary");
   expect(assistant.getByRole("group", { name: "Code block" }).text).toContain(
     "curl /healthz",
   );
@@ -53,7 +53,7 @@ test("Pi Agent renders assistant and user messages through Markdown", () => {
   expect(prompt.text).toContain("Requestkeep meaning and run cargo test");
   expect(prompt.text).not.toContain("**");
   expect(JSON.stringify(prompt.snapshot())).toContain(
-    "text-base font-semibold text-primary",
+    "text-sm font-semibold text-primary",
   );
 });
 
