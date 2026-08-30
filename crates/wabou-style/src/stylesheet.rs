@@ -183,6 +183,18 @@ pub fn resolve_classes(sheet: &StyleSheet, classes: &[&str]) -> CascadeResult {
         .as_ref()
         .and_then(|themes| themes.themes.get(&themes.default))
         .map(|theme| &theme.colors);
+    resolve_classes_with_colors(sheet, classes, active_colors)
+}
+
+/// Resolve a class list using an explicitly selected semantic color palette.
+///
+/// Shells use this entry point for named themes and animated palette frames;
+/// the authored stylesheet remains immutable.
+pub fn resolve_classes_with_colors(
+    sheet: &StyleSheet,
+    classes: &[&str],
+    active_colors: Option<&std::collections::HashMap<String, u32>>,
+) -> CascadeResult {
     let mut utility_theme = sheet.theme.clone();
     if let Some(colors) = active_colors {
         utility_theme

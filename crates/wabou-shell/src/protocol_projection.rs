@@ -37,6 +37,8 @@ pub struct GpuiNativeWidget {
 pub struct GpuiProjection {
     tree: ProjectionTree,
     stylesheet: Option<wabou_style::stylesheet::StyleSheet>,
+    active_color_theme: Option<String>,
+    active_theme_colors: Option<std::collections::HashMap<String, u32>>,
     classes: std::collections::HashMap<NodeKey, Vec<String>>,
     style_diagnostics: std::collections::HashMap<NodeKey, Vec<String>>,
     inline_styles: std::collections::HashMap<NodeKey, std::collections::BTreeMap<String, IrValue>>,
@@ -64,6 +66,8 @@ impl GpuiProjection {
         Self {
             tree,
             stylesheet: None,
+            active_color_theme: None,
+            active_theme_colors: None,
             classes: std::collections::HashMap::new(),
             style_diagnostics: std::collections::HashMap::new(),
             inline_styles: std::collections::HashMap::new(),
@@ -349,7 +353,55 @@ impl GpuiProjection {
         stylesheet: wabou_style::stylesheet::StyleSheet,
     ) -> Result<(), String> {
         stylesheet.validate().map_err(str::to_owned)?;
+        let selected = stylesheet.color_themes.as_ref().and_then(|themes| {
+            let name = self
+                .active_color_theme
+                .as_ref()
+                .filter(|name| themes.themes.contains_key(*name))
+                .unwrap_or(&themes.default);
+            themes
+                .themes
+                .get(name)
+                .map(|theme| (name.clone(), theme.colors.clone()))
+        });
+        self.active_color_theme = selected.as_ref().map(|(name, _)| name.clone());
+        self.active_theme_colors = selected.map(|(_, colors)| colors);
         self.stylesheet = Some(stylesheet);
+        self.recompute_all_styles()
+    }
+
+    pub fn set_color_theme(&mut self, name: &str) -> Result<bool, String> {
+        let colors = self
+            .stylesheet
+            .as_ref()
+            .and_then(|sheet| sheet.color_themes.as_ref())
+            .and_then(|themes| themes.themes.get(name))
+            .map(|theme| theme.colors.clone())
+            .ok_or_else(|| format!("unknown Wabou color theme `{name}`"))?;
+        if self.active_color_theme.as_deref() == Some(name)
+            && self.active_theme_colors.as_ref() == Some(&colors)
+        {
+            return Ok(false);
+        }
+        self.active_color_theme = Some(name.to_owned());
+        self.active_theme_colors = Some(colors);
+        self.recompute_all_styles()?;
+        Ok(true)
+    }
+
+    pub fn set_color_palette(
+        &mut self,
+        colors: std::collections::HashMap<String, u32>,
+    ) -> Result<bool, String> {
+        if self.active_theme_colors.as_ref() == Some(&colors) {
+            return Ok(false);
+        }
+        self.active_theme_colors = Some(colors);
+        self.recompute_all_styles()?;
+        Ok(true)
+    }
+
+    fn recompute_all_styles(&mut self) -> Result<(), String> {
         let keys = self
             .tree
             .keys()
@@ -367,9 +419,10 @@ impl GpuiProjection {
         let mut diagnostics = Vec::new();
         if let Some(stylesheet) = &self.stylesheet {
             let classes = self.classes.get(&key).map_or(&[][..], Vec::as_slice);
-            let resolved = wabou_style::stylesheet::resolve_classes(
+            let resolved = wabou_style::stylesheet::resolve_classes_with_colors(
                 stylesheet,
                 &classes.iter().map(String::as_str).collect::<Vec<_>>(),
+                self.active_theme_colors.as_ref(),
             );
             diagnostics.extend(resolved.diagnostics);
             for declaration in resolved.declarations {
@@ -879,6 +932,84 @@ mod tests {
             projection.style(key(2)).unwrap().size.width,
             Length::Definite(DefiniteLength::Absolute(crate::gpui::px(480.0).into()))
         );
+    }
+
+    #[test]
+    fn named_theme_switch_recomputes_gpui_classes_without_legacy_state() {
+        use wabou_style::stylesheet::{
+            Appearance, ColorTheme, ColorThemes, StyleSheet,
+            fixture::{color_token, declaration, rule},
+        };
+
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        let panel = atoms.intern("panel");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::SetClassName {
+                            id: key(2),
+                            classes: vec![panel],
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        projection
+            .set_stylesheet(
+                StyleSheet::builder()
+                    .color_themes(ColorThemes {
+                        default: "light".into(),
+                        themes: std::collections::HashMap::from([
+                            (
+                                "light".into(),
+                                ColorTheme {
+                                    _appearance: Appearance::Light,
+                                    colors: std::collections::HashMap::from([(
+                                        "surface".into(),
+                                        0xffff_ffff,
+                                    )]),
+                                },
+                            ),
+                            (
+                                "dark".into(),
+                                ColorTheme {
+                                    _appearance: Appearance::Dark,
+                                    colors: std::collections::HashMap::from([(
+                                        "surface".into(),
+                                        0x1010_10ff,
+                                    )]),
+                                },
+                            ),
+                        ]),
+                    })
+                    .rules(vec![rule(
+                        "panel",
+                        vec![declaration("background-color", color_token("surface"))],
+                    )])
+                    .build(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            projection.style(key(2)).unwrap().background,
+            Some(crate::gpui::rgba(0xffff_ffff).into())
+        );
+        assert!(projection.set_color_theme("dark").unwrap());
+        assert_eq!(
+            projection.style(key(2)).unwrap().background,
+            Some(crate::gpui::rgba(0x1010_10ff).into())
+        );
+        assert!(!projection.set_color_theme("dark").unwrap());
     }
 
     #[test]

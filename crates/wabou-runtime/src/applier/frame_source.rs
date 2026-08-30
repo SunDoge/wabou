@@ -100,6 +100,9 @@ impl Applier {
             .and_then(|sheet| sheet.color_themes.as_ref())
             .and_then(|themes| themes.themes.get(&name));
         if let Some(theme) = selected {
+            if let Err(error) = self.gpui_projection.set_color_theme(&name) {
+                tracing::error!(target: "stylesheet", %error, "failed to select GPUI color theme");
+            }
             if self.document.style.active_color_theme.as_deref() != Some(name.as_str()) {
                 self.document.style.active_theme_colors = Arc::new(theme.colors.clone());
                 self.document.style.active_color_theme = Some(name);
@@ -134,8 +137,11 @@ impl Applier {
             return;
         };
         if tokens.len() == colors.len() {
-            self.document.style.active_theme_colors =
-                Arc::new(tokens.into_iter().zip(colors).collect());
+            let palette = tokens.into_iter().zip(colors).collect::<HashMap<_, _>>();
+            if let Err(error) = self.gpui_projection.set_color_palette(palette.clone()) {
+                tracing::error!(target: "stylesheet", %error, "failed to install GPUI color palette");
+            }
+            self.document.style.active_theme_colors = Arc::new(palette);
             self.document.style.class_resolution_cache.clear();
             self.recompute_color_palette();
         } else {
