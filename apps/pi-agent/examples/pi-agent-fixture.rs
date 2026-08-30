@@ -160,13 +160,23 @@ fn response(request: &Value, data: Value) -> io::Result<()> {
     }))
 }
 
+fn failure_response(request: &Value, error: &str) -> io::Result<()> {
+    emit(&json!({
+        "id": request.get("id"),
+        "type": "response",
+        "command": request.get("type").and_then(Value::as_str),
+        "success": false,
+        "error": error,
+    }))
+}
+
 fn answer_prompt(state: &mut FixtureState, message: &str) -> io::Result<()> {
     emit(&json!({"type":"agent_start"}))?;
     emit(&json!({
         "type":"message_start",
         "message":{"role":"assistant","content":[]}
     }))?;
-    if message == "Exit fixture" {
+    if message.starts_with("Exit fixture") {
         return Err(io::Error::other("deterministic fixture process exit"));
     }
     if message == "Wait for abort" {
@@ -391,6 +401,9 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_owned();
+            if message.starts_with("Reject request") {
+                return failure_response(request, "Fixture rejected request");
+            }
             let image_count = request
                 .get("images")
                 .and_then(Value::as_array)

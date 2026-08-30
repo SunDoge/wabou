@@ -159,22 +159,46 @@ export function usePiApi() {
     }) => call<PiStatus>("start", options),
     prompt: (
       agentId: string,
+      requestId: string,
       message: string,
       imagePaths: readonly string[] = [],
       contextPaths: readonly string[] = [],
-    ) => call<void>("prompt", { agentId, message, imagePaths, contextPaths }),
+    ) =>
+      call<void>("prompt", {
+        agentId,
+        requestId,
+        message,
+        imagePaths,
+        contextPaths,
+      }),
     steer: (
       agentId: string,
+      requestId: string,
       message: string,
       imagePaths: readonly string[] = [],
       contextPaths: readonly string[] = [],
-    ) => call<void>("steer", { agentId, message, imagePaths, contextPaths }),
+    ) =>
+      call<void>("steer", {
+        agentId,
+        requestId,
+        message,
+        imagePaths,
+        contextPaths,
+      }),
     followUp: (
       agentId: string,
+      requestId: string,
       message: string,
       imagePaths: readonly string[] = [],
       contextPaths: readonly string[] = [],
-    ) => call<void>("followUp", { agentId, message, imagePaths, contextPaths }),
+    ) =>
+      call<void>("followUp", {
+        agentId,
+        requestId,
+        message,
+        imagePaths,
+        contextPaths,
+      }),
     abort: (agentId: string) => call<void>("abort", { agentId }),
     stop: (agentId: string) => call<void>("stop", { agentId }),
     newSession: (agentId: string) => call<void>("newSession", { agentId }),

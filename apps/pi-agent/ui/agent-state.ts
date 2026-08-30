@@ -433,6 +433,7 @@ export function reducePiEvent(
     .with("agent_start", () => ({
       ...state,
       connection: "running" as const,
+      error: undefined,
       activity: { kind: "responding" as const },
       turnStartedAtMs: finiteNumber(event.receivedAtMs),
       turnStartItemIndex: state.items.length,
@@ -500,6 +501,30 @@ export function reducePiEvent(
     .with("response", () => {
       if (event.success !== true) {
         const message = String(event.error ?? "Pi RPC command failed");
+        const requestId =
+          typeof event.id === "string"
+            ? event.id.match(/^wabou-request:(.+)$/)?.[1]
+            : undefined;
+        if (
+          requestId &&
+          (event.command === "prompt" ||
+            event.command === "steer" ||
+            event.command === "follow_up")
+        ) {
+          return {
+            ...state,
+            error: message,
+            items: [
+              ...state.items.filter((item) => item.id !== requestId),
+              {
+                id: `notice-${state.items.length + 1}`,
+                kind: "notice" as const,
+                text: message,
+                tone: "error" as const,
+              },
+            ],
+          };
+        }
         return { ...state, error: message };
       }
       if (event.command === "new_session") {
@@ -715,6 +740,26 @@ export function reducePiEvent(
         error: message,
         items: [
           ...state.items,
+          {
+            id: `notice-${state.items.length + 1}`,
+            kind: "notice" as const,
+            text: message,
+            tone: "error" as const,
+          },
+        ],
+      };
+    })
+    .with("request_error", () => {
+      const message = String(event.message ?? "Pi request failed");
+      const userMessageId =
+        typeof event.userMessageId === "string"
+          ? event.userMessageId
+          : undefined;
+      return {
+        ...state,
+        error: message,
+        items: [
+          ...state.items.filter((item) => item.id !== userMessageId),
           {
             id: `notice-${state.items.length + 1}`,
             kind: "notice" as const,

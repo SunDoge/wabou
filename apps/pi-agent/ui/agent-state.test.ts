@@ -303,6 +303,56 @@ describe("Pi agent event projection", () => {
     });
   });
 
+  test("rolls back a rejected prompt without stopping a healthy agent", () => {
+    const ready = reducePiEvent(initialAgentState, { type: "process_start" });
+    const optimistic = appendUserMessage(
+      ready,
+      "user-pending",
+      "Retry this request",
+    );
+    const failed = reducePiEvent(optimistic, {
+      type: "request_error",
+      userMessageId: "user-pending",
+      message: "provider unavailable",
+    });
+
+    expect(failed.connection).toBe("ready");
+    expect(failed.items).not.toContainEqual(
+      expect.objectContaining({ id: "user-pending" }),
+    );
+    expect(failed.items.at(-1)).toMatchObject({
+      kind: "notice",
+      tone: "error",
+      text: "provider unavailable",
+    });
+
+    const retried = reducePiEvent(failed, { type: "agent_start" });
+    expect(retried.connection).toBe("running");
+    expect(retried.error).toBeUndefined();
+  });
+
+  test("projects an asynchronous prompt rejection onto its optimistic message", () => {
+    const ready = reducePiEvent(initialAgentState, { type: "process_start" });
+    const optimistic = appendUserMessage(ready, "user-async", "Rejected later");
+    const failed = reducePiEvent(optimistic, {
+      id: "wabou-request:user-async",
+      type: "response",
+      command: "prompt",
+      success: false,
+      error: "provider unavailable",
+    });
+
+    expect(failed.connection).toBe("ready");
+    expect(failed.items).not.toContainEqual(
+      expect.objectContaining({ id: "user-async" }),
+    );
+    expect(failed.items.at(-1)).toMatchObject({
+      kind: "notice",
+      tone: "error",
+      text: "provider unavailable",
+    });
+  });
+
   test("projects authoritative session and context usage", () => {
     const state = reducePiEvent(initialAgentState, {
       type: "response",

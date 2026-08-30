@@ -25,13 +25,13 @@ import {
   onCleanup,
   Show,
 } from "solid-js";
+import { subscribeAgentEvents } from "./agent-event-subscription";
+import { createAgentProfiles } from "./agent-profiles";
 import {
   appendUserMessage,
   reconcileProcessConnection,
   reducePiEvent,
 } from "./agent-state";
-import { subscribeAgentEvents } from "./agent-event-subscription";
-import { createAgentProfiles } from "./agent-profiles";
 import { type PiSession, usePiApi } from "./api";
 import { AppCommandPalette } from "./app-command-palette";
 import type { ComposerDeliveryMode } from "./composer-delivery";
@@ -242,6 +242,16 @@ export function App() {
     setDraftContext((current) =>
       writeAgentDraftList(current, activeId(), activeSessionId(), paths),
     );
+  const pendingSubmissions = new Map<
+    string,
+    {
+      agentId: string;
+      sessionId?: string;
+      message: string;
+      images: readonly string[];
+      contextFiles: readonly string[];
+    }
+  >();
   const unsubscribe = subscribeAgentEvents({
     api,
     activeAgentId: activeId,
@@ -252,6 +262,36 @@ export function App() {
       void navigate({ to: `/agents/${agentId}/sessions/${sessionId}` }),
     refreshWorkspaceInfo,
     restoreForkDraft: setDraft,
+    settleRequest: (agentId, requestId, error) => {
+      const submission = pendingSubmissions.get(requestId);
+      if (!submission || submission.agentId !== agentId) return;
+      pendingSubmissions.delete(requestId);
+      if (!error) return;
+      setDrafts((current) =>
+        writeAgentDraft(
+          current,
+          submission.agentId,
+          submission.sessionId,
+          submission.message,
+        ),
+      );
+      setDraftImages((current) =>
+        writeAgentDraftList(
+          current,
+          submission.agentId,
+          submission.sessionId,
+          submission.images,
+        ),
+      );
+      setDraftContext((current) =>
+        writeAgentDraftList(
+          current,
+          submission.agentId,
+          submission.sessionId,
+          submission.contextFiles,
+        ),
+      );
+    },
     exported: (path) =>
       toasts.success(i18n.message(m.export_complete, {}), {
         description: i18n.message(m.export_complete_detail, { path }),
@@ -374,6 +414,14 @@ export function App() {
     if (!message) return;
     const queueing = agent.state.connection === "running";
     if (agent.state.connection !== "ready" && !(await start())) return;
+    const userMessageId = `user-${nextMessage++}`;
+    pendingSubmissions.set(userMessageId, {
+      agentId: agent.id,
+      sessionId: activeSessionId(),
+      message,
+      images: attachedImages,
+      contextFiles: attachedContext,
+    });
     setDraft("");
     setImages([]);
     setContextFiles([]);
@@ -381,7 +429,7 @@ export function App() {
       ...current,
       state: appendUserMessage(
         current.state,
-        `user-${nextMessage++}`,
+        userMessageId,
         message,
         queueing,
         attachedImages.map(imageFileName),
@@ -391,18 +439,38 @@ export function App() {
     try {
       await (queueing
         ? deliveryMode() === "steer"
-          ? api.steer(agent.id, message, attachedImages, attachedContext)
-          : api.followUp(agent.id, message, attachedImages, attachedContext)
-        : api.prompt(agent.id, message, attachedImages, attachedContext));
+          ? api.steer(
+              agent.id,
+              userMessageId,
+              message,
+              attachedImages,
+              attachedContext,
+            )
+          : api.followUp(
+              agent.id,
+              userMessageId,
+              message,
+              attachedImages,
+              attachedContext,
+            )
+        : api.prompt(
+            agent.id,
+            userMessageId,
+            message,
+            attachedImages,
+            attachedContext,
+          ));
     } catch (error) {
+      pendingSubmissions.delete(userMessageId);
       setDraft(message);
       setImages(attachedImages);
       setContextFiles(attachedContext);
       updateAgent(agent.id, (current) => ({
         ...current,
         state: reducePiEvent(current.state, {
-          type: "bridge_error",
+          type: "request_error",
           message: String(error),
+          userMessageId,
         }),
       }));
     }

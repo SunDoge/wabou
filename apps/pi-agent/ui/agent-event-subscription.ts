@@ -27,6 +27,7 @@ export interface AgentEventSubscriptionOptions {
   navigateToSession: (agentId: string, sessionId: string) => void;
   refreshWorkspaceInfo: () => void;
   restoreForkDraft: (text: string) => void;
+  settleRequest: (agentId: string, requestId: string, error?: string) => void;
   exported: (path: string) => void;
 }
 
@@ -58,6 +59,24 @@ export function subscribeAgentEvents(
   return api.subscribe((events) => {
     for (const event of events) {
       const id = typeof event.agentId === "string" ? event.agentId : "agent-1";
+      const requestId =
+        event.type === "response" && typeof event.id === "string"
+          ? event.id.match(/^wabou-request:(.+)$/)?.[1]
+          : undefined;
+      if (
+        requestId &&
+        (event.command === "prompt" ||
+          event.command === "steer" ||
+          event.command === "follow_up")
+      ) {
+        options.settleRequest(
+          id,
+          requestId,
+          event.success === true
+            ? undefined
+            : String(event.error ?? "Pi request failed"),
+        );
+      }
       const dialog = parseExtensionUiRequest(event);
       if (dialog) {
         options.updateDialogs((current) =>
@@ -95,12 +114,14 @@ export function subscribeAgentEvents(
         void api.getSessionStats(id);
         void api.getCommands(id);
         void api.getModelOptions(id);
-        void api.listSessions(id).then((next) =>
-          options.updateSessions((current) => [
-            ...current.filter((session) => session.agentId !== id),
-            ...next,
-          ]),
-        );
+        void api
+          .listSessions(id)
+          .then((next) =>
+            options.updateSessions((current) => [
+              ...current.filter((session) => session.agentId !== id),
+              ...next,
+            ]),
+          );
         const data = stateEvent.data as Record<string, unknown> | null;
         if (
           (stateEvent.id === "wabou-new-session-state" ||
@@ -133,7 +154,10 @@ export function subscribeAgentEvents(
       const forkEvent = successfulResponse(batch, "fork");
       const forkData = forkEvent?.data as Record<string, unknown> | undefined;
       if (forkEvent && forkData?.cancelled !== true) {
-        if (id === options.activeAgentId() && typeof forkData?.text === "string") {
+        if (
+          id === options.activeAgentId() &&
+          typeof forkData?.text === "string"
+        ) {
           options.restoreForkDraft(forkData.text);
         }
         void api.getMessages(id);

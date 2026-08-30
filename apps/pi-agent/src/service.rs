@@ -185,6 +185,7 @@ struct StartRequest {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PromptRequest {
     agent_id: String,
+    request_id: String,
     message: String,
     #[serde(default)]
     image_paths: Vec<PathBuf>,
@@ -1687,6 +1688,7 @@ pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::
             service.send(
                 &request.agent_id,
                 json!({
+                    "id":format!("wabou-request:{}", request.request_id),
                     "type":"prompt",
                     "message":message,
                     "images":images,
@@ -1709,6 +1711,7 @@ pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::
             service.send(
                 &request.agent_id,
                 json!({
+                    "id":format!("wabou-request:{}", request.request_id),
                     "type":"steer",
                     "message":message,
                     "images":images,
@@ -1731,6 +1734,7 @@ pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::
             service.send(
                 &request.agent_id,
                 json!({
+                    "id":format!("wabou-request:{}", request.request_id),
                     "type":"follow_up",
                     "message":message,
                     "images":images,
@@ -1965,6 +1969,7 @@ mod tests {
     fn prompt_request_uses_the_javascript_camel_case_contract() {
         let request: PromptRequest = serde_json::from_value(json!({
             "agentId": "agent-1",
+            "requestId": "user-1",
             "message": "inspect these files",
             "imagePaths": ["page.png"],
             "contextPaths": ["src/main.rs"]
@@ -1972,6 +1977,7 @@ mod tests {
         .expect("camel-case prompt request");
 
         assert_eq!(request.agent_id, "agent-1");
+        assert_eq!(request.request_id, "user-1");
         assert_eq!(request.image_paths, vec![PathBuf::from("page.png")]);
         assert_eq!(request.context_paths, vec![PathBuf::from("src/main.rs")]);
     }
