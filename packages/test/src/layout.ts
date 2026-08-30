@@ -36,6 +36,16 @@ export interface LayoutTextMetrics {
   readonly baseline: number;
 }
 
+export interface LayoutClip {
+  readonly coordinateSpace: string;
+  readonly rect: LayoutRect;
+}
+
+export interface LayoutClipInfo {
+  readonly chain: readonly LayoutClip[];
+  readonly effective?: LayoutClip | null;
+}
+
 export interface LayoutSnapshotNode {
   readonly id: LayoutNodeKey;
   readonly parentId?: LayoutNodeKey | null;
@@ -48,6 +58,8 @@ export interface LayoutSnapshotNode {
   readonly contentRect: LayoutRect;
   readonly styleDiagnostics: readonly string[];
   readonly semantic?: LayoutSemanticProjection | null;
+  /** Resolved native clipping published by DevTools. */
+  readonly clip?: LayoutClipInfo;
   readonly computed: LayoutComputedStyle;
 }
 
@@ -535,6 +547,45 @@ function overlaps(first: LayoutRect, second: LayoutRect, tolerance: number) {
   );
 }
 
+function intersectLayoutRects(
+  first: LayoutRect,
+  second: LayoutRect,
+): LayoutRect | undefined {
+  const x = Math.max(first.x, second.x);
+  const y = Math.max(first.y, second.y);
+  const right = Math.min(layoutRectRight(first), layoutRectRight(second));
+  const bottom = Math.min(layoutRectBottom(first), layoutRectBottom(second));
+  if (right <= x || bottom <= y) return undefined;
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+/** Visible border-box bounds after axis-aligned native clipping. */
+function visibleLayoutRect(node: LayoutSnapshotNode): LayoutRect | undefined {
+  const clip = node.clip;
+  if (!clip) return node.rect;
+  const effective = clip.effective;
+  if (
+    effective &&
+    (effective.coordinateSpace === "window-logical" ||
+      effective.coordinateSpace === "layout-window-logical")
+  ) {
+    return intersectLayoutRects(node.rect, effective.rect);
+  }
+  let visible: LayoutRect | undefined = node.rect;
+  for (const ancestor of clip.chain) {
+    if (
+      ancestor.coordinateSpace !== "window-logical" &&
+      ancestor.coordinateSpace !== "layout-window-logical"
+    )
+      continue;
+    visible = visible
+      ? intersectLayoutRects(visible, ancestor.rect)
+      : undefined;
+    if (!visible) return undefined;
+  }
+  return visible;
+}
+
 /** Opt-in collision check for normal-flow siblings. */
 export function siblingCollisionDiagnostics(
   snapshot: LayoutSnapshot,
@@ -591,9 +642,13 @@ export function textCollisionDiagnostics(
   for (let index = 0; index < textNodes.length; index += 1) {
     for (const second of textNodes.slice(index + 1)) {
       const first = textNodes[index];
+      const firstVisible = visibleLayoutRect(first);
+      const secondVisible = visibleLayoutRect(second);
       if (
         first.computed.overlayPlane !== second.computed.overlayPlane ||
-        !overlaps(first.rect, second.rect, tolerance)
+        !firstVisible ||
+        !secondVisible ||
+        !overlaps(firstVisible, secondVisible, tolerance)
       )
         continue;
       diagnostics.push({

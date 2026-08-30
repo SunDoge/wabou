@@ -120,19 +120,31 @@ function FullWorkbenchFixture() {
       {
         id: "request",
         kind: "user" as const,
-        text: "Keep the full workbench readable at its minimum window size.",
+        text: "Review the retained renderer boundary and explain the safest fix.",
+      },
+      {
+        id: "read-runtime",
+        kind: "tool" as const,
+        name: "read",
+        state: "success" as const,
+        input: JSON.stringify({
+          path: "crates/wabou-runtime/src/applier/frame_source.rs",
+        }),
+        output: "Loaded the frame source and invalidation path.",
+        turnDurationMs: 8_400,
       },
       {
         id: "answer",
         kind: "assistant" as const,
-        text: "The sidebar, conversation header, transcript and composer share one bounded desktop layout contract.",
+        text: "## Renderer boundary\n\nSemantic-only updates were skipping projection even though the retained scene remained valid. The safest fix is to invalidate **semantic projection** without forcing another layout pass.\n\n- Keep the existing visual frame stable\n- Schedule one projection update\n- Preserve the native accessibility snapshot\n\nThe focused component and layout contracts now cover this path.",
       },
     ],
   };
+  const activeProject = { ...project, state };
   return (
     <Workbench role="region" aria-label="Pi Agent workbench">
       <Sidebar
-        agents={[project]}
+        agents={[activeProject]}
         sessions={shellSessions}
         activeId={project.id}
         select={() => {}}
@@ -145,7 +157,7 @@ function FullWorkbenchFixture() {
       />
       <WorkbenchMain role="region" aria-label="Conversation workspace">
         <ConversationHeader
-          project={project.name}
+          project={activeProject.name}
           branch="feat/layout-contract"
           session="Review the retained renderer boundary"
           state={state}
@@ -176,8 +188,8 @@ function FullWorkbenchFixture() {
         </MessageScroller>
         <ConversationComposer
           connection="ready"
-          project={project.name}
-          cwd={project.cwd}
+          project={activeProject.name}
+          cwd={activeProject.cwd}
           draft=""
           images={[]}
           contextFiles={[]}

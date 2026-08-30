@@ -39,6 +39,10 @@ function assertFullWorkbenchLayout(
     role: "combobox",
     name: "Thinking level",
   });
+  const activeSession = getLayoutNode(fixture, {
+    role: "button",
+    name: "Review the retained renderer boundary",
+  });
 
   if (Math.abs(shell.rect.width - viewportWidth) > 0.5) {
     throw new Error(
@@ -74,6 +78,14 @@ function assertFullWorkbenchLayout(
       `composer controls lost readable widths: model=${model.rect.width}, thinking=${thinking.rect.width}`,
     );
   }
+  if (
+    !activeSession.attrs.some(
+      ([name, value]) => name === "aria-selected" && value === "true",
+    )
+  ) {
+    throw new Error("full workbench fixture did not expose its active session");
+  }
+  getLayoutNode(fixture, { text: "Renderer boundary" });
 }
 
 try {
