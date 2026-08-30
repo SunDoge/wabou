@@ -34,13 +34,13 @@ use vello::kurbo::{Affine, Rect, Stroke};
 use vello::peniko::{Color, Fill};
 use wabou_runtime::{Widget, WidgetChanges, WidgetNodeEvent, WidgetStyle};
 use wabou_runtime::{WidgetEventResult, event};
+#[cfg(test)]
+use wabou_shell::style::Paint;
+use wabou_shell::text::{TextContext, layout_text_styled};
 use wabou_shell_api::{
     HostAction, HostActionResult, ImeEvent, KeyPhase, Modifiers, PointerButton, PointerPhase,
     UiEvent, WHEEL_LINE_DELTA, WakeCallback,
 };
-#[cfg(test)]
-use wabou_shell::style::Paint;
-use wabou_shell::text::{TextContext, layout_text_styled};
 
 mod box_drawing;
 mod graphics;

@@ -14,7 +14,7 @@ use wabou_shell_gpui::gpui::{
     Subscription, SystemNotification, Task, Window, div,
 };
 
-use crate::{Applier, FrameSource};
+use crate::Applier;
 use wabou_shell_gpui::{
     ClipboardRequest, EffectCompletion, EffectErrorCode, EffectPayload, EffectRequest,
     EffectResult, HostAction, HostActionResult, UiEvent, WindowCommand,
@@ -106,7 +106,7 @@ impl GpuiRuntimeView {
         cx: &mut Context<Self>,
     ) -> Self {
         let (wake, receiver) = gpui_wake_channel();
-        FrameSource::set_wake_callback(&mut applier, wake);
+        applier.install_runtime_wake(wake);
 
         let wake_task = cx.spawn(async move |view, cx| {
             while receiver.recv_async().await.is_ok() {
@@ -115,7 +115,7 @@ impl GpuiRuntimeView {
                         // Drain work immediately instead of waiting for an unrelated
                         // input event or animation frame. The following render pass
                         // publishes any resulting Solid mutation batch to GPUI.
-                        let _ = FrameSource::poll_async(&mut view.applier);
+                        let _ = view.applier.poll_runtime();
                         cx.notify();
                     })
                     .is_err()
@@ -237,8 +237,7 @@ impl GpuiRuntimeView {
                         .and_then(|clipboard| clipboard.text())
                         .filter(|text| !text.is_empty());
                     if let Some(text) = text {
-                        let pasted =
-                            FrameSource::handle_event(&mut self.applier, UiEvent::Paste(text));
+                        let pasted = self.applier.dispatch_runtime_event(UiEvent::Paste(text));
                         response.handled |= pasted.handled;
                         response.request_redraw |= pasted.request_redraw;
                     }
@@ -252,7 +251,7 @@ impl GpuiRuntimeView {
 
     fn drain_host_actions(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let mut handled = false;
-        while let Some(action) = FrameSource::take_host_action(&mut self.applier) {
+        while let Some(action) = self.applier.take_runtime_host_action() {
             handled = true;
             match action {
                 HostAction::OpenUrl(url) => {
@@ -267,22 +266,21 @@ impl GpuiRuntimeView {
                 }
                 HostAction::WriteClipboard { request_id, text } => {
                     cx.write_to_clipboard(ClipboardItem::new_string(text));
-                    FrameSource::complete_host_action(
-                        &mut self.applier,
-                        HostActionResult::ClipboardWrite {
+                    self.applier
+                        .complete_runtime_host_action(HostActionResult::ClipboardWrite {
                             request_id,
                             success: true,
-                        },
-                    );
+                        });
                 }
                 HostAction::ReadClipboard { request_id } => {
                     let text = cx
                         .read_from_clipboard()
                         .and_then(|clipboard| clipboard.text());
-                    FrameSource::complete_host_action(
-                        &mut self.applier,
-                        HostActionResult::Clipboard { request_id, text },
-                    );
+                    self.applier
+                        .complete_runtime_host_action(HostActionResult::Clipboard {
+                            request_id,
+                            text,
+                        });
                 }
                 HostAction::SetWindowTitle(title) => {
                     window.set_window_title(title.as_deref().unwrap_or(&self.default_title));
@@ -295,11 +293,11 @@ impl GpuiRuntimeView {
 
     fn drain_effects(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let mut handled = false;
-        while let Some(request) = FrameSource::take_effect(&mut self.applier) {
+        while let Some(request) = self.applier.take_runtime_effect() {
             handled = true;
             let completion = self.execute_effect(request, window, cx);
             if let Some(completion) = completion {
-                FrameSource::complete_effect(&mut self.applier, completion);
+                self.applier.complete_runtime_effect(completion);
             }
         }
         handled
@@ -475,10 +473,8 @@ impl GpuiRuntimeView {
                 Err(error) => platform_effect_error(error),
             };
             let _ = view.update(cx, |view, cx| {
-                FrameSource::complete_effect(
-                    &mut view.applier,
-                    EffectCompletion { id, op, result },
-                );
+                view.applier
+                    .complete_runtime_effect(EffectCompletion { id, op, result });
                 cx.notify();
             });
         })
@@ -501,10 +497,8 @@ impl GpuiRuntimeView {
                 Err(error) => platform_effect_error(error),
             };
             let _ = view.update(cx, |view, cx| {
-                FrameSource::complete_effect(
-                    &mut view.applier,
-                    EffectCompletion { id, op, result },
-                );
+                view.applier
+                    .complete_runtime_effect(EffectCompletion { id, op, result });
                 cx.notify();
             });
         })
@@ -527,10 +521,8 @@ impl GpuiRuntimeView {
                 Err(error) => platform_effect_error(error),
             };
             let _ = view.update(cx, |view, cx| {
-                FrameSource::complete_effect(
-                    &mut view.applier,
-                    EffectCompletion { id, op, result },
-                );
+                view.applier
+                    .complete_runtime_effect(EffectCompletion { id, op, result });
                 cx.notify();
             });
         })
@@ -627,7 +619,7 @@ impl Render for GpuiRuntimeView {
             cx.notify();
         }
 
-        if FrameSource::has_anim(&self.applier) {
+        if self.applier.runtime_has_animation() {
             // GPUI associates this request with the currently rendering view
             // and notifies only that entity on the next platform frame.
             window.request_animation_frame();

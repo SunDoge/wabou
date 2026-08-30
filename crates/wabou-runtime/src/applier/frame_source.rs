@@ -338,6 +338,44 @@ impl Applier {
     pub(crate) fn gpui_focused_target(&self) -> Option<NodeKey> {
         self.interaction.input.focused_target
     }
+
+    pub(crate) fn install_runtime_wake(&mut self, wake: WakeCallback) {
+        FrameSource::set_wake_callback(self, wake);
+    }
+
+    pub(crate) fn poll_runtime(&mut self) -> bool {
+        FrameSource::poll_async(self)
+    }
+
+    pub(crate) fn dispatch_runtime_event(&mut self, event: UiEvent) -> EventResponse {
+        FrameSource::handle_event(self, event)
+    }
+
+    pub(crate) fn take_runtime_host_action(&mut self) -> Option<wabou_shell_gpui::HostAction> {
+        FrameSource::take_host_action(self)
+    }
+
+    pub(crate) fn complete_runtime_host_action(
+        &mut self,
+        result: wabou_shell_gpui::HostActionResult,
+    ) {
+        FrameSource::complete_host_action(self, result);
+    }
+
+    pub(crate) fn take_runtime_effect(&mut self) -> Option<wabou_shell_gpui::EffectRequest> {
+        FrameSource::take_effect(self)
+    }
+
+    pub(crate) fn complete_runtime_effect(
+        &mut self,
+        completion: wabou_shell_gpui::EffectCompletion,
+    ) {
+        FrameSource::complete_effect(self, completion);
+    }
+
+    pub(crate) fn runtime_has_animation(&self) -> bool {
+        FrameSource::has_anim(self)
+    }
 }
 
 impl FrameSource for Applier {
