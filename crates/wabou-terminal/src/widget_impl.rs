@@ -26,6 +26,32 @@ impl TerminalInputResult {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) struct TerminalInvalidation {
+    measure: bool,
+    redraw: bool,
+}
+
+impl TerminalInvalidation {
+    const REDRAW: Self = Self {
+        measure: false,
+        redraw: true,
+    };
+    const MEASURE_AND_REDRAW: Self = Self {
+        measure: true,
+        redraw: true,
+    };
+
+    fn into_legacy(self) -> WidgetChanges {
+        match (self.measure, self.redraw) {
+            (true, true) => WidgetChanges::MEASURE | WidgetChanges::REDRAW,
+            (true, false) => WidgetChanges::MEASURE,
+            (false, true) => WidgetChanges::REDRAW,
+            (false, false) => WidgetChanges::empty(),
+        }
+    }
+}
+
 /// Factory suitable for `HostBuilder::widget("terminal", terminal_widget)`.
 pub fn terminal_widget() -> Box<dyn Widget> {
     Box::new(TerminalWidget::lazy_default_shell())
@@ -67,13 +93,118 @@ fn terminal_scene(width: f32, height: f32, background: Color) -> Scene {
 }
 
 impl TerminalWidget {
-    /// Transitional core-facing adapter used by the GPUI implementation.
-    ///
-    /// Keeping the legacy `Widget` dispatch behind this module prevents the
-    /// GPUI element from depending on that trait while the terminal session
-    /// state is split from the old paint adapter.
-    pub(super) fn apply_native_attribute(&mut self, name: &str, value: &str) {
-        let _ = <Self as Widget>::attribute_changed(self, name, value);
+    /// Apply one terminal configuration attribute independently of a shell
+    /// widget trait. Native adapters translate the returned invalidation into
+    /// their own layout and paint scheduling model.
+    pub(super) fn apply_native_attribute(
+        &mut self,
+        name: &str,
+        value: &str,
+    ) -> TerminalInvalidation {
+        match name {
+            "command" if !self.launch_started || self.spawn_error.is_some() => {
+                self.launch_started = false;
+                self.spawn_error = None;
+                let launch = self.launch.get_or_insert_with(LaunchConfig::default_shell);
+                launch.login_shell = value.is_empty();
+                launch.command = if value.is_empty() {
+                    default_shell_command()
+                } else {
+                    value.to_owned()
+                };
+            }
+            "args" if !self.launch_started || self.spawn_error.is_some() => {
+                match serde_json::from_str::<Vec<String>>(value) {
+                    Ok(args) => {
+                        self.launch_started = false;
+                        self.launch
+                            .get_or_insert_with(LaunchConfig::default_shell)
+                            .args = args;
+                        self.launch_error = None;
+                        self.spawn_error = None;
+                    }
+                    Err(error) => {
+                        let message = format!("invalid terminal args JSON: {error}");
+                        self.launch_error = Some(message.clone());
+                        self.spawn_error = Some(message);
+                    }
+                }
+            }
+            "cwd" if !self.launch_started || self.spawn_error.is_some() => {
+                self.launch_started = false;
+                self.spawn_error = None;
+                self.launch
+                    .get_or_insert_with(LaunchConfig::default_shell)
+                    .cwd = (!value.is_empty()).then(|| value.to_owned());
+            }
+            "command" | "args" | "cwd" => {
+                tracing::warn!(
+                    attribute = name,
+                    "ignored terminal launch option after PTY start"
+                );
+            }
+            "font-size" => {
+                if let Ok(size) = value.trim_end_matches("px").parse::<f32>() {
+                    self.font_size = size.max(6.0);
+                    self.metrics_dirty = true;
+                }
+            }
+            "line-height" => {
+                if let Ok(height) = value.trim_end_matches("px").parse::<f32>() {
+                    self.explicit_line_height = Some(height.max(0.0));
+                    self.metrics_dirty = true;
+                }
+            }
+            "font-family" => {
+                self.font_family = Arc::from(value);
+                self.metrics_dirty = true;
+            }
+            "allow-clipboard-read" => {
+                self.allow_clipboard_read = matches!(value, "" | "true" | "1");
+            }
+            "cursor-blink" => {
+                self.cursor_blink = Some(matches!(value, "" | "true" | "1"));
+                let terminal_blinking = self.terminal.lock().blinking_cursor;
+                self.schedule_cursor_blink(terminal_blinking);
+            }
+            "sync-window-title" => {
+                let enabled = matches!(value, "" | "true" | "1");
+                if self.sync_window_title && !enabled {
+                    self.pending_host_actions
+                        .push_back(HostAction::SetWindowTitle(None));
+                }
+                self.sync_window_title = enabled;
+            }
+            "selection-background" => {
+                if let Some(color) = wabou_shell::style::parse_color(value) {
+                    self.selection_background = color;
+                }
+            }
+            "selection-foreground" => {
+                if let Some(color) = wabou_shell::style::parse_color(value) {
+                    self.selection_foreground = Some(color);
+                }
+            }
+            "inherit-theme" => {
+                self.inherit_theme = matches!(value, "" | "true" | "1");
+                if !self.inherit_theme {
+                    self.theme_foreground = named_color(NamedColor::Foreground, true);
+                    self.theme_background = named_color(NamedColor::Background, false);
+                }
+            }
+            _ => {}
+        }
+        match name {
+            "font-size" | "line-height" | "font-family" => TerminalInvalidation::MEASURE_AND_REDRAW,
+            "command"
+            | "args"
+            | "cwd"
+            | "selection-background"
+            | "selection-foreground"
+            | "inherit-theme"
+            | "cursor-blink" => TerminalInvalidation::REDRAW,
+            _ => TerminalInvalidation::default(),
+        }
     }
 
     pub(super) fn dispatch_native_event(&mut self, event: &UiEvent) -> TerminalInputResult {
@@ -81,11 +212,11 @@ impl TerminalWidget {
     }
 
     pub(super) fn install_native_wake(&mut self, wake: WakeCallback) {
-        <Self as Widget>::set_wake_callback(self, wake);
+        self.listener.set_wake(wake);
     }
 
     pub(super) fn poll_native_events(&mut self) -> bool {
-        <Self as Widget>::poll_async(self)
+        self.handle_rio_events()
     }
 
     fn handle_native_event(&mut self, event: &UiEvent) -> TerminalInputResult {
@@ -758,112 +889,7 @@ impl Widget for TerminalWidget {
     }
 
     fn attribute_changed(&mut self, name: &str, value: &str) -> WidgetChanges {
-        match name {
-            "command" if !self.launch_started || self.spawn_error.is_some() => {
-                self.launch_started = false;
-                self.spawn_error = None;
-                let launch = self.launch.get_or_insert_with(LaunchConfig::default_shell);
-                launch.login_shell = value.is_empty();
-                launch.command = if value.is_empty() {
-                    default_shell_command()
-                } else {
-                    value.to_owned()
-                };
-            }
-            "args" if !self.launch_started || self.spawn_error.is_some() => {
-                match serde_json::from_str::<Vec<String>>(value) {
-                    Ok(args) => {
-                        self.launch_started = false;
-                        self.launch
-                            .get_or_insert_with(LaunchConfig::default_shell)
-                            .args = args;
-                        self.launch_error = None;
-                        self.spawn_error = None;
-                    }
-                    Err(error) => {
-                        let message = format!("invalid terminal args JSON: {error}");
-                        self.launch_error = Some(message.clone());
-                        self.spawn_error = Some(message);
-                    }
-                }
-            }
-            "cwd" if !self.launch_started || self.spawn_error.is_some() => {
-                self.launch_started = false;
-                self.spawn_error = None;
-                self.launch
-                    .get_or_insert_with(LaunchConfig::default_shell)
-                    .cwd = (!value.is_empty()).then(|| value.to_owned());
-            }
-            "command" | "args" | "cwd" => {
-                tracing::warn!(
-                    attribute = name,
-                    "ignored terminal launch option after PTY start"
-                );
-            }
-            "font-size" => {
-                if let Ok(size) = value.trim_end_matches("px").parse::<f32>() {
-                    self.font_size = size.max(6.0);
-                    self.metrics_dirty = true;
-                }
-            }
-            "line-height" => {
-                if let Ok(height) = value.trim_end_matches("px").parse::<f32>() {
-                    self.explicit_line_height = Some(height.max(0.0));
-                    self.metrics_dirty = true;
-                }
-            }
-            "font-family" => {
-                self.font_family = Arc::from(value);
-                self.metrics_dirty = true;
-            }
-            "allow-clipboard-read" => {
-                self.allow_clipboard_read = matches!(value, "" | "true" | "1");
-            }
-            "cursor-blink" => {
-                self.cursor_blink = Some(matches!(value, "" | "true" | "1"));
-                let terminal_blinking = self.terminal.lock().blinking_cursor;
-                self.schedule_cursor_blink(terminal_blinking);
-            }
-            "sync-window-title" => {
-                let enabled = matches!(value, "" | "true" | "1");
-                if self.sync_window_title && !enabled {
-                    self.pending_host_actions
-                        .push_back(HostAction::SetWindowTitle(None));
-                }
-                self.sync_window_title = enabled;
-            }
-            "selection-background" => {
-                if let Some(color) = wabou_shell::style::parse_color(value) {
-                    self.selection_background = color;
-                }
-            }
-            "selection-foreground" => {
-                if let Some(color) = wabou_shell::style::parse_color(value) {
-                    self.selection_foreground = Some(color);
-                }
-            }
-            "inherit-theme" => {
-                self.inherit_theme = matches!(value, "" | "true" | "1");
-                if !self.inherit_theme {
-                    self.theme_foreground = named_color(NamedColor::Foreground, true);
-                    self.theme_background = named_color(NamedColor::Background, false);
-                }
-            }
-            _ => {}
-        }
-        match name {
-            "font-size" | "line-height" | "font-family" => {
-                WidgetChanges::MEASURE | WidgetChanges::REDRAW
-            }
-            "command"
-            | "args"
-            | "cwd"
-            | "selection-background"
-            | "selection-foreground"
-            | "inherit-theme"
-            | "cursor-blink" => WidgetChanges::REDRAW,
-            _ => WidgetChanges::empty(),
-        }
+        self.apply_native_attribute(name, value).into_legacy()
     }
 
     fn accepts_focus(&self) -> bool {
@@ -954,11 +980,11 @@ impl Widget for TerminalWidget {
     }
 
     fn set_wake_callback(&mut self, wake: WakeCallback) {
-        self.listener.set_wake(wake);
+        self.install_native_wake(wake);
     }
 
     fn poll_async(&mut self) -> bool {
-        self.handle_rio_events()
+        self.poll_native_events()
     }
 
     fn take_host_action(&mut self) -> Option<HostAction> {
