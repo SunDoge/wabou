@@ -12,7 +12,7 @@ use vello::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
 
 #[derive(Clone)]
 struct CachedGraphic {
-    brush: ImageBrush,
+    pixels: Arc<Vec<u8>>,
     width: usize,
     height: usize,
 }
@@ -56,17 +56,10 @@ impl TerminalGraphics {
             );
             return;
         };
-        let data = ImageData {
-            data: Blob::new(Arc::new(pixels.into_boxed_slice())),
-            format: ImageFormat::Rgba8,
-            alpha_type: ImageAlphaType::Alpha,
-            width: graphic.width as u32,
-            height: graphic.height as u32,
-        };
         self.images.insert(
             key,
             CachedGraphic {
-                brush: ImageBrush::new(data),
+                pixels: Arc::new(pixels),
                 width: graphic.width,
                 height: graphic.height,
             },
@@ -151,6 +144,13 @@ impl TerminalGraphics {
         let Some(image) = self.images.get(&overlay.image_id) else {
             return;
         };
+        let brush = ImageBrush::new(ImageData {
+            data: Blob::new(image.pixels.clone()),
+            format: ImageFormat::Rgba8,
+            alpha_type: ImageAlphaType::Alpha,
+            width: image.width as u32,
+            height: image.height as u32,
+        });
         let scale = device_scale.max(f64::EPSILON);
         let Some((destination, transform)) =
             overlay_transform(&overlay, image.width, image.height, scale)
@@ -158,7 +158,7 @@ impl TerminalGraphics {
             return;
         };
         scene.push_clip_layer(Affine::IDENTITY, &destination);
-        scene.draw_image((&image.brush).into(), transform);
+        scene.draw_image((&brush).into(), transform);
         scene.pop_layer();
     }
 }
