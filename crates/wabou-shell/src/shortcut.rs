@@ -2,38 +2,7 @@
 
 #![warn(missing_docs)]
 
-use crate::{KeyEvent, KeyPhase};
-
-/// Editing shortcuts whose physical bindings follow platform conventions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StandardShortcut {
-    /// Copy the current selection.
-    Copy,
-    /// Cut the current selection.
-    Cut,
-    /// Paste clipboard contents.
-    Paste,
-    /// Select all editable/selectable content.
-    SelectAll,
-}
-
-impl KeyEvent {
-    /// Match a platform-standard editing shortcut. Physical combinations such
-    /// as terminal Control+C should continue to inspect `modifiers` directly.
-    pub fn matches_standard_shortcut(&self, shortcut: StandardShortcut) -> bool {
-        let key = match shortcut {
-            StandardShortcut::Copy => "c",
-            StandardShortcut::Cut => "x",
-            StandardShortcut::Paste => "v",
-            StandardShortcut::SelectAll => "a",
-        };
-        self.phase == KeyPhase::Down
-            && self.modifiers.primary_shortcut()
-            && !self.modifiers.shift()
-            && (self.key_without_modifiers.eq_ignore_ascii_case(key)
-                || self.key.eq_ignore_ascii_case(key))
-    }
-}
+pub use wabou_shell_api::StandardShortcut;
 
 #[cfg(test)]
 mod tests {

@@ -140,7 +140,7 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let response = applier.handle_event(UiEvent::WindowMetrics(wabou_shell::WindowMetrics {
+    let response = applier.handle_event(UiEvent::WindowMetrics(wabou_shell_gpui::WindowMetrics {
         window_key: wabou_shell_gpui::WindowResourceKey::from_parts(1, 1).unwrap(),
         logical_width: 800,
         logical_height: 600,
@@ -152,7 +152,7 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
         outer_x: Some(120),
         outer_y: Some(80),
         occluded: false,
-        color_scheme: Some(wabou_shell::ColorScheme::Dark),
+        color_scheme: Some(wabou_shell_gpui::ColorScheme::Dark),
     }));
     assert!(response.request_redraw);
     assert_eq!(applier.frame.device_scale, 2.0);
@@ -181,10 +181,10 @@ fn native_file_drop_reaches_js_with_paths_and_logical_position() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let response = applier.handle_event(UiEvent::FileDrop(wabou_shell::FileDropEvent {
-        phase: wabou_shell::FileDropPhase::Dropped,
+    let response = applier.handle_event(UiEvent::FileDrop(wabou_shell_gpui::FileDropEvent {
+        phase: wabou_shell_gpui::FileDropPhase::Dropped,
         paths: vec!["/tmp/one.yaml".into(), "/tmp/two.torrent".into()],
-        position: Some(wabou_shell::Point { x: 24.5, y: 31.0 }),
+        position: Some(wabou_shell_gpui::Point { x: 24.5, y: 31.0 }),
     }));
     assert!(response.request_redraw);
     let payload = applier
@@ -209,10 +209,10 @@ fn native_gesture_reaches_js_with_explicit_non_dom_semantics() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let response = applier.handle_event(UiEvent::Gesture(wabou_shell::GestureEvent::Pan {
+    let response = applier.handle_event(UiEvent::Gesture(wabou_shell_gpui::GestureEvent::Pan {
         delta_x: 12.5,
         delta_y: -4.0,
-        phase: wabou_shell::GesturePhase::Changed,
+        phase: wabou_shell_gpui::GesturePhase::Changed,
     }));
     assert!(response.request_redraw);
     let payload = applier
@@ -237,7 +237,7 @@ fn application_lifecycle_reaches_js_without_a_render_frame() {
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let response = applier.handle_event(UiEvent::AppLifecycle(
-        wabou_shell::AppLifecycleEvent::MemoryWarning,
+        wabou_shell_gpui::AppLifecycleEvent::MemoryWarning,
     ));
     assert!(response.request_redraw);
     let payload = applier
@@ -259,7 +259,7 @@ fn modifier_changes_reach_js_as_typed_host_state() {
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let response = applier.handle_event(UiEvent::ModifiersChanged(
-        wabou_shell::Modifiers::CONTROL | wabou_shell::Modifiers::SHIFT,
+        wabou_shell_gpui::Modifiers::CONTROL | wabou_shell_gpui::Modifiers::SHIFT,
     ));
     assert!(response.request_redraw);
     let payload = applier

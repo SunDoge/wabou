@@ -1080,13 +1080,13 @@ impl FrameSource for Applier {
             || overlay_changed
     }
 
-    fn take_host_action(&mut self) -> Option<wabou_shell::HostAction> {
+    fn take_host_action(&mut self) -> Option<wabou_shell_gpui::HostAction> {
         self.runtime.pending_host_actions.borrow_mut().pop_front()
     }
 
-    fn complete_host_action(&mut self, result: wabou_shell::HostActionResult) {
+    fn complete_host_action(&mut self, result: wabou_shell_gpui::HostActionResult) {
         match result {
-            wabou_shell::HostActionResult::Clipboard { request_id, text } => {
+            wabou_shell_gpui::HostActionResult::Clipboard { request_id, text } => {
                 let Some((node, widget_request_id)) = self
                     .document
                     .widget_manager
@@ -1096,13 +1096,13 @@ impl FrameSource for Applier {
                     return;
                 };
                 if let Some(widget) = self.document.widget_manager.widgets.get_mut(&node) {
-                    widget.complete_host_action(wabou_shell::HostActionResult::Clipboard {
+                    widget.complete_host_action(wabou_shell_gpui::HostActionResult::Clipboard {
                         request_id: widget_request_id,
                         text,
                     });
                 }
             }
-            wabou_shell::HostActionResult::ClipboardWrite {
+            wabou_shell_gpui::HostActionResult::ClipboardWrite {
                 request_id,
                 success,
             } => {
@@ -1122,7 +1122,7 @@ impl FrameSource for Applier {
     }
 
     #[cfg(any(feature = "devtools", test))]
-    fn take_screenshot_request(&mut self) -> Option<wabou_shell::ScreenshotRequest> {
+    fn take_screenshot_request(&mut self) -> Option<wabou_shell_gpui::ScreenshotRequest> {
         let (path, file) = self
             .frame
             .projections
@@ -1131,11 +1131,11 @@ impl FrameSource for Applier {
             .write()
             .ok()?
             .take_screenshot_request()?;
-        Some(wabou_shell::ScreenshotRequest { path, file })
+        Some(wabou_shell_gpui::ScreenshotRequest { path, file })
     }
 
     #[cfg(not(any(feature = "devtools", test)))]
-    fn take_screenshot_request(&mut self) -> Option<wabou_shell::ScreenshotRequest> {
+    fn take_screenshot_request(&mut self) -> Option<wabou_shell_gpui::ScreenshotRequest> {
         None
     }
 

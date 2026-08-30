@@ -12488,9 +12488,11 @@ dependencies = [
 name = "wabou-shell-api"
 version = "0.1.0-alpha.3"
 dependencies = [
+ "bitflags 2.13.1",
  "directories",
  "serde",
  "serde_json",
+ "wabou-accessibility",
  "wabou-host-api",
 ]
 

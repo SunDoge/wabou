@@ -205,7 +205,7 @@ fn text_input_updates_value_paints_and_dispatches_input() {
         serde_json::json!({ "anchor": 2, "head": 2, "text": null, "kind": "simple" })
     );
 
-    applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
+    applier.handle_event(UiEvent::Key(wabou_shell_gpui::KeyEvent {
         phase: KeyPhase::Down,
         key: "Backspace".into(),
         key_without_modifiers: "Backspace".into(),
@@ -228,7 +228,7 @@ fn text_input_updates_value_paints_and_dispatches_input() {
     );
 
     for _ in 0..2 {
-        applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
+        applier.handle_event(UiEvent::Key(wabou_shell_gpui::KeyEvent {
             phase: KeyPhase::Down,
             key: "Backspace".into(),
             key_without_modifiers: "Backspace".into(),
@@ -574,7 +574,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
             .is_empty()
     );
 
-    let copied = applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
+    let copied = applier.handle_event(UiEvent::Key(wabou_shell_gpui::KeyEvent {
         phase: KeyPhase::Down,
         key: "c".into(),
         key_without_modifiers: "c".into(),
@@ -592,7 +592,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     }));
     assert_eq!(
         copied.clipboard,
-        Some(wabou_shell::ClipboardRequest::Write(selected))
+        Some(wabou_shell_gpui::ClipboardRequest::Write(selected))
     );
 
     applier.interaction.text_selection.last_click = None;
@@ -817,7 +817,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
     applier.prepare_text_selection(&mut placed, &mut tcx);
     assert_eq!(applier.interaction.text_selection.order, vec![nk(2), nk(6)]);
 
-    let select_all = applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
+    let select_all = applier.handle_event(UiEvent::Key(wabou_shell_gpui::KeyEvent {
         phase: KeyPhase::Down,
         key: "a".into(),
         key_without_modifiers: "a".into(),
@@ -836,7 +836,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
     assert!(select_all.handled);
     assert!(select_all.request_redraw);
     assert_eq!(applier.selected_text().as_deref(), Some("alpha\nbeta"));
-    let copy_all = applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
+    let copy_all = applier.handle_event(UiEvent::Key(wabou_shell_gpui::KeyEvent {
         phase: KeyPhase::Down,
         key: "c".into(),
         key_without_modifiers: "c".into(),
@@ -854,7 +854,9 @@ fn text_selection_crosses_hosts_in_both_directions() {
     }));
     assert_eq!(
         copy_all.clipboard,
-        Some(wabou_shell::ClipboardRequest::Write("alpha\nbeta".into()))
+        Some(wabou_shell_gpui::ClipboardRequest::Write(
+            "alpha\nbeta".into()
+        ))
     );
 
     let point = |text: &SelectableText, index: usize| {

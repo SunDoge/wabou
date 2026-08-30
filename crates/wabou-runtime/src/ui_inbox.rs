@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use arc_swap::ArcSwapOption;
-use wabou_shell::WakeCallback;
+use wabou_shell_gpui::WakeCallback;
 
 struct StoredWakeCallback(WakeCallback);
 

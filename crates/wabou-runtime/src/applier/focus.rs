@@ -86,7 +86,7 @@ impl Applier {
         let UiEvent::Key(key) = input else {
             return None;
         };
-        if key.matches_standard_shortcut(wabou_shell::StandardShortcut::Copy)
+        if key.matches_standard_shortcut(wabou_shell_gpui::StandardShortcut::Copy)
             && let Some(text) = self.selected_text()
         {
             return Some(EventResponse {
@@ -94,10 +94,10 @@ impl Applier {
                 request_redraw: false,
                 consume_key_text: false,
                 text_input: None,
-                clipboard: Some(wabou_shell::ClipboardRequest::Write(text)),
+                clipboard: Some(wabou_shell_gpui::ClipboardRequest::Write(text)),
             });
         }
-        if key.matches_standard_shortcut(wabou_shell::StandardShortcut::SelectAll)
+        if key.matches_standard_shortcut(wabou_shell_gpui::StandardShortcut::SelectAll)
             && self.select_all_text()
         {
             self.sync_text_selection_change();
@@ -149,15 +149,16 @@ impl Applier {
                 event::IMECOMMIT,
                 serde_json::json!({ "data": text, "source": "paste" }),
             ),
-            UiEvent::Ime(wabou_shell::ImeEvent::Commit(text)) => self.dispatch_focused_ime_json(
-                event::IMECOMMIT,
-                serde_json::json!({ "data": text, "source": "ime" }),
-            ),
-            UiEvent::Ime(wabou_shell::ImeEvent::Enabled) => {
+            UiEvent::Ime(wabou_shell_gpui::ImeEvent::Commit(text)) => self
+                .dispatch_focused_ime_json(
+                    event::IMECOMMIT,
+                    serde_json::json!({ "data": text, "source": "ime" }),
+                ),
+            UiEvent::Ime(wabou_shell_gpui::ImeEvent::Enabled) => {
                 self.dispatch_focused_ime_json(event::IMEENABLED, serde_json::json!({}))
                     || widget_handled
             }
-            UiEvent::Ime(wabou_shell::ImeEvent::Preedit { text, cursor }) => {
+            UiEvent::Ime(wabou_shell_gpui::ImeEvent::Preedit { text, cursor }) => {
                 let (cursor_start, cursor_end) = cursor
                     .map(|(start, end)| (Some(start), Some(end)))
                     .unwrap_or((None, None));
@@ -170,7 +171,7 @@ impl Applier {
                     }),
                 ) || widget_handled
             }
-            UiEvent::Ime(wabou_shell::ImeEvent::DeleteSurrounding {
+            UiEvent::Ime(wabou_shell_gpui::ImeEvent::DeleteSurrounding {
                 before_bytes,
                 after_bytes,
             }) => {
@@ -182,7 +183,7 @@ impl Applier {
                     }),
                 ) || widget_handled
             }
-            UiEvent::Ime(wabou_shell::ImeEvent::Disabled) => {
+            UiEvent::Ime(wabou_shell_gpui::ImeEvent::Disabled) => {
                 self.dispatch_focused_ime_json(event::IMEDISABLED, serde_json::json!({}))
                     || widget_handled
             }

@@ -57,7 +57,7 @@ pub(crate) struct LayoutMetricsSnapshot {
 use crate::atom::AtomPool;
 use crate::host_frame::{HostEvent, encode_host_frame};
 use crate::style_ir::{ColorThemes, StylesheetUpdate};
-use wabou_shell::FrameStats;
+use wabou_shell_gpui::FrameStats;
 
 const CORE_PRELUDE: &str = include_str!("gen/core-prelude.js");
 // Solid 2's universal renderer mounts nested JSX synchronously. A realistic
@@ -100,7 +100,7 @@ impl<'js> rquickjs::IntoJs<'js> for FetchResponse {
 }
 
 struct RuntimeWake {
-    callback: Mutex<Option<wabou_shell::WakeCallback>>,
+    callback: Mutex<Option<wabou_shell_gpui::WakeCallback>>,
     pending: AtomicBool,
 }
 
@@ -797,7 +797,7 @@ impl JsRuntime {
         self.resize_targets.clone()
     }
 
-    pub(crate) fn set_wake_callback(&self, callback: wabou_shell::WakeCallback) {
+    pub(crate) fn set_wake_callback(&self, callback: wabou_shell_gpui::WakeCallback) {
         if let Ok(mut wake) = self.runtime_wake.callback.lock() {
             *wake = Some(callback);
         }

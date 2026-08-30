@@ -11,7 +11,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
-use wabou_shell::WakeCallback;
+use wabou_shell_gpui::WakeCallback;
 
 use crate::ui_inbox::{UiInbox, UiInboxSender};
 

@@ -3,7 +3,7 @@ use super::*;
 impl Applier {
     fn update_hover_target(
         &mut self,
-        pointer_id: wabou_shell::PointerId,
+        pointer_id: wabou_shell_gpui::PointerId,
         target: Option<NodeKey>,
         modifiers: Modifiers,
     ) -> bool {
@@ -55,7 +55,7 @@ impl Applier {
 
     pub(super) fn handle_pointer_enter(
         &mut self,
-        pointer: wabou_shell::PointerEvent,
+        pointer: wabou_shell_gpui::PointerEvent,
     ) -> EventResponse {
         let (x, y) = (pointer.position.x, pointer.position.y);
         self.interaction.input.update_pointer(&pointer);
@@ -65,7 +65,7 @@ impl Applier {
 
     pub(super) fn handle_pointer_leave(
         &mut self,
-        pointer: wabou_shell::PointerEvent,
+        pointer: wabou_shell_gpui::PointerEvent,
     ) -> EventResponse {
         self.interaction.input.update_pointer(&pointer);
         let mut changed = self.update_hover_target(pointer.properties.id, None, pointer.modifiers);
@@ -114,7 +114,7 @@ impl Applier {
 
     pub(super) fn handle_pointer_up(
         &mut self,
-        pointer: wabou_shell::PointerEvent,
+        pointer: wabou_shell_gpui::PointerEvent,
     ) -> EventResponse {
         let (x, y) = (pointer.position.x, pointer.position.y);
         let button = pointer.button.unwrap_or(PointerButton::Primary);
@@ -248,7 +248,7 @@ impl Applier {
 
     pub(super) fn handle_pointer_cancel(
         &mut self,
-        pointer: wabou_shell::PointerEvent,
+        pointer: wabou_shell_gpui::PointerEvent,
     ) -> EventResponse {
         if pointer.properties.primary
             && let Some(drag) = self.interaction.scroll.drag.take()
@@ -265,7 +265,7 @@ impl Applier {
 
     pub(super) fn handle_pointer_down(
         &mut self,
-        pointer: wabou_shell::PointerEvent,
+        pointer: wabou_shell_gpui::PointerEvent,
     ) -> EventResponse {
         let (x, y) = (pointer.position.x, pointer.position.y);
         let button = pointer.button.unwrap_or(PointerButton::Primary);
@@ -368,7 +368,7 @@ impl Applier {
 
     pub(super) fn handle_pointer_move(
         &mut self,
-        pointer: wabou_shell::PointerEvent,
+        pointer: wabou_shell_gpui::PointerEvent,
     ) -> EventResponse {
         let (x, y) = (pointer.position.x, pointer.position.y);
         self.interaction.input.update_pointer(&pointer);
@@ -446,7 +446,10 @@ impl Applier {
         Self::response(changed)
     }
 
-    pub(super) fn handle_wheel_event(&mut self, wheel: wabou_shell::WheelEvent) -> EventResponse {
+    pub(super) fn handle_wheel_event(
+        &mut self,
+        wheel: wabou_shell_gpui::WheelEvent,
+    ) -> EventResponse {
         self.interaction.input.pointer_position = (wheel.position.x, wheel.position.y);
         // Wheel events carry their own pointer position. Re-hit-test it even
         // when the cached hover target is still alive: semantic automation,
@@ -488,10 +491,10 @@ impl Applier {
         data[event_data::DELTA_X as usize] = wheel.delta_x;
         data[event_data::DELTA_Y as usize] = wheel.delta_y;
         data[event_data::PHASE as usize] = match wheel.phase {
-            wabou_shell::GesturePhase::Started => 0.0,
-            wabou_shell::GesturePhase::Changed => 1.0,
-            wabou_shell::GesturePhase::Ended => 2.0,
-            wabou_shell::GesturePhase::Cancelled => 3.0,
+            wabou_shell_gpui::GesturePhase::Started => 0.0,
+            wabou_shell_gpui::GesturePhase::Changed => 1.0,
+            wabou_shell_gpui::GesturePhase::Ended => 2.0,
+            wabou_shell_gpui::GesturePhase::Cancelled => 3.0,
         };
         let (dispatched, prevented) = self.dispatch_cancellable_numeric(target, event::WHEEL, data);
         let scrolled = !prevented
@@ -499,7 +502,7 @@ impl Applier {
                 target,
                 wheel.delta_x as f32,
                 wheel.delta_y as f32,
-                wheel.delta_mode == wabou_shell::WheelDeltaMode::Line,
+                wheel.delta_mode == wabou_shell_gpui::WheelDeltaMode::Line,
             );
         Self::response(dispatched || scrolled)
     }
@@ -672,15 +675,15 @@ impl Applier {
 
     fn fill_pointer_properties(
         data: &mut [f64; event_data::LEN],
-        properties: wabou_shell::PointerProperties,
+        properties: wabou_shell_gpui::PointerProperties,
     ) {
         data[event_data::POINTER_ID_LO as usize] = f64::from(properties.id.lo);
         data[event_data::POINTER_ID_HI as usize] = f64::from(properties.id.hi);
         data[event_data::POINTER_TYPE as usize] = match properties.pointer_type {
-            wabou_shell::PointerType::Mouse => 0.0,
-            wabou_shell::PointerType::Touch => 1.0,
-            wabou_shell::PointerType::Pen => 2.0,
-            wabou_shell::PointerType::Unknown => 3.0,
+            wabou_shell_gpui::PointerType::Mouse => 0.0,
+            wabou_shell_gpui::PointerType::Touch => 1.0,
+            wabou_shell_gpui::PointerType::Pen => 2.0,
+            wabou_shell_gpui::PointerType::Unknown => 3.0,
         };
         data[event_data::PRIMARY as usize] = f64::from(properties.primary);
         data[event_data::PRESSURE as usize] = properties.pressure.unwrap_or(f64::NAN);

@@ -15,9 +15,9 @@ use wabou_shell_gpui::gpui::{
 };
 
 use crate::{Applier, FrameSource};
-use wabou_shell::{ClipboardRequest, HostAction, HostActionResult, UiEvent};
 use wabou_shell_gpui::{
-    EffectCompletion, EffectErrorCode, EffectPayload, EffectRequest, EffectResult, WindowCommand,
+    ClipboardRequest, EffectCompletion, EffectErrorCode, EffectPayload, EffectRequest,
+    EffectResult, HostAction, HostActionResult, UiEvent, WindowCommand,
 };
 
 /// A coarse GPUI entity for one Solid application runtime.

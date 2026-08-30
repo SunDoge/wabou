@@ -193,12 +193,12 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         .scroll
         .offsets
         .insert(container, [0.0, 0.0]);
-    let response = applier.handle_event(UiEvent::Wheel(wabou_shell::WheelEvent {
+    let response = applier.handle_event(UiEvent::Wheel(wabou_shell_gpui::WheelEvent {
         position: Point { x: 10.0, y: 10.0 },
         delta_x: 0.0,
         delta_y: 50.0,
-        delta_mode: wabou_shell::WheelDeltaMode::Pixel,
-        phase: wabou_shell::GesturePhase::Changed,
+        delta_mode: wabou_shell_gpui::WheelDeltaMode::Pixel,
+        phase: wabou_shell_gpui::GesturePhase::Changed,
         modifiers: Modifiers::default(),
     }));
     assert!(response.handled);
@@ -218,12 +218,12 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         "scroll offsets must not invalidate intrinsic layout"
     );
 
-    let response = applier.handle_event(UiEvent::Wheel(wabou_shell::WheelEvent {
+    let response = applier.handle_event(UiEvent::Wheel(wabou_shell_gpui::WheelEvent {
         position: Point { x: 10.0, y: 10.0 },
         delta_x: 0.0,
         delta_y: 50.0,
-        delta_mode: wabou_shell::WheelDeltaMode::Line,
-        phase: wabou_shell::GesturePhase::Changed,
+        delta_mode: wabou_shell_gpui::WheelDeltaMode::Line,
+        phase: wabou_shell_gpui::GesturePhase::Changed,
         modifiers: Modifiers::default(),
     }));
     assert!(response.handled);
@@ -243,12 +243,12 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         animated > 50.0 && animated < 100.0,
         "the native motion must advance monotonically without completing in one frame: {animated}"
     );
-    applier.handle_event(UiEvent::Wheel(wabou_shell::WheelEvent {
+    applier.handle_event(UiEvent::Wheel(wabou_shell_gpui::WheelEvent {
         position: Point { x: 10.0, y: 10.0 },
         delta_x: 0.0,
         delta_y: 5.0,
-        delta_mode: wabou_shell::WheelDeltaMode::Pixel,
-        phase: wabou_shell::GesturePhase::Changed,
+        delta_mode: wabou_shell_gpui::WheelDeltaMode::Pixel,
+        phase: wabou_shell_gpui::GesturePhase::Changed,
         modifiers: Modifiers::default(),
     }));
     assert!(

@@ -12,7 +12,7 @@ pub(super) struct HeadlessViewport {
     pub(super) height: u32,
     pub(super) scale_factor: f64,
     pub(super) window_index: usize,
-    pub(super) color_scheme: wabou_shell::ColorScheme,
+    pub(super) color_scheme: wabou_shell_gpui::ColorScheme,
 }
 
 impl HeadlessViewport {
@@ -49,8 +49,8 @@ impl HeadlessViewport {
             .as_deref()
             .unwrap_or("light")
         {
-            "light" => wabou_shell::ColorScheme::Light,
-            "dark" => wabou_shell::ColorScheme::Dark,
+            "light" => wabou_shell_gpui::ColorScheme::Light,
+            "dark" => wabou_shell_gpui::ColorScheme::Dark,
             value => {
                 return Err(crate::Error::TestScenario {
                     message: format!(
@@ -133,7 +133,7 @@ pub(super) fn run_headless_test(
                 .headless_viewport(window_key)
                 .unwrap_or((viewport.width, viewport.height));
             source.set_semantics_enabled(true);
-            source.handle_event(wabou_shell::UiEvent::WindowMetrics(WindowMetrics {
+            source.handle_event(wabou_shell_gpui::UiEvent::WindowMetrics(WindowMetrics {
                 window_key,
                 logical_width: width,
                 logical_height: height,
@@ -348,7 +348,7 @@ mod tests {
             height: 601,
             scale_factor: 1.5,
             window_index: 0,
-            color_scheme: wabou_shell::ColorScheme::Dark,
+            color_scheme: wabou_shell_gpui::ColorScheme::Dark,
         };
 
         assert_eq!(viewport.physical_width(), 1202);
@@ -357,7 +357,7 @@ mod tests {
         assert_eq!(viewport.with_logical_size(640, 480).window_index, 0);
         assert_eq!(
             viewport.with_logical_size(640, 480).color_scheme,
-            wabou_shell::ColorScheme::Dark
+            wabou_shell_gpui::ColorScheme::Dark
         );
     }
 }

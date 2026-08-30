@@ -174,7 +174,7 @@ struct CachedClassResolution {
     diagnostics: Vec<String>,
 }
 
-fn key_event_payload(key: &wabou_shell::KeyEvent) -> String {
+fn key_event_payload(key: &wabou_shell_gpui::KeyEvent) -> String {
     serde_json::json!({
         "key": key.key,
         "keyWithoutModifiers": key.key_without_modifiers,
@@ -357,7 +357,7 @@ struct RuntimeSession {
     pending_color_palette: Option<Rc<RefCell<Option<Vec<u32>>>>>,
     pending_fonts: Option<Rc<RefCell<Vec<Vec<u8>>>>>,
     frame_stats: Option<Rc<RefCell<Option<FrameStats>>>>,
-    pending_host_actions: Rc<RefCell<VecDeque<wabou_shell::HostAction>>>,
+    pending_host_actions: Rc<RefCell<VecDeque<wabou_shell_gpui::HostAction>>>,
     effect_bridge: EffectBridge,
     wake_callback: Option<WakeCallback>,
     host_message_inbox: HostMessageInbox,
@@ -617,16 +617,16 @@ impl Applier {
         self.interaction.input.target_override = Some(event.target);
         let response = FrameSource::handle_event(
             self,
-            UiEvent::Pointer(wabou_shell::PointerEvent {
+            UiEvent::Pointer(wabou_shell_gpui::PointerEvent {
                 phase,
-                position: wabou_shell::Point {
+                position: wabou_shell_gpui::Point {
                     x: f64::from(event.x),
                     y: f64::from(event.y),
                 },
                 button,
                 buttons,
                 modifiers,
-                properties: wabou_shell::PointerProperties::default(),
+                properties: wabou_shell_gpui::PointerProperties::default(),
             }),
         );
         self.interaction.input.target_override = None;
@@ -648,8 +648,8 @@ impl Applier {
         self.interaction.input.target_override = Some(event.target);
         let response = FrameSource::handle_event(
             self,
-            UiEvent::Wheel(wabou_shell::WheelEvent {
-                position: wabou_shell::Point {
+            UiEvent::Wheel(wabou_shell_gpui::WheelEvent {
+                position: wabou_shell_gpui::Point {
                     x: f64::from(event.x),
                     y: f64::from(event.y),
                 },
@@ -659,18 +659,18 @@ impl Applier {
                     * if event.precise {
                         1.0
                     } else {
-                        wabou_shell::WHEEL_LINE_DELTA
+                        wabou_shell_gpui::WHEEL_LINE_DELTA
                     },
                 delta_y: -f64::from(event.delta_y)
                     * if event.precise {
                         1.0
                     } else {
-                        wabou_shell::WHEEL_LINE_DELTA
+                        wabou_shell_gpui::WHEEL_LINE_DELTA
                     },
                 delta_mode: if event.precise {
-                    wabou_shell::WheelDeltaMode::Pixel
+                    wabou_shell_gpui::WheelDeltaMode::Pixel
                 } else {
-                    wabou_shell::WheelDeltaMode::Line
+                    wabou_shell_gpui::WheelDeltaMode::Line
                 },
                 phase,
                 modifiers,
@@ -699,7 +699,7 @@ impl Applier {
             .filter(|text| text.chars().any(|character| !character.is_control()));
         let mut response = FrameSource::handle_event(
             self,
-            UiEvent::Key(wabou_shell::KeyEvent {
+            UiEvent::Key(wabou_shell_gpui::KeyEvent {
                 phase,
                 key: event.key_char.clone().unwrap_or_else(|| event.key.clone()),
                 key_without_modifiers: event.key.clone(),
@@ -708,7 +708,7 @@ impl Applier {
                 code: event.key,
                 text: event.key_char.clone(),
                 text_with_all_modifiers: event.key_char,
-                location: wabou_shell::KeyLocation::Standard,
+                location: wabou_shell_gpui::KeyLocation::Standard,
                 modifiers,
                 repeat: event.repeat,
                 synthetic: false,
@@ -730,10 +730,10 @@ impl Applier {
     fn handle_gpui_ime(&mut self, event: wabou_shell_gpui::ProjectedImeEvent) -> EventResponse {
         let event = match event {
             wabou_shell_gpui::ProjectedImeEvent::Commit(text) => {
-                wabou_shell::ImeEvent::Commit(text)
+                wabou_shell_gpui::ImeEvent::Commit(text)
             }
             wabou_shell_gpui::ProjectedImeEvent::Preedit { text, cursor } => {
-                wabou_shell::ImeEvent::Preedit { text, cursor }
+                wabou_shell_gpui::ImeEvent::Preedit { text, cursor }
             }
         };
         FrameSource::handle_event(self, UiEvent::Ime(event))
@@ -927,7 +927,7 @@ impl Applier {
 }
 
 impl Applier {
-    fn cancel_pointer_gesture(&mut self, pointer: wabou_shell::PointerEvent) -> bool {
+    fn cancel_pointer_gesture(&mut self, pointer: wabou_shell_gpui::PointerEvent) -> bool {
         self.interaction.input.update_pointer(&pointer);
         self.interaction.text_selection.next_scroll = None;
         let pointer_id = pointer.properties.id;
@@ -999,9 +999,9 @@ impl Applier {
         }
         let mut changed = false;
         for route in active {
-            changed |= self.cancel_pointer_gesture(wabou_shell::PointerEvent {
+            changed |= self.cancel_pointer_gesture(wabou_shell_gpui::PointerEvent {
                 phase: PointerPhase::Cancel,
-                position: wabou_shell::Point {
+                position: wabou_shell_gpui::Point {
                     x: route.position.0,
                     y: route.position.1,
                 },

@@ -6,6 +6,7 @@ pub mod app_dirs;
 pub mod effect;
 #[path = "generated/effect_abi.rs"]
 mod effect_abi;
+pub mod event;
 pub mod window;
 
 pub use app_dirs::{AppDirectories, AppDirectoryConfig};
@@ -17,4 +18,5 @@ pub use effect::{
     OpenDialogRequest, PickDirectoryRequest, RecordingEffectExecutor, ReplayEffectExecutor,
     SaveDialogRequest, WindowCreateRequest, WindowResourceKey, initial_window_resource_key,
 };
+pub use event::*;
 pub use window::{RendererBackend, WindowCommand, WindowInputMode, WindowLevel, WindowOptions};

@@ -659,7 +659,7 @@ impl TestController {
                     _ => None,
                 })
             })
-            && source.handle_semantic_action(wabou_shell::SemanticAction::ScrollIntoView {
+            && source.handle_semantic_action(wabou_shell_gpui::SemanticAction::ScrollIntoView {
                 target: action.id,
             })
         {
@@ -773,8 +773,8 @@ fn cancelled_result(kind: &TestActionKind) -> TestActionResult {
     }
 }
 
-fn semantic_toggle_json(state: Option<wabou_shell::SemanticToggleState>) -> serde_json::Value {
-    match state.map(wabou_shell::SemanticToggleState::as_str) {
+fn semantic_toggle_json(state: Option<wabou_shell_gpui::SemanticToggleState>) -> serde_json::Value {
+    match state.map(wabou_shell_gpui::SemanticToggleState::as_str) {
         Some("false") => serde_json::Value::Bool(false),
         Some("true") => serde_json::Value::Bool(true),
         Some("mixed") => serde_json::Value::String("mixed".into()),
@@ -783,11 +783,11 @@ fn semantic_toggle_json(state: Option<wabou_shell::SemanticToggleState>) -> serd
     }
 }
 
-fn locator_snapshot_json(node: &wabou_shell::SemanticNode, focused: bool) -> String {
+fn locator_snapshot_json(node: &wabou_shell_gpui::SemanticNode, focused: bool) -> String {
     let current = node
         .states
         .current
-        .map(wabou_shell::SemanticCurrent::as_str);
+        .map(wabou_shell_gpui::SemanticCurrent::as_str);
     serde_json::json!({
             "name": node.label,
             "value": node.value,
@@ -850,7 +850,7 @@ fn locator_query_json(
 fn scoped_candidates<'a>(
     snapshot: &'a SemanticSnapshot,
     scope: &[TestLocatorSelector],
-) -> Option<Vec<&'a wabou_shell::SemanticNode>> {
+) -> Option<Vec<&'a wabou_shell_gpui::SemanticNode>> {
     let mut candidates = snapshot.exposed_nodes();
     for selector in scope {
         let role = SemanticRole::from_name(&selector.role)?;
@@ -871,7 +871,7 @@ fn scoped_candidates<'a>(
 fn semantic_descendants(
     snapshot: &SemanticSnapshot,
     owner: u64,
-) -> Vec<&wabou_shell::SemanticNode> {
+) -> Vec<&wabou_shell_gpui::SemanticNode> {
     let by_id = snapshot
         .nodes
         .iter()
@@ -929,7 +929,7 @@ fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) ->
             "checked": semantic_toggle_json(node.states.checked),
             "pressed": semantic_toggle_json(node.states.pressed),
             "selected": node.states.selected,
-            "current": node.states.current.map(wabou_shell::SemanticCurrent::as_str),
+            "current": node.states.current.map(wabou_shell_gpui::SemanticCurrent::as_str),
             "expanded": node.states.expanded,
             "focused": snapshot.focus == Some(node.id),
         })).collect::<Vec<_>>(),
@@ -1035,7 +1035,7 @@ fn click_semantic_target(
         button: Some(PointerButton::Primary),
         buttons: 1,
         modifiers: Modifiers::default(),
-        properties: wabou_shell::PointerProperties::default(),
+        properties: wabou_shell_gpui::PointerProperties::default(),
     }));
     source.handle_event(UiEvent::Pointer(PointerEvent {
         phase: PointerPhase::Up,
@@ -1043,7 +1043,7 @@ fn click_semantic_target(
         button: Some(PointerButton::Primary),
         buttons: 0,
         modifiers: Modifiers::default(),
-        properties: wabou_shell::PointerProperties::default(),
+        properties: wabou_shell_gpui::PointerProperties::default(),
     }));
     true
 }
@@ -1074,7 +1074,7 @@ fn input_allows_disabled_target(input: &TestInput) -> bool {
 
 fn dispatch_test_input(
     source: &mut dyn FrameSource,
-    node: &wabou_shell::SemanticNode,
+    node: &wabou_shell_gpui::SemanticNode,
     input: &TestInput,
 ) -> bool {
     if matches!(
@@ -1086,7 +1086,7 @@ fn dispatch_test_input(
     ) {
         // Focusing an already-focused node is a valid no-op and may report
         // `false`; the semantic lookup already proved the target is usable.
-        source.handle_semantic_action(wabou_shell::SemanticAction::Focus { target: node.id });
+        source.handle_semantic_action(wabou_shell_gpui::SemanticAction::Focus { target: node.id });
     }
     for event in test_input_events(node, input) {
         source.handle_event(event);
@@ -1100,7 +1100,7 @@ fn semantic_target<'a>(
     label: &str,
     index: Option<usize>,
     scope: &[TestLocatorSelector],
-) -> Option<&'a wabou_shell::SemanticNode> {
+) -> Option<&'a wabou_shell_gpui::SemanticNode> {
     let node = semantic_query_target(snapshot, role, label, index, scope)?;
     (!node.disabled).then_some(node)
 }
@@ -1111,7 +1111,7 @@ fn semantic_query_target<'a>(
     label: &str,
     index: Option<usize>,
     scope: &[TestLocatorSelector],
-) -> Option<&'a wabou_shell::SemanticNode> {
+) -> Option<&'a wabou_shell_gpui::SemanticNode> {
     let role = SemanticRole::from_name(role)?;
     let mut matches = scoped_candidates(snapshot, scope)?
         .into_iter()
@@ -1316,7 +1316,7 @@ impl ShellExtension for TestDriver {
     }
 }
 
-fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec<UiEvent> {
+fn test_input_events(node: &wabou_shell_gpui::SemanticNode, input: &TestInput) -> Vec<UiEvent> {
     let center = Point {
         x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),
         y: f64::from((node.bounds[1] + node.bounds[3]) * 0.5),
@@ -1335,7 +1335,7 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
                     button: Some(PointerButton::Primary),
                     buttons: 1,
                     modifiers: Modifiers::default(),
-                    properties: wabou_shell::PointerProperties::default(),
+                    properties: wabou_shell_gpui::PointerProperties::default(),
                 }),
                 UiEvent::Pointer(PointerEvent {
                     phase: PointerPhase::Move,
@@ -1343,7 +1343,7 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
                     button: Some(PointerButton::Primary),
                     buttons: 1,
                     modifiers: Modifiers::default(),
-                    properties: wabou_shell::PointerProperties::default(),
+                    properties: wabou_shell_gpui::PointerProperties::default(),
                 }),
                 UiEvent::Pointer(PointerEvent {
                     phase: PointerPhase::Up,
@@ -1351,7 +1351,7 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
                     button: Some(PointerButton::Primary),
                     buttons: 0,
                     modifiers: Modifiers::default(),
-                    properties: wabou_shell::PointerProperties::default(),
+                    properties: wabou_shell_gpui::PointerProperties::default(),
                 }),
             ]
         }
@@ -1387,14 +1387,14 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
             position: center,
             delta_x: *delta_x,
             delta_y: *delta_y,
-            delta_mode: wabou_shell::WheelDeltaMode::Pixel,
-            phase: wabou_shell::GesturePhase::Changed,
+            delta_mode: wabou_shell_gpui::WheelDeltaMode::Pixel,
+            phase: wabou_shell_gpui::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         })],
     }
 }
 
-fn click_events(node: &wabou_shell::SemanticNode) -> [UiEvent; 2] {
+fn click_events(node: &wabou_shell_gpui::SemanticNode) -> [UiEvent; 2] {
     let position = Point {
         x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),
         y: f64::from((node.bounds[1] + node.bounds[3]) * 0.5),
@@ -1406,7 +1406,7 @@ fn click_events(node: &wabou_shell::SemanticNode) -> [UiEvent; 2] {
             button: Some(PointerButton::Primary),
             buttons: 1,
             modifiers: Modifiers::default(),
-            properties: wabou_shell::PointerProperties::default(),
+            properties: wabou_shell_gpui::PointerProperties::default(),
         }),
         UiEvent::Pointer(PointerEvent {
             phase: PointerPhase::Up,
@@ -1414,7 +1414,7 @@ fn click_events(node: &wabou_shell::SemanticNode) -> [UiEvent; 2] {
             button: Some(PointerButton::Primary),
             buttons: 0,
             modifiers: Modifiers::default(),
-            properties: wabou_shell::PointerProperties::default(),
+            properties: wabou_shell_gpui::PointerProperties::default(),
         }),
     ]
 }
@@ -1448,8 +1448,8 @@ mod tests {
         }
     }
 
-    fn node() -> wabou_shell::SemanticNode {
-        wabou_shell::SemanticNode {
+    fn node() -> wabou_shell_gpui::SemanticNode {
+        wabou_shell_gpui::SemanticNode {
             id: 7,
             role: SemanticRole::TextInput,
             label: Some("Editor".into()),
@@ -1462,7 +1462,7 @@ mod tests {
             controls: Vec::new(),
             active_descendant: None,
             disabled: false,
-            states: wabou_shell::SemanticStates::default(),
+            states: wabou_shell_gpui::SemanticStates::default(),
         }
     }
 
@@ -1473,7 +1473,7 @@ mod tests {
         sensitive.value = Some("must-not-be-persisted".into());
         sensitive.controls = vec![8];
         sensitive.active_descendant = Some(8);
-        sensitive.states.checked = Some(wabou_shell::SemanticToggleState::Mixed);
+        sensitive.states.checked = Some(wabou_shell_gpui::SemanticToggleState::Mixed);
         let mut generic = node();
         generic.id = 8;
         generic.role = SemanticRole::Generic;
@@ -1519,7 +1519,7 @@ mod tests {
     #[test]
     fn locator_snapshot_exposes_logical_origin_and_size() {
         let mut node = node();
-        node.states.current = Some(wabou_shell::SemanticCurrent::Page);
+        node.states.current = Some(wabou_shell_gpui::SemanticCurrent::Page);
         let snapshot =
             serde_json::from_str::<serde_json::Value>(&locator_snapshot_json(&node, false))
                 .unwrap();
@@ -1611,12 +1611,12 @@ mod tests {
     fn headless_locators_support_live_region_roles() {
         let snapshot = SemanticSnapshot {
             nodes: vec![
-                wabou_shell::SemanticNode {
+                wabou_shell_gpui::SemanticNode {
                     role: SemanticRole::Alert,
                     label: Some("Failed".into()),
                     ..node()
                 },
-                wabou_shell::SemanticNode {
+                wabou_shell_gpui::SemanticNode {
                     id: 8,
                     role: SemanticRole::Status,
                     label: Some("Saved".into()),
@@ -1653,7 +1653,7 @@ mod tests {
         let nodes = roles
             .iter()
             .enumerate()
-            .map(|(index, (_, role))| wabou_shell::SemanticNode {
+            .map(|(index, (_, role))| wabou_shell_gpui::SemanticNode {
                 id: index as u64 + 10,
                 role: *role,
                 label: Some("Target".into()),

@@ -7,8 +7,10 @@ publish = false
 license.workspace = true
 
 [dependencies]
+bitflags.workspace = true
 directories.workspace = true
 serde = { workspace = true, features = ["derive"] }
+wabou-accessibility.workspace = true
 wabou-host-api.workspace = true
 
 [dev-dependencies]
