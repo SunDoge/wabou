@@ -8,7 +8,7 @@ fn main() -> Result<(), Whatever> {
     HostBuilder::new()
         .app_directories("dev", "Wabou", "Gallery")
         .persist_window_size("main")
-        .gpui_widget("fractal", gallery::fractal::gpui_factory())
+        .native_widget("fractal", gallery::fractal::gpui_factory())
         .window(
             WindowOptions::new()
                 .title("Wabou Components")

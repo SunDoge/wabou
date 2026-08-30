@@ -533,7 +533,7 @@ struct RuntimeSourceConfig {
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
     widget_factories: HashMap<String, WidgetFactory>,
-    gpui_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
+    native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
     base_color: Color,
     #[cfg(feature = "devtools")]
     debug_state: Option<wabou_devtools::SharedDebugState>,
@@ -648,7 +648,7 @@ pub struct HostBuilder {
     window: WindowOptions,
     additional_windows: Vec<WindowOptions>,
     widget_factories: HashMap<String, WidgetFactory>,
-    gpui_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
+    native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
     services: Vec<(Arc<dyn HostService>, bool)>,
@@ -685,7 +685,7 @@ impl HostBuilder {
             window: WindowOptions::default(),
             additional_windows: Vec::new(),
             widget_factories: builtin_factories(),
-            gpui_widget_factories: HashMap::new(),
+            native_widget_factories: HashMap::new(),
             capabilities: Vec::new(),
             host_message_producers: Vec::new(),
             services: Vec::new(),
@@ -753,7 +753,7 @@ impl HostBuilder {
     /// This is the native-widget path used by the GPUI shell. The factory is
     /// evaluated while materializing a frame; stable state should live in a
     /// GPUI entity or application cache keyed by `context.key()`.
-    pub fn gpui_widget(
+    pub fn native_widget(
         mut self,
         tag: impl Into<String>,
         factory: impl for<'a> Fn(
@@ -765,7 +765,7 @@ impl HostBuilder {
         + Sync
         + 'static,
     ) -> Self {
-        self.gpui_widget_factories.insert(
+        self.native_widget_factories.insert(
             tag.into(),
             Arc::new(move |context, window, cx| {
                 gpui_shell::NativeWidgetMount::stateless(factory(context, window, cx))
@@ -776,7 +776,7 @@ impl HostBuilder {
 
     /// Register a GPUI native widget that may retain a typed entity for the
     /// lifetime of its generational Solid node.
-    pub fn gpui_entity_widget(
+    pub fn native_entity_widget(
         mut self,
         tag: impl Into<String>,
         factory: impl for<'a> Fn(
@@ -788,7 +788,7 @@ impl HostBuilder {
         + Sync
         + 'static,
     ) -> Self {
-        self.gpui_widget_factories
+        self.native_widget_factories
             .insert(tag.into(), Arc::new(factory));
         self
     }
@@ -1209,7 +1209,7 @@ impl HostBuilder {
             capabilities: self.capabilities.clone(),
             host_message_producers: self.host_message_producers.clone(),
             widget_factories: self.widget_factories.clone(),
-            gpui_widget_factories: self.gpui_widget_factories.clone(),
+            native_widget_factories: self.native_widget_factories.clone(),
             base_color: self.base_color,
             #[cfg(feature = "devtools")]
             debug_state: devtools_server.1.clone(),
@@ -1244,7 +1244,7 @@ impl HostBuilder {
             }
             run_gpui_windows(
                 gpui_sources,
-                runtime_sources.gpui_widget_factories.clone(),
+                runtime_sources.native_widget_factories.clone(),
                 self.application_extensions,
             )?;
             #[cfg(feature = "vite")]

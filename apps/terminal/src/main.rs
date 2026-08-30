@@ -6,7 +6,7 @@ use wabou::{HostBuilder, WindowOptions};
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
     HostBuilder::new()
-        .gpui_entity_widget("terminal", wabou_terminal::gpui_terminal_factory())
+        .native_entity_widget("terminal", wabou_terminal::gpui_terminal_factory())
         .window(
             WindowOptions::new()
                 .title("Wabou Terminal")

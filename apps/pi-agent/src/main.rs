@@ -30,7 +30,7 @@ fn main() -> Result<(), Whatever> {
                 // flex children to be compressed into one another.
                 .min_inner_size(1180, 680),
         )
-        .gpui_entity_widget("terminal", wabou_terminal::gpui_terminal_factory())
+        .native_entity_widget("terminal", wabou_terminal::gpui_terminal_factory())
         .capability(service::CAPABILITY, move |host| {
             service::mount(host, capability.clone())
         })
