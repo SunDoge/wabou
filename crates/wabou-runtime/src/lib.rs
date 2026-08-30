@@ -51,7 +51,8 @@ pub mod vite;
 #[cfg(test)]
 mod widget;
 
-pub use applier::{Applier, ComputedNodeSnapshot, HmrDrainResult, ReloadHandle, ReloadMsg};
+pub(crate) use applier::Applier;
+pub use applier::{HmrDrainResult, ReloadHandle, ReloadMsg};
 pub use config::AppConfig;
 pub use error::{Error, Result};
 pub use gpui_shell::{
@@ -85,6 +86,15 @@ pub use persistent_cache::PersistentJsonCache;
 pub use protocol::event;
 pub use rquickjs;
 pub use serial_worker::SerialWorker;
+
+/// Transitional API used by the legacy Winit headless verification tools.
+///
+/// Applications must use [`HostBuilder`] and the GPUI shell instead. This
+/// module will disappear when the layout oracle has moved out of the runtime.
+#[doc(hidden)]
+pub mod legacy_headless {
+    pub use crate::applier::{Applier, ComputedNodeSnapshot};
+}
 
 #[cfg(feature = "vite")]
 pub use vite::{HmrClient, ViteError, start_hmr_client, vite_url_from_env};
