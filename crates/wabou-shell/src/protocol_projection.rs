@@ -11,7 +11,8 @@ use crate::{
 use wabou_style::{IrColor, IrLength, IrValue};
 
 use wabou_protocol::{
-    AtomPool, Frame, GRAPHIC_SOURCE_RESOURCE_RASTER, GRAPHIC_SOURCE_SVG, Op, StyleValue,
+    AtomPool, Frame, GRAPHIC_SOURCE_RESOURCE_RASTER, GRAPHIC_SOURCE_SVG, Op, ShadowValue,
+    StyleValue,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -141,6 +142,15 @@ impl GpuiProjection {
                             .insert(property.to_owned(), protocol_style_value(*value));
                         self.recompute_inline_style(*id)?;
                     }
+                }
+                Op::SetShadows { id, shadows } => {
+                    self.inline_styles.entry(*id).or_default().insert(
+                        "box-shadow".to_owned(),
+                        wabou_style::Value::List {
+                            values: shadows.iter().copied().map(protocol_shadow_value).collect(),
+                        },
+                    );
+                    self.recompute_inline_style(*id)?;
                 }
                 Op::RemoveStyle { id, prop } => {
                     if let Some(property) = atoms.resolve(*prop) {
@@ -348,6 +358,26 @@ fn protocol_style_value(value: StyleValue) -> wabou_style::Value {
         StyleValue::Auto => wabou_style::Value::Length {
             value: wabou_style::Length::Auto,
         },
+    }
+}
+
+fn protocol_shadow_value(shadow: ShadowValue) -> wabou_style::Value {
+    let px = |value| wabou_style::Value::Length {
+        value: wabou_style::Length::Px { value },
+    };
+    wabou_style::Value::Record {
+        fields: std::collections::BTreeMap::from([
+            ("x".to_owned(), px(shadow.offset_x)),
+            ("y".to_owned(), px(shadow.offset_y)),
+            ("spread".to_owned(), px(shadow.spread)),
+            ("stdDev".to_owned(), px(shadow.std_dev)),
+            (
+                "color".to_owned(),
+                wabou_style::Value::Color {
+                    value: wabou_style::Color::Literal { rgba: shadow.color },
+                },
+            ),
+        ]),
     }
 }
 
@@ -619,6 +649,62 @@ mod tests {
         assert_eq!(
             projection.style(recreated).unwrap().size.width,
             Length::Auto
+        );
+    }
+
+    #[test]
+    fn typed_shadow_batches_project_directly_to_gpui() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::SetShadows {
+                            id: key(2),
+                            shadows: vec![
+                                ShadowValue {
+                                    offset_x: 1.0,
+                                    offset_y: 2.0,
+                                    spread: 3.0,
+                                    std_dev: 8.0,
+                                    color: 0x1122_3380,
+                                    radius: Some(12.0),
+                                },
+                                ShadowValue {
+                                    offset_x: -2.0,
+                                    offset_y: 4.0,
+                                    spread: 0.0,
+                                    std_dev: 6.0,
+                                    color: 0x4455_66ff,
+                                    radius: None,
+                                },
+                            ],
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        let shadows = &projection.style(key(2)).unwrap().box_shadow;
+        assert_eq!(shadows.len(), 2);
+        assert_eq!(
+            shadows[0].offset,
+            crate::gpui::point(crate::gpui::px(1.0), crate::gpui::px(2.0))
+        );
+        assert_eq!(shadows[0].blur_radius, crate::gpui::px(8.0));
+        assert_eq!(shadows[0].spread_radius, crate::gpui::px(3.0));
+        assert_eq!(
+            shadows[1].offset,
+            crate::gpui::point(crate::gpui::px(-2.0), crate::gpui::px(4.0))
         );
     }
 
