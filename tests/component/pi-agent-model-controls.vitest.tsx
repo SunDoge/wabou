@@ -3,7 +3,10 @@ import { Text, View } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 import type { AgentThinkingLevel } from "../../apps/pi-agent/ui/agent-state";
-import { ModelControls } from "../../apps/pi-agent/ui/model-controls";
+import {
+  ComposerModelControl,
+  ModelControls,
+} from "../../apps/pi-agent/ui/model-controls";
 
 const models = [
   {
@@ -91,4 +94,31 @@ test("disables unavailable runtime controls", () => {
   expect(
     screen.getByRole("combobox", { name: "Thinking level" }).disabled,
   ).toBe(true);
+});
+
+test("composer summarizes model configuration until it is requested", () => {
+  const screen = renderComponent(() => (
+    <ComposerModelControl
+      models={models}
+      modelProvider="anthropic"
+      modelId="claude-sonnet-4-5"
+      thinking="medium"
+      thinkingLevels={["off", "medium", "high"]}
+      chooseModel={() => {}}
+      chooseThinking={() => {}}
+    />
+  ));
+
+  const trigger = screen.getByRole("button", { name: "Choose model" });
+  expect(trigger.text).toContain("Claude Sonnet 4.5");
+  expect(trigger.text).toContain("medium");
+  expect(screen.queryByRole("combobox", { name: "Thinking level" })).toBeNull();
+
+  trigger.click();
+  expect(screen.getByRole("combobox", { name: "Choose model" }).text).toContain(
+    "Claude Sonnet 4.5",
+  );
+  expect(
+    screen.getByRole("combobox", { name: "Thinking level" }).text,
+  ).toContain("medium");
 });

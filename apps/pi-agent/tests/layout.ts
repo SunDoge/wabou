@@ -45,12 +45,8 @@ function assertFullWorkbenchLayout(
     name: "Ask this agent to work in its repository…",
   });
   const model = getLayoutNode(fixture, {
-    role: "combobox",
+    role: "button",
     name: "Choose model",
-  });
-  const thinking = getLayoutNode(fixture, {
-    role: "combobox",
-    name: "Thinking level",
   });
   const activeSession = getLayoutNode(fixture, {
     role: "button",
@@ -77,7 +73,6 @@ function assertFullWorkbenchLayout(
     ["conversation toolbar", toolbar],
     ["composer", composer],
     ["model control", model],
-    ["thinking control", thinking],
   ] as const) {
     const right = node.rect.x + node.rect.width;
     if (node.rect.x < main.rect.x - 0.5 || right > mainRight + 0.5) {
@@ -86,9 +81,9 @@ function assertFullWorkbenchLayout(
       );
     }
   }
-  if (model.rect.width < 176 || thinking.rect.width < 112) {
+  if (model.rect.width > 224) {
     throw new Error(
-      `composer controls lost readable widths: model=${model.rect.width}, thinking=${thinking.rect.width}`,
+      `composer model summary consumed too much primary toolbar space: width=${model.rect.width}`,
     );
   }
   // The native shell prevents the workbench from becoming narrower than its

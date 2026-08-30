@@ -184,6 +184,7 @@ test("returns to an existing agent after creating a new one", async ({
 });
 
 test("changes model through the native combobox overlay", async ({ page }) => {
+  await page.getByRole("button", { name: "Choose model" }).click();
   const model = page.getByRole("combobox", { name: "Choose model" });
   const thinking = page.getByRole("combobox", { name: "Thinking level" });
   await model.click();

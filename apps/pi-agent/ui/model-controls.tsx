@@ -1,4 +1,6 @@
-import { Combobox, Select, View } from "@wabou/ui";
+import { Button, Combobox, Icon, Popover, Select, Text, View } from "@wabou/ui";
+import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
+import { Show } from "solid-js";
 import type { AgentModel, AgentThinkingLevel } from "./agent-state";
 import { i18n, m } from "./i18n";
 
@@ -74,5 +76,50 @@ export function ModelControls(props: {
         }
       />
     </View>
+  );
+}
+
+/**
+ * Keeps low-frequency runtime configuration out of the primary composer row.
+ * The current choice remains visible while the searchable controls expand in
+ * a stable, unconstrained surface.
+ */
+export function ComposerModelControl(
+  props: Parameters<typeof ModelControls>[0],
+) {
+  const selected = () =>
+    props.models.find(
+      (model) =>
+        model.provider === props.modelProvider && model.id === props.modelId,
+    );
+
+  return (
+    <Popover
+      aria-label={i18n.message(m.choose_model, {})}
+      placement="top-start"
+      contentClass="w-80 p-3"
+      trigger={(trigger) => (
+        <Button
+          {...trigger}
+          variant="ghost"
+          size="sm"
+          aria-label={i18n.message(m.choose_model, {})}
+          disabled={props.disabled || props.models.length === 0}
+          class="min-w-0 max-w-56 h-8 px-2 gap-1.5"
+        >
+          <Text class="min-w-0 truncate text-xs font-medium">
+            {selected()?.name ?? i18n.message(m.no_model, {})}
+          </Text>
+          <Show when={props.thinking}>
+            {(level) => (
+              <Text class="flex-none text-xs text-muted">· {level()}</Text>
+            )}
+          </Show>
+          <Icon source={chevronDown} size={12} class="flex-none text-muted" />
+        </Button>
+      )}
+    >
+      <ModelControls {...props} />
+    </Popover>
   );
 }

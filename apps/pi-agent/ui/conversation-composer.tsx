@@ -55,7 +55,7 @@ import {
   type ExtensionUiWidget,
 } from "./extension-ui";
 import { i18n, m } from "./i18n";
-import { ModelControls } from "./model-controls";
+import { ComposerModelControl } from "./model-controls";
 import { SessionUsage } from "./session-usage";
 
 export interface ConversationComposerProps {
@@ -329,7 +329,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
             <CommandPicker commands={props.commands} choose={changeDraft} />
             <View aria-hidden="true" class="h-5 w-px mx-1 bg-subtle" />
             <Show when={!running()}>
-              <ModelControls
+              <ComposerModelControl
                 models={props.models}
                 modelProvider={props.modelProvider}
                 modelId={props.modelId}

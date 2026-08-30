@@ -77,6 +77,9 @@ test("Pi Agent composer keeps the primary action and configuration discoverable"
       name: "Ask this agent to work in its repository…",
     }).value,
   ).toBe("Inspect the renderer");
+  const modelControl = screen.getByRole("button", { name: "Choose model" });
+  expect(modelControl.text).toContain("GPT-5");
+  modelControl.click();
   expect(screen.getByRole("combobox", { name: "Choose model" })).toBeTruthy();
   expect(screen.getByRole("combobox", { name: "Thinking level" })).toBeTruthy();
   const usage = screen.getByRole("button", { name: "Session usage" });
