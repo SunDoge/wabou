@@ -215,15 +215,15 @@ export function SidebarMenuButton(props: SidebarMenuButtonProps): JSX.Element {
       aria-selected={selected()}
       class={(state) =>
         mergeClasses(
-          "w-full min-w-0 h-8 px-3 justify-start gap-2.5 rounded-lg text-sm",
+          "w-full min-w-0 h-8 px-3 justify-start gap-2.5 rounded-lg border border-transparent text-sm",
           state.pressed
             ? "bg-control-pressed text-primary"
             : state.hovered
               ? "bg-control-hover text-primary"
               : state.selected
-                ? "bg-selected text-primary"
+                ? "border-subtle bg-surface text-primary shadow-xs"
                 : "bg-transparent text-secondary",
-          state.focusVisible && "border border-focus",
+          state.focusVisible && "border-focus",
           props.class,
         )
       }

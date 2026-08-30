@@ -30,6 +30,7 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
+  SidebarMenu,
   SidebarMenuButton,
   Text,
   View,
@@ -323,13 +324,20 @@ export function SidebarLayoutFixture() {
           aria-label="Fixture navigation"
           contentClass="gap-1"
         >
-          <ForValue each={Array.from({ length: 18 }, (_, index) => index + 1)}>
-            {(index) => (
-              <SidebarMenuButton aria-label={`Section ${index}`}>
-                <Text>{`Section ${index}`}</Text>
-              </SidebarMenuButton>
-            )}
-          </ForValue>
+          <SidebarMenu value="section-4">
+            <ForValue
+              each={Array.from({ length: 18 }, (_, index) => index + 1)}
+            >
+              {(index) => (
+                <SidebarMenuButton
+                  value={`section-${index}`}
+                  aria-label={`Section ${index}`}
+                >
+                  <Text>{`Section ${index}`}</Text>
+                </SidebarMenuButton>
+              )}
+            </ForValue>
+          </SidebarMenu>
         </SidebarContent>
         <SidebarFooter
           role="group"

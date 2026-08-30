@@ -51,6 +51,13 @@ const assertSidebarLayout = (snapshot: LayoutSnapshot) => {
   );
   if (navigation.computed.overflowY !== "Scroll")
     throw new Error("sidebar content did not establish a scroll viewport");
+  const selected = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Section 4",
+  });
+  if (new Map(selected.attrs).get("aria-selected") !== "true") {
+    throw new Error("sidebar fixture did not retain its selected destination");
+  }
 };
 
 const assertScrollAreaLayout = (snapshot: LayoutSnapshot) => {
