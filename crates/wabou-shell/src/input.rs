@@ -41,6 +41,10 @@ pub struct ProjectedPointerEvent {
     pub x: f32,
     /// Window-logical vertical coordinate.
     pub y: f32,
+    /// Horizontal coordinate relative to the target border box.
+    pub local_x: f32,
+    /// Vertical coordinate relative to the target border box.
+    pub local_y: f32,
     /// Button changed by this transition.
     pub button: Option<ProjectedPointerButton>,
     /// Whether Shift is held.
@@ -75,6 +79,10 @@ pub struct ProjectedWheelEvent {
     pub x: f32,
     /// Window-logical vertical coordinate.
     pub y: f32,
+    /// Horizontal coordinate relative to the target border box.
+    pub local_x: f32,
+    /// Vertical coordinate relative to the target border box.
+    pub local_y: f32,
     /// Horizontal delta in source units.
     pub delta_x: f32,
     /// Vertical delta in source units.

@@ -128,6 +128,7 @@ fn pointer_event(
     key: NodeKey,
     phase: ProjectedPointerPhase,
     position: gpui::Point<Pixels>,
+    bounds: Bounds<Pixels>,
     button: Option<MouseButton>,
     modifiers: gpui::Modifiers,
 ) -> ProjectedPointerEvent {
@@ -136,6 +137,8 @@ fn pointer_event(
         phase,
         x: position.x.into(),
         y: position.y.into(),
+        local_x: (position.x - bounds.origin.x).into(),
+        local_y: (position.y - bounds.origin.y).into(),
         button: button.map(pointer_button),
         shift: modifiers.shift,
         control: modifiers.control,
@@ -144,7 +147,11 @@ fn pointer_event(
     }
 }
 
-fn wheel_event(key: NodeKey, event: &ScrollWheelEvent) -> ProjectedWheelEvent {
+fn wheel_event(
+    key: NodeKey,
+    event: &ScrollWheelEvent,
+    bounds: Bounds<Pixels>,
+) -> ProjectedWheelEvent {
     let (delta_x, delta_y, precise) = match event.delta {
         ScrollDelta::Pixels(delta) => (f32::from(delta.x), f32::from(delta.y), true),
         ScrollDelta::Lines(delta) => (delta.x, delta.y, false),
@@ -153,6 +160,8 @@ fn wheel_event(key: NodeKey, event: &ScrollWheelEvent) -> ProjectedWheelEvent {
         target: key,
         x: event.position.x.into(),
         y: event.position.y.into(),
+        local_x: (event.position.x - bounds.origin.x).into(),
+        local_y: (event.position.y - bounds.origin.y).into(),
         delta_x,
         delta_y,
         precise,
@@ -260,6 +269,7 @@ impl Element for ProjectedElement {
                             key,
                             ProjectedPointerPhase::Down,
                             event.position,
+                            bounds,
                             Some(event.button),
                             event.modifiers,
                         )),
@@ -278,6 +288,7 @@ impl Element for ProjectedElement {
                             key,
                             ProjectedPointerPhase::Up,
                             event.position,
+                            bounds,
                             Some(event.button),
                             event.modifiers,
                         )),
@@ -296,6 +307,7 @@ impl Element for ProjectedElement {
                             key,
                             ProjectedPointerPhase::Move,
                             event.position,
+                            bounds,
                             event.pressed_button,
                             event.modifiers,
                         )),
@@ -310,7 +322,10 @@ impl Element for ProjectedElement {
             let key = self.key;
             window.on_mouse_event(move |event: &ScrollWheelEvent, phase, window, cx| {
                 if phase == DispatchPhase::Bubble && wheel_hitbox.should_handle_scroll(window) {
-                    wheel_input(ProjectedInputEvent::Wheel(wheel_event(key, event)), cx);
+                    wheel_input(
+                        ProjectedInputEvent::Wheel(wheel_event(key, event, bounds)),
+                        cx,
+                    );
                     cx.stop_propagation();
                 }
             });
@@ -512,11 +527,20 @@ mod tests {
         };
 
         assert_eq!(
-            wheel_event(key, &event),
+            wheel_event(
+                key,
+                &event,
+                Bounds {
+                    origin: point(px(10.0), px(30.0)),
+                    size: gpui::size(px(100.0), px(100.0)),
+                },
+            ),
             ProjectedWheelEvent {
                 target: key,
                 x: 40.0,
                 y: 80.0,
+                local_x: 30.0,
+                local_y: 50.0,
                 delta_x: -2.5,
                 delta_y: 12.0,
                 precise: true,
