@@ -2,7 +2,7 @@ mod checkpoint;
 mod service;
 
 use snafu::{ResultExt, Whatever};
-use wabou::{HostBuilder, HostShellBackend, WindowOptions};
+use wabou::{HostBuilder, WindowOptions};
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
@@ -17,8 +17,6 @@ fn main() -> Result<(), Whatever> {
     let capability = service.clone();
     let events = service.clone();
     HostBuilder::new()
-        // The terminal is still implemented by the reference Winit backend.
-        .shell_backend(HostShellBackend::LegacyWinit)
         .app_directories("dev", "Wabou", "Pi Agent")
         .kv()
         .persist_window_size("main")
@@ -32,7 +30,7 @@ fn main() -> Result<(), Whatever> {
                 // flex children to be compressed into one another.
                 .min_inner_size(1180, 680),
         )
-        .widget("terminal", wabou_terminal::terminal_widget)
+        .gpui_entity_widget("terminal", wabou_terminal::gpui_terminal_factory())
         .capability(service::CAPABILITY, move |host| {
             service::mount(host, capability.clone())
         })
