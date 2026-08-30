@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use gpui::{SharedString, Style};
 
@@ -36,6 +36,14 @@ pub struct ProjectedNode {
     pub image: Option<std::sync::Arc<gpui::Image>>,
     /// Authored attributes after the latest completed Solid flush.
     pub attributes: BTreeMap<SharedString, SharedString>,
+    /// Guest event codes registered on this exact retained node.
+    pub listeners: BTreeSet<u8>,
+    /// Explicit keyboard focus order, or `None` when the node is not focusable.
+    pub focus_order: Option<i32>,
+    /// Whether native interaction is blocked for this node and its subtree.
+    pub interaction_blocked: bool,
+    /// Whether focus traversal is contained inside this subtree.
+    pub focus_contained: bool,
 }
 
 /// Structural projection failure, always reported before GPUI sees a frame.
@@ -165,6 +173,10 @@ impl ProjectionTree {
                 text,
                 image: None,
                 attributes: BTreeMap::new(),
+                listeners: BTreeSet::new(),
+                focus_order: None,
+                interaction_blocked: false,
+                focus_contained: false,
             },
         );
         self.dirty.invalidate(
@@ -345,6 +357,53 @@ impl ProjectionTree {
             key,
             DirtyKind::LAYOUT | DirtyKind::PAINT | DirtyKind::SEMANTICS,
         );
+        Ok(())
+    }
+
+    pub fn add_event_listener(
+        &mut self,
+        key: NodeKey,
+        event_type: u8,
+    ) -> Result<(), ProjectionError> {
+        self.nodes
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?
+            .listeners
+            .insert(event_type);
+        self.dirty.invalidate(key, DirtyKind::INTERACTION);
+        Ok(())
+    }
+
+    pub fn remove_event_listener(
+        &mut self,
+        key: NodeKey,
+        event_type: u8,
+    ) -> Result<(), ProjectionError> {
+        self.nodes
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?
+            .listeners
+            .remove(&event_type);
+        self.dirty.invalidate(key, DirtyKind::INTERACTION);
+        Ok(())
+    }
+
+    pub fn update_interaction_policy(
+        &mut self,
+        key: NodeKey,
+        focus_order: Option<i32>,
+        blocked: bool,
+        contained: bool,
+    ) -> Result<(), ProjectionError> {
+        let node = self
+            .nodes
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?;
+        node.focus_order = focus_order;
+        node.interaction_blocked = blocked;
+        node.focus_contained = contained;
+        self.dirty
+            .invalidate(key, DirtyKind::INTERACTION | DirtyKind::SEMANTICS);
         Ok(())
     }
 

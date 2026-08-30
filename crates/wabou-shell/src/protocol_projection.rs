@@ -194,6 +194,25 @@ impl GpuiProjection {
                     );
                     self.recompute_style(*id)?;
                 }
+                Op::AddEventListener { id, event_type } => {
+                    self.tree.add_event_listener(*id, *event_type)?;
+                }
+                Op::RemoveEventListener { id, event_type } => {
+                    self.tree.remove_event_listener(*id, *event_type)?;
+                }
+                Op::SetInteractionPolicy {
+                    id,
+                    flags,
+                    focus_order,
+                } => {
+                    self.tree.update_interaction_policy(
+                        *id,
+                        (flags & wabou_protocol::INTERACTION_POLICY_FOCUSABLE != 0)
+                            .then_some(*focus_order),
+                        flags & wabou_protocol::INTERACTION_POLICY_BLOCK_SUBTREE != 0,
+                        flags & wabou_protocol::INTERACTION_POLICY_CONTAIN_FOCUS != 0,
+                    )?;
+                }
                 Op::DropNode { id } => {
                     let removed = self.tree.remove(*id)?;
                     for key in removed {
@@ -614,6 +633,59 @@ mod tests {
             tree.node(key(3)).unwrap().text.as_deref(),
             Some("updated once per flush")
         );
+    }
+
+    #[test]
+    fn event_and_focus_contracts_are_retained_without_legacy_document_state() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let button = atoms.intern("button");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: button,
+                        },
+                        Op::AddEventListener {
+                            id: key(2),
+                            event_type: wabou_protocol::event::CLICK,
+                        },
+                        Op::SetInteractionPolicy {
+                            id: key(2),
+                            flags: wabou_protocol::INTERACTION_POLICY_FOCUSABLE
+                                | wabou_protocol::INTERACTION_POLICY_CONTAIN_FOCUS,
+                            focus_order: 7,
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        let node = projection.tree().node(key(2)).unwrap();
+        assert_eq!(node.listeners, [wabou_protocol::event::CLICK].into());
+        assert_eq!(node.focus_order, Some(7));
+        assert!(node.focus_contained);
+        assert!(!node.interaction_blocked);
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 2,
+                    ops: vec![Op::RemoveEventListener {
+                        id: key(2),
+                        event_type: wabou_protocol::event::CLICK,
+                    }],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        assert!(projection.tree().node(key(2)).unwrap().listeners.is_empty());
     }
 
     #[test]
