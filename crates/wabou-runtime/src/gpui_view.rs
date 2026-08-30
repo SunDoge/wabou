@@ -30,6 +30,7 @@ pub struct GpuiRuntimeView {
     focus: FocusHandle,
     default_title: String,
     text_controls: BTreeMap<wabou_host_api::NodeKey, GpuiTextControlState>,
+    window_size_persistence: Option<wabou_shell_gpui::WindowSizePersistence>,
 }
 
 enum GpuiTextControlState {
@@ -94,6 +95,7 @@ impl GpuiRuntimeView {
     pub fn new(
         mut applier: Applier,
         default_title: String,
+        window_size_persistence: Option<wabou_shell_gpui::WindowSizePersistence>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -125,6 +127,7 @@ impl GpuiRuntimeView {
             focus,
             default_title,
             text_controls: BTreeMap::new(),
+            window_size_persistence,
         }
     }
 
@@ -597,6 +600,15 @@ impl Render for GpuiRuntimeView {
         cx: &mut Context<Self>,
     ) -> impl wabou_shell_gpui::gpui::IntoElement {
         let viewport = window.viewport_size();
+        if let Some(persistence) = &mut self.window_size_persistence {
+            let width: f32 = viewport.width.into();
+            let height: f32 = viewport.height.into();
+            persistence.observe(
+                width.round().max(1.0) as u32,
+                height.round().max(1.0) as u32,
+                window.is_maximized(),
+            );
+        }
         let _ = self
             .applier
             .build_gpui_frame(viewport.width.into(), viewport.height.into());
@@ -694,7 +706,7 @@ mod tests {
         let runtime = JsRuntime::new().expect("QuickJS runtime");
         let applier = Applier::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
         let (view, cx) = cx.add_window_view(move |window, cx| {
-            GpuiRuntimeView::new(applier, "Clipboard test".into(), window, cx)
+            GpuiRuntimeView::new(applier, "Clipboard test".into(), None, window, cx)
         });
 
         let write = cx.update(|window, app| {
@@ -744,7 +756,7 @@ mod tests {
         let runtime = JsRuntime::new().expect("QuickJS runtime");
         let applier = Applier::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
         let (view, cx) = cx.add_window_view(move |window, cx| {
-            GpuiRuntimeView::new(applier, "Dialog test".into(), window, cx)
+            GpuiRuntimeView::new(applier, "Dialog test".into(), None, window, cx)
         });
 
         let completion = cx.update(|window, app| {

@@ -11,6 +11,7 @@ mod input;
 mod projection;
 mod style;
 mod tree;
+mod window_state;
 
 pub use element::ProjectedElement;
 pub use element::ProjectedNativeElementFactory;
@@ -23,6 +24,7 @@ pub use input::{
 pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
 pub use style::{StyleDiagnostic, StyleProjection};
 pub use tree::{ProjectedNode, ProjectedNodeKind, ProjectionError, ProjectionTree};
+pub use window_state::WindowSizePersistence;
 
 /// Thread-safe callback used by background producers to wake the UI loop.
 pub type WakeCallback = Arc<dyn Fn() + Send + Sync>;

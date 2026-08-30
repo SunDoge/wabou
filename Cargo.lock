@@ -12473,7 +12473,11 @@ dependencies = [
  "bitflags 2.13.1",
  "gpui-ce",
  "gpui_ce_platform",
+ "serde",
+ "serde_json",
  "slotmap",
+ "tempfile",
+ "tracing",
  "wabou-host-api",
  "wabou-style",
 ]

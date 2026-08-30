@@ -1118,19 +1118,30 @@ impl HostBuilder {
             headless: headless_test,
         };
         let services = start_host_services(&self.services, &service_context)?;
+        let mut gpui_window_size_persistence = None;
         if let Some(key) = &self.persisted_window_size {
             if let Some(directories) = &app_directories {
                 let path = directories
                     .local_data_dir
                     .join("window-state")
                     .join(format!("{key}.json"));
-                let persistence = wabou_shell::WindowSizePersistence::restore(
-                    path,
-                    wabou_shell::initial_window_resource_key(0),
-                    &mut self.window,
-                );
-                // Observe close before a tray extension consumes the request.
-                self.extensions.insert(0, Box::new(persistence));
+                if self.shell_backend == HostShellBackend::Gpui {
+                    let (persistence, restored) = wabou_shell_gpui::WindowSizePersistence::restore(
+                        path,
+                        self.window.initial_inner_size,
+                        self.window.min_inner_size,
+                    );
+                    self.window.initial_inner_size = restored;
+                    gpui_window_size_persistence = Some(persistence);
+                } else {
+                    let persistence = wabou_shell::WindowSizePersistence::restore(
+                        path,
+                        wabou_shell::initial_window_resource_key(0),
+                        &mut self.window,
+                    );
+                    // Observe close before a tray extension consumes the request.
+                    self.extensions.insert(0, Box::new(persistence));
+                }
             } else {
                 tracing::warn!(
                     key,
@@ -1211,7 +1222,13 @@ impl HostBuilder {
                 if let Some(client) = runtime_sources.start_hmr(&mut applier)? {
                     hmr_clients.push(client);
                 }
-                gpui_sources.push((applier, options));
+                gpui_sources.push((
+                    applier,
+                    options,
+                    (index == 0)
+                        .then(|| gpui_window_size_persistence.take())
+                        .flatten(),
+                ));
             }
             run_gpui_windows(gpui_sources)?;
             #[cfg(feature = "vite")]
@@ -1302,14 +1319,20 @@ impl HostBuilder {
     }
 }
 
-fn run_gpui_windows(windows: Vec<(Applier, WindowOptions)>) -> crate::Result<()> {
+fn run_gpui_windows(
+    windows: Vec<(
+        Applier,
+        WindowOptions,
+        Option<wabou_shell_gpui::WindowSizePersistence>,
+    )>,
+) -> crate::Result<()> {
     use wabou_shell_gpui::gpui::{AppContext as _, px, size};
 
     let startup_error = Arc::new(std::sync::Mutex::new(None));
     let reported_error = startup_error.clone();
     wabou_shell_gpui::application().run(move |cx| {
         gpui_base::init(cx);
-        for (applier, options) in windows {
+        for (applier, options, persistence) in windows {
             let bounds = wabou_shell_gpui::gpui::Bounds::centered(
                 None,
                 size(
@@ -1335,7 +1358,7 @@ fn run_gpui_windows(windows: Vec<(Applier, WindowOptions)>) -> crate::Result<()>
             };
             let opened = cx.open_window(gpui_options, move |window, cx| {
                 window.set_window_title(&title);
-                cx.new(|cx| crate::GpuiRuntimeView::new(applier, title, window, cx))
+                cx.new(|cx| crate::GpuiRuntimeView::new(applier, title, persistence, window, cx))
             });
             if let Err(error) = opened {
                 *reported_error.lock().expect("GPUI startup error lock") = Some(error.to_string());

@@ -11,9 +11,13 @@ license.workspace = true
 bitflags.workspace = true
 gpui.workspace = true
 gpui-platform.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 slotmap.workspace = true
+tracing.workspace = true
 wabou-host-api.workspace = true
 wabou-style.workspace = true
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }
+tempfile = "3"
