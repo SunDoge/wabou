@@ -18,7 +18,7 @@ test("starts a deterministic Pi agent and renders its streamed response", async 
     }),
   ).toHaveCount(1, { timeout: 5_000 });
   const toolActivity = page.getByRole("button", {
-    name: "Worked, 1 tool call",
+    name: "Worked for <1s · 1 tool call",
   });
   await expect(toolActivity).toHaveCount(1);
   await toolActivity.click();

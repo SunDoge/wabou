@@ -29,6 +29,7 @@ interface AuthoredNode {
   overlayPlane: ComponentOverlayPlane;
   className: string;
   readonly styles: Map<string, ComponentStyleValue>;
+  widgetConfig: unknown;
   transform: readonly [number, number, number, number, number, number] | null;
   text: string;
 }
@@ -114,6 +115,8 @@ export interface ComponentLocator extends ComponentQueries {
   readonly className: string;
   /** Last authored string or typed value emitted for an inline style property. */
   style(name: string): ComponentStyleValue | null;
+  /** Last structured configuration authored for a native widget. */
+  readonly widgetConfig: unknown;
   /** Direct authored children for visual protocol assertions. Prefer role queries for behavior. */
   readonly children: readonly ComponentLocator[];
   /** Stable authored protocol tree without transient NodeKeys. */
@@ -151,8 +154,7 @@ export interface ComponentLocator extends ComponentQueries {
   readonly valueText: string | null;
   /** Last runtime affine transform emitted through the native protocol. */
   readonly transform:
-    | readonly [number, number, number, number, number, number]
-    | null;
+    readonly [number, number, number, number, number, number] | null;
   /** Whether this locator owns the harness's native focus simulation. */
   readonly focused: boolean;
   /** Native tab order emitted through Wabou's interaction policy protocol. */
@@ -564,6 +566,8 @@ export function renderComponent(
     setStyleValue: writer.setStyleValue,
     removeStyle: writer.removeStyle,
     setTransform2D: writer.setTransform2D,
+    setWidgetConfig: writer.setWidgetConfig,
+    removeWidgetConfig: writer.removeWidgetConfig,
     setInteractionPolicy: writer.setInteractionPolicy,
     setOverlayPlane: writer.setOverlayPlane,
     dropNode: writer.dropNode,
@@ -583,6 +587,7 @@ export function renderComponent(
       overlayPlane: "content",
       className: "",
       styles: new Map(),
+      widgetConfig: null,
       transform: null,
       text,
     });
@@ -673,6 +678,16 @@ export function renderComponent(
     const node = nodes.get(key(id));
     if (node) node.transform = [...value];
     originals.setTransform2D.call(writer, id, value);
+  };
+  writer.setWidgetConfig = (id, json) => {
+    const node = nodes.get(key(id));
+    if (node) node.widgetConfig = JSON.parse(json);
+    originals.setWidgetConfig.call(writer, id, json);
+  };
+  writer.removeWidgetConfig = (id) => {
+    const node = nodes.get(key(id));
+    if (node) node.widgetConfig = null;
+    originals.removeWidgetConfig.call(writer, id);
   };
   writer.setInteractionPolicy = (id, flags, focusOrder) => {
     const node = nodes.get(key(id));
@@ -1052,6 +1067,9 @@ export function renderComponent(
         return node.className;
       },
       style: (name) => node.styles.get(name) ?? null,
+      get widgetConfig() {
+        return node.widgetConfig;
+      },
       get children() {
         return node.children.map(locator);
       },

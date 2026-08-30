@@ -55,6 +55,24 @@ test("Pi Agent composer keeps the primary action and configuration discoverable"
   expect(submit).toHaveBeenCalledOnce();
 });
 
+test("Pi Agent composer preserves a native range selection", () => {
+  const screen = renderComponent(() => <ConversationComposer {...baseProps} />);
+  const editor = screen.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+
+  editor.emit("textselectionchange", {
+    anchor: 0,
+    head: baseProps.draft.length,
+    text: baseProps.draft,
+    kind: "simple",
+  });
+
+  expect(editor.widgetConfig).toEqual({
+    selection: { anchor: 0, head: baseProps.draft.length },
+  });
+});
+
 test("Pi Agent composer swaps configuration for delivery mode while running", () => {
   const screen = renderComponent(() => (
     <ConversationComposer {...baseProps} connection="running" />

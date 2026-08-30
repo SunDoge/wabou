@@ -82,10 +82,18 @@ export interface ConversationComposerProps {
   submit(): void;
 }
 
+interface ComposerSelection {
+  anchor: number;
+  head: number;
+}
+
 /** Stable, independently testable boundary for the conversation's primary action. */
 export function ConversationComposer(props: ConversationComposerProps) {
   const initialDraft = untrack(() => props.draft);
-  const [cursor, setCursor] = createSignal(initialDraft.length);
+  const [selection, setSelection] = createSignal<ComposerSelection>({
+    anchor: initialDraft.length,
+    head: initialDraft.length,
+  });
   const [composerActive, setComposerActive] = createSignal(false);
   const [highlighted, setHighlighted] = createSignal<string>();
   const [dismissed, setDismissed] = createSignal<string>();
@@ -99,14 +107,14 @@ export function ConversationComposer(props: ConversationComposerProps) {
     flush(() => {
       authoredDraft = value;
       props.changeDraft(value);
-      setCursor(nextCursor);
+      setSelection({ anchor: nextCursor, head: nextCursor });
     });
   };
   createEffect(
     () => props.draft,
     (value) => {
       if (value !== authoredDraft) {
-        setCursor(value.length);
+        setSelection({ anchor: value.length, head: value.length });
         setComposerActive(false);
         setDismissed(undefined);
       }
@@ -114,11 +122,14 @@ export function ConversationComposer(props: ConversationComposerProps) {
     },
   );
   const trigger = createMemo(() =>
-    composerActive() ? detectComposerTrigger(props.draft, cursor()) : null,
+    composerActive()
+      ? detectComposerTrigger(props.draft, selection().head)
+      : null,
   );
-  const controlledCursor = createMemo(() =>
-    normalizeComposerCursor(props.draft, cursor()),
-  );
+  const controlledSelection = createMemo(() => ({
+    anchor: normalizeComposerCursor(props.draft, selection().anchor),
+    head: normalizeComposerCursor(props.draft, selection().head),
+  }));
   const triggerKey = createMemo(() => {
     const value = trigger();
     return value
@@ -145,9 +156,9 @@ export function ConversationComposer(props: ConversationComposerProps) {
     const key = triggerKey();
     return Boolean(
       key &&
-        key !== dismissed() &&
-        (autocompleteRows().length > 0 ||
-          (trigger()?.kind === "file" && files.loading())),
+      key !== dismissed() &&
+      (autocompleteRows().length > 0 ||
+        (trigger()?.kind === "file" && files.loading())),
     );
   });
   createEffect(autocompleteRows, (rows) => {
@@ -244,10 +255,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
               class="h-16"
               value={props.draft}
               widgetConfig={{
-                selection: {
-                  anchor: controlledCursor(),
-                  head: controlledCursor(),
-                },
+                selection: controlledSelection(),
               }}
               aria-label={i18n.message(m.prompt_placeholder, {})}
               placeholder={
@@ -263,7 +271,8 @@ export function ConversationComposer(props: ConversationComposerProps) {
               }}
               onTextSelectionChange={(event) => {
                 setComposerActive(true);
-                setCursor(event.head ?? 0);
+                const head = event.head ?? 0;
+                setSelection({ anchor: event.anchor ?? head, head });
                 setDismissed(undefined);
               }}
               onFocus={() => setComposerActive(true)}
