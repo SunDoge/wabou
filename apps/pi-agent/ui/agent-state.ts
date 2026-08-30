@@ -49,7 +49,13 @@ export type AgentItem =
       /** Total wall-clock time for the completed Pi turn owning this group. */
       turnDurationMs?: number;
     }
-  | { id: string; kind: "notice"; text: string; tone?: "default" | "error" };
+  | {
+      id: string;
+      kind: "notice";
+      text: string;
+      tone?: "default" | "error";
+      recovery?: "retry_prompt";
+    };
 
 export interface AgentSessionStats {
   userMessages: number;
@@ -521,6 +527,7 @@ export function reducePiEvent(
                 kind: "notice" as const,
                 text: message,
                 tone: "error" as const,
+                recovery: "retry_prompt" as const,
               },
             ],
           };
@@ -765,6 +772,7 @@ export function reducePiEvent(
             kind: "notice" as const,
             text: message,
             tone: "error" as const,
+            recovery: "retry_prompt" as const,
           },
         ],
       };

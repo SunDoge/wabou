@@ -994,6 +994,7 @@ export function App() {
                           itemHandles.register(itemHandleScope(), id, node)
                         }
                         fork={openFork}
+                        retry={() => void submit()}
                       />
                     </Show>
                   </WorkbenchContentColumn>

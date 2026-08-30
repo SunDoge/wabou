@@ -95,6 +95,7 @@
   "skill_scope_user": "User",
   "skills_load_failed": "Could not load skills",
   "retry": "Try again",
+  "retry_request": "Retry request",
   "refresh_skills": "Refresh skills",
   "refresh": "Refresh",
   "settings_intro": "Configure the current project, session behavior, and app-wide defaults.",

@@ -158,6 +158,25 @@ test("Pi Agent animates newly appended messages without fading loaded history", 
   expect(appended?.style("opacity")).toEqual({ kind: 3, value: 1 });
 });
 
+test("Pi Agent exposes recovery only for retryable prompt failures", () => {
+  let retries = 0;
+  const screen = renderComponent(() => (
+    <ConversationItem
+      item={{
+        id: "prompt-failure",
+        kind: "notice",
+        text: "Provider unavailable",
+        tone: "error",
+        recovery: "retry_prompt",
+      }}
+      retry={() => retries++}
+    />
+  ));
+
+  screen.getByRole("button", { name: "Retry request" }).click();
+  expect(retries).toBe(1);
+});
+
 test("Pi Agent keeps reasoning in an independently collapsible process detail", () => {
   const screen = renderComponent(() => (
     <ConversationItem

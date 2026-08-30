@@ -324,6 +324,7 @@ describe("Pi agent event projection", () => {
       kind: "notice",
       tone: "error",
       text: "provider unavailable",
+      recovery: "retry_prompt",
     });
 
     const retried = reducePiEvent(failed, { type: "agent_start" });
@@ -350,6 +351,7 @@ describe("Pi agent event projection", () => {
       kind: "notice",
       tone: "error",
       text: "provider unavailable",
+      recovery: "retry_prompt",
     });
   });
 

@@ -21,6 +21,12 @@ test("keeps the conversation and draft when a prompt request fails", async ({
   await expect(page.getByRole("button", { name: "Send" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Start agent" })).toBeAbsent();
 
+  await page.getByRole("button", { name: "Retry request" }).click();
+  await expect(
+    page.getByRole("label", { name: "Fixture rejected request" }),
+  ).toHaveCount(2, { timeout: 5_000 });
+  await expect(composer).toHaveValue("Reject request", { timeout: 5_000 });
+
   // Leave the shared deterministic suite in its normal stopped state.
   await composer.press("a", { control: true });
   await composer.press("Backspace");

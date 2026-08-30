@@ -337,6 +337,7 @@ function ConversationEntryContent(props: {
   entry: ConversationEntry;
   animate?: boolean;
   fork?: (item: Extract<AgentItem, { kind: "user" }>) => void;
+  retry?: () => void;
 }) {
   const item = () => {
     const current = props.entry;
@@ -368,6 +369,7 @@ function ConversationEntryContent(props: {
           item={item()}
           animate={props.animate}
           fork={canFork() ? fork : undefined}
+          retry={props.retry}
         />
       }
     >
@@ -430,6 +432,7 @@ export function ConversationItem(props: {
   item: AgentItem;
   animate?: boolean;
   fork?: () => void;
+  retry?: () => void;
 }) {
   const messageText = () => (props.item.kind === "tool" ? "" : props.item.text);
   const messageStreaming = () =>
@@ -589,6 +592,19 @@ export function ConversationItem(props: {
             </Bubble>
             <Show
               when={
+                props.item.kind === "notice" &&
+                props.item.recovery === "retry_prompt" &&
+                props.retry
+              }
+            >
+              <MessageActions align="start" visibility="always">
+                <Button variant="outline" size="sm" onClick={props.retry}>
+                  {i18n.message(m.retry_request, {})}
+                </Button>
+              </MessageActions>
+            </Show>
+            <Show
+              when={
                 messageText() &&
                 (props.item.kind === "assistant" || props.item.kind === "user")
               }
@@ -644,6 +660,7 @@ export function ConversationList(props: {
   activeSearchItem?: string;
   registerItem?: (id: string, node: Handle) => void;
   fork?: (item: Extract<AgentItem, { kind: "user" }>) => void;
+  retry?: () => void;
 }) {
   const entries = createMemo(() => groupConversationItems(props.items));
   const initialEntryIds = new Set(
@@ -685,6 +702,7 @@ export function ConversationList(props: {
                 entry={entry()}
                 animate={!initialEntryIds.has(entry().id)}
                 fork={props.fork}
+                retry={props.retry}
               />
             </MessageScrollerItem>
           );
