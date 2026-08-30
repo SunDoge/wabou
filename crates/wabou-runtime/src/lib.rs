@@ -9,16 +9,10 @@
 
 #![warn(missing_docs)]
 
-// Kept only for the legacy debug projection while its in-flight extraction is
-// completed. New runtime code must name `legacy_shell` explicitly.
-extern crate legacy_shell as wabou_shell;
-
 mod actor;
-mod applier;
 mod atom;
 mod bundle;
 mod clock;
-mod config;
 mod effect_bridge;
 mod effect_trace;
 mod error;
@@ -31,7 +25,6 @@ mod host_ffi;
 mod host_frame;
 mod host_message;
 mod image_resource;
-mod inline_context;
 mod json_capability;
 mod jsrt;
 mod kv;
@@ -52,10 +45,7 @@ mod ui_inbox;
 mod css_support_matrix_test;
 #[cfg(feature = "vite")]
 pub mod vite;
-#[cfg(test)]
-mod widget;
 
-pub use config::AppConfig;
 pub use error::{Error, Result};
 pub use gpui_shell::{
     AppDirectories, AppDirectoryConfig, NativeWidgetContext, NativeWidgetFactory,
@@ -85,15 +75,6 @@ pub use protocol::event;
 pub use reload::{HmrDrainResult, ReloadHandle, ReloadMsg};
 pub use rquickjs;
 pub use serial_worker::SerialWorker;
-
-/// Transitional API used by the legacy Winit headless verification tools.
-///
-/// Applications must use [`HostBuilder`] and the GPUI shell instead. This
-/// module will disappear when the layout oracle has moved out of the runtime.
-#[doc(hidden)]
-pub mod legacy_headless {
-    pub use crate::applier::{ComputedNodeSnapshot, LegacyRuntimeController as Applier};
-}
 
 #[cfg(feature = "vite")]
 pub use vite::{HmrClient, ViteError, start_hmr_client, vite_url_from_env};

@@ -21,6 +21,7 @@ gpui-platform = { package = "gpui_ce_platform", version = "0.1.0", features = ["
 wabou = { path = "crates/wabou" }
 wabou-accessibility = { path = "crates/wabou-accessibility" }
 wabou-legacy-accessibility = { path = "crates/wabou-backend-winit-accessibility" }
+wabou-legacy-runtime = { path = "crates/wabou-legacy-runtime" }
 wabou-bindgen = { path = "crates/wabou-bindgen", default-features = false }
 wabou-database = { path = "crates/wabou-database" }
 wabou-devtools = { path = "crates/wabou-devtools", default-features = false }

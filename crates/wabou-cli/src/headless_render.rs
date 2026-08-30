@@ -18,8 +18,7 @@ use wabou_backend_winit::{
     PointerPhase, TextContext, UiEvent, WheelEvent,
 };
 use wabou_backend_winit_widgets::{PasswordInput, SecretStore};
-use wabou_runtime::legacy_headless::Applier;
-use wabou_runtime::{AppConfig, JsRuntime};
+use wabou_legacy_runtime::{AppConfig, Applier, JsRuntime};
 
 use super::artifact::{app_binary, app_framework_feature};
 use super::config::{BuildProfile, bundle_path};

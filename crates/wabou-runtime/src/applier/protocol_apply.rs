@@ -890,4 +890,5 @@ impl Applier {
 }
 
 #[cfg(test)]
+#[path = "protocol_apply/vector_path_tests.rs"]
 mod vector_path_tests;

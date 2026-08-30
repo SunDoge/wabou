@@ -23,6 +23,7 @@ tempfile = "3"
 toml = "0.9"
 wabou-devtools = { workspace = true }
 wabou-runtime = { workspace = true, features = ["devtools"] }
+wabou-legacy-runtime = { workspace = true, features = ["devtools"] }
 wabou-backend-winit = { package = "wabou-legacy-shell", path = "../wabou-backend-winit" }
 wabou-backend-winit-widgets = { package = "wabou-legacy-widgets", path = "../wabou-backend-winit-widgets" }
 vello = { workspace = true }

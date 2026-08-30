@@ -11,7 +11,6 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = { workspace = true }
-anyrender.workspace = true
 arc-swap = { workspace = true }
 bitflags = { workspace = true }
 bon = { workspace = true }
@@ -23,7 +22,6 @@ getrandom = { workspace = true }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
 jiff = { workspace = true }
 open = { workspace = true }
-parley = { workspace = true }
 reqwest = {
   version = "0.13",
   default-features = false,
@@ -43,7 +41,6 @@ snafu = { workspace = true }
 slotmap = { workspace = true }
 sourcemap = "9.2.2"
 sys-locale = { workspace = true }
-taffy = { workspace = true, features = ["content_size", "parse"] }
 tempfile = "3"
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
@@ -51,20 +48,14 @@ tracing = { workspace = true }
 tracing-chrome = { version = "0.7.2", optional = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 url = { workspace = true }
-vello = { workspace = true }
 wabou-bindgen = { workspace = true }
 wabou-database = { workspace = true }
 wabou-devtools = { workspace = true, optional = true }
 wabou-host-api = { workspace = true }
 wabou-protocol = { workspace = true }
-# Explicit internal alias for the migration oracle. Production code uses the
-# canonical GPUI `wabou-shell`; every `legacy_shell` reference is extraction
-# debt rather than a selectable application backend.
-legacy-shell = { package = "wabou-legacy-shell", path = "../wabou-backend-winit" }
 gpui-shell = { package = "wabou-shell", path = "../wabou-shell" }
 gpui-base = { workspace = true }
 wabou-style = { workspace = true }
-wabou-legacy-widgets = { workspace = true }
 
 tungstenite = {
   version = "0.28",
@@ -84,8 +75,13 @@ rust-hot-reload = ["dep:dioxus-devtools"]
 vite = ["dep:tungstenite", "dep:ureq"]
 
 [dev-dependencies]
+# Temporary test-only oracle while the remaining Winit semantic tests move to
+# `wabou-legacy-runtime`. It is never linked by production `wabou-runtime`.
+legacy-shell = { package = "wabou-legacy-shell", path = "../wabou-backend-winit" }
 gpui-platform.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 image = { workspace = true, features = ["png"] }
 proptest = "1"
+taffy = { workspace = true, features = ["content_size", "parse"] }
+vello.workspace = true
 wabou-devtools = { workspace = true }

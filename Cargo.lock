@@ -12315,6 +12315,7 @@ dependencies = [
  "toml 0.9.12+spec-1.1.0",
  "vello",
  "wabou-devtools",
+ "wabou-legacy-runtime",
  "wabou-legacy-shell",
  "wabou-legacy-widgets",
  "wabou-runtime",
@@ -12379,6 +12380,49 @@ dependencies = [
  "raw-window-handle",
  "wabou-accessibility",
  "winit",
+]
+
+[[package]]
+name = "wabou-legacy-runtime"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "anyrender",
+ "arc-swap",
+ "bitflags 2.13.1",
+ "flume 0.12.0",
+ "futures-channel",
+ "futures-lite",
+ "getrandom 0.4.3",
+ "image",
+ "jiff",
+ "open",
+ "parley",
+ "reqwest",
+ "rquickjs",
+ "rquickjs-serde",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2 0.10.9",
+ "slotmap",
+ "snafu",
+ "sourcemap",
+ "sys-locale",
+ "taffy 0.14.0",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "url",
+ "vello",
+ "wabou-bindgen",
+ "wabou-devtools",
+ "wabou-host-api",
+ "wabou-legacy-shell",
+ "wabou-legacy-widgets",
+ "wabou-protocol",
+ "wabou-shell",
+ "wabou-style",
 ]
 
 [[package]]
@@ -12476,7 +12520,6 @@ name = "wabou-runtime"
 version = "0.1.0-alpha.3"
 dependencies = [
  "anyhow",
- "anyrender",
  "arc-swap",
  "bitflags 2.13.1",
  "bon",
@@ -12491,7 +12534,6 @@ dependencies = [
  "image",
  "jiff",
  "open",
- "parley",
  "proptest",
  "reqwest",
  "rquickjs",
@@ -12521,7 +12563,6 @@ dependencies = [
  "wabou-devtools",
  "wabou-host-api",
  "wabou-legacy-shell",
- "wabou-legacy-widgets",
  "wabou-protocol",
  "wabou-shell",
  "wabou-style",

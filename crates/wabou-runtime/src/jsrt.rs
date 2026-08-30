@@ -1340,4 +1340,5 @@ fn digest_bytes(algorithm: u8, bytes: &[u8]) -> JsResult<Vec<u8>> {
 }
 
 #[cfg(test)]
+#[path = "jsrt/tests.rs"]
 mod tests;

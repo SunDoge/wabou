@@ -1323,17 +1323,6 @@ pub(crate) fn relaunch_current_process() -> crate::Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
-fn install_host_message_producers(
-    producers: &[HostMessageProducer],
-    window_key: gpui_shell::WindowResourceKey,
-    applier: &crate::applier::LegacyRuntimeController,
-) {
-    for producer in producers {
-        producer(applier.host_message_context(window_key));
-    }
-}
-
 fn install_gpui_host_message_producers(
     producers: &[HostMessageProducer],
     window_key: gpui_shell::WindowResourceKey,
@@ -1348,10 +1337,9 @@ fn install_gpui_host_message_producers(
 mod tests {
     use super::{
         HostBuilder, HostService, HostServiceContext, HostServiceHandle, HostServicesGuard,
-        JsonCapabilityContract, install_host_message_producers, managed_host_service,
+        JsonCapabilityContract, install_gpui_host_message_producers, managed_host_service,
         start_host_services,
     };
-    use crate::applier::LegacyRuntimeController;
     use crate::host_message::{HostMessagePayload, HostTaskTracker, host_message_channel};
     use crate::json_capability::{JsonCapability, invoke_json_method};
     use crate::{HostMessageContext, JsRuntime};
@@ -1974,14 +1962,14 @@ mod tests {
             });
         });
         let runtime = JsRuntime::new().unwrap();
-        let applier = LegacyRuntimeController::from_runtime(
-            runtime,
-            vello::peniko::Color::from_rgb8(0x00, 0x00, 0x00),
+        let window_key = gpui_shell::WindowResourceKey::from_parts(3, 1).unwrap();
+        let controller = crate::gpui_controller::GpuiController::new(
+            crate::runtime_session::RuntimeSession::new(runtime, window_key),
         );
-        install_host_message_producers(
+        install_gpui_host_message_producers(
             &builder.host_message_producers,
-            gpui_shell::WindowResourceKey::from_parts(3, 1).unwrap(),
-            &applier,
+            window_key,
+            &controller,
         );
         started_rx
             .recv_timeout(std::time::Duration::from_secs(1))
@@ -1990,7 +1978,7 @@ mod tests {
         assert_eq!(context.window_key().into_parts(), (3, 1));
         assert!(!context.is_cancelled());
 
-        drop(applier);
+        drop(controller);
 
         stopped_rx
             .recv_timeout(std::time::Duration::from_secs(1))

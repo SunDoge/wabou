@@ -42,13 +42,6 @@ pub enum Error {
         source: std::io::Error,
     },
 
-    /// Native window/render host failed.
-    #[snafu(display("window host failed: {source}"))]
-    Shell {
-        /// Underlying shell error.
-        source: legacy_shell::Error,
-    },
-
     /// GPUI shell configuration or startup failed during migration.
     #[snafu(display("GPUI window host failed: {message}"))]
     GpuiShell {

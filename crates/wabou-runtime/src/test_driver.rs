@@ -7,11 +7,13 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 
-use gpui_shell::{WindowCapabilities, WindowIntent, WindowLifecycle, WindowPresence};
+use gpui_shell::{WakeCallback, WindowCapabilities, WindowIntent, WindowLifecycle, WindowPresence};
+#[cfg(test)]
 use legacy_shell::{
-    ExtensionContext, FileDropEvent, FileDropPhase, ImeEvent, KeyEvent, KeyLocation, KeyPhase,
-    ShellExtension, WakeCallback, WheelEvent,
+    ExtensionContext, FileDropEvent, ImeEvent, KeyEvent, KeyLocation, KeyPhase, ShellExtension,
+    WheelEvent,
 };
+#[cfg(test)]
 use legacy_shell::{
     FrameSource, Modifiers, Point, PointerButton, PointerEvent, PointerPhase, SemanticRole,
     SemanticSnapshot, UiEvent,
@@ -24,6 +26,26 @@ const CAPABILITY: &str = "test";
 const MAX_FIXTURE_BYTES: usize = 16 * 1024 * 1024;
 static NEXT_FIXTURE_DIRECTORY: AtomicU64 = AtomicU64::new(1);
 type WindowKey = gpui_shell::WindowResourceKey;
+
+#[derive(Clone, Copy, Debug)]
+enum FileDropPhase {
+    Entered,
+    Moved,
+    Left,
+    Dropped,
+}
+
+#[cfg(test)]
+impl From<FileDropPhase> for legacy_shell::FileDropPhase {
+    fn from(value: FileDropPhase) -> Self {
+        match value {
+            FileDropPhase::Entered => Self::Entered,
+            FileDropPhase::Moved => Self::Moved,
+            FileDropPhase::Left => Self::Left,
+            FileDropPhase::Dropped => Self::Dropped,
+        }
+    }
+}
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -179,8 +201,12 @@ struct TestState {
     windows: HashMap<WindowKey, WindowSnapshot>,
     wake: Option<WakeCallback>,
     report: Option<String>,
+    gpui_snapshots: HashMap<WindowKey, Arc<[gpui_shell::GpuiLayoutNode]>>,
+    #[cfg(test)]
     semantic_snapshots: HashMap<WindowKey, Arc<SemanticSnapshot>>,
+    #[cfg(test)]
     headless_viewports: HashMap<WindowKey, (u32, u32)>,
+    #[cfg(test)]
     headless: bool,
 }
 
@@ -230,6 +256,7 @@ impl TestController {
                 return receiver;
             }
             let action = TestAction { kind, completion };
+            #[cfg(test)]
             if state.headless {
                 if action_requires_source_poll(&action.kind) {
                     state.actions.push_back(action);
@@ -239,6 +266,8 @@ impl TestController {
             } else {
                 state.actions.push_back(action);
             }
+            #[cfg(not(test))]
+            state.actions.push_back(action);
             state.wake.clone()
         };
         if let Some(wake) = wake {
@@ -612,11 +641,11 @@ impl TestController {
 
     fn window_viewport_json(&self, window_key: WindowKey) -> String {
         let viewport = self.state.lock().ok().and_then(|state| {
-            state
-                .headless_viewports
-                .get(&window_key)
-                .copied()
-                .or_else(|| state.windows.get(&window_key)?.viewport)
+            #[cfg(test)]
+            if let Some(viewport) = state.headless_viewports.get(&window_key) {
+                return Some(*viewport);
+            }
+            state.windows.get(&window_key)?.viewport
         });
         viewport.map_or_else(
             || "null".into(),
@@ -628,6 +657,7 @@ impl TestController {
         self.state.lock().ok()?.report.take()
     }
 
+    #[cfg(test)]
     pub(crate) fn initialize_headless(
         &self,
         window_keys: impl IntoIterator<Item = WindowKey>,
@@ -649,6 +679,7 @@ impl TestController {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn headless_viewport(&self, window_key: WindowKey) -> Option<(u32, u32)> {
         self.state
             .lock()
@@ -658,6 +689,7 @@ impl TestController {
             .copied()
     }
 
+    #[cfg(test)]
     pub(crate) fn poll_headless_source(&self, window_key: WindowKey, source: &mut dyn FrameSource) {
         let snapshot = source.semantic_snapshot();
         if let Some(snapshot) = snapshot.as_ref() {
@@ -702,7 +734,7 @@ impl TestController {
             (TestActionKind::WaitForIdle(_), _) => true,
             (TestActionKind::FileDrop { phase, paths, .. }, _) => {
                 source.handle_event(UiEvent::FileDrop(FileDropEvent {
-                    phase: *phase,
+                    phase: (*phase).into(),
                     paths: paths.clone(),
                     position: None,
                 }));
@@ -747,10 +779,12 @@ impl TestController {
         let _ = action.completion.send(result);
     }
 
+    #[cfg(test)]
     pub(crate) fn has_report(&self) -> bool {
         self.state.lock().is_ok_and(|state| state.report.is_some())
     }
 
+    #[cfg(test)]
     pub(crate) fn report_passed(&self) -> Option<bool> {
         let state = self.state.lock().ok()?;
         let report = state.report.as_deref()?;
@@ -760,6 +794,7 @@ impl TestController {
             .as_bool()
     }
 
+    #[cfg(test)]
     fn record_semantic_snapshot(&self, window_key: WindowKey, snapshot: Arc<SemanticSnapshot>) {
         if let Ok(mut state) = self.state.lock() {
             state.semantic_snapshots.insert(window_key, snapshot);
@@ -767,10 +802,25 @@ impl TestController {
     }
 
     pub(crate) fn semantic_artifact(&self) -> serde_json::Value {
+        #[cfg(test)]
+        if let Ok(state) = self.state.lock()
+            && state.gpui_snapshots.is_empty()
+            && !state.semantic_snapshots.is_empty()
+        {
+            let mut windows = state.semantic_snapshots.iter().collect::<Vec<_>>();
+            windows.sort_unstable_by_key(|(window_key, _)| window_key.as_ffi());
+            return serde_json::json!({
+                "version": 1,
+                "windows": windows
+                    .into_iter()
+                    .map(|(window_key, snapshot)| semantic_snapshot_json(*window_key, snapshot))
+                    .collect::<Vec<_>>(),
+            });
+        }
         let snapshots = self
             .state
             .lock()
-            .map(|state| state.semantic_snapshots.clone())
+            .map(|state| state.gpui_snapshots.clone())
             .unwrap_or_default();
         let mut windows = snapshots.into_iter().collect::<Vec<_>>();
         windows.sort_unstable_by_key(|(window_key, _)| window_key.as_ffi());
@@ -778,7 +828,7 @@ impl TestController {
             "version": 1,
             "windows": windows
                 .into_iter()
-                .map(|(window_key, snapshot)| semantic_snapshot_json(window_key, &snapshot))
+                .map(|(window_key, nodes)| gpui_snapshot_json(window_key, &nodes))
                 .collect::<Vec<_>>(),
         })
     }
@@ -791,6 +841,9 @@ impl TestController {
     ) -> bool {
         if nodes.is_empty() {
             return false;
+        }
+        if let Ok(mut state) = self.state.lock() {
+            state.gpui_snapshots.insert(window_key, Arc::from(nodes));
         }
         let action = self.state.lock().ok().and_then(|mut state| {
             let index = state.actions.iter().position(|action| {
@@ -1036,6 +1089,29 @@ fn gpui_locator_query_json(
     )
 }
 
+fn gpui_snapshot_json(
+    window_key: WindowKey,
+    nodes: &[gpui_shell::GpuiLayoutNode],
+) -> serde_json::Value {
+    serde_json::json!({
+        "windowId": window_key,
+        "nodes": nodes.iter().map(|node| serde_json::json!({
+            "id": node.key,
+            "parentId": node.parent,
+            "role": gpui_node_role(node),
+            "name": gpui_node_label(nodes, node),
+            "hasValue": node.attributes.contains_key("value"),
+            "bounds": {
+                "x": f32::from(node.bounds.origin.x),
+                "y": f32::from(node.bounds.origin.y),
+                "width": f32::from(node.bounds.size.width),
+                "height": f32::from(node.bounds.size.height),
+            },
+            "disabled": node.attributes.contains_key("disabled"),
+        })).collect::<Vec<_>>(),
+    })
+}
+
 fn gpui_pointer_event(
     node: &gpui_shell::GpuiLayoutNode,
     phase: gpui_shell::ProjectedPointerPhase,
@@ -1135,6 +1211,7 @@ fn cancelled_result(kind: &TestActionKind) -> TestActionResult {
     }
 }
 
+#[cfg(test)]
 fn semantic_toggle_json(state: Option<gpui_shell::SemanticToggleState>) -> serde_json::Value {
     match state.map(gpui_shell::SemanticToggleState::as_str) {
         Some("false") => serde_json::Value::Bool(false),
@@ -1145,6 +1222,7 @@ fn semantic_toggle_json(state: Option<gpui_shell::SemanticToggleState>) -> serde
     }
 }
 
+#[cfg(test)]
 fn locator_snapshot_json(node: &gpui_shell::SemanticNode, focused: bool) -> String {
     let current = node.states.current.map(gpui_shell::SemanticCurrent::as_str);
     serde_json::json!({
@@ -1170,6 +1248,7 @@ fn locator_snapshot_json(node: &gpui_shell::SemanticNode, focused: bool) -> Stri
     .to_string()
 }
 
+#[cfg(test)]
 fn locator_query_json(
     snapshot: &SemanticSnapshot,
     role: &str,
@@ -1206,6 +1285,7 @@ fn locator_query_json(
     )
 }
 
+#[cfg(test)]
 fn scoped_candidates<'a>(
     snapshot: &'a SemanticSnapshot,
     scope: &[TestLocatorSelector],
@@ -1227,6 +1307,7 @@ fn scoped_candidates<'a>(
     Some(candidates)
 }
 
+#[cfg(test)]
 fn semantic_descendants(snapshot: &SemanticSnapshot, owner: u64) -> Vec<&gpui_shell::SemanticNode> {
     let by_id = snapshot
         .nodes
@@ -1254,6 +1335,7 @@ fn semantic_descendants(snapshot: &SemanticSnapshot, owner: u64) -> Vec<&gpui_sh
         .collect()
 }
 
+#[cfg(test)]
 fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) -> serde_json::Value {
     serde_json::json!({
         "windowId": window_key,
@@ -1292,6 +1374,7 @@ fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) ->
     })
 }
 
+#[cfg(test)]
 fn apply_headless_action(state: &mut TestState, action: TestAction) {
     let handled = match action.kind {
         TestActionKind::NativeClose {
@@ -1360,6 +1443,7 @@ fn action_window_key(kind: &TestActionKind) -> Option<WindowKey> {
     }
 }
 
+#[cfg(test)]
 fn action_ready(kind: &TestActionKind, snapshot: Option<&SemanticSnapshot>) -> bool {
     match (kind, snapshot) {
         (TestActionKind::WaitForIdle(_), _) => true,
@@ -1369,6 +1453,7 @@ fn action_ready(kind: &TestActionKind, snapshot: Option<&SemanticSnapshot>) -> b
     }
 }
 
+#[cfg(test)]
 fn click_semantic_target(
     source: &mut dyn FrameSource,
     snapshot: &SemanticSnapshot,
@@ -1403,6 +1488,7 @@ fn click_semantic_target(
     true
 }
 
+#[cfg(test)]
 fn input_semantic_target(
     source: &mut dyn FrameSource,
     snapshot: &SemanticSnapshot,
@@ -1427,6 +1513,7 @@ fn input_allows_disabled_target(input: &TestInput) -> bool {
     matches!(input, TestInput::Probe | TestInput::Wheel { .. })
 }
 
+#[cfg(test)]
 fn dispatch_test_input(
     source: &mut dyn FrameSource,
     node: &gpui_shell::SemanticNode,
@@ -1449,6 +1536,7 @@ fn dispatch_test_input(
     true
 }
 
+#[cfg(test)]
 fn semantic_target<'a>(
     snapshot: &'a SemanticSnapshot,
     role: &str,
@@ -1460,6 +1548,7 @@ fn semantic_target<'a>(
     (!node.disabled).then_some(node)
 }
 
+#[cfg(test)]
 fn semantic_query_target<'a>(
     snapshot: &'a SemanticSnapshot,
     role: &str,
@@ -1480,12 +1569,14 @@ fn semantic_query_target<'a>(
     }
 }
 
+#[cfg(test)]
 pub(crate) struct TestDriver {
     controller: TestController,
     last_window_key: Option<WindowKey>,
     failure_screenshot_captured: bool,
 }
 
+#[cfg(test)]
 impl TestDriver {
     pub(crate) fn new(controller: TestController) -> Self {
         Self {
@@ -1514,6 +1605,7 @@ impl TestDriver {
     }
 }
 
+#[cfg(test)]
 impl ShellExtension for TestDriver {
     fn requires_semantics(&self) -> bool {
         true
@@ -1579,7 +1671,7 @@ impl ShellExtension for TestDriver {
                 } => TestActionResult::Handled(context.dispatch_event(
                     window_key,
                     UiEvent::FileDrop(FileDropEvent {
-                        phase,
+                        phase: phase.into(),
                         paths,
                         position: None,
                     }),
@@ -1671,6 +1763,7 @@ impl ShellExtension for TestDriver {
     }
 }
 
+#[cfg(test)]
 fn test_input_events(node: &gpui_shell::SemanticNode, input: &TestInput) -> Vec<UiEvent> {
     let center = Point {
         x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),
@@ -1749,6 +1842,7 @@ fn test_input_events(node: &gpui_shell::SemanticNode, input: &TestInput) -> Vec<
     }
 }
 
+#[cfg(test)]
 fn click_events(node: &gpui_shell::SemanticNode) -> [UiEvent; 2] {
     let position = Point {
         x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),

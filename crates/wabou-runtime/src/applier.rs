@@ -58,21 +58,37 @@ use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObserv
 use crate::protocol::NodeKey;
 
 #[cfg(any(feature = "devtools", test))]
+#[path = "applier/debug_projection.rs"]
 mod debug_projection;
+#[path = "applier/focus.rs"]
 mod focus;
+#[path = "applier/frame_source.rs"]
 mod frame_source;
+#[path = "applier/input_router.rs"]
 mod input_router;
+#[path = "applier/interaction.rs"]
 mod interaction;
+#[path = "applier/node_store.rs"]
 mod node_store;
+#[path = "applier/projections.rs"]
 mod projections;
+#[path = "applier/protocol_apply.rs"]
 mod protocol_apply;
+#[path = "applier/resources.rs"]
 mod resources;
+#[path = "applier/runtime_updates.rs"]
 mod runtime_updates;
+#[path = "applier/scroll.rs"]
 mod scroll;
+#[path = "applier/semantics.rs"]
 mod semantics;
+#[path = "applier/style_resolution.rs"]
 mod style_resolution;
+#[path = "applier/text_selection.rs"]
 mod text_selection;
+#[path = "applier/widget_bridge.rs"]
 mod widget_bridge;
+#[path = "applier/widget_manager.rs"]
 mod widget_manager;
 use crate::atom::{Atom, AtomPool};
 use crate::inline_context::{InlineFormattingContext, NodeFacts};
@@ -735,4 +751,5 @@ mod computed_style;
 mod layout_fixtures;
 
 #[cfg(test)]
+#[path = "applier/tests.rs"]
 mod tests;
