@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   assertLayoutRectContains,
+  assertLayoutTextStyle,
   type LayoutSnapshot,
   layoutColorContrast,
   layoutRectBottom,
@@ -36,6 +37,40 @@ describe("layout rect assertions", () => {
         { label: "component body" },
       ),
     ).toThrow("component body");
+  });
+
+  test("asserts resolved typography without depending on source classes", () => {
+    const node: LayoutSnapshot["nodes"][number] = {
+      id: { lo: 1, hi: 1 },
+      tag: "text",
+      text: "Renderer review",
+      classes: ["text-lg", "font-semibold"],
+      attrs: [],
+      rect: { x: 0, y: 0, width: 120, height: 24 },
+      contentRect: { x: 0, y: 0, width: 120, height: 24 },
+      styleDiagnostics: [],
+      computed: { fontSize: 18, fontWeight: 600 },
+    };
+
+    expect(() =>
+      assertLayoutTextStyle(node, {
+        fontSize: 18,
+        fontWeight: 600,
+        label: "conversation heading",
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertLayoutTextStyle(node, {
+        fontSize: 16,
+        label: "conversation heading",
+      }),
+    ).toThrow("conversation heading font size: expected 16, received 18");
+    expect(() =>
+      assertLayoutTextStyle(
+        { ...node, computed: { fontSize: 18 } },
+        { fontWeight: 600, label: "conversation heading" },
+      ),
+    ).toThrow("conversation heading omitted its resolved font weight");
   });
 
   test("recognizes reactive runtime diagnostics in command output", () => {

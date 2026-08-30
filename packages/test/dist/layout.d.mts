@@ -16,6 +16,8 @@ interface LayoutComputedStyle {
   readonly overlayPlane?: string;
   /** Resolved text size in logical pixels, suitable for typography contracts. */
   readonly fontSize?: number | null;
+  /** Resolved numeric text weight, after theme and font fallback resolution. */
+  readonly fontWeight?: number | null;
   /** Resolved foreground and painted background used by visual contracts. */
   readonly textColor?: string | null;
   readonly background?: string | null;
@@ -82,10 +84,24 @@ interface LayoutRectAssertionOptions {
   readonly tolerance?: number;
   readonly label?: string;
 }
+interface LayoutTextStyleAssertionOptions {
+  /** Exact resolved logical font size expected by the component contract. */
+  readonly fontSize?: number;
+  /** Exact resolved numeric font weight expected by the component contract. */
+  readonly fontWeight?: number;
+  readonly tolerance?: number;
+  readonly label?: string;
+}
 declare const layoutRectRight: (rect: LayoutRect) => number;
 declare const layoutRectBottom: (rect: LayoutRect) => number;
 /** Assert that a completed native layout rect stays inside another rect. */
 declare function assertLayoutRectContains(outer: LayoutRect, inner: LayoutRect, options?: LayoutRectAssertionOptions): void;
+/**
+ * Assert typography after class resolution, Style IR application and native
+ * layout. This deliberately checks the completed layout node instead of source
+ * class names, so token and font-resolution regressions are visible to tests.
+ */
+declare function assertLayoutTextStyle(node: LayoutSnapshotNode, options: LayoutTextStyleAssertionOptions): void;
 /** Validate the Rust snapshot boundary before layout assertions consume it. */
 declare function parseLayoutSnapshot(value: unknown): LayoutSnapshot;
 /** Return the visual contrast ratio for two opaque hexadecimal colors. */
@@ -114,5 +130,5 @@ declare function styleDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiag
 declare function visualQualityDiagnostics(snapshot: LayoutSnapshot, options?: LayoutVisualDiagnosticOptions): readonly LayoutDiagnostic[];
 declare function assertNoLayoutDiagnostics(diagnostics: readonly LayoutDiagnostic[]): void;
 //#endregion
-export { LayoutComputedStyle, LayoutDiagnostic, LayoutDiagnosticOptions, LayoutNodeKey, LayoutQuery, LayoutRect, LayoutRectAssertionOptions, LayoutSemanticProjection, LayoutSnapshot, LayoutSnapshotNode, LayoutTextMetrics, LayoutVisualDiagnosticOptions, assertLayoutRectContains, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutColorContrast, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics, visualQualityDiagnostics };
+export { LayoutComputedStyle, LayoutDiagnostic, LayoutDiagnosticOptions, LayoutNodeKey, LayoutQuery, LayoutRect, LayoutRectAssertionOptions, LayoutSemanticProjection, LayoutSnapshot, LayoutSnapshotNode, LayoutTextMetrics, LayoutTextStyleAssertionOptions, LayoutVisualDiagnosticOptions, assertLayoutRectContains, assertLayoutTextStyle, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutColorContrast, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics, visualQualityDiagnostics };
 //# sourceMappingURL=layout.d.mts.map

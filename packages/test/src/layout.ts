@@ -17,6 +17,8 @@ export interface LayoutComputedStyle {
   readonly overlayPlane?: string;
   /** Resolved text size in logical pixels, suitable for typography contracts. */
   readonly fontSize?: number | null;
+  /** Resolved numeric text weight, after theme and font fallback resolution. */
+  readonly fontWeight?: number | null;
   /** Resolved foreground and painted background used by visual contracts. */
   readonly textColor?: string | null;
   readonly background?: string | null;
@@ -99,6 +101,15 @@ export interface LayoutRectAssertionOptions {
   readonly label?: string;
 }
 
+export interface LayoutTextStyleAssertionOptions {
+  /** Exact resolved logical font size expected by the component contract. */
+  readonly fontSize?: number;
+  /** Exact resolved numeric font weight expected by the component contract. */
+  readonly fontWeight?: number;
+  readonly tolerance?: number;
+  readonly label?: string;
+}
+
 export const layoutRectRight = (rect: LayoutRect): number =>
   rect.x + rect.width;
 
@@ -121,6 +132,34 @@ export function assertLayoutRectContains(
     throw new Error(
       `${options.label ?? "layout rect"} (${rectText(inner)}) is outside (${rectText(outer)})`,
     );
+  }
+}
+
+/**
+ * Assert typography after class resolution, Style IR application and native
+ * layout. This deliberately checks the completed layout node instead of source
+ * class names, so token and font-resolution regressions are visible to tests.
+ */
+export function assertLayoutTextStyle(
+  node: LayoutSnapshotNode,
+  options: LayoutTextStyleAssertionOptions,
+): void {
+  const tolerance = options.tolerance ?? 0.01;
+  const label = options.label ?? (layoutName(node) || node.text || "text node");
+  const checks = [
+    ["font size", node.computed.fontSize, options.fontSize],
+    ["font weight", node.computed.fontWeight, options.fontWeight],
+  ] as const;
+  for (const [property, actual, expected] of checks) {
+    if (expected === undefined) continue;
+    if (actual == null) {
+      throw new Error(`${label} omitted its resolved ${property}`);
+    }
+    if (Math.abs(actual - expected) > tolerance) {
+      throw new Error(
+        `${label} ${property}: expected ${expected}, received ${actual}`,
+      );
+    }
   }
 }
 

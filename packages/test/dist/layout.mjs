@@ -6,6 +6,29 @@ function assertLayoutRectContains(outer, inner, options = {}) {
 	const tolerance = options.tolerance ?? 1;
 	if (inner.x < outer.x - tolerance || inner.y < outer.y - tolerance || layoutRectRight(inner) > layoutRectRight(outer) + tolerance || layoutRectBottom(inner) > layoutRectBottom(outer) + tolerance) throw new Error(`${options.label ?? "layout rect"} (${rectText(inner)}) is outside (${rectText(outer)})`);
 }
+/**
+* Assert typography after class resolution, Style IR application and native
+* layout. This deliberately checks the completed layout node instead of source
+* class names, so token and font-resolution regressions are visible to tests.
+*/
+function assertLayoutTextStyle(node, options) {
+	const tolerance = options.tolerance ?? .01;
+	const label = options.label ?? (layoutName(node) || node.text || "text node");
+	const checks = [[
+		"font size",
+		node.computed.fontSize,
+		options.fontSize
+	], [
+		"font weight",
+		node.computed.fontWeight,
+		options.fontWeight
+	]];
+	for (const [property, actual, expected] of checks) {
+		if (expected === void 0) continue;
+		if (actual == null) throw new Error(`${label} omitted its resolved ${property}`);
+		if (Math.abs(actual - expected) > tolerance) throw new Error(`${label} ${property}: expected ${expected}, received ${actual}`);
+	}
+}
 function record(value, path) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`invalid layout snapshot: ${path} must be an object`);
 	return value;
@@ -340,6 +363,6 @@ function assertNoLayoutDiagnostics(diagnostics) {
 	throw new Error(`layout diagnostics:\n${diagnostics.map((item) => `  - [${item.code}] ${item.message}`).join("\n")}`);
 }
 //#endregion
-export { assertLayoutRectContains, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutColorContrast, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics, visualQualityDiagnostics };
+export { assertLayoutRectContains, assertLayoutTextStyle, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutColorContrast, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics, visualQualityDiagnostics };
 
 //# sourceMappingURL=layout.mjs.map

@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import {
   assertLayoutRectContains,
+  assertLayoutTextStyle,
   getLayoutNode,
   type LayoutSnapshot,
   layoutRectBottom,
@@ -354,12 +355,16 @@ const assertMarkdownConversationLayout = (snapshot: LayoutSnapshot) => {
   });
   if (copy.text)
     throw new Error(`code copy action exposed visual text: ${copy.text}`);
-  if (heading.computed.fontSize == null)
-    throw new Error("conversation heading omitted its resolved font size");
-  if (paragraph.computed.fontSize == null)
-    throw new Error("conversation body omitted its resolved font size");
-  assertClose(heading.computed.fontSize, 18, "conversation heading size");
-  assertClose(paragraph.computed.fontSize, 16, "conversation body size");
+  assertLayoutTextStyle(heading, {
+    fontSize: 18,
+    fontWeight: 600,
+    label: "conversation heading",
+  });
+  assertLayoutTextStyle(paragraph, {
+    fontSize: 16,
+    fontWeight: 400,
+    label: "conversation body",
+  });
 };
 
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
