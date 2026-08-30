@@ -535,6 +535,16 @@ impl TextInput {
         }
     }
 
+    fn sync_cached_value(&mut self) {
+        if self.editor.text() == self.cached_value.as_str() {
+            return;
+        }
+        self.cached_value.clear();
+        for chunk in self.editor.text() {
+            self.cached_value.push_str(chunk);
+        }
+    }
+
     fn paint_placeholder(
         &self,
         cx: &mut PaintContext<'_>,
@@ -705,12 +715,7 @@ impl Widget for TextInput {
         self.refresh_editor(cx.text());
 
         // Cache value for current_value().
-        if self.editor.text() != self.cached_value.as_str() {
-            self.cached_value.clear();
-            for chunk in self.editor.text() {
-                self.cached_value.push_str(chunk);
-            }
-        }
+        self.sync_cached_value();
 
         let mut scene = Scene::new();
         let placeholder_metrics = self.paint_placeholder(cx, width, canonical_metrics);
@@ -801,6 +806,15 @@ impl Widget for TextInput {
             UiEvent::Key(event) if event.phase == KeyPhase::Down => self.handle_key(event),
             _ => WidgetEventResult::IGNORED,
         }
+    }
+
+    fn prepare_for_event(&mut self, text: &mut TextContext) -> WidgetChanges {
+        if self.pending.is_empty() {
+            return WidgetChanges::empty();
+        }
+        self.refresh_editor(text);
+        self.sync_cached_value();
+        CONTENT_CHANGED
     }
 
     fn attribute_changed(&mut self, name: &str, value: &str) -> WidgetChanges {

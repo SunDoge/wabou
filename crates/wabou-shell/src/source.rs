@@ -788,6 +788,11 @@ pub trait FrameSource {
     /// it builds widget scene fragments for this frame.
     fn set_device_scale(&mut self, _scale: f64) {}
 
+    /// Commit state queued by a previous native event before another event is
+    /// dispatched. This is distinct from painting: input ordering must remain
+    /// correct even when several platform events arrive before the next vsync.
+    fn prepare_for_event(&mut self, _tcx: &mut TextContext) {}
+
     /// Lay out for `width x height` and return the paint-ordered node list.
     /// Borrowed `tcx` is used for text measurement (parley).
     fn build_frame(&mut self, tcx: &mut TextContext, width: u32, height: u32) -> Vec<PlacedNode>;

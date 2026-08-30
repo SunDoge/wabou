@@ -509,7 +509,7 @@ impl Applier {
                 })
             })
             .collect::<Vec<_>>();
-        match self.runtime.js.dispatch_host_frame(&events) {
+        match self.dispatch_host_frame(&events) {
             Ok(_) => true,
             Err(error) => {
                 tracing::warn!(?error, "scroll observation dispatch failed");

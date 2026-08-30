@@ -408,6 +408,8 @@ const interactionByNode = new WeakMap<
   Handle,
   { focusOrder: number | null; blocked: boolean; contained: boolean }
 >();
+const controlledValueByNode = new WeakMap<Handle, string>();
+const nativeValueByNode = new Map<Handle, string>();
 
 function emitInteractionPolicy(writer: Writer, node: Handle): void {
   const state = interactionByNode.get(node) ?? {
@@ -563,6 +565,10 @@ function applyProperty(
   value: unknown,
   prev: unknown,
 ): void {
+  if (name === "value") {
+    if (value == null || value === false) controlledValueByNode.delete(node);
+    else controlledValueByNode.set(node, String(value));
+  }
   if (value === prev) return;
   if (name === "overlayPlane") {
     const plane = value === "modal" ? 2 : value === "floating" ? 1 : 0;
@@ -650,16 +656,22 @@ function applyProperty(
     }
   }
   if (name === "resource") {
-    if (node.tag !== "img") throw new TypeError("resource is only supported by Image");
+    if (node.tag !== "img")
+      throw new TypeError("resource is only supported by Image");
     if (value == null || value === false) {
       writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.ResourceRaster);
       return;
     }
-    if (typeof value !== "object") throw new TypeError("Image requires an image resource handle");
+    if (typeof value !== "object")
+      throw new TypeError("Image requires an image resource handle");
     const handle = value as { lo?: unknown; hi?: unknown };
     if (!Number.isInteger(handle.lo) || !Number.isInteger(handle.hi))
       throw new TypeError("Image requires an image resource handle");
-    writer.setGraphicSource(node.id, GRAPHIC_SOURCE.ResourceRaster, `${handle.lo}:${handle.hi}`);
+    writer.setGraphicSource(
+      node.id,
+      GRAPHIC_SOURCE.ResourceRaster,
+      `${handle.lo}:${handle.hi}`,
+    );
     return;
   }
   if (name === "transform") {
@@ -1112,6 +1124,13 @@ export function dispatchEvent(
     }
   }
 
+  if (eventCode === EVENT_CODE.input && typeof data.value === "string") {
+    const target = derefHandle(solidId);
+    if (target && controlledValueByNode.has(target)) {
+      nativeValueByNode.set(target, data.value);
+    }
+  }
+
   let stopped = false;
   let defaultPrevented = false;
   const ev = {
@@ -1152,6 +1171,24 @@ export function dispatchEvent(
 
   bubble(solidId, eventCode, ev);
   return defaultPrevented;
+}
+
+/**
+ * Reassert controlled native-editor values after one atomic host event frame.
+ *
+ * Input and submit can arrive in the same frame. Solid then legitimately
+ * coalesces `"" -> "typed" -> ""` and emits no property effect, while the
+ * native widget has already accepted `"typed"`. This reconciliation closes
+ * that split-brain without making uncontrolled editors JS-owned.
+ */
+export function reconcileControlledInputValues(): void {
+  for (const [node, nativeValue] of nativeValueByNode) {
+    const controlledValue = controlledValueByNode.get(node);
+    if (controlledValue !== undefined && controlledValue !== nativeValue) {
+      writer.setAttribute(node.id, "value", controlledValue);
+    }
+  }
+  nativeValueByNode.clear();
 }
 
 function derefHandle(id: NodeKey): Handle | undefined {
@@ -1217,8 +1254,8 @@ function eventName(code: number): string {
 
 export {
   type BuiltinHost,
-  type DebugOverlayPaintStats,
   type DebugOverlayOptions,
+  type DebugOverlayPaintStats,
   defaultHost,
   type FrameStats,
   type Host,

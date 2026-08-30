@@ -240,7 +240,7 @@ impl Applier {
                 })
             })
             .collect();
-        if let Err(error) = self.runtime.js.dispatch_host_frame(&events) {
+        if let Err(error) = self.dispatch_host_frame(&events) {
             tracing::warn!(?error, "ResizeObserver dispatch failed");
             return false;
         }

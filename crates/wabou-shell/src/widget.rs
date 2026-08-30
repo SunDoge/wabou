@@ -553,6 +553,16 @@ pub trait Widget {
         WidgetEventResult::IGNORED
     }
 
+    /// Commit edits that must become observable before the next native event.
+    ///
+    /// Text editors may need the shared font/layout context to apply an edit.
+    /// The shell calls the corresponding [`crate::FrameSource`] boundary
+    /// before dispatching another event, so a later click cannot observe the
+    /// value from before a queued key or IME edit.
+    fn prepare_for_event(&mut self, _text: &mut TextContext) -> WidgetChanges {
+        WidgetChanges::empty()
+    }
+
     /// Layout geometry changed. This is delivered atomically after layout and
     /// before painting or dispatching subsequent input to the widget.
     fn layout_changed(&mut self, _geometry: WidgetGeometry) {}

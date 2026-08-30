@@ -108,6 +108,7 @@ struct RuntimeWake {
 pub struct HostFrameDisposition {
     pub prevented_event_ids: Vec<u32>,
     pub needs_tick: bool,
+    pub protocol_frame: Vec<u8>,
 }
 
 impl HostFrameDisposition {
@@ -1168,9 +1169,15 @@ impl JsRuntime {
                 .ok()
                 .map(|values| AsRef::<[u32]>::as_ref(&values).to_vec())
                 .unwrap_or_default();
+            let protocol_frame = result
+                .get::<_, TypedArray<u8>>("protocolFrame")
+                .ok()
+                .map(|values| AsRef::<[u8]>::as_ref(&values).to_vec())
+                .unwrap_or_default();
             Ok(HostFrameDisposition {
                 prevented_event_ids,
                 needs_tick,
+                protocol_frame,
             })
         })
     }

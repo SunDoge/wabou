@@ -586,6 +586,9 @@ impl App {
     }
 
     fn dispatch_event(&mut self, event: UiEvent) -> EventResponse {
+        if let Some(shell) = self.state.as_mut() {
+            self.source.prepare_for_event(&mut shell.tcx);
+        }
         let mut response = self.source.handle_event(event);
         if let Some(request) = response.clipboard.take() {
             if self.clipboard.is_none() {

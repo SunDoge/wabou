@@ -7,7 +7,11 @@ import {
   type NodeKey,
   nodeKey,
 } from "../protocol";
-import { dispatchEvent } from "../renderer";
+import {
+  dispatchEvent,
+  reconcileControlledInputValues,
+  writer,
+} from "../renderer";
 import { dispatchHostMessage } from "./host-messages";
 import { dispatchResizeObservation } from "./resize-observer";
 
@@ -18,6 +22,7 @@ const textDecoder = new TextDecoder();
 export interface HostFrameDisposition {
   preventedEventIds?: Uint32Array;
   needsTick: boolean;
+  protocolFrame?: Uint8Array;
 }
 
 type DecodedRecord =
@@ -114,7 +119,9 @@ export function decodeAndDispatchHostFrame(
         });
       } else if (payloadKind === HOST_NODE_PAYLOAD.Numeric) {
         if (numericLen > EVENT_DATA_LEN) {
-          throw new TypeError("HostEventFrame numeric payload exceeds ABI slots");
+          throw new TypeError(
+            "HostEventFrame numeric payload exceeds ABI slots",
+          );
         }
         requireBytes(8 * numericLen, end);
         const absoluteOffset = bytes.byteOffset + offset;
@@ -252,11 +259,18 @@ export function decodeAndDispatchHostFrame(
       }
     }
   });
+  reconcileControlledInputValues();
+  // Host events and the renderer writes they cause form one transaction. In
+  // particular, a controlled native input must receive its reconciled value
+  // before another native event can observe the widget. Waiting for the next
+  // rAF leaves the JS and native values split during rapid input/click bursts.
+  const protocolFrame = writer.flush() ?? undefined;
 
   return {
     preventedEventIds:
       prevented.length > 0 ? Uint32Array.from(prevented) : undefined,
     needsTick,
+    protocolFrame,
   };
 }
 

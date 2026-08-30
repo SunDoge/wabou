@@ -261,8 +261,13 @@ The single guest function returns:
 interface HostFrameDisposition {
   preventedEventIds?: Uint32Array;
   needsTick: boolean;
+  protocolFrame?: Uint8Array;
 }
 ```
+
+`protocolFrame` contains renderer operations produced synchronously by the
+host-event transaction. Rust applies it before returning from event dispatch,
+so controlled native widgets cannot expose a stale value to the next event.
 
 Only records marked `CANCELLABLE` receive a frame-local `event_id`. The guest
 adds an ID when `preventDefault()` was called. Rust performs the default action

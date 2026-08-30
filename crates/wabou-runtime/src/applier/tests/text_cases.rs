@@ -168,15 +168,14 @@ fn text_input_updates_value_paints_and_dispatches_input() {
     );
     assert!(applier.interaction.input.pointer_down_target.is_none());
 
-    // Text edits resolve at paint (pending-edit pattern: handle_event has
-    // no FontContext), so the value sync + INPUT dispatch are deferred to
-    // build_frame. Drive one frame to apply + dispatch.
+    // Text edits need a FontContext, but their value must become observable
+    // before a later native event even when no vsync occurred between them.
     assert!(
         applier
             .handle_event(UiEvent::TextInput("ab".into()))
             .handled
     );
-    applier.build_frame(&mut tcx, 800, 600);
+    FrameSource::prepare_for_event(&mut applier, &mut tcx);
     assert_eq!(
         applier.document.widget_manager.widgets[&node].current_value(),
         Some("ab")

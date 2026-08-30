@@ -16,7 +16,7 @@ impl Applier {
             "wabou:keyboard-modifiers",
             i32::from(bits),
         ));
-        let handled = self.runtime.js.dispatch_host_frame(&[event]).is_ok();
+        let handled = self.dispatch_host_frame(&[event]).is_ok();
         EventResponse {
             handled,
             request_redraw: handled,
@@ -37,7 +37,7 @@ impl Applier {
             "wabou:app-lifecycle",
             serde_json::json!({ "state": state }).to_string(),
         ));
-        let handled = self.runtime.js.dispatch_host_frame(&[event]).is_ok();
+        let handled = self.dispatch_host_frame(&[event]).is_ok();
         EventResponse {
             handled,
             request_redraw: handled,
@@ -79,7 +79,7 @@ impl Applier {
             "wabou:gesture",
             payload.to_string(),
         ));
-        let handled = self.runtime.js.dispatch_host_frame(&[event]).is_ok();
+        let handled = self.dispatch_host_frame(&[event]).is_ok();
         EventResponse {
             handled,
             request_redraw: handled,
@@ -109,7 +109,7 @@ impl Applier {
             "wabou:file-drop",
             payload,
         ));
-        let handled = self.runtime.js.dispatch_host_frame(&[event]).is_ok();
+        let handled = self.dispatch_host_frame(&[event]).is_ok();
         EventResponse {
             handled,
             request_redraw: handled,
@@ -147,7 +147,7 @@ impl Applier {
             "wabou:window-metrics",
             payload,
         ));
-        let handled = self.runtime.js.dispatch_host_frame(&[event]).is_ok();
+        let handled = self.dispatch_host_frame(&[event]).is_ok();
         EventResponse {
             handled,
             request_redraw: handled,
@@ -161,7 +161,7 @@ impl Applier {
             return;
         }
         let events: Vec<_> = batch.into_iter().map(HostEvent::Application).collect();
-        if let Err(e) = self.runtime.js.dispatch_host_frame(&events) {
+        if let Err(e) = self.dispatch_host_frame(&events) {
             tracing::error!(target: "host_message", error = ?e, count = events.len(), "dispatch Host application frame failed");
         }
     }

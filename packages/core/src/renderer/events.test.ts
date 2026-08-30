@@ -1,5 +1,11 @@
 import { expect, test } from "bun:test";
-import { createRoot, createSignal, flush, type JSX } from "solid-js";
+import {
+  createRenderEffect,
+  createRoot,
+  createSignal,
+  flush,
+  type JSX,
+} from "solid-js";
 import { GRAPHIC_DATA } from "../protocol";
 import { px, shadow } from "../style";
 import { PathBuilder } from "../vector-path";
@@ -13,6 +19,7 @@ import {
   mount,
   OP,
   observeGlobalPointerEvent,
+  reconcileControlledInputValues,
   runSweep,
   setProp,
   spread,
@@ -145,10 +152,7 @@ test("graphic sources use the typed resource protocol", () => {
     [GRAPHIC_SOURCE.Svg, "<svg/>"],
     [GRAPHIC_SOURCE.ResourceRaster, "7:3"],
   ]);
-  expect(cleared).toEqual([
-    GRAPHIC_SOURCE.Svg,
-    GRAPHIC_SOURCE.ResourceRaster,
-  ]);
+  expect(cleared).toEqual([GRAPHIC_SOURCE.Svg, GRAPHIC_SOURCE.ResourceRaster]);
 });
 
 test("non-drawing vector paths clear stale native geometry", () => {
@@ -362,6 +366,55 @@ test("native events expose their actual target and payload contract", () => {
   expect(observed?.currentTarget.id).toEqual(target.id);
   expect(observed?.payload).toEqual({ value: "next" });
   expect(observed?.propagationStopped).toBe(true);
+});
+
+test("controlled input reconciliation survives a batched input and submit", () => {
+  const input = createElement("input");
+  const submit = createElement("button");
+  const [draft, setDraft] = createSignal("");
+  let previous = "";
+  let dispose!: () => void;
+  createRoot((rootDispose) => {
+    dispose = rootDispose;
+    createRenderEffect(draft, (next) => {
+      setProp(input, "value", next, previous);
+      previous = next;
+    });
+  });
+  setProp(
+    input,
+    "onInput",
+    (event: { currentTarget: { value: string } }) =>
+      setDraft(event.currentTarget.value),
+    undefined,
+  );
+  setProp(submit, "onClick", () => setDraft(""), undefined);
+  flush();
+  writer.flush();
+
+  const original = writer.setAttribute.bind(writer);
+  const values: string[] = [];
+  writer.setAttribute = (id, name, value) => {
+    if (id === input.id && name === "value") values.push(value);
+    original(id, name, value);
+  };
+  try {
+    flush(() => {
+      dispatchEvent(
+        input.id,
+        EVENT_CODE.input,
+        JSON.stringify({ value: "typed" }),
+      );
+      dispatchEvent(submit.id, EVENT_CODE.click, "");
+    });
+    reconcileControlledInputValues();
+    expect(draft()).toBe("");
+    expect(values).toEqual([""]);
+  } finally {
+    dispose();
+    writer.setAttribute = original;
+    writer.flush();
+  }
 });
 
 test("direct-event checks distinguish a hit node from its bubbling parent", () => {

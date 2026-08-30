@@ -66,6 +66,7 @@ declare global {
   function __wabou_dispatch_host_frame(data: Uint8Array | ArrayBuffer): {
     preventedEventIds?: Uint32Array;
     needsTick: boolean;
+    protocolFrame?: Uint8Array;
   };
   function __wabou_apply_hmr(
     path: string,

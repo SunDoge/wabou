@@ -129,6 +129,79 @@ fn style_value_ir(value: crate::protocol::StyleValue) -> IrValue {
 }
 
 impl Applier {
+    pub(super) fn dispatch_host_frame(
+        &mut self,
+        events: &[HostEvent],
+    ) -> rquickjs::Result<crate::jsrt::HostFrameDisposition> {
+        let disposition = self.runtime.js.dispatch_host_frame(events)?;
+        if !disposition.protocol_frame.is_empty() {
+            tracing::trace!(
+                target: "bridge",
+                bytes = disposition.protocol_frame.len(),
+                "applying protocol writes produced by a host event"
+            );
+            self.apply_protocol_bytes(&disposition.protocol_frame);
+        }
+        Ok(disposition)
+    }
+
+    pub(super) fn apply_protocol_bytes(&mut self, bytes: &[u8]) {
+        let decoded = {
+            #[cfg(feature = "profiling")]
+            let span = tracing::trace_span!(
+                target: "wabou::perf",
+                "quick.protocol.decode",
+                bytes = bytes.len() as u64,
+            );
+            #[cfg(feature = "profiling")]
+            let _guard = span.enter();
+            decode_frame(bytes)
+        };
+        let frame = match decoded {
+            Ok(frame) => frame,
+            Err(error) => {
+                tracing::error!(target: "bridge", "decode frame failed: {error}");
+                return;
+            }
+        };
+        self.runtime.protocol_revision = self.runtime.protocol_revision.wrapping_add(1);
+        #[cfg(any(feature = "devtools", test))]
+        if let Some(state) = &self.frame.projections.debug_state
+            && let Ok(mut state) = state.write()
+        {
+            state.push_frame(wabou_devtools::DebugFrame {
+                direction: "jsToHost".into(),
+                sequence: u64::from(frame.seq),
+                byte_len: bytes.len(),
+                record_count: frame.ops.len(),
+                bytes_hex: Some(wabou_devtools::bytes_hex(bytes, 4096)),
+            });
+        }
+        {
+            #[cfg(feature = "profiling")]
+            let span = tracing::trace_span!(
+                target: "wabou::perf",
+                "quick.protocol.apply",
+                ops = frame.ops.len() as u64,
+                class_cache_hits = tracing::field::Empty,
+                class_cache_misses = tracing::field::Empty,
+                runtime_utility_fallbacks = tracing::field::Empty,
+            );
+            #[cfg(feature = "profiling")]
+            let _guard = span.enter();
+            self.apply_frame(&frame);
+            #[cfg(feature = "profiling")]
+            {
+                span.record("class_cache_hits", self.frame.profile_class_cache_hits);
+                span.record("class_cache_misses", self.frame.profile_class_cache_misses);
+                span.record(
+                    "runtime_utility_fallbacks",
+                    self.frame.profile_runtime_utility_fallbacks,
+                );
+            }
+        }
+    }
+
     fn project_structure_if_unbatched(&mut self) {
         if !self.document.applying_frame && self.document.ifc_dirty {
             self.rebuild_layout_boxes();

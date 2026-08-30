@@ -235,6 +235,38 @@ impl Applier {
 }
 
 impl FrameSource for Applier {
+    fn prepare_for_event(&mut self, tcx: &mut TextContext) {
+        if self.document.widget_manager.pending_value_sync.is_empty()
+            && self
+                .document
+                .widget_manager
+                .pending_selection_sync
+                .is_empty()
+        {
+            return;
+        }
+        let targets = self
+            .document
+            .widget_manager
+            .pending_value_sync
+            .iter()
+            .chain(self.document.widget_manager.pending_selection_sync.iter())
+            .copied()
+            .collect::<std::collections::HashSet<_>>();
+        for target in targets {
+            let Some(&node) = self.document.node_store.solid_to_node.get(&target) else {
+                continue;
+            };
+            let Some(widget) = self.document.widget_manager.widgets.get_mut(&node) else {
+                continue;
+            };
+            let changes = widget.prepare_for_event(tcx);
+            self.invalidate_widget_changes(changes);
+        }
+        self.flush_value_sync();
+        self.flush_selection_sync();
+    }
+
     fn close_requested(&mut self) -> bool {
         let Some(target) = self
             .document

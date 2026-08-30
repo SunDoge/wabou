@@ -1,6 +1,6 @@
-import { bindCapability, type NativeCapability } from "./native-capability";
-import { type Host, useHost } from "../renderer/host";
 import { type Accessor, createSignal, onCleanup } from "solid-js";
+import { type Host, useHost } from "../renderer/host";
+import { bindCapability, type NativeCapability } from "./native-capability";
 
 /** JSON-compatible values stored by the built-in KV service. */
 export type KvValue =
@@ -194,7 +194,11 @@ export function createKvSignal<T extends KvValue>(options: {
   initial: T;
   saveDelayMs?: number;
 }): KvSignal<T> {
-  const [value, setValue] = createSignal<T>(() => options.initial, {
+  // `T` is JSON-compatible and therefore cannot be a function. Passing a
+  // function here opts into Solid 2's lazy/derived signal overload, whose
+  // value is intentionally not replaced by later writes. The cast selects
+  // Solid's non-function overload; the `KvValue` bound proves it is safe.
+  const [value, setValue] = createSignal<T>(options.initial as never, {
     ownedWrite: true,
   });
   const [ready, setReady] = createSignal(false);
@@ -208,7 +212,8 @@ export function createKvSignal<T extends KvValue>(options: {
     const startedAt = generation;
     try {
       const entry = await options.kv.get<T>(options.key);
-      if (generation === startedAt && entry !== null) setValue(() => entry.value);
+      if (generation === startedAt && entry !== null)
+        setValue(() => entry.value);
       setError(undefined);
     } catch (cause) {
       setError(cause);
@@ -244,14 +249,15 @@ export function createKvSignal<T extends KvValue>(options: {
 
   const set = (next: T | ((previous: T) => T)) => {
     const resolved =
-      typeof next === "function"
-        ? (next as (previous: T) => T)(value())
-        : next;
+      typeof next === "function" ? (next as (previous: T) => T)(value()) : next;
     generation += 1;
     setValue(() => resolved);
     pending = resolved;
     if (timer !== undefined) clearTimeout(timer);
-    timer = setTimeout(() => void flush().catch(() => {}), options.saveDelayMs ?? 150);
+    timer = setTimeout(
+      () => void flush().catch(() => {}),
+      options.saveDelayMs ?? 150,
+    );
   };
 
   void reload();
@@ -299,7 +305,9 @@ export function openKv(prefix: KvKey = []): Kv {
     async *list<T extends KvValue>(options: KvListOptions = {}) {
       const limit = options.limit ?? 100;
       if (!Number.isSafeInteger(limit) || limit < 0)
-        throw new RangeError("KV list limit must be a non-negative safe integer");
+        throw new RangeError(
+          "KV list limit must be a non-negative safe integer",
+        );
       const entries = await native.list({
         prefix: encodeKey([...namespace, ...(options.prefix ?? [])], true),
         limit,
@@ -346,7 +354,9 @@ function decodePart(part: WireKeyPart): KvKeyPart {
     case "i64": {
       const value = Number(part.value);
       if (!Number.isSafeInteger(value))
-        throw new RangeError(`KV integer ${part.value} is not safe in JavaScript`);
+        throw new RangeError(
+          `KV integer ${part.value} is not safe in JavaScript`,
+        );
       return value;
     }
     case "bytes":

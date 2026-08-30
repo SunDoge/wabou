@@ -9721,6 +9721,8 @@
   var nodesByKey = new NodeKeyTable;
   var classesByNode = new WeakMap;
   var interactionByNode = new WeakMap;
+  var controlledValueByNode = new WeakMap;
+  var nativeValueByNode = new Map;
   function emitInteractionPolicy(writer, node) {
     const state = interactionByNode.get(node) ?? {
       focusOrder: null,
@@ -9857,6 +9859,12 @@
     child.parent = child.prev = child.next = null;
   }
   function applyProperty(writer, node, name, value, prev) {
+    if (name === "value") {
+      if (value == null || value === false)
+        controlledValueByNode.delete(node);
+      else
+        controlledValueByNode.set(node, String(value));
+    }
     if (value === prev)
       return;
     if (name === "overlayPlane") {
@@ -10237,6 +10245,12 @@
         }
       }
     }
+    if (eventCode === EVENT_CODE.input && typeof data.value === "string") {
+      const target = derefHandle(solidId);
+      if (target && controlledValueByNode.has(target)) {
+        nativeValueByNode.set(target, data.value);
+      }
+    }
     let stopped = false;
     let defaultPrevented = false;
     const ev = {
@@ -10275,6 +10289,15 @@
     }
     bubble(solidId, eventCode, ev);
     return defaultPrevented;
+  }
+  function reconcileControlledInputValues() {
+    for (const [node, nativeValue] of nativeValueByNode) {
+      const controlledValue = controlledValueByNode.get(node);
+      if (controlledValue !== undefined && controlledValue !== nativeValue) {
+        writer.setAttribute(node.id, "value", controlledValue);
+      }
+    }
+    nativeValueByNode.clear();
   }
   function derefHandle(id) {
     return nodesByKey.get(id)?.deref();
@@ -10722,9 +10745,12 @@ ${detail}`);
         }
       }
     });
+    reconcileControlledInputValues();
+    const protocolFrame = writer.flush() ?? undefined;
     return {
       preventedEventIds: prevented.length > 0 ? Uint32Array.from(prevented) : undefined,
-      needsTick
+      needsTick,
+      protocolFrame
     };
   }
   function __wabou_dispatch_host_frame(frame) {

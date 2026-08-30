@@ -663,7 +663,7 @@ impl Applier {
                 event_data::TWIST as usize + 1,
             )),
         });
-        if let Err(error) = self.runtime.js.dispatch_host_frame(&[event]) {
+        if let Err(error) = self.dispatch_host_frame(&[event]) {
             tracing::warn!(?error, ?target, code, "event dispatch failed");
             return false;
         }
@@ -717,7 +717,7 @@ impl Applier {
                 Self::numeric_event_len(code),
             )),
         });
-        match self.runtime.js.dispatch_host_frame(&[event]) {
+        match self.dispatch_host_frame(&[event]) {
             Ok(disposition) => (true, disposition.is_prevented(event_id)),
             Err(error) => {
                 tracing::warn!(?error, ?target, code, "event dispatch failed");
@@ -757,7 +757,7 @@ impl Applier {
             cancellable: true,
             payload: NodeEventPayload::Json(payload),
         });
-        match self.runtime.js.dispatch_host_frame(&[event]) {
+        match self.dispatch_host_frame(&[event]) {
             Ok(disposition) => (true, disposition.is_prevented(event_id)),
             Err(error) => {
                 tracing::warn!(?error, ?target, code, "event dispatch failed");
@@ -800,7 +800,7 @@ impl Applier {
             cancellable: false,
             payload: NodeEventPayload::Json(payload.to_owned()),
         });
-        if let Err(error) = self.runtime.js.dispatch_host_frame(&[event]) {
+        if let Err(error) = self.dispatch_host_frame(&[event]) {
             tracing::warn!(?error, ?target, code, "event dispatch failed");
             return false;
         }
