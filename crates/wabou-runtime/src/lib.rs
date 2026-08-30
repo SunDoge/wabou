@@ -54,7 +54,6 @@ pub mod vite;
 #[cfg(test)]
 mod widget;
 
-pub(crate) use applier::LegacyRuntimeController;
 pub use applier::{HmrDrainResult, ReloadHandle, ReloadMsg};
 pub use config::AppConfig;
 pub use error::{Error, Result};

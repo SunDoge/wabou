@@ -14,7 +14,7 @@ use gpui_shell::gpui::{
     Subscription, SystemNotification, Task, Window, div,
 };
 
-use crate::LegacyRuntimeController;
+use crate::gpui_controller::GpuiController;
 use gpui_shell::{
     ClipboardRequest, EffectCompletion, EffectErrorCode, EffectPayload, EffectRequest,
     EffectResult, HostAction, HostActionResult, WindowCommand,
@@ -27,7 +27,7 @@ use gpui_shell::{
 /// resulting retained projection. It intentionally does not create one GPUI
 /// entity per Solid node.
 pub struct GpuiRuntimeView {
-    controller: LegacyRuntimeController,
+    controller: GpuiController,
     // Retaining the task ties the async bridge to the lifetime of this view.
     // The task itself only owns a weak entity handle, so this is not a cycle.
     _wake_task: Task<()>,
@@ -99,7 +99,7 @@ impl GpuiRuntimeView {
     /// Wrap an already configured and booted Wabou runtime.
     #[must_use]
     pub fn new(
-        mut controller: LegacyRuntimeController,
+        mut controller: GpuiController,
         default_title: String,
         window_size_persistence: Option<gpui_shell::WindowSizePersistence>,
         native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
@@ -141,7 +141,7 @@ impl GpuiRuntimeView {
     }
 
     fn synchronize_text_controls(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let descriptors = self.controller.gpui_text_controls();
+        let descriptors = self.controller.text_controls();
         self.text_controls
             .retain(|key, _| descriptors.iter().any(|descriptor| descriptor.key == *key));
 
@@ -167,11 +167,12 @@ impl GpuiRuntimeView {
                             InputEvent::Blur => Some(false),
                             _ => None,
                         };
-                        let changed = value.as_deref().is_some_and(|value| {
-                            view.controller.gpui_commit_text_value(key, value)
-                        }) | focused.is_some_and(|focused| {
-                            view.controller.gpui_set_text_focus(key, focused)
-                        });
+                        let changed = value
+                            .as_deref()
+                            .is_some_and(|value| view.controller.commit_text_value(key, value))
+                            | focused.is_some_and(|focused| {
+                                view.controller.set_text_focus(key, focused)
+                            });
                         if changed {
                             cx.notify();
                         }
@@ -190,11 +191,12 @@ impl GpuiRuntimeView {
                             InputEvent::Blur => Some(false),
                             _ => None,
                         };
-                        let changed = value.as_deref().is_some_and(|value| {
-                            view.controller.gpui_commit_text_value(key, value)
-                        }) | focused.is_some_and(|focused| {
-                            view.controller.gpui_set_text_focus(key, focused)
-                        });
+                        let changed = value
+                            .as_deref()
+                            .is_some_and(|value| view.controller.commit_text_value(key, value))
+                            | focused.is_some_and(|focused| {
+                                view.controller.set_text_focus(key, focused)
+                            });
                         if changed {
                             cx.notify();
                         }
@@ -210,19 +212,8 @@ impl GpuiRuntimeView {
         }
     }
 
-    /// Borrow the underlying runtime for host integration during migration.
-    #[must_use]
-    pub fn controller(&self) -> &LegacyRuntimeController {
-        &self.controller
-    }
-
-    /// Mutably borrow the underlying runtime for host integration.
-    pub fn applier_mut(&mut self) -> &mut LegacyRuntimeController {
-        &mut self.controller
-    }
-
     fn handle_input(&mut self, event: gpui_shell::ProjectedInputEvent, cx: &mut Context<Self>) {
-        let mut response = self.controller.handle_gpui_input(event);
+        let mut response = self.controller.handle_input(event);
         if let Some(request) = response.clipboard.take() {
             match request {
                 ClipboardRequest::Write(text) => {
@@ -606,9 +597,7 @@ impl Render for GpuiRuntimeView {
                 window.is_maximized(),
             );
         }
-        let _ = self
-            .controller
-            .build_gpui_frame(viewport.width.into(), viewport.height.into());
+        let _ = self.controller.advance_frame();
         self.synchronize_text_controls(window, cx);
         if self.drain_host_actions(window, cx) {
             cx.notify();
@@ -617,7 +606,7 @@ impl Render for GpuiRuntimeView {
             cx.notify();
         }
 
-        if self.controller.runtime_has_animation() {
+        if self.controller.has_animation() {
             // GPUI associates this request with the currently rendering view
             // and notifies only that entity on the next platform frame.
             window.request_animation_frame();
@@ -629,10 +618,10 @@ impl Render for GpuiRuntimeView {
                 view.handle_input(event, cx);
             });
         });
-        let mut text_input = self.controller.gpui_text_input_state();
+        let mut text_input = self.controller.text_input_state();
         if self
             .controller
-            .gpui_focused_target()
+            .focused_target()
             .is_some_and(|target| self.text_controls.contains_key(&target))
         {
             // The child InputState owns the platform input handler. Keeping the
@@ -646,7 +635,7 @@ impl Render for GpuiRuntimeView {
             .collect::<BTreeMap<_, _>>();
         let widgets = self
             .controller
-            .gpui_native_widgets(|tag| self.native_widget_factories.contains_key(tag));
+            .native_widgets(|tag| self.native_widget_factories.contains_key(tag));
         self.native_widget_entities
             .retain(|key, _| widgets.iter().any(|widget| widget.key == *key));
         for widget in &widgets {
@@ -675,7 +664,7 @@ impl Render for GpuiRuntimeView {
         let native: gpui_shell::ProjectedNativeElementFactory =
             Rc::new(move |key| native_controls.borrow_mut().remove(&key));
         self.controller
-            .gpui_interactive_element(input, self.focus.clone(), text_input, Some(native))
+            .interactive_element(input, self.focus.clone(), text_input, Some(native))
             .expect("the canonical Wabou root remains retained")
     }
 }
@@ -683,10 +672,17 @@ impl Render for GpuiRuntimeView {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::JsRuntime;
+    use crate::{JsRuntime, runtime_session::RuntimeSession};
     use gpui_shell::gpui::{HeadlessAppContext, TestAppContext, px, size};
     use gpui_shell::{EffectId, EffectScope, OpenDialogRequest};
     use wabou_host_api::NodeKey;
+
+    fn test_controller() -> GpuiController {
+        GpuiController::new(RuntimeSession::new(
+            JsRuntime::new().expect("QuickJS runtime"),
+            gpui_shell::initial_window_resource_key(0),
+        ))
+    }
 
     #[test]
     fn gpui_wakes_are_coalesced_until_the_ui_task_drains_them() {
@@ -708,21 +704,20 @@ mod tests {
 
     #[test]
     fn real_solid_writer_frame_materializes_as_a_gpui_tree() {
-        let runtime = JsRuntime::new().expect("QuickJS runtime");
-        let mut controller =
-            LegacyRuntimeController::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+        let mut controller = test_controller();
         controller
             .boot(include_str!("gen/test-runtime.js"))
             .expect("boot generated Solid runtime fixture");
 
-        assert!(controller.build_gpui_frame(800, 600));
+        assert!(controller.advance_frame());
         assert_eq!(controller.protocol_revision(), 1);
         assert!(
-            controller.gpui_contains(NodeKey::new(2, 1)),
+            controller.contains(NodeKey::new(2, 1)),
             "the fixture's mounted <main> must cross the binary writer boundary"
         );
         let _root = controller
-            .gpui_element()
+            .projection()
+            .tree_element(NodeKey::ROOT)
             .expect("the completed Solid tree must materialize for GPUI");
     }
 
@@ -732,15 +727,11 @@ mod tests {
         let mut cx = HeadlessAppContext::new(platform.text_system());
         let handle = cx
             .open_window(size(px(800.0), px(600.0)), |window, app| {
-                let runtime = JsRuntime::new().expect("QuickJS runtime");
-                let mut controller = LegacyRuntimeController::from_runtime(
-                    runtime,
-                    vello::peniko::Color::TRANSPARENT,
-                );
+                let mut controller = test_controller();
                 controller
                     .boot(include_str!("gen/test-runtime.js"))
                     .expect("boot generated Solid runtime fixture");
-                assert!(controller.build_gpui_frame(800, 600));
+                assert!(controller.advance_frame());
                 app.new(|view_cx| {
                     GpuiRuntimeView::new(
                         controller,
@@ -764,9 +755,7 @@ mod tests {
 
     #[gpui_shell::gpui::test]
     fn gpui_effect_executor_uses_the_platform_clipboard(cx: &mut TestAppContext) {
-        let runtime = JsRuntime::new().expect("QuickJS runtime");
-        let controller =
-            LegacyRuntimeController::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+        let controller = test_controller();
         let (view, cx) = cx.add_window_view(move |window, cx| {
             GpuiRuntimeView::new(
                 controller,
@@ -822,9 +811,7 @@ mod tests {
 
     #[gpui_shell::gpui::test]
     fn gpui_effect_executor_uses_the_platform_path_prompt(cx: &mut TestAppContext) {
-        let runtime = JsRuntime::new().expect("QuickJS runtime");
-        let controller =
-            LegacyRuntimeController::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+        let controller = test_controller();
         let (view, cx) = cx.add_window_view(move |window, cx| {
             GpuiRuntimeView::new(
                 controller,

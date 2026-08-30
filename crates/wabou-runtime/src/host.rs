@@ -543,6 +543,82 @@ struct RuntimeSourceConfig {
 }
 
 impl RuntimeSourceConfig {
+    fn create_gpui(
+        &self,
+        window_key: gpui_shell::WindowResourceKey,
+        window_options: &WindowOptions,
+    ) -> crate::Result<crate::gpui_controller::GpuiController> {
+        #[cfg(feature = "vite")]
+        let js = match &self.source {
+            ApplicationSource::Vite { url, .. } => {
+                JsRuntime::new_vite_with_options(url, self.js_runtime_options).context(
+                    crate::error::JavaScriptSnafu {
+                        operation: "create Vite JavaScript runtime",
+                    },
+                )?
+            }
+            ApplicationSource::Bundle { .. } => JsRuntime::new_with_options(
+                self.js_runtime_options,
+            )
+            .context(crate::error::JavaScriptSnafu {
+                operation: "create JavaScript runtime",
+            })?,
+        };
+        #[cfg(not(feature = "vite"))]
+        let js = JsRuntime::new_with_options(self.js_runtime_options).context(
+            crate::error::JavaScriptSnafu {
+                operation: "create JavaScript runtime",
+            },
+        )?;
+
+        for capability in &self.capabilities {
+            capability(&js).context(crate::error::JavaScriptSnafu {
+                operation: "mount JavaScript capability",
+            })?;
+        }
+        let serialized_window_options =
+            serde_json::to_string(window_options).expect("WindowOptions must remain serializable");
+        js.with(|ctx| {
+            ctx.globals()
+                .set("__wabou_window_options_json", serialized_window_options)
+        })
+        .context(crate::error::JavaScriptSnafu {
+            operation: "install native window creation options",
+        })?;
+
+        let mut controller = crate::gpui_controller::GpuiController::new(
+            crate::runtime_session::RuntimeSession::new(js, window_key),
+        );
+        install_gpui_host_message_producers(&self.host_message_producers, window_key, &controller);
+        controller.set_image_resources(self.image_resources.clone());
+        if let Some(directories) = &self.app_directories {
+            controller.set_app_directories(directories.clone());
+        }
+        if let Some(trace) = &self.effect_trace {
+            controller.set_effect_trace(trace.clone());
+        }
+        #[cfg(feature = "devtools")]
+        if let Some(state) = &self.debug_state {
+            controller.set_debug_state(state.clone());
+        }
+        match &self.source {
+            ApplicationSource::Bundle { code, source_map } => controller
+                .boot_with_source_map(code, source_map.as_deref())
+                .context(crate::error::JavaScriptSnafu {
+                    operation: "boot JavaScript bundle",
+                })?,
+            #[cfg(feature = "vite")]
+            ApplicationSource::Vite { entry, .. } => {
+                controller
+                    .boot_vite(entry)
+                    .context(crate::error::JavaScriptSnafu {
+                        operation: "boot Vite entry module",
+                    })?
+            }
+        }
+        Ok(controller)
+    }
+
     fn create(
         &self,
         window_key: gpui_shell::WindowResourceKey,
@@ -637,6 +713,20 @@ impl RuntimeSourceConfig {
         };
         applier.set_vite_entry(entry.as_ref());
         crate::start_hmr_client(url, applier.reload_handle())
+            .map(Some)
+            .context(crate::error::ViteSnafu)
+    }
+
+    #[cfg(feature = "vite")]
+    fn start_gpui_hmr(
+        &self,
+        controller: &mut crate::gpui_controller::GpuiController,
+    ) -> crate::Result<Option<crate::HmrClient>> {
+        let ApplicationSource::Vite { url, entry } = &self.source else {
+            return Ok(None);
+        };
+        controller.set_vite_entry(entry.as_ref());
+        crate::start_hmr_client(url, controller.reload_handle())
             .map(Some)
             .context(crate::error::ViteSnafu)
     }
@@ -1229,13 +1319,13 @@ impl HostBuilder {
             for (index, options) in windows.into_iter().enumerate() {
                 let window_key = gpui_shell::initial_window_resource_key(index);
                 #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
-                let mut applier = runtime_sources.create(window_key, &options)?;
+                let mut controller = runtime_sources.create_gpui(window_key, &options)?;
                 #[cfg(feature = "vite")]
-                if let Some(client) = runtime_sources.start_hmr(&mut applier)? {
+                if let Some(client) = runtime_sources.start_gpui_hmr(&mut controller)? {
                     hmr_clients.push(client);
                 }
                 gpui_sources.push((
-                    applier,
+                    controller,
                     options,
                     (index == 0)
                         .then(|| gpui_window_size_persistence.take())
@@ -1342,7 +1432,7 @@ impl HostBuilder {
 
 fn run_gpui_windows(
     windows: Vec<(
-        LegacyRuntimeController,
+        crate::gpui_controller::GpuiController,
         WindowOptions,
         Option<gpui_shell::WindowSizePersistence>,
     )>,
@@ -1449,6 +1539,16 @@ fn install_host_message_producers(
     }
 }
 
+fn install_gpui_host_message_producers(
+    producers: &[HostMessageProducer],
+    window_key: gpui_shell::WindowResourceKey,
+    controller: &crate::gpui_controller::GpuiController,
+) {
+    for producer in producers {
+        producer(controller.host_message_context(window_key));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -1456,9 +1556,10 @@ mod tests {
         JsonCapabilityContract, install_host_message_producers, managed_host_service,
         start_host_services,
     };
+    use crate::applier::LegacyRuntimeController;
     use crate::host_message::{HostMessagePayload, HostTaskTracker, host_message_channel};
     use crate::json_capability::{JsonCapability, invoke_json_method};
-    use crate::{HostMessageContext, JsRuntime, LegacyRuntimeController};
+    use crate::{HostMessageContext, JsRuntime};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use wabou_bindgen::JsonMethod;

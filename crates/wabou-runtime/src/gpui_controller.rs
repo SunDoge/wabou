@@ -60,6 +60,7 @@ impl GpuiController {
         })
     }
 
+    #[cfg(test)]
     pub(crate) fn projection(&self) -> &GpuiProjection {
         &self.projection
     }
@@ -139,8 +140,24 @@ impl GpuiController {
             || self.runtime.reload.is_pending()
     }
 
+    pub(crate) fn poll_runtime(&mut self) -> bool {
+        let progressed = self.poll_runtime_session();
+        if self.runtime.host_message_inbox.has_pending() {
+            self.drain_application_messages();
+            return true;
+        }
+        progressed
+    }
+
     pub(crate) fn take_runtime_host_action(&mut self) -> Option<gpui_shell::HostAction> {
         self.runtime.pending_host_actions.borrow_mut().pop_front()
+    }
+
+    pub(crate) fn complete_runtime_host_action(&mut self, result: gpui_shell::HostActionResult) {
+        // Clipboard host actions were introduced for legacy Rust widgets. GPUI
+        // native widgets own their platform integration and JS uses effects,
+        // so there is no request route to complete in this controller.
+        let _ = result;
     }
 
     pub(crate) fn take_runtime_effect(&mut self) -> Option<gpui_shell::EffectRequest> {
@@ -475,10 +492,34 @@ impl GpuiController {
         self.projection.text_controls()
     }
 
+    pub(crate) fn native_widgets(
+        &self,
+        accepts: impl FnMut(&str) -> bool,
+    ) -> Vec<gpui_shell::GpuiNativeWidget> {
+        self.projection.native_widgets(accepts)
+    }
+
+    pub(crate) fn interactive_element(
+        &self,
+        input: gpui_shell::ProjectedInputSink,
+        focus: gpui_shell::gpui::FocusHandle,
+        text_input: gpui_shell::ProjectedTextInputState,
+        native: Option<gpui_shell::ProjectedNativeElementFactory>,
+    ) -> Result<gpui_shell::ProjectedElement, ProjectionError> {
+        self.projection.interactive_tree_element(
+            wabou_host_api::NodeKey::ROOT,
+            input,
+            focus,
+            text_input,
+            native,
+        )
+    }
+
     pub(crate) fn focused_target(&self) -> Option<wabou_host_api::NodeKey> {
         self.focused_target
     }
 
+    #[cfg(test)]
     pub(crate) fn contains(&self, target: wabou_host_api::NodeKey) -> bool {
         self.projection.contains(target)
     }
@@ -559,6 +600,18 @@ impl GpuiController {
                 .unwrap_or(false);
         }
         changed
+    }
+
+    pub(crate) fn handle_input(
+        &mut self,
+        event: gpui_shell::ProjectedInputEvent,
+    ) -> gpui_shell::EventResponse {
+        match event {
+            gpui_shell::ProjectedInputEvent::Pointer(event) => self.handle_projected_pointer(event),
+            gpui_shell::ProjectedInputEvent::Wheel(event) => self.handle_projected_wheel(event),
+            gpui_shell::ProjectedInputEvent::Key(event) => self.handle_projected_key(event),
+            gpui_shell::ProjectedInputEvent::Ime(event) => self.handle_projected_ime(event),
+        }
     }
 
     pub fn handle_projected_key(
@@ -853,6 +906,10 @@ impl GpuiController {
         self.projection.finish_frame()
     }
 
+    pub(crate) fn has_animation(&self) -> bool {
+        self.runtime.has_raf
+    }
+
     /// Monotonically increasing count of non-empty JS-to-host frames.
     pub fn protocol_revision(&self) -> u64 {
         self.runtime.protocol_revision
@@ -892,6 +949,16 @@ impl GpuiController {
         self.runtime.js.boot_vite(entry)
     }
 
+    #[cfg(feature = "vite")]
+    pub fn reload_handle(&mut self) -> crate::ReloadHandle {
+        self.runtime.reload.handle()
+    }
+
+    #[cfg(feature = "vite")]
+    pub fn set_vite_entry(&mut self, entry: impl Into<String>) {
+        self.runtime.reload.set_vite_entry(entry);
+    }
+
     pub(crate) fn set_effect_trace(&mut self, trace: crate::effect_trace::EffectTrace) {
         self.runtime.effect_bridge.set_trace(trace);
     }
@@ -899,6 +966,11 @@ impl GpuiController {
     /// Publish application-private directories to native effects.
     pub fn set_app_directories(&mut self, directories: gpui_shell::AppDirectories) {
         self.runtime.effect_bridge.set_app_directories(directories);
+    }
+
+    #[cfg(feature = "devtools")]
+    pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
+        self.runtime.js.set_debug_state(state);
     }
 
     /// Cloneable producer handle for application Rust-to-JavaScript messages.

@@ -522,22 +522,7 @@ impl std::ops::DerefMut for LegacyRuntimeController {
 pub type Applier = LegacyRuntimeController;
 
 impl LegacyRuntimeController {
-    pub(crate) fn handle_gpui_input(
-        &mut self,
-        event: gpui_shell::ProjectedInputEvent,
-    ) -> EventResponse {
-        match event {
-            gpui_shell::ProjectedInputEvent::Pointer(event) => {
-                self.gpui.handle_projected_pointer(event)
-            }
-            gpui_shell::ProjectedInputEvent::Wheel(event) => {
-                self.gpui.handle_projected_wheel(event)
-            }
-            gpui_shell::ProjectedInputEvent::Key(event) => self.gpui.handle_projected_key(event),
-            gpui_shell::ProjectedInputEvent::Ime(event) => self.gpui.handle_projected_ime(event),
-        }
-    }
-
+    #[cfg(test)]
     pub(crate) fn gpui_text_input_state(&self) -> gpui_shell::ProjectedTextInputState {
         if self.gpui.focused_target().is_some() {
             return self.gpui.text_input_state();
@@ -580,11 +565,6 @@ impl LegacyRuntimeController {
     #[cfg(test)]
     pub(crate) fn gpui_revision(&self) -> u64 {
         self.gpui.projection().revision()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn gpui_contains(&self, key: NodeKey) -> bool {
-        self.gpui.projection().contains(key)
     }
 
     /// Build an applier over an already-booted [`JsRuntime`] (the host owns

@@ -253,49 +253,7 @@ impl Applier {
         true
     }
 
-    /// Advance one Solid frame and publish its retained GPUI projection.
-    ///
-    /// GPUI performs layout and paint itself; the legacy Taffy/Parley frame is
-    /// intentionally not built here.
-    pub(crate) fn build_gpui_frame(&mut self, width: u32, height: u32) -> bool {
-        let _ = (width, height);
-        self.gpui.advance_frame()
-    }
-
     #[cfg(test)]
-    pub(crate) fn gpui_element(
-        &self,
-    ) -> Result<gpui_shell::ProjectedElement, gpui_shell::ProjectionError> {
-        self.gpui.projection().tree_element(NodeKey::ROOT)
-    }
-
-    pub(crate) fn gpui_interactive_element(
-        &self,
-        input: gpui_shell::ProjectedInputSink,
-        focus: gpui_shell::gpui::FocusHandle,
-        text_input: gpui_shell::ProjectedTextInputState,
-        native: Option<gpui_shell::ProjectedNativeElementFactory>,
-    ) -> Result<gpui_shell::ProjectedElement, gpui_shell::ProjectionError> {
-        self.gpui.projection().interactive_tree_element(
-            NodeKey::ROOT,
-            input,
-            focus,
-            text_input,
-            native,
-        )
-    }
-
-    pub(crate) fn gpui_text_controls(&self) -> Vec<gpui_shell::GpuiTextControl> {
-        self.gpui.text_controls()
-    }
-
-    pub(crate) fn gpui_native_widgets(
-        &self,
-        accepts: impl FnMut(&str) -> bool,
-    ) -> Vec<gpui_shell::GpuiNativeWidget> {
-        self.gpui.projection().native_widgets(accepts)
-    }
-
     pub(crate) fn gpui_commit_text_value(&mut self, target: NodeKey, value: &str) -> bool {
         if self.gpui.contains(target) {
             return self.gpui.commit_text_value(target, value);
@@ -309,62 +267,6 @@ impl Applier {
         }
         let payload = serde_json::json!({ "value": value }).to_string();
         self.dispatch_json(target, event::INPUT, &payload)
-    }
-
-    pub(crate) fn gpui_set_text_focus(&mut self, target: NodeKey, focused: bool) -> bool {
-        if self.gpui.contains(target) {
-            return self.gpui.set_text_focus(target, focused);
-        }
-        if focused {
-            self.set_focused_target(Some(target))
-        } else if self.interaction.input.focused_target == Some(target) {
-            self.set_focused_target(None)
-        } else {
-            false
-        }
-    }
-
-    pub(crate) fn gpui_focused_target(&self) -> Option<NodeKey> {
-        self.gpui
-            .focused_target()
-            .or(self.interaction.input.focused_target)
-    }
-
-    pub(crate) fn install_runtime_wake(&mut self, wake: WakeCallback) {
-        self.gpui.install_runtime_wake(wake.clone());
-        #[cfg(any(feature = "devtools", test))]
-        if let Some(state) = &self.frame.projections.debug_state
-            && let Ok(mut state) = state.write()
-        {
-            state.set_wake(wake.clone());
-        }
-        for widget in self.document.widget_manager.widgets.values_mut() {
-            widget.set_wake_callback(wake.clone());
-        }
-    }
-
-    pub(crate) fn poll_runtime(&mut self) -> bool {
-        FrameSource::poll_async(self)
-    }
-
-    pub(crate) fn take_runtime_host_action(&mut self) -> Option<gpui_shell::HostAction> {
-        self.gpui.take_runtime_host_action()
-    }
-
-    pub(crate) fn complete_runtime_host_action(&mut self, result: gpui_shell::HostActionResult) {
-        FrameSource::complete_host_action(self, result);
-    }
-
-    pub(crate) fn take_runtime_effect(&mut self) -> Option<gpui_shell::EffectRequest> {
-        self.gpui.take_runtime_effect()
-    }
-
-    pub(crate) fn complete_runtime_effect(&mut self, completion: gpui_shell::EffectCompletion) {
-        self.gpui.complete_runtime_effect(completion);
-    }
-
-    pub(crate) fn runtime_has_animation(&self) -> bool {
-        FrameSource::has_anim(self)
     }
 }
 
