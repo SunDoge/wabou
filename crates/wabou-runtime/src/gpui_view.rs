@@ -1,8 +1,9 @@
 //! GPUI view owning one Wabou JavaScript runtime.
 
-use std::rc::Rc;
+use std::{rc::Rc, sync::Arc};
 
-use wabou_shell_gpui::gpui::{Context, Render, Window};
+use wabou_shell_gpui::WakeCallback;
+use wabou_shell_gpui::gpui::{Context, Render, Task, Window};
 
 use crate::{Applier, FrameSource};
 
@@ -14,13 +15,39 @@ use crate::{Applier, FrameSource};
 /// entity per Solid node.
 pub struct GpuiRuntimeView {
     applier: Applier,
+    // Retaining the task ties the async bridge to the lifetime of this view.
+    // The task itself only owns a weak entity handle, so this is not a cycle.
+    _wake_task: Task<()>,
 }
 
 impl GpuiRuntimeView {
     /// Wrap an already configured and booted Wabou runtime.
     #[must_use]
-    pub fn new(applier: Applier) -> Self {
-        Self { applier }
+    pub fn new(mut applier: Applier, cx: &mut Context<Self>) -> Self {
+        let (wake, receiver) = gpui_wake_channel();
+        FrameSource::set_wake_callback(&mut applier, wake);
+
+        let wake_task = cx.spawn(async move |view, cx| {
+            while receiver.recv_async().await.is_ok() {
+                if view
+                    .update(cx, |view, cx| {
+                        // Drain work immediately instead of waiting for an unrelated
+                        // input event or animation frame. The following render pass
+                        // publishes any resulting Solid mutation batch to GPUI.
+                        let _ = FrameSource::poll_async(&mut view.applier);
+                        cx.notify();
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
+
+        Self {
+            applier,
+            _wake_task: wake_task,
+        }
     }
 
     /// Borrow the underlying runtime for host integration during migration.
@@ -33,6 +60,17 @@ impl GpuiRuntimeView {
     pub fn applier_mut(&mut self) -> &mut Applier {
         &mut self.applier
     }
+}
+
+fn gpui_wake_channel() -> (WakeCallback, flume::Receiver<()>) {
+    // One queued token is sufficient: poll_async drains every source and the next
+    // completed Solid flush is committed atomically. This prevents message bursts
+    // from scheduling an unbounded number of redundant GPUI updates.
+    let (sender, receiver) = flume::bounded(1);
+    let wake = Arc::new(move || {
+        let _ = sender.try_send(());
+    });
+    (wake, receiver)
 }
 
 impl Render for GpuiRuntimeView {
@@ -72,6 +110,24 @@ mod tests {
     use super::*;
     use crate::JsRuntime;
     use wabou_host_api::NodeKey;
+
+    #[test]
+    fn gpui_wakes_are_coalesced_until_the_ui_task_drains_them() {
+        let (wake, receiver) = gpui_wake_channel();
+
+        wake();
+        wake();
+        wake();
+
+        assert_eq!(receiver.try_recv(), Ok(()));
+        assert!(matches!(
+            receiver.try_recv(),
+            Err(flume::TryRecvError::Empty)
+        ));
+
+        wake();
+        assert_eq!(receiver.try_recv(), Ok(()));
+    }
 
     #[test]
     fn real_solid_writer_frame_materializes_as_a_gpui_tree() {

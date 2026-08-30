@@ -4,6 +4,8 @@
 //! projects completed Solid flushes into GPUI. The projection boundary is
 //! deliberately frame-oriented: individual property writes never notify GPUI.
 
+use std::sync::Arc;
+
 mod element;
 mod input;
 mod projection;
@@ -18,6 +20,9 @@ pub use input::{
 pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
 pub use style::{StyleDiagnostic, StyleProjection};
 pub use tree::{ProjectedNode, ProjectionError, ProjectionTree};
+
+/// Thread-safe callback used by background producers to wake the UI loop.
+pub type WakeCallback = Arc<dyn Fn() + Send + Sync>;
 
 /// Run a GPUI application using Wabou's selected platform implementation.
 ///
