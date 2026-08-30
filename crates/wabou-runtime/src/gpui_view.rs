@@ -3,10 +3,15 @@
 use std::{rc::Rc, sync::Arc};
 
 use wabou_shell_gpui::WakeCallback;
-use wabou_shell_gpui::gpui::{ClipboardItem, Context, FocusHandle, Render, Task, Window};
+use wabou_shell_gpui::gpui::{
+    ClipboardItem, Context, FocusHandle, Render, SystemNotification, Task, Window,
+};
 
 use crate::{Applier, FrameSource};
-use wabou_shell::{ClipboardRequest, HostAction, HostActionResult, UiEvent};
+use wabou_shell::{
+    ClipboardRequest, EffectCompletion, EffectErrorCode, EffectPayload, EffectRequest,
+    EffectResult, HostAction, HostActionResult, UiEvent, WindowCommand,
+};
 
 /// A coarse GPUI entity for one Solid application runtime.
 ///
@@ -145,6 +150,102 @@ impl GpuiRuntimeView {
         }
         handled
     }
+
+    fn drain_effects(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let mut handled = false;
+        while let Some(request) = FrameSource::take_effect(&mut self.applier) {
+            handled = true;
+            let completion = self.execute_effect(request, window, cx);
+            if let Some(completion) = completion {
+                FrameSource::complete_effect(&mut self.applier, completion);
+            }
+        }
+        handled
+    }
+
+    fn execute_effect(
+        &mut self,
+        request: EffectRequest,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<EffectCompletion> {
+        let id = request.id;
+        let op = request.payload.op();
+        let result = match request.payload {
+            EffectPayload::ClipboardRead => EffectResult::ClipboardText(
+                cx.read_from_clipboard()
+                    .and_then(|clipboard| clipboard.text()),
+            ),
+            EffectPayload::ClipboardWrite { text } => {
+                cx.write_to_clipboard(ClipboardItem::new_string(text));
+                EffectResult::Unit
+            }
+            EffectPayload::AppDirsResolve(directories) => EffectResult::AppDirectories(directories),
+            EffectPayload::WindowControl { command, .. } => {
+                match command {
+                    WindowCommand::Close => window.remove_window(),
+                    WindowCommand::Minimize => window.minimize_window(),
+                    WindowCommand::SetMaximized(maximized) => {
+                        if window.is_maximized() != maximized {
+                            window.zoom_window();
+                        }
+                    }
+                    WindowCommand::SetTitle(title) => window.set_window_title(&title),
+                    WindowCommand::StartDragging => window.start_window_move(),
+                    WindowCommand::Show => window.activate_window(),
+                }
+                EffectResult::Unit
+            }
+            EffectPayload::NotificationShow(notification) => {
+                if notification.title.trim().is_empty() {
+                    EffectResult::Error {
+                        code: EffectErrorCode::InvalidRequest,
+                        message: "notification title must not be empty".into(),
+                    }
+                } else {
+                    cx.show_system_notification(SystemNotification {
+                        tag: format!("wabou-effect-{}", id.0).into(),
+                        title: notification.title.into(),
+                        body: notification.body.unwrap_or_default().into(),
+                        actions: Vec::new(),
+                    });
+                    EffectResult::Unit
+                }
+            }
+            EffectPayload::ApplicationExit => {
+                cx.quit();
+                EffectResult::Unit
+            }
+            EffectPayload::ApplicationRelaunch => {
+                let result = match crate::host::relaunch_current_process() {
+                    Ok(()) => EffectResult::Unit,
+                    Err(error) => EffectResult::Error {
+                        code: EffectErrorCode::PlatformFailure,
+                        message: error.to_string(),
+                    },
+                };
+                if matches!(result, EffectResult::Unit) {
+                    cx.quit();
+                }
+                result
+            }
+            EffectPayload::Invalid { message, .. } => EffectResult::Error {
+                code: EffectErrorCode::InvalidRequest,
+                message,
+            },
+            EffectPayload::WindowCreate(_)
+            | EffectPayload::ContextMenuShow(_)
+            | EffectPayload::DialogOpen(_)
+            | EffectPayload::DialogSave(_)
+            | EffectPayload::DialogPickDirectory(_)
+            | EffectPayload::DialogMessage(_)
+            | EffectPayload::Extension { .. } => EffectResult::Error {
+                code: EffectErrorCode::Unsupported,
+                message: format!("effect `{op:?}` is not implemented by the GPUI shell yet"),
+            },
+        };
+        Some(EffectCompletion { id, op, result })
+    }
 }
 
 fn allowed_external_url(value: &str) -> Option<url::Url> {
@@ -176,6 +277,9 @@ impl Render for GpuiRuntimeView {
         if self.drain_host_actions(window, cx) {
             cx.notify();
         }
+        if self.drain_effects(window, cx) {
+            cx.notify();
+        }
 
         if FrameSource::has_anim(&self.applier) {
             // GPUI associates this request with the currently rendering view
@@ -201,6 +305,8 @@ mod tests {
     use super::*;
     use crate::JsRuntime;
     use wabou_host_api::NodeKey;
+    use wabou_shell::{EffectId, EffectScope};
+    use wabou_shell_gpui::gpui::TestAppContext;
 
     #[test]
     fn gpui_wakes_are_coalesced_until_the_ui_task_drains_them() {
@@ -237,5 +343,55 @@ mod tests {
         let _root = applier
             .gpui_element()
             .expect("the completed Solid tree must materialize for GPUI");
+    }
+
+    #[wabou_shell_gpui::gpui::test]
+    fn gpui_effect_executor_uses_the_platform_clipboard(cx: &mut TestAppContext) {
+        let runtime = JsRuntime::new().expect("QuickJS runtime");
+        let applier = Applier::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+        let (view, cx) = cx.add_window_view(move |window, cx| {
+            GpuiRuntimeView::new(applier, "Clipboard test".into(), window, cx)
+        });
+
+        let write = cx.update(|window, app| {
+            view.update(app, |view, cx| {
+                view.execute_effect(
+                    EffectRequest {
+                        id: EffectId(1),
+                        scope: EffectScope::Runtime,
+                        payload: EffectPayload::ClipboardWrite {
+                            text: "copied through GPUI".into(),
+                        },
+                    },
+                    window,
+                    cx,
+                )
+                .expect("synchronous clipboard completion")
+            })
+        });
+        assert_eq!(write.result, EffectResult::Unit);
+        assert_eq!(
+            cx.read_from_clipboard().and_then(|item| item.text()),
+            Some("copied through GPUI".into())
+        );
+
+        let read = cx.update(|window, app| {
+            view.update(app, |view, cx| {
+                view.execute_effect(
+                    EffectRequest {
+                        id: EffectId(2),
+                        scope: EffectScope::Runtime,
+                        payload: EffectPayload::ClipboardRead,
+                    },
+                    window,
+                    cx,
+                )
+                .expect("synchronous clipboard completion")
+            })
+        });
+        assert_eq!(
+            read.result,
+            EffectResult::ClipboardText(Some("copied through GPUI".into()))
+        );
     }
 }

@@ -1389,7 +1389,7 @@ fn run_gpui_windows(windows: Vec<(Applier, WindowOptions)>) -> crate::Result<()>
     }
 }
 
-fn relaunch_current_process() -> crate::Result<()> {
+pub(crate) fn relaunch_current_process() -> crate::Result<()> {
     let executable = std::env::current_exe().map_err(|error| crate::Error::HostService {
         name: "application relaunch",
         message: format!("cannot resolve current executable: {error}"),

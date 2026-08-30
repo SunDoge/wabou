@@ -12463,6 +12463,7 @@ dependencies = [
  "foyer",
  "futures-lite",
  "getrandom 0.4.3",
+ "gpui-ce",
  "image",
  "jiff",
  "lasso",
