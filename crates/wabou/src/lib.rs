@@ -25,16 +25,15 @@ pub use wabou_runtime::gpui;
 pub use wabou_runtime::rquickjs;
 pub use wabou_runtime::vello::peniko::Color;
 pub use wabou_runtime::{
-    AppDirectories, AppDirectoryConfig, Error, ExtensionContext, HostBuilder, HostMessage,
-    HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload, HostMessageRouter,
-    HostService, HostServiceContext, HostServiceHandle, ImageResource, ImageResourceHandle,
-    ImageResourceStore, JsonCapability, ManagedHostService, NativeCapability, NativeWidgetContext,
-    NativeWidgetFactory, NativeWidgetMount, PersistentJsonCache, Result, RevisionedHostPublication,
-    RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker, ShellExtension, WindowInputMode,
-    WindowLevel, WindowMetrics, WindowOptions, WindowResourceKey, initial_window_resource_key,
-    managed_host_service, widget_api,
+    AppDirectories, AppDirectoryConfig, Error, HostBuilder, HostMessage, HostMessageContext,
+    HostMessageError, HostMessageHandle, HostMessagePayload, HostMessageRouter, HostService,
+    HostServiceContext, HostServiceHandle, ImageResource, ImageResourceHandle, ImageResourceStore,
+    JsonCapability, ManagedHostService, NativeCapability, NativeWidgetContext, NativeWidgetFactory,
+    NativeWidgetMount, PersistentJsonCache, Result, RevisionedHostPublication,
+    RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker, WindowInputMode, WindowLevel,
+    WindowMetrics, WindowOptions, WindowResourceKey, initial_window_resource_key,
+    managed_host_service,
 };
-pub use wabou_runtime::{PaintScene, anyrender};
 #[cfg(feature = "tray")]
 pub use wabou_tray::{SystemTray, TrayContext, TrayImage};
 
@@ -43,12 +42,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn facade_exposes_application_and_extension_entry_points() {
+    fn facade_exposes_gpui_application_entry_points() {
         let _builder = HostBuilder::new();
         let _window = WindowOptions::new().title("Facade test");
         let _transparent = Color::TRANSPARENT;
-        let _: Option<&dyn widget_api::Widget> = None;
-        let _: Option<widget_api::UiEvent> = None;
         let _: JsonMethod<(), bool> = JsonMethod::no_request("ready");
     }
 

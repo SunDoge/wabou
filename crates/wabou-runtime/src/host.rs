@@ -55,9 +55,9 @@ use crate::kv::mount_kv_capability;
 use crate::native_capability::NativeCapability;
 use crate::test_report::finish_test_report;
 use crate::{HostMessageContext, HostMessageRouter};
-use crate::{ShellExtension, WindowOptions, run_windows_with_factory_and_extensions, style};
+use crate::{WindowOptions, run_windows_with_factory_and_extensions, style};
 use wabou_backend_winit_widgets::{SecretStore, builtin_factories, password_input_factory};
-use wabou_shell::{Widget, WidgetFactory};
+use wabou_shell::{ShellExtension, WidgetFactory};
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;
@@ -743,18 +743,6 @@ impl HostBuilder {
                 async move { Ok::<_, String>(resources.remove(handle)) }
             })
         })
-    }
-
-    /// Register or override a widget factory for `tag`. When the SolidJS app
-    /// creates an element with this tag (`<chart />`), the factory is called
-    /// to produce a fresh `Box<dyn Widget>`.
-    pub fn widget(
-        mut self,
-        tag: impl Into<String>,
-        factory: impl Fn() -> Box<dyn Widget> + 'static,
-    ) -> Self {
-        self.widget_factories.insert(tag.into(), Arc::new(factory));
-        self
     }
 
     /// Register an application-defined GPUI element for an explicit Solid tag.

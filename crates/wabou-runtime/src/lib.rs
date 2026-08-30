@@ -48,8 +48,8 @@ mod ui_inbox;
 mod css_support_matrix_test;
 #[cfg(feature = "vite")]
 pub mod vite;
+#[cfg(test)]
 mod widget;
-pub mod widget_api;
 
 pub use applier::{Applier, ComputedNodeSnapshot, HmrDrainResult, ReloadHandle, ReloadMsg};
 pub use config::AppConfig;
@@ -77,23 +77,14 @@ pub use protocol::event;
 pub use rquickjs;
 pub use serial_worker::SerialWorker;
 pub use vello;
-pub use wabou_shell::PaintScene;
-pub use wabou_shell::anyrender;
-pub use wabou_shell::{
-    ExtensionContext, FrameSource, FrameSourceFactory, RunOutcome, ShellExtension, TextContext,
-    run_window, run_window_with_options, run_window_with_size, run_windows,
-    run_windows_with_factory, run_windows_with_factory_and_extensions, style,
+use wabou_shell::{
+    FrameSource, FrameSourceFactory, RunOutcome, TextContext,
+    run_windows_with_factory_and_extensions, style,
 };
 pub use wabou_shell_gpui::{
     AppDirectories, AppDirectoryConfig, NativeWidgetContext, NativeWidgetFactory,
     NativeWidgetMount, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
     WindowResourceKey, gpui, initial_window_resource_key,
-};
-pub use widget::WidgetFactory;
-pub use widget::{
-    Canvas, MeasureContext, PaintContext, PasswordInput, SecretStore, TextInput, Widget,
-    WidgetAccessibility, WidgetAvailableSpace, WidgetChanges, WidgetEventResult, WidgetGeometry,
-    WidgetHarness, WidgetNodeEvent, WidgetStyle, decode_widget_config,
 };
 
 #[cfg(feature = "vite")]

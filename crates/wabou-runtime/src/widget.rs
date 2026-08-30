@@ -1,13 +1,6 @@
-//! Compatibility facade for the public widget contract and built-in widgets.
-//!
-//! New widget implementations should depend on `wabou-shell` for the trait;
-//! the legacy implementations live in the independent
-//! `wabou-backend-winit-widgets` crate.
-//! crate.
+//! Test-only access to the legacy widget contract.
 
-pub use wabou_backend_winit_widgets::{Canvas, PasswordInput, SecretStore, TextInput};
+pub(crate) use wabou_backend_winit_widgets::{PasswordInput, SecretStore};
 pub use wabou_shell::{
-    MeasureContext, PaintContext, Widget, WidgetAccessibility, WidgetAvailableSpace, WidgetChanges,
-    WidgetEventResult, WidgetFactory, WidgetGeometry, WidgetHarness, WidgetNodeEvent, WidgetStyle,
-    decode_widget_config,
+    MeasureContext, Widget, WidgetChanges, WidgetEventResult, WidgetNodeEvent, WidgetStyle,
 };

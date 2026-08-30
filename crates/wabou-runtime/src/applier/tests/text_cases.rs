@@ -10,12 +10,12 @@ fn password_input_keeps_secret_out_of_attrs_and_js_events() {
         )
     })
     .unwrap();
-    let secrets = crate::SecretStore::default();
+    let secrets = crate::widget::SecretStore::default();
     let mut factories = builtin_factories();
     let factory_secrets = secrets.clone();
     factories.insert(
         "password-input".into(),
-        Arc::new(move || Box::new(crate::PasswordInput::new(factory_secrets.clone()))),
+        Arc::new(move || Box::new(crate::widget::PasswordInput::new(factory_secrets.clone()))),
     );
     let mut applier = Applier::from_runtime_with_factories(js, factories, Color::BLACK);
     let (tag, secret, value, aria_value_text) = {
