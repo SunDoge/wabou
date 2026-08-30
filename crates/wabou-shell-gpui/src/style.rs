@@ -1,6 +1,7 @@
 use gpui::{
-    AbsoluteLength, AlignContent, AlignItems, DefiniteLength, Display, FlexDirection, FlexWrap,
-    FontWeight, Hsla, Length, Overflow, Position, Style,
+    AbsoluteLength, AlignContent, AlignItems, BoxShadow, CursorStyle, DefiniteLength, Display,
+    FlexDirection, FlexWrap, FontStyle, FontWeight, Hsla, Length, Overflow, Position, Style,
+    TextAlign, TextOverflow, Visibility, WhiteSpace,
 };
 use wabou_style::{Color, Declaration, Length as IrLength, Value};
 
@@ -60,6 +61,13 @@ impl StyleProjection {
             }
             "max-height" => {
                 self.style.max_size.height = length(value).ok_or_else(|| invalid(property))?;
+            }
+            "aspect-ratio" => {
+                self.style.aspect_ratio = Some(
+                    number(value)
+                        .filter(|ratio| *ratio > 0.0)
+                        .ok_or_else(|| invalid(property))?,
+                );
             }
             "top" => self.style.inset.top = length(value).ok_or_else(|| invalid(property))?,
             "right" => self.style.inset.right = length(value).ok_or_else(|| invalid(property))?,
@@ -232,6 +240,10 @@ impl StyleProjection {
                 self.style.text.font_size =
                     Some(absolute_length(value).ok_or_else(|| invalid(property))?);
             }
+            "font-family" => {
+                self.style.text.font_family =
+                    Some(font_family(value).ok_or_else(|| invalid(property))?.into());
+            }
             "font-weight" => {
                 let weight = match keyword(value) {
                     Some("normal") => Some(400.0),
@@ -242,6 +254,20 @@ impl StyleProjection {
                 .ok_or_else(|| invalid(property))?;
                 self.style.text.font_weight = Some(FontWeight(weight));
             }
+            "font-style" => {
+                self.style.text.font_style = Some(match keyword(value) {
+                    Some("normal") => FontStyle::Normal,
+                    Some("italic") => FontStyle::Italic,
+                    Some("oblique") => FontStyle::Oblique,
+                    _ => return Err(invalid(property)),
+                });
+            }
+            "letter-spacing" => {
+                self.style.text.letter_spacing = Some(match value {
+                    Value::Keyword { value } if value == "normal" => gpui::px(0.0),
+                    _ => pixels(value).ok_or_else(|| invalid(property))?,
+                });
+            }
             "line-height" => {
                 self.style.text.line_height = Some(match value {
                     Value::Number { value } if value.is_finite() && *value >= 0.0 => {
@@ -249,6 +275,48 @@ impl StyleProjection {
                     }
                     _ => definite_length(value).ok_or_else(|| invalid(property))?,
                 });
+            }
+            "white-space" => {
+                self.style.text.white_space = Some(match keyword(value) {
+                    Some("normal") => WhiteSpace::Normal,
+                    Some("nowrap" | "pre") => WhiteSpace::Nowrap,
+                    _ => return Err(invalid(property)),
+                });
+            }
+            "text-overflow" => {
+                self.style.text.text_overflow = match keyword(value) {
+                    Some("clip") => None,
+                    Some("ellipsis") => Some(TextOverflow::Truncate("…".into())),
+                    _ => return Err(invalid(property)),
+                };
+            }
+            "text-align" => {
+                self.style.text.text_align = Some(match keyword(value) {
+                    Some("left" | "start") => TextAlign::Left,
+                    Some("center") => TextAlign::Center,
+                    Some("right" | "end") => TextAlign::Right,
+                    _ => return Err(invalid(property)),
+                });
+            }
+            "opacity" => {
+                self.style.opacity = Some(
+                    number(value)
+                        .filter(|opacity| (0.0..=1.0).contains(opacity))
+                        .ok_or_else(|| invalid(property))?,
+                );
+            }
+            "visibility" => {
+                self.style.visibility = match keyword(value) {
+                    Some("visible") => Visibility::Visible,
+                    Some("hidden") => Visibility::Hidden,
+                    _ => return Err(invalid(property)),
+                };
+            }
+            "cursor" => {
+                self.style.mouse_cursor = Some(cursor(value).ok_or_else(|| invalid(property))?);
+            }
+            "box-shadow" => {
+                self.style.box_shadow = box_shadows(value).ok_or_else(|| invalid(property))?;
             }
             _ => return Err(StyleDiagnostic::UnsupportedProperty(property.to_owned())),
         }
@@ -274,6 +342,56 @@ fn number(value: &Value) -> Option<f32> {
         return None;
     };
     value.is_finite().then_some(*value)
+}
+
+fn font_family(value: &Value) -> Option<&str> {
+    match keyword(value)? {
+        "sans-serif" => Some(".SystemUIFont"),
+        "monospace" => Some(".SystemUIFontMonospaced"),
+        family if !family.is_empty() => Some(family),
+        _ => None,
+    }
+}
+
+fn pixels(value: &Value) -> Option<gpui::Pixels> {
+    match ir_length(value)? {
+        IrLength::Px { value } if value.is_finite() => Some(gpui::px(*value)),
+        _ => None,
+    }
+}
+
+fn cursor(value: &Value) -> Option<CursorStyle> {
+    match keyword(value)? {
+        "auto" | "default" => Some(CursorStyle::Arrow),
+        "pointer" => Some(CursorStyle::PointingHand),
+        "text" => Some(CursorStyle::IBeam),
+        "crosshair" => Some(CursorStyle::Crosshair),
+        "move" => Some(CursorStyle::OpenHand),
+        "not-allowed" => Some(CursorStyle::OperationNotAllowed),
+        "ew-resize" | "col-resize" => Some(CursorStyle::ResizeLeftRight),
+        "ns-resize" | "row-resize" => Some(CursorStyle::ResizeUpDown),
+        _ => None,
+    }
+}
+
+fn box_shadows(value: &Value) -> Option<Vec<BoxShadow>> {
+    let Value::List { values } = value else {
+        return None;
+    };
+    values.iter().map(box_shadow).collect()
+}
+
+fn box_shadow(value: &Value) -> Option<BoxShadow> {
+    let offset_x = pixels(field(value, "x")?)?;
+    let offset_y = pixels(field(value, "y")?)?;
+    let blur_radius = pixels(field(value, "stdDev")?)?;
+    let spread_radius = pixels(field(value, "spread")?)?;
+    let color = color(field(value, "color")?)?;
+    Some(
+        BoxShadow::new(offset_x, offset_y, color)
+            .blur_radius(blur_radius)
+            .spread_radius(spread_radius),
+    )
 }
 
 fn ir_length(value: &Value) -> Option<&IrLength> {
@@ -476,6 +594,16 @@ mod tests {
         }
     }
 
+    fn record(entries: &[(&str, Value)]) -> Value {
+        Value::Record {
+            fields: entries
+                .iter()
+                .cloned()
+                .map(|(key, value)| (key.to_owned(), value))
+                .collect(),
+        }
+    }
+
     #[test]
     fn projects_core_layout_without_creating_a_second_taffy_tree() {
         let mut projection = StyleProjection::default();
@@ -515,16 +643,7 @@ mod tests {
 
     #[test]
     fn projects_composite_spacing_and_overflow_axes() {
-        use std::collections::BTreeMap;
-
         let mut projection = StyleProjection::default();
-        let record = |entries: &[(&str, Value)]| Value::Record {
-            fields: entries
-                .iter()
-                .cloned()
-                .map(|(key, value)| (key.to_owned(), value))
-                .collect::<BTreeMap<_, _>>(),
-        };
 
         projection
             .apply(&declaration(
@@ -587,6 +706,77 @@ mod tests {
     }
 
     #[test]
+    fn projects_high_frequency_text_and_interaction_styles() {
+        let mut projection = StyleProjection::default();
+        for declaration in [
+            declaration("aspect-ratio", Value::Number { value: 16.0 / 9.0 }),
+            declaration("opacity", Value::Number { value: 0.6 }),
+            declaration("font-family", keyword_value("monospace")),
+            declaration("font-style", keyword_value("italic")),
+            declaration("letter-spacing", length_value(IrLength::Px { value: 0.5 })),
+            declaration("white-space", keyword_value("nowrap")),
+            declaration("text-overflow", keyword_value("ellipsis")),
+            declaration("text-align", keyword_value("center")),
+            declaration("cursor", keyword_value("pointer")),
+            declaration("visibility", keyword_value("hidden")),
+        ] {
+            projection.apply(&declaration).unwrap();
+        }
+
+        let style = projection.style();
+        assert_eq!(style.aspect_ratio, Some(16.0 / 9.0));
+        assert_eq!(style.opacity, Some(0.6));
+        assert_eq!(
+            style.text.font_family.as_deref(),
+            Some(".SystemUIFontMonospaced")
+        );
+        assert_eq!(style.text.font_style, Some(FontStyle::Italic));
+        assert_eq!(style.text.letter_spacing, Some(gpui::px(0.5)));
+        assert_eq!(style.text.white_space, Some(WhiteSpace::Nowrap));
+        assert_eq!(
+            style.text.text_overflow,
+            Some(TextOverflow::Truncate("…".into()))
+        );
+        assert_eq!(style.text.text_align, Some(TextAlign::Center));
+        assert_eq!(style.mouse_cursor, Some(CursorStyle::PointingHand));
+        assert_eq!(style.visibility, Visibility::Hidden);
+    }
+
+    #[test]
+    fn projects_all_authored_box_shadows_in_order() {
+        let mut projection = StyleProjection::default();
+        projection
+            .apply(&declaration(
+                "box-shadow",
+                Value::List {
+                    values: vec![
+                        record(&[
+                            ("x", length_value(IrLength::Px { value: 1.0 })),
+                            ("y", length_value(IrLength::Px { value: 2.0 })),
+                            ("stdDev", length_value(IrLength::Px { value: 8.0 })),
+                            ("spread", length_value(IrLength::Px { value: 0.0 })),
+                            ("color", color_value(0x00000080)),
+                        ]),
+                        record(&[
+                            ("x", length_value(IrLength::Px { value: 0.0 })),
+                            ("y", length_value(IrLength::Px { value: 1.0 })),
+                            ("stdDev", length_value(IrLength::Px { value: 2.0 })),
+                            ("spread", length_value(IrLength::Px { value: 1.0 })),
+                            ("color", color_value(0x11223344)),
+                        ]),
+                    ],
+                },
+            ))
+            .unwrap();
+
+        let shadows = &projection.style().box_shadow;
+        assert_eq!(shadows.len(), 2);
+        assert_eq!(shadows[0].offset, gpui::point(gpui::px(1.0), gpui::px(2.0)));
+        assert_eq!(shadows[0].blur_radius, gpui::px(8.0));
+        assert_eq!(shadows[1].spread_radius, gpui::px(1.0));
+    }
+
+    #[test]
     fn unsupported_and_invalid_values_are_never_silently_ignored() {
         let mut projection = StyleProjection::default();
         assert_eq!(
@@ -612,5 +802,21 @@ mod tests {
                 property: "padding".to_owned()
             })
         );
+    }
+
+    #[test]
+    fn bounded_visual_values_are_rejected_instead_of_clamped_silently() {
+        let mut projection = StyleProjection::default();
+        for (property, value) in [
+            ("opacity", Value::Number { value: 1.1 }),
+            ("aspect-ratio", Value::Number { value: 0.0 }),
+        ] {
+            assert_eq!(
+                projection.apply(&declaration(property, value)),
+                Err(StyleDiagnostic::InvalidValue {
+                    property: property.to_owned(),
+                })
+            );
+        }
     }
 }
