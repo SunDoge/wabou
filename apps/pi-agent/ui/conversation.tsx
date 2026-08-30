@@ -228,6 +228,7 @@ function ToolCall(props: { item: Extract<AgentItem, { kind: "tool" }> }) {
         summary={summarizeToolInput(props.item.input)}
         status={props.item.state}
         icon={terminal}
+        aria-label={`${props.item.name}: ${summarizeToolInput(props.item.input)}`}
       />
       <ToolContent>
         <ToolInput
