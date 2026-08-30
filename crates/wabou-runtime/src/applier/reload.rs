@@ -122,11 +122,11 @@ impl ReloadState {
         (!messages.is_empty()).then(|| plan_hmr_batch(messages))
     }
 
-    pub(super) fn is_pending(&self) -> bool {
+    pub(crate) fn is_pending(&self) -> bool {
         self.inbox.has_pending()
     }
 
-    pub(super) fn set_wake(&self, wake: WakeCallback) {
+    pub(crate) fn set_wake(&self, wake: WakeCallback) {
         self.inbox.set_wake(wake);
     }
 

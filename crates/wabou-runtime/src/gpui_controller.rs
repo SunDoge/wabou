@@ -109,6 +109,37 @@ impl GpuiController {
         self.runtime.js.poll_async_runtime();
     }
 
+    pub(crate) fn install_runtime_wake(&mut self, wake: gpui_shell::WakeCallback) {
+        self.runtime.js.set_wake_callback(wake.clone());
+        self.runtime.host_message_inbox.set_wake(wake.clone());
+        self.runtime.reload.set_wake(wake.clone());
+        self.runtime.effect_bridge.set_wake_callback(wake.clone());
+        self.runtime.wake_callback = Some(wake);
+    }
+
+    pub(crate) fn poll_runtime_session(&mut self) -> bool {
+        let was_woken = self.runtime.js.take_async_wake();
+        let js_progressed = self.runtime.js.poll_async_runtime();
+        was_woken
+            || js_progressed
+            || self.runtime.host_message_inbox.has_pending()
+            || self.runtime.reload.is_pending()
+    }
+
+    pub(crate) fn take_runtime_host_action(&mut self) -> Option<gpui_shell::HostAction> {
+        self.runtime.pending_host_actions.borrow_mut().pop_front()
+    }
+
+    pub(crate) fn take_runtime_effect(&mut self) -> Option<gpui_shell::EffectRequest> {
+        self.runtime.effect_bridge.take(&self.runtime.js)
+    }
+
+    pub(crate) fn complete_runtime_effect(&mut self, completion: gpui_shell::EffectCompletion) {
+        self.runtime
+            .effect_bridge
+            .complete(&self.runtime.js, completion);
+    }
+
     pub(crate) fn record_protocol_frame(&mut self) {
         self.runtime.protocol_revision = self.runtime.protocol_revision.wrapping_add(1);
     }

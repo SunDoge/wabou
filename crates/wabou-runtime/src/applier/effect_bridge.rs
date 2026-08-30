@@ -99,7 +99,7 @@ impl EffectBridge {
         .expect("install effect host functions");
     }
 
-    pub(super) fn set_wake_callback(&self, wake: WakeCallback) {
+    pub(crate) fn set_wake_callback(&self, wake: WakeCallback) {
         *self.action_wake.borrow_mut() = Some(wake);
     }
 
@@ -111,7 +111,7 @@ impl EffectBridge {
         *self.app_directories.borrow_mut() = Some(directories);
     }
 
-    pub(super) fn take(&self, js: &JsRuntime) -> Option<EffectRequest> {
+    pub(crate) fn take(&self, js: &JsRuntime) -> Option<EffectRequest> {
         let mut delivered_replay = false;
         while let Some(completion) = self.replay_completions.borrow_mut().pop_front() {
             self.deliver_if_pending(js, &completion);
@@ -131,7 +131,7 @@ impl EffectBridge {
         self.effects.borrow_mut().pop_front()
     }
 
-    pub(super) fn complete(&self, js: &JsRuntime, completion: EffectCompletion) {
+    pub(crate) fn complete(&self, js: &JsRuntime, completion: EffectCompletion) {
         if let Some(trace) = self.trace.borrow().as_ref() {
             trace.complete(&completion);
         }

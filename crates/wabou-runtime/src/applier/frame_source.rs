@@ -338,7 +338,16 @@ impl Applier {
     }
 
     pub(crate) fn install_runtime_wake(&mut self, wake: WakeCallback) {
-        FrameSource::set_wake_callback(self, wake);
+        self.gpui.install_runtime_wake(wake.clone());
+        #[cfg(any(feature = "devtools", test))]
+        if let Some(state) = &self.frame.projections.debug_state
+            && let Ok(mut state) = state.write()
+        {
+            state.set_wake(wake.clone());
+        }
+        for widget in self.document.widget_manager.widgets.values_mut() {
+            widget.set_wake_callback(wake.clone());
+        }
     }
 
     pub(crate) fn poll_runtime(&mut self) -> bool {
@@ -350,7 +359,7 @@ impl Applier {
     }
 
     pub(crate) fn take_runtime_host_action(&mut self) -> Option<gpui_shell::HostAction> {
-        FrameSource::take_host_action(self)
+        self.gpui.take_runtime_host_action()
     }
 
     pub(crate) fn complete_runtime_host_action(&mut self, result: gpui_shell::HostActionResult) {
@@ -358,11 +367,11 @@ impl Applier {
     }
 
     pub(crate) fn take_runtime_effect(&mut self) -> Option<gpui_shell::EffectRequest> {
-        FrameSource::take_effect(self)
+        self.gpui.take_runtime_effect()
     }
 
     pub(crate) fn complete_runtime_effect(&mut self, completion: gpui_shell::EffectCompletion) {
-        FrameSource::complete_effect(self, completion);
+        self.gpui.complete_runtime_effect(completion);
     }
 
     pub(crate) fn runtime_has_animation(&self) -> bool {
@@ -1049,8 +1058,7 @@ impl FrameSource for Applier {
     }
 
     fn poll_async(&mut self) -> bool {
-        let was_woken = self.runtime.js.take_async_wake();
-        let js_progressed = self.runtime.js.poll_async_runtime();
+        let session_progressed = self.gpui.poll_runtime_session();
         // Host messages are application events, not render events. Drain them
         // on the event-loop wake path as well as at the next frame boundary so
         // tray/background applications keep responding while their native
@@ -1102,8 +1110,7 @@ impl FrameSource for Applier {
         #[cfg(not(any(feature = "devtools", test)))]
         let overlay_changed = false;
         widget_woken
-            || was_woken
-            || js_progressed
+            || session_progressed
             || host_messages_pending
             || hmr_pending
             || screenshot_pending
