@@ -307,34 +307,30 @@ export function ToolActivityGroup(props: {
   };
   return (
     <View class="w-full min-w-0 flex flex-col gap-1">
-      <View class="w-full min-w-0 h-7 flex flex-row items-center gap-3">
-        <View aria-hidden="true" class="h-px min-w-0 flex-1 bg-subtle" />
-        <Button
-          variant="ghost"
-          size="sm"
-          class="h-7 flex-none justify-center px-1.5 gap-1.5 text-muted"
-          aria-label={label()}
-          aria-expanded={open()}
-          onClick={() => setOpen((value) => !value)}
-        >
-          <Show when={running()}>
-            <Pulse
-              aria-hidden="true"
-              class="w-1.5 h-1.5 rounded-full bg-accent"
-              from={0.3}
-              to={1}
-              duration={0.8}
-            />
-          </Show>
-          <Text class="text-xs font-medium text-muted">{label()}</Text>
-          <Icon
-            source={chevronRight}
-            size={11}
-            class={open() ? "rotate-90 text-muted" : "text-muted"}
+      <Button
+        variant="ghost"
+        size="sm"
+        class="h-7 flex-none justify-start ml-2 px-1.5 gap-1.5 text-secondary"
+        aria-label={label()}
+        aria-expanded={open()}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Show when={running()}>
+          <Pulse
+            aria-hidden="true"
+            class="w-1.5 h-1.5 rounded-full bg-accent"
+            from={0.3}
+            to={1}
+            duration={0.8}
           />
-        </Button>
-        <View aria-hidden="true" class="h-px min-w-0 flex-1 bg-subtle" />
-      </View>
+        </Show>
+        <Icon
+          source={chevronRight}
+          size={11}
+          class={open() ? "rotate-90 text-muted" : "text-muted"}
+        />
+        <Text class="text-xs font-medium text-secondary">{label()}</Text>
+      </Button>
       <CollapsiblePresence
         open={open()}
         duration={0.16}

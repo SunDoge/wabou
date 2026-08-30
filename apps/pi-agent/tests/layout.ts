@@ -249,11 +249,9 @@ try {
               `assistant copy action detached from response: response x=${response.rect.x}, copy x=${copy.rect.x}`,
             );
           }
-          const activityCenter = activity.rect.x + activity.rect.width / 2;
-          const responseCenter = response.rect.x + response.rect.width / 2;
-          if (Math.abs(activityCenter - responseCenter) > 2) {
+          if (Math.abs(activity.rect.x - response.rect.x) > 4) {
             throw new Error(
-              `tool activity divider was not centered: activity=${activityCenter}, response=${responseCenter}`,
+              `tool activity disclosure did not align with the response: activity x=${activity.rect.x}, response x=${response.rect.x}`,
             );
           }
           if (

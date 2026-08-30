@@ -232,9 +232,12 @@ test("Pi Agent folds adjacent completed tools into one turn activity group", () 
   const activity = screen.getByRole("button", {
     name: "Worked · 2 tool calls",
   });
+  expect(activity.className).toContain("justify-start");
+  expect(activity.className).toContain("ml-2");
+  expect(activity.className).toContain("text-secondary");
   expect(
-    activity.parent?.children.filter((node) => node.className.includes("h-px")),
-  ).toHaveLength(2);
+    activity.parent?.children.some((node) => node.className.includes("h-px")),
+  ).toBe(false);
   expect(activity.expanded).toBe(false);
   expect(screen.queryByRole("button", { name: "read: README.md" })).toBeNull();
   expect(
