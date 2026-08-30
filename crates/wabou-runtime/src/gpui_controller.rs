@@ -2,7 +2,7 @@
 
 use crate::{
     ImageResourceHandle, ImageResourceStore,
-    host_frame::HostEvent,
+    host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, NumericEventData},
     jsrt::HostFrameDisposition,
     protocol::{Frame, decode_frame},
     runtime_session::RuntimeSession,
@@ -19,6 +19,7 @@ pub struct GpuiController {
     pub(crate) runtime: RuntimeSession,
     projection: GpuiProjection,
     image_resources: ImageResourceStore,
+    next_host_event_id: u32,
 }
 
 impl GpuiController {
@@ -27,6 +28,7 @@ impl GpuiController {
             runtime,
             projection: GpuiProjection::new(),
             image_resources: ImageResourceStore::default(),
+            next_host_event_id: 0,
         }
     }
     pub(crate) fn set_image_resources(&mut self, resources: ImageResourceStore) {
@@ -169,6 +171,57 @@ impl GpuiController {
         Ok(disposition)
     }
 
+    pub fn dispatch_node_json(
+        &mut self,
+        target: wabou_host_api::NodeKey,
+        event_code: u8,
+        payload: String,
+        cancellable: bool,
+    ) -> rquickjs::Result<(bool, bool)> {
+        if !self.projection.has_listener_in_chain(target, event_code) {
+            return Ok((false, false));
+        }
+        let event_id = self.next_event_id(cancellable);
+        let disposition = self.dispatch_host_frame(&[HostEvent::Node(HostNodeEvent {
+            target,
+            event_code,
+            event_id,
+            cancellable,
+            payload: NodeEventPayload::Json(payload),
+        })])?;
+        Ok((true, disposition.is_prevented(event_id)))
+    }
+
+    pub fn dispatch_node_numeric(
+        &mut self,
+        target: wabou_host_api::NodeKey,
+        event_code: u8,
+        values: [f64; wabou_protocol::event_data::LEN],
+        value_count: usize,
+        cancellable: bool,
+    ) -> rquickjs::Result<(bool, bool)> {
+        if !self.projection.has_listener_in_chain(target, event_code) {
+            return Ok((false, false));
+        }
+        let event_id = self.next_event_id(cancellable);
+        let disposition = self.dispatch_host_frame(&[HostEvent::Node(HostNodeEvent {
+            target,
+            event_code,
+            event_id,
+            cancellable,
+            payload: NodeEventPayload::Numeric(NumericEventData::prefix(values, value_count)),
+        })])?;
+        Ok((true, disposition.is_prevented(event_id)))
+    }
+
+    fn next_event_id(&mut self, cancellable: bool) -> u32 {
+        if !cancellable {
+            return 0;
+        }
+        self.next_host_event_id = self.next_host_event_id.wrapping_add(1).max(1);
+        self.next_host_event_id
+    }
+
     /// Monotonically increasing count of non-empty JS-to-host frames.
     pub fn protocol_revision(&self) -> u64 {
         self.runtime.protocol_revision
@@ -233,5 +286,92 @@ impl GpuiController {
             self.runtime.js.tokio_handle(),
             self.runtime.host_tasks.clone(),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{JsRuntime, protocol::Op};
+    use gpui_shell::NodeKey;
+
+    #[test]
+    fn projected_listener_dispatches_and_preserves_cancellation() {
+        let js = JsRuntime::new().expect("runtime");
+        js.eval_script(
+            r#"
+            globalThis.receivedCodes = [];
+            globalThis.__wabou_dispatch_host_frame = (bytes) => {
+              const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+              const record = 40;
+              const code = view.getUint8(record + 8);
+              const eventId = view.getUint32(record + 12, true);
+              globalThis.receivedCodes.push(code);
+              return {
+                needsTick: false,
+                preventedEventIds: new Uint32Array([eventId]),
+              };
+            };
+            "#,
+        )
+        .expect("install host-frame hook");
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            gpui_shell::initial_window_resource_key(0),
+        ));
+        let button = controller.runtime.atoms.borrow_mut().intern("button");
+        let target = NodeKey::new(2, 1);
+        controller
+            .apply_frame(&Frame {
+                seq: 1,
+                ops: vec![
+                    Op::CreateElement {
+                        id: target,
+                        tag: button,
+                    },
+                    Op::AddEventListener {
+                        id: target,
+                        event_type: wabou_protocol::event::CLICK,
+                    },
+                ],
+            })
+            .expect("project listener");
+
+        assert_eq!(
+            controller
+                .dispatch_node_json(target, wabou_protocol::event::CLICK, "{}".into(), true,)
+                .expect("dispatch click"),
+            (true, true)
+        );
+        assert_eq!(
+            controller
+                .eval_string("JSON.stringify(globalThis.receivedCodes)")
+                .expect("read event trace"),
+            format!("[{}]", wabou_protocol::event::CLICK)
+        );
+    }
+
+    #[test]
+    fn event_without_projected_listener_does_not_cross_into_javascript() {
+        let js = JsRuntime::new().expect("runtime");
+        js.eval_script(
+            "globalThis.__wabou_dispatch_host_frame = () => { throw new Error('unexpected'); };",
+        )
+        .expect("install rejecting hook");
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            gpui_shell::initial_window_resource_key(0),
+        ));
+        assert_eq!(
+            controller
+                .dispatch_node_json(
+                    NodeKey::new(2, 1),
+                    wabou_protocol::event::CLICK,
+                    "{}".into(),
+                    true,
+                )
+                .expect("ignore absent listener"),
+            (false, false)
+        );
     }
 }
