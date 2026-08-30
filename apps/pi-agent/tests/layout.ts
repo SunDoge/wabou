@@ -235,14 +235,6 @@ try {
             role: "button",
             name: "Worked · 1 tool call",
           });
-          const activityPreview = getLayoutNode(fixture, {
-            role: "list",
-            name: "Recent tool activity",
-          });
-          const recentRead = getLayoutNode(fixture, {
-            role: "listitem",
-            name: "Read crates/wabou-runtime/src/applier/frame_source.rs",
-          });
           const copy = getLayoutNode(fixture, {
             role: "button",
             name: "Copy assistant response",
@@ -264,9 +256,14 @@ try {
               `tool activity divider was not centered: activity=${activityCenter}, response=${responseCenter}`,
             );
           }
-          if (recentRead.rect.width > activityPreview.contentRect.width) {
+          if (
+            queryLayoutNodes(fixture, {
+              role: "list",
+              name: "Recent tool activity",
+            }).length > 0
+          ) {
             throw new Error(
-              `recent tool activity escaped its preview: item=${recentRead.rect.width}, preview=${activityPreview.contentRect.width}`,
+              "collapsed tool activity rendered duplicate details",
             );
           }
         },

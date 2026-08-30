@@ -191,91 +191,6 @@ export function formatTurnDuration(durationMs: number): string {
   return remainder === 0 ? `${minutes}m` : `${minutes}m ${remainder}s`;
 }
 
-export function describeToolActivity(item: ToolItem): {
-  verb: string;
-  detail: string;
-  icon: string;
-} {
-  const name = item.name.trim().toLowerCase();
-  return {
-    verb: match(name)
-      .when(
-        (value) => value.includes("read") || value.includes("open"),
-        () => i18n.message(m.tool_activity_read, {}),
-      )
-      .when(
-        (value) =>
-          value.includes("write") ||
-          value.includes("edit") ||
-          value.includes("patch"),
-        () => i18n.message(m.tool_activity_edited, {}),
-      )
-      .when(
-        (value) =>
-          value.includes("search") ||
-          value.includes("find") ||
-          value.includes("grep"),
-        () => i18n.message(m.tool_activity_searched, {}),
-      )
-      .when(
-        (value) =>
-          value.includes("bash") ||
-          value.includes("shell") ||
-          value.includes("exec"),
-        () => i18n.message(m.tool_activity_ran, {}),
-      )
-      .otherwise(() =>
-        name
-          ? `${name.slice(0, 1).toUpperCase()}${name.slice(1)}`
-          : i18n.message(m.tool_activity_used, {}),
-      ),
-    detail: summarizeToolInput(item.input),
-    icon:
-      name.includes("read") ||
-      name.includes("write") ||
-      name.includes("edit") ||
-      name.includes("patch")
-        ? fileCode
-        : terminal,
-  };
-}
-
-function ToolActivityPreview(props: { items: readonly ToolItem[] }) {
-  const visibleItems = () => props.items.slice(-3);
-  return (
-    <View
-      role="list"
-      aria-label={i18n.message(m.tool_activity_recent, {})}
-      class="min-w-0 ml-2 pl-3 flex flex-col gap-0.5 border-l border-subtle"
-    >
-      <ForValue each={visibleItems()} keyed={(item) => item.id}>
-        {(item) => {
-          const description = () => describeToolActivity(item());
-          return (
-            <View
-              role="listitem"
-              aria-label={`${description().verb} ${description().detail}`}
-              class="h-6 min-w-0 flex flex-row items-center gap-2"
-            >
-              <Icon
-                source={description().icon}
-                size={12}
-                class="flex-none text-muted"
-              />
-              <Text class="flex-none text-xs font-medium text-secondary">
-                {description().verb}
-              </Text>
-              <Text class="min-w-0 flex-1 truncate text-xs text-muted">
-                {description().detail}
-              </Text>
-            </View>
-          );
-        }}
-      </ForValue>
-    </View>
-  );
-}
-
 function ToolCall(props: { item: Extract<AgentItem, { kind: "tool" }> }) {
   const initiallyRunning = untrack(() => props.item.state === "running");
   const [open, setOpen] = createSignal(initiallyRunning);
@@ -437,9 +352,6 @@ export function ToolActivityGroup(props: {
           {(item) => <ToolCall item={item()} />}
         </ForValue>
       </CollapsiblePresence>
-      <Show when={!open() && !running()}>
-        <ToolActivityPreview items={props.items} />
-      </Show>
     </View>
   );
 }
