@@ -17,6 +17,16 @@ impl TerminalColor {
     pub const fn components(self) -> [u8; 4] {
         self.0
     }
+
+    pub(crate) fn dimmed(self) -> Self {
+        let [r, g, b, a] = self.0;
+        Self::rgba(
+            (f32::from(r) * 0.66) as u8,
+            (f32::from(g) * 0.66) as u8,
+            (f32::from(b) * 0.66) as u8,
+            a,
+        )
+    }
 }
 
 pub(crate) fn parse_terminal_color(value: &str) -> Option<TerminalColor> {

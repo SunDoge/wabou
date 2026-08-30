@@ -17,6 +17,23 @@ fn rio_parser_preserves_text_and_sgr_cells() {
 }
 
 #[test]
+fn backend_neutral_frame_resolves_terminal_cell_styles() {
+    let mut widget = TerminalWidget::headless(20, 4);
+    widget.feed(b"\x1b[1;3;4;9;31mred\x1b[0m");
+
+    let frame = widget.snapshot_frame(168.0, 72.0, 1.0);
+    assert_eq!(frame.lines[0], "red");
+    assert_eq!(frame.font_family.as_ref(), "monospace");
+    let cell = &frame.rows[0].cells[0];
+    assert_eq!(cell.text, "r");
+    assert_eq!(cell.foreground, TerminalColor::rgb(239, 68, 68));
+    assert!(cell.bold);
+    assert!(cell.italic);
+    assert!(cell.underline);
+    assert!(cell.strikeout);
+}
+
+#[test]
 fn renderer_preserves_combining_grapheme_extras() {
     let mut widget = TerminalWidget::headless(20, 4);
     widget.feed("e\u{301}".as_bytes());

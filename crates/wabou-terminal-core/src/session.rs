@@ -9,9 +9,31 @@ use super::*;
 #[derive(Debug, Clone, PartialEq)]
 pub struct TerminalFrame {
     pub lines: Vec<String>,
+    pub rows: Vec<TerminalRow>,
+    pub background: TerminalColor,
     pub font_size: f32,
     pub line_height: f32,
     pub cell_width: f32,
+    pub font_family: Arc<str>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TerminalRow {
+    pub cells: Vec<TerminalCell>,
+}
+
+/// One visible terminal cell after ANSI palette and selection resolution.
+/// Renderers receive semantic styling rather than Rio or paint-backend types.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TerminalCell {
+    pub column: usize,
+    pub text: String,
+    pub foreground: TerminalColor,
+    pub background: TerminalColor,
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+    pub strikeout: bool,
 }
 
 /// An event emitted by the terminal session toward its JavaScript owner.
@@ -258,30 +280,153 @@ impl TerminalWidget {
         );
         let _ = terminal.damage();
         terminal.reset_damage();
-        let lines = self
+        let selection = terminal
+            .selection
+            .as_ref()
+            .and_then(|selection| selection.to_range(&*terminal));
+        let display_offset = terminal.display_offset();
+        let colors = terminal.colors;
+        let background = color::resolve_ansi_color(
+            AnsiColor::Named(NamedColor::Background),
+            false,
+            &colors,
+            self.theme_foreground,
+            self.theme_background,
+        );
+        drop(terminal);
+
+        let rows = self
             .visible_rows
+            .iter()
+            .enumerate()
+            .map(|(row_index, row)| {
+                let mut cells = Vec::with_capacity(self.size.columns);
+                for column in 0..self.size.columns.min(row.inner.len()) {
+                    let square = row[Column(column)];
+                    if matches!(square.wide(), Wide::Spacer | Wide::LeadingSpacer) {
+                        continue;
+                    }
+                    let point = Pos::new(
+                        Line(row_index as i32 - display_offset as i32),
+                        Column(column),
+                    );
+                    let selected = selection.is_some_and(|selection| {
+                        selection_contains_square(selection, point, square)
+                    });
+                    let (text, style, palette_background) = match square.content_tag() {
+                        ContentTag::Codepoint => {
+                            let character = square.c();
+                            let text = if character.is_control() {
+                                " ".to_owned()
+                            } else {
+                                cell_text(
+                                    square,
+                                    square
+                                        .extras_id()
+                                        .and_then(|id| self.visible_extras.get(&id)),
+                                )
+                            };
+                            (
+                                text,
+                                self.visible_styles
+                                    .get(square.style_id() as usize)
+                                    .copied()
+                                    .unwrap_or_default(),
+                                None,
+                            )
+                        }
+                        ContentTag::BgPalette => (
+                            " ".to_owned(),
+                            Style::default(),
+                            Some(color::resolve_ansi_color(
+                                AnsiColor::Indexed(square.bg_palette_index()),
+                                false,
+                                &colors,
+                                self.theme_foreground,
+                                self.theme_background,
+                            )),
+                        ),
+                        ContentTag::BgRgb => {
+                            let (r, g, b) = square.bg_rgb();
+                            (
+                                " ".to_owned(),
+                                Style::default(),
+                                Some(TerminalColor::rgb(r, g, b)),
+                            )
+                        }
+                    };
+                    let mut foreground = color::resolve_ansi_color(
+                        style.fg,
+                        true,
+                        &colors,
+                        self.theme_foreground,
+                        self.theme_background,
+                    );
+                    let mut cell_background = palette_background.unwrap_or_else(|| {
+                        color::resolve_ansi_color(
+                            style.bg,
+                            false,
+                            &colors,
+                            self.theme_foreground,
+                            self.theme_background,
+                        )
+                    });
+                    if style.flags.contains(StyleFlags::INVERSE) {
+                        std::mem::swap(&mut foreground, &mut cell_background);
+                    }
+                    if style.flags.contains(StyleFlags::DIM) {
+                        foreground = foreground.dimmed();
+                    }
+                    if style.flags.contains(StyleFlags::HIDDEN) {
+                        foreground = cell_background;
+                    }
+                    if selected {
+                        cell_background = self.selection_background;
+                        if let Some(selection_foreground) = self.selection_foreground {
+                            foreground = selection_foreground;
+                        }
+                    }
+                    cells.push(TerminalCell {
+                        column,
+                        text,
+                        foreground,
+                        background: cell_background,
+                        bold: style.flags.contains(StyleFlags::BOLD),
+                        italic: style.flags.contains(StyleFlags::ITALIC),
+                        underline: style.flags.intersects(
+                            StyleFlags::UNDERLINE
+                                | StyleFlags::DOUBLE_UNDERLINE
+                                | StyleFlags::DOTTED_UNDERLINE
+                                | StyleFlags::DASHED_UNDERLINE
+                                | StyleFlags::UNDERCURL,
+                        ),
+                        strikeout: style.flags.contains(StyleFlags::STRIKEOUT),
+                    });
+                }
+                TerminalRow { cells }
+            })
+            .collect::<Vec<_>>();
+        let lines = rows
             .iter()
             .map(|row| {
                 let mut text = String::with_capacity(self.size.columns);
-                for column in 0..self.size.columns.min(row.inner.len()) {
-                    let square = row[Column(column)];
-                    if !matches!(square.wide(), Wide::Spacer | Wide::LeadingSpacer) {
-                        let character = square.c();
-                        text.push(if character.is_control() {
-                            ' '
-                        } else {
-                            character
-                        });
-                    }
+                let mut column = 0;
+                for cell in &row.cells {
+                    text.extend(std::iter::repeat_n(' ', cell.column.saturating_sub(column)));
+                    text.push_str(&cell.text);
+                    column = cell.column + 1;
                 }
                 text.trim_end().to_owned()
             })
             .collect();
         TerminalFrame {
             lines,
+            rows,
+            background,
             font_size: self.font_size,
             line_height: self.line_height,
             cell_width: self.cell_width,
+            font_family: self.font_family.clone(),
         }
     }
 
