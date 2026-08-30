@@ -3,9 +3,9 @@
 //! SolidJS (via `solid-js/universal`) emits binary DOM-mutation ops into a
 //! `Writer`; one `requestAnimationFrame` tick per frame flushes them to Rust;
 //! [`gpui_controller::GpuiController`] decodes and applies them to the retained GPUI
-//! projection. The
-//! old Winit/Vello applier remains temporarily available only as a migration
-//! oracle and is never an application-selectable backend.
+//! projection. The retired Winit/Vello implementation lives in separate,
+//! unpublished `wabou-legacy-*` crates as a migration oracle; it is not part of
+//! this runtime and cannot be selected by applications.
 
 #![warn(missing_docs)]
 

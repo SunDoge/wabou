@@ -13,15 +13,17 @@ Application (Solid state and explicit UI intent)
                        |
        generated, versioned Wabou operations
                        |
-  Rust runtime (layout, input, resources, semantics)
+     Rust runtime (protocol and native services)
                        |
-       AnyRender scene and platform-specific shell
+          retained GPUI-CE element projection
 ```
 
-Wabou records each frame into AnyRender's backend-neutral scene contract. The
-default backend is Vello; applications may compile the optional Skia backend
-without changing component, layout, text, SVG, image, or native-widget code.
-Backend-specific surface setup remains private to `wabou-shell`.
+Wabou applies each completed Solid flush to a retained GPUI-CE tree. GPUI owns
+layout, text, painting, native input, and platform windows; Wabou owns the
+versioned operation protocol, explicit application semantics, resource handles,
+and the projection into GPUI elements. There is no renderer feature switch and
+no lowest-common-denominator backend interface. The retired Winit/Vello system
+is isolated in unpublished `wabou-legacy-*` crates as a migration oracle.
 
 ## Ownership
 
@@ -35,11 +37,11 @@ semantic intent, and routing. A primitive must author capabilities such as
 focus participation explicitly. Rust does not infer application behavior from
 HTML conventions, tag names, `href`, or CSS classes.
 
-Rust owns validation and execution: the retained node tree, layout, clipping,
-hit testing, focus routing, accessibility projection, resources, painting,
-window lifecycle, and operating-system integration. Native widgets may provide
-intrinsic size, painting, input, and semantic data through their typed widget
-contract; they do not create hidden JavaScript state.
+Rust owns validation and execution: the retained node projection, resources,
+window lifecycle, and operating-system integration. GPUI executes layout,
+clipping, hit testing, focus routing, text and painting. Native widgets are
+application-defined GPUI elements with optional retained GPUI entities; they do
+not create hidden JavaScript state.
 
 Some inference remains local to a subsystem rather than crossing this
 boundary. Examples include accessibility deriving a label from explicit text
@@ -77,11 +79,12 @@ so this graph cannot grow back accidentally.
 
 Rust crates may remain narrower when they isolate a large dependency family,
 an optional extension, a platform/tooling target, or a dependency direction
-that prevents cycles. For example, `wabou-shell` owns the widget contract,
-`wabou-legacy-widgets` implements the legacy contract without depending on the runtime, and
-`wabou-host-api` is shared by runtime and binding generation. A new crate must
-demonstrate one of those compile or dependency boundaries; ordinary subsystem
-ownership belongs in a module. Applications still see the `wabou` facade.
+that prevents cycles. For example, `wabou-shell` owns the GPUI projection and
+native-widget mounting contract, while `wabou-host-api` is shared by runtime and
+binding generation. `wabou-legacy-*` crates are excluded from this production
+graph. A new crate must demonstrate one of those compile or dependency
+boundaries; ordinary subsystem ownership belongs in a module. Applications
+still see the `wabou` facade.
 
 ## Cross-language contract
 

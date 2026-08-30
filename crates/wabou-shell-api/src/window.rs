@@ -151,7 +151,7 @@ mod tests {
     }
 
     #[test]
-    fn gpui_and_legacy_backends_share_one_serialized_window_contract() {
+    fn window_options_have_a_stable_serialized_contract() {
         let options = WindowOptions::new()
             .title("Contract")
             .transparent(true)
