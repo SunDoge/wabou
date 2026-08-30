@@ -12494,6 +12494,7 @@ dependencies = [
  "gpui-ce",
  "gpui_ce_platform",
  "slotmap",
+ "wabou-style",
 ]
 
 [[package]]

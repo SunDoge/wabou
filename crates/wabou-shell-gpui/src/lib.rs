@@ -5,9 +5,11 @@
 //! deliberately frame-oriented: individual property writes never notify GPUI.
 
 mod projection;
+mod style;
 
 pub use gpui;
 pub use projection::{DirtyKind, FrameBatch, NodeKey, PendingNode};
+pub use style::{StyleDiagnostic, StyleProjection};
 
 /// Run a GPUI application using Wabou's selected platform implementation.
 ///
