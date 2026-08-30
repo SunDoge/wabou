@@ -1,0 +1,14 @@
+{
+  "defaults": {
+    "width": 1200,
+    "height": 760,
+    "scaleFactor": 1,
+    "colorScheme": "light",
+    "waitMs": 300
+  },
+  "overrides": {
+    "conversation-dark.behavior.ts": {
+      "colorScheme": "dark"
+    }
+  }
+}
