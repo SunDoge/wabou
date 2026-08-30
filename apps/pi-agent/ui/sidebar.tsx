@@ -1,6 +1,7 @@
 import {
   Button,
   Icon,
+  IconFrame,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
@@ -174,8 +175,8 @@ export function Sidebar(props: SidebarProps) {
   return (
     <SidebarRoot class="w-60 border-r border-subtle bg-surface-muted">
       <SidebarHeader class="h-12 border-0 bg-surface-muted flex items-center gap-2 px-4">
-        <Icon source={bot} size={16} class="text-secondary" />
-        <Text class="min-w-0 flex-1 text-sm font-semibold text-secondary">
+        <IconFrame source={bot} size="sm" variant="selected" />
+        <Text class="min-w-0 flex-1 text-sm font-semibold text-primary">
           {i18n.message(m.app_name, {})}
         </Text>
       </SidebarHeader>

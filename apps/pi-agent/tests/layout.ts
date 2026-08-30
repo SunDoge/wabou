@@ -434,9 +434,20 @@ try {
             role: "region",
             name: "Projects",
           });
+          const applicationTitle = getLayoutNode(fixture, {
+            text: "Pi Agent",
+          });
           if (newThread.rect.height < 36 || newThread.rect.width < 220) {
             throw new Error(
               `primary sidebar action lost its control surface: ${newThread.rect.width}x${newThread.rect.height}`,
+            );
+          }
+          if (
+            applicationTitle.computed.fontWeight !== 600 ||
+            applicationTitle.rect.height < 20
+          ) {
+            throw new Error(
+              `sidebar identity lost its title hierarchy: weight=${applicationTitle.computed.fontWeight}; height=${applicationTitle.rect.height}`,
             );
           }
           if (
