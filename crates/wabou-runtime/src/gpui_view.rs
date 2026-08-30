@@ -4,7 +4,8 @@ use std::{rc::Rc, sync::Arc};
 
 use wabou_shell_gpui::WakeCallback;
 use wabou_shell_gpui::gpui::{
-    ClipboardItem, Context, FocusHandle, Render, SystemNotification, Task, Window,
+    ClipboardItem, Context, FocusHandle, PathPromptOptions, PromptButton, PromptLevel, Render,
+    SystemNotification, Task, Window,
 };
 
 use crate::{Applier, FrameSource};
@@ -171,7 +172,77 @@ impl GpuiRuntimeView {
     ) -> Option<EffectCompletion> {
         let id = request.id;
         let op = request.payload.op();
-        let result = match request.payload {
+        match request.payload {
+            EffectPayload::DialogOpen(request) => {
+                if request.directory.is_some() || !request.filters.is_empty() {
+                    tracing::warn!(
+                        "GPUI-CE does not yet expose initial-directory or file-filter options"
+                    );
+                }
+                let receiver = cx.prompt_for_paths(PathPromptOptions {
+                    files: true,
+                    directories: false,
+                    multiple: request.multiple,
+                    prompt: request.title.map(Into::into),
+                });
+                self.complete_path_prompt(id, op, receiver, cx);
+                None
+            }
+            EffectPayload::DialogPickDirectory(request) => {
+                if request.directory.is_some() {
+                    tracing::warn!(
+                        "GPUI-CE does not yet expose an initial-directory option for path prompts"
+                    );
+                }
+                let receiver = cx.prompt_for_paths(PathPromptOptions {
+                    files: false,
+                    directories: true,
+                    multiple: false,
+                    prompt: request.title.map(Into::into),
+                });
+                self.complete_path_prompt(id, op, receiver, cx);
+                None
+            }
+            EffectPayload::DialogSave(request) => {
+                if request.title.is_some() || !request.filters.is_empty() {
+                    tracing::warn!(
+                        "GPUI-CE does not yet expose title or file-filter options for save prompts"
+                    );
+                }
+                let directory = request
+                    .directory
+                    .map(std::path::PathBuf::from)
+                    .or_else(|| std::env::current_dir().ok())
+                    .unwrap_or_default();
+                let receiver = cx.prompt_for_new_path(&directory, request.default_name.as_deref());
+                self.complete_save_prompt(id, op, receiver, cx);
+                None
+            }
+            EffectPayload::DialogMessage(request) => {
+                let (buttons, results) = message_prompt_buttons(request.buttons);
+                let receiver = window.prompt(
+                    message_prompt_level(request.level),
+                    request.title.as_deref().unwrap_or("Wabou"),
+                    Some(&request.message),
+                    &buttons,
+                    cx,
+                );
+                self.complete_message_prompt(id, op, receiver, results, cx);
+                None
+            }
+            payload => self.execute_synchronous_effect(id, op, payload, window, cx),
+        }
+    }
+
+    fn execute_synchronous_effect(
+        &mut self,
+        id: wabou_shell::EffectId,
+        op: wabou_shell::EffectOp,
+        payload: EffectPayload,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<EffectCompletion> {
+        let result = match payload {
             EffectPayload::ClipboardRead => EffectResult::ClipboardText(
                 cx.read_from_clipboard()
                     .and_then(|clipboard| clipboard.text()),
@@ -246,6 +317,130 @@ impl GpuiRuntimeView {
         };
         Some(EffectCompletion { id, op, result })
     }
+
+    fn complete_path_prompt(
+        &self,
+        id: wabou_shell::EffectId,
+        op: wabou_shell::EffectOp,
+        receiver: futures_channel::oneshot::Receiver<
+            anyhow::Result<Option<Vec<std::path::PathBuf>>>,
+        >,
+        cx: &mut Context<Self>,
+    ) {
+        cx.spawn(async move |view, cx| {
+            let result = match receiver.await {
+                Ok(Ok(paths)) => EffectResult::DialogPaths(paths.map(paths_to_strings)),
+                Ok(Err(error)) => platform_effect_error(error),
+                Err(error) => platform_effect_error(error),
+            };
+            let _ = view.update(cx, |view, cx| {
+                FrameSource::complete_effect(
+                    &mut view.applier,
+                    EffectCompletion { id, op, result },
+                );
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn complete_save_prompt(
+        &self,
+        id: wabou_shell::EffectId,
+        op: wabou_shell::EffectOp,
+        receiver: futures_channel::oneshot::Receiver<anyhow::Result<Option<std::path::PathBuf>>>,
+        cx: &mut Context<Self>,
+    ) {
+        cx.spawn(async move |view, cx| {
+            let result = match receiver.await {
+                Ok(Ok(path)) => {
+                    EffectResult::DialogPaths(path.map(|path| paths_to_strings([path])))
+                }
+                Ok(Err(error)) => platform_effect_error(error),
+                Err(error) => platform_effect_error(error),
+            };
+            let _ = view.update(cx, |view, cx| {
+                FrameSource::complete_effect(
+                    &mut view.applier,
+                    EffectCompletion { id, op, result },
+                );
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn complete_message_prompt(
+        &self,
+        id: wabou_shell::EffectId,
+        op: wabou_shell::EffectOp,
+        receiver: futures_channel::oneshot::Receiver<usize>,
+        results: Vec<&'static str>,
+        cx: &mut Context<Self>,
+    ) {
+        cx.spawn(async move |view, cx| {
+            let result = match receiver.await {
+                Ok(index) => EffectResult::DialogMessage(
+                    results.get(index).copied().unwrap_or("custom").into(),
+                ),
+                Err(error) => platform_effect_error(error),
+            };
+            let _ = view.update(cx, |view, cx| {
+                FrameSource::complete_effect(
+                    &mut view.applier,
+                    EffectCompletion { id, op, result },
+                );
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+}
+
+fn paths_to_strings(paths: impl IntoIterator<Item = std::path::PathBuf>) -> Vec<String> {
+    paths
+        .into_iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect()
+}
+
+fn platform_effect_error(error: impl std::fmt::Display) -> EffectResult {
+    EffectResult::Error {
+        code: EffectErrorCode::PlatformFailure,
+        message: error.to_string(),
+    }
+}
+
+fn message_prompt_level(level: wabou_shell::MessageDialogLevel) -> PromptLevel {
+    match level {
+        wabou_shell::MessageDialogLevel::Info => PromptLevel::Info,
+        wabou_shell::MessageDialogLevel::Warning => PromptLevel::Warning,
+        wabou_shell::MessageDialogLevel::Error => PromptLevel::Critical,
+    }
+}
+
+fn message_prompt_buttons(
+    buttons: wabou_shell::MessageDialogButtons,
+) -> (Vec<PromptButton>, Vec<&'static str>) {
+    match buttons {
+        wabou_shell::MessageDialogButtons::Ok => (vec![PromptButton::ok("OK")], vec!["ok"]),
+        wabou_shell::MessageDialogButtons::OkCancel => (
+            vec![PromptButton::ok("OK"), PromptButton::cancel("Cancel")],
+            vec!["ok", "cancel"],
+        ),
+        wabou_shell::MessageDialogButtons::YesNo => (
+            vec![PromptButton::ok("Yes"), PromptButton::cancel("No")],
+            vec!["yes", "no"],
+        ),
+        wabou_shell::MessageDialogButtons::YesNoCancel => (
+            vec![
+                PromptButton::ok("Yes"),
+                PromptButton::new("No"),
+                PromptButton::cancel("Cancel"),
+            ],
+            vec!["yes", "no", "cancel"],
+        ),
+    }
 }
 
 fn allowed_external_url(value: &str) -> Option<url::Url> {
@@ -305,7 +500,7 @@ mod tests {
     use super::*;
     use crate::JsRuntime;
     use wabou_host_api::NodeKey;
-    use wabou_shell::{EffectId, EffectScope};
+    use wabou_shell::{EffectId, EffectScope, OpenDialogRequest};
     use wabou_shell_gpui::gpui::TestAppContext;
 
     #[test]
@@ -393,5 +588,54 @@ mod tests {
             read.result,
             EffectResult::ClipboardText(Some("copied through GPUI".into()))
         );
+    }
+
+    #[wabou_shell_gpui::gpui::test]
+    fn gpui_effect_executor_uses_the_platform_path_prompt(cx: &mut TestAppContext) {
+        let runtime = JsRuntime::new().expect("QuickJS runtime");
+        let applier = Applier::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+        let (view, cx) = cx.add_window_view(move |window, cx| {
+            GpuiRuntimeView::new(applier, "Dialog test".into(), window, cx)
+        });
+
+        let completion = cx.update(|window, app| {
+            view.update(app, |view, cx| {
+                view.execute_effect(
+                    EffectRequest {
+                        id: EffectId(3),
+                        scope: EffectScope::Runtime,
+                        payload: EffectPayload::DialogOpen(OpenDialogRequest {
+                            title: Some("Choose source".into()),
+                            multiple: true,
+                            ..Default::default()
+                        }),
+                    },
+                    window,
+                    cx,
+                )
+            })
+        });
+        assert!(completion.is_none(), "path prompts complete asynchronously");
+        assert!(cx.did_prompt_for_paths());
+
+        cx.simulate_path_prompt_response(|options| {
+            assert!(options.files);
+            assert!(!options.directories);
+            assert!(options.multiple);
+            assert_eq!(options.prompt.as_deref(), Some("Choose source"));
+            Some(vec!["/tmp/a.txt".into(), "/tmp/b.txt".into()])
+        });
+        cx.run_until_parked();
+        assert!(!cx.did_prompt_for_paths());
+    }
+
+    #[test]
+    fn message_prompt_buttons_preserve_wabou_result_names() {
+        let (_, results) = message_prompt_buttons(wabou_shell::MessageDialogButtons::YesNoCancel);
+        assert_eq!(results, ["yes", "no", "cancel"]);
+        assert!(matches!(
+            message_prompt_level(wabou_shell::MessageDialogLevel::Error),
+            PromptLevel::Critical
+        ));
     }
 }

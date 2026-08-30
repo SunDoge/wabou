@@ -10,12 +10,14 @@ name = "wabou_runtime"
 path = "src/lib.rs"
 
 [dependencies]
+anyhow = { workspace = true }
 anyrender.workspace = true
 arc-swap = { workspace = true }
 bitflags = { workspace = true }
 bon = { workspace = true }
 dioxus-devtools = { workspace = true, optional = true }
 flume = { workspace = true }
+futures-channel = { workspace = true }
 futures-lite = "2"
 getrandom = { workspace = true }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }

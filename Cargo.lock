@@ -12251,12 +12251,14 @@ dependencies = [
 name = "wabou-runtime"
 version = "0.1.0-alpha.3"
 dependencies = [
+ "anyhow",
  "anyrender",
  "arc-swap",
  "bitflags 2.13.1",
  "bon",
  "dioxus-devtools",
  "flume 0.12.0",
+ "futures-channel",
  "futures-lite",
  "getrandom 0.4.3",
  "gpui-ce",
