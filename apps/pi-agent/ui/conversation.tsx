@@ -335,6 +335,7 @@ export function ToolActivityGroup(props: {
 
 function ConversationEntryContent(props: {
   entry: ConversationEntry;
+  animate?: boolean;
   fork?: (item: Extract<AgentItem, { kind: "user" }>) => void;
 }) {
   const item = () => {
@@ -363,7 +364,11 @@ function ConversationEntryContent(props: {
     <Show
       when={props.entry.kind === "tools"}
       fallback={
-        <ConversationItem item={item()} fork={canFork() ? fork : undefined} />
+        <ConversationItem
+          item={item()}
+          animate={props.animate}
+          fork={canFork() ? fork : undefined}
+        />
       }
     >
       <ToolActivityGroup items={tools()} reasoning={reasoning()} />
@@ -398,7 +403,10 @@ function ConversationReasoning(props: { text: string; streaming: boolean }) {
   );
 }
 
-function MessageEntrance(props: { children: JSX.Element }) {
+function MessageEntrance(props: { animate: boolean; children: JSX.Element }) {
+  if (!untrack(() => props.animate)) {
+    return <View>{props.children}</View>;
+  }
   const reducedMotion = useReducedMotion();
   const entrance = createKeyframeAnimation([0, 1], {
     duration: 0.18,
@@ -420,6 +428,7 @@ function MessageEntrance(props: { children: JSX.Element }) {
 
 export function ConversationItem(props: {
   item: AgentItem;
+  animate?: boolean;
   fork?: () => void;
 }) {
   const messageText = () => (props.item.kind === "tool" ? "" : props.item.text);
@@ -432,7 +441,7 @@ export function ConversationItem(props: {
       .with({ kind: "notice", tone: "error" }, () => "destructive" as const)
       .otherwise(() => "outline" as const);
   return (
-    <MessageEntrance>
+    <MessageEntrance animate={props.animate !== false}>
       <Show
         when={props.item.kind !== "tool"}
         fallback={
@@ -637,6 +646,9 @@ export function ConversationList(props: {
   fork?: (item: Extract<AgentItem, { kind: "user" }>) => void;
 }) {
   const entries = createMemo(() => groupConversationItems(props.items));
+  const initialEntryIds = new Set(
+    untrack(() => entries().map((entry) => entry.id)),
+  );
   return (
     <MessageGroup class="gap-5">
       <ForValue each={entries()} keyed={(entry) => entry.id}>
@@ -669,7 +681,11 @@ export function ConversationList(props: {
               anchor={anchor()}
               class={highlighted() ? "rounded-lg bg-selected" : undefined}
             >
-              <ConversationEntryContent entry={entry()} fork={props.fork} />
+              <ConversationEntryContent
+                entry={entry()}
+                animate={!initialEntryIds.has(entry().id)}
+                fork={props.fork}
+              />
             </MessageScrollerItem>
           );
         }}

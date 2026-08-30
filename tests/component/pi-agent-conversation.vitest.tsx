@@ -115,9 +115,11 @@ test("Pi Agent retains a streamed message instead of replaying its entrance", as
     clock: "fake",
   });
 
-  await screen.advanceTime(200);
   const message = screen.roots[0]?.children[0]?.children[0];
-  expect(message?.style("opacity")).toEqual({ kind: 3, value: 1 });
+  expect(message?.style("opacity")).toBeNull();
+
+  await screen.advanceTime(200);
+  expect(message?.style("opacity")).toBeNull();
 
   setItems([
     {
@@ -130,7 +132,30 @@ test("Pi Agent retains a streamed message instead of replaying its entrance", as
   screen.flush();
 
   expect(message?.text).toContain("First chunk and the next token");
-  expect(message?.style("opacity")).toEqual({ kind: 3, value: 1 });
+  expect(message?.style("opacity")).toBeNull();
+});
+
+test("Pi Agent animates newly appended messages without fading loaded history", async () => {
+  const [items, setItems] = createSignal([
+    { id: "history", kind: "assistant" as const, text: "Already loaded" },
+  ]);
+  const screen = renderComponent(() => <ConversationList items={items()} />, {
+    clock: "fake",
+  });
+
+  const history = screen.roots[0]?.children[0]?.children[0];
+  expect(history?.style("opacity")).toBeNull();
+
+  setItems([
+    { id: "history", kind: "assistant", text: "Already loaded" },
+    { id: "new", kind: "assistant", text: "Just arrived" },
+  ]);
+  screen.flush();
+
+  const appended = screen.roots[0]?.children[1]?.children[0];
+  expect(appended?.style("opacity")).toEqual({ kind: 3, value: 0 });
+  await screen.advanceTime(200);
+  expect(appended?.style("opacity")).toEqual({ kind: 3, value: 1 });
 });
 
 test("Pi Agent keeps reasoning in an independently collapsible process detail", () => {
