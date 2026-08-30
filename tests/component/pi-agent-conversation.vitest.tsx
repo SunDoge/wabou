@@ -374,7 +374,7 @@ test("Pi Agent folds reasoning-separated tool calls into one turn activity group
   ).toBeNull();
 });
 
-test("Pi Agent keeps live tool activity open and folds it after completion", () => {
+test("Pi Agent keeps live tool activity compact and user-expandable", () => {
   const [items, setItems] = createSignal([
     {
       id: "tool-live",
@@ -388,6 +388,11 @@ test("Pi Agent keeps live tool activity open and folds it after completion", () 
   const screen = renderComponent(() => <ToolActivityGroup items={items()} />);
   expect(
     screen.getByRole("button", { name: "Working · 1 tool call" }).expanded,
+  ).toBe(false);
+
+  screen.getByRole("button", { name: "Working · 1 tool call" }).click();
+  expect(
+    screen.getByRole("button", { name: "Working · 1 tool call" }).expanded,
   ).toBe(true);
 
   const liveItem = items()[0];
@@ -397,7 +402,7 @@ test("Pi Agent keeps live tool activity open and folds it after completion", () 
 
   expect(
     screen.getByRole("button", { name: "Worked · 1 tool call" }).expanded,
-  ).toBe(false);
+  ).toBe(true);
 });
 
 test("Pi Agent reports the measured duration of a completed tool turn", () => {

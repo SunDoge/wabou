@@ -257,14 +257,11 @@ export function ToolActivityGroup(props: {
   reasoning?: { text: string; streaming: boolean };
 }) {
   const running = () => props.items.some((item) => item.state === "running");
-  const initiallyRunning = untrack(running);
-  const [open, setOpen] = createSignal(initiallyRunning);
-  let wasRunning = initiallyRunning;
-  createEffect(running, (isRunning) => {
-    if (isRunning) setOpen(true);
-    else if (wasRunning) setOpen(false);
-    wasRunning = isRunning;
-  });
+  // Keep the transcript stable while tools stream. The summary already
+  // communicates live state; expanding potentially large input/output blocks
+  // automatically makes the answer jump when the turn completes. Details
+  // remain one click away and user-controlled throughout the run.
+  const [open, setOpen] = createSignal(false);
   const label = () => {
     const count = props.items.length;
     const tools = i18n.message(
