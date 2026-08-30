@@ -20,7 +20,7 @@ gpui-base = { package = "gpui_ce_components_base", version = "0.2.0" }
 gpui-platform = { package = "gpui_ce_platform", version = "0.1.0", features = ["wayland", "x11"] }
 wabou = { path = "crates/wabou" }
 wabou-accessibility = { path = "crates/wabou-accessibility" }
-wabou-backend-winit-accessibility = { path = "crates/wabou-backend-winit-accessibility" }
+wabou-legacy-accessibility = { path = "crates/wabou-backend-winit-accessibility" }
 wabou-bindgen = { path = "crates/wabou-bindgen", default-features = false }
 wabou-database = { path = "crates/wabou-database" }
 wabou-devtools = { path = "crates/wabou-devtools", default-features = false }
@@ -28,16 +28,16 @@ wabou-host-api = { path = "crates/wabou-host-api" }
 wabou-protocol = { path = "crates/wabou-protocol" }
 wabou-runtime = { path = "crates/wabou-runtime" }
 wabou-shell-api = { path = "crates/wabou-shell-api" }
-# Transitional Winit/AnyRender implementation. New platform work belongs in
-# `wabou-shell`, which is being rebuilt on GPUI-CE.
-wabou-backend-winit = { path = "crates/wabou-backend-winit" }
+# Retired Winit/AnyRender implementation, retained only as a migration oracle.
+# Application and platform work belongs in the GPUI-CE `wabou-shell`.
+wabou-legacy-shell = { path = "crates/wabou-backend-winit" }
 wabou-shell = { path = "crates/wabou-shell" }
 wabou-style = { path = "crates/wabou-style" }
 wabou-terminal-core = { path = "crates/wabou-terminal-core" }
 wabou-terminal = { path = "crates/wabou-terminal" }
 wabou-tray = { path = "crates/wabou-tray" }
-wabou-backend-winit-tray = { path = "crates/wabou-backend-winit-tray" }
-wabou-backend-winit-widgets = { path = "crates/wabou-backend-winit-widgets" }
+wabou-legacy-tray = { path = "crates/wabou-backend-winit-tray" }
+wabou-legacy-widgets = { path = "crates/wabou-backend-winit-widgets" }
 
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
 arc-swap = "1.9.2"

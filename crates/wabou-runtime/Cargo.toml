@@ -60,11 +60,11 @@ wabou-protocol = { workspace = true }
 # Explicit internal alias for the migration oracle. Production code uses the
 # canonical GPUI `wabou-shell`; every `legacy_shell` reference is extraction
 # debt rather than a selectable application backend.
-legacy-shell = { package = "wabou-backend-winit", path = "../wabou-backend-winit" }
+legacy-shell = { package = "wabou-legacy-shell", path = "../wabou-backend-winit" }
 gpui-shell = { package = "wabou-shell", path = "../wabou-shell" }
 gpui-base = { workspace = true }
 wabou-style = { workspace = true }
-wabou-backend-winit-widgets = { workspace = true }
+wabou-legacy-widgets = { workspace = true }
 
 tungstenite = {
   version = "0.28",

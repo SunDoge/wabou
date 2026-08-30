@@ -39,7 +39,7 @@ returns the current runtime's reactive metrics plus the same controls.
 
 GPUI-CE owns the window and renderer lifecycle. `WindowOptions` configures
 window behavior; it does not expose a renderer selector. The former
-winit/AnyRender implementation is retained under `wabou-backend-winit-*` for
+winit/AnyRender implementation is retained under `wabou-legacy-*` for
 migration tests and renderer experiments, not as an application backend.
 
 ## Sizing and responsive layout

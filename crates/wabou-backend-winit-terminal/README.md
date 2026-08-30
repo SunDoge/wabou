@@ -1,4 +1,4 @@
-# wabou-backend-winit-terminal
+# wabou-legacy-terminal
 
 This crate preserves the former winit/AnyRender terminal implementation while
 Wabou moves its public terminal widget to GPUI-CE. New applications should use

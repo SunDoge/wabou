@@ -44,6 +44,6 @@ Skia versus Vello Classic has normalized RMSE 0.0277.
 
 This proved that AnyRender is useful as a comparison harness, but not as a
 credible interchangeable application-backend contract. Production Wabou now
-targets GPUI-CE. The experiment and explicitly named `wabou-backend-winit-*`
+targets GPUI-CE. The experiment and explicitly named `wabou-legacy-*`
 crates remain available as migration oracles; they are not selected by an app
 feature.

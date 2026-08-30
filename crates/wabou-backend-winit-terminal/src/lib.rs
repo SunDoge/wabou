@@ -4,7 +4,7 @@
 //! PTY events). This crate is the frontend adapter: it translates Wabou input
 //! to PTY bytes and pulls Rio's visible grid into a retained AnyRender scene.
 
-extern crate wabou_backend_winit as wabou_shell;
+extern crate wabou_legacy_shell as wabou_shell;
 
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
@@ -33,9 +33,10 @@ use teletypewriter::{WinsizeBuilder, create_pty_with_spawn};
 use vello::kurbo::{Affine, Rect, Stroke};
 use vello::peniko::{Color, Fill};
 #[cfg(test)]
-use wabou_runtime::{Widget, WidgetEventResult, WidgetNodeEvent, WidgetStyle, event};
+use wabou_runtime::event;
 #[cfg(test)]
 use wabou_shell::{
+    Widget, WidgetEventResult, WidgetNodeEvent, WidgetStyle,
     style::Paint,
     text::{TextContext, layout_text_styled},
 };

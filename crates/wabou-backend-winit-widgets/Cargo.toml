@@ -1,5 +1,5 @@
 [package]
-name = "wabou-backend-winit-widgets"
+name = "wabou-legacy-widgets"
 version.workspace = true
 edition = "2024"
 
@@ -16,5 +16,5 @@ serde = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
 unicode-width = { workspace = true }
 vello = { workspace = true }
-wabou-backend-winit = { workspace = true }
+wabou-legacy-shell = { workspace = true }
 zeroize = { workspace = true }

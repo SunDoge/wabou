@@ -1,12 +1,12 @@
 [package]
-name = "wabou-backend-winit-tray"
+name = "wabou-legacy-tray"
 version.workspace = true
 edition = "2024"
 license.workspace = true
 
 [dependencies]
 tray-icon = { version = "0.24.2", default-features = false, features = ["gtk"] }
-wabou-backend-winit = { workspace = true }
+wabou-legacy-shell = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18.2"

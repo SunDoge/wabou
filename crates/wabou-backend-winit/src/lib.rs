@@ -9,7 +9,7 @@
 
 pub use anyrender;
 pub use anyrender::PaintScene;
-pub use wabou_backend_winit_accessibility as accessibility;
+pub use wabou_legacy_accessibility as accessibility;
 pub mod app;
 pub mod app_dirs;
 pub mod effect;

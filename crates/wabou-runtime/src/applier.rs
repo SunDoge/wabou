@@ -96,7 +96,7 @@ use style_resolution::StyleState;
 use text_selection::TextSelectionState;
 #[cfg(test)]
 use text_selection::{SelectableText, TextSelectionGranularity};
-use wabou_backend_winit_widgets::builtin_factories;
+use wabou_legacy_widgets::builtin_factories;
 use widget_manager::WidgetManager;
 
 fn declared_attribute_is(

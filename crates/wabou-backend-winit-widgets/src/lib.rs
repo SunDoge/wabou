@@ -1,9 +1,9 @@
 //! Legacy native widgets implemented exclusively through
-//! `wabou-backend-winit`'s public [`wabou_shell::Widget`] contract.
+//! `wabou-legacy-shell`'s public [`wabou_shell::Widget`] contract.
 
 #![warn(missing_docs)]
 
-extern crate wabou_backend_winit as wabou_shell;
+extern crate wabou_legacy_shell as wabou_shell;
 
 use std::collections::HashMap;
 use std::sync::Arc;

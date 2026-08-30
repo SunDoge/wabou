@@ -1,12 +1,12 @@
 [package]
-name = "wabou-backend-winit"
+name = "wabou-legacy-shell"
 version.workspace = true
 edition = "2024"
 
 license.workspace = true
 
 [lib]
-name = "wabou_backend_winit"
+name = "wabou_legacy_shell"
 path = "src/lib.rs"
 
 [dependencies]
@@ -35,7 +35,7 @@ unicode-segmentation = "1.12"
 url = { workspace = true }
 vello = { workspace = true }
 winit = { workspace = true }
-wabou-backend-winit-accessibility = { workspace = true }
+wabou-legacy-accessibility = { workspace = true }
 wabou-host-api = { workspace = true }
 wabou-shell-api = { workspace = true }
 wabou-style = { workspace = true }

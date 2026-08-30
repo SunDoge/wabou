@@ -57,7 +57,7 @@ use crate::test_report::finish_test_report;
 use crate::{HostMessageContext, HostMessageRouter};
 use crate::{WindowOptions, run_windows_with_factory_and_extensions, style};
 use legacy_shell::{ShellExtension, WidgetFactory};
-use wabou_backend_winit_widgets::builtin_factories;
+use wabou_legacy_widgets::builtin_factories;
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;

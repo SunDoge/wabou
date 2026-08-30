@@ -1,5 +1,5 @@
 [package]
-name = "wabou-backend-winit-accessibility"
+name = "wabou-legacy-accessibility"
 version.workspace = true
 edition = "2024"
 description = "Legacy Winit AccessKit adapter for Wabou."

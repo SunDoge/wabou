@@ -1,7 +1,7 @@
 use super::*;
 use crate::session::{TerminalInputResult, TerminalInvalidation};
-use wabou_runtime::{Widget, WidgetChanges, WidgetEventResult, WidgetNodeEvent, WidgetStyle};
 use wabou_shell::text::{TextContext, layout_text_styled};
+use wabou_shell::{Widget, WidgetChanges, WidgetEventResult, WidgetNodeEvent, WidgetStyle};
 
 pub(crate) fn legacy_color(color: TerminalColor) -> Color {
     let [r, g, b, a] = color.components();

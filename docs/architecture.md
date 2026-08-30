@@ -78,7 +78,7 @@ so this graph cannot grow back accidentally.
 Rust crates may remain narrower when they isolate a large dependency family,
 an optional extension, a platform/tooling target, or a dependency direction
 that prevents cycles. For example, `wabou-shell` owns the widget contract,
-`wabou-backend-winit-widgets` implements the legacy contract without depending on the runtime, and
+`wabou-legacy-widgets` implements the legacy contract without depending on the runtime, and
 `wabou-host-api` is shared by runtime and binding generation. A new crate must
 demonstrate one of those compile or dependency boundaries; ordinary subsystem
 ownership belongs in a module. Applications still see the `wabou` facade.

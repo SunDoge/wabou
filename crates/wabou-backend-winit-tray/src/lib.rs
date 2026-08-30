@@ -9,7 +9,7 @@
 
 #![warn(missing_docs)]
 
-extern crate wabou_backend_winit as wabou_shell;
+extern crate wabou_legacy_shell as wabou_shell;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};

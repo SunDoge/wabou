@@ -6,14 +6,14 @@ implementations:
 ```text
 wabou-shell       public Widget trait and host-facing data types
       ↑
-    wabou-backend-winit-widgets     legacy canvas, image, inputs, textarea, code editor
+    wabou-legacy-widgets            legacy canvas, image, inputs, textarea, code editor
       ↑
 wabou-runtime       registry and JavaScript protocol adapter
       ↑
 wabou             stable application-facing facade
 ```
 
-`wabou-backend-winit-widgets` deliberately does not depend on `wabou-runtime`. It is the
+`wabou-legacy-widgets` deliberately does not depend on `wabou-runtime`. It is the
 reference external implementation of the same trait available to application
 authors. QuickJS only stores `WidgetFactory` values keyed by element tag; a
 built-in and an application widget enter the applier through the same path.
@@ -110,7 +110,7 @@ window; protocol tests are still needed when JS routing itself matters.
 
 If this contract eventually needs its own crate, its intended name is
 `wabou-widget-trait`; the retained legacy implementations now live in the explicitly
-named `wabou-backend-winit-widgets` crate while GPUI-native widgets use GPUI entities.
+named `wabou-legacy-widgets` crate while GPUI-native widgets use GPUI entities.
 
 `@wabou/ui` also exposes an experimental `ConfigEditor`. Its document,
 selection, transactions, undo and Lezer syntax tree are owned by DOM-free

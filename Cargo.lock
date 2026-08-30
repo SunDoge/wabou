@@ -12290,97 +12290,6 @@ name = "wabou-accessibility"
 version = "0.1.0-alpha.3"
 
 [[package]]
-name = "wabou-backend-winit"
-version = "0.1.0-alpha.3"
-dependencies = [
- "anyrender",
- "anyrender_skia",
- "anyrender_svg",
- "anyrender_vello",
- "arboard",
- "bitflags 2.13.1",
- "futures-util",
- "image",
- "lru 0.18.1",
- "notify-rust",
- "open",
- "parley",
- "raw-window-handle",
- "rfd",
- "serde",
- "serde_json",
- "slotmap",
- "snafu",
- "swash",
- "taffy 0.14.0",
- "tempfile",
- "tracing",
- "unicode-segmentation",
- "url",
- "vello",
- "wabou-backend-winit-accessibility",
- "wabou-host-api",
- "wabou-shell-api",
- "wabou-style",
- "winit",
-]
-
-[[package]]
-name = "wabou-backend-winit-accessibility"
-version = "0.1.0-alpha.3"
-dependencies = [
- "accesskit",
- "accesskit_xplat",
- "raw-window-handle",
- "wabou-accessibility",
- "winit",
-]
-
-[[package]]
-name = "wabou-backend-winit-terminal"
-version = "0.1.0-alpha.3"
-dependencies = [
- "anyrender",
- "libc",
- "percent-encoding",
- "rio-graphics",
- "rio-vt",
- "rustc-hash 2.1.3",
- "serde_json",
- "teletypewriter",
- "tracing",
- "vello",
- "wabou-backend-winit",
- "wabou-host-api",
- "wabou-runtime",
- "wabou-shell-api",
-]
-
-[[package]]
-name = "wabou-backend-winit-tray"
-version = "0.1.0-alpha.3"
-dependencies = [
- "gtk",
- "tray-icon",
- "wabou-backend-winit",
-]
-
-[[package]]
-name = "wabou-backend-winit-widgets"
-version = "0.1.0-alpha.3"
-dependencies = [
- "anyrender",
- "image",
- "parley",
- "serde",
- "tracing",
- "unicode-width",
- "vello",
- "wabou-backend-winit",
- "zeroize",
-]
-
-[[package]]
 name = "wabou-bindgen"
 version = "0.1.0-alpha.3"
 dependencies = [
@@ -12405,9 +12314,9 @@ dependencies = [
  "tempfile",
  "toml 0.9.12+spec-1.1.0",
  "vello",
- "wabou-backend-winit",
- "wabou-backend-winit-widgets",
  "wabou-devtools",
+ "wabou-legacy-shell",
+ "wabou-legacy-widgets",
  "wabou-runtime",
 ]
 
@@ -12459,6 +12368,97 @@ dependencies = [
  "specta",
  "specta-typescript",
  "wabou-bindgen",
+]
+
+[[package]]
+name = "wabou-legacy-accessibility"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "accesskit",
+ "accesskit_xplat",
+ "raw-window-handle",
+ "wabou-accessibility",
+ "winit",
+]
+
+[[package]]
+name = "wabou-legacy-shell"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "anyrender",
+ "anyrender_skia",
+ "anyrender_svg",
+ "anyrender_vello",
+ "arboard",
+ "bitflags 2.13.1",
+ "futures-util",
+ "image",
+ "lru 0.18.1",
+ "notify-rust",
+ "open",
+ "parley",
+ "raw-window-handle",
+ "rfd",
+ "serde",
+ "serde_json",
+ "slotmap",
+ "snafu",
+ "swash",
+ "taffy 0.14.0",
+ "tempfile",
+ "tracing",
+ "unicode-segmentation",
+ "url",
+ "vello",
+ "wabou-host-api",
+ "wabou-legacy-accessibility",
+ "wabou-shell-api",
+ "wabou-style",
+ "winit",
+]
+
+[[package]]
+name = "wabou-legacy-terminal"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "anyrender",
+ "libc",
+ "percent-encoding",
+ "rio-graphics",
+ "rio-vt",
+ "rustc-hash 2.1.3",
+ "serde_json",
+ "teletypewriter",
+ "tracing",
+ "vello",
+ "wabou-host-api",
+ "wabou-legacy-shell",
+ "wabou-runtime",
+ "wabou-shell-api",
+]
+
+[[package]]
+name = "wabou-legacy-tray"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "gtk",
+ "tray-icon",
+ "wabou-legacy-shell",
+]
+
+[[package]]
+name = "wabou-legacy-widgets"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "anyrender",
+ "image",
+ "parley",
+ "serde",
+ "tracing",
+ "unicode-width",
+ "vello",
+ "wabou-legacy-shell",
+ "zeroize",
 ]
 
 [[package]]
@@ -12516,12 +12516,12 @@ dependencies = [
  "ureq 3.3.0",
  "url",
  "vello",
- "wabou-backend-winit",
- "wabou-backend-winit-widgets",
  "wabou-bindgen",
  "wabou-database",
  "wabou-devtools",
  "wabou-host-api",
+ "wabou-legacy-shell",
+ "wabou-legacy-widgets",
  "wabou-protocol",
  "wabou-shell",
  "wabou-style",
