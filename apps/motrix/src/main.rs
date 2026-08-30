@@ -1,7 +1,7 @@
 use motrix_wabou::downloads;
 use snafu::{ResultExt, Whatever};
 use wabou::{
-    AppDirectoryConfig, Color, HostBuilder, HostMessage, HostMessageRouter, WindowOptions,
+    AppDirectoryConfig, HostBuilder, HostMessage, HostMessageRouter, WindowOptions,
     initial_window_resource_key,
 };
 use wabou::{SystemTray, TrayImage};
@@ -67,7 +67,6 @@ fn main() -> Result<(), Whatever> {
         })
         .hide_window_on_close();
     let mut host = HostBuilder::new()
-        .base_color(Color::TRANSPARENT)
         .app_directory_config(directory_config)
         .persist_window_size("main")
         .window(

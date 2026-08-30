@@ -79,10 +79,7 @@ pub use host_message::{
 pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use json_capability::JsonCapability;
 pub use jsrt::{DEFAULT_QUICKJS_STACK_SIZE, JsRuntime, JsRuntimeOptions};
-use legacy_shell::{
-    FrameSource, FrameSourceFactory, RunOutcome, TextContext,
-    run_windows_with_factory_and_extensions, style,
-};
+use legacy_shell::{FrameSource, TextContext};
 pub use native_capability::NativeCapability;
 pub use persistent_cache::PersistentJsonCache;
 /// Generated event codes shared with native widget adapters.

@@ -41,21 +41,6 @@ fn set_focus_contained(applier: &mut Applier, id: u32) {
     });
 }
 
-#[test]
-fn window_effect_rejects_an_unknown_renderer_instead_of_falling_back() {
-    let payload = decode_effect_payload(
-        gpui_shell::effect::builtin::WINDOW_CREATE,
-        gpui_shell::initial_window_resource_key(0),
-        r#"{"renderer":"browser"}"#.to_owned(),
-        None,
-    );
-    assert!(matches!(
-        payload,
-        gpui_shell::EffectPayload::Invalid { message, .. }
-            if message == "unknown renderer backend `browser`"
-    ));
-}
-
 fn create_element_with_attrs(applier: &mut Applier, id: u32, tag: Atom, attrs: &[(Atom, &str)]) {
     let id = nk(id);
     applier.apply_op(&Op::CreateElement { id, tag });

@@ -41,23 +41,17 @@ use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use vello::peniko::Color;
-
 use wabou_bindgen::JsonCapabilityContract;
 use wabou_bindgen::JsonMethod;
 
-use crate::applier::LegacyRuntimeController;
+use crate::WindowOptions;
 use crate::bundle;
-use crate::headless_test::run_headless_test;
 use crate::json_capability::JsonCapability;
 use crate::jsrt::JsRuntime;
 use crate::kv::mount_kv_capability;
 use crate::native_capability::NativeCapability;
 use crate::test_report::finish_test_report;
 use crate::{HostMessageContext, HostMessageRouter};
-use crate::{WindowOptions, run_windows_with_factory_and_extensions, style};
-use legacy_shell::{ShellExtension, WidgetFactory};
-use wabou_legacy_widgets::builtin_factories;
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;
@@ -532,9 +526,7 @@ struct RuntimeSourceConfig {
     js_runtime_options: crate::JsRuntimeOptions,
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
-    legacy_widget_factories: HashMap<String, WidgetFactory>,
     native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
-    base_color: Color,
     #[cfg(feature = "devtools")]
     debug_state: Option<wabou_devtools::SharedDebugState>,
     effect_trace: Option<crate::effect_trace::EffectTrace>,
@@ -619,104 +611,6 @@ impl RuntimeSourceConfig {
         Ok(controller)
     }
 
-    fn create_legacy(
-        &self,
-        window_key: gpui_shell::WindowResourceKey,
-        window_options: &WindowOptions,
-    ) -> crate::Result<LegacyRuntimeController> {
-        #[cfg(feature = "vite")]
-        let js = match &self.source {
-            ApplicationSource::Vite { url, .. } => {
-                JsRuntime::new_vite_with_options(url, self.js_runtime_options).context(
-                    crate::error::JavaScriptSnafu {
-                        operation: "create Vite JavaScript runtime",
-                    },
-                )?
-            }
-            ApplicationSource::Bundle { .. } => JsRuntime::new_with_options(
-                self.js_runtime_options,
-            )
-            .context(crate::error::JavaScriptSnafu {
-                operation: "create JavaScript runtime",
-            })?,
-        };
-        #[cfg(not(feature = "vite"))]
-        let js = JsRuntime::new_with_options(self.js_runtime_options).context(
-            crate::error::JavaScriptSnafu {
-                operation: "create JavaScript runtime",
-            },
-        )?;
-
-        for capability in &self.capabilities {
-            capability(&js).context(crate::error::JavaScriptSnafu {
-                operation: "mount JavaScript capability",
-            })?;
-        }
-        let serialized_window_options =
-            serde_json::to_string(window_options).expect("WindowOptions must remain serializable");
-        js.with(|ctx| {
-            ctx.globals()
-                .set("__wabou_window_options_json", serialized_window_options)
-        })
-        .context(crate::error::JavaScriptSnafu {
-            operation: "install native window creation options",
-        })?;
-        let mut applier = LegacyRuntimeController::from_runtime_with_factories_and_window(
-            js,
-            self.legacy_widget_factories.clone(),
-            if window_options.transparent {
-                Color::TRANSPARENT
-            } else {
-                self.base_color
-            },
-            window_key,
-        );
-        install_host_message_producers(&self.host_message_producers, window_key, &applier);
-        applier.set_image_resource_store(self.image_resources.clone());
-        if let Some(directories) = &self.app_directories {
-            applier.set_app_directories(directories.clone());
-        }
-        if let Some(trace) = &self.effect_trace {
-            applier.set_effect_trace(trace.clone());
-        }
-        #[cfg(feature = "devtools")]
-        if let Some(state) = &self.debug_state {
-            // Install diagnostics before the guest boots so application-owned
-            // debug controls can configure the first rendered frame.
-            applier.set_debug_state(state.clone());
-        }
-        match &self.source {
-            ApplicationSource::Bundle { code, source_map } => applier
-                .boot_with_source_map(code, source_map.as_deref())
-                .context(crate::error::JavaScriptSnafu {
-                    operation: "boot JavaScript bundle",
-                })?,
-            #[cfg(feature = "vite")]
-            ApplicationSource::Vite { entry, .. } => {
-                applier
-                    .boot_vite(entry)
-                    .context(crate::error::JavaScriptSnafu {
-                        operation: "boot Vite entry module",
-                    })?
-            }
-        }
-        Ok(applier)
-    }
-
-    #[cfg(feature = "vite")]
-    fn start_legacy_hmr(
-        &self,
-        applier: &mut LegacyRuntimeController,
-    ) -> crate::Result<Option<crate::HmrClient>> {
-        let ApplicationSource::Vite { url, entry } = &self.source else {
-            return Ok(None);
-        };
-        applier.set_vite_entry(entry.as_ref());
-        crate::start_hmr_client(url, applier.reload_handle())
-            .map(Some)
-            .context(crate::error::ViteSnafu)
-    }
-
     #[cfg(feature = "vite")]
     fn start_gpui_hmr(
         &self,
@@ -732,26 +626,10 @@ impl RuntimeSourceConfig {
     }
 }
 
-struct LegacyHostConfig {
-    widget_factories: HashMap<String, WidgetFactory>,
-    extensions: Vec<Box<dyn ShellExtension>>,
-}
-
-impl Default for LegacyHostConfig {
-    fn default() -> Self {
-        Self {
-            widget_factories: builtin_factories(),
-            extensions: Vec::new(),
-        }
-    }
-}
-
 /// Application-facing builder for windows, widgets, capabilities, and tooling.
 pub struct HostBuilder {
-    base_color: Color,
     window: WindowOptions,
     additional_windows: Vec<WindowOptions>,
-    legacy: LegacyHostConfig,
     native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
@@ -783,11 +661,8 @@ impl HostBuilder {
     /// Create a builder using an image registry also owned by application Rust code.
     pub fn with_image_resources(image_resources: crate::ImageResourceStore) -> Self {
         let builder = Self {
-            base_color: style::parse_color("#0f172a")
-                .unwrap_or_else(|| Color::from_rgb8(0x0f, 0x17, 0x2a)),
             window: WindowOptions::default(),
             additional_windows: Vec::new(),
-            legacy: LegacyHostConfig::default(),
             native_widget_factories: HashMap::new(),
             capabilities: Vec::new(),
             host_message_producers: Vec::new(),
@@ -1016,12 +891,6 @@ impl HostBuilder {
         self
     }
 
-    /// Set the viewport clear color behind the retained root.
-    pub fn base_color(mut self, color: gpui_shell::RgbaColor) -> Self {
-        self.base_color = Color::from_rgba8(color.red, color.green, color.blue, color.alpha);
-        self
-    }
-
     /// Configure the maximum native stack available to each QuickJS runtime.
     pub fn quickjs_stack_size(mut self, bytes: usize) -> Self {
         self.js_runtime_options = self.js_runtime_options.max_stack_size(bytes);
@@ -1123,15 +992,10 @@ impl HostBuilder {
 
     /// Build the JavaScript runtime and run it in the GPUI application shell.
     pub fn run(self) -> crate::Result<()> {
-        let outcome = self.run_once()?;
-        if outcome == crate::RunOutcome::Relaunch && std::env::var_os("WABOU_TEST_SCRIPT").is_none()
-        {
-            relaunch_current_process()?;
-        }
-        Ok(())
+        self.run_once()
     }
 
-    fn run_once(mut self) -> crate::Result<crate::RunOutcome> {
+    fn run_once(mut self) -> crate::Result<()> {
         #[cfg(feature = "rust-hot-reload")]
         dioxus_devtools::connect_subsecond();
 
@@ -1183,21 +1047,15 @@ impl HostBuilder {
         });
         let headless_test = test_controller.is_some()
             && std::env::var("WABOU_TEST_HEADLESS").is_ok_and(|value| value != "0");
-        // Native behavior scenarios still use the old deterministic harness
-        // until its GPUI replacement lands. This is not an application backend
-        // selector: normal applications always run the GPUI host.
-        let legacy_behavior_harness = test_controller.is_some();
+        if headless_test {
+            return Err(crate::Error::GpuiShell {
+                message: "the legacy headless harness is no longer part of HostBuilder; use the explicit legacy layout oracle until GPUI headless scenarios land".into(),
+            });
+        }
         if let Some(controller) = &test_controller {
             let capability_controller = controller.clone();
             self.capabilities
                 .push(Arc::new(move |js| capability_controller.mount(js)));
-            if !headless_test {
-                self.legacy
-                    .extensions
-                    .push(Box::new(crate::test_driver::TestDriver::new(
-                        controller.clone(),
-                    )));
-            }
         }
         let app_directories = self
             .app_directory_config
@@ -1239,23 +1097,13 @@ impl HostBuilder {
                     .local_data_dir
                     .join("window-state")
                     .join(format!("{key}.json"));
-                if !legacy_behavior_harness {
-                    let (persistence, restored) = gpui_shell::WindowSizePersistence::restore(
-                        path,
-                        self.window.initial_inner_size,
-                        self.window.min_inner_size,
-                    );
-                    self.window.initial_inner_size = restored;
-                    gpui_window_size_persistence = Some(persistence);
-                } else {
-                    let persistence = legacy_shell::WindowSizePersistence::restore(
-                        path,
-                        gpui_shell::initial_window_resource_key(0),
-                        &mut self.window,
-                    );
-                    // Observe close before a tray extension consumes the request.
-                    self.legacy.extensions.insert(0, Box::new(persistence));
-                }
+                let (persistence, restored) = gpui_shell::WindowSizePersistence::restore(
+                    path,
+                    self.window.initial_inner_size,
+                    self.window.min_inner_size,
+                );
+                self.window.initial_inner_size = restored;
+                gpui_window_size_persistence = Some(persistence);
             } else {
                 tracing::warn!(
                     key,
@@ -1311,9 +1159,7 @@ impl HostBuilder {
             js_runtime_options: self.js_runtime_options,
             capabilities: self.capabilities.clone(),
             host_message_producers: self.host_message_producers.clone(),
-            legacy_widget_factories: self.legacy.widget_factories.clone(),
             native_widget_factories: self.native_widget_factories.clone(),
-            base_color: self.base_color,
             #[cfg(feature = "devtools")]
             debug_state: devtools_server.1.clone(),
             effect_trace: effect_trace.clone(),
@@ -1322,125 +1168,52 @@ impl HostBuilder {
         };
         #[cfg(feature = "vite")]
         let mut hmr_clients = Vec::new();
-        if !legacy_behavior_harness {
-            if !self.legacy.extensions.is_empty() {
-                return Err(crate::Error::GpuiShell {
-                    message: "shell extensions have not migrated to GPUI yet".into(),
-                });
-            }
-            let mut gpui_sources = Vec::with_capacity(windows.len());
-            for (index, options) in windows.into_iter().enumerate() {
-                let window_key = gpui_shell::initial_window_resource_key(index);
-                #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
-                let mut controller = runtime_sources.create_gpui(window_key, &options)?;
-                #[cfg(feature = "vite")]
-                if let Some(client) = runtime_sources.start_gpui_hmr(&mut controller)? {
-                    hmr_clients.push(client);
-                }
-                gpui_sources.push((
-                    controller,
-                    options,
-                    (index == 0)
-                        .then(|| gpui_window_size_persistence.take())
-                        .flatten(),
-                ));
-            }
-            run_gpui_windows(
-                gpui_sources,
-                runtime_sources.native_widget_factories.clone(),
-                self.application_extensions,
-                test_controller.clone(),
-            )?;
-            #[cfg(feature = "vite")]
-            drop(hmr_clients);
-            #[cfg(feature = "devtools")]
-            drop(devtools_server);
-            services.finish()?;
-            return Ok(crate::RunOutcome::Exit);
-        }
-        let mut sources = Vec::with_capacity(windows.len());
-        if !self.application_extensions.is_empty() {
-            return Err(crate::Error::GpuiShell {
-                message: "GPUI application extensions cannot run in the legacy winit host".into(),
-            });
-        }
+        let mut gpui_sources = Vec::with_capacity(windows.len());
         for (index, options) in windows.into_iter().enumerate() {
             let window_key = gpui_shell::initial_window_resource_key(index);
             #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
-            let mut applier = runtime_sources.create_legacy(window_key, &options)?;
+            let mut controller = runtime_sources.create_gpui(window_key, &options)?;
             if index == 0
                 && let Some(script) = &test_script
             {
-                applier
-                    .eval_script(script)
-                    .context(crate::error::JavaScriptSnafu {
-                        operation: "evaluate test scenario",
+                controller
+                    .eval_script_diagnostic(script)
+                    .map_err(|message| crate::Error::GpuiShell {
+                        message: format!("failed to evaluate GPUI test scenario: {message}"),
                     })?;
             }
             #[cfg(feature = "vite")]
-            if let Some(client) = runtime_sources.start_legacy_hmr(&mut applier)? {
+            if let Some(client) = runtime_sources.start_gpui_hmr(&mut controller)? {
                 hmr_clients.push(client);
             }
-            sources.push((Box::new(applier) as Box<dyn crate::FrameSource>, options));
-        }
-
-        if headless_test && let Some(controller) = &test_controller {
-            run_headless_test(
+            gpui_sources.push((
                 controller,
-                &mut sources,
-                self.base_color,
-                #[cfg(feature = "devtools")]
-                devtools_server.1.as_ref(),
-            )?;
-            services.finish()?;
-            return Ok(crate::RunOutcome::Exit);
+                options,
+                (index == 0)
+                    .then(|| gpui_window_size_persistence.take())
+                    .flatten(),
+            ));
         }
-
-        #[cfg(feature = "vite")]
-        let child_hmr_clients = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-        #[cfg(feature = "vite")]
-        let child_hmr_store = child_hmr_clients.clone();
-        let child_sources = runtime_sources.clone();
-        #[allow(clippy::arc_with_non_send_sync)] // winit invokes this only on its event thread.
-        let factory: crate::FrameSourceFactory = Arc::new(move |window_key, options| {
-            #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
-            let mut applier = child_sources
-                .create_legacy(window_key, options)
-                .map_err(|error| error.to_string())?;
-            #[cfg(feature = "vite")]
-            if let Some(client) = child_sources
-                .start_legacy_hmr(&mut applier)
-                .map_err(|error| error.to_string())?
-            {
-                child_hmr_store.lock().unwrap().push(client);
-            }
-            Ok(Box::new(applier))
-        });
-
-        let run_result =
-            run_windows_with_factory_and_extensions(sources, Some(factory), self.legacy.extensions)
-                .context(crate::error::ShellSnafu);
-        let trace_result =
-            if recording_effects && let (Some(trace), Some(path)) = (&effect_trace, trace_path) {
-                trace
-                    .write(&path)
-                    .map_err(|message| crate::Error::EffectTrace { message })
-            } else {
-                Ok(())
-            };
-        let outcome = run_result?;
-        trace_result?;
+        run_gpui_windows(
+            gpui_sources,
+            runtime_sources.native_widget_factories.clone(),
+            self.application_extensions,
+            test_controller.clone(),
+        )?;
+        if recording_effects && let (Some(trace), Some(path)) = (&effect_trace, trace_path) {
+            trace
+                .write(&path)
+                .map_err(|message| crate::Error::EffectTrace { message })?;
+        }
         if let Some(controller) = test_controller {
             finish_test_report(controller)?;
         }
         #[cfg(feature = "vite")]
         drop(hmr_clients);
-        #[cfg(feature = "vite")]
-        drop(child_hmr_clients);
         #[cfg(feature = "devtools")]
         drop(devtools_server);
         services.finish()?;
-        Ok(outcome)
+        Ok(())
     }
 }
 
@@ -1550,10 +1323,11 @@ pub(crate) fn relaunch_current_process() -> crate::Result<()> {
     Ok(())
 }
 
+#[cfg(test)]
 fn install_host_message_producers(
     producers: &[HostMessageProducer],
     window_key: gpui_shell::WindowResourceKey,
-    applier: &LegacyRuntimeController,
+    applier: &crate::applier::LegacyRuntimeController,
 ) {
     for producer in producers {
         producer(applier.host_message_context(window_key));
