@@ -189,7 +189,11 @@ impl TerminalWidget {
         }
     }
 
-    pub(super) fn scroll_active_selection(&mut self, wheel: &wabou_shell::WheelEvent, lines: i32) {
+    pub(super) fn scroll_active_selection(
+        &mut self,
+        wheel: &wabou_shell_api::WheelEvent,
+        lines: i32,
+    ) {
         if lines == 0 {
             return;
         }

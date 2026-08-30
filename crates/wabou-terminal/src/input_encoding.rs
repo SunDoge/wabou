@@ -1,7 +1,7 @@
 use super::*;
 
 impl TerminalWidget {
-    pub(super) fn key_bytes(&self, key: &wabou_shell::KeyEvent) -> Vec<u8> {
+    pub(super) fn key_bytes(&self, key: &wabou_shell_api::KeyEvent) -> Vec<u8> {
         let mode = self.terminal.lock().mode();
         if mode.intersects(Mode::KITTY_KEYBOARD_PROTOCOL) {
             let sequence = kitty_keyboard::build_key_sequence(key, mode);
@@ -39,7 +39,7 @@ impl TerminalWidget {
     }
 }
 
-fn legacy_special_key(key: &wabou_shell::KeyEvent, mode: Mode) -> Vec<u8> {
+fn legacy_special_key(key: &wabou_shell_api::KeyEvent, mode: Mode) -> Vec<u8> {
     let modifier = modifier_code(key.modifiers);
     if let Some(sequence) = cursor_key_sequence(&key.key, mode, modifier) {
         return sequence;
@@ -68,7 +68,7 @@ fn legacy_special_key(key: &wabou_shell::KeyEvent, mode: Mode) -> Vec<u8> {
     }
 }
 
-fn modifier_code(modifiers: wabou_shell::Modifiers) -> u8 {
+fn modifier_code(modifiers: wabou_shell_api::Modifiers) -> u8 {
     1 + u8::from(modifiers.shift())
         + u8::from(modifiers.alt()) * 2
         + u8::from(modifiers.control()) * 4
@@ -151,8 +151,8 @@ pub(super) fn legacy_control_byte(key: &str) -> Option<u8> {
     }
 }
 
-pub(super) fn application_keypad_sequence(key: &wabou_shell::KeyEvent) -> Option<Vec<u8>> {
-    if key.location != wabou_shell::KeyLocation::Numpad {
+pub(super) fn application_keypad_sequence(key: &wabou_shell_api::KeyEvent) -> Option<Vec<u8>> {
+    if key.location != wabou_shell_api::KeyLocation::Numpad {
         return None;
     }
     let final_byte = if key.code.contains("Numpad0") {
@@ -197,7 +197,7 @@ pub(super) fn application_keypad_sequence(key: &wabou_shell::KeyEvent) -> Option
     Some(vec![0x1b, b'O', final_byte as u8])
 }
 
-pub(super) fn alt_graph_text(key: &wabou_shell::KeyEvent) -> Option<&str> {
+pub(super) fn alt_graph_text(key: &wabou_shell_api::KeyEvent) -> Option<&str> {
     if !key.modifiers.control() || !key.modifiers.alt() || key.modifiers.meta() {
         return None;
     }

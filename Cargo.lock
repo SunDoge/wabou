@@ -12521,6 +12521,7 @@ dependencies = [
  "vello",
  "wabou-backend-winit",
  "wabou-runtime",
+ "wabou-shell-api",
 ]
 
 [[package]]

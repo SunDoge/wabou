@@ -1,6 +1,6 @@
 use super::*;
 
-use wabou_shell::{ClipboardRequest, KeyEvent, KeyLocation, Modifiers, Point, PointerEvent};
+use wabou_shell_api::{ClipboardRequest, KeyEvent, KeyLocation, Modifiers, Point, PointerEvent};
 
 fn pointer(phase: PointerPhase, x: f64, y: f64, buttons: u32) -> UiEvent {
     pointer_with_modifiers(phase, x, y, buttons, Modifiers::default())

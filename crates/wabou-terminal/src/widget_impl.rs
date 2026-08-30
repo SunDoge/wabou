@@ -365,7 +365,10 @@ impl TerminalWidget {
         );
     }
 
-    fn handle_pointer_event(&mut self, pointer: &wabou_shell::PointerEvent) -> WidgetEventResult {
+    fn handle_pointer_event(
+        &mut self,
+        pointer: &wabou_shell_api::PointerEvent,
+    ) -> WidgetEventResult {
         if pointer.phase == PointerPhase::Down && pointer.button != Some(PointerButton::Primary) {
             self.last_click = None;
         }
@@ -437,7 +440,7 @@ impl TerminalWidget {
         }
     }
 
-    fn handle_key_event(&mut self, key: &wabou_shell::KeyEvent) -> WidgetEventResult {
+    fn handle_key_event(&mut self, key: &wabou_shell_api::KeyEvent) -> WidgetEventResult {
         if key.phase == KeyPhase::Down {
             self.last_click = None;
         }
@@ -489,7 +492,7 @@ impl TerminalWidget {
         }
     }
 
-    fn handle_wheel_event(&mut self, wheel: &wabou_shell::WheelEvent) -> WidgetEventResult {
+    fn handle_wheel_event(&mut self, wheel: &wabou_shell_api::WheelEvent) -> WidgetEventResult {
         self.last_click = None;
         let context = self.wheel_context(wheel);
         let lines = self.wheel_lines.push(context, wheel.delta_y);

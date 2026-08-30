@@ -34,13 +34,13 @@ use vello::kurbo::{Affine, Rect, Stroke};
 use vello::peniko::{Color, Fill};
 use wabou_runtime::{Widget, WidgetChanges, WidgetNodeEvent, WidgetStyle};
 use wabou_runtime::{WidgetEventResult, event};
-#[cfg(test)]
-use wabou_shell::style::Paint;
-use wabou_shell::text::{TextContext, layout_text_styled};
-use wabou_shell::{
+use wabou_shell_api::{
     HostAction, HostActionResult, ImeEvent, KeyPhase, Modifiers, PointerButton, PointerPhase,
     UiEvent, WHEEL_LINE_DELTA, WakeCallback,
 };
+#[cfg(test)]
+use wabou_shell::style::Paint;
+use wabou_shell::text::{TextContext, layout_text_styled};
 
 mod box_drawing;
 mod graphics;
@@ -529,7 +529,7 @@ impl TerminalWidget {
         self.terminal.lock().selection_to_string()
     }
 
-    fn report_pointer(&mut self, pointer: &wabou_shell::PointerEvent) -> bool {
+    fn report_pointer(&mut self, pointer: &wabou_shell_api::PointerEvent) -> bool {
         if self.exit_reported || (pointer.modifiers.shift() && self.remote_mouse_button.is_none()) {
             return false;
         }
@@ -601,7 +601,7 @@ impl TerminalWidget {
         true
     }
 
-    fn report_wheel(&mut self, wheel: &wabou_shell::WheelEvent, lines: i32) -> bool {
+    fn report_wheel(&mut self, wheel: &wabou_shell_api::WheelEvent, lines: i32) -> bool {
         if self.exit_reported || wheel.modifiers.shift() {
             return false;
         }
@@ -644,7 +644,7 @@ impl TerminalWidget {
         true
     }
 
-    fn wheel_context(&self, wheel: &wabou_shell::WheelEvent) -> WheelContext {
+    fn wheel_context(&self, wheel: &wabou_shell_api::WheelEvent) -> WheelContext {
         if self.selecting {
             return WheelContext::Selection;
         }

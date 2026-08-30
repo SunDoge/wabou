@@ -3,7 +3,7 @@
 // mode state; this module is the platform-independent Wabou KeyEvent adapter.
 
 use rio_vt::crosswords::Mode;
-use wabou_shell::{KeyEvent, KeyLocation, KeyPhase, Modifiers};
+use wabou_shell_api::{KeyEvent, KeyLocation, KeyPhase, Modifiers};
 
 pub fn build_key_sequence(key: &KeyEvent, mode: Mode) -> Vec<u8> {
     let event_modifiers = normalized_modifiers(key);
