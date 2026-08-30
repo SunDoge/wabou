@@ -32,6 +32,7 @@ import { Sidebar } from "./sidebar";
 import { SkillsPage } from "./skills-page";
 import { createAgentWorkspace } from "./workspace";
 import { WorkspacePanel } from "./workspace-panel";
+import { WorkspaceSetup } from "./workspace-setup";
 
 const project = createAgentWorkspace(1);
 project.name = "Documentation workspace";
@@ -715,6 +716,46 @@ defineLayoutFixtures({
     render: () => (
       <View class="w-full h-full min-w-0 px-6 bg-canvas">
         <ConversationWelcome workspace="/work/wabou" choosePrompt={() => {}} />
+      </View>
+    ),
+  },
+  "workspace/setup": {
+    width: 720,
+    height: 620,
+    render: () => (
+      <View class="w-full h-full bg-canvas">
+        <WorkspaceSetup
+          path="/home/user/PiWorkspace"
+          provider="anthropic"
+          model="claude-sonnet-4-5"
+          proxy="http://127.0.0.1:7890"
+          updatePath={() => {}}
+          start={async () => {}}
+          openSettings={() => {}}
+        />
+      </View>
+    ),
+  },
+  "workspace/setup-error": {
+    width: 620,
+    height: 560,
+    render: () => (
+      <View class="w-full h-full bg-canvas">
+        <WorkspaceSetup
+          path="/home/user/PiWorkspace/projects/a-repository-with-a-long-readable-name"
+          provider="openai-codex"
+          model="gpt-5.6-codex"
+          proxy="http://127.0.0.1:7890"
+          error="The agent runtime could not start. Your workspace and settings were preserved; review the output below and try again."
+          runtimeLogs={[
+            "Starting the Pi runtime…",
+            "Loading workspace configuration…",
+            "Runtime exited before the session became ready.",
+          ]}
+          updatePath={() => {}}
+          start={async () => {}}
+          openSettings={() => {}}
+        />
       </View>
     ),
   },

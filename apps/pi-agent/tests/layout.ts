@@ -594,6 +594,68 @@ try {
           }
         },
       },
+      {
+        id: "workspace/setup",
+        width: 720,
+        height: 620,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => {
+          const workspace = getLayoutNode(fixture, {
+            role: "textbox",
+            name: "Workspace",
+          });
+          const settings = getLayoutNode(fixture, {
+            role: "button",
+            name: "Review settings",
+          });
+          const start = getLayoutNode(fixture, {
+            role: "button",
+            name: "Start agent",
+          });
+          if (workspace.rect.width < 480) {
+            throw new Error(
+              `workspace picker lost readable width: ${workspace.rect.width}`,
+            );
+          }
+          if (settings.rect.y >= start.rect.y) {
+            throw new Error(
+              "setup settings summary no longer precedes the primary action",
+            );
+          }
+          if (start.rect.width < 480) {
+            throw new Error(
+              `setup primary action lost its full-width hierarchy: ${start.rect.width}`,
+            );
+          }
+        },
+      },
+      {
+        id: "workspace/setup-error",
+        width: 620,
+        height: 560,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, {
+            text: "The agent runtime could not start. Your workspace and settings were preserved; review the output below and try again.",
+          });
+          const output = getLayoutNode(fixture, {
+            role: "group",
+            name: "Runtime output",
+          });
+          const start = getLayoutNode(fixture, {
+            role: "button",
+            name: "Start agent",
+          });
+          if (output.rect.y <= start.rect.y + start.rect.height) {
+            throw new Error("runtime diagnostics overlapped the retry action");
+          }
+          if (start.rect.width < 420) {
+            throw new Error(
+              `setup retry action lost usable width: ${start.rect.width}`,
+            );
+          }
+        },
+      },
     ],
     mode: "layout-test",
     command: [resolve("target/release/wabou")],

@@ -94,14 +94,20 @@ export function WorkspaceSetup(props: {
                 })}
               </Text>
             </View>
-            <Button variant="ghost" size="sm" onClick={props.openSettings}>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={i18n.message(m.setup_change_settings, {})}
+              onClick={props.openSettings}
+            >
               <Icon source={settings} size={13} />
               {i18n.message(m.setup_change_settings, {})}
             </Button>
           </View>
           <Button
-            variant="outline"
-            class="w-full border-strong bg-control text-primary shadow-none"
+            variant="default"
+            class="w-full"
+            aria-label={i18n.message(m.start_agent, {})}
             disabled={!props.path.trim() || starting()}
             onClick={() => void start()}
           >
@@ -113,7 +119,10 @@ export function WorkspaceSetup(props: {
         </View>
 
         {props.error ? (
-          <Text role="alert" class="text-sm text-danger whitespace-normal">
+          <Text
+            role="alert"
+            class="text-sm text-danger-primary whitespace-normal"
+          >
             {props.error}
           </Text>
         ) : null}

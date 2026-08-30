@@ -24,7 +24,7 @@ export function CodeBlock(props: CodeBlockProps): JSX.Element {
       )}
     >
       <View class="h-8 flex flex-row items-center justify-between gap-3 pl-3 pr-1 bg-control">
-        <Text class="min-w-0 font-mono text-xs text-muted">
+        <Text class="min-w-0 font-mono text-xs text-secondary">
           {props.language ?? "text"}
         </Text>
         {props.copyable !== false && (

@@ -182,6 +182,7 @@ test("renders a copyable code block and uses the clipboard capability", async ()
     </PlatformProvider>
   ));
   expect(screen.getByRole("group", { name: "Code block" })).not.toBeNull();
+  expect(byText(screen, "tsx").parent?.className).toContain("text-secondary");
   const copy = screen.getByRole("button", { name: "Copy" });
   expect(copy.text).toBe("");
   copy.click();
