@@ -422,10 +422,28 @@ try {
         height: 720,
         checks: ["visible-overflow", "text-collision"],
         assert: (fixture) => {
-          getLayoutNode(fixture, {
+          const search = getLayoutNode(fixture, {
             role: "textbox",
             name: "Search agents and sessions",
           });
+          const newThread = getLayoutNode(fixture, {
+            role: "button",
+            name: "New thread",
+          });
+          if (newThread.rect.height < 36 || newThread.rect.width < 220) {
+            throw new Error(
+              `primary sidebar action lost its control surface: ${newThread.rect.width}x${newThread.rect.height}`,
+            );
+          }
+          if (
+            search.rect.x < newThread.rect.x - 0.5 ||
+            search.rect.x + search.rect.width >
+              newThread.rect.x + newThread.rect.width + 0.5
+          ) {
+            throw new Error(
+              `sidebar search escaped the primary action column: search=${search.rect.x}..${search.rect.x + search.rect.width}; action=${newThread.rect.x}..${newThread.rect.x + newThread.rect.width}`,
+            );
+          }
           getLayoutNode(fixture, {
             role: "button",
             name: "Documentation workspace",
