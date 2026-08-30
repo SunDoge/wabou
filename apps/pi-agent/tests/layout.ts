@@ -304,7 +304,7 @@ try {
             name: "Ask this agent to work in its repository…",
           });
           const usage = getLayoutNode(fixture, {
-            role: "status",
+            role: "button",
             name: "Session usage",
           });
           const model = getLayoutNode(fixture, {
