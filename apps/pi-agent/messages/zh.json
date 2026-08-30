@@ -90,6 +90,7 @@
   "skill_scope_project": "项目",
   "skill_scope_user": "用户",
   "skills_load_failed": "无法加载技能",
+  "retry": "重试",
   "refresh_skills": "刷新技能",
   "refresh": "刷新",
   "settings_intro": "配置当前项目、会话行为和应用级默认设置。",

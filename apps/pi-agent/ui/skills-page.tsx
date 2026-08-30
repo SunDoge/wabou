@@ -2,16 +2,24 @@ import {
   Badge,
   Button,
   createLatestAsyncResource,
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
   Icon,
   Markdown,
   PageHeader,
   PageViewport,
   SearchField,
+  Spinner,
   Text,
   View,
 } from "@wabou/ui";
 import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
 import sparkles from "lucide-static/icons/sparkles.svg?raw";
+import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
 import {
   createEffect,
   createMemo,
@@ -94,17 +102,24 @@ export function SkillsPage(props: SkillsPageProps) {
               <Show
                 when={!skills.loading() || (skills.value()?.length ?? 0) > 0}
                 fallback={
-                  <Text role="status" class="p-3 text-sm text-muted">
-                    {i18n.message(m.loading_skills, {})}
-                  </Text>
+                  <View
+                    role="status"
+                    aria-label={i18n.message(m.loading_skills, {})}
+                    class="p-3 flex flex-row items-center gap-2 text-secondary"
+                  >
+                    <Spinner label={i18n.message(m.loading_skills, {})} />
+                    <Text class="text-sm text-secondary">
+                      {i18n.message(m.loading_skills, {})}
+                    </Text>
+                  </View>
                 }
               >
                 <ForValue
                   each={filtered()}
                   fallback={
                     <View class="p-4 flex flex-col items-center gap-2">
-                      <Icon source={sparkles} size={20} class="text-muted" />
-                      <Text role="status" class="text-sm text-muted">
+                      <Icon source={sparkles} size={20} class="text-secondary" />
+                      <Text role="status" class="text-sm text-secondary">
                         {i18n.message(
                           (skills.value()?.length ?? 0) === 0
                             ? m.no_skills
@@ -159,31 +174,52 @@ export function SkillsPage(props: SkillsPageProps) {
             <Show
               when={!skills.error()}
               fallback={
-                <View class="p-6 flex flex-col gap-2">
-                  <Text
-                    role="heading"
-                    class="font-semibold text-danger-primary"
+                <Empty
+                  variant="plain"
+                  role="alert"
+                  aria-label={i18n.message(m.skills_load_failed, {})}
+                  class="min-h-80 p-8"
+                >
+                  <EmptyMedia
+                    variant="icon"
+                    class="bg-danger-surface text-danger-primary"
                   >
-                    {i18n.message(m.skills_load_failed, {})}
-                  </Text>
-                  <Text
-                    role="alert"
-                    class="text-sm text-muted whitespace-normal"
-                  >
-                    {String(skills.error())}
-                  </Text>
-                </View>
+                    <Icon source={triangleAlert} size={18} />
+                  </EmptyMedia>
+                  <EmptyHeader>
+                    <EmptyTitle class="text-danger-primary">
+                      {i18n.message(m.skills_load_failed, {})}
+                    </EmptyTitle>
+                    <EmptyDescription class="text-danger-primary">
+                      {String(skills.error())}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                  <EmptyContent>
+                    <Button
+                      variant="outline"
+                      aria-label={i18n.message(m.retry, {})}
+                      onClick={() => void skills.refresh()}
+                    >
+                      <Icon source={refreshCw} size={14} />
+                      {i18n.message(m.retry, {})}
+                    </Button>
+                  </EmptyContent>
+                </Empty>
               }
             >
               <Show
                 when={selected()}
                 fallback={
-                  <View class="min-h-80 p-8 flex flex-col items-center justify-center gap-3">
-                    <Icon source={sparkles} size={28} class="text-muted" />
-                    <Text class="text-sm text-muted">
-                      {i18n.message(m.select_skill, {})}
-                    </Text>
-                  </View>
+                  <Empty variant="plain" class="min-h-80 p-8">
+                    <EmptyMedia variant="icon">
+                      <Icon source={sparkles} size={18} />
+                    </EmptyMedia>
+                    <EmptyHeader>
+                      <EmptyDescription class="text-secondary">
+                        {i18n.message(m.select_skill, {})}
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
                 }
               >
                 {(skill) => (

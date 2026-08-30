@@ -521,6 +521,20 @@ defineLayoutFixtures({
       />
     ),
   },
+  "skills/error": {
+    width: 720,
+    height: 560,
+    render: () => (
+      <SkillsPage
+        cwd={project.cwd}
+        project={project.name}
+        load={async () => {
+          throw new Error("permission denied");
+        }}
+        close={() => {}}
+      />
+    ),
+  },
   "workspace/diff-viewer": {
     width: 640,
     height: 520,

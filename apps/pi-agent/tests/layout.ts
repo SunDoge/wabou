@@ -408,6 +408,20 @@ try {
         },
       },
       {
+        id: "skills/error",
+        width: 720,
+        height: 560,
+        waitMs: 20,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, {
+            role: "alert",
+            name: "Could not load skills",
+          });
+          getLayoutNode(fixture, { role: "button", name: "Try again" });
+        },
+      },
+      {
         id: "workspace/diff-viewer",
         width: 640,
         height: 520,

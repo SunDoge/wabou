@@ -59,12 +59,15 @@ test("skills page loads, filters, and selects native skill records", async () =>
 
 test("skills page exposes loading failures without losing page navigation", async () => {
   const close = vi.fn();
+  let attempt = 0;
   const screen = renderComponent(() => (
     <SkillsPage
       cwd="/work/project"
       project="Project"
       load={async () => {
-        throw new Error("permission denied");
+        attempt += 1;
+        if (attempt === 1) throw new Error("permission denied");
+        return skills;
       }}
       close={close}
     />
@@ -76,6 +79,13 @@ test("skills page exposes loading failures without losing page navigation", asyn
   expect(
     screen.getByRole("heading", { name: "Could not load skills" }),
   ).toBeDefined();
+  screen.getByRole("button", { name: "Try again" }).click();
+  await screen.waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Review changes" }),
+    ).toBeDefined(),
+  );
+  expect(attempt).toBe(2);
   screen.getByRole("button", { name: "Back to projects" }).click();
   expect(close).toHaveBeenCalledTimes(1);
 });
