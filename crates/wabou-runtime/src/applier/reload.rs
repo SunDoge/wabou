@@ -25,6 +25,11 @@ pub enum ReloadMsg {
         /// CSS module path reported by Vite.
         path: String,
     },
+    /// Structured Vite transform/runtime diagnostic serialized as JSON.
+    Error {
+        /// Vite diagnostic payload retained for the JS developer overlay.
+        diagnostic: String,
+    },
     /// Vite requested a complete entry re-import.
     FullReload,
 }
@@ -39,6 +44,11 @@ pub enum HmrDrainResult {
     Applied {
         /// Number of JavaScript modules applied in arrival order.
         js_updates: usize,
+    },
+    /// Vite rejected the current source; the last-good UI remains mounted.
+    Error {
+        /// Structured diagnostic serialized as JSON.
+        diagnostic: String,
     },
     /// Entry was (or should be) fully re-imported.
     FullReload {
@@ -70,6 +80,7 @@ pub(super) struct HmrBatch {
     pub(super) full_reload_reason: Option<String>,
     pub(super) js_updates: Vec<HmrJsUpdate>,
     pub(super) css_paths: Vec<String>,
+    pub(super) error: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -158,6 +169,7 @@ pub(super) fn plan_hmr_batch(msgs: impl IntoIterator<Item = ReloadMsg>) -> HmrBa
                 source,
             }),
             ReloadMsg::CssUpdate { path } => batch.css_paths.push(path),
+            ReloadMsg::Error { diagnostic } => batch.error = Some(diagnostic),
         }
     }
     batch
@@ -196,5 +208,19 @@ mod tests {
         assert!(batch.full_reload);
         assert!(!state.is_pending());
         assert!(state.drain().is_none());
+    }
+
+    #[test]
+    fn latest_vite_error_is_coalesced_for_one_ui_frame() {
+        let batch = super::plan_hmr_batch([
+            ReloadMsg::Error {
+                diagnostic: r#"{"message":"first"}"#.into(),
+            },
+            ReloadMsg::Error {
+                diagnostic: r#"{"message":"latest"}"#.into(),
+            },
+        ]);
+
+        assert_eq!(batch.error.as_deref(), Some(r#"{"message":"latest"}"#));
     }
 }

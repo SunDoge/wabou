@@ -320,7 +320,7 @@ impl Loader for ViteLoader {
 // notification, and forwards them to the Applier via ReloadHandle.
 // ---------------------------------------------------------------------------
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use tungstenite::client::IntoClientRequest;
 
@@ -376,8 +376,35 @@ enum VitePayload {
         updates: Vec<ViteUpdate>,
     },
     FullReload,
+    Error {
+        err: ViteDiagnostic,
+    },
     #[serde(other)]
     Other,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct ViteDiagnostic {
+    message: String,
+    stack: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    frame: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    plugin: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    loc: Option<ViteDiagnosticLocation>,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct ViteDiagnosticLocation {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    file: Option<String>,
+    line: u32,
+    column: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -409,6 +436,9 @@ enum ViteMessage {
         accepted_path: String,
     },
     FullReload,
+    Error {
+        diagnostic: String,
+    },
 }
 
 /// Start a Vite HMR client on a background thread. Connects to the Vite dev
@@ -517,6 +547,9 @@ pub fn start_hmr_client(
                         })
                     }
                     ViteMessage::FullReload => reload.send(crate::ReloadMsg::FullReload),
+                    ViteMessage::Error { diagnostic } => {
+                        reload.send(crate::ReloadMsg::Error { diagnostic })
+                    }
                 };
                 if result.is_err() {
                     tracing::warn!("Vite HMR receiver disconnected");
@@ -602,6 +635,10 @@ fn messages(payload: VitePayload) -> Vec<ViteMessage> {
             })
             .collect(),
         VitePayload::FullReload => vec![ViteMessage::FullReload],
+        VitePayload::Error { err } => vec![ViteMessage::Error {
+            diagnostic: serde_json::to_string(&err)
+                .expect("Vite diagnostic contains only serializable fields"),
+        }],
         VitePayload::Other => Vec::new(),
     }
 }
@@ -704,5 +741,33 @@ mod tests {
                 accepted_path: "/@id/__x00__virtual:uno.css".to_owned(),
             }]
         );
+    }
+
+    #[test]
+    fn forwards_vite_errors_without_losing_source_context() {
+        let payload = serde_json::from_str(
+            r#"{
+                "type":"error",
+                "err":{
+                    "message":"Expected `,` but found identifier",
+                    "stack":"Error: transform failed",
+                    "id":"/src/sidebar.tsx",
+                    "frame":"10 | <Button broken prop />",
+                    "plugin":"solid",
+                    "loc":{"file":"/src/sidebar.tsx","line":10,"column":18}
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let forwarded = messages(payload);
+        let [ViteMessage::Error { diagnostic }] = forwarded.as_slice() else {
+            panic!("expected one Vite error message");
+        };
+        let decoded: serde_json::Value = serde_json::from_str(diagnostic).unwrap();
+        assert_eq!(decoded["message"], "Expected `,` but found identifier");
+        assert_eq!(decoded["plugin"], "solid");
+        assert_eq!(decoded["loc"]["line"], 10);
+        assert_eq!(decoded["frame"], "10 | <Button broken prop />");
     }
 }

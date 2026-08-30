@@ -196,6 +196,18 @@ impl Applier {
     }
 
     pub(super) fn apply_hmr_batch(&mut self, batch: HmrBatch) -> HmrDrainResult {
+        if let Some(diagnostic) = batch.error {
+            tracing::error!(target: "hmr", diagnostic = %diagnostic, "Vite update failed; keeping last-good UI");
+            let event = HostEvent::Application(crate::host_message::HostMessage::str(
+                "wabou:dev-server-error",
+                diagnostic.clone(),
+            ));
+            if let Err(error) = self.dispatch_host_frame(&[event]) {
+                tracing::error!(target: "hmr", ?error, "failed to dispatch Vite diagnostic to JavaScript");
+            }
+            return HmrDrainResult::Error { diagnostic };
+        }
+
         // Native Vite CSS channel: styles that affect layout must go through
         // Style IR (`virtual:wabou-stylesheet` → `__wabou_set_stylesheet`), which
         // is already drained earlier in build_frame via `pending_css`.
