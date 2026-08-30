@@ -258,10 +258,11 @@ test("Pi Agent folds adjacent completed tools into one turn activity group", () 
     name: "Worked · 2 tool calls",
   });
   expect(activity.className).toContain("text-secondary");
+  expect(activity.className).toContain("self-start");
   expect(activity.parent?.className).toContain("w-full");
   expect(
     activity.parent?.children.filter((node) => node.className.includes("h-px")),
-  ).toHaveLength(2);
+  ).toHaveLength(0);
   expect(activity.expanded).toBe(false);
   expect(screen.queryByRole("button", { name: "read: README.md" })).toBeNull();
   expect(

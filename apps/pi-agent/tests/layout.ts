@@ -236,9 +236,6 @@ try {
             role: "button",
             name: "Worked · 1 tool call",
           });
-          const activityRules = queryLayoutNodes(fixture, {
-            className: "h-px",
-          });
           const copy = getLayoutNode(fixture, {
             role: "button",
             name: "Copy assistant response",
@@ -255,17 +252,9 @@ try {
               `assistant copy action detached from response end: response right=${responseRight}, copy right=${copyRight}`,
             );
           }
-          if (activityRules.length !== 2) {
+          if (Math.abs(activity.rect.x - response.rect.x) > 12) {
             throw new Error(
-              `tool activity divider should expose two rules, found ${activityRules.length}`,
-            );
-          }
-          if (
-            activityRules.some((rule) => rule.rect.width < 120) ||
-            activity.rect.x <= activityRules[0]!.rect.x
-          ) {
-            throw new Error(
-              "tool activity divider did not span the conversation column",
+              `tool activity disclosure did not align with assistant prose: activity x=${activity.rect.x}, response x=${response.rect.x}`,
             );
           }
           if (
