@@ -75,6 +75,7 @@ fn stylesheet_pushed_during_javascript_tick_applies_in_the_same_frame() {
     .unwrap();
 
     let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let initial_gpui_revision = applier.gpui_revision();
     let (tag, class) = {
         let mut atoms = applier.document.atoms.borrow_mut();
         (atoms.intern("text"), atoms.intern("hmr-color"))
@@ -94,8 +95,19 @@ fn stylesheet_pushed_during_javascript_tick_applies_in_the_same_frame() {
             },
         ],
     });
+    assert_eq!(
+        applier.gpui_revision(),
+        initial_gpui_revision,
+        "an incomplete runtime frame must not be visible to GPUI",
+    );
 
     applier.build_frame(&mut wabou_shell::TextContext::new(), 800, 600);
+
+    assert_eq!(
+        applier.gpui_revision(),
+        initial_gpui_revision + 1,
+        "one Solid flush must produce one complete GPUI publication",
+    );
 
     assert_eq!(
         applier.computed_node_snapshot(id).unwrap().text_color,

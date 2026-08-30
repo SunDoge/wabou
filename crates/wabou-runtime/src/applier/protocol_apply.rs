@@ -585,10 +585,6 @@ impl Applier {
         if self.document.ifc_dirty {
             self.rebuild_layout_boxes();
         }
-        // Structure and resolved styles belong to the same Solid flush. Keep
-        // this as the sole GPUI publication point so a future GPUI view needs
-        // only one `notify()` for the completed frame.
-        let _ = self.gpui_projection.finish_frame();
     }
 
     pub(super) fn apply_op(&mut self, op: &Op) {

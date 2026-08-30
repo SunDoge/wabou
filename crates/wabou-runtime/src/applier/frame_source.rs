@@ -232,6 +232,58 @@ impl Applier {
         self.runtime.js.poll_async_runtime();
         true
     }
+
+    /// Advance the backend-neutral JS/runtime half of a frame.
+    ///
+    /// Layout and painting deliberately happen after this boundary in the
+    /// selected shell backend. Both the legacy renderer and GPUI therefore
+    /// consume the same completed Solid flush and resolved cascade.
+    fn advance_runtime_frame(&mut self, width: u32, height: u32) -> bool {
+        self.document.invalidation.remove(InvalidationFlags::TICK);
+        self.runtime.js.take_async_wake();
+        self.runtime.js.poll_async_runtime();
+        self.drain_pending_stylesheet();
+        self.drain_pending_color_theme();
+        self.drain_pending_color_palette();
+
+        if !self.run_javascript_tick(width, height) {
+            return false;
+        }
+
+        // HMR can evaluate a regenerated stylesheet inside the JS tick. Make
+        // that cascade part of the same native publication.
+        self.drain_pending_stylesheet();
+        self.drain_pending_color_theme();
+        self.drain_pending_color_palette();
+        true
+    }
+
+    /// Advance one Solid frame and publish its retained GPUI projection.
+    ///
+    /// GPUI performs layout and paint itself; the legacy Taffy/Parley frame is
+    /// intentionally not built here.
+    pub(crate) fn build_gpui_frame(&mut self, width: u32, height: u32) -> bool {
+        if !self.advance_runtime_frame(width, height) {
+            return false;
+        }
+        if self
+            .document
+            .invalidation
+            .contains(InvalidationFlags::INHERIT)
+        {
+            self.inherit();
+            self.document
+                .invalidation
+                .remove(InvalidationFlags::INHERIT);
+        }
+        self.gpui_projection.finish_frame()
+    }
+
+    pub(crate) fn gpui_element(
+        &self,
+    ) -> Result<wabou_shell_gpui::ProjectedElement, wabou_shell_gpui::ProjectionError> {
+        self.gpui_projection.tree_element(NodeKey::ROOT)
+    }
 }
 
 impl FrameSource for Applier {
@@ -295,29 +347,11 @@ impl FrameSource for Applier {
             self.frame.profile_class_cache_misses = 0;
             self.frame.profile_runtime_utility_fallbacks = 0;
         }
-        self.document.invalidation.remove(InvalidationFlags::TICK);
-        self.runtime.js.take_async_wake();
-        self.runtime.js.poll_async_runtime();
-
         self.drain_pending_fonts(tcx);
 
-        self.drain_pending_stylesheet();
-        self.drain_pending_color_theme();
-        self.drain_pending_color_palette();
-
-        if !self.run_javascript_tick(width, height) {
+        if !self.advance_runtime_frame(width, height) {
             return Vec::new();
         }
-
-        // Vite evaluates the regenerated virtual stylesheet while applying an
-        // HMR module inside the JavaScript tick. Drain that update before
-        // inheritance and layout so the refreshed component and its Style IR
-        // become visible atomically in this frame. Waiting for another frame
-        // can leave newly introduced classes on engine defaults indefinitely
-        // when the stylesheet module itself emits no renderer operations.
-        self.drain_pending_stylesheet();
-        self.drain_pending_color_theme();
-        self.drain_pending_color_palette();
 
         let selection_scrolled = self.tick_text_selection_autoscroll();
         self.tick_scroll_motions();
@@ -344,6 +378,9 @@ impl FrameSource for Applier {
                 .invalidation
                 .remove(InvalidationFlags::INHERIT);
         }
+        // Publish only after structural operations, class resolution, HMR
+        // stylesheets, and inheritance have all settled for this Solid flush.
+        let _ = self.gpui_projection.finish_frame();
         {
             #[cfg(feature = "profiling")]
             let span = tracing::trace_span!(target: "wabou::perf", "quick.widgets.measure");

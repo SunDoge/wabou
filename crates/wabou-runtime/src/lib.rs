@@ -21,6 +21,7 @@ mod config;
 mod effect_trace;
 mod error;
 mod gpui_projection;
+mod gpui_view;
 mod headless_test;
 mod host;
 #[cfg(test)]
@@ -54,6 +55,7 @@ pub mod widget_api;
 pub use applier::{Applier, ComputedNodeSnapshot, HmrDrainResult, ReloadHandle, ReloadMsg};
 pub use config::AppConfig;
 pub use error::{Error, Result};
+pub use gpui_view::GpuiRuntimeView;
 pub use host::{
     HostBuilder, HostService, HostServiceContext, HostServiceHandle, ManagedHostService,
     managed_host_service,

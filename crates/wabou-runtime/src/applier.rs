@@ -583,6 +583,11 @@ impl Applier {
         self.gpui_projection.style(key)
     }
 
+    #[cfg(test)]
+    pub(crate) fn gpui_revision(&self) -> u64 {
+        self.gpui_projection.revision()
+    }
+
     /// Build an applier over an already-booted [`JsRuntime`] (the host owns
     /// boot: `JsRuntime::new().boot(js)` for the static-bundle path, or
     /// `JsRuntime::new_vite(url).boot_vite(entry)` for dev mode).

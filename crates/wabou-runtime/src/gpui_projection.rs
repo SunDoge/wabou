@@ -89,6 +89,13 @@ impl GpuiProjection {
         self.tree.node(key).is_some()
     }
 
+    pub(crate) fn tree_element(
+        &self,
+        root: NodeKey,
+    ) -> Result<wabou_shell_gpui::ProjectedElement, ProjectionError> {
+        self.tree.element(root)
+    }
+
     pub(crate) fn update_style(
         &mut self,
         key: NodeKey,
