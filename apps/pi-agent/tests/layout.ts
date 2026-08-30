@@ -274,11 +274,9 @@ try {
               `assistant copy action detached from response end: response right=${responseRight}, copy right=${copyRight}`,
             );
           }
-          const activityCenter = activity.rect.x + activity.rect.width / 2;
-          const responseCenter = response.rect.x + response.rect.width / 2;
-          if (Math.abs(activityCenter - responseCenter) > 12) {
+          if (Math.abs(activity.rect.x - response.rect.x) > 12) {
             throw new Error(
-              `tool activity separator did not center on the conversation column: activity center=${activityCenter}, response center=${responseCenter}`,
+              `tool activity did not align with the conversation column: activity x=${activity.rect.x}, response x=${response.rect.x}`,
             );
           }
           if (

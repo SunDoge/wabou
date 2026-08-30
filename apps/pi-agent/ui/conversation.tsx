@@ -9,7 +9,6 @@ import {
   type Handle,
   Icon,
   Markdown,
-  Marker,
   Message,
   MessageActions,
   MessageContent,
@@ -285,11 +284,11 @@ export function ToolActivityGroup(props: {
   };
   return (
     <View class="w-full min-w-0 flex flex-col gap-1">
-      <Marker variant="separator" class="gap-3">
+      <View class="w-full min-w-0 flex flex-row items-center">
         <Button
           variant="ghost"
           size="sm"
-          class="h-7 min-w-0 flex-none px-1.5 gap-1.5 text-secondary"
+          class="h-7 min-w-0 max-w-full flex-none px-1.5 gap-1.5 text-secondary"
           aria-label={label()}
           aria-expanded={open()}
           onClick={() => setOpen((value) => !value)}
@@ -312,7 +311,7 @@ export function ToolActivityGroup(props: {
             {label()}
           </Text>
         </Button>
-      </Marker>
+      </View>
       <CollapsiblePresence
         open={open()}
         duration={0.16}
