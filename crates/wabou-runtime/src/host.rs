@@ -1369,7 +1369,7 @@ fn run_gpui_windows(windows: Vec<(Applier, WindowOptions)>) -> crate::Result<()>
             };
             let opened = cx.open_window(gpui_options, move |window, cx| {
                 window.set_window_title(&title);
-                cx.new(|cx| crate::GpuiRuntimeView::new(applier, window, cx))
+                cx.new(|cx| crate::GpuiRuntimeView::new(applier, title, window, cx))
             });
             if let Err(error) = opened {
                 *reported_error.lock().expect("GPUI startup error lock") = Some(error.to_string());
