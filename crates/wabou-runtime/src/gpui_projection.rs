@@ -25,7 +25,12 @@ impl GpuiProjection {
         Self { tree }
     }
 
-    pub(crate) fn apply_frame(&mut self, frame: &Frame<'_>) -> Result<(), ProjectionError> {
+    /// Apply the structural part of one Solid flush without publishing it.
+    ///
+    /// Resolved styles are projected later while the legacy applier processes
+    /// the same frame. `finish_frame` is therefore the only commit point: GPUI
+    /// never observes a newly attached node with the previous/default style.
+    pub(crate) fn apply_ops(&mut self, frame: &Frame<'_>) -> Result<(), ProjectionError> {
         for op in &frame.ops {
             match op {
                 Op::CreateElement { id, .. } => {
@@ -66,8 +71,18 @@ impl GpuiProjection {
                 _ => {}
             }
         }
-        let _ = self.tree.commit();
         Ok(())
+    }
+
+    /// Publish structure, text, and resolved-style changes as one GPUI update.
+    #[must_use]
+    pub(crate) fn finish_frame(&mut self) -> bool {
+        !self.tree.commit().is_empty()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn revision(&self) -> u64 {
+        self.tree.revision()
     }
 
     pub(crate) fn contains(&self, key: NodeKey) -> bool {
@@ -177,7 +192,7 @@ mod tests {
     fn completed_solid_frame_projects_structure_and_text_with_protocol_identity() {
         let mut projection = GpuiProjection::new();
         projection
-            .apply_frame(&Frame {
+            .apply_ops(&Frame {
                 seq: 1,
                 ops: vec![
                     Op::CreateElement {
@@ -204,6 +219,8 @@ mod tests {
             })
             .unwrap();
 
+        assert!(projection.finish_frame());
+
         let tree = projection.tree();
         assert_eq!(tree.node(NodeKey::ROOT).unwrap().children, [key(2)]);
         assert_eq!(tree.node(key(2)).unwrap().children, [key(3)]);
@@ -211,5 +228,41 @@ mod tests {
             tree.node(key(3)).unwrap().text.as_deref(),
             Some("updated once per flush")
         );
+    }
+
+    #[test]
+    fn structure_and_style_publish_in_one_commit() {
+        let mut projection = GpuiProjection::new();
+        let initial_revision = projection.revision();
+        projection
+            .apply_ops(&Frame {
+                seq: 1,
+                ops: vec![
+                    Op::CreateElement {
+                        id: key(2),
+                        tag: Atom::from_raw(1),
+                    },
+                    Op::AppendChild {
+                        parent: NodeKey::ROOT,
+                        child: key(2),
+                    },
+                ],
+            })
+            .unwrap();
+        projection
+            .apply_style_declaration(
+                key(2),
+                "background-color",
+                &IrValue::Color {
+                    value: IrColor::Literal { rgba: 0x4080_bfff },
+                },
+            )
+            .unwrap();
+
+        assert_eq!(projection.revision(), initial_revision);
+        assert!(projection.finish_frame());
+        assert_eq!(projection.revision(), initial_revision + 1);
+        assert!(!projection.finish_frame());
+        assert_eq!(projection.revision(), initial_revision + 1);
     }
 }
