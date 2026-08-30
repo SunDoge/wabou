@@ -65,6 +65,34 @@ fn create_element_with_attrs(applier: &mut Applier, id: u32, tag: Atom, attrs: &
 }
 
 #[test]
+fn duplicate_create_ops_preserve_the_original_retained_node() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let view = applier.document.atoms.borrow_mut().intern("view");
+    let text = applier.document.atoms.borrow_mut().intern("text");
+    let id = nk(2);
+    applier.apply_op(&Op::CreateElement { id, tag: view });
+    let original = applier.document.node_store.solid_to_node[&id];
+    let identity_count = applier.document.node_store.solid_to_node.len();
+
+    applier.apply_op(&Op::CreateElement { id, tag: text });
+    applier.apply_op(&Op::CreateText {
+        id,
+        text: "replacement",
+    });
+
+    assert_eq!(
+        applier.document.node_store.solid_to_node.len(),
+        identity_count
+    );
+    assert_eq!(applier.document.node_store.solid_to_node[&id], original);
+    assert_eq!(applier.document.node_store.node_to_solid[&original], id);
+    let declared = &applier.document.node_store.declared[&original];
+    assert_eq!(declared.tag, Some(view));
+    assert_eq!(declared.text, None);
+}
+
+#[test]
 fn debug_layout_overlay_encodes_visible_scene_geometry() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);

@@ -281,7 +281,10 @@ impl Applier {
             tracing::warn!(atom = tag.get(), "unknown tag atom");
         }
 
-        let node = self.document.node_store.create_leaf(id, declared);
+        let Some(node) = self.document.node_store.create_leaf(id, declared) else {
+            tracing::error!(node = %id, "rejected duplicate or reserved node identity");
+            return;
+        };
         self.recompute_solid(id);
         let Some(mut widget) = self
             .document
@@ -596,7 +599,10 @@ impl Applier {
                     text: Some(Arc::from(*text)),
                     ..Declared::default()
                 };
-                self.document.node_store.create_leaf(id, decl);
+                if self.document.node_store.create_leaf(id, decl).is_none() {
+                    tracing::error!(node = %id, "rejected duplicate or reserved node identity");
+                    return;
+                }
                 self.recompute_solid(id);
             }
             Op::AppendChild { parent, child } => {

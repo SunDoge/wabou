@@ -46,7 +46,13 @@ impl NodeStore {
         self.node_to_solid.get(&node).copied()
     }
 
-    pub(super) fn create_leaf(&mut self, solid_id: NodeKey, declared: Declared) -> NodeId {
+    pub(super) fn create_leaf(&mut self, solid_id: NodeKey, declared: Declared) -> Option<NodeId> {
+        // A NodeKey identifies one retained object for its entire generation.
+        // Replacing the forward mapping would orphan the previous Taffy node
+        // while leaving its reverse mapping, children and paint state alive.
+        if self.solid_to_node.contains_key(&solid_id) {
+            return None;
+        }
         let node = self
             .tree
             .new_leaf(taffy::Style::default())
@@ -55,7 +61,7 @@ impl NodeStore {
         self.node_to_solid.insert(node, solid_id);
         self.declared.insert(node, declared);
         self.children.insert(node, Vec::new());
-        node
+        Some(node)
     }
 
     pub(super) fn append(&mut self, parent: NodeKey, child: NodeKey) -> Option<NodeId> {
@@ -147,7 +153,17 @@ impl NodeStore {
         self.declared.remove(&node);
         self.collapsed_text.remove(&node);
         self.inline_roots.remove(&node);
-        self.children.remove(&node);
+        if let Some(children) = self.children.remove(&node) {
+            // The protocol normally drops a subtree one node at a time. Keep
+            // the store valid after every individual op as well, so a malformed
+            // or interrupted frame cannot leave children pointing at a dead
+            // logical parent.
+            for child in children {
+                if self.logical_parent.get(&child) == Some(&node) {
+                    self.logical_parent.remove(&child);
+                }
+            }
+        }
         self.logical_parent.remove(&node);
         let _ = self.tree.remove(node);
         Some(node)
@@ -222,8 +238,12 @@ mod tests {
     #[test]
     fn owns_bidirectional_identity_and_logical_structure() {
         let mut store = NodeStore::new();
-        let first = store.create_leaf(NodeKey::new(2, 1), Declared::default());
-        let second = store.create_leaf(NodeKey::new(3, 1), Declared::default());
+        let first = store
+            .create_leaf(NodeKey::new(2, 1), Declared::default())
+            .unwrap();
+        let second = store
+            .create_leaf(NodeKey::new(3, 1), Declared::default())
+            .unwrap();
 
         assert_eq!(store.append(NodeKey::ROOT, NodeKey::new(2, 1)), Some(first));
         assert_eq!(
@@ -241,11 +261,45 @@ mod tests {
     }
 
     #[test]
+    fn rejects_duplicate_and_reserved_node_identities_without_orphaning_nodes() {
+        let mut store = NodeStore::new();
+        let key = NodeKey::new(2, 1);
+        let original = store.create_leaf(key, Declared::default()).unwrap();
+        let identity_count = store.solid_to_node.len();
+
+        assert_eq!(store.create_leaf(key, Declared::default()), None);
+        assert_eq!(store.create_leaf(NodeKey::ROOT, Declared::default()), None);
+        assert_eq!(store.solid_to_node.len(), identity_count);
+        assert_eq!(store.solid_to_node[&key], original);
+        assert_eq!(store.node_to_solid[&original], key);
+        assert_structural_invariants(&store);
+    }
+
+    #[test]
+    fn removing_a_parent_detaches_surviving_children_immediately() {
+        let mut store = NodeStore::new();
+        let parent_key = NodeKey::new(2, 1);
+        let child_key = NodeKey::new(3, 1);
+        let parent = store.create_leaf(parent_key, Declared::default()).unwrap();
+        let child = store.create_leaf(child_key, Declared::default()).unwrap();
+        store.append(NodeKey::ROOT, parent_key).unwrap();
+        store.append(parent_key, child_key).unwrap();
+
+        assert_eq!(store.remove(parent_key), Some(parent));
+        assert!(!store.logical_parent.contains_key(&child));
+        assert!(store.children[&child].is_empty());
+        assert_structural_invariants(&store);
+
+        assert_eq!(store.remove(child_key), Some(child));
+        assert_structural_invariants(&store);
+    }
+
+    #[test]
     fn batches_large_sibling_lists_until_layout_projection() {
         let mut store = NodeStore::new();
         for solid_id in 2..=4097 {
             let solid_id = NodeKey::new(solid_id, 1);
-            store.create_leaf(solid_id, Declared::default());
+            store.create_leaf(solid_id, Declared::default()).unwrap();
             assert!(store.append(NodeKey::ROOT, solid_id).is_some());
         }
 
@@ -256,8 +310,12 @@ mod tests {
     #[test]
     fn append_moves_nodes_without_duplicating_them() {
         let mut store = NodeStore::new();
-        let parent = store.create_leaf(NodeKey::new(2, 1), Declared::default());
-        let child = store.create_leaf(NodeKey::new(3, 1), Declared::default());
+        let parent = store
+            .create_leaf(NodeKey::new(2, 1), Declared::default())
+            .unwrap();
+        let child = store
+            .create_leaf(NodeKey::new(3, 1), Declared::default())
+            .unwrap();
 
         store.append(NodeKey::ROOT, NodeKey::new(3, 1));
         store.append(NodeKey::ROOT, NodeKey::new(3, 1));
@@ -272,9 +330,15 @@ mod tests {
     #[test]
     fn insert_before_moves_existing_siblings_in_place() {
         let mut store = NodeStore::new();
-        let first = store.create_leaf(NodeKey::new(2, 1), Declared::default());
-        let second = store.create_leaf(NodeKey::new(3, 1), Declared::default());
-        let third = store.create_leaf(NodeKey::new(4, 1), Declared::default());
+        let first = store
+            .create_leaf(NodeKey::new(2, 1), Declared::default())
+            .unwrap();
+        let second = store
+            .create_leaf(NodeKey::new(3, 1), Declared::default())
+            .unwrap();
+        let third = store
+            .create_leaf(NodeKey::new(4, 1), Declared::default())
+            .unwrap();
         for key in [NodeKey::new(2, 1), NodeKey::new(3, 1), NodeKey::new(4, 1)] {
             store.append(NodeKey::ROOT, key);
         }
@@ -292,8 +356,8 @@ mod tests {
         let mut store = NodeStore::new();
         let parent_key = NodeKey::new(2, 1);
         let child_key = NodeKey::new(3, 1);
-        let parent = store.create_leaf(parent_key, Declared::default());
-        let child = store.create_leaf(child_key, Declared::default());
+        let parent = store.create_leaf(parent_key, Declared::default()).unwrap();
+        let child = store.create_leaf(child_key, Declared::default()).unwrap();
         store.append(NodeKey::ROOT, parent_key);
         store.append(parent_key, child_key);
         let before = store
@@ -321,7 +385,7 @@ mod tests {
                 .chain((2..=9).map(|id| NodeKey::new(id, 1)))
                 .collect::<Vec<_>>();
             for &key in &keys[1..] {
-                store.create_leaf(key, Declared::default());
+                store.create_leaf(key, Declared::default()).unwrap();
             }
 
             for (kind, parent, child, reference) in operations {
