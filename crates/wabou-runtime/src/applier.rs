@@ -588,6 +588,11 @@ impl Applier {
         self.gpui_projection.revision()
     }
 
+    #[cfg(test)]
+    pub(crate) fn gpui_contains(&self, key: NodeKey) -> bool {
+        self.gpui_projection.contains(key)
+    }
+
     /// Build an applier over an already-booted [`JsRuntime`] (the host owns
     /// boot: `JsRuntime::new().boot(js)` for the static-bundle path, or
     /// `JsRuntime::new_vite(url).boot_vite(entry)` for dev mode).

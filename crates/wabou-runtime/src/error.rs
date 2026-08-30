@@ -49,6 +49,13 @@ pub enum Error {
         source: wabou_shell::Error,
     },
 
+    /// GPUI shell configuration or startup failed during migration.
+    #[snafu(display("GPUI window host failed: {message}"))]
+    GpuiShell {
+        /// Human-readable GPUI integration diagnostic.
+        message: String,
+    },
+
     /// Effect recording or replay failed validation or I/O.
     #[snafu(display("effect trace failed: {message}"))]
     EffectTrace {

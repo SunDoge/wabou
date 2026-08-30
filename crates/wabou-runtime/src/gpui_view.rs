@@ -55,3 +55,29 @@ impl Render for GpuiRuntimeView {
             .expect("the canonical Wabou root remains retained")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::JsRuntime;
+    use wabou_host_api::NodeKey;
+
+    #[test]
+    fn real_solid_writer_frame_materializes_as_a_gpui_tree() {
+        let runtime = JsRuntime::new().expect("QuickJS runtime");
+        let mut applier = Applier::from_runtime(runtime, vello::peniko::Color::TRANSPARENT);
+        applier
+            .boot(include_str!("gen/test-runtime.js"))
+            .expect("boot generated Solid runtime fixture");
+
+        assert!(applier.build_gpui_frame(800, 600));
+        assert_eq!(applier.protocol_revision(), 1);
+        assert!(
+            applier.gpui_contains(NodeKey::new(2, 1)),
+            "the fixture's mounted <main> must cross the binary writer boundary"
+        );
+        let _root = applier
+            .gpui_element()
+            .expect("the completed Solid tree must materialize for GPUI");
+    }
+}

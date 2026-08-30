@@ -661,6 +661,7 @@ impl RuntimeSourceConfig {
 
 /// Application-facing builder for windows, widgets, capabilities, and tooling.
 pub struct HostBuilder {
+    shell_backend: HostShellBackend,
     base_color: Color,
     window: WindowOptions,
     additional_windows: Vec<WindowOptions>,
@@ -676,6 +677,16 @@ pub struct HostBuilder {
     kv_enabled: bool,
     image_resources: crate::ImageResourceStore,
     js_runtime_options: crate::JsRuntimeOptions,
+}
+
+/// Native shell selected for an application host.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum HostShellBackend {
+    /// Existing Winit + AnyRender backend retained during migration.
+    #[default]
+    Winit,
+    /// GPUI-CE owns windows, layout, text, input, and painting.
+    Gpui,
 }
 
 impl Default for HostBuilder {
@@ -695,6 +706,7 @@ impl HostBuilder {
     /// Create a builder using an image registry also owned by application Rust code.
     pub fn with_image_resources(image_resources: crate::ImageResourceStore) -> Self {
         let builder = Self {
+            shell_backend: HostShellBackend::Winit,
             base_color: style::parse_color("#0f172a")
                 .unwrap_or_else(|| Color::from_rgb8(0x0f, 0x17, 0x2a)),
             window: WindowOptions::default(),
@@ -759,6 +771,15 @@ impl HostBuilder {
                 async move { Ok::<_, String>(resources.remove(handle)) }
             })
         })
+    }
+
+    /// Select the native shell implementation.
+    ///
+    /// GPUI is available during the migration so applications can validate
+    /// the new retained projection without changing their Solid code.
+    pub fn shell_backend(mut self, backend: HostShellBackend) -> Self {
+        self.shell_backend = backend;
+        self
     }
 
     /// Register or override a widget factory for `tag`. When the SolidJS app
@@ -1010,6 +1031,19 @@ impl HostBuilder {
     }
 
     fn run_once(mut self) -> crate::Result<crate::RunOutcome> {
+        if let Ok(shell) = std::env::var("WABOU_SHELL") {
+            self.shell_backend = match shell.as_str() {
+                "winit" => HostShellBackend::Winit,
+                "gpui" => HostShellBackend::Gpui,
+                _ => {
+                    return Err(crate::Error::GpuiShell {
+                        message: format!(
+                            "unknown WABOU_SHELL value `{shell}`; expected `gpui` or `winit`"
+                        ),
+                    });
+                }
+            };
+        }
         #[cfg(feature = "rust-hot-reload")]
         dioxus_devtools::connect_subsecond();
 
@@ -1197,6 +1231,31 @@ impl HostBuilder {
         };
         #[cfg(feature = "vite")]
         let mut hmr_clients = Vec::new();
+        if self.shell_backend == HostShellBackend::Gpui {
+            if !self.extensions.is_empty() {
+                return Err(crate::Error::GpuiShell {
+                    message: "shell extensions have not migrated to GPUI yet".into(),
+                });
+            }
+            let mut gpui_sources = Vec::with_capacity(windows.len());
+            for (index, options) in windows.into_iter().enumerate() {
+                let window_key = wabou_shell::initial_window_resource_key(index);
+                #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
+                let mut applier = runtime_sources.create(window_key, &options)?;
+                #[cfg(feature = "vite")]
+                if let Some(client) = runtime_sources.start_hmr(&mut applier)? {
+                    hmr_clients.push(client);
+                }
+                gpui_sources.push((applier, options));
+            }
+            run_gpui_windows(gpui_sources)?;
+            #[cfg(feature = "vite")]
+            drop(hmr_clients);
+            #[cfg(feature = "devtools")]
+            drop(devtools_server);
+            services.finish()?;
+            return Ok(crate::RunOutcome::Exit);
+        }
         let mut sources = Vec::with_capacity(windows.len());
         for (index, options) in windows.into_iter().enumerate() {
             let window_key = wabou_shell::initial_window_resource_key(index);
@@ -1275,6 +1334,58 @@ impl HostBuilder {
         drop(devtools_server);
         services.finish()?;
         Ok(outcome)
+    }
+}
+
+fn run_gpui_windows(windows: Vec<(Applier, WindowOptions)>) -> crate::Result<()> {
+    use wabou_shell_gpui::gpui::{AppContext as _, px, size};
+
+    let startup_error = Arc::new(std::sync::Mutex::new(None));
+    let reported_error = startup_error.clone();
+    wabou_shell_gpui::application().run(move |cx| {
+        for (applier, options) in windows {
+            let bounds = wabou_shell_gpui::gpui::Bounds::centered(
+                None,
+                size(
+                    px(options.initial_inner_size.0 as f32),
+                    px(options.initial_inner_size.1 as f32),
+                ),
+                cx,
+            );
+            let title = options.title.clone();
+            let gpui_options = wabou_shell_gpui::gpui::WindowOptions {
+                window_bounds: Some(wabou_shell_gpui::gpui::WindowBounds::Windowed(bounds)),
+                titlebar: options.decorations.then(Default::default),
+                is_resizable: options.resizable,
+                window_min_size: options
+                    .min_inner_size
+                    .map(|(width, height)| size(px(width as f32), px(height as f32))),
+                window_background: if options.transparent {
+                    wabou_shell_gpui::gpui::WindowBackgroundAppearance::Transparent
+                } else {
+                    wabou_shell_gpui::gpui::WindowBackgroundAppearance::Opaque
+                },
+                ..Default::default()
+            };
+            let opened = cx.open_window(gpui_options, move |window, cx| {
+                window.set_window_title(&title);
+                cx.new(|_| crate::GpuiRuntimeView::new(applier))
+            });
+            if let Err(error) = opened {
+                *reported_error.lock().expect("GPUI startup error lock") = Some(error.to_string());
+                cx.quit();
+                return;
+            }
+        }
+        cx.activate(true);
+    });
+    match startup_error
+        .lock()
+        .expect("GPUI startup error lock")
+        .take()
+    {
+        Some(message) => Err(crate::Error::GpuiShell { message }),
+        None => Ok(()),
     }
 }
 
