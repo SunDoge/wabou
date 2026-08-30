@@ -187,8 +187,8 @@ Commands that compile the application host accept Cargo-style feature
 forwarding. Values may be comma-separated or supplied more than once:
 
 ```bash
-bun run wabou run apps/gallery --features renderer-skia
-bun run wabou test apps/gallery --features diagnostics,renderer-skia
+bun run wabou run apps/gallery --features diagnostics
+bun run wabou test apps/gallery --features diagnostics
 ```
 
 `--features` is forwarded to the application package for `check`, `dev`,

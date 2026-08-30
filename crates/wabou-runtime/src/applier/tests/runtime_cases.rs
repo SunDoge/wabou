@@ -296,8 +296,7 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
                 r#"
             globalThis.created = __wabou_test_host_api.createWindow({
               title: "Child", width: 640, height: 480,
-              resizable: false, decorations: false, transparent: true,
-              renderer: "skia"
+              resizable: false, decorations: false, transparent: true
             }).then(created => {
               created.setTitle("Renamed");
               created.minimize();
@@ -333,7 +332,6 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
             assert!(!options.resizable);
             assert!(!options.decorations);
             assert!(options.transparent);
-            assert_eq!(options.renderer, wabou_shell_gpui::RendererBackend::Skia);
             request
         }
         None => panic!("missing create-window effect"),

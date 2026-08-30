@@ -1,25 +1,23 @@
 # Rendering roadmap
 
-Wabou records text, paths, gradients, images, clipping, transforms, shadows,
-SVGs, and native widgets into an AnyRender scene. Vello Classic is the default
-window and image backend; Skia is available behind the optional
-`renderer-skia` feature and `WindowOptions::renderer` selection. Unsupported
-backends fail explicitly instead of silently falling back.
+GPUI-CE is Wabou's sole public application runtime and owns the production
+window, text, layout, input, and rendering lifecycle. Applications do not
+select a renderer through a Cargo feature or `WindowOptions`: such a switch
+would imply compatible implementations where none exist.
 
 Backend behavior was first evaluated with the isolated
 [`experiments/anyrender-backends`](../experiments/anyrender-backends/README.md)
-harness. The same contract now owns Wabou's production frame scene, while the
-harness remains useful for focused backend comparisons.
+harness. That AnyRender implementation now lives under explicitly named
+`wabou-backend-winit-*` crates and remains useful only as a migration oracle,
+headless fixture renderer, and focused backend comparison.
 
 ## Deferred work
 
 ### Vello Hybrid backend
 
-Add Vello Hybrid as a separate AnyRender backend before replacing Vello Classic.
-The migration must preserve Wabou's text, image, SVG icon, clipping, rounded
-corner, transparency, and HiDPI fixtures. Wabou's canonical scene and SVG path
-are now backend-neutral, so remaining work is a capability matrix and pixel
-comparisons for the subset used by Wabou.
+Evaluate Vello Hybrid inside GPUI when GPUI exposes a suitable integration
+boundary. The migration must preserve Wabou's text, image, SVG icon, clipping,
+rounded corner, transparency, and HiDPI fixtures.
 
 Do not switch the default backend until the required imaging features and APIs
 are sufficiently stable upstream.

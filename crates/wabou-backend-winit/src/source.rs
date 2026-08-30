@@ -19,9 +19,7 @@ use crate::text::TextContext;
 use anyrender::Scene;
 
 pub use wabou_shell_api::event::*;
-pub use wabou_shell_api::{
-    RendererBackend, WindowCommand, WindowInputMode, WindowLevel, WindowOptions,
-};
+pub use wabou_shell_api::{WindowCommand, WindowInputMode, WindowLevel, WindowOptions};
 
 /// Retained UI producer consumed by the native shell.
 ///
@@ -157,7 +155,7 @@ pub trait FrameSource {
 
 #[cfg(test)]
 mod tests {
-    use super::{Modifiers, RendererBackend, WindowInputMode, WindowLevel, WindowOptions};
+    use super::{Modifiers, WindowInputMode, WindowLevel, WindowOptions};
 
     #[test]
     fn modifier_flags_match_host_protocol_bits() {
@@ -178,7 +176,6 @@ mod tests {
             .resizable(false)
             .decorations(false)
             .transparent(true)
-            .renderer(RendererBackend::Skia)
             .window_level(WindowLevel::AlwaysOnTop)
             .input_mode(WindowInputMode::Passthrough);
         assert_eq!(options.title, "Inspector");
@@ -187,8 +184,6 @@ mod tests {
         assert!(!options.resizable);
         assert!(!options.decorations);
         assert!(options.transparent);
-        assert_eq!(options.renderer, RendererBackend::Skia);
-        assert_eq!(serde_json::to_value(options.renderer).unwrap(), "skia");
         assert_eq!(options.window_level, WindowLevel::AlwaysOnTop);
         assert_eq!(options.input_mode, WindowInputMode::Passthrough);
     }

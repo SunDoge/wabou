@@ -32,10 +32,9 @@ pub use wabou_shell_api::{
     EffectExecutor, EffectId, EffectOp, EffectPayload, EffectRequest, EffectResult, EffectScope,
     EffectTapeEntry, MenuPosition, MessageDialogButtons, MessageDialogLevel, MessageDialogRequest,
     MethodId, NotificationRequest, OpenDialogRequest, PickDirectoryRequest,
-    RecordingEffectExecutor, RendererBackend, ReplayEffectExecutor, SaveDialogRequest,
-    WindowCapabilities, WindowCommand, WindowCreateRequest, WindowEffect, WindowInputMode,
-    WindowIntent, WindowLevel, WindowLifecycle, WindowOptions, WindowPresence, WindowResourceKey,
-    initial_window_resource_key,
+    RecordingEffectExecutor, ReplayEffectExecutor, SaveDialogRequest, WindowCapabilities,
+    WindowCommand, WindowCreateRequest, WindowEffect, WindowInputMode, WindowIntent, WindowLevel,
+    WindowLifecycle, WindowOptions, WindowPresence, WindowResourceKey, initial_window_resource_key,
 };
 pub use wabou_shell_api::{app_dirs, effect, event, window, window_lifecycle};
 pub use window_state::WindowSizePersistence;

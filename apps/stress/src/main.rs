@@ -6,19 +6,12 @@
 //! Run with `wabou dev stress` or package with `wabou build stress`.
 
 use snafu::{ResultExt, Whatever};
-#[cfg(feature = "renderer-skia")]
-use wabou::RendererBackend;
 use wabou::{HostBuilder, WindowOptions};
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
     HostBuilder::new()
-        .window({
-            let options = WindowOptions::new().initial_inner_size(800, 600);
-            #[cfg(feature = "renderer-skia")]
-            let options = options.renderer(RendererBackend::Skia);
-            options
-        })
+        .window(WindowOptions::new().initial_inner_size(800, 600))
         .run()
         .whatever_context("failed to run stress application")
 }

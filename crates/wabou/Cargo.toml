@@ -18,7 +18,6 @@ wabou-tray = { workspace = true, optional = true }
 bindings = ["wabou-bindgen/generate"]
 devtools = ["wabou-runtime/devtools"]
 profiling = ["wabou-runtime/profiling"]
-renderer-skia = ["wabou-runtime/renderer-skia"]
 rust-hot-reload = ["wabou-runtime/rust-hot-reload"]
 tray = ["dep:wabou-tray"]
 vite = ["wabou-runtime/vite"]

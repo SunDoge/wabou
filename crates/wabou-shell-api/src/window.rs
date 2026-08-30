@@ -26,19 +26,6 @@ pub enum WindowInputMode {
     Passthrough,
 }
 
-/// Renderer selected by the legacy Winit backend.
-///
-/// GPUI ignores this transitional field because GPUI owns its renderer.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum RendererBackend {
-    /// Vello's compute renderer through AnyRender.
-    #[default]
-    Vello,
-    /// Skia through AnyRender.
-    Skia,
-}
-
 /// Requested properties used when creating a native window.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,9 +46,6 @@ pub struct WindowOptions {
     pub window_level: WindowLevel,
     /// Requested initial pointer hit-test behavior.
     pub input_mode: WindowInputMode,
-    /// Renderer used only by the legacy backend.
-    #[serde(default)]
-    pub renderer: RendererBackend,
 }
 
 impl Default for WindowOptions {
@@ -75,7 +59,6 @@ impl Default for WindowOptions {
             transparent: false,
             window_level: WindowLevel::Normal,
             input_mode: WindowInputMode::Interactive,
-            renderer: RendererBackend::Vello,
         }
     }
 }
@@ -131,12 +114,6 @@ impl WindowOptions {
     /// Set the initial pointer hit-test behavior.
     pub fn input_mode(mut self, input_mode: WindowInputMode) -> Self {
         self.input_mode = input_mode;
-        self
-    }
-
-    /// Select the renderer used by the legacy backend.
-    pub fn renderer(mut self, renderer: RendererBackend) -> Self {
-        self.renderer = renderer;
         self
     }
 }

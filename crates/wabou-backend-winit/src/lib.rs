@@ -17,6 +17,7 @@ pub mod error;
 pub mod headless;
 pub mod image;
 pub mod layout;
+mod legacy_renderer;
 pub mod renderer;
 mod renderer_backend;
 pub mod scene;
@@ -48,16 +49,17 @@ pub use effect::{
     SaveDialogRequest, WindowResourceKey, initial_window_resource_key,
 };
 pub use error::{Error, Result};
+pub use legacy_renderer::RendererBackend;
 pub use shell::Shell;
 pub use shortcut::StandardShortcut;
 pub use source::{
     AppLifecycleEvent, ClipboardRequest, ColorScheme, EventResponse, FileDropEvent, FileDropPhase,
     FrameSource, FrameStats, GestureEvent, GesturePhase, HostAction, HostActionResult, ImeEvent,
     KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent, PointerId,
-    PointerPhase, PointerProperties, PointerType, RendererBackend, ScreenshotRequest,
-    SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
-    SemanticStates, SemanticToggleState, UiEvent, WHEEL_LINE_DELTA, WakeCallback, WheelDeltaMode,
-    WheelEvent, WindowCommand, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
+    PointerPhase, PointerProperties, PointerType, ScreenshotRequest, SemanticAction,
+    SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot, SemanticStates,
+    SemanticToggleState, UiEvent, WHEEL_LINE_DELTA, WakeCallback, WheelDeltaMode, WheelEvent,
+    WindowCommand, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
 };
 pub use text::TextContext;
 pub use widget::{

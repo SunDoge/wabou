@@ -77,7 +77,10 @@ impl Shell {
         window.set_visible(true);
         let surface_width = physical_size.width.max(1);
         let surface_height = physical_size.height.max(1);
-        let mut renderer = AnyWindowRenderer::new(options.renderer, options.transparent)?;
+        let mut renderer = AnyWindowRenderer::new(
+            crate::RendererBackend::Vello,
+            options.transparent,
+        )?;
         renderer.resume(window.clone(), surface_width, surface_height);
 
         Ok(Shell {

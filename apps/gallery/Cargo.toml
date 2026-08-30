@@ -19,6 +19,3 @@ snafu = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 wabou = { workspace = true, features = ["bindings"] }
-
-[features]
-renderer-skia = ["wabou/renderer-skia"]

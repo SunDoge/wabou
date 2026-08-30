@@ -22,8 +22,6 @@ export interface CreateWindowOptions {
   decorations?: boolean;
   /** Preserve rendered alpha when the platform compositor supports it. */
   transparent?: boolean;
-  /** Select a renderer compiled into the Rust host. */
-  renderer?: "vello" | "skia";
   /** Initial native stacking request. Wayland generally ignores non-normal levels. */
   windowLevel?: "alwaysOnBottom" | "normal" | "alwaysOnTop";
   /** Allow pointer input to pass through this native window where supported. */

@@ -188,13 +188,6 @@ pub(super) fn decode_effect_payload(
             if let Some(transparent) = value.get("transparent").and_then(|value| value.as_bool()) {
                 options = options.transparent(transparent);
             }
-            if let Some(renderer) = value.get("renderer").and_then(|value| value.as_str()) {
-                options = options.renderer(match renderer {
-                    "skia" => wabou_shell_gpui::RendererBackend::Skia,
-                    "vello" => wabou_shell_gpui::RendererBackend::Vello,
-                    value => return invalid(format!("unknown renderer backend `{value}`")),
-                });
-            }
             if let Some(window_level) = value.get("windowLevel").and_then(|value| value.as_str()) {
                 options = options.window_level(match window_level {
                     "alwaysOnBottom" => wabou_shell_gpui::WindowLevel::AlwaysOnBottom,

@@ -35,47 +35,12 @@ The handle can close, minimize, maximize, retitle, or begin dragging that
 specific window. `useWindow()`
 returns the current runtime's reactive metrics plus the same controls.
 
-## Rendering backend
+## Rendering runtime
 
-Wabou records normal UI and native-widget fragments into one AnyRender scene.
-Vello remains the default renderer:
-
-```rust
-use wabou::{HostBuilder, RendererBackend, WindowOptions};
-
-HostBuilder::new()
-    .window(WindowOptions::new().renderer(RendererBackend::Vello))
-    .run()?;
-```
-
-Skia is optional because it materially increases compile time and binary
-dependencies. Enable the facade feature and select it explicitly:
-
-```toml
-[dependencies]
-wabou = { git = "https://github.com/SunDoge/wabou", features = ["renderer-skia"] }
-```
-
-```rust
-HostBuilder::new()
-    .window(WindowOptions::new().renderer(RendererBackend::Skia))
-    .run()?;
-```
-
-Selecting Skia without compiling `renderer-skia` returns a startup error rather
-than silently falling back. This keeps renderer choice observable and
-reproducible.
-
-Secondary windows can make the same explicit choice with
-`createWindow({ renderer: "skia" })`. The selected backend must be compiled
-into the Rust host; otherwise creation rejects instead of falling back.
-
-Applications that expose a `renderer-skia` Cargo feature can test the backend
-through Wabou's CLI without invoking Cargo separately:
-
-```bash
-wabou run apps/gallery --features renderer-skia
-```
+GPUI-CE owns the window and renderer lifecycle. `WindowOptions` configures
+window behavior; it does not expose a renderer selector. The former
+winit/AnyRender implementation is retained under `wabou-backend-winit-*` for
+migration tests and renderer experiments, not as an application backend.
 
 ## Sizing and responsive layout
 

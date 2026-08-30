@@ -76,7 +76,6 @@ ureq = { version = "3.3", optional = true }
 default = []
 devtools = ["dep:wabou-devtools"]
 profiling = ["dep:tracing-chrome", "wabou-backend-winit/profiling"]
-renderer-skia = ["wabou-backend-winit/renderer-skia"]
 rust-hot-reload = ["dep:dioxus-devtools"]
 # Live vite dev-server integration (module fetching + HMR). Step 2.
 vite = ["dep:tungstenite", "dep:ureq"]

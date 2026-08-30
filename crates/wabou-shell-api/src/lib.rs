@@ -20,7 +20,7 @@ pub use effect::{
     SaveDialogRequest, WindowCreateRequest, WindowResourceKey, initial_window_resource_key,
 };
 pub use event::*;
-pub use window::{RendererBackend, WindowCommand, WindowInputMode, WindowLevel, WindowOptions};
+pub use window::{WindowCommand, WindowInputMode, WindowLevel, WindowOptions};
 pub use window_lifecycle::{
     WindowCapabilities, WindowEffect, WindowIntent, WindowLifecycle, WindowPresence,
 };
