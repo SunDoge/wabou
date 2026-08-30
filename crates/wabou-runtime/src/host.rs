@@ -532,7 +532,7 @@ struct RuntimeSourceConfig {
     js_runtime_options: crate::JsRuntimeOptions,
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
-    widget_factories: HashMap<String, WidgetFactory>,
+    legacy_widget_factories: HashMap<String, WidgetFactory>,
     native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
     base_color: Color,
     #[cfg(feature = "devtools")]
@@ -663,7 +663,7 @@ impl RuntimeSourceConfig {
         })?;
         let mut applier = LegacyRuntimeController::from_runtime_with_factories_and_window(
             js,
-            self.widget_factories.clone(),
+            self.legacy_widget_factories.clone(),
             if window_options.transparent {
                 Color::TRANSPARENT
             } else {
@@ -732,18 +732,31 @@ impl RuntimeSourceConfig {
     }
 }
 
+struct LegacyHostConfig {
+    widget_factories: HashMap<String, WidgetFactory>,
+    extensions: Vec<Box<dyn ShellExtension>>,
+}
+
+impl Default for LegacyHostConfig {
+    fn default() -> Self {
+        Self {
+            widget_factories: builtin_factories(),
+            extensions: Vec::new(),
+        }
+    }
+}
+
 /// Application-facing builder for windows, widgets, capabilities, and tooling.
 pub struct HostBuilder {
     base_color: Color,
     window: WindowOptions,
     additional_windows: Vec<WindowOptions>,
-    widget_factories: HashMap<String, WidgetFactory>,
+    legacy: LegacyHostConfig,
     native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
     services: Vec<(Arc<dyn HostService>, bool)>,
     devtools: bool,
-    extensions: Vec<Box<dyn ShellExtension>>,
     application_extensions: Vec<Box<dyn gpui_shell::ApplicationExtension>>,
     effect_trace: Option<EffectTraceConfig>,
     app_directory_config: Option<gpui_shell::AppDirectoryConfig>,
@@ -774,13 +787,12 @@ impl HostBuilder {
                 .unwrap_or_else(|| Color::from_rgb8(0x0f, 0x17, 0x2a)),
             window: WindowOptions::default(),
             additional_windows: Vec::new(),
-            widget_factories: builtin_factories(),
+            legacy: LegacyHostConfig::default(),
             native_widget_factories: HashMap::new(),
             capabilities: Vec::new(),
             host_message_producers: Vec::new(),
             services: Vec::new(),
             devtools: cfg!(all(debug_assertions, feature = "devtools")),
-            extensions: Vec::new(),
             application_extensions: Vec::new(),
             effect_trace: None,
             app_directory_config: None,
@@ -1180,7 +1192,8 @@ impl HostBuilder {
             self.capabilities
                 .push(Arc::new(move |js| capability_controller.mount(js)));
             if !headless_test {
-                self.extensions
+                self.legacy
+                    .extensions
                     .push(Box::new(crate::test_driver::TestDriver::new(
                         controller.clone(),
                     )));
@@ -1241,7 +1254,7 @@ impl HostBuilder {
                         &mut self.window,
                     );
                     // Observe close before a tray extension consumes the request.
-                    self.extensions.insert(0, Box::new(persistence));
+                    self.legacy.extensions.insert(0, Box::new(persistence));
                 }
             } else {
                 tracing::warn!(
@@ -1298,7 +1311,7 @@ impl HostBuilder {
             js_runtime_options: self.js_runtime_options,
             capabilities: self.capabilities.clone(),
             host_message_producers: self.host_message_producers.clone(),
-            widget_factories: self.widget_factories.clone(),
+            legacy_widget_factories: self.legacy.widget_factories.clone(),
             native_widget_factories: self.native_widget_factories.clone(),
             base_color: self.base_color,
             #[cfg(feature = "devtools")]
@@ -1310,7 +1323,7 @@ impl HostBuilder {
         #[cfg(feature = "vite")]
         let mut hmr_clients = Vec::new();
         if !legacy_behavior_harness {
-            if !self.extensions.is_empty() {
+            if !self.legacy.extensions.is_empty() {
                 return Err(crate::Error::GpuiShell {
                     message: "shell extensions have not migrated to GPUI yet".into(),
                 });
@@ -1405,7 +1418,7 @@ impl HostBuilder {
         });
 
         let run_result =
-            run_windows_with_factory_and_extensions(sources, Some(factory), self.extensions)
+            run_windows_with_factory_and_extensions(sources, Some(factory), self.legacy.extensions)
                 .context(crate::error::ShellSnafu);
         let trace_result =
             if recording_effects && let (Some(trace), Some(path)) = (&effect_trace, trace_path) {
