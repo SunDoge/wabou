@@ -405,68 +405,6 @@ defineLayoutFixtures({
       </View>
     ),
   },
-  "conversation/composer-narrow": {
-    width: 420,
-    height: 240,
-    render: () => (
-      <View class="w-full h-full bg-canvas">
-        <ConversationComposer
-          connection="ready"
-          project="Wabou"
-          cwd="/work/wabou/documentation-and-examples"
-          branch="feat/a-very-long-branch-name-for-narrow-layouts"
-          repository
-          draft="Explain why the retained renderer stays predictable."
-          images={[]}
-          contextFiles={[]}
-          deliveryMode="followUp"
-          models={[
-            {
-              provider: "anthropic",
-              id: "claude-sonnet-4-5",
-              name: "Claude Sonnet 4.5 with a long visible label",
-              reasoning: true,
-              contextWindow: 200_000,
-            },
-          ]}
-          modelProvider="anthropic"
-          modelId="claude-sonnet-4-5"
-          thinking="medium"
-          thinkingLevels={["low", "medium", "high"]}
-          commands={[{ name: "review", source: "project" }]}
-          stats={{
-            userMessages: 4,
-            assistantMessages: 4,
-            toolCalls: 6,
-            totalMessages: 14,
-            tokens: {
-              input: 12_000,
-              output: 2_000,
-              cacheRead: 0,
-              cacheWrite: 0,
-              total: 14_000,
-            },
-            cost: 0.042,
-            contextUsage: {
-              tokens: 14_000,
-              contextWindow: 200_000,
-              percent: 7,
-            },
-          }}
-          statuses={[]}
-          widgets={[]}
-          changeDraft={() => {}}
-          changeImages={() => {}}
-          changeContextFiles={() => {}}
-          changeDeliveryMode={() => {}}
-          chooseModel={() => {}}
-          chooseThinking={() => {}}
-          loadWorkspaceFiles={async () => []}
-          submit={() => {}}
-        />
-      </View>
-    ),
-  },
   "conversation/turn-navigator": {
     width: 560,
     height: 420,

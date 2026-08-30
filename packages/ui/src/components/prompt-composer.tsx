@@ -10,6 +10,12 @@ export interface PromptComposerProps extends Omit<ViewProps, "class"> {
   surfaceClass?: string;
 }
 
+export interface PromptComposerRowProps extends Omit<ViewProps, "class"> {
+  class?: string;
+  /** Allow controls to form additional rows when the embedding surface opts in. */
+  wrap?: boolean;
+}
+
 export function promptComposerClass(
   focused: boolean,
   invalid: boolean,
@@ -72,13 +78,17 @@ export function PromptComposerStatus(props: ViewProps): JSX.Element {
 }
 
 /** Responsive action row below the authored prompt. */
-export function PromptComposerToolbar(props: ViewProps): JSX.Element {
+export function PromptComposerToolbar(
+  props: PromptComposerRowProps,
+): JSX.Element {
+  const forwarded = omit(props, "class", "wrap");
   return (
     <View
-      {...props}
+      {...forwarded}
       role={props.role ?? "toolbar"}
       class={mergeClasses(
-        "w-full min-w-0 flex flex-row flex-wrap items-center justify-between gap-1.5",
+        "w-full min-w-0 flex flex-row flex-nowrap items-center justify-between gap-1.5",
+        props.wrap && "flex-wrap",
         props.class,
       )}
     />
@@ -86,13 +96,17 @@ export function PromptComposerToolbar(props: ViewProps): JSX.Element {
 }
 
 /** Shrink-safe group for the composer tools preceding its primary action. */
-export function PromptComposerTools(props: ViewProps): JSX.Element {
+export function PromptComposerTools(
+  props: PromptComposerRowProps,
+): JSX.Element {
+  const forwarded = omit(props, "class", "wrap");
   return (
     <View
-      {...props}
+      {...forwarded}
       role={props.role ?? "group"}
       class={mergeClasses(
-        "min-w-0 flex-1 flex flex-row flex-wrap items-center gap-0.5",
+        "min-w-0 flex-1 flex flex-row flex-nowrap items-center gap-0.5",
+        props.wrap && "flex-wrap",
         props.class,
       )}
     />

@@ -33,7 +33,10 @@ test("prompt composer owns one focus-aware compound surface", () => {
   expect(
     screen.getByRole("toolbar", { name: "Prompt controls" }),
   ).toBeDefined();
-  expect(screen.getByRole("group", { name: "Prompt tools" })).toBeDefined();
+  const toolbar = screen.getByRole("toolbar", { name: "Prompt controls" });
+  const tools = screen.getByRole("group", { name: "Prompt tools" });
+  expect(toolbar.className).toContain("flex-nowrap");
+  expect(tools.className).toContain("flex-nowrap");
 
   editor.focus();
   expect(composer.className).toContain("border-focus");
@@ -41,6 +44,23 @@ test("prompt composer owns one focus-aware compound surface", () => {
 
   editor.blur();
   expect(composer.className).toContain("border-subtle");
+});
+
+test("composer rows only wrap when the embedding surface opts in", () => {
+  const screen = renderComponent(() => (
+    <PromptComposerToolbar wrap aria-label="Adaptive prompt controls">
+      <PromptComposerTools wrap aria-label="Adaptive prompt tools" />
+    </PromptComposerToolbar>
+  ));
+
+  const toolbar = screen.getByRole("toolbar", {
+    name: "Adaptive prompt controls",
+  });
+  const tools = screen.getByRole("group", { name: "Adaptive prompt tools" });
+  expect(toolbar.className).toContain("flex-wrap");
+  expect(toolbar.className).not.toContain("flex-nowrap");
+  expect(tools.className).toContain("flex-wrap");
+  expect(tools.className).not.toContain("flex-nowrap");
 });
 
 test("invalid prompt composer takes precedence over focus styling", () => {

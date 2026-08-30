@@ -8171,23 +8171,25 @@ function PromptComposerStatus(props) {
 }
 /** Responsive action row below the authored prompt. */
 function PromptComposerToolbar(props) {
-	return createComponent$1(View, mergeProps(props, {
+	const forwarded = omit(props, "class", "wrap");
+	return createComponent$1(View, mergeProps(forwarded, {
 		get role() {
 			return props.role ?? "toolbar";
 		},
 		get ["class"]() {
-			return mergeClasses("w-full min-w-0 flex flex-row flex-wrap items-center justify-between gap-1.5", props.class);
+			return mergeClasses("w-full min-w-0 flex flex-row flex-nowrap items-center justify-between gap-1.5", props.wrap && "flex-wrap", props.class);
 		}
 	}));
 }
 /** Shrink-safe group for the composer tools preceding its primary action. */
 function PromptComposerTools(props) {
-	return createComponent$1(View, mergeProps(props, {
+	const forwarded = omit(props, "class", "wrap");
+	return createComponent$1(View, mergeProps(forwarded, {
 		get role() {
 			return props.role ?? "group";
 		},
 		get ["class"]() {
-			return mergeClasses("min-w-0 flex-1 flex flex-row flex-wrap items-center gap-0.5", props.class);
+			return mergeClasses("min-w-0 flex-1 flex flex-row flex-nowrap items-center gap-0.5", props.wrap && "flex-wrap", props.class);
 		}
 	}));
 }

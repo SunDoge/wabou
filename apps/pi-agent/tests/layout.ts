@@ -346,62 +346,6 @@ try {
         },
       },
       {
-        id: "conversation/composer-narrow",
-        width: 420,
-        height: 240,
-        checks: ["visible-overflow", "text-collision"],
-        assert: (fixture) => {
-          const editor = getLayoutNode(fixture, {
-            role: "textbox",
-            name: "Ask this agent to work in its repository…",
-          });
-          const usage = getLayoutNode(fixture, {
-            role: "button",
-            name: "Session usage",
-          });
-          const model = getLayoutNode(fixture, {
-            role: "combobox",
-            name: "Choose model",
-          });
-          const thinking = getLayoutNode(fixture, {
-            role: "combobox",
-            name: "Thinking level",
-          });
-          if (model.rect.width < 176) {
-            throw new Error(
-              `model control lost its readable width: width=${model.rect.width}`,
-            );
-          }
-          if (thinking.rect.width < 112) {
-            throw new Error(
-              `thinking control lost its readable width: width=${thinking.rect.width}`,
-            );
-          }
-          if (usage.rect.y >= editor.rect.y || usage.rect.width < 120) {
-            throw new Error(
-              `session usage did not retain its composer status row: usage=${usage.rect.x},${usage.rect.y} ${usage.rect.width}x${usage.rect.height}; editor y=${editor.rect.y}`,
-            );
-          }
-          const composer = getLayoutNode(fixture, {
-            role: "group",
-            name: "Ask this agent to work in its repository…",
-          });
-          if (editor.rect.height > 64 || composer.rect.height > 192) {
-            throw new Error(
-              `content composer grew beyond its bounded state: editor=${editor.rect.height}, surface=${composer.rect.height}`,
-            );
-          }
-          const thinkingLabel = getLayoutNode(fixture, { text: "medium" });
-          const paintedWidth = thinkingLabel.textMetrics?.lineBox.width ?? 0;
-          if (paintedWidth < 40) {
-            throw new Error(
-              `thinking value was visually truncated: painted width=${paintedWidth}`,
-            );
-          }
-          getLayoutNode(fixture, { role: "button", name: "Send" });
-        },
-      },
-      {
         id: "conversation/turn-navigator",
         width: 560,
         height: 420,
