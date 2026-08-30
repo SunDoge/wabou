@@ -1,8 +1,8 @@
 use motrix_wabou::downloads;
 use snafu::{ResultExt, Whatever};
 use wabou::{
-    AppDirectoryConfig, Color, HostBuilder, HostMessage, HostMessageRouter, HostShellBackend,
-    WindowOptions, initial_window_resource_key,
+    AppDirectoryConfig, Color, HostBuilder, HostMessage, HostMessageRouter, WindowOptions,
+    initial_window_resource_key,
 };
 use wabou::{SystemTray, TrayImage};
 
@@ -51,7 +51,7 @@ fn main() -> Result<(), Whatever> {
     let tray = SystemTray::new(tray_icon())
         .tooltip("Motrix")
         .item("motrix.show", "Open Motrix", move |context| {
-            context.show_window(main_window);
+            context.show_primary_window();
         })
         .separator()
         .item("motrix.quit", "Quit Motrix", move |_context| {
@@ -65,11 +65,8 @@ fn main() -> Result<(), Whatever> {
                 tracing::warn!(?error, "could not enqueue quit request");
             }
         })
-        .hide_window_on_close(main_window);
+        .hide_window_on_close();
     let mut host = HostBuilder::new()
-        // System tray lifecycle is the last shell extension still hosted by
-        // the reference Winit backend.
-        .shell_backend(HostShellBackend::LegacyWinit)
         .base_color(Color::TRANSPARENT)
         .app_directory_config(directory_config)
         .persist_window_size("main")
@@ -85,7 +82,7 @@ fn main() -> Result<(), Whatever> {
             downloads::mount(capability, capability_service.clone())
         })
         .native_capability(downloads::NATIVE_CAPABILITY, downloads::mount_native)
-        .extension(tray)
+        .application_extension(tray)
         .host_message_router(application_messages)
         .host_message_producer(move |context| {
             downloads::stream_snapshots(context, stream_service.clone())

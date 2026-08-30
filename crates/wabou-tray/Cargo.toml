@@ -1,0 +1,14 @@
+[package]
+name = "wabou-tray"
+version.workspace = true
+edition = "2024"
+description = "GPUI application tray integration for Wabou."
+license.workspace = true
+
+[dependencies]
+flume.workspace = true
+tray-icon = { version = "0.24.2", default-features = false, features = ["gtk"] }
+wabou-shell-gpui.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18.2"
