@@ -35,8 +35,10 @@ use vello::peniko::{Color, Fill};
 #[cfg(test)]
 use wabou_runtime::{Widget, WidgetEventResult, WidgetNodeEvent, WidgetStyle, event};
 #[cfg(test)]
-use wabou_shell::style::Paint;
-use wabou_shell::text::{TextContext, layout_text_styled};
+use wabou_shell::{
+    style::Paint,
+    text::{TextContext, layout_text_styled},
+};
 use wabou_shell_api::{
     HostAction, HostActionResult, ImeEvent, KeyPhase, Modifiers, PointerButton, PointerPhase,
     UiEvent, WHEEL_LINE_DELTA, WakeCallback,
@@ -702,34 +704,6 @@ impl TerminalWidget {
         if let Some(send) = &self.pty_send {
             send(Msg::Resize(size.winsize()));
         }
-    }
-
-    fn update_font_metrics(&mut self, tcx: &mut TextContext) {
-        if !self.metrics_dirty {
-            return;
-        }
-        let layout = layout_text_styled(
-            tcx,
-            Arc::from("0"),
-            self.font_size,
-            400.0,
-            false,
-            None,
-            Default::default(),
-            [255, 255, 255, 255],
-            Arc::from([]),
-            Some(&self.font_family),
-            None,
-        );
-        let advance = layout.width();
-        if advance.is_finite() && advance > 0.0 {
-            self.cell_width = advance;
-        }
-        self.line_height = self.explicit_line_height.map_or_else(
-            || (layout.height() * 1.1).max(self.font_size),
-            |line_height| line_height.max(self.font_size),
-        );
-        self.metrics_dirty = false;
     }
 
     fn handle_rio_events(&mut self) -> bool {

@@ -1,6 +1,7 @@
 use super::*;
 use crate::session::{TerminalInputResult, TerminalInvalidation};
 use wabou_runtime::{Widget, WidgetChanges, WidgetEventResult, WidgetNodeEvent, WidgetStyle};
+use wabou_shell::text::{TextContext, layout_text_styled};
 
 impl TerminalInputResult {
     fn into_legacy(self) -> WidgetEventResult {
@@ -88,6 +89,30 @@ fn terminal_scene(width: f32, height: f32, background: Color) -> Scene {
 }
 
 impl TerminalWidget {
+    fn update_legacy_font_metrics(&mut self, tcx: &mut TextContext) {
+        if !self.metrics_dirty {
+            return;
+        }
+        let layout = layout_text_styled(
+            tcx,
+            Arc::from("0"),
+            self.font_size,
+            400.0,
+            false,
+            None,
+            Default::default(),
+            [255, 255, 255, 255],
+            Arc::from([]),
+            Some(&self.font_family),
+            None,
+        );
+        let line_height = self.explicit_line_height.map_or_else(
+            || (layout.height() * 1.1).max(self.font_size),
+            |line_height| line_height.max(self.font_size),
+        );
+        self.set_font_metrics(layout.width(), line_height);
+    }
+
     /// Apply one terminal configuration attribute independently of a shell
     /// widget trait. Native adapters translate the returned invalidation into
     /// their own layout and paint scheduling model.
@@ -396,7 +421,7 @@ impl TerminalWidget {
 
 impl Widget for TerminalWidget {
     fn measure(&mut self, cx: &mut wabou_shell::MeasureContext<'_>) -> Option<[f32; 2]> {
-        self.update_font_metrics(cx.text());
+        self.update_legacy_font_metrics(cx.text());
         self.intrinsic_size()
     }
 
@@ -404,7 +429,7 @@ impl Widget for TerminalWidget {
         let [width, height] = cx.size();
         let device_scale = cx.device_scale();
         let tcx = cx.text();
-        self.update_font_metrics(tcx);
+        self.update_legacy_font_metrics(tcx);
         self.resize(width, height, device_scale);
         self.ensure_launched();
         self.tick_selection_autoscroll();

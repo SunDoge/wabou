@@ -76,6 +76,18 @@ impl TerminalInvalidation {
 }
 
 impl TerminalWidget {
+    /// Update renderer-measured cell metrics without exposing a backend text
+    /// context to the terminal session.
+    pub fn set_font_metrics(&mut self, cell_width: f32, line_height: f32) {
+        if cell_width.is_finite() && cell_width > 0.0 {
+            self.cell_width = cell_width;
+        }
+        if line_height.is_finite() && line_height > 0.0 {
+            self.line_height = line_height.max(self.font_size);
+        }
+        self.metrics_dirty = false;
+    }
+
     pub(super) fn apply_native_attribute(
         &mut self,
         name: &str,

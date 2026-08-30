@@ -201,16 +201,29 @@ impl gpui::Render for GpuiTerminal {
                         let entity = entity.clone();
                         move |bounds, window, cx| {
                             entity.update(cx, |state, _cx| {
-                                let frame = state.terminal.snapshot_frame(
-                                    bounds.size.width.into(),
-                                    bounds.size.height.into(),
-                                    window.scale_factor() as f64,
-                                );
                                 let style = gpui::TextStyle {
                                     color: gpui::rgb_to_hsla(gpui::rgb(0xe5e7eb)),
                                     font_family: "monospace".into(),
                                     ..Default::default()
                                 };
+                                let font_size = gpui::px(state.terminal.font_size);
+                                let sample: gpui::SharedString = "0".into();
+                                let sample_run = style.to_run(sample.len());
+                                let sample = window.text_system().shape_line(
+                                    sample,
+                                    font_size,
+                                    &[sample_run],
+                                    None,
+                                );
+                                state.terminal.set_font_metrics(
+                                    sample.width().into(),
+                                    state.terminal.line_height,
+                                );
+                                let frame = state.terminal.snapshot_frame(
+                                    bounds.size.width.into(),
+                                    bounds.size.height.into(),
+                                    window.scale_factor() as f64,
+                                );
                                 let font_size = gpui::px(frame.font_size);
                                 let shaped = frame
                                     .lines
