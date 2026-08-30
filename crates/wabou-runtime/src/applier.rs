@@ -534,66 +534,9 @@ impl LegacyRuntimeController {
             gpui_shell::ProjectedInputEvent::Wheel(event) => {
                 self.gpui.handle_projected_wheel(event)
             }
-            gpui_shell::ProjectedInputEvent::Key(event) => self.handle_gpui_key(event),
-            gpui_shell::ProjectedInputEvent::Ime(event) => self.handle_gpui_ime(event),
+            gpui_shell::ProjectedInputEvent::Key(event) => self.gpui.handle_projected_key(event),
+            gpui_shell::ProjectedInputEvent::Ime(event) => self.gpui.handle_projected_ime(event),
         }
-    }
-
-    fn handle_gpui_key(&mut self, event: gpui_shell::ProjectedKeyEvent) -> EventResponse {
-        let mut modifiers = Modifiers::empty();
-        modifiers.set(Modifiers::SHIFT, event.shift);
-        modifiers.set(Modifiers::CONTROL, event.control);
-        modifiers.set(Modifiers::ALT, event.alt);
-        modifiers.set(Modifiers::META, event.platform);
-        let phase = match event.phase {
-            gpui_shell::ProjectedKeyPhase::Down => KeyPhase::Down,
-            gpui_shell::ProjectedKeyPhase::Up => KeyPhase::Up,
-        };
-        let text = (phase == KeyPhase::Down
-            && !event.control
-            && !event.platform
-            && !self.gpui_text_input_state().accepts_text)
-            .then(|| event.key_char.clone())
-            .flatten()
-            .filter(|text| text.chars().any(|character| !character.is_control()));
-        let mut response = FrameSource::handle_event(
-            self,
-            UiEvent::Key(gpui_shell::KeyEvent {
-                phase,
-                key: event.key_char.clone().unwrap_or_else(|| event.key.clone()),
-                key_without_modifiers: event.key.clone(),
-                // GPUI-CE exposes a stable layout-independent key here, but no
-                // separate physical scan code or keyboard section.
-                code: event.key,
-                text: event.key_char.clone(),
-                text_with_all_modifiers: event.key_char,
-                location: gpui_shell::KeyLocation::Standard,
-                modifiers,
-                repeat: event.repeat,
-                synthetic: false,
-            }),
-        );
-        if let Some(text) = text.filter(|_| !response.consume_key_text) {
-            let committed = FrameSource::handle_event(self, UiEvent::TextInput(text));
-            response.handled |= committed.handled;
-            response.request_redraw |= committed.request_redraw;
-            response.consume_key_text |= committed.consume_key_text;
-            response.text_input = committed.text_input.or(response.text_input);
-            if committed.clipboard.is_some() {
-                response.clipboard = committed.clipboard;
-            }
-        }
-        response
-    }
-
-    fn handle_gpui_ime(&mut self, event: gpui_shell::ProjectedImeEvent) -> EventResponse {
-        let event = match event {
-            gpui_shell::ProjectedImeEvent::Commit(text) => gpui_shell::ImeEvent::Commit(text),
-            gpui_shell::ProjectedImeEvent::Preedit { text, cursor } => {
-                gpui_shell::ImeEvent::Preedit { text, cursor }
-            }
-        };
-        FrameSource::handle_event(self, UiEvent::Ime(event))
     }
 
     pub(crate) fn gpui_text_input_state(&self) -> gpui_shell::ProjectedTextInputState {

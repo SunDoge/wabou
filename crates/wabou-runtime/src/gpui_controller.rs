@@ -560,6 +560,123 @@ impl GpuiController {
         changed
     }
 
+    pub fn handle_projected_key(
+        &mut self,
+        input: gpui_shell::ProjectedKeyEvent,
+    ) -> gpui_shell::EventResponse {
+        let Some(target) = self.focused_target else {
+            return gpui_shell::EventResponse::default();
+        };
+        let mut modifiers = gpui_shell::Modifiers::empty();
+        modifiers.set(gpui_shell::Modifiers::SHIFT, input.shift);
+        modifiers.set(gpui_shell::Modifiers::CONTROL, input.control);
+        modifiers.set(gpui_shell::Modifiers::ALT, input.alt);
+        modifiers.set(gpui_shell::Modifiers::META, input.platform);
+        let payload = serde_json::json!({
+            "key": input.key_char.as_deref().unwrap_or(&input.key),
+            "keyWithoutModifiers": input.key,
+            "code": input.key,
+            "location": 0,
+            "mods": modifiers.bits(),
+            "primary": modifiers.primary_shortcut(),
+            "repeat": input.repeat,
+            "synthetic": false,
+        })
+        .to_string();
+        let (event_code, cancellable) = match input.phase {
+            gpui_shell::ProjectedKeyPhase::Down => (wabou_protocol::event::KEYDOWN, true),
+            gpui_shell::ProjectedKeyPhase::Up => (wabou_protocol::event::KEYUP, false),
+        };
+        let (mut handled, prevented) = self
+            .dispatch_node_json(target, event_code, payload, cancellable)
+            .unwrap_or((false, false));
+        let accepts_text = self.text_input_state().accepts_text;
+        if input.phase == gpui_shell::ProjectedKeyPhase::Down
+            && !prevented
+            && !accepts_text
+            && !input.control
+            && !input.platform
+            && let Some(text) = input
+                .key_char
+                .filter(|text| text.chars().any(|character| !character.is_control()))
+        {
+            handled |= self.dispatch_text_commit(target, text, "keyboard");
+        }
+        gpui_shell::EventResponse {
+            handled,
+            request_redraw: handled,
+            consume_key_text: prevented,
+            text_input: Some(accepts_text),
+            clipboard: None,
+        }
+    }
+
+    pub fn handle_projected_ime(
+        &mut self,
+        input: gpui_shell::ProjectedImeEvent,
+    ) -> gpui_shell::EventResponse {
+        let Some(target) = self.focused_target else {
+            return gpui_shell::EventResponse::default();
+        };
+        let handled = match input {
+            gpui_shell::ProjectedImeEvent::Commit(text) => {
+                self.dispatch_text_commit(target, text, "ime")
+            }
+            gpui_shell::ProjectedImeEvent::Preedit { text, cursor } => {
+                let (cursor_start, cursor_end) = cursor
+                    .map(|(start, end)| (Some(start), Some(end)))
+                    .unwrap_or((None, None));
+                self.dispatch_node_json(
+                    target,
+                    wabou_protocol::event::IMEPREEDIT,
+                    serde_json::json!({
+                        "data": text,
+                        "cursorStart": cursor_start,
+                        "cursorEnd": cursor_end,
+                    })
+                    .to_string(),
+                    false,
+                )
+                .map(|result| result.0)
+                .unwrap_or(false)
+            }
+        };
+        gpui_shell::EventResponse {
+            handled,
+            request_redraw: handled,
+            text_input: Some(self.text_input_state().accepts_text),
+            ..gpui_shell::EventResponse::default()
+        }
+    }
+
+    pub fn dispatch_paste(&mut self, text: String) -> gpui_shell::EventResponse {
+        let Some(target) = self.focused_target else {
+            return gpui_shell::EventResponse::default();
+        };
+        let handled = self.dispatch_text_commit(target, text, "paste");
+        gpui_shell::EventResponse {
+            handled,
+            request_redraw: handled,
+            ..gpui_shell::EventResponse::default()
+        }
+    }
+
+    fn dispatch_text_commit(
+        &mut self,
+        target: wabou_host_api::NodeKey,
+        text: String,
+        source: &str,
+    ) -> bool {
+        self.dispatch_node_json(
+            target,
+            wabou_protocol::event::IMECOMMIT,
+            serde_json::json!({ "data": text, "source": source }).to_string(),
+            false,
+        )
+        .map(|result| result.0)
+        .unwrap_or(false)
+    }
+
     /// Monotonically increasing count of non-empty JS-to-host frames.
     pub fn protocol_revision(&self) -> u64 {
         self.runtime.protocol_revision

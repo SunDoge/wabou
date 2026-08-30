@@ -362,10 +362,6 @@ impl Applier {
         FrameSource::poll_async(self)
     }
 
-    pub(crate) fn dispatch_runtime_event(&mut self, event: UiEvent) -> EventResponse {
-        FrameSource::handle_event(self, event)
-    }
-
     pub(crate) fn take_runtime_host_action(&mut self) -> Option<gpui_shell::HostAction> {
         self.gpui.take_runtime_host_action()
     }

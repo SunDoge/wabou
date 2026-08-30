@@ -17,7 +17,7 @@ use gpui_shell::gpui::{
 use crate::LegacyRuntimeController;
 use gpui_shell::{
     ClipboardRequest, EffectCompletion, EffectErrorCode, EffectPayload, EffectRequest,
-    EffectResult, HostAction, HostActionResult, UiEvent, WindowCommand,
+    EffectResult, HostAction, HostActionResult, WindowCommand,
 };
 
 /// A coarse GPUI entity for one Solid application runtime.
@@ -234,7 +234,7 @@ impl GpuiRuntimeView {
                         .and_then(|clipboard| clipboard.text())
                         .filter(|text| !text.is_empty());
                     if let Some(text) = text {
-                        let pasted = self.controller.dispatch_runtime_event(UiEvent::Paste(text));
+                        let pasted = self.controller.dispatch_paste(text);
                         response.handled |= pasted.handled;
                         response.request_redraw |= pasted.request_redraw;
                     }
