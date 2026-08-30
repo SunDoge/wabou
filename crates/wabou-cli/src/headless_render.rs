@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -83,14 +83,35 @@ struct LayoutBatchManifest {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct LayoutBatchCase {
     id: String,
-    #[serde(default = "default_layout_width")]
-    width: u32,
-    #[serde(default = "default_layout_height")]
-    height: u32,
-    #[serde(default = "default_scale_factor")]
-    scale_factor: f64,
+    #[serde(default)]
+    width: Option<u32>,
+    #[serde(default)]
+    height: Option<u32>,
+    #[serde(default)]
+    scale_factor: Option<f64>,
     #[serde(default)]
     wait_ms: Option<u64>,
+}
+
+impl LayoutBatchCase {
+    fn inherit(&mut self, fixture: &Self) {
+        self.width = self.width.or(fixture.width);
+        self.height = self.height.or(fixture.height);
+        self.scale_factor = self.scale_factor.or(fixture.scale_factor);
+        self.wait_ms = self.wait_ms.or(fixture.wait_ms);
+    }
+
+    fn width(&self) -> u32 {
+        self.width.unwrap_or_else(default_layout_width)
+    }
+
+    fn height(&self) -> u32 {
+        self.height.unwrap_or_else(default_layout_height)
+    }
+
+    fn scale_factor(&self) -> f64 {
+        self.scale_factor.unwrap_or_else(default_scale_factor)
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -317,16 +338,27 @@ fn run_layout_batch(
     if manifest.all && !manifest.cases.is_empty() {
         return Err("layout batch manifest cannot combine `all` with explicit cases".into());
     }
+    let encoded = applier
+        .eval_string(
+            "typeof globalThis.__wabou_layout_fixture_cases === 'function' \
+                ? globalThis.__wabou_layout_fixture_cases() \
+                : JSON.stringify(JSON.parse(globalThis.__wabou_layout_fixture_ids()).map(id => ({ id })))",
+        )
+        .map_err(|error| format!("failed to list layout fixtures: {error:?}"))?;
+    let registered: Vec<LayoutBatchCase> = serde_json::from_str(&encoded)
+        .map_err(|error| format!("layout fixture registry returned invalid cases: {error}"))?;
     if manifest.all {
-        let encoded = applier
-            .eval_string(
-                "typeof globalThis.__wabou_layout_fixture_cases === 'function' \
-                    ? globalThis.__wabou_layout_fixture_cases() \
-                    : JSON.stringify(JSON.parse(globalThis.__wabou_layout_fixture_ids()).map(id => ({ id })))",
-            )
-            .map_err(|error| format!("failed to list layout fixtures: {error:?}"))?;
-        manifest.cases = serde_json::from_str(&encoded)
-            .map_err(|error| format!("layout fixture registry returned invalid cases: {error}"))?;
+        manifest.cases = registered;
+    } else {
+        let registered = registered
+            .iter()
+            .map(|case| (case.id.as_str(), case))
+            .collect::<HashMap<_, _>>();
+        for case in &mut manifest.cases {
+            if let Some(fixture) = registered.get(case.id.as_str()) {
+                case.inherit(fixture);
+            }
+        }
     }
     if manifest.cases.is_empty() {
         return Err("layout batch manifest must contain at least one case".into());
@@ -339,14 +371,14 @@ fn run_layout_batch(
         if !ids.insert(case.id.clone()) {
             return Err(format!("duplicate layout batch case id `{}`", case.id).into());
         }
-        if case.width == 0 || case.height == 0 {
+        if case.width() == 0 || case.height() == 0 {
             return Err(format!(
                 "layout batch case `{}` requires non-zero width and height",
                 case.id
             )
             .into());
         }
-        if !case.scale_factor.is_finite() || case.scale_factor <= 0.0 {
+        if !case.scale_factor().is_finite() || case.scale_factor() <= 0.0 {
             return Err(format!(
                 "layout batch case `{}` requires a finite scaleFactor greater than zero",
                 case.id
@@ -360,6 +392,9 @@ fn run_layout_batch(
     let mut text = TextContext::new();
     for case in manifest.cases {
         let case_started = Instant::now();
+        let width = case.width();
+        let height = case.height();
+        let scale_factor = case.scale_factor();
         // The JS fixture harness disposes the preceding Solid owner. Resetting
         // the native projection as well prevents focus, scrolling, widgets,
         // and resources from surviving a malformed fixture cleanup.
@@ -368,20 +403,20 @@ fn run_layout_batch(
         applier
             .eval_script_diagnostic(&format!("globalThis.__wabou_layout_fixture_mount({id});"))
             .map_err(|error| format!("failed to mount layout fixture `{}`: {error}", case.id))?;
-        applier.set_device_scale(case.scale_factor);
-        let physical_width = (f64::from(case.width) * case.scale_factor)
+        applier.set_device_scale(scale_factor);
+        let physical_width = (f64::from(width) * scale_factor)
             .round()
             .clamp(1.0, f64::from(u32::MAX)) as u32;
-        let physical_height = (f64::from(case.height) * case.scale_factor)
+        let physical_height = (f64::from(height) * scale_factor)
             .round()
             .clamp(1.0, f64::from(u32::MAX)) as u32;
         applier.handle_event(UiEvent::WindowMetrics(wabou_shell::WindowMetrics {
             window_key,
-            logical_width: case.width,
-            logical_height: case.height,
+            logical_width: width,
+            logical_height: height,
             physical_width,
             physical_height,
-            scale_factor: case.scale_factor,
+            scale_factor,
             maximized: false,
             focused: true,
             outer_x: None,
@@ -389,19 +424,19 @@ fn run_layout_batch(
             occluded: false,
             color_scheme: Some(color_scheme.shell()),
         }));
-        let mut nodes = applier.build_frame(&mut text, case.width, case.height);
-        settle(applier, &mut text, &mut nodes, case.width, case.height);
+        let mut nodes = applier.build_frame(&mut text, width, height);
+        settle(applier, &mut text, &mut nodes, width, height);
         let case_wait_ms = case.wait_ms.unwrap_or(wait_ms);
         if case_wait_ms > 0 {
             let deadline = Instant::now() + Duration::from_millis(case_wait_ms);
             while Instant::now() < deadline {
                 thread::sleep(Duration::from_millis(10));
-                nodes = applier.build_frame(&mut text, case.width, case.height);
+                nodes = applier.build_frame(&mut text, width, height);
             }
         }
         // Force publication of the exact frame captured for this case.
         applier.set_debug_state(debug_state.clone());
-        let _ = applier.build_frame(&mut text, case.width, case.height);
+        let _ = applier.build_frame(&mut text, width, height);
         let state = debug_state
             .read()
             .map_err(|_| "headless debug snapshot lock was poisoned")?;
@@ -814,7 +849,7 @@ fn host_capture_scenario_source(
 
 #[cfg(test)]
 mod tests {
-    use super::{host_capture_scenario_source, prepare_frontend};
+    use super::{LayoutBatchCase, host_capture_scenario_source, prepare_frontend};
     use crate::project::App;
     use std::path::Path;
 
@@ -832,6 +867,31 @@ mod tests {
         assert!(authored < settle);
         assert!(source.contains("setTimeout(resolve, 250)"));
         assert!(source.contains("{ timeout: 5250 }"));
+    }
+
+    #[test]
+    fn selected_layout_case_inherits_fixture_metadata() {
+        let fixture = LayoutBatchCase {
+            id: "component/PromptSuggestion".into(),
+            width: Some(420),
+            height: Some(260),
+            scale_factor: Some(2.0),
+            wait_ms: Some(20),
+        };
+        let mut selected = LayoutBatchCase {
+            id: fixture.id.clone(),
+            width: None,
+            height: Some(300),
+            scale_factor: None,
+            wait_ms: None,
+        };
+
+        selected.inherit(&fixture);
+
+        assert_eq!(selected.width(), 420);
+        assert_eq!(selected.height(), 300);
+        assert_eq!(selected.scale_factor(), 2.0);
+        assert_eq!(selected.wait_ms, Some(20));
     }
 
     #[test]
