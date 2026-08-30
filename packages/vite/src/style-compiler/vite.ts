@@ -61,6 +61,8 @@ export interface ColorContrastDiagnostic {
   background: string;
   ratio: number;
   minimum: number;
+  /** Nearest opaque sRGB foreground, along a black/white mixing path, that passes. */
+  suggestedColor?: string;
 }
 
 const TEXT_CONTRAST_PAIRS = [
@@ -122,6 +124,53 @@ function colorContrastRatio(
   );
 }
 
+function opaqueColor(red: number, green: number, blue: number): number {
+  return (
+    ((Math.round(red * 255) << 24) |
+      (Math.round(green * 255) << 16) |
+      (Math.round(blue * 255) << 8) |
+      0xff) >>> 0
+  );
+}
+
+function formatOpaqueColor(color: number): string {
+  return `#${(color >>> 8).toString(16).padStart(6, "0")}`;
+}
+
+function passingForegroundSuggestion(
+  foreground: number,
+  background: number,
+  minimum: number,
+): string | undefined {
+  const [red, green, blue] = colorChannels(foreground);
+  const candidates: { color: number; distance: number }[] = [];
+  for (const target of [0, 1]) {
+    const endpoint = opaqueColor(target, target, target);
+    if ((colorContrastRatio(endpoint, background) ?? 0) < minimum) continue;
+    let low = 0;
+    let high = 1;
+    for (let index = 0; index < 24; index++) {
+      const amount = (low + high) / 2;
+      const candidate = opaqueColor(
+        red + (target - red) * amount,
+        green + (target - green) * amount,
+        blue + (target - blue) * amount,
+      );
+      if ((colorContrastRatio(candidate, background) ?? 0) >= minimum)
+        high = amount;
+      else low = amount;
+    }
+    const color = opaqueColor(
+      red + (target - red) * high,
+      green + (target - green) * high,
+      blue + (target - blue) * high,
+    );
+    candidates.push({ color, distance: high });
+  }
+  candidates.sort((left, right) => left.distance - right.distance);
+  return candidates[0] ? formatOpaqueColor(candidates[0].color) : undefined;
+}
+
 /** Audit semantic text pairs that official components render as normal-sized text. */
 export function auditColorThemeContrast(
   themes?: CompiledColorThemes,
@@ -143,6 +192,11 @@ export function auditColorThemeContrast(
           background,
           ratio,
           minimum,
+          suggestedColor: passingForegroundSuggestion(
+            foregroundColor,
+            backgroundColor,
+            minimum,
+          ),
         });
       }
     }
@@ -478,8 +532,11 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
         ],
       });
       for (const diagnostic of contrastDiagnostics) {
+        const suggestion = diagnostic.suggestedColor
+          ? `; try ${diagnostic.suggestedColor}`
+          : "";
         config.logger.warn(
-          `[wabou-style] ${diagnostic.theme}.${diagnostic.foreground} has ${diagnostic.ratio.toFixed(2)}:1 contrast on ${diagnostic.background}; expected at least ${diagnostic.minimum}:1 for normal text`,
+          `[wabou-style] ${diagnostic.theme}.${diagnostic.foreground} has ${diagnostic.ratio.toFixed(2)}:1 contrast on ${diagnostic.background}; expected at least ${diagnostic.minimum}:1 for normal text${suggestion}`,
         );
       }
     },

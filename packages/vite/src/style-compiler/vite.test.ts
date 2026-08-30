@@ -156,6 +156,7 @@ describe("utility source extraction", () => {
       }),
     ]);
     expect(auditColorThemeContrast(themes)[0]?.ratio).toBeCloseTo(2.91, 2);
+    expect(auditColorThemeContrast(themes)[0]?.suggestedColor).toBe("#717171");
   });
 
   test("only exposes explicit JSX class props to UnoCSS", () => {

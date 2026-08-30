@@ -67,6 +67,33 @@ function colorContrastRatio(foreground, background) {
 	]);
 	return (Math.max(foregroundLuminance, backgroundLuminance) + .05) / (Math.min(foregroundLuminance, backgroundLuminance) + .05);
 }
+function opaqueColor(red, green, blue) {
+	return (Math.round(red * 255) << 24 | Math.round(green * 255) << 16 | Math.round(blue * 255) << 8 | 255) >>> 0;
+}
+function formatOpaqueColor(color) {
+	return `#${(color >>> 8).toString(16).padStart(6, "0")}`;
+}
+function passingForegroundSuggestion(foreground, background, minimum) {
+	const [red, green, blue] = colorChannels(foreground);
+	const candidates = [];
+	for (const target of [0, 1]) {
+		if ((colorContrastRatio(opaqueColor(target, target, target), background) ?? 0) < minimum) continue;
+		let low = 0;
+		let high = 1;
+		for (let index = 0; index < 24; index++) {
+			const amount = (low + high) / 2;
+			if ((colorContrastRatio(opaqueColor(red + (target - red) * amount, green + (target - green) * amount, blue + (target - blue) * amount), background) ?? 0) >= minimum) high = amount;
+			else low = amount;
+		}
+		const color = opaqueColor(red + (target - red) * high, green + (target - green) * high, blue + (target - blue) * high);
+		candidates.push({
+			color,
+			distance: high
+		});
+	}
+	candidates.sort((left, right) => left.distance - right.distance);
+	return candidates[0] ? formatOpaqueColor(candidates[0].color) : void 0;
+}
 /** Audit semantic text pairs that official components render as normal-sized text. */
 function auditColorThemeContrast(themes, minimum = 4.5) {
 	if (!themes) return [];
@@ -81,7 +108,8 @@ function auditColorThemeContrast(themes, minimum = 4.5) {
 			foreground,
 			background,
 			ratio,
-			minimum
+			minimum,
+			suggestedColor: passingForegroundSuggestion(foregroundColor, backgroundColor, minimum)
 		});
 	}
 	return diagnostics;
@@ -291,7 +319,10 @@ function wabouStylePlugin(options) {
 				presets: [presetWabou()],
 				rules: [[/^(?:bg|text|border)-(.+)$/, ([, token]) => semanticTokens.has(token) ? { "--wabou-semantic-color": token } : void 0]]
 			});
-			for (const diagnostic of contrastDiagnostics) config.logger.warn(`[wabou-style] ${diagnostic.theme}.${diagnostic.foreground} has ${diagnostic.ratio.toFixed(2)}:1 contrast on ${diagnostic.background}; expected at least ${diagnostic.minimum}:1 for normal text`);
+			for (const diagnostic of contrastDiagnostics) {
+				const suggestion = diagnostic.suggestedColor ? `; try ${diagnostic.suggestedColor}` : "";
+				config.logger.warn(`[wabou-style] ${diagnostic.theme}.${diagnostic.foreground} has ${diagnostic.ratio.toFixed(2)}:1 contrast on ${diagnostic.background}; expected at least ${diagnostic.minimum}:1 for normal text${suggestion}`);
+			}
 		},
 		async buildStart() {
 			const workspacePackages = await findWorkspacePackages(options.root);
