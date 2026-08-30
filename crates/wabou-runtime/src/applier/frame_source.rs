@@ -258,20 +258,8 @@ impl Applier {
     /// GPUI performs layout and paint itself; the legacy Taffy/Parley frame is
     /// intentionally not built here.
     pub(crate) fn build_gpui_frame(&mut self, width: u32, height: u32) -> bool {
-        if !self.advance_runtime_frame(width, height) {
-            return false;
-        }
-        if self
-            .document
-            .invalidation
-            .contains(InvalidationFlags::INHERIT)
-        {
-            self.inherit();
-            self.document
-                .invalidation
-                .remove(InvalidationFlags::INHERIT);
-        }
-        self.gpui.projection_mut().finish_frame()
+        let _ = (width, height);
+        self.gpui.advance_frame()
     }
 
     #[cfg(test)]

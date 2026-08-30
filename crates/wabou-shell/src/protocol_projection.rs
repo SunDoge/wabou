@@ -448,6 +448,25 @@ impl GpuiProjection {
         Ok(true)
     }
 
+    pub fn set_ordered_color_palette(&mut self, colors: Vec<u32>) -> Result<bool, String> {
+        let mut tokens = self
+            .stylesheet
+            .as_ref()
+            .and_then(|sheet| sheet.color_themes.as_ref())
+            .and_then(|themes| themes.themes.get(&themes.default))
+            .map(|theme| theme.colors.keys().cloned().collect::<Vec<_>>())
+            .ok_or_else(|| "stylesheet does not declare color theme tokens".to_owned())?;
+        tokens.sort_unstable();
+        if tokens.len() != colors.len() {
+            return Err(format!(
+                "color palette has {} values but stylesheet declares {} tokens",
+                colors.len(),
+                tokens.len()
+            ));
+        }
+        self.set_color_palette(tokens.into_iter().zip(colors).collect())
+    }
+
     fn recompute_all_styles(&mut self) -> Result<(), String> {
         let keys = self
             .tree

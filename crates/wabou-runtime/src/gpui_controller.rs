@@ -782,6 +782,77 @@ impl GpuiController {
         }
     }
 
+    fn drain_application_messages(&mut self) {
+        let messages = self.runtime.host_message_inbox.drain_batch();
+        if messages.is_empty() {
+            return;
+        }
+        let events = messages
+            .into_iter()
+            .map(HostEvent::Application)
+            .collect::<Vec<_>>();
+        if let Err(error) = self.dispatch_host_frame(&events) {
+            tracing::error!(target: "host_message", ?error, "failed to dispatch application messages");
+        }
+    }
+
+    fn drain_projection_updates(&mut self) {
+        if let Some(update) = self.take_stylesheet_update() {
+            match update {
+                StylesheetUpdate::Ir(sheet) => {
+                    for diagnostic in &sheet.diagnostics {
+                        tracing::warn!(target: "stylesheet", %diagnostic);
+                    }
+                    if let Err(error) = self.install_stylesheet(sheet) {
+                        tracing::error!(target: "stylesheet", %error, "failed to install GPUI stylesheet");
+                    }
+                }
+            }
+        }
+        if let Some(name) = self.take_color_theme()
+            && let Err(error) = self.select_color_theme(&name)
+        {
+            tracing::warn!(target: "stylesheet", %name, %error, "failed to select GPUI color theme");
+        }
+        if let Some(colors) = self.take_color_palette()
+            && let Err(error) = self.projection.set_ordered_color_palette(colors)
+        {
+            tracing::warn!(target: "stylesheet", %error, "failed to install GPUI color palette");
+        }
+    }
+
+    /// Advance one complete Solid flush and publish its retained GPUI tree.
+    pub fn advance_frame(&mut self) -> bool {
+        self.prepare_js_tick();
+        let _ = self.drain_hmr();
+        self.drain_application_messages();
+        self.drain_projection_updates();
+        let bytes = match self.tick_js() {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                self.fail_js_tick();
+                tracing::error!(target: "bridge", ?error, "GPUI JavaScript tick failed");
+                return false;
+            }
+        };
+        if !bytes.is_empty() {
+            match decode_frame(&bytes) {
+                Ok(frame) => {
+                    self.record_protocol_frame();
+                    if let Err(error) = self.apply_frame(&frame) {
+                        tracing::error!(target: "bridge", ?error, "failed to project GPUI protocol frame");
+                    }
+                }
+                Err(error) => {
+                    tracing::error!(target: "bridge", %error, "failed to decode GPUI protocol frame")
+                }
+            }
+        }
+        self.finish_js_tick();
+        self.drain_projection_updates();
+        self.projection.finish_frame()
+    }
+
     /// Monotonically increasing count of non-empty JS-to-host frames.
     pub fn protocol_revision(&self) -> u64 {
         self.runtime.protocol_revision
