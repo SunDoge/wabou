@@ -1,5 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { SessionNavigation } from "./session-navigation";
+import {
+  createSessionNavigation,
+  SessionNavigation,
+} from "./session-navigation";
 
 describe("SessionNavigation", () => {
   test("moves through explicitly visited sessions", () => {
@@ -45,5 +48,15 @@ describe("SessionNavigation", () => {
     expect(history.canGoBack).toBe(false);
     expect(history.canGoForward).toBe(false);
     expect(history.removeAgent("missing")).toBe(false);
+  });
+
+  test("the Solid controller owns its reactive invalidation", () => {
+    const history = createSessionNavigation();
+    expect(history.canGoBack()).toBe(false);
+    history.visit({ agentId: "one", sessionId: "a" });
+    history.visit({ agentId: "one", sessionId: "b" });
+    expect(history.canGoBack()).toBe(true);
+    expect(history.back()).toEqual({ agentId: "one", sessionId: "a" });
+    expect(history.canGoForward()).toBe(true);
   });
 });

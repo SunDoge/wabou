@@ -65,7 +65,7 @@ import { createOwnedOverlay } from "./owned-overlay";
 import { createPersistedRecord } from "./persisted-record";
 import { ScopedHandleRegistry } from "./scoped-handle-registry";
 import { SessionForkDialog } from "./session-fork";
-import { SessionNavigation } from "./session-navigation";
+import { createSessionNavigation } from "./session-navigation";
 import { SessionTitle } from "./session-title";
 import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
@@ -131,9 +131,7 @@ export function App() {
     prepareDefaultWorkspace,
   } = profiles;
   const [sessions, setSessions] = createSignal<readonly PiSession[]>([]);
-  const sessionNavigation = new SessionNavigation();
-  const [sessionNavigationRevision, setSessionNavigationRevision] =
-    createSignal(0);
+  const sessionNavigation = createSessionNavigation();
   const [workspaceRevision, setWorkspaceRevision] = createSignal(0);
   const [drafts, setDrafts] = createSignal<AgentDrafts>({});
   const [draftImages, setDraftImages] = createSignal<AgentDraftLists>({});
@@ -602,9 +600,7 @@ export function App() {
     // `next` without exposing an absent project identity.
     setLastActiveId(next.id);
     setAgents(remaining);
-    if (sessionNavigation.removeAgent(removed.id)) {
-      setSessionNavigationRevision((revision) => revision + 1);
-    }
+    sessionNavigation.removeAgent(removed.id);
     // Keep the project settings surface open. Navigating while the alert
     // dialog's click event is still unwinding can recursively re-enter Router
     // Core; `/settings` already resolves the newly published active identity.
@@ -653,9 +649,7 @@ export function App() {
       return agentId && sessionId ? { agentId, sessionId } : undefined;
     },
     (target) => {
-      if (target && sessionNavigation.visit(target)) {
-        setSessionNavigationRevision((revision) => revision + 1);
-      }
+      if (target) sessionNavigation.visit(target);
     },
   );
   const traverseSessionHistory = (direction: "back" | "forward") => {
@@ -664,21 +658,11 @@ export function App() {
         ? sessionNavigation.back()
         : sessionNavigation.forward();
     if (!target) return;
-    setSessionNavigationRevision((revision) => revision + 1);
     setLastActiveId(target.agentId);
     void navigate({
       to: `/agents/${target.agentId}/sessions/${target.sessionId}`,
     });
   };
-  const canGoBack = () => {
-    sessionNavigationRevision();
-    return sessionNavigation.canGoBack;
-  };
-  const canGoForward = () => {
-    sessionNavigationRevision();
-    return sessionNavigation.canGoForward;
-  };
-
   let openingSession = "";
   createEffect(
     () => {
@@ -929,8 +913,8 @@ export function App() {
             filesOpen={sidePanel() === "files"}
             changesOpen={sidePanel() === "changes"}
             searchOpen={searchOpen()}
-            canGoBack={canGoBack()}
-            canGoForward={canGoForward()}
+            canGoBack={sessionNavigation.canGoBack()}
+            canGoForward={sessionNavigation.canGoForward()}
             goBack={() => traverseSessionHistory("back")}
             goForward={() => traverseSessionHistory("forward")}
             toggleTerminal={toggleTerminal}

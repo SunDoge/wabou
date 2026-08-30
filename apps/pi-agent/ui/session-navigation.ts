@@ -1,6 +1,17 @@
+import { type Accessor, createSignal } from "solid-js";
+
 export interface SessionLocation {
   agentId: string;
   sessionId: string;
+}
+
+export interface SessionNavigationController {
+  canGoBack: Accessor<boolean>;
+  canGoForward: Accessor<boolean>;
+  visit(location: SessionLocation): void;
+  back(): SessionLocation | undefined;
+  forward(): SessionLocation | undefined;
+  removeAgent(agentId: string): void;
 }
 
 function sameLocation(left: SessionLocation, right: SessionLocation): boolean {
@@ -51,4 +62,34 @@ export class SessionNavigation {
     this.#index = Math.min(retainedBeforeCurrent - 1, retained.length - 1);
     return true;
   }
+}
+
+/** Solid adapter that keeps mutation tracking inside the navigation boundary. */
+export function createSessionNavigation(): SessionNavigationController {
+  const navigation = new SessionNavigation();
+  const [revision, setRevision] = createSignal(0);
+  const changed = (change: () => boolean) => {
+    if (change()) setRevision((value) => value + 1);
+  };
+  const traverse = (
+    move: () => SessionLocation | undefined,
+  ): SessionLocation | undefined => {
+    const target = move();
+    if (target) setRevision((value) => value + 1);
+    return target;
+  };
+  return {
+    canGoBack: () => {
+      revision();
+      return navigation.canGoBack;
+    },
+    canGoForward: () => {
+      revision();
+      return navigation.canGoForward;
+    },
+    visit: (location) => changed(() => navigation.visit(location)),
+    back: () => traverse(() => navigation.back()),
+    forward: () => traverse(() => navigation.forward()),
+    removeAgent: (agentId) => changed(() => navigation.removeAgent(agentId)),
+  };
 }
