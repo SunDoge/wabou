@@ -12540,6 +12540,7 @@ dependencies = [
  "wabou-backend-winit",
  "wabou-host-api",
  "wabou-runtime",
+ "wabou-shell",
  "wabou-shell-api",
 ]
 

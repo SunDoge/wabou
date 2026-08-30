@@ -1,8 +1,8 @@
 use std::{ops::Range, sync::Arc};
 
 use gpui::{AppContext as _, IntoElement as _, ParentElement as _, Styled as _};
-use wabou_runtime::{NativeWidgetContext, NativeWidgetMount, Widget, gpui};
 use wabou_shell_api::{KeyEvent, KeyLocation, KeyPhase, Modifiers, UiEvent, WakeCallback};
+use wabou_shell_gpui::{NativeWidgetContext, NativeWidgetMount, gpui};
 
 use super::TerminalWidget;
 
@@ -40,7 +40,7 @@ impl GpuiTerminal {
 
     fn update_attributes(&mut self, context: &NativeWidgetContext<'_>) {
         for (name, value) in context.attributes() {
-            let _ = Widget::attribute_changed(&mut self.terminal, name, value);
+            self.terminal.apply_native_attribute(name, value);
         }
     }
 }
@@ -92,7 +92,9 @@ impl gpui::EntityInputHandler for GpuiTerminal {
         cx: &mut gpui::Context<Self>,
     ) {
         if !new_text.is_empty() {
-            let _ = Widget::handle_event(&mut self.terminal, &UiEvent::TextInput(new_text.into()));
+            let _ = self
+                .terminal
+                .dispatch_native_event(&UiEvent::TextInput(new_text.into()));
             cx.notify();
         }
     }
@@ -164,9 +166,7 @@ impl gpui::Render for GpuiTerminal {
                         || key.modifiers.meta()
                     {
                         entity.update(cx, |state, cx| {
-                            let response =
-                                Widget::handle_event(&mut state.terminal, &UiEvent::Key(key));
-                            if response.is_handled() {
+                            if state.terminal.dispatch_native_event(&UiEvent::Key(key)) {
                                 cx.notify();
                             }
                         });
@@ -253,12 +253,12 @@ pub fn gpui_terminal_factory()
                 let wake: WakeCallback = Arc::new(move || {
                     let _ = sender.try_send(());
                 });
-                Widget::set_wake_callback(&mut terminal, wake);
+                terminal.install_native_wake(wake);
                 let task = entity_cx.spawn(async move |view, cx| {
                     while receiver.recv_async().await.is_ok() {
                         if view
                             .update(cx, |view, cx| {
-                                let _ = Widget::poll_async(&mut view.terminal);
+                                let _ = view.terminal.poll_native_events();
                                 cx.notify();
                             })
                             .is_err()

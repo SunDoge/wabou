@@ -41,6 +41,27 @@ fn terminal_scene(width: f32, height: f32, background: Color) -> Scene {
 }
 
 impl TerminalWidget {
+    /// Transitional core-facing adapter used by the GPUI implementation.
+    ///
+    /// Keeping the legacy `Widget` dispatch behind this module prevents the
+    /// GPUI element from depending on that trait while the terminal session
+    /// state is split from the old paint adapter.
+    pub(super) fn apply_native_attribute(&mut self, name: &str, value: &str) {
+        let _ = <Self as Widget>::attribute_changed(self, name, value);
+    }
+
+    pub(super) fn dispatch_native_event(&mut self, event: &UiEvent) -> bool {
+        <Self as Widget>::handle_event(self, event).is_handled()
+    }
+
+    pub(super) fn install_native_wake(&mut self, wake: WakeCallback) {
+        <Self as Widget>::set_wake_callback(self, wake);
+    }
+
+    pub(super) fn poll_native_events(&mut self) -> bool {
+        <Self as Widget>::poll_async(self)
+    }
+
     pub(super) fn gpui_visible_text(&mut self, width: f32, height: f32) -> Vec<String> {
         self.resize(width, height, 1.0);
         self.ensure_launched();
