@@ -1,8 +1,8 @@
 use gpui::{
-    AlignContent, AlignItems, DefiniteLength, Display, FlexDirection, FlexWrap, Length, Overflow,
-    Position, Style,
+    AbsoluteLength, AlignContent, AlignItems, DefiniteLength, Display, FlexDirection, FlexWrap,
+    FontWeight, Hsla, Length, Overflow, Position, Style,
 };
-use wabou_style::{Declaration, Length as IrLength, Value};
+use wabou_style::{Color, Declaration, Length as IrLength, Value};
 
 /// A deterministic reason why a Style IR declaration was not projected.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -176,6 +176,74 @@ impl StyleProjection {
                 self.style.justify_content =
                     Some(align_content(value).ok_or_else(|| invalid(property))?);
             }
+            "background" | "background-color" => {
+                self.style.background = Some(color(value).ok_or_else(|| invalid(property))?.into());
+            }
+            "color" => {
+                self.style.text.color = Some(color(value).ok_or_else(|| invalid(property))?);
+            }
+            "border-color" => {
+                self.style.border_color = Some(color(value).ok_or_else(|| invalid(property))?);
+            }
+            "border-width" => {
+                if let Some((top, right, bottom, left)) = absolute_edges(value) {
+                    self.style.border_widths.top = top;
+                    self.style.border_widths.right = right;
+                    self.style.border_widths.bottom = bottom;
+                    self.style.border_widths.left = left;
+                } else {
+                    let width = absolute_length(value).ok_or_else(|| invalid(property))?;
+                    self.style.border_widths.top = width;
+                    self.style.border_widths.right = width;
+                    self.style.border_widths.bottom = width;
+                    self.style.border_widths.left = width;
+                }
+            }
+            "border-top-width" => {
+                self.style.border_widths.top =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "border-right-width" => {
+                self.style.border_widths.right =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "border-bottom-width" => {
+                self.style.border_widths.bottom =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "border-left-width" => {
+                self.style.border_widths.left =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "border-radius" => {
+                let radius = absolute_length(value).ok_or_else(|| invalid(property))?;
+                self.style.corner_radii.top_left = radius;
+                self.style.corner_radii.top_right = radius;
+                self.style.corner_radii.bottom_right = radius;
+                self.style.corner_radii.bottom_left = radius;
+            }
+            "font-size" => {
+                self.style.text.font_size =
+                    Some(absolute_length(value).ok_or_else(|| invalid(property))?);
+            }
+            "font-weight" => {
+                let weight = match keyword(value) {
+                    Some("normal") => Some(400.0),
+                    Some("bold") => Some(700.0),
+                    _ => number(value),
+                }
+                .filter(|weight| (1.0..=1000.0).contains(weight))
+                .ok_or_else(|| invalid(property))?;
+                self.style.text.font_weight = Some(FontWeight(weight));
+            }
+            "line-height" => {
+                self.style.text.line_height = Some(match value {
+                    Value::Number { value } if value.is_finite() && *value >= 0.0 => {
+                        DefiniteLength::Fraction(*value)
+                    }
+                    _ => definite_length(value).ok_or_else(|| invalid(property))?,
+                });
+            }
             _ => return Err(StyleDiagnostic::UnsupportedProperty(property.to_owned())),
         }
         Ok(())
@@ -241,6 +309,22 @@ fn definite_edges(
     ))
 }
 
+fn absolute_edges(
+    value: &Value,
+) -> Option<(
+    AbsoluteLength,
+    AbsoluteLength,
+    AbsoluteLength,
+    AbsoluteLength,
+)> {
+    Some((
+        absolute_length(field(value, "top")?)?,
+        absolute_length(field(value, "right")?)?,
+        absolute_length(field(value, "bottom")?)?,
+        absolute_length(field(value, "left")?)?,
+    ))
+}
+
 fn axis_lengths(value: &Value) -> Option<(DefiniteLength, DefiniteLength)> {
     Some((
         definite_length(field(value, "column")?)?,
@@ -258,6 +342,23 @@ fn definite_length(value: &Value) -> Option<DefiniteLength> {
         IrLength::Percent { value } if value.is_finite() => Some(DefiniteLength::Fraction(*value)),
         IrLength::Px { .. } | IrLength::Percent { .. } | IrLength::Auto => None,
     }
+}
+
+fn absolute_length(value: &Value) -> Option<AbsoluteLength> {
+    match ir_length(value)? {
+        IrLength::Px { value } if value.is_finite() => Some(gpui::px(*value).into()),
+        IrLength::Px { .. } | IrLength::Percent { .. } | IrLength::Auto => None,
+    }
+}
+
+fn color(value: &Value) -> Option<Hsla> {
+    let Value::Color {
+        value: Color::Literal { rgba },
+    } = value
+    else {
+        return None;
+    };
+    Some(gpui::rgb_to_hsla(gpui::rgba(*rgba)))
 }
 
 fn length(value: &Value) -> Option<Length> {
@@ -363,6 +464,12 @@ mod tests {
         }
     }
 
+    fn color_value(rgba: u32) -> Value {
+        Value::Color {
+            value: Color::Literal { rgba },
+        }
+    }
+
     #[test]
     fn projects_core_layout_without_creating_a_second_taffy_tree() {
         let mut projection = StyleProjection::default();
@@ -433,6 +540,44 @@ mod tests {
         assert_eq!(projection.style().gap.height, gpui::px(10.0).into());
         assert_eq!(projection.style().overflow.x, Overflow::Hidden);
         assert_eq!(projection.style().overflow.y, Overflow::Scroll);
+    }
+
+    #[test]
+    fn projects_common_visual_and_text_styles_into_gpui() {
+        let mut projection = StyleProjection::default();
+        for declaration in [
+            declaration("background-color", color_value(0x112233ff)),
+            declaration("color", color_value(0xf0e0d0ff)),
+            declaration("border-color", color_value(0x445566cc)),
+            declaration("border-width", length_value(IrLength::Px { value: 2.0 })),
+            declaration("border-radius", length_value(IrLength::Px { value: 12.0 })),
+            declaration("font-size", length_value(IrLength::Px { value: 18.0 })),
+            declaration("font-weight", Value::Number { value: 600.0 }),
+            declaration("line-height", Value::Number { value: 1.5 }),
+        ] {
+            projection.apply(&declaration).unwrap();
+        }
+
+        let style = projection.style();
+        assert_eq!(
+            style.background.as_ref().and_then(gpui::Fill::color),
+            Some(color(&color_value(0x112233ff)).unwrap().into())
+        );
+        assert_eq!(
+            style.text.color,
+            Some(color(&color_value(0xf0e0d0ff)).unwrap())
+        );
+        assert_eq!(
+            style.border_color,
+            Some(color(&color_value(0x445566cc)).unwrap())
+        );
+        assert_eq!(style.border_widths.top, gpui::px(2.0).into());
+        assert_eq!(style.border_widths.right, gpui::px(2.0).into());
+        assert_eq!(style.corner_radii.top_left, gpui::px(12.0).into());
+        assert_eq!(style.corner_radii.bottom_right, gpui::px(12.0).into());
+        assert_eq!(style.text.font_size, Some(gpui::px(18.0).into()));
+        assert_eq!(style.text.font_weight, Some(FontWeight(600.0)));
+        assert_eq!(style.text.line_height, Some(DefiniteLength::Fraction(1.5)));
     }
 
     #[test]
