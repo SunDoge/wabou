@@ -7,10 +7,6 @@ description: >
   UI code review, component reviews, responsive design checks, theme testing, and creating memorable UI.
   DO NOT USE FOR: Backend API reviews, database schema reviews, infrastructure or DevOps work, pure business logic
   without UI, or non-frontend code.
-acknowledgments: |
-  Design review principles and quality pillar framework created by @Quirinevwm (https://github.com/Quirinevwm).
-  Creative frontend guidance inspired by Anthropic's frontend-design skill
-  (https://github.com/anthropics/skills/tree/main/skills/frontend-design). Licensed under respective terms.
 ---
 
 # Frontend Design Review
@@ -29,21 +25,23 @@ Create distinctive interfaces that avoid generic "AI slop" aesthetics, have clea
 
 ## Creative Frontend Design
 
-Before coding, commit to an aesthetic direction:
-- **Purpose**: What problem does this solve? Who uses it?
-- **Tone**: minimal, maximalist, retro-futuristic, organic, luxury, playful, editorial, brutalist, art deco, soft/pastel, industrial, etc.
-- **Constraints**: Framework, performance, accessibility requirements.
-- **Differentiation**: What makes this distinctive and context-appropriate?
+Before coding, establish a compact design read:
+- **User and task**: Who uses this surface, and what must they understand or finish?
+- **Product mode**: workspace, utility, content, commerce, editorial, or immersive experience.
+- **Information hierarchy**: What must be visible first, what is secondary, and what can be disclosed later?
+- **Tone**: Choose a precise visual direction that fits the product rather than a fashionable default.
+- **Constraints**: Framework, platforms, input modes, minimum viewport, performance, and accessibility.
+- **Differentiation**: Name one product-specific visual or interaction idea worth remembering.
 
 ### Aesthetics Guidelines
 
-- **Typography**: Distinctive fonts that elevate aesthetics. Pair a display font with a refined body font. Avoid Inter, Roboto, Arial, Space Grotesk.
-- **Color & Theme**: Cohesive palette with CSS variables. Dominant colors + sharp accents > timid, evenly-distributed palettes.
-- **Motion**: CSS-only preferred. One well-orchestrated page load with staggered reveals > scattered micro-interactions.
-- **Spatial Composition**: Asymmetry, overlap, diagonal flow, grid-breaking elements, generous negative space OR controlled density.
-- **Backgrounds**: Gradient meshes, noise textures, geometric patterns, layered transparencies, dramatic shadows, grain overlays.
+- **Typography**: Use an intentional type hierarchy and readable measures. A distinctive font is useful only when it improves product fit and platform rendering remains reliable.
+- **Color & Theme**: Use semantic roles, sufficient contrast, and a restrained accent hierarchy. Treat light and dark themes as separate rendered states.
+- **Motion**: Explain state or spatial continuity. Do not delay interaction, repeatedly animate stable content, or use motion to conceal remounting.
+- **Spatial Composition**: Choose deliberate density, alignment, containment, and whitespace. Cards, asymmetry, overlap, or decorative depth require a semantic purpose.
+- **Surfaces**: Use borders, elevation, translucency, texture, and gradients only when they clarify grouping, focus, or hierarchy.
 
-**AVOID**: Overused fonts, cliched color schemes, predictable layouts, cookie-cutter design without context-specific character.
+**AVOID**: Cookie-cutter dashboards, card-per-section layouts, decorative gradients, arbitrary radii, competing primary actions, fake data presented as product state, and internal implementation language in user-facing copy.
 
 Match implementation complexity to vision. Maximalist = elaborate code. Minimalist = restraint and precision.
 
@@ -82,9 +80,11 @@ semantic, native-behavior, and pixel evidence.
 2. Check design system for matching patterns
 3. Evaluate aesthetic direction
 4. Identify scope (component, feature, or flow)
-5. Evaluate each pillar
-6. Score and prioritize issues (blocking/major/minor)
-7. Provide recommendations with design system examples
+5. Enumerate relevant initial, loading, empty, success, error, disabled, and recovery states
+6. Evaluate each pillar
+7. Pressure-test long content, constrained space, alternate theme, and relevant input methods
+8. Score and prioritize issues (blocking/major/minor)
+9. Provide recommendations with design system examples and observable proof
 
 ### Core Principles
 
@@ -108,7 +108,7 @@ semantic, native-behavior, and pixel evidence.
 **Evaluate:**
 - Design system compliance: matches Figma specs, uses design tokens
 - Aesthetic direction: distinctive typography, cohesive colors, intentional motion
-- Accessibility: Grade C minimum (WCAG 2.1 A), Grade B ideal (WCAG 2.1 AA)
+- Accessibility: WCAG 2.2 AA where the platform exposes the required semantics; document native-framework gaps instead of implying compliance
 
 **Red flags:** Generic AI aesthetics, hardcoded values, implementation doesn't match Figma, broken reflow, missing focus indicators.
 
@@ -143,3 +143,4 @@ See [references/pattern-examples.md](references/pattern-examples.md) for good/ba
 ## Acknowledgments
 
 Creative frontend principles inspired by [Anthropic's frontend-design skill](https://github.com/anthropics/skills/tree/main/skills/frontend-design). Design review principles and quality pillar framework created by [@Quirinevwm](https://github.com/Quirinevwm) for systematic UI evaluation.
+Context-fit design, complete-state review, and rendered-verification principles adapted from [PracticalSwan/agent-skills](https://github.com/PracticalSwan/agent-skills/tree/main/frontend-design), licensed MIT AND Apache-2.0.

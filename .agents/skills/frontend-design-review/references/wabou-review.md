@@ -50,6 +50,27 @@ the same role across the repository before declaring the issue local.
 6. For a shared component change, add both a component contract and a layout fixture
    when it owns geometry.
 
+## Pressure-test matrix
+
+Select the smallest set that can disprove the proposed design. Do not run every row
+mechanically, but never approve a broad page or component-system change from only
+its ideal state.
+
+| Risk | Wabou evidence |
+| --- | --- |
+| Long or translated copy | Component test plus layout fixture using realistic long text |
+| Narrow or resized window | The same fixture at the declared minimum and normal viewport |
+| Empty, loading, failure, retry | Component states with accessible actions and preserved input |
+| Dynamic lists or routing | Stable-key behavior test; assert selection and scroll continuity |
+| Menus, overlays, tooltips | Layout/hit-test fixture plus pointer and keyboard behavior |
+| Native widgets or IME | Native behavior scenario; restart after Rust changes |
+| Light/dark theme | Focused render for both when colors, borders, shadows, or text change |
+| HiDPI/platform paint | Platform capture at the affected scale; do not infer from Linux 1x |
+
+When a fixture reveals a reusable defect, repair the owning token, primitive, or
+component contract first. A screen-local offset is acceptable only when the visual
+relationship is genuinely unique to that screen.
+
 ## Wabou quality gates
 
 - A view has one clear primary action; secondary actions use progressive disclosure.
