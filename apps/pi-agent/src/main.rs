@@ -24,7 +24,7 @@ fn main() -> Result<(), Whatever> {
             WindowOptions::new()
                 .title("Pi Agent · Wabou")
                 .initial_inner_size(1180, 780)
-                // The fixed 288px sidebar leaves 892px for the conversation
+                // The fixed 240px sidebar leaves 940px for the conversation
                 // toolbar and composer. Keep the native window above that
                 // measured application-shell boundary instead of allowing
                 // flex children to be compressed into one another.

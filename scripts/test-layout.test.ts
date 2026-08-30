@@ -2,23 +2,38 @@ import { describe, expect, test } from "bun:test";
 import { parseLayoutTestArgs } from "./test-layout";
 
 describe("layout test selection", () => {
-  test("runs both applications when no app is selected", () => {
-    expect(parseLayoutTestArgs(["component/Button"])).toEqual({
+  test("runs both applications when no fixture is selected", () => {
+    expect(parseLayoutTestArgs([])).toEqual({
       apps: ["gallery", "pi-agent"],
-      filters: ["component/Button"],
+      filters: [],
     });
   });
 
-  test("targets one application without consuming fixture filters", () => {
-    expect(
-      parseLayoutTestArgs(["--app", "pi-agent", "shell/sidebar"]),
-    ).toEqual({
+  test("routes component and application fixtures to their owning app", () => {
+    expect(parseLayoutTestArgs(["component/Button"])).toEqual({
+      apps: ["gallery"],
+      filters: ["component/Button"],
+    });
+    expect(parseLayoutTestArgs(["shell/sidebar"])).toEqual({
       apps: ["pi-agent"],
       filters: ["shell/sidebar"],
     });
     expect(
-      parseLayoutTestArgs(["--app=gallery", "component/Button"]),
+      parseLayoutTestArgs(["component/Button", "conversation/complete-turn"]),
     ).toEqual({
+      apps: ["gallery", "pi-agent"],
+      filters: ["component/Button", "conversation/complete-turn"],
+    });
+  });
+
+  test("targets one application without consuming fixture filters", () => {
+    expect(parseLayoutTestArgs(["--app", "pi-agent", "shell/sidebar"])).toEqual(
+      {
+        apps: ["pi-agent"],
+        filters: ["shell/sidebar"],
+      },
+    );
+    expect(parseLayoutTestArgs(["--app=gallery", "component/Button"])).toEqual({
       apps: ["gallery"],
       filters: ["component/Button"],
     });

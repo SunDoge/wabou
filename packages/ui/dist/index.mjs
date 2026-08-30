@@ -5661,9 +5661,9 @@ function Heading(props) {
 	const className = createMemo(() => {
 		if (props.variant === "prompt") return props.block.depth === 1 ? "text-base font-semibold tracking-tight text-primary whitespace-normal" : "text-sm font-semibold text-primary whitespace-normal";
 		if (props.variant === "conversation") switch (props.block.depth) {
-			case 1: return "text-lg font-semibold tracking-tight text-primary whitespace-normal";
-			case 2: return "text-base font-semibold tracking-tight text-primary whitespace-normal";
-			case 3: return "text-sm font-semibold tracking-tight text-primary whitespace-normal";
+			case 1: return "text-xl font-semibold tracking-tight text-primary whitespace-normal";
+			case 2: return "text-lg font-semibold tracking-tight text-primary whitespace-normal";
+			case 3: return "text-base font-semibold tracking-tight text-primary whitespace-normal";
 			default: return "text-sm font-semibold text-primary whitespace-normal";
 		}
 		switch (props.block.depth) {

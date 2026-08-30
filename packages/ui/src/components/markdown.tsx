@@ -91,11 +91,11 @@ function Heading(props: {
     if (props.variant === "conversation") {
       switch (props.block.depth) {
         case 1:
-          return "text-lg font-semibold tracking-tight text-primary whitespace-normal";
+          return "text-xl font-semibold tracking-tight text-primary whitespace-normal";
         case 2:
-          return "text-base font-semibold tracking-tight text-primary whitespace-normal";
+          return "text-lg font-semibold tracking-tight text-primary whitespace-normal";
         case 3:
-          return "text-sm font-semibold tracking-tight text-primary whitespace-normal";
+          return "text-base font-semibold tracking-tight text-primary whitespace-normal";
         default:
           return "text-sm font-semibold text-primary whitespace-normal";
       }

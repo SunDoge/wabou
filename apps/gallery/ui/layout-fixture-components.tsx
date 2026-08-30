@@ -99,7 +99,11 @@ export function LabeledSeparatorLayoutFixture() {
 
 export function PiConversationLayoutFixture() {
   return (
-    <View class="w-full h-full min-w-0 p-5 flex flex-col gap-3 bg-canvas">
+    <View
+      role="region"
+      aria-label="Scrollable Pi conversation"
+      class="w-full h-full min-w-0 p-5 flex flex-col gap-3 overflow-y-auto bg-canvas"
+    >
       <ConversationItem
         item={{
           id: "fixture-assistant",

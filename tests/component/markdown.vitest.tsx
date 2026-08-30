@@ -250,7 +250,7 @@ test("renders readable conversation Markdown including GFM tables", () => {
     "text-base leading-relaxed text-primary",
   );
   expect(JSON.stringify(response.snapshot())).toContain(
-    "text-base font-semibold tracking-tight",
+    "text-lg font-semibold tracking-tight",
   );
   expect(response.text).toContain("FileState");
   expect(response.text).toContain("api.tsUpdated");

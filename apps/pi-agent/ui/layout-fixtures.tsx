@@ -253,8 +253,8 @@ defineLayoutFixtures({
     render: FullWorkbenchFixture,
   },
   "shell/full-workbench-minimum": {
-    width: 720,
-    height: 640,
+    width: 1_180,
+    height: 680,
     render: FullWorkbenchFixture,
   },
   "shell/content-column-wide": {

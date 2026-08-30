@@ -8,6 +8,32 @@ export interface LayoutTestSelection {
 }
 
 const ALL_APPS: readonly LayoutTestApp[] = ["gallery", "pi-agent"];
+const PI_AGENT_FIXTURE_PREFIXES = [
+  "conversation/",
+  "settings/",
+  "shell/",
+  "workspace/",
+] as const;
+
+function inferApps(filters: readonly string[]): readonly LayoutTestApp[] {
+  if (filters.length === 0) return ALL_APPS;
+  const applications = new Set<LayoutTestApp>();
+  for (const filter of filters) {
+    applications.add(
+      PI_AGENT_FIXTURE_PREFIXES.some((prefix) => filter.startsWith(prefix))
+        ? "pi-agent"
+        : "gallery",
+    );
+  }
+  return ALL_APPS.filter((app) => applications.has(app));
+}
+
+function fixtureBelongsToApp(filter: string, app: LayoutTestApp): boolean {
+  const piAgentFixture = PI_AGENT_FIXTURE_PREFIXES.some((prefix) =>
+    filter.startsWith(prefix),
+  );
+  return piAgentFixture ? app === "pi-agent" : app === "gallery";
+}
 
 function parseApp(value: string | undefined): LayoutTestApp {
   if (value === "gallery" || value === "pi-agent") return value;
@@ -16,7 +42,9 @@ function parseApp(value: string | undefined): LayoutTestApp {
   );
 }
 
-export function parseLayoutTestArgs(args: readonly string[]): LayoutTestSelection {
+export function parseLayoutTestArgs(
+  args: readonly string[],
+): LayoutTestSelection {
   let app: LayoutTestApp | undefined;
   const filters: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
@@ -35,25 +63,29 @@ export function parseLayoutTestArgs(args: readonly string[]): LayoutTestSelectio
     }
     filters.push(argument);
   }
-  return { apps: app ? [app] : ALL_APPS, filters };
+  return { apps: app ? [app] : inferApps(filters), filters };
 }
 
 async function runLayoutTests(selection: LayoutTestSelection): Promise<void> {
   const root = resolve(import.meta.dir, "..");
   for (const app of selection.apps) {
+    const filters =
+      selection.apps.length === 1
+        ? selection.filters
+        : selection.filters.filter((filter) =>
+            fixtureBelongsToApp(filter, app),
+          );
     const entry = resolve(root, "apps", app, "tests/layout.ts");
     const command = [
       process.execPath,
       "--conditions=wabou-source",
       "run",
       entry,
-      ...selection.filters,
+      ...filters,
     ];
     console.log(
       `[layout] ${app}${
-        selection.filters.length > 0
-          ? `: ${selection.filters.join(", ")}`
-          : ": all fixtures"
+        filters.length > 0 ? `: ${filters.join(", ")}` : ": all fixtures"
       }`,
     );
     const child = Bun.spawn(command, {

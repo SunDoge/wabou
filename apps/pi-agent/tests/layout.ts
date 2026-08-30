@@ -7,9 +7,18 @@ import {
   layoutRectRight,
   queryLayoutNodes,
 } from "@wabou/test/layout";
-import { renderAppLayout, renderLayoutFixtures } from "@wabou/test/layout/node";
+import {
+  type LayoutFixtureCase,
+  renderAppLayout,
+  renderLayoutFixtures,
+} from "@wabou/test/layout/node";
 
 const directory = await mkdtemp(join(tmpdir(), "wabou-pi-agent-layout-"));
+const selected = process.argv.slice(2).filter(Boolean);
+const selectCases = (...cases: LayoutFixtureCase[]): LayoutFixtureCase[] =>
+  selected.length === 0
+    ? cases
+    : cases.filter(({ id }) => selected.includes(id));
 
 function assertFullWorkbenchLayout(
   fixture: Parameters<typeof getLayoutNode>[0],
@@ -82,10 +91,16 @@ function assertFullWorkbenchLayout(
       `composer controls lost readable widths: model=${model.rect.width}, thinking=${thinking.rect.width}`,
     );
   }
-  const compactSurfaceLimit = viewportWidth >= 1_000 ? 112 : 144;
-  if (editor.rect.height > 48 || composer.rect.height > compactSurfaceLimit) {
+  // The native shell prevents the workbench from becoming narrower than its
+  // declared application minimum, so the primary composer remains one row.
+  // Measure authored content rather than counting the surface border.
+  const compactContentLimit = 112;
+  if (
+    editor.rect.height > 48 ||
+    composer.contentRect.height > compactContentLimit
+  ) {
     throw new Error(
-      `empty workbench composer lost its compact density: editor=${editor.rect.height}, surface=${composer.rect.height}, limit=${compactSurfaceLimit}`,
+      `empty workbench composer lost its compact density: editor=${editor.rect.height}, content=${composer.contentRect.height}, limit=${compactContentLimit}`,
     );
   }
   if (
@@ -99,39 +114,44 @@ function assertFullWorkbenchLayout(
 }
 
 try {
-  const snapshot = await renderAppLayout({
-    app: "apps/pi-agent",
-    out: join(directory, "snapshot.json"),
-    width: 1_200,
-    height: 800,
-    scaleFactor: 2,
-    waitMs: 100,
-    withHost: true,
-    command: [resolve("target/release/wabou")],
-  });
+  if (selected.length === 0) {
+    const snapshot = await renderAppLayout({
+      app: "apps/pi-agent",
+      out: join(directory, "snapshot.json"),
+      width: 1_200,
+      height: 800,
+      scaleFactor: 2,
+      waitMs: 100,
+      withHost: true,
+      command: [resolve("target/release/wabou")],
+    });
 
-  const renderFailures = queryLayoutNodes(snapshot, {
-    role: "alert",
-    name: "Pi Agent failed to render",
-  });
-  if (renderFailures.length > 0) {
-    throw new Error(
-      `Pi Agent entered its root error boundary: ${renderFailures[0]?.text ?? "unknown error"}`,
-    );
-  }
+    const renderFailures = queryLayoutNodes(snapshot, {
+      role: "alert",
+      name: "Pi Agent failed to render",
+    });
+    if (renderFailures.length > 0) {
+      throw new Error(
+        `Pi Agent entered its root error boundary: ${renderFailures[0]?.text ?? "unknown error"}`,
+      );
+    }
 
-  if (
-    queryLayoutNodes(snapshot, { name: "Search agents and sessions" }).length >
-    0
-  ) {
-    throw new Error("empty onboarding exposed an inactive session search");
+    if (
+      queryLayoutNodes(snapshot, { name: "Search agents and sessions" })
+        .length > 0
+    ) {
+      throw new Error("empty onboarding exposed an inactive session search");
+    }
+    getLayoutNode(snapshot, {
+      role: "textbox",
+      name: "Ask this agent to work in its repository…",
+    });
+    getLayoutNode(snapshot, { role: "status", name: "Workspace status" });
   }
-  getLayoutNode(snapshot, { text: "Start your first coding agent" });
-  getLayoutNode(snapshot, { role: "textbox", name: "Workspace" });
 
   await renderLayoutFixtures({
     app: "apps/pi-agent",
-    cases: [
+    cases: selectCases(
       {
         id: "shell/full-workbench",
         width: 1_200,
@@ -141,10 +161,10 @@ try {
       },
       {
         id: "shell/full-workbench-minimum",
-        width: 720,
-        height: 640,
+        width: 1_180,
+        height: 680,
         checks: ["visible-overflow", "text-collision", "visual-quality"],
-        assert: (fixture) => assertFullWorkbenchLayout(fixture, 720),
+        assert: (fixture) => assertFullWorkbenchLayout(fixture, 1_180),
       },
       {
         id: "shell/content-column-wide",
@@ -200,7 +220,10 @@ try {
         checks: ["visible-overflow", "text-collision"],
         assert: (fixture) => {
           getLayoutNode(fixture, { role: "dialog", name: "Command palette" });
-          getLayoutNode(fixture, { role: "textbox", name: "Command palette" });
+          getLayoutNode(fixture, {
+            role: "textbox",
+            name: "Command palette",
+          });
           getLayoutNode(fixture, { role: "option", name: "New session" });
         },
       },
@@ -256,7 +279,7 @@ try {
           });
           const activity = getLayoutNode(fixture, {
             role: "button",
-            name: "Worked · 1 tool call",
+            name: "Toggle tool activity",
           });
           const copy = getLayoutNode(fixture, {
             role: "button",
@@ -752,8 +775,9 @@ try {
           }
         },
       },
-    ],
+    ),
     mode: "layout-test",
+    skipBuild: process.env.WABOU_LAYOUT_SKIP_BUILD === "1",
     command: [resolve("target/release/wabou")],
   });
 } finally {
