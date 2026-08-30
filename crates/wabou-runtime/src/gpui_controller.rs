@@ -24,6 +24,7 @@ pub struct GpuiController {
     pressed_targets: std::collections::BTreeMap<u8, wabou_host_api::NodeKey>,
     pointer_buttons: u32,
     last_primary_click: Option<(std::time::Instant, wabou_host_api::NodeKey, f32, f32)>,
+    focused_target: Option<wabou_host_api::NodeKey>,
 }
 
 impl GpuiController {
@@ -37,6 +38,7 @@ impl GpuiController {
             pressed_targets: std::collections::BTreeMap::new(),
             pointer_buttons: 0,
             last_primary_click: None,
+            focused_target: None,
         }
     }
     pub(crate) fn set_image_resources(&mut self, resources: ImageResourceStore) {
@@ -466,6 +468,96 @@ impl GpuiController {
             request_redraw: handled,
             ..gpui_shell::EventResponse::default()
         }
+    }
+
+    pub(crate) fn text_controls(&self) -> Vec<gpui_shell::GpuiTextControl> {
+        self.projection.text_controls()
+    }
+
+    pub(crate) fn focused_target(&self) -> Option<wabou_host_api::NodeKey> {
+        self.focused_target
+    }
+
+    pub(crate) fn contains(&self, target: wabou_host_api::NodeKey) -> bool {
+        self.projection.contains(target)
+    }
+
+    pub(crate) fn text_input_state(&self) -> gpui_shell::ProjectedTextInputState {
+        let Some(target) = self.focused_target else {
+            return gpui_shell::ProjectedTextInputState::default();
+        };
+        let Some(control) = self
+            .projection
+            .text_controls()
+            .into_iter()
+            .find(|control| control.key == target)
+        else {
+            return gpui_shell::ProjectedTextInputState::default();
+        };
+        gpui_shell::ProjectedTextInputState {
+            accepts_text: !control.disabled && !control.readonly,
+            text: Some(control.value),
+            selection: None,
+            selection_reversed: false,
+            cursor_bounds: None,
+        }
+    }
+
+    pub(crate) fn commit_text_value(
+        &mut self,
+        target: wabou_host_api::NodeKey,
+        value: &str,
+    ) -> bool {
+        if self
+            .projection
+            .update_authored_attribute(target, "value", value)
+            .is_err()
+        {
+            return false;
+        }
+        let payload = serde_json::json!({ "value": value }).to_string();
+        self.dispatch_node_json(target, wabou_protocol::event::INPUT, payload, false)
+            .map(|result| result.0)
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn set_text_focus(
+        &mut self,
+        target: wabou_host_api::NodeKey,
+        focused: bool,
+    ) -> bool {
+        let next = if focused { Some(target) } else { None };
+        if (!focused && self.focused_target != Some(target)) || self.focused_target == next {
+            return false;
+        }
+        let previous = std::mem::replace(&mut self.focused_target, next);
+        let mut changed = previous != next;
+        if let Some(previous) = previous {
+            changed |= self
+                .dispatch_node_json(previous, wabou_protocol::event::BLUR, "{}".into(), false)
+                .map(|result| result.0)
+                .unwrap_or(false);
+            changed |= self
+                .dispatch_node_json(
+                    previous,
+                    wabou_protocol::event::FOCUSOUT,
+                    "{}".into(),
+                    false,
+                )
+                .map(|result| result.0)
+                .unwrap_or(false);
+        }
+        if let Some(next) = next {
+            changed |= self
+                .dispatch_node_json(next, wabou_protocol::event::FOCUS, "{}".into(), false)
+                .map(|result| result.0)
+                .unwrap_or(false);
+            changed |= self
+                .dispatch_node_json(next, wabou_protocol::event::FOCUSIN, "{}".into(), false)
+                .map(|result| result.0)
+                .unwrap_or(false);
+        }
+        changed
     }
 
     /// Monotonically increasing count of non-empty JS-to-host frames.

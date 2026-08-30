@@ -301,7 +301,7 @@ impl Applier {
     }
 
     pub(crate) fn gpui_text_controls(&self) -> Vec<gpui_shell::GpuiTextControl> {
-        self.gpui.projection().text_controls()
+        self.gpui.text_controls()
     }
 
     pub(crate) fn gpui_native_widgets(
@@ -312,6 +312,9 @@ impl Applier {
     }
 
     pub(crate) fn gpui_commit_text_value(&mut self, target: NodeKey, value: &str) -> bool {
+        if self.gpui.contains(target) {
+            return self.gpui.commit_text_value(target, value);
+        }
         let Some(&node) = self.document.node_store.solid_to_node.get(&target) else {
             return false;
         };
@@ -324,6 +327,9 @@ impl Applier {
     }
 
     pub(crate) fn gpui_set_text_focus(&mut self, target: NodeKey, focused: bool) -> bool {
+        if self.gpui.contains(target) {
+            return self.gpui.set_text_focus(target, focused);
+        }
         if focused {
             self.set_focused_target(Some(target))
         } else if self.interaction.input.focused_target == Some(target) {
@@ -334,7 +340,9 @@ impl Applier {
     }
 
     pub(crate) fn gpui_focused_target(&self) -> Option<NodeKey> {
-        self.interaction.input.focused_target
+        self.gpui
+            .focused_target()
+            .or(self.interaction.input.focused_target)
     }
 
     pub(crate) fn install_runtime_wake(&mut self, wake: WakeCallback) {

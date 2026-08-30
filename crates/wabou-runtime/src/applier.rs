@@ -597,6 +597,9 @@ impl LegacyRuntimeController {
     }
 
     pub(crate) fn gpui_text_input_state(&self) -> gpui_shell::ProjectedTextInputState {
+        if self.gpui.focused_target().is_some() {
+            return self.gpui.text_input_state();
+        }
         let Some(target) = self.interaction.input.focused_target else {
             return gpui_shell::ProjectedTextInputState::default();
         };
