@@ -701,7 +701,7 @@ fn hmr_batch_preserves_js_update_order() {
 }
 
 #[test]
-fn full_reload_clears_non_root_scene_nodes() {
+fn failed_full_reload_keeps_the_last_good_scene_interactive() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.document.atoms.borrow_mut().intern("div");
@@ -739,7 +739,7 @@ fn full_reload_clears_non_root_scene_nodes() {
     );
     applier.perform_full_reload("test");
     assert!(
-        !applier
+        applier
             .document
             .node_store
             .solid_to_node
@@ -758,18 +758,27 @@ fn full_reload_clears_non_root_scene_nodes() {
             .node_store
             .tree
             .child_count(applier.document.node_store.root),
-        0
+        1
     );
-    assert!(applier.document.widget_manager.visibility.is_empty());
     assert!(
         applier
             .document
             .widget_manager
-            .host_action_routes
-            .is_empty()
+            .visibility
+            .contains_key(&node)
     );
-    assert_eq!(applier.interaction.input.focused_target, None);
-    assert!(applier.interaction.scroll.offsets.is_empty());
+    assert_eq!(
+        applier.document.widget_manager.host_action_routes.get(&7),
+        Some(&(node, 9))
+    );
+    assert_eq!(
+        applier.interaction.input.focused_target,
+        Some(NodeKey::new(2, 1))
+    );
+    assert_eq!(
+        applier.interaction.scroll.offsets.get(&node),
+        Some(&[12.0, 24.0])
+    );
 }
 
 #[test]

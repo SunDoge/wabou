@@ -3,6 +3,7 @@
 var wabouGlobal = globalThis;
 var existingRecords = wabouGlobal.__wabou_hmr_records;
 var records = existingRecords ?? new Map;
+var fullReloadSnapshot = null;
 if (!existingRecords) {
   wabouGlobal.__wabou_hmr_records = records;
 }
@@ -95,11 +96,31 @@ wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
     record.next = null;
   }
 };
-wabouGlobal.__wabou_hmr_clear_records = () => {
+function beginFullReload() {
+  if (fullReloadSnapshot)
+    return;
+  fullReloadSnapshot = new Map(records);
   records.clear();
-};
+}
+function commitFullReload() {
+  fullReloadSnapshot = null;
+}
+function rollbackFullReload() {
+  if (!fullReloadSnapshot)
+    return;
+  records.clear();
+  for (const [path, record] of fullReloadSnapshot)
+    records.set(path, record);
+  fullReloadSnapshot = null;
+}
+wabouGlobal.__wabou_hmr_begin_full_reload = beginFullReload;
+wabouGlobal.__wabou_hmr_commit_full_reload = commitFullReload;
+wabouGlobal.__wabou_hmr_rollback_full_reload = rollbackFullReload;
 export {
+  beginFullReload,
+  commitFullReload,
   createHotContext,
   removeStyle,
+  rollbackFullReload,
   updateStyle
 };

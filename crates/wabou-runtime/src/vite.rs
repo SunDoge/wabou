@@ -159,12 +159,14 @@ impl ViteState {
         use rquickjs::CatchResultExt;
         use std::time::{SystemTime, UNIX_EPOCH};
 
-        // Drop hot records so the next graph builds fresh import.meta.hot state.
-        if let Ok(clear) = ctx
+        // Build a fresh hot graph, but retain a reversible snapshot until the
+        // entry has evaluated. A transient Vite transform error must not poison
+        // the last-good graph used by the next save.
+        if let Ok(begin) = ctx
             .globals()
-            .get::<_, Function>("__wabou_hmr_clear_records")
+            .get::<_, Function>("__wabou_hmr_begin_full_reload")
         {
-            let _: () = clear.call(())?;
+            let _: () = begin.call(())?;
         }
 
         self.cache.clear();
@@ -195,10 +197,23 @@ impl ViteState {
         .and_then(|promise| promise.finish::<()>());
         match result.catch(ctx) {
             Ok(()) => {
+                if let Ok(commit) = ctx
+                    .globals()
+                    .get::<_, Function>("__wabou_hmr_commit_full_reload")
+                {
+                    let _: () = commit.call(())?;
+                }
                 tracing::info!(entry = %busted, "vite full reload: entry re-imported");
                 Ok(())
             }
             Err(caught) => {
+                if let Ok(rollback) = ctx
+                    .globals()
+                    .get::<_, Function>("__wabou_hmr_rollback_full_reload")
+                    && let Err(error) = rollback.call::<_, ()>(())
+                {
+                    tracing::error!(?error, "failed to restore last-good HMR records");
+                }
                 tracing::error!(entry = %busted, error = %caught, "vite full reload failed");
                 Err(caught.throw(ctx))
             }
