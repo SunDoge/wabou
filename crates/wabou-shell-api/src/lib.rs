@@ -8,6 +8,7 @@ pub mod effect;
 mod effect_abi;
 pub mod event;
 pub mod window;
+pub mod window_lifecycle;
 
 pub use app_dirs::{AppDirectories, AppDirectoryConfig};
 pub use effect::{
@@ -20,3 +21,6 @@ pub use effect::{
 };
 pub use event::*;
 pub use window::{RendererBackend, WindowCommand, WindowInputMode, WindowLevel, WindowOptions};
+pub use window_lifecycle::{
+    WindowCapabilities, WindowEffect, WindowIntent, WindowLifecycle, WindowPresence,
+};

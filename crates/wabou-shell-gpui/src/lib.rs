@@ -32,10 +32,11 @@ pub use wabou_shell_api::{
     EffectTapeEntry, MenuPosition, MessageDialogButtons, MessageDialogLevel, MessageDialogRequest,
     MethodId, NotificationRequest, OpenDialogRequest, PickDirectoryRequest,
     RecordingEffectExecutor, RendererBackend, ReplayEffectExecutor, SaveDialogRequest,
-    WindowCommand, WindowCreateRequest, WindowInputMode, WindowLevel, WindowOptions,
-    WindowResourceKey, initial_window_resource_key,
+    WindowCapabilities, WindowCommand, WindowCreateRequest, WindowEffect, WindowInputMode,
+    WindowIntent, WindowLevel, WindowLifecycle, WindowOptions, WindowPresence, WindowResourceKey,
+    initial_window_resource_key,
 };
-pub use wabou_shell_api::{app_dirs, effect, event, window};
+pub use wabou_shell_api::{app_dirs, effect, event, window, window_lifecycle};
 pub use window_state::WindowSizePersistence;
 
 /// Run a GPUI application using Wabou's selected platform implementation.

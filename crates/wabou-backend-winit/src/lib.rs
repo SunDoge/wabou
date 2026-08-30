@@ -30,7 +30,7 @@ mod system;
 pub mod text;
 mod text_raster;
 pub mod widget;
-pub mod window_lifecycle;
+pub use wabou_shell_api::window_lifecycle;
 mod window_state;
 
 pub use app::{
