@@ -99,8 +99,14 @@ export function SidebarHeader(props: ViewProps): JSX.Element {
 
 export function SidebarSearch(props: SearchFieldProps): JSX.Element {
   const forwarded = omit(props, "class");
+  const quiet = () => props.variant === "quiet";
   return (
-    <View class="flex-none p-2 border-b border-subtle bg-surface">
+    <View
+      class={mergeClasses(
+        "flex-none p-2",
+        quiet() ? "bg-surface-muted" : "border-b border-subtle bg-surface",
+      )}
+    >
       <SearchField
         {...forwarded}
         placeholder={props.placeholder ?? "Search"}

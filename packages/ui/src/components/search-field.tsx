@@ -17,6 +17,8 @@ export interface SearchFieldProps
   onSearch?(value: string): void;
   onClear?(): void;
   clearLabel?: string;
+  /** Quiet fields stay transparent until focus; useful inside navigation chrome. */
+  variant?: "default" | "quiet";
   class?: string;
   /** Background utility for the complete search field. Defaults to `bg-input`. */
   surfaceClass?: string;
@@ -34,6 +36,7 @@ export function SearchField(props: SearchFieldProps): JSX.Element {
     "onSearch",
     "onClear",
     "clearLabel",
+    "variant",
     "class",
     "surfaceClass",
     "inputClass",
@@ -54,7 +57,11 @@ export function SearchField(props: SearchFieldProps): JSX.Element {
   };
 
   return (
-    <InputGroup class={props.class} surfaceClass={props.surfaceClass}>
+    <InputGroup
+      class={props.class}
+      variant={props.variant}
+      surfaceClass={props.surfaceClass}
+    >
       <View
         aria-hidden="true"
         class="flex-none pl-2.5 flex items-center text-muted"

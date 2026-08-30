@@ -147,6 +147,23 @@ test("focuses the registered native editor through an addon", () => {
   ).toContain("border-focus");
 });
 
+test("quiet groups reveal their boundary only while focused", () => {
+  const screen = renderComponent(() => (
+    <InputGroup aria-label="Navigation search" variant="quiet">
+      <InputGroupInput aria-label="Search projects" />
+    </InputGroup>
+  ));
+  const group = screen.getByRole("group", { name: "Navigation search" });
+  const input = screen.getByRole("textbox", { name: "Search projects" });
+
+  expect(group.className).toContain("bg-transparent");
+  expect(group.className).toContain("border-transparent");
+  expect(group.className).toContain("shadow-none");
+  input.focus();
+  expect(group.className).toContain("border-focus");
+  expect(group.className).not.toContain("border-transparent");
+});
+
 test("keeps multiline input chrome on the compound surface", () => {
   const screen = renderComponent(() => (
     <InputGroup aria-label="Comment" orientation="vertical">

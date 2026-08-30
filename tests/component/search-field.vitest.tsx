@@ -65,10 +65,7 @@ test("submits the current query with Enter", () => {
 
 test("uses one configurable surface for the compound input", () => {
   const screen = renderComponent(() => (
-    <SearchField
-      aria-label="Search files"
-      surfaceClass="bg-surface-raised"
-    />
+    <SearchField aria-label="Search files" surfaceClass="bg-surface-raised" />
   ));
   const input = screen.getByRole("textbox", { name: "Search files" });
   const group = input.parent;
@@ -82,4 +79,17 @@ test("uses one configurable surface for the compound input", () => {
   expect(input.className).not.toContain("bg-input");
   expect(input.className).not.toContain("bg-transparent");
   expect(input.className).not.toContain("border-subtle");
+});
+
+test("supports navigation chrome without losing a focused boundary", () => {
+  const screen = renderComponent(() => (
+    <SearchField aria-label="Search threads" variant="quiet" />
+  ));
+  const input = screen.getByRole("textbox", { name: "Search threads" });
+  const group = input.parent;
+
+  expect(group?.className).toContain("bg-transparent");
+  expect(group?.className).toContain("border-transparent");
+  input.focus();
+  expect(group?.className).toContain("border-focus");
 });

@@ -446,6 +446,13 @@ try {
             role: "textbox",
             name: "Search agents and sessions",
           });
+          const searchSurface = fixture.nodes.find(
+            (node) =>
+              node.id.lo === search.parentId?.lo &&
+              node.id.hi === search.parentId?.hi,
+          );
+          if (!searchSurface)
+            throw new Error("sidebar search surface is missing");
           const newThread = getLayoutNode(fixture, {
             role: "button",
             name: "New thread",
@@ -460,6 +467,15 @@ try {
           if (newThread.rect.height < 36 || newThread.rect.width < 220) {
             throw new Error(
               `primary sidebar action lost its control surface: ${newThread.rect.width}x${newThread.rect.height}`,
+            );
+          }
+          if (
+            !newThread.classes.includes("bg-transparent") ||
+            !searchSurface.classes.includes("bg-transparent") ||
+            !searchSurface.classes.includes("border-transparent")
+          ) {
+            throw new Error(
+              `sidebar chrome must stay quiet until interaction: action=${newThread.classes.join(" ")}; search=${searchSurface.classes.join(" ")}`,
             );
           }
           if (

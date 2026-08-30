@@ -3348,8 +3348,8 @@ const InputGroupContext = createContext();
 function useInputGroup() {
 	return useContext(InputGroupContext);
 }
-function inputGroupClass(orientation, focused, invalid) {
-	return mergeClasses("relative w-full min-w-0 flex rounded-lg border shadow-xs", orientation === "horizontal" ? "h-8 flex-row items-center" : "h-auto flex-col items-stretch", invalid ? "border-danger" : focused ? "border-focus" : "border-strong");
+function inputGroupClass(orientation, focused, invalid, variant = "default") {
+	return mergeClasses("relative w-full min-w-0 flex rounded-lg border", variant === "default" ? "shadow-xs" : "shadow-none", orientation === "horizontal" ? "h-8 flex-row items-center" : "h-auto flex-col items-stretch", invalid ? "border-danger" : focused ? "border-focus" : variant === "quiet" ? "border-transparent" : "border-strong");
 }
 function InputGroup(props) {
 	const focus = createFocusWithin();
@@ -3362,7 +3362,7 @@ function InputGroup(props) {
 			if (!props.disabled) control?.focus();
 		}
 	};
-	const forwarded = omit(props, "children", "orientation", "invalid", "disabled", "surfaceClass", "class");
+	const forwarded = omit(props, "children", "orientation", "variant", "invalid", "disabled", "surfaceClass", "class");
 	return createComponent$1(InputGroupContext, {
 		value: context,
 		get children() {
@@ -3380,7 +3380,7 @@ function InputGroup(props) {
 				},
 				"data-wabou-owns": "surface focus-ring",
 				get ["class"]() {
-					return mergeClasses(inputGroupClass(props.orientation ?? "horizontal", focus.focusWithin(), props.invalid ?? false), props.surfaceClass ?? "bg-input", props.disabled && "opacity-50", props.class);
+					return mergeClasses(inputGroupClass(props.orientation ?? "horizontal", focus.focusWithin(), props.invalid ?? false, props.variant ?? "default"), props.surfaceClass ?? (props.variant === "quiet" ? "bg-transparent" : "bg-input"), props.disabled && "opacity-50", props.class);
 				},
 				get children() {
 					return props.children;
@@ -8726,7 +8726,7 @@ function ResizableHandle(props) {
 //#region src/components/search-field.tsx
 /** A native search input with consistent clear, Escape, and submit behavior. */
 function SearchField(props) {
-	const forwarded = omit(props, "value", "defaultValue", "onValueChange", "onSearch", "onClear", "clearLabel", "class", "surfaceClass", "inputClass", "inputRef");
+	const forwarded = omit(props, "value", "defaultValue", "onValueChange", "onSearch", "onClear", "clearLabel", "variant", "class", "surfaceClass", "inputClass", "inputRef");
 	const state = createControllableState({
 		value: () => props.value,
 		defaultValue: props.defaultValue ?? "",
@@ -8743,6 +8743,9 @@ function SearchField(props) {
 	return createComponent$1(InputGroup, {
 		get ["class"]() {
 			return props.class;
+		},
+		get variant() {
+			return props.variant;
 		},
 		get surfaceClass() {
 			return props.surfaceClass;
@@ -9380,8 +9383,11 @@ function SidebarHeader(props) {
 }
 function SidebarSearch(props) {
 	const forwarded = omit(props, "class");
+	const quiet = () => props.variant === "quiet";
 	return createComponent$1(View, {
-		class: "flex-none p-2 border-b border-subtle bg-surface",
+		get ["class"]() {
+			return mergeClasses("flex-none p-2", quiet() ? "bg-surface-muted" : "border-b border-subtle bg-surface");
+		},
 		get children() {
 			return createComponent$1(SearchField, mergeProps(forwarded, {
 				get placeholder() {

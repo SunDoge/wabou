@@ -211,6 +211,7 @@ export function FieldSeparator(props: {
   );
 }
 export type InputGroupOrientation = "horizontal" | "vertical";
+export type InputGroupVariant = "default" | "quiet";
 export type InputGroupAddonAlign =
   | "inline-start"
   | "inline-end"
@@ -232,19 +233,28 @@ export function inputGroupClass(
   orientation: InputGroupOrientation,
   focused: boolean,
   invalid: boolean,
+  variant: InputGroupVariant = "default",
 ): string {
   return mergeClasses(
-    "relative w-full min-w-0 flex rounded-lg border shadow-xs",
+    "relative w-full min-w-0 flex rounded-lg border",
+    variant === "default" ? "shadow-xs" : "shadow-none",
     orientation === "horizontal"
       ? "h-8 flex-row items-center"
       : "h-auto flex-col items-stretch",
-    invalid ? "border-danger" : focused ? "border-focus" : "border-strong",
+    invalid
+      ? "border-danger"
+      : focused
+        ? "border-focus"
+        : variant === "quiet"
+          ? "border-transparent"
+          : "border-strong",
   );
 }
 
 export interface InputGroupProps extends Omit<ViewProps, "children"> {
   children?: JSX.Element;
   orientation?: InputGroupOrientation;
+  variant?: InputGroupVariant;
   invalid?: boolean;
   disabled?: boolean;
   /** Background utility owned by the compound control. Defaults to `bg-input`. */
@@ -266,6 +276,7 @@ export function InputGroup(props: InputGroupProps) {
     props,
     "children",
     "orientation",
+    "variant",
     "invalid",
     "disabled",
     "surfaceClass",
@@ -285,8 +296,10 @@ export function InputGroup(props: InputGroupProps) {
             props.orientation ?? "horizontal",
             focus.focusWithin(),
             props.invalid ?? false,
+            props.variant ?? "default",
           ),
-          props.surfaceClass ?? "bg-input",
+          props.surfaceClass ??
+            (props.variant === "quiet" ? "bg-transparent" : "bg-input"),
           props.disabled && "opacity-50",
           props.class,
         )}
