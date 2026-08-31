@@ -105,6 +105,7 @@
   "current_agent_detail": "为当前项目选择工作区，并按需覆盖模型服务商和模型。",
   "session_behavior": "会话行为",
   "session_behavior_detail": "控制 Pi 如何管理长上下文和排队中的指令。",
+  "session_behavior_update_failed": "无法更新会话行为",
   "auto_compaction": "自动压缩上下文",
   "auto_compaction_detail": "在模型上下文窗口接近用满前，对较早内容生成摘要。",
   "steering_queue_mode": "即时调整消息",

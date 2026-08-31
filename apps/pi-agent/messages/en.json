@@ -105,6 +105,7 @@
   "current_agent_detail": "Choose the workspace and optional provider/model overrides for this project.",
   "session_behavior": "Session behavior",
   "session_behavior_detail": "Control how Pi manages long contexts and queued instructions.",
+  "session_behavior_update_failed": "Could not update session behavior",
   "auto_compaction": "Automatic context compaction",
   "auto_compaction_detail": "Summarize older context before the model's context window fills.",
   "steering_queue_mode": "Steering messages",

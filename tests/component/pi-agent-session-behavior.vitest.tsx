@@ -1,5 +1,5 @@
 import { renderComponent } from "@wabou/test/component";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { initialAgentState } from "../../apps/pi-agent/ui/agent-state";
 import { SessionBehaviorSettings } from "../../apps/pi-agent/ui/session-behavior-settings";
 
@@ -31,4 +31,45 @@ test("changes Pi session behavior through explicit controls", () => {
   screen.getByRole("option", { name: "All queued messages" }).click();
   expect(changes).toContain("steer:all");
   expect(changes).toContain("follow:all");
+});
+
+test("keeps failed session behavior updates visible and retryable", async () => {
+  let rejectSteering: (error: unknown) => void = () => {};
+  const setSteeringMode = vi.fn(
+    () =>
+      new Promise<void>((_resolve, reject) => {
+        rejectSteering = reject;
+      }),
+  );
+  const screen = renderComponent(() => (
+    <SessionBehaviorSettings
+      state={{
+        ...initialAgentState,
+        connection: "ready",
+        autoCompactionEnabled: true,
+        steeringMode: "one-at-a-time",
+        followUpMode: "one-at-a-time",
+      }}
+      setAutoCompaction={() => {}}
+      setSteeringMode={setSteeringMode}
+      setFollowUpMode={() => {}}
+    />
+  ));
+  const steering = screen.getByRole("combobox", { name: "Steering messages" });
+
+  steering.click();
+  screen.getByRole("option", { name: "All queued messages" }).click();
+  expect(setSteeringMode).toHaveBeenCalledWith("all");
+  expect(steering.disabled).toBe(true);
+
+  const failure = new Error("runtime rejected queue mode");
+  rejectSteering(failure);
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("alert", {
+        name: "Could not update session behavior",
+      }).text,
+    ).toContain("runtime rejected queue mode");
+  });
+  expect(steering.disabled).toBe(false);
 });

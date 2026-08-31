@@ -53,9 +53,9 @@ export function SettingsPage(props: {
   updateProject: (patch: Partial<AgentWorkspace>) => void;
   close: () => void;
   deleteProject: () => void | Promise<void>;
-  setAutoCompaction: (enabled: boolean) => void;
-  setSteeringMode: (mode: AgentQueueMode) => void;
-  setFollowUpMode: (mode: AgentQueueMode) => void;
+  setAutoCompaction: (enabled: boolean) => void | Promise<void>;
+  setSteeringMode: (mode: AgentQueueMode) => void | Promise<void>;
+  setFollowUpMode: (mode: AgentQueueMode) => void | Promise<void>;
   defaultSection?: "project" | "application";
 }) {
   const compact = createContainerMatch({ maxWidth: 640 });

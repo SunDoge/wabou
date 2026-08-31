@@ -848,13 +848,13 @@ export function App() {
                   updateProject={patchActive}
                   deleteProject={deleteActiveAgent}
                   setAutoCompaction={(enabled) =>
-                    void api.setAutoCompaction(active().id, enabled)
+                    api.setAutoCompaction(active().id, enabled)
                   }
                   setSteeringMode={(mode) =>
-                    void api.setSteeringMode(active().id, mode)
+                    api.setSteeringMode(active().id, mode)
                   }
                   setFollowUpMode={(mode) =>
-                    void api.setFollowUpMode(active().id, mode)
+                    api.setFollowUpMode(active().id, mode)
                   }
                   close={() => navigate({ to: `/agents/${activeId()}` })}
                 />
