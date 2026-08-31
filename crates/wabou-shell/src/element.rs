@@ -201,6 +201,7 @@ pub struct ProjectedElement {
     /// from an interactive ancestor merely because every projected node shares
     /// the same event bridge.
     hit_testable: bool,
+    suppress_text_selection: bool,
     root_focus: Option<FocusHandle>,
     text_input: Option<ProjectedTextInputState>,
     layout_bounds: Option<ProjectedLayoutBounds>,
@@ -494,6 +495,7 @@ impl ProjectedElement {
                 .then_some(context.input)
                 .flatten(),
             hit_testable,
+            suppress_text_selection: text_selection_policy == TextSelectionPolicy::None,
             root_focus: context.root_focus,
             text_input: context.text_input,
             layout_bounds: context.layout_bounds,
@@ -1072,8 +1074,17 @@ impl Element for ProjectedElement {
             let down_input = input.clone();
             let down_hitbox = hitbox.clone();
             let key = self.key;
+            let suppress_text_selection = self.suppress_text_selection;
             window.on_mouse_event(move |event: &MouseDownEvent, phase, window, cx| {
                 if phase == DispatchPhase::Bubble && down_hitbox.is_hovered(window) {
+                    if suppress_text_selection && event.button == MouseButton::Left {
+                        // Stopping propagation alone is not a sufficient text-selection
+                        // contract: the window selection layer prepares the gesture during
+                        // capture, before this projected control owns it. Mark the gesture
+                        // explicitly so removing a popup during the matching click cannot
+                        // turn the same press into a selection on the newly exposed content.
+                        gpui_base::GlobalState::suppress_text_selection(cx);
+                    }
                     down_input(
                         ProjectedInputEvent::Pointer(pointer_event(
                             key,
@@ -1741,7 +1752,7 @@ mod tests {
                 _window: &mut Window,
                 _cx: &mut Context<Self>,
             ) -> impl IntoElement {
-                ProjectedElement::from_tree(
+                let projected = ProjectedElement::from_tree(
                     self.tree.clone(),
                     NodeKey::new(80, 1),
                     ProjectedElementContext {
@@ -1750,7 +1761,11 @@ mod tests {
                     },
                     false,
                 )
-                .unwrap()
+                .unwrap();
+                div()
+                    .size_full()
+                    .child(gpui_base::TextSelectionLayer)
+                    .child(projected)
             }
         }
 
@@ -1780,6 +1795,8 @@ mod tests {
         .unwrap();
         tree.add_event_listener(button, wabou_protocol::event::CLICK)
             .unwrap();
+        tree.update_text_selection(button, Some(TextSelectionPolicy::None))
+            .unwrap();
 
         let events = Rc::new(RefCell::new(Vec::new()));
         let observed = events.clone();
@@ -1799,6 +1816,12 @@ mod tests {
         let inside_label = point(px(24.0), px(20.0));
         cx.simulate_mouse_move(inside_label, None, Modifiers::default());
         cx.simulate_mouse_down(inside_label, MouseButton::Left, Modifiers::default());
+        cx.update(|_, cx| {
+            assert!(
+                gpui_base::GlobalState::is_text_selection_suppressed(cx),
+                "a select-none control must own its press before the window selection layer"
+            );
+        });
         cx.simulate_mouse_up(inside_label, MouseButton::Left, Modifiers::default());
 
         let events = events.borrow();
