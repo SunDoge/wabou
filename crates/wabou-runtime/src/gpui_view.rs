@@ -1,6 +1,7 @@
 //! GPUI view owning one Wabou JavaScript runtime.
 
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap},
     rc::Rc,
     sync::Arc,
@@ -767,6 +768,20 @@ impl Render for GpuiRuntimeView {
             );
         }
         let (_, frame_timing) = self.controller.advance_frame_profiled();
+        let fonts = self.controller.take_pending_fonts();
+        if !fonts.is_empty() {
+            let count = fonts.len();
+            if let Err(error) = window
+                .text_system()
+                .add_fonts(fonts.into_iter().map(Cow::Owned).collect())
+            {
+                tracing::warn!(%error, count, "failed to register application fonts with GPUI");
+            } else {
+                // Font availability changes shaping and therefore layout even
+                // when the retained Solid tree itself did not mutate.
+                cx.notify();
+            }
+        }
         self.synchronize_text_controls(window, cx);
         for command in self.controller.take_projection_commands() {
             match command {

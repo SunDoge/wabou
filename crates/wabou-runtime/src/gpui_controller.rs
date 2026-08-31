@@ -115,6 +115,14 @@ impl GpuiController {
             .take()
     }
 
+    pub(crate) fn take_pending_fonts(&mut self) -> Vec<Vec<u8>> {
+        self.runtime
+            .pending_fonts
+            .as_ref()
+            .map(|fonts| std::mem::take(&mut *fonts.borrow_mut()))
+            .unwrap_or_default()
+    }
+
     pub(crate) fn install_color_palette(
         &mut self,
         colors: std::collections::HashMap<String, u32>,
@@ -1193,6 +1201,21 @@ mod tests {
             "#,
         )
         .expect("install application-message probe");
+    }
+
+    #[test]
+    fn pending_application_fonts_are_drained_once_for_gpui() {
+        let js = JsRuntime::new().expect("runtime");
+        js.pending_fonts_handle()
+            .borrow_mut()
+            .extend([vec![1, 2, 3], vec![4, 5]]);
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            gpui_shell::initial_window_resource_key(0),
+        ));
+
+        assert_eq!(controller.take_pending_fonts(), [vec![1, 2, 3], vec![4, 5]]);
+        assert!(controller.take_pending_fonts().is_empty());
     }
 
     #[test]
