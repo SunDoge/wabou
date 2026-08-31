@@ -228,6 +228,7 @@
   "fork_session": "从这条消息创建分支？",
   "fork_session_detail": "之后的消息会离开当前分支。Pi 会保留会话树，并将这条提示词放回输入框供你修改。",
   "fork_session_checking": "正在检查这轮对话是否存在工作区检查点…",
+  "fork_session_checking_action": "正在检查…",
   "fork_session_with_checkpoint": "之后的消息会离开当前分支，Git 工作区会恢复到发送这条提示词之前。修改文件前会先创建安全检查点。",
   "fork_session_without_checkpoint": "之后的消息会离开当前分支，但由于这轮对话没有 Git 检查点，当前工作区文件不会改变。",
   "fork": "创建分支",
