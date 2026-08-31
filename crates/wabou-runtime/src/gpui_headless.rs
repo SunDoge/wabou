@@ -3,7 +3,10 @@
 use std::{collections::HashMap, path::Path, rc::Rc, sync::Arc, time::Duration};
 
 use snafu::ResultExt as _;
-use wabou_shell::gpui::{AppContext as _, HeadlessAppContext, px, size};
+use wabou_shell::gpui::{
+    AppContext as _, HeadlessAppContext, Keystroke, Modifiers, MouseButton, MouseDownEvent,
+    MouseUpEvent, PlatformInput, ScrollDelta, ScrollWheelEvent, TouchPhase, point, px, size,
+};
 
 use crate::{GpuiRuntimeView, JsRuntime, WindowOptions};
 
@@ -164,6 +167,89 @@ impl GpuiHeadlessHarness {
         self.settle(1)
     }
 
+    /// Dispatch a native GPUI primary-button click in logical window coordinates.
+    pub fn click(&mut self, x: f32, y: f32) -> crate::Result<()> {
+        let position = point(px(x), px(y));
+        self.context
+            .update_window(self.window.into(), |_, window, app| {
+                window.dispatch_event(
+                    PlatformInput::MouseDown(MouseDownEvent {
+                        position,
+                        button: MouseButton::Left,
+                        modifiers: Modifiers::default(),
+                        click_count: 1,
+                        first_mouse: false,
+                    }),
+                    app,
+                );
+                window.dispatch_event(
+                    PlatformInput::MouseUp(MouseUpEvent {
+                        position,
+                        button: MouseButton::Left,
+                        modifiers: Modifiers::default(),
+                        click_count: 1,
+                    }),
+                    app,
+                );
+            })
+            .map_err(|error| crate::Error::GpuiShell {
+                message: format!("failed to dispatch headless GPUI click: {error}"),
+            })?;
+        self.settle(1)
+    }
+
+    /// Dispatch a native GPUI pixel-wheel event in logical window coordinates.
+    pub fn wheel(&mut self, x: f32, y: f32, delta_x: f32, delta_y: f32) -> crate::Result<()> {
+        self.context
+            .update_window(self.window.into(), |_, window, app| {
+                window.dispatch_event(
+                    PlatformInput::ScrollWheel(ScrollWheelEvent {
+                        position: point(px(x), px(y)),
+                        delta: ScrollDelta::Pixels(point(px(delta_x), px(delta_y))),
+                        modifiers: Modifiers::default(),
+                        touch_phase: TouchPhase::Moved,
+                    }),
+                    app,
+                );
+            })
+            .map_err(|error| crate::Error::GpuiShell {
+                message: format!("failed to dispatch headless GPUI wheel event: {error}"),
+            })?;
+        self.settle(1)
+    }
+
+    /// Type text through GPUI's simulated platform/IME path.
+    pub fn type_text(&mut self, text: &str) -> crate::Result<()> {
+        for character in text.chars() {
+            let key = character.to_string();
+            self.dispatch_keystroke(Keystroke {
+                modifiers: Modifiers::default(),
+                key: key.clone(),
+                key_char: Some(key),
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Dispatch one GPUI keystroke using GPUI's canonical key syntax.
+    pub fn key(&mut self, key: &str) -> crate::Result<()> {
+        let keystroke = Keystroke::parse(key).map_err(|error| crate::Error::GpuiShell {
+            message: format!("invalid GPUI keystroke `{key}`: {error}"),
+        })?;
+        self.dispatch_keystroke(keystroke)
+    }
+
+    fn dispatch_keystroke(&mut self, keystroke: Keystroke) -> crate::Result<()> {
+        self.context
+            .update_window(self.window.into(), |_, window, app| {
+                window.dispatch_keystroke(keystroke, app);
+            })
+            .map_err(|error| crate::Error::GpuiShell {
+                message: format!("failed to dispatch headless GPUI keystroke: {error}"),
+            })?;
+        self.settle(1)
+    }
+
     /// Evaluate fixture setup code inside the owned QuickJS runtime.
     pub fn eval_script(&mut self, source: &str) -> crate::Result<()> {
         let root = self.root()?;
@@ -278,7 +364,50 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use wabou_host_api::NodeKey;
-    use wabou_shell::gpui::{IntoElement as _, Styled as _, div};
+    use wabou_shell::gpui::{
+        InteractiveElement as _, IntoElement as _, ParentElement as _, Styled as _, div,
+    };
+
+    #[derive(Default)]
+    struct InputCounts {
+        clicks: AtomicUsize,
+        keys: AtomicUsize,
+        wheels: AtomicUsize,
+    }
+
+    struct InputProbe {
+        counts: Arc<InputCounts>,
+        focus: wabou_shell::gpui::FocusHandle,
+    }
+
+    impl wabou_shell::gpui::Render for InputProbe {
+        fn render(
+            &mut self,
+            _window: &mut wabou_shell::gpui::Window,
+            _cx: &mut wabou_shell::gpui::Context<Self>,
+        ) -> impl wabou_shell::gpui::IntoElement {
+            let focus = self.focus.clone();
+            let click_counts = self.counts.clone();
+            let wheel_counts = self.counts.clone();
+            let key_counts = self.counts.clone();
+            div()
+                .size_full()
+                .track_focus(&self.focus)
+                .on_mouse_down(
+                    wabou_shell::gpui::MouseButton::Left,
+                    move |_, window, cx| {
+                        click_counts.clicks.fetch_add(1, Ordering::Relaxed);
+                        window.focus(&focus, cx);
+                    },
+                )
+                .on_scroll_wheel(move |_, _, _| {
+                    wheel_counts.wheels.fetch_add(1, Ordering::Relaxed);
+                })
+                .on_key_down(move |_, _, _| {
+                    key_counts.keys.fetch_add(1, Ordering::Relaxed);
+                })
+        }
+    }
 
     #[test]
     fn production_protocol_bundle_reaches_real_gpui_layout() {
@@ -345,5 +474,53 @@ mod tests {
             invocations.load(Ordering::Relaxed) > 0,
             "registered native widget factory must participate in GPUI rendering"
         );
+    }
+
+    #[test]
+    fn native_input_replay_uses_gpui_hit_testing_focus_and_wheel_dispatch() {
+        let counts = Arc::new(InputCounts::default());
+        let observed = counts.clone();
+        let factory: wabou_shell::NativeWidgetFactory = Arc::new(move |context, _, cx| {
+            let counts = observed.clone();
+            let entity = context.entity::<InputProbe>().unwrap_or_else(|| {
+                cx.new(|cx| InputProbe {
+                    counts,
+                    focus: cx.focus_handle(),
+                })
+            });
+            wabou_shell::NativeWidgetMount::entity(
+                entity.clone(),
+                div()
+                    .w(px(800.0))
+                    .h(px(600.0))
+                    .child(entity)
+                    .into_any_element(),
+            )
+        });
+        let mut harness = GpuiHeadlessHarness::boot_with_native_widgets(
+            include_str!("gen/test-runtime.js"),
+            None::<Arc<[u8]>>,
+            GpuiHeadlessOptions {
+                window: WindowOptions::new().initial_inner_size(800, 600),
+                settle_frames: 2,
+            },
+            HashMap::from([(String::from("main"), factory)]),
+        )
+        .expect("boot interactive GPUI fixture");
+
+        harness.click(400.0, 300.0).expect("click GPUI fixture");
+        harness
+            .wheel(400.0, 300.0, 0.0, -32.0)
+            .expect("wheel GPUI fixture");
+        harness
+            .key("enter")
+            .expect("type into focused GPUI fixture");
+        harness
+            .type_text("文a")
+            .expect("type Unicode text through GPUI");
+
+        assert_eq!(counts.clicks.load(Ordering::Relaxed), 1);
+        assert_eq!(counts.wheels.load(Ordering::Relaxed), 1);
+        assert_eq!(counts.keys.load(Ordering::Relaxed), 3);
     }
 }

@@ -200,6 +200,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         }
     }
     gpui_layout::settle_wait(&mut harness, options.wait_ms)?;
+    replay_actions(&mut harness, &options.actions)?;
     if let Some(snapshot) = &options.snapshot {
         gpui_layout::write_snapshot(snapshot, &harness.snapshot()?, options.color_scheme)?;
     }
@@ -232,8 +233,32 @@ fn validate_capture_options(options: &RenderOptions) -> Result<()> {
     if options.metrics.is_some() || options.samples != 20 {
         return Err("GPUI capture metrics have not been migrated yet".into());
     }
-    if !options.actions.is_empty() {
-        return Err("GPUI capture interaction replay has not been migrated yet".into());
+    for action in &options.actions {
+        let values: &[f64] = match action {
+            RenderAction::Click(values) => values,
+            RenderAction::Wheel(values) => values,
+            RenderAction::Text(_) | RenderAction::Key(_) => continue,
+        };
+        if values.iter().any(|value| !value.is_finite()) {
+            return Err("GPUI capture coordinates and deltas must be finite".into());
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn replay_actions(
+    harness: &mut wabou_runtime::GpuiHeadlessHarness,
+    actions: &[RenderAction],
+) -> Result<()> {
+    for action in actions {
+        match action {
+            RenderAction::Click([x, y]) => harness.click(*x as f32, *y as f32)?,
+            RenderAction::Wheel([x, y, delta_x, delta_y]) => {
+                harness.wheel(*x as f32, *y as f32, *delta_x as f32, *delta_y as f32)?;
+            }
+            RenderAction::Text(text) => harness.type_text(text)?,
+            RenderAction::Key(key) => harness.key(key)?,
+        }
     }
     Ok(())
 }

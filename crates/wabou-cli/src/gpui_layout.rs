@@ -47,6 +47,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         }
     }
     settle_wait(&mut harness, options.wait_ms)?;
+    super::replay_actions(&mut harness, &options.actions)?;
     write_snapshot(&options.out, &harness.snapshot()?, options.color_scheme)
 }
 
@@ -64,6 +65,7 @@ fn run_selected_fixture(
     let mut harness = boot(source, source_map, fixture.width(), fixture.height())?;
     mount_fixture(&mut harness, &fixture.id)?;
     settle_wait(&mut harness, fixture.wait_ms.unwrap_or(options.wait_ms))?;
+    super::replay_actions(&mut harness, &options.actions)?;
     write_snapshot(&options.out, &harness.snapshot()?, options.color_scheme)
 }
 
@@ -117,6 +119,7 @@ fn run_batch(
         )?;
         mount_fixture(&mut harness, &case.id)?;
         settle_wait(&mut harness, case.wait_ms.unwrap_or(options.wait_ms))?;
+        super::replay_actions(&mut harness, &options.actions)?;
         let output = harness.snapshot()?;
         results.push(LayoutBatchResult {
             id: case.id,
