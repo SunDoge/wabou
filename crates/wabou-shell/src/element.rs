@@ -976,7 +976,6 @@ impl Element for ProjectedElement {
             .svg_source
             .as_ref()
             .map(|_| self.svg_transformation(bounds, window.scale_factor()));
-        let svg_color = self.style.text.color.unwrap_or_else(gpui::black);
         self.style.paint(bounds, window, cx, |window, cx| {
             window.with_text_style(text_style, |window| {
                 window.with_content_mask(overflow_mask, |window| {
@@ -984,14 +983,29 @@ impl Element for ProjectedElement {
                         vector_path.paint(bounds.origin, window);
                     }
                     if let Some(source) = &self.svg_source {
-                        let _ = window.paint_svg(
+                        // `currentColor` follows the same inherited text-style
+                        // cascade as glyphs. Reading `self.style.text.color`
+                        // here would see only declarations authored directly
+                        // on the SVG and make inherited icons fall back to
+                        // black (effectively invisible on dark surfaces).
+                        let svg_color = window.text_style().color;
+                        if let Err(error) = window.paint_svg(
                             bounds,
                             source.cache_key.clone(),
                             Some(&source.bytes),
                             svg_transformation.unwrap_or_default(),
                             svg_color,
                             cx,
-                        );
+                        ) {
+                            tracing::warn!(
+                                node = ?self.key,
+                                cache_key = %source.cache_key,
+                                width = f32::from(bounds.size.width),
+                                height = f32::from(bounds.size.height),
+                                %error,
+                                "failed to paint projected SVG"
+                            );
+                        }
                     }
                     for child in &mut self.children {
                         child.paint(window, cx);
