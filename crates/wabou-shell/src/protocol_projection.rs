@@ -105,6 +105,16 @@ pub struct GpuiComputedStyle {
     pub opacity: f32,
 }
 
+/// Active semantic color theme projected by the JavaScript stylesheet.
+///
+/// Native GPUI widgets consume the same palette as projected JSX instead of
+/// falling back to a second, unrelated set of application defaults.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GpuiThemeSnapshot {
+    pub dark: bool,
+    pub colors: std::collections::HashMap<String, u32>,
+}
+
 /// Imperative work whose semantics belong to the GPUI window rather than the
 /// retained element tree.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1000,6 +1010,16 @@ impl GpuiProjection {
             ));
         }
         self.set_color_palette(tokens.into_iter().zip(colors).collect())
+    }
+
+    pub fn active_theme_snapshot(&self) -> Option<GpuiThemeSnapshot> {
+        let themes = self.stylesheet.as_ref()?.color_themes.as_ref()?;
+        let name = self.active_color_theme.as_ref()?;
+        let theme = themes.themes.get(name)?;
+        Some(GpuiThemeSnapshot {
+            dark: theme._appearance == wabou_style::stylesheet::Appearance::Dark,
+            colors: self.active_theme_colors.clone()?,
+        })
     }
 
     fn recompute_all_styles(&mut self) -> Result<(), String> {
@@ -1992,10 +2012,24 @@ mod tests {
             projection.style(key(2)).unwrap().background,
             Some(crate::gpui::rgba(0xffff_ffff).into())
         );
+        assert_eq!(
+            projection.active_theme_snapshot(),
+            Some(GpuiThemeSnapshot {
+                dark: false,
+                colors: std::collections::HashMap::from([("surface".into(), 0xffff_ffff)]),
+            })
+        );
         assert!(projection.set_color_theme("dark").unwrap());
         assert_eq!(
             projection.style(key(2)).unwrap().background,
             Some(crate::gpui::rgba(0x1010_10ff).into())
+        );
+        assert_eq!(
+            projection.active_theme_snapshot(),
+            Some(GpuiThemeSnapshot {
+                dark: true,
+                colors: std::collections::HashMap::from([("surface".into(), 0x1010_10ff)]),
+            })
         );
         assert!(!projection.set_color_theme("dark").unwrap());
     }

@@ -45,6 +45,7 @@ pub struct GpuiRuntimeView {
     window_host: std::rc::Rc<crate::gpui_windows::GpuiApplicationWindows>,
     file_drag_paths: Vec<std::path::PathBuf>,
     file_drag_position: Option<wabou_shell::Point>,
+    projected_base_theme: Option<wabou_shell::GpuiThemeSnapshot>,
 }
 
 pub(crate) struct GpuiRuntimeViewOptions {
@@ -139,6 +140,48 @@ impl GpuiTextControlState {
     }
 }
 
+fn project_base_theme(
+    snapshot: &wabou_shell::GpuiThemeSnapshot,
+    mut theme: gpui_base::Theme,
+) -> gpui_base::Theme {
+    let colors = &snapshot.colors;
+    let color = |names: &[&str], fallback: wabou_shell::gpui::Hsla| {
+        names
+            .iter()
+            .find_map(|name| colors.get(*name).copied())
+            .map(wabou_shell::gpui::rgba)
+            .map(wabou_shell::gpui::rgb_to_hsla)
+            .unwrap_or(fallback)
+    };
+    let tokens = &mut theme.tokens.colors;
+    tokens.background = color(&["canvas"], tokens.background);
+    tokens.foreground = color(&["primary"], tokens.foreground);
+    tokens.surface = color(&["surface"], tokens.surface);
+    tokens.surface_foreground = color(&["primary"], tokens.surface_foreground);
+    tokens.primary = color(&["accent"], tokens.primary);
+    tokens.primary_foreground = color(&["on-accent"], tokens.primary_foreground);
+    tokens.secondary = color(&["control", "surface-muted"], tokens.secondary);
+    tokens.secondary_foreground = color(&["primary", "secondary"], tokens.secondary_foreground);
+    tokens.muted = color(&["surface-muted", "control"], tokens.muted);
+    tokens.muted_foreground = color(&["muted"], tokens.muted_foreground);
+    tokens.accent = color(&["selected", "accent"], tokens.accent);
+    tokens.accent_foreground = color(&["primary"], tokens.accent_foreground);
+    tokens.destructive = color(&["danger"], tokens.destructive);
+    tokens.destructive_foreground = color(
+        &["danger-primary", "on-accent"],
+        tokens.destructive_foreground,
+    );
+    tokens.border = color(&["subtle", "strong"], tokens.border);
+    tokens.input = color(&["input"], tokens.input);
+    tokens.ring = color(&["focus", "accent"], tokens.ring);
+    theme.appearance = if snapshot.dark {
+        gpui_base::ThemeAppearance::Dark
+    } else {
+        gpui_base::ThemeAppearance::Light
+    };
+    theme
+}
+
 impl GpuiRuntimeView {
     /// Wrap an already configured and booted Wabou runtime.
     #[must_use]
@@ -187,7 +230,23 @@ impl GpuiRuntimeView {
             window_host: options.window_host,
             file_drag_paths: Vec::new(),
             file_drag_position: None,
+            projected_base_theme: None,
         }
+    }
+
+    fn synchronize_base_theme(&mut self, cx: &mut Context<Self>) {
+        let Some(snapshot) = self.controller.active_theme_snapshot() else {
+            return;
+        };
+        if self.projected_base_theme.as_ref() == Some(&snapshot) {
+            return;
+        }
+        let fallback = gpui_base::Theme::global(cx);
+        let projected = project_base_theme(&snapshot, fallback);
+        let theme = gpui_base::Theme::global_mut(cx);
+        theme.appearance = projected.appearance;
+        theme.tokens = projected.tokens;
+        self.projected_base_theme = Some(snapshot);
     }
 
     fn synchronize_text_selections(
@@ -812,6 +871,7 @@ impl Render for GpuiRuntimeView {
             );
         }
         let (_, frame_timing) = self.controller.advance_frame_profiled();
+        self.synchronize_base_theme(cx);
         let fonts = self.controller.take_pending_fonts();
         if !fonts.is_empty() {
             let count = fonts.len();
@@ -1032,6 +1092,43 @@ mod tests {
             JsRuntime::new().expect("QuickJS runtime"),
             wabou_shell::initial_window_resource_key(0),
         ))
+    }
+
+    #[test]
+    fn wabou_palette_projects_into_gpui_base_semantic_tokens() {
+        let fallback = gpui_base::Theme::default();
+        let snapshot = wabou_shell::GpuiThemeSnapshot {
+            dark: true,
+            colors: HashMap::from([
+                ("canvas".into(), 0x1214_18ff),
+                ("surface".into(), 0x1a1d_22ff),
+                ("primary".into(), 0xf2f4_f7ff),
+                ("control".into(), 0x2428_2fff),
+                ("muted".into(), 0x8e97_a4ff),
+                ("accent".into(), 0x4c8d_ffff),
+                ("on-accent".into(), 0x1214_18ff),
+                ("subtle".into(), 0x3035_3dff),
+                ("input".into(), 0x2024_2aff),
+                ("focus".into(), 0x74a8_ffff),
+            ]),
+        };
+
+        let projected = project_base_theme(&snapshot, fallback);
+        let hsla = |rgba| wabou_shell::gpui::rgb_to_hsla(wabou_shell::gpui::rgba(rgba));
+        assert_eq!(projected.appearance, gpui_base::ThemeAppearance::Dark);
+        assert_eq!(projected.tokens.colors.background, hsla(0x1214_18ff));
+        assert_eq!(projected.tokens.colors.surface, hsla(0x1a1d_22ff));
+        assert_eq!(projected.tokens.colors.foreground, hsla(0xf2f4_f7ff));
+        assert_eq!(projected.tokens.colors.primary, hsla(0x4c8d_ffff));
+        assert_eq!(
+            projected.tokens.colors.primary_foreground,
+            hsla(0x1214_18ff)
+        );
+        assert_eq!(projected.tokens.colors.secondary, hsla(0x2428_2fff));
+        assert_eq!(projected.tokens.colors.muted_foreground, hsla(0x8e97_a4ff));
+        assert_eq!(projected.tokens.colors.border, hsla(0x3035_3dff));
+        assert_eq!(projected.tokens.colors.input, hsla(0x2024_2aff));
+        assert_eq!(projected.tokens.colors.ring, hsla(0x74a8_ffff));
     }
 
     fn test_window_host() -> std::rc::Rc<crate::gpui_windows::GpuiApplicationWindows> {

@@ -622,6 +622,10 @@ impl GpuiController {
         self.projection.text_controls()
     }
 
+    pub(crate) fn active_theme_snapshot(&self) -> Option<wabou_shell::GpuiThemeSnapshot> {
+        self.projection.active_theme_snapshot()
+    }
+
     pub(crate) fn native_widgets(
         &self,
         accepts: impl FnMut(&str) -> bool,

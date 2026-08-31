@@ -28,7 +28,7 @@ pub use native_widget::{NativeWidgetContext, NativeWidgetFactory, NativeWidgetMo
 pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
 pub use protocol_projection::{
     GpuiCommand, GpuiComputedStyle, GpuiLayoutNode, GpuiNativeWidget, GpuiProjection,
-    GpuiSelectableText, GpuiTextControl, GpuiTextControlStyle, project_ir,
+    GpuiSelectableText, GpuiTextControl, GpuiTextControlStyle, GpuiThemeSnapshot, project_ir,
 };
 pub use style::{StyleDiagnostic, StyleProjection};
 pub use text_selection::ProjectedTextSelection;
