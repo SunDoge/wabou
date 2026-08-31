@@ -1,7 +1,7 @@
 //! Retained GPUI projection of completed Solid protocol frames.
 
-// This is an internal runtime seam re-exported across workspace crates while
-// the old applier is extracted. It is not a stable application-facing API.
+// This is the internal frame-to-GPUI projection seam shared by the shell and
+// runtime crates. It is not a stable application-facing API.
 #![allow(missing_docs)]
 
 use crate::{
@@ -122,9 +122,9 @@ impl GpuiProjection {
 
     /// Apply the structural part of one Solid flush without publishing it.
     ///
-    /// Resolved styles are projected later while the legacy applier processes
-    /// the same frame. `finish_frame` is therefore the only commit point: GPUI
-    /// never observes a newly attached node with the previous/default style.
+    /// Structural mutations and authored styles are accumulated before
+    /// `finish_frame` publishes the retained snapshot. GPUI therefore never
+    /// observes a newly attached node with the previous/default style.
     pub fn apply_ops(
         &mut self,
         frame: &Frame<'_>,

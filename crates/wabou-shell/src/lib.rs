@@ -52,7 +52,7 @@ pub use window_state::WindowSizePersistence;
 ///
 /// Keeping application construction here prevents downstream applications from
 /// depending directly on `gpui_ce_platform` and gives Wabou one place to install
-/// platform services as the migration progresses.
+/// platform services.
 pub fn application() -> gpui::Application {
     gpui_platform::application()
 }
