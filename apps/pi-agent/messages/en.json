@@ -145,6 +145,7 @@
   "no_models": "No configured models",
   "choose_thinking": "Thinking level",
   "new_session": "New session",
+  "new_session_failed": "Could not create a new session",
   "session_actions": "Session actions",
   "session_action_failed": "Session action failed",
   "compact_session": "Compact context",

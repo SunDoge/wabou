@@ -112,6 +112,40 @@ test("Pi Agent header swaps session actions for a stop action while running", ()
   expect(abort).toHaveBeenCalledOnce();
 });
 
+test("Pi Agent disables new-session entry points while creation is pending", () => {
+  const newSession = vi.fn();
+  const screen = renderComponent(() => (
+    <ConversationHeader
+      project="Wabou"
+      session="Current task"
+      state={readyState}
+      cwdAvailable
+      repository={false}
+      terminalOpen={false}
+      filesOpen={false}
+      changesOpen={false}
+      searchOpen={false}
+      toggleTerminal={() => {}}
+      toggleFiles={() => {}}
+      toggleChanges={() => {}}
+      toggleSearch={() => {}}
+      newSession={newSession}
+      newSessionPending
+      compactSession={() => {}}
+      cloneSession={() => {}}
+      exportSession={() => {}}
+      abort={() => {}}
+    />
+  ));
+
+  const create = screen.getByRole("button", {
+    name: "New session",
+    disabled: true,
+  });
+  expect(() => create.click()).toThrow("cannot click disabled");
+  expect(newSession).not.toHaveBeenCalled();
+});
+
 test("Pi Agent keeps local workspace actions available while the process is stopped", () => {
   const toggleFiles = vi.fn();
   const screen = renderComponent(() => (

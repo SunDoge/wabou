@@ -44,6 +44,7 @@ export interface ConversationHeaderProps {
   toggleChanges(): void;
   toggleSearch(): void;
   newSession(): void;
+  newSessionPending?: boolean;
   compactSession(): void | Promise<void>;
   cloneSession(): void | Promise<void>;
   exportSession(): void | Promise<void>;
@@ -136,6 +137,7 @@ export function ConversationHeader(props: ConversationHeaderProps) {
             <ToolbarButton
               size="icon"
               aria-label={i18n.message(m.new_session, {})}
+              disabled={props.newSessionPending}
               onClick={props.newSession}
             >
               <Icon source={filePlus} size={15} />

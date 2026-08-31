@@ -145,6 +145,7 @@
   "no_models": "没有已配置的模型",
   "choose_thinking": "思考级别",
   "new_session": "新建会话",
+  "new_session_failed": "无法新建会话",
   "session_actions": "会话操作",
   "session_action_failed": "会话操作失败",
   "compact_session": "压缩上下文",

@@ -2,6 +2,7 @@ import { openKv } from "@wabou/core";
 import {
   type CommandItem,
   createAsyncQuery,
+  createKeyedAsyncAction,
   createShortcuts,
   createToasts,
   currentWindow,
@@ -122,6 +123,10 @@ export function App() {
     patchActive,
     prepareDefaultWorkspace,
   } = profiles;
+  const newSessionAction = createKeyedAsyncAction(
+    (agentId: string) => agentId,
+    (agentId: string) => api.newSession(agentId),
+  );
   const activeSessionId = () => params().sessionId;
   const drafts = createAgentDraftController({
     kv: openKv(["pi-agent"]),
@@ -713,10 +718,14 @@ export function App() {
     setSidePanel((current) => (current === "files" ? undefined : "files"));
   const toggleChanges = () =>
     setSidePanel((current) => (current === "changes" ? undefined : "changes"));
-  const startNewSession = () => {
-    if (active().state.connection === "ready") {
-      void api.newSession(active().id);
-    }
+  const startNewSession = async () => {
+    const agent = active();
+    if (agent.state.connection !== "ready") return;
+    const result = await newSessionAction.run(agent.id);
+    if (!result.ok)
+      toasts.error(i18n.message(m.new_session_failed, {}), {
+        description: String(result.error),
+      });
   };
   const applicationCommands = createMemo<readonly CommandItem[]>(() => [
     {
@@ -806,8 +815,11 @@ export function App() {
         activeId={activeId()}
         select={selectAgent}
         add={addAgent}
-        newSession={() => void api.newSession(active().id)}
-        canCreateSession={active().state.connection === "ready"}
+        newSession={() => void startNewSession()}
+        canCreateSession={
+          active().state.connection === "ready" &&
+          !newSessionAction.pending(activeId())
+        }
         activePage={activePage()}
         openSkills={() => navigate({ to: "/skills" })}
         openSettings={() => navigate({ to: "/settings" })}
@@ -893,6 +905,7 @@ export function App() {
             toggleChanges={toggleChanges}
             toggleSearch={() => setSearchOpen((open) => !open)}
             newSession={startNewSession}
+            newSessionPending={newSessionAction.pending(activeId())}
             compactSession={() => api.compactSession(active().id)}
             cloneSession={() => api.cloneSession(active().id)}
             exportSession={exportActiveSession}
