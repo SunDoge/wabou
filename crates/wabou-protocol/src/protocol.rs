@@ -196,6 +196,9 @@ pub enum Op<'a> {
     FocusNode {
         id: NodeKey,
     },
+    BlurNode {
+        id: NodeKey,
+    },
     ScrollTo {
         id: NodeKey,
         x: f32,
@@ -642,6 +645,10 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             let id = r.node_key()?;
             Op::FocusNode { id }
         }
+        op::BLUR_NODE => {
+            let id = r.node_key()?;
+            Op::BlurNode { id }
+        }
         op::SCROLL_TO => {
             let id = r.node_key()?;
             let x = r.f32()?;
@@ -791,6 +798,23 @@ mod tests {
         assert!(matches!(
             &frame.ops[0],
             Op::FocusNode {
+                id: NodeKey { lo: 42, hi: 1 }
+            }
+        ));
+    }
+
+    #[test]
+    fn decodes_imperative_blur_target() {
+        let mut bytes = Vec::new();
+        push_u32(&mut bytes, 1);
+        push_u32(&mut bytes, 1);
+        bytes.push(op::BLUR_NODE);
+        push_node(&mut bytes, 42);
+
+        let frame = decode_frame(&bytes).unwrap();
+        assert!(matches!(
+            &frame.ops[0],
+            Op::BlurNode {
                 id: NodeKey { lo: 42, hi: 1 }
             }
         ));

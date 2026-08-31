@@ -1092,6 +1092,12 @@ impl Render for GpuiRuntimeView {
                         cx.notify();
                     }
                 }
+                wabou_shell::GpuiCommand::Blur { id } => {
+                    if self.controller.set_text_focus(id, false) {
+                        window.blur();
+                        cx.notify();
+                    }
+                }
                 wabou_shell::GpuiCommand::SetTextSelection { id, anchor, head } => {
                     if let Some(control) = self.text_controls.get(&id) {
                         control.set_selection_utf16(anchor, head, cx);

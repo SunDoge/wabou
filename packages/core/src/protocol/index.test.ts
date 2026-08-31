@@ -144,15 +144,18 @@ describe("Writer limits", () => {
     expect(view.getFloat32(39, true)).toBe(8);
   });
 
-  test("encodes imperative focus as a node-only operation", () => {
+  test("encodes imperative focus and blur as node-only operations", () => {
     const writer = new Writer();
     writer.focusNode(k(42));
+    writer.blurNode(k(42));
     const frame = writer.flush()!;
     const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
 
-    expect(frame.byteLength).toBe(17);
+    expect(frame.byteLength).toBe(26);
     expect(frame[8]).toBe(0x13);
     expect(view.getUint32(9, true)).toBe(42);
+    expect(frame[17]).toBe(0x25);
+    expect(view.getUint32(18, true)).toBe(42);
   });
 
   test("encodes absolute and relative native scroll operations", () => {

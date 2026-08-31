@@ -499,10 +499,18 @@ describe("host primitives", () => {
       expect(values).toEqual(["next"]);
     }));
 
-  test("batches native editor selection and history commands through its handle", () => {
+  test("batches native editor focus, selection, and history commands through its handle", () => {
     const calls: Array<readonly [string, ...number[]]> = [];
+    const focusNode = writer.focusNode.bind(writer);
+    const blurNode = writer.blurNode.bind(writer);
     const setTextSelection = writer.setTextSelection.bind(writer);
     const textCommand = writer.textCommand.bind(writer);
+    writer.focusNode = () => {
+      calls.push(["focus"]);
+    };
+    writer.blurNode = () => {
+      calls.push(["blur"]);
+    };
     writer.setTextSelection = (_id, anchor, head) => {
       calls.push(["selection", anchor, head]);
     };
@@ -517,16 +525,22 @@ describe("host primitives", () => {
           handle = node;
         },
       });
+      handle?.focus();
+      handle?.blur();
       handle?.setTextSelection(2, 7);
       handle?.selectAll();
       handle?.undo();
       handle?.redo();
     } finally {
+      writer.focusNode = focusNode;
+      writer.blurNode = blurNode;
       writer.setTextSelection = setTextSelection;
       writer.textCommand = textCommand;
     }
 
     expect(calls).toEqual([
+      ["focus"],
+      ["blur"],
       ["selection", 2, 7],
       ["command", 1],
       ["command", 2],

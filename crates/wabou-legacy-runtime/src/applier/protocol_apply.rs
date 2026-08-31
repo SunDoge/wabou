@@ -847,6 +847,11 @@ impl Applier {
                     self.scroll_into_view(*id);
                 }
             }
+            Op::BlurNode { id } => {
+                if self.interaction.input.focused_target == Some(*id) {
+                    self.set_focused_target(None);
+                }
+            }
             Op::ScrollTo { id, x, y } => {
                 self.scroll_node(*id, *x, *y, false);
             }

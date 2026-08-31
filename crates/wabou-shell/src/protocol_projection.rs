@@ -142,6 +142,9 @@ pub enum GpuiCommand {
     Focus {
         id: NodeKey,
     },
+    Blur {
+        id: NodeKey,
+    },
     ScrollTo {
         id: NodeKey,
         x: f32,
@@ -522,6 +525,7 @@ impl GpuiProjection {
                     },
                 )?,
                 Op::FocusNode { id } => self.pending_commands.push(GpuiCommand::Focus { id: *id }),
+                Op::BlurNode { id } => self.pending_commands.push(GpuiCommand::Blur { id: *id }),
                 Op::ScrollTo { id, x, y } => self.pending_commands.push(GpuiCommand::ScrollTo {
                     id: *id,
                     x: *x,
@@ -576,6 +580,7 @@ impl GpuiProjection {
                 (id, self.scroll_handles.get(&id)?.scroll_by(x, y))
             }
             GpuiCommand::Focus { .. }
+            | GpuiCommand::Blur { .. }
             | GpuiCommand::SetTextSelection { .. }
             | GpuiCommand::Text { .. } => return None,
         };
@@ -2978,6 +2983,7 @@ mod tests {
                     seq: 1,
                     ops: vec![
                         Op::FocusNode { id: key(2) },
+                        Op::BlurNode { id: key(2) },
                         Op::ScrollTo {
                             id: key(3),
                             x: 4.0,
@@ -3016,6 +3022,7 @@ mod tests {
             projection.take_commands(),
             vec![
                 GpuiCommand::Focus { id: key(2) },
+                GpuiCommand::Blur { id: key(2) },
                 GpuiCommand::ScrollTo {
                     id: key(3),
                     x: 4.0,

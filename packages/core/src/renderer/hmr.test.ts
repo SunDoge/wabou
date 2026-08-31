@@ -63,6 +63,7 @@ function rootHandle(): Handle {
     prev: null,
     next: null,
     focus() {},
+    blur() {},
     scrollTo() {},
     scrollBy() {},
     setTextSelection() {},

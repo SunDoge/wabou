@@ -65,6 +65,7 @@ export const OP = {
   SetTextMaxLines: 0x22,
   SetTextSelection: 0x23,
   TextCommand: 0x24,
+  BlurNode: 0x25,
 } as const;
 
 export type OpCode = (typeof OP)[keyof typeof OP];
@@ -599,6 +600,10 @@ export class Writer {
   }
   focusNode(id: NodeKey): void {
     this.emit(OP.FocusNode);
+    this.key(id);
+  }
+  blurNode(id: NodeKey): void {
+    this.emit(OP.BlurNode);
     this.key(id);
   }
   scrollTo(id: NodeKey, x: number, y: number): void {

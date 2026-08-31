@@ -398,6 +398,8 @@ export interface Handle {
   next: Handle | null;
   /** Request native keyboard focus for this node on the next bridge flush. */
   focus(): void;
+  /** Remove native keyboard focus when this node currently owns it. */
+  blur(): void;
   /** Set this overflow container's native scroll offset. */
   scrollTo(options: { left?: number; top?: number }): void;
   scrollTo(left: number, top: number): void;
@@ -504,6 +506,7 @@ function imperativeMethods(
 ): Pick<
   Handle,
   | "focus"
+  | "blur"
   | "scrollTo"
   | "scrollBy"
   | "setTextSelection"
@@ -534,6 +537,7 @@ function imperativeMethods(
   }) as Handle["scrollBy"];
   return {
     focus: () => writer.focusNode(id),
+    blur: () => writer.blurNode(id),
     scrollTo,
     scrollBy,
     setTextSelection: (anchor, head = anchor) =>
