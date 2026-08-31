@@ -20,6 +20,9 @@ mod effect_trace;
 mod error;
 #[path = "../../wabou-runtime/src/gpui_controller.rs"]
 mod gpui_controller;
+#[cfg(test)]
+#[path = "../../wabou-runtime/src/host_abi.rs"]
+mod host_abi;
 #[path = "../../wabou-runtime/src/host_ffi.rs"]
 mod host_ffi;
 #[path = "../../wabou-runtime/src/host_frame.rs"]

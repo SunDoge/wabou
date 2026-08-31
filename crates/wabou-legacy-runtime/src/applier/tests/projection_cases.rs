@@ -41,7 +41,10 @@ fn overlay_change_wakes_and_invalidates_an_idle_frame_source_once() {
 
 #[test]
 fn host_layout_snapshot_reports_completed_rects_and_viewport() {
-    const CORE_FIXTURE: &str = include_str!("../../gen/test-runtime.js");
+    const CORE_FIXTURE: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../wabou-runtime/src/gen/test-runtime.js"
+    ));
     let mut applier = interactive_applier();
     let placed = layout::flatten_with_scroll(
         &applier.document.node_store.tree,
@@ -319,7 +322,10 @@ fn svg_descendant_attributes_still_refresh_the_svg_projection() {
 
 #[test]
 fn public_host_adapter_runs_in_embedded_quickjs() {
-    const CORE_FIXTURE: &str = include_str!("../../gen/test-runtime.js");
+    const CORE_FIXTURE: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../wabou-runtime/src/gen/test-runtime.js"
+    ));
     let mut applier = Applier::from_runtime(JsRuntime::new().expect("runtime"), Color::BLACK);
     applier
         .boot(CORE_FIXTURE)

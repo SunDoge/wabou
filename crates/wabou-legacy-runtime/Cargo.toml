@@ -41,7 +41,7 @@ tokio-util = { version = "0.7", features = ["rt"] }
 tracing.workspace = true
 url.workspace = true
 vello.workspace = true
-wabou-devtools = { workspace = true, optional = true }
+wabou-devtools.workspace = true
 wabou-bindgen.workspace = true
 wabou-host-api.workspace = true
 wabou-legacy-widgets.workspace = true
@@ -50,6 +50,9 @@ wabou-style.workspace = true
 
 [features]
 default = []
-devtools = ["dep:wabou-devtools"]
+devtools = []
 profiling = []
 vite = []
+
+[dev-dependencies]
+proptest = "1"
