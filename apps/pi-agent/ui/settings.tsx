@@ -13,10 +13,11 @@ import {
   FieldDescription,
   FieldLabel,
   Input,
-  mergeClasses,
   PageHeader,
   PageViewport,
   Separator,
+  SettingsGroup,
+  SettingsSection,
   Switch,
   Tabs,
   TabsContent,
@@ -25,7 +26,6 @@ import {
   Text,
   View,
 } from "@wabou/ui";
-import type { JSX } from "solid-js";
 import type { AgentQueueMode, AgentViewState } from "./agent-state";
 import { i18n, m } from "./i18n";
 import { SessionBehaviorSettings } from "./session-behavior-settings";
@@ -38,68 +38,6 @@ export interface AppSettings {
   provider: string;
   model: string;
   subagentsEnabled: boolean;
-}
-
-function SettingsSection(props: {
-  title: string;
-  description: string;
-  children: JSX.Element;
-  class?: string;
-}) {
-  const compact = createContainerMatch({ maxWidth: 640 });
-  return (
-    <View
-      ref={compact.ref}
-      role="group"
-      aria-label={props.title}
-      class={mergeClasses(
-        "min-w-0 flex items-start",
-        compact.matches() ? "flex-col gap-3" : "flex-row gap-7",
-      )}
-    >
-      <View
-        class={mergeClasses(
-          "flex-none flex flex-col gap-1 pt-1",
-          compact.matches() ? "w-full" : "w-52",
-        )}
-      >
-        <Text role="heading" class="text-base font-semibold text-primary">
-          {props.title}
-        </Text>
-        <Text class="text-sm text-secondary whitespace-normal">
-          {props.description}
-        </Text>
-      </View>
-      <View
-        class={mergeClasses(
-          "w-full min-w-0 flex-1 flex flex-col gap-5 rounded-xl border border-subtle bg-surface px-5 py-5 shadow-xs",
-          props.class,
-        )}
-      >
-        {props.children}
-      </View>
-    </View>
-  );
-}
-
-function SettingsGroup(props: {
-  title: string;
-  description?: string;
-  children: JSX.Element;
-}) {
-  return (
-    <View class="min-w-0 flex flex-col gap-4">
-      <View class="min-w-0 flex flex-col gap-1">
-        <Text class="text-sm font-semibold text-primary">{props.title}</Text>
-        {props.description ? (
-          <Text class="text-sm text-secondary whitespace-normal">
-            {props.description}
-          </Text>
-        ) : null}
-      </View>
-      <View class="min-w-0 flex flex-col gap-4">{props.children}</View>
-    </View>
-  );
 }
 
 export function SettingsPage(props: {
@@ -154,8 +92,9 @@ export function SettingsPage(props: {
             <SettingsSection
               title={i18n.message(m.workspace, {})}
               description={i18n.message(m.current_agent_detail, {})}
+              stacked={compact.matches()}
             >
-              <SettingsGroup title={i18n.message(m.workspace, {})}>
+              <View class="min-w-0 flex flex-col gap-4">
                 <Field>
                   <FieldLabel>{i18n.message(m.agent_name, {})}</FieldLabel>
                   <Input
@@ -200,7 +139,7 @@ export function SettingsPage(props: {
                     placeholder={i18n.message(m.model_optional, {})}
                   />
                 </Field>
-              </SettingsGroup>
+              </View>
               <Separator />
               <SettingsGroup
                 title={i18n.message(m.session_behavior, {})}
@@ -218,7 +157,8 @@ export function SettingsPage(props: {
             <SettingsSection
               title={i18n.message(m.danger_zone, {})}
               description={i18n.message(m.delete_agent_detail, {})}
-              class="border-danger"
+              stacked={compact.matches()}
+              contentClass="border-danger"
             >
               <View class="min-w-0 flex flex-row items-center justify-between gap-4">
                 <Text class="min-w-0 flex-1 text-sm text-secondary whitespace-normal">
@@ -272,6 +212,7 @@ export function SettingsPage(props: {
             <SettingsSection
               title={i18n.message(m.application_settings, {})}
               description={i18n.message(m.application_settings_detail, {})}
+              stacked={compact.matches()}
             >
               <SettingsGroup
                 title={i18n.message(m.language, {})}

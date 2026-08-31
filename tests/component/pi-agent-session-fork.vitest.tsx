@@ -14,6 +14,7 @@ test("requires confirmation before rewinding a Pi session", () => {
         <Button onClick={() => setOpen(true)}>Fork message</Button>
         <SessionForkDialog
           open={open()}
+          checkpoint="available"
           confirm={confirm}
           cancel={() => {
             cancel();
@@ -30,7 +31,7 @@ test("requires confirmation before rewinding a Pi session", () => {
   const dialog = screen.getByRole("alertdialog", {
     name: "Fork from this message?",
   });
-  expect(dialog.text).toContain("Pi keeps the session tree");
+  expect(dialog.text).toContain("Git workspace returns to its state");
   screen.getByRole("button", { name: "Fork" }).click();
   expect(confirm).toHaveBeenCalledOnce();
 });

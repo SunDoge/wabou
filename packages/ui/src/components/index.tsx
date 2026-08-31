@@ -83,6 +83,7 @@ export * from "./reasoning";
 export * from "./resizable";
 export * from "./search-field";
 export * from "./select";
+export * from "./settings";
 export {
   Checkbox,
   type CheckboxProps,

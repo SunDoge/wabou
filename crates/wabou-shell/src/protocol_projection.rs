@@ -1526,6 +1526,11 @@ fn gpui_style() -> crate::gpui::Style {
 
 fn gpui_root_style() -> crate::gpui::Style {
     let mut style = crate::gpui::Style::default();
+    // The canonical host root is a bounded column, not an authored block.
+    // A block root lets a `flex-1 min-h-0` page viewport take its intrinsic
+    // content height, so scroll containers grow beyond the native window.
+    style.display = crate::gpui::Display::Flex;
+    style.flex_direction = crate::gpui::FlexDirection::Column;
     style.size.width = crate::gpui::relative(1.0).into();
     style.size.height = crate::gpui::relative(1.0).into();
     style
@@ -1539,6 +1544,20 @@ mod tests {
 
     fn key(lo: u32) -> NodeKey {
         NodeKey::new(lo, 1)
+    }
+
+    #[test]
+    fn canonical_root_bounds_flexible_page_viewports_to_the_window() {
+        let style = gpui_root_style();
+        assert_eq!(style.display, crate::gpui::Display::Flex);
+        assert_eq!(style.flex_direction, crate::gpui::FlexDirection::Column);
+        assert_eq!(
+            style.size,
+            crate::gpui::size(
+                crate::gpui::relative(1.0).into(),
+                crate::gpui::relative(1.0).into(),
+            )
+        );
     }
 
     #[test]
