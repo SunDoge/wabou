@@ -1905,6 +1905,7 @@ mod tests {
                 overflow_y: "Visible".into(),
                 font_size: None,
                 font_weight: None,
+                text_color: None,
                 opacity: 1.0,
             },
         }

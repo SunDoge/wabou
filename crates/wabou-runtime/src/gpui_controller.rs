@@ -96,6 +96,15 @@ impl GpuiController {
     }
 
     pub(crate) fn install_stylesheet(&mut self, sheet: StyleSheet) -> Result<(), String> {
+        tracing::debug!(
+            target: "stylesheet",
+            rules = sheet.rules.len(),
+            themes = sheet
+                .color_themes
+                .as_ref()
+                .map_or(0, |themes| themes.themes.len()),
+            "installing GPUI stylesheet"
+        );
         self.projection.set_stylesheet(sheet)
     }
 
@@ -1304,7 +1313,10 @@ fn gpui_debug_node(
             pointer_events: node.pointer_events,
             z_index: node.z_index.min(i32::MAX as usize) as i32,
             overlay_plane: overlay_plane.into(),
-            text_color: String::new(),
+            text_color: node
+                .computed
+                .text_color
+                .map_or_else(String::new, |color| format!("{color:?}")),
             ..Default::default()
         },
     }

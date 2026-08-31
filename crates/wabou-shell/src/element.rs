@@ -722,15 +722,24 @@ impl Element for ProjectedElement {
         window: &mut Window,
         cx: &mut App,
     ) -> (LayoutId, Self::RequestLayoutState) {
-        let child_layouts = self
-            .children
-            .iter_mut()
-            .map(|child| child.request_layout(window, cx))
-            .collect::<Vec<_>>();
-        let mut scrollbar = self.scrollbar_element();
-        let scrollbar_layout = scrollbar
-            .as_mut()
-            .map(|scrollbar| scrollbar.request_layout(window, cx));
+        // GPUI shapes text during request_layout and stores the resolved color,
+        // family, weight, and line metrics in its text runs. Applying inherited
+        // refinements only during prepaint/paint leaves those runs at GPUI's
+        // default (notably black), even though the projected Style is correct.
+        let text_style = self.style.text_style().cloned();
+        let (child_layouts, scrollbar, scrollbar_layout) =
+            window.with_text_style(text_style, |window| {
+                let child_layouts = self
+                    .children
+                    .iter_mut()
+                    .map(|child| child.request_layout(window, cx))
+                    .collect::<Vec<_>>();
+                let mut scrollbar = self.scrollbar_element();
+                let scrollbar_layout = scrollbar
+                    .as_mut()
+                    .map(|scrollbar| scrollbar.request_layout(window, cx));
+                (child_layouts, scrollbar, scrollbar_layout)
+            });
         let mut layout_children = child_layouts.clone();
         layout_children.extend(scrollbar_layout);
         let layout_id = window.request_layout(self.style.clone(), layout_children, cx);
@@ -1611,6 +1620,110 @@ mod tests {
         assert_eq!(bounds.origin, point(px(7.0), px(11.0)));
         assert!(bounds.size.width > px(0.0));
         assert!(bounds.size.height > px(0.0));
+    }
+
+    #[gpui::test]
+    fn inherited_text_style_is_active_while_gpui_shapes_child_layout(cx: &mut TestAppContext) {
+        struct LayoutHost;
+        impl gpui::Render for LayoutHost {
+            fn render(
+                &mut self,
+                _window: &mut Window,
+                _cx: &mut Context<Self>,
+            ) -> impl IntoElement {
+                div()
+            }
+        }
+
+        struct TextStyleProbe(Rc<RefCell<Option<gpui::Hsla>>>);
+        impl IntoElement for TextStyleProbe {
+            type Element = Self;
+
+            fn into_element(self) -> Self::Element {
+                self
+            }
+        }
+        impl Element for TextStyleProbe {
+            type RequestLayoutState = ();
+            type PrepaintState = ();
+
+            fn id(&self) -> Option<ElementId> {
+                None
+            }
+
+            fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+                None
+            }
+
+            fn request_layout(
+                &mut self,
+                _id: Option<&GlobalElementId>,
+                _inspector_id: Option<&InspectorElementId>,
+                window: &mut Window,
+                cx: &mut App,
+            ) -> (LayoutId, Self::RequestLayoutState) {
+                *self.0.borrow_mut() = Some(window.text_style().color);
+                (window.request_layout(Style::default(), [], cx), ())
+            }
+
+            fn prepaint(
+                &mut self,
+                _id: Option<&GlobalElementId>,
+                _inspector_id: Option<&InspectorElementId>,
+                _bounds: Bounds<Pixels>,
+                _request_layout: &mut Self::RequestLayoutState,
+                _window: &mut Window,
+                _cx: &mut App,
+            ) {
+            }
+
+            fn paint(
+                &mut self,
+                _id: Option<&GlobalElementId>,
+                _inspector_id: Option<&InspectorElementId>,
+                _bounds: Bounds<Pixels>,
+                _request_layout: &mut Self::RequestLayoutState,
+                _prepaint: &mut Self::PrepaintState,
+                _window: &mut Window,
+                _cx: &mut App,
+            ) {
+            }
+        }
+
+        let key = NodeKey::new(41, 1);
+        let expected = gpui::rgb_to_hsla(gpui::rgba(0xf2f4_f7ff));
+        let mut style = Style::default();
+        style.text.color = Some(expected);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            style,
+            None,
+            crate::ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        let mut element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            key,
+            ProjectedElementContext::default(),
+            false,
+        )
+        .unwrap();
+        let observed = Rc::new(RefCell::new(None));
+        element
+            .children
+            .push(TextStyleProbe(observed.clone()).into_any_element());
+
+        let (_host, window) = cx.add_window_view(|_, _| LayoutHost);
+        window.draw(
+            point(px(0.0), px(0.0)),
+            gpui::size(px(120.0), px(40.0)),
+            |_, _| element,
+        );
+
+        assert_eq!(*observed.borrow(), Some(expected));
     }
 
     #[test]

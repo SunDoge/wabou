@@ -270,7 +270,16 @@ fn node_value(node: &GpuiLayoutNode) -> serde_json::Value {
             "overlayPlane": "Content",
             "fontSize": node.computed.font_size,
             "fontWeight": node.computed.font_weight,
-            "textColor": null,
+            "textColor": node.computed.text_color.map(|color| {
+                let rgba = wabou_shell::gpui::hsla_to_rgba(color);
+                format!(
+                    "rgba({:.0}, {:.0}, {:.0}, {:.3})",
+                    rgba.color.red * 255.0,
+                    rgba.color.green * 255.0,
+                    rgba.color.blue * 255.0,
+                    rgba.alpha
+                )
+            }),
             "background": null,
             "opacity": node.computed.opacity,
         },

@@ -93,6 +93,7 @@ pub struct GpuiComputedStyle {
     pub overflow_y: String,
     pub font_size: Option<f32>,
     pub font_weight: Option<f32>,
+    pub text_color: Option<crate::gpui::Hsla>,
     pub opacity: f32,
 }
 
@@ -753,6 +754,7 @@ impl GpuiProjection {
                             .font_size
                             .map(|size| f32::from(size.to_pixels(crate::gpui::px(16.0)))),
                         font_weight: node.style.text.font_weight.map(|weight| weight.0),
+                        text_color: node.style.text.color,
                         opacity: node.style.opacity.unwrap_or(1.0),
                     },
                 })
