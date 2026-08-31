@@ -95,6 +95,15 @@ const assertScrollAreaLayout = (snapshot: LayoutSnapshot) => {
     throw new Error("ScrollArea fixture did not produce a real scroll range");
 };
 
+const assertSliderLayout = (snapshot: LayoutSnapshot) => {
+  const slider = getLayoutNode(snapshot, {
+    role: "slider",
+    name: "Fixture volume",
+  });
+  assertClose(slider.rect.width, 384, "slider width");
+  assertClose(slider.rect.height, 28, "slider height");
+};
+
 const assertToolLayout = (snapshot: LayoutSnapshot) => {
   const root = getLayoutNode(snapshot, { role: "group", name: "Tool fixture" });
   const trigger = getLayoutNode(snapshot, {
@@ -561,6 +570,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/PromptSuggestion": { assert: assertPromptSuggestionLayout },
   "component/ScrollArea": { assert: assertScrollAreaLayout },
   "component/Select": { assert: assertSelectLayout },
+  "component/Slider": { assert: assertSliderLayout },
   "component/Empty": { assert: assertEmptyLayout },
   "component/Dialog": { assert: assertDialogLayout },
   "component/AdaptiveSplitPane": { assert: assertAdaptiveSplitPaneLayout },

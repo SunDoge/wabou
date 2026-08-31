@@ -33,6 +33,21 @@ impl NativeWidgetEventSink {
             cx,
         );
     }
+
+    /// Dispatch a numeric control value through Wabou's typed change event.
+    ///
+    /// Sliders, color channels, and similar retained controls use this instead
+    /// of serializing a custom JSON message or reconstructing pointer geometry
+    /// in JavaScript.
+    pub fn change_f64(&self, value: f64, cx: &mut App) {
+        (self.input)(
+            crate::ProjectedInputEvent::ValueChange {
+                target: self.target,
+                value,
+            },
+            cx,
+        );
+    }
 }
 
 /// Immutable authored state supplied when materializing a native GPUI widget.
@@ -229,6 +244,25 @@ mod tests {
             drop(context);
             events.activate(app);
             assert_eq!(activated.get(), Some(key));
+        });
+    }
+
+    #[gpui::test]
+    fn context_routes_numeric_changes_without_json(cx: &mut TestAppContext) {
+        let changed = std::rc::Rc::new(std::cell::Cell::new(None));
+        let observed = changed.clone();
+        cx.update(|app| {
+            let input = std::rc::Rc::new(move |event, _: &mut App| {
+                if let crate::ProjectedInputEvent::ValueChange { target, value } = event {
+                    observed.set(Some((target, value)));
+                }
+            });
+            let attributes = BTreeMap::new();
+            let key = NodeKey::new(22, 8);
+            NativeWidgetContext::new(key, &attributes, None, None, input)
+                .events()
+                .change_f64(42.5, app);
+            assert_eq!(changed.get(), Some((key, 42.5)));
         });
     }
 }

@@ -389,6 +389,7 @@ impl ProjectedElement {
         let mut child_context = context.for_child();
         child_context.text_selection_policy = Some(text_selection_policy);
         let native_child = context.native.as_ref().and_then(|factory| factory(key));
+        let has_native_child = native_child.is_some();
         let mut children =
             Vec::with_capacity(node.children.len() + usize::from(node.text.is_some()));
         let is_uniform_list = matches!(
@@ -482,7 +483,8 @@ impl ProjectedElement {
                 );
             }
         }
-        let hit_testable = !interaction_blocked
+        let hit_testable = !has_native_child
+            && !interaction_blocked
             && node.pointer_events
             && (context.root_focus.is_some()
                 || node.focus_order.is_some()
@@ -1630,6 +1632,45 @@ mod tests {
         .unwrap();
 
         assert_eq!(*seen.borrow(), [NodeKey::ROOT, old, recreated]);
+    }
+
+    #[test]
+    fn native_children_own_pointer_hit_testing() {
+        let key = NodeKey::new(28, 1);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("slider".into()),
+        )
+        .unwrap();
+        tree.update_interaction_policy(key, Some(0), false, false)
+            .unwrap();
+        tree.add_event_listener(key, wabou_protocol::event::CLICK)
+            .unwrap();
+
+        let native: ProjectedNativeElementFactory =
+            Rc::new(move |candidate| (candidate == key).then(|| div().into_any_element()));
+        let element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            key,
+            ProjectedElementContext {
+                native: Some(native),
+                input: Some(Rc::new(|_, _| {})),
+                ..Default::default()
+            },
+            false,
+        )
+        .unwrap();
+
+        assert!(element.input.is_some());
+        assert!(
+            !element.hit_testable,
+            "the projected wrapper must not intercept gestures owned by its native child"
+        );
     }
 
     #[test]

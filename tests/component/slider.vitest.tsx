@@ -31,24 +31,36 @@ test("supports keyboard input and publishes range semantics", () => {
   expect(changes.mock.calls.map(([value]) => value)).toEqual([30, 80, 100, 0]);
 });
 
-test("drags against measured width and updates its visual geometry", () => {
+test("authors one native slider config and accepts native value changes", () => {
+  const changes = vi.fn();
   const screen = renderComponent(() => (
-    <Slider label="Position" min={10} max={30} step={2} defaultValue={10} />
+    <Slider
+      label="Position"
+      min={10}
+      max={30}
+      step={2}
+      defaultValue={10}
+      onValueChange={changes}
+    />
   ));
   const slider = screen.getByRole("slider", { name: "Position" });
-  const [track, thumb] = slider.children;
 
-  slider.resize({ width: 200, height: 28 });
-  slider.pointerDown({ offsetX: 51 });
+  expect(slider.tag).toBe("slider");
+  expect(slider.children).toHaveLength(0);
+  expect(slider.widgetConfig).toEqual({
+    min: 10,
+    max: 30,
+    step: 2,
+    value: 10,
+    disabled: false,
+  });
+
+  slider.emit("change", { value: 16 });
   expect(slider.numericValue).toBe(16);
-  expect(track.children[0].style("width")).toBe("30%");
-  expect(Number.parseFloat(thumb.style("left") ?? "NaN")).toBeCloseTo(55.2);
-
-  slider.pointerMove({ offsetX: 200 });
-  slider.pointerUp({ offsetX: 200 });
+  expect(slider.widgetConfig).toMatchObject({ value: 16 });
+  slider.emit("change", { value: 30 });
   expect(slider.numericValue).toBe(30);
-  expect(track.children[0].style("width")).toBe("100%");
-  expect(thumb.style("left")).toBe("184px");
+  expect(changes.mock.calls.map(([value]) => value)).toEqual([16, 30]);
 });
 
 test("supports controlled values and rejects disabled interaction", () => {

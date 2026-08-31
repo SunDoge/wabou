@@ -44,6 +44,7 @@ import {
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
+  Slider,
   Spinner,
   Text,
   Tool,
@@ -596,6 +597,14 @@ export function SpinnerLayoutFixture() {
         <Spinner label="Fixture loading indicator" />
         <Text class="text-sm text-secondary">Loading</Text>
       </View>
+    </View>
+  );
+}
+
+export function SliderLayoutFixture() {
+  return (
+    <View class="w-full h-full flex items-center justify-center bg-canvas">
+      <Slider class="w-96" value={50} label="Fixture volume" />
     </View>
   );
 }

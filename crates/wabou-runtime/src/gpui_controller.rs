@@ -906,6 +906,20 @@ impl GpuiController {
                     ..wabou_shell::EventResponse::default()
                 }
             }
+            wabou_shell::ProjectedInputEvent::ValueChange { target, value } => {
+                let focused = self.set_text_focus(target, true);
+                let payload = serde_json::json!({ "value": value }).to_string();
+                let changed = self
+                    .dispatch_node_json(target, wabou_protocol::event::CHANGE, payload, false)
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                let handled = focused || changed;
+                wabou_shell::EventResponse {
+                    handled,
+                    request_redraw: handled,
+                    ..wabou_shell::EventResponse::default()
+                }
+            }
             wabou_shell::ProjectedInputEvent::Pointer(event) => {
                 self.handle_projected_pointer(event)
             }

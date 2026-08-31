@@ -118,6 +118,8 @@ pub enum ProjectedInputEvent {
     /// Semantic activation emitted by a native widget that already owns its
     /// pointer and keyboard interaction lifecycle.
     Activate { target: NodeKey },
+    /// Numeric value committed by a retained native control.
+    ValueChange { target: NodeKey, value: f64 },
     /// Pointer movement or button transition.
     Pointer(ProjectedPointerEvent),
     /// Wheel or trackpad transition.
