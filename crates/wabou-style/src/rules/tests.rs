@@ -240,7 +240,7 @@ fn static_transform_utilities_emit_typed_nested_ir() {
 }
 
 #[test]
-fn vello_shadow_scale_uses_ordered_ambient_and_key_layers() {
+fn shadow_scale_uses_ordered_ambient_and_key_layers() {
     for candidate in ["shadow", "shadow-md", "shadow-lg", "shadow-xl"] {
         let parsed = parse_utility(candidate).unwrap();
         assert!(matches!(

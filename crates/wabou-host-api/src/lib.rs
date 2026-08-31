@@ -209,7 +209,7 @@ pub struct FrameStats {
     /// QuickJS animation-frame callback time in milliseconds.
     #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub js_tick_ms: f64,
-    /// Backend-neutral AnyRender scene construction time in milliseconds.
+    /// Native retained-projection assembly time in milliseconds.
     #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub scene_ms: f64,
     /// Surface rendering and presentation time in milliseconds.

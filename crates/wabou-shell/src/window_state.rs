@@ -12,9 +12,9 @@ struct SavedWindowSize {
 
 /// Restores and records the normal logical size of one native window.
 ///
-/// Platform shells feed authoritative resize/maximize observations into this
-/// object. Keeping persistence independent from either event loop lets the
-/// Winit and GPUI backends share the exact file contract during migration.
+/// The GPUI shell feeds authoritative resize/maximize observations into this
+/// object. Persistence remains independent from application state so restoring
+/// a window never depends on booting the JavaScript runtime first.
 pub struct WindowSizePersistence {
     path: PathBuf,
     last_normal_size: Option<SavedWindowSize>,

@@ -1,7 +1,7 @@
 //! GPUI application lifecycle extensions.
 //!
-//! These extensions are intentionally distinct from the former winit
-//! `ShellExtension`: GPUI owns a different event loop and window model.
+//! Extensions execute inside GPUI's application context before application
+//! services begin using the opened windows.
 
 use gpui::{AnyWindowHandle, App, Global};
 
@@ -86,7 +86,7 @@ mod tests {
     }
 
     #[gpui::test]
-    fn extensions_are_installed_without_reusing_winit_lifecycle(cx: &mut TestAppContext) {
+    fn extensions_are_installed_in_gpui_application_order(cx: &mut TestAppContext) {
         let installed = Rc::new(Cell::new(false));
         cx.update(|app| {
             install_application_extensions(vec![Box::new(Probe(installed.clone()))], &[], app)
