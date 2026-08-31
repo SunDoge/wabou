@@ -8,8 +8,8 @@ import {
   type WabouStyle,
 } from "../primitives";
 import { useButtonGroupOrientation } from "./button-group-context";
-import { componentsControlSize } from "./theme";
 import { Spinner } from "./display";
+import { componentsControlSize } from "./theme";
 
 export type ButtonVariant =
   | "default"
@@ -123,6 +123,7 @@ export function Button(props: ButtonProps): JSX.Element {
     <HeadlessButton
       {...forwarded}
       disabled={local.disabled || local.loading}
+      aria-busy={local.loading ?? false}
       unstyled
       class={(state) =>
         mergeClasses(

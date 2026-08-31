@@ -138,8 +138,12 @@ test("Pi Agent prevents duplicate stop requests while one is pending", () => {
     />
   ));
 
-  const stop = screen.getByRole("button", { name: "Stop", disabled: true });
-  expect(screen.getByRole("status", { name: "Loading" })).toBeDefined();
+  const stop = screen.getByRole("button", {
+    name: "Stop",
+    disabled: true,
+    busy: true,
+  });
+  expect(stop.busy).toBe(true);
   expect(() => stop.click()).toThrow("cannot click disabled component");
   expect(abort).not.toHaveBeenCalled();
 });

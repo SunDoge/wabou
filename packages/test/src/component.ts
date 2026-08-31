@@ -51,6 +51,7 @@ export interface ComponentRoleListOptions {
   selected?: boolean;
   expanded?: boolean;
   pressed?: boolean | "mixed";
+  busy?: boolean;
   current?: boolean | string;
   orientation?: "horizontal" | "vertical";
   focused?: boolean;
@@ -138,6 +139,8 @@ export interface ComponentLocator extends ComponentQueries {
   readonly expanded: boolean | null;
   /** Toggle-button state authored through `aria-pressed`. */
   readonly pressed: boolean | "mixed" | null;
+  /** Pending state authored through `aria-busy`. */
+  readonly busy: boolean;
   /** Current item state authored through `aria-current`. */
   readonly current: boolean | string | null;
   /** Component axis authored through `aria-orientation`. */
@@ -154,7 +157,8 @@ export interface ComponentLocator extends ComponentQueries {
   readonly valueText: string | null;
   /** Last runtime affine transform emitted through the native protocol. */
   readonly transform:
-    readonly [number, number, number, number, number, number] | null;
+    | readonly [number, number, number, number, number, number]
+    | null;
   /** Whether this locator owns the harness's native focus simulation. */
   readonly focused: boolean;
   /** Native tab order emitted through Wabou's interaction policy protocol. */
@@ -892,6 +896,8 @@ export function renderComponent(
       booleanState(node, "aria-expanded") === options.expanded) &&
     (options.pressed === undefined ||
       toggleState(node, "aria-pressed") === options.pressed) &&
+    (options.busy === undefined ||
+      booleanState(node, "aria-busy") === options.busy) &&
     (options.current === undefined || currentState(node) === options.current) &&
     (options.orientation === undefined ||
       orientationState(node) === options.orientation) &&
@@ -1100,6 +1106,9 @@ export function renderComponent(
       },
       get pressed() {
         return toggleState(node, "aria-pressed");
+      },
+      get busy() {
+        return booleanState(node, "aria-busy") === true;
       },
       get current() {
         return currentState(node);

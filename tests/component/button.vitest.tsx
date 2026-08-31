@@ -27,8 +27,10 @@ test("Button exposes one stable disabled loading state", async () => {
   const start = screen.getByRole("button", {
     name: "Start agent",
     disabled: true,
+    busy: true,
   });
 
+  expect(start.busy).toBe(true);
   expect(start.text).toContain("Starting…");
   expect(start.text).not.toContain("Start agent");
   expect(screen.getByRole("status", { name: "Starting…" })).toBeDefined();
@@ -37,10 +39,11 @@ test("Button exposes one stable disabled loading state", async () => {
 
   screen.getByRole("button", { name: "Finish loading" }).click();
   await screen.waitFor(() =>
-    expect(screen.getByRole("button", { name: "Start agent" }).disabled).toBe(
-      false,
-    ),
+    expect(
+      screen.getByRole("button", { name: "Start agent", busy: false }).disabled,
+    ).toBe(false),
   );
+  expect(start.busy).toBe(false);
   expect(screen.getByRole("button", { name: "Start agent" }).text).toContain(
     "Start agent",
   );

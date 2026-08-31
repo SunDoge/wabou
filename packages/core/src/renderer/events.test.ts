@@ -210,6 +210,7 @@ test("ARIA booleans preserve explicit false instead of removing state", () => {
   try {
     setProp(option, "aria-selected", false, undefined);
     setProp(option, "aria-expanded", true, undefined);
+    setProp(option, "aria-busy", false, undefined);
   } finally {
     writer.setAttribute = setAttribute;
     writer.removeAttribute = removeAttribute;
@@ -217,6 +218,7 @@ test("ARIA booleans preserve explicit false instead of removing state", () => {
   expect(attributes).toEqual([
     ["aria-selected", "false"],
     ["aria-expanded", "true"],
+    ["aria-busy", "false"],
   ]);
   expect(removed).toEqual([]);
 });

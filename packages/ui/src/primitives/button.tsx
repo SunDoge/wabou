@@ -20,6 +20,7 @@ const ACCENTS = {
 export interface ButtonProps
   extends Pick<
     WabouElementProps,
+    | "aria-busy"
     | "aria-checked"
     | "aria-controls"
     | "aria-current"
@@ -257,6 +258,7 @@ export function Button(props: ButtonProps): JSX.Element {
       aria-current={props["aria-current"]}
       aria-selected={props["aria-selected"]}
       aria-pressed={props["aria-pressed"]}
+      aria-busy={props["aria-busy"]}
       aria-valuetext={props["aria-valuetext"]}
       class={mergeClasses(
         "select-none",

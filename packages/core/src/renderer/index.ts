@@ -164,6 +164,7 @@ export interface WabouElementProps {
   "aria-current"?: boolean | "date" | "location" | "page" | "step" | "time";
   "aria-selected"?: boolean;
   "aria-pressed"?: boolean | "mixed";
+  "aria-busy"?: boolean;
   "aria-valuemin"?: number;
   "aria-valuemax"?: number;
   "aria-valuenow"?: number;
