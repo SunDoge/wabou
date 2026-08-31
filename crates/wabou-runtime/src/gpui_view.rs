@@ -313,14 +313,17 @@ impl GpuiRuntimeView {
         self.controller.layout_snapshot()
     }
 
+    #[cfg(feature = "headless")]
     pub(crate) fn protocol_revision(&self) -> u64 {
         self.controller.protocol_revision()
     }
 
+    #[cfg(feature = "headless")]
     pub(crate) fn eval_script_diagnostic(&self, source: &str) -> Result<(), String> {
         self.controller.eval_script_diagnostic(source)
     }
 
+    #[cfg(feature = "headless")]
     pub(crate) fn eval_string(&self, source: &str) -> rquickjs::Result<String> {
         self.controller.eval_string(source)
     }

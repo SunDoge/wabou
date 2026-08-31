@@ -81,10 +81,6 @@ impl GpuiController {
         &self.projection
     }
 
-    pub(crate) fn projection_mut(&mut self) -> &mut GpuiProjection {
-        &mut self.projection
-    }
-
     pub(crate) fn take_projection_commands(&mut self) -> Vec<gpui_shell::GpuiCommand> {
         self.projection.take_commands()
     }
@@ -129,13 +125,6 @@ impl GpuiController {
             .as_ref()
             .map(|fonts| std::mem::take(&mut *fonts.borrow_mut()))
             .unwrap_or_default()
-    }
-
-    pub(crate) fn install_color_palette(
-        &mut self,
-        colors: std::collections::HashMap<String, u32>,
-    ) -> Result<bool, String> {
-        self.projection.set_color_palette(colors)
     }
 
     pub(crate) fn prepare_js_tick(&mut self) {
@@ -861,9 +850,7 @@ impl GpuiController {
         let Some(batch) = self.runtime.reload.drain() else {
             return HmrDrainResult::Idle;
         };
-        let result = self.apply_hmr_batch(batch);
-        self.runtime.reload.record_result(result.clone());
-        result
+        self.apply_hmr_batch(batch)
     }
 
     fn apply_hmr_batch(&mut self, batch: HmrBatch) -> HmrDrainResult {
@@ -1001,6 +988,7 @@ impl GpuiController {
     }
 
     /// Advance one complete Solid flush and publish its retained GPUI tree.
+    #[cfg(test)]
     pub fn advance_frame(&mut self) -> bool {
         self.advance_frame_profiled().0
     }
@@ -1087,11 +1075,13 @@ impl GpuiController {
     }
 
     /// Monotonically increasing count of non-empty JS-to-host frames.
+    #[cfg(any(feature = "headless", test))]
     pub fn protocol_revision(&self) -> u64 {
         self.runtime.protocol_revision
     }
 
     /// Boot the application after host bridges have been installed.
+    #[cfg(test)]
     pub fn boot(&mut self, source: &str) -> rquickjs::Result<()> {
         self.runtime.js.boot(source)
     }
@@ -1104,17 +1094,13 @@ impl GpuiController {
         self.runtime.js.boot_with_source_map(source, source_map)
     }
 
-    /// Evaluate an additional script in the booted application realm.
-    pub fn eval_script(&self, source: &str) -> rquickjs::Result<()> {
-        self.runtime.js.eval_script(source)
-    }
-
     /// Evaluate a test script and preserve mapped guest diagnostics.
     pub fn eval_script_diagnostic(&self, source: &str) -> Result<(), String> {
         self.runtime.js.eval_script_diagnostic(source)
     }
 
     /// Evaluate an expression and return its string value.
+    #[cfg(any(feature = "headless", test))]
     pub fn eval_string(&self, source: &str) -> rquickjs::Result<String> {
         self.runtime.js.eval_string(source)
     }

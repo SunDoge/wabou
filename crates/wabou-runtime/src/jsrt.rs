@@ -792,10 +792,6 @@ impl JsRuntime {
         })
     }
 
-    pub(crate) fn resize_targets_handle(&self) -> ResizeTargets {
-        self.resize_targets.clone()
-    }
-
     pub(crate) fn set_wake_callback(&self, callback: gpui_shell::WakeCallback) {
         if let Ok(mut wake) = self.runtime_wake.callback.lock() {
             *wake = Some(callback);
@@ -847,10 +843,6 @@ impl JsRuntime {
         self.runtime_wake.pending.swap(false, Ordering::AcqRel)
     }
 
-    pub(crate) fn has_async_wake(&self) -> bool {
-        self.runtime_wake.pending.load(Ordering::Acquire)
-    }
-
     /// A handle to the pending-stylesheet cell; the Applier drains it in
     /// `build_frame` and, on update, replaces its css dict + re-resolves.
     pub(crate) fn pending_css_handle(&self) -> Rc<RefCell<Option<StylesheetUpdate>>> {
@@ -877,6 +869,7 @@ impl JsRuntime {
         self.frame_stats.clone()
     }
 
+    #[cfg(test)]
     pub(crate) fn layout_metrics_handle(&self) -> Rc<RefCell<LayoutMetricsSnapshot>> {
         self.layout_metrics.clone()
     }

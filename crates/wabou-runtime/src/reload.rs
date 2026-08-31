@@ -94,28 +94,30 @@ pub(crate) struct HmrJsUpdate {
 }
 
 pub(crate) struct ReloadState {
-    sender: UiInboxSender<ReloadMsg>,
+    // Retain one sender so the inbox remains connected even in non-Vite builds.
+    _sender: UiInboxSender<ReloadMsg>,
     inbox: UiInbox<ReloadMsg>,
+    #[cfg(feature = "vite")]
     vite_entry: Option<String>,
-    last_result: HmrDrainResult,
 }
 
 impl Default for ReloadState {
     fn default() -> Self {
         let (sender, inbox) = crate::ui_inbox::unbounded();
         Self {
-            sender,
+            _sender: sender,
             inbox,
+            #[cfg(feature = "vite")]
             vite_entry: None,
-            last_result: HmrDrainResult::Idle,
         }
     }
 }
 
 impl ReloadState {
+    #[cfg(any(feature = "vite", test))]
     pub(super) fn handle(&mut self) -> ReloadHandle {
         ReloadHandle {
-            tx: self.sender.clone(),
+            tx: self._sender.clone(),
         }
     }
 
@@ -132,6 +134,7 @@ impl ReloadState {
         self.inbox.set_wake(wake);
     }
 
+    #[cfg(feature = "vite")]
     pub(super) fn set_vite_entry(&mut self, entry: impl Into<String>) {
         self.vite_entry = Some(entry.into());
     }
@@ -139,14 +142,6 @@ impl ReloadState {
     #[cfg(feature = "vite")]
     pub(crate) fn vite_entry(&self) -> Option<&str> {
         self.vite_entry.as_deref()
-    }
-
-    pub(super) fn last_result(&self) -> &HmrDrainResult {
-        &self.last_result
-    }
-
-    pub(crate) fn record_result(&mut self, result: HmrDrainResult) {
-        self.last_result = result;
     }
 }
 

@@ -83,6 +83,7 @@ impl ImageResource {
         self.gpui.clone()
     }
 
+    #[cfg(test)]
     pub(crate) fn to_rgba8(&self) -> image::RgbaImage {
         self.source.to_rgba8()
     }
