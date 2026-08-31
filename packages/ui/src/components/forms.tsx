@@ -103,6 +103,7 @@ export interface LabeledFieldProps {
   disabled?: boolean;
   errors?: ReadonlyArray<FieldErrorLike | undefined>;
   class?: string;
+  controlRef?: (node: Handle) => void;
   /** Render the native control and attach the supplied ref to its focus owner. */
   renderControl: (ref: (node: Handle) => void) => JSX.Element;
 }
@@ -121,6 +122,7 @@ export function LabeledField(props: LabeledFieldProps) {
       </FieldLabel>
       {props.renderControl((node) => {
         control = node;
+        props.controlRef?.(node);
       })}
       <Show
         when={props.description !== undefined && props.description !== null}
