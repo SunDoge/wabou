@@ -88,6 +88,7 @@ pub struct GpuiProjection {
     style_diagnostics: std::collections::HashMap<NodeKey, Vec<String>>,
     inline_styles: std::collections::HashMap<NodeKey, std::collections::BTreeMap<String, IrValue>>,
     layout_bounds: crate::element::ProjectedLayoutBounds,
+    graphic_paint_states: crate::element::ProjectedGraphicPaintStates,
     pending_commands: Vec<GpuiCommand>,
     scroll_handles: std::collections::BTreeMap<NodeKey, crate::ProjectedScrollHandle>,
     uniform_list_handles: std::collections::BTreeMap<NodeKey, crate::gpui::UniformListScrollHandle>,
@@ -124,6 +125,7 @@ impl GpuiProjection {
             style_diagnostics: std::collections::HashMap::new(),
             inline_styles: std::collections::HashMap::new(),
             layout_bounds: Default::default(),
+            graphic_paint_states: Default::default(),
             pending_commands: Vec::new(),
             scroll_handles,
             uniform_list_handles: Default::default(),
@@ -299,6 +301,7 @@ impl GpuiProjection {
                     let removed = self.tree.remove(*id)?;
                     for key in removed {
                         self.layout_bounds.borrow_mut().remove(&key);
+                        self.graphic_paint_states.borrow_mut().remove(&key);
                         self.inline_styles.remove(&key);
                         self.classes.remove(&key);
                         self.style_diagnostics.remove(&key);
@@ -308,15 +311,20 @@ impl GpuiProjection {
                     }
                 }
                 Op::SetGraphicSource { id, kind, source } => match *kind {
-                    GRAPHIC_SOURCE_SVG => self
-                        .tree
-                        .update_svg_source(*id, Some(std::sync::Arc::from(source.as_bytes())))?,
+                    GRAPHIC_SOURCE_SVG => {
+                        self.graphic_paint_states.borrow_mut().remove(id);
+                        self.tree.update_svg_source(
+                            *id,
+                            Some(std::sync::Arc::from(source.as_bytes())),
+                        )?;
+                    }
                     GRAPHIC_SOURCE_RESOURCE_RASTER => {
                         self.tree.update_image(*id, resolve_raster(source))?;
                     }
                     _ => self.record_protocol_gap(*id, "unsupported graphic source kind"),
                 },
                 Op::ClearGraphicSource { id, kind } if *kind == GRAPHIC_SOURCE_SVG => {
+                    self.graphic_paint_states.borrow_mut().remove(id);
                     self.tree.update_svg_source(*id, None)?
                 }
                 Op::ClearGraphicSource { id, kind } if *kind == GRAPHIC_SOURCE_RESOURCE_RASTER => {
@@ -579,6 +587,7 @@ impl GpuiProjection {
             text_input,
             native,
             self.layout_bounds.clone(),
+            self.graphic_paint_states.clone(),
             std::rc::Rc::new(self.scroll_handles.clone()),
             std::rc::Rc::new(self.uniform_list_handles.clone()),
         )
@@ -631,6 +640,20 @@ impl GpuiProjection {
                         gaps.iter()
                             .map(|gap| format!("unsupported by formal GPUI runtime: {gap}")),
                     );
+                }
+                match self.graphic_paint_states.borrow().get(&key) {
+                    Some(crate::element::ProjectedGraphicPaintState::SvgFailed { message }) => {
+                        style_diagnostics.push(format!("GPUI failed to paint SVG: {message}"));
+                    }
+                    Some(crate::element::ProjectedGraphicPaintState::SvgPainted {
+                        color,
+                        ..
+                    }) if color.alpha <= 0.0 => {
+                        style_diagnostics.push(
+                            "GPUI painted SVG with a fully transparent inherited color".to_owned(),
+                        );
+                    }
+                    _ => {}
                 }
                 Some(GpuiLayoutNode {
                     key,
@@ -1779,6 +1802,25 @@ mod tests {
                 .style_diagnostics
                 .is_empty(),
             "GPUI paints the complete affine matrix for retained inline SVG"
+        );
+        projection.graphic_paint_states.borrow_mut().insert(
+            key(3),
+            crate::element::ProjectedGraphicPaintState::SvgPainted {
+                bounds: crate::gpui::Bounds::new(
+                    crate::gpui::point(crate::gpui::px(0.0), crate::gpui::px(0.0)),
+                    crate::gpui::size(crate::gpui::px(10.0), crate::gpui::px(10.0)),
+                ),
+                color: crate::gpui::transparent_black(),
+            },
+        );
+        assert_eq!(
+            projection
+                .layout_snapshot()
+                .into_iter()
+                .find(|node| node.key == key(3))
+                .unwrap()
+                .style_diagnostics,
+            &["GPUI painted SVG with a fully transparent inherited color"]
         );
 
         projection

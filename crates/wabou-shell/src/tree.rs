@@ -219,6 +219,7 @@ impl ProjectionTree {
                 text_input: Some(text_input),
                 native,
                 layout_bounds: None,
+                graphic_paint_states: None,
                 scroll_handles: None,
                 uniform_list_handles: None,
             },
@@ -234,6 +235,7 @@ impl ProjectionTree {
         text_input: crate::ProjectedTextInputState,
         native: Option<ProjectedNativeElementFactory>,
         layout_bounds: crate::element::ProjectedLayoutBounds,
+        graphic_paint_states: crate::element::ProjectedGraphicPaintStates,
         scroll_handles: std::rc::Rc<
             std::collections::BTreeMap<NodeKey, crate::ProjectedScrollHandle>,
         >,
@@ -251,6 +253,7 @@ impl ProjectionTree {
                 text_input: Some(text_input),
                 native,
                 layout_bounds: Some(layout_bounds),
+                graphic_paint_states: Some(graphic_paint_states),
                 scroll_handles: Some(scroll_handles),
                 uniform_list_handles: Some(uniform_list_handles),
             },

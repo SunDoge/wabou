@@ -26,6 +26,20 @@ pub type ProjectedNativeElementFactory = Rc<dyn Fn(NodeKey) -> Option<AnyElement
 
 pub(crate) type ProjectedLayoutBounds = Rc<RefCell<BTreeMap<NodeKey, Bounds<Pixels>>>>;
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum ProjectedGraphicPaintState {
+    SvgPainted {
+        bounds: Bounds<Pixels>,
+        color: gpui::Hsla,
+    },
+    SvgFailed {
+        message: String,
+    },
+}
+
+pub(crate) type ProjectedGraphicPaintStates =
+    Rc<RefCell<BTreeMap<NodeKey, ProjectedGraphicPaintState>>>;
+
 /// Stable scroll state retained independently from GPUI's per-frame elements.
 #[derive(Clone, Debug, Default)]
 pub struct ProjectedScrollHandle(Rc<RefCell<ProjectedScrollState>>);
@@ -155,6 +169,7 @@ pub(crate) struct ProjectedElementContext {
     pub(crate) text_input: Option<ProjectedTextInputState>,
     pub(crate) native: Option<ProjectedNativeElementFactory>,
     pub(crate) layout_bounds: Option<ProjectedLayoutBounds>,
+    pub(crate) graphic_paint_states: Option<ProjectedGraphicPaintStates>,
     pub(crate) scroll_handles: Option<Rc<BTreeMap<NodeKey, ProjectedScrollHandle>>>,
     pub(crate) uniform_list_handles: Option<Rc<BTreeMap<NodeKey, UniformListScrollHandle>>>,
 }
@@ -181,6 +196,7 @@ pub struct ProjectedElement {
     root_focus: Option<FocusHandle>,
     text_input: Option<ProjectedTextInputState>,
     layout_bounds: Option<ProjectedLayoutBounds>,
+    graphic_paint_states: Option<ProjectedGraphicPaintStates>,
     scroll: Option<ProjectedScrollHandle>,
     scroll_x: bool,
     scroll_y: bool,
@@ -420,6 +436,7 @@ impl ProjectedElement {
             root_focus: context.root_focus,
             text_input: context.text_input,
             layout_bounds: context.layout_bounds,
+            graphic_paint_states: context.graphic_paint_states,
             scroll: context
                 .scroll_handles
                 .as_ref()
@@ -989,14 +1006,29 @@ impl Element for ProjectedElement {
                         // on the SVG and make inherited icons fall back to
                         // black (effectively invisible on dark surfaces).
                         let svg_color = window.text_style().color;
-                        if let Err(error) = window.paint_svg(
+                        let result = window.paint_svg(
                             bounds,
                             source.cache_key.clone(),
                             Some(&source.bytes),
                             svg_transformation.unwrap_or_default(),
                             svg_color,
                             cx,
-                        ) {
+                        );
+                        if let Some(states) = &self.graphic_paint_states {
+                            states.borrow_mut().insert(
+                                self.key,
+                                match &result {
+                                    Ok(()) => ProjectedGraphicPaintState::SvgPainted {
+                                        bounds,
+                                        color: svg_color,
+                                    },
+                                    Err(error) => ProjectedGraphicPaintState::SvgFailed {
+                                        message: error.to_string(),
+                                    },
+                                },
+                            );
+                        }
+                        if let Err(error) = result {
                             tracing::warn!(
                                 node = ?self.key,
                                 cache_key = %source.cache_key,
@@ -1442,6 +1474,93 @@ mod tests {
         )
         .unwrap();
         assert!(child.input.is_some());
+    }
+
+    #[gpui::test]
+    fn inline_svg_records_gpui_paint_success_and_failure(cx: &mut TestAppContext) {
+        struct LayoutHost;
+        impl gpui::Render for LayoutHost {
+            fn render(
+                &mut self,
+                _window: &mut Window,
+                _cx: &mut Context<Self>,
+            ) -> impl IntoElement {
+                div()
+            }
+        }
+
+        let key = NodeKey::new(70, 1);
+        let mut style = Style::default();
+        style.size.width = px(24.0).into();
+        style.size.height = px(24.0).into();
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            style,
+            None,
+            crate::ProjectedNodeKind::Element("svg".into()),
+        )
+        .unwrap();
+        tree.update_svg_source(
+            key,
+            Some(std::sync::Arc::from(
+                br#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16"/></svg>"#
+                    .as_slice(),
+            )),
+        )
+        .unwrap();
+        let states = ProjectedGraphicPaintStates::default();
+        let (_host, window) = cx.add_window_view(|_, _| LayoutHost);
+        window.draw(
+            point(px(0.0), px(0.0)),
+            gpui::size(px(24.0), px(24.0)),
+            |_, _| {
+                ProjectedElement::from_tree(
+                    tree.snapshot(),
+                    key,
+                    ProjectedElementContext {
+                        graphic_paint_states: Some(states.clone()),
+                        ..Default::default()
+                    },
+                    false,
+                )
+                .unwrap()
+            },
+        );
+
+        assert!(matches!(
+            states.borrow().get(&key),
+            Some(ProjectedGraphicPaintState::SvgPainted { bounds, color })
+                if bounds.size == gpui::size(px(24.0), px(24.0))
+                    && color.alpha > 0.0
+        ));
+
+        tree.update_svg_source(key, Some(std::sync::Arc::from(b"not svg".as_slice())))
+            .unwrap();
+        let (_host, invalid_window) = cx.add_window_view(|_, _| LayoutHost);
+        invalid_window.draw(
+            point(px(0.0), px(0.0)),
+            gpui::size(px(24.0), px(24.0)),
+            |_, _| {
+                ProjectedElement::from_tree(
+                    tree.snapshot(),
+                    key,
+                    ProjectedElementContext {
+                        graphic_paint_states: Some(states.clone()),
+                        ..Default::default()
+                    },
+                    false,
+                )
+                .unwrap()
+            },
+        );
+        assert!(matches!(
+            states.borrow().get(&key),
+            Some(ProjectedGraphicPaintState::SvgFailed { message })
+                if !message.is_empty()
+        ));
     }
 
     #[gpui::test]
