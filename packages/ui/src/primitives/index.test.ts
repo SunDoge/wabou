@@ -545,9 +545,11 @@ describe("host primitives", () => {
     const classes: Array<[string, string]> = [];
     const attributes: Array<[string, string]> = [];
     const style: Array<[string, string]> = [];
+    const typedStyle: Array<[string, number, number]> = [];
     const setAttribute = writer.setAttribute.bind(writer);
     const setClassName = writer.setClassName.bind(writer);
     const setStyle = writer.setStyle.bind(writer);
+    const setStyleValue = writer.setStyleValue.bind(writer);
     writer.setClassName = (_id, value) => {
       classes.push(["class", value]);
     };
@@ -558,6 +560,9 @@ describe("host primitives", () => {
     };
     writer.setStyle = (_id, name, value) => {
       style.push([name, value]);
+    };
+    writer.setStyleValue = (_id, name, kind, value) => {
+      typedStyle.push([name, kind, value]);
     };
     try {
       createRoot((dispose) => {
@@ -573,6 +578,7 @@ describe("host primitives", () => {
       writer.setAttribute = setAttribute;
       writer.setClassName = setClassName;
       writer.setStyle = setStyle;
+      writer.setStyleValue = setStyleValue;
     }
     expect(classes).toEqual([["class", "self-center shrink-0 text-accent"]]);
     expect(attributes).toEqual([
@@ -581,16 +587,18 @@ describe("host primitives", () => {
     ]);
     expect(style).toEqual(
       expect.arrayContaining([
-        ["display", "inline-flex"],
+        ["display", "flex"],
         ["align-items", "center"],
         ["justify-content", "center"],
         ["align-self", "center"],
         ["flex-shrink", "0"],
-        ["width", "14"],
-        ["height", "14"],
         ["line-height", "1"],
       ]),
     );
+    expect(typedStyle).toEqual([
+      ["width", 1, 14],
+      ["height", 1, 14],
+    ]);
   });
 
   test("Icon defaults to 1em when size is not provided", () => {
@@ -629,9 +637,16 @@ describe("host primitives", () => {
   test("Icon normalizes unitless string size to numeric px values", () => {
     const attributes: Array<[string, string]> = [];
     const setAttribute = writer.setAttribute.bind(writer);
+    const typedStyle: Array<[string, number, number]> = [];
+    const setStyleValue = writer.setStyleValue.bind(writer);
     writer.setAttribute = (_id, name, value) => {
       if (name === "width" || name === "height") {
         attributes.push([name, value]);
+      }
+    };
+    writer.setStyleValue = (_id, name, kind, value) => {
+      if (name === "width" || name === "height") {
+        typedStyle.push([name, kind, value]);
       }
     };
     try {
@@ -641,10 +656,15 @@ describe("host primitives", () => {
       });
     } finally {
       writer.setAttribute = setAttribute;
+      writer.setStyleValue = setStyleValue;
     }
     expect(attributes).toEqual([
       ["width", "17"],
       ["height", "17"],
+    ]);
+    expect(typedStyle).toEqual([
+      ["width", 1, 17],
+      ["height", 1, 17],
     ]);
   });
 
@@ -674,10 +694,17 @@ describe("host primitives", () => {
 
   test("Icon size updates when the prop changes", () => {
     const styles: Array<[string, string]> = [];
+    const typedStyles: Array<[string, number, number]> = [];
     const setStyle = writer.setStyle.bind(writer);
+    const setStyleValue = writer.setStyleValue.bind(writer);
     writer.setStyle = (_id, name, value) => {
       if (name === "width" || name === "height") {
         styles.push([name, value]);
+      }
+    };
+    writer.setStyleValue = (_id, name, kind, value) => {
+      if (name === "width" || name === "height") {
+        typedStyles.push([name, kind, value]);
       }
     };
     try {
@@ -690,13 +717,12 @@ describe("host primitives", () => {
           },
         });
         flush();
-        expect(styles).toEqual(
-          expect.arrayContaining([
-            ["width", "14"],
-            ["height", "14"],
-          ]),
-        );
+        expect(typedStyles).toEqual([
+          ["width", 1, 14],
+          ["height", 1, 14],
+        ]);
         styles.length = 0;
+        typedStyles.length = 0;
         setSize("1.5rem");
         flush();
         expect(styles).toEqual(
@@ -709,6 +735,7 @@ describe("host primitives", () => {
       });
     } finally {
       writer.setStyle = setStyle;
+      writer.setStyleValue = setStyleValue;
     }
   });
 

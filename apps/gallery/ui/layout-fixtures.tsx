@@ -1,5 +1,5 @@
 import { defineLayoutFixtures } from "@wabou/test/layout/fixtures";
-import { Button, DirectoryPicker, Text, View } from "@wabou/ui";
+import { Button, DirectoryPicker, Icon, Text, View } from "@wabou/ui";
 import { createEffect, createSignal, onCleanup } from "solid-js";
 import { initialAgentState } from "../../pi-agent/ui/agent-state";
 import { ModelControls } from "../../pi-agent/ui/model-controls";
@@ -125,6 +125,19 @@ defineLayoutFixtures({
     render: () => <TrackedFixture name="wide" width="320px" />,
   },
   "effect/synchronous": () => <EffectFixture />,
+  "primitive/Icon": {
+    width: 120,
+    height: 80,
+    render: () => (
+      <View class="w-full h-full items-center justify-center bg-canvas">
+        <Icon
+          label="Layout fixture icon"
+          size={18}
+          source={'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>'}
+        />
+      </View>
+    ),
+  },
   "component/DirectoryPicker": {
     width: 560,
     height: 120,

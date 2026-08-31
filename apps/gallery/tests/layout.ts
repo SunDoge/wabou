@@ -28,6 +28,15 @@ const assertClose = (actual: number, expected: number, label: string) => {
     throw new Error(`${label}: expected ${expected}, received ${actual}`);
 };
 
+const assertIconLayout = (snapshot: LayoutSnapshot) => {
+  const icon = getLayoutNode(snapshot, {
+    role: "img",
+    name: "Layout fixture icon",
+  });
+  assertClose(icon.rect.width, 18, "icon width");
+  assertClose(icon.rect.height, 18, "icon height");
+};
+
 const assertSidebarLayout = (snapshot: LayoutSnapshot) => {
   const boundary = getLayoutNode(snapshot, {
     name: "Sidebar fixture boundary",
@@ -549,6 +558,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/Message": { assert: assertMessageLayout },
   "component/PiAgentHeader": { assert: assertPiAgentHeaderLayout },
   "pi-agent/toolbar": { assert: assertPiAgentToolbarLayout },
+  "primitive/Icon": { assert: assertIconLayout },
 };
 const fixtureCase = (id: string) => {
   const override = overrides[id];

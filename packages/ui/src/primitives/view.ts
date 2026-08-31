@@ -13,7 +13,7 @@ import {
   type WabouTextCommitEvent,
   type WabouTextSelectionChangeEvent,
 } from "@wabou/core/renderer";
-import type { Affine2D, Shadow, WabouStyle } from "@wabou/core/style";
+import { px, type Affine2D, type Shadow, type WabouStyle } from "@wabou/core/style";
 
 export type { VectorPath, VectorPathPaint } from "@wabou/core";
 export { PathBuilder } from "@wabou/core";
@@ -335,13 +335,17 @@ export function Icon(props: IconProps): JSX.Element {
       },
       get style(): WabouStyle {
         const iconSize = normalizeIconSize(props.size);
+        const layoutSize =
+          typeof iconSize === "number" ? px(iconSize) : iconSize;
         return {
-          display: "inline-flex",
+          // Wabou has no inline formatting context. An icon is an ordinary
+          // explicitly-sized flex item in every native backend.
+          display: "flex",
           "align-items": "center",
           "justify-content": "center",
           "align-self": "center",
-          width: iconSize,
-          height: iconSize,
+          width: layoutSize,
+          height: layoutSize,
           "flex-shrink": 0,
           "line-height": "1",
           // Icon is visual content, never the interaction owner. Keeping it
