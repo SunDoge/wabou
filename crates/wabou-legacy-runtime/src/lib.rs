@@ -11,7 +11,6 @@ extern crate legacy_shell as wabou_shell;
 mod atom;
 #[path = "../../wabou-runtime/src/clock.rs"]
 mod clock;
-#[path = "../../wabou-runtime/src/config.rs"]
 mod config;
 #[path = "../../wabou-runtime/src/effect_bridge.rs"]
 mod effect_bridge;
@@ -29,7 +28,6 @@ mod host_frame;
 mod host_message;
 #[path = "../../wabou-runtime/src/image_resource.rs"]
 mod image_resource;
-#[path = "../../wabou-runtime/src/inline_context.rs"]
 mod inline_context;
 #[path = "../../wabou-runtime/src/intl.rs"]
 mod intl;
@@ -47,7 +45,6 @@ mod runtime_session;
 mod source_map;
 #[path = "../../wabou-runtime/src/ui_inbox.rs"]
 mod ui_inbox;
-#[path = "../../wabou-runtime/src/widget.rs"]
 mod widget;
 
 use wabou_style::stylesheet as style_ir;
@@ -63,7 +60,6 @@ pub use host_message::{
 pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use jsrt::{JsRuntime, JsRuntimeOptions};
 
-#[path = "../../wabou-runtime/src/applier.rs"]
 mod applier;
 
 pub use applier::{ComputedNodeSnapshot, LegacyRuntimeController as Applier};
