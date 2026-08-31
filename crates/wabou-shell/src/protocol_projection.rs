@@ -58,6 +58,13 @@ pub struct GpuiComputedStyle {
     pub opacity: f32,
 }
 
+/// Imperative work whose semantics belong to the GPUI window rather than the
+/// retained element tree.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum GpuiCommand {
+    Focus { id: NodeKey },
+}
+
 #[derive(Debug)]
 pub struct GpuiProjection {
     tree: ProjectionTree,
@@ -68,6 +75,8 @@ pub struct GpuiProjection {
     style_diagnostics: std::collections::HashMap<NodeKey, Vec<String>>,
     inline_styles: std::collections::HashMap<NodeKey, std::collections::BTreeMap<String, IrValue>>,
     layout_bounds: crate::element::ProjectedLayoutBounds,
+    pending_commands: Vec<GpuiCommand>,
+    protocol_gaps: std::collections::HashMap<NodeKey, std::collections::BTreeSet<&'static str>>,
 }
 
 impl Default for GpuiProjection {
@@ -98,6 +107,8 @@ impl GpuiProjection {
             style_diagnostics: std::collections::HashMap::new(),
             inline_styles: std::collections::HashMap::new(),
             layout_bounds: Default::default(),
+            pending_commands: Vec::new(),
+            protocol_gaps: std::collections::HashMap::new(),
         }
     }
 
@@ -259,6 +270,7 @@ impl GpuiProjection {
                         self.inline_styles.remove(&key);
                         self.classes.remove(&key);
                         self.style_diagnostics.remove(&key);
+                        self.protocol_gaps.remove(&key);
                     }
                 }
                 Op::SetGraphicSource { id, kind, source } => match *kind {
@@ -272,12 +284,21 @@ impl GpuiProjection {
                     GRAPHIC_SOURCE_RESOURCE_RASTER => {
                         self.tree.update_image(*id, resolve_raster(source))?;
                     }
-                    _ => {}
+                    _ => self.record_protocol_gap(*id, "unsupported graphic source kind"),
                 },
                 Op::ClearGraphicSource { id, kind }
                     if matches!(*kind, GRAPHIC_SOURCE_SVG | GRAPHIC_SOURCE_RESOURCE_RASTER) =>
                 {
                     self.tree.update_image(*id, None)?
+                }
+                Op::ClearGraphicSource { id, .. } => {
+                    self.record_protocol_gap(*id, "unsupported graphic source kind");
+                }
+                Op::SetGraphicData { id, .. } => {
+                    self.record_protocol_gap(*id, "vector path projection");
+                }
+                Op::ClearGraphicData { id, .. } => {
+                    self.protocol_gaps.remove(id);
                 }
                 Op::SetTransform2D { id, matrix } => {
                     self.tree.update_transform(*id, *matrix)?;
@@ -285,10 +306,42 @@ impl GpuiProjection {
                 Op::SetOverlayPlane { id, plane } => {
                     self.tree.update_overlay_plane(*id, *plane)?;
                 }
-                _ => {}
+                Op::SetScrollbarStyle { id, .. } => {
+                    self.record_protocol_gap(*id, "GPUI scrollbar styling");
+                }
+                Op::FocusNode { id } => self.pending_commands.push(GpuiCommand::Focus { id: *id }),
+                Op::ScrollTo { id, .. } => {
+                    self.record_protocol_gap(*id, "GPUI imperative scroll-to")
+                }
+                Op::ScrollBy { id, .. } => {
+                    self.record_protocol_gap(*id, "GPUI imperative scroll-by")
+                }
             }
         }
         Ok(())
+    }
+
+    fn record_protocol_gap(&mut self, id: NodeKey, operation: &'static str) {
+        self.protocol_gaps.entry(id).or_default().insert(operation);
+    }
+
+    /// Drain imperative commands after the completed protocol frame has been
+    /// projected. The GPUI view executes them against live focus/scroll state.
+    pub fn take_commands(&mut self) -> Vec<GpuiCommand> {
+        std::mem::take(&mut self.pending_commands)
+    }
+
+    /// Return explicit formal-runtime gaps. This exists to make unsupported
+    /// protocol semantics observable in tests and DevTools rather than being
+    /// silently accepted by a backend wildcard.
+    pub fn protocol_gaps(&self) -> Vec<(NodeKey, &'static str)> {
+        let mut gaps = self
+            .protocol_gaps
+            .iter()
+            .flat_map(|(key, operations)| operations.iter().map(|operation| (*key, *operation)))
+            .collect::<Vec<_>>();
+        gaps.sort_unstable_by_key(|(key, operation)| (*key, *operation));
+        gaps
     }
 
     /// Publish structure, text, and resolved-style changes as one GPUI update.
@@ -440,6 +493,12 @@ impl GpuiProjection {
                         "GPUI retained unsupported affine transform {:?}; only translation is painted",
                         node.transform
                     ));
+                }
+                if let Some(gaps) = self.protocol_gaps.get(&key) {
+                    style_diagnostics.extend(
+                        gaps.iter()
+                            .map(|gap| format!("unsupported by formal GPUI runtime: {gap}")),
+                    );
                 }
                 Some(GpuiLayoutNode {
                     key,
@@ -1742,6 +1801,52 @@ mod tests {
         assert_eq!(
             node.style.text.white_space,
             Some(crate::gpui::WhiteSpace::Nowrap)
+        );
+    }
+
+    #[test]
+    fn imperative_ops_are_typed_commands_and_unmigrated_ops_are_observable() {
+        let mut projection = GpuiProjection::new();
+        let atoms = AtomPool::default();
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::FocusNode { id: key(2) },
+                        Op::ScrollTo {
+                            id: key(3),
+                            x: 4.0,
+                            y: 8.0,
+                        },
+                        Op::ScrollBy {
+                            id: key(3),
+                            x: -1.0,
+                            y: 2.0,
+                        },
+                        Op::SetGraphicData {
+                            id: key(4),
+                            kind: wabou_protocol::GRAPHIC_DATA_VECTOR_PATH,
+                            data: &[],
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        assert_eq!(
+            projection.take_commands(),
+            vec![GpuiCommand::Focus { id: key(2) },]
+        );
+        assert_eq!(
+            projection.protocol_gaps(),
+            vec![
+                (key(3), "GPUI imperative scroll-by"),
+                (key(3), "GPUI imperative scroll-to"),
+                (key(4), "vector path projection"),
+            ]
         );
     }
 }

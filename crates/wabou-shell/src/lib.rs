@@ -25,8 +25,8 @@ pub use input::{
 pub use native_widget::{NativeWidgetContext, NativeWidgetFactory, NativeWidgetMount};
 pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
 pub use protocol_projection::{
-    GpuiComputedStyle, GpuiLayoutNode, GpuiNativeWidget, GpuiProjection, GpuiTextControl,
-    project_ir,
+    GpuiCommand, GpuiComputedStyle, GpuiLayoutNode, GpuiNativeWidget, GpuiProjection,
+    GpuiTextControl, project_ir,
 };
 pub use style::{StyleDiagnostic, StyleProjection};
 pub use tree::{ProjectedNode, ProjectedNodeKind, ProjectionError, ProjectionTree};

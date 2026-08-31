@@ -10,8 +10,9 @@ use gpui_base::input::{Input, InputEvent, InputState, Textarea, TextareaState};
 use gpui_shell::WakeCallback;
 use gpui_shell::gpui::{
     AppContext as _, ClipboardItem, Context, DragMoveEvent, Entity, ExternalPaths, FocusHandle,
-    InteractiveElement as _, IntoElement as _, ParentElement as _, PathPromptOptions, PromptButton,
-    PromptLevel, Render, Styled as _, Subscription, SystemNotification, Task, Window, div,
+    Focusable as _, InteractiveElement as _, IntoElement as _, ParentElement as _,
+    PathPromptOptions, PromptButton, PromptLevel, Render, Styled as _, Subscription,
+    SystemNotification, Task, Window, div,
 };
 
 use crate::gpui_controller::GpuiController;
@@ -105,6 +106,13 @@ impl GpuiTextControlState {
                 .size_full()
                 .child(Textarea::new(state))
                 .into_any_element(),
+        }
+    }
+
+    fn focus_handle(&self, cx: &gpui_shell::gpui::App) -> FocusHandle {
+        match self {
+            Self::Input { state, .. } => state.focus_handle(cx),
+            Self::Textarea { state, .. } => state.focus_handle(cx),
         }
     }
 }
@@ -757,6 +765,21 @@ impl Render for GpuiRuntimeView {
         }
         let _ = self.controller.advance_frame();
         self.synchronize_text_controls(window, cx);
+        for command in self.controller.take_projection_commands() {
+            match command {
+                gpui_shell::GpuiCommand::Focus { id } => {
+                    let focus = self
+                        .text_controls
+                        .get(&id)
+                        .map(|control| control.focus_handle(cx))
+                        .unwrap_or_else(|| self.focus.clone());
+                    focus.focus(window, cx);
+                    if self.controller.set_text_focus(id, true) {
+                        cx.notify();
+                    }
+                }
+            }
+        }
         if let Some(test_controller) = self.test_controller.clone() {
             let window_action =
                 test_controller.poll_gpui_window_action(self.window_key, |command| match command {

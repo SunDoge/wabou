@@ -71,6 +71,10 @@ impl GpuiController {
         &mut self.projection
     }
 
+    pub(crate) fn take_projection_commands(&mut self) -> Vec<gpui_shell::GpuiCommand> {
+        self.projection.take_commands()
+    }
+
     pub(crate) fn take_stylesheet_update(&mut self) -> Option<StylesheetUpdate> {
         self.runtime.pending_css.as_ref()?.borrow_mut().take()
     }
