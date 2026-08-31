@@ -1,5 +1,5 @@
 // Emoji stress UI — N emojis bouncing around the viewport. Stresses the text /
-// glyph path (parley + vello — the real bottleneck) AND the animation path
+// glyph/layout path and the animation path
 // (per-frame transforms for every emoji → op protocol + apply + native paint).
 // The selectable rAF and Motion drivers exercise the same render path, making
 // animation scheduler overhead directly comparable. Bounce bounds come from

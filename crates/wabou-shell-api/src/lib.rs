@@ -1,4 +1,4 @@
-//! Backend-neutral contracts shared by Wabou's GPUI shell and legacy backend.
+//! Platform contracts shared by Wabou's GPUI shell, runtime, and extensions.
 
 #![warn(missing_docs)]
 

@@ -558,7 +558,7 @@ test("typed inline style bypasses UTF-8 serialization", () => {
   expect(view.getFloat32(22, true)).toBe(24.5);
 });
 
-test("Vello shadows bypass string style serialization", () => {
+test("native shadows bypass string style serialization", () => {
   writer.flush();
   const viewNode = createElement("view");
   writer.flush();

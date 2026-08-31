@@ -27,9 +27,6 @@ WABOU_PROFILE_TRACE=/tmp/wabou-trace.json \
   cargo run --release --features wabou/profiling
 ```
 
-Applications still using the legacy entry crate use
-`--features wabou-runtime/profiling` instead.
-
 Profiling changes timing and should not be used to report absolute production
 overhead. Use it to identify stage proportions and unexpected work, then verify
 an optimization in an uninstrumented release build. In particular, compare a
@@ -51,7 +48,7 @@ Use three workloads when evaluating a performance change:
 | Pathological animation | `apps/stress` | dirty propagation, protocol traffic and scene construction at 1,000–25,000 moving nodes |
 
 Record `js`, `build`, `scene`, `present`, node count and viewport for all three.
-Compare identical release builds, viewport sizes, scale factors and renderer
+Compare identical release builds, viewport sizes, scale factors and GPUI platform
 backends. A change is a regression candidate when the median of at least three
 runs increases by 10% in any stage without reducing work in another stage.
 Do not add a batch API solely to improve `apps/stress`; first prove the same

@@ -244,7 +244,7 @@ fn assistant_response_suffix(message: &str) -> String {
         return message.to_owned();
     }
     format!(
-        "{message}\n\n## Renderer review\n\nThe retained UI boundary is ready for the next release.\n\n- **QuickJS + Solid** batches reactive updates.\n- **Taffy** keeps layout deterministic.\n- **Vello** paints the final scene.\n\n```sh\nbun run verify\n```\n\nAll focused checks passed."
+        "{message}\n\n## Renderer review\n\nThe retained UI boundary is ready for the next release.\n\n- **QuickJS + Solid** batches reactive updates.\n- **GPUI** owns layout, text, paint, and native input.\n- **Wabou** projects explicit retained operations.\n\n```sh\nbun run verify\n```\n\nAll focused checks passed."
     )
 }
 

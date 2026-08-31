@@ -1042,7 +1042,7 @@ mod tests {
     }
 
     #[test]
-    fn decodes_ordered_vello_shadow_records() {
+    fn decodes_ordered_native_shadow_records() {
         let mut bytes = Vec::new();
         push_u32(&mut bytes, 1);
         push_u32(&mut bytes, 1);

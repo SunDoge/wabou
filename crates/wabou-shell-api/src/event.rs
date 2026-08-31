@@ -566,8 +566,8 @@ pub enum HostActionResult {
     },
 }
 
-/// Thread-safe callback used by asynchronous frame sources to wake winit's
-/// otherwise sleeping event loop.
+/// Thread-safe callback used by asynchronous producers to wake the GPUI
+/// application loop.
 pub type WakeCallback = Arc<dyn Fn() + Send + Sync>;
 
 /// Per-frame render-stage timings, as an exponential moving average (so a

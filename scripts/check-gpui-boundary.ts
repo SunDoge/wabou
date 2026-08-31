@@ -1,10 +1,3 @@
-const FORMAL_PACKAGES = new Set([
-  "wabou",
-  "wabou-cli",
-  "wabou-runtime",
-  "wabou-shell",
-]);
-
 const RETIRED_DIRECT_DEPENDENCIES = new Set([
   "anyrender",
   "anyrender-skia",
@@ -30,12 +23,21 @@ interface CargoPackage {
 interface CargoMetadata {
   packages: CargoPackage[];
   workspace_default_members?: string[];
+  workspace_members?: string[];
+}
+
+function formalWorkspacePackages(metadata: CargoMetadata): CargoPackage[] {
+  const members = new Set(metadata.workspace_members ?? []);
+  return metadata.packages.filter(
+    (pkg) =>
+      !pkg.name.startsWith("wabou-legacy-") &&
+      (members.size === 0 || (pkg.id !== undefined && members.has(pkg.id))),
+  );
 }
 
 export function gpuiBoundaryViolations(metadata: CargoMetadata): string[] {
   const violations: string[] = [];
-  for (const pkg of metadata.packages) {
-    if (!FORMAL_PACKAGES.has(pkg.name)) continue;
+  for (const pkg of formalWorkspacePackages(metadata)) {
     for (const dependency of pkg.dependencies) {
       const visibleName = dependency.rename ?? dependency.name;
       if (
@@ -56,8 +58,7 @@ export function canonicalDependencyViolations(
   metadata: CargoMetadata,
 ): string[] {
   const violations: string[] = [];
-  for (const pkg of metadata.packages) {
-    if (!FORMAL_PACKAGES.has(pkg.name)) continue;
+  for (const pkg of formalWorkspacePackages(metadata)) {
     for (const dependency of pkg.dependencies) {
       if (dependency.name === "wabou-shell" && dependency.rename !== null) {
         violations.push(
@@ -85,6 +86,18 @@ export function legacyIsolationViolations(metadata: CargoMetadata): string[] {
   return violations.sort();
 }
 
+export function formalVerificationViolations(
+  metadata: CargoMetadata,
+): string[] {
+  const defaultMembers = new Set(metadata.workspace_default_members ?? []);
+  return formalWorkspacePackages(metadata)
+    .filter((pkg) => pkg.id !== undefined && !defaultMembers.has(pkg.id))
+    .map(
+      (pkg) => `${pkg.name} is missing from formal default workspace members`,
+    )
+    .sort();
+}
+
 async function metadata(): Promise<CargoMetadata> {
   const child = Bun.spawn(["cargo", "metadata", "--format-version", "1"], {
     cwd: process.cwd(),
@@ -104,6 +117,7 @@ async function main(): Promise<void> {
     ...gpuiBoundaryViolations(cargo),
     ...canonicalDependencyViolations(cargo),
     ...legacyIsolationViolations(cargo),
+    ...formalVerificationViolations(cargo),
   ];
   if (violations.length === 0) return;
   throw new Error(

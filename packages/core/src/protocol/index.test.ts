@@ -117,7 +117,7 @@ describe("Writer limits", () => {
     expect(view.getFloat32(22, true)).toBe(12.5);
   });
 
-  test("encodes ordered Vello shadow layers as fixed binary records", () => {
+  test("encodes ordered native shadow layers as fixed binary records", () => {
     const writer = new Writer();
     writer.setShadows(k(7), [
       {

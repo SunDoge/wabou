@@ -27,7 +27,13 @@ import layers from "lucide-static/icons/layers-3.svg?raw";
 import palette from "lucide-static/icons/palette.svg?raw";
 import scan from "lucide-static/icons/scan-line.svg?raw";
 import sparkles from "lucide-static/icons/sparkles.svg?raw";
-import { createMemo, createSignal, For as ForValue, type JSX, onCleanup } from "solid-js";
+import {
+  createMemo,
+  createSignal,
+  For as ForValue,
+  type JSX,
+  onCleanup,
+} from "solid-js";
 import {
   appendFrameSample,
   frameDuration,
@@ -387,7 +393,7 @@ export function OverviewPage(props: {
               />
             </View>
             <View class="flex flex-col gap-3">
-              <Capability icon={layers} text="Retained AnyRender scene" />
+              <Capability icon={layers} text="Retained GPUI projection" />
               <Capability icon={cpu} text="Rust native widgets" />
               <Capability icon={boxes} text="Explicit overlay planes" />
             </View>

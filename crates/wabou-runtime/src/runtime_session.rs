@@ -19,8 +19,8 @@ use wabou_shell::{FrameStats, WakeCallback, WindowResourceKey};
 /// QuickJS and host-bridge state with one shared cancellation lifetime.
 ///
 /// This layer deliberately owns no layout tree, renderer object, or platform
-/// event-loop state. The GPUI runtime and temporary legacy test runtime can
-/// therefore compose it without making the JavaScript host backend-aware.
+/// event-loop state. The GPUI runtime and its headless harness can therefore
+/// compose it without making the JavaScript host platform-aware.
 pub(crate) struct RuntimeSession {
     pub(crate) js: JsRuntime,
     pub(crate) atoms: Rc<RefCell<AtomPool>>,

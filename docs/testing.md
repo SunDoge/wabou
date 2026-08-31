@@ -594,11 +594,12 @@ bun run wabou test /path/to/app/tests/window-lifecycle.behavior.ts \
   --app /path/to/app
 ```
 
-The deterministic backend uses the same Rust window lifecycle state machine as
-the winit executor, so Wayland and surface recreation can be tested without a
-compositor. It also uses an isolated temporary XDG data directory so persisted
-application state cannot make scenarios order-dependent. Pass `--native` for a
-real platform smoke test.
+The deterministic backend boots the same retained GPUI projection as a normal
+application in GPUI's headless application context. It exercises QuickJS,
+Solid flushes, the protocol, GPUI layout, and projected input without requiring
+a compositor. It also uses an isolated temporary XDG data directory so
+persisted application state cannot make scenarios order-dependent. Pass
+`--native` for a real platform-window smoke test.
 
 The deterministic backend models shell-owned window lifecycle transitions but
 does not initialize native `ShellExtension` resources. Tests that must activate
@@ -612,9 +613,11 @@ equivalent to the native integration it is meant to verify.
 
 Every run writes versioned `report.json` and `trace.json` artifacts beneath
 `target/wabou-test/<app>/artifacts` by default. Use `--artifacts <dir>` to
-select another destination. Deterministic tests do not initialize wgpu, which
-keeps them usable in display-less CI. Pass `--failure-screenshot` to opt into a
-GPU-rendered `failure.png` when a working wgpu backend is available.
+select another destination. The GPUI headless context can run without a display
+server. Pixel screenshots are platform-dependent: GPUI-CE currently exposes
+its headless pixel renderer on macOS Metal, while Linux wgpu runs still provide
+semantic and layout artifacts but report screenshot capture as unsupported.
+Pass `--failure-screenshot` to request `failure.png` where that renderer exists.
 At the start of a run, Wabou removes only its known report, trace, temporary
 JSON, and failure-screenshot outputs from that directory. This prevents a
 build or replay-validation failure from leaving a previous green report behind

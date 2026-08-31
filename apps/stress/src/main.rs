@@ -1,5 +1,5 @@
 //! Render stress test — N nodes (static or restyled every frame) + a live
-//! FPS / per-stage-ms overlay. Verifies the winit stack holds 60Hz+ across
+//! FPS / per-stage-ms overlay. Verifies the GPUI stack holds 60Hz+ across
 //! node counts and pinpoints the stage that gives first.
 //!
 //! Build the JS bundle first (`bun run --filter @wabou/stress build`), then

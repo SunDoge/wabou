@@ -238,7 +238,7 @@ export function PropertyListPage() {
         name="runtime"
         value="QuickJS with typed native capabilities"
       />
-      <PropertyRow name="renderer" value="AnyRender retained scene" />
+      <PropertyRow name="renderer" value="GPUI retained projection" />
       <PropertyRow name="layout" value="Taffy logical pixels" />
     </PropertyList>
   );

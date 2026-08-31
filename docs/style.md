@@ -23,8 +23,8 @@ contract is not implied by `flex-grow`.
 ## Wabou utilities
 
 `wabou-style` is the semantic source of truth. Its Winnow parsers accept a
-Tailwind-compatible subset and produce typed declarations for Taffy, Parley,
-Vello, and Wabou interaction state. Arbitrary syntax is typed rather than
+Tailwind-compatible subset and produce typed declarations for GPUI layout,
+text, paint, and Wabou interaction state. Arbitrary syntax is typed rather than
 arbitrary CSS: `p-[13px]` is valid, while `p-[var(--space)]` and unsupported
 `calc()` expressions are build errors.
 
@@ -203,8 +203,7 @@ Plain string styles remain available as a compatibility path.
 ## Native shadows
 
 Shadows use an explicit primitive prop rather than CSS `box-shadow` syntax.
-Each layer maps to one AnyRender box-shadow command, and layers paint in
-array order:
+Each layer maps to one retained GPUI shadow, and layers paint in array order:
 
 ```tsx
 import { shadow } from "@wabou/ui";

@@ -86,6 +86,13 @@ graph. A new crate must demonstrate one of those compile or dependency
 boundaries; ordinary subsystem ownership belongs in a module. Applications
 still see the `wabou` facade.
 
+Repository verification follows the same boundary. Ordinary `verify:rust` and
+CI commands operate on Cargo's formal `default-members`, so they do not compile
+Winit, Vello, or AnyRender through the migration oracle. Use
+`bun run verify:legacy` explicitly when changing or comparing the retired
+implementation. The architecture check rejects any dependency from a
+non-legacy workspace member back into that graph.
+
 ## Cross-language contract
 
 Wabou has four communication mechanisms. Their normative selection and

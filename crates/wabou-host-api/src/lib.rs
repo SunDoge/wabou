@@ -217,7 +217,10 @@ pub struct FrameStats {
     #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub present_ms: f64,
     /// Number of retained nodes in the frame.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(
+        any(feature = "bindings", feature = "specta"),
+        specta(type = specta_typescript::Number)
+    )]
     pub node_count: usize,
     /// Logical viewport width.
     pub viewport_w: u32,
