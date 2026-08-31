@@ -1,4 +1,5 @@
 import {
+  Alert,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -27,6 +28,7 @@ import {
   Text,
   View,
 } from "@wabou/ui";
+import { createSignal, Show } from "solid-js";
 import type { AgentQueueMode, AgentViewState } from "./agent-state";
 import { i18n, m } from "./i18n";
 import { SessionBehaviorSettings } from "./session-behavior-settings";
@@ -49,13 +51,15 @@ export function SettingsPage(props: {
   canDeleteProject: boolean;
   updateProject: (patch: Partial<AgentWorkspace>) => void;
   close: () => void;
-  deleteProject: () => void;
+  deleteProject: () => void | Promise<void>;
   setAutoCompaction: (enabled: boolean) => void;
   setSteeringMode: (mode: AgentQueueMode) => void;
   setFollowUpMode: (mode: AgentQueueMode) => void;
   defaultSection?: "project" | "application";
 }) {
   const compact = createContainerMatch({ maxWidth: 640 });
+  const [deletePending, setDeletePending] = createSignal(false);
+  const [deleteError, setDeleteError] = createSignal("");
   const setLocale = (locale: AppSettings["locale"]) => {
     i18n.set(locale);
     props.updateApp({ locale });
@@ -183,6 +187,9 @@ export function SettingsPage(props: {
                 </Text>
                 <AlertDialog
                   aria-label={i18n.message(m.delete_agent, {})}
+                  onOpenChange={(open) => {
+                    if (open) setDeleteError("");
+                  }}
                   trigger={(trigger) => (
                     <Button
                       variant="destructive"
@@ -193,31 +200,51 @@ export function SettingsPage(props: {
                     </Button>
                   )}
                 >
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      {i18n.message(m.delete_agent_confirm, {
-                        name: props.project.name,
-                      })}
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {i18n.message(m.delete_agent_files_safe, {})}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>
-                      {i18n.message(m.cancel, {})}
-                    </AlertDialogCancel>
-                    <AlertDialogAction
-                      variant="destructive"
-                      aria-label={i18n.message(m.delete_agent_confirm, {
-                        name: props.project.name,
-                      })}
-                      disabled={!props.canDeleteProject}
-                      onClick={props.deleteProject}
-                    >
-                      {i18n.message(m.delete_agent, {})}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
+                  {(dialog) => (
+                    <>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          {i18n.message(m.delete_agent_confirm, {
+                            name: props.project.name,
+                          })}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {i18n.message(m.delete_agent_files_safe, {})}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <Show when={deleteError()}>
+                        {(message) => (
+                          <Alert
+                            variant="destructive"
+                            title={i18n.message(m.delete_agent_failed, {})}
+                            class="p-3"
+                          >
+                            {message()}
+                          </Alert>
+                        )}
+                      </Show>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={deletePending()}>
+                          {i18n.message(m.cancel, {})}
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          variant="destructive"
+                          aria-label={i18n.message(m.delete_agent_confirm, {
+                            name: props.project.name,
+                          })}
+                          disabled={!props.canDeleteProject || deletePending()}
+                          loading={deletePending()}
+                          loadingLabel={i18n.message(m.deleting, {})}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            void deleteProject(dialog.close);
+                          }}
+                        >
+                          {i18n.message(m.delete_agent, {})}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </>
+                  )}
                 </AlertDialog>
               </View>
             </SettingsSection>
@@ -352,4 +379,18 @@ export function SettingsPage(props: {
       </View>
     </PageViewport>
   );
+
+  async function deleteProject(close: () => void) {
+    if (!props.canDeleteProject || deletePending()) return;
+    setDeletePending(true);
+    setDeleteError("");
+    try {
+      await props.deleteProject();
+      close();
+    } catch (error) {
+      setDeleteError(String(error));
+    } finally {
+      setDeletePending(false);
+    }
+  }
 }

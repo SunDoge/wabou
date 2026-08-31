@@ -262,6 +262,8 @@
   "danger_zone": "Danger zone",
   "delete_agent": "Delete project",
   "delete_agent_detail": "Remove this project and its session references from the desktop app.",
+  "delete_agent_failed": "Could not delete the project",
+  "deleting": "Deleting…",
   "delete_agent_confirm": "Delete {name}?",
   "delete_agent_files_safe": "The running process will stop. Original Pi session files and repository files will not be deleted.",
   "delete_last_project_disabled": "Add another project before removing this one.",

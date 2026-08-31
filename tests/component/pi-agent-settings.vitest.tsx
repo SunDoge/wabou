@@ -7,7 +7,10 @@ import {
 } from "../../apps/pi-agent/ui/settings";
 import { createAgentWorkspace } from "../../apps/pi-agent/ui/workspace";
 
-function renderSettings(canDeleteProject = true) {
+function renderSettings(
+  canDeleteProject = true,
+  remove: () => void | Promise<void> = () => {},
+) {
   const [defaults, setDefaults] = createSignal<AppSettings>({
     locale: "en",
     proxy: "",
@@ -37,7 +40,10 @@ function renderSettings(canDeleteProject = true) {
         setAgent((current) => ({ ...current, ...patch }))
       }
       close={() => {}}
-      deleteProject={() => deleted++}
+      deleteProject={async () => {
+        await remove();
+        deleted += 1;
+      }}
       setAutoCompaction={() => {}}
       setSteeringMode={() => {}}
       setFollowUpMode={() => {}}
@@ -46,7 +52,11 @@ function renderSettings(canDeleteProject = true) {
   return { screen, defaults, agent, deleted: () => deleted };
 }
 
-test("Pi Agent settings separate project overrides from global network configuration", () => {
+async function settleAsyncAction() {
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
+test("Pi Agent settings separate project overrides from global network configuration", async () => {
   const { screen, defaults, agent, deleted } = renderSettings();
 
   screen.getByRole("label", { name: "Project name" }).click();
@@ -89,9 +99,37 @@ test("Pi Agent settings separate project overrides from global network configura
   screen.getByRole("tab", { name: "Project settings" }).click();
   screen.getByRole("button", { name: "Delete project" }).click();
   const dialog = screen.getByRole("alertdialog", { name: "Delete project" });
-  expect(dialog.text).toContain("Delete Build project?");
   dialog.getByRole("button", { name: "Delete Build project?" }).click();
+  await settleAsyncAction();
   expect(deleted()).toBe(1);
+  expect(
+    screen.queryByRole("alertdialog", { name: "Delete project" }),
+  ).toBeNull();
+});
+
+test("Pi Agent keeps project deletion failures visible and retryable", async () => {
+  let attempt = 0;
+  const { screen, deleted } = renderSettings(true, async () => {
+    attempt += 1;
+    if (attempt === 1) throw new Error("host refused deletion");
+  });
+
+  screen.getByRole("button", { name: "Delete project" }).click();
+  screen.getByRole("button", { name: "Delete Project 1?" }).click();
+  await settleAsyncAction();
+  expect(
+    screen.getByRole("alert", { name: "Could not delete the project" }).text,
+  ).toContain("host refused deletion");
+  expect(
+    screen.getByRole("alertdialog", { name: "Delete project" }),
+  ).toBeDefined();
+  screen.getByRole("button", { name: "Delete Project 1?" }).click();
+  await settleAsyncAction();
+  expect(deleted()).toBe(1);
+  expect(attempt).toBe(2);
+  expect(
+    screen.queryByRole("alertdialog", { name: "Delete project" }),
+  ).toBeNull();
 });
 
 test("Pi Agent keeps the last project available", () => {

@@ -556,7 +556,7 @@ export function App() {
           message: String(error),
         }),
       }));
-      return;
+      throw error;
     }
     const remaining = before.filter((agent) => agent.id !== removed.id);
     const next = remaining[0];
@@ -834,7 +834,7 @@ export function App() {
                   canDeleteProject={agents().length > 1}
                   updateApp={defaults.update}
                   updateProject={patchActive}
-                  deleteProject={() => void deleteActiveAgent()}
+                  deleteProject={deleteActiveAgent}
                   setAutoCompaction={(enabled) =>
                     void api.setAutoCompaction(active().id, enabled)
                   }
