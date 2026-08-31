@@ -156,6 +156,7 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
         outer_y: Some(80),
         occluded: false,
         color_scheme: Some(gpui_shell::ColorScheme::Dark),
+        reduced_motion: false,
     }));
     assert!(response.request_redraw);
     assert_eq!(applier.frame.device_scale, 2.0);

@@ -210,7 +210,11 @@ impl GpuiRuntimeView {
             });
     }
 
-    fn window_metrics(&self, window: &Window) -> wabou_shell::WindowMetrics {
+    fn window_metrics(
+        &self,
+        window: &Window,
+        cx: &wabou_shell::gpui::App,
+    ) -> wabou_shell::WindowMetrics {
         let viewport = window.viewport_size();
         let logical_width = f32::from(viewport.width).round().max(1.0) as u32;
         let logical_height = f32::from(viewport.height).round().max(1.0) as u32;
@@ -235,6 +239,7 @@ impl GpuiRuntimeView {
             outer_y: Some(f32::from(outer.y).round() as i32),
             occluded: false,
             color_scheme: Some(color_scheme),
+            reduced_motion: cx.reduce_motion(),
         }
     }
 
@@ -720,7 +725,7 @@ impl Render for GpuiRuntimeView {
         let viewport = window.viewport_size();
         let viewport_width = f32::from(viewport.width).round().max(1.0) as u32;
         let viewport_height = f32::from(viewport.height).round().max(1.0) as u32;
-        let metrics = self.window_metrics(window);
+        let metrics = self.window_metrics(window, cx);
         self.controller.update_window_metrics(metrics);
         if let Some(persistence) = &mut self.window_size_persistence {
             let width: f32 = viewport.width.into();
@@ -1306,16 +1311,18 @@ mod tests {
         });
 
         let metrics = cx.update(|window, app| {
+            app.set_reduce_motion(true);
             window.resize(size(px(640.0), px(360.0)));
             window.set_scale_factor(2.0);
             window.bounds_changed(app);
-            view.read(app).window_metrics(window)
+            view.read(app).window_metrics(window, app)
         });
         assert_eq!(metrics.logical_width, 640);
         assert_eq!(metrics.logical_height, 360);
         assert_eq!(metrics.physical_width, 1280);
         assert_eq!(metrics.physical_height, 720);
         assert_eq!(metrics.scale_factor, 2.0);
+        assert!(metrics.reduced_motion);
     }
 
     #[wabou_shell::gpui::test]

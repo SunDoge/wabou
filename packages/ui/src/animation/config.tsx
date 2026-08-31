@@ -1,3 +1,4 @@
+import { useWindow } from "@wabou/core";
 import { type Accessor, createContext, type JSX, useContext } from "solid-js";
 
 export interface MotionConfig {
@@ -5,7 +6,7 @@ export interface MotionConfig {
 }
 
 const DEFAULT_MOTION_CONFIG: MotionConfig = Object.freeze({
-  reducedMotion: () => false,
+  reducedMotion: () => useWindow().reducedMotion(),
 });
 
 const MotionConfigContext = createContext<MotionConfig>(DEFAULT_MOTION_CONFIG);
@@ -20,7 +21,7 @@ export interface MotionConfigProviderProps {
 export function MotionConfigProvider(
   props: MotionConfigProviderProps,
 ): JSX.Element {
-  const parent = useContext(MotionConfigContext);
+  const parent = useMotionConfig();
   const value: MotionConfig = {
     reducedMotion: () => props.reducedMotion ?? parent.reducedMotion(),
   };

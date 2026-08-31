@@ -259,6 +259,7 @@ impl GpuiController {
                 wabou_shell::ColorScheme::Light => "light",
                 wabou_shell::ColorScheme::Dark => "dark",
             }),
+            "reducedMotion": metrics.reduced_motion,
         });
         let published = self
             .dispatch_host_frame(&[HostEvent::Application(crate::HostMessage::str(
@@ -1389,6 +1390,7 @@ mod tests {
             outer_y: Some(80),
             occluded: false,
             color_scheme: Some(wabou_shell::ColorScheme::Dark),
+            reduced_motion: true,
         };
 
         assert!(controller.update_window_metrics(metrics));
@@ -1410,6 +1412,7 @@ mod tests {
         assert_eq!(payload["scaleFactor"], 2.0);
         assert_eq!(payload["focused"], true);
         assert_eq!(payload["colorScheme"], "dark");
+        assert_eq!(payload["reducedMotion"], true);
     }
 
     #[cfg(feature = "devtools")]

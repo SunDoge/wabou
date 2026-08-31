@@ -21,6 +21,7 @@ export interface WindowMetrics {
   outerY: number | null;
   occluded: boolean;
   colorScheme: "light" | "dark" | null;
+  reducedMotion: boolean;
 }
 
 export interface WindowState extends WindowHandle {
@@ -34,6 +35,7 @@ export interface WindowState extends WindowHandle {
   outerY: Accessor<number | null>;
   occluded: Accessor<boolean>;
   colorScheme: Accessor<"light" | "dark">;
+  reducedMotion: Accessor<boolean>;
 }
 
 /** Inclusive logical-pixel constraints evaluated against the native client area. */
@@ -114,6 +116,7 @@ const initial: WindowMetrics = {
   outerY: null,
   occluded: false,
   colorScheme: "light",
+  reducedMotion: false,
 };
 
 // Native window events can arrive while an unrelated component, behavior-test
@@ -133,7 +136,8 @@ function sameMetrics(previous: WindowMetrics, next: WindowMetrics): boolean {
     previous.outerX === next.outerX &&
     previous.outerY === next.outerY &&
     previous.occluded === next.occluded &&
-    previous.colorScheme === next.colorScheme
+    previous.colorScheme === next.colorScheme &&
+    previous.reducedMotion === next.reducedMotion
   );
 }
 
@@ -158,7 +162,8 @@ function decodeWindowMetrics(value: unknown): WindowMetrics {
   if (
     typeof next.maximized !== "boolean" ||
     typeof next.focused !== "boolean" ||
-    typeof next.occluded !== "boolean"
+    typeof next.occluded !== "boolean" ||
+    typeof next.reducedMotion !== "boolean"
   )
     throw new TypeError("window metrics flags must be booleans");
   for (const field of ["outerX", "outerY"] as const) {
@@ -166,7 +171,9 @@ function decodeWindowMetrics(value: unknown): WindowMetrics {
       next[field] !== null &&
       (typeof next[field] !== "number" || !Number.isFinite(next[field]))
     )
-      throw new TypeError(`window metrics ${field} must be null or a finite number`);
+      throw new TypeError(
+        `window metrics ${field} must be null or a finite number`,
+      );
   }
   if (
     next.colorScheme !== null &&
@@ -187,6 +194,7 @@ function decodeWindowMetrics(value: unknown): WindowMetrics {
     outerY: next.outerY as number | null,
     occluded: next.occluded,
     colorScheme: next.colorScheme,
+    reducedMotion: next.reducedMotion,
   };
 }
 
@@ -214,6 +222,7 @@ const state: WindowState = {
   outerY: () => metrics().outerY,
   occluded: () => metrics().occluded,
   colorScheme: () => metrics().colorScheme ?? "light",
+  reducedMotion: () => metrics().reducedMotion,
 };
 
 /** Reactive state and controls for the native window owning this JS runtime. */

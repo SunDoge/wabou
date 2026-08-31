@@ -20,6 +20,7 @@ test("window metrics expose one reactive logical coordinate space", () => {
       outerY: 80,
       occluded: false,
       colorScheme: "dark",
+      reducedMotion: true,
     }),
   );
   flush();
@@ -33,6 +34,7 @@ test("window metrics expose one reactive logical coordinate space", () => {
   expect(window.outerY()).toBe(80);
   expect(window.occluded()).toBe(false);
   expect(window.colorScheme()).toBe("dark");
+  expect(window.reducedMotion()).toBe(true);
   expect(window.metrics().physicalWidth).toBe(1600);
 });
 

@@ -39,6 +39,8 @@ pub struct WindowMetrics {
     pub occluded: bool,
     /// Current native light/dark preference, when reported by the platform.
     pub color_scheme: Option<ColorScheme>,
+    /// Whether the platform requests reduced non-essential motion.
+    pub reduced_motion: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,6 +67,7 @@ impl Default for WindowMetrics {
             outer_y: None,
             occluded: false,
             color_scheme: Some(ColorScheme::Light),
+            reduced_motion: false,
         }
     }
 }

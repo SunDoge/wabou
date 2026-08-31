@@ -29,6 +29,7 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
     outerY: null,
     occluded: false,
     colorScheme: "light" as const,
+    reducedMotion: false,
   });
   const fakeWindow: WindowState = {
     id: windowKey,
@@ -48,6 +49,7 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
     outerY: () => metrics().outerY,
     occluded: () => metrics().occluded,
     colorScheme: () => metrics().colorScheme,
+    reducedMotion: () => metrics().reducedMotion,
   };
   const fakeDialog: Dialog = {
     open: async () => null,
@@ -111,6 +113,7 @@ test("nested partial providers inherit services they do not override", () => {
     outerY: null,
     occluded: false,
     colorScheme: "light" as const,
+    reducedMotion: false,
   });
   const parentWindow: WindowState = {
     id: windowKey,
@@ -130,6 +133,7 @@ test("nested partial providers inherit services they do not override", () => {
     outerY: () => null,
     occluded: () => false,
     colorScheme: () => "light",
+    reducedMotion: () => false,
   };
   let receivedClipboard: Clipboard | undefined;
   let receivedWindow: WindowState | undefined;
