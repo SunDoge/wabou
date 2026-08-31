@@ -64,6 +64,20 @@ impl GpuiHeadlessHarness {
         source_map: Option<impl Into<Arc<[u8]>>>,
         options: GpuiHeadlessOptions,
     ) -> crate::Result<Self> {
+        Self::boot_with_native_widgets(source, source_map, options, HashMap::new())
+    }
+
+    /// Boot a production bundle with the same native-widget registry used by an application.
+    ///
+    /// This keeps component and layout tests on the real GPUI materialization path instead of
+    /// replacing application-owned widgets with test-only stand-ins. Factories are shared with
+    /// every window created by the tested bundle.
+    pub fn boot_with_native_widgets(
+        source: impl Into<Arc<str>>,
+        source_map: Option<impl Into<Arc<[u8]>>>,
+        options: GpuiHeadlessOptions,
+        native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
+    ) -> crate::Result<Self> {
         let source = source.into();
         let source_map = source_map.map(Into::into);
         let platform = gpui_platform::current_platform(true);
@@ -79,6 +93,7 @@ impl GpuiHeadlessHarness {
             create_controller(window_key, &options.window, &source, source_map.as_deref())?;
         let dynamic_source = source.clone();
         let dynamic_source_map = source_map.clone();
+        let dynamic_native_widget_factories = native_widget_factories.clone();
         let window_host = crate::gpui_windows::GpuiApplicationWindows::new(
             Rc::new(move |key, window_options| {
                 create_controller(
@@ -89,7 +104,7 @@ impl GpuiHeadlessHarness {
                 )
                 .map_err(|error| error.to_string())
             }),
-            HashMap::new(),
+            dynamic_native_widget_factories,
             None,
         );
         let view_window_host = window_host.clone();
@@ -107,7 +122,7 @@ impl GpuiHeadlessHarness {
                             crate::gpui_view::GpuiRuntimeViewOptions {
                                 default_title: title,
                                 window_size_persistence: None,
-                                native_widget_factories: HashMap::new(),
+                                native_widget_factories,
                                 test_controller: None,
                                 window_key,
                                 window_host: view_window_host,
@@ -260,6 +275,9 @@ fn create_controller(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use gpui_shell::gpui::{IntoElement as _, Styled as _, div};
     use wabou_host_api::NodeKey;
 
     #[test]
@@ -287,5 +305,34 @@ mod tests {
             .find(|node| node.key == NodeKey::ROOT)
             .expect("synthetic root has layout bounds");
         assert_eq!(root.bounds.size, size(px(800.0), px(600.0)));
+    }
+
+    #[test]
+    fn native_widget_factories_run_on_the_real_headless_gpui_path() {
+        let invocations = Arc::new(AtomicUsize::new(0));
+        let observed_invocations = invocations.clone();
+        let factory: gpui_shell::NativeWidgetFactory = Arc::new(move |context, _, _| {
+            assert_eq!(context.key(), NodeKey::new(2, 1));
+            observed_invocations.fetch_add(1, Ordering::Relaxed);
+            gpui_shell::NativeWidgetMount::stateless(div().size_full().into_any_element())
+        });
+
+        let mut harness = GpuiHeadlessHarness::boot_with_native_widgets(
+            include_str!("gen/test-runtime.js"),
+            None::<Arc<[u8]>>,
+            GpuiHeadlessOptions {
+                window: WindowOptions::new().initial_inner_size(800, 600),
+                settle_frames: 2,
+            },
+            HashMap::from([(String::from("main"), factory)]),
+        )
+        .expect("boot GPUI headless fixture with native widget");
+
+        let output = harness.snapshot().expect("read GPUI layout");
+        assert_eq!(output.protocol_revision, 1);
+        assert!(
+            invocations.load(Ordering::Relaxed) > 0,
+            "registered native widget factory must participate in GPUI rendering"
+        );
     }
 }
