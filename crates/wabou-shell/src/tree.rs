@@ -50,6 +50,9 @@ pub struct ProjectedNode {
     /// Whether this exact node may become a pointer hit target. Unlike
     /// `interaction_blocked`, this does not suppress interactive descendants.
     pub pointer_events: bool,
+    /// GPUI deferred-draw priority for this node. Wabou intentionally exposes
+    /// only non-negative stacking priorities rather than CSS stacking contexts.
+    pub z_index: usize,
     /// Whether focus traversal is contained inside this subtree.
     pub focus_contained: bool,
 }
@@ -213,6 +216,7 @@ impl ProjectionTree {
                 focus_order: None,
                 interaction_blocked: false,
                 pointer_events: true,
+                z_index: 0,
                 focus_contained: false,
             },
         );
@@ -468,6 +472,16 @@ impl ProjectionTree {
             .ok_or(ProjectionError::MissingNode(key))?
             .pointer_events = enabled;
         self.dirty.invalidate(key, DirtyKind::INTERACTION);
+        Ok(())
+    }
+
+    pub fn update_z_index(&mut self, key: NodeKey, z_index: usize) -> Result<(), ProjectionError> {
+        self.nodes
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?
+            .z_index = z_index;
+        self.dirty
+            .invalidate(key, DirtyKind::PAINT | DirtyKind::INTERACTION);
         Ok(())
     }
 

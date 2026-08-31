@@ -83,10 +83,21 @@ impl ProjectedElement {
             children.push(gpui::img(image.clone()).size_full().into_any_element());
         }
         for child in &node.children {
-            children.push(
-                Self::from_tree(tree, *child, context.for_child(), interaction_blocked)?
-                    .into_any_element(),
-            );
+            let projected =
+                Self::from_tree(tree, *child, context.for_child(), interaction_blocked)?;
+            let z_index = tree
+                .node(*child)
+                .ok_or(ProjectionError::MissingNode(*child))?
+                .z_index;
+            if z_index == 0 {
+                children.push(projected.into_any_element());
+            } else {
+                children.push(
+                    gpui::deferred(projected)
+                        .with_priority(z_index)
+                        .into_any_element(),
+                );
+            }
         }
         Ok(Self {
             key,

@@ -482,6 +482,16 @@ impl GpuiProjection {
                     property: property.to_owned(),
                 }),
             }
+        } else if property == "z-index" {
+            match z_index(value) {
+                Some(z_index) => {
+                    self.tree.update_z_index(key, z_index)?;
+                    None
+                }
+                None => Some(StyleDiagnostic::InvalidValue {
+                    property: property.to_owned(),
+                }),
+            }
         } else {
             project_ir(&mut projection, property, value)
         };
@@ -577,6 +587,7 @@ impl GpuiProjection {
     fn recompute_style(&mut self, key: NodeKey) -> Result<(), ProjectionError> {
         let mut projection = StyleProjection::default();
         let mut pointer_events_enabled = true;
+        let mut z_index_value = 0;
         let mut diagnostics = Vec::new();
         if let Some(stylesheet) = &self.stylesheet {
             let classes = self.classes.get(&key).map_or(&[][..], Vec::as_slice);
@@ -591,6 +602,16 @@ impl GpuiProjection {
                     match pointer_events(&declaration.value) {
                         Some(enabled) => {
                             pointer_events_enabled = enabled;
+                            None
+                        }
+                        None => Some(StyleDiagnostic::InvalidValue {
+                            property: declaration.property.clone(),
+                        }),
+                    }
+                } else if declaration.property == "z-index" {
+                    match z_index(&declaration.value) {
+                        Some(value) => {
+                            z_index_value = value;
                             None
                         }
                         None => Some(StyleDiagnostic::InvalidValue {
@@ -617,6 +638,16 @@ impl GpuiProjection {
                             property: property.clone(),
                         }),
                     }
+                } else if property == "z-index" {
+                    match z_index(value) {
+                        Some(value) => {
+                            z_index_value = value;
+                            None
+                        }
+                        None => Some(StyleDiagnostic::InvalidValue {
+                            property: property.clone(),
+                        }),
+                    }
                 } else {
                     project_ir(&mut projection, property, value)
                 };
@@ -627,6 +658,7 @@ impl GpuiProjection {
         }
         self.tree
             .update_pointer_events(key, pointer_events_enabled)?;
+        self.tree.update_z_index(key, z_index_value)?;
         if diagnostics.is_empty() {
             self.style_diagnostics.remove(&key);
         } else {
@@ -659,6 +691,14 @@ fn pointer_events(value: &IrValue) -> Option<bool> {
         "none" => Some(false),
         _ => None,
     }
+}
+
+fn z_index(value: &IrValue) -> Option<usize> {
+    let IrValue::Number { value } = value else {
+        return None;
+    };
+    (value.is_finite() && *value >= 0.0 && value.fract() == 0.0 && *value <= usize::MAX as f32)
+        .then_some(*value as usize)
 }
 
 fn is_translation_matrix(matrix: [f32; 6]) -> bool {
@@ -925,6 +965,14 @@ mod tests {
             None
         );
         assert!(projection.tree().node(key(2)).unwrap().pointer_events);
+
+        assert_eq!(
+            projection
+                .apply_style_declaration(key(2), "z-index", &IrValue::Number { value: 42.0 },)
+                .unwrap(),
+            None
+        );
+        assert_eq!(projection.tree().node(key(2)).unwrap().z_index, 42);
     }
 
     #[test]
