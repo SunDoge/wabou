@@ -327,6 +327,12 @@ export function extractUtilitySource(source: string): string {
         /(?:===|!==|==|!=)\s*(?:"[^"]*"|'[^']*'|`[^`]*`)/g,
         "",
       );
+      // `ts-pattern` selectors inside a class-producing expression describe
+      // state, not utilities. Only the callback result contributes classes.
+      value = value.replace(
+        /\.with\s*\(\s*(?:"[^"]*"|'[^']*'|`[^`]*`)\s*,/g,
+        ".with(,",
+      );
     }
     // Reactive selection between complete static utilities is valid, but
     // manufacturing utility names from runtime fragments bypasses build-time

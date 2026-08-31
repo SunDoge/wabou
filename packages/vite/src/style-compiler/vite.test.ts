@@ -216,6 +216,15 @@ describe("utility source extraction", () => {
     expect(extracted).toContain("border-0");
   });
 
+  test("ignores ts-pattern selectors inside class expressions", () => {
+    const source =
+      '<View class={() => match(variant()).with("outline", () => "border").otherwise(() => "border-0")} />';
+    const extracted = extractUtilitySource(source);
+    expect(extracted).not.toContain("outline");
+    expect(extracted).toContain("border");
+    expect(extracted).toContain("border-0");
+  });
+
   test("extracts explicit Solid classList keys", () => {
     const source = `<View class="flex bg-slate-900" classList={{
       "bg-slate-700": hovered(),

@@ -1,4 +1,11 @@
-import { rgba, shadow, Text, useComponentsTheme, View } from "@wabou/ui";
+import {
+  rgba,
+  shadow,
+  Text,
+  translate2d,
+  useComponentsTheme,
+  View,
+} from "@wabou/ui";
 import wabouUtilityManifest from "@wabou/vite/utility-manifest";
 import { For as ForValue } from "solid-js";
 import "virtual:wabou-stylesheet";
@@ -155,7 +162,7 @@ function ShadowTile(props: {
   title: string;
   detail: string;
   shadows: Parameters<typeof View>[0]["shadows"];
-  shape?: "rounded" | "square" | "rotated";
+  shape?: "rounded" | "square" | "shifted";
 }) {
   return (
     <View class="flex-1 min-w-40 flex flex-col items-center gap-5 p-6">
@@ -163,9 +170,10 @@ function ShadowTile(props: {
         class={
           props.shape === "square"
             ? "w-32 h-24 flex items-center justify-center rounded-none bg-slate-50"
-            : props.shape === "rotated"
-              ? "w-32 h-24 flex items-center justify-center rounded-xl bg-slate-50 rotate-6"
-              : "w-32 h-24 flex items-center justify-center rounded-xl bg-slate-50"
+            : "w-32 h-24 flex items-center justify-center rounded-xl bg-slate-50"
+        }
+        transform={
+          props.shape === "shifted" ? translate2d(8, -4) : undefined
         }
         shadows={props.shadows}
       >
@@ -286,7 +294,7 @@ function ShadowsPage() {
           <ShadowTile
             title="affine"
             detail="rotate: 6deg"
-            shape="rotated"
+            shape="shifted"
             shadows={[
               shadow({
                 offsetX: 8,
@@ -319,7 +327,7 @@ function LayoutStylesPage() {
     <View class="flex flex-col gap-5">
       <Preview title="Explicit grid placement">
         <View class="w-full grid grid-cols-4 grid-rows-2 gap-3">
-          <View class="col-span-2 row-span-2 min-h-32 rounded-xl bg-violet-100 p-4 justify-self-stretch">
+          <View class="col-span-2 row-span-2 min-h-32 rounded-xl bg-violet-100 p-4">
             <Text class="font-semibold tracking-tight text-violet-950">
               col-span-2 · row-span-2
             </Text>
@@ -332,9 +340,12 @@ function LayoutStylesPage() {
         </View>
       </Preview>
 
-      <Preview title="Transform origin and tracking">
+      <Preview title="Runtime translation and tracking">
         <View class="w-full flex items-center gap-10 p-6">
-          <View class="origin-top-left rotate-6 size-24 rounded-xl bg-violet-500 shadow-md" />
+          <View
+            class="size-24 rounded-xl bg-violet-500 shadow-md"
+            transform={translate2d(12, -6)}
+          />
           <View class="flex flex-col gap-3">
             <Text class="text-lg font-semibold tracking-tighter">
               Tighter interface heading
