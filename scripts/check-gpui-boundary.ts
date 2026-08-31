@@ -52,6 +52,23 @@ export function gpuiBoundaryViolations(metadata: CargoMetadata): string[] {
   return violations.sort();
 }
 
+export function canonicalDependencyViolations(
+  metadata: CargoMetadata,
+): string[] {
+  const violations: string[] = [];
+  for (const pkg of metadata.packages) {
+    if (!FORMAL_PACKAGES.has(pkg.name)) continue;
+    for (const dependency of pkg.dependencies) {
+      if (dependency.name === "wabou-shell" && dependency.rename !== null) {
+        violations.push(
+          `${pkg.name} renames wabou-shell to ${dependency.rename}`,
+        );
+      }
+    }
+  }
+  return violations.sort();
+}
+
 export function legacyIsolationViolations(metadata: CargoMetadata): string[] {
   const defaultMembers = new Set(metadata.workspace_default_members ?? []);
   const violations: string[] = [];
@@ -85,11 +102,12 @@ async function main(): Promise<void> {
   const cargo = await metadata();
   const violations = [
     ...gpuiBoundaryViolations(cargo),
+    ...canonicalDependencyViolations(cargo),
     ...legacyIsolationViolations(cargo),
   ];
   if (violations.length === 0) return;
   throw new Error(
-    `Formal GPUI packages depend on retired renderer crates in normal, build, or test code:\n${violations
+    `The formal GPUI crate boundary is invalid:\n${violations
       .map((violation) => `  - ${violation}`)
       .join("\n")}`,
   );

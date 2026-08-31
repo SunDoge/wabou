@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  canonicalDependencyViolations,
   gpuiBoundaryViolations,
   legacyIsolationViolations,
 } from "./check-gpui-boundary";
@@ -26,6 +27,27 @@ test("formal packages cannot regain a retired rendering backend", () => {
     "wabou-runtime -> legacy-shell (wabou-legacy-shell, dev)",
     "wabou-runtime -> vello (vello, normal)",
   ]);
+});
+
+test("formal packages use the canonical shell dependency name", () => {
+  expect(
+    canonicalDependencyViolations({
+      packages: [
+        {
+          name: "wabou-runtime",
+          dependencies: [
+            { kind: null, name: "wabou-shell", rename: "gpui-shell" },
+          ],
+        },
+        {
+          name: "wabou-legacy-runtime",
+          dependencies: [
+            { kind: null, name: "wabou-shell", rename: "gpui-shell" },
+          ],
+        },
+      ],
+    }),
+  ).toEqual(["wabou-runtime renames wabou-shell to gpui-shell"]);
 });
 
 test("retired crates stay unpublished and outside default workspace commands", () => {
