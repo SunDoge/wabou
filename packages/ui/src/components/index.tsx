@@ -188,7 +188,7 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
     <PrimitivePasswordInput
       {...props}
       class={mergeClasses(
-        "w-full border shadow-xs",
+        "w-full flex items-center border shadow-xs",
         componentsControlSize("default"),
         "border-subtle bg-input text-primary",
         props.disabled && "opacity-50",

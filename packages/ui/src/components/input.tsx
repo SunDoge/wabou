@@ -32,7 +32,7 @@ export function Input(props: InputProps): JSX.Element {
           : "native-editor"
       }
       class={mergeClasses(
-        "w-full text-primary",
+        "w-full flex items-center text-primary",
         (props.chrome ?? "default") === "default"
           ? componentsControlSize("default")
           : componentsControlContentSize("default"),
