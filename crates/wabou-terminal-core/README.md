@@ -1,15 +1,17 @@
-# wabou-terminal
+# wabou-terminal-core
 
-`wabou-terminal` adapts `rio-vt` to Wabou's Rust-side `Widget` API.
+`wabou-terminal-core` is Wabou's renderer-independent terminal model. The
+published `wabou-terminal` crate adapts it to a retained GPUI entity and exposes
+that entity through Wabou's native-widget registry.
 
 `rio-vt` is deliberately renderer-free: it parses PTY bytes into a terminal
-grid and emits PTY-facing events. `TerminalWidget` owns that grid, uses Rio's
-`Machine` to drive it from a real PTY, and renders the visible cells with
-Parley and Wabou's AnyRender scene.
+grid and emits PTY-facing events. `TerminalWidget` owns that grid and uses
+Rio's `Machine` to drive it from a real PTY. It publishes renderer-neutral
+terminal frames; the GPUI adapter shapes glyphs and paints cells with GPUI.
 
 ```rust
 HostBuilder::new()
-    .widget("terminal", wabou_terminal::terminal_widget)
+    .native_entity_widget("terminal", wabou_terminal::gpui_terminal_factory())
     .run()?;
 ```
 
@@ -17,8 +19,9 @@ Solid applications can consume the typed PascalCase wrapper and event types
 from `@wabou/terminal`; the package also declares the low-level `terminal` JSX
 intrinsic for applications that need direct wire-attribute access.
 
-The widget factory launches lazily on its first paint, after initial JSX
-attributes have arrived. This makes per-tab process configuration reliable:
+The retained GPUI entity launches lazily when it produces its first terminal
+frame, after initial JSX attributes have arrived. This makes per-tab process
+configuration reliable:
 
 ```tsx
 <Terminal command="ssh" args={["example.com"]} cwd="/tmp" />
@@ -52,8 +55,9 @@ The Solid application can then size and compose it normally:
 <terminal class="w-full h-full overflow-hidden" />
 ```
 
-Font props are reactive. Wabou measures terminal cell metrics before layout,
-so auto-sized terminals update their intrinsic size in the same frame; an
+Font props are reactive. The adapter measures terminal cell metrics through
+GPUI's text system before producing the cell frame. Applications give the
+native terminal an explicit layout size through ordinary Wabou classes; an
 explicit `lineHeight` is retained as authored and clamped against the current
 font size without making prop order observable.
 
@@ -81,8 +85,7 @@ OSC title changes are node-scoped by default through `onTerminalTitleChange`.
 This prevents a background tab from overwriting the native window title. A
 single-terminal app may opt into direct mirroring with
 `<Terminal syncWindowTitle />`; removing the prop restores the host's default
-title. Unmounting the widget performs the same cleanup through Wabou's widget
-lifecycle hook.
+title. Unmounting drops the retained GPUI entity and performs the same cleanup.
 
 Implemented paths:
 
