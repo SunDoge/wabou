@@ -14,7 +14,7 @@ use crate::{
     reload::ReloadState,
     style_ir::StylesheetUpdate,
 };
-use gpui_shell::{FrameStats, HostAction, WakeCallback, WindowResourceKey};
+use wabou_shell::{FrameStats, HostAction, WakeCallback, WindowResourceKey};
 
 /// QuickJS and host-bridge state with one shared cancellation lifetime.
 ///

@@ -2,8 +2,8 @@
 
 use std::{collections::HashMap, rc::Rc};
 
-use gpui_shell::{WindowOptions, gpui::AppContext as _};
 use slotmap::{Key as _, KeyData, SlotMap};
+use wabou_shell::{WindowOptions, gpui::AppContext as _};
 
 slotmap::new_key_type! {
     struct GpuiWindowSlot;
@@ -14,12 +14,12 @@ slotmap::new_key_type! {
 #[derive(Clone, Default)]
 pub(crate) struct GpuiWindowRegistry {
     entries: std::rc::Rc<
-        std::cell::RefCell<SlotMap<GpuiWindowSlot, Option<gpui_shell::gpui::AnyWindowHandle>>>,
+        std::cell::RefCell<SlotMap<GpuiWindowSlot, Option<wabou_shell::gpui::AnyWindowHandle>>>,
     >,
 }
 
 type RuntimeFactory = dyn Fn(
-    gpui_shell::WindowResourceKey,
+    wabou_shell::WindowResourceKey,
     &WindowOptions,
 ) -> Result<crate::gpui_controller::GpuiController, String>;
 
@@ -47,14 +47,14 @@ impl std::fmt::Display for GpuiWindowError {
 pub(crate) struct GpuiApplicationWindows {
     registry: GpuiWindowRegistry,
     runtime_factory: Rc<RuntimeFactory>,
-    native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
+    native_widget_factories: HashMap<String, wabou_shell::NativeWidgetFactory>,
     test_controller: Option<crate::test_driver::TestController>,
 }
 
 impl GpuiApplicationWindows {
     pub(crate) fn new(
         runtime_factory: Rc<RuntimeFactory>,
-        native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
+        native_widget_factories: HashMap<String, wabou_shell::NativeWidgetFactory>,
         test_controller: Option<crate::test_driver::TestController>,
     ) -> Rc<Self> {
         Rc::new(Self {
@@ -65,45 +65,45 @@ impl GpuiApplicationWindows {
         })
     }
 
-    pub(crate) fn reserve(&self) -> gpui_shell::WindowResourceKey {
+    pub(crate) fn reserve(&self) -> wabou_shell::WindowResourceKey {
         self.registry.reserve()
     }
 
     pub(crate) fn resolve(
         &self,
-        key: gpui_shell::WindowResourceKey,
-    ) -> Option<gpui_shell::gpui::AnyWindowHandle> {
+        key: wabou_shell::WindowResourceKey,
+    ) -> Option<wabou_shell::gpui::AnyWindowHandle> {
         self.registry.resolve(key)
     }
 
     #[cfg(any(feature = "headless", test))]
     pub(crate) fn attach(
         &self,
-        key: gpui_shell::WindowResourceKey,
-        handle: gpui_shell::gpui::AnyWindowHandle,
+        key: wabou_shell::WindowResourceKey,
+        handle: wabou_shell::gpui::AnyWindowHandle,
     ) -> bool {
         self.registry.attach(key, handle)
     }
 
     pub(crate) fn remove(
         &self,
-        key: gpui_shell::WindowResourceKey,
-    ) -> Option<gpui_shell::gpui::AnyWindowHandle> {
+        key: wabou_shell::WindowResourceKey,
+    ) -> Option<wabou_shell::gpui::AnyWindowHandle> {
         self.registry.remove(key)
     }
 
     pub(crate) fn observe_native_closes(
         &self,
-        cx: &gpui_shell::gpui::App,
-    ) -> gpui_shell::gpui::Subscription {
+        cx: &wabou_shell::gpui::App,
+    ) -> wabou_shell::gpui::Subscription {
         self.registry.observe_native_closes(cx)
     }
 
     pub(crate) fn create(
         self: &Rc<Self>,
         options: WindowOptions,
-        cx: &mut gpui_shell::gpui::App,
-    ) -> Result<gpui_shell::WindowResourceKey, GpuiWindowError> {
+        cx: &mut wabou_shell::gpui::App,
+    ) -> Result<wabou_shell::WindowResourceKey, GpuiWindowError> {
         validate_gpui_window_options(&options)?;
         let key = self.reserve();
         let controller = match (self.runtime_factory)(key, &options) {
@@ -122,7 +122,7 @@ impl GpuiApplicationWindows {
 
     pub(crate) fn create_controller(
         &self,
-        key: gpui_shell::WindowResourceKey,
+        key: wabou_shell::WindowResourceKey,
         options: &WindowOptions,
     ) -> Result<crate::gpui_controller::GpuiController, String> {
         (self.runtime_factory)(key, options)
@@ -130,18 +130,18 @@ impl GpuiApplicationWindows {
 
     pub(crate) fn open_controller(
         self: &Rc<Self>,
-        key: gpui_shell::WindowResourceKey,
+        key: wabou_shell::WindowResourceKey,
         controller: crate::gpui_controller::GpuiController,
         options: WindowOptions,
-        persistence: Option<gpui_shell::WindowSizePersistence>,
-        cx: &mut gpui_shell::gpui::App,
-    ) -> Result<gpui_shell::gpui::AnyWindowHandle, GpuiWindowError> {
+        persistence: Option<wabou_shell::WindowSizePersistence>,
+        cx: &mut wabou_shell::gpui::App,
+    ) -> Result<wabou_shell::gpui::AnyWindowHandle, GpuiWindowError> {
         validate_gpui_window_options(&options)?;
-        let bounds = gpui_shell::gpui::Bounds::centered(
+        let bounds = wabou_shell::gpui::Bounds::centered(
             None,
-            gpui_shell::gpui::size(
-                gpui_shell::gpui::px(options.initial_inner_size.0 as f32),
-                gpui_shell::gpui::px(options.initial_inner_size.1 as f32),
+            wabou_shell::gpui::size(
+                wabou_shell::gpui::px(options.initial_inner_size.0 as f32),
+                wabou_shell::gpui::px(options.initial_inner_size.1 as f32),
             ),
             cx,
         );
@@ -184,46 +184,46 @@ impl GpuiApplicationWindows {
 
 fn project_gpui_window_options(
     options: &WindowOptions,
-    bounds: gpui_shell::gpui::Bounds<gpui_shell::gpui::Pixels>,
-) -> gpui_shell::gpui::WindowOptions {
-    gpui_shell::gpui::WindowOptions {
-        window_bounds: Some(gpui_shell::gpui::WindowBounds::Windowed(bounds)),
+    bounds: wabou_shell::gpui::Bounds<wabou_shell::gpui::Pixels>,
+) -> wabou_shell::gpui::WindowOptions {
+    wabou_shell::gpui::WindowOptions {
+        window_bounds: Some(wabou_shell::gpui::WindowBounds::Windowed(bounds)),
         titlebar: options.decorations.then(Default::default),
         kind: match options.window_level {
-            gpui_shell::WindowLevel::AlwaysOnTop => gpui_shell::gpui::WindowKind::PopUp,
-            gpui_shell::WindowLevel::Normal | gpui_shell::WindowLevel::AlwaysOnBottom => {
-                gpui_shell::gpui::WindowKind::Normal
+            wabou_shell::WindowLevel::AlwaysOnTop => wabou_shell::gpui::WindowKind::PopUp,
+            wabou_shell::WindowLevel::Normal | wabou_shell::WindowLevel::AlwaysOnBottom => {
+                wabou_shell::gpui::WindowKind::Normal
             }
         },
         app_owns_titlebar_drag: !options.decorations,
         is_resizable: options.resizable,
         window_min_size: options.min_inner_size.map(|(width, height)| {
-            gpui_shell::gpui::size(
-                gpui_shell::gpui::px(width as f32),
-                gpui_shell::gpui::px(height as f32),
+            wabou_shell::gpui::size(
+                wabou_shell::gpui::px(width as f32),
+                wabou_shell::gpui::px(height as f32),
             )
         }),
         window_background: if options.transparent {
-            gpui_shell::gpui::WindowBackgroundAppearance::Transparent
+            wabou_shell::gpui::WindowBackgroundAppearance::Transparent
         } else {
-            gpui_shell::gpui::WindowBackgroundAppearance::Opaque
+            wabou_shell::gpui::WindowBackgroundAppearance::Opaque
         },
         window_decorations: Some(if options.decorations {
-            gpui_shell::gpui::WindowDecorations::Server
+            wabou_shell::gpui::WindowDecorations::Server
         } else {
-            gpui_shell::gpui::WindowDecorations::Client
+            wabou_shell::gpui::WindowDecorations::Client
         }),
         ..Default::default()
     }
 }
 
 pub(crate) fn validate_gpui_window_options(options: &WindowOptions) -> Result<(), GpuiWindowError> {
-    if options.window_level == gpui_shell::WindowLevel::AlwaysOnBottom {
+    if options.window_level == wabou_shell::WindowLevel::AlwaysOnBottom {
         return Err(GpuiWindowError::Unsupported(
             "GPUI-CE does not expose an always-on-bottom native window level".to_owned(),
         ));
     }
-    if options.input_mode == gpui_shell::WindowInputMode::Passthrough {
+    if options.input_mode == wabou_shell::WindowInputMode::Passthrough {
         return Err(GpuiWindowError::Unsupported(
             "GPUI-CE does not expose native pointer-passthrough windows; the request was not applied"
                 .to_owned(),
@@ -233,16 +233,16 @@ pub(crate) fn validate_gpui_window_options(options: &WindowOptions) -> Result<()
 }
 
 impl GpuiWindowRegistry {
-    pub(crate) fn reserve(&self) -> gpui_shell::WindowResourceKey {
+    pub(crate) fn reserve(&self) -> wabou_shell::WindowResourceKey {
         let key = self.entries.borrow_mut().insert(None);
-        gpui_shell::WindowResourceKey::from_ffi(key.data().as_ffi())
+        wabou_shell::WindowResourceKey::from_ffi(key.data().as_ffi())
             .expect("SlotMap generated an invalid window resource key")
     }
 
     pub(crate) fn attach(
         &self,
-        key: gpui_shell::WindowResourceKey,
-        handle: gpui_shell::gpui::AnyWindowHandle,
+        key: wabou_shell::WindowResourceKey,
+        handle: wabou_shell::gpui::AnyWindowHandle,
     ) -> bool {
         let key = GpuiWindowSlot::from(KeyData::from_ffi(key.as_ffi()));
         let mut entries = self.entries.borrow_mut();
@@ -255,24 +255,24 @@ impl GpuiWindowRegistry {
 
     pub(crate) fn resolve(
         &self,
-        key: gpui_shell::WindowResourceKey,
-    ) -> Option<gpui_shell::gpui::AnyWindowHandle> {
+        key: wabou_shell::WindowResourceKey,
+    ) -> Option<wabou_shell::gpui::AnyWindowHandle> {
         let key = GpuiWindowSlot::from(KeyData::from_ffi(key.as_ffi()));
         self.entries.borrow().get(key).copied().flatten()
     }
 
     pub(crate) fn remove(
         &self,
-        key: gpui_shell::WindowResourceKey,
-    ) -> Option<gpui_shell::gpui::AnyWindowHandle> {
+        key: wabou_shell::WindowResourceKey,
+    ) -> Option<wabou_shell::gpui::AnyWindowHandle> {
         let key = GpuiWindowSlot::from(KeyData::from_ffi(key.as_ffi()));
         self.entries.borrow_mut().remove(key).flatten()
     }
 
     pub(crate) fn observe_native_closes(
         &self,
-        cx: &gpui_shell::gpui::App,
-    ) -> gpui_shell::gpui::Subscription {
+        cx: &wabou_shell::gpui::App,
+    ) -> wabou_shell::gpui::Subscription {
         let registry = self.clone();
         cx.on_window_closed(move |_, window_id| {
             let key = {
@@ -301,32 +301,32 @@ mod tests {
             .min_inner_size(480, 320)
             .decorations(false)
             .transparent(true)
-            .window_level(gpui_shell::WindowLevel::AlwaysOnTop);
+            .window_level(wabou_shell::WindowLevel::AlwaysOnTop);
         let projected = project_gpui_window_options(&options, Default::default());
 
         assert!(projected.titlebar.is_none());
         assert!(projected.app_owns_titlebar_drag);
-        assert_eq!(projected.kind, gpui_shell::gpui::WindowKind::PopUp);
+        assert_eq!(projected.kind, wabou_shell::gpui::WindowKind::PopUp);
         assert_eq!(
             projected.window_decorations,
-            Some(gpui_shell::gpui::WindowDecorations::Client)
+            Some(wabou_shell::gpui::WindowDecorations::Client)
         );
         assert_eq!(
             projected.window_background,
-            gpui_shell::gpui::WindowBackgroundAppearance::Transparent
+            wabou_shell::gpui::WindowBackgroundAppearance::Transparent
         );
         assert_eq!(
             projected.window_min_size,
-            Some(gpui_shell::gpui::size(
-                gpui_shell::gpui::px(480.0),
-                gpui_shell::gpui::px(320.0)
+            Some(wabou_shell::gpui::size(
+                wabou_shell::gpui::px(480.0),
+                wabou_shell::gpui::px(320.0)
             ))
         );
     }
 
     #[test]
     fn unsupported_gpui_window_semantics_fail_before_native_creation() {
-        let bottom = WindowOptions::new().window_level(gpui_shell::WindowLevel::AlwaysOnBottom);
+        let bottom = WindowOptions::new().window_level(wabou_shell::WindowLevel::AlwaysOnBottom);
         assert!(
             validate_gpui_window_options(&bottom)
                 .unwrap_err()
@@ -334,7 +334,8 @@ mod tests {
                 .contains("always-on-bottom")
         );
 
-        let passthrough = WindowOptions::new().input_mode(gpui_shell::WindowInputMode::Passthrough);
+        let passthrough =
+            WindowOptions::new().input_mode(wabou_shell::WindowInputMode::Passthrough);
         assert!(
             validate_gpui_window_options(&passthrough)
                 .unwrap_err()
@@ -349,8 +350,8 @@ mod tests {
         let registry = GpuiWindowRegistry::default();
         let first = registry.reserve();
         let second = registry.reserve();
-        assert_eq!(first, gpui_shell::initial_window_resource_key(0));
-        assert_eq!(second, gpui_shell::initial_window_resource_key(1));
+        assert_eq!(first, wabou_shell::initial_window_resource_key(0));
+        assert_eq!(second, wabou_shell::initial_window_resource_key(1));
         assert_eq!(registry.remove(first), None);
 
         let replacement = registry.reserve();

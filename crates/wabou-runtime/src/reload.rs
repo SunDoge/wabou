@@ -2,7 +2,7 @@
 
 use std::sync::mpsc;
 
-use gpui_shell::WakeCallback;
+use wabou_shell::WakeCallback;
 
 use crate::ui_inbox::{UiInbox, UiInboxSender};
 

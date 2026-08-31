@@ -2,8 +2,8 @@
 
 use std::{collections::HashMap, path::Path, rc::Rc, sync::Arc, time::Duration};
 
-use gpui_shell::gpui::{AppContext as _, HeadlessAppContext, px, size};
 use snafu::ResultExt as _;
+use wabou_shell::gpui::{AppContext as _, HeadlessAppContext, px, size};
 
 use crate::{GpuiRuntimeView, JsRuntime, WindowOptions};
 
@@ -31,7 +31,7 @@ impl Default for GpuiHeadlessOptions {
 #[derive(Debug)]
 pub struct GpuiHeadlessOutput {
     /// Bounds and retained metadata produced by GPUI's real prepaint pass.
-    pub layout: Vec<gpui_shell::GpuiLayoutNode>,
+    pub layout: Vec<wabou_shell::GpuiLayoutNode>,
     /// Number of Solid protocol revisions committed before the snapshot.
     pub protocol_revision: u64,
     /// Logical viewport width used by GPUI layout.
@@ -54,7 +54,7 @@ pub enum GpuiHeadlessScreenshot {
 /// A single-bundle GPUI runtime used by CLI and component fixtures.
 pub struct GpuiHeadlessHarness {
     context: HeadlessAppContext,
-    window: gpui_shell::gpui::WindowHandle<GpuiRuntimeView>,
+    window: wabou_shell::gpui::WindowHandle<GpuiRuntimeView>,
 }
 
 impl GpuiHeadlessHarness {
@@ -76,7 +76,7 @@ impl GpuiHeadlessHarness {
         source: impl Into<Arc<str>>,
         source_map: Option<impl Into<Arc<[u8]>>>,
         options: GpuiHeadlessOptions,
-        native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
+        native_widget_factories: HashMap<String, wabou_shell::NativeWidgetFactory>,
     ) -> crate::Result<Self> {
         let source = source.into();
         let source_map = source_map.map(Into::into);
@@ -88,7 +88,7 @@ impl GpuiHeadlessHarness {
         );
         context.update(gpui_base::init);
 
-        let window_key = gpui_shell::initial_window_resource_key(0);
+        let window_key = wabou_shell::initial_window_resource_key(0);
         let controller =
             create_controller(window_key, &options.window, &source, source_map.as_deref())?;
         let dynamic_source = source.clone();
@@ -238,7 +238,7 @@ impl GpuiHeadlessHarness {
         Ok(true)
     }
 
-    fn root(&mut self) -> crate::Result<gpui_shell::gpui::Entity<GpuiRuntimeView>> {
+    fn root(&mut self) -> crate::Result<wabou_shell::gpui::Entity<GpuiRuntimeView>> {
         self.window
             .root(&mut self.context)
             .map_err(|error| crate::Error::GpuiShell {
@@ -248,7 +248,7 @@ impl GpuiHeadlessHarness {
 }
 
 fn create_controller(
-    window_key: gpui_shell::WindowResourceKey,
+    window_key: wabou_shell::WindowResourceKey,
     window_options: &WindowOptions,
     source: &str,
     source_map: Option<&[u8]>,
@@ -277,8 +277,8 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use gpui_shell::gpui::{IntoElement as _, Styled as _, div};
     use wabou_host_api::NodeKey;
+    use wabou_shell::gpui::{IntoElement as _, Styled as _, div};
 
     #[test]
     fn production_protocol_bundle_reaches_real_gpui_layout() {
@@ -322,10 +322,10 @@ mod tests {
     fn native_widget_factories_run_on_the_real_headless_gpui_path() {
         let invocations = Arc::new(AtomicUsize::new(0));
         let observed_invocations = invocations.clone();
-        let factory: gpui_shell::NativeWidgetFactory = Arc::new(move |context, _, _| {
+        let factory: wabou_shell::NativeWidgetFactory = Arc::new(move |context, _, _| {
             assert_eq!(context.key(), NodeKey::new(2, 1));
             observed_invocations.fetch_add(1, Ordering::Relaxed);
-            gpui_shell::NativeWidgetMount::stateless(div().size_full().into_any_element())
+            wabou_shell::NativeWidgetMount::stateless(div().size_full().into_any_element())
         });
 
         let mut harness = GpuiHeadlessHarness::boot_with_native_widgets(

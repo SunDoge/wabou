@@ -7,26 +7,28 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 
-#[cfg(test)]
-use gpui_shell::{
-    FileDropEvent, ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton,
-    PointerEvent, PointerPhase, SemanticRole, SemanticSnapshot, UiEvent, WheelEvent,
-};
-use gpui_shell::{WakeCallback, WindowCapabilities, WindowIntent, WindowLifecycle, WindowPresence};
 use rquickjs::{Function, prelude::Async};
 use serde::Deserialize;
 use tokio::sync::oneshot;
+#[cfg(test)]
+use wabou_shell::{
+    FileDropEvent, ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton,
+    PointerEvent, PointerPhase, SemanticRole, SemanticSnapshot, UiEvent, WheelEvent,
+};
+use wabou_shell::{
+    WakeCallback, WindowCapabilities, WindowIntent, WindowLifecycle, WindowPresence,
+};
 
 const CAPABILITY: &str = "test";
 const MAX_FIXTURE_BYTES: usize = 16 * 1024 * 1024;
 static NEXT_FIXTURE_DIRECTORY: AtomicU64 = AtomicU64::new(1);
-type WindowKey = gpui_shell::WindowResourceKey;
+type WindowKey = wabou_shell::WindowResourceKey;
 
 #[cfg(test)]
 trait SemanticTestSource {
     fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>>;
     fn handle_event(&mut self, event: UiEvent);
-    fn handle_semantic_action(&mut self, action: gpui_shell::SemanticAction) -> bool;
+    fn handle_semantic_action(&mut self, action: wabou_shell::SemanticAction) -> bool;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -37,7 +39,7 @@ enum FileDropPhase {
     Dropped,
 }
 
-impl From<FileDropPhase> for gpui_shell::FileDropPhase {
+impl From<FileDropPhase> for wabou_shell::FileDropPhase {
     fn from(value: FileDropPhase) -> Self {
         match value {
             FileDropPhase::Entered => Self::Entered,
@@ -202,7 +204,7 @@ struct TestState {
     windows: HashMap<WindowKey, WindowSnapshot>,
     wake: Option<WakeCallback>,
     report: Option<String>,
-    gpui_snapshots: HashMap<WindowKey, Arc<[gpui_shell::GpuiLayoutNode]>>,
+    gpui_snapshots: HashMap<WindowKey, Arc<[wabou_shell::GpuiLayoutNode]>>,
     #[cfg(test)]
     semantic_snapshots: HashMap<WindowKey, Arc<SemanticSnapshot>>,
     #[cfg(test)]
@@ -552,12 +554,13 @@ impl TestController {
                 Function::new(
                     ctx.clone(),
                     move |capability: u32, method: u16, result_json: String| {
-                        let result = serde_json::from_str::<gpui_shell::EffectResult>(&result_json)
-                            .map_err(|error| format!("invalid effect fixture result: {error}"));
+                        let result =
+                            serde_json::from_str::<wabou_shell::EffectResult>(&result_json)
+                                .map_err(|error| format!("invalid effect fixture result: {error}"));
                         result
                             .and_then(|result| {
                                 effects.effects.enqueue_fixture(
-                                    gpui_shell::EffectOp::new(capability, method),
+                                    wabou_shell::EffectOp::new(capability, method),
                                     result,
                                 )
                             })
@@ -711,7 +714,7 @@ impl TestController {
                     _ => None,
                 })
             })
-            && source.handle_semantic_action(gpui_shell::SemanticAction::ScrollIntoView {
+            && source.handle_semantic_action(wabou_shell::SemanticAction::ScrollIntoView {
                 target: action.id,
             })
         {
@@ -822,7 +825,7 @@ impl TestController {
     pub(crate) fn poll_gpui_source(
         &self,
         window_key: WindowKey,
-        nodes: &[gpui_shell::GpuiLayoutNode],
+        nodes: &[wabou_shell::GpuiLayoutNode],
         controller: &mut crate::gpui_controller::GpuiController,
     ) -> bool {
         if nodes.is_empty() {
@@ -881,7 +884,7 @@ impl TestController {
                 TestActionResult::Query(gpui_locator_query_json(nodes, role, label, *index, scope))
             }
             TestActionKind::FileDrop { phase, paths, .. } => TestActionResult::Handled(
-                controller.dispatch_file_drop(gpui_shell::FileDropEvent {
+                controller.dispatch_file_drop(wabou_shell::FileDropEvent {
                     phase: (*phase).into(),
                     paths: paths.clone(),
                     position: None,
@@ -951,9 +954,9 @@ impl TestController {
     }
 }
 
-fn gpui_node_role(node: &gpui_shell::GpuiLayoutNode) -> Option<&str> {
+fn gpui_node_role(node: &wabou_shell::GpuiLayoutNode) -> Option<&str> {
     node.attributes.get("role").map(AsRef::as_ref).or_else(|| {
-        let gpui_shell::ProjectedNodeKind::Element(tag) = &node.kind else {
+        let wabou_shell::ProjectedNodeKind::Element(tag) = &node.kind else {
             return None;
         };
         match tag.as_ref() {
@@ -971,8 +974,8 @@ fn gpui_node_role(node: &gpui_shell::GpuiLayoutNode) -> Option<&str> {
 }
 
 fn gpui_node_label<'a>(
-    nodes: &'a [gpui_shell::GpuiLayoutNode],
-    node: &'a gpui_shell::GpuiLayoutNode,
+    nodes: &'a [wabou_shell::GpuiLayoutNode],
+    node: &'a wabou_shell::GpuiLayoutNode,
 ) -> Option<String> {
     if let Some(label) = node.attributes.get("aria-label") {
         return Some(label.to_string());
@@ -994,7 +997,7 @@ fn gpui_node_label<'a>(
 }
 
 fn gpui_descends_from(
-    nodes: &[gpui_shell::GpuiLayoutNode],
+    nodes: &[wabou_shell::GpuiLayoutNode],
     mut key: wabou_host_api::NodeKey,
     ancestor: wabou_host_api::NodeKey,
 ) -> bool {
@@ -1011,13 +1014,13 @@ fn gpui_descends_from(
 }
 
 fn gpui_locator<'a>(
-    nodes: &'a [gpui_shell::GpuiLayoutNode],
+    nodes: &'a [wabou_shell::GpuiLayoutNode],
     role: &str,
     label: &str,
     index: Option<usize>,
     scope: &[TestLocatorSelector],
     allow_disabled: bool,
-) -> Option<&'a gpui_shell::GpuiLayoutNode> {
+) -> Option<&'a wabou_shell::GpuiLayoutNode> {
     let mut owner = None;
     for selector in scope {
         let matches = nodes
@@ -1049,7 +1052,7 @@ fn gpui_locator<'a>(
 }
 
 fn gpui_locator_query_json(
-    nodes: &[gpui_shell::GpuiLayoutNode],
+    nodes: &[wabou_shell::GpuiLayoutNode],
     role: &str,
     label: &str,
     index: Option<usize>,
@@ -1083,7 +1086,7 @@ fn gpui_locator_query_json(
 
 fn gpui_snapshot_json(
     window_key: WindowKey,
-    nodes: &[gpui_shell::GpuiLayoutNode],
+    nodes: &[wabou_shell::GpuiLayoutNode],
 ) -> serde_json::Value {
     serde_json::json!({
         "windowId": window_key,
@@ -1105,19 +1108,19 @@ fn gpui_snapshot_json(
 }
 
 fn gpui_pointer_event(
-    node: &gpui_shell::GpuiLayoutNode,
-    phase: gpui_shell::ProjectedPointerPhase,
-) -> gpui_shell::ProjectedPointerEvent {
+    node: &wabou_shell::GpuiLayoutNode,
+    phase: wabou_shell::ProjectedPointerPhase,
+) -> wabou_shell::ProjectedPointerEvent {
     let width = f32::from(node.bounds.size.width);
     let height = f32::from(node.bounds.size.height);
-    gpui_shell::ProjectedPointerEvent {
+    wabou_shell::ProjectedPointerEvent {
         target: node.key,
         phase,
         x: f32::from(node.bounds.origin.x) + width * 0.5,
         y: f32::from(node.bounds.origin.y) + height * 0.5,
         local_x: width * 0.5,
         local_y: height * 0.5,
-        button: Some(gpui_shell::ProjectedPointerButton::Primary),
+        button: Some(wabou_shell::ProjectedPointerButton::Primary),
         shift: false,
         control: false,
         alt: false,
@@ -1127,38 +1130,38 @@ fn gpui_pointer_event(
 
 fn click_gpui_target(
     controller: &mut crate::gpui_controller::GpuiController,
-    node: &gpui_shell::GpuiLayoutNode,
+    node: &wabou_shell::GpuiLayoutNode,
 ) -> bool {
     let down = controller.handle_projected_pointer(gpui_pointer_event(
         node,
-        gpui_shell::ProjectedPointerPhase::Down,
+        wabou_shell::ProjectedPointerPhase::Down,
     ));
     let up = controller.handle_projected_pointer(gpui_pointer_event(
         node,
-        gpui_shell::ProjectedPointerPhase::Up,
+        wabou_shell::ProjectedPointerPhase::Up,
     ));
     down.handled || up.handled
 }
 
 fn gpui_drag_events(
-    node: &gpui_shell::GpuiLayoutNode,
+    node: &wabou_shell::GpuiLayoutNode,
     delta_x: f64,
     delta_y: f64,
-) -> [gpui_shell::ProjectedPointerEvent; 3] {
-    let down = gpui_pointer_event(node, gpui_shell::ProjectedPointerPhase::Down);
-    let mut moved = gpui_pointer_event(node, gpui_shell::ProjectedPointerPhase::Move);
+) -> [wabou_shell::ProjectedPointerEvent; 3] {
+    let down = gpui_pointer_event(node, wabou_shell::ProjectedPointerPhase::Down);
+    let mut moved = gpui_pointer_event(node, wabou_shell::ProjectedPointerPhase::Move);
     moved.x += delta_x as f32;
     moved.y += delta_y as f32;
     moved.local_x += delta_x as f32;
     moved.local_y += delta_y as f32;
     let mut up = moved.clone();
-    up.phase = gpui_shell::ProjectedPointerPhase::Up;
+    up.phase = wabou_shell::ProjectedPointerPhase::Up;
     [down, moved, up]
 }
 
 fn input_gpui_target(
     controller: &mut crate::gpui_controller::GpuiController,
-    node: &gpui_shell::GpuiLayoutNode,
+    node: &wabou_shell::GpuiLayoutNode,
     input: &TestInput,
 ) -> bool {
     match input {
@@ -1166,7 +1169,7 @@ fn input_gpui_target(
         TestInput::Text { text } | TestInput::Ime { text } => {
             controller.set_text_focus(node.key, true);
             controller
-                .handle_projected_ime(gpui_shell::ProjectedImeEvent::Commit(text.clone()))
+                .handle_projected_ime(wabou_shell::ProjectedImeEvent::Commit(text.clone()))
                 .handled
         }
         TestInput::Paste { text } => {
@@ -1176,8 +1179,8 @@ fn input_gpui_target(
         TestInput::Key { key, modifiers } => {
             controller.set_text_focus(node.key, true);
             controller
-                .handle_projected_key(gpui_shell::ProjectedKeyEvent {
-                    phase: gpui_shell::ProjectedKeyPhase::Down,
+                .handle_projected_key(wabou_shell::ProjectedKeyEvent {
+                    phase: wabou_shell::ProjectedKeyPhase::Down,
                     key: key.clone(),
                     key_char: (key.chars().count() == 1).then(|| key.clone()),
                     repeat: false,
@@ -1190,7 +1193,7 @@ fn input_gpui_target(
         }
         TestInput::Wheel { delta_x, delta_y } => {
             controller
-                .handle_projected_wheel(gpui_shell::ProjectedWheelEvent {
+                .handle_projected_wheel(wabou_shell::ProjectedWheelEvent {
                     target: node.key,
                     x: f32::from(node.bounds.origin.x),
                     y: f32::from(node.bounds.origin.y),
@@ -1199,7 +1202,7 @@ fn input_gpui_target(
                     delta_x: *delta_x as f32,
                     delta_y: *delta_y as f32,
                     precise: true,
-                    phase: gpui_shell::ProjectedWheelPhase::Changed,
+                    phase: wabou_shell::ProjectedWheelPhase::Changed,
                     shift: false,
                     control: false,
                     alt: false,
@@ -1224,8 +1227,8 @@ fn cancelled_result(kind: &TestActionKind) -> TestActionResult {
 }
 
 #[cfg(test)]
-fn semantic_toggle_json(state: Option<gpui_shell::SemanticToggleState>) -> serde_json::Value {
-    match state.map(gpui_shell::SemanticToggleState::as_str) {
+fn semantic_toggle_json(state: Option<wabou_shell::SemanticToggleState>) -> serde_json::Value {
+    match state.map(wabou_shell::SemanticToggleState::as_str) {
         Some("false") => serde_json::Value::Bool(false),
         Some("true") => serde_json::Value::Bool(true),
         Some("mixed") => serde_json::Value::String("mixed".into()),
@@ -1235,8 +1238,11 @@ fn semantic_toggle_json(state: Option<gpui_shell::SemanticToggleState>) -> serde
 }
 
 #[cfg(test)]
-fn locator_snapshot_json(node: &gpui_shell::SemanticNode, focused: bool) -> String {
-    let current = node.states.current.map(gpui_shell::SemanticCurrent::as_str);
+fn locator_snapshot_json(node: &wabou_shell::SemanticNode, focused: bool) -> String {
+    let current = node
+        .states
+        .current
+        .map(wabou_shell::SemanticCurrent::as_str);
     serde_json::json!({
             "name": node.label,
             "value": node.value,
@@ -1301,7 +1307,7 @@ fn locator_query_json(
 fn scoped_candidates<'a>(
     snapshot: &'a SemanticSnapshot,
     scope: &[TestLocatorSelector],
-) -> Option<Vec<&'a gpui_shell::SemanticNode>> {
+) -> Option<Vec<&'a wabou_shell::SemanticNode>> {
     let mut candidates = snapshot.exposed_nodes();
     for selector in scope {
         let role = SemanticRole::from_name(&selector.role)?;
@@ -1320,7 +1326,10 @@ fn scoped_candidates<'a>(
 }
 
 #[cfg(test)]
-fn semantic_descendants(snapshot: &SemanticSnapshot, owner: u64) -> Vec<&gpui_shell::SemanticNode> {
+fn semantic_descendants(
+    snapshot: &SemanticSnapshot,
+    owner: u64,
+) -> Vec<&wabou_shell::SemanticNode> {
     let by_id = snapshot
         .nodes
         .iter()
@@ -1379,7 +1388,7 @@ fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) ->
             "checked": semantic_toggle_json(node.states.checked),
             "pressed": semantic_toggle_json(node.states.pressed),
             "selected": node.states.selected,
-            "current": node.states.current.map(gpui_shell::SemanticCurrent::as_str),
+            "current": node.states.current.map(wabou_shell::SemanticCurrent::as_str),
             "expanded": node.states.expanded,
             "focused": snapshot.focus == Some(node.id),
         })).collect::<Vec<_>>(),
@@ -1487,7 +1496,7 @@ fn click_semantic_target(
         button: Some(PointerButton::Primary),
         buttons: 1,
         modifiers: Modifiers::default(),
-        properties: gpui_shell::PointerProperties::default(),
+        properties: wabou_shell::PointerProperties::default(),
     }));
     source.handle_event(UiEvent::Pointer(PointerEvent {
         phase: PointerPhase::Up,
@@ -1495,7 +1504,7 @@ fn click_semantic_target(
         button: Some(PointerButton::Primary),
         buttons: 0,
         modifiers: Modifiers::default(),
-        properties: gpui_shell::PointerProperties::default(),
+        properties: wabou_shell::PointerProperties::default(),
     }));
     true
 }
@@ -1528,7 +1537,7 @@ fn input_allows_disabled_target(input: &TestInput) -> bool {
 #[cfg(test)]
 fn dispatch_test_input(
     source: &mut dyn SemanticTestSource,
-    node: &gpui_shell::SemanticNode,
+    node: &wabou_shell::SemanticNode,
     input: &TestInput,
 ) -> bool {
     if matches!(
@@ -1540,7 +1549,7 @@ fn dispatch_test_input(
     ) {
         // Focusing an already-focused node is a valid no-op and may report
         // `false`; the semantic lookup already proved the target is usable.
-        source.handle_semantic_action(gpui_shell::SemanticAction::Focus { target: node.id });
+        source.handle_semantic_action(wabou_shell::SemanticAction::Focus { target: node.id });
     }
     for event in test_input_events(node, input) {
         source.handle_event(event);
@@ -1555,7 +1564,7 @@ fn semantic_target<'a>(
     label: &str,
     index: Option<usize>,
     scope: &[TestLocatorSelector],
-) -> Option<&'a gpui_shell::SemanticNode> {
+) -> Option<&'a wabou_shell::SemanticNode> {
     let node = semantic_query_target(snapshot, role, label, index, scope)?;
     (!node.disabled).then_some(node)
 }
@@ -1567,7 +1576,7 @@ fn semantic_query_target<'a>(
     label: &str,
     index: Option<usize>,
     scope: &[TestLocatorSelector],
-) -> Option<&'a gpui_shell::SemanticNode> {
+) -> Option<&'a wabou_shell::SemanticNode> {
     let role = SemanticRole::from_name(role)?;
     let mut matches = scoped_candidates(snapshot, scope)?
         .into_iter()
@@ -1582,7 +1591,7 @@ fn semantic_query_target<'a>(
 }
 
 #[cfg(test)]
-fn test_input_events(node: &gpui_shell::SemanticNode, input: &TestInput) -> Vec<UiEvent> {
+fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec<UiEvent> {
     let center = Point {
         x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),
         y: f64::from((node.bounds[1] + node.bounds[3]) * 0.5),
@@ -1601,7 +1610,7 @@ fn test_input_events(node: &gpui_shell::SemanticNode, input: &TestInput) -> Vec<
                     button: Some(PointerButton::Primary),
                     buttons: 1,
                     modifiers: Modifiers::default(),
-                    properties: gpui_shell::PointerProperties::default(),
+                    properties: wabou_shell::PointerProperties::default(),
                 }),
                 UiEvent::Pointer(PointerEvent {
                     phase: PointerPhase::Move,
@@ -1609,7 +1618,7 @@ fn test_input_events(node: &gpui_shell::SemanticNode, input: &TestInput) -> Vec<
                     button: Some(PointerButton::Primary),
                     buttons: 1,
                     modifiers: Modifiers::default(),
-                    properties: gpui_shell::PointerProperties::default(),
+                    properties: wabou_shell::PointerProperties::default(),
                 }),
                 UiEvent::Pointer(PointerEvent {
                     phase: PointerPhase::Up,
@@ -1617,7 +1626,7 @@ fn test_input_events(node: &gpui_shell::SemanticNode, input: &TestInput) -> Vec<
                     button: Some(PointerButton::Primary),
                     buttons: 0,
                     modifiers: Modifiers::default(),
-                    properties: gpui_shell::PointerProperties::default(),
+                    properties: wabou_shell::PointerProperties::default(),
                 }),
             ]
         }
@@ -1653,8 +1662,8 @@ fn test_input_events(node: &gpui_shell::SemanticNode, input: &TestInput) -> Vec<
             position: center,
             delta_x: *delta_x,
             delta_y: *delta_y,
-            delta_mode: gpui_shell::WheelDeltaMode::Pixel,
-            phase: gpui_shell::GesturePhase::Changed,
+            delta_mode: wabou_shell::WheelDeltaMode::Pixel,
+            phase: wabou_shell::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         })],
     }
@@ -1669,21 +1678,21 @@ mod tests {
         parent: Option<wabou_host_api::NodeKey>,
         tag: &str,
         label: &str,
-    ) -> gpui_shell::GpuiLayoutNode {
-        gpui_shell::GpuiLayoutNode {
+    ) -> wabou_shell::GpuiLayoutNode {
+        wabou_shell::GpuiLayoutNode {
             key,
-            kind: gpui_shell::ProjectedNodeKind::Element(tag.into()),
+            kind: wabou_shell::ProjectedNodeKind::Element(tag.into()),
             parent,
             attributes: [("aria-label".into(), label.into())].into(),
             text: None,
-            bounds: gpui_shell::gpui::Bounds {
-                origin: gpui_shell::gpui::point(
-                    gpui_shell::gpui::px(10.0),
-                    gpui_shell::gpui::px(20.0),
+            bounds: wabou_shell::gpui::Bounds {
+                origin: wabou_shell::gpui::point(
+                    wabou_shell::gpui::px(10.0),
+                    wabou_shell::gpui::px(20.0),
                 ),
-                size: gpui_shell::gpui::size(
-                    gpui_shell::gpui::px(100.0),
-                    gpui_shell::gpui::px(40.0),
+                size: wabou_shell::gpui::size(
+                    wabou_shell::gpui::px(100.0),
+                    wabou_shell::gpui::px(40.0),
                 ),
             },
             classes: Vec::new(),
@@ -1694,7 +1703,7 @@ mod tests {
             z_index: 0,
             overlay_plane: 0,
             widget: None,
-            computed: gpui_shell::GpuiComputedStyle {
+            computed: wabou_shell::GpuiComputedStyle {
                 position: "Relative".into(),
                 overflow_x: "Visible".into(),
                 overflow_y: "Visible".into(),
@@ -1718,13 +1727,13 @@ mod tests {
 
         fn handle_event(&mut self, _event: UiEvent) {}
 
-        fn handle_semantic_action(&mut self, _action: gpui_shell::SemanticAction) -> bool {
+        fn handle_semantic_action(&mut self, _action: wabou_shell::SemanticAction) -> bool {
             false
         }
     }
 
-    fn node() -> gpui_shell::SemanticNode {
-        gpui_shell::SemanticNode {
+    fn node() -> wabou_shell::SemanticNode {
+        wabou_shell::SemanticNode {
             id: 7,
             role: SemanticRole::TextInput,
             label: Some("Editor".into()),
@@ -1737,7 +1746,7 @@ mod tests {
             controls: Vec::new(),
             active_descendant: None,
             disabled: false,
-            states: gpui_shell::SemanticStates::default(),
+            states: wabou_shell::SemanticStates::default(),
         }
     }
 
@@ -1748,7 +1757,7 @@ mod tests {
         sensitive.value = Some("must-not-be-persisted".into());
         sensitive.controls = vec![8];
         sensitive.active_descendant = Some(8);
-        sensitive.states.checked = Some(gpui_shell::SemanticToggleState::Mixed);
+        sensitive.states.checked = Some(wabou_shell::SemanticToggleState::Mixed);
         let mut generic = node();
         generic.id = 8;
         generic.role = SemanticRole::Generic;
@@ -1794,7 +1803,7 @@ mod tests {
     #[test]
     fn locator_snapshot_exposes_logical_origin_and_size() {
         let mut node = node();
-        node.states.current = Some(gpui_shell::SemanticCurrent::Page);
+        node.states.current = Some(wabou_shell::SemanticCurrent::Page);
         let snapshot =
             serde_json::from_str::<serde_json::Value>(&locator_snapshot_json(&node, false))
                 .unwrap();
@@ -1857,7 +1866,7 @@ mod tests {
         let target = wabou_host_api::NodeKey::new(31, 2);
         let mut runtime = crate::gpui_controller::GpuiController::new(RuntimeSession::new(
             js,
-            gpui_shell::initial_window_resource_key(0),
+            wabou_shell::initial_window_resource_key(0),
         ));
         runtime
             .apply_frame(&crate::protocol::Frame {
@@ -1885,7 +1894,7 @@ mod tests {
             .expect("project button");
         let driver = TestController::default();
         let mut completion = driver.request(TestActionKind::ClickByRole {
-            window_key: gpui_shell::initial_window_resource_key(0),
+            window_key: wabou_shell::initial_window_resource_key(0),
             role: "button".into(),
             label: "Save".into(),
             index: None,
@@ -1893,7 +1902,7 @@ mod tests {
         });
 
         assert!(driver.poll_gpui_source(
-            gpui_shell::initial_window_resource_key(0),
+            wabou_shell::initial_window_resource_key(0),
             &[gpui_node(target, None, "button", "Save")],
             &mut runtime,
         ));
@@ -1914,17 +1923,17 @@ mod tests {
         .expect("host event fixture");
         let mut runtime = crate::gpui_controller::GpuiController::new(RuntimeSession::new(
             js,
-            gpui_shell::initial_window_resource_key(0),
+            wabou_shell::initial_window_resource_key(0),
         ));
         let driver = TestController::default();
         let mut completion = driver.request(TestActionKind::FileDrop {
-            window_key: gpui_shell::initial_window_resource_key(0),
+            window_key: wabou_shell::initial_window_resource_key(0),
             phase: FileDropPhase::Dropped,
             paths: vec!["/tmp/example.torrent".into()],
         });
 
         assert!(driver.poll_gpui_source(
-            gpui_shell::initial_window_resource_key(0),
+            wabou_shell::initial_window_resource_key(0),
             &[gpui_node(
                 wabou_host_api::NodeKey::ROOT,
                 None,
@@ -1985,21 +1994,21 @@ mod tests {
             events.map(|event| (event.phase, event.x, event.y, event.local_x, event.local_y)),
             [
                 (
-                    gpui_shell::ProjectedPointerPhase::Down,
+                    wabou_shell::ProjectedPointerPhase::Down,
                     60.0,
                     40.0,
                     50.0,
                     20.0
                 ),
                 (
-                    gpui_shell::ProjectedPointerPhase::Move,
+                    wabou_shell::ProjectedPointerPhase::Move,
                     85.0,
                     35.0,
                     75.0,
                     15.0
                 ),
                 (
-                    gpui_shell::ProjectedPointerPhase::Up,
+                    wabou_shell::ProjectedPointerPhase::Up,
                     85.0,
                     35.0,
                     75.0,
@@ -2055,12 +2064,12 @@ mod tests {
     fn headless_locators_support_live_region_roles() {
         let snapshot = SemanticSnapshot {
             nodes: vec![
-                gpui_shell::SemanticNode {
+                wabou_shell::SemanticNode {
                     role: SemanticRole::Alert,
                     label: Some("Failed".into()),
                     ..node()
                 },
-                gpui_shell::SemanticNode {
+                wabou_shell::SemanticNode {
                     id: 8,
                     role: SemanticRole::Status,
                     label: Some("Saved".into()),
@@ -2097,7 +2106,7 @@ mod tests {
         let nodes = roles
             .iter()
             .enumerate()
-            .map(|(index, (_, role))| gpui_shell::SemanticNode {
+            .map(|(index, (_, role))| wabou_shell::SemanticNode {
                 id: index as u64 + 10,
                 role: *role,
                 label: Some("Target".into()),

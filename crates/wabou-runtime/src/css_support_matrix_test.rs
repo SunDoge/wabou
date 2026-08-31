@@ -7,8 +7,8 @@
 mod tests {
     use std::collections::{HashMap, HashSet};
 
-    use gpui_shell::{StyleDiagnostic, StyleProjection, project_ir};
     use serde::Deserialize;
+    use wabou_shell::{StyleDiagnostic, StyleProjection, project_ir};
     use wabou_style::IrValue;
 
     use crate::style_ir::StyleSheet;

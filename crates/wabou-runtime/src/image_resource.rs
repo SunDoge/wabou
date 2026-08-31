@@ -41,7 +41,7 @@ impl ImageResourceHandle {
 /// One immutable source image plus its GPUI image representation.
 pub struct ImageResource {
     source: Arc<image::DynamicImage>,
-    gpui: Arc<gpui_shell::gpui::Image>,
+    gpui: Arc<wabou_shell::gpui::Image>,
 }
 
 impl ImageResource {
@@ -61,7 +61,7 @@ impl ImageResource {
         let source = Arc::new(image::load_from_memory(bytes).map_err(|error| error.to_string())?);
         Ok(Self {
             source,
-            gpui: Arc::new(gpui_shell::gpui::Image::from_bytes(
+            gpui: Arc::new(wabou_shell::gpui::Image::from_bytes(
                 gpui_image_format(format)?,
                 bytes.to_vec(),
             )),
@@ -79,7 +79,7 @@ impl ImageResource {
     }
 
     /// Lazily decoded and cached by GPUI when an image element first paints.
-    pub(crate) fn gpui_image(&self) -> Arc<gpui_shell::gpui::Image> {
+    pub(crate) fn gpui_image(&self) -> Arc<wabou_shell::gpui::Image> {
         self.gpui.clone()
     }
 
@@ -89,8 +89,8 @@ impl ImageResource {
     }
 }
 
-fn gpui_image_format(format: image::ImageFormat) -> Result<gpui_shell::gpui::ImageFormat, String> {
-    use gpui_shell::gpui::ImageFormat as Gpui;
+fn gpui_image_format(format: image::ImageFormat) -> Result<wabou_shell::gpui::ImageFormat, String> {
+    use wabou_shell::gpui::ImageFormat as Gpui;
     Ok(match format {
         image::ImageFormat::Png => Gpui::Png,
         image::ImageFormat::Jpeg => Gpui::Jpeg,

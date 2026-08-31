@@ -8,8 +8,8 @@ use std::{
 };
 
 use gpui_base::input::{Input, InputEvent, InputState, Textarea, TextareaState};
-use gpui_shell::WakeCallback;
-use gpui_shell::gpui::{
+use wabou_shell::WakeCallback;
+use wabou_shell::gpui::{
     AppContext as _, ClipboardItem, Context, DragMoveEvent, Entity, ExternalPaths, FocusHandle,
     Focusable as _, InteractiveElement as _, IntoElement as _, ParentElement as _,
     PathPromptOptions, PromptButton, PromptLevel, Render, Styled as _, Subscription,
@@ -17,7 +17,7 @@ use gpui_shell::gpui::{
 };
 
 use crate::gpui_controller::GpuiController;
-use gpui_shell::{
+use wabou_shell::{
     ClipboardRequest, EffectCompletion, EffectErrorCode, EffectPayload, EffectRequest,
     EffectResult, HostAction, HostActionResult, WindowCommand,
 };
@@ -36,22 +36,22 @@ pub struct GpuiRuntimeView {
     focus: FocusHandle,
     default_title: String,
     text_controls: BTreeMap<wabou_host_api::NodeKey, GpuiTextControlState>,
-    native_widget_entities: BTreeMap<wabou_host_api::NodeKey, gpui_shell::gpui::AnyEntity>,
-    window_size_persistence: Option<gpui_shell::WindowSizePersistence>,
-    native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
+    native_widget_entities: BTreeMap<wabou_host_api::NodeKey, wabou_shell::gpui::AnyEntity>,
+    window_size_persistence: Option<wabou_shell::WindowSizePersistence>,
+    native_widget_factories: HashMap<String, wabou_shell::NativeWidgetFactory>,
     test_controller: Option<crate::test_driver::TestController>,
-    window_key: gpui_shell::WindowResourceKey,
+    window_key: wabou_shell::WindowResourceKey,
     window_host: std::rc::Rc<crate::gpui_windows::GpuiApplicationWindows>,
     file_drag_paths: Vec<std::path::PathBuf>,
-    file_drag_position: Option<gpui_shell::Point>,
+    file_drag_position: Option<wabou_shell::Point>,
 }
 
 pub(crate) struct GpuiRuntimeViewOptions {
     pub(crate) default_title: String,
-    pub(crate) window_size_persistence: Option<gpui_shell::WindowSizePersistence>,
-    pub(crate) native_widget_factories: HashMap<String, gpui_shell::NativeWidgetFactory>,
+    pub(crate) window_size_persistence: Option<wabou_shell::WindowSizePersistence>,
+    pub(crate) native_widget_factories: HashMap<String, wabou_shell::NativeWidgetFactory>,
     pub(crate) test_controller: Option<crate::test_driver::TestController>,
-    pub(crate) window_key: gpui_shell::WindowResourceKey,
+    pub(crate) window_key: wabou_shell::WindowResourceKey,
     pub(crate) window_host: std::rc::Rc<crate::gpui_windows::GpuiApplicationWindows>,
 }
 
@@ -73,7 +73,7 @@ impl GpuiTextControlState {
 
     fn synchronize(
         &self,
-        descriptor: &gpui_shell::GpuiTextControl,
+        descriptor: &wabou_shell::GpuiTextControl,
         window: &mut Window,
         cx: &mut Context<GpuiRuntimeView>,
     ) {
@@ -97,7 +97,7 @@ impl GpuiTextControlState {
         }
     }
 
-    fn element(&self) -> gpui_shell::gpui::AnyElement {
+    fn element(&self) -> wabou_shell::gpui::AnyElement {
         match self {
             Self::Input { state, .. } => div()
                 .size_full()
@@ -110,7 +110,7 @@ impl GpuiTextControlState {
         }
     }
 
-    fn focus_handle(&self, cx: &gpui_shell::gpui::App) -> FocusHandle {
+    fn focus_handle(&self, cx: &wabou_shell::gpui::App) -> FocusHandle {
         match self {
             Self::Input { state, .. } => state.focus_handle(cx),
             Self::Textarea { state, .. } => state.focus_handle(cx),
@@ -169,17 +169,21 @@ impl GpuiRuntimeView {
         }
     }
 
-    fn handle_file_drag_move(&mut self, paths: &[std::path::PathBuf], position: gpui_shell::Point) {
+    fn handle_file_drag_move(
+        &mut self,
+        paths: &[std::path::PathBuf],
+        position: wabou_shell::Point,
+    ) {
         let phase = if self.file_drag_paths.is_empty() {
             self.file_drag_paths = paths.to_vec();
-            gpui_shell::FileDropPhase::Entered
+            wabou_shell::FileDropPhase::Entered
         } else {
-            gpui_shell::FileDropPhase::Moved
+            wabou_shell::FileDropPhase::Moved
         };
         self.file_drag_position = Some(position);
         let _ = self
             .controller
-            .dispatch_file_drop(gpui_shell::FileDropEvent {
+            .dispatch_file_drop(wabou_shell::FileDropEvent {
                 phase,
                 paths: self.file_drag_paths.clone(),
                 position: Some(position),
@@ -191,9 +195,9 @@ impl GpuiRuntimeView {
             return;
         }
         let phase = if dropped_paths.is_some() {
-            gpui_shell::FileDropPhase::Dropped
+            wabou_shell::FileDropPhase::Dropped
         } else {
-            gpui_shell::FileDropPhase::Left
+            wabou_shell::FileDropPhase::Left
         };
         let paths = dropped_paths
             .map(<[std::path::PathBuf]>::to_vec)
@@ -202,26 +206,26 @@ impl GpuiRuntimeView {
         let position = self.file_drag_position.take();
         let _ = self
             .controller
-            .dispatch_file_drop(gpui_shell::FileDropEvent {
+            .dispatch_file_drop(wabou_shell::FileDropEvent {
                 phase,
                 paths,
                 position,
             });
     }
 
-    fn window_metrics(&self, window: &Window) -> gpui_shell::WindowMetrics {
+    fn window_metrics(&self, window: &Window) -> wabou_shell::WindowMetrics {
         let viewport = window.viewport_size();
         let logical_width = f32::from(viewport.width).round().max(1.0) as u32;
         let logical_height = f32::from(viewport.height).round().max(1.0) as u32;
         let scale_factor = f64::from(window.scale_factor()).max(f64::EPSILON);
         let outer = window.bounds().origin;
         let color_scheme = match window.appearance() {
-            gpui_shell::gpui::WindowAppearance::Light
-            | gpui_shell::gpui::WindowAppearance::VibrantLight => gpui_shell::ColorScheme::Light,
-            gpui_shell::gpui::WindowAppearance::Dark
-            | gpui_shell::gpui::WindowAppearance::VibrantDark => gpui_shell::ColorScheme::Dark,
+            wabou_shell::gpui::WindowAppearance::Light
+            | wabou_shell::gpui::WindowAppearance::VibrantLight => wabou_shell::ColorScheme::Light,
+            wabou_shell::gpui::WindowAppearance::Dark
+            | wabou_shell::gpui::WindowAppearance::VibrantDark => wabou_shell::ColorScheme::Dark,
         };
-        gpui_shell::WindowMetrics {
+        wabou_shell::WindowMetrics {
             window_key: self.window_key,
             logical_width,
             logical_height,
@@ -309,7 +313,7 @@ impl GpuiRuntimeView {
         }
     }
 
-    pub(crate) fn layout_snapshot(&self) -> Vec<gpui_shell::GpuiLayoutNode> {
+    pub(crate) fn layout_snapshot(&self) -> Vec<wabou_shell::GpuiLayoutNode> {
         self.controller.layout_snapshot()
     }
 
@@ -328,7 +332,7 @@ impl GpuiRuntimeView {
         self.controller.eval_string(source)
     }
 
-    fn handle_input(&mut self, event: gpui_shell::ProjectedInputEvent, cx: &mut Context<Self>) {
+    fn handle_input(&mut self, event: wabou_shell::ProjectedInputEvent, cx: &mut Context<Self>) {
         let mut response = self.controller.handle_input(event);
         if let Some(request) = response.clipboard.take() {
             match request {
@@ -480,8 +484,8 @@ impl GpuiRuntimeView {
 
     fn execute_synchronous_effect(
         &mut self,
-        id: gpui_shell::EffectId,
-        op: gpui_shell::EffectOp,
+        id: wabou_shell::EffectId,
+        op: wabou_shell::EffectOp,
         payload: EffectPayload,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -568,7 +572,7 @@ impl GpuiRuntimeView {
 
     fn execute_window_command(
         &mut self,
-        target: gpui_shell::WindowResourceKey,
+        target: wabou_shell::WindowResourceKey,
         command: WindowCommand,
         current_window: &mut Window,
         cx: &mut Context<Self>,
@@ -609,8 +613,8 @@ impl GpuiRuntimeView {
 
     fn complete_path_prompt(
         &self,
-        id: gpui_shell::EffectId,
-        op: gpui_shell::EffectOp,
+        id: wabou_shell::EffectId,
+        op: wabou_shell::EffectOp,
         receiver: futures_channel::oneshot::Receiver<
             anyhow::Result<Option<Vec<std::path::PathBuf>>>,
         >,
@@ -633,8 +637,8 @@ impl GpuiRuntimeView {
 
     fn complete_save_prompt(
         &self,
-        id: gpui_shell::EffectId,
-        op: gpui_shell::EffectOp,
+        id: wabou_shell::EffectId,
+        op: wabou_shell::EffectOp,
         receiver: futures_channel::oneshot::Receiver<anyhow::Result<Option<std::path::PathBuf>>>,
         cx: &mut Context<Self>,
     ) {
@@ -657,8 +661,8 @@ impl GpuiRuntimeView {
 
     fn complete_message_prompt(
         &self,
-        id: gpui_shell::EffectId,
-        op: gpui_shell::EffectOp,
+        id: wabou_shell::EffectId,
+        op: wabou_shell::EffectOp,
         receiver: futures_channel::oneshot::Receiver<usize>,
         results: Vec<&'static str>,
         cx: &mut Context<Self>,
@@ -709,28 +713,28 @@ fn platform_effect_error(error: impl std::fmt::Display) -> EffectResult {
     }
 }
 
-fn message_prompt_level(level: gpui_shell::MessageDialogLevel) -> PromptLevel {
+fn message_prompt_level(level: wabou_shell::MessageDialogLevel) -> PromptLevel {
     match level {
-        gpui_shell::MessageDialogLevel::Info => PromptLevel::Info,
-        gpui_shell::MessageDialogLevel::Warning => PromptLevel::Warning,
-        gpui_shell::MessageDialogLevel::Error => PromptLevel::Critical,
+        wabou_shell::MessageDialogLevel::Info => PromptLevel::Info,
+        wabou_shell::MessageDialogLevel::Warning => PromptLevel::Warning,
+        wabou_shell::MessageDialogLevel::Error => PromptLevel::Critical,
     }
 }
 
 fn message_prompt_buttons(
-    buttons: gpui_shell::MessageDialogButtons,
+    buttons: wabou_shell::MessageDialogButtons,
 ) -> (Vec<PromptButton>, Vec<&'static str>) {
     match buttons {
-        gpui_shell::MessageDialogButtons::Ok => (vec![PromptButton::ok("OK")], vec!["ok"]),
-        gpui_shell::MessageDialogButtons::OkCancel => (
+        wabou_shell::MessageDialogButtons::Ok => (vec![PromptButton::ok("OK")], vec!["ok"]),
+        wabou_shell::MessageDialogButtons::OkCancel => (
             vec![PromptButton::ok("OK"), PromptButton::cancel("Cancel")],
             vec!["ok", "cancel"],
         ),
-        gpui_shell::MessageDialogButtons::YesNo => (
+        wabou_shell::MessageDialogButtons::YesNo => (
             vec![PromptButton::ok("Yes"), PromptButton::cancel("No")],
             vec!["yes", "no"],
         ),
-        gpui_shell::MessageDialogButtons::YesNoCancel => (
+        wabou_shell::MessageDialogButtons::YesNoCancel => (
             vec![
                 PromptButton::ok("Yes"),
                 PromptButton::new("No"),
@@ -762,7 +766,7 @@ impl Render for GpuiRuntimeView {
         &mut self,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> impl gpui_shell::gpui::IntoElement {
+    ) -> impl wabou_shell::gpui::IntoElement {
         let frame_started = std::time::Instant::now();
         let viewport = window.viewport_size();
         let viewport_width = f32::from(viewport.width).round().max(1.0) as u32;
@@ -796,7 +800,7 @@ impl Render for GpuiRuntimeView {
         self.synchronize_text_controls(window, cx);
         for command in self.controller.take_projection_commands() {
             match command {
-                gpui_shell::GpuiCommand::Focus { id } => {
+                wabou_shell::GpuiCommand::Focus { id } => {
                     let focus = self
                         .text_controls
                         .get(&id)
@@ -807,8 +811,8 @@ impl Render for GpuiRuntimeView {
                         cx.notify();
                     }
                 }
-                command @ (gpui_shell::GpuiCommand::ScrollTo { .. }
-                | gpui_shell::GpuiCommand::ScrollBy { .. }) => {
+                command @ (wabou_shell::GpuiCommand::ScrollTo { .. }
+                | wabou_shell::GpuiCommand::ScrollBy { .. }) => {
                     let _ = self.controller.apply_projection_scroll(command);
                     cx.notify();
                 }
@@ -831,9 +835,9 @@ impl Render for GpuiRuntimeView {
                         true
                     }
                     crate::test_driver::GpuiWindowTestCommand::Resize { width, height } => {
-                        window.resize(gpui_shell::gpui::size(
-                            gpui_shell::gpui::px(width as f32),
-                            gpui_shell::gpui::px(height as f32),
+                        window.resize(wabou_shell::gpui::size(
+                            wabou_shell::gpui::px(width as f32),
+                            wabou_shell::gpui::px(height as f32),
                         ));
                         true
                     }
@@ -861,7 +865,7 @@ impl Render for GpuiRuntimeView {
         }
 
         let view = cx.weak_entity();
-        let input = Rc::new(move |event, cx: &mut gpui_shell::gpui::App| {
+        let input = Rc::new(move |event, cx: &mut wabou_shell::gpui::App| {
             let _ = view.update(cx, |view, cx| {
                 view.handle_input(event, cx);
             });
@@ -892,7 +896,7 @@ impl Render for GpuiRuntimeView {
                 .get(widget.tag.as_ref())
                 .expect("native widget descriptors are filtered by the registry");
             let mount = factory(
-                gpui_shell::NativeWidgetContext::new(
+                wabou_shell::NativeWidgetContext::new(
                     widget.key,
                     &widget.attributes,
                     widget.config.as_deref(),
@@ -910,7 +914,7 @@ impl Render for GpuiRuntimeView {
             native_controls.insert(widget.key, element);
         }
         let native_controls = Rc::new(std::cell::RefCell::new(native_controls));
-        let native: gpui_shell::ProjectedNativeElementFactory =
+        let native: wabou_shell::ProjectedNativeElementFactory =
             Rc::new(move |key| native_controls.borrow_mut().remove(&key));
         let projected = self
             .controller
@@ -923,7 +927,7 @@ impl Render for GpuiRuntimeView {
             .size_full()
             .on_drag_move(move |event: &DragMoveEvent<ExternalPaths>, _, cx| {
                 let paths = event.drag(cx).paths().to_vec();
-                let position = gpui_shell::Point {
+                let position = wabou_shell::Point {
                     x: event.event.position.x.into(),
                     y: event.event.position.y.into(),
                 };
@@ -976,16 +980,16 @@ impl Render for GpuiRuntimeView {
 mod tests {
     use super::*;
     use crate::{JsRuntime, runtime_session::RuntimeSession};
-    use gpui_shell::gpui::{HeadlessAppContext, TestAppContext, px, size};
-    use gpui_shell::{
+    use wabou_host_api::NodeKey;
+    use wabou_shell::gpui::{HeadlessAppContext, TestAppContext, px, size};
+    use wabou_shell::{
         EffectId, EffectScope, OpenDialogRequest, WindowCreateRequest, WindowOptions,
     };
-    use wabou_host_api::NodeKey;
 
     fn test_controller() -> GpuiController {
         GpuiController::new(RuntimeSession::new(
             JsRuntime::new().expect("QuickJS runtime"),
-            gpui_shell::initial_window_resource_key(0),
+            wabou_shell::initial_window_resource_key(0),
         ))
     }
 
@@ -1059,7 +1063,7 @@ mod tests {
                             window_size_persistence: None,
                             native_widget_factories: HashMap::new(),
                             test_controller: None,
-                            window_key: gpui_shell::initial_window_resource_key(0),
+                            window_key: wabou_shell::initial_window_resource_key(0),
                             window_host: test_window_host(),
                         },
                         window,
@@ -1319,7 +1323,7 @@ mod tests {
                             scope: EffectScope::Runtime,
                             payload: EffectPayload::WindowCreate(WindowCreateRequest {
                                 options: WindowOptions::new()
-                                    .input_mode(gpui_shell::WindowInputMode::Passthrough),
+                                    .input_mode(wabou_shell::WindowInputMode::Passthrough),
                             }),
                         },
                         window,
@@ -1338,12 +1342,12 @@ mod tests {
         ));
         assert_eq!(
             window_host.reserve(),
-            gpui_shell::initial_window_resource_key(1),
+            wabou_shell::initial_window_resource_key(1),
             "validation must happen before reserving a public window key"
         );
     }
 
-    #[gpui_shell::gpui::test]
+    #[wabou_shell::gpui::test]
     fn gpui_window_snapshot_uses_logical_viewport_and_native_scale(cx: &mut TestAppContext) {
         let controller = test_controller();
         let (view, cx) = cx.add_window_view(move |window, cx| {
@@ -1354,7 +1358,7 @@ mod tests {
                     window_size_persistence: None,
                     native_widget_factories: HashMap::new(),
                     test_controller: None,
-                    window_key: gpui_shell::initial_window_resource_key(0),
+                    window_key: wabou_shell::initial_window_resource_key(0),
                     window_host: test_window_host(),
                 },
                 window,
@@ -1375,7 +1379,7 @@ mod tests {
         assert_eq!(metrics.scale_factor, 2.0);
     }
 
-    #[gpui_shell::gpui::test]
+    #[wabou_shell::gpui::test]
     fn gpui_effect_executor_uses_the_platform_clipboard(cx: &mut TestAppContext) {
         let controller = test_controller();
         let (view, cx) = cx.add_window_view(move |window, cx| {
@@ -1386,7 +1390,7 @@ mod tests {
                     window_size_persistence: None,
                     native_widget_factories: HashMap::new(),
                     test_controller: None,
-                    window_key: gpui_shell::initial_window_resource_key(0),
+                    window_key: wabou_shell::initial_window_resource_key(0),
                     window_host: test_window_host(),
                 },
                 window,
@@ -1436,7 +1440,7 @@ mod tests {
         );
     }
 
-    #[gpui_shell::gpui::test]
+    #[wabou_shell::gpui::test]
     fn gpui_effect_executor_uses_the_platform_path_prompt(cx: &mut TestAppContext) {
         let controller = test_controller();
         let (view, cx) = cx.add_window_view(move |window, cx| {
@@ -1447,7 +1451,7 @@ mod tests {
                     window_size_persistence: None,
                     native_widget_factories: HashMap::new(),
                     test_controller: None,
-                    window_key: gpui_shell::initial_window_resource_key(0),
+                    window_key: wabou_shell::initial_window_resource_key(0),
                     window_host: test_window_host(),
                 },
                 window,
@@ -1488,10 +1492,10 @@ mod tests {
 
     #[test]
     fn message_prompt_buttons_preserve_wabou_result_names() {
-        let (_, results) = message_prompt_buttons(gpui_shell::MessageDialogButtons::YesNoCancel);
+        let (_, results) = message_prompt_buttons(wabou_shell::MessageDialogButtons::YesNoCancel);
         assert_eq!(results, ["yes", "no", "cancel"]);
         assert!(matches!(
-            message_prompt_level(gpui_shell::MessageDialogLevel::Error),
+            message_prompt_level(wabou_shell::MessageDialogLevel::Error),
             PromptLevel::Critical
         ));
     }

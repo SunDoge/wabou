@@ -11,7 +11,7 @@ test("formal packages cannot regain a retired rendering backend", () => {
         {
           name: "wabou-runtime",
           dependencies: [
-            { kind: null, name: "wabou-shell", rename: "gpui-shell" },
+            { kind: null, name: "wabou-shell", rename: null },
             { kind: "dev", name: "wabou-legacy-shell", rename: "legacy-shell" },
             { kind: null, name: "vello", rename: null },
           ],

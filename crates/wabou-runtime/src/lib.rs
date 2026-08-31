@@ -54,11 +54,6 @@ pub use error::{Error, Result};
 pub use gpui_headless::{
     GpuiHeadlessHarness, GpuiHeadlessOptions, GpuiHeadlessOutput, GpuiHeadlessScreenshot,
 };
-pub use gpui_shell::{
-    AppDirectories, AppDirectoryConfig, GpuiLayoutNode, NativeWidgetContext, NativeWidgetFactory,
-    NativeWidgetMount, ProjectedNodeKind, RgbaColor, WindowInputMode, WindowLevel, WindowMetrics,
-    WindowOptions, WindowResourceKey, gpui, initial_window_resource_key,
-};
 pub use gpui_view::GpuiRuntimeView;
 pub use host::{
     HostBuilder, HostService, HostServiceContext, HostServiceHandle, ManagedHostService,
@@ -82,6 +77,11 @@ pub use protocol::event;
 pub use reload::{HmrDrainResult, ReloadHandle, ReloadMsg};
 pub use rquickjs;
 pub use serial_worker::SerialWorker;
+pub use wabou_shell::{
+    AppDirectories, AppDirectoryConfig, GpuiLayoutNode, NativeWidgetContext, NativeWidgetFactory,
+    NativeWidgetMount, ProjectedNodeKind, RgbaColor, WindowInputMode, WindowLevel, WindowMetrics,
+    WindowOptions, WindowResourceKey, gpui, initial_window_resource_key,
+};
 
 #[cfg(feature = "vite")]
 pub use vite::{HmrClient, ViteError, start_hmr_client, vite_url_from_env};
