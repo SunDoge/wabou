@@ -1574,6 +1574,7 @@ mod tests {
         let mut projection = GpuiProjection::new();
         let mut atoms = AtomPool::default();
         let image_tag = atoms.intern("img");
+        let svg_tag = atoms.intern("svg");
         let mut png = Vec::new();
         image::codecs::png::PngEncoder::new(&mut png)
             .write_image(&[1, 2, 3, 255], 1, 1, image::ExtendedColorType::Rgba8)
@@ -1598,6 +1599,15 @@ mod tests {
                             kind: GRAPHIC_SOURCE_RESOURCE_RASTER,
                             source,
                         },
+                        Op::CreateElement {
+                            id: key(3),
+                            tag: svg_tag,
+                        },
+                        Op::SetGraphicSource {
+                            id: key(3),
+                            kind: GRAPHIC_SOURCE_SVG,
+                            source: r#"<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>"#,
+                        },
                     ],
                 },
                 &atoms,
@@ -1616,21 +1626,39 @@ mod tests {
                 .format(),
             crate::gpui::ImageFormat::Png
         );
+        assert_eq!(
+            projection
+                .tree()
+                .node(key(3))
+                .unwrap()
+                .image
+                .as_ref()
+                .unwrap()
+                .format(),
+            crate::gpui::ImageFormat::Svg
+        );
 
         projection
             .apply_ops(
                 &Frame {
                     seq: 2,
-                    ops: vec![Op::ClearGraphicSource {
-                        id: key(2),
-                        kind: GRAPHIC_SOURCE_RESOURCE_RASTER,
-                    }],
+                    ops: vec![
+                        Op::ClearGraphicSource {
+                            id: key(2),
+                            kind: GRAPHIC_SOURCE_RESOURCE_RASTER,
+                        },
+                        Op::ClearGraphicSource {
+                            id: key(3),
+                            kind: GRAPHIC_SOURCE_SVG,
+                        },
+                    ],
                 },
                 &atoms,
                 |_| None,
             )
             .unwrap();
         assert!(projection.tree().node(key(2)).unwrap().image.is_none());
+        assert!(projection.tree().node(key(3)).unwrap().image.is_none());
     }
 
     #[test]
