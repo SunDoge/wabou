@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { createRoot, flush } from "solid-js";
 import type { DeferredWriterScheduler } from "./deferred-writer";
-import { createPersistedRecord } from "./persisted-record";
+import {
+  createPersistedRecord,
+  createPersistedValue,
+} from "./persisted-record";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -126,6 +129,33 @@ describe("persisted record", () => {
     expect(record.saveError()).toBeUndefined();
     expect(attempts).toBe(2);
     expect(saved).toEqual([{ proxy: "http://127.0.0.1:7890" }]);
+  });
+});
+
+describe("persisted value", () => {
+  test("persists non-record values with functional updates", () => {
+    const clock = manualScheduler();
+    const saved: string[][] = [];
+    let state!: ReturnType<typeof createPersistedValue<readonly string[]>>;
+
+    createRoot(() => {
+      state = createPersistedValue({
+        initial: ["agent-1"],
+        load: async () => ["agent-1"],
+        save: (value) => {
+          saved.push([...value]);
+        },
+        onLoadError: () => {},
+        onSaveError: () => {},
+        scheduler: clock.scheduler,
+      });
+      flush();
+    });
+
+    state.update((current) => [...current, "agent-2"]);
+    expect(state.value()).toEqual(["agent-1", "agent-2"]);
+    clock.run();
+    expect(saved).toEqual([["agent-1", "agent-2"]]);
   });
 });
 

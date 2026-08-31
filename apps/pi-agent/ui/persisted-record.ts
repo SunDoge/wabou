@@ -15,7 +15,18 @@ export interface PersistedRecord<T extends object> {
   flush(): void;
 }
 
-export function createPersistedRecord<T extends object>(options: {
+export interface PersistedValue<T> {
+  value(): T;
+  loadError(): unknown;
+  saveError(): unknown;
+  set(next: T): void;
+  update(update: (current: T) => T): void;
+  reload(): Promise<T | undefined>;
+  retrySave(): void;
+  flush(): void;
+}
+
+export interface PersistedValueOptions<T> {
   initial: T;
   load(): Promise<T>;
   save(value: T): void | PromiseLike<void>;
@@ -23,12 +34,21 @@ export function createPersistedRecord<T extends object>(options: {
   onSaveError(error: unknown): void;
   saveDelayMs?: number;
   scheduler?: DeferredWriterScheduler;
-}): PersistedRecord<T> {
+  equals?: (left: T, right: T) => boolean;
+}
+
+export function createPersistedValue<T>(
+  options: PersistedValueOptions<T>,
+): PersistedValue<T> {
+  let current = options.initial;
   const [saveError, setSaveError] = createSignal<unknown>();
   const resource = createLatestAsyncResource({
     source: () => true,
     initialValue: options.initial,
     load: options.load,
+    onCommit: (value) => {
+      current = value;
+    },
   });
   const writer = createDeferredWriter<T>({
     write: options.save,
@@ -38,6 +58,7 @@ export function createPersistedRecord<T extends object>(options: {
     },
     delayMs: options.saveDelayMs,
     scheduler: options.scheduler,
+    equals: options.equals,
   });
   createEffect(
     () => resource.error(),
@@ -45,14 +66,17 @@ export function createPersistedRecord<T extends object>(options: {
       if (error) options.onLoadError(error);
     },
   );
-
-  const value = () => resource.value() ?? options.initial;
-  const update = (patch: Partial<T>) => {
-    const next = { ...value(), ...patch };
-    setSaveError(undefined);
-    resource.mutate(next);
-    writer.schedule(next);
+  const value = () => {
+    resource.value();
+    return current;
   };
+  const set = (valueToSave: T) => {
+    current = valueToSave;
+    setSaveError(undefined);
+    resource.mutate(valueToSave);
+    writer.schedule(valueToSave);
+  };
+  const update = (updater: (current: T) => T) => set(updater(value()));
   const reload = () => resource.refresh();
   const retrySave = () => {
     setSaveError(undefined);
@@ -66,9 +90,25 @@ export function createPersistedRecord<T extends object>(options: {
     value,
     loadError: resource.error,
     saveError,
+    set,
     update,
     reload,
     retrySave,
     flush,
+  };
+}
+
+export function createPersistedRecord<T extends object>(
+  options: PersistedValueOptions<T>,
+): PersistedRecord<T> {
+  const state = createPersistedValue(options);
+  return {
+    value: state.value,
+    loadError: state.loadError,
+    saveError: state.saveError,
+    update: (patch) => state.update((current) => ({ ...current, ...patch })),
+    reload: state.reload,
+    retrySave: state.retrySave,
+    flush: state.flush,
   };
 }

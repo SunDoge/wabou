@@ -12,6 +12,8 @@ export interface LatestAsyncResourceOptions<K, T> {
   initialValue?: T;
   retainPrevious?: boolean;
   autoLoad?: boolean;
+  /** Runs synchronously before a latest load or local mutation is published. */
+  onCommit?: (value: T) => void;
 }
 
 export type LatestAsyncResourceStatus = "idle" | "pending" | "ready" | "error";
@@ -68,6 +70,7 @@ export function createLatestAsyncResource<K, T>(
     try {
       const next = await options.load(key, { signal });
       if (disposed || request !== generation) return undefined;
+      options.onCommit?.(next);
       setValueBox({ value: next });
       setStatus("ready");
       return next;
@@ -103,6 +106,7 @@ export function createLatestAsyncResource<K, T>(
     generation++;
     controller?.abort();
     controller = undefined;
+    options.onCommit?.(next);
     setValueBox({ value: next });
     setError(undefined);
     setLoading(false);

@@ -102,6 +102,8 @@
   "settings_intro": "Configure the current project, session behavior, and app-wide defaults.",
   "settings_load_failed": "Could not load application settings",
   "settings_save_failed": "Could not save application settings",
+  "projects_load_failed": "Could not load projects",
+  "projects_save_failed": "Could not save projects",
   "project_settings": "Project settings",
   "current_agent": "Configure {name}",
   "current_agent_detail": "Choose the workspace and optional provider/model overrides for this project.",

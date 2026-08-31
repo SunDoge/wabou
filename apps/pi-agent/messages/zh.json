@@ -102,6 +102,8 @@
   "settings_intro": "配置当前项目、会话行为和应用级默认设置。",
   "settings_load_failed": "无法加载应用设置",
   "settings_save_failed": "无法保存应用设置",
+  "projects_load_failed": "无法加载项目",
+  "projects_save_failed": "无法保存项目",
   "project_settings": "项目设置",
   "current_agent": "配置 {name}",
   "current_agent_detail": "为当前项目选择工作区，并按需覆盖模型服务商和模型。",

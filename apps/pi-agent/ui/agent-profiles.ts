@@ -1,6 +1,7 @@
-import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
+import { type Accessor, createEffect, createSignal } from "solid-js";
 import type { usePiApi } from "./api";
-import { createDeferredWriter } from "./deferred-writer";
+import type { DeferredWriterScheduler } from "./deferred-writer";
+import { createPersistedValue } from "./persisted-record";
 import {
   type AgentWorkspace,
   agentProfile,
@@ -14,20 +15,40 @@ type PiApi = ReturnType<typeof usePiApi>;
 export function createAgentProfiles(options: {
   api: PiApi;
   routeAgentId: Accessor<string | undefined>;
+  scheduler?: DeferredWriterScheduler;
 }) {
   const { api } = options;
-  const [agents, setAgents] = createSignal<readonly AgentWorkspace[]>([
-    createAgentWorkspace(1),
-  ]);
   const [lastActiveId, setLastActiveId] = createSignal("agent-1");
-  let hydrated = false;
-  let restored: boolean | undefined;
-  const writer = createDeferredWriter({
-    write: (serialized: string) => api.saveAgents(JSON.parse(serialized)),
-    onError: (error) =>
+  let saveLoadedDefault = false;
+  const profiles = createPersistedValue<readonly AgentWorkspace[]>({
+    initial: [createAgentWorkspace(1)],
+    load: async () => {
+      const stored = await api.listAgents();
+      if (stored.length > 0) return stored.map(restoreAgentWorkspace);
+      const initial = createAgentWorkspace(1);
+      initial.cwd = await api.defaultWorkspace(initial.id);
+      saveLoadedDefault = true;
+      return [initial];
+    },
+    save: (agents) => api.saveAgents(agents.map(agentProfile)),
+    onLoadError: (error) =>
+      console.error(`[pi-agent] could not load projects: ${String(error)}`),
+    onSaveError: (error) =>
       console.error(`[pi-agent] could not save projects: ${String(error)}`),
-    equals: Object.is,
+    scheduler: options.scheduler,
+    equals: (left, right) =>
+      JSON.stringify(left.map(agentProfile)) ===
+      JSON.stringify(right.map(agentProfile)),
   });
+  const agents = profiles.value;
+  const setAgents = (
+    next:
+      | readonly AgentWorkspace[]
+      | ((current: readonly AgentWorkspace[]) => readonly AgentWorkspace[]),
+  ) => {
+    if (typeof next === "function") profiles.update(next);
+    else profiles.set(next);
+  };
 
   const updateAgent = (
     id: string,
@@ -48,37 +69,15 @@ export function createAgentProfiles(options: {
     }
   };
 
-  void api
-    .listAgents()
-    .then(async (profiles) => {
-      if (profiles.length > 0) {
-        restored = true;
-        const next = profiles.map(restoreAgentWorkspace);
-        setAgents(next);
-        setLastActiveId(next[0].id);
-      } else {
-        restored = false;
-        await prepareDefaultWorkspace("agent-1");
-      }
-    })
-    .catch((error) => {
-      console.error(
-        `[pi-agent] could not prepare the default workspace: ${String(error)}`,
-      );
-    })
-    .finally(() => {
-      hydrated = true;
-      const serialized = JSON.stringify(agents().map(agentProfile));
-      if (restored === true) writer.prime(serialized);
-      else if (restored === false) writer.schedule(serialized);
-    });
-
-  createEffect(
-    () => JSON.stringify(agents().map(agentProfile)),
-    (serialized) => {
-      if (hydrated) writer.schedule(serialized);
-    },
-  );
+  createEffect(agents, (current) => {
+    if (saveLoadedDefault) {
+      saveLoadedDefault = false;
+      profiles.set(current);
+    }
+    if (!current.some((agent) => agent.id === lastActiveId())) {
+      setLastActiveId(current[0]?.id ?? "");
+    }
+  });
   createEffect(options.routeAgentId, (routeId) => {
     if (routeId && agents().some((agent) => agent.id === routeId)) {
       setLastActiveId(routeId);
@@ -86,7 +85,8 @@ export function createAgentProfiles(options: {
   });
 
   const activeId = () =>
-    resolveActiveAgentId(agents(), options.routeAgentId(), lastActiveId()) ?? "";
+    resolveActiveAgentId(agents(), options.routeAgentId(), lastActiveId()) ??
+    "";
   const active = () =>
     agents().find((agent) => agent.id === activeId()) ?? agents()[0];
   const patchActive = (patch: Partial<AgentWorkspace>) => {
@@ -94,7 +94,6 @@ export function createAgentProfiles(options: {
     updateAgent(id, (agent) => ({ ...agent, ...patch }));
   };
 
-  onCleanup(() => writer.flush());
   return {
     agents,
     setAgents,
@@ -104,5 +103,9 @@ export function createAgentProfiles(options: {
     updateAgent,
     patchActive,
     prepareDefaultWorkspace,
+    loadError: profiles.loadError,
+    saveError: profiles.saveError,
+    reload: profiles.reload,
+    retrySave: profiles.retrySave,
   };
 }

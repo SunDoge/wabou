@@ -44,6 +44,36 @@ test("only the latest key can update the resource", async () => {
   dispose();
 });
 
+test("commits only the winning request before notifying dependents", async () => {
+  const first = deferred<string>();
+  const second = deferred<string>();
+  const committed: string[] = [];
+  let setKey!: (value: string) => void;
+  let resource!: ReturnType<typeof createLatestAsyncResource<string, string>>;
+
+  createRoot(() => {
+    const pair = createSignal("first");
+    setKey = pair[1];
+    resource = createLatestAsyncResource({
+      source: pair[0],
+      load: (key) => (key === "first" ? first.promise : second.promise),
+      onCommit: (value) => committed.push(value),
+    });
+    flush();
+    setKey("second");
+    flush();
+  });
+
+  first.resolve("stale");
+  await first.promise;
+  second.resolve("latest");
+  await second.promise;
+  await Promise.resolve();
+
+  expect(resource.value()).toBe("latest");
+  expect(committed).toEqual(["latest"]);
+});
+
 test("refresh replaces an in-flight request and exposes errors", async () => {
   const requests: ReturnType<typeof deferred<string>>[] = [];
   let resource!: ReturnType<typeof createLatestAsyncResource<string, string>>;

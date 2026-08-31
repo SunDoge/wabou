@@ -122,7 +122,33 @@ export function App() {
     updateAgent,
     patchActive,
     prepareDefaultWorkspace,
+    loadError: projectLoadError,
+    saveError: projectSaveError,
+    reload: reloadProjects,
+    retrySave: retryProjectSave,
   } = profiles;
+  createEffect(projectLoadError, (error) => {
+    if (!error) return;
+    toasts.error(i18n.message(m.projects_load_failed, {}), {
+      description: String(error),
+      duration: 0,
+      action: {
+        label: i18n.message(m.retry, {}),
+        onAction: () => void reloadProjects(),
+      },
+    });
+  });
+  createEffect(projectSaveError, (error) => {
+    if (!error) return;
+    toasts.error(i18n.message(m.projects_save_failed, {}), {
+      description: String(error),
+      duration: 0,
+      action: {
+        label: i18n.message(m.retry, {}),
+        onAction: retryProjectSave,
+      },
+    });
+  });
   const newSessionAction = createKeyedAsyncAction(
     (agentId: string) => agentId,
     (agentId: string) => api.newSession(agentId),
