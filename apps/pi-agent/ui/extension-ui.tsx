@@ -1,3 +1,4 @@
+import type { Handle } from "@wabou/core/renderer";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -285,24 +286,33 @@ export function ExtensionUiDialog(props: {
   respond(answer: ExtensionUiAnswer): void;
 }) {
   const [value, setValue] = createSignal("");
+  let initialControl: Handle | undefined;
   let answered = false;
+  let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearResponseTimeout = () => {
+    if (timeoutTimer === undefined) return;
+    clearTimeout(timeoutTimer);
+    timeoutTimer = undefined;
+  };
   const respond = (answer: ExtensionUiAnswer) => {
     if (answered) return;
     answered = true;
+    clearResponseTimeout();
     props.respond(answer);
   };
+  onCleanup(clearResponseTimeout);
   createEffect(
     () => props.request,
     (request) => {
+      clearResponseTimeout();
       answered = false;
       setValue(request?.prefill ?? "");
       const timeout = request?.timeout;
       if (timeout === undefined) return;
-      const timer = setTimeout(
+      timeoutTimer = setTimeout(
         () => respond({ cancelled: true }),
         Math.max(0, timeout - 25),
       );
-      onCleanup(() => clearTimeout(timer));
     },
   );
   const cancel = () => respond({ cancelled: true });
@@ -342,6 +352,7 @@ export function ExtensionUiDialog(props: {
             <Dialog
               aria-label={dialog.title}
               open
+              initialFocus={() => initialControl}
               onOpenChange={(open) => !open && cancel()}
             >
               <DialogTitle>{dialog.title}</DialogTitle>
@@ -350,6 +361,9 @@ export function ExtensionUiDialog(props: {
               </Show>
               <Show when={dialog.method === "select"}>
                 <Listbox
+                  ref={(node) => {
+                    initialControl = node;
+                  }}
                   aria-label={dialog.title}
                   options={(dialog.options ?? []).map((label, index) => ({
                     value: String(index),
@@ -364,6 +378,9 @@ export function ExtensionUiDialog(props: {
               </Show>
               <Show when={dialog.method === "input"}>
                 <Input
+                  ref={(node) => {
+                    initialControl = node;
+                  }}
                   aria-label={dialog.title}
                   value={value()}
                   placeholder={dialog.placeholder}
@@ -377,6 +394,9 @@ export function ExtensionUiDialog(props: {
               </Show>
               <Show when={dialog.method === "editor"}>
                 <TextArea
+                  ref={(node) => {
+                    initialControl = node;
+                  }}
                   aria-label={dialog.title}
                   class="h-48"
                   value={value()}

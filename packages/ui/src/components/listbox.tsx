@@ -1,3 +1,4 @@
+import type { Handle } from "@wabou/core/renderer";
 import { mergeClasses } from "@wabou/core/style";
 import check from "lucide-static/icons/check.svg?raw";
 import {
@@ -36,6 +37,8 @@ export interface ListboxProps {
   viewportHeight?: number;
   /** Fill the available flex height instead of deriving a fixed viewport. */
   fill?: boolean;
+  /** Receives the focusable listbox handle for dialog and popover composition. */
+  ref?: (node: Handle) => void;
   renderLeading?: (option: ListboxOption) => JSX.Element;
   renderTrailing?: (option: ListboxOption) => JSX.Element;
   onValueChange?: (value: string) => void;
@@ -131,6 +134,7 @@ export function Listbox(props: ListboxProps): JSX.Element {
       style={props.fill ? undefined : { height: `${viewportHeight()}px` }}
     >
       <View
+        ref={props.ref}
         role="listbox"
         aria-label={props["aria-label"]}
         aria-activedescendant={highlighted()}
