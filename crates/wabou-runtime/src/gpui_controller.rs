@@ -756,6 +756,17 @@ impl GpuiController {
         event: wabou_shell::ProjectedInputEvent,
     ) -> wabou_shell::EventResponse {
         match event {
+            wabou_shell::ProjectedInputEvent::Activate { target } => {
+                let handled = self
+                    .dispatch_node_json(target, wabou_protocol::event::CLICK, "{}".into(), true)
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                wabou_shell::EventResponse {
+                    handled,
+                    request_redraw: handled,
+                    ..wabou_shell::EventResponse::default()
+                }
+            }
             wabou_shell::ProjectedInputEvent::Pointer(event) => {
                 self.handle_projected_pointer(event)
             }

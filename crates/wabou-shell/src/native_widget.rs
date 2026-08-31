@@ -6,6 +6,35 @@ use gpui::{AnyElement, AnyEntity, App, Entity, SharedString, Window};
 
 use crate::NodeKey;
 
+/// Owned event bridge for callbacks retained by a native GPUI widget.
+///
+/// The bridge keeps the exact generational Wabou node identity while avoiding
+/// a borrow of the ephemeral [`NativeWidgetContext`]. GPUI callbacks can clone
+/// this value and dispatch semantic events after the factory has returned.
+#[derive(Clone)]
+pub struct NativeWidgetEventSink {
+    target: NodeKey,
+    input: crate::ProjectedInputSink,
+}
+
+impl NativeWidgetEventSink {
+    fn new(target: NodeKey, input: crate::ProjectedInputSink) -> Self {
+        Self { target, input }
+    }
+
+    /// Dispatch one semantic activation through Wabou's normal batched event
+    /// path. The native widget owns gesture recognition, so no synthetic
+    /// pointer coordinates or duplicate hit target are introduced.
+    pub fn activate(&self, cx: &mut App) {
+        (self.input)(
+            crate::ProjectedInputEvent::Activate {
+                target: self.target,
+            },
+            cx,
+        );
+    }
+}
+
 /// Immutable authored state supplied when materializing a native GPUI widget.
 ///
 /// The node key is generational and remains stable across ordinary Solid
@@ -16,6 +45,7 @@ pub struct NativeWidgetContext<'a> {
     attributes: &'a BTreeMap<SharedString, SharedString>,
     config: Option<&'a str>,
     entity: Option<&'a AnyEntity>,
+    input: crate::ProjectedInputSink,
 }
 
 impl<'a> NativeWidgetContext<'a> {
@@ -25,12 +55,14 @@ impl<'a> NativeWidgetContext<'a> {
         attributes: &'a BTreeMap<SharedString, SharedString>,
         config: Option<&'a str>,
         entity: Option<&'a AnyEntity>,
+        input: crate::ProjectedInputSink,
     ) -> Self {
         Self {
             key,
             attributes,
             config,
             entity,
+            input,
         }
     }
 
@@ -67,6 +99,19 @@ impl<'a> NativeWidgetContext<'a> {
     #[must_use]
     pub fn entity<T: 'static>(&self) -> Option<Entity<T>> {
         self.entity?.clone().downcast().ok()
+    }
+
+    /// Return an owned bridge suitable for GPUI's retained event callbacks.
+    #[must_use]
+    pub fn events(&self) -> NativeWidgetEventSink {
+        NativeWidgetEventSink::new(self.key, self.input.clone())
+    }
+
+    /// Dispatch one semantic activation through Wabou's ordinary JS event
+    /// batch. Native controls use this after they have completed their own
+    /// pointer or keyboard gesture; no synthetic coordinates are invented.
+    pub fn activate(&self, cx: &mut App) {
+        self.events().activate(cx);
     }
 }
 
@@ -127,8 +172,9 @@ mod tests {
             (SharedString::from("iterations"), SharedString::from("96")),
         ]);
 
+        let input = std::rc::Rc::new(|_, _: &mut App| {});
         let context =
-            NativeWidgetContext::new(key, &attributes, Some(r#"{"iterations":96}"#), None);
+            NativeWidgetContext::new(key, &attributes, Some(r#"{"iterations":96}"#), None, input);
 
         assert_eq!(context.key(), key);
         assert_eq!(context.attribute("center-x"), Some("-0.745"));
@@ -149,14 +195,40 @@ mod tests {
             let entity = app.new(|_| TerminalState(7));
             let retained = entity.clone().into_any();
             let attributes = BTreeMap::new();
-            let context =
-                NativeWidgetContext::new(NodeKey::new(3, 4), &attributes, None, Some(&retained));
+            let input = std::rc::Rc::new(|_, _: &mut App| {});
+            let context = NativeWidgetContext::new(
+                NodeKey::new(3, 4),
+                &attributes,
+                None,
+                Some(&retained),
+                input,
+            );
 
             let recovered = context
                 .entity::<TerminalState>()
                 .expect("matching entity type");
             assert_eq!(recovered.read(app).0, 7);
             assert!(context.entity::<OtherState>().is_none());
+        });
+    }
+
+    #[gpui::test]
+    fn context_routes_semantic_activation_to_the_exact_node(cx: &mut TestAppContext) {
+        let activated = std::rc::Rc::new(std::cell::Cell::new(None));
+        let observed = activated.clone();
+        cx.update(|app| {
+            let input = std::rc::Rc::new(move |event, _: &mut App| {
+                if let crate::ProjectedInputEvent::Activate { target } = event {
+                    observed.set(Some(target));
+                }
+            });
+            let attributes = BTreeMap::new();
+            let key = NodeKey::new(21, 8);
+            let context = NativeWidgetContext::new(key, &attributes, None, None, input);
+            let events = context.events();
+            drop(context);
+            events.activate(app);
+            assert_eq!(activated.get(), Some(key));
         });
     }
 }

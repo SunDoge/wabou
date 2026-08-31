@@ -115,6 +115,9 @@ pub struct ProjectedScrollEvent {
 /// Input transition emitted from one retained GPUI hit target.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProjectedInputEvent {
+    /// Semantic activation emitted by a native widget that already owns its
+    /// pointer and keyboard interaction lifecycle.
+    Activate { target: NodeKey },
     /// Pointer movement or button transition.
     Pointer(ProjectedPointerEvent),
     /// Wheel or trackpad transition.

@@ -24,7 +24,9 @@ pub use input::{
     ProjectedPointerPhase, ProjectedScrollEvent, ProjectedTextInputState, ProjectedWheelEvent,
     ProjectedWheelPhase,
 };
-pub use native_widget::{NativeWidgetContext, NativeWidgetFactory, NativeWidgetMount};
+pub use native_widget::{
+    NativeWidgetContext, NativeWidgetEventSink, NativeWidgetFactory, NativeWidgetMount,
+};
 pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
 pub use protocol_projection::{
     GpuiCommand, GpuiComputedStyle, GpuiLayoutNode, GpuiNativeWidget, GpuiProjection,

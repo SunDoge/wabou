@@ -990,6 +990,7 @@ impl Render for GpuiRuntimeView {
                     &widget.attributes,
                     widget.config.as_deref(),
                     self.native_widget_entities.get(&widget.key),
+                    input.clone(),
                 ),
                 window,
                 cx,
