@@ -663,7 +663,7 @@ impl HostBuilder {
         let builder = Self {
             window: WindowOptions::default(),
             additional_windows: Vec::new(),
-            native_widget_factories: HashMap::new(),
+            native_widget_factories: crate::gpui_widgets::builtin_native_widgets(),
             capabilities: Vec::new(),
             host_message_producers: Vec::new(),
             services: Vec::new(),

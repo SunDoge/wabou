@@ -39,6 +39,7 @@ import {
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
+  Spinner,
   Text,
   Tool,
   ToolContent,
@@ -560,6 +561,17 @@ export function SelectLayoutFixture() {
           { value: "disabled", label: "Disabled option", disabled: true },
         ]}
       />
+    </View>
+  );
+}
+
+export function SpinnerLayoutFixture() {
+  return (
+    <View class="w-full h-full flex items-center justify-center bg-canvas">
+      <View class="flex items-center gap-2">
+        <Spinner label="Fixture loading indicator" />
+        <Text class="text-sm text-secondary">Loading</Text>
+      </View>
     </View>
   );
 }

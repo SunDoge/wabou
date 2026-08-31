@@ -21,6 +21,7 @@ import {
   Reasoning,
   ReasoningContent,
   ReasoningTrigger,
+  rotate2d,
   Text,
   Tool,
   ToolContent,
@@ -294,7 +295,8 @@ export function ToolActivityGroup(props: {
           <Icon
             source={chevronRight}
             size={11}
-            class={open() ? "rotate-90 text-muted" : "text-muted"}
+            class="text-muted"
+            transform={open() ? rotate2d(Math.PI / 2) : undefined}
           />
           <Show when={running()}>
             <Pulse

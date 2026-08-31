@@ -64,6 +64,8 @@ import type { JSX } from "./jsx";
  */
 export interface WabouBuiltinIntrinsicElements {
   view: WabouElementProps;
+  /** GPUI-owned animated activity indicator. Prefer the `Spinner` component. */
+  spinner: WabouElementProps;
   /** GPUI-backed uniform virtual list. Prefer the `VirtualList` component. */
   "virtual-list": WabouElementProps;
   "vector-path": WabouVectorPathProps;

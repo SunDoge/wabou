@@ -19,9 +19,11 @@ mod error;
 mod gpui_controller;
 #[cfg(feature = "headless")]
 mod gpui_headless;
+mod gpui_motion;
 mod gpui_performance_hud;
 mod gpui_projection_boundary;
 mod gpui_view;
+mod gpui_widgets;
 mod gpui_windows;
 mod host;
 #[cfg(test)]

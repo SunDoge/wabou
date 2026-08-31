@@ -31,6 +31,7 @@ import {
   ScrollAreaLayoutFixture,
   SelectLayoutFixture,
   SidebarLayoutFixture,
+  SpinnerLayoutFixture,
   ToolLayoutFixture,
 } from "./layout-fixture-components";
 import * as animation from "./pages/animation";
@@ -95,6 +96,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         height: 420,
         waitMs: 20,
         render: SelectLayoutFixture,
+      },
+      "component/Spinner": {
+        width: 240,
+        height: 120,
+        render: SpinnerLayoutFixture,
       },
       "component/Dialog": {
         width: 640,
