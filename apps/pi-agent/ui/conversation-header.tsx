@@ -21,7 +21,7 @@ import { type JSX, Show } from "solid-js";
 import type { AgentViewState } from "./agent-state";
 import { ConversationContext } from "./conversation-context";
 import { i18n, m } from "./i18n";
-import { SessionActions } from "./session-actions";
+import { type SessionAction, SessionActions } from "./session-actions";
 
 export interface ConversationHeaderProps {
   project: string;
@@ -44,9 +44,10 @@ export interface ConversationHeaderProps {
   toggleChanges(): void;
   toggleSearch(): void;
   newSession(): void;
-  compactSession(): void;
-  cloneSession(): void;
-  exportSession(): void;
+  compactSession(): void | Promise<void>;
+  cloneSession(): void | Promise<void>;
+  exportSession(): void | Promise<void>;
+  sessionActionError?: (action: SessionAction, error: unknown) => void;
   abort(): void;
 }
 
@@ -144,6 +145,7 @@ export function ConversationHeader(props: ConversationHeaderProps) {
               compact={props.compactSession}
               clone={props.cloneSession}
               exportHtml={props.exportSession}
+              onActionError={props.sessionActionError}
               trigger={(trigger) => (
                 <ToolbarButton
                   {...trigger}

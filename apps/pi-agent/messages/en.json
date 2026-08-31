@@ -146,6 +146,7 @@
   "choose_thinking": "Thinking level",
   "new_session": "New session",
   "session_actions": "Session actions",
+  "session_action_failed": "Session action failed",
   "compact_session": "Compact context",
   "compact_session_detail": "Summarize older context to recover model capacity.",
   "clone_session": "Clone current branch",

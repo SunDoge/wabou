@@ -893,9 +893,14 @@ export function App() {
             toggleChanges={toggleChanges}
             toggleSearch={() => setSearchOpen((open) => !open)}
             newSession={startNewSession}
-            compactSession={() => void api.compactSession(active().id)}
-            cloneSession={() => void api.cloneSession(active().id)}
-            exportSession={() => void exportActiveSession()}
+            compactSession={() => api.compactSession(active().id)}
+            cloneSession={() => api.cloneSession(active().id)}
+            exportSession={exportActiveSession}
+            sessionActionError={(_action, error) =>
+              toasts.error(i18n.message(m.session_action_failed, {}), {
+                description: String(error),
+              })
+            }
             abort={() => void api.abort(active().id)}
           />
 
