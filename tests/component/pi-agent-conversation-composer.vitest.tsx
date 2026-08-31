@@ -1,7 +1,7 @@
 import { renderComponent } from "@wabou/test/component";
+import { promptComposerEditorHeightClass } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test, vi } from "vitest";
-import { promptComposerEditorHeightClass } from "@wabou/ui";
 import { ConversationComposer } from "../../apps/pi-agent/ui/conversation-composer";
 
 const baseProps = {
@@ -248,4 +248,68 @@ test("Pi Agent composer loads workspace files for inline at mentions", async () 
   screen.getByRole("option", { name: "apps/pi-agent/ui/app.tsx" }).click();
   expect(editor.value).toBe("Inspect @apps/pi-agent/ui/app.tsx ");
   expect(changeContextFiles).toHaveBeenCalledWith(["apps/pi-agent/ui/app.tsx"]);
+});
+
+test("Pi Agent composer uses shared command navigation while the editor owns focus", () => {
+  const App = () => {
+    const [draft, setDraft] = createSignal("");
+    return (
+      <ConversationComposer
+        {...baseProps}
+        draft={draft()}
+        changeDraft={setDraft}
+        commands={[
+          { name: "review", source: "project" },
+          { name: "compact", source: "extension" },
+        ]}
+      />
+    );
+  };
+  const screen = renderComponent(App);
+  const editor = screen.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+
+  editor.input("/");
+  expect(screen.getByRole("option", { name: "/review" }).selected).toBe(true);
+  editor.press("ArrowDown");
+  expect(screen.getByRole("option", { name: "/compact" }).selected).toBe(true);
+  editor.press("Enter");
+  expect(editor.value).toBe("/compact ");
+});
+
+test("Pi Agent composer keeps failed file completion visible and retryable", async () => {
+  let attempt = 0;
+  const App = () => {
+    const [draft, setDraft] = createSignal("");
+    return (
+      <ConversationComposer
+        {...baseProps}
+        draft={draft()}
+        changeDraft={setDraft}
+        loadWorkspaceFiles={async () => {
+          attempt += 1;
+          if (attempt === 1) throw new Error("index unavailable");
+          return ["src/index.ts"];
+        }}
+      />
+    );
+  };
+  const screen = renderComponent(App);
+  const editor = screen.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+
+  editor.input("Inspect @index");
+  await screen.waitFor(() =>
+    expect(
+      screen.getByRole("alert", { name: "Could not load workspace files" })
+        .text,
+    ).toContain("index unavailable"),
+  );
+  screen.getByRole("button", { name: "Try again" }).click();
+  await screen.waitFor(() =>
+    expect(screen.getByRole("option", { name: "src/index.ts" })).toBeDefined(),
+  );
+  expect(attempt).toBe(2);
 });

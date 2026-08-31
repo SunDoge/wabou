@@ -311,6 +311,24 @@ defineLayoutFixtures(
           </View>
         ),
       },
+      "conversation/composer-autocomplete-error": {
+        width: 384,
+        height: 176,
+        render: () => (
+          <View class="w-full h-full bg-canvas p-3">
+            <View class="w-full min-w-0 rounded-xl border border-subtle bg-input shadow-md p-1.5">
+              <ComposerAutocompleteList
+                label="Workspace files"
+                rows={[]}
+                error={new Error("Workspace index is temporarily unavailable")}
+                retry={() => {}}
+                highlight={() => {}}
+                choose={() => {}}
+              />
+            </View>
+          </View>
+        ),
+      },
       "shell/agent-activity": {
         width: 520,
         height: 48,

@@ -162,6 +162,19 @@ try {
         },
       },
       {
+        id: "conversation/composer-autocomplete-error",
+        width: 384,
+        height: 176,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, {
+            role: "alert",
+            name: "Could not load workspace files",
+          });
+          getLayoutNode(fixture, { role: "button", name: "Try again" });
+        },
+      },
+      {
         id: "shell/agent-activity",
         width: 520,
         height: 48,

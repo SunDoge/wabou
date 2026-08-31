@@ -1,6 +1,6 @@
 import { renderComponent } from "@wabou/test/component";
 import { Command, CommandList, Text } from "@wabou/ui";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
 const items = [
   { id: "open", label: "Open project", keywords: ["folder"] },
@@ -89,4 +89,25 @@ test("reuses command rows for externally controlled completion lists", () => {
   file.click();
   expect(highlights).toEqual(["file:README.md"]);
   expect(actions).toEqual(["file:README.md"]);
+});
+
+test("command list presents exclusive loading and retryable error states", () => {
+  const retry = vi.fn();
+  const screen = renderComponent(() => (
+    <CommandList
+      aria-label="Remote commands"
+      items={[]}
+      error={new Error("offline")}
+      errorText="Could not load commands"
+      retryLabel="Retry commands"
+      onRetry={retry}
+    />
+  ));
+
+  expect(
+    screen.getByRole("alert", { name: "Could not load commands" }).text,
+  ).toContain("offline");
+  expect(screen.queryByRole("status")).toBeNull();
+  screen.getByRole("button", { name: "Retry commands" }).click();
+  expect(retry).toHaveBeenCalledOnce();
 });

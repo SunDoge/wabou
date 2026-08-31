@@ -1,8 +1,8 @@
 import {
+  createCommandListNavigation,
   createLatestAsyncResource,
   type Handle,
   Icon,
-  moveMenuHighlight,
   Popover,
   PromptComposer,
   PromptComposerAction,
@@ -102,7 +102,6 @@ export function ConversationComposer(props: ConversationComposerProps) {
     head: initialDraft.length,
   });
   const [composerActive, setComposerActive] = createSignal(false);
-  const [highlighted, setHighlighted] = createSignal<string>();
   const [dismissed, setDismissed] = createSignal<string>();
   let editor: Handle | undefined;
   let authoredDraft = initialDraft;
@@ -165,15 +164,10 @@ export function ConversationComposer(props: ConversationComposerProps) {
       key &&
         key !== dismissed() &&
         (autocompleteRows().length > 0 ||
-          (trigger()?.kind === "file" && files.loading())),
+          (trigger()?.kind === "file" &&
+            (files.loading() || files.error() !== undefined))),
     );
   });
-  createEffect(autocompleteRows, (rows) => {
-    if (!rows.some((row) => row.id === untrack(highlighted))) {
-      setHighlighted(rows[0]?.id);
-    }
-  });
-
   const chooseAutocomplete = (row: ComposerAutocompleteRow) => {
     const value = trigger();
     if (!value) return;
@@ -185,34 +179,19 @@ export function ConversationComposer(props: ConversationComposerProps) {
     setDismissed(triggerKey());
     editor?.focus();
   };
+  const autocompleteNavigation = createCommandListNavigation(autocompleteRows, {
+    onAction: (id) => {
+      const row = autocompleteRows().find((candidate) => candidate.id === id);
+      if (row) chooseAutocomplete(row);
+    },
+    onDismiss: () => setDismissed(triggerKey()),
+  });
+  const highlighted = autocompleteNavigation.highlighted;
+  const setHighlighted = autocompleteNavigation.setHighlighted;
 
   const handleComposerKey = (event: WabouKeyEvent) => {
     if (autocompleteOpen()) {
-      const rows = autocompleteRows();
-      const move =
-        event.key === "ArrowDown"
-          ? "next"
-          : event.key === "ArrowUp"
-            ? "previous"
-            : undefined;
-      if (move) {
-        event.preventDefault();
-        setHighlighted(moveMenuHighlight(rows, highlighted(), move));
-        return;
-      }
-      if (event.key === "Enter") {
-        const row = rows.find((candidate) => candidate.id === highlighted());
-        if (row) {
-          event.preventDefault();
-          chooseAutocomplete(row);
-          return;
-        }
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setDismissed(triggerKey());
-        return;
-      }
+      if (autocompleteNavigation.handleKeyDown(event)) return;
     }
     if (event.key === "Enter" && (event.mods & 1) === 0) {
       event.preventDefault();
@@ -295,6 +274,8 @@ export function ConversationComposer(props: ConversationComposerProps) {
             rows={autocompleteRows()}
             highlighted={highlighted()}
             loading={files.loading() && trigger()?.kind === "file"}
+            error={trigger()?.kind === "file" ? files.error() : undefined}
+            retry={() => void files.refresh()}
             highlight={setHighlighted}
             choose={chooseAutocomplete}
           />

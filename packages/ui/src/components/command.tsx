@@ -1,13 +1,17 @@
 import { mergeClasses } from "@wabou/core/style";
 import {
+  type Accessor,
   createEffect,
   createMemo,
   createSignal,
   For as ForValue,
   type JSX,
+  Match,
+  Switch,
 } from "solid-js";
 import { match } from "ts-pattern";
 import { Text, View } from "../primitives";
+import { Button } from "./button";
 import {
   type CommandStateItem,
   filterCommandItems,
@@ -45,6 +49,12 @@ export interface CommandListProps {
   emptyText?: string;
   class?: string;
   itemClass?: string;
+  loading?: boolean;
+  loadingText?: string;
+  error?: unknown;
+  errorText?: string;
+  retryLabel?: string;
+  onRetry?: () => void;
   onHighlightChange?: (id: string) => void;
   onAction?: (id: string) => void;
   renderLeading?: (item: CommandItem) => JSX.Element;
@@ -59,91 +69,124 @@ export function CommandList(props: CommandListProps): JSX.Element {
       aria-activedescendant={props.highlighted}
       class={mergeClasses("min-w-0 flex flex-col gap-1", props.class)}
     >
-      {props.items.length === 0 ? (
-        <Text role="status" class="px-3 py-4 text-sm text-muted text-center">
-          {props.emptyText ?? "No results found."}
-        </Text>
-      ) : (
-        <ForValue each={props.items} keyed={false}>
-          {(item) => (
-            <View
-              id={item().id}
-              role="option"
-              aria-label={item().label}
-              aria-selected={props.highlighted === item().id}
-              aria-disabled={item().disabled}
-              class={mergeClasses(
-                "min-h-9 px-3 py-1.5 flex flex-row items-center gap-2 rounded-lg",
-                props.highlighted === item().id
-                  ? "bg-control-hover text-primary"
-                  : "bg-transparent text-secondary",
-                props.itemClass,
-              )}
-              style={{ opacity: item().disabled ? 0.45 : 1 }}
-              onPointerMove={() =>
-                !item().disabled && props.onHighlightChange?.(item().id)
-              }
-              onClick={() => !item().disabled && props.onAction?.(item().id)}
-            >
-              {props.renderLeading?.(item())}
-              <View class="min-w-0 flex-1 flex flex-col justify-center">
-                <Text class="min-w-0 truncate text-sm">{item().label}</Text>
-                {item().description && (
-                  <Text class="min-w-0 truncate text-xs text-muted">
-                    {item().description}
+      <Switch>
+        <Match when={props.loading}>
+          <Text role="status" class="px-3 py-4 text-sm text-muted text-center">
+            {props.loadingText ?? "Loading results…"}
+          </Text>
+        </Match>
+        <Match when={props.error !== undefined && props.error !== null}>
+          <View
+            role="alert"
+            aria-label={props.errorText ?? "Could not load results"}
+            class="px-3 py-3 flex flex-col items-center gap-2 text-center"
+          >
+            <Text class="text-sm font-medium text-danger-primary">
+              {props.errorText ?? "Could not load results"}
+            </Text>
+            <Text class="max-w-full truncate text-xs text-danger-primary">
+              {String(props.error)}
+            </Text>
+            {props.onRetry && (
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label={props.retryLabel ?? "Try again"}
+                onClick={props.onRetry}
+              >
+                {props.retryLabel ?? "Try again"}
+              </Button>
+            )}
+          </View>
+        </Match>
+        <Match when={props.items.length === 0}>
+          <Text role="status" class="px-3 py-4 text-sm text-muted text-center">
+            {props.emptyText ?? "No results found."}
+          </Text>
+        </Match>
+        <Match when={true}>
+          <ForValue each={props.items} keyed={false}>
+            {(item) => (
+              <View
+                id={item().id}
+                role="option"
+                aria-label={item().label}
+                aria-selected={props.highlighted === item().id}
+                aria-disabled={item().disabled}
+                class={mergeClasses(
+                  "min-h-9 px-3 py-1.5 flex flex-row items-center gap-2 rounded-lg",
+                  props.highlighted === item().id
+                    ? "bg-control-hover text-primary"
+                    : "bg-transparent text-secondary",
+                  props.itemClass,
+                )}
+                style={{ opacity: item().disabled ? 0.45 : 1 }}
+                onPointerMove={() =>
+                  !item().disabled && props.onHighlightChange?.(item().id)
+                }
+                onClick={() => !item().disabled && props.onAction?.(item().id)}
+              >
+                {props.renderLeading?.(item())}
+                <View class="min-w-0 flex-1 flex flex-col justify-center">
+                  <Text class="min-w-0 truncate text-sm">{item().label}</Text>
+                  {item().description && (
+                    <Text class="min-w-0 truncate text-xs text-muted">
+                      {item().description}
+                    </Text>
+                  )}
+                </View>
+                {item().shortcut && (
+                  <Text
+                    aria-hidden="true"
+                    class="flex-none rounded border border-subtle bg-surface px-1.5 py-0.5 text-xs text-muted"
+                  >
+                    {item().shortcut}
                   </Text>
                 )}
               </View>
-              {item().shortcut && (
-                <Text
-                  aria-hidden="true"
-                  class="flex-none rounded border border-subtle bg-surface px-1.5 py-0.5 text-xs text-muted"
-                >
-                  {item().shortcut}
-                </Text>
-              )}
-            </View>
-          )}
-        </ForValue>
-      )}
+            )}
+          </ForValue>
+        </Match>
+      </Switch>
     </View>
   );
 }
 
-/** Searchable command list whose filtering and keyboard behavior are host-independent. */
-export function Command(props: CommandProps): JSX.Element {
-  const [uncontrolledQuery, setUncontrolledQuery] = createSignal(
-    props.defaultQuery ?? "",
-  );
+export interface CommandListNavigationOptions {
+  onAction?: (id: string) => void;
+  onDismiss?: () => void;
+}
+
+/**
+ * Shared command-list navigation for any focus owner, including native editors.
+ * The caller forwards key events while the list remains a passive popup.
+ */
+export function createCommandListNavigation(
+  items: Accessor<readonly CommandStateItem[]>,
+  options: CommandListNavigationOptions = {},
+) {
   const [highlighted, setHighlighted] = createSignal<string>();
-  const query = () => props.query ?? uncontrolledQuery();
-  const filtered = createMemo(() => filterCommandItems(props.items, query()));
 
   createEffect(
-    () => ({ items: filtered(), highlighted: highlighted() }),
-    ({ items, highlighted: current }) => {
-      setHighlighted(reconcileCommandHighlight(items, current));
+    () => ({ items: items(), highlighted: highlighted() }),
+    ({ items: nextItems, highlighted: current }) => {
+      setHighlighted(reconcileCommandHighlight(nextItems, current));
     },
   );
 
-  const setQuery = (next: string) => {
-    if (props.query === undefined) setUncontrolledQuery(next);
-    props.onQueryChange?.(next);
-  };
   const select = (id: string | undefined) => {
-    const item = filtered().find((candidate) => candidate.id === id);
+    const item = items().find((candidate) => candidate.id === id);
     if (!item || item.disabled) return false;
-    item.onSelect?.();
-    props.onAction?.(item.id);
+    options.onAction?.(item.id);
     return true;
   };
   const move = (direction: "first" | "last" | "next" | "previous") => {
-    const next = moveMenuHighlight(filtered(), highlighted(), direction);
+    const next = moveMenuHighlight(items(), highlighted(), direction);
     if (next === undefined) return false;
     setHighlighted(next);
     return true;
   };
-  const onKeyDown = (event: { key: string; preventDefault(): void }) => {
+  const handleKeyDown = (event: { key: string; preventDefault(): void }) => {
     const handled = match(event.key)
       .with("ArrowDown", () => move("next"))
       .with("ArrowUp", () => move("previous"))
@@ -151,12 +194,38 @@ export function Command(props: CommandProps): JSX.Element {
       .with("End", () => move("last"))
       .with("Enter", () => select(highlighted()))
       .with("Escape", () => {
-        props.onDismiss?.();
-        return props.onDismiss !== undefined;
+        options.onDismiss?.();
+        return options.onDismiss !== undefined;
       })
       .otherwise(() => false);
     if (handled) event.preventDefault();
+    return handled;
   };
+
+  return { highlighted, setHighlighted, select, move, handleKeyDown };
+}
+
+/** Searchable command list whose filtering and keyboard behavior are host-independent. */
+export function Command(props: CommandProps): JSX.Element {
+  const [uncontrolledQuery, setUncontrolledQuery] = createSignal(
+    props.defaultQuery ?? "",
+  );
+  const query = () => props.query ?? uncontrolledQuery();
+  const filtered = createMemo(() => filterCommandItems(props.items, query()));
+
+  const setQuery = (next: string) => {
+    if (props.query === undefined) setUncontrolledQuery(next);
+    props.onQueryChange?.(next);
+  };
+  const navigation = createCommandListNavigation(filtered, {
+    onAction: (id) => {
+      filtered()
+        .find((item) => item.id === id)
+        ?.onSelect?.();
+      props.onAction?.(id);
+    },
+    onDismiss: props.onDismiss,
+  });
 
   return (
     <View class={mergeClasses("min-w-0 flex flex-col gap-2", props.class)}>
@@ -166,16 +235,16 @@ export function Command(props: CommandProps): JSX.Element {
         placeholder={props.placeholder ?? "Type a command"}
         ref={props.inputRef}
         onInput={(event) => setQuery(event.currentTarget.value)}
-        onKeyDown={onKeyDown}
+        onKeyDown={navigation.handleKeyDown}
       />
       <CommandList
         aria-label={`${props["aria-label"]} results`}
         items={filtered()}
-        highlighted={highlighted()}
+        highlighted={navigation.highlighted()}
         emptyText={props.emptyText}
         class={props.listClass}
-        onHighlightChange={setHighlighted}
-        onAction={select}
+        onHighlightChange={navigation.setHighlighted}
+        onAction={navigation.select}
       />
     </View>
   );
