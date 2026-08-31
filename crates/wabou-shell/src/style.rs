@@ -469,6 +469,9 @@ fn definite_length(value: &Value) -> Option<DefiniteLength> {
 }
 
 fn absolute_length(value: &Value) -> Option<AbsoluteLength> {
+    if let Some(value) = number(value).filter(|value| value.is_finite()) {
+        return Some(gpui::px(value).into());
+    }
     match ir_length(value)? {
         IrLength::Px { value } if value.is_finite() => Some(gpui::px(*value).into()),
         IrLength::Px { .. } | IrLength::Percent { .. } | IrLength::Auto => None,
@@ -486,6 +489,9 @@ fn color(value: &Value) -> Option<Hsla> {
 }
 
 fn length(value: &Value) -> Option<Length> {
+    if keyword(value) == Some("auto") {
+        return Some(Length::Auto);
+    }
     match ir_length(value)? {
         IrLength::Auto => Some(Length::Auto),
         _ => definite_length(value).map(Length::Definite),
@@ -703,6 +709,21 @@ mod tests {
         assert_eq!(style.text.font_size, Some(gpui::px(18.0).into()));
         assert_eq!(style.text.font_weight, Some(FontWeight(600.0)));
         assert_eq!(style.text.line_height, Some(DefiniteLength::Fraction(1.5)));
+    }
+
+    #[test]
+    fn accepts_authored_numeric_borders_and_keyword_auto_flex_basis() {
+        let mut projection = StyleProjection::default();
+        projection
+            .apply(&declaration("border-width", Value::Number { value: 1.0 }))
+            .unwrap();
+        projection
+            .apply(&declaration("flex-basis", keyword_value("auto")))
+            .unwrap();
+
+        assert_eq!(projection.style().border_widths.top, gpui::px(1.0).into());
+        assert_eq!(projection.style().border_widths.right, gpui::px(1.0).into());
+        assert_eq!(projection.style().flex_basis, Length::Auto);
     }
 
     #[test]

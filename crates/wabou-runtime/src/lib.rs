@@ -56,8 +56,8 @@ pub use gpui_headless::{
 };
 pub use gpui_shell::{
     AppDirectories, AppDirectoryConfig, GpuiLayoutNode, NativeWidgetContext, NativeWidgetFactory,
-    NativeWidgetMount, RgbaColor, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
-    WindowResourceKey, gpui, initial_window_resource_key,
+    NativeWidgetMount, ProjectedNodeKind, RgbaColor, WindowInputMode, WindowLevel, WindowMetrics,
+    WindowOptions, WindowResourceKey, gpui, initial_window_resource_key,
 };
 pub use gpui_view::GpuiRuntimeView;
 pub use host::{

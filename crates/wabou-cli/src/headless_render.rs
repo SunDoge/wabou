@@ -27,6 +27,9 @@ use super::process::{configure_test_backend, wait_for_managed_child};
 use super::project::App;
 use super::{Result, behavior_test_runtime, build_behavior_host, ensure, manifest, render_metrics};
 
+#[path = "gpui_layout.rs"]
+mod gpui_layout;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, clap::ValueEnum)]
 pub(super) enum HeadlessColorScheme {
     Light,
@@ -528,6 +531,9 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     }
     if !options.cargo_features.is_empty() {
         return Err("--features requires --with-host for `wabou render`".into());
+    }
+    if *layout_only {
+        return gpui_layout::run(workspace, app, options);
     }
     let window_key = u32::try_from(*window_id)
         .ok()

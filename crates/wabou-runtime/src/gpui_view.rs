@@ -308,6 +308,14 @@ impl GpuiRuntimeView {
         self.controller.protocol_revision()
     }
 
+    pub(crate) fn eval_script_diagnostic(&self, source: &str) -> Result<(), String> {
+        self.controller.eval_script_diagnostic(source)
+    }
+
+    pub(crate) fn eval_string(&self, source: &str) -> rquickjs::Result<String> {
+        self.controller.eval_string(source)
+    }
+
     fn handle_input(&mut self, event: gpui_shell::ProjectedInputEvent, cx: &mut Context<Self>) {
         let mut response = self.controller.handle_input(event);
         if let Some(request) = response.clipboard.take() {

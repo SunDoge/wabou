@@ -42,6 +42,19 @@ pub struct GpuiLayoutNode {
         std::collections::BTreeMap<crate::gpui::SharedString, crate::gpui::SharedString>,
     pub text: Option<crate::gpui::SharedString>,
     pub bounds: crate::gpui::Bounds<crate::gpui::Pixels>,
+    pub classes: Vec<String>,
+    pub style_diagnostics: Vec<String>,
+    pub computed: GpuiComputedStyle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct GpuiComputedStyle {
+    pub position: String,
+    pub overflow_x: String,
+    pub overflow_y: String,
+    pub font_size: Option<f32>,
+    pub font_weight: Option<f32>,
+    pub opacity: f32,
 }
 
 #[derive(Debug)]
@@ -69,7 +82,7 @@ impl GpuiProjection {
             NodeKey::ROOT,
             None,
             0,
-            gpui_style(),
+            gpui_root_style(),
             None,
             ProjectedNodeKind::Root,
         )
@@ -404,6 +417,24 @@ impl GpuiProjection {
                     attributes: node.attributes.clone(),
                     text: node.text.clone(),
                     bounds: *bounds.get(&key)?,
+                    classes: self.classes.get(&key).cloned().unwrap_or_default(),
+                    style_diagnostics: self
+                        .style_diagnostics
+                        .get(&key)
+                        .cloned()
+                        .unwrap_or_default(),
+                    computed: GpuiComputedStyle {
+                        position: format!("{:?}", node.style.position),
+                        overflow_x: format!("{:?}", node.style.overflow.x),
+                        overflow_y: format!("{:?}", node.style.overflow.y),
+                        font_size: node
+                            .style
+                            .text
+                            .font_size
+                            .map(|size| f32::from(size.to_pixels(crate::gpui::px(16.0)))),
+                        font_weight: node.style.text.font_weight.map(|weight| weight.0),
+                        opacity: node.style.opacity.unwrap_or(1.0),
+                    },
                 })
             })
             .collect()
@@ -659,6 +690,13 @@ fn tooling_value(value: &IrValue) -> Option<wabou_style::Value> {
 
 fn gpui_style() -> crate::gpui::Style {
     crate::gpui::Style::default()
+}
+
+fn gpui_root_style() -> crate::gpui::Style {
+    let mut style = crate::gpui::Style::default();
+    style.size.width = crate::gpui::relative(1.0).into();
+    style.size.height = crate::gpui::relative(1.0).into();
+    style
 }
 
 #[cfg(test)]

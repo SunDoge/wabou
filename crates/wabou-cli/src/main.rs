@@ -283,14 +283,14 @@ enum Commands {
         #[command(flatten)]
         cargo_features: CargoFeatures,
     },
-    /// Evaluate JavaScript, Style IR and Taffy without creating a scene or GPU renderer.
+    /// Evaluate JavaScript and Style IR through GPUI's real layout pass.
     Layout {
         #[arg(value_name = "APP")]
         app: Option<PathBuf>,
         /// Write the structured retained layout snapshot.
         #[arg(long, value_name = "JSON")]
         out: PathBuf,
-        /// Render every fixture described by a batch manifest in one QuickJS runtime.
+        /// Render every fixture described by a batch manifest in an isolated GPUI runtime.
         #[arg(long, value_name = "JSON")]
         batch: Option<PathBuf>,
         #[arg(long, default_value_t = 1440)]

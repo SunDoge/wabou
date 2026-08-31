@@ -22,7 +22,7 @@ serde_json = { workspace = true }
 tempfile = "3"
 toml = "0.9"
 wabou-devtools = { workspace = true }
-wabou-runtime = { workspace = true, features = ["devtools"] }
+wabou-runtime = { workspace = true, features = ["devtools", "headless"] }
 wabou-legacy-runtime = { workspace = true, features = ["devtools"] }
 wabou-legacy-shell.workspace = true
 wabou-legacy-widgets.workspace = true

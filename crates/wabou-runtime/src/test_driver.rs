@@ -1899,6 +1899,16 @@ mod tests {
                     gpui_shell::gpui::px(40.0),
                 ),
             },
+            classes: Vec::new(),
+            style_diagnostics: Vec::new(),
+            computed: gpui_shell::GpuiComputedStyle {
+                position: "Relative".into(),
+                overflow_x: "Visible".into(),
+                overflow_y: "Visible".into(),
+                font_size: None,
+                font_weight: None,
+                opacity: 1.0,
+            },
         }
     }
 
