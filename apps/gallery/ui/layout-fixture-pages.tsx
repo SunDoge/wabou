@@ -8,6 +8,7 @@ import {
   AdaptiveSplitPaneLayoutFixture,
   CodeEditorLayoutFixture,
   DialogLayoutFixture,
+  EmptyLayoutFixture,
   IconFrameLayoutFixture,
   ImageListLayoutFixture,
   ImageViewportLayoutFixture,
@@ -106,6 +107,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 640,
         height: 480,
         render: DialogLayoutFixture,
+      },
+      "component/Empty": {
+        width: 320,
+        height: 420,
+        render: EmptyLayoutFixture,
       },
       "component/AdaptiveSplitPane": {
         width: 720,

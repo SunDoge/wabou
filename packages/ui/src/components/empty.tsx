@@ -101,8 +101,9 @@ export function EmptyDescription(props: TextProps): JSX.Element {
   return (
     <Text
       {...props}
+      maxLines={props.maxLines ?? 2}
       class={mergeClasses(
-        "w-full min-w-0 whitespace-normal text-center text-sm text-muted",
+        "w-full min-h-10 min-w-0 whitespace-normal text-center text-sm text-muted",
         props.class,
       )}
     >

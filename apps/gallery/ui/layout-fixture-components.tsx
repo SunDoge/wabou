@@ -11,6 +11,11 @@ import {
   DialogDescription,
   DialogScrollBody,
   DialogTitle,
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
   IconFrame,
   ImageList,
   ImageViewport,
@@ -561,6 +566,25 @@ export function SelectLayoutFixture() {
           { value: "disabled", label: "Disabled option", disabled: true },
         ]}
       />
+    </View>
+  );
+}
+
+export function EmptyLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-4 bg-canvas">
+      <Empty aria-label="Fixture empty state">
+        <EmptyHeader aria-label="Fixture empty header">
+          <EmptyTitle>No matching projects</EmptyTitle>
+          <EmptyDescription>
+            Try another search or create a project to continue working from this
+            device.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button>Create project</Button>
+        </EmptyContent>
+      </Empty>
     </View>
   );
 }

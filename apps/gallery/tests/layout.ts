@@ -212,6 +212,17 @@ const assertSelectLayout = (snapshot: LayoutSnapshot) => {
     throw new Error("select popup exposed option labels to native text selection");
 };
 
+const assertEmptyLayout = (snapshot: LayoutSnapshot) => {
+  const header = getLayoutNode(snapshot, { name: "Fixture empty header" });
+  const description = getLayoutNode(snapshot, {
+    text: "Try another search or create a project to continue working from this device.",
+  });
+  assertLayoutRectContains(header.rect, description.rect, {
+    label: "empty-state description",
+  });
+  assertClose(description.rect.height, 40, "two-line empty-state summary");
+};
+
 const assertDialogLayout = (snapshot: LayoutSnapshot) => {
   const dialog = getLayoutNode(snapshot, {
     role: "dialog",
@@ -550,6 +561,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/PromptSuggestion": { assert: assertPromptSuggestionLayout },
   "component/ScrollArea": { assert: assertScrollAreaLayout },
   "component/Select": { assert: assertSelectLayout },
+  "component/Empty": { assert: assertEmptyLayout },
   "component/Dialog": { assert: assertDialogLayout },
   "component/AdaptiveSplitPane": { assert: assertAdaptiveSplitPaneLayout },
   "component/ImageViewport": {
