@@ -180,7 +180,12 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         return gpui_layout::run(workspace, app, options);
     }
     validate_capture_options(options)?;
-    prepare_frontend(workspace, app, options.mode.as_deref(), options.skip_build)?;
+    prepare_frontend(
+        workspace,
+        app,
+        frontend_mode(options.mode.as_deref(), options.fixture.as_deref()),
+        options.skip_build,
+    )?;
     let bundle = bundle_path(workspace, app, BuildProfile::Debug)?;
     let source: Arc<str> = fs::read_to_string(&bundle)?.into();
     let source_map = fs::read(bundle.with_extension("js.map"))
@@ -218,6 +223,10 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
                 .into(),
         ),
     }
+}
+
+fn frontend_mode<'a>(mode: Option<&'a str>, fixture: Option<&str>) -> Option<&'a str> {
+    fixture.map(|_| "layout-test").or(mode)
 }
 
 fn validate_capture_options(options: &RenderOptions) -> Result<()> {
@@ -293,4 +302,25 @@ pub(super) fn prepare_frontend(
     )?;
     drop(frontend_lock);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::frontend_mode;
+
+    #[test]
+    fn render_fixtures_build_the_fixture_registry() {
+        assert_eq!(
+            frontend_mode(None, Some("shell/full-workbench")),
+            Some("layout-test")
+        );
+        assert_eq!(
+            frontend_mode(Some("development"), Some("fixture")),
+            Some("layout-test")
+        );
+        assert_eq!(
+            frontend_mode(Some("development"), None),
+            Some("development")
+        );
+    }
 }
