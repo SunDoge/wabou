@@ -474,7 +474,11 @@ impl GpuiRuntimeView {
     }
 
     pub(crate) fn layout_snapshot(&self) -> Vec<wabou_shell::GpuiLayoutNode> {
-        self.controller.layout_snapshot()
+        self.controller
+            .layout_snapshot()
+            .into_iter()
+            .filter(|node| node.attached)
+            .collect()
     }
 
     pub(crate) fn publish_completed_layout(&mut self) {

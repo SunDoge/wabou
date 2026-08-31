@@ -1896,6 +1896,16 @@ mod tests {
                     wabou_shell::gpui::px(40.0),
                 ),
             },
+            content_bounds: wabou_shell::gpui::Bounds {
+                origin: wabou_shell::gpui::point(
+                    wabou_shell::gpui::px(10.0),
+                    wabou_shell::gpui::px(20.0),
+                ),
+                size: wabou_shell::gpui::size(
+                    wabou_shell::gpui::px(100.0),
+                    wabou_shell::gpui::px(40.0),
+                ),
+            },
             classes: Vec::new(),
             style_diagnostics: Vec::new(),
             listeners: Vec::new(),

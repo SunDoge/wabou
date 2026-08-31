@@ -1402,6 +1402,7 @@ impl GpuiController {
             .projection
             .layout_snapshot()
             .into_iter()
+            .filter(|node| node.attached)
             .map(|node| gpui_debug_node(node, metrics.scale_factor))
             .collect::<Vec<_>>();
         let frame_stats = self
@@ -1478,6 +1479,12 @@ fn gpui_debug_node(
         width,
         height,
     };
+    let content_rect = wabou_devtools::Rect {
+        x: f32::from(node.content_bounds.origin.x),
+        y: f32::from(node.content_bounds.origin.y),
+        width: f32::from(node.content_bounds.size.width).max(0.0),
+        height: f32::from(node.content_bounds.size.height).max(0.0),
+    };
     let tag = match &node.kind {
         wabou_shell::ProjectedNodeKind::Root => "root".to_owned(),
         wabou_shell::ProjectedNodeKind::Element(tag) => tag.to_string(),
@@ -1504,7 +1511,7 @@ fn gpui_debug_node(
             .map(|(name, value)| (name.to_string(), value.to_string()))
             .collect(),
         rect: rect.clone(),
-        content_rect: rect,
+        content_rect,
         listeners: node.listeners,
         focusable: node.focus_order.is_some(),
         focus_order: node.focus_order,

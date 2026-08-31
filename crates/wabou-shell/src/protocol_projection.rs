@@ -83,6 +83,7 @@ pub struct GpuiLayoutNode {
         std::collections::BTreeMap<crate::gpui::SharedString, crate::gpui::SharedString>,
     pub text: Option<crate::gpui::SharedString>,
     pub bounds: crate::gpui::Bounds<crate::gpui::Pixels>,
+    pub content_bounds: crate::gpui::Bounds<crate::gpui::Pixels>,
     pub classes: Vec<String>,
     pub style_diagnostics: Vec<String>,
     pub listeners: Vec<u8>,
@@ -841,6 +842,37 @@ impl GpuiProjection {
             .filter_map(|key| {
                 let node = self.tree.node(key)?;
                 let node_bounds = bounds.get(&key).copied().unwrap_or_default();
+                let padding = node
+                    .style
+                    .padding
+                    .to_pixels(node_bounds.size.into(), crate::gpui::px(16.0));
+                let content_bounds = crate::gpui::Bounds::new(
+                    node_bounds.origin + crate::gpui::point(padding.left, padding.top),
+                    crate::gpui::size(
+                        (node_bounds.size.width - padding.left - padding.right)
+                            .max(crate::gpui::Pixels::ZERO),
+                        (node_bounds.size.height - padding.top - padding.bottom)
+                            .max(crate::gpui::Pixels::ZERO),
+                    ),
+                );
+                let attached = if node.attached {
+                    let mut parent = node.parent;
+                    let mut reachable = true;
+                    while let Some(parent_key) = parent {
+                        let Some(ancestor) = tree.node(parent_key) else {
+                            reachable = false;
+                            break;
+                        };
+                        if !ancestor.attached {
+                            reachable = false;
+                            break;
+                        }
+                        parent = ancestor.parent;
+                    }
+                    reachable
+                } else {
+                    false
+                };
                 let mut style_diagnostics = self
                     .style_diagnostics
                     .get(&key)
@@ -852,7 +884,7 @@ impl GpuiProjection {
                         node.transform
                     ));
                 }
-                if node.attached
+                if attached
                     && matches!(
                     &node.kind,
                     ProjectedNodeKind::Element(tag) if tag.as_ref() == "svg"
@@ -900,7 +932,7 @@ impl GpuiProjection {
                     key,
                     kind: node.kind.clone(),
                     parent: node.parent,
-                    attached: node.attached,
+                    attached,
                     attributes: node.attributes.clone(),
                     // Publish the same effective string GPUI shapes. Direct
                     // protocol text leaves remain in the snapshot for exact
@@ -912,6 +944,7 @@ impl GpuiProjection {
                     // A zero rectangle is more useful than silently deleting
                     // the node (and potentially its parent) from diagnostics.
                     bounds: node_bounds,
+                    content_bounds,
                     classes: self.classes.get(&key).cloned().unwrap_or_default(),
                     style_diagnostics,
                     listeners: node.listeners.iter().copied().collect(),
@@ -2538,6 +2571,70 @@ mod tests {
             )
             .unwrap();
         assert!(projection.native_widgets(|tag| tag == "fractal").is_empty());
+    }
+
+    #[test]
+    fn layout_snapshot_marks_descendants_of_detached_roots_unreachable() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::CreateElement {
+                            id: key(3),
+                            tag: view,
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(2),
+                        },
+                        Op::AppendChild {
+                            parent: key(2),
+                            child: key(3),
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 2,
+                    ops: vec![Op::RemoveChild {
+                        parent: NodeKey::ROOT,
+                        child: key(2),
+                    }],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        let snapshot = projection.layout_snapshot();
+        assert!(
+            !snapshot
+                .iter()
+                .find(|node| node.key == key(2))
+                .unwrap()
+                .attached
+        );
+        assert!(
+            !snapshot
+                .iter()
+                .find(|node| node.key == key(3))
+                .unwrap()
+                .attached,
+            "a locally attached child is not rendered when its ancestor is detached"
+        );
     }
 
     #[test]

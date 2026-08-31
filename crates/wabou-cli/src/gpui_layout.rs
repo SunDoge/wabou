@@ -240,6 +240,12 @@ fn node_value(node: &GpuiLayoutNode) -> serde_json::Value {
         "width": f32::from(node.bounds.size.width),
         "height": f32::from(node.bounds.size.height),
     });
+    let content_rect = json!({
+        "x": f32::from(node.content_bounds.origin.x),
+        "y": f32::from(node.content_bounds.origin.y),
+        "width": f32::from(node.content_bounds.size.width),
+        "height": f32::from(node.content_bounds.size.height),
+    });
     let attrs = node
         .attributes
         .iter()
@@ -260,7 +266,7 @@ fn node_value(node: &GpuiLayoutNode) -> serde_json::Value {
         "classes": node.classes,
         "attrs": attrs,
         "rect": rect,
-        "contentRect": rect,
+        "contentRect": content_rect,
         "styleDiagnostics": node.style_diagnostics,
         "semantic": semantic,
         "computed": {
