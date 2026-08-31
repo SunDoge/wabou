@@ -13,6 +13,7 @@ use crate::{
     ProjectedPointerEvent, ProjectedPointerPhase, ProjectedTextInputState, ProjectedWheelEvent,
     ProjectedWheelPhase, ProjectionError, ProjectionTree,
 };
+use wabou_protocol::{TEXT_BEHAVIOR_AGGREGATE_DIRECT, TEXT_BEHAVIOR_AGGREGATE_STYLED};
 
 /// Produces a GPUI-owned native control for a retained Wabou node.
 ///
@@ -76,13 +77,20 @@ impl ProjectedElement {
             Vec::with_capacity(node.children.len() + usize::from(node.text.is_some()));
         if let Some(native_child) = native_child {
             children.push(native_child);
-        } else if let Some(text) = projected_text(node) {
-            children.push(div().child(text.clone()).into_any_element());
+        } else if let Some(text) = projected_text(tree, node) {
+            children.push(div().child(text).into_any_element());
         }
         if let Some(image) = &node.image {
             children.push(gpui::img(image.clone()).size_full().into_any_element());
         }
         for child in &node.children {
+            if node.text_behavior & TEXT_BEHAVIOR_AGGREGATE_DIRECT != 0
+                && tree
+                    .node(*child)
+                    .is_some_and(|child| child.kind == ProjectedNodeKind::Text)
+            {
+                continue;
+            }
             let projected =
                 Self::from_tree(tree, *child, context.for_child(), interaction_blocked)?;
             let priority = tree
@@ -126,8 +134,29 @@ impl ProjectedElement {
     }
 }
 
-fn projected_text(node: &ProjectedNode) -> Option<&gpui::SharedString> {
-    node.text.as_ref().or_else(|| {
+fn projected_text(tree: &ProjectionTree, node: &ProjectedNode) -> Option<gpui::SharedString> {
+    if let Some(text) = &node.text {
+        return Some(text.clone());
+    }
+    if node.text_behavior & TEXT_BEHAVIOR_AGGREGATE_DIRECT != 0
+        && node.text_behavior & TEXT_BEHAVIOR_AGGREGATE_STYLED == 0
+    {
+        let mut text = String::new();
+        for child in &node.children {
+            let Some(child) = tree.node(*child) else {
+                continue;
+            };
+            if child.kind == ProjectedNodeKind::Text {
+                if let Some(value) = &child.text {
+                    text.push_str(value);
+                }
+            }
+        }
+        if !text.is_empty() {
+            return Some(text.into());
+        }
+    }
+    {
         let ProjectedNodeKind::Element(tag) = &node.kind else {
             return None;
         };
@@ -139,7 +168,8 @@ fn projected_text(node: &ProjectedNode) -> Option<&gpui::SharedString> {
                     .or_else(|| node.attributes.get("placeholder"))
             })
             .flatten()
-    })
+            .cloned()
+    }
 }
 
 fn key_event(
@@ -510,16 +540,62 @@ mod tests {
         tree.update_attribute(key, "placeholder".into(), "Search".into())
             .unwrap();
         assert_eq!(
-            projected_text(tree.node(key).unwrap()).map(AsRef::as_ref),
-            Some("Search")
+            projected_text(&tree, tree.node(key).unwrap()),
+            Some("Search".into())
         );
 
         tree.update_attribute(key, "value".into(), "typed".into())
             .unwrap();
         assert_eq!(
-            projected_text(tree.node(key).unwrap()).map(AsRef::as_ref),
-            Some("typed")
+            projected_text(&tree, tree.node(key).unwrap()),
+            Some("typed".into())
         );
+    }
+
+    #[test]
+    fn aggregate_direct_text_is_one_gpui_text_run() {
+        let parent = NodeKey::new(29, 1);
+        let first = NodeKey::new(30, 1);
+        let second = NodeKey::new(31, 1);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            parent,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("text".into()),
+        )
+        .unwrap();
+        tree.insert(
+            first,
+            Some(parent),
+            0,
+            Style::default(),
+            Some("Hello ".into()),
+            crate::ProjectedNodeKind::Text,
+        )
+        .unwrap();
+        tree.insert(
+            second,
+            Some(parent),
+            1,
+            Style::default(),
+            Some("GPUI".into()),
+            crate::ProjectedNodeKind::Text,
+        )
+        .unwrap();
+        tree.update_text_behavior(parent, TEXT_BEHAVIOR_AGGREGATE_DIRECT)
+            .unwrap();
+
+        assert_eq!(
+            projected_text(&tree, tree.node(parent).unwrap()),
+            Some("Hello GPUI".into())
+        );
+        let element =
+            ProjectedElement::from_tree(&tree, parent, ProjectedElementContext::default(), false)
+                .unwrap();
+        assert_eq!(element.children.len(), 1);
     }
 
     #[test]

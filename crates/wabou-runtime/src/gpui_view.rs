@@ -838,6 +838,7 @@ impl Render for GpuiRuntimeView {
                 gpui_shell::NativeWidgetContext::new(
                     widget.key,
                     &widget.attributes,
+                    widget.config.as_deref(),
                     self.native_widget_entities.get(&widget.key),
                 ),
                 window,

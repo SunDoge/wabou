@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use gpui::{SharedString, Style};
+use wabou_protocol::TEXT_BEHAVIOR_SINGLE_LINE;
 
 use crate::element::ProjectedElementContext;
 use crate::{
@@ -33,6 +34,14 @@ pub struct ProjectedNode {
     pub children: Vec<NodeKey>,
     pub style: Style,
     pub text: Option<SharedString>,
+    /// Raw structured configuration authored for an application-defined
+    /// native widget. The protocol owns validation and transport; the widget
+    /// factory decides how to deserialize its typed configuration.
+    pub widget_config: Option<SharedString>,
+    /// Explicit text assembly policy emitted by the JavaScript primitive.
+    pub text_behavior: u8,
+    /// Maximum visible lines. Zero means unlimited.
+    pub text_max_lines: u32,
     /// Optional GPUI-owned display asset projected from a graphic source.
     pub image: Option<std::sync::Arc<gpui::Image>>,
     /// Runtime affine transform emitted by the Solid renderer. GPUI currently
@@ -218,6 +227,9 @@ impl ProjectionTree {
                 children: Vec::new(),
                 style,
                 text,
+                widget_config: None,
+                text_behavior: 0,
+                text_max_lines: 0,
                 image: None,
                 transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
                 attributes: BTreeMap::new(),
@@ -356,6 +368,53 @@ impl ProjectionTree {
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?
             .text = text;
+        self.dirty
+            .invalidate(key, DirtyKind::TEXT | DirtyKind::LAYOUT | DirtyKind::PAINT);
+        self.invalidate_layout_ancestors(key);
+        Ok(())
+    }
+
+    pub fn update_widget_config(
+        &mut self,
+        key: NodeKey,
+        config: Option<SharedString>,
+    ) -> Result<(), ProjectionError> {
+        self.nodes
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?
+            .widget_config = config;
+        self.dirty.invalidate(
+            key,
+            DirtyKind::LAYOUT | DirtyKind::PAINT | DirtyKind::SEMANTICS,
+        );
+        Ok(())
+    }
+
+    pub fn update_text_behavior(&mut self, key: NodeKey, flags: u8) -> Result<(), ProjectionError> {
+        let node = self
+            .nodes
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?;
+        node.text_behavior = flags;
+        node.style.text.white_space =
+            (flags & TEXT_BEHAVIOR_SINGLE_LINE != 0).then_some(gpui::WhiteSpace::Nowrap);
+        self.dirty
+            .invalidate(key, DirtyKind::TEXT | DirtyKind::LAYOUT | DirtyKind::PAINT);
+        self.invalidate_layout_ancestors(key);
+        Ok(())
+    }
+
+    pub fn update_text_max_lines(
+        &mut self,
+        key: NodeKey,
+        max_lines: u32,
+    ) -> Result<(), ProjectionError> {
+        let node = self
+            .nodes
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?;
+        node.text_max_lines = max_lines;
+        node.style.text.line_clamp = usize::try_from(max_lines).ok().filter(|lines| *lines > 0);
         self.dirty
             .invalidate(key, DirtyKind::TEXT | DirtyKind::LAYOUT | DirtyKind::PAINT);
         self.invalidate_layout_ancestors(key);

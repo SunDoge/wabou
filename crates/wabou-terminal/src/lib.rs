@@ -381,7 +381,12 @@ mod tests {
         let (_view, _cx) = cx.add_window_view(move |window, cx| {
             let attributes = BTreeMap::new();
             let first = factory(
-                NativeWidgetContext::new(wabou_host_api::NodeKey::new(9, 2), &attributes, None),
+                NativeWidgetContext::new(
+                    wabou_host_api::NodeKey::new(9, 2),
+                    &attributes,
+                    None,
+                    None,
+                ),
                 window,
                 cx,
             );
@@ -392,6 +397,7 @@ mod tests {
                 NativeWidgetContext::new(
                     wabou_host_api::NodeKey::new(9, 2),
                     &attributes,
+                    None,
                     Some(&retained),
                 ),
                 window,

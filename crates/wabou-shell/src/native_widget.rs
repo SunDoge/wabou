@@ -14,6 +14,7 @@ use crate::NodeKey;
 pub struct NativeWidgetContext<'a> {
     key: NodeKey,
     attributes: &'a BTreeMap<SharedString, SharedString>,
+    config: Option<&'a str>,
     entity: Option<&'a AnyEntity>,
 }
 
@@ -22,11 +23,13 @@ impl<'a> NativeWidgetContext<'a> {
     pub fn new(
         key: NodeKey,
         attributes: &'a BTreeMap<SharedString, SharedString>,
+        config: Option<&'a str>,
         entity: Option<&'a AnyEntity>,
     ) -> Self {
         Self {
             key,
             attributes,
+            config,
             entity,
         }
     }
@@ -48,6 +51,15 @@ impl<'a> NativeWidgetContext<'a> {
         self.attributes
             .iter()
             .map(|(name, value)| (name.as_ref(), value.as_ref()))
+    }
+
+    /// Return the validated JSON payload authored through `widgetConfig`.
+    ///
+    /// Wabou deliberately keeps this transport representation opaque here:
+    /// application widgets can deserialize directly into their own DTO type.
+    #[must_use]
+    pub fn config_json(&self) -> Option<&str> {
+        self.config
     }
 
     /// Recover the stable GPUI entity retained for this node, when its type
@@ -115,11 +127,13 @@ mod tests {
             (SharedString::from("iterations"), SharedString::from("96")),
         ]);
 
-        let context = NativeWidgetContext::new(key, &attributes, None);
+        let context =
+            NativeWidgetContext::new(key, &attributes, Some(r#"{"iterations":96}"#), None);
 
         assert_eq!(context.key(), key);
         assert_eq!(context.attribute("center-x"), Some("-0.745"));
         assert_eq!(context.attribute("missing"), None);
+        assert_eq!(context.config_json(), Some(r#"{"iterations":96}"#));
         assert_eq!(
             context.attributes().collect::<Vec<_>>(),
             [("center-x", "-0.745"), ("iterations", "96")]
@@ -136,7 +150,7 @@ mod tests {
             let retained = entity.clone().into_any();
             let attributes = BTreeMap::new();
             let context =
-                NativeWidgetContext::new(NodeKey::new(3, 4), &attributes, Some(&retained));
+                NativeWidgetContext::new(NodeKey::new(3, 4), &attributes, None, Some(&retained));
 
             let recovered = context
                 .entity::<TerminalState>()

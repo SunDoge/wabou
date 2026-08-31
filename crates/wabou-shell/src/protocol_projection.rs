@@ -12,7 +12,7 @@ use wabou_style::{IrColor, IrLength, IrValue};
 
 use wabou_protocol::{
     AtomPool, Frame, GRAPHIC_SOURCE_RESOURCE_RASTER, GRAPHIC_SOURCE_SVG, Op, ShadowValue,
-    StyleValue,
+    StyleValue, TEXT_BEHAVIOR_SINGLE_LINE,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -31,6 +31,7 @@ pub struct GpuiNativeWidget {
     pub tag: crate::gpui::SharedString,
     pub attributes:
         std::collections::BTreeMap<crate::gpui::SharedString, crate::gpui::SharedString>,
+    pub config: Option<crate::gpui::SharedString>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -157,6 +158,18 @@ impl GpuiProjection {
                 Op::RemoveChild { child, .. } => self.tree.detach(*child)?,
                 Op::SetText { id, text } => {
                     self.tree.update_text(*id, Some((*text).into()))?;
+                }
+                Op::SetWidgetConfig { id, json } => {
+                    self.tree.update_widget_config(*id, Some((*json).into()))?;
+                }
+                Op::RemoveWidgetConfig { id } => {
+                    self.tree.update_widget_config(*id, None)?;
+                }
+                Op::SetTextBehavior { id, flags } => {
+                    self.tree.update_text_behavior(*id, *flags)?;
+                }
+                Op::SetTextMaxLines { id, max_lines } => {
+                    self.tree.update_text_max_lines(*id, *max_lines)?;
                 }
                 Op::SetAttribute { id, name, value } => {
                     if let Some(name) = atoms.resolve(*name) {
@@ -348,6 +361,7 @@ impl GpuiProjection {
                     key,
                     tag: tag.clone(),
                     attributes: node.attributes.clone(),
+                    config: node.widget_config.clone(),
                 });
             }
         }
@@ -667,7 +681,16 @@ impl GpuiProjection {
         } else {
             self.style_diagnostics.insert(key, diagnostics);
         }
-        self.update_style(key, projection.into_style())
+        let mut style = projection.into_style();
+        if let Some(node) = self.tree.node(key) {
+            style.text.line_clamp = usize::try_from(node.text_max_lines)
+                .ok()
+                .filter(|lines| *lines > 0);
+            if node.text_behavior & TEXT_BEHAVIOR_SINGLE_LINE != 0 {
+                style.text.white_space = Some(crate::gpui::WhiteSpace::Nowrap);
+            }
+        }
+        self.update_style(key, style)
     }
 
     #[cfg(test)]
@@ -1614,6 +1637,10 @@ mod tests {
                             name: center_x,
                             value: "-0.745",
                         },
+                        Op::SetWidgetConfig {
+                            id: recreated,
+                            json: r#"{"iterations":96}"#,
+                        },
                         Op::AppendChild {
                             parent: NodeKey::ROOT,
                             child: recreated,
@@ -1641,11 +1668,27 @@ mod tests {
             widgets[0].attributes.get("center-x").map(AsRef::as_ref),
             Some("-0.745")
         );
+        assert_eq!(widgets[0].config.as_deref(), Some(r#"{"iterations":96}"#));
 
         projection
             .apply_ops(
                 &Frame {
                     seq: 2,
+                    ops: vec![Op::RemoveWidgetConfig { id: recreated }],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        assert_eq!(
+            projection.native_widgets(|tag| tag == "fractal")[0].config,
+            None
+        );
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 3,
                     ops: vec![Op::RemoveChild {
                         parent: NodeKey::ROOT,
                         child: recreated,
@@ -1656,5 +1699,49 @@ mod tests {
             )
             .unwrap();
         assert!(projection.native_widgets(|tag| tag == "fractal").is_empty());
+    }
+
+    #[test]
+    fn text_protocol_projects_gpui_native_wrapping_and_line_clamp() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let text = atoms.intern("text");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: text,
+                        },
+                        Op::SetTextBehavior {
+                            id: key(2),
+                            flags: wabou_protocol::TEXT_BEHAVIOR_AGGREGATE_DIRECT
+                                | wabou_protocol::TEXT_BEHAVIOR_SINGLE_LINE,
+                        },
+                        Op::SetTextMaxLines {
+                            id: key(2),
+                            max_lines: 1,
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        let node = projection.tree().node(key(2)).unwrap();
+        assert_eq!(
+            node.text_behavior,
+            wabou_protocol::TEXT_BEHAVIOR_AGGREGATE_DIRECT
+                | wabou_protocol::TEXT_BEHAVIOR_SINGLE_LINE
+        );
+        assert_eq!(node.text_max_lines, 1);
+        assert_eq!(node.style.text.line_clamp, Some(1));
+        assert_eq!(
+            node.style.text.white_space,
+            Some(crate::gpui::WhiteSpace::Nowrap)
+        );
     }
 }
