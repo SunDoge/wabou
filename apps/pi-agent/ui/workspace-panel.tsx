@@ -42,26 +42,26 @@ const extension = (path: string) => path.split(".").at(-1)?.toLowerCase();
 export function WorkspacePanel(props: WorkspacePanelProps) {
   const [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal("");
-  const [preview, setPreview] = createSignal<WorkspaceFilePreview>();
-  const [previewLoading, setPreviewLoading] = createSignal(false);
-  const [previewError, setPreviewError] = createSignal("");
-  let previewRevision = 0;
   let currentCwd: string | undefined;
 
   const files = createLatestAsyncResource({
     source: () => props.cwd,
     load: (cwd) => props.loadFiles(cwd),
   });
+  const previewKey = createMemo<readonly [string, string] | undefined>(() => {
+    const path = selected();
+    return path ? [props.cwd, path] : undefined;
+  });
+  const preview = createLatestAsyncResource({
+    source: previewKey,
+    load: ([cwd, path]) => props.readFile(cwd, path),
+  });
   createEffect(
     () => props.cwd,
     (cwd) => {
       if (cwd === currentCwd) return;
       currentCwd = cwd;
-      previewRevision++;
       setSelected("");
-      setPreview(undefined);
-      setPreviewLoading(false);
-      setPreviewError("");
     },
   );
 
@@ -82,22 +82,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
   );
 
   const choose = (path: string) => {
-    const revision = ++previewRevision;
     setSelected(path);
-    setPreview(undefined);
-    setPreviewLoading(true);
-    setPreviewError("");
-    void props
-      .readFile(props.cwd, path)
-      .then((next) => {
-        if (revision === previewRevision) setPreview(next);
-      })
-      .catch((reason) => {
-        if (revision === previewRevision) setPreviewError(String(reason));
-      })
-      .finally(() => {
-        if (revision === previewRevision) setPreviewLoading(false);
-      });
   };
 
   return (
@@ -177,24 +162,34 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
         </View>
         <View class="flex-1 min-h-0 flex flex-col gap-2">
           <Switch>
-            <Match when={previewError()}>
+            <Match when={preview.error()}>
               {(error) => (
                 <WorkbenchInspectorState
                   state="error"
                   title={i18n.message(m.file_preview_failed, {})}
                   description={String(error())}
                   class="p-4"
+                  renderAction={() => (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label={i18n.message(m.retry, {})}
+                      onClick={() => void preview.refresh()}
+                    >
+                      {i18n.message(m.retry, {})}
+                    </Button>
+                  )}
                 />
               )}
             </Match>
-            <Match when={previewLoading()}>
+            <Match when={preview.loading()}>
               <WorkbenchInspectorState
                 state="loading"
                 title={i18n.message(m.loading_file_preview, {})}
                 class="p-4"
               />
             </Match>
-            <Match when={preview()}>
+            <Match when={preview.value()}>
               {(value) => (
                 <>
                   <View class="flex-none flex flex-row items-center justify-between gap-2">
