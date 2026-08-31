@@ -35,7 +35,7 @@ Wabou explores a narrower combination:
 - SolidJS signals and JSX for application state and composition;
 - QuickJS as a small, embeddable JavaScript runtime;
 - a compact binary protocol instead of a DOM or JSON bridge;
-- retained layout with Taffy and GPU rendering with Vello;
+- a retained projection into GPUI-CE for layout, text, painting, and input;
 - Rust for windows, input, text, native widgets, and platform integration;
 - Vite HMR and an inspector for a short development loop.
 
@@ -152,7 +152,7 @@ Solid signals + JSX
 Solid universal renderer
         │ compact binary operations
         ▼
-QuickJS ───────────────► Rust host ──► Taffy layout ──► Vello / native widgets
+QuickJS ───────────────► Rust host ──► retained GPUI-CE elements
    ▲                         │
    └──── input, timers, and host events ───────────────┘
 ```

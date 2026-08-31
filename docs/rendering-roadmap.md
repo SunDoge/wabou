@@ -8,8 +8,9 @@ would imply compatible implementations where none exist.
 Backend behavior was first evaluated with the isolated
 [`experiments/anyrender-backends`](../experiments/anyrender-backends/README.md)
 harness. That AnyRender implementation now lives under explicitly named
-`wabou-legacy-*` crates and remains useful only as a migration oracle,
-headless fixture renderer, and focused backend comparison.
+`wabou-legacy-*` crates and remains useful only as a migration oracle and
+focused backend comparison. Formal layout fixtures run through GPUI itself;
+the CLI never falls back to the retired renderer.
 
 ## Deferred work
 

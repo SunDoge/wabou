@@ -171,7 +171,10 @@ The command selects the application's `layout-test` bundle and reuses the
 fixture's declared viewport, device scale, and settling time. The PNG and
 DevTools snapshot therefore describe the same frame used by layout contracts.
 Use this for focused visual review after component behavior and geometry tests
-pass; it is not a replacement for those deterministic assertions.
+pass; it is not a replacement for those deterministic assertions. Pixel
+capture is available only on GPUI platforms that expose a headless renderer.
+There is deliberately no fallback to the retired Winit/Vello renderer; use
+`wabou layout` when only structured geometry is required.
 
 ## Run and package
 

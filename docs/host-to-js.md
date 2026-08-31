@@ -396,7 +396,8 @@ Promises with `HostClosedError` and disconnects producer handles.
 
 These invariants are mandatory:
 
-1. no guest call while Taffy/Parley/AnyRender or a widget is mutably borrowed;
+1. no guest call while the GPUI projection, a retained entity, or a widget is
+   mutably borrowed;
 2. no Host frame dispatch from inside `__wabou_flush`;
 3. handlers may enqueue mutation ops, but Rust applies them only after guest
    dispatch returns and the bounded JS tick flushes;

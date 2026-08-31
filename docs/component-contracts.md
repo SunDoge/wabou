@@ -106,9 +106,9 @@ metadata therefore cannot hide visual chrome on native content.
 
 ## Layout contract tests
 
-`wabou layout` evaluates the application through QuickJS, Style IR, real text
-measurement, and Taffy, then stops before AnyRender scene construction or GPU
-initialization:
+`wabou layout` evaluates the application through QuickJS and Style IR, then
+runs GPUI's real layout and prepaint pass in a hidden test window. It does not
+use the retired Winit/Vello implementation:
 
 ```bash
 wabou layout apps/gallery --out /tmp/gallery-layout.json \
@@ -179,7 +179,8 @@ defineLayoutFixtures({
 ```
 
 Select that entry from `defineWabouConfig` for a Vite mode, then run all cases
-through one release CLI and one QuickJS runtime:
+through one release CLI. Every fixture receives an isolated GPUI/QuickJS
+runtime so retained state cannot leak between cases:
 
 ```ts
 import { renderLayoutFixtures } from "@wabou/test/layout/node";
@@ -262,10 +263,11 @@ Use the cheapest layer that can prove the property:
 
 1. Vitest component tests: state, events, roles and anatomy ownership.
 2. protocol/style tests: candidate resolution and computed declarations.
-3. TS layout contracts: QuickJS + Style IR + Taffy geometry, overflow and
-   collisions without a scene or GPU.
+3. TS layout contracts: QuickJS + Style IR + GPUI geometry, overflow and
+   collisions without a visible platform window.
 4. native layout fixtures: lower-level geometry, clipping and scroll ranges.
-5. headless captures: pixels, text containment and real native widgets.
+5. GPUI headless captures where the platform exposes a pixel renderer: pixels,
+   text containment and real native widgets.
 6. platform captures: backend-specific and HiDPI claims.
 
 Every reusable styled component should have a component test. Components that
