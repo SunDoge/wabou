@@ -311,6 +311,11 @@ export const INLINE_STYLE_CONTRACT = {
     number: false,
     typed: [],
   },
+  "text-decoration-line": {
+    string: true,
+    number: false,
+    typed: [],
+  },
   "text-overflow": {
     string: true,
     number: false,

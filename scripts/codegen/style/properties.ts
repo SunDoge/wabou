@@ -133,6 +133,10 @@ add(["font-style"], {
   string: true,
   number: false,
 });
+add(["text-decoration-line"], {
+  string: true,
+  number: false,
+});
 add(["letter-spacing"], {
   string: true,
   number: true,

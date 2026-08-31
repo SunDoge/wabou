@@ -2293,6 +2293,15 @@
         }
       }
     ],
+    "line-through": [
+      {
+        "property": "text-decoration-line",
+        "value": {
+          "type": "keyword",
+          "value": "line-through"
+        }
+      }
+    ],
     "max-w-2xl": [
       {
         "property": "max-width",
@@ -2422,6 +2431,15 @@
             "unit": "px",
             "value": 320.0
           }
+        }
+      }
+    ],
+    "no-underline": [
+      {
+        "property": "text-decoration-line",
+        "value": {
+          "type": "keyword",
+          "value": "none"
         }
       }
     ],
@@ -4718,6 +4736,15 @@
         "value": {
           "type": "keyword",
           "value": "ellipsis"
+        }
+      }
+    ],
+    "underline": [
+      {
+        "property": "text-decoration-line",
+        "value": {
+          "type": "keyword",
+          "value": "underline"
         }
       }
     ],

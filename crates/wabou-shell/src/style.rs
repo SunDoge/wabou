@@ -1,8 +1,8 @@
 use gpui::{
     AbsoluteLength, AlignContent, AlignItems, BoxShadow, CursorStyle, DefiniteLength, Display,
     FlexDirection, FlexWrap, FontStyle, FontWeight, GridPlacement, GridTemplate,
-    GridTemplateMinSize, Hsla, Length, Overflow, Position, Style, TextAlign, TextOverflow,
-    Visibility, WhiteSpace,
+    GridTemplateMinSize, Hsla, Length, Overflow, Position, StrikethroughStyle, Style, TextAlign,
+    TextOverflow, UnderlineStyle, Visibility, WhiteSpace,
 };
 use wabou_style::{Color, Declaration, Length as IrLength, Value};
 
@@ -291,6 +291,27 @@ impl StyleProjection {
                     _ => return Err(invalid(property)),
                 });
             }
+            "text-decoration-line" => match keyword(value) {
+                Some("none") => {
+                    self.style.text.underline = None;
+                    self.style.text.strikethrough = None;
+                }
+                Some("underline") => {
+                    self.style.text.underline = Some(UnderlineStyle {
+                        thickness: gpui::px(1.0),
+                        ..Default::default()
+                    });
+                    self.style.text.strikethrough = None;
+                }
+                Some("line-through") => {
+                    self.style.text.underline = None;
+                    self.style.text.strikethrough = Some(StrikethroughStyle {
+                        thickness: gpui::px(1.0),
+                        ..Default::default()
+                    });
+                }
+                _ => return Err(invalid(property)),
+            },
             "letter-spacing" => {
                 self.style.text.letter_spacing = Some(match value {
                     Value::Keyword { value } if value == "normal" => gpui::px(0.0),
@@ -876,6 +897,7 @@ mod tests {
             declaration("opacity", Value::Number { value: 0.6 }),
             declaration("font-family", keyword_value("monospace")),
             declaration("font-style", keyword_value("italic")),
+            declaration("text-decoration-line", keyword_value("underline")),
             declaration("letter-spacing", length_value(IrLength::Px { value: 0.5 })),
             declaration("white-space", keyword_value("nowrap")),
             declaration("text-overflow", keyword_value("ellipsis")),
@@ -894,6 +916,14 @@ mod tests {
             Some(".SystemUIFontMonospaced")
         );
         assert_eq!(style.text.font_style, Some(FontStyle::Italic));
+        assert_eq!(
+            style.text.underline,
+            Some(UnderlineStyle {
+                thickness: gpui::px(1.0),
+                ..Default::default()
+            })
+        );
+        assert_eq!(style.text.strikethrough, None);
         assert_eq!(style.text.letter_spacing, Some(gpui::px(0.5)));
         assert_eq!(style.text.white_space, Some(WhiteSpace::Nowrap));
         assert_eq!(

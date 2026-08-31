@@ -720,6 +720,18 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("italic", vec![keyword("font-style", "italic")]),
         ("not-italic", vec![keyword("font-style", "normal")]),
         (
+            "underline",
+            vec![keyword("text-decoration-line", "underline")],
+        ),
+        (
+            "line-through",
+            vec![keyword("text-decoration-line", "line-through")],
+        ),
+        (
+            "no-underline",
+            vec![keyword("text-decoration-line", "none")],
+        ),
+        (
             "text-xs",
             vec![
                 length("font-size", Length::Px { value: 12.0 }),
