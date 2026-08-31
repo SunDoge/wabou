@@ -29,17 +29,38 @@ use wabou::gpui::{IntoElement as _, Styled as _};
 
 # fn host() -> HostBuilder {
 HostBuilder::new().native_widget("meter", |context, _window, _cx| {
-    let value = context.attribute("value").unwrap_or("0");
+    let config = context.config_json().unwrap_or(r#"{"value":0}"#);
     gpui::div()
         .size_full()
-        .child(format!("Value: {value}"))
+        .child(format!("Config: {config}"))
         .into_any_element()
 })
 # }
 ```
 
-Attributes are explicit widget input. Wabou does not infer an HTML element or
-CSS behavior from the tag name.
+On the Solid side, mount the matching public `NativeWidget` primitive. Prefer
+one typed application component around it so callers never repeat the tag or
+transport shape:
+
+```tsx
+import { NativeWidget } from "@wabou/ui";
+
+export function Meter(props: { value: number; onChange(value: number): void }) {
+  return (
+    <NativeWidget
+      tag="meter"
+      role="slider"
+      aria-label="Meter"
+      config={{ value: props.value }}
+      onChange={(event) => props.onChange(event.value)}
+    />
+  );
+}
+```
+
+`config` is the complete typed authored snapshot. Ordinary attributes remain
+available for lightweight string metadata and semantics. Wabou does not infer
+an HTML element or CSS behavior from the tag name.
 
 ## Stateful widgets
 
@@ -85,6 +106,12 @@ halves of the `NodeKey` participate in identity.
 - GPUI owns element layout, paint, input, focus, text, and entity updates.
 - Shared resources that outlive one node belong in an application store keyed
   by typed Wabou resource handles or another explicit application identity.
+
+Native callbacks use `context.events()` to send activation, numeric change,
+text input, focus, selection, and submit events through the same typed event
+path as built-in controls. Controlled components send their next complete
+`config` snapshot back on the following Solid flush; widgets do not need a
+second JSON capability or application-specific channel for this loop.
 
 The widget receives `&mut Window` and `&mut App`, so it can use normal GPUI
 facilities directly. It must not retain either reference. Use a retained entity,

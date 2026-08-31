@@ -1,12 +1,11 @@
-import { createElement, spread } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import { createSignal, type JSX } from "solid-js";
 import {
   createNativeLoopAnimation,
   createSweep,
   useReducedMotion,
 } from "../animation";
-import { createMeasuredSize, Text, View } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
+import { createMeasuredSize, NativeWidget, Text, View } from "../primitives";
 
 export interface SkeletonProps {
   class?: string;
@@ -62,29 +61,16 @@ export function Spinner(props: {
     paused: () => props.paused ?? false,
     reducedMotion,
   });
-  const node = createElement("spinner");
-  spread(
-    node,
-    {
-      get role() {
-        return props.decorative ? undefined : "status";
-      },
-      get "aria-hidden"() {
-        return props.decorative ? true : undefined;
-      },
-      get "aria-label"() {
-        return props.decorative ? undefined : (props.label ?? "Loading");
-      },
-      get class() {
-        return mergeClasses("w-4 h-4 flex-none text-accent", props.class);
-      },
-      get widgetConfig() {
-        return { animation: animation() };
-      },
-    },
-    false,
+  return (
+    <NativeWidget
+      tag="spinner"
+      role={props.decorative ? undefined : "status"}
+      aria-hidden={props.decorative ? true : undefined}
+      aria-label={props.decorative ? undefined : (props.label ?? "Loading")}
+      class={mergeClasses("w-4 h-4 flex-none text-accent", props.class)}
+      config={{ animation: animation() }}
+    />
   );
-  return node as unknown as JSX.Element;
 }
 
 export function Kbd(props: {

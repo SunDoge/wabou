@@ -1,15 +1,11 @@
-import { createElement, spread } from "@wabou/core/renderer";
-import { createSignal, type JSX } from "solid-js";
 import { mergeClasses } from "@wabou/core/style";
+import { createSignal, type JSX } from "solid-js";
+import { NativeWidget } from "../primitives";
 import { decimalPlaces, finiteOr, normalizeRange } from "./range";
 
 interface SliderKeyEvent {
   key: string;
   preventDefault(): void;
-}
-
-interface SliderChangeEvent {
-  value: number;
 }
 
 export interface SliderProps {
@@ -63,52 +59,31 @@ export function Slider(props: SliderProps): JSX.Element {
     event.preventDefault();
   };
 
-  const node = createElement("slider");
-  spread(
-    node,
-    {
-      role: "slider",
-      get "aria-label"() {
-        return props.label;
-      },
-      get "aria-valuemin"() {
-        return min();
-      },
-      get "aria-valuemax"() {
-        return max();
-      },
-      get "aria-valuenow"() {
-        return value();
-      },
-      get "aria-valuetext"() {
-        return props.valueText?.(value()) ?? String(value());
-      },
-      get "aria-disabled"() {
-        return props.disabled ?? false;
-      },
-      get focusOrder() {
-        return props.disabled ? -1 : 0;
-      },
-      get class() {
-        return mergeClasses(
-          "h-7 select-none",
-          props.disabled ? "cursor-not-allowed" : "cursor-pointer",
-          props.class,
-        );
-      },
-      get widgetConfig() {
-        return {
-          min: min(),
-          max: max(),
-          step: step(),
-          value: value(),
-          disabled: props.disabled ?? false,
-        };
-      },
-      onChange: (event: SliderChangeEvent) => update(event.value),
-      onKeyDown,
-    },
-    false,
+  return (
+    <NativeWidget
+      tag="slider"
+      role="slider"
+      aria-label={props.label}
+      aria-valuemin={min()}
+      aria-valuemax={max()}
+      aria-valuenow={value()}
+      aria-valuetext={props.valueText?.(value()) ?? String(value())}
+      aria-disabled={props.disabled ?? false}
+      focusOrder={props.disabled ? -1 : 0}
+      class={mergeClasses(
+        "h-7 select-none",
+        props.disabled ? "cursor-not-allowed" : "cursor-pointer",
+        props.class,
+      )}
+      config={{
+        min: min(),
+        max: max(),
+        step: step(),
+        value: value(),
+        disabled: props.disabled ?? false,
+      }}
+      onChange={(event) => update(event.value)}
+      onKeyDown={onKeyDown}
+    />
   );
-  return node as unknown as JSX.Element;
 }

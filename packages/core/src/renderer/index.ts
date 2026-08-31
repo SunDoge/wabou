@@ -193,6 +193,10 @@ export interface WabouElementProps {
   onImeCommit?: EventHandler<WabouTextCommitEvent>;
   onImeDeleteSurrounding?: EventHandler<WabouImeDeleteSurroundingEvent>;
   onImeDisabled?: EventHandler<WabouNodeEvent>;
+  /** Text committed by a built-in or application-defined native editor. */
+  onInput?: EventHandler<WabouInputEvent>;
+  /** Numeric value committed by a retained native control. */
+  onChange?: EventHandler<WabouValueChangeEvent>;
   onTextSelectionChange?: EventHandler<WabouTextSelectionChangeEvent>;
   onSubmit?: EventHandler<WabouSubmitEvent>;
   /** Preventing this event keeps the native window open. */
@@ -212,7 +216,6 @@ export interface WabouInputProps extends WabouControlProps {
   value?: string;
   placeholder?: string;
   readOnly?: boolean;
-  onInput?: EventHandler<WabouInputEvent>;
 }
 
 export interface WabouImageProps extends WabouElementProps {
@@ -342,6 +345,10 @@ export interface WabouInputEvent extends WabouNodeEvent {
 export interface WabouSubmitEvent extends WabouNodeEvent {
   readonly secondary: boolean;
   readonly shift: boolean;
+}
+
+export interface WabouValueChangeEvent extends WabouNodeEvent {
+  readonly value: number;
 }
 
 export interface WabouTextCommitEvent extends WabouNodeEvent {

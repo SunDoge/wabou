@@ -14,6 +14,7 @@ import {
   Editor,
   Icon,
   Image,
+  NativeWidget,
   PasswordInput,
   RichText,
   Svg,
@@ -498,6 +499,43 @@ describe("host primitives", () => {
       expect(attributes).toContainEqual(["language", "json"]);
       expect(values).toEqual(["next"]);
     }));
+
+  test("projects typed native widget config and numeric changes", () =>
+    createRoot((dispose) => {
+      const configs: string[] = [];
+      const values: Array<number | string> = [];
+      const setWidgetConfig = writer.setWidgetConfig.bind(writer);
+      writer.setWidgetConfig = (_id, config) => configs.push(config);
+      try {
+        const meter = NativeWidget({
+          tag: "meter",
+          role: "slider",
+          config: { min: 0, max: 10, value: 4 },
+          onChange: (event) => values.push(event.value),
+          onInput: (event) => values.push(event.currentTarget.value),
+        }) as unknown as import("@wabou/core/renderer").Handle;
+        dispatchEvent(
+          meter.id,
+          EVENT_CODE.change,
+          JSON.stringify({ value: 7 }),
+        );
+        dispatchEvent(
+          meter.id,
+          EVENT_CODE.input,
+          JSON.stringify({ value: "native text" }),
+        );
+      } finally {
+        writer.setWidgetConfig = setWidgetConfig;
+        dispose();
+      }
+
+      expect(configs).toEqual(['{"min":0,"max":10,"value":4}']);
+      expect(values).toEqual([7, "native text"]);
+    }));
+
+  test("rejects an empty native widget tag", () => {
+    expect(() => NativeWidget({ tag: "", config: {} })).toThrow(TypeError);
+  });
 
   test("batches native editor focus, selection, and history commands through its handle", () => {
     const calls: Array<readonly [string, ...number[]]> = [];

@@ -148,6 +148,21 @@ export interface EditorProps extends Omit<PrimitiveProps, "children"> {
   onInput?: (event: { currentTarget: { value: string } }) => void;
 }
 
+export type NativeWidgetConfig = object | readonly unknown[];
+
+/**
+ * Public boundary for an application-defined retained native widget.
+ *
+ * `tag` selects the Rust factory, `config` is its complete immutable authored
+ * snapshot, and ordinary Wabou event props carry typed native events back to
+ * Solid. Stateful native ownership remains keyed by this node's `NodeKey`.
+ */
+export interface NativeWidgetProps<Config extends NativeWidgetConfig>
+  extends Omit<PrimitiveProps, "children" | "widgetConfig"> {
+  tag: string;
+  config?: Config;
+}
+
 type InternalPrimitiveTag =
   | "view"
   | "text"
@@ -409,4 +424,25 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
 /** General-purpose editor whose document and input lifecycle are owned by GPUI. */
 export function Editor(props: EditorProps): JSX.Element {
   return editorPrimitive("editor", props);
+}
+
+/** Mount an explicitly registered Rust/GPUI widget without web-element semantics. */
+export function NativeWidget<Config extends NativeWidgetConfig = object>(
+  props: NativeWidgetProps<Config>,
+): JSX.Element {
+  const tag = untrack(() => props.tag.trim());
+  if (!tag) throw new TypeError("NativeWidget tag must not be empty");
+  const rest = omit(props, "tag", "config");
+  const node = createElement(tag);
+  spread(node, rest, false);
+  spread(
+    node,
+    {
+      get widgetConfig(): Config | undefined {
+        return props.config;
+      },
+    },
+    false,
+  );
+  return node as unknown as JSX.Element;
 }
