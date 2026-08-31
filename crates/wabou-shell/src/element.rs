@@ -3,15 +3,15 @@ use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 use gpui::{
     AnyElement, App, Bounds, DispatchPhase, Element, ElementId, FocusHandle, GlobalElementId,
     Hitbox, HitboxBehavior, InspectorElementId, IntoElement, KeyDownEvent, KeyUpEvent, LayoutId,
-    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, ScrollDelta,
+    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Overflow, Pixels, ScrollDelta,
     ScrollWheelEvent, TouchPhase, Visibility, Window, div, prelude::*,
 };
 
 use crate::{
     GpuiNodeKeyExt, NodeKey, ProjectedInputEvent, ProjectedInputSink, ProjectedKeyEvent,
     ProjectedKeyPhase, ProjectedNode, ProjectedNodeKind, ProjectedPointerButton,
-    ProjectedPointerEvent, ProjectedPointerPhase, ProjectedTextInputState, ProjectedWheelEvent,
-    ProjectedWheelPhase, ProjectionError, ProjectionTree,
+    ProjectedPointerEvent, ProjectedPointerPhase, ProjectedScrollEvent, ProjectedTextInputState,
+    ProjectedWheelEvent, ProjectedWheelPhase, ProjectionError, ProjectionTree,
 };
 use wabou_protocol::{TEXT_BEHAVIOR_AGGREGATE_DIRECT, TEXT_BEHAVIOR_AGGREGATE_STYLED};
 
@@ -24,6 +24,99 @@ pub type ProjectedNativeElementFactory = Rc<dyn Fn(NodeKey) -> Option<AnyElement
 
 pub(crate) type ProjectedLayoutBounds = Rc<RefCell<BTreeMap<NodeKey, Bounds<Pixels>>>>;
 
+/// Stable scroll state retained independently from GPUI's per-frame elements.
+#[derive(Clone, Debug, Default)]
+pub struct ProjectedScrollHandle(Rc<RefCell<ProjectedScrollState>>);
+
+#[derive(Clone, Copy, Debug, Default)]
+struct ProjectedScrollState {
+    offset: gpui::Point<Pixels>,
+    max_offset: gpui::Point<Pixels>,
+    has_extent: bool,
+}
+
+impl ProjectedScrollHandle {
+    /// Current logical, positive scroll position.
+    pub fn position(&self) -> gpui::Point<Pixels> {
+        let offset = self.0.borrow().offset;
+        gpui::point(-offset.x, -offset.y)
+    }
+
+    /// Set logical scroll coordinates. Non-finite axes retain their old value.
+    pub fn scroll_to(&self, x: f32, y: f32) -> bool {
+        self.update_logical(x, y, false)
+    }
+
+    /// Add logical scroll coordinates. Non-finite axes retain their old value.
+    pub fn scroll_by(&self, x: f32, y: f32) -> bool {
+        self.update_logical(x, y, true)
+    }
+
+    fn update_logical(&self, x: f32, y: f32, relative: bool) -> bool {
+        let mut state = self.0.borrow_mut();
+        let old = state.offset;
+        let current = gpui::point(-state.offset.x, -state.offset.y);
+        let next_x = if x.is_finite() {
+            if relative {
+                f32::from(current.x) + x
+            } else {
+                x
+            }
+        } else {
+            f32::from(current.x)
+        };
+        let next_y = if y.is_finite() {
+            if relative {
+                f32::from(current.y) + y
+            } else {
+                y
+            }
+        } else {
+            f32::from(current.y)
+        };
+        state.offset.x = -if state.has_extent {
+            gpui::px(next_x).clamp(Pixels::ZERO, state.max_offset.x)
+        } else {
+            gpui::px(next_x).max(Pixels::ZERO)
+        };
+        state.offset.y = -if state.has_extent {
+            gpui::px(next_y).clamp(Pixels::ZERO, state.max_offset.y)
+        } else {
+            gpui::px(next_y).max(Pixels::ZERO)
+        };
+        state.offset != old
+    }
+
+    fn set_max_offset(&self, max_offset: gpui::Point<Pixels>) {
+        let mut state = self.0.borrow_mut();
+        state.max_offset = max_offset;
+        state.has_extent = true;
+        state.offset.x = state.offset.x.clamp(-max_offset.x, Pixels::ZERO);
+        state.offset.y = state.offset.y.clamp(-max_offset.y, Pixels::ZERO);
+    }
+
+    fn offset(&self) -> gpui::Point<Pixels> {
+        self.0.borrow().offset
+    }
+
+    fn apply_native_delta(
+        &self,
+        delta: gpui::Point<Pixels>,
+        scroll_x: bool,
+        scroll_y: bool,
+    ) -> bool {
+        let mut state = self.0.borrow_mut();
+        let old = state.offset;
+        if scroll_x {
+            state.offset.x = (state.offset.x + delta.x).clamp(-state.max_offset.x, Pixels::ZERO);
+        }
+        if scroll_y {
+            state.offset.y = (state.offset.y + delta.y).clamp(-state.max_offset.y, Pixels::ZERO);
+        }
+        state.offset != old
+    }
+}
+
 #[derive(Clone, Default)]
 pub(crate) struct ProjectedElementContext {
     pub(crate) input: Option<ProjectedInputSink>,
@@ -31,6 +124,7 @@ pub(crate) struct ProjectedElementContext {
     pub(crate) text_input: Option<ProjectedTextInputState>,
     pub(crate) native: Option<ProjectedNativeElementFactory>,
     pub(crate) layout_bounds: Option<ProjectedLayoutBounds>,
+    pub(crate) scroll_handles: Option<Rc<BTreeMap<NodeKey, ProjectedScrollHandle>>>,
 }
 
 impl ProjectedElementContext {
@@ -55,12 +149,19 @@ pub struct ProjectedElement {
     root_focus: Option<FocusHandle>,
     text_input: Option<ProjectedTextInputState>,
     layout_bounds: Option<ProjectedLayoutBounds>,
+    scroll: Option<ProjectedScrollHandle>,
+    scroll_x: bool,
+    scroll_y: bool,
     transform: [f32; 6],
 }
 
 pub struct ProjectedPrepaintState {
     hitbox: Option<Hitbox>,
     paint_bounds: Bounds<Pixels>,
+}
+
+pub struct ProjectedRequestLayoutState {
+    child_layouts: Vec<LayoutId>,
 }
 
 impl ProjectedElement {
@@ -117,6 +218,12 @@ impl ProjectedElement {
             root_focus: context.root_focus,
             text_input: context.text_input,
             layout_bounds: context.layout_bounds,
+            scroll: context
+                .scroll_handles
+                .as_ref()
+                .and_then(|handles| handles.get(&key).cloned()),
+            scroll_x: node.style.overflow.x == Overflow::Scroll,
+            scroll_y: node.style.overflow.y == Overflow::Scroll,
             transform: node.transform,
         })
     }
@@ -261,7 +368,7 @@ impl IntoElement for ProjectedElement {
 }
 
 impl Element for ProjectedElement {
-    type RequestLayoutState = ();
+    type RequestLayoutState = ProjectedRequestLayoutState;
     type PrepaintState = ProjectedPrepaintState;
 
     fn id(&self) -> Option<ElementId> {
@@ -284,10 +391,8 @@ impl Element for ProjectedElement {
             .iter_mut()
             .map(|child| child.request_layout(window, cx))
             .collect::<Vec<_>>();
-        (
-            window.request_layout(self.style.clone(), child_layouts, cx),
-            (),
-        )
+        let layout_id = window.request_layout(self.style.clone(), child_layouts.clone(), cx);
+        (layout_id, ProjectedRequestLayoutState { child_layouts })
     }
 
     fn prepaint(
@@ -295,7 +400,7 @@ impl Element for ProjectedElement {
         _id: Option<&GlobalElementId>,
         _inspector_id: Option<&InspectorElementId>,
         bounds: Bounds<Pixels>,
-        _request_layout: &mut Self::RequestLayoutState,
+        request_layout: &mut Self::RequestLayoutState,
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
@@ -312,13 +417,48 @@ impl Element for ProjectedElement {
         if let Some(focus) = &self.root_focus {
             window.set_focus_handle(focus, cx);
         }
-        let hitbox = self
-            .input
-            .as_ref()
-            .map(|_| window.insert_hitbox(paint_bounds, HitboxBehavior::Normal));
+        let scroll_offset = if let Some(scroll) = &self.scroll {
+            let mut child_min = gpui::point(Pixels::MAX, Pixels::MAX);
+            let mut child_max = gpui::Point::default();
+            for child_layout in &request_layout.child_layouts {
+                let child_bounds = window.layout_bounds(*child_layout);
+                child_min = child_min.min(&child_bounds.origin);
+                child_max = child_max.max(&child_bounds.bottom_right());
+            }
+            let content_size = if request_layout.child_layouts.is_empty() {
+                bounds.size
+            } else {
+                gpui::Size::from(child_max - child_min)
+            };
+            let padding = self
+                .style
+                .padding
+                .to_pixels(bounds.size.into(), window.rem_size());
+            let content_size = gpui::size(
+                content_size.width + padding.left + padding.right,
+                content_size.height + padding.top + padding.bottom,
+            );
+            scroll.set_max_offset(gpui::point(
+                if self.scroll_x {
+                    (content_size.width - bounds.size.width).max(Pixels::ZERO)
+                } else {
+                    Pixels::ZERO
+                },
+                if self.scroll_y {
+                    (content_size.height - bounds.size.height).max(Pixels::ZERO)
+                } else {
+                    Pixels::ZERO
+                },
+            ));
+            scroll.offset()
+        } else {
+            gpui::Point::default()
+        };
+        let hitbox = (self.input.is_some() || self.scroll_x || self.scroll_y)
+            .then(|| window.insert_hitbox(paint_bounds, HitboxBehavior::Normal));
         window.with_text_style(text_style, |window| {
             window.with_content_mask(overflow_mask, |window| {
-                window.with_element_offset(translation, |window| {
+                window.with_element_offset(translation + scroll_offset, |window| {
                     for child in &mut self.children {
                         child.prepaint(window, cx);
                     }
@@ -404,16 +544,46 @@ impl Element for ProjectedElement {
                     cx.stop_propagation();
                 }
             });
+        }
 
-            let wheel_input = input.clone();
+        if let Some(hitbox) = prepaint.hitbox.as_ref() {
+            let wheel_input = self.input.clone();
             let wheel_hitbox = hitbox.clone();
             let key = self.key;
+            let scroll = self.scroll.clone();
+            let scroll_x = self.scroll_x;
+            let scroll_y = self.scroll_y;
+            let line_height = window.line_height();
             window.on_mouse_event(move |event: &ScrollWheelEvent, phase, window, cx| {
-                if phase == DispatchPhase::Bubble && wheel_hitbox.should_handle_scroll(window) {
-                    wheel_input(
+                if phase != DispatchPhase::Bubble || !wheel_hitbox.should_handle_scroll(window) {
+                    return;
+                }
+                if let Some(input) = &wheel_input {
+                    input(
                         ProjectedInputEvent::Wheel(wheel_event(key, event, bounds)),
                         cx,
                     );
+                }
+                let changed = scroll.as_ref().is_some_and(|scroll| {
+                    scroll.apply_native_delta(
+                        event.delta.pixel_delta(line_height),
+                        scroll_x,
+                        scroll_y,
+                    )
+                });
+                if changed {
+                    if let (Some(input), Some(scroll)) = (&wheel_input, &scroll) {
+                        let position = scroll.position();
+                        input(
+                            ProjectedInputEvent::Scroll(ProjectedScrollEvent {
+                                target: key,
+                                x: position.x.into(),
+                                y: position.y.into(),
+                            }),
+                            cx,
+                        );
+                    }
+                    window.refresh();
                     cx.stop_propagation();
                 }
             });
@@ -825,6 +995,100 @@ mod tests {
                 platform: false,
             }
         );
+    }
+
+    #[test]
+    fn retained_scroll_state_clamps_absolute_relative_and_partial_updates() {
+        let handle = ProjectedScrollHandle::default();
+        handle.set_max_offset(point(px(100.0), px(200.0)));
+
+        assert!(handle.scroll_to(f32::NAN, 80.0));
+        assert_eq!(handle.position(), point(px(0.0), px(80.0)));
+        assert!(handle.scroll_by(30.0, 150.0));
+        assert_eq!(handle.position(), point(px(30.0), px(200.0)));
+        assert!(!handle.scroll_by(0.0, 20.0));
+        assert!(handle.scroll_to(500.0, f32::NAN));
+        assert_eq!(handle.position(), point(px(100.0), px(200.0)));
+
+        handle.set_max_offset(point(px(40.0), px(60.0)));
+        assert_eq!(handle.position(), point(px(40.0), px(60.0)));
+    }
+
+    #[gpui::test]
+    fn retained_scroll_moves_children_without_rebuilding_the_tree(cx: &mut TestAppContext) {
+        struct LayoutHost;
+        impl gpui::Render for LayoutHost {
+            fn render(
+                &mut self,
+                _window: &mut Window,
+                _cx: &mut Context<Self>,
+            ) -> impl IntoElement {
+                div()
+            }
+        }
+
+        let parent = NodeKey::new(40, 1);
+        let child = NodeKey::new(41, 1);
+        let mut parent_style = Style::default();
+        parent_style.size.width = px(100.0).into();
+        parent_style.size.height = px(100.0).into();
+        parent_style.overflow.y = Overflow::Scroll;
+        let mut child_style = Style::default();
+        child_style.size.width = px(100.0).into();
+        child_style.size.height = px(240.0).into();
+        child_style.flex_shrink = 0.0;
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            parent,
+            None,
+            0,
+            parent_style,
+            None,
+            crate::ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        tree.insert(
+            child,
+            Some(parent),
+            0,
+            child_style,
+            None,
+            crate::ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        let handle = ProjectedScrollHandle::default();
+        let scroll_handles = Rc::new(BTreeMap::from([(parent, handle.clone())]));
+        let bounds = ProjectedLayoutBounds::default();
+        let (_host, window) = cx.add_window_view(|_, _| LayoutHost);
+
+        let materialize = || {
+            ProjectedElement::from_tree(
+                &tree,
+                parent,
+                ProjectedElementContext {
+                    layout_bounds: Some(bounds.clone()),
+                    scroll_handles: Some(scroll_handles.clone()),
+                    ..Default::default()
+                },
+                false,
+            )
+            .unwrap()
+        };
+        window.draw(
+            point(px(0.0), px(0.0)),
+            gpui::size(px(100.0), px(100.0)),
+            |_, _| materialize(),
+        );
+        assert_eq!(bounds.borrow()[&child].origin.y, px(0.0));
+
+        assert!(handle.scroll_to(f32::NAN, 50.0));
+        let (_host, second_window) = cx.add_window_view(|_, _| LayoutHost);
+        second_window.draw(
+            point(px(0.0), px(0.0)),
+            gpui::size(px(100.0), px(100.0)),
+            |_, _| materialize(),
+        );
+        assert_eq!(bounds.borrow()[&child].origin.y, px(-50.0));
     }
 
     #[test]

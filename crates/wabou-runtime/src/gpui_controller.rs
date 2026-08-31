@@ -75,6 +75,12 @@ impl GpuiController {
         self.projection.take_commands()
     }
 
+    pub(crate) fn apply_projection_scroll(&mut self, command: gpui_shell::GpuiCommand) -> bool {
+        self.projection
+            .apply_scroll_command(command)
+            .is_some_and(|event| self.handle_projected_scroll(event).handled)
+    }
+
     pub(crate) fn take_stylesheet_update(&mut self) -> Option<StylesheetUpdate> {
         self.runtime.pending_css.as_ref()?.borrow_mut().take()
     }
@@ -555,6 +561,32 @@ impl GpuiController {
         }
     }
 
+    pub fn handle_projected_scroll(
+        &mut self,
+        input: gpui_shell::ProjectedScrollEvent,
+    ) -> gpui_shell::EventResponse {
+        use wabou_protocol::{event, event_data};
+
+        let mut data = [0.0; event_data::LEN];
+        data[event_data::SCROLL_X as usize] = f64::from(input.x);
+        data[event_data::SCROLL_Y as usize] = f64::from(input.y);
+        let handled = self
+            .dispatch_node_numeric(
+                input.target,
+                event::SCROLL,
+                data,
+                event_data::SCROLL_Y as usize + 1,
+                false,
+            )
+            .map(|value| value.0)
+            .unwrap_or(false);
+        gpui_shell::EventResponse {
+            handled,
+            request_redraw: true,
+            ..gpui_shell::EventResponse::default()
+        }
+    }
+
     pub(crate) fn text_controls(&self) -> Vec<gpui_shell::GpuiTextControl> {
         self.projection.text_controls()
     }
@@ -680,6 +712,7 @@ impl GpuiController {
         match event {
             gpui_shell::ProjectedInputEvent::Pointer(event) => self.handle_projected_pointer(event),
             gpui_shell::ProjectedInputEvent::Wheel(event) => self.handle_projected_wheel(event),
+            gpui_shell::ProjectedInputEvent::Scroll(event) => self.handle_projected_scroll(event),
             gpui_shell::ProjectedInputEvent::Key(event) => self.handle_projected_key(event),
             gpui_shell::ProjectedInputEvent::Ime(event) => self.handle_projected_ime(event),
         }

@@ -778,6 +778,11 @@ impl Render for GpuiRuntimeView {
                         cx.notify();
                     }
                 }
+                command @ (gpui_shell::GpuiCommand::ScrollTo { .. }
+                | gpui_shell::GpuiCommand::ScrollBy { .. }) => {
+                    let _ = self.controller.apply_projection_scroll(command);
+                    cx.notify();
+                }
             }
         }
         if let Some(test_controller) = self.test_controller.clone() {

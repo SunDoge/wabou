@@ -144,6 +144,7 @@ impl ProjectionTree {
                 text_input: Some(text_input),
                 native,
                 layout_bounds: None,
+                scroll_handles: None,
             },
             false,
         )
@@ -157,6 +158,9 @@ impl ProjectionTree {
         text_input: crate::ProjectedTextInputState,
         native: Option<ProjectedNativeElementFactory>,
         layout_bounds: crate::element::ProjectedLayoutBounds,
+        scroll_handles: std::rc::Rc<
+            std::collections::BTreeMap<NodeKey, crate::ProjectedScrollHandle>,
+        >,
     ) -> Result<ProjectedElement, ProjectionError> {
         ProjectedElement::from_tree(
             self,
@@ -167,6 +171,7 @@ impl ProjectionTree {
                 text_input: Some(text_input),
                 native,
                 layout_bounds: Some(layout_bounds),
+                scroll_handles: Some(scroll_handles),
             },
             false,
         )

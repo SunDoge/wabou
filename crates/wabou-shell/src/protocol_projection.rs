@@ -63,6 +63,8 @@ pub struct GpuiComputedStyle {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GpuiCommand {
     Focus { id: NodeKey },
+    ScrollTo { id: NodeKey, x: f32, y: f32 },
+    ScrollBy { id: NodeKey, x: f32, y: f32 },
 }
 
 #[derive(Debug)]
@@ -76,6 +78,7 @@ pub struct GpuiProjection {
     inline_styles: std::collections::HashMap<NodeKey, std::collections::BTreeMap<String, IrValue>>,
     layout_bounds: crate::element::ProjectedLayoutBounds,
     pending_commands: Vec<GpuiCommand>,
+    scroll_handles: std::collections::BTreeMap<NodeKey, crate::ProjectedScrollHandle>,
     protocol_gaps: std::collections::HashMap<NodeKey, std::collections::BTreeSet<&'static str>>,
 }
 
@@ -98,6 +101,8 @@ impl GpuiProjection {
         )
         .expect("the canonical projection root is unique");
         let _ = tree.commit();
+        let mut scroll_handles = std::collections::BTreeMap::new();
+        scroll_handles.insert(NodeKey::ROOT, crate::ProjectedScrollHandle::default());
         Self {
             tree,
             stylesheet: None,
@@ -108,6 +113,7 @@ impl GpuiProjection {
             inline_styles: std::collections::HashMap::new(),
             layout_bounds: Default::default(),
             pending_commands: Vec::new(),
+            scroll_handles,
             protocol_gaps: std::collections::HashMap::new(),
         }
     }
@@ -133,6 +139,7 @@ impl GpuiProjection {
                         None,
                         ProjectedNodeKind::Element(tag.into()),
                     )?;
+                    self.scroll_handles.entry(*id).or_default();
                 }
                 Op::CreateText { id, text } => {
                     self.tree.insert_detached(
@@ -141,6 +148,7 @@ impl GpuiProjection {
                         Some((*text).into()),
                         ProjectedNodeKind::Text,
                     )?;
+                    self.scroll_handles.entry(*id).or_default();
                 }
                 Op::AppendChild { parent, child } => {
                     let index = self
@@ -271,6 +279,7 @@ impl GpuiProjection {
                         self.classes.remove(&key);
                         self.style_diagnostics.remove(&key);
                         self.protocol_gaps.remove(&key);
+                        self.scroll_handles.remove(&key);
                     }
                 }
                 Op::SetGraphicSource { id, kind, source } => match *kind {
@@ -310,12 +319,16 @@ impl GpuiProjection {
                     self.record_protocol_gap(*id, "GPUI scrollbar styling");
                 }
                 Op::FocusNode { id } => self.pending_commands.push(GpuiCommand::Focus { id: *id }),
-                Op::ScrollTo { id, .. } => {
-                    self.record_protocol_gap(*id, "GPUI imperative scroll-to")
-                }
-                Op::ScrollBy { id, .. } => {
-                    self.record_protocol_gap(*id, "GPUI imperative scroll-by")
-                }
+                Op::ScrollTo { id, x, y } => self.pending_commands.push(GpuiCommand::ScrollTo {
+                    id: *id,
+                    x: *x,
+                    y: *y,
+                }),
+                Op::ScrollBy { id, x, y } => self.pending_commands.push(GpuiCommand::ScrollBy {
+                    id: *id,
+                    x: *x,
+                    y: *y,
+                }),
             }
         }
         Ok(())
@@ -329,6 +342,29 @@ impl GpuiProjection {
     /// projected. The GPUI view executes them against live focus/scroll state.
     pub fn take_commands(&mut self) -> Vec<GpuiCommand> {
         std::mem::take(&mut self.pending_commands)
+    }
+
+    pub fn apply_scroll_command(
+        &self,
+        command: GpuiCommand,
+    ) -> Option<crate::ProjectedScrollEvent> {
+        let (id, changed) = match command {
+            GpuiCommand::ScrollTo { id, x, y } => {
+                (id, self.scroll_handles.get(&id)?.scroll_to(x, y))
+            }
+            GpuiCommand::ScrollBy { id, x, y } => {
+                (id, self.scroll_handles.get(&id)?.scroll_by(x, y))
+            }
+            GpuiCommand::Focus { .. } => return None,
+        };
+        changed.then(|| {
+            let position = self.scroll_handles[&id].position();
+            crate::ProjectedScrollEvent {
+                target: id,
+                x: position.x.into(),
+                y: position.y.into(),
+            }
+        })
     }
 
     /// Return explicit formal-runtime gaps. This exists to make unsupported
@@ -474,6 +510,7 @@ impl GpuiProjection {
             text_input,
             native,
             self.layout_bounds.clone(),
+            std::rc::Rc::new(self.scroll_handles.clone()),
         )
     }
 
@@ -1838,15 +1875,23 @@ mod tests {
 
         assert_eq!(
             projection.take_commands(),
-            vec![GpuiCommand::Focus { id: key(2) },]
+            vec![
+                GpuiCommand::Focus { id: key(2) },
+                GpuiCommand::ScrollTo {
+                    id: key(3),
+                    x: 4.0,
+                    y: 8.0,
+                },
+                GpuiCommand::ScrollBy {
+                    id: key(3),
+                    x: -1.0,
+                    y: 2.0,
+                },
+            ]
         );
         assert_eq!(
             projection.protocol_gaps(),
-            vec![
-                (key(3), "GPUI imperative scroll-by"),
-                (key(3), "GPUI imperative scroll-to"),
-                (key(4), "vector path projection"),
-            ]
+            vec![(key(4), "vector path projection")]
         );
     }
 }

@@ -101,6 +101,17 @@ pub struct ProjectedWheelEvent {
     pub platform: bool,
 }
 
+/// Logical scroll position produced by GPUI's retained scroll state.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ProjectedScrollEvent {
+    /// Scrollable retained node.
+    pub target: NodeKey,
+    /// Logical horizontal offset measured from the content origin.
+    pub x: f32,
+    /// Logical vertical offset measured from the content origin.
+    pub y: f32,
+}
+
 /// Input transition emitted from one retained GPUI hit target.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProjectedInputEvent {
@@ -108,6 +119,8 @@ pub enum ProjectedInputEvent {
     Pointer(ProjectedPointerEvent),
     /// Wheel or trackpad transition.
     Wheel(ProjectedWheelEvent),
+    /// Scroll position changed after native clamping.
+    Scroll(ProjectedScrollEvent),
     /// Keyboard transition delivered through the GPUI root focus handle.
     Key(ProjectedKeyEvent),
     /// Platform text-input or IME transition.

@@ -14,13 +14,13 @@ mod style;
 mod tree;
 mod window_state;
 
-pub use element::ProjectedElement;
-pub use element::ProjectedNativeElementFactory;
+pub use element::{ProjectedElement, ProjectedNativeElementFactory, ProjectedScrollHandle};
 pub use gpui;
 pub use input::{
     ProjectedImeEvent, ProjectedInputEvent, ProjectedInputHandler, ProjectedInputSink,
     ProjectedKeyEvent, ProjectedKeyPhase, ProjectedPointerButton, ProjectedPointerEvent,
-    ProjectedPointerPhase, ProjectedTextInputState, ProjectedWheelEvent, ProjectedWheelPhase,
+    ProjectedPointerPhase, ProjectedScrollEvent, ProjectedTextInputState, ProjectedWheelEvent,
+    ProjectedWheelPhase,
 };
 pub use native_widget::{NativeWidgetContext, NativeWidgetFactory, NativeWidgetMount};
 pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
