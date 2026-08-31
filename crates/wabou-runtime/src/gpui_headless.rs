@@ -58,6 +58,7 @@ pub enum GpuiHeadlessScreenshot {
 pub struct GpuiHeadlessHarness {
     context: HeadlessAppContext,
     window: wabou_shell::gpui::WindowHandle<GpuiRuntimeView>,
+    runtime_clock: Option<Arc<crate::clock::ManualClock>>,
     _native_close_subscription: wabou_shell::gpui::Subscription,
 }
 
@@ -87,13 +88,16 @@ impl GpuiHeadlessHarness {
         let dynamic_source = source.clone();
         let dynamic_source_map = source_map.clone();
         let dynamic_native_widget_factories = native_widget_factories.clone();
+        let runtime_clock = Arc::new(crate::clock::ManualClock::default());
+        let dynamic_runtime_clock = runtime_clock.clone();
         let window_host = crate::gpui_windows::GpuiApplicationWindows::new(
             Rc::new(move |key, window_options| {
-                create_controller(
+                create_controller_with_clock(
                     key,
                     window_options,
                     &dynamic_source,
                     dynamic_source_map.as_deref(),
+                    dynamic_runtime_clock.clone(),
                 )
                 .map_err(|error| error.to_string())
             }),
@@ -102,11 +106,17 @@ impl GpuiHeadlessHarness {
         );
         let window_key = window_host.reserve();
         debug_assert_eq!(window_key, wabou_shell::initial_window_resource_key(0));
-        let controller =
-            create_controller(window_key, &options.window, &source, source_map.as_deref())?;
-        let mut harness = Self::boot_application(
+        let controller = create_controller_with_clock(
+            window_key,
+            &options.window,
+            &source,
+            source_map.as_deref(),
+            runtime_clock.clone(),
+        )?;
+        let mut harness = Self::boot_application_with_clock(
             vec![(window_key, controller, options.window.clone())],
             window_host,
+            Some(runtime_clock),
         )?;
         harness.settle(options.settle_frames.max(1))?;
         Ok(harness)
@@ -119,6 +129,18 @@ impl GpuiHeadlessHarness {
             WindowOptions,
         )>,
         window_host: Rc<crate::gpui_windows::GpuiApplicationWindows>,
+    ) -> crate::Result<Self> {
+        Self::boot_application_with_clock(windows, window_host, None)
+    }
+
+    fn boot_application_with_clock(
+        windows: Vec<(
+            wabou_shell::WindowResourceKey,
+            crate::gpui_controller::GpuiController,
+            WindowOptions,
+        )>,
+        window_host: Rc<crate::gpui_windows::GpuiApplicationWindows>,
+        runtime_clock: Option<Arc<crate::clock::ManualClock>>,
     ) -> crate::Result<Self> {
         let platform = gpui_platform::current_platform(true);
         let mut context = HeadlessAppContext::with_platform(
@@ -153,6 +175,7 @@ impl GpuiHeadlessHarness {
         Ok(Self {
             context,
             window,
+            runtime_clock,
             _native_close_subscription: native_close_subscription,
         })
     }
@@ -179,6 +202,9 @@ impl GpuiHeadlessHarness {
 
     /// Advance the deterministic GPUI clock and publish the resulting frame.
     pub fn advance_time(&mut self, duration: Duration) -> crate::Result<()> {
+        if let Some(clock) = &self.runtime_clock {
+            clock.advance(duration);
+        }
         self.context.advance_clock(duration);
         self.settle(1)
     }
@@ -349,13 +375,30 @@ impl GpuiHeadlessHarness {
     }
 }
 
-fn create_controller(
+fn create_controller_with_clock(
     window_key: wabou_shell::WindowResourceKey,
     window_options: &WindowOptions,
     source: &str,
     source_map: Option<&[u8]>,
+    clock: Arc<crate::clock::ManualClock>,
 ) -> crate::Result<crate::gpui_controller::GpuiController> {
-    let js = JsRuntime::new().context(crate::error::JavaScriptSnafu {
+    create_controller_with_runtime(
+        window_key,
+        window_options,
+        source,
+        source_map,
+        JsRuntime::new_with_clock(clock),
+    )
+}
+
+fn create_controller_with_runtime(
+    window_key: wabou_shell::WindowResourceKey,
+    window_options: &WindowOptions,
+    source: &str,
+    source_map: Option<&[u8]>,
+    js: rquickjs::Result<JsRuntime>,
+) -> crate::Result<crate::gpui_controller::GpuiController> {
+    let js = js.context(crate::error::JavaScriptSnafu {
         operation: "create headless JavaScript runtime",
     })?;
     let serialized = serde_json::to_string(window_options).expect("WindowOptions is serializable");
@@ -480,6 +523,32 @@ mod tests {
         assert_eq!((layout[5], layout[6]), (800.0, 600.0));
         assert_eq!(layout[7], 1.0, "requested projected node is present");
         assert!(layout[12] > 0.0 && layout[13] > 0.0);
+    }
+
+    #[test]
+    fn advancing_headless_time_advances_quickjs_and_animation_frames_together() {
+        let mut harness = GpuiHeadlessHarness::boot(
+            include_str!("gen/test-runtime.js"),
+            None::<Arc<[u8]>>,
+            GpuiHeadlessOptions {
+                window: WindowOptions::new().initial_inner_size(320, 200),
+                settle_frames: 1,
+            },
+        )
+        .expect("boot deterministic GPUI runtime");
+        harness
+            .eval_script(
+                "globalThis.__clock_probe = -1; requestAnimationFrame((time) => { globalThis.__clock_probe = time; });",
+            )
+            .expect("schedule animation frame");
+        harness
+            .advance_time(Duration::from_millis(220))
+            .expect("advance the shared headless clock");
+        let values = harness
+            .eval_string("JSON.stringify([performance.now(), globalThis.__clock_probe])")
+            .expect("read deterministic clock values");
+        let values: Vec<f64> = serde_json::from_str(&values).expect("clock values are JSON");
+        assert_eq!(values, vec![220.0, 220.0]);
     }
 
     #[test]

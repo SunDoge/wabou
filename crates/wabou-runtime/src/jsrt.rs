@@ -235,7 +235,6 @@ impl JsRuntime {
         Self::new_with_clock_and_options(Arc::new(crate::clock::SystemClock::new()), options)
     }
 
-    #[cfg(test)]
     pub(crate) fn new_with_clock(clock: Arc<dyn crate::clock::Clock>) -> JsResult<Self> {
         Self::new_with_clock_and_options(clock, JsRuntimeOptions::default())
     }
