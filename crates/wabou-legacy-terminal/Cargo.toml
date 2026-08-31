@@ -3,6 +3,7 @@ name = "wabou-legacy-terminal"
 version.workspace = true
 edition = "2024"
 license.workspace = true
+publish = false
 description = "Legacy winit/AnyRender terminal widget retained during the GPUI migration."
 
 [dependencies]

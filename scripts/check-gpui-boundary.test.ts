@@ -1,5 +1,8 @@
 import { expect, test } from "bun:test";
-import { gpuiBoundaryViolations } from "./check-gpui-boundary";
+import {
+  gpuiBoundaryViolations,
+  legacyIsolationViolations,
+} from "./check-gpui-boundary";
 
 test("formal packages cannot regain a retired rendering backend", () => {
   expect(
@@ -22,5 +25,30 @@ test("formal packages cannot regain a retired rendering backend", () => {
   ).toEqual([
     "wabou-runtime -> legacy-shell (wabou-legacy-shell, dev)",
     "wabou-runtime -> vello (vello, normal)",
+  ]);
+});
+
+test("retired crates stay unpublished and outside default workspace commands", () => {
+  expect(
+    legacyIsolationViolations({
+      packages: [
+        {
+          dependencies: [],
+          id: "legacy-shell-id",
+          name: "wabou-legacy-shell",
+          publish: null,
+        },
+        {
+          dependencies: [],
+          id: "legacy-runtime-id",
+          name: "wabou-legacy-runtime",
+          publish: [],
+        },
+      ],
+      workspace_default_members: ["legacy-shell-id"],
+    }),
+  ).toEqual([
+    "wabou-legacy-shell is a default workspace member",
+    "wabou-legacy-shell is publishable",
   ]);
 });

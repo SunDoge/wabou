@@ -22,11 +22,14 @@ interface CargoDependency {
 
 interface CargoPackage {
   dependencies: CargoDependency[];
+  id?: string;
   name: string;
+  publish?: string[] | null;
 }
 
 interface CargoMetadata {
   packages: CargoPackage[];
+  workspace_default_members?: string[];
 }
 
 export function gpuiBoundaryViolations(metadata: CargoMetadata): string[] {
@@ -49,6 +52,22 @@ export function gpuiBoundaryViolations(metadata: CargoMetadata): string[] {
   return violations.sort();
 }
 
+export function legacyIsolationViolations(metadata: CargoMetadata): string[] {
+  const defaultMembers = new Set(metadata.workspace_default_members ?? []);
+  const violations: string[] = [];
+  for (const pkg of metadata.packages) {
+    if (!pkg.name.startsWith("wabou-legacy-")) continue;
+    // Cargo represents `publish = false` as an empty registry list.
+    if (pkg.publish === undefined || pkg.publish === null) {
+      violations.push(`${pkg.name} is publishable`);
+    }
+    if (pkg.id !== undefined && defaultMembers.has(pkg.id)) {
+      violations.push(`${pkg.name} is a default workspace member`);
+    }
+  }
+  return violations.sort();
+}
+
 async function metadata(): Promise<CargoMetadata> {
   const child = Bun.spawn(["cargo", "metadata", "--format-version", "1"], {
     cwd: process.cwd(),
@@ -63,7 +82,11 @@ async function metadata(): Promise<CargoMetadata> {
 }
 
 async function main(): Promise<void> {
-  const violations = gpuiBoundaryViolations(await metadata());
+  const cargo = await metadata();
+  const violations = [
+    ...gpuiBoundaryViolations(cargo),
+    ...legacyIsolationViolations(cargo),
+  ];
   if (violations.length === 0) return;
   throw new Error(
     `Formal GPUI packages depend on retired renderer crates in normal, build, or test code:\n${violations

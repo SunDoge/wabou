@@ -3,6 +3,7 @@ name = "wabou-legacy-tray"
 version.workspace = true
 edition = "2024"
 license.workspace = true
+publish = false
 
 [dependencies]
 tray-icon = { version = "0.24.2", default-features = false, features = ["gtk"] }

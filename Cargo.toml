@@ -1,6 +1,33 @@
 [workspace]
 resolver = "3"
 members = ["apps/*", "crates/*"]
+default-members = [
+  "apps/7guis",
+  "apps/devtools",
+  "apps/gallery",
+  "apps/hackernews",
+  "apps/manga-ocr",
+  "apps/motrix",
+  "apps/pi-agent",
+  "apps/stress",
+  "apps/terminal",
+  "apps/vlist",
+  "crates/wabou",
+  "crates/wabou-accessibility",
+  "crates/wabou-bindgen",
+  "crates/wabou-cli",
+  "crates/wabou-database",
+  "crates/wabou-devtools",
+  "crates/wabou-host-api",
+  "crates/wabou-protocol",
+  "crates/wabou-runtime",
+  "crates/wabou-shell",
+  "crates/wabou-shell-api",
+  "crates/wabou-style",
+  "crates/wabou-terminal",
+  "crates/wabou-terminal-core",
+  "crates/wabou-tray",
+]
 exclude = [
   "vendor/bitwarden-sdk",
 ]
