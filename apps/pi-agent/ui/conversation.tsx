@@ -3,7 +3,9 @@ import {
   Bubble,
   BubbleContent,
   Button,
-  CollapsiblePresence,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
   CopyButton,
   createKeyframeAnimation,
   type Handle,
@@ -282,15 +284,16 @@ export function ToolActivityGroup(props: {
         });
   };
   return (
-    <View class="w-full min-w-0 flex flex-col gap-1">
+    <Collapsible
+      open={open()}
+      onOpenChange={setOpen}
+      class="w-full min-w-0 gap-1"
+    >
       <LabeledSeparator>
-        <Button
-          variant="ghost"
-          size="sm"
+        <CollapsibleTrigger
+          indicator={false}
           class="h-7 min-w-0 max-w-full px-1.5 gap-1.5 text-secondary"
           aria-label={i18n.message(m.tool_activity_toggle, {})}
-          aria-expanded={open()}
-          onClick={() => setOpen((value) => !value)}
         >
           <Icon
             source={chevronRight}
@@ -310,12 +313,11 @@ export function ToolActivityGroup(props: {
           <Text class="min-w-0 truncate text-xs font-medium text-secondary">
             {label()}
           </Text>
-        </Button>
+        </CollapsibleTrigger>
       </LabeledSeparator>
-      <CollapsiblePresence
-        open={open()}
+      <CollapsibleContent
         duration={0.16}
-        contentClass="min-w-0 ml-2 pl-3 pb-1 border-l border-subtle gap-2"
+        class="min-w-0 ml-2 pl-3 pb-1 border-l border-subtle gap-2"
       >
         <Show when={props.reasoning}>
           {(reasoning) => (
@@ -328,8 +330,8 @@ export function ToolActivityGroup(props: {
         <ForValue each={props.items} keyed={(item) => item.id}>
           {(item) => <ToolCall item={item()} />}
         </ForValue>
-      </CollapsiblePresence>
-    </View>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

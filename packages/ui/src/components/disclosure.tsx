@@ -3,7 +3,7 @@ import { mergeClasses } from "@wabou/core/style";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import { createContext, type JSX, omit, onCleanup, useContext } from "solid-js";
-import { useReducedMotion } from "../animation";
+import { type Easing, useReducedMotion } from "../animation";
 import {
   Button,
   type ButtonProps,
@@ -91,11 +91,13 @@ export function Collapsible(props: CollapsibleProps) {
 export interface CollapsibleTriggerProps
   extends Omit<ButtonProps, "children" | "class" | "unstyled"> {
   children?: JSX.Element;
+  /** Render the built-in trailing chevron. Disable when children provide one. */
+  indicator?: boolean;
   class?: string;
 }
 export function CollapsibleTrigger(props: CollapsibleTriggerProps) {
   const context = useCollapsible();
-  const rest = omit(props, "children", "class", "onClick");
+  const rest = omit(props, "children", "indicator", "class", "onClick");
   return (
     <Button
       {...rest}
@@ -112,18 +114,33 @@ export function CollapsibleTrigger(props: CollapsibleTriggerProps) {
       }}
     >
       {props.children}
-      <DisclosureIndicator open={context.open} />
+      {props.indicator !== false && <DisclosureIndicator open={context.open} />}
     </Button>
   );
 }
-export type CollapsibleContentProps = ViewProps;
+export interface CollapsibleContentProps extends ViewProps {
+  duration?: number;
+  ease?: Easing;
+  animateInitial?: boolean;
+}
 export function CollapsibleContent(props: CollapsibleContentProps) {
   const context = useCollapsible();
-  const contentProps = omit(props, "children", "class", "style");
+  const contentProps = omit(
+    props,
+    "children",
+    "class",
+    "style",
+    "duration",
+    "ease",
+    "animateInitial",
+  );
   return (
     <CollapsiblePresence
       open={context.open()}
       reducedMotion={context.reducedMotion()}
+      duration={props.duration}
+      ease={props.ease}
+      animateInitial={props.animateInitial}
       contentClass={props.class}
       contentProps={contentProps}
       contentStyle={props.style}

@@ -103,6 +103,30 @@ test("collapsible forwards root, trigger and content contracts", () => {
   expect(trigger.expanded).toBe(true);
 });
 
+test("collapsible accepts a custom indicator without adding a trailing one", () => {
+  const screen = renderComponent(() => (
+    <Collapsible reducedMotion>
+      <CollapsibleTrigger indicator={false} aria-label="Toggle activity">
+        <Text role="img" aria-label="Custom activity indicator">
+          Status
+        </Text>
+      </CollapsibleTrigger>
+      <CollapsibleContent duration={0.16} role="region" aria-label="Activity">
+        <Text>Output</Text>
+      </CollapsibleContent>
+    </Collapsible>
+  ));
+
+  const trigger = screen.getByRole("button", { name: "Toggle activity" });
+  expect(trigger.children).toHaveLength(1);
+  expect(
+    screen.getByRole("img", { name: "Custom activity indicator" }).text,
+  ).toBe("Status");
+  trigger.click();
+  expect(trigger.expanded).toBe(true);
+  expect(screen.getByRole("region", { name: "Activity" }).text).toBe("Output");
+});
+
 test("retargets an interrupted disclosure exit without remounting content", async () => {
   const screen = renderDisclosure();
   const trigger = screen.getByRole("button", { name: "Details" });
