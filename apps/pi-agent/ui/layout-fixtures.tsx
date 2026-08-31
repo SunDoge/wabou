@@ -32,6 +32,7 @@ import { Sidebar } from "./sidebar";
 import { SkillsPage } from "./skills-page";
 import { createAgentWorkspace } from "./workspace";
 import { WorkspacePanel } from "./workspace-panel";
+import { WorkspaceChangesPanel } from "./workspace-changes-panel";
 import { WorkspaceSetup } from "./workspace-setup";
 
 const project = createAgentWorkspace(1);
@@ -474,6 +475,27 @@ defineLayoutFixtures({
           text: "# Workspace preview\n\nA real layout fixture for the file inspector.",
         })}
         addContext={() => {}}
+        close={() => {}}
+      />
+    ),
+  },
+  "workspace/changes-panel": {
+    width: 420,
+    height: 720,
+    render: () => (
+      <WorkspaceChangesPanel
+        cwd="/work/wabou"
+        load={async () => ({
+          files: [
+            {
+              path: "src/renderer.ts",
+              status: "modified",
+              additions: 2,
+              deletions: 1,
+              patch: "@@ -1,2 +1,3 @@\n-old\n+new\n+line",
+            },
+          ],
+        })}
         close={() => {}}
       />
     ),

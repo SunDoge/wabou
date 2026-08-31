@@ -8,6 +8,9 @@ import {
   SearchField,
   Text,
   View,
+  WorkbenchInspector,
+  WorkbenchInspectorContent,
+  WorkbenchInspectorHeader,
 } from "@wabou/ui";
 import file from "lucide-static/icons/file.svg?raw";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
@@ -87,12 +90,11 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
   };
 
   return (
-    <View
+    <WorkbenchInspector
       role="region"
       aria-label={i18n.message(m.workspace_files, {})}
-      class="w-96 flex-none min-w-0 min-h-0 border-l border-subtle bg-surface flex flex-col shadow-sm"
     >
-      <View class="h-14 flex-none px-4 flex flex-row items-center justify-between gap-3 border-b border-subtle">
+      <WorkbenchInspectorHeader>
         <View class="min-w-0 flex flex-col">
           <Text class="font-semibold">
             {i18n.message(m.workspace_files, {})}
@@ -107,8 +109,8 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
         >
           <Icon source={x} size={15} />
         </Button>
-      </View>
-      <View class="flex-1 min-h-0 flex flex-col gap-3 p-3">
+      </WorkbenchInspectorHeader>
+      <WorkbenchInspectorContent class="gap-3 p-3">
         <SearchField
           value={query()}
           onValueChange={setQuery}
@@ -201,7 +203,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
             )}
           </Show>
         </View>
-      </View>
-    </View>
+      </WorkbenchInspectorContent>
+    </WorkbenchInspector>
   );
 }

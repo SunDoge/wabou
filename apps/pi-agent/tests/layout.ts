@@ -383,6 +383,17 @@ try {
         },
       },
       {
+        id: "workspace/changes-panel",
+        width: 420,
+        height: 720,
+        waitMs: 20,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, { role: "region", name: "Code changes" });
+          getLayoutNode(fixture, { text: "src/renderer.ts" });
+        },
+      },
+      {
         id: "skills/catalog",
         width: 960,
         height: 720,

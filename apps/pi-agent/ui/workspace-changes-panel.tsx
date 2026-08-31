@@ -6,6 +6,9 @@ import {
   ScrollArea,
   Text,
   View,
+  WorkbenchInspector,
+  WorkbenchInspectorContent,
+  WorkbenchInspectorHeader,
 } from "@wabou/ui";
 import x from "lucide-static/icons/x.svg?raw";
 import { Show } from "solid-js";
@@ -26,12 +29,11 @@ export function WorkspaceChangesPanel(props: WorkspaceChangesPanelProps) {
   });
 
   return (
-    <View
+    <WorkbenchInspector
       role="region"
       aria-label={i18n.message(m.code_changes, {})}
-      class="w-96 flex-none min-w-0 min-h-0 border-l border-subtle bg-surface flex flex-col shadow-sm"
     >
-      <View class="h-14 flex-none px-4 flex flex-row items-center justify-between gap-3 border-b border-subtle">
+      <WorkbenchInspectorHeader>
         <View class="min-w-0 flex flex-col">
           <Text class="font-semibold">{i18n.message(m.code_changes, {})}</Text>
           <Text class="max-w-72 truncate text-xs text-muted">{props.cwd}</Text>
@@ -44,42 +46,44 @@ export function WorkspaceChangesPanel(props: WorkspaceChangesPanelProps) {
         >
           <Icon source={x} size={15} />
         </Button>
-      </View>
-      <ScrollArea class="flex-1 min-h-0" contentClass="p-3">
-        <Show
-          when={!changes.error()}
-          fallback={
-            <Text role="alert" class="text-sm text-danger-primary">
-              {String(changes.error())}
-            </Text>
-          }
-        >
+      </WorkbenchInspectorHeader>
+      <WorkbenchInspectorContent>
+        <ScrollArea class="flex-1 min-h-0" contentClass="p-3">
           <Show
-            when={changes.value()}
+            when={!changes.error()}
             fallback={
-              <Text role="status" class="p-3 text-sm text-muted">
-                {i18n.message(m.loading_changes, {})}
+              <Text role="alert" class="text-sm text-danger-primary">
+                {String(changes.error())}
               </Text>
             }
           >
-            {(value) => (
-              <DiffViewer
-                files={value().files}
-                labels={{
-                  filesChanged: (count) =>
-                    count === 1
-                      ? i18n.message(m.one_file_changed, {})
-                      : i18n.message(m.files_changed, { count }),
-                  additions: (count) => i18n.message(m.additions, { count }),
-                  deletions: (count) => i18n.message(m.deletions, { count }),
-                  empty: i18n.message(m.no_code_changes, {}),
-                  technicalDetails: i18n.message(m.technical_diff, {}),
-                }}
-              />
-            )}
+            <Show
+              when={changes.value()}
+              fallback={
+                <Text role="status" class="p-3 text-sm text-muted">
+                  {i18n.message(m.loading_changes, {})}
+                </Text>
+              }
+            >
+              {(value) => (
+                <DiffViewer
+                  files={value().files}
+                  labels={{
+                    filesChanged: (count) =>
+                      count === 1
+                        ? i18n.message(m.one_file_changed, {})
+                        : i18n.message(m.files_changed, { count }),
+                    additions: (count) => i18n.message(m.additions, { count }),
+                    deletions: (count) => i18n.message(m.deletions, { count }),
+                    empty: i18n.message(m.no_code_changes, {}),
+                    technicalDetails: i18n.message(m.technical_diff, {}),
+                  }}
+                />
+              )}
+            </Show>
           </Show>
-        </Show>
-      </ScrollArea>
-    </View>
+        </ScrollArea>
+      </WorkbenchInspectorContent>
+    </WorkbenchInspector>
   );
 }

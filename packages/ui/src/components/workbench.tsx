@@ -7,6 +7,9 @@ import {
   workbenchContentColumnClass,
   workbenchFooterClass,
   workbenchHeaderClass,
+  workbenchInspectorClass,
+  workbenchInspectorContentClass,
+  workbenchInspectorHeaderClass,
   workbenchMainClass,
   workbenchSidebarClass,
 } from "./workbench-style";
@@ -55,4 +58,26 @@ export function WorkbenchContentColumn(props: ViewProps): JSX.Element {
 export function WorkbenchFooter(props: ViewProps): JSX.Element {
   const forwarded = omit(props, "class");
   return <View {...forwarded} class={workbenchFooterClass(props.class)} />;
+}
+
+/** Fixed-width auxiliary pane for file previews, diffs and contextual tools. */
+export function WorkbenchInspector(props: ViewProps): JSX.Element {
+  const forwarded = omit(props, "class");
+  return <View {...forwarded} class={workbenchInspectorClass(props.class)} />;
+}
+
+/** Inspector title row with a stable height and bounded children. */
+export function WorkbenchInspectorHeader(props: ViewProps): JSX.Element {
+  const forwarded = omit(props, "class");
+  return (
+    <View {...forwarded} class={workbenchInspectorHeaderClass(props.class)} />
+  );
+}
+
+/** Flexible, clipped inspector body. Add a ScrollArea inside when needed. */
+export function WorkbenchInspectorContent(props: ViewProps): JSX.Element {
+  const forwarded = omit(props, "class");
+  return (
+    <View {...forwarded} class={workbenchInspectorContentClass(props.class)} />
+  );
 }
