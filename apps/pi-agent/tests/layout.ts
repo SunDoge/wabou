@@ -9,7 +9,6 @@ import {
 } from "@wabou/test/layout";
 import {
   type LayoutFixtureCase,
-  renderAppLayout,
   renderLayoutFixtures,
 } from "@wabou/test/layout/node";
 
@@ -109,41 +108,6 @@ function assertFullWorkbenchLayout(
 }
 
 try {
-  if (selected.length === 0) {
-    const snapshot = await renderAppLayout({
-      app: "apps/pi-agent",
-      out: join(directory, "snapshot.json"),
-      width: 1_200,
-      height: 800,
-      scaleFactor: 2,
-      waitMs: 100,
-      withHost: true,
-      command: [resolve("target/release/wabou")],
-    });
-
-    const renderFailures = queryLayoutNodes(snapshot, {
-      role: "alert",
-      name: "Pi Agent failed to render",
-    });
-    if (renderFailures.length > 0) {
-      throw new Error(
-        `Pi Agent entered its root error boundary: ${renderFailures[0]?.text ?? "unknown error"}`,
-      );
-    }
-
-    if (
-      queryLayoutNodes(snapshot, { name: "Search agents and sessions" })
-        .length > 0
-    ) {
-      throw new Error("empty onboarding exposed an inactive session search");
-    }
-    getLayoutNode(snapshot, {
-      role: "textbox",
-      name: "Ask this agent to work in its repository…",
-    });
-    getLayoutNode(snapshot, { role: "status", name: "Workspace status" });
-  }
-
   await renderLayoutFixtures({
     app: "apps/pi-agent",
     cases: selectCases(

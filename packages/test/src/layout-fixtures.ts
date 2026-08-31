@@ -20,7 +20,8 @@ export interface ComponentFixtureOptions {
   readonly height?: number;
   readonly scaleFactor?: number;
   readonly waitMs?: number;
-  readonly wrap?: (content: JSX.Element) => JSX.Element;
+  /** Render a fixture inside providers or a shared bounded application shell. */
+  readonly wrap?: (render: LayoutFixture) => JSX.Element;
 }
 
 export interface LayoutFixtureOptions {
@@ -63,8 +64,8 @@ export function defineComponentFixtures(
           scaleFactor: fixture.scaleFactor ?? options.scaleFactor,
           waitMs: fixture.waitMs ?? options.waitMs,
           render: () => {
-            const content = createComponent(fixture.render, {});
-            return options.wrap?.(content) ?? content;
+            const render = () => createComponent(fixture.render, {});
+            return options.wrap?.(render) ?? render();
           },
         },
       ];

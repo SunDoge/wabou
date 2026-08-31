@@ -172,7 +172,7 @@ defineLayoutFixtures({
     {
       width: 800,
       height: 600,
-      wrap: (content) => <View class="w-full p-6">{content}</View>,
+      wrap: (render) => <View class="w-full p-6">{render()}</View>,
     },
   ),
 });

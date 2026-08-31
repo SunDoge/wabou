@@ -70,10 +70,10 @@ function pageFixtures(
       ]),
   );
   return defineComponentFixtures(fixtures, {
-    wrap: (content) => (
+    wrap: (render) => (
       <ComponentsProvider theme="light">
         <View class="w-full h-full min-h-0 p-6 overflow-x-hidden overflow-y-auto">
-          {content}
+          {render()}
         </View>
       </ComponentsProvider>
     ),
@@ -237,8 +237,8 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
       },
     },
     {
-      wrap: (content) => (
-        <ComponentsProvider theme="light">{content}</ComponentsProvider>
+      wrap: (render) => (
+        <ComponentsProvider theme="light">{render()}</ComponentsProvider>
       ),
     },
   ),
