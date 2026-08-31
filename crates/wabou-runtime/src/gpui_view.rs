@@ -37,6 +37,7 @@ pub struct GpuiRuntimeView {
     // Retaining the task ties the async bridge to the lifetime of this view.
     // The task itself only owns a weak entity handle, so this is not a cycle.
     _wake_task: Task<()>,
+    runtime_wake: WakeCallback,
     focus: FocusHandle,
     text_controls: BTreeMap<wabou_host_api::NodeKey, GpuiTextControlState>,
     text_selections: BTreeMap<wabou_host_api::NodeKey, GpuiTextSelectionState>,
@@ -206,7 +207,7 @@ impl GpuiRuntimeView {
         let (wake, receiver) = gpui_wake_channel();
         controller.install_runtime_wake(wake.clone());
         if let Some(test_controller) = &options.test_controller {
-            test_controller.connect_gpui_window(options.window_key, wake);
+            test_controller.connect_gpui_window(options.window_key, wake.clone());
         }
 
         let wake_task = cx.spawn(async move |view, cx| {
@@ -231,6 +232,7 @@ impl GpuiRuntimeView {
         Self {
             controller,
             _wake_task: wake_task,
+            runtime_wake: wake,
             focus,
             text_controls: BTreeMap::new(),
             text_selections: BTreeMap::new(),
@@ -883,7 +885,16 @@ impl Render for GpuiRuntimeView {
                 window.is_maximized(),
             );
         }
-        let (projection_changed, frame_timing) = self.controller.advance_frame_profiled();
+        let (projection_changed, needs_runtime_followup, frame_timing) =
+            self.controller.advance_ready_work_profiled(8);
+        if needs_runtime_followup {
+            // Solid 2 and asynchronously loaded Vite modules may enqueue their
+            // retained mutations after this turn's protocol writer was flushed.
+            // Re-enter through the GPUI-managed pump used by IO and host
+            // messages. This guarantees a later Entity update instead of a
+            // notification coalesced into the render already in progress.
+            (self.runtime_wake)();
+        }
         let mut boundary_dirty = projection_changed || self.projection_boundary.is_none();
         self.synchronize_base_theme(cx);
         let fonts = self.controller.take_pending_fonts();

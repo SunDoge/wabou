@@ -107,6 +107,20 @@ fn animation_frame_uses_the_injected_clock_timestamp() {
 }
 
 #[test]
+fn tick_preserves_a_protocol_frame_delivered_before_the_native_turn() {
+    const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
+    let mut runtime = JsRuntime::new().expect("runtime");
+    runtime.boot(CORE_FIXTURE).expect("boot fixture");
+    let _ = runtime.tick().expect("flush initial mount");
+    runtime
+        .with(|ctx| ctx.eval::<(), _>("__wabou_flush(new Uint8Array([87, 65, 66, 79, 85]));"))
+        .expect("deliver protocol bytes between native turns");
+
+    let (bytes, _) = runtime.tick().expect("consume pending protocol frame");
+    assert_eq!(bytes, b"WABOU");
+}
+
+#[test]
 fn javascript_and_rust_share_runtime_atom_ids() {
     let runtime = JsRuntime::new().expect("runtime");
     let ids = runtime

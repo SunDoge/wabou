@@ -167,8 +167,8 @@ impl GpuiController {
         self.runtime.has_raf = false;
     }
 
-    pub(crate) fn finish_js_tick(&mut self) {
-        self.runtime.js.poll_async_runtime();
+    pub(crate) fn finish_js_tick(&mut self) -> bool {
+        self.runtime.js.poll_async_runtime()
     }
 
     pub(crate) fn install_runtime_wake(&mut self, wake: wabou_shell::WakeCallback) {
@@ -1024,7 +1024,7 @@ impl GpuiController {
         self.advance_frame_profiled().0
     }
 
-    pub(crate) fn advance_frame_profiled(&mut self) -> (bool, GpuiFrameTiming) {
+    pub(crate) fn advance_frame_profiled(&mut self) -> (bool, bool, GpuiFrameTiming) {
         self.prepare_js_tick();
         let _ = self.drain_hmr();
         self.drain_application_messages();
@@ -1041,7 +1041,7 @@ impl GpuiController {
                 };
                 self.fail_js_tick();
                 tracing::error!(target: "bridge", ?error, "GPUI JavaScript tick failed");
-                return (false, timing);
+                return (false, false, timing);
             }
         };
         let js_tick_ms = js_started.elapsed().as_secs_f64() * 1_000.0;
@@ -1059,12 +1059,25 @@ impl GpuiController {
                 }
             }
         }
-        self.finish_js_tick();
+        // Promise continuations may mutate Solid after this turn's writer was
+        // serialized. Report that progress so the GPUI root schedules one more
+        // turn instead of stranding the mutations until unrelated input.
+        let needs_followup = self.finish_js_tick();
         self.drain_projection_updates();
         let invalidation = self.projection.finish_frame_profiled();
         let changed = invalidation.changed();
+        tracing::trace!(
+            target: "wabou::perf",
+            protocol_bytes = bytes.len(),
+            needs_followup,
+            changed,
+            revision = invalidation.revision,
+            dirty_nodes = invalidation.dirty_nodes,
+            "advanced GPUI runtime frame"
+        );
         (
             changed,
+            needs_followup,
             GpuiFrameTiming {
                 js_tick_ms,
                 projection_ms: projection_started.elapsed().as_secs_f64() * 1_000.0,
@@ -1072,6 +1085,34 @@ impl GpuiController {
                 invalidation,
             },
         )
+    }
+
+    /// Advance all immediately-ready JavaScript work within one bounded GPUI
+    /// UI turn. Pending IO still parks on the runtime wake task; ready Promise
+    /// continuations must not require an unrelated platform frame before their
+    /// Solid mutations reach the native projection.
+    pub(crate) fn advance_ready_work_profiled(
+        &mut self,
+        max_turns: usize,
+    ) -> (bool, bool, GpuiFrameTiming) {
+        let mut changed = false;
+        let mut needs_followup = false;
+        let mut aggregate = GpuiFrameTiming::default();
+        for _ in 0..max_turns.max(1) {
+            let (turn_changed, turn_followup, timing) = self.advance_frame_profiled();
+            changed |= turn_changed;
+            needs_followup = turn_followup;
+            aggregate.js_tick_ms += timing.js_tick_ms;
+            aggregate.projection_ms += timing.projection_ms;
+            #[cfg(feature = "profiling")]
+            if timing.invalidation.changed() {
+                aggregate.invalidation = timing.invalidation;
+            }
+            if !turn_followup {
+                break;
+            }
+        }
+        (changed, needs_followup, aggregate)
     }
 
     /// Cross the synchronous host-event boundary before a behavior action is
@@ -1085,9 +1126,9 @@ impl GpuiController {
     pub(crate) fn settle_synchronous_action(&mut self) -> bool {
         let mut changed = false;
         for turn in 0..4 {
-            let (turn_changed, _) = self.advance_frame_profiled();
+            let (turn_changed, needs_followup, _) = self.advance_frame_profiled();
             changed |= turn_changed;
-            if turn > 0 && !turn_changed {
+            if turn > 0 && !turn_changed && !needs_followup {
                 break;
             }
         }
@@ -1360,6 +1401,80 @@ mod tests {
     use super::*;
     use crate::{JsRuntime, protocol::Op};
     use wabou_shell::NodeKey;
+
+    #[test]
+    fn reports_async_progress_that_occurs_after_the_protocol_flush() {
+        let js = JsRuntime::new().expect("runtime");
+        let mut controller = GpuiController::new(crate::runtime_session::RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        controller
+            .boot(include_str!("gen/test-runtime.js"))
+            .expect("boot generated Solid runtime fixture");
+        assert!(controller.advance_frame());
+        controller
+            .eval_script_diagnostic(
+                r#"
+                globalThis.__wabou_async_turn_done = false;
+                requestAnimationFrame(() => {
+                  Promise.resolve().then(() => {
+                    globalThis.__wabou_async_turn_done = true;
+                  });
+                });
+                "#,
+            )
+            .expect("schedule post-flush promise continuation");
+
+        let (_, needs_followup, _) = controller.advance_frame_profiled();
+        assert!(
+            needs_followup,
+            "post-flush Promise progress needs another native turn"
+        );
+        assert_eq!(
+            controller
+                .eval_string("String(globalThis.__wabou_async_turn_done)")
+                .expect("read async marker"),
+            "true"
+        );
+    }
+
+    #[test]
+    fn bounded_ready_work_pump_settles_post_flush_promises() {
+        let js = JsRuntime::new().expect("runtime");
+        let mut controller = GpuiController::new(crate::runtime_session::RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        controller
+            .boot(include_str!("gen/test-runtime.js"))
+            .expect("boot generated Solid runtime fixture");
+        assert!(controller.advance_frame());
+        controller
+            .eval_script_diagnostic(
+                r#"
+                globalThis.__wabou_ready_turn_done = false;
+                requestAnimationFrame(() => {
+                  Promise.resolve().then(() => {
+                    globalThis.__wabou_ready_turn_done = true;
+                  });
+                });
+                "#,
+            )
+            .expect("schedule post-flush promise continuation");
+
+        let (_, needs_followup, _) = controller.advance_ready_work_profiled(8);
+        assert!(
+            !needs_followup,
+            "ready Promise work must settle within the bounded UI turn"
+        );
+        assert_eq!(
+            controller
+                .eval_string("String(globalThis.__wabou_ready_turn_done)")
+                .expect("read async marker"),
+            "true"
+        );
+    }
 
     fn install_application_message_probe(js: &JsRuntime) {
         js.eval_script(

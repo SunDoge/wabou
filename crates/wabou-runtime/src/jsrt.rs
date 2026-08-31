@@ -1100,15 +1100,11 @@ impl JsRuntime {
     /// Returns the frame bytes (empty if nothing changed this tick) and whether
     /// more rAF callbacks remain queued (so the host can keep redrawing).
     pub fn tick(&mut self) -> JsResult<(Vec<u8>, bool)> {
-        self.out.borrow_mut().clear();
         let frame_time = self.clock.now_ms();
         let has_raf = self.with(|ctx| -> JsResult<bool> {
             let tick: Function = ctx.globals().get("__wabou_tick")?;
             tick.call::<(f64,), bool>((frame_time,))
         })?;
-        // Promise continuations share the same fixed/time budget as fetch and
-        // timers. Never drain an unbounded microtask graph in one UI callback.
-        self.poll_async_runtime();
         let bytes = std::mem::take(&mut *self.out.borrow_mut());
         Ok((bytes, has_raf))
     }
