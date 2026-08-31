@@ -1258,6 +1258,11 @@ fn run_gpui_windows(
     let app_gpui_windows = gpui_windows.clone();
     wabou_shell::application().run(move |cx| {
         gpui_base::init(cx);
+        gpui_base::Theme::global_mut(cx).scrollbar = gpui_base::ScrollbarTheme::new().with_motion(
+            gpui_base::ScrollbarMotion::default()
+                .with_idle(std::time::Duration::from_millis(500))
+                .with_exit(std::time::Duration::from_millis(200)),
+        );
         *retained_close_subscription.borrow_mut() =
             Some(app_gpui_windows.observe_native_closes(cx));
         let mut opened_windows = Vec::new();

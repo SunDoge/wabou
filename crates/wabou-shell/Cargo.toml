@@ -11,6 +11,7 @@ license.workspace = true
 anyhow.workspace = true
 bitflags.workspace = true
 gpui.workspace = true
+gpui-base.workspace = true
 gpui-platform.workspace = true
 lyon_tessellation.workspace = true
 serde.workspace = true

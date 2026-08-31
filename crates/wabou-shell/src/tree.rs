@@ -19,6 +19,33 @@ pub struct ProjectedSvgSource {
     pub cache_key: SharedString,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ProjectedScrollbarStyle {
+    pub visibility: u8,
+    pub hide_delay: f32,
+    pub fade_duration: f32,
+    pub thickness: f32,
+    pub margin: f32,
+    pub min_thumb_length: f32,
+    pub radius: f32,
+    pub colors: [u32; 4],
+}
+
+impl Default for ProjectedScrollbarStyle {
+    fn default() -> Self {
+        Self {
+            visibility: 0,
+            hide_delay: 500.0,
+            fade_duration: 200.0,
+            thickness: 10.0,
+            margin: 2.0,
+            min_thumb_length: 32.0,
+            radius: -1.0,
+            colors: [0x0000_0000, 0x6474_8fbe, 0x6474_8fe1, 0x4755_69ff],
+        }
+    }
+}
+
 /// Explicit semantic kind retained for every projected protocol node.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ProjectedNodeKind {
@@ -57,6 +84,7 @@ pub struct ProjectedNode {
     /// Trusted inline SVG bytes retained separately so GPUI can apply its
     /// native paint transformation instead of flattening the SVG to an image.
     pub svg_source: Option<ProjectedSvgSource>,
+    pub scrollbar_style: Option<ProjectedScrollbarStyle>,
     pub(crate) vector_path: Option<std::sync::Arc<crate::vector_path::ProjectedVectorPath>>,
     /// Runtime affine transform emitted by the Solid renderer. GPUI applies
     /// the full matrix to inline SVG and translation to ordinary elements;
@@ -290,6 +318,7 @@ impl ProjectionTree {
                 text_max_lines: 0,
                 image: None,
                 svg_source: None,
+                scrollbar_style: None,
                 vector_path: None,
                 transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
                 attributes: BTreeMap::new(),
@@ -518,6 +547,20 @@ impl ProjectionTree {
             .ok_or(ProjectionError::MissingNode(key))?
             .svg_source = source;
         self.dirty.invalidate(key, DirtyKind::PAINT);
+        Ok(())
+    }
+
+    pub fn update_scrollbar_style(
+        &mut self,
+        key: NodeKey,
+        style: ProjectedScrollbarStyle,
+    ) -> Result<(), ProjectionError> {
+        self.nodes_mut()
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?
+            .scrollbar_style = Some(style);
+        self.dirty
+            .invalidate(key, DirtyKind::PAINT | DirtyKind::INTERACTION);
         Ok(())
     }
 

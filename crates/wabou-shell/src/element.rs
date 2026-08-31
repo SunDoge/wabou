@@ -34,6 +34,7 @@ pub struct ProjectedScrollHandle(Rc<RefCell<ProjectedScrollState>>);
 struct ProjectedScrollState {
     offset: gpui::Point<Pixels>,
     max_offset: gpui::Point<Pixels>,
+    viewport: Bounds<Pixels>,
     has_extent: bool,
 }
 
@@ -97,6 +98,10 @@ impl ProjectedScrollHandle {
         state.offset.y = state.offset.y.clamp(-max_offset.y, Pixels::ZERO);
     }
 
+    fn set_viewport(&self, viewport: Bounds<Pixels>) {
+        self.0.borrow_mut().viewport = viewport;
+    }
+
     fn offset(&self) -> gpui::Point<Pixels> {
         self.0.borrow().offset
     }
@@ -116,6 +121,30 @@ impl ProjectedScrollHandle {
             state.offset.y = (state.offset.y + delta.y).clamp(-state.max_offset.y, Pixels::ZERO);
         }
         state.offset != old
+    }
+}
+
+impl gpui_base::ScrollbarHandle for ProjectedScrollHandle {
+    fn viewport_bounds(&self) -> Bounds<Pixels> {
+        self.0.borrow().viewport
+    }
+
+    fn offset(&self) -> gpui::Point<Pixels> {
+        self.offset()
+    }
+
+    fn set_offset(&self, offset: gpui::Point<Pixels>) {
+        let mut state = self.0.borrow_mut();
+        state.offset.x = offset.x.clamp(-state.max_offset.x, Pixels::ZERO);
+        state.offset.y = offset.y.clamp(-state.max_offset.y, Pixels::ZERO);
+    }
+
+    fn content_size(&self) -> gpui::Size<Pixels> {
+        let state = self.0.borrow();
+        gpui::size(
+            state.viewport.size.width + state.max_offset.x,
+            state.viewport.size.height + state.max_offset.y,
+        )
     }
 }
 
@@ -159,6 +188,7 @@ pub struct ProjectedElement {
     svg_source: Option<crate::tree::ProjectedSvgSource>,
     vector_path: Option<std::sync::Arc<crate::vector_path::ProjectedVectorPath>>,
     accessibility: Option<ProjectedAccessibility>,
+    scrollbar_style: Option<crate::tree::ProjectedScrollbarStyle>,
 }
 
 #[derive(Clone)]
@@ -286,10 +316,13 @@ fn projected_accessibility(node: &ProjectedNode) -> Option<ProjectedAccessibilit
 pub struct ProjectedPrepaintState {
     hitbox: Option<Hitbox>,
     paint_bounds: Bounds<Pixels>,
+    scrollbar: Option<AnyElement>,
 }
 
 pub struct ProjectedRequestLayoutState {
     child_layouts: Vec<LayoutId>,
+    scrollbar_layout: Option<LayoutId>,
+    scrollbar: Option<AnyElement>,
 }
 
 impl ProjectedElement {
@@ -397,6 +430,7 @@ impl ProjectedElement {
             svg_source: node.svg_source.clone(),
             vector_path: node.vector_path.clone(),
             accessibility: projected_accessibility(node),
+            scrollbar_style: node.scrollbar_style,
         })
     }
 
@@ -429,6 +463,60 @@ impl ProjectedElement {
                 center.y.0 + f * scale_factor - b * center.x.0 - d * center.y.0,
             ],
         }
+    }
+
+    fn scrollbar_element(&self) -> Option<AnyElement> {
+        // Pure layout materialization has no current GPUI view. Base's
+        // scrollbar owns keyed interaction state and is therefore projected
+        // only for the interactive application tree.
+        self.input.as_ref()?;
+        let scroll = self.scroll.as_ref()?;
+        let style = self.scrollbar_style.unwrap_or_default();
+        if style.visibility == 2 {
+            return None;
+        }
+        let axis = match (self.scroll_x, self.scroll_y) {
+            (true, true) => gpui_base::ScrollbarAxis::Both,
+            (true, false) => gpui_base::ScrollbarAxis::Horizontal,
+            (false, true) => gpui_base::ScrollbarAxis::Vertical,
+            (false, false) => return None,
+        };
+        let mode = if style.visibility == 1 {
+            gpui_base::ScrollbarMode::Always
+        } else {
+            gpui_base::ScrollbarMode::Scrolling
+        };
+        let radius = if style.radius < 0.0 {
+            style.thickness / 2.0
+        } else {
+            style.radius
+        };
+        let thumb_width = (style.thickness - style.margin * 2.0).max(1.0);
+        let track = gpui::rgb_to_hsla(gpui::rgba(style.colors[0]));
+        let thumb = gpui::rgb_to_hsla(gpui::rgba(style.colors[1]));
+        let hover = gpui::rgb_to_hsla(gpui::rgba(style.colors[2]));
+        let active = gpui::rgb_to_hsla(gpui::rgba(style.colors[3]));
+        let bar = gpui_base::Scrollbar::new(scroll)
+            .id(format!("wabou-scrollbar-{}-{}", self.key.lo, self.key.hi))
+            .axis(axis)
+            .mode(mode)
+            .styles(|styles| {
+                styles
+                    .track(|value| value.bg(track).width(gpui::px(style.thickness)))
+                    .track_hover(|value| value.bg(track).width(gpui::px(style.thickness)))
+                    .track_active(|value| value.bg(track).width(gpui::px(style.thickness)))
+                    .thumb(|value| {
+                        value
+                            .bg(thumb)
+                            .width(gpui::px(thumb_width))
+                            .inset(gpui::px(style.margin))
+                            .radius(gpui::px(radius))
+                            .min_length(gpui::px(style.min_thumb_length))
+                    })
+                    .thumb_hover(|value| value.bg(hover))
+                    .thumb_active(|value| value.bg(active))
+            });
+        Some(div().absolute().inset_0().child(bar).into_any_element())
     }
 }
 
@@ -622,8 +710,21 @@ impl Element for ProjectedElement {
             .iter_mut()
             .map(|child| child.request_layout(window, cx))
             .collect::<Vec<_>>();
-        let layout_id = window.request_layout(self.style.clone(), child_layouts.clone(), cx);
-        (layout_id, ProjectedRequestLayoutState { child_layouts })
+        let mut scrollbar = self.scrollbar_element();
+        let scrollbar_layout = scrollbar
+            .as_mut()
+            .map(|scrollbar| scrollbar.request_layout(window, cx));
+        let mut layout_children = child_layouts.clone();
+        layout_children.extend(scrollbar_layout);
+        let layout_id = window.request_layout(self.style.clone(), layout_children, cx);
+        (
+            layout_id,
+            ProjectedRequestLayoutState {
+                child_layouts,
+                scrollbar_layout,
+                scrollbar,
+            },
+        )
     }
 
     fn prepaint(
@@ -643,6 +744,9 @@ impl Element for ProjectedElement {
             origin: bounds.origin + translation,
             size: bounds.size,
         };
+        if let Some(scroll) = &self.scroll {
+            scroll.set_viewport(paint_bounds);
+        }
         let text_style = self.style.text_style().cloned();
         let overflow_mask = self.style.overflow_mask(paint_bounds, window.rem_size());
         if let Some(focus) = &self.root_focus {
@@ -696,9 +800,15 @@ impl Element for ProjectedElement {
                 });
             });
         });
+        let mut scrollbar = request_layout.scrollbar.take();
+        if let (Some(scrollbar), Some(_layout)) = (&mut scrollbar, request_layout.scrollbar_layout)
+        {
+            window.with_element_offset(translation, |window| scrollbar.prepaint(window, cx));
+        }
         ProjectedPrepaintState {
             hitbox,
             paint_bounds,
+            scrollbar,
         }
     }
 
@@ -889,6 +999,9 @@ impl Element for ProjectedElement {
                 });
             });
         });
+        if let Some(scrollbar) = &mut prepaint.scrollbar {
+            scrollbar.paint(window, cx);
+        }
     }
 }
 
@@ -899,6 +1012,25 @@ mod tests {
     use std::{cell::RefCell, rc::Rc};
 
     use gpui::{Context, Keystroke, Modifiers, Style, TestAppContext, point, px};
+    use gpui_base::ScrollbarHandle as _;
+
+    #[test]
+    fn retained_scroll_handle_adapts_to_gpui_base_without_copying_state() {
+        let handle = ProjectedScrollHandle::default();
+        handle.set_viewport(Bounds::new(
+            point(px(10.0), px(20.0)),
+            gpui::size(px(200.0), px(100.0)),
+        ));
+        handle.set_max_offset(point(px(40.0), px(300.0)));
+        gpui_base::ScrollbarHandle::set_offset(&handle, point(px(-12.0), px(-80.0)));
+
+        assert_eq!(handle.position(), point(px(12.0), px(80.0)));
+        assert_eq!(handle.content_size(), gpui::size(px(240.0), px(400.0)));
+        assert_eq!(
+            handle.viewport_bounds(),
+            Bounds::new(point(px(10.0), px(20.0)), gpui::size(px(200.0), px(100.0)))
+        );
+    }
 
     #[test]
     fn generated_element_uses_the_retained_generational_identity() {

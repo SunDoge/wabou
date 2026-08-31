@@ -345,9 +345,29 @@ impl GpuiProjection {
                 Op::SetOverlayPlane { id, plane } => {
                     self.tree.update_overlay_plane(*id, *plane)?;
                 }
-                Op::SetScrollbarStyle { id, .. } => {
-                    self.record_protocol_gap(*id, "GPUI scrollbar styling");
-                }
+                Op::SetScrollbarStyle {
+                    id,
+                    visibility,
+                    hide_delay,
+                    fade_duration,
+                    thickness,
+                    margin,
+                    min_thumb_length,
+                    radius,
+                    colors,
+                } => self.tree.update_scrollbar_style(
+                    *id,
+                    crate::tree::ProjectedScrollbarStyle {
+                        visibility: *visibility,
+                        hide_delay: *hide_delay,
+                        fade_duration: *fade_duration,
+                        thickness: *thickness,
+                        margin: *margin,
+                        min_thumb_length: *min_thumb_length,
+                        radius: *radius,
+                        colors: *colors,
+                    },
+                )?,
                 Op::FocusNode { id } => self.pending_commands.push(GpuiCommand::Focus { id: *id }),
                 Op::ScrollTo { id, x, y } => self.pending_commands.push(GpuiCommand::ScrollTo {
                     id: *id,
@@ -2009,6 +2029,54 @@ mod tests {
                     y: 2.0,
                 },
             ]
+        );
+        assert!(projection.protocol_gaps().is_empty());
+    }
+
+    #[test]
+    fn typed_scrollbar_style_is_retained_for_gpui_base_projection() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::SetScrollbarStyle {
+                            id: key(2),
+                            visibility: 1,
+                            hide_delay: 700.0,
+                            fade_duration: 160.0,
+                            thickness: 12.0,
+                            margin: 2.0,
+                            min_thumb_length: 36.0,
+                            radius: 6.0,
+                            colors: [1, 2, 3, 4],
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        assert_eq!(
+            projection.tree().node(key(2)).unwrap().scrollbar_style,
+            Some(crate::tree::ProjectedScrollbarStyle {
+                visibility: 1,
+                hide_delay: 700.0,
+                fade_duration: 160.0,
+                thickness: 12.0,
+                margin: 2.0,
+                min_thumb_length: 36.0,
+                radius: 6.0,
+                colors: [1, 2, 3, 4],
+            })
         );
         assert!(projection.protocol_gaps().is_empty());
     }
