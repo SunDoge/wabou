@@ -11,6 +11,7 @@ mod native_widget;
 mod projection;
 mod protocol_projection;
 mod style;
+mod text_selection;
 mod tree;
 mod vector_path;
 mod window_state;
@@ -27,11 +28,13 @@ pub use native_widget::{NativeWidgetContext, NativeWidgetFactory, NativeWidgetMo
 pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
 pub use protocol_projection::{
     GpuiCommand, GpuiComputedStyle, GpuiLayoutNode, GpuiNativeWidget, GpuiProjection,
-    GpuiTextControl, GpuiTextControlStyle, project_ir,
+    GpuiSelectableText, GpuiTextControl, GpuiTextControlStyle, project_ir,
 };
 pub use style::{StyleDiagnostic, StyleProjection};
+pub use text_selection::ProjectedTextSelection;
 pub use tree::{
     ProjectedNode, ProjectedNodeKind, ProjectionError, ProjectionSnapshot, ProjectionTree,
+    TextSelectionPolicy,
 };
 pub use wabou_shell_api::event::*;
 pub use wabou_shell_api::{

@@ -8,6 +8,7 @@ use std::{
 };
 
 use gpui_base::input::{Input, InputEditorStyle, InputEvent, InputState, Textarea, TextareaState};
+use gpui_base::{TextSelectionHandle, TextSelectionLayer};
 use wabou_shell::WakeCallback;
 use wabou_shell::gpui::{
     AppContext as _, ClipboardItem, Context, DragMoveEvent, Entity, ExternalPaths, FocusHandle,
@@ -35,6 +36,7 @@ pub struct GpuiRuntimeView {
     _wake_task: Task<()>,
     focus: FocusHandle,
     text_controls: BTreeMap<wabou_host_api::NodeKey, GpuiTextControlState>,
+    text_selections: BTreeMap<wabou_host_api::NodeKey, GpuiTextSelectionState>,
     native_widget_entities: BTreeMap<wabou_host_api::NodeKey, wabou_shell::gpui::AnyEntity>,
     window_size_persistence: Option<wabou_shell::WindowSizePersistence>,
     native_widget_factories: HashMap<String, wabou_shell::NativeWidgetFactory>,
@@ -62,6 +64,12 @@ enum GpuiTextControlState {
         state: Entity<TextareaState>,
         _subscription: Subscription,
     },
+}
+
+struct GpuiTextSelectionState {
+    handle: TextSelectionHandle,
+    select_all: bool,
+    _subscription: Subscription,
 }
 
 impl GpuiTextControlState {
@@ -170,6 +178,7 @@ impl GpuiRuntimeView {
             _wake_task: wake_task,
             focus,
             text_controls: BTreeMap::new(),
+            text_selections: BTreeMap::new(),
             native_widget_entities: BTreeMap::new(),
             window_size_persistence: options.window_size_persistence,
             native_widget_factories: options.native_widget_factories,
@@ -179,6 +188,57 @@ impl GpuiRuntimeView {
             file_drag_paths: Vec::new(),
             file_drag_position: None,
         }
+    }
+
+    fn synchronize_text_selections(
+        &mut self,
+        window: &Window,
+        cx: &mut Context<GpuiRuntimeView>,
+    ) -> Rc<BTreeMap<wabou_host_api::NodeKey, wabou_shell::ProjectedTextSelection>> {
+        let descriptors = self.controller.selectable_texts();
+        self.text_selections
+            .retain(|key, _| descriptors.iter().any(|text| text.key == *key));
+        let projected = descriptors
+            .into_iter()
+            .map(|text| {
+                if self
+                    .text_selections
+                    .get(&text.key)
+                    .is_some_and(|state| state.select_all != text.select_all)
+                {
+                    self.text_selections.remove(&text.key);
+                }
+                let state = self.text_selections.entry(text.key).or_insert_with(|| {
+                    let handle = TextSelectionHandle::new(text.text.to_string(), cx);
+                    if text.select_all {
+                        let copy_text = text.text.to_string();
+                        handle.copy_with(move |_| copy_text.clone(), cx);
+                    }
+                    let subscription = handle.refresh_window_on_change(window, cx);
+                    GpuiTextSelectionState {
+                        handle,
+                        select_all: text.select_all,
+                        _subscription: subscription,
+                    }
+                });
+                state
+                    .handle
+                    .set_fallback_copy_text(text.text.to_string(), cx);
+                if text.select_all {
+                    let copy_text = text.text.to_string();
+                    state.handle.copy_with(move |_| copy_text.clone(), cx);
+                }
+                (
+                    text.key,
+                    wabou_shell::ProjectedTextSelection::new(
+                        state.handle.clone(),
+                        text.document_order,
+                        text.select_all,
+                    ),
+                )
+            })
+            .collect();
+        Rc::new(projected)
     }
 
     fn handle_file_drag_move(
@@ -885,9 +945,16 @@ impl Render for GpuiRuntimeView {
         let native_controls = Rc::new(std::cell::RefCell::new(native_controls));
         let native: wabou_shell::ProjectedNativeElementFactory =
             Rc::new(move |key| native_controls.borrow_mut().remove(&key));
+        let text_selections = self.synchronize_text_selections(window, cx);
         let projected = self
             .controller
-            .interactive_element(input, self.focus.clone(), text_input, Some(native))
+            .interactive_element(
+                input,
+                self.focus.clone(),
+                text_input,
+                Some(native),
+                text_selections,
+            )
             .expect("the canonical Wabou root remains retained");
         let drag_view = cx.weak_entity();
         let drop_view = drag_view.clone();
@@ -918,7 +985,12 @@ impl Render for GpuiRuntimeView {
                     cx.notify();
                 });
             })
-            .child(projected);
+            // The layer is intentionally painted last. Projected nodes stop
+            // native bubbling after dispatching the exact JS target; placing
+            // the window coordinator last lets its bubble listener observe a
+            // drag first without changing Wabou's event-target contract.
+            .child(projected)
+            .child(TextSelectionLayer);
         self.controller.publish_frame_stats(
             frame_timing,
             frame_started.elapsed().as_secs_f64() * 1_000.0,

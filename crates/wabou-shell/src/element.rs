@@ -13,7 +13,7 @@ use crate::{
     GpuiNodeKeyExt, NodeKey, ProjectedInputEvent, ProjectedInputSink, ProjectedKeyEvent,
     ProjectedKeyPhase, ProjectedNode, ProjectedNodeKind, ProjectedPointerButton,
     ProjectedPointerEvent, ProjectedPointerPhase, ProjectedScrollEvent, ProjectedTextInputState,
-    ProjectedWheelEvent, ProjectedWheelPhase, ProjectionError,
+    ProjectedWheelEvent, ProjectedWheelPhase, ProjectionError, TextSelectionPolicy,
 };
 use wabou_protocol::{TEXT_BEHAVIOR_AGGREGATE_DIRECT, TEXT_BEHAVIOR_AGGREGATE_STYLED};
 
@@ -172,6 +172,8 @@ pub(crate) struct ProjectedElementContext {
     pub(crate) graphic_paint_states: Option<ProjectedGraphicPaintStates>,
     pub(crate) scroll_handles: Option<Rc<BTreeMap<NodeKey, ProjectedScrollHandle>>>,
     pub(crate) uniform_list_handles: Option<Rc<BTreeMap<NodeKey, UniformListScrollHandle>>>,
+    pub(crate) text_selections: Option<crate::text_selection::ProjectedTextSelections>,
+    pub(crate) text_selection_policy: Option<TextSelectionPolicy>,
 }
 
 impl ProjectedElementContext {
@@ -350,6 +352,13 @@ impl ProjectedElement {
     ) -> Result<Self, ProjectionError> {
         let node = tree.node(key).ok_or(ProjectionError::MissingNode(key))?;
         let interaction_blocked = ancestor_blocked || node.interaction_blocked;
+        let text_selection_policy = node.text_selection.unwrap_or(
+            context
+                .text_selection_policy
+                .unwrap_or(TextSelectionPolicy::Text),
+        );
+        let mut child_context = context.for_child();
+        child_context.text_selection_policy = Some(text_selection_policy);
         let native_child = context.native.as_ref().and_then(|factory| factory(key));
         let mut children =
             Vec::with_capacity(node.children.len() + usize::from(node.text.is_some()));
@@ -361,7 +370,7 @@ impl ProjectedElement {
             let row_keys = node.children.clone();
             let row_count = row_keys.len();
             let row_tree = tree.clone();
-            let row_context = context.for_child();
+            let row_context = child_context.clone();
             let list = uniform_list(
                 format!("wabou-uniform-list-{}-{}", key.hi, key.lo),
                 row_count,
@@ -392,7 +401,19 @@ impl ProjectedElement {
         } else if let Some(native_child) = native_child {
             children.push(native_child);
         } else if let Some(text) = projected_text(&tree, node) {
-            children.push(div().child(text).into_any_element());
+            let selectable = (text_selection_policy != TextSelectionPolicy::None)
+                .then(|| {
+                    context
+                        .text_selections
+                        .as_ref()
+                        .and_then(|selections| selections.get(&key))
+                })
+                .flatten();
+            children.push(if let Some(selection) = selectable {
+                crate::text_selection::selectable_text_element(selection.clone(), text)
+            } else {
+                div().child(text).into_any_element()
+            });
         }
         if let Some(image) = &node.image {
             children.push(gpui::img(image.clone()).size_full().into_any_element());
@@ -409,7 +430,7 @@ impl ProjectedElement {
             let projected = Self::from_tree(
                 tree.clone(),
                 *child,
-                context.for_child(),
+                child_context.clone(),
                 interaction_blocked,
             )?;
             let priority = tree
@@ -961,8 +982,19 @@ impl Element for ProjectedElement {
 
         if let (Some(input), Some(_focus)) = (&self.input, &self.root_focus) {
             let down_input = input.clone();
-            window.on_key_event(move |event: &KeyDownEvent, phase, _window, cx| {
+            window.on_key_event(move |event: &KeyDownEvent, phase, window, cx| {
                 if phase == DispatchPhase::Bubble {
+                    let copy_shortcut = (event.keystroke.modifiers.platform
+                        || event.keystroke.modifiers.control)
+                        && event.keystroke.key.eq_ignore_ascii_case("c");
+                    if copy_shortcut && gpui_base::TextSelection::has_selection(window, cx) {
+                        let selected = gpui_base::TextSelection::selected_text(window, cx);
+                        if !selected.is_empty() {
+                            cx.write_to_clipboard(gpui::ClipboardItem::new_string(selected));
+                            cx.stop_propagation();
+                            return;
+                        }
+                    }
                     down_input(
                         ProjectedInputEvent::Key(key_event(
                             ProjectedKeyPhase::Down,
@@ -2028,5 +2060,103 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(commits, ["日", "本"], "all projected events: {events:?}");
+    }
+
+    #[gpui::test]
+    fn projected_text_uses_native_window_selection(cx: &mut TestAppContext) {
+        struct SelectionHost {
+            tree: ProjectionSnapshot,
+            selection: crate::ProjectedTextSelection,
+            bounds: ProjectedLayoutBounds,
+            focus: FocusHandle,
+        }
+
+        impl gpui::Render for SelectionHost {
+            fn render(
+                &mut self,
+                _window: &mut Window,
+                _cx: &mut Context<Self>,
+            ) -> impl IntoElement {
+                let selections = Rc::new(BTreeMap::from([(
+                    NodeKey::new(2, 1),
+                    self.selection.clone(),
+                )]));
+                let projected = ProjectedElement::from_tree(
+                    self.tree.clone(),
+                    NodeKey::ROOT,
+                    ProjectedElementContext {
+                        input: Some(Rc::new(|_, _| {})),
+                        root_focus: Some(self.focus.clone()),
+                        text_selections: Some(selections),
+                        layout_bounds: Some(self.bounds.clone()),
+                        ..Default::default()
+                    },
+                    false,
+                )
+                .unwrap();
+                div()
+                    .size_full()
+                    .child(projected)
+                    .child(gpui_base::TextSelectionLayer)
+            }
+        }
+
+        let mut projection = crate::GpuiProjection::new();
+        let atoms = wabou_protocol::AtomPool::default();
+        projection
+            .apply_ops(
+                &wabou_protocol::Frame {
+                    seq: 1,
+                    ops: vec![
+                        wabou_protocol::Op::CreateText {
+                            id: NodeKey::new(2, 1),
+                            text: "selectable sentence",
+                        },
+                        wabou_protocol::Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: NodeKey::new(2, 1),
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        let _ = projection.finish_frame();
+        let tree = projection.tree().snapshot();
+        let bounds = ProjectedLayoutBounds::default();
+        let observed_bounds = bounds.clone();
+        let (_view, cx) = cx.add_window_view(move |window, cx| {
+            let focus = cx.focus_handle();
+            window.focus(&focus, cx);
+            SelectionHost {
+                tree,
+                selection: crate::ProjectedTextSelection::new(
+                    gpui_base::TextSelectionHandle::new("selectable sentence", cx),
+                    0,
+                    false,
+                ),
+                bounds,
+                focus,
+            }
+        });
+        cx.update(|window, cx| {
+            let _ = window.draw(cx);
+        });
+        let text_bounds = observed_bounds.borrow()[&NodeKey::new(2, 1)];
+        let start = point(text_bounds.left() + px(2.0), text_bounds.center().y);
+        let end = point(text_bounds.right() - px(2.0), text_bounds.center().y);
+        cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::default());
+        cx.simulate_mouse_move(end, Some(MouseButton::Left), Modifiers::default());
+        cx.simulate_mouse_up(end, MouseButton::Left, Modifiers::default());
+        cx.update(|window, cx| {
+            assert!(!gpui_base::TextSelection::selected_text(window, cx).is_empty());
+        });
+        cx.simulate_keystrokes("ctrl-c");
+        assert!(
+            cx.read_from_clipboard()
+                .and_then(|item| item.text())
+                .is_some_and(|text| !text.is_empty())
+        );
     }
 }

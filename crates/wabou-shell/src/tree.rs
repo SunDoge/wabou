@@ -57,6 +57,14 @@ pub enum ProjectedNodeKind {
     Text,
 }
 
+/// Effective authored policy for selecting rendered text in a node subtree.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TextSelectionPolicy {
+    Text,
+    None,
+    All,
+}
+
 /// One lightweight cached node in the GPUI projection.
 ///
 /// It is not application state. The Solid/runtime retained tree remains
@@ -101,6 +109,9 @@ pub struct ProjectedNode {
     /// Whether this exact node may become a pointer hit target. Unlike
     /// `interaction_blocked`, this does not suppress interactive descendants.
     pub pointer_events: bool,
+    /// Own `user-select` declaration. Absence inherits the ancestor policy;
+    /// the window root defaults to selectable text.
+    pub text_selection: Option<TextSelectionPolicy>,
     /// GPUI deferred-draw priority for this node. Wabou intentionally exposes
     /// only non-negative stacking priorities rather than CSS stacking contexts.
     pub z_index: usize,
@@ -222,6 +233,8 @@ impl ProjectionTree {
                 graphic_paint_states: None,
                 scroll_handles: None,
                 uniform_list_handles: None,
+                text_selections: None,
+                text_selection_policy: None,
             },
             false,
         )
@@ -242,6 +255,9 @@ impl ProjectionTree {
         uniform_list_handles: std::rc::Rc<
             std::collections::BTreeMap<NodeKey, gpui::UniformListScrollHandle>,
         >,
+        text_selections: std::rc::Rc<
+            std::collections::BTreeMap<NodeKey, crate::ProjectedTextSelection>,
+        >,
     ) -> Result<ProjectedElement, ProjectionError> {
         let snapshot = self.snapshot();
         ProjectedElement::from_tree(
@@ -256,6 +272,8 @@ impl ProjectionTree {
                 graphic_paint_states: Some(graphic_paint_states),
                 scroll_handles: Some(scroll_handles),
                 uniform_list_handles: Some(uniform_list_handles),
+                text_selections: Some(text_selections),
+                text_selection_policy: None,
             },
             false,
         )
@@ -329,6 +347,7 @@ impl ProjectionTree {
                 focus_order: None,
                 interaction_blocked: false,
                 pointer_events: true,
+                text_selection: None,
                 z_index: 0,
                 overlay_plane: 0,
                 focus_contained: false,
@@ -684,6 +703,20 @@ impl ProjectionTree {
             .ok_or(ProjectionError::MissingNode(key))?
             .pointer_events = enabled;
         self.dirty.invalidate(key, DirtyKind::INTERACTION);
+        Ok(())
+    }
+
+    pub fn update_text_selection(
+        &mut self,
+        key: NodeKey,
+        policy: Option<TextSelectionPolicy>,
+    ) -> Result<(), ProjectionError> {
+        self.nodes_mut()
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?
+            .text_selection = policy;
+        self.dirty
+            .invalidate(key, DirtyKind::PAINT | DirtyKind::INTERACTION);
         Ok(())
     }
 

@@ -635,6 +635,12 @@ impl GpuiController {
         focus: wabou_shell::gpui::FocusHandle,
         text_input: wabou_shell::ProjectedTextInputState,
         native: Option<wabou_shell::ProjectedNativeElementFactory>,
+        text_selections: std::rc::Rc<
+            std::collections::BTreeMap<
+                wabou_host_api::NodeKey,
+                wabou_shell::ProjectedTextSelection,
+            >,
+        >,
     ) -> Result<wabou_shell::ProjectedElement, ProjectionError> {
         self.projection.interactive_tree_element(
             wabou_host_api::NodeKey::ROOT,
@@ -642,7 +648,12 @@ impl GpuiController {
             focus,
             text_input,
             native,
+            text_selections,
         )
+    }
+
+    pub(crate) fn selectable_texts(&self) -> Vec<wabou_shell::GpuiSelectableText> {
+        self.projection.selectable_texts()
     }
 
     pub(crate) fn layout_snapshot(&self) -> Vec<wabou_shell::GpuiLayoutNode> {

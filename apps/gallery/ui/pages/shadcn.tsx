@@ -276,6 +276,14 @@ export function TypographyPage() {
         Components own typography, wrapping, and spacing while applications
         remain free to compose the final hierarchy.
       </TypographyP>
+      <View class="flex flex-col gap-1 rounded-lg border border-subtle bg-surface px-4 py-3">
+        <Text class="font-medium">Native text selection</Text>
+        <Text class="text-sm text-muted">
+          Drag across this paragraph, then use the platform copy shortcut. Text
+          selection and highlighting are retained by GPUI rather than simulated
+          in JavaScript.
+        </Text>
+      </View>
       <TypographyBlockquote>
         Make invalid UI states visible to tests before pixels are rendered.
       </TypographyBlockquote>

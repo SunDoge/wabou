@@ -1,5 +1,6 @@
 import type { Handle, WabouElementProps } from "@wabou/core/renderer";
 import { useHost } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import { type Accessor, type JSX, untrack } from "solid-js";
 import { createFocus } from "./focus";
 import { createHover } from "./hover";
@@ -257,9 +258,10 @@ export function Button(props: ButtonProps): JSX.Element {
       aria-selected={props["aria-selected"]}
       aria-pressed={props["aria-pressed"]}
       aria-valuetext={props["aria-valuetext"]}
-      class={
-        typeof props.class === "function" ? props.class(state()) : props.class
-      }
+      class={mergeClasses(
+        "select-none",
+        typeof props.class === "function" ? props.class(state()) : props.class,
+      )}
       classList={
         typeof props.classList === "function"
           ? props.classList(state())

@@ -6,7 +6,7 @@
 
 use crate::{
     DirtyKind, NodeKey, ProjectedNodeKind, ProjectionError, ProjectionTree, StyleDiagnostic,
-    StyleProjection,
+    StyleProjection, TextSelectionPolicy,
 };
 use wabou_style::{IrColor, IrLength, IrValue};
 
@@ -59,6 +59,14 @@ pub struct GpuiNativeWidget {
     pub attributes:
         std::collections::BTreeMap<crate::gpui::SharedString, crate::gpui::SharedString>,
     pub config: Option<crate::gpui::SharedString>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct GpuiSelectableText {
+    pub key: NodeKey,
+    pub text: crate::gpui::SharedString,
+    pub document_order: u64,
+    pub select_all: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -680,6 +688,9 @@ impl GpuiProjection {
         focus: crate::gpui::FocusHandle,
         text_input: crate::ProjectedTextInputState,
         native: Option<crate::ProjectedNativeElementFactory>,
+        text_selections: std::rc::Rc<
+            std::collections::BTreeMap<NodeKey, crate::ProjectedTextSelection>,
+        >,
     ) -> Result<crate::ProjectedElement, ProjectionError> {
         self.tree.interactive_element_with_layout_bounds(
             root,
@@ -691,7 +702,62 @@ impl GpuiProjection {
             self.graphic_paint_states.clone(),
             std::rc::Rc::new(self.scroll_handles.clone()),
             std::rc::Rc::new(self.uniform_list_handles.clone()),
+            text_selections,
         )
+    }
+
+    pub fn selectable_texts(&self) -> Vec<GpuiSelectableText> {
+        fn visit(
+            tree: &crate::ProjectionSnapshot,
+            key: NodeKey,
+            inherited: TextSelectionPolicy,
+            order: &mut u64,
+            output: &mut Vec<GpuiSelectableText>,
+        ) {
+            let Some(node) = tree.node(key) else {
+                return;
+            };
+            let policy = node.text_selection.unwrap_or(inherited);
+            let is_native_editor = matches!(
+                &node.kind,
+                ProjectedNodeKind::Element(tag)
+                    if matches!(tag.as_ref(), "input" | "textarea" | "password-input" | "code-editor")
+            );
+            if policy != TextSelectionPolicy::None
+                && !is_native_editor
+                && let Some(text) = crate::element::projected_text(tree, node)
+            {
+                output.push(GpuiSelectableText {
+                    key,
+                    text,
+                    document_order: *order,
+                    select_all: policy == TextSelectionPolicy::All,
+                });
+                *order += 1;
+            }
+            for child in &node.children {
+                if node.text_behavior & wabou_protocol::TEXT_BEHAVIOR_AGGREGATE_DIRECT != 0
+                    && tree
+                        .node(*child)
+                        .is_some_and(|child| child.kind == ProjectedNodeKind::Text)
+                {
+                    continue;
+                }
+                visit(tree, *child, policy, order, output);
+            }
+        }
+
+        let tree = self.tree.snapshot();
+        let mut output = Vec::new();
+        let mut order = 0;
+        visit(
+            &tree,
+            NodeKey::ROOT,
+            TextSelectionPolicy::Text,
+            &mut order,
+            &mut output,
+        );
+        output
     }
 
     pub fn layout_snapshot(&self) -> Vec<GpuiLayoutNode> {
@@ -837,6 +903,16 @@ impl GpuiProjection {
                     property: property.to_owned(),
                 }),
             }
+        } else if property == "user-select" {
+            match text_selection(value) {
+                Some(policy) => {
+                    self.tree.update_text_selection(key, Some(policy))?;
+                    None
+                }
+                None => Some(StyleDiagnostic::InvalidValue {
+                    property: property.to_owned(),
+                }),
+            }
         } else if property == "z-index" {
             match z_index(value) {
                 Some(z_index) => {
@@ -942,6 +1018,7 @@ impl GpuiProjection {
     fn recompute_style(&mut self, key: NodeKey) -> Result<(), ProjectionError> {
         let mut projection = StyleProjection::default();
         let mut pointer_events_enabled = true;
+        let mut text_selection_policy = None;
         let mut z_index_value = 0;
         let mut diagnostics = Vec::new();
         if let Some(stylesheet) = &self.stylesheet {
@@ -957,6 +1034,16 @@ impl GpuiProjection {
                     match pointer_events(&declaration.value) {
                         Some(enabled) => {
                             pointer_events_enabled = enabled;
+                            None
+                        }
+                        None => Some(StyleDiagnostic::InvalidValue {
+                            property: declaration.property.clone(),
+                        }),
+                    }
+                } else if declaration.property == "user-select" {
+                    match text_selection(&declaration.value) {
+                        Some(policy) => {
+                            text_selection_policy = Some(policy);
                             None
                         }
                         None => Some(StyleDiagnostic::InvalidValue {
@@ -993,6 +1080,16 @@ impl GpuiProjection {
                             property: property.clone(),
                         }),
                     }
+                } else if property == "user-select" {
+                    match text_selection(value) {
+                        Some(policy) => {
+                            text_selection_policy = Some(policy);
+                            None
+                        }
+                        None => Some(StyleDiagnostic::InvalidValue {
+                            property: property.clone(),
+                        }),
+                    }
                 } else if property == "z-index" {
                     match z_index(value) {
                         Some(value) => {
@@ -1013,6 +1110,8 @@ impl GpuiProjection {
         }
         self.tree
             .update_pointer_events(key, pointer_events_enabled)?;
+        self.tree
+            .update_text_selection(key, text_selection_policy)?;
         self.tree.update_z_index(key, z_index_value)?;
         if diagnostics.is_empty() {
             self.style_diagnostics.remove(&key);
@@ -1032,7 +1131,7 @@ impl GpuiProjection {
     }
 
     #[cfg(test)]
-    fn tree(&self) -> &ProjectionTree {
+    pub(crate) fn tree(&self) -> &ProjectionTree {
         &self.tree
     }
 
@@ -1053,6 +1152,18 @@ fn pointer_events(value: &IrValue) -> Option<bool> {
     match value.as_str() {
         "auto" => Some(true),
         "none" => Some(false),
+        _ => None,
+    }
+}
+
+fn text_selection(value: &IrValue) -> Option<TextSelectionPolicy> {
+    let IrValue::Keyword { value } = value else {
+        return None;
+    };
+    match value.as_str() {
+        "text" => Some(TextSelectionPolicy::Text),
+        "none" => Some(TextSelectionPolicy::None),
+        "all" => Some(TextSelectionPolicy::All),
         _ => None,
     }
 }
@@ -1337,6 +1448,65 @@ mod tests {
             None
         );
         assert_eq!(projection.tree().node(key(2)).unwrap().z_index, 42);
+    }
+
+    #[test]
+    fn user_select_policy_controls_native_text_participants_by_subtree() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::CreateText {
+                            id: key(3),
+                            text: "select me",
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(2),
+                        },
+                        Op::AppendChild {
+                            parent: key(2),
+                            child: key(3),
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        assert_eq!(projection.selectable_texts()[0].key, key(3));
+        projection
+            .apply_style_declaration(
+                key(2),
+                "user-select",
+                &IrValue::Keyword {
+                    value: "none".to_owned(),
+                },
+            )
+            .unwrap();
+        assert!(projection.selectable_texts().is_empty());
+
+        projection
+            .apply_style_declaration(
+                key(3),
+                "user-select",
+                &IrValue::Keyword {
+                    value: "all".to_owned(),
+                },
+            )
+            .unwrap();
+        let selectable = projection.selectable_texts();
+        assert_eq!(selectable.len(), 1);
+        assert!(selectable[0].select_all);
     }
 
     #[test]

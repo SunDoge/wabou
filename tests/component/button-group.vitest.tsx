@@ -49,3 +49,21 @@ test("propagates vertical composition without changing standalone buttons", () =
     screen.getByRole("button", { name: "Standalone" }).className,
   ).not.toContain("rounded-none");
 });
+
+test("keeps control labels non-selectable while allowing an explicit override", () => {
+  const screen = renderComponent(() => (
+    <>
+      <Button aria-label="Default selection">Default</Button>
+      <Button aria-label="Selectable label" class="select-text">
+        Selectable
+      </Button>
+    </>
+  ));
+
+  expect(
+    screen.getByRole("button", { name: "Default selection" }).className,
+  ).toContain("select-none");
+  const selectable = screen.getByRole("button", { name: "Selectable label" });
+  expect(selectable.className).toContain("select-text");
+  expect(selectable.className).not.toContain("select-none");
+});
