@@ -116,6 +116,7 @@ function App() {
   let movingBodies = bodies();
   const handles: Array<Handle | undefined> = [];
   const fps = createFps();
+  let lastStatsSample = -Infinity;
 
   // Re-seed only when N changes (not every frame).
   createEffect(n, (count) => {
@@ -143,11 +144,15 @@ function App() {
       for (let i = 0; i < iters; i++) acc += Math.sin(i);
       _jsSink = acc;
     }
-    try {
-      setStats(host.diagnostics.frameStats());
-      setStatsError(null);
-    } catch (error) {
-      setStatsError(error instanceof Error ? error.message : String(error));
+    const now = performance.now();
+    if (now - lastStatsSample >= 500) {
+      lastStatsSample = now;
+      try {
+        setStats(host.diagnostics.frameStats());
+        setStatsError(null);
+      } catch (error) {
+        setStatsError(error instanceof Error ? error.message : String(error));
+      }
     }
   };
   createEffect(driver, (activeDriver) => {
@@ -183,26 +188,26 @@ function App() {
       </View>
 
       <View class="h-11 flex-none min-w-0 flex border-b border-subtle bg-surface-muted">
-        <View class="flex-1 min-w-0 px-3 justify-center border-r border-subtle">
+        <View class="w-28 flex-none px-3 justify-center border-r border-subtle">
           <Text class="text-[10px] text-muted">FPS</Text>
           <Text class="text-base font-mono font-semibold text-accent">
             {fps().toString()}
           </Text>
         </View>
-        <View class="flex-1 min-w-0 px-3 justify-center border-r border-subtle">
+        <View class="w-24 flex-none px-3 justify-center border-r border-subtle">
           <Text class="text-[10px] text-muted">NODES</Text>
           <Text class="text-sm font-mono text-primary">
             {n().toLocaleString()}
           </Text>
         </View>
-        <View class="flex-1 min-w-0 px-3 justify-center border-r border-subtle">
+        <View class="w-24 flex-none px-3 justify-center border-r border-subtle">
           <Text class="text-[10px] text-muted">DRIVER</Text>
           <Text class="text-sm font-mono text-primary">{driver()}</Text>
         </View>
         <Show
           when={stats()}
           fallback={
-            <View class="flex-[4] min-w-0 px-3 justify-center">
+            <View class="min-w-0 flex-1 px-3 justify-center">
               <Text class={statsError() ? "text-danger-primary" : "text-muted"}>
                 {statsError() ?? "Waiting for the first completed frame"}
               </Text>
@@ -211,19 +216,19 @@ function App() {
         >
           {(current) => (
             <>
-              <View class="flex-1 min-w-0 px-3 justify-center border-r border-subtle">
+              <View class="w-24 flex-none px-3 justify-center border-r border-subtle">
                 <Text class="text-[10px] text-muted">JS TICK</Text>
                 <Text class="text-sm font-mono text-primary">{`${fmt(current().js_tick_ms)} ms`}</Text>
               </View>
-              <View class="flex-1 min-w-0 px-3 justify-center border-r border-subtle">
+              <View class="w-24 flex-none px-3 justify-center border-r border-subtle">
                 <Text class="text-[10px] text-muted">BUILD</Text>
                 <Text class="text-sm font-mono text-primary">{`${fmt(current().build_frame_ms)} ms`}</Text>
               </View>
-              <View class="flex-1 min-w-0 px-3 justify-center border-r border-subtle">
+              <View class="w-24 flex-none px-3 justify-center border-r border-subtle">
                 <Text class="text-[10px] text-muted">SCENE</Text>
                 <Text class="text-sm font-mono text-primary">{`${fmt(current().scene_ms)} ms`}</Text>
               </View>
-              <View class="flex-1 min-w-0 px-3 justify-center">
+              <View class="w-24 flex-none px-3 justify-center">
                 <Text class="text-[10px] text-muted">PRESENT</Text>
                 <Text class="text-sm font-mono text-primary">{`${fmt(current().present_ms)} ms`}</Text>
               </View>
