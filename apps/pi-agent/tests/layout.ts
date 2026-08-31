@@ -334,7 +334,7 @@ try {
         checks: ["visible-overflow", "text-collision"],
         assert: (fixture) => {
           getLayoutNode(fixture, {
-            role: "group",
+            role: "toolbar",
             name: "Conversation turns",
           });
           const turns = queryLayoutNodes(fixture, { role: "button" }).filter(

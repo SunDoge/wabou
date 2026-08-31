@@ -1,3 +1,4 @@
+import { renderComponent } from "@wabou/test/component";
 import {
   MessageScroller,
   MessageScrollerContent,
@@ -5,7 +6,6 @@ import {
   MessageScrollerViewport,
   View,
 } from "@wabou/ui";
-import { renderComponent } from "@wabou/test/component";
 import { expect, test } from "vitest";
 import type { AgentItem } from "../../apps/pi-agent/ui/agent-state";
 import {
@@ -64,8 +64,8 @@ test("Pi Agent derives one compact navigation target per user turn", () => {
 test("Pi Agent exposes a quiet, accessible turn rail for long conversations", () => {
   const screen = renderComponent(() => <NavigatorHarness />);
 
-  const rail = screen.getByRole("group", { name: "Conversation turns" });
-  expect(rail.className).toContain("pointer-events-none");
+  const rail = screen.getByRole("toolbar", { name: "Conversation turns" });
+  expect(rail.orientation).toBe("vertical");
   const first = screen.getByRole("button", {
     name: "Jump to turn 1: Inspect the router first.",
   });
@@ -84,6 +84,6 @@ test("Pi Agent omits turn navigation until there is something to navigate", () =
     />
   ));
   expect(
-    screen.queryByRole("group", { name: "Conversation turns" }),
+    screen.queryByRole("toolbar", { name: "Conversation turns" }),
   ).toBeNull();
 });

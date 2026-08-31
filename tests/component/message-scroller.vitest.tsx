@@ -65,11 +65,20 @@ test("MessageScrollerNavigator exposes retained anchors without app-owned chrome
     </MessageScroller>
   ));
 
-  expect(
-    screen.getByRole("group", { name: "Request navigator" }).className,
-  ).toContain("pointer-events-none");
+  const navigator = screen.getByRole("toolbar", {
+    name: "Request navigator",
+  });
+  expect(navigator.orientation).toBe("vertical");
+  const first = screen.getByRole("button", {
+    name: "Jump to request 1: Inspect the renderer",
+  });
   const second = screen.getByRole("button", {
     name: "Jump to request 2: Run focused tests",
   });
+  expect(first.focusOrder).toBe(0);
+  expect(second.focusOrder).toBe(-1);
+  first.focus();
+  first.press("ArrowDown");
+  expect(second.focused).toBe(true);
   expect(() => second.click()).not.toThrow();
 });

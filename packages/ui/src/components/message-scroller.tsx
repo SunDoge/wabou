@@ -28,6 +28,7 @@ import {
   type ViewProps,
 } from "../primitives";
 import { Button, type ButtonProps } from "./button";
+import { Toolbar, ToolbarButton } from "./toolbar";
 import { Tooltip } from "./tooltip";
 
 export type MessageScrollDirection = "start" | "end";
@@ -554,16 +555,16 @@ export function MessageScrollerNavigator(
   return (
     <Show when={props.items.length >= (props.minItems ?? 2)}>
       <View
-        role="group"
-        aria-label={props["aria-label"]}
         class={mergeClasses(
           "absolute z-20 right-2 top-4 bottom-14 w-8 flex flex-col items-center justify-center pointer-events-none",
           props.class,
         )}
       >
-        <View
+        <Toolbar
+          aria-label={props["aria-label"]}
+          orientation="vertical"
           class={mergeClasses(
-            "max-h-full py-1 rounded-full border border-subtle bg-surface shadow-xs overflow-y-auto pointer-events-auto",
+            "max-h-full p-0 py-1 gap-0 rounded-full bg-surface shadow-xs overflow-y-auto pointer-events-auto",
             props.railClass,
           )}
         >
@@ -574,7 +575,7 @@ export function MessageScrollerNavigator(
                 openDelay={240}
                 contentClass="max-w-sm"
                 trigger={(tooltip) => (
-                  <Button
+                  <ToolbarButton
                     ref={tooltip.ref}
                     variant="ghost"
                     size="icon"
@@ -598,7 +599,7 @@ export function MessageScrollerNavigator(
                           : "w-3 h-1 rounded-full bg-subtle"
                       }
                     />
-                  </Button>
+                  </ToolbarButton>
                 )}
               >
                 <Text class="text-xs text-primary whitespace-normal">
@@ -607,7 +608,7 @@ export function MessageScrollerNavigator(
               </Tooltip>
             )}
           </ForValue>
-        </View>
+        </Toolbar>
       </View>
     </Show>
   );
