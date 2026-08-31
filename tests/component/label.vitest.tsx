@@ -1,6 +1,6 @@
 import type { Handle } from "@wabou/core/renderer";
 import { renderComponent } from "@wabou/test/component";
-import { Field, FieldLabel, Input, Label } from "@wabou/ui";
+import { Field, FieldLabel, Input, Label, LabeledField } from "@wabou/ui";
 import { expect, test } from "vitest";
 
 test("focuses an explicitly bound native control", () => {
@@ -38,4 +38,36 @@ test("does not activate a disabled label or override a prevented click", () => {
   expect(screen.getByRole("label", { name: "Disabled" }).disabled).toBe(true);
   screen.getByRole("label", { name: "Prevented" }).click();
   expect(screen.getByRole("textbox", { name: "Target" }).focused).toBe(false);
+});
+
+test("labeled field binds its visible label to a native control", () => {
+  const screen = renderComponent(() => (
+    <LabeledField
+      label="Provider"
+      description="Used for new sessions"
+      renderControl={(ref) => <Input ref={ref} aria-label="Provider input" />}
+    />
+  ));
+
+  screen.getByRole("label", { name: "Provider" }).click();
+  expect(screen.getByRole("textbox", { name: "Provider input" }).focused).toBe(
+    true,
+  );
+  expect(JSON.stringify(screen.snapshot())).toContain("Used for new sessions");
+});
+
+test("labeled field owns validation feedback without losing its control binding", () => {
+  const screen = renderComponent(() => (
+    <LabeledField
+      label="Proxy URL"
+      errors={[{ message: "Enter an HTTP proxy URL" }]}
+      renderControl={(ref) => <Input ref={ref} aria-label="Proxy input" />}
+    />
+  ));
+
+  expect(screen.getByRole("alert").text).toContain("Enter an HTTP proxy URL");
+  screen.getByRole("label", { name: "Proxy URL" }).click();
+  expect(screen.getByRole("textbox", { name: "Proxy input" }).focused).toBe(
+    true,
+  );
 });

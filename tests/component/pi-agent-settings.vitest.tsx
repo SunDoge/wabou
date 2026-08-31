@@ -49,7 +49,10 @@ function renderSettings(canDeleteProject = true) {
 test("Pi Agent settings separate project overrides from global network configuration", () => {
   const { screen, defaults, agent, deleted } = renderSettings();
 
-  screen.getByRole("textbox", { name: "Project name" }).input("Build project");
+  screen.getByRole("label", { name: "Project name" }).click();
+  const projectName = screen.getByRole("textbox", { name: "Project name" });
+  expect(projectName.focused).toBe(true);
+  projectName.input("Build project");
   expect(agent().name).toBe("Build project");
   screen.getByRole("textbox", { name: "Workspace" }).input("/tmp/project");
   screen.getByRole("textbox", { name: "Provider" }).input("openai");

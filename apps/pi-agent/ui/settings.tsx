@@ -9,10 +9,9 @@ import {
   Button,
   createContainerMatch,
   DirectoryPicker,
-  Field,
   FieldDescription,
-  FieldLabel,
   Input,
+  LabeledField,
   PageHeader,
   PageViewport,
   RadioGroup,
@@ -97,50 +96,64 @@ export function SettingsPage(props: {
               stacked={compact.matches()}
             >
               <View class="min-w-0 flex flex-col gap-4">
-                <Field>
-                  <FieldLabel>{i18n.message(m.agent_name, {})}</FieldLabel>
-                  <Input
-                    aria-label={i18n.message(m.agent_name, {})}
-                    value={props.project.name}
-                    onInput={(event) =>
-                      props.updateProject({ name: event.currentTarget.value })
-                    }
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel>{i18n.message(m.workspace, {})}</FieldLabel>
-                  <DirectoryPicker
-                    aria-label={i18n.message(m.workspace, {})}
-                    value={props.project.cwd}
-                    onValueChange={(cwd) => props.updateProject({ cwd })}
-                    placeholder={i18n.message(m.choose_repository, {})}
-                    browseLabel={i18n.message(m.browse, {})}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel>{i18n.message(m.provider, {})}</FieldLabel>
-                  <Input
-                    aria-label={i18n.message(m.provider, {})}
-                    value={props.project.provider}
-                    onInput={(event) =>
-                      props.updateProject({
-                        provider: event.currentTarget.value,
-                      })
-                    }
-                    placeholder={i18n.message(m.provider_placeholder, {})}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel>{i18n.message(m.model, {})}</FieldLabel>
-                  <Input
-                    aria-label={i18n.message(m.model, {})}
-                    value={props.project.model}
-                    onInput={(event) =>
-                      props.updateProject({ model: event.currentTarget.value })
-                    }
-                    placeholder={i18n.message(m.model_optional, {})}
-                  />
-                </Field>
+                <LabeledField
+                  label={i18n.message(m.agent_name, {})}
+                  renderControl={(ref) => (
+                    <Input
+                      ref={ref}
+                      aria-label={i18n.message(m.agent_name, {})}
+                      value={props.project.name}
+                      onInput={(event) =>
+                        props.updateProject({ name: event.currentTarget.value })
+                      }
+                    />
+                  )}
+                />
+                <LabeledField
+                  label={i18n.message(m.workspace, {})}
+                  renderControl={(ref) => (
+                    <DirectoryPicker
+                      ref={ref}
+                      aria-label={i18n.message(m.workspace, {})}
+                      value={props.project.cwd}
+                      onValueChange={(cwd) => props.updateProject({ cwd })}
+                      placeholder={i18n.message(m.choose_repository, {})}
+                      browseLabel={i18n.message(m.browse, {})}
+                    />
+                  )}
+                />
+                <LabeledField
+                  label={i18n.message(m.provider, {})}
+                  renderControl={(ref) => (
+                    <Input
+                      ref={ref}
+                      aria-label={i18n.message(m.provider, {})}
+                      value={props.project.provider}
+                      onInput={(event) =>
+                        props.updateProject({
+                          provider: event.currentTarget.value,
+                        })
+                      }
+                      placeholder={i18n.message(m.provider_placeholder, {})}
+                    />
+                  )}
+                />
+                <LabeledField
+                  label={i18n.message(m.model, {})}
+                  renderControl={(ref) => (
+                    <Input
+                      ref={ref}
+                      aria-label={i18n.message(m.model, {})}
+                      value={props.project.model}
+                      onInput={(event) =>
+                        props.updateProject({
+                          model: event.currentTarget.value,
+                        })
+                      }
+                      placeholder={i18n.message(m.model_optional, {})}
+                    />
+                  )}
+                />
               </View>
               <Separator />
               <SettingsGroup
@@ -261,58 +274,68 @@ export function SettingsPage(props: {
                 title={i18n.message(m.default_provider, {})}
                 description={i18n.message(m.provider_detail, {})}
               >
-                <Field>
-                  <FieldLabel>{i18n.message(m.provider, {})}</FieldLabel>
-                  <Input
-                    aria-label="Default provider"
-                    value={props.app.provider}
-                    placeholder={i18n.message(m.provider_placeholder, {})}
-                    onInput={(event) =>
-                      props.updateApp({ provider: event.currentTarget.value })
-                    }
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel>{i18n.message(m.model, {})}</FieldLabel>
-                  <Input
-                    aria-label="Default model"
-                    value={props.app.model}
-                    placeholder={i18n.message(m.model_optional, {})}
-                    onInput={(event) =>
-                      props.updateApp({ model: event.currentTarget.value })
-                    }
-                  />
-                </Field>
+                <LabeledField
+                  label={i18n.message(m.provider, {})}
+                  renderControl={(ref) => (
+                    <Input
+                      ref={ref}
+                      aria-label="Default provider"
+                      value={props.app.provider}
+                      placeholder={i18n.message(m.provider_placeholder, {})}
+                      onInput={(event) =>
+                        props.updateApp({ provider: event.currentTarget.value })
+                      }
+                    />
+                  )}
+                />
+                <LabeledField
+                  label={i18n.message(m.model, {})}
+                  renderControl={(ref) => (
+                    <Input
+                      ref={ref}
+                      aria-label="Default model"
+                      value={props.app.model}
+                      placeholder={i18n.message(m.model_optional, {})}
+                      onInput={(event) =>
+                        props.updateApp({ model: event.currentTarget.value })
+                      }
+                    />
+                  )}
+                />
               </SettingsGroup>
               <Separator />
               <SettingsGroup
                 title={i18n.message(m.default_proxy, {})}
                 description={i18n.message(m.proxy_detail, {})}
               >
-                <Field>
-                  <FieldLabel>{i18n.message(m.proxy_url, {})}</FieldLabel>
-                  <Input
-                    aria-label="Default proxy URL"
-                    value={props.app.proxy}
-                    placeholder="http://127.0.0.1:7890"
-                    onInput={(event) =>
-                      props.updateApp({ proxy: event.currentTarget.value })
-                    }
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel>{i18n.message(m.proxy_bypass, {})}</FieldLabel>
-                  <Input
-                    aria-label="Default proxy bypass list"
-                    value={props.app.noProxy}
-                    onInput={(event) =>
-                      props.updateApp({ noProxy: event.currentTarget.value })
-                    }
-                  />
-                  <FieldDescription class="text-secondary">
-                    127.0.0.1, localhost
-                  </FieldDescription>
-                </Field>
+                <LabeledField
+                  label={i18n.message(m.proxy_url, {})}
+                  renderControl={(ref) => (
+                    <Input
+                      ref={ref}
+                      aria-label="Default proxy URL"
+                      value={props.app.proxy}
+                      placeholder="http://127.0.0.1:7890"
+                      onInput={(event) =>
+                        props.updateApp({ proxy: event.currentTarget.value })
+                      }
+                    />
+                  )}
+                />
+                <LabeledField
+                  label={i18n.message(m.proxy_bypass, {})}
+                  description="127.0.0.1, localhost"
+                  renderControl={(ref) => (
+                    <Input
+                      ref={ref}
+                      aria-label="Default proxy bypass list"
+                      value={props.app.noProxy}
+                      onInput={(event) =>
+                        props.updateApp({ noProxy: event.currentTarget.value })
+                      }
+                    />
+                  )}
+                />
               </SettingsGroup>
               <Separator />
               <SettingsGroup

@@ -96,6 +96,41 @@ export function FieldLabel(props: FieldLabelProps) {
   return <Label {...props} />;
 }
 
+export interface LabeledFieldProps {
+  label: JSX.Element;
+  description?: JSX.Element;
+  invalid?: boolean;
+  errors?: ReadonlyArray<FieldErrorLike | undefined>;
+  class?: string;
+  /** Render the native control and attach the supplied ref to its focus owner. */
+  renderControl: (ref: (node: Handle) => void) => JSX.Element;
+}
+
+/**
+ * A complete native field whose visible label always focuses its control.
+ * This avoids repeating ad-hoc Handle plumbing in every settings surface.
+ */
+export function LabeledField(props: LabeledFieldProps) {
+  let control: Handle | undefined;
+  const errors = () => uniqueFieldErrors(props.errors);
+  return (
+    <Field invalid={props.invalid ?? errors().length > 0} class={props.class}>
+      <FieldLabel control={() => control}>{props.label}</FieldLabel>
+      {props.renderControl((node) => {
+        control = node;
+      })}
+      <Show
+        when={props.description !== undefined && props.description !== null}
+      >
+        <FieldDescription>{props.description}</FieldDescription>
+      </Show>
+      <Show when={errors().length > 0}>
+        <FieldError errors={props.errors} />
+      </Show>
+    </Field>
+  );
+}
+
 export function FieldTitle(props: { children?: JSX.Element; class?: string }) {
   return (
     <Text class={mergeClasses("text-sm font-medium text-primary", props.class)}>
