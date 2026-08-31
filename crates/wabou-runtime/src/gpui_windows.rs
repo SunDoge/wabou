@@ -23,6 +23,26 @@ type RuntimeFactory = dyn Fn(
     &WindowOptions,
 ) -> Result<crate::gpui_controller::GpuiController, String>;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum GpuiWindowError {
+    Unsupported(String),
+    Platform(String),
+}
+
+impl GpuiWindowError {
+    pub(crate) fn message(&self) -> &str {
+        match self {
+            Self::Unsupported(message) | Self::Platform(message) => message,
+        }
+    }
+}
+
+impl std::fmt::Display for GpuiWindowError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.message())
+    }
+}
+
 /// GPUI application-level owner for native windows and their independent JS runtimes.
 pub(crate) struct GpuiApplicationWindows {
     registry: GpuiWindowRegistry,
@@ -82,16 +102,20 @@ impl GpuiApplicationWindows {
         self: &Rc<Self>,
         options: WindowOptions,
         cx: &mut gpui_shell::gpui::App,
-    ) -> Result<gpui_shell::WindowResourceKey, String> {
+    ) -> Result<gpui_shell::WindowResourceKey, GpuiWindowError> {
+        validate_gpui_window_options(&options)?;
         let key = self.reserve();
         let controller = match (self.runtime_factory)(key, &options) {
             Ok(controller) => controller,
             Err(error) => {
                 self.remove(key);
-                return Err(error);
+                return Err(GpuiWindowError::Platform(error));
             }
         };
-        self.open_controller(key, controller, options, None, cx)?;
+        if let Err(error) = self.open_controller(key, controller, options, None, cx) {
+            self.remove(key);
+            return Err(error);
+        }
         Ok(key)
     }
 
@@ -110,7 +134,8 @@ impl GpuiApplicationWindows {
         options: WindowOptions,
         persistence: Option<gpui_shell::WindowSizePersistence>,
         cx: &mut gpui_shell::gpui::App,
-    ) -> Result<gpui_shell::gpui::AnyWindowHandle, String> {
+    ) -> Result<gpui_shell::gpui::AnyWindowHandle, GpuiWindowError> {
+        validate_gpui_window_options(&options)?;
         let bounds = gpui_shell::gpui::Bounds::centered(
             None,
             gpui_shell::gpui::size(
@@ -123,23 +148,7 @@ impl GpuiApplicationWindows {
         let window_host = self.clone();
         let widget_factories = self.native_widget_factories.clone();
         let test_controller = self.test_controller.clone();
-        let gpui_options = gpui_shell::gpui::WindowOptions {
-            window_bounds: Some(gpui_shell::gpui::WindowBounds::Windowed(bounds)),
-            titlebar: options.decorations.then(Default::default),
-            is_resizable: options.resizable,
-            window_min_size: options.min_inner_size.map(|(width, height)| {
-                gpui_shell::gpui::size(
-                    gpui_shell::gpui::px(width as f32),
-                    gpui_shell::gpui::px(height as f32),
-                )
-            }),
-            window_background: if options.transparent {
-                gpui_shell::gpui::WindowBackgroundAppearance::Transparent
-            } else {
-                gpui_shell::gpui::WindowBackgroundAppearance::Opaque
-            },
-            ..Default::default()
-        };
+        let gpui_options = project_gpui_window_options(&options, bounds);
         let opened = cx.open_window(gpui_options, move |window, cx| {
             window.set_window_title(&title);
             cx.new(|cx| {
@@ -166,10 +175,60 @@ impl GpuiApplicationWindows {
             }
             Err(error) => {
                 self.remove(key);
-                Err(error.to_string())
+                Err(GpuiWindowError::Platform(error.to_string()))
             }
         }
     }
+}
+
+fn project_gpui_window_options(
+    options: &WindowOptions,
+    bounds: gpui_shell::gpui::Bounds<gpui_shell::gpui::Pixels>,
+) -> gpui_shell::gpui::WindowOptions {
+    gpui_shell::gpui::WindowOptions {
+        window_bounds: Some(gpui_shell::gpui::WindowBounds::Windowed(bounds)),
+        titlebar: options.decorations.then(Default::default),
+        kind: match options.window_level {
+            gpui_shell::WindowLevel::AlwaysOnTop => gpui_shell::gpui::WindowKind::PopUp,
+            gpui_shell::WindowLevel::Normal | gpui_shell::WindowLevel::AlwaysOnBottom => {
+                gpui_shell::gpui::WindowKind::Normal
+            }
+        },
+        app_owns_titlebar_drag: !options.decorations,
+        is_resizable: options.resizable,
+        window_min_size: options.min_inner_size.map(|(width, height)| {
+            gpui_shell::gpui::size(
+                gpui_shell::gpui::px(width as f32),
+                gpui_shell::gpui::px(height as f32),
+            )
+        }),
+        window_background: if options.transparent {
+            gpui_shell::gpui::WindowBackgroundAppearance::Transparent
+        } else {
+            gpui_shell::gpui::WindowBackgroundAppearance::Opaque
+        },
+        window_decorations: Some(if options.decorations {
+            gpui_shell::gpui::WindowDecorations::Server
+        } else {
+            gpui_shell::gpui::WindowDecorations::Client
+        }),
+        ..Default::default()
+    }
+}
+
+pub(crate) fn validate_gpui_window_options(options: &WindowOptions) -> Result<(), GpuiWindowError> {
+    if options.window_level == gpui_shell::WindowLevel::AlwaysOnBottom {
+        return Err(GpuiWindowError::Unsupported(
+            "GPUI-CE does not expose an always-on-bottom native window level".to_owned(),
+        ));
+    }
+    if options.input_mode == gpui_shell::WindowInputMode::Passthrough {
+        return Err(GpuiWindowError::Unsupported(
+            "GPUI-CE does not expose native pointer-passthrough windows; the request was not applied"
+                .to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 impl GpuiWindowRegistry {
@@ -233,6 +292,56 @@ impl GpuiWindowRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn window_options_project_to_explicit_gpui_native_semantics() {
+        let options = WindowOptions::new()
+            .initial_inner_size(900, 640)
+            .min_inner_size(480, 320)
+            .decorations(false)
+            .transparent(true)
+            .window_level(gpui_shell::WindowLevel::AlwaysOnTop);
+        let projected = project_gpui_window_options(&options, Default::default());
+
+        assert!(projected.titlebar.is_none());
+        assert!(projected.app_owns_titlebar_drag);
+        assert_eq!(projected.kind, gpui_shell::gpui::WindowKind::PopUp);
+        assert_eq!(
+            projected.window_decorations,
+            Some(gpui_shell::gpui::WindowDecorations::Client)
+        );
+        assert_eq!(
+            projected.window_background,
+            gpui_shell::gpui::WindowBackgroundAppearance::Transparent
+        );
+        assert_eq!(
+            projected.window_min_size,
+            Some(gpui_shell::gpui::size(
+                gpui_shell::gpui::px(480.0),
+                gpui_shell::gpui::px(320.0)
+            ))
+        );
+    }
+
+    #[test]
+    fn unsupported_gpui_window_semantics_fail_before_native_creation() {
+        let bottom = WindowOptions::new().window_level(gpui_shell::WindowLevel::AlwaysOnBottom);
+        assert!(
+            validate_gpui_window_options(&bottom)
+                .unwrap_err()
+                .message()
+                .contains("always-on-bottom")
+        );
+
+        let passthrough = WindowOptions::new().input_mode(gpui_shell::WindowInputMode::Passthrough);
+        assert!(
+            validate_gpui_window_options(&passthrough)
+                .unwrap_err()
+                .message()
+                .contains("pointer-passthrough")
+        );
+        assert!(validate_gpui_window_options(&WindowOptions::new()).is_ok());
+    }
 
     #[test]
     fn reservations_match_initial_keys_and_reject_removed_generations() {

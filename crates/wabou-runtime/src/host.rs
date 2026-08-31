@@ -1195,6 +1195,11 @@ impl HostBuilder {
         );
         let mut gpui_sources = Vec::with_capacity(windows.len());
         for (index, options) in windows.into_iter().enumerate() {
+            crate::gpui_windows::validate_gpui_window_options(&options).map_err(|error| {
+                crate::Error::GpuiShell {
+                    message: error.to_string(),
+                }
+            })?;
             let window_key = gpui_windows.reserve();
             debug_assert_eq!(window_key, gpui_shell::initial_window_resource_key(index));
             let controller = gpui_windows
@@ -1263,7 +1268,8 @@ fn run_gpui_windows(
                     opened_windows.push(window);
                 }
                 Err(error) => {
-                    *reported_error.lock().expect("GPUI startup error lock") = Some(error);
+                    *reported_error.lock().expect("GPUI startup error lock") =
+                        Some(error.to_string());
                     cx.quit();
                     return;
                 }

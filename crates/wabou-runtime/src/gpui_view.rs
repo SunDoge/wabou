@@ -496,10 +496,18 @@ impl GpuiRuntimeView {
             EffectPayload::WindowCreate(request) => {
                 match self.window_host.create(request.options, cx) {
                     Ok(window) => EffectResult::Window(window),
-                    Err(message) => EffectResult::Error {
-                        code: EffectErrorCode::PlatformFailure,
-                        message,
-                    },
+                    Err(crate::gpui_windows::GpuiWindowError::Unsupported(message)) => {
+                        EffectResult::Error {
+                            code: EffectErrorCode::Unsupported,
+                            message,
+                        }
+                    }
+                    Err(crate::gpui_windows::GpuiWindowError::Platform(message)) => {
+                        EffectResult::Error {
+                            code: EffectErrorCode::PlatformFailure,
+                            message,
+                        }
+                    }
                 }
             }
             EffectPayload::WindowControl { window_id, command } => {
@@ -1267,6 +1275,68 @@ mod tests {
         assert!(
             window_host.resolve(root_key).is_some(),
             "creating a child must preserve the source runtime"
+        );
+    }
+
+    #[test]
+    fn gpui_window_create_rejects_unsupported_semantics_without_reserving_a_key() {
+        let platform = gpui_platform::current_platform(true);
+        let mut cx = HeadlessAppContext::new(platform.text_system());
+        let window_host = test_window_host();
+        let root_key = window_host.reserve();
+        let root_window_host = window_host.clone();
+        let root = cx
+            .open_window(size(px(800.0), px(600.0)), move |window, app| {
+                app.new(|view_cx| {
+                    GpuiRuntimeView::new(
+                        test_controller(),
+                        GpuiRuntimeViewOptions {
+                            default_title: "Root window".into(),
+                            window_size_persistence: None,
+                            native_widget_factories: HashMap::new(),
+                            test_controller: None,
+                            window_key: root_key,
+                            window_host: root_window_host,
+                        },
+                        window,
+                        view_cx,
+                    )
+                })
+            })
+            .expect("open root GPUI window");
+        assert!(window_host.attach(root_key, root.into()));
+        let root_view = root.root(&mut cx).expect("root GPUI runtime view");
+
+        let completion = cx
+            .update_window(root.into(), |_, window, app| {
+                root_view.update(app, |view, view_cx| {
+                    view.execute_effect(
+                        EffectRequest {
+                            id: EffectId(5),
+                            scope: EffectScope::Runtime,
+                            payload: EffectPayload::WindowCreate(WindowCreateRequest {
+                                options: WindowOptions::new()
+                                    .input_mode(gpui_shell::WindowInputMode::Passthrough),
+                            }),
+                        },
+                        window,
+                        view_cx,
+                    )
+                    .expect("window creation rejection completes synchronously")
+                })
+            })
+            .expect("dispatch unsupported create-window effect");
+        assert!(matches!(
+            completion.result,
+            EffectResult::Error {
+                code: EffectErrorCode::Unsupported,
+                ..
+            }
+        ));
+        assert_eq!(
+            window_host.reserve(),
+            gpui_shell::initial_window_resource_key(1),
+            "validation must happen before reserving a public window key"
         );
     }
 
