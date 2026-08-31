@@ -26,6 +26,7 @@ import { ConversationContext } from "./conversation-context";
 import { ConversationHeader } from "./conversation-header";
 import { ConversationNavigator } from "./conversation-navigator";
 import { ConversationWelcome } from "./conversation-welcome";
+import { ConversationWorkspaceStatus } from "./conversation-workspace-status";
 import { ModelControls } from "./model-controls";
 import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
@@ -709,6 +710,21 @@ defineLayoutFixtures({
     render: () => (
       <View class="w-full h-full min-w-0 px-6 bg-canvas">
         <ConversationWelcome workspace="/work/wabou" choosePrompt={() => {}} />
+      </View>
+    ),
+  },
+  "conversation/workspace-status-narrow": {
+    width: 480,
+    height: 80,
+    render: () => (
+      <View class="w-full h-full min-w-0 px-3 bg-canvas flex items-center">
+        <ConversationWorkspaceStatus
+          project="Documentation and release workspace"
+          branch="feat/native-runtime-projection"
+          repository
+          connection="running"
+          runtimeLog="Applying a retained native editor update"
+        />
       </View>
     ),
   },

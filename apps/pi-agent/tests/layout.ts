@@ -369,6 +369,23 @@ try {
         },
       },
       {
+        id: "conversation/workspace-status-narrow",
+        width: 480,
+        height: 80,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          const status = getLayoutNode(fixture, {
+            role: "status",
+            name: "Workspace status",
+          });
+          if (layoutRectRight(status.rect) > 480.5) {
+            throw new Error(
+              `workspace status escaped viewport: right=${layoutRectRight(status.rect)}`,
+            );
+          }
+        },
+      },
+      {
         id: "workspace/files-panel",
         width: 420,
         height: 720,
