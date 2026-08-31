@@ -1,13 +1,14 @@
 import type { Handle } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
+import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import { createContext, type JSX, omit, onCleanup, useContext } from "solid-js";
-import { createTransition, useReducedMotion } from "../animation";
+import { useReducedMotion } from "../animation";
 import {
   Button,
   type ButtonProps,
   CollapsiblePresence,
   Icon,
-  rotate2d,
   Text,
   View,
   type ViewProps,
@@ -19,24 +20,15 @@ import {
   isSelected,
   toggleSelection,
 } from "../primitives/interactions";
-import { mergeClasses } from "@wabou/core/style";
 
-function DisclosureIndicator(props: {
-  open: () => boolean;
-  reducedMotion: () => boolean;
-}) {
-  const rotation = createTransition(() => (props.open() ? Math.PI : 0), {
-    duration: 0.2,
-    ease: "easeOut",
-    reducedMotion: props.reducedMotion,
-  });
+function DisclosureIndicator(props: { open: () => boolean }) {
   return (
-    <View
-      class="w-4 h-4 flex-none"
-      transform={rotate2d(rotation.value())}
-      aria-hidden="true"
-    >
-      <Icon source={chevronDown} class="text-muted" size={16} />
+    <View class="w-4 h-4 flex-none" aria-hidden="true">
+      <Icon
+        source={props.open() ? chevronDown : chevronRight}
+        class="text-muted"
+        size={16}
+      />
     </View>
   );
 }
@@ -120,10 +112,7 @@ export function CollapsibleTrigger(props: CollapsibleTriggerProps) {
       }}
     >
       {props.children}
-      <DisclosureIndicator
-        open={context.open}
-        reducedMotion={context.reducedMotion}
-      />
+      <DisclosureIndicator open={context.open} />
     </Button>
   );
 }
@@ -302,7 +291,7 @@ export function AccordionTrigger(props: AccordionTriggerProps) {
       <Text class="min-w-0 flex-1 whitespace-normal text-sm font-medium text-primary">
         {props.children}
       </Text>
-      <DisclosureIndicator open={open} reducedMotion={root.reducedMotion} />
+      <DisclosureIndicator open={open} />
     </Button>
   );
 }
