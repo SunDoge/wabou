@@ -137,9 +137,7 @@ export * from "./tree-view";
 export * from "./typography";
 export * from "./workbench";
 
-export interface FpsProps {
-  /** Controlled FPS value. When omitted, the component measures host frames. */
-  value?: number;
+interface FpsBaseProps {
   /** Text displayed after the value. Set to an empty string for value only. */
   label?: string;
   /** FPS at or above this value uses the success treatment. */
@@ -149,10 +147,24 @@ export interface FpsProps {
   class?: string;
 }
 
-/** Live host frame-rate indicator with sensible performance thresholds. */
+export type FpsProps = FpsBaseProps &
+  (
+    | {
+        /** Explicitly drive the native animation clock to measure live FPS. */
+        live: true;
+        value?: never;
+      }
+    | {
+        /** Render an externally measured FPS value without scheduling frames. */
+        value: number;
+        live?: false;
+      }
+  );
+
+/** Frame-rate indicator. Live measurement is intentionally opt-in because it
+ * keeps the platform frame clock active. */
 export function Fps(props: FpsProps): JSX.Element {
-  const measured =
-    props.value === undefined ? createFps() : () => props.value ?? 0;
+  const measured = props.live ? createFps() : () => props.value;
   const value = () => Math.max(0, Math.round(measured()));
   const variant = (): BadgeProps["variant"] =>
     match(value())

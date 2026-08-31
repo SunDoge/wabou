@@ -587,7 +587,7 @@ function FpsPage() {
     <View class="flex flex-col gap-5">
       <Preview title="Live host frame rate">
         <View class="flex items-center gap-3 p-4">
-          <Fps />
+          <Fps live />
           <ThemeText
             dark="text-sm text-slate-400"
             light="text-sm text-slate-600"

@@ -3,7 +3,6 @@ import {
   Button,
   ColorThemeProvider,
   ComponentsProvider,
-  Fps,
   Button as PrimitiveButton,
   ScrollArea,
   Text,
@@ -123,7 +122,6 @@ export function App() {
                 <Badge variant="outline">Solid 2</Badge>
               </View>
               <View class="flex items-center gap-2">
-                <Fps />
                 <Button
                   size="sm"
                   variant="ghost"

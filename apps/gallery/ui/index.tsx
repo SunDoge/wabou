@@ -508,7 +508,6 @@ function App() {
                 </Text>
               </View>
               <View class="flex items-center gap-2">
-                <Fps />
                 <Button size="sm" variant="ghost" onClick={cycleTheme}>
                   {`Theme: ${themeLabel()}`}
                 </Button>

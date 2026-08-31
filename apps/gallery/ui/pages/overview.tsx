@@ -217,7 +217,7 @@ export function OverviewPage(props: {
                 <Metric
                   icon={activity}
                   label="Frame rate"
-                  value={<Fps label="" />}
+                  value={<Fps live label="" />}
                 />
                 <Metric
                   icon={boxes}
