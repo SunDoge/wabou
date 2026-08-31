@@ -54,6 +54,12 @@ pub struct ProjectedElement {
     root_focus: Option<FocusHandle>,
     text_input: Option<ProjectedTextInputState>,
     layout_bounds: Option<ProjectedLayoutBounds>,
+    transform: [f32; 6],
+}
+
+pub struct ProjectedPrepaintState {
+    hitbox: Option<Hitbox>,
+    paint_bounds: Bounds<Pixels>,
 }
 
 impl ProjectedElement {
@@ -92,7 +98,20 @@ impl ProjectedElement {
             root_focus: context.root_focus,
             text_input: context.text_input,
             layout_bounds: context.layout_bounds,
+            transform: node.transform,
         })
+    }
+
+    fn translation(&self) -> gpui::Point<Pixels> {
+        if self.transform[0] == 1.0
+            && self.transform[1] == 0.0
+            && self.transform[2] == 0.0
+            && self.transform[3] == 1.0
+        {
+            gpui::point(gpui::px(self.transform[4]), gpui::px(self.transform[5]))
+        } else {
+            gpui::point(gpui::px(0.0), gpui::px(0.0))
+        }
     }
 }
 
@@ -202,7 +221,7 @@ impl IntoElement for ProjectedElement {
 
 impl Element for ProjectedElement {
     type RequestLayoutState = ();
-    type PrepaintState = Option<Hitbox>;
+    type PrepaintState = ProjectedPrepaintState;
 
     fn id(&self) -> Option<ElementId> {
         Some(self.key.gpui_element_id())
@@ -242,32 +261,42 @@ impl Element for ProjectedElement {
         if let Some(layout_bounds) = &self.layout_bounds {
             layout_bounds.borrow_mut().insert(self.key, bounds);
         }
+        let translation = self.translation();
+        let paint_bounds = Bounds {
+            origin: bounds.origin + translation,
+            size: bounds.size,
+        };
         let text_style = self.style.text_style().cloned();
-        let overflow_mask = self.style.overflow_mask(bounds, window.rem_size());
+        let overflow_mask = self.style.overflow_mask(paint_bounds, window.rem_size());
         if let Some(focus) = &self.root_focus {
             window.set_focus_handle(focus, cx);
         }
         let hitbox = self
             .input
             .as_ref()
-            .map(|_| window.insert_hitbox(bounds, HitboxBehavior::Normal));
+            .map(|_| window.insert_hitbox(paint_bounds, HitboxBehavior::Normal));
         window.with_text_style(text_style, |window| {
             window.with_content_mask(overflow_mask, |window| {
-                for child in &mut self.children {
-                    child.prepaint(window, cx);
-                }
+                window.with_element_offset(translation, |window| {
+                    for child in &mut self.children {
+                        child.prepaint(window, cx);
+                    }
+                });
             });
         });
-        hitbox
+        ProjectedPrepaintState {
+            hitbox,
+            paint_bounds,
+        }
     }
 
     fn paint(
         &mut self,
         _id: Option<&GlobalElementId>,
         _inspector_id: Option<&InspectorElementId>,
-        bounds: Bounds<Pixels>,
+        _bounds: Bounds<Pixels>,
         _request_layout: &mut Self::RequestLayoutState,
-        hitbox: &mut Self::PrepaintState,
+        prepaint: &mut Self::PrepaintState,
         window: &mut Window,
         cx: &mut App,
     ) {
@@ -275,7 +304,8 @@ impl Element for ProjectedElement {
             return;
         }
 
-        if let (Some(input), Some(hitbox)) = (&self.input, hitbox.as_ref()) {
+        let bounds = prepaint.paint_bounds;
+        if let (Some(input), Some(hitbox)) = (&self.input, prepaint.hitbox.as_ref()) {
             let down_input = input.clone();
             let down_hitbox = hitbox.clone();
             let key = self.key;
@@ -427,6 +457,30 @@ mod tests {
             ProjectedElement::from_tree(&tree, key, ProjectedElementContext::default(), false)
                 .unwrap();
         assert_eq!(element.id(), Some(key.gpui_element_id()));
+    }
+
+    #[test]
+    fn protocol_translation_moves_gpui_paint_without_changing_layout_style() {
+        let key = NodeKey::new(18, 4);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        tree.update_transform(key, [1.0, 0.0, 0.0, 1.0, 14.0, -6.0])
+            .unwrap();
+
+        let element =
+            ProjectedElement::from_tree(&tree, key, ProjectedElementContext::default(), false)
+                .unwrap();
+        assert_eq!(element.translation(), point(px(14.0), px(-6.0)));
+        assert_eq!(element.style.size.width, Style::default().size.width);
+        assert_eq!(element.style.size.height, Style::default().size.height);
     }
 
     #[test]

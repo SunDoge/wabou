@@ -35,6 +35,10 @@ pub struct ProjectedNode {
     pub text: Option<SharedString>,
     /// Optional GPUI-owned display asset projected from a graphic source.
     pub image: Option<std::sync::Arc<gpui::Image>>,
+    /// Runtime affine transform emitted by the Solid renderer. GPUI currently
+    /// applies translation exactly and retains the full matrix so unsupported
+    /// affine parts are observable instead of disappearing at the boundary.
+    pub transform: [f32; 6],
     /// Authored attributes after the latest completed Solid flush.
     pub attributes: BTreeMap<SharedString, SharedString>,
     /// Guest event codes registered on this exact retained node.
@@ -203,6 +207,7 @@ impl ProjectionTree {
                 style,
                 text,
                 image: None,
+                transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
                 attributes: BTreeMap::new(),
                 listeners: BTreeSet::new(),
                 focus_order: None,
@@ -356,6 +361,20 @@ impl ProjectionTree {
         self.dirty
             .invalidate(key, DirtyKind::LAYOUT | DirtyKind::PAINT);
         self.invalidate_layout_ancestors(key);
+        Ok(())
+    }
+
+    pub fn update_transform(
+        &mut self,
+        key: NodeKey,
+        transform: [f32; 6],
+    ) -> Result<(), ProjectionError> {
+        self.nodes
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?
+            .transform = transform;
+        self.dirty
+            .invalidate(key, DirtyKind::PAINT | DirtyKind::INTERACTION);
         Ok(())
     }
 

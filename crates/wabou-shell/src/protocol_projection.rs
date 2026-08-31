@@ -266,6 +266,9 @@ impl GpuiProjection {
                 {
                     self.tree.update_image(*id, None)?
                 }
+                Op::SetTransform2D { id, matrix } => {
+                    self.tree.update_transform(*id, *matrix)?;
+                }
                 _ => {}
             }
         }
@@ -410,6 +413,17 @@ impl GpuiProjection {
             .keys()
             .filter_map(|key| {
                 let node = self.tree.node(key)?;
+                let mut style_diagnostics = self
+                    .style_diagnostics
+                    .get(&key)
+                    .cloned()
+                    .unwrap_or_default();
+                if !is_translation_matrix(node.transform) {
+                    style_diagnostics.push(format!(
+                        "GPUI retained unsupported affine transform {:?}; only translation is painted",
+                        node.transform
+                    ));
+                }
                 Some(GpuiLayoutNode {
                     key,
                     kind: node.kind.clone(),
@@ -418,11 +432,7 @@ impl GpuiProjection {
                     text: node.text.clone(),
                     bounds: *bounds.get(&key)?,
                     classes: self.classes.get(&key).cloned().unwrap_or_default(),
-                    style_diagnostics: self
-                        .style_diagnostics
-                        .get(&key)
-                        .cloned()
-                        .unwrap_or_default(),
+                    style_diagnostics,
                     computed: GpuiComputedStyle {
                         position: format!("{:?}", node.style.position),
                         overflow_x: format!("{:?}", node.style.overflow.x),
@@ -649,6 +659,10 @@ fn pointer_events(value: &IrValue) -> Option<bool> {
         "none" => Some(false),
         _ => None,
     }
+}
+
+fn is_translation_matrix(matrix: [f32; 6]) -> bool {
+    matrix[0] == 1.0 && matrix[1] == 0.0 && matrix[2] == 0.0 && matrix[3] == 1.0
 }
 
 fn protocol_style_value(value: StyleValue) -> IrValue {
@@ -911,6 +925,53 @@ mod tests {
             None
         );
         assert!(projection.tree().node(key(2)).unwrap().pointer_events);
+    }
+
+    #[test]
+    fn runtime_transform_is_retained_and_non_translation_is_diagnosed() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::SetTransform2D {
+                            id: key(2),
+                            matrix: [1.0, 0.0, 0.0, 1.0, 12.0, -4.0],
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        assert_eq!(
+            projection.tree().node(key(2)).unwrap().transform,
+            [1.0, 0.0, 0.0, 1.0, 12.0, -4.0]
+        );
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 2,
+                    ops: vec![Op::SetTransform2D {
+                        id: key(2),
+                        matrix: [0.5, 0.0, 0.0, 0.5, 0.0, 0.0],
+                    }],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        assert!(!is_translation_matrix(
+            projection.tree().node(key(2)).unwrap().transform
+        ));
     }
 
     #[test]
