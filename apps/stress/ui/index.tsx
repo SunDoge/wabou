@@ -39,7 +39,7 @@ const CHARS = [
   "🎈",
 ];
 const SIZE = 28;
-const HEADER_H = 120;
+const HEADER_H = 132;
 let _jsSink = 0;
 
 type Stats = {
@@ -187,7 +187,7 @@ function App() {
         </Text>
       </View>
 
-      <View class="h-11 flex-none min-w-0 flex border-b border-subtle bg-surface-muted">
+      <View class="h-14 flex-none min-w-0 flex overflow-x-auto overflow-y-hidden border-b border-subtle bg-surface-muted">
         <View class="w-28 flex-none px-3 justify-center border-r border-subtle">
           <Text class="text-[10px] text-muted">FPS</Text>
           <Text class="text-base font-mono font-semibold text-accent">
