@@ -37,6 +37,9 @@ test("opens, highlights, selects, and restores trigger focus", async () => {
   );
 
   const rust = screen.getByRole("option", { name: "Rust" });
+  expect(
+    screen.getByRole("listbox", { name: "Technology" }).className,
+  ).toContain("select-none");
   rust.movePointer();
   expect(rust.className).toContain("bg-control-hover");
   expect(() =>

@@ -208,6 +208,8 @@ const assertSelectLayout = (snapshot: LayoutSnapshot) => {
   );
   if (!selectedOption)
     throw new Error("select popup did not expose its selected option");
+  if (!listbox.classes.includes("select-none"))
+    throw new Error("select popup exposed option labels to native text selection");
 };
 
 const assertDialogLayout = (snapshot: LayoutSnapshot) => {

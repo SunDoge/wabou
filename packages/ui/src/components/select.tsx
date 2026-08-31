@@ -215,7 +215,7 @@ export function Select(props: SelectProps): JSX.Element {
               : undefined
           }
           focusOrder={0}
-          class="min-w-0 flex flex-col gap-1"
+          class="select-none min-w-0 flex flex-col gap-1"
           onKeyDown={handleKeyDown}
         >
           <ForValue each={props.options} keyed={false}>
