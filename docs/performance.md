@@ -54,6 +54,23 @@ runs increases by 10% in any stage without reducing work in another stage.
 Do not add a batch API solely to improve `apps/stress`; first prove the same
 cost appears in a real retained UI or virtualized list.
 
+### Invalidation evidence
+
+Frame duration alone cannot prove that Solid's fine-grained reactivity reaches
+GPUI. Performance traces and metric reports must separately count:
+
+- committed protocol mutations;
+- projection boundaries notified;
+- projected nodes materialized into GPUI elements;
+- boundaries that required native layout;
+- boundaries that required paint only.
+
+For a local signal update, the expected count is the affected boundary rather
+than the full application node count. A continuously updating animation clock
+or Performance HUD must not increase materialized-node counts in an unrelated
+static boundary. Gallery Colors is the regression workload for this invariant;
+`apps/stress` remains a pathological animation workload, not the design target.
+
 CI also records non-blocking headless medians for these workloads through
 `wabou render --metrics`. The JSON artifacts contain build and scene samples,
 node count, viewport, and scale factor. They intentionally exclude native

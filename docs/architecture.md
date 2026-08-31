@@ -25,6 +25,52 @@ and the projection into GPUI elements. There is no renderer feature switch and
 no lowest-common-denominator backend interface. The retired Winit/Vello system
 is isolated in unpublished `wabou-legacy-*` crates as a migration oracle.
 
+## Fine-grained retained projection
+
+Choosing Solid is an architectural commitment to preserve fine-grained
+invalidation all the way to native paint. Reducing JavaScript-to-Rust mutations
+is not sufficient if every small mutation still causes one root GPUI view to
+walk and materialize the complete projected tree.
+
+The target invalidation path is:
+
+```text
+Solid owner/signal
+      |
+batched mutation for exact NodeKeys
+      |
+nearest explicit projection boundary
+      |
+affected GPUI entity and native layout/paint only
+```
+
+Projection boundaries are explicit retained runtime units, not inferred Solid
+component boundaries. Stable application regions such as route content,
+scrollable viewports, overlays, native widgets, animation surfaces, and
+diagnostic HUDs are the initial boundary set. This avoids coupling correctness
+to compiler output and avoids creating one GPUI entity for every leaf node.
+
+Each boundary tracks three independent revisions:
+
+- `structure_revision`: children, ordering, native-widget identity, or another
+  change that requires reconstructing the boundary's GPUI element description;
+- `layout_revision`: size or layout-affecting style changed, so GPUI layout must
+  run for the boundary even when its structure is stable;
+- `paint_revision`: color, opacity, transform, or other paint-only state changed
+  without invalidating structure or layout.
+
+Dirty propagation stops at the nearest boundary whenever the parent contract is
+unchanged. The application root is notified only for root structure, window
+metrics, global theme, or another genuinely root-owned transition. Animation
+clocks, performance telemetry, and overlay paint must live in independent GPUI
+entities so they cannot turn an otherwise static application into a full-tree
+render loop.
+
+Until this path is implemented, a retained protocol tree must not be described
+as proof of fine-grained native rendering. Performance work is accepted only
+when measurements distinguish protocol mutations, projected element
+materialization, native layout, and paint invalidation.
+
 ## Ownership
 
 Reusable UI composition follows the stricter
@@ -173,3 +219,5 @@ When adding a feature:
 5. Is visual or platform behavior verified at the layer where it can fail?
 6. Does cross-language work follow the frame/intrinsic/capability selection
    rule, with Rust-owned resources using typed generational handles?
+7. Does a local Solid update stop at the nearest projection boundary, or does
+   it unnecessarily notify and materialize the application root?
