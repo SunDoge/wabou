@@ -283,6 +283,14 @@ impl GpuiProjection {
                     )?;
                 }
                 Op::DropNode { id } => {
+                    // The JS owner releases one generational handle per node. A
+                    // parent release recursively retires the retained host subtree,
+                    // so later child release records in the same sweep are expected.
+                    // Keep all other mutations strict; only resource release is
+                    // deliberately idempotent.
+                    if self.tree.node(*id).is_none() {
+                        continue;
+                    }
                     let removed = self.tree.remove(*id)?;
                     for key in removed {
                         self.layout_bounds.borrow_mut().remove(&key);
@@ -1401,6 +1409,45 @@ mod tests {
             projection.style(recreated).unwrap().size.width,
             Length::Auto
         );
+    }
+
+    #[test]
+    fn subtree_drop_records_are_idempotent_for_each_released_js_handle() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::CreateElement {
+                            id: key(3),
+                            tag: view,
+                        },
+                        Op::AppendChild {
+                            parent: key(2),
+                            child: key(3),
+                        },
+                        // The Solid renderer releases every JS handle. Removing the
+                        // parent already retires its retained subtree, so the child's
+                        // release record must be harmless rather than corrupting the
+                        // remainder of the frame.
+                        Op::DropNode { id: key(2) },
+                        Op::DropNode { id: key(3) },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .expect("releasing every handle in a removed subtree must be idempotent");
+
+        assert!(!projection.contains(key(2)));
+        assert!(!projection.contains(key(3)));
     }
 
     #[test]
