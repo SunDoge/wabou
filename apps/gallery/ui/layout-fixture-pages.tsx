@@ -6,8 +6,8 @@ import { ComponentsProvider, View } from "@wabou/ui";
 import { type Component, createComponent } from "solid-js";
 import {
   AdaptiveSplitPaneLayoutFixture,
-  CodeEditorLayoutFixture,
   DialogLayoutFixture,
+  EditorLayoutFixture,
   EmptyLayoutFixture,
   IconFrameLayoutFixture,
   ImageListLayoutFixture,
@@ -220,10 +220,10 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         height: 180,
         render: PiTranscriptSearchLayoutFixture,
       },
-      "component/CodeEditor": {
+      "component/Editor": {
         width: 520,
         height: 320,
-        render: CodeEditorLayoutFixture,
+        render: EditorLayoutFixture,
       },
       "component/Message": {
         width: 360,

@@ -4,7 +4,6 @@ import { dispatchEvent, writer } from "@wabou/core/renderer";
 import { createRoot, createSignal, flush } from "solid-js";
 import { resolveButtonFocusOrder } from "./button";
 import {
-  CodeEditor,
   createButton,
   createFocus,
   createFocusWithin,
@@ -12,6 +11,7 @@ import {
   createPress,
   createShortcuts,
   createTabs,
+  Editor,
   Icon,
   Image,
   PasswordInput,
@@ -449,7 +449,7 @@ describe("host primitives", () => {
       TextInput({});
       TextArea({});
       PasswordInput({ secret: "test-secret", focusOrder: 4 });
-      CodeEditor({ "aria-label": "Config", disabled: true });
+      Editor({ "aria-label": "Config", disabled: true });
     } finally {
       writer.setAttribute = setAttribute;
       writer.setInteractionPolicy = setInteractionPolicy;
@@ -467,42 +467,32 @@ describe("host primitives", () => {
     expect(focusOrders).toEqual([0, 0, 4, -1]);
   });
 
-  test("feeds native selection and commits through CodeMirror syntax state", () =>
+  test("projects generic editor state and accepts native text commits", () =>
     createRoot((dispose) => {
-      const configs: string[] = [];
-      const setWidgetConfig = writer.setWidgetConfig.bind(writer);
-      writer.setWidgetConfig = (_id, json) => configs.push(json);
+      const attributes: Array<[string, string]> = [];
+      const values: string[] = [];
+      const setAttribute = writer.setAttribute.bind(writer);
+      writer.setAttribute = (_id, name, value) => {
+        if (name === "language" || name === "value") {
+          attributes.push([name, value]);
+        }
+      };
       try {
-        const editor = CodeEditor({
-          "aria-label": "Config",
+        const editor = Editor({
+          "aria-label": "Source",
           value: '{"enabled":true}',
           language: "json",
+          onInput: (event) => values.push(event.currentTarget.value),
         }) as unknown as import("@wabou/core/renderer").Handle;
-        flush();
-        dispatchEvent(editor.id, EVENT_CODE.textselectionchange, JSON.stringify({
-          anchor: 0,
-          head: '{"enabled":true}'.length,
-          text: '{"enabled":true}',
-          kind: "simple",
-        }));
-        dispatchEvent(editor.id, EVENT_CODE.imecommit, JSON.stringify({
-          data: '{"enabled":false,"port":9090}',
-          source: "keyboard",
-        }));
-        flush();
+        dispatchEvent(editor.id, EVENT_CODE.input, JSON.stringify({ value: "next" }));
       } finally {
-        writer.setWidgetConfig = setWidgetConfig;
+        writer.setAttribute = setAttribute;
         dispose();
       }
 
-      const syntax = JSON.parse(configs.at(-1) ?? "null").syntax;
-      expect(syntax).toMatchObject({
-        language: "json",
-        offsetEncoding: "utf16",
-      });
-      expect(
-        syntax.ranges.map((range: { kind: string }) => range.kind),
-      ).toContain("number");
+      expect(attributes).toContainEqual(["value", '{"enabled":true}']);
+      expect(attributes).toContainEqual(["language", "json"]);
+      expect(values).toEqual(["next"]);
     }));
 
   test("create explicit view, text, image, and editor host nodes", () =>

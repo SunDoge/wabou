@@ -920,6 +920,22 @@ impl GpuiController {
                     ..wabou_shell::EventResponse::default()
                 }
             }
+            wabou_shell::ProjectedInputEvent::TextChange { target, value } => {
+                let changed = self.commit_text_value(target, &value);
+                wabou_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..wabou_shell::EventResponse::default()
+                }
+            }
+            wabou_shell::ProjectedInputEvent::FocusChange { target, focused } => {
+                let changed = self.set_text_focus(target, focused);
+                wabou_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..wabou_shell::EventResponse::default()
+                }
+            }
             wabou_shell::ProjectedInputEvent::Pointer(event) => {
                 self.handle_projected_pointer(event)
             }

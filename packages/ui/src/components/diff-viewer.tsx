@@ -1,6 +1,6 @@
 import { mergeClasses } from "@wabou/core/style";
 import { For as ForValue, Show } from "solid-js";
-import { CodeEditor, Text, View, type ViewProps } from "../primitives";
+import { Editor, Text, View, type ViewProps } from "../primitives";
 import {
   Accordion,
   AccordionContent,
@@ -147,7 +147,7 @@ export function DiffViewer(props: DiffViewerProps) {
                   </View>
                 </AccordionTrigger>
                 <AccordionContent class="min-w-0">
-                  <CodeEditor
+                  <Editor
                     readOnly
                     value={file.patch}
                     aria-label={`${labels().technicalDetails}: ${file.path}`}

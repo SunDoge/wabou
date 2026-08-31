@@ -3,14 +3,7 @@ import {
   assertSingleSurfaceOwner,
   renderComponent,
 } from "@wabou/test/component";
-import {
-  CodeEditor,
-  Input,
-  PasswordInput,
-  Text,
-  TextArea,
-  View,
-} from "@wabou/ui";
+import { Editor, Input, PasswordInput, Text, TextArea, View } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 
@@ -76,11 +69,11 @@ test("reports the native textarea caret in JavaScript UTF-16 offsets", () => {
   expect(caret).toBe(3);
 });
 
-test("updates a controlled CodeEditor through the component input contract", () => {
+test("updates a controlled Editor through the component input contract", () => {
   const App = () => {
     const [source, setSource] = createSignal("initial");
     return (
-      <CodeEditor
+      <Editor
         aria-label="Markdown source"
         value={source()}
         onInput={(event) => setSource(event.currentTarget.value)}

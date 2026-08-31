@@ -19,12 +19,20 @@ use wabou_protocol::{
 #[derive(Clone, Debug, PartialEq)]
 pub struct GpuiTextControl {
     pub key: NodeKey,
-    pub multiline: bool,
+    pub kind: GpuiTextControlKind,
+    pub language: Option<String>,
     pub value: String,
     pub placeholder: String,
     pub disabled: bool,
     pub readonly: bool,
     pub style: GpuiTextControlStyle,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GpuiTextControlKind {
+    Input,
+    Textarea,
+    Editor,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -696,9 +704,12 @@ impl GpuiProjection {
             let ProjectedNodeKind::Element(tag) = &node.kind else {
                 continue;
             };
-            if !matches!(tag.as_ref(), "input" | "textarea") {
-                continue;
-            }
+            let kind = match tag.as_ref() {
+                "input" => GpuiTextControlKind::Input,
+                "textarea" => GpuiTextControlKind::Textarea,
+                "editor" => GpuiTextControlKind::Editor,
+                _ => continue,
+            };
             let theme_color = |name: &str| {
                 self.active_theme_colors
                     .as_ref()?
@@ -717,7 +728,8 @@ impl GpuiProjection {
             selection.alpha = 0.4;
             controls.push(GpuiTextControl {
                 key,
-                multiline: tag.as_ref() == "textarea",
+                kind,
+                language: node.attributes.get("language").map(ToString::to_string),
                 value: node
                     .attributes
                     .get("value")
@@ -806,7 +818,7 @@ impl GpuiProjection {
             let is_native_editor = matches!(
                 &node.kind,
                 ProjectedNodeKind::Element(tag)
-                    if matches!(tag.as_ref(), "input" | "textarea" | "password-input" | "code-editor")
+                    if matches!(tag.as_ref(), "input" | "textarea" | "password-input" | "editor")
             );
             if policy != TextSelectionPolicy::None
                 && !is_native_editor
@@ -2473,9 +2485,11 @@ mod tests {
         let mut atoms = AtomPool::default();
         let input = atoms.intern("input");
         let textarea = atoms.intern("textarea");
+        let editor = atoms.intern("editor");
         let value = atoms.intern("value");
         let placeholder = atoms.intern("placeholder");
         let disabled = atoms.intern("disabled");
+        let language = atoms.intern("language");
         projection
             .apply_ops(
                 &Frame {
@@ -2512,6 +2526,24 @@ mod tests {
                             parent: NodeKey::ROOT,
                             child: key(3),
                         },
+                        Op::CreateElement {
+                            id: key(4),
+                            tag: editor,
+                        },
+                        Op::SetAttribute {
+                            id: key(4),
+                            name: language,
+                            value: "json",
+                        },
+                        Op::SetAttribute {
+                            id: key(4),
+                            name: value,
+                            value: "{\"enabled\":true}",
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(4),
+                        },
                     ],
                 },
                 &atoms,
@@ -2524,7 +2556,8 @@ mod tests {
             vec![
                 GpuiTextControl {
                     key: key(2),
-                    multiline: false,
+                    kind: GpuiTextControlKind::Input,
+                    language: None,
                     value: "typed".into(),
                     placeholder: "Search".into(),
                     disabled: false,
@@ -2533,10 +2566,21 @@ mod tests {
                 },
                 GpuiTextControl {
                     key: key(3),
-                    multiline: true,
+                    kind: GpuiTextControlKind::Textarea,
+                    language: None,
                     value: String::new(),
                     placeholder: String::new(),
                     disabled: true,
+                    readonly: false,
+                    style: GpuiTextControlStyle::default(),
+                },
+                GpuiTextControl {
+                    key: key(4),
+                    kind: GpuiTextControlKind::Editor,
+                    language: Some("json".into()),
+                    value: "{\"enabled\":true}".into(),
+                    placeholder: String::new(),
+                    disabled: false,
                     readonly: false,
                     style: GpuiTextControlStyle::default(),
                 },
@@ -2562,7 +2606,7 @@ mod tests {
                 .into_iter()
                 .map(|control| control.key)
                 .collect::<Vec<_>>(),
-            [key(3)]
+            [key(3), key(4)]
         );
     }
 

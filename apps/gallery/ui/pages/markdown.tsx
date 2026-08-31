@@ -1,4 +1,4 @@
-import { Button, CodeEditor, Markdown, Text, View } from "@wabou/ui";
+import { Button, Editor, Markdown, Text, View } from "@wabou/ui";
 import { createSignal, type JSX, onCleanup } from "solid-js";
 
 const initialMarkdown = `# Wabou Markdown
@@ -84,7 +84,7 @@ export function MarkdownPage(): JSX.Element {
           <View class="h-10 flex-none px-4 flex items-center border-b border-subtle">
             <Text class="text-xs font-medium text-muted">MARKDOWN</Text>
           </View>
-          <CodeEditor
+          <Editor
             aria-label="Markdown source"
             class="w-full min-h-0 flex-1"
             value={source()}

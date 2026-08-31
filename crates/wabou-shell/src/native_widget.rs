@@ -18,7 +18,8 @@ pub struct NativeWidgetEventSink {
 }
 
 impl NativeWidgetEventSink {
-    fn new(target: NodeKey, input: crate::ProjectedInputSink) -> Self {
+    #[doc(hidden)]
+    pub fn new(target: NodeKey, input: crate::ProjectedInputSink) -> Self {
         Self { target, input }
     }
 
@@ -44,6 +45,32 @@ impl NativeWidgetEventSink {
             crate::ProjectedInputEvent::ValueChange {
                 target: self.target,
                 value,
+            },
+            cx,
+        );
+    }
+
+    /// Commit a text value through Wabou's typed input event.
+    ///
+    /// Native editors use this after GPUI has applied keyboard or IME input.
+    /// JavaScript receives the same controlled `input` event as a Wabou text
+    /// primitive without needing a widget-specific JSON message.
+    pub fn input_text(&self, value: impl Into<String>, cx: &mut App) {
+        (self.input)(
+            crate::ProjectedInputEvent::TextChange {
+                target: self.target,
+                value: value.into(),
+            },
+            cx,
+        );
+    }
+
+    /// Report native focus ownership through Wabou's ordinary focus events.
+    pub fn focus(&self, focused: bool, cx: &mut App) {
+        (self.input)(
+            crate::ProjectedInputEvent::FocusChange {
+                target: self.target,
+                focused,
             },
             cx,
         );
@@ -198,6 +225,40 @@ mod tests {
         assert_eq!(
             context.attributes().collect::<Vec<_>>(),
             [("center-x", "-0.745"), ("iterations", "96")]
+        );
+    }
+
+    #[gpui::test]
+    fn event_sink_preserves_typed_text_and_focus_events(cx: &mut TestAppContext) {
+        let received = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let capture = received.clone();
+        let input = std::rc::Rc::new(move |event, _: &mut App| {
+            capture.borrow_mut().push(event);
+        });
+        let sink = NativeWidgetEventSink::new(NodeKey::new(8, 2), input);
+
+        cx.update(|app| {
+            sink.input_text("你好 GPUI", app);
+            sink.focus(true, app);
+            sink.focus(false, app);
+        });
+
+        assert_eq!(
+            received.borrow().as_slice(),
+            [
+                crate::ProjectedInputEvent::TextChange {
+                    target: NodeKey::new(8, 2),
+                    value: "你好 GPUI".into(),
+                },
+                crate::ProjectedInputEvent::FocusChange {
+                    target: NodeKey::new(8, 2),
+                    focused: true,
+                },
+                crate::ProjectedInputEvent::FocusChange {
+                    target: NodeKey::new(8, 2),
+                    focused: false,
+                },
+            ]
         );
     }
 

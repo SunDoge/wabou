@@ -120,6 +120,10 @@ pub enum ProjectedInputEvent {
     Activate { target: NodeKey },
     /// Numeric value committed by a retained native control.
     ValueChange { target: NodeKey, value: f64 },
+    /// Text value committed by a retained native control.
+    TextChange { target: NodeKey, value: String },
+    /// Focus ownership changed inside a retained native control.
+    FocusChange { target: NodeKey, focused: bool },
     /// Pointer movement or button transition.
     Pointer(ProjectedPointerEvent),
     /// Wheel or trackpad transition.

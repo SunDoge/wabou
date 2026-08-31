@@ -31,7 +31,6 @@ export * from "./chart";
 export * from "./code-block";
 export * from "./combobox";
 export * from "./command";
-export * from "./config-editor";
 export * from "./context-menu";
 export * from "./copy-button";
 export * from "./data-table";

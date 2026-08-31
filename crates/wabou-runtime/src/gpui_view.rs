@@ -7,7 +7,9 @@ use std::{
     sync::Arc,
 };
 
-use gpui_base::input::{Input, InputEditorStyle, InputEvent, InputState, Textarea, TextareaState};
+use gpui_base::input::{
+    Editor, EditorState, Input, InputEditorStyle, InputEvent, InputState, Textarea, TextareaState,
+};
 use gpui_base::{TextSelectionHandle, TextSelectionLayer};
 use wabou_shell::WakeCallback;
 use wabou_shell::gpui::{
@@ -74,6 +76,11 @@ enum GpuiTextControlState {
         state: Entity<TextareaState>,
         _subscription: Subscription,
     },
+    Editor {
+        state: Entity<EditorState>,
+        language: Option<String>,
+        _subscription: Subscription,
+    },
 }
 
 struct GpuiTextSelectionState {
@@ -83,12 +90,16 @@ struct GpuiTextSelectionState {
 }
 
 impl GpuiTextControlState {
-    fn is_multiline(&self) -> bool {
-        matches!(self, Self::Textarea { .. })
+    fn kind(&self) -> wabou_shell::GpuiTextControlKind {
+        match self {
+            Self::Input { .. } => wabou_shell::GpuiTextControlKind::Input,
+            Self::Textarea { .. } => wabou_shell::GpuiTextControlKind::Textarea,
+            Self::Editor { .. } => wabou_shell::GpuiTextControlKind::Editor,
+        }
     }
 
     fn synchronize(
-        &self,
+        &mut self,
         descriptor: &wabou_shell::GpuiTextControl,
         window: &mut Window,
         cx: &mut Context<GpuiRuntimeView>,
@@ -119,6 +130,20 @@ impl GpuiTextControlState {
         match self {
             Self::Input { state, .. } => synchronize!(state),
             Self::Textarea { state, .. } => synchronize!(state),
+            Self::Editor {
+                state, language, ..
+            } => {
+                synchronize!(state);
+                if language != &descriptor.language {
+                    state.update(cx, |state, state_cx| {
+                        state.set_highlighter(
+                            descriptor.language.clone().unwrap_or_default(),
+                            state_cx,
+                        );
+                    });
+                    *language = descriptor.language.clone();
+                }
+            }
         }
     }
 
@@ -146,6 +171,15 @@ impl GpuiTextControlState {
                         .into_any_element()
                 })
             }
+            Self::Editor { state, .. } => {
+                let state = state.clone();
+                Rc::new(move || {
+                    div()
+                        .size_full()
+                        .child(Editor::new(&state))
+                        .into_any_element()
+                })
+            }
         }
     }
 
@@ -153,6 +187,7 @@ impl GpuiTextControlState {
         match self {
             Self::Input { state, .. } => state.focus_handle(cx),
             Self::Textarea { state, .. } => state.focus_handle(cx),
+            Self::Editor { state, .. } => state.focus_handle(cx),
         }
     }
 }
@@ -402,6 +437,25 @@ impl GpuiRuntimeView {
     }
 
     fn synchronize_text_controls(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        macro_rules! subscribe_text_control {
+            ($state:expr, $events:expr) => {
+                cx.subscribe(&$state, move |_view, state, event, cx| {
+                    let value = matches!(event, InputEvent::Change)
+                        .then(|| state.read(cx).value().to_string());
+                    let focused = match event {
+                        InputEvent::Focus => Some(true),
+                        InputEvent::Blur => Some(false),
+                        _ => None,
+                    };
+                    if let Some(value) = value {
+                        $events.input_text(value, cx);
+                    }
+                    if let Some(focused) = focused {
+                        $events.focus(focused, cx);
+                    }
+                })
+            };
+        }
         let descriptors = self.controller.text_controls();
         self.text_controls
             .retain(|key, _| descriptors.iter().any(|descriptor| descriptor.key == *key));
@@ -410,7 +464,7 @@ impl GpuiRuntimeView {
             let needs_recreate = self
                 .text_controls
                 .get(&descriptor.key)
-                .is_some_and(|state| state.is_multiline() != descriptor.multiline);
+                .is_some_and(|state| state.kind() != descriptor.kind);
             if needs_recreate {
                 self.text_controls.remove(&descriptor.key);
             }
@@ -418,58 +472,49 @@ impl GpuiRuntimeView {
                 self.text_controls.entry(descriptor.key)
             {
                 let key = descriptor.key;
-                let control = if descriptor.multiline {
-                    let state = cx.new(|cx| TextareaState::new(window, cx));
-                    let subscription = cx.subscribe(&state, move |view, state, event, cx| {
-                        let value = matches!(event, InputEvent::Change)
-                            .then(|| state.read(cx).value().to_string());
-                        let focused = match event {
-                            InputEvent::Focus => Some(true),
-                            InputEvent::Blur => Some(false),
-                            _ => None,
-                        };
-                        let changed = value
-                            .as_deref()
-                            .is_some_and(|value| view.controller.commit_text_value(key, value))
-                            | focused.is_some_and(|focused| {
-                                view.controller.set_text_focus(key, focused)
-                            });
-                        if changed {
-                            cx.notify();
-                        }
+                let view = cx.weak_entity();
+                let input: wabou_shell::ProjectedInputSink = Rc::new(move |event, app| {
+                    let _ = view.update(app, |view, cx| {
+                        view.handle_input(event, cx);
                     });
-                    GpuiTextControlState::Textarea {
-                        state,
-                        _subscription: subscription,
+                });
+                let events = wabou_shell::NativeWidgetEventSink::new(key, input);
+                let control = match descriptor.kind {
+                    wabou_shell::GpuiTextControlKind::Input => {
+                        let state = cx.new(|cx| InputState::new(window, cx));
+                        let subscription = subscribe_text_control!(state, events);
+                        GpuiTextControlState::Input {
+                            state,
+                            _subscription: subscription,
+                        }
                     }
-                } else {
-                    let state = cx.new(|cx| InputState::new(window, cx));
-                    let subscription = cx.subscribe(&state, move |view, state, event, cx| {
-                        let value = matches!(event, InputEvent::Change)
-                            .then(|| state.read(cx).value().to_string());
-                        let focused = match event {
-                            InputEvent::Focus => Some(true),
-                            InputEvent::Blur => Some(false),
-                            _ => None,
-                        };
-                        let changed = value
-                            .as_deref()
-                            .is_some_and(|value| view.controller.commit_text_value(key, value))
-                            | focused.is_some_and(|focused| {
-                                view.controller.set_text_focus(key, focused)
-                            });
-                        if changed {
-                            cx.notify();
+                    wabou_shell::GpuiTextControlKind::Textarea => {
+                        let state = cx.new(|cx| TextareaState::new(window, cx));
+                        let subscription = subscribe_text_control!(state, events);
+                        GpuiTextControlState::Textarea {
+                            state,
+                            _subscription: subscription,
                         }
-                    });
-                    GpuiTextControlState::Input {
-                        state,
-                        _subscription: subscription,
+                    }
+                    wabou_shell::GpuiTextControlKind::Editor => {
+                        let language = descriptor.language.clone();
+                        let initial_language = language.clone().unwrap_or_default();
+                        let state =
+                            cx.new(|cx| EditorState::new(window, cx).language(initial_language));
+                        let subscription = subscribe_text_control!(state, events);
+                        GpuiTextControlState::Editor {
+                            state,
+                            language,
+                            _subscription: subscription,
+                        }
                     }
                 };
                 entry.insert(control);
             }
-            self.text_controls[&descriptor.key].synchronize(&descriptor, window, cx);
+            self.text_controls
+                .get_mut(&descriptor.key)
+                .expect("text control was retained or created")
+                .synchronize(&descriptor, window, cx);
         }
     }
 

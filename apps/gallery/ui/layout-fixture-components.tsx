@@ -6,11 +6,11 @@ import {
   Bubble,
   BubbleContent,
   Button,
-  CodeEditor,
   Dialog,
   DialogDescription,
   DialogScrollBody,
   DialogTitle,
+  Editor,
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -394,10 +394,10 @@ export function PiExtensionUiLayoutFixture() {
   );
 }
 
-export function CodeEditorLayoutFixture() {
+export function EditorLayoutFixture() {
   return (
     <View class="w-full h-full min-w-0 min-h-0 p-4 bg-canvas">
-      <CodeEditor
+      <Editor
         aria-label="Fixture config editor"
         language="json"
         value={'{\n  "enabled": true,\n  "emoji": "😀"\n}'}

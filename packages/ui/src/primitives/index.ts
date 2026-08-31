@@ -171,8 +171,8 @@ export {
 } from "./transition-presence";
 export {
   type Affine2D,
-  CodeEditor,
-  type CodeEditorProps,
+  Editor,
+  type EditorProps,
   Icon,
   type IconProps,
   Image,

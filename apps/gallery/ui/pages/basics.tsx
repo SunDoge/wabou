@@ -14,10 +14,10 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
-  ConfigEditor,
   createHover,
   createWindow,
   currentWindowOptions,
+  Editor,
   Fps,
   Icon,
   Input,
@@ -197,10 +197,12 @@ function InputPage() {
           </Text>
         </View>
       </Preview>
-      <Preview title="Configuration editor">
+      <Preview title="Editor">
         <View class="w-full flex flex-col gap-2">
-          <ConfigEditor
+          <Editor
             aria-label="JSON configuration"
+            language="json"
+            class="min-h-48 w-full rounded-lg border border-strong bg-input text-primary"
             value={config()}
             onInput={(event) => {
               setConfig(event.currentTarget.value);
@@ -772,7 +774,9 @@ function ScrollAreaPage() {
               activeColor: 0x0284c7ff,
             }}
           >
-            <ForValue each={Array.from({ length: 16 }, (_, index) => index + 1)}>
+            <ForValue
+              each={Array.from({ length: 16 }, (_, index) => index + 1)}
+            >
               {(index) => (
                 <View
                   class={
