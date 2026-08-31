@@ -38,3 +38,47 @@ test("workspace panel filters, previews, and attaches a file", async () => {
   screen.getByRole("button", { name: "Add to context" }).click();
   expect(addContext).toHaveBeenCalledWith("src/index.ts");
 });
+
+test("workspace preview exposes mutually exclusive empty, loading, and error states", async () => {
+  let rejectPreview: ((reason: Error) => void) | undefined;
+  const preview = new Promise<never>((_resolve, reject) => {
+    rejectPreview = reject;
+  });
+  const screen = renderComponent(() => (
+    <WorkspacePanel
+      cwd="/work/project"
+      loadFiles={async () => ["src/index.ts"]}
+      readFile={() => preview}
+      addContext={() => {}}
+      close={() => {}}
+    />
+  ));
+
+  await screen.waitFor(() =>
+    expect(screen.getByRole("option", { name: "src/index.ts" })).toBeDefined(),
+  );
+  expect(JSON.stringify(screen.snapshot())).toContain(
+    "Select a text file to preview it.",
+  );
+
+  screen.getByRole("option", { name: "src/index.ts" }).click();
+  await screen.waitFor(() =>
+    expect(
+      screen.getByRole("status", { name: "Loading file preview…" }),
+    ).toBeDefined(),
+  );
+  expect(JSON.stringify(screen.snapshot())).not.toContain(
+    "Select a text file to preview it.",
+  );
+
+  rejectPreview?.(new Error("permission denied"));
+  await screen.waitFor(() =>
+    expect(
+      screen.getByRole("alert", { name: "Could not load the file preview" })
+        .text,
+    ).toContain("permission denied"),
+  );
+  expect(
+    screen.queryByRole("status", { name: "Loading file preview…" }),
+  ).toBeNull();
+});

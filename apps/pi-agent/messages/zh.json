@@ -239,6 +239,8 @@
   "workspace_files": "工作区文件",
   "close_workspace_files": "关闭工作区文件",
   "select_file_preview": "选择文本文件进行预览。",
+  "loading_file_preview": "正在加载文件预览…",
+  "file_preview_failed": "无法加载文件预览",
   "add_to_context": "添加到上下文",
   "code_changes": "代码变更",
   "close_code_changes": "关闭代码变更",

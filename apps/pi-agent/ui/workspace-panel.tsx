@@ -1,12 +1,18 @@
 import {
+  Alert,
   Button,
   CodeBlock,
   createLatestAsyncResource,
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
   Icon,
   Listbox,
   Markdown,
   ScrollArea,
   SearchField,
+  Spinner,
   Text,
   View,
   WorkbenchInspector,
@@ -16,7 +22,14 @@ import {
 import file from "lucide-static/icons/file.svg?raw";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import { createEffect, createMemo, createSignal, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  Match,
+  Show,
+  Switch,
+} from "solid-js";
 import type { WorkspaceFilePreview } from "./api";
 import { i18n, m } from "./i18n";
 
@@ -146,50 +159,79 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
           </Show>
         </View>
         <View class="flex-1 min-h-0 flex flex-col gap-2">
-          <Show when={files.error() ?? previewError()}>
-            <Text role="alert" class="text-sm text-danger-primary">
-              {String(files.error() ?? previewError())}
-            </Text>
-          </Show>
-          <Show
-            when={!previewLoading() && preview()}
-            fallback={
-              <Text class="p-3 text-sm text-muted">
-                {i18n.message(m.select_file_preview, {})}
-              </Text>
-            }
-          >
-            {(value) => (
-              <>
-                <View class="flex-none flex flex-row items-center justify-between gap-2">
-                  <Text class="min-w-0 flex-1 truncate text-sm font-medium">
-                    {value().path}
-                  </Text>
-                  <Button
-                    size="sm"
-                    onClick={() => props.addContext(value().path)}
-                  >
-                    <Icon source={filePlus} size={13} />
-                    {i18n.message(m.add_to_context, {})}
-                  </Button>
-                </View>
-                <ScrollArea class="flex-1 min-h-0">
-                  <Show
-                    when={extension(value().path) === "md"}
-                    fallback={
-                      <CodeBlock
-                        code={value().text}
-                        language={extension(value().path) ?? "text"}
-                        copyable={false}
-                      />
-                    }
-                  >
-                    <Markdown source={value().text} class="p-3" />
-                  </Show>
-                </ScrollArea>
-              </>
-            )}
-          </Show>
+          <Switch>
+            <Match when={files.error() ?? previewError()}>
+              {(error) => (
+                <Alert
+                  variant="destructive"
+                  title={i18n.message(m.file_preview_failed, {})}
+                >
+                  {String(error())}
+                </Alert>
+              )}
+            </Match>
+            <Match when={previewLoading()}>
+              <Empty
+                variant="plain"
+                role="status"
+                aria-label={i18n.message(m.loading_file_preview, {})}
+                class="h-full p-4 gap-3"
+              >
+                <EmptyMedia>
+                  <Spinner decorative />
+                </EmptyMedia>
+                <EmptyHeader>
+                  <EmptyDescription maxLines={1} class="min-h-0">
+                    {i18n.message(m.loading_file_preview, {})}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </Match>
+            <Match when={preview()}>
+              {(value) => (
+                <>
+                  <View class="flex-none flex flex-row items-center justify-between gap-2">
+                    <Text class="min-w-0 flex-1 truncate text-sm font-medium">
+                      {value().path}
+                    </Text>
+                    <Button
+                      size="sm"
+                      onClick={() => props.addContext(value().path)}
+                    >
+                      <Icon source={filePlus} size={13} />
+                      {i18n.message(m.add_to_context, {})}
+                    </Button>
+                  </View>
+                  <ScrollArea class="flex-1 min-h-0">
+                    <Show
+                      when={extension(value().path) === "md"}
+                      fallback={
+                        <CodeBlock
+                          code={value().text}
+                          language={extension(value().path) ?? "text"}
+                          copyable={false}
+                        />
+                      }
+                    >
+                      <Markdown source={value().text} class="p-3" />
+                    </Show>
+                  </ScrollArea>
+                </>
+              )}
+            </Match>
+            <Match when={true}>
+              <Empty variant="plain" class="h-full p-4 gap-3">
+                <EmptyMedia variant="icon">
+                  <Icon source={file} size={18} />
+                </EmptyMedia>
+                <EmptyHeader>
+                  <EmptyDescription maxLines={2}>
+                    {i18n.message(m.select_file_preview, {})}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </Match>
+          </Switch>
         </View>
       </WorkbenchInspectorContent>
     </WorkbenchInspector>

@@ -400,6 +400,19 @@ try {
         },
       },
       {
+        id: "workspace/files-panel-error",
+        width: 360,
+        height: 520,
+        waitMs: 20,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, {
+            role: "alert",
+            name: "Could not load the file preview",
+          });
+        },
+      },
+      {
         id: "workspace/changes-panel",
         width: 420,
         height: 720,

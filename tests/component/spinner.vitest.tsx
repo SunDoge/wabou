@@ -1,5 +1,5 @@
 import { renderComponent } from "@wabou/test/component";
-import { MotionConfigProvider, Spinner } from "@wabou/ui";
+import { MotionConfigProvider, Spinner, Text, View } from "@wabou/ui";
 import { expect, test } from "vitest";
 
 test("declares a native loop instead of publishing per-frame transforms", () => {
@@ -37,4 +37,17 @@ test("forwards reduced-motion policy to the native executor", () => {
       reducedMotion: true,
     },
   });
+});
+
+test("can stay decorative when a parent owns the loading status", () => {
+  const screen = renderComponent(() => (
+    <View role="status" aria-label="Loading preview">
+      <Spinner decorative />
+      <Text>Loading preview</Text>
+    </View>
+  ));
+
+  expect(
+    screen.getAllByRole("status", { name: "Loading preview" }),
+  ).toHaveLength(1);
 });

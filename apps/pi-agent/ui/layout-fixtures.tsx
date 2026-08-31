@@ -494,6 +494,21 @@ defineLayoutFixtures(
           />
         ),
       },
+      "workspace/files-panel-error": {
+        width: 360,
+        height: 520,
+        render: () => (
+          <WorkspacePanel
+            cwd="/work/wabou"
+            loadFiles={async () => {
+              throw new Error("Workspace permission denied");
+            }}
+            readFile={async (_cwd, path) => ({ path, text: "" })}
+            addContext={() => {}}
+            close={() => {}}
+          />
+        ),
+      },
       "workspace/changes-panel": {
         width: 420,
         height: 720,

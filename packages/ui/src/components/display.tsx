@@ -47,6 +47,8 @@ export function Skeleton(props: SkeletonProps): JSX.Element {
 export function Spinner(props: {
   label?: string;
   class?: string;
+  /** Hide spinner semantics when a parent status already announces progress. */
+  decorative?: boolean;
   /** Duration of one revolution in seconds. */
   duration?: number;
   /** Playback-rate multiplier. */
@@ -64,9 +66,14 @@ export function Spinner(props: {
   spread(
     node,
     {
-      role: "status",
+      get role() {
+        return props.decorative ? undefined : "status";
+      },
+      get "aria-hidden"() {
+        return props.decorative ? true : undefined;
+      },
       get "aria-label"() {
-        return props.label ?? "Loading";
+        return props.decorative ? undefined : (props.label ?? "Loading");
       },
       get class() {
         return mergeClasses("w-4 h-4 flex-none text-accent", props.class);

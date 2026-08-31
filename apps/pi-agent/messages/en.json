@@ -239,6 +239,8 @@
   "workspace_files": "Workspace files",
   "close_workspace_files": "Close workspace files",
   "select_file_preview": "Select a text file to preview it.",
+  "loading_file_preview": "Loading file preview…",
+  "file_preview_failed": "Could not load the file preview",
   "add_to_context": "Add to context",
   "code_changes": "Code changes",
   "close_code_changes": "Close code changes",
