@@ -1,5 +1,5 @@
 import { renderComponent } from "@wabou/test/component";
-import { Command } from "@wabou/ui";
+import { Command, CommandList, Text } from "@wabou/ui";
 import { expect, test } from "vitest";
 
 const items = [
@@ -61,4 +61,32 @@ test("renders shortcut hints without changing the option's accessible name", () 
   expect(
     screen.getByRole("option", { name: "Search conversation" }).text,
   ).toContain("Ctrl F");
+});
+
+test("reuses command rows for externally controlled completion lists", () => {
+  const highlights: string[] = [];
+  const actions: string[] = [];
+  const screen = renderComponent(() => (
+    <CommandList
+      aria-label="Completions"
+      items={[
+        { id: "command:review", label: "/review", description: "Review" },
+        { id: "file:README.md", label: "README.md", description: "File" },
+      ]}
+      highlighted="command:review"
+      onHighlightChange={(id) => highlights.push(id)}
+      onAction={(id) => actions.push(id)}
+      renderLeading={(item) => (
+        <Text>{item.id.startsWith("file:") ? "F" : "C"}</Text>
+      )}
+    />
+  ));
+
+  expect(screen.getByRole("listbox", { name: "Completions" })).toBeTruthy();
+  expect(screen.getByRole("option", { name: "/review" }).selected).toBe(true);
+  const file = screen.getByRole("option", { name: "README.md" });
+  file.pointerMove({ clientX: 4, clientY: 4 });
+  file.click();
+  expect(highlights).toEqual(["file:README.md"]);
+  expect(actions).toEqual(["file:README.md"]);
 });

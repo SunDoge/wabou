@@ -38,6 +38,78 @@ export interface CommandProps {
   inputRef?: (node: Handle) => void;
 }
 
+export interface CommandListProps {
+  items: readonly CommandItem[];
+  "aria-label": string;
+  highlighted?: string;
+  emptyText?: string;
+  class?: string;
+  itemClass?: string;
+  onHighlightChange?: (id: string) => void;
+  onAction?: (id: string) => void;
+  renderLeading?: (item: CommandItem) => JSX.Element;
+}
+
+/** Reusable command-result surface for search fields and inline completions. */
+export function CommandList(props: CommandListProps): JSX.Element {
+  return (
+    <View
+      role="listbox"
+      aria-label={props["aria-label"]}
+      aria-activedescendant={props.highlighted}
+      class={mergeClasses("min-w-0 flex flex-col gap-1", props.class)}
+    >
+      {props.items.length === 0 ? (
+        <Text role="status" class="px-3 py-4 text-sm text-muted text-center">
+          {props.emptyText ?? "No results found."}
+        </Text>
+      ) : (
+        <ForValue each={props.items} keyed={false}>
+          {(item) => (
+            <View
+              id={item().id}
+              role="option"
+              aria-label={item().label}
+              aria-selected={props.highlighted === item().id}
+              aria-disabled={item().disabled}
+              class={mergeClasses(
+                "min-h-9 px-3 py-1.5 flex flex-row items-center gap-2 rounded-lg",
+                props.highlighted === item().id
+                  ? "bg-control-hover text-primary"
+                  : "bg-transparent text-secondary",
+                props.itemClass,
+              )}
+              style={{ opacity: item().disabled ? 0.45 : 1 }}
+              onPointerMove={() =>
+                !item().disabled && props.onHighlightChange?.(item().id)
+              }
+              onClick={() => !item().disabled && props.onAction?.(item().id)}
+            >
+              {props.renderLeading?.(item())}
+              <View class="min-w-0 flex-1 flex flex-col justify-center">
+                <Text class="min-w-0 truncate text-sm">{item().label}</Text>
+                {item().description && (
+                  <Text class="min-w-0 truncate text-xs text-muted">
+                    {item().description}
+                  </Text>
+                )}
+              </View>
+              {item().shortcut && (
+                <Text
+                  aria-hidden="true"
+                  class="flex-none rounded border border-subtle bg-surface px-1.5 py-0.5 text-xs text-muted"
+                >
+                  {item().shortcut}
+                </Text>
+              )}
+            </View>
+          )}
+        </ForValue>
+      )}
+    </View>
+  );
+}
+
 /** Searchable command list whose filtering and keyboard behavior are host-independent. */
 export function Command(props: CommandProps): JSX.Element {
   const [uncontrolledQuery, setUncontrolledQuery] = createSignal(
@@ -96,60 +168,15 @@ export function Command(props: CommandProps): JSX.Element {
         onInput={(event) => setQuery(event.currentTarget.value)}
         onKeyDown={onKeyDown}
       />
-      <View
-        role="listbox"
+      <CommandList
         aria-label={`${props["aria-label"]} results`}
-        aria-activedescendant={highlighted()}
-        class={mergeClasses("min-w-0 flex flex-col gap-1", props.listClass)}
-      >
-        {filtered().length === 0 ? (
-          <Text role="status" class="px-3 py-4 text-sm text-muted text-center">
-            {props.emptyText ?? "No results found."}
-          </Text>
-        ) : (
-          <ForValue each={filtered()} keyed={false}>
-            {(item) => (
-              <View
-                id={item().id}
-                role="option"
-                aria-label={item().label}
-                aria-selected={highlighted() === item().id}
-                aria-disabled={item().disabled}
-                class={mergeClasses(
-                  "min-h-9 px-3 py-1.5 flex flex-col justify-center rounded-lg",
-                  highlighted() === item().id
-                    ? "bg-control-hover text-primary"
-                    : "bg-transparent text-secondary",
-                )}
-                style={{ opacity: item().disabled ? 0.45 : 1 }}
-                onPointerMove={() =>
-                  !item().disabled && setHighlighted(item().id)
-                }
-                onClick={() => select(item().id)}
-              >
-                <View class="min-w-0 flex flex-row items-center justify-between gap-3">
-                  <View class="min-w-0 flex-1 flex flex-col">
-                    <Text class="min-w-0 truncate text-sm">{item().label}</Text>
-                    {item().description && (
-                      <Text class="min-w-0 truncate text-xs text-muted">
-                        {item().description}
-                      </Text>
-                    )}
-                  </View>
-                  {item().shortcut && (
-                    <Text
-                      aria-hidden="true"
-                      class="flex-none rounded border border-subtle bg-surface px-1.5 py-0.5 text-xs text-muted"
-                    >
-                      {item().shortcut}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            )}
-          </ForValue>
-        )}
-      </View>
+        items={filtered()}
+        highlighted={highlighted()}
+        emptyText={props.emptyText}
+        class={props.listClass}
+        onHighlightChange={setHighlighted}
+        onAction={select}
+      />
     </View>
   );
 }
