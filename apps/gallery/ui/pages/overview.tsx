@@ -4,7 +4,6 @@ import {
   Card,
   CardContent,
   createWindowMatch,
-  Fps,
   Icon,
   Kbd,
   Path,
@@ -216,8 +215,12 @@ export function OverviewPage(props: {
               <View class="flex flex-row gap-3">
                 <Metric
                   icon={activity}
-                  label="Frame rate"
-                  value={<Fps live label="" />}
+                  label="JS tick"
+                  value={
+                    frameStats()
+                      ? `${frameStats()!.js_tick_ms.toFixed(2)} ms`
+                      : "--"
+                  }
                 />
                 <Metric
                   icon={boxes}

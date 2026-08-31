@@ -1167,6 +1167,13 @@ impl GpuiController {
         }
     }
 
+    pub(crate) fn frame_stats(&self) -> Option<wabou_shell::FrameStats> {
+        self.runtime
+            .frame_stats
+            .as_ref()
+            .and_then(|stats| *stats.borrow())
+    }
+
     pub(crate) fn has_animation(&self) -> bool {
         self.runtime.has_raf
     }

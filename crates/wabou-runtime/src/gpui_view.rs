@@ -18,6 +18,7 @@ use wabou_shell::gpui::{
 };
 
 use crate::gpui_controller::GpuiController;
+use crate::gpui_performance_hud::{GpuiPerformanceHud, performance_hud_enabled};
 use crate::gpui_projection_boundary::{
     GpuiProjectionBoundary, GpuiProjectionBoundaryState, NativeElementBuilder,
 };
@@ -43,6 +44,9 @@ pub struct GpuiRuntimeView {
     text_selections: BTreeMap<wabou_host_api::NodeKey, GpuiTextSelectionState>,
     projection_boundary: Option<Entity<GpuiProjectionBoundary>>,
     projection_boundary_revision: u64,
+    performance_hud: Option<Entity<GpuiPerformanceHud>>,
+    previous_frame_at: std::time::Instant,
+    fps_ema: f64,
     window_size_persistence: Option<wabou_shell::WindowSizePersistence>,
     native_widget_factories: HashMap<String, wabou_shell::NativeWidgetFactory>,
     test_controller: Option<crate::test_driver::TestController>,
@@ -229,6 +233,8 @@ impl GpuiRuntimeView {
 
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
+        let performance_hud =
+            performance_hud_enabled().then(|| cx.new(|_| GpuiPerformanceHud::new()));
         Self {
             controller,
             _wake_task: wake_task,
@@ -238,6 +244,9 @@ impl GpuiRuntimeView {
             text_selections: BTreeMap::new(),
             projection_boundary: None,
             projection_boundary_revision: 0,
+            performance_hud,
+            previous_frame_at: std::time::Instant::now(),
+            fps_ema: 0.0,
             window_size_persistence: options.window_size_persistence,
             native_widget_factories: options.native_widget_factories,
             test_controller: options.test_controller,
@@ -1038,8 +1047,9 @@ impl Render for GpuiRuntimeView {
         let drag_view = cx.weak_entity();
         let drop_view = drag_view.clone();
         let leave_view = drag_view.clone();
-        let root = div()
+        let mut root = div()
             .size_full()
+            .relative()
             .on_drag_move(move |event: &DragMoveEvent<ExternalPaths>, _, cx| {
                 let paths = event.drag(cx).paths().to_vec();
                 let position = wabou_shell::Point {
@@ -1070,11 +1080,34 @@ impl Render for GpuiRuntimeView {
             // drag first without changing Wabou's event-target contract.
             .child(projected)
             .child(TextSelectionLayer);
+        let now = std::time::Instant::now();
+        let elapsed = now.duration_since(self.previous_frame_at).as_secs_f64();
+        self.previous_frame_at = now;
+        if elapsed > 0.0 {
+            let sample = 1.0 / elapsed;
+            self.fps_ema = if self.fps_ema == 0.0 {
+                sample
+            } else {
+                self.fps_ema * 0.9 + sample * 0.1
+            };
+        }
         self.controller.publish_frame_stats(
             frame_timing,
             frame_started.elapsed().as_secs_f64() * 1_000.0,
             (viewport_width, viewport_height),
         );
+        if let Some(hud) = &self.performance_hud {
+            let stats = self.controller.frame_stats();
+            hud.update(cx, |hud, hud_cx| {
+                hud.update(
+                    stats,
+                    self.fps_ema,
+                    self.projection_boundary_revision,
+                    hud_cx,
+                );
+            });
+            root = root.child(hud.clone());
+        }
         #[cfg(feature = "devtools")]
         if self.controller.debug_snapshot_needs_publish() {
             // Make structure and status observable immediately. Bounds are
@@ -1317,6 +1350,79 @@ mod tests {
             }),
             initial,
             "animation frames without Solid mutations must reuse the cached projection"
+        );
+    }
+
+    #[test]
+    fn performance_hud_updates_do_not_materialize_the_solid_projection() {
+        let platform = gpui_platform::current_platform(true);
+        let mut cx = HeadlessAppContext::new(platform.text_system());
+        let handle = cx
+            .open_window(size(px(800.0), px(600.0)), |window, app| {
+                let mut controller = test_controller();
+                controller
+                    .boot(include_str!("gen/test-runtime.js"))
+                    .expect("boot generated Solid runtime fixture");
+                assert!(controller.advance_frame());
+                app.new(|view_cx| {
+                    let mut view = GpuiRuntimeView::new(
+                        controller,
+                        GpuiRuntimeViewOptions {
+                            window_size_persistence: None,
+                            native_widget_factories: HashMap::new(),
+                            test_controller: None,
+                            window_key: wabou_shell::initial_window_resource_key(0),
+                            window_host: test_window_host(),
+                        },
+                        window,
+                        view_cx,
+                    );
+                    view.performance_hud = Some(view_cx.new(|_| GpuiPerformanceHud::new()));
+                    view
+                })
+            })
+            .expect("open GPUI projection with performance HUD");
+        cx.run_until_parked();
+        cx.update_window(handle.into(), |_, window, app| {
+            let _ = window.draw(app);
+        })
+        .expect("draw initial projected frame");
+
+        let root = handle.root(&mut cx).expect("GPUI runtime root entity");
+        let (boundary, hud) = cx.read_entity(&root, |view, _| {
+            (
+                view.projection_boundary
+                    .clone()
+                    .expect("projection boundary"),
+                view.performance_hud.clone().expect("performance HUD"),
+            )
+        });
+        let initial = cx.read_entity(&boundary, |boundary, _| boundary.materialization_count());
+        cx.update_entity(&hud, |hud, hud_cx| {
+            hud.update(
+                Some(wabou_shell::FrameStats {
+                    node_count: 3,
+                    viewport_w: 800,
+                    viewport_h: 600,
+                    ..wabou_shell::FrameStats::default()
+                }),
+                60.0,
+                2,
+                hud_cx,
+            );
+        });
+        cx.run_until_parked();
+        cx.update_window(handle.into(), |_, window, app| {
+            let _ = window.draw(app);
+        })
+        .expect("draw updated HUD frame");
+
+        assert_eq!(
+            cx.read_entity(&boundary, |boundary, _| {
+                boundary.materialization_count()
+            }),
+            initial,
+            "native HUD updates must stay outside the Solid projection boundary"
         );
     }
 
