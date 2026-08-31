@@ -1521,7 +1521,18 @@ fn gpui_debug_node(
         parent_id: node.parent,
         tag,
         text: node.text.map(|text| text.to_string()),
-        text_metrics: None,
+        text_metrics: node
+            .text_metrics
+            .map(|metrics| wabou_devtools::DebugTextMetrics {
+                source: metrics.source.to_owned(),
+                line_box: wabou_devtools::Rect {
+                    x: f32::from(metrics.line_box.origin.x),
+                    y: f32::from(metrics.line_box.origin.y),
+                    width: f32::from(metrics.line_box.size.width).max(0.0),
+                    height: f32::from(metrics.line_box.size.height).max(0.0),
+                },
+                baseline: metrics.baseline,
+            }),
         classes: node.classes,
         matched_rules: Vec::new(),
         style_diagnostics: node.style_diagnostics,

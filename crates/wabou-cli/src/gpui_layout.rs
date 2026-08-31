@@ -262,7 +262,16 @@ fn node_value(node: &GpuiLayoutNode) -> serde_json::Value {
         "parentId": node.parent,
         "tag": tag,
         "text": node.text.as_deref(),
-        "textMetrics": null,
+        "textMetrics": node.text_metrics.as_ref().map(|metrics| json!({
+            "source": metrics.source,
+            "lineBox": {
+                "x": f32::from(metrics.line_box.origin.x),
+                "y": f32::from(metrics.line_box.origin.y),
+                "width": f32::from(metrics.line_box.size.width),
+                "height": f32::from(metrics.line_box.size.height),
+            },
+            "baseline": metrics.baseline,
+        })),
         "classes": node.classes,
         "attrs": attrs,
         "rect": rect,

@@ -1906,6 +1906,7 @@ mod tests {
                     wabou_shell::gpui::px(40.0),
                 ),
             },
+            text_metrics: None,
             classes: Vec::new(),
             style_diagnostics: Vec::new(),
             listeners: Vec::new(),

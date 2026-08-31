@@ -84,6 +84,8 @@ pub struct GpuiLayoutNode {
     pub text: Option<crate::gpui::SharedString>,
     pub bounds: crate::gpui::Bounds<crate::gpui::Pixels>,
     pub content_bounds: crate::gpui::Bounds<crate::gpui::Pixels>,
+    /// Completed single-line text geometry in logical window coordinates.
+    pub text_metrics: Option<GpuiTextMetrics>,
     pub classes: Vec<String>,
     pub style_diagnostics: Vec<String>,
     pub listeners: Vec<u8>,
@@ -93,6 +95,14 @@ pub struct GpuiLayoutNode {
     pub overlay_plane: u8,
     pub widget: Option<String>,
     pub computed: GpuiComputedStyle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct GpuiTextMetrics {
+    /// `node` for ordinary projected text or `widget` for a native editor.
+    pub source: &'static str,
+    pub line_box: crate::gpui::Bounds<crate::gpui::Pixels>,
+    pub baseline: f32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -928,6 +938,42 @@ impl GpuiProjection {
                     }
                     _ => {}
                 }
+                let text = crate::element::projected_text(&tree, node);
+                let native_single_line_editor = matches!(
+                    &node.kind,
+                    ProjectedNodeKind::Element(tag)
+                        if matches!(tag.as_ref(), "input" | "password-input")
+                );
+                let text_metrics = node.style.text.font_size.and_then(|font_size| {
+                    let line_box = if native_single_line_editor {
+                        content_bounds
+                    } else if text.as_ref().is_some_and(|text| !text.is_empty()) {
+                        node_bounds
+                    } else {
+                        return None;
+                    };
+                    if line_box.size.width <= crate::gpui::Pixels::ZERO
+                        || line_box.size.height <= crate::gpui::Pixels::ZERO
+                    {
+                        return None;
+                    }
+                    let font_size = f32::from(font_size.to_pixels(crate::gpui::px(16.0)));
+                    let line_top = f32::from(line_box.origin.y);
+                    let line_height = f32::from(line_box.size.height);
+                    Some(GpuiTextMetrics {
+                        source: if native_single_line_editor {
+                            "widget"
+                        } else {
+                            "node"
+                        },
+                        line_box,
+                        // GPUI centers the em box inside the resolved line box.
+                        // A baseline at 0.8em matches GPUI's ordinary Latin
+                        // ascent and, crucially, uses the native editor's
+                        // content box rather than its padded control surface.
+                        baseline: line_top + (line_height - font_size) / 2.0 + font_size * 0.8,
+                    })
+                });
                 Some(GpuiLayoutNode {
                     key,
                     kind: node.kind.clone(),
@@ -938,13 +984,14 @@ impl GpuiProjection {
                     // protocol text leaves remain in the snapshot for exact
                     // identity, while their aggregate owner is now queryable
                     // by the visible text users actually see.
-                    text: crate::element::projected_text(&tree, node),
+                    text,
                     // Retained nodes remain observable even when GPUI omits
                     // layout for `display: none` or before their first paint.
                     // A zero rectangle is more useful than silently deleting
                     // the node (and potentially its parent) from diagnostics.
                     bounds: node_bounds,
                     content_bounds,
+                    text_metrics,
                     classes: self.classes.get(&key).cloned().unwrap_or_default(),
                     style_diagnostics,
                     listeners: node.listeners.iter().copied().collect(),
