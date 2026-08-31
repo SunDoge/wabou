@@ -156,6 +156,7 @@ pub struct ProjectedElement {
     scroll_x: bool,
     scroll_y: bool,
     transform: [f32; 6],
+    vector_path: Option<std::sync::Arc<crate::vector_path::ProjectedVectorPath>>,
 }
 
 pub struct ProjectedPrepaintState {
@@ -269,6 +270,7 @@ impl ProjectedElement {
             scroll_x: node.style.overflow.x == Overflow::Scroll,
             scroll_y: node.style.overflow.y == Overflow::Scroll,
             transform: node.transform,
+            vector_path: node.vector_path.clone(),
         })
     }
 
@@ -678,6 +680,9 @@ impl Element for ProjectedElement {
         self.style.paint(bounds, window, cx, |window, cx| {
             window.with_text_style(text_style, |window| {
                 window.with_content_mask(overflow_mask, |window| {
+                    if let Some(vector_path) = &self.vector_path {
+                        vector_path.paint(bounds.origin, window);
+                    }
                     for child in &mut self.children {
                         child.paint(window, cx);
                     }

@@ -47,6 +47,7 @@ pub struct ProjectedNode {
     pub text_max_lines: u32,
     /// Optional GPUI-owned display asset projected from a graphic source.
     pub image: Option<std::sync::Arc<gpui::Image>>,
+    pub(crate) vector_path: Option<std::sync::Arc<crate::vector_path::ProjectedVectorPath>>,
     /// Runtime affine transform emitted by the Solid renderer. GPUI currently
     /// applies translation exactly and retains the full matrix so unsupported
     /// affine parts are observable instead of disappearing at the boundary.
@@ -86,6 +87,7 @@ pub enum ProjectionError {
     MissingParent(NodeKey),
     ParentCycle { node: NodeKey, parent: NodeKey },
     InvalidChildIndex { parent: NodeKey, index: usize },
+    InvalidGraphicData(NodeKey),
 }
 
 /// Immutable view of one committed retained node table.
@@ -277,6 +279,7 @@ impl ProjectionTree {
                 text_behavior: 0,
                 text_max_lines: 0,
                 image: None,
+                vector_path: None,
                 transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
                 attributes: BTreeMap::new(),
                 listeners: BTreeSet::new(),
@@ -483,6 +486,19 @@ impl ProjectionTree {
         self.dirty
             .invalidate(key, DirtyKind::LAYOUT | DirtyKind::PAINT);
         self.invalidate_layout_ancestors(key);
+        Ok(())
+    }
+
+    pub(crate) fn update_vector_path(
+        &mut self,
+        key: NodeKey,
+        vector_path: Option<std::sync::Arc<crate::vector_path::ProjectedVectorPath>>,
+    ) -> Result<(), ProjectionError> {
+        self.nodes_mut()
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?
+            .vector_path = vector_path;
+        self.dirty.invalidate(key, DirtyKind::PAINT);
         Ok(())
     }
 

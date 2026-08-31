@@ -12568,10 +12568,12 @@ dependencies = [
 name = "wabou-shell"
 version = "0.1.0-alpha.3"
 dependencies = [
+ "anyhow",
  "bitflags 2.13.1",
  "gpui-ce",
  "gpui_ce_platform",
  "image",
+ "lyon_tessellation",
  "serde",
  "serde_json",
  "slotmap",

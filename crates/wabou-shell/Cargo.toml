@@ -8,9 +8,11 @@ publish = false
 license.workspace = true
 
 [dependencies]
+anyhow.workspace = true
 bitflags.workspace = true
 gpui.workspace = true
 gpui-platform.workspace = true
+lyon_tessellation.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 slotmap.workspace = true

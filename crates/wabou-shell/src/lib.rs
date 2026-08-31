@@ -12,6 +12,7 @@ mod projection;
 mod protocol_projection;
 mod style;
 mod tree;
+mod vector_path;
 mod window_state;
 
 pub use element::{ProjectedElement, ProjectedNativeElementFactory, ProjectedScrollHandle};

@@ -309,11 +309,24 @@ impl GpuiProjection {
                 Op::ClearGraphicSource { id, .. } => {
                     self.record_protocol_gap(*id, "unsupported graphic source kind");
                 }
+                Op::SetGraphicData { id, kind, data }
+                    if *kind == wabou_protocol::GRAPHIC_DATA_VECTOR_PATH =>
+                {
+                    let path = crate::vector_path::ProjectedVectorPath::decode(data)
+                        .map_err(|_| ProjectionError::InvalidGraphicData(*id))?;
+                    self.tree
+                        .update_vector_path(*id, Some(std::sync::Arc::new(path)))?;
+                }
                 Op::SetGraphicData { id, .. } => {
-                    self.record_protocol_gap(*id, "vector path projection");
+                    self.record_protocol_gap(*id, "unsupported graphic data kind");
+                }
+                Op::ClearGraphicData { id, kind }
+                    if *kind == wabou_protocol::GRAPHIC_DATA_VECTOR_PATH =>
+                {
+                    self.tree.update_vector_path(*id, None)?;
                 }
                 Op::ClearGraphicData { id, .. } => {
-                    self.protocol_gaps.remove(id);
+                    self.record_protocol_gap(*id, "unsupported graphic data kind");
                 }
                 Op::SetTransform2D { id, matrix } => {
                     self.tree.update_transform(*id, *matrix)?;
@@ -1868,11 +1881,6 @@ mod tests {
                             x: -1.0,
                             y: 2.0,
                         },
-                        Op::SetGraphicData {
-                            id: key(4),
-                            kind: wabou_protocol::GRAPHIC_DATA_VECTOR_PATH,
-                            data: &[],
-                        },
                     ],
                 },
                 &atoms,
@@ -1896,9 +1904,56 @@ mod tests {
                 },
             ]
         );
-        assert_eq!(
-            projection.protocol_gaps(),
-            vec![(key(4), "vector path projection")]
+        assert!(projection.protocol_gaps().is_empty());
+    }
+
+    #[test]
+    fn vector_path_data_decodes_once_into_the_gpui_projection() {
+        let mut bytes = vec![0_u8; 60];
+        bytes[0..4].copy_from_slice(&0x3150_4257_u32.to_le_bytes());
+        bytes[4..6].copy_from_slice(&1_u16.to_le_bytes());
+        bytes[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        let byte_len = bytes.len() as u32;
+        bytes[12..16].copy_from_slice(&byte_len.to_le_bytes());
+        bytes[16..20].copy_from_slice(&0xff00_00ff_u32.to_le_bytes());
+        bytes[24..28].copy_from_slice(&1_f32.to_le_bytes());
+        bytes[32..36].copy_from_slice(&4_f32.to_le_bytes());
+        bytes[36] = 1;
+        bytes[40..44].copy_from_slice(&1_f32.to_le_bytes());
+        bytes[44..48].copy_from_slice(&2_f32.to_le_bytes());
+        bytes[48] = 2;
+        bytes[52..56].copy_from_slice(&9_f32.to_le_bytes());
+        bytes[56..60].copy_from_slice(&10_f32.to_le_bytes());
+
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let tag = atoms.intern("vector-path");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement { id: key(2), tag },
+                        Op::SetGraphicData {
+                            id: key(2),
+                            kind: wabou_protocol::GRAPHIC_DATA_VECTOR_PATH,
+                            data: &bytes,
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        assert!(
+            projection
+                .tree()
+                .node(key(2))
+                .unwrap()
+                .vector_path
+                .is_some()
         );
+        assert!(projection.protocol_gaps().is_empty());
     }
 }
