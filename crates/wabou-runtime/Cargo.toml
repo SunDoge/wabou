@@ -55,6 +55,7 @@ wabou-host-api = { workspace = true }
 wabou-protocol = { workspace = true }
 gpui-shell = { package = "wabou-shell", path = "../wabou-shell" }
 gpui-base = { workspace = true }
+gpui-platform = { workspace = true, optional = true, features = ["test-support"] }
 wabou-style = { workspace = true }
 
 tungstenite = {
@@ -71,6 +72,10 @@ default = []
 devtools = ["dep:wabou-devtools"]
 profiling = ["dep:tracing-chrome"]
 rust-hot-reload = ["dep:dioxus-devtools"]
+# Deterministic GPUI layout and interaction harness used by `wabou layout`
+# and component fixtures. Pixel capture is available only on GPUI platforms
+# that provide a headless renderer.
+headless = ["dep:gpui-platform"]
 # Live vite dev-server integration (module fetching + HMR). Step 2.
 vite = ["dep:tungstenite", "dep:ureq"]
 

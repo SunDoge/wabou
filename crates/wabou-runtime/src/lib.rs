@@ -17,6 +17,8 @@ mod effect_bridge;
 mod effect_trace;
 mod error;
 mod gpui_controller;
+#[cfg(feature = "headless")]
+mod gpui_headless;
 mod gpui_view;
 mod gpui_windows;
 mod host;
@@ -48,8 +50,12 @@ mod css_support_matrix_test;
 pub mod vite;
 
 pub use error::{Error, Result};
+#[cfg(feature = "headless")]
+pub use gpui_headless::{
+    GpuiHeadlessHarness, GpuiHeadlessOptions, GpuiHeadlessOutput, GpuiHeadlessScreenshot,
+};
 pub use gpui_shell::{
-    AppDirectories, AppDirectoryConfig, NativeWidgetContext, NativeWidgetFactory,
+    AppDirectories, AppDirectoryConfig, GpuiLayoutNode, NativeWidgetContext, NativeWidgetFactory,
     NativeWidgetMount, RgbaColor, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
     WindowResourceKey, gpui, initial_window_resource_key,
 };

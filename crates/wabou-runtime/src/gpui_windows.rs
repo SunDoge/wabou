@@ -56,7 +56,6 @@ impl GpuiApplicationWindows {
         self.registry.resolve(key)
     }
 
-    #[cfg(test)]
     pub(crate) fn attach(
         &self,
         key: gpui_shell::WindowResourceKey,

@@ -300,8 +300,12 @@ impl GpuiRuntimeView {
         }
     }
 
-    fn layout_snapshot(&self) -> Vec<gpui_shell::GpuiLayoutNode> {
+    pub(crate) fn layout_snapshot(&self) -> Vec<gpui_shell::GpuiLayoutNode> {
         self.controller.layout_snapshot()
+    }
+
+    pub(crate) fn protocol_revision(&self) -> u64 {
+        self.controller.protocol_revision()
     }
 
     fn handle_input(&mut self, event: gpui_shell::ProjectedInputEvent, cx: &mut Context<Self>) {
