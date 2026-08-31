@@ -17,6 +17,7 @@ serde.workspace = true
 serde_json.workspace = true
 slotmap.workspace = true
 tracing.workspace = true
+wabou-accessibility.workspace = true
 wabou-host-api.workspace = true
 wabou-protocol.workspace = true
 wabou-shell-api.workspace = true

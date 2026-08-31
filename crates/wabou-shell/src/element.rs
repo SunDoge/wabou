@@ -157,6 +157,129 @@ pub struct ProjectedElement {
     scroll_y: bool,
     transform: [f32; 6],
     vector_path: Option<std::sync::Arc<crate::vector_path::ProjectedVectorPath>>,
+    accessibility: Option<ProjectedAccessibility>,
+}
+
+#[derive(Clone)]
+struct ProjectedAccessibility {
+    role: gpui::accesskit::Role,
+    label: Option<gpui::SharedString>,
+    value: Option<gpui::SharedString>,
+    disabled: bool,
+    selected: Option<bool>,
+    expanded: Option<bool>,
+    toggled: Option<gpui::accesskit::Toggled>,
+    numeric_value: Option<f64>,
+    min_numeric_value: Option<f64>,
+    max_numeric_value: Option<f64>,
+    orientation: Option<gpui::accesskit::Orientation>,
+}
+
+fn parse_bool(value: Option<&gpui::SharedString>) -> Option<bool> {
+    match value.map(AsRef::as_ref) {
+        Some("true") => Some(true),
+        Some("false") => Some(false),
+        _ => None,
+    }
+}
+
+fn parse_toggled(value: Option<&gpui::SharedString>) -> Option<gpui::accesskit::Toggled> {
+    match value.map(AsRef::as_ref) {
+        Some("true") => Some(gpui::accesskit::Toggled::True),
+        Some("false") => Some(gpui::accesskit::Toggled::False),
+        Some("mixed") => Some(gpui::accesskit::Toggled::Mixed),
+        _ => None,
+    }
+}
+
+fn accesskit_role(role: wabou_accessibility::SemanticRole) -> gpui::accesskit::Role {
+    use gpui::accesskit::Role;
+    use wabou_accessibility::SemanticRole as Semantic;
+    match role {
+        Semantic::Generic | Semantic::Group => Role::Group,
+        Semantic::Label => Role::Label,
+        Semantic::Heading => Role::Heading,
+        Semantic::Button => Role::Button,
+        Semantic::TextInput => Role::TextInput,
+        Semantic::Image => Role::Image,
+        Semantic::RadioGroup => Role::RadioGroup,
+        Semantic::Region => Role::Region,
+        Semantic::Link => Role::Link,
+        Semantic::List => Role::List,
+        Semantic::ListItem => Role::ListItem,
+        Semantic::Dialog => Role::Dialog,
+        Semantic::AlertDialog => Role::AlertDialog,
+        Semantic::Alert => Role::Alert,
+        Semantic::Status => Role::Status,
+        Semantic::Tooltip => Role::Tooltip,
+        Semantic::CheckBox => Role::CheckBox,
+        Semantic::RadioButton => Role::RadioButton,
+        Semantic::Switch => Role::Switch,
+        Semantic::ComboBox => Role::ComboBox,
+        Semantic::ListBox => Role::ListBox,
+        Semantic::Option => Role::ListBoxOption,
+        Semantic::Menu => Role::Menu,
+        Semantic::MenuBar => Role::MenuBar,
+        Semantic::MenuItem => Role::MenuItem,
+        Semantic::Tree => Role::Tree,
+        Semantic::TreeItem => Role::TreeItem,
+        Semantic::Toolbar => Role::Toolbar,
+        Semantic::Table => Role::Table,
+        Semantic::Row => Role::Row,
+        Semantic::Cell => Role::Cell,
+        Semantic::ColumnHeader => Role::ColumnHeader,
+        Semantic::RowHeader => Role::RowHeader,
+        Semantic::Separator => Role::Splitter,
+        Semantic::Slider => Role::Slider,
+        Semantic::SpinButton => Role::SpinButton,
+        Semantic::ProgressBar => Role::ProgressIndicator,
+        Semantic::TabList => Role::TabList,
+        Semantic::Tab => Role::Tab,
+        Semantic::TabPanel => Role::TabPanel,
+        Semantic::Grid => Role::Grid,
+        Semantic::GridCell => Role::GridCell,
+    }
+}
+
+fn projected_accessibility(node: &ProjectedNode) -> Option<ProjectedAccessibility> {
+    if parse_bool(node.attributes.get("aria-hidden")) == Some(true) {
+        return None;
+    }
+    let role = node
+        .attributes
+        .get("role")
+        .and_then(|role| wabou_accessibility::SemanticRole::from_name(role))?;
+    let number = |name: &str| {
+        node.attributes
+            .get(name)
+            .and_then(|value| value.parse::<f64>().ok())
+    };
+    Some(ProjectedAccessibility {
+        role: accesskit_role(role),
+        label: node.attributes.get("aria-label").cloned(),
+        value: node
+            .attributes
+            .get("aria-valuetext")
+            .or_else(|| node.attributes.get("value"))
+            .cloned(),
+        disabled: node.attributes.contains_key("disabled")
+            || parse_bool(node.attributes.get("aria-disabled")) == Some(true),
+        selected: parse_bool(node.attributes.get("aria-selected")),
+        expanded: parse_bool(node.attributes.get("aria-expanded")),
+        toggled: parse_toggled(
+            node.attributes
+                .get("aria-checked")
+                .or_else(|| node.attributes.get("aria-pressed")),
+        ),
+        numeric_value: number("aria-valuenow"),
+        min_numeric_value: number("aria-valuemin"),
+        max_numeric_value: number("aria-valuemax"),
+        orientation: match node.attributes.get("aria-orientation").map(AsRef::as_ref) {
+            Some("horizontal") => Some(gpui::accesskit::Orientation::Horizontal),
+            Some("vertical") => Some(gpui::accesskit::Orientation::Vertical),
+            _ => None,
+        },
+    })
 }
 
 pub struct ProjectedPrepaintState {
@@ -271,6 +394,7 @@ impl ProjectedElement {
             scroll_y: node.style.overflow.y == Overflow::Scroll,
             transform: node.transform,
             vector_path: node.vector_path.clone(),
+            accessibility: projected_accessibility(node),
         })
     }
 
@@ -423,6 +547,46 @@ impl Element for ProjectedElement {
 
     fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
         None
+    }
+
+    fn a11y_role(&self) -> Option<gpui::accesskit::Role> {
+        self.accessibility.as_ref().map(|value| value.role)
+    }
+
+    fn write_a11y_info(&self, node: &mut gpui::accesskit::Node) {
+        let Some(value) = &self.accessibility else {
+            return;
+        };
+        if let Some(label) = &value.label {
+            node.set_label(label.to_string());
+        }
+        if let Some(text) = &value.value {
+            node.set_value(text.to_string());
+        }
+        if value.disabled {
+            node.set_disabled();
+        }
+        if let Some(selected) = value.selected {
+            node.set_selected(selected);
+        }
+        if let Some(expanded) = value.expanded {
+            node.set_expanded(expanded);
+        }
+        if let Some(toggled) = value.toggled {
+            node.set_toggled(toggled);
+        }
+        if let Some(number) = value.numeric_value {
+            node.set_numeric_value(number);
+        }
+        if let Some(number) = value.min_numeric_value {
+            node.set_min_numeric_value(number);
+        }
+        if let Some(number) = value.max_numeric_value {
+            node.set_max_numeric_value(number);
+        }
+        if let Some(orientation) = value.orientation {
+            node.set_orientation(orientation);
+        }
     }
 
     fn request_layout(
@@ -722,6 +886,103 @@ mod tests {
         )
         .unwrap();
         assert_eq!(element.id(), Some(key.gpui_element_id()));
+    }
+
+    #[test]
+    fn explicit_semantics_are_projected_into_accesskit() {
+        let key = NodeKey::new(170, 4);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        for (name, value) in [
+            ("role", "slider"),
+            ("aria-label", "Volume"),
+            ("aria-valuetext", "Quiet"),
+            ("aria-valuenow", "25"),
+            ("aria-valuemin", "0"),
+            ("aria-valuemax", "100"),
+            ("aria-disabled", "true"),
+            ("aria-selected", "false"),
+            ("aria-expanded", "true"),
+            ("aria-checked", "mixed"),
+            ("aria-orientation", "horizontal"),
+        ] {
+            tree.update_attribute(key, name.into(), value.into())
+                .unwrap();
+        }
+
+        let element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            key,
+            ProjectedElementContext::default(),
+            false,
+        )
+        .unwrap();
+        assert_eq!(element.a11y_role(), Some(gpui::accesskit::Role::Slider));
+
+        let mut node = gpui::accesskit::Node::new(gpui::accesskit::Role::Slider);
+        element.write_a11y_info(&mut node);
+        assert_eq!(node.label(), Some("Volume"));
+        assert_eq!(node.value(), Some("Quiet"));
+        assert!(node.is_disabled());
+        assert_eq!(node.is_selected(), Some(false));
+        assert_eq!(node.is_expanded(), Some(true));
+        assert_eq!(node.toggled(), Some(gpui::accesskit::Toggled::Mixed));
+        assert_eq!(node.numeric_value(), Some(25.0));
+        assert_eq!(node.min_numeric_value(), Some(0.0));
+        assert_eq!(node.max_numeric_value(), Some(100.0));
+        assert_eq!(
+            node.orientation(),
+            Some(gpui::accesskit::Orientation::Horizontal)
+        );
+    }
+
+    #[test]
+    fn accessibility_requires_an_explicit_visible_role() {
+        let key = NodeKey::new(171, 4);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("button".into()),
+        )
+        .unwrap();
+
+        let materialize = |tree: &ProjectionTree| {
+            ProjectedElement::from_tree(
+                tree.snapshot(),
+                key,
+                ProjectedElementContext::default(),
+                false,
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            materialize(&tree).a11y_role(),
+            None,
+            "the Rust projection must not infer web semantics from a tag"
+        );
+
+        tree.update_attribute(key, "role".into(), "button".into())
+            .unwrap();
+        assert_eq!(
+            materialize(&tree).a11y_role(),
+            Some(gpui::accesskit::Role::Button)
+        );
+
+        tree.update_attribute(key, "aria-hidden".into(), "true".into())
+            .unwrap();
+        assert_eq!(materialize(&tree).a11y_role(), None);
     }
 
     #[test]
