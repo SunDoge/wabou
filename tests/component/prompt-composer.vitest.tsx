@@ -2,11 +2,12 @@ import { renderComponent } from "@wabou/test/component";
 import {
   Button,
   PromptComposer,
+  PromptComposerAction,
+  PromptComposerEditor,
   PromptComposerStatus,
   PromptComposerToolbar,
   PromptComposerTools,
   Text,
-  TextArea,
 } from "@wabou/ui";
 import { expect, test } from "vitest";
 
@@ -16,12 +17,15 @@ test("prompt composer owns one focus-aware compound surface", () => {
       <PromptComposerStatus>
         <Text>4k tokens</Text>
       </PromptComposerStatus>
-      <TextArea chrome="none" aria-label="Message" />
+      <PromptComposerEditor
+        value="Review this repository"
+        aria-label="Message"
+      />
       <PromptComposerToolbar aria-label="Prompt controls">
         <PromptComposerTools aria-label="Prompt tools">
           <Button>Attach</Button>
         </PromptComposerTools>
-        <Button>Send</Button>
+        <PromptComposerAction aria-label="Send">Send</PromptComposerAction>
       </PromptComposerToolbar>
     </PromptComposer>
   ));
@@ -37,6 +41,11 @@ test("prompt composer owns one focus-aware compound surface", () => {
   const tools = screen.getByRole("group", { name: "Prompt tools" });
   expect(toolbar.className).toContain("flex-nowrap");
   expect(tools.className).toContain("flex-nowrap");
+  expect(editor.className).toContain("h-12");
+  expect(editor.attribute("data-wabou-owns")).toBe("native-editor");
+  expect(screen.getByRole("button", { name: "Send" }).className).toContain(
+    "rounded-full",
+  );
 
   editor.focus();
   expect(composer.className).toContain("border-focus");
@@ -66,7 +75,7 @@ test("composer rows only wrap when the embedding surface opts in", () => {
 test("invalid prompt composer takes precedence over focus styling", () => {
   const screen = renderComponent(() => (
     <PromptComposer invalid aria-label="Invalid prompt">
-      <TextArea chrome="none" aria-label="Message" />
+      <PromptComposerEditor aria-label="Message" />
     </PromptComposer>
   ));
   const composer = screen.getByRole("group", { name: "Invalid prompt" });

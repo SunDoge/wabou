@@ -1,6 +1,8 @@
 import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { createFocusWithin, View, type ViewProps } from "../primitives";
+import { Button, type ButtonProps } from "./button";
+import { TextArea, type TextAreaProps } from "./input";
 
 export interface PromptComposerProps extends Omit<ViewProps, "class"> {
   class?: string;
@@ -14,6 +16,50 @@ export interface PromptComposerRowProps extends Omit<ViewProps, "class"> {
   class?: string;
   /** Allow controls to form additional rows when the embedding surface opts in. */
   wrap?: boolean;
+}
+
+export function promptComposerEditorHeightClass(value: string): string {
+  const lines = value.split("\n").length;
+  if (lines >= 5 || value.length > 240) return "h-24";
+  if (lines >= 3 || value.length > 120) return "h-20";
+  if (lines >= 2 || value.length > 48) return "h-16";
+  return "h-12";
+}
+
+export interface PromptComposerEditorProps extends TextAreaProps {
+  value?: string;
+}
+
+/** Native multiline editor with density and chrome owned by PromptComposer. */
+export function PromptComposerEditor(
+  props: PromptComposerEditorProps,
+): JSX.Element {
+  return (
+    <TextArea
+      {...props}
+      chrome="none"
+      class={mergeClasses(
+        "min-w-0 px-0 py-1",
+        promptComposerEditorHeightClass(props.value ?? ""),
+        props.class,
+      )}
+    />
+  );
+}
+
+/** Stable circular primary action for a PromptComposer toolbar. */
+export function PromptComposerAction(props: ButtonProps): JSX.Element {
+  return (
+    <Button
+      {...props}
+      variant={props.variant ?? "secondary"}
+      size={props.size ?? "icon"}
+      class={mergeClasses(
+        "flex-none rounded-full border border-subtle",
+        props.class,
+      )}
+    />
+  );
 }
 
 export function promptComposerClass(

@@ -1,15 +1,15 @@
 import {
-  Button,
   createLatestAsyncResource,
   type Handle,
   Icon,
   moveMenuHighlight,
   Popover,
   PromptComposer,
+  PromptComposerAction,
+  PromptComposerEditor,
   PromptComposerStatus,
   PromptComposerToolbar,
   PromptComposerTools,
-  TextArea,
   View,
   type WabouKeyEvent,
   WorkbenchFooter,
@@ -92,14 +92,6 @@ export interface ConversationComposerProps {
 interface ComposerSelection {
   anchor: number;
   head: number;
-}
-
-export function composerEditorHeightClass(draft: string): string {
-  const lines = draft.split("\n").length;
-  if (lines >= 5 || draft.length > 240) return "h-24";
-  if (lines >= 3 || draft.length > 120) return "h-20";
-  if (lines >= 2 || draft.length > 48) return "h-16";
-  return "h-12";
 }
 
 /** Stable, independently testable boundary for the conversation's primary action. */
@@ -259,7 +251,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
           restoreFocus={false}
           contentClass="w-96 max-h-72 p-1.5"
           trigger={(popoverTrigger) => (
-            <TextArea
+            <PromptComposerEditor
               ref={(node) => {
                 editor = node;
                 popoverTrigger.ref(node);
@@ -267,8 +259,6 @@ export function ConversationComposer(props: ConversationComposerProps) {
               aria-haspopup={popoverTrigger["aria-haspopup"]}
               aria-expanded={popoverTrigger["aria-expanded"]}
               aria-activedescendant={highlighted()}
-              chrome="none"
-              class={composerEditorHeightClass(props.draft)}
               value={props.draft}
               widgetConfig={{
                 selection: controlledSelection(),
@@ -346,10 +336,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
               />
             </Show>
           </PromptComposerTools>
-          <Button
-            variant="secondary"
-            size="icon"
-            class="flex-none rounded-full border border-subtle"
+          <PromptComposerAction
             aria-label={
               running() ? i18n.message(m.queue, {}) : i18n.message(m.send, {})
             }
@@ -357,7 +344,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
             onClick={submit}
           >
             <Icon source={send} size={14} />
-          </Button>
+          </PromptComposerAction>
         </PromptComposerToolbar>
       </PromptComposer>
       <ConversationWorkspaceStatus
