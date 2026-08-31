@@ -156,7 +156,6 @@ impl GpuiApplicationWindows {
                 crate::GpuiRuntimeView::new(
                     controller,
                     crate::gpui_view::GpuiRuntimeViewOptions {
-                        default_title: title,
                         window_size_persistence: persistence,
                         native_widget_factories: widget_factories,
                         test_controller,

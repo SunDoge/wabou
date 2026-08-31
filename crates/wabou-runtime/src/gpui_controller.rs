@@ -172,17 +172,6 @@ impl GpuiController {
         progressed
     }
 
-    pub(crate) fn take_runtime_host_action(&mut self) -> Option<wabou_shell::HostAction> {
-        self.runtime.pending_host_actions.borrow_mut().pop_front()
-    }
-
-    pub(crate) fn complete_runtime_host_action(&mut self, result: wabou_shell::HostActionResult) {
-        // Clipboard host actions were introduced for legacy Rust widgets. GPUI
-        // native widgets own their platform integration and JS uses effects,
-        // so there is no request route to complete in this controller.
-        let _ = result;
-    }
-
     pub(crate) fn take_runtime_effect(&mut self) -> Option<wabou_shell::EffectRequest> {
         self.runtime.effect_bridge.take(&self.runtime.js)
     }

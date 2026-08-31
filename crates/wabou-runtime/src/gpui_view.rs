@@ -19,7 +19,7 @@ use wabou_shell::gpui::{
 use crate::gpui_controller::GpuiController;
 use wabou_shell::{
     ClipboardRequest, EffectCompletion, EffectErrorCode, EffectPayload, EffectRequest,
-    EffectResult, HostAction, HostActionResult, WindowCommand,
+    EffectResult, WindowCommand,
 };
 
 /// A coarse GPUI entity for one Solid application runtime.
@@ -34,7 +34,6 @@ pub struct GpuiRuntimeView {
     // The task itself only owns a weak entity handle, so this is not a cycle.
     _wake_task: Task<()>,
     focus: FocusHandle,
-    default_title: String,
     text_controls: BTreeMap<wabou_host_api::NodeKey, GpuiTextControlState>,
     native_widget_entities: BTreeMap<wabou_host_api::NodeKey, wabou_shell::gpui::AnyEntity>,
     window_size_persistence: Option<wabou_shell::WindowSizePersistence>,
@@ -47,7 +46,6 @@ pub struct GpuiRuntimeView {
 }
 
 pub(crate) struct GpuiRuntimeViewOptions {
-    pub(crate) default_title: String,
     pub(crate) window_size_persistence: Option<wabou_shell::WindowSizePersistence>,
     pub(crate) native_widget_factories: HashMap<String, wabou_shell::NativeWidgetFactory>,
     pub(crate) test_controller: Option<crate::test_driver::TestController>,
@@ -156,7 +154,6 @@ impl GpuiRuntimeView {
             controller,
             _wake_task: wake_task,
             focus,
-            default_title: options.default_title,
             text_controls: BTreeMap::new(),
             native_widget_entities: BTreeMap::new(),
             window_size_persistence: options.window_size_persistence,
@@ -355,49 +352,6 @@ impl GpuiRuntimeView {
         if response.request_redraw {
             cx.notify();
         }
-    }
-
-    fn drain_host_actions(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        let mut handled = false;
-        while let Some(action) = self.controller.take_runtime_host_action() {
-            handled = true;
-            match action {
-                HostAction::OpenUrl(url) => {
-                    if let Some(url) = allowed_external_url(&url) {
-                        let _ = open::that_detached(url.as_str());
-                    } else {
-                        tracing::warn!(url, "refused unsafe external URL");
-                    }
-                }
-                HostAction::SetClipboard(text) => {
-                    cx.write_to_clipboard(ClipboardItem::new_string(text));
-                }
-                HostAction::WriteClipboard { request_id, text } => {
-                    cx.write_to_clipboard(ClipboardItem::new_string(text));
-                    self.controller.complete_runtime_host_action(
-                        HostActionResult::ClipboardWrite {
-                            request_id,
-                            success: true,
-                        },
-                    );
-                }
-                HostAction::ReadClipboard { request_id } => {
-                    let text = cx
-                        .read_from_clipboard()
-                        .and_then(|clipboard| clipboard.text());
-                    self.controller
-                        .complete_runtime_host_action(HostActionResult::Clipboard {
-                            request_id,
-                            text,
-                        });
-                }
-                HostAction::SetWindowTitle(title) => {
-                    window.set_window_title(title.as_deref().unwrap_or(&self.default_title));
-                }
-                HostAction::RequestAttention => window.request_attention(),
-            }
-        }
-        handled
     }
 
     fn drain_effects(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
@@ -745,11 +699,6 @@ fn message_prompt_buttons(
     }
 }
 
-fn allowed_external_url(value: &str) -> Option<url::Url> {
-    let url = url::Url::parse(value).ok()?;
-    matches!(url.scheme(), "http" | "https" | "mailto").then_some(url)
-}
-
 fn gpui_wake_channel() -> (WakeCallback, flume::Receiver<()>) {
     // One queued token is sufficient: poll_async drains every source and the next
     // completed Solid flush is committed atomically. This prevents message bursts
@@ -850,9 +799,6 @@ impl Render for GpuiRuntimeView {
             if window_action || source_action {
                 cx.notify();
             }
-        }
-        if self.drain_host_actions(window, cx) {
-            cx.notify();
         }
         if self.drain_effects(window, cx) {
             cx.notify();
@@ -1059,7 +1005,6 @@ mod tests {
                     GpuiRuntimeView::new(
                         controller,
                         GpuiRuntimeViewOptions {
-                            default_title: "Headless GPUI fixture".into(),
                             window_size_persistence: None,
                             native_widget_factories: HashMap::new(),
                             test_controller: None,
@@ -1117,7 +1062,6 @@ mod tests {
                     GpuiRuntimeView::new(
                         test_controller(),
                         GpuiRuntimeViewOptions {
-                            default_title: "First window".into(),
                             window_size_persistence: None,
                             native_widget_factories: HashMap::new(),
                             test_controller: None,
@@ -1139,7 +1083,6 @@ mod tests {
                     GpuiRuntimeView::new(
                         test_controller(),
                         GpuiRuntimeViewOptions {
-                            default_title: "Second window".into(),
                             window_size_persistence: None,
                             native_widget_factories: HashMap::new(),
                             test_controller: None,
@@ -1192,7 +1135,6 @@ mod tests {
                     GpuiRuntimeView::new(
                         test_controller(),
                         GpuiRuntimeViewOptions {
-                            default_title: "Native close".into(),
                             window_size_persistence: None,
                             native_widget_factories: HashMap::new(),
                             test_controller: None,
@@ -1231,7 +1173,6 @@ mod tests {
                     GpuiRuntimeView::new(
                         test_controller(),
                         GpuiRuntimeViewOptions {
-                            default_title: "Root window".into(),
                             window_size_persistence: None,
                             native_widget_factories: HashMap::new(),
                             test_controller: None,
@@ -1298,7 +1239,6 @@ mod tests {
                     GpuiRuntimeView::new(
                         test_controller(),
                         GpuiRuntimeViewOptions {
-                            default_title: "Root window".into(),
                             window_size_persistence: None,
                             native_widget_factories: HashMap::new(),
                             test_controller: None,
@@ -1354,7 +1294,6 @@ mod tests {
             GpuiRuntimeView::new(
                 controller,
                 GpuiRuntimeViewOptions {
-                    default_title: "Metrics test".into(),
                     window_size_persistence: None,
                     native_widget_factories: HashMap::new(),
                     test_controller: None,
@@ -1386,7 +1325,6 @@ mod tests {
             GpuiRuntimeView::new(
                 controller,
                 GpuiRuntimeViewOptions {
-                    default_title: "Clipboard test".into(),
                     window_size_persistence: None,
                     native_widget_factories: HashMap::new(),
                     test_controller: None,
@@ -1447,7 +1385,6 @@ mod tests {
             GpuiRuntimeView::new(
                 controller,
                 GpuiRuntimeViewOptions {
-                    default_title: "Dialog test".into(),
                     window_size_persistence: None,
                     native_widget_factories: HashMap::new(),
                     test_controller: None,

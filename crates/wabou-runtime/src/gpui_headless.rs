@@ -111,7 +111,6 @@ impl GpuiHeadlessHarness {
             None,
         );
         let view_window_host = window_host.clone();
-        let title = options.window.title.clone();
         let window = context
             .open_window(
                 size(
@@ -123,7 +122,6 @@ impl GpuiHeadlessHarness {
                         GpuiRuntimeView::new(
                             controller,
                             crate::gpui_view::GpuiRuntimeViewOptions {
-                                default_title: title,
                                 window_size_persistence: None,
                                 native_widget_factories,
                                 test_controller: None,

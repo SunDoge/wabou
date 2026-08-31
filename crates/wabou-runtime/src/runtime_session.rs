@@ -1,6 +1,6 @@
 //! Backend-neutral QuickJS session and host-bridge lifetime.
 
-use std::{cell::RefCell, collections::VecDeque, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use tokio_util::sync::CancellationToken;
 
@@ -14,7 +14,7 @@ use crate::{
     reload::ReloadState,
     style_ir::StylesheetUpdate,
 };
-use wabou_shell::{FrameStats, HostAction, WakeCallback, WindowResourceKey};
+use wabou_shell::{FrameStats, WakeCallback, WindowResourceKey};
 
 /// QuickJS and host-bridge state with one shared cancellation lifetime.
 ///
@@ -32,7 +32,6 @@ pub(crate) struct RuntimeSession {
     pub(crate) pending_color_palette: Option<Rc<RefCell<Option<Vec<u32>>>>>,
     pub(crate) pending_fonts: Option<Rc<RefCell<Vec<Vec<u8>>>>>,
     pub(crate) frame_stats: Option<Rc<RefCell<Option<FrameStats>>>>,
-    pub(crate) pending_host_actions: Rc<RefCell<VecDeque<HostAction>>>,
     pub(crate) effect_bridge: EffectBridge,
     pub(crate) wake_callback: Option<WakeCallback>,
     pub(crate) host_message_inbox: HostMessageInbox,
@@ -49,7 +48,6 @@ impl RuntimeSession {
         let pending_color_palette = js.pending_color_palette_handle();
         let pending_fonts = js.pending_fonts_handle();
         let frame_stats = js.frame_stats_handle();
-        let pending_host_actions = Rc::new(RefCell::new(VecDeque::new()));
         let effect_bridge = EffectBridge::install(&js, window_key);
         let (host_message_handle, host_message_inbox) =
             host_message_channel(DEFAULT_HOST_MESSAGE_CAPACITY);
@@ -64,7 +62,6 @@ impl RuntimeSession {
             pending_color_palette: Some(pending_color_palette),
             pending_fonts: Some(pending_fonts),
             frame_stats: Some(frame_stats),
-            pending_host_actions,
             effect_bridge,
             wake_callback: None,
             host_message_inbox,
