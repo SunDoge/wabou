@@ -292,7 +292,6 @@ export function NotificationRegion(
   const renderAnimatedItem = (
     retainedItem: RetainedItem<NotificationItem, number>,
   ) => {
-    const item = retainedItem.value();
     const logicallyPresent = retainedItem.present;
     const presence = createTransitionPresence(logicallyPresent, {
       initialProgress: 0,
@@ -301,12 +300,18 @@ export function NotificationRegion(
       reducedMotion,
     });
     createEffect(presence.phase, (phase) => {
-      if (phase === "unmounted") retained.release(item.id);
+      if (phase === "unmounted") retained.release(retainedItem.key);
     });
     const remaining = () => 1 - presence.progress();
     return createComponent(View, {
-      role: item.priority === "assertive" ? "alert" : "status",
-      "aria-label": item["aria-label"],
+      get role() {
+        return retainedItem.value().priority === "assertive"
+          ? "alert"
+          : "status";
+      },
+      get "aria-label"() {
+        return retainedItem.value()["aria-label"];
+      },
       get "aria-hidden"() {
         return logicallyPresent() ? undefined : "true";
       },
@@ -328,11 +333,12 @@ export function NotificationRegion(
           opacity: number(presence.progress()),
         };
       },
-      onPointerEnter: () => props.notifications.pause(item.id),
-      onPointerLeave: () => props.notifications.resume(item.id),
-      onFocusIn: () => props.notifications.pause(item.id),
-      onFocusOut: () => props.notifications.resume(item.id),
+      onPointerEnter: () => props.notifications.pause(retainedItem.key),
+      onPointerLeave: () => props.notifications.resume(retainedItem.key),
+      onFocusIn: () => props.notifications.pause(retainedItem.key),
+      onFocusOut: () => props.notifications.resume(retainedItem.key),
       get children() {
+        const item = retainedItem.value();
         return item.content({
           dismiss: () => props.notifications.dismiss(item.id, "dismiss"),
         });
