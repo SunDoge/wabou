@@ -1,6 +1,7 @@
 import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
+import { Button } from "./button";
 import { Spinner } from "./display";
 import { Sidebar, type SidebarProps } from "./sidebar";
 import {
@@ -91,6 +92,11 @@ export interface WorkbenchInspectorStateProps
   state: WorkbenchInspectorStateKind;
   title: string;
   description?: string;
+  /** Standard compact action rendered below the state message. */
+  action?: {
+    label: string;
+    onAction(): void;
+  };
   /** Lazily render media inside the inspector state's reactive owner. */
   renderMedia?: () => JSX.Element;
   /** Lazily render actions inside the inspector state's reactive owner. */
@@ -106,6 +112,7 @@ export function WorkbenchInspectorState(
     "state",
     "title",
     "description",
+    "action",
     "renderMedia",
     "renderAction",
     "class",
@@ -144,7 +151,17 @@ export function WorkbenchInspectorState(
           </Text>
         )}
       </View>
-      {props.renderAction?.()}
+      {props.renderAction?.() ??
+        (props.action ? (
+          <Button
+            size="sm"
+            variant="outline"
+            aria-label={props.action.label}
+            onClick={props.action.onAction}
+          >
+            {props.action.label}
+          </Button>
+        ) : null)}
     </View>
   );
 }

@@ -49,3 +49,21 @@ test("workbench inspector states expose one mutually exclusive status owner", ()
   expect(alert.text).toContain("permission denied");
   expect(failed.queryByRole("status")).toBeNull();
 });
+
+test("workbench inspector state owns its standard recovery action", () => {
+  let retries = 0;
+  const screen = renderComponent(() => (
+    <WorkbenchInspectorState
+      state="error"
+      title="Could not load changes"
+      action={{ label: "Try again", onAction: () => retries++ }}
+    />
+  ));
+
+  const retry = screen.getByRole("button", { name: "Try again" });
+  expect(retry.snapshot().attributes).toMatchObject({
+    "aria-label": "Try again",
+  });
+  retry.click();
+  expect(retries).toBe(1);
+});

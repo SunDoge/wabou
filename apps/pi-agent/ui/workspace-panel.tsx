@@ -129,16 +129,10 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                   title={i18n.message(m.workspace_files_load_failed, {})}
                   description={String(error())}
                   class="p-4"
-                  renderAction={() => (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      aria-label={i18n.message(m.retry, {})}
-                      onClick={() => void files.refresh()}
-                    >
-                      {i18n.message(m.retry, {})}
-                    </Button>
-                  )}
+                  action={{
+                    label: i18n.message(m.retry, {}),
+                    onAction: () => void files.refresh(),
+                  }}
                 />
               )}
             </Match>
@@ -169,16 +163,10 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                   title={i18n.message(m.file_preview_failed, {})}
                   description={String(error())}
                   class="p-4"
-                  renderAction={() => (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      aria-label={i18n.message(m.retry, {})}
-                      onClick={() => void preview.refresh()}
-                    >
-                      {i18n.message(m.retry, {})}
-                    </Button>
-                  )}
+                  action={{
+                    label: i18n.message(m.retry, {}),
+                    onAction: () => void preview.refresh(),
+                  }}
                 />
               )}
             </Match>
