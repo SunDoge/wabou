@@ -602,6 +602,30 @@ impl GpuiProjection {
                         node.transform
                     ));
                 }
+                if node.attached
+                    && matches!(
+                    &node.kind,
+                    ProjectedNodeKind::Element(tag) if tag.as_ref() == "svg"
+                )
+                {
+                    match &node.svg_source {
+                        None => style_diagnostics
+                            .push("GPUI SVG node has no projected source".to_owned()),
+                        Some(source) if source.bytes.is_empty() => style_diagnostics
+                            .push("GPUI SVG source is empty".to_owned()),
+                        Some(_)
+                            if f32::from(node_bounds.size.width) <= 0.0
+                                || f32::from(node_bounds.size.height) <= 0.0 =>
+                        {
+                            style_diagnostics.push(format!(
+                                "GPUI SVG source cannot paint into {:.1}x{:.1} bounds",
+                                f32::from(node_bounds.size.width),
+                                f32::from(node_bounds.size.height)
+                            ));
+                        }
+                        Some(_) => {}
+                    }
+                }
                 if let Some(gaps) = self.protocol_gaps.get(&key) {
                     style_diagnostics.extend(
                         gaps.iter()
@@ -1739,6 +1763,13 @@ mod tests {
         );
         assert!(projection.tree().node(key(3)).unwrap().image.is_none());
         assert!(projection.tree().node(key(3)).unwrap().svg_source.is_some());
+        projection.layout_bounds.borrow_mut().insert(
+            key(3),
+            crate::gpui::Bounds::new(
+                crate::gpui::point(crate::gpui::px(0.0), crate::gpui::px(0.0)),
+                crate::gpui::size(crate::gpui::px(10.0), crate::gpui::px(10.0)),
+            ),
+        );
         assert!(
             projection
                 .layout_snapshot()
@@ -1771,6 +1802,56 @@ mod tests {
             .unwrap();
         assert!(projection.tree().node(key(2)).unwrap().image.is_none());
         assert!(projection.tree().node(key(3)).unwrap().svg_source.is_none());
+    }
+
+    #[test]
+    fn svg_layout_diagnostics_distinguish_missing_source_from_zero_paint_bounds() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let svg_tag = atoms.intern("svg");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: svg_tag,
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(2),
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        let diagnostics = &projection.layout_snapshot()[1].style_diagnostics;
+        assert_eq!(diagnostics, &["GPUI SVG node has no projected source"]);
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 2,
+                    ops: vec![Op::SetGraphicSource {
+                        id: key(2),
+                        kind: GRAPHIC_SOURCE_SVG,
+                        source: r#"<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>"#,
+                    }],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        let diagnostics = &projection.layout_snapshot()[1].style_diagnostics;
+        assert_eq!(
+            diagnostics,
+            &["GPUI SVG source cannot paint into 0.0x0.0 bounds"]
+        );
     }
 
     #[test]
