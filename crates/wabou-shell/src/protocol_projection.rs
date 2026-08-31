@@ -39,6 +39,11 @@ pub struct GpuiLayoutNode {
     pub key: NodeKey,
     pub kind: ProjectedNodeKind,
     pub parent: Option<NodeKey>,
+    /// Whether this retained node is currently attached to its parent or the
+    /// projected window root. Detached Solid nodes remain cached so their
+    /// identity can be reused, but must not participate in locators or native
+    /// semantics.
+    pub attached: bool,
     pub attributes:
         std::collections::BTreeMap<crate::gpui::SharedString, crate::gpui::SharedString>,
     pub text: Option<crate::gpui::SharedString>,
@@ -448,6 +453,14 @@ impl GpuiProjection {
         self.tree.node(key).is_some()
     }
 
+    /// Whether an attached projected node participates in keyboard focus.
+    #[must_use]
+    pub fn is_focusable(&self, key: NodeKey) -> bool {
+        self.tree
+            .node(key)
+            .is_some_and(|node| node.attached && node.focus_order.is_some())
+    }
+
     /// Number of nodes retained by the canonical GPUI projection.
     #[must_use]
     pub fn node_count(&self) -> usize {
@@ -599,6 +612,7 @@ impl GpuiProjection {
                     key,
                     kind: node.kind.clone(),
                     parent: node.parent,
+                    attached: node.attached,
                     attributes: node.attributes.clone(),
                     text: node.text.clone(),
                     // Retained nodes remain observable even when GPUI omits

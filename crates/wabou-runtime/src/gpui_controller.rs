@@ -343,6 +343,13 @@ impl GpuiController {
             Button::Auxiliary => 4,
             Button::Other => 8,
         });
+        if input.phase == Phase::Down
+            && input.button == Some(Button::Primary)
+            && self.projection.is_focusable(input.target)
+        {
+            self.set_text_focus(input.target, true);
+        }
+
         match input.phase {
             Phase::Down => self.pointer_buttons |= button_mask,
             Phase::Up => self.pointer_buttons &= !button_mask,
@@ -1591,10 +1598,21 @@ mod tests {
             wabou_protocol::event::POINTERUP,
             wabou_protocol::event::CLICK,
         ];
-        let mut ops = vec![Op::CreateElement {
-            id: target,
-            tag: button,
-        }];
+        let mut ops = vec![
+            Op::CreateElement {
+                id: target,
+                tag: button,
+            },
+            Op::AppendChild {
+                parent: NodeKey::ROOT,
+                child: target,
+            },
+            Op::SetInteractionPolicy {
+                id: target,
+                flags: wabou_protocol::INTERACTION_POLICY_FOCUSABLE,
+                focus_order: 0,
+            },
+        ];
         ops.extend(listeners.map(|event_type| Op::AddEventListener {
             id: target,
             event_type,
@@ -1621,6 +1639,7 @@ mod tests {
                 .handle_projected_pointer(event(wabou_shell::ProjectedPointerPhase::Down))
                 .handled
         );
+        assert_eq!(controller.focused_target(), Some(target));
         assert!(
             controller
                 .handle_projected_pointer(event(wabou_shell::ProjectedPointerPhase::Up))

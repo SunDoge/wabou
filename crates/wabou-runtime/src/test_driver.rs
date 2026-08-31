@@ -927,9 +927,14 @@ impl TestController {
                 index,
                 scope,
                 ..
-            } => {
-                TestActionResult::Query(gpui_locator_query_json(nodes, role, label, *index, scope))
-            }
+            } => TestActionResult::Query(gpui_locator_query_json(
+                nodes,
+                role,
+                label,
+                *index,
+                scope,
+                controller.focused_target(),
+            )),
             TestActionKind::FileDrop { phase, paths, .. } => {
                 mutation = true;
                 TestActionResult::Handled(controller.dispatch_file_drop(
@@ -1076,18 +1081,97 @@ fn gpui_descends_from(
     false
 }
 
-fn gpui_locator<'a>(
-    nodes: &'a [wabou_shell::GpuiLayoutNode],
-    role: &str,
-    label: &str,
-    index: Option<usize>,
+fn gpui_is_effectively_attached(
+    nodes: &[wabou_shell::GpuiLayoutNode],
+    node: &wabou_shell::GpuiLayoutNode,
+) -> bool {
+    if !node.attached {
+        return false;
+    }
+    let mut parent = node.parent;
+    while let Some(key) = parent {
+        let Some(ancestor) = nodes.iter().find(|candidate| candidate.key == key) else {
+            return false;
+        };
+        if !ancestor.attached {
+            return false;
+        }
+        parent = ancestor.parent;
+    }
+    true
+}
+
+fn gpui_is_aria_hidden(
+    nodes: &[wabou_shell::GpuiLayoutNode],
+    node: &wabou_shell::GpuiLayoutNode,
+) -> bool {
+    let mut current = Some(node);
+    while let Some(candidate) = current {
+        if candidate
+            .attributes
+            .get("aria-hidden")
+            .is_some_and(|value| value.as_ref() == "true")
+        {
+            return true;
+        }
+        current = candidate
+            .parent
+            .and_then(|parent| nodes.iter().find(|ancestor| ancestor.key == parent));
+    }
+    false
+}
+
+fn gpui_modal_root(nodes: &[wabou_shell::GpuiLayoutNode]) -> Option<wabou_host_api::NodeKey> {
+    nodes
+        .iter()
+        .filter(|node| gpui_is_effectively_attached(nodes, node))
+        .filter(|node| !gpui_is_aria_hidden(nodes, node))
+        .filter(|node| {
+            matches!(gpui_node_role(node), Some("dialog" | "alertdialog"))
+                && node
+                    .attributes
+                    .get("aria-modal")
+                    .is_some_and(|value| value.as_ref() == "true")
+        })
+        .max_by_key(|node| (node.overlay_plane, node.z_index))
+        .map(|node| node.key)
+}
+
+fn gpui_node_is_exposed(
+    nodes: &[wabou_shell::GpuiLayoutNode],
+    node: &wabou_shell::GpuiLayoutNode,
+) -> bool {
+    if !gpui_is_effectively_attached(nodes, node) || gpui_is_aria_hidden(nodes, node) {
+        return false;
+    }
+    gpui_modal_root(nodes)
+        .is_none_or(|modal| node.key == modal || gpui_descends_from(nodes, node.key, modal))
+}
+
+fn gpui_bool_attribute(node: &wabou_shell::GpuiLayoutNode, name: &str) -> Option<bool> {
+    node.attributes
+        .get(name)
+        .and_then(|value| match value.as_ref() {
+            "true" => Some(true),
+            "false" => Some(false),
+            _ => None,
+        })
+}
+
+fn gpui_node_is_disabled(node: &wabou_shell::GpuiLayoutNode) -> bool {
+    node.attributes.contains_key("disabled")
+        || gpui_bool_attribute(node, "aria-disabled") == Some(true)
+}
+
+fn gpui_scope_owner(
+    nodes: &[wabou_shell::GpuiLayoutNode],
     scope: &[TestLocatorSelector],
-    allow_disabled: bool,
-) -> Option<&'a wabou_shell::GpuiLayoutNode> {
+) -> Option<Option<wabou_host_api::NodeKey>> {
     let mut owner = None;
     for selector in scope {
         let matches = nodes
             .iter()
+            .filter(|node| gpui_node_is_exposed(nodes, node))
             .filter(|node| owner.is_none_or(|owner| gpui_descends_from(nodes, node.key, owner)))
             .filter(|node| gpui_node_role(node) == Some(selector.role.as_str()))
             .filter(|node| gpui_node_label(nodes, node).as_deref() == Some(selector.name.as_str()))
@@ -1099,12 +1183,25 @@ fn gpui_locator<'a>(
             .map(|node| node.key);
         owner?;
     }
+    Some(owner)
+}
+
+fn gpui_locator<'a>(
+    nodes: &'a [wabou_shell::GpuiLayoutNode],
+    role: &str,
+    label: &str,
+    index: Option<usize>,
+    scope: &[TestLocatorSelector],
+    allow_disabled: bool,
+) -> Option<&'a wabou_shell::GpuiLayoutNode> {
+    let owner = gpui_scope_owner(nodes, scope)?;
     let mut matches = nodes
         .iter()
+        .filter(|node| gpui_node_is_exposed(nodes, node))
         .filter(|node| owner.is_none_or(|owner| gpui_descends_from(nodes, node.key, owner)))
         .filter(|node| gpui_node_role(node) == Some(role))
         .filter(|node| gpui_node_label(nodes, node).as_deref() == Some(label))
-        .filter(|node| allow_disabled || !node.attributes.contains_key("disabled"));
+        .filter(|node| allow_disabled || !gpui_node_is_disabled(node));
     match index {
         Some(index) => matches.nth(index),
         None => {
@@ -1120,13 +1217,30 @@ fn gpui_locator_query_json(
     label: &str,
     index: Option<usize>,
     scope: &[TestLocatorSelector],
+    focused: Option<wabou_host_api::NodeKey>,
 ) -> Option<String> {
+    let owner = gpui_scope_owner(nodes, scope)?;
     let matches = nodes
         .iter()
+        .filter(|node| gpui_node_is_exposed(nodes, node))
+        .filter(|node| owner.is_none_or(|owner| gpui_descends_from(nodes, node.key, owner)))
         .filter(|node| gpui_node_role(node) == Some(role))
         .filter(|node| gpui_node_label(nodes, node).as_deref() == Some(label))
         .collect::<Vec<_>>();
     let selected = gpui_locator(nodes, role, label, index, scope, true)?;
+    let bool_attribute = |name: &str| gpui_bool_attribute(selected, name);
+    let toggle_attribute = |name: &str| match selected.attributes.get(name).map(AsRef::as_ref) {
+        Some("true") => serde_json::Value::Bool(true),
+        Some("false") => serde_json::Value::Bool(false),
+        Some("mixed") => serde_json::Value::String("mixed".into()),
+        _ => serde_json::Value::Null,
+    };
+    let number_attribute = |name: &str| {
+        selected
+            .attributes
+            .get(name)
+            .and_then(|value| value.parse::<f64>().ok())
+    };
     Some(
         serde_json::json!({
             "matchCount": matches.len(),
@@ -1135,17 +1249,28 @@ fn gpui_locator_query_json(
                 "text": gpui_node_text_content(nodes, selected),
                 "value": selected
                     .attributes
-                    .get("value")
+                    .get("aria-valuetext")
+                    .or_else(|| selected.attributes.get("value"))
                     .map(|value| value.to_string())
                     .or_else(|| gpui_node_text_content(nodes, selected)),
+                "numericValue": number_attribute("aria-valuenow"),
+                "minNumericValue": number_attribute("aria-valuemin"),
+                "maxNumericValue": number_attribute("aria-valuemax"),
                 "bounds": {
                     "x": f32::from(selected.bounds.origin.x),
                     "y": f32::from(selected.bounds.origin.y),
                     "width": f32::from(selected.bounds.size.width),
                     "height": f32::from(selected.bounds.size.height),
                 },
-                "disabled": selected.attributes.contains_key("disabled"),
-                "focused": false,
+                "disabled": gpui_node_is_disabled(selected),
+                "checked": toggle_attribute("aria-checked"),
+                "pressed": toggle_attribute("aria-pressed"),
+                "selected": bool_attribute("aria-selected"),
+                "current": selected.attributes.get("aria-current").and_then(|value| {
+                    (value.as_ref() != "false").then(|| value.to_string())
+                }),
+                "expanded": bool_attribute("aria-expanded"),
+                "focused": focused == Some(selected.key),
             }
         })
         .to_string(),
@@ -1161,6 +1286,8 @@ fn gpui_snapshot_json(
         "nodes": nodes.iter().map(|node| serde_json::json!({
             "id": node.key,
             "parentId": node.parent,
+            "attached": node.attached,
+            "exposed": gpui_node_is_exposed(nodes, node),
             "role": gpui_node_role(node),
             "name": gpui_node_label(nodes, node),
             "hasValue": node.attributes.contains_key("value"),
@@ -1751,6 +1878,7 @@ mod tests {
             key,
             kind: wabou_shell::ProjectedNodeKind::Element(tag.into()),
             parent,
+            attached: true,
             attributes: [("aria-label".into(), label.into())].into(),
             text: None,
             bounds: wabou_shell::gpui::Bounds {
@@ -1893,24 +2021,20 @@ mod tests {
             "button",
             "Save",
         );
-        let nodes = vec![group, button];
-        let found = gpui_locator(
-            &nodes,
-            "button",
-            "Save",
-            None,
-            &[TestLocatorSelector {
-                role: "group".into(),
-                name: "Toolbar".into(),
-                index: None,
-            }],
-            false,
-        )
-        .expect("scoped GPUI locator");
+        let outside = gpui_node(wabou_host_api::NodeKey::new(12, 1), None, "button", "Save");
+        let scope = [TestLocatorSelector {
+            role: "group".into(),
+            name: "Toolbar".into(),
+            index: None,
+        }];
+        let nodes = vec![group, button, outside];
+        let found = gpui_locator(&nodes, "button", "Save", None, &scope, false)
+            .expect("scoped GPUI locator");
         assert_eq!(found.key, wabou_host_api::NodeKey::new(11, 1));
-        let snapshot = gpui_locator_query_json(&nodes, "button", "Save", None, &[])
+        let snapshot = gpui_locator_query_json(&nodes, "button", "Save", None, &scope, None)
             .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
             .expect("GPUI locator snapshot");
+        assert_eq!(snapshot["matchCount"], 1);
         assert_eq!(
             snapshot["snapshot"]["bounds"],
             serde_json::json!({ "x": 10.0, "y": 20.0, "width": 100.0, "height": 40.0 })
@@ -1935,11 +2059,87 @@ mod tests {
         text.attributes.remove("aria-label");
         text.text = Some("1".into());
         let snapshot =
-            gpui_locator_query_json(&[status, text], "status", "Counter value", None, &[])
+            gpui_locator_query_json(&[status, text], "status", "Counter value", None, &[], None)
                 .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
                 .expect("GPUI status snapshot");
         assert_eq!(snapshot["snapshot"]["text"], "1");
         assert_eq!(snapshot["snapshot"]["value"], "1");
+    }
+
+    #[test]
+    fn gpui_locator_snapshot_exposes_authored_semantic_state() {
+        let key = wabou_host_api::NodeKey::new(24, 1);
+        let mut control = gpui_node(key, None, "button", "Disclosure");
+        control.attributes.extend([
+            ("role".into(), "button".into()),
+            ("aria-expanded".into(), "true".into()),
+            ("aria-pressed".into(), "mixed".into()),
+            ("aria-selected".into(), "false".into()),
+            ("aria-current".into(), "page".into()),
+            ("aria-valuetext".into(), "64 percent".into()),
+            ("aria-valuenow".into(), "64".into()),
+            ("aria-valuemin".into(), "0".into()),
+            ("aria-valuemax".into(), "100".into()),
+            ("aria-disabled".into(), "true".into()),
+        ]);
+        let snapshot =
+            gpui_locator_query_json(&[control], "button", "Disclosure", None, &[], Some(key))
+                .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
+                .expect("GPUI semantic state snapshot");
+        let state = &snapshot["snapshot"];
+        assert_eq!(state["value"], "64 percent");
+        assert_eq!(state["numericValue"], 64.0);
+        assert_eq!(state["minNumericValue"], 0.0);
+        assert_eq!(state["maxNumericValue"], 100.0);
+        assert_eq!(state["disabled"], true);
+        assert_eq!(state["pressed"], "mixed");
+        assert_eq!(state["selected"], false);
+        assert_eq!(state["current"], "page");
+        assert_eq!(state["expanded"], true);
+        assert_eq!(state["focused"], true);
+    }
+
+    #[test]
+    fn gpui_locators_exclude_detached_subtrees_and_background_behind_a_modal() {
+        let detached_root_key = wabou_host_api::NodeKey::new(30, 1);
+        let detached_root = gpui_node(detached_root_key, None, "view", "Detached root");
+        let mut detached_root = detached_root;
+        detached_root.attached = false;
+        let mut stale = gpui_node(
+            wabou_host_api::NodeKey::new(31, 1),
+            Some(detached_root_key),
+            "button",
+            "Stale action",
+        );
+        stale.attributes.insert("role".into(), "button".into());
+
+        let mut background = gpui_node(
+            wabou_host_api::NodeKey::new(32, 1),
+            None,
+            "button",
+            "Background",
+        );
+        background.attributes.insert("role".into(), "button".into());
+
+        let modal_key = wabou_host_api::NodeKey::new(33, 1);
+        let mut modal = gpui_node(modal_key, None, "view", "Settings");
+        modal.attributes.extend([
+            ("role".into(), "dialog".into()),
+            ("aria-modal".into(), "true".into()),
+        ]);
+        modal.overlay_plane = 2;
+        let mut foreground = gpui_node(
+            wabou_host_api::NodeKey::new(34, 1),
+            Some(modal_key),
+            "button",
+            "Confirm",
+        );
+        foreground.attributes.insert("role".into(), "button".into());
+
+        let nodes = vec![detached_root, stale, background, modal, foreground];
+        assert!(gpui_locator(&nodes, "button", "Stale action", None, &[], true).is_none());
+        assert!(gpui_locator(&nodes, "button", "Background", None, &[], true).is_none());
+        assert!(gpui_locator(&nodes, "button", "Confirm", None, &[], true).is_some());
     }
 
     #[test]
