@@ -11,6 +11,12 @@ use crate::{
 use gpui_shell::{GpuiProjection, ProjectionError};
 use wabou_style::stylesheet::{StyleSheet, StylesheetUpdate};
 
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct GpuiFrameTiming {
+    pub(crate) js_tick_ms: f64,
+    pub(crate) projection_ms: f64,
+}
+
 /// Renderer-side state consumed exclusively by the GPUI application runtime.
 ///
 /// This controller intentionally does not know about the retired renderer or
@@ -980,18 +986,29 @@ impl GpuiController {
 
     /// Advance one complete Solid flush and publish its retained GPUI tree.
     pub fn advance_frame(&mut self) -> bool {
+        self.advance_frame_profiled().0
+    }
+
+    pub(crate) fn advance_frame_profiled(&mut self) -> (bool, GpuiFrameTiming) {
         self.prepare_js_tick();
         let _ = self.drain_hmr();
         self.drain_application_messages();
         self.drain_projection_updates();
+        let js_started = std::time::Instant::now();
         let bytes = match self.tick_js() {
             Ok(bytes) => bytes,
             Err(error) => {
+                let timing = GpuiFrameTiming {
+                    js_tick_ms: js_started.elapsed().as_secs_f64() * 1_000.0,
+                    projection_ms: 0.0,
+                };
                 self.fail_js_tick();
                 tracing::error!(target: "bridge", ?error, "GPUI JavaScript tick failed");
-                return false;
+                return (false, timing);
             }
         };
+        let js_tick_ms = js_started.elapsed().as_secs_f64() * 1_000.0;
+        let projection_started = std::time::Instant::now();
         if !bytes.is_empty() {
             match decode_frame(&bytes) {
                 Ok(frame) => {
@@ -1007,7 +1024,46 @@ impl GpuiController {
         }
         self.finish_js_tick();
         self.drain_projection_updates();
-        self.projection.finish_frame()
+        let changed = self.projection.finish_frame();
+        (
+            changed,
+            GpuiFrameTiming {
+                js_tick_ms,
+                projection_ms: projection_started.elapsed().as_secs_f64() * 1_000.0,
+            },
+        )
+    }
+
+    pub(crate) fn publish_frame_stats(
+        &mut self,
+        timing: GpuiFrameTiming,
+        build_frame_ms: f64,
+        viewport: (u32, u32),
+    ) {
+        let Some(frame_stats) = &self.runtime.frame_stats else {
+            return;
+        };
+        let node_count = self.projection.node_count();
+        let mut frame_stats = frame_stats.borrow_mut();
+        if let Some(stats) = frame_stats.as_mut() {
+            stats.update_gpui(
+                build_frame_ms,
+                timing.js_tick_ms,
+                timing.projection_ms,
+                node_count,
+                viewport,
+            );
+        } else {
+            *frame_stats = Some(gpui_shell::FrameStats {
+                build_frame_ms,
+                js_tick_ms: timing.js_tick_ms,
+                scene_ms: timing.projection_ms,
+                present_ms: 0.0,
+                node_count,
+                viewport_w: viewport.0,
+                viewport_h: viewport.1,
+            });
+        }
     }
 
     pub(crate) fn has_animation(&self) -> bool {

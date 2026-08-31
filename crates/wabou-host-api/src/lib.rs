@@ -212,7 +212,8 @@ pub struct FrameStats {
     /// Native retained-projection assembly time in milliseconds.
     #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub scene_ms: f64,
-    /// Surface rendering and presentation time in milliseconds.
+    /// Surface rendering and presentation time in milliseconds, or zero when
+    /// the active native toolkit does not expose a reliable completion time.
     #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub present_ms: f64,
     /// Number of retained nodes in the frame.

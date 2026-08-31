@@ -305,6 +305,17 @@ mod tests {
             .find(|node| node.key == NodeKey::ROOT)
             .expect("synthetic root has layout bounds");
         assert_eq!(root.bounds.size, size(px(800.0), px(600.0)));
+
+        let stats = harness
+            .eval_string("__wabou_frame_stats()")
+            .expect("read GPUI frame diagnostics");
+        let stats: wabou_host_api::FrameStats =
+            serde_json::from_str(&stats).expect("frame diagnostics are typed JSON");
+        assert_eq!((stats.viewport_w, stats.viewport_h), (800, 600));
+        assert!(stats.node_count >= 2);
+        assert!(stats.build_frame_ms >= stats.js_tick_ms);
+        assert!(stats.scene_ms >= 0.0);
+        assert_eq!(stats.present_ms, 0.0);
     }
 
     #[test]

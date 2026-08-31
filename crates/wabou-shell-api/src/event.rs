@@ -579,7 +579,8 @@ pub struct FrameStats {
     pub js_tick_ms: f64,
     /// Backend-neutral scene assembly time in milliseconds.
     pub scene_ms: f64,
-    /// Renderer submission and presentation time in milliseconds.
+    /// Renderer submission and presentation time in milliseconds, or zero when
+    /// the active native toolkit does not expose a reliable completion time.
     pub present_ms: f64,
     /// Number of retained nodes in the frame.
     pub node_count: usize,
@@ -613,6 +614,27 @@ impl FrameStats {
         self.scene_ms = self.scene_ms * prev + scene_ms * Self::ALPHA;
         self.present_ms = self.present_ms * prev + present_ms * Self::ALPHA;
         self.node_count = node_count;
+    }
+
+    /// Blend a GPUI frame sample, including the JavaScript flush and viewport.
+    pub fn update_gpui(
+        &mut self,
+        build_frame_ms: f64,
+        js_tick_ms: f64,
+        scene_ms: f64,
+        node_count: usize,
+        viewport: (u32, u32),
+    ) {
+        let prev = 1.0 - Self::ALPHA;
+        self.build_frame_ms = self.build_frame_ms * prev + build_frame_ms * Self::ALPHA;
+        self.js_tick_ms = self.js_tick_ms * prev + js_tick_ms * Self::ALPHA;
+        self.scene_ms = self.scene_ms * prev + scene_ms * Self::ALPHA;
+        // GPUI-CE does not currently expose a per-window present-completion
+        // timestamp to application views. Zero means unavailable, not free.
+        self.present_ms = 0.0;
+        self.node_count = node_count;
+        self.viewport_w = viewport.0;
+        self.viewport_h = viewport.1;
     }
 }
 

@@ -417,6 +417,12 @@ impl GpuiProjection {
         self.tree.node(key).is_some()
     }
 
+    /// Number of nodes retained by the canonical GPUI projection.
+    #[must_use]
+    pub fn node_count(&self) -> usize {
+        self.tree.len()
+    }
+
     /// Whether `target` or one of its retained ancestors listens for `event_type`.
     ///
     /// Event bubbling is a guest-runtime concern; the native shell only needs

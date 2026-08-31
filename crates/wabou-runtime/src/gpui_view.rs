@@ -751,7 +751,10 @@ impl Render for GpuiRuntimeView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl gpui_shell::gpui::IntoElement {
+        let frame_started = std::time::Instant::now();
         let viewport = window.viewport_size();
+        let viewport_width = f32::from(viewport.width).round().max(1.0) as u32;
+        let viewport_height = f32::from(viewport.height).round().max(1.0) as u32;
         let metrics = self.window_metrics(window);
         self.controller.update_window_metrics(metrics);
         if let Some(persistence) = &mut self.window_size_persistence {
@@ -763,7 +766,7 @@ impl Render for GpuiRuntimeView {
                 window.is_maximized(),
             );
         }
-        let _ = self.controller.advance_frame();
+        let (_, frame_timing) = self.controller.advance_frame_profiled();
         self.synchronize_text_controls(window, cx);
         for command in self.controller.take_projection_commands() {
             match command {
@@ -890,7 +893,7 @@ impl Render for GpuiRuntimeView {
         let drag_view = cx.weak_entity();
         let drop_view = drag_view.clone();
         let leave_view = drag_view.clone();
-        div()
+        let root = div()
             .size_full()
             .on_drag_move(move |event: &DragMoveEvent<ExternalPaths>, _, cx| {
                 let paths = event.drag(cx).paths().to_vec();
@@ -916,7 +919,13 @@ impl Render for GpuiRuntimeView {
                     cx.notify();
                 });
             })
-            .child(projected)
+            .child(projected);
+        self.controller.publish_frame_stats(
+            frame_timing,
+            frame_started.elapsed().as_secs_f64() * 1_000.0,
+            (viewport_width, viewport_height),
+        );
+        root
     }
 }
 
