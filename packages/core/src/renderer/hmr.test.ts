@@ -65,6 +65,10 @@ function rootHandle(): Handle {
     focus() {},
     scrollTo() {},
     scrollBy() {},
+    setTextSelection() {},
+    selectAll() {},
+    undo() {},
+    redo() {},
   };
 }
 

@@ -206,6 +206,15 @@ pub enum Op<'a> {
         x: f32,
         y: f32,
     },
+    SetTextSelection {
+        id: NodeKey,
+        anchor: u32,
+        head: u32,
+    },
+    TextCommand {
+        id: NodeKey,
+        command: u8,
+    },
 }
 
 #[derive(Debug)]
@@ -245,6 +254,9 @@ pub enum DecodeError {
 
     #[snafu(display("invalid text behavior flags 0x{flags:02x}"))]
     BadTextBehavior { flags: u8 },
+
+    #[snafu(display("invalid text command {command}"))]
+    BadTextCommand { command: u8 },
 
     #[snafu(display(
         "invalid interaction policy flags 0x{flags:02x} with focus order {focus_order}"
@@ -642,6 +654,20 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             let y = r.f32()?;
             Op::ScrollBy { id, x, y }
         }
+        op::SET_TEXT_SELECTION => {
+            let id = r.node_key()?;
+            let anchor = r.u32()?;
+            let head = r.u32()?;
+            Op::SetTextSelection { id, anchor, head }
+        }
+        op::TEXT_COMMAND => {
+            let id = r.node_key()?;
+            let command = r.u8()?;
+            if !(1..=3).contains(&command) {
+                return Err(DecodeError::BadTextCommand { command });
+            }
+            Op::TextCommand { id, command }
+        }
         other => return Err(DecodeError::BadOp { opcode: other }),
     })
 }
@@ -767,6 +793,36 @@ mod tests {
             Op::FocusNode {
                 id: NodeKey { lo: 42, hi: 1 }
             }
+        ));
+    }
+
+    #[test]
+    fn decodes_typed_text_selection_and_commands() {
+        let mut bytes = Vec::new();
+        push_u32(&mut bytes, 1);
+        push_u32(&mut bytes, 2);
+        bytes.push(op::SET_TEXT_SELECTION);
+        push_node(&mut bytes, 42);
+        push_u32(&mut bytes, 2);
+        push_u32(&mut bytes, 7);
+        bytes.push(op::TEXT_COMMAND);
+        push_node(&mut bytes, 42);
+        bytes.push(3);
+
+        let frame = decode_frame(&bytes).unwrap();
+        assert!(matches!(
+            frame.ops.as_slice(),
+            [
+                Op::SetTextSelection {
+                    id: NodeKey { lo: 42, hi: 1 },
+                    anchor: 2,
+                    head: 7,
+                },
+                Op::TextCommand {
+                    id: NodeKey { lo: 42, hi: 1 },
+                    command: 3,
+                }
+            ]
         ));
     }
 

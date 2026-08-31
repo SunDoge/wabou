@@ -63,6 +63,8 @@ export const OP = {
   SetGraphicData: 0x20,
   ClearGraphicData: 0x21,
   SetTextMaxLines: 0x22,
+  SetTextSelection: 0x23,
+  TextCommand: 0x24,
 } as const;
 
 export type OpCode = (typeof OP)[keyof typeof OP];
@@ -610,6 +612,17 @@ export class Writer {
     this.key(id);
     this.f32(x);
     this.f32(y);
+  }
+  setTextSelection(id: NodeKey, anchor: number, head: number): void {
+    this.emit(OP.SetTextSelection);
+    this.key(id);
+    this.u32(anchor);
+    this.u32(head);
+  }
+  textCommand(id: NodeKey, command: number): void {
+    this.emit(OP.TextCommand);
+    this.key(id);
+    this.u8(command);
   }
 
   /** Drain the buffer into a frame, or null if no ops were emitted this tick. */

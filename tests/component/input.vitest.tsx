@@ -91,6 +91,38 @@ test("updates a controlled Editor through the component input contract", () => {
   ).toEqual(identity);
 });
 
+test("exposes native Editor selection and submit events", () => {
+  let selection: [number | undefined, number | undefined] = [
+    undefined,
+    undefined,
+  ];
+  let submit: [boolean, boolean] | undefined;
+  const screen = renderComponent(() => (
+    <Editor
+      aria-label="Source"
+      value="a😀中"
+      onTextSelectionChange={(event) => {
+        selection = [event.anchor, event.head];
+      }}
+      onSubmit={(event) => {
+        submit = [event.secondary, event.shift];
+      }}
+    />
+  ));
+  const editor = screen.getByRole("textbox", { name: "Source" });
+
+  editor.emit("textselectionchange", {
+    anchor: 1,
+    head: 3,
+    text: "😀",
+    kind: "simple",
+  });
+  editor.emit("submit", { secondary: false, shift: true });
+
+  expect(selection).toEqual([1, 3]);
+  expect(submit).toEqual([false, true]);
+});
+
 test("blocks authored disabled and read-only editors", () => {
   const screen = renderComponent(() => (
     <View>

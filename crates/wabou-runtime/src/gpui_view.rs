@@ -8,7 +8,8 @@ use std::{
 };
 
 use gpui_base::input::{
-    Editor, EditorState, Input, InputEditorStyle, InputEvent, InputState, Textarea, TextareaState,
+    Editor, EditorState, Input, InputEditorStyle, InputEvent, InputState, Redo, Textarea,
+    TextareaState, Undo,
 };
 use gpui_base::{TextSelectionHandle, TextSelectionLayer};
 use wabou_shell::WakeCallback;
@@ -70,16 +71,16 @@ pub(crate) struct GpuiRuntimeViewOptions {
 enum GpuiTextControlState {
     Input {
         state: Entity<InputState>,
-        _subscription: Subscription,
+        _subscriptions: [Subscription; 2],
     },
     Textarea {
         state: Entity<TextareaState>,
-        _subscription: Subscription,
+        _subscriptions: [Subscription; 2],
     },
     Editor {
         state: Entity<EditorState>,
         language: Option<String>,
-        _subscription: Subscription,
+        _subscriptions: [Subscription; 2],
     },
 }
 
@@ -87,6 +88,30 @@ struct GpuiTextSelectionState {
     handle: TextSelectionHandle,
     select_all: bool,
     _subscription: Subscription,
+}
+
+fn utf16_to_utf8_offset(value: &str, target: u32) -> usize {
+    let target = target as usize;
+    let mut utf16 = 0;
+    for (byte, character) in value.char_indices() {
+        if utf16 >= target {
+            return byte;
+        }
+        let next = utf16 + character.len_utf16();
+        if next > target {
+            return byte;
+        }
+        utf16 = next;
+    }
+    value.len()
+}
+
+fn utf8_to_utf16_offset(value: &str, byte: usize) -> u32 {
+    value
+        .get(..byte.min(value.len()))
+        .unwrap_or_default()
+        .encode_utf16()
+        .count() as u32
 }
 
 impl GpuiTextControlState {
@@ -188,6 +213,35 @@ impl GpuiTextControlState {
             Self::Input { state, .. } => state.focus_handle(cx),
             Self::Textarea { state, .. } => state.focus_handle(cx),
             Self::Editor { state, .. } => state.focus_handle(cx),
+        }
+    }
+
+    fn set_selection_utf16(&self, anchor: u32, head: u32, cx: &mut Context<GpuiRuntimeView>) {
+        macro_rules! set_selection {
+            ($state:expr) => {{
+                $state.update(cx, |state, state_cx| {
+                    let value = state.value();
+                    let anchor = utf16_to_utf8_offset(&value, anchor);
+                    let head = utf16_to_utf8_offset(&value, head);
+                    state.set_selected_range(anchor.min(head)..anchor.max(head), state_cx);
+                })
+            }};
+        }
+        match self {
+            Self::Input { state, .. } => set_selection!(state),
+            Self::Textarea { state, .. } => set_selection!(state),
+            Self::Editor { state, .. } => set_selection!(state),
+        }
+    }
+
+    fn select_all(&self, window: &mut Window, cx: &mut Context<GpuiRuntimeView>) {
+        macro_rules! select_all {
+            ($state:expr) => {{ $state.update(cx, |state, state_cx| state.select_all(window, state_cx)) }};
+        }
+        match self {
+            Self::Input { state, .. } => select_all!(state),
+            Self::Textarea { state, .. } => select_all!(state),
+            Self::Editor { state, .. } => select_all!(state),
         }
     }
 }
@@ -438,8 +492,8 @@ impl GpuiRuntimeView {
 
     fn synchronize_text_controls(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         macro_rules! subscribe_text_control {
-            ($state:expr, $events:expr) => {
-                cx.subscribe(&$state, move |_view, state, event, cx| {
+            ($state:expr, $key:expr) => {{
+                let events = cx.subscribe(&$state, move |view, state, event, cx| {
                     let value = matches!(event, InputEvent::Change)
                         .then(|| state.read(cx).value().to_string());
                     let focused = match event {
@@ -448,13 +502,62 @@ impl GpuiRuntimeView {
                         _ => None,
                     };
                     if let Some(value) = value {
-                        $events.input_text(value, cx);
+                        view.handle_input(
+                            wabou_shell::ProjectedInputEvent::TextChange {
+                                target: $key,
+                                value,
+                            },
+                            cx,
+                        );
                     }
                     if let Some(focused) = focused {
-                        $events.focus(focused, cx);
+                        view.handle_input(
+                            wabou_shell::ProjectedInputEvent::FocusChange {
+                                target: $key,
+                                focused,
+                            },
+                            cx,
+                        );
                     }
-                })
-            };
+                    if let InputEvent::PressEnter { secondary, shift } = event {
+                        view.handle_input(
+                            wabou_shell::ProjectedInputEvent::Submit {
+                                target: $key,
+                                secondary: *secondary,
+                                shift: *shift,
+                            },
+                            cx,
+                        );
+                    }
+                });
+                let previous = Rc::new(std::cell::Cell::new(None));
+                let selection = cx.observe(&$state, move |view, state, cx| {
+                    let state = state.read(cx);
+                    let range = state.selected_range();
+                    let head = state.cursor();
+                    let anchor = if head == range.start {
+                        range.end
+                    } else {
+                        range.start
+                    };
+                    let value = state.value();
+                    let next = (
+                        utf8_to_utf16_offset(&value, anchor),
+                        utf8_to_utf16_offset(&value, head),
+                    );
+                    if previous.replace(Some(next)) != Some(next) {
+                        view.handle_input(
+                            wabou_shell::ProjectedInputEvent::TextSelectionChange {
+                                target: $key,
+                                anchor: next.0,
+                                head: next.1,
+                            },
+                            cx,
+                        );
+                    }
+                });
+                [events, selection]
+            }};
         }
         let descriptors = self.controller.text_controls();
         self.text_controls
@@ -472,28 +575,21 @@ impl GpuiRuntimeView {
                 self.text_controls.entry(descriptor.key)
             {
                 let key = descriptor.key;
-                let view = cx.weak_entity();
-                let input: wabou_shell::ProjectedInputSink = Rc::new(move |event, app| {
-                    let _ = view.update(app, |view, cx| {
-                        view.handle_input(event, cx);
-                    });
-                });
-                let events = wabou_shell::NativeWidgetEventSink::new(key, input);
                 let control = match descriptor.kind {
                     wabou_shell::GpuiTextControlKind::Input => {
                         let state = cx.new(|cx| InputState::new(window, cx));
-                        let subscription = subscribe_text_control!(state, events);
+                        let subscriptions = subscribe_text_control!(state, key);
                         GpuiTextControlState::Input {
                             state,
-                            _subscription: subscription,
+                            _subscriptions: subscriptions,
                         }
                     }
                     wabou_shell::GpuiTextControlKind::Textarea => {
                         let state = cx.new(|cx| TextareaState::new(window, cx));
-                        let subscription = subscribe_text_control!(state, events);
+                        let subscriptions = subscribe_text_control!(state, key);
                         GpuiTextControlState::Textarea {
                             state,
-                            _subscription: subscription,
+                            _subscriptions: subscriptions,
                         }
                     }
                     wabou_shell::GpuiTextControlKind::Editor => {
@@ -501,11 +597,11 @@ impl GpuiRuntimeView {
                         let initial_language = language.clone().unwrap_or_default();
                         let state =
                             cx.new(|cx| EditorState::new(window, cx).language(initial_language));
-                        let subscription = subscribe_text_control!(state, events);
+                        let subscriptions = subscribe_text_control!(state, key);
                         GpuiTextControlState::Editor {
                             state,
                             language,
-                            _subscription: subscription,
+                            _subscriptions: subscriptions,
                         }
                     }
                 };
@@ -996,6 +1092,30 @@ impl Render for GpuiRuntimeView {
                         cx.notify();
                     }
                 }
+                wabou_shell::GpuiCommand::SetTextSelection { id, anchor, head } => {
+                    if let Some(control) = self.text_controls.get(&id) {
+                        control.set_selection_utf16(anchor, head, cx);
+                        cx.notify();
+                    }
+                }
+                wabou_shell::GpuiCommand::Text { id, command } => {
+                    if let Some(control) = self.text_controls.get(&id) {
+                        match command {
+                            wabou_shell::GpuiTextCommand::SelectAll => {
+                                control.select_all(window, cx);
+                            }
+                            wabou_shell::GpuiTextCommand::Undo => {
+                                control.focus_handle(cx).focus(window, cx);
+                                window.dispatch_action(Box::new(Undo), cx);
+                            }
+                            wabou_shell::GpuiTextCommand::Redo => {
+                                control.focus_handle(cx).focus(window, cx);
+                                window.dispatch_action(Box::new(Redo), cx);
+                            }
+                        }
+                        cx.notify();
+                    }
+                }
                 command @ (wabou_shell::GpuiCommand::ScrollTo { .. }
                 | wabou_shell::GpuiCommand::ScrollBy { .. }) => {
                     let _ = self.controller.apply_projection_scroll(command);
@@ -1201,6 +1321,16 @@ mod tests {
             JsRuntime::new().expect("QuickJS runtime"),
             wabou_shell::initial_window_resource_key(0),
         ))
+    }
+
+    #[test]
+    fn native_editor_selection_offsets_round_trip_through_javascript_utf16() {
+        let value = "a😀中b";
+        for utf16 in [0, 1, 3, 4, 5] {
+            let utf8 = utf16_to_utf8_offset(value, utf16);
+            assert_eq!(utf8_to_utf16_offset(value, utf8), utf16);
+        }
+        assert_eq!(utf16_to_utf8_offset(value, 2), 1);
     }
 
     #[test]

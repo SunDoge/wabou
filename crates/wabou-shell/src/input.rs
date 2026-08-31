@@ -124,6 +124,18 @@ pub enum ProjectedInputEvent {
     TextChange { target: NodeKey, value: String },
     /// Focus ownership changed inside a retained native control.
     FocusChange { target: NodeKey, focused: bool },
+    /// UTF-16 selection offsets committed by a retained native text control.
+    TextSelectionChange {
+        target: NodeKey,
+        anchor: u32,
+        head: u32,
+    },
+    /// Primary or secondary submit gesture recognized by a native control.
+    Submit {
+        target: NodeKey,
+        secondary: bool,
+        shift: bool,
+    },
     /// Pointer movement or button transition.
     Pointer(ProjectedPointerEvent),
     /// Wheel or trackpad transition.

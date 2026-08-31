@@ -139,9 +139,35 @@ pub struct GpuiThemeSnapshot {
 /// retained element tree.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GpuiCommand {
-    Focus { id: NodeKey },
-    ScrollTo { id: NodeKey, x: f32, y: f32 },
-    ScrollBy { id: NodeKey, x: f32, y: f32 },
+    Focus {
+        id: NodeKey,
+    },
+    ScrollTo {
+        id: NodeKey,
+        x: f32,
+        y: f32,
+    },
+    ScrollBy {
+        id: NodeKey,
+        x: f32,
+        y: f32,
+    },
+    SetTextSelection {
+        id: NodeKey,
+        anchor: u32,
+        head: u32,
+    },
+    Text {
+        id: NodeKey,
+        command: GpuiTextCommand,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GpuiTextCommand {
+    SelectAll,
+    Undo,
+    Redo,
 }
 
 #[derive(Debug)]
@@ -506,6 +532,23 @@ impl GpuiProjection {
                     x: *x,
                     y: *y,
                 }),
+                Op::SetTextSelection { id, anchor, head } => {
+                    self.pending_commands.push(GpuiCommand::SetTextSelection {
+                        id: *id,
+                        anchor: *anchor,
+                        head: *head,
+                    });
+                }
+                Op::TextCommand { id, command } => {
+                    let command = match command {
+                        1 => GpuiTextCommand::SelectAll,
+                        2 => GpuiTextCommand::Undo,
+                        3 => GpuiTextCommand::Redo,
+                        _ => unreachable!("protocol validates text commands"),
+                    };
+                    self.pending_commands
+                        .push(GpuiCommand::Text { id: *id, command });
+                }
             }
         }
         Ok(())
@@ -532,7 +575,9 @@ impl GpuiProjection {
             GpuiCommand::ScrollBy { id, x, y } => {
                 (id, self.scroll_handles.get(&id)?.scroll_by(x, y))
             }
-            GpuiCommand::Focus { .. } => return None,
+            GpuiCommand::Focus { .. }
+            | GpuiCommand::SetTextSelection { .. }
+            | GpuiCommand::Text { .. } => return None,
         };
         changed.then(|| {
             let position = self.scroll_handles[&id].position();
@@ -2924,6 +2969,23 @@ mod tests {
                             x: -1.0,
                             y: 2.0,
                         },
+                        Op::SetTextSelection {
+                            id: key(4),
+                            anchor: 2,
+                            head: 7,
+                        },
+                        Op::TextCommand {
+                            id: key(4),
+                            command: 1,
+                        },
+                        Op::TextCommand {
+                            id: key(4),
+                            command: 2,
+                        },
+                        Op::TextCommand {
+                            id: key(4),
+                            command: 3,
+                        },
                     ],
                 },
                 &atoms,
@@ -2944,6 +3006,23 @@ mod tests {
                     id: key(3),
                     x: -1.0,
                     y: 2.0,
+                },
+                GpuiCommand::SetTextSelection {
+                    id: key(4),
+                    anchor: 2,
+                    head: 7,
+                },
+                GpuiCommand::Text {
+                    id: key(4),
+                    command: GpuiTextCommand::SelectAll,
+                },
+                GpuiCommand::Text {
+                    id: key(4),
+                    command: GpuiTextCommand::Undo,
+                },
+                GpuiCommand::Text {
+                    id: key(4),
+                    command: GpuiTextCommand::Redo,
                 },
             ]
         );

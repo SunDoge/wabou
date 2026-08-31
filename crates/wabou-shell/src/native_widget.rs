@@ -75,6 +75,30 @@ impl NativeWidgetEventSink {
             cx,
         );
     }
+
+    /// Report a text selection using JavaScript's UTF-16 offset convention.
+    pub fn text_selection(&self, anchor: u32, head: u32, cx: &mut App) {
+        (self.input)(
+            crate::ProjectedInputEvent::TextSelectionChange {
+                target: self.target,
+                anchor,
+                head,
+            },
+            cx,
+        );
+    }
+
+    /// Report a submit gesture recognized by a retained native control.
+    pub fn submit(&self, secondary: bool, shift: bool, cx: &mut App) {
+        (self.input)(
+            crate::ProjectedInputEvent::Submit {
+                target: self.target,
+                secondary,
+                shift,
+            },
+            cx,
+        );
+    }
 }
 
 /// Immutable authored state supplied when materializing a native GPUI widget.
@@ -241,6 +265,8 @@ mod tests {
             sink.input_text("你好 GPUI", app);
             sink.focus(true, app);
             sink.focus(false, app);
+            sink.text_selection(2, 5, app);
+            sink.submit(false, true, app);
         });
 
         assert_eq!(
@@ -257,6 +283,16 @@ mod tests {
                 crate::ProjectedInputEvent::FocusChange {
                     target: NodeKey::new(8, 2),
                     focused: false,
+                },
+                crate::ProjectedInputEvent::TextSelectionChange {
+                    target: NodeKey::new(8, 2),
+                    anchor: 2,
+                    head: 5,
+                },
+                crate::ProjectedInputEvent::Submit {
+                    target: NodeKey::new(8, 2),
+                    secondary: false,
+                    shift: true,
                 },
             ]
         );

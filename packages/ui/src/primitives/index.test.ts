@@ -484,7 +484,11 @@ describe("host primitives", () => {
           language: "json",
           onInput: (event) => values.push(event.currentTarget.value),
         }) as unknown as import("@wabou/core/renderer").Handle;
-        dispatchEvent(editor.id, EVENT_CODE.input, JSON.stringify({ value: "next" }));
+        dispatchEvent(
+          editor.id,
+          EVENT_CODE.input,
+          JSON.stringify({ value: "next" }),
+        );
       } finally {
         writer.setAttribute = setAttribute;
         dispose();
@@ -494,6 +498,41 @@ describe("host primitives", () => {
       expect(attributes).toContainEqual(["language", "json"]);
       expect(values).toEqual(["next"]);
     }));
+
+  test("batches native editor selection and history commands through its handle", () => {
+    const calls: Array<readonly [string, ...number[]]> = [];
+    const setTextSelection = writer.setTextSelection.bind(writer);
+    const textCommand = writer.textCommand.bind(writer);
+    writer.setTextSelection = (_id, anchor, head) => {
+      calls.push(["selection", anchor, head]);
+    };
+    writer.textCommand = (_id, command) => {
+      calls.push(["command", command]);
+    };
+    try {
+      let handle: import("@wabou/core/renderer").Handle | undefined;
+      Editor({
+        "aria-label": "Source",
+        ref: (node) => {
+          handle = node;
+        },
+      });
+      handle?.setTextSelection(2, 7);
+      handle?.selectAll();
+      handle?.undo();
+      handle?.redo();
+    } finally {
+      writer.setTextSelection = setTextSelection;
+      writer.textCommand = textCommand;
+    }
+
+    expect(calls).toEqual([
+      ["selection", 2, 7],
+      ["command", 1],
+      ["command", 2],
+      ["command", 3],
+    ]);
+  });
 
   test("create explicit view, text, image, and editor host nodes", () =>
     createRoot((dispose) => {

@@ -232,6 +232,20 @@ describe("Writer limits", () => {
     );
   });
 
+  test("encodes native text selection and commands without JSON", () => {
+    const writer = new Writer();
+    writer.setTextSelection(k(42), 2, 7);
+    writer.textCommand(k(42), 3);
+    const frame = writer.flush()!;
+    const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+
+    expect(frame[8]).toBe(OP.SetTextSelection);
+    expect(view.getUint32(17, true)).toBe(2);
+    expect(view.getUint32(21, true)).toBe(7);
+    expect(frame[25]).toBe(OP.TextCommand);
+    expect(frame.at(-1)).toBe(3);
+  });
+
   test("encodes graphic sources without attribute names or JSON", () => {
     const writer = new Writer();
     writer.setGraphicSource(k(42), GRAPHIC_SOURCE.ResourceRaster, "42:3");

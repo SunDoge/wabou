@@ -34,6 +34,8 @@ pub mod op {
     pub const SET_GRAPHIC_DATA: u8 = 0x20;
     pub const CLEAR_GRAPHIC_DATA: u8 = 0x21;
     pub const SET_TEXT_MAX_LINES: u8 = 0x22;
+    pub const SET_TEXT_SELECTION: u8 = 0x23;
+    pub const TEXT_COMMAND: u8 = 0x24;
 }
 
 #[allow(missing_docs)]

@@ -936,6 +936,53 @@ impl GpuiController {
                     ..wabou_shell::EventResponse::default()
                 }
             }
+            wabou_shell::ProjectedInputEvent::TextSelectionChange {
+                target,
+                anchor,
+                head,
+            } => {
+                let payload = serde_json::json!({
+                    "anchor": anchor,
+                    "head": head,
+                    "text": null,
+                    "kind": "simple",
+                })
+                .to_string();
+                let changed = self
+                    .dispatch_node_json(
+                        target,
+                        wabou_protocol::event::TEXTSELECTIONCHANGE,
+                        payload,
+                        false,
+                    )
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                wabou_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..wabou_shell::EventResponse::default()
+                }
+            }
+            wabou_shell::ProjectedInputEvent::Submit {
+                target,
+                secondary,
+                shift,
+            } => {
+                let payload = serde_json::json!({
+                    "secondary": secondary,
+                    "shift": shift,
+                })
+                .to_string();
+                let changed = self
+                    .dispatch_node_json(target, wabou_protocol::event::SUBMIT, payload, true)
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                wabou_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..wabou_shell::EventResponse::default()
+                }
+            }
             wabou_shell::ProjectedInputEvent::Pointer(event) => {
                 self.handle_projected_pointer(event)
             }

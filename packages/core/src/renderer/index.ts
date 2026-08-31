@@ -193,6 +193,7 @@ export interface WabouElementProps {
   onImeDeleteSurrounding?: EventHandler<WabouImeDeleteSurroundingEvent>;
   onImeDisabled?: EventHandler<WabouNodeEvent>;
   onTextSelectionChange?: EventHandler<WabouTextSelectionChangeEvent>;
+  onSubmit?: EventHandler<WabouSubmitEvent>;
   /** Preventing this event keeps the native window open. */
   onWindowCloseRequested?: EventHandler<WabouNodeEvent>;
 }
@@ -337,6 +338,11 @@ export interface WabouInputEvent extends WabouNodeEvent {
   readonly currentTarget: WabouEventTarget & { value: string };
 }
 
+export interface WabouSubmitEvent extends WabouNodeEvent {
+  readonly secondary: boolean;
+  readonly shift: boolean;
+}
+
 export interface WabouTextCommitEvent extends WabouNodeEvent {
   readonly data: string;
   readonly source: "keyboard" | "ime" | "paste";
@@ -398,7 +404,21 @@ export interface Handle {
   /** Adjust this overflow container's native scroll offset. */
   scrollBy(options: { left?: number; top?: number }): void;
   scrollBy(left: number, top: number): void;
+  /** Set a native editor selection using JavaScript UTF-16 offsets. */
+  setTextSelection(anchor: number, head?: number): void;
+  /** Select the complete value of a native text control. */
+  selectAll(): void;
+  /** Request native editor undo. */
+  undo(): void;
+  /** Request native editor redo. */
+  redo(): void;
 }
+
+const TEXT_COMMAND = {
+  SelectAll: 1,
+  Undo: 2,
+  Redo: 3,
+} as const;
 
 const nodeKeys = new NodeKeyAllocator();
 const listenersByNode = new NodeKeyTable<Map<number, (e: unknown) => void>>();
@@ -481,7 +501,16 @@ export function runSweep(): void {
 
 function imperativeMethods(
   id: NodeKey,
-): Pick<Handle, "focus" | "scrollTo" | "scrollBy"> {
+): Pick<
+  Handle,
+  | "focus"
+  | "scrollTo"
+  | "scrollBy"
+  | "setTextSelection"
+  | "selectAll"
+  | "undo"
+  | "redo"
+> {
   const coordinates = (
     first: number | { left?: number; top?: number },
     second?: number,
@@ -507,6 +536,11 @@ function imperativeMethods(
     focus: () => writer.focusNode(id),
     scrollTo,
     scrollBy,
+    setTextSelection: (anchor, head = anchor) =>
+      writer.setTextSelection(id, anchor, head),
+    selectAll: () => writer.textCommand(id, TEXT_COMMAND.SelectAll),
+    undo: () => writer.textCommand(id, TEXT_COMMAND.Undo),
+    redo: () => writer.textCommand(id, TEXT_COMMAND.Redo),
   };
 }
 
