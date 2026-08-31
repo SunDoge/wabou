@@ -2,6 +2,7 @@ import type { Handle } from "@wabou/core/renderer";
 import {
   Alert,
   Button,
+  createAsyncAction,
   Dialog,
   DialogDescription,
   DialogFooter,
@@ -21,19 +22,18 @@ export function SessionTitle(props: {
   rename: (name: string) => void | Promise<void>;
 }) {
   const [draft, setDraft] = createSignal(props.name);
-  const [pending, setPending] = createSignal(false);
-  const [error, setError] = createSignal("");
+  const rename = createAsyncAction((name: string) => props.rename(name));
   let input: Handle | undefined;
   return (
     <Dialog
       aria-label={i18n.message(m.rename_session, {})}
       initialFocus={() => input}
-      closeOnBackdrop={!pending()}
-      closeOnEscape={!pending()}
+      closeOnBackdrop={!rename.pending()}
+      closeOnEscape={!rename.pending()}
       onOpenChange={(open) => {
         if (open) {
           setDraft(props.name);
-          setError("");
+          rename.reset();
         }
       }}
       trigger={(trigger) => (
@@ -65,10 +65,14 @@ export function SessionTitle(props: {
                 ref={ref}
                 aria-label={i18n.message(m.session_name, {})}
                 value={draft()}
-                disabled={pending()}
+                disabled={rename.pending()}
                 onInput={(event) => setDraft(event.currentTarget.value)}
                 onKeyDown={(event) => {
-                  if (event.key !== "Enter" || !draft().trim() || pending())
+                  if (
+                    event.key !== "Enter" ||
+                    !draft().trim() ||
+                    rename.pending()
+                  )
                     return;
                   event.preventDefault();
                   void save(dialog.close);
@@ -76,28 +80,28 @@ export function SessionTitle(props: {
               />
             )}
           />
-          <Show when={error()}>
-            {(message) => (
+          <Show when={rename.error()}>
+            {(error) => (
               <Alert
                 variant="destructive"
                 title={i18n.message(m.rename_session_failed, {})}
                 class="p-3"
               >
-                {message()}
+                {String(error())}
               </Alert>
             )}
           </Show>
           <DialogFooter>
             <Button
               variant="outline"
-              disabled={pending()}
+              disabled={rename.pending()}
               onClick={dialog.close}
             >
               {i18n.message(m.cancel, {})}
             </Button>
             <Button
-              disabled={!draft().trim() || pending()}
-              loading={pending()}
+              disabled={!draft().trim() || rename.pending()}
+              loading={rename.pending()}
               loadingLabel={i18n.message(m.saving, {})}
               onClick={() => void save(dialog.close)}
             >
@@ -111,16 +115,8 @@ export function SessionTitle(props: {
 
   async function save(close: () => void) {
     const name = draft().trim();
-    if (!name || pending()) return;
-    setPending(true);
-    setError("");
-    try {
-      await props.rename(name);
-      close();
-    } catch (reason) {
-      setError(String(reason));
-    } finally {
-      setPending(false);
-    }
+    if (!name) return;
+    const result = await rename.run(name);
+    if (result.ok) close();
   }
 }

@@ -21,9 +21,12 @@ test("Pi Agent renames the current session from its header", async () => {
   name.input("Readable title");
   screen.getByRole("button", { name: "Save" }).click();
 
-  expect(renamed).toBe("Readable title");
   await Promise.resolve();
-  screen.flush();
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(renamed).toBe("Readable title");
   await screen.advanceTime(200);
   expect(screen.queryByRole("dialog", { name: "Rename session" })).toBeNull();
 });
