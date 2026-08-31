@@ -32,7 +32,10 @@ export function Input(props: InputProps): JSX.Element {
           : "native-editor"
       }
       class={mergeClasses(
-        "w-full flex items-center text-primary",
+        // Match GPUI Components' single-line editor frame: a 20px line box
+        // inside the 32px control with explicit vertical inset. The native
+        // widget owns editing; this component owns its visual geometry.
+        "w-full flex items-center py-2 text-primary",
         (props.chrome ?? "default") === "default"
           ? componentsControlSize("default")
           : componentsControlContentSize("default"),
