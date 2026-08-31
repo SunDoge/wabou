@@ -19,16 +19,29 @@ export function createAgentProfiles(options: {
 }) {
   const { api } = options;
   const [lastActiveId, setLastActiveId] = createSignal("agent-1");
-  let saveLoadedDefault = false;
+  const repairedLoads = new WeakSet<object>();
   const profiles = createPersistedValue<readonly AgentWorkspace[]>({
     initial: [createAgentWorkspace(1)],
     load: async () => {
       const stored = await api.listAgents();
-      if (stored.length > 0) return stored.map(restoreAgentWorkspace);
-      const initial = createAgentWorkspace(1);
-      initial.cwd = await api.defaultWorkspace(initial.id);
-      saveLoadedDefault = true;
-      return [initial];
+      const loaded =
+        stored.length > 0
+          ? stored.map(restoreAgentWorkspace)
+          : [createAgentWorkspace(1)];
+      let repaired = stored.length === 0;
+      const agents = await Promise.all(
+        loaded.map(async (agent) => {
+          if (agent.cwd.trim()) return agent;
+          repaired = true;
+          const cwd = await api.defaultWorkspace(agent.id);
+          return {
+            ...agent,
+            cwd,
+          };
+        }),
+      );
+      if (repaired) repairedLoads.add(agents);
+      return agents;
     },
     save: (agents) => api.saveAgents(agents.map(agentProfile)),
     onLoadError: (error) =>
@@ -70,8 +83,7 @@ export function createAgentProfiles(options: {
   };
 
   createEffect(agents, (current) => {
-    if (saveLoadedDefault) {
-      saveLoadedDefault = false;
+    if (repairedLoads.delete(current)) {
       profiles.set(current);
     }
     if (!current.some((agent) => agent.id === lastActiveId())) {

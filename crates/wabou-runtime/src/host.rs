@@ -1871,6 +1871,43 @@ mod tests {
     }
 
     #[test]
+    fn json_capability_can_be_awaited_through_an_extracted_method() {
+        let runtime = JsRuntime::new().expect("runtime");
+        runtime
+            .mount_capability("typed", |ctx, object| {
+                let capability = JsonCapability { ctx, object };
+                capability.method(JsonMethod::no_request("agents"), |(): ()| async move {
+                    Ok::<_, String>(vec!["agent-1"])
+                })
+            })
+            .expect("mount JSON capability");
+        runtime
+            .with(|ctx| {
+                ctx.eval::<(), _>(
+                    r#"
+                    globalThis.capabilityResult = undefined;
+                    async function load() {
+                      const capability = __wabou_capabilities.typed;
+                      const method = capability.agents;
+                      const raw = await method.call(capability);
+                      globalThis.capabilityResult = JSON.parse(raw).value[0];
+                    }
+                    void load();
+                    "#,
+                )
+            })
+            .expect("invoke extracted JSON method");
+        while runtime.poll_async_runtime() {}
+        assert_eq!(
+            runtime
+                .with(|ctx| ctx.eval::<Option<String>, _>("globalThis.capabilityResult"))
+                .expect("read JSON capability result")
+                .as_deref(),
+            Some("agent-1")
+        );
+    }
+
+    #[test]
     fn json_capability_publishes_the_shared_abi_version() {
         const CONTRACT: JsonCapabilityContract = JsonCapabilityContract::new("versioned", 7);
         let host = HostBuilder::new().json_capability(CONTRACT, |_capability| Ok(()));

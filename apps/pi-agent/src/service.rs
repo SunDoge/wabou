@@ -1185,10 +1185,21 @@ impl PiService {
     }
 
     fn agents(&self) -> Result<Vec<AgentProfile>, String> {
-        self.sessions
+        let mut catalog = self
+            .sessions
             .lock()
-            .map(|catalog| catalog.agents.clone())
-            .map_err(|_| "Pi session catalog lock poisoned".to_owned())
+            .map_err(|_| "Pi session catalog lock poisoned".to_owned())?;
+        if catalog.agents.is_empty() {
+            catalog.agents.push(AgentProfile {
+                id: "agent-1".to_owned(),
+                name: "Project 1".to_owned(),
+                cwd: default_workspace("agent-1")?,
+                provider: String::new(),
+                model: String::new(),
+            });
+            persist_catalog(&catalog)?;
+        }
+        Ok(catalog.agents.clone())
     }
 
     fn save_agents(&self, agents: Vec<AgentProfile>) -> Result<(), String> {

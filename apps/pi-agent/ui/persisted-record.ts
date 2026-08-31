@@ -41,6 +41,7 @@ export function createPersistedValue<T>(
   options: PersistedValueOptions<T>,
 ): PersistedValue<T> {
   let current = options.initial;
+  const [revision, setRevision] = createSignal(0, { ownedWrite: true });
   const [saveError, setSaveError] = createSignal<unknown>();
   const resource = createLatestAsyncResource({
     source: () => true,
@@ -48,6 +49,7 @@ export function createPersistedValue<T>(
     load: options.load,
     onCommit: (value) => {
       current = value;
+      setRevision((value) => value + 1);
     },
   });
   const writer = createDeferredWriter<T>({
@@ -67,11 +69,10 @@ export function createPersistedValue<T>(
     },
   );
   const value = () => {
-    resource.value();
+    revision();
     return current;
   };
   const set = (valueToSave: T) => {
-    current = valueToSave;
     setSaveError(undefined);
     resource.mutate(valueToSave);
     writer.schedule(valueToSave);

@@ -2,6 +2,7 @@ import {
   type Accessor,
   createEffect,
   createSignal,
+  flush,
   getOwner,
   onCleanup,
 } from "solid-js";
@@ -70,20 +71,24 @@ export function createLatestAsyncResource<K, T>(
     try {
       const next = await options.load(key, { signal });
       if (disposed || request !== generation) return undefined;
-      options.onCommit?.(next);
-      setValueBox({ value: next });
-      setStatus("ready");
+      flush(() => {
+        options.onCommit?.(next);
+        setValueBox({ value: next });
+        setStatus("ready");
+      });
       return next;
     } catch (cause) {
       if (disposed || request !== generation || signal.aborted)
         return undefined;
-      setError(cause);
-      setStatus("error");
+      flush(() => {
+        setError(cause);
+        setStatus("error");
+      });
       return undefined;
     } finally {
       if (!disposed && request === generation) {
         controller = undefined;
-        setLoading(false);
+        flush(() => setLoading(false));
       }
     }
   };

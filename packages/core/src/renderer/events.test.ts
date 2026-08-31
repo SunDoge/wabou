@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  createEffect,
   createRenderEffect,
   createRoot,
   createSignal,
@@ -188,6 +189,24 @@ test("mount manages the host root lifecycle", () => {
 
   dispose();
   runSweep();
+  writer.flush();
+});
+
+test("mount commits initial Solid effects before the first host frame", () => {
+  let effects = 0;
+  const dispose = mount(() => {
+    createEffect(
+      () => true,
+      () => {
+        effects++;
+      },
+    );
+    return createElement("main") as unknown as JSX.Element;
+  });
+
+  expect(effects).toBe(1);
+  writer.flush();
+  dispose();
   writer.flush();
 });
 

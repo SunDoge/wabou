@@ -59,8 +59,7 @@ describe("agent profiles", () => {
       flush();
     });
 
-    await Promise.resolve();
-    await Promise.resolve();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
     flush();
     clock.run();
 
@@ -109,6 +108,47 @@ describe("agent profiles", () => {
           cwd: "/work/PiWorkspace",
           provider: "",
           model: "",
+        },
+      ],
+    ]);
+    dispose();
+  });
+
+  test("repairs and persists a stored project with no workspace", async () => {
+    const clock = manualScheduler();
+    const saved: unknown[] = [];
+    let defaultWorkspaceCalls = 0;
+    let profiles!: ReturnType<typeof createAgentProfiles>;
+    let dispose!: () => void;
+    createRoot((rootDispose) => {
+      dispose = rootDispose;
+      profiles = createAgentProfiles({
+        api: {
+          listAgents: async () => [{ ...storedProject, cwd: "  " }],
+          saveAgents: async (agents: unknown) => saved.push(agents),
+          defaultWorkspace: async (id: string) => {
+            defaultWorkspaceCalls += 1;
+            return `/work/default/${id}`;
+          },
+        } as never,
+        routeAgentId: () => undefined,
+        scheduler: clock.scheduler,
+      });
+      flush();
+    });
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    flush();
+    clock.run();
+    await Promise.resolve();
+
+    expect(defaultWorkspaceCalls).toBe(1);
+    expect(profiles.active().cwd).toBe("/work/default/agent-4");
+    expect(saved).toEqual([
+      [
+        {
+          ...storedProject,
+          cwd: "/work/default/agent-4",
         },
       ],
     ]);

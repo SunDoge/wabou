@@ -303,4 +303,44 @@ mod tests {
             .expect("read mixed result");
         assert_eq!(result, Some(20));
     }
+
+    #[test]
+    fn boot_time_native_method_settles_after_the_host_wake_is_installed() {
+        const AGENTS: HostMethod<(), Vec<String>> = HostMethod::no_request("agents");
+        let runtime = JsRuntime::new().expect("runtime");
+        runtime
+            .mount_capability("bootTest", |ctx, object| {
+                NativeCapability { ctx, object }.method(AGENTS, |(): ()| async move {
+                    Ok::<_, String>(vec!["agent-1".to_owned()])
+                })
+            })
+            .expect("mount native capability");
+        runtime
+            .with(|ctx| {
+                ctx.eval::<(), _>(
+                    "globalThis.bootAgents = undefined; __wabou_capabilities.bootTest.agents().then(value => globalThis.bootAgents = value[0]);",
+                )
+            })
+            .expect("invoke boot native method");
+
+        let wake_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let callback_count = wake_count.clone();
+        runtime.set_wake_callback(std::sync::Arc::new(move || {
+            callback_count.fetch_add(1, std::sync::atomic::Ordering::Release);
+        }));
+        for _ in 0..8 {
+            runtime.take_async_wake();
+            if !runtime.poll_async_runtime() {
+                break;
+            }
+        }
+        assert_eq!(
+            runtime
+                .with(|ctx| ctx.eval::<Option<String>, _>("globalThis.bootAgents"))
+                .expect("read boot agents")
+                .as_deref(),
+            Some("agent-1")
+        );
+        assert!(wake_count.load(std::sync::atomic::Ordering::Acquire) >= 1);
+    }
 }

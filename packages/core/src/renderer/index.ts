@@ -35,7 +35,7 @@ export {
   TEXT_BEHAVIOR,
 } from "../protocol";
 
-import { createMemo, omit, untrack } from "solid-js";
+import { createMemo, flush, omit, untrack } from "solid-js";
 import type { HostCapabilities, WabouIntrinsicElements } from "../registry";
 import {
   type Affine2D,
@@ -1111,6 +1111,11 @@ export function mount(code: () => JSX.Element): () => void {
   mountState.overlayRoots.clear();
   registerRoot(root);
   const dispose = render(code, root);
+  // Solid 2 defers ordinary effects until an explicit transaction boundary.
+  // Commit the initial owner before Rust consumes the mount frame; otherwise
+  // startup effects (including capability-backed resource loads) can remain
+  // parked until the first unrelated native event.
+  flush();
   let disposed = false;
   const disposeMount = () => {
     if (disposed) return;

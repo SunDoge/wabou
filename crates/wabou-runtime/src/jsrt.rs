@@ -793,8 +793,13 @@ impl JsRuntime {
 
     pub(crate) fn set_wake_callback(&self, callback: wabou_shell::WakeCallback) {
         if let Ok(mut wake) = self.runtime_wake.callback.lock() {
-            *wake = Some(callback);
+            *wake = Some(callback.clone());
         }
+        // Bundle evaluation can enqueue QuickJS scheduler work before the
+        // native view installs its wake channel. That internal queue does not
+        // necessarily touch `RuntimeWake::pending`, so installing the callback
+        // is itself an edge: schedule one coalesced initial pump unconditionally.
+        callback();
     }
 
     /// Poll rquickjs's scheduler once with a waker backed by the native host. Pending
@@ -815,10 +820,12 @@ impl JsRuntime {
             let mut next = Box::pin(self.rt.execute_pending_job());
             match Pin::new(&mut next).poll(&mut task_context) {
                 Poll::Ready(Ok(true)) => progressed = true,
-                Poll::Ready(Ok(false)) | Poll::Pending => return progressed,
+                Poll::Ready(Ok(false)) | Poll::Pending => {
+                    return progressed || self.runtime_wake.pending.load(Ordering::Acquire);
+                }
                 Poll::Ready(Err(error)) => {
                     tracing::warn!(?error, "async JavaScript job failed");
-                    return progressed;
+                    return progressed || self.runtime_wake.pending.load(Ordering::Acquire);
                 }
             }
             if std::time::Instant::now() >= deadline {

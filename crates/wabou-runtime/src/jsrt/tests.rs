@@ -463,6 +463,37 @@ fn sleep_uses_rquickjs_async_scheduler_and_wakes_host() {
 }
 
 #[test]
+fn installing_a_wake_callback_replays_work_queued_during_boot() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let runtime = JsRuntime::new().expect("runtime");
+    runtime
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                "globalThis.bootWorkDone = false; __wabou_sleep(1).then(() => globalThis.bootWorkDone = true);",
+            )
+        })
+        .expect("start boot work");
+    assert!(runtime.poll_async_runtime(), "boot work must enter the scheduler");
+    std::thread::sleep(std::time::Duration::from_millis(20));
+
+    let wake_count = Arc::new(AtomicUsize::new(0));
+    let callback_count = wake_count.clone();
+    runtime.set_wake_callback(Arc::new(move || {
+        callback_count.fetch_add(1, Ordering::Release);
+    }));
+
+    assert_eq!(wake_count.load(Ordering::Acquire), 1);
+    assert!(runtime.take_async_wake());
+    assert!(runtime.poll_async_runtime());
+    assert!(
+        runtime
+            .with(|ctx| ctx.eval::<bool, _>("globalThis.bootWorkDone"))
+            .expect("read boot work state")
+    );
+}
+
+#[test]
 fn promise_jobs_are_time_sliced() {
     let runtime = JsRuntime::new().expect("runtime");
     let wake_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
