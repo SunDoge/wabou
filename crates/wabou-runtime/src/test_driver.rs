@@ -1668,6 +1668,12 @@ mod tests {
             },
             classes: Vec::new(),
             style_diagnostics: Vec::new(),
+            listeners: Vec::new(),
+            focus_order: None,
+            pointer_events: true,
+            z_index: 0,
+            overlay_plane: 0,
+            widget: None,
             computed: gpui_shell::GpuiComputedStyle {
                 position: "Relative".into(),
                 overflow_x: "Visible".into(),

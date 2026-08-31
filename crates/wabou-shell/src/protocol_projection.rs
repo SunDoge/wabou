@@ -45,6 +45,12 @@ pub struct GpuiLayoutNode {
     pub bounds: crate::gpui::Bounds<crate::gpui::Pixels>,
     pub classes: Vec<String>,
     pub style_diagnostics: Vec<String>,
+    pub listeners: Vec<u8>,
+    pub focus_order: Option<i32>,
+    pub pointer_events: bool,
+    pub z_index: usize,
+    pub overlay_plane: u8,
+    pub widget: Option<String>,
     pub computed: GpuiComputedStyle,
 }
 
@@ -546,6 +552,7 @@ impl GpuiProjection {
             .keys()
             .filter_map(|key| {
                 let node = self.tree.node(key)?;
+                let node_bounds = bounds.get(&key).copied().unwrap_or_default();
                 let mut style_diagnostics = self
                     .style_diagnostics
                     .get(&key)
@@ -569,9 +576,25 @@ impl GpuiProjection {
                     parent: node.parent,
                     attributes: node.attributes.clone(),
                     text: node.text.clone(),
-                    bounds: *bounds.get(&key)?,
+                    // Retained nodes remain observable even when GPUI omits
+                    // layout for `display: none` or before their first paint.
+                    // A zero rectangle is more useful than silently deleting
+                    // the node (and potentially its parent) from diagnostics.
+                    bounds: node_bounds,
                     classes: self.classes.get(&key).cloned().unwrap_or_default(),
                     style_diagnostics,
+                    listeners: node.listeners.iter().copied().collect(),
+                    focus_order: node.focus_order,
+                    pointer_events: node.pointer_events,
+                    z_index: node.z_index,
+                    overlay_plane: node.overlay_plane,
+                    widget: node
+                        .widget_config
+                        .as_ref()
+                        .and_then(|_| match &node.kind {
+                            ProjectedNodeKind::Element(tag) => Some(tag.to_string()),
+                            ProjectedNodeKind::Root | ProjectedNodeKind::Text => None,
+                        }),
                     computed: GpuiComputedStyle {
                         position: format!("{:?}", node.style.position),
                         overflow_x: format!("{:?}", node.style.overflow.x),

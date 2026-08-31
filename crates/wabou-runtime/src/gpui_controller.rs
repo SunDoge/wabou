@@ -33,6 +33,10 @@ pub struct GpuiController {
     last_primary_click: Option<(std::time::Instant, wabou_host_api::NodeKey, f32, f32)>,
     focused_target: Option<wabou_host_api::NodeKey>,
     last_window_metrics: Option<gpui_shell::WindowMetrics>,
+    #[cfg(feature = "devtools")]
+    debug_state: Option<wabou_devtools::SharedDebugState>,
+    #[cfg(feature = "devtools")]
+    published_debug_revision: Option<u64>,
 }
 
 impl GpuiController {
@@ -48,6 +52,10 @@ impl GpuiController {
             last_primary_click: None,
             focused_target: None,
             last_window_metrics: None,
+            #[cfg(feature = "devtools")]
+            debug_state: None,
+            #[cfg(feature = "devtools")]
+            published_debug_revision: None,
         }
     }
     pub(crate) fn set_image_resources(&mut self, resources: ImageResourceStore) {
@@ -1138,7 +1146,77 @@ impl GpuiController {
 
     #[cfg(feature = "devtools")]
     pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
-        self.runtime.js.set_debug_state(state);
+        self.runtime.js.set_debug_state(state.clone());
+        self.debug_state = Some(state);
+    }
+
+    #[cfg(feature = "devtools")]
+    pub(crate) fn debug_snapshot_needs_publish(&self) -> bool {
+        self.debug_state.is_some()
+            && self.published_debug_revision != Some(self.projection.revision())
+    }
+
+    #[cfg(feature = "devtools")]
+    pub(crate) fn publish_debug_snapshot(&mut self) {
+        self.publish_debug_snapshot_with_revision(true);
+    }
+
+    #[cfg(feature = "devtools")]
+    pub(crate) fn publish_provisional_debug_snapshot(&mut self) {
+        self.publish_debug_snapshot_with_revision(false);
+    }
+
+    #[cfg(feature = "devtools")]
+    fn publish_debug_snapshot_with_revision(&mut self, completed_layout: bool) {
+        let Some(state) = self.debug_state.clone() else {
+            return;
+        };
+        let metrics = self.last_window_metrics.unwrap_or_default();
+        let revision = self.projection.revision();
+        let nodes = self
+            .projection
+            .layout_snapshot()
+            .into_iter()
+            .map(|node| gpui_debug_node(node, metrics.scale_factor))
+            .collect::<Vec<_>>();
+        let frame_stats = self
+            .runtime
+            .frame_stats
+            .as_ref()
+            .and_then(|stats| *stats.borrow())
+            .map(|stats| wabou_host_api::FrameStats {
+                build_frame_ms: stats.build_frame_ms,
+                js_tick_ms: stats.js_tick_ms,
+                scene_ms: stats.scene_ms,
+                present_ms: stats.present_ms,
+                node_count: stats.node_count,
+                viewport_w: stats.viewport_w,
+                viewport_h: stats.viewport_h,
+            });
+        let snapshot = wabou_devtools::DebugSnapshot {
+            status: wabou_devtools::DebugStatus {
+                protocol_version: wabou_devtools::PROTOCOL_VERSION,
+                pid: std::process::id(),
+                revision,
+                viewport_width: metrics.logical_width,
+                viewport_height: metrics.logical_height,
+                device_scale: metrics.scale_factor,
+                node_count: nodes.len(),
+                text_backend: "gpui".into(),
+                text_outline_fallback: "gpui-text-system".into(),
+                frame_stats,
+                focused_node: self.focused_target,
+                hovered_node: self.hovered_target,
+                ..Default::default()
+            },
+            nodes,
+        };
+        if let Ok(mut state) = state.write() {
+            state.publish(snapshot);
+            if completed_layout {
+                self.published_debug_revision = Some(revision);
+            }
+        }
     }
 
     /// Cloneable producer handle for application Rust-to-JavaScript messages.
@@ -1157,6 +1235,73 @@ impl GpuiController {
             self.runtime.js.tokio_handle(),
             self.runtime.host_tasks.clone(),
         )
+    }
+}
+
+#[cfg(feature = "devtools")]
+fn gpui_debug_node(
+    node: gpui_shell::GpuiLayoutNode,
+    device_scale: f64,
+) -> wabou_devtools::DebugNode {
+    let x = f32::from(node.bounds.origin.x);
+    let y = f32::from(node.bounds.origin.y);
+    let width = f32::from(node.bounds.size.width).max(0.0);
+    let height = f32::from(node.bounds.size.height).max(0.0);
+    let rect = wabou_devtools::Rect {
+        x,
+        y,
+        width,
+        height,
+    };
+    let tag = match &node.kind {
+        gpui_shell::ProjectedNodeKind::Root => "root".to_owned(),
+        gpui_shell::ProjectedNodeKind::Element(tag) => tag.to_string(),
+        gpui_shell::ProjectedNodeKind::Text => "text".to_owned(),
+    };
+    let overlay_plane = match node.overlay_plane {
+        1 => "Floating",
+        2 => "Modal",
+        _ => "Content",
+    };
+    wabou_devtools::DebugNode {
+        id: node.key,
+        parent_id: node.parent,
+        tag,
+        text: node.text.map(|text| text.to_string()),
+        text_metrics: None,
+        classes: node.classes,
+        matched_rules: Vec::new(),
+        style_diagnostics: node.style_diagnostics,
+        style_cascade: Vec::new(),
+        attrs: node
+            .attributes
+            .into_iter()
+            .map(|(name, value)| (name.to_string(), value.to_string()))
+            .collect(),
+        rect: rect.clone(),
+        content_rect: rect,
+        listeners: node.listeners,
+        focusable: node.focus_order.is_some(),
+        focus_order: node.focus_order,
+        semantic: None,
+        widget: node.widget,
+        clip: wabou_devtools::DebugClipInfo {
+            device_scale,
+            ..Default::default()
+        },
+        computed: wabou_devtools::DebugComputedStyle {
+            position: Some(node.computed.position),
+            overflow_x: Some(node.computed.overflow_x),
+            overflow_y: Some(node.computed.overflow_y),
+            font_size: node.computed.font_size.unwrap_or(16.0),
+            font_weight: node.computed.font_weight.unwrap_or(400.0),
+            opacity: node.computed.opacity,
+            pointer_events: node.pointer_events,
+            z_index: node.z_index.min(i32::MAX as usize) as i32,
+            overlay_plane: overlay_plane.into(),
+            text_color: String::new(),
+            ..Default::default()
+        },
     }
 }
 
@@ -1288,6 +1433,45 @@ mod tests {
         assert_eq!(payload["scaleFactor"], 2.0);
         assert_eq!(payload["focused"], true);
         assert_eq!(payload["colorScheme"], "dark");
+    }
+
+    #[cfg(feature = "devtools")]
+    #[test]
+    fn gpui_controller_publishes_retained_state_to_devtools() {
+        let js = JsRuntime::new().expect("runtime");
+        install_application_message_probe(&js);
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            gpui_shell::initial_window_resource_key(0),
+        ));
+        let debug_state = wabou_devtools::DebugState::shared();
+        controller.set_debug_state(debug_state.clone());
+        controller.update_window_metrics(gpui_shell::WindowMetrics {
+            window_key: gpui_shell::initial_window_resource_key(0),
+            logical_width: 900,
+            logical_height: 640,
+            physical_width: 1800,
+            physical_height: 1280,
+            scale_factor: 2.0,
+            focused: true,
+            ..Default::default()
+        });
+
+        assert!(controller.debug_snapshot_needs_publish());
+        controller.publish_debug_snapshot();
+        assert!(!controller.debug_snapshot_needs_publish());
+
+        let state = debug_state.read().expect("debug state");
+        let snapshot = state.snapshot();
+        assert_eq!(snapshot.status.pid, std::process::id());
+        assert_eq!(snapshot.status.viewport_width, 900);
+        assert_eq!(snapshot.status.viewport_height, 640);
+        assert_eq!(snapshot.status.device_scale, 2.0);
+        assert_eq!(snapshot.status.text_backend, "gpui");
+        assert_eq!(snapshot.status.node_count, 1);
+        assert_eq!(snapshot.nodes[0].id, NodeKey::ROOT);
+        assert_eq!(snapshot.nodes[0].tag, "root");
+        assert_eq!(snapshot.nodes[0].clip.device_scale, 2.0);
     }
 
     #[test]

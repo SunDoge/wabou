@@ -940,6 +940,23 @@ impl Render for GpuiRuntimeView {
             frame_started.elapsed().as_secs_f64() * 1_000.0,
             (viewport_width, viewport_height),
         );
+        #[cfg(feature = "devtools")]
+        if self.controller.debug_snapshot_needs_publish() {
+            // Make structure and status observable immediately. Bounds are
+            // finalized below by GPUI, so this provisional publication does
+            // not retire the pending revision.
+            self.controller.publish_provisional_debug_snapshot();
+            // GPUI only finalizes element bounds after `Render::render`
+            // returns. Publish on the following platform-frame boundary so
+            // structure, resolved layout, focus, and timing all describe the
+            // same completed retained revision.
+            let view = cx.weak_entity();
+            window.on_next_frame(move |_, cx| {
+                let _ = view.update(cx, |view, _| {
+                    view.controller.publish_debug_snapshot();
+                });
+            });
+        }
         root
     }
 }
@@ -1010,9 +1027,15 @@ mod tests {
     fn solid_frame_draws_in_a_real_platform_headless_window() {
         let platform = gpui_platform::current_platform(true);
         let mut cx = HeadlessAppContext::new(platform.text_system());
+        #[cfg(feature = "devtools")]
+        let debug_state = wabou_devtools::DebugState::shared();
+        #[cfg(feature = "devtools")]
+        let view_debug_state = debug_state.clone();
         let handle = cx
             .open_window(size(px(800.0), px(600.0)), |window, app| {
                 let mut controller = test_controller();
+                #[cfg(feature = "devtools")]
+                controller.set_debug_state(view_debug_state);
                 controller
                     .boot(include_str!("gen/test-runtime.js"))
                     .expect("boot generated Solid runtime fixture");
@@ -1039,6 +1062,8 @@ mod tests {
         cx.update_window(handle.into(), |_, window, app| {
             let _ = window.draw(app);
             assert_eq!(window.bounds().size, size(px(800.0), px(600.0)));
+            #[cfg(feature = "devtools")]
+            assert!(window.simulate_next_frame(app) >= 1);
         })
         .expect("layout and draw the projected Solid frame");
         let root = handle.root(&mut cx).expect("GPUI runtime root entity");
@@ -1047,6 +1072,19 @@ mod tests {
             snapshot.iter().any(|node| node.key == NodeKey::new(2, 1)),
             "the real GPUI prepaint pass must publish bounds for the Solid fixture"
         );
+        #[cfg(feature = "devtools")]
+        {
+            let state = debug_state.read().expect("debug state");
+            let snapshot = state.snapshot();
+            assert!(snapshot.status.revision > 1);
+            assert_eq!(snapshot.status.node_count, snapshot.nodes.len());
+            assert!(
+                snapshot
+                    .nodes
+                    .iter()
+                    .any(|node| { node.id == NodeKey::new(2, 1) && node.rect.width > 0.0 })
+            );
+        }
     }
 
     #[test]
