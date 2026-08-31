@@ -71,3 +71,19 @@ test("listbox supports inspector rows with explicit geometry and accessible iden
   expect(option.text).toContain("file");
   expect(option.text).toContain("index.ts");
 });
+
+test("listbox supports fill layouts and trailing metadata", () => {
+  const screen = renderComponent(() => (
+    <Listbox
+      fill
+      aria-label="Skills"
+      options={[{ value: "review", label: "Review", description: "Project" }]}
+      renderTrailing={() => <Text aria-hidden="true">local</Text>}
+    />
+  ));
+
+  expect(screen.getByRole("listbox", { name: "Skills" })).toBeDefined();
+  expect(screen.getByRole("option", { name: "Review" }).text).toContain(
+    "local",
+  );
+});

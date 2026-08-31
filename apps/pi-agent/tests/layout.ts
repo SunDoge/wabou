@@ -458,7 +458,7 @@ try {
           getLayoutNode(fixture, { text: "Skills" });
           getLayoutNode(fixture, { role: "textbox", name: "Search skills" });
           getLayoutNode(fixture, {
-            role: "button",
+            role: "option",
             name: "Frontend design review",
           });
           getLayoutNode(fixture, {
@@ -476,7 +476,7 @@ try {
         assert: (fixture) => {
           getLayoutNode(fixture, { role: "textbox", name: "Search skills" });
           getLayoutNode(fixture, {
-            role: "button",
+            role: "option",
             name: "Frontend design review",
           });
           if (

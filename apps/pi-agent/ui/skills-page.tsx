@@ -12,14 +12,15 @@ import {
   EmptyMedia,
   EmptyTitle,
   Icon,
+  Listbox,
   Markdown,
   PageHeader,
   PageViewport,
   ScrollArea,
   SearchField,
-  Spinner,
   Text,
   View,
+  WorkbenchInspectorState,
 } from "@wabou/ui";
 import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
 import sparkles from "lucide-static/icons/sparkles.svg?raw";
@@ -28,8 +29,9 @@ import {
   createEffect,
   createMemo,
   createSignal,
-  For as ForValue,
+  Match,
   Show,
+  Switch,
 } from "solid-js";
 import type { PiSkill } from "./api";
 import { i18n, m } from "./i18n";
@@ -63,6 +65,13 @@ export function SkillsPage(props: SkillsPageProps) {
     const available = filtered();
     return available.find((skill) => skill.id === selectedId());
   });
+  const skillOptions = createMemo(() =>
+    filtered().map((skill) => ({
+      value: skill.id,
+      label: skill.name,
+      description: skill.description,
+    })),
+  );
   createEffect(
     () =>
       [
@@ -157,83 +166,64 @@ export function SkillsPage(props: SkillsPageProps) {
                       placeholder={i18n.message(m.search_skills, {})}
                     />
                   </View>
-                  <View class="min-h-0 flex-1 overflow-y-auto p-2 gap-1">
-                    <Show
-                      when={
-                        !skills.loading() || (skills.value()?.length ?? 0) > 0
-                      }
-                      fallback={
-                        <View
-                          role="status"
-                          aria-label={i18n.message(m.loading_skills, {})}
-                          class="p-3 flex flex-row items-center gap-2 text-secondary"
-                        >
-                          <Spinner label={i18n.message(m.loading_skills, {})} />
-                          <Text class="text-sm text-secondary">
-                            {i18n.message(m.loading_skills, {})}
-                          </Text>
-                        </View>
-                      }
-                    >
-                      <ForValue
-                        each={filtered()}
-                        fallback={
-                          <View class="p-4 flex flex-col items-center gap-2">
+                  <View class="min-h-0 flex-1 p-2 flex flex-col">
+                    <Switch>
+                      <Match
+                        when={
+                          skills.loading() &&
+                          (skills.value()?.length ?? 0) === 0
+                        }
+                      >
+                        <WorkbenchInspectorState
+                          state="loading"
+                          title={i18n.message(m.loading_skills, {})}
+                        />
+                      </Match>
+                      <Match when={filtered().length === 0}>
+                        <WorkbenchInspectorState
+                          state="empty"
+                          title={i18n.message(
+                            (skills.value()?.length ?? 0) === 0
+                              ? m.no_skills
+                              : m.no_skills_found,
+                            {},
+                          )}
+                          renderMedia={() => (
                             <Icon
                               source={sparkles}
                               size={20}
                               class="text-secondary"
                             />
-                            <Text role="status" class="text-sm text-secondary">
-                              {i18n.message(
-                                (skills.value()?.length ?? 0) === 0
-                                  ? m.no_skills
-                                  : m.no_skills_found,
-                                {},
-                              )}
-                            </Text>
-                          </View>
-                        }
-                      >
-                        {(skill) => (
-                          <Button
-                            variant={
-                              selected()?.id === skill.id
-                                ? "secondary"
-                                : "ghost"
-                            }
-                            class="w-full h-auto min-w-0 px-3 py-2.5 items-start justify-start"
-                            aria-label={skill.name}
-                            aria-selected={selected()?.id === skill.id}
-                            onClick={() => setSelectedId(skill.id)}
-                          >
-                            <View class="min-w-0 flex-1 flex flex-col items-start gap-1">
-                              <Text class="w-full truncate text-sm font-medium text-primary">
-                                {skill.name}
-                              </Text>
-                              <Show when={skill.description}>
-                                <Text class="w-full truncate text-xs text-secondary">
-                                  {skill.description}
-                                </Text>
-                              </Show>
-                              <View class="flex flex-row items-center gap-1.5 pt-0.5">
-                                <Badge variant="outline" weight="normal">
-                                  {i18n.message(
-                                    skill.scope === "project"
-                                      ? m.skill_scope_project
-                                      : m.skill_scope_user,
-                                    {},
-                                  )}
-                                </Badge>
-                                <Badge variant="ghost" weight="normal">
-                                  {skill.source === "pi" ? "Pi" : "Agents"}
-                                </Badge>
-                              </View>
-                            </View>
-                          </Button>
-                        )}
-                      </ForValue>
-                    </Show>
+                          )}
+                        />
+                      </Match>
+                      <Match when={true}>
+                        <Listbox
+                          fill
+                          aria-label={i18n.message(m.skills, {})}
+                          options={skillOptions()}
+                          value={selectedId() || undefined}
+                          itemHeight={56}
+                          itemClass="px-2"
+                          onValueChange={setSelectedId}
+                          renderTrailing={(option) => {
+                            const skill = filtered().find(
+                              (candidate) => candidate.id === option.value,
+                            );
+                            return skill === undefined ? null : (
+                              <Badge variant="outline" weight="normal">
+                                {i18n.message(
+                                  skill.scope === "project"
+                                    ? m.skill_scope_project
+                                    : m.skill_scope_user,
+                                  {},
+                                )}
+                              </Badge>
+                            );
+                          }}
+                        />
+                      </Match>
+                    </Switch>
                   </View>
                 </View>
               </AdaptiveSplitPaneMain>

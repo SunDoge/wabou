@@ -34,7 +34,10 @@ export interface ListboxProps {
   itemHeight?: number;
   /** Explicit scroll viewport height for inspector and split-pane layouts. */
   viewportHeight?: number;
+  /** Fill the available flex height instead of deriving a fixed viewport. */
+  fill?: boolean;
   renderLeading?: (option: ListboxOption) => JSX.Element;
+  renderTrailing?: (option: ListboxOption) => JSX.Element;
   onValueChange?: (value: string) => void;
   /** Invoked after pointer or keyboard activation of an enabled option. */
   onAction?: (value: string) => void;
@@ -119,9 +122,13 @@ export function Listbox(props: ListboxProps): JSX.Element {
 
   return (
     <ScrollArea
-      class={mergeClasses("w-full flex-none", props.class)}
+      class={mergeClasses(
+        "w-full",
+        props.fill ? "min-h-0 flex-1" : "flex-none",
+        props.class,
+      )}
       contentClass={mergeClasses("gap-1", props.listClass)}
-      style={{ height: `${viewportHeight()}px` }}
+      style={props.fill ? undefined : { height: `${viewportHeight()}px` }}
     >
       <View
         role="listbox"
@@ -174,6 +181,7 @@ export function Listbox(props: ListboxProps): JSX.Element {
                       </Text>
                     )}
                   </View>
+                  {props.renderTrailing?.(option())}
                   <View aria-hidden="true" class="w-4 h-4 flex-none">
                     {selected() && (
                       <Icon source={check} class="text-accent" size={16} />

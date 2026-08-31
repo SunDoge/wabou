@@ -42,7 +42,7 @@ test("skills page loads, filters, and selects native skill records", async () =>
 
   await screen.waitFor(() =>
     expect(
-      screen.getByRole("button", { name: "Review changes" }),
+      screen.getByRole("option", { name: "Review changes" }),
     ).toBeDefined(),
   );
   expect(load).toHaveBeenCalledWith("/work/project");
@@ -51,8 +51,8 @@ test("skills page loads, filters, and selects native skill records", async () =>
   );
 
   screen.getByRole("textbox", { name: "Search skills" }).input("frontend");
-  expect(screen.queryByRole("button", { name: "Review changes" })).toBeNull();
-  screen.getByRole("button", { name: "Frontend design" }).click();
+  expect(screen.queryByRole("option", { name: "Review changes" })).toBeNull();
+  screen.getByRole("option", { name: "Frontend design" }).click();
   expect(
     screen.getByRole("region", { name: "Frontend design" }).text,
   ).toContain("Start from the primary user task.");
@@ -77,12 +77,12 @@ test("skills page presents details as a controlled dialog in compact layouts", a
 
   await screen.waitFor(() =>
     expect(
-      screen.getByRole("button", { name: "Review changes" }),
+      screen.getByRole("option", { name: "Review changes" }),
     ).toBeDefined(),
   );
   expect(screen.queryByRole("dialog", { name: "Review changes" })).toBeNull();
 
-  screen.getByRole("button", { name: "Review changes" }).click();
+  screen.getByRole("option", { name: "Review changes" }).click();
   expect(screen.getByRole("dialog", { name: "Review changes" }).text).toContain(
     "Inspect the current diff before editing.",
   );
@@ -113,7 +113,7 @@ test("skills page exposes loading failures without losing page navigation", asyn
   screen.getByRole("button", { name: "Try again" }).click();
   await screen.waitFor(() =>
     expect(
-      screen.getByRole("button", { name: "Review changes" }),
+      screen.getByRole("option", { name: "Review changes" }),
     ).toBeDefined(),
   );
   expect(attempt).toBe(2);
