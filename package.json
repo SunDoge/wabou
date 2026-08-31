@@ -6,8 +6,9 @@
   "scripts": {
     "wabou": "cargo run -p wabou-cli --",
     "format": "biome format --write .",
-    "check": "bun run check:identity && turbo run check:types --filter='//'",
+    "check": "bun run check:identity && bun run check:architecture && turbo run check:types --filter='//'",
     "check:identity": "bun run scripts/check-for-identity.ts",
+    "check:architecture": "bun run scripts/check-gpui-boundary.ts",
     "check:types": "bun x tsc --noEmit",
     "verify": "bun run verify:js && bun run verify:rust && bun run bindings:check && bun run verify:behavior && bun run verify:layout && bun run verify:captures",
     "verify:js": "bun run check && bun run test && bun run packages:check && bun run scripts/publish-packages.ts --dry-run && bun run gen:check",
