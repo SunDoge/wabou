@@ -1,23 +1,18 @@
 import {
-  Alert,
   Button,
   CodeBlock,
   createLatestAsyncResource,
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
   Icon,
   Listbox,
   Markdown,
   ScrollArea,
   SearchField,
-  Spinner,
   Text,
   View,
   WorkbenchInspector,
   WorkbenchInspectorContent,
   WorkbenchInspectorHeader,
+  WorkbenchInspectorState,
 } from "@wabou/ui";
 import file from "lucide-static/icons/file.svg?raw";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
@@ -162,30 +157,20 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
           <Switch>
             <Match when={files.error() ?? previewError()}>
               {(error) => (
-                <Alert
-                  variant="destructive"
+                <WorkbenchInspectorState
+                  state="error"
                   title={i18n.message(m.file_preview_failed, {})}
-                >
-                  {String(error())}
-                </Alert>
+                  description={String(error())}
+                  class="p-4"
+                />
               )}
             </Match>
             <Match when={previewLoading()}>
-              <Empty
-                variant="plain"
-                role="status"
-                aria-label={i18n.message(m.loading_file_preview, {})}
-                class="h-full p-4 gap-3"
-              >
-                <EmptyMedia>
-                  <Spinner decorative />
-                </EmptyMedia>
-                <EmptyHeader>
-                  <EmptyDescription maxLines={1} class="min-h-0">
-                    {i18n.message(m.loading_file_preview, {})}
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
+              <WorkbenchInspectorState
+                state="loading"
+                title={i18n.message(m.loading_file_preview, {})}
+                class="p-4"
+              />
             </Match>
             <Match when={preview()}>
               {(value) => (
@@ -220,16 +205,16 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
               )}
             </Match>
             <Match when={true}>
-              <Empty variant="plain" class="h-full p-4 gap-3">
-                <EmptyMedia variant="icon">
-                  <Icon source={file} size={18} />
-                </EmptyMedia>
-                <EmptyHeader>
-                  <EmptyDescription maxLines={2}>
-                    {i18n.message(m.select_file_preview, {})}
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
+              <WorkbenchInspectorState
+                state="empty"
+                title={i18n.message(m.select_file_preview, {})}
+                class="p-4"
+                renderMedia={() => (
+                  <View class="w-10 h-10 flex-none rounded-lg bg-control text-primary flex items-center justify-center">
+                    <Icon source={file} size={18} />
+                  </View>
+                )}
+              />
             </Match>
           </Switch>
         </View>

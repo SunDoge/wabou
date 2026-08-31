@@ -1,5 +1,7 @@
+import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
-import { View, type ViewProps } from "../primitives";
+import { Text, View, type ViewProps } from "../primitives";
+import { Spinner } from "./display";
 import { Sidebar, type SidebarProps } from "./sidebar";
 import {
   workbenchClass,
@@ -79,5 +81,70 @@ export function WorkbenchInspectorContent(props: ViewProps): JSX.Element {
   const forwarded = omit(props, "class");
   return (
     <View {...forwarded} class={workbenchInspectorContentClass(props.class)} />
+  );
+}
+
+export type WorkbenchInspectorStateKind = "empty" | "loading" | "error";
+
+export interface WorkbenchInspectorStateProps
+  extends Omit<ViewProps, "children" | "role"> {
+  state: WorkbenchInspectorStateKind;
+  title: string;
+  description?: string;
+  /** Lazily render media inside the inspector state's reactive owner. */
+  renderMedia?: () => JSX.Element;
+  /** Lazily render actions inside the inspector state's reactive owner. */
+  renderAction?: () => JSX.Element;
+}
+
+/** Mutually exclusive centered state for a bounded inspector body. */
+export function WorkbenchInspectorState(
+  props: WorkbenchInspectorStateProps,
+): JSX.Element {
+  const forwarded = omit(
+    props,
+    "state",
+    "title",
+    "description",
+    "renderMedia",
+    "renderAction",
+    "class",
+  );
+  const error = () => props.state === "error";
+  return (
+    <View
+      {...forwarded}
+      role={error() ? "alert" : "status"}
+      aria-label={props["aria-label"] ?? props.title}
+      class={mergeClasses(
+        "w-full h-full min-w-0 min-h-0 flex-1 p-6 flex flex-col items-center justify-center gap-3 text-center",
+        error() ? "text-danger-primary" : "text-secondary",
+        props.class,
+      )}
+    >
+      {props.renderMedia?.() ??
+        (props.state === "loading" ? <Spinner decorative /> : null)}
+      <View class="w-full max-w-sm min-w-0 flex flex-col items-center gap-1">
+        <Text
+          class={mergeClasses(
+            "w-full min-w-0 whitespace-normal text-sm font-medium",
+            error() ? "text-danger-primary" : "text-primary",
+          )}
+        >
+          {props.title}
+        </Text>
+        {props.description === undefined ? null : (
+          <Text
+            class={mergeClasses(
+              "w-full min-w-0 whitespace-normal text-xs",
+              error() ? "text-danger-primary" : "text-muted",
+            )}
+          >
+            {props.description}
+          </Text>
+        )}
+      </View>
+      {props.renderAction?.()}
+    </View>
   );
 }

@@ -424,6 +424,31 @@ try {
         },
       },
       {
+        id: "workspace/changes-panel-error",
+        width: 360,
+        height: 520,
+        waitMs: 20,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, {
+            role: "alert",
+            name: "Could not load code changes",
+          });
+          const retry = queryLayoutNodes(fixture, {
+            role: "button",
+            name: "Try again",
+          });
+          if (retry.length !== 1) {
+            const buttons = queryLayoutNodes(fixture, { role: "button" }).map(
+              (node) => ({ text: node.text, attrs: node.attrs }),
+            );
+            throw new Error(
+              `retry action missing from error state: ${JSON.stringify(buttons)}`,
+            );
+          }
+        },
+      },
+      {
         id: "skills/catalog",
         width: 960,
         height: 720,

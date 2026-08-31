@@ -530,6 +530,19 @@ defineLayoutFixtures(
           />
         ),
       },
+      "workspace/changes-panel-error": {
+        width: 360,
+        height: 520,
+        render: () => (
+          <WorkspaceChangesPanel
+            cwd="/work/wabou"
+            load={async () => {
+              throw new Error("Repository unavailable");
+            }}
+            close={() => {}}
+          />
+        ),
+      },
       "skills/catalog": {
         width: 960,
         height: 720,

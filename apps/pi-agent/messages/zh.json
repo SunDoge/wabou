@@ -245,6 +245,7 @@
   "code_changes": "代码变更",
   "close_code_changes": "关闭代码变更",
   "loading_changes": "正在加载代码变更…",
+  "changes_load_failed": "无法加载代码变更",
   "files_changed": "修改了 {count} 个文件",
   "one_file_changed": "修改了 1 个文件",
   "additions": "新增 {count} 行",

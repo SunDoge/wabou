@@ -9,9 +9,11 @@ import {
   WorkbenchInspector,
   WorkbenchInspectorContent,
   WorkbenchInspectorHeader,
+  WorkbenchInspectorState,
 } from "@wabou/ui";
+import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import { Show } from "solid-js";
+import { Match, Switch } from "solid-js";
 import type { WorkspaceChanges } from "./api";
 import { i18n, m } from "./i18n";
 
@@ -48,24 +50,29 @@ export function WorkspaceChangesPanel(props: WorkspaceChangesPanelProps) {
         </Button>
       </WorkbenchInspectorHeader>
       <WorkbenchInspectorContent>
-        <ScrollArea class="flex-1 min-h-0" contentClass="p-3">
-          <Show
-            when={!changes.error()}
-            fallback={
-              <Text role="alert" class="text-sm text-danger-primary">
-                {String(changes.error())}
-              </Text>
-            }
-          >
-            <Show
-              when={changes.value()}
-              fallback={
-                <Text role="status" class="p-3 text-sm text-muted">
-                  {i18n.message(m.loading_changes, {})}
-                </Text>
-              }
-            >
-              {(value) => (
+        <Switch>
+          <Match when={changes.error()}>
+            {(error) => (
+              <WorkbenchInspectorState
+                state="error"
+                title={i18n.message(m.changes_load_failed, {})}
+                description={String(error())}
+                renderAction={() => (
+                  <Button
+                    variant="outline"
+                    aria-label={i18n.message(m.retry, {})}
+                    onClick={() => void changes.refresh()}
+                  >
+                    <Icon source={refreshCw} size={14} />
+                    {i18n.message(m.retry, {})}
+                  </Button>
+                )}
+              />
+            )}
+          </Match>
+          <Match when={changes.value()}>
+            {(value) => (
+              <ScrollArea class="flex-1 min-h-0" contentClass="p-3">
                 <DiffViewer
                   files={value().files}
                   labels={{
@@ -79,10 +86,16 @@ export function WorkspaceChangesPanel(props: WorkspaceChangesPanelProps) {
                     technicalDetails: i18n.message(m.technical_diff, {}),
                   }}
                 />
-              )}
-            </Show>
-          </Show>
-        </ScrollArea>
+              </ScrollArea>
+            )}
+          </Match>
+          <Match when={true}>
+            <WorkbenchInspectorState
+              state="loading"
+              title={i18n.message(m.loading_changes, {})}
+            />
+          </Match>
+        </Switch>
       </WorkbenchInspectorContent>
     </WorkbenchInspector>
   );
