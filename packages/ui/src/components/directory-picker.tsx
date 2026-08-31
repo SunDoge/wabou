@@ -1,7 +1,11 @@
-import { type PickDirectoryOptions, useDialog } from "@wabou/core";
+import {
+  createAsyncAction,
+  type PickDirectoryOptions,
+  useDialog,
+} from "@wabou/core";
 import folder from "lucide-static/icons/folder.svg?raw";
 import { mergeClasses } from "@wabou/core/style";
-import { createSignal, type JSX, omit } from "solid-js";
+import { type JSX, omit } from "solid-js";
 import { Icon } from "../primitives";
 import { directoryPickerOptions } from "./directory-picker-state";
 import {
@@ -29,8 +33,12 @@ export interface DirectoryPickerProps
 /** A controlled path input paired with the operating system directory picker. */
 export function DirectoryPicker(props: DirectoryPickerProps): JSX.Element {
   const nativeDialog = useDialog();
-  const [pending, setPending] = createSignal(false);
   const local = props;
+  const selection = createAsyncAction(() =>
+    nativeDialog.pickDirectory(
+      directoryPickerOptions(local.value, local.dialogOptions),
+    ),
+  );
   const inputProps = omit(
     props,
     "value",
@@ -46,24 +54,19 @@ export function DirectoryPicker(props: DirectoryPickerProps): JSX.Element {
   );
 
   async function browse(): Promise<void> {
-    if (pending() || inputProps.disabled) return;
-    setPending(true);
-    try {
-      const selected = await nativeDialog.pickDirectory(
-        directoryPickerOptions(local.value, local.dialogOptions),
-      );
-      if (selected !== null) local.onValueChange(selected);
-    } catch (error) {
-      if (local.onBrowseError) local.onBrowseError(error);
-      else throw error;
-    } finally {
-      setPending(false);
+    if (inputProps.disabled) return;
+    const result = await selection.run();
+    if (!result.ok) {
+      if (local.onBrowseError) local.onBrowseError(result.error);
+      else throw result.error;
+      return;
     }
+    if (result.value !== null) local.onValueChange(result.value);
   }
 
   return (
     <InputGroup
-      disabled={Boolean(inputProps.disabled) || pending()}
+      disabled={Boolean(inputProps.disabled) || selection.pending()}
       class={local.class}
     >
       <InputGroupInput
@@ -74,14 +77,14 @@ export function DirectoryPicker(props: DirectoryPickerProps): JSX.Element {
       />
       <InputGroupButton
         class={mergeClasses("flex-none", local.buttonClass)}
-        disabled={Boolean(inputProps.disabled) || pending()}
+        disabled={Boolean(inputProps.disabled) || selection.pending()}
         aria-label={
           local.browseAriaLabel ?? local.browseLabel ?? "Browse directory"
         }
         onClick={() => void browse()}
       >
         <Icon source={folder} size={14} />
-        {pending()
+        {selection.pending()
           ? (local.pendingLabel ?? "Opening…")
           : (local.browseLabel ?? "Browse…")}
       </InputGroupButton>

@@ -66,24 +66,36 @@ export function createAsyncAction<Args extends unknown[], T>(
     setPendingArgs(() => args);
     setError(undefined);
     inFlightArgs = args;
-    inFlight = Promise.resolve()
-      .then(() => action(...args))
-      .then(
-        (value): AsyncActionResult<T> => ({ ok: true, value }),
-        (cause): AsyncActionResult<T> => {
-          if (!disposed) setError(cause);
-          return { ok: false, error: cause };
-        },
-      )
-      .finally(() => {
-        inFlight = undefined;
-        inFlightArgs = undefined;
-        if (!disposed) {
-          setPending(false);
-          setPendingArgs(undefined);
-        }
-      });
-    return inFlight;
+    let resolveRequest!: (result: AsyncActionResult<T>) => void;
+    const request = new Promise<AsyncActionResult<T>>((resolve) => {
+      resolveRequest = resolve;
+    });
+    // Publish the single flight before invoking user code. The operation can
+    // start synchronously (important for native pickers and other direct
+    // feedback) without allowing a re-entrant call to start a second flight.
+    inFlight = request;
+    let outcome: PromiseLike<T> | T;
+    try {
+      outcome = action(...args);
+    } catch (cause) {
+      outcome = Promise.reject(cause);
+    }
+    void Promise.resolve(outcome).then(
+      (value) => settle({ ok: true, value }),
+      (cause) => settle({ ok: false, error: cause }),
+    );
+    return request;
+
+    function settle(result: AsyncActionResult<T>) {
+      if (!result.ok && !disposed) setError(result.error);
+      inFlight = undefined;
+      inFlightArgs = undefined;
+      if (!disposed) {
+        setPending(false);
+        setPendingArgs(undefined);
+      }
+      resolveRequest(result);
+    }
   };
 
   const reset = () => {

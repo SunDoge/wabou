@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { createRoot, flush } from "solid-js";
 import {
+  type AsyncActionResult,
   AsyncActionConflictError,
   createAsyncAction,
   createKeyedAsyncAction,
@@ -37,6 +38,22 @@ test("concurrent calls join one async action", async () => {
   expect(action.pending()).toBe(false);
   expect(action.pendingArgs()).toBeUndefined();
   expect(action.error()).toBeUndefined();
+});
+
+test("starts immediately while preserving a re-entrant single flight", async () => {
+  let nested: Promise<AsyncActionResult<number>> | undefined;
+  let calls = 0;
+  let action!: ReturnType<typeof createAsyncAction<[number], number>>;
+  action = createAsyncAction((value: number) => {
+    calls += 1;
+    nested = action.run(value);
+    return value * 2;
+  });
+
+  const outer = action.run(3);
+  expect(calls).toBe(1);
+  expect(nested).toBe(outer);
+  expect(await outer).toEqual({ ok: true, value: 6 });
 });
 
 test("concurrent calls do not silently discard different arguments", async () => {
