@@ -33,6 +33,7 @@ export function createLocale<const Locale extends string>(
   options: LocaleOptions<Locale> = {},
 ): LocaleController<Locale> {
   let current = initialLocale;
+  let flushScheduled = false;
   const [tracked, write] = createSignal<Locale>(() => current);
   const locale: Accessor<Locale> = () => {
     tracked();
@@ -44,7 +45,14 @@ export function createLocale<const Locale extends string>(
     set(next) {
       if (next === current) return;
       current = next;
-      flush(() => write(() => next));
+      write(() => next);
+      if (!flushScheduled) {
+        flushScheduled = true;
+        void Promise.resolve().then(() => {
+          flushScheduled = false;
+          flush();
+        });
+      }
       options.onChange?.(next);
     },
     message(message, inputs) {
