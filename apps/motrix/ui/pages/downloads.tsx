@@ -652,7 +652,6 @@ export function DownloadsPage() {
                   items={shown}
                   getItemKey={(task) => task.id}
                   itemHeight={64}
-                  overscan={4}
                   accessibilityLabel="Downloads"
                 >
                   {(task) => (

@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
 
 use gpui::{SharedString, Style};
 use wabou_protocol::TEXT_BEHAVIOR_SINGLE_LINE;
@@ -85,15 +88,45 @@ pub enum ProjectionError {
     InvalidChildIndex { parent: NodeKey, index: usize },
 }
 
+/// Immutable view of one committed retained node table.
+#[derive(Clone, Debug)]
+pub struct ProjectionSnapshot {
+    nodes: Rc<BTreeMap<NodeKey, ProjectedNode>>,
+}
+
+impl ProjectionSnapshot {
+    #[must_use]
+    pub fn node(&self, key: NodeKey) -> Option<&ProjectedNode> {
+        self.nodes.get(&key)
+    }
+
+    pub fn keys(&self) -> impl Iterator<Item = NodeKey> + '_ {
+        self.nodes.keys().copied()
+    }
+}
+
 /// Retained projection updated by completed Solid mutation batches.
 #[derive(Debug, Default)]
 pub struct ProjectionTree {
-    nodes: BTreeMap<NodeKey, ProjectedNode>,
+    nodes: Rc<BTreeMap<NodeKey, ProjectedNode>>,
     roots: Vec<NodeKey>,
     dirty: FrameBatch,
 }
 
 impl ProjectionTree {
+    fn nodes_mut(&mut self) -> &mut BTreeMap<NodeKey, ProjectedNode> {
+        Rc::make_mut(&mut self.nodes)
+    }
+
+    /// Freeze the retained node table for a GPUI callback without cloning
+    /// styles, attributes, text, or image handles.
+    #[must_use]
+    pub fn snapshot(&self) -> ProjectionSnapshot {
+        ProjectionSnapshot {
+            nodes: self.nodes.clone(),
+        }
+    }
+
     #[must_use]
     pub fn node(&self, key: NodeKey) -> Option<&ProjectedNode> {
         self.nodes.get(&key)
@@ -123,7 +156,8 @@ impl ProjectionTree {
     /// The objects are intentionally ephemeral; their stable GPUI element IDs
     /// preserve state and paint caches across frames.
     pub fn element(&self, root: NodeKey) -> Result<ProjectedElement, ProjectionError> {
-        ProjectedElement::from_tree(self, root, ProjectedElementContext::default(), false)
+        let snapshot = self.snapshot();
+        ProjectedElement::from_tree(snapshot, root, ProjectedElementContext::default(), false)
     }
 
     /// Materialize a root whose GPUI hit targets emit typed pointer events.
@@ -135,8 +169,9 @@ impl ProjectionTree {
         text_input: crate::ProjectedTextInputState,
         native: Option<ProjectedNativeElementFactory>,
     ) -> Result<ProjectedElement, ProjectionError> {
+        let snapshot = self.snapshot();
         ProjectedElement::from_tree(
-            self,
+            snapshot,
             root,
             ProjectedElementContext {
                 input: Some(input),
@@ -145,6 +180,7 @@ impl ProjectionTree {
                 native,
                 layout_bounds: None,
                 scroll_handles: None,
+                uniform_list_handles: None,
             },
             false,
         )
@@ -161,9 +197,13 @@ impl ProjectionTree {
         scroll_handles: std::rc::Rc<
             std::collections::BTreeMap<NodeKey, crate::ProjectedScrollHandle>,
         >,
+        uniform_list_handles: std::rc::Rc<
+            std::collections::BTreeMap<NodeKey, gpui::UniformListScrollHandle>,
+        >,
     ) -> Result<ProjectedElement, ProjectionError> {
+        let snapshot = self.snapshot();
         ProjectedElement::from_tree(
-            self,
+            snapshot,
             root,
             ProjectedElementContext {
                 input: Some(input),
@@ -172,6 +212,7 @@ impl ProjectionTree {
                 native,
                 layout_bounds: Some(layout_bounds),
                 scroll_handles: Some(scroll_handles),
+                uniform_list_handles: Some(uniform_list_handles),
             },
             false,
         )
@@ -222,7 +263,7 @@ impl ProjectionTree {
             return Err(ProjectionError::DuplicateNode(key));
         }
 
-        self.nodes.insert(
+        self.nodes_mut().insert(
             key,
             ProjectedNode {
                 key,
@@ -287,12 +328,12 @@ impl ProjectionTree {
         }
 
         self.detach_from_location(key);
-        self.nodes
+        self.nodes_mut()
             .get_mut(&parent)
             .expect("parent was validated")
             .children
             .insert(index, key);
-        let node = self.nodes.get_mut(&key).expect("child was validated");
+        let node = self.nodes_mut().get_mut(&key).expect("child was validated");
         node.parent = Some(parent);
         node.attached = true;
         self.invalidate_layout_chain(parent);
@@ -317,7 +358,7 @@ impl ProjectionTree {
             return Err(ProjectionError::InvalidChildIndex { parent: key, index });
         }
         self.roots.insert(index, key);
-        self.nodes
+        self.nodes_mut()
             .get_mut(&key)
             .expect("node was just inserted")
             .attached = true;
@@ -333,7 +374,7 @@ impl ProjectionTree {
             return;
         }
         if let Some(parent) = parent {
-            self.nodes
+            self.nodes_mut()
                 .get_mut(&parent)
                 .expect("attached parent remains retained")
                 .children
@@ -342,7 +383,10 @@ impl ProjectionTree {
         } else {
             self.roots.retain(|root| *root != key);
         }
-        let node = self.nodes.get_mut(&key).expect("node remains retained");
+        let node = self
+            .nodes_mut()
+            .get_mut(&key)
+            .expect("node remains retained");
         node.parent = None;
         node.attached = false;
     }
@@ -353,7 +397,7 @@ impl ProjectionTree {
         style: Style,
         dirty: DirtyKind,
     ) -> Result<(), ProjectionError> {
-        self.nodes
+        self.nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?
             .style = style;
@@ -369,7 +413,7 @@ impl ProjectionTree {
         key: NodeKey,
         text: Option<SharedString>,
     ) -> Result<(), ProjectionError> {
-        self.nodes
+        self.nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?
             .text = text;
@@ -384,7 +428,7 @@ impl ProjectionTree {
         key: NodeKey,
         config: Option<SharedString>,
     ) -> Result<(), ProjectionError> {
-        self.nodes
+        self.nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?
             .widget_config = config;
@@ -397,7 +441,7 @@ impl ProjectionTree {
 
     pub fn update_text_behavior(&mut self, key: NodeKey, flags: u8) -> Result<(), ProjectionError> {
         let node = self
-            .nodes
+            .nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?;
         node.text_behavior = flags;
@@ -415,7 +459,7 @@ impl ProjectionTree {
         max_lines: u32,
     ) -> Result<(), ProjectionError> {
         let node = self
-            .nodes
+            .nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?;
         node.text_max_lines = max_lines;
@@ -432,7 +476,7 @@ impl ProjectionTree {
         key: NodeKey,
         image: Option<std::sync::Arc<gpui::Image>>,
     ) -> Result<(), ProjectionError> {
-        self.nodes
+        self.nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?
             .image = image;
@@ -447,7 +491,7 @@ impl ProjectionTree {
         key: NodeKey,
         transform: [f32; 6],
     ) -> Result<(), ProjectionError> {
-        self.nodes
+        self.nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?
             .transform = transform;
@@ -463,7 +507,7 @@ impl ProjectionTree {
         name: SharedString,
         value: SharedString,
     ) -> Result<(), ProjectionError> {
-        self.nodes
+        self.nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?
             .attributes
@@ -477,7 +521,7 @@ impl ProjectionTree {
 
     /// Remove one authored attribute without publishing a partial frame.
     pub fn remove_attribute(&mut self, key: NodeKey, name: &str) -> Result<(), ProjectionError> {
-        self.nodes
+        self.nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?
             .attributes
@@ -494,7 +538,7 @@ impl ProjectionTree {
         key: NodeKey,
         event_type: u8,
     ) -> Result<(), ProjectionError> {
-        self.nodes
+        self.nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?
             .listeners
@@ -508,7 +552,7 @@ impl ProjectionTree {
         key: NodeKey,
         event_type: u8,
     ) -> Result<(), ProjectionError> {
-        self.nodes
+        self.nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?
             .listeners
@@ -525,7 +569,7 @@ impl ProjectionTree {
         contained: bool,
     ) -> Result<(), ProjectionError> {
         let node = self
-            .nodes
+            .nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?;
         node.focus_order = focus_order;
@@ -541,7 +585,7 @@ impl ProjectionTree {
         key: NodeKey,
         enabled: bool,
     ) -> Result<(), ProjectionError> {
-        self.nodes
+        self.nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?
             .pointer_events = enabled;
@@ -550,7 +594,7 @@ impl ProjectionTree {
     }
 
     pub fn update_z_index(&mut self, key: NodeKey, z_index: usize) -> Result<(), ProjectionError> {
-        self.nodes
+        self.nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?
             .z_index = z_index;
@@ -564,7 +608,7 @@ impl ProjectionTree {
         key: NodeKey,
         overlay_plane: u8,
     ) -> Result<(), ProjectionError> {
-        self.nodes
+        self.nodes_mut()
             .get_mut(&key)
             .ok_or(ProjectionError::MissingNode(key))?
             .overlay_plane = overlay_plane.min(2);
@@ -585,7 +629,7 @@ impl ProjectionTree {
         self.collect_subtree(key, &mut removed);
 
         if let Some(parent) = parent {
-            self.nodes
+            self.nodes_mut()
                 .get_mut(&parent)
                 .expect("a projected child must retain its parent")
                 .children
@@ -596,7 +640,7 @@ impl ProjectionTree {
         }
 
         for removed_key in &removed {
-            self.nodes.remove(removed_key);
+            self.nodes_mut().remove(removed_key);
             self.dirty.invalidate(
                 *removed_key,
                 DirtyKind::LAYOUT
@@ -780,5 +824,28 @@ mod tests {
         assert_eq!(tree.revision(), 1);
         assert!(tree.commit().is_empty());
         assert_eq!(tree.revision(), 1);
+    }
+
+    #[test]
+    fn snapshots_keep_the_last_committed_nodes_while_the_next_batch_mutates() {
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key(1),
+            None,
+            0,
+            Style::default(),
+            Some("before".into()),
+            ProjectedNodeKind::Text,
+        )
+        .unwrap();
+        let snapshot = tree.snapshot();
+
+        tree.update_text(key(1), Some("after".into())).unwrap();
+
+        assert_eq!(
+            snapshot.node(key(1)).unwrap().text.as_deref(),
+            Some("before")
+        );
+        assert_eq!(tree.node(key(1)).unwrap().text.as_deref(), Some("after"));
     }
 }

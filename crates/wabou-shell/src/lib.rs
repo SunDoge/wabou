@@ -29,7 +29,9 @@ pub use protocol_projection::{
     GpuiTextControl, project_ir,
 };
 pub use style::{StyleDiagnostic, StyleProjection};
-pub use tree::{ProjectedNode, ProjectedNodeKind, ProjectionError, ProjectionTree};
+pub use tree::{
+    ProjectedNode, ProjectedNodeKind, ProjectionError, ProjectionSnapshot, ProjectionTree,
+};
 pub use wabou_shell_api::event::*;
 pub use wabou_shell_api::{
     AppDirectories, AppDirectoryConfig, CapabilityId, ContextMenuItem, ContextMenuRequest,

@@ -4,14 +4,16 @@ use gpui::{
     AnyElement, App, Bounds, DispatchPhase, Element, ElementId, FocusHandle, GlobalElementId,
     Hitbox, HitboxBehavior, InspectorElementId, IntoElement, KeyDownEvent, KeyUpEvent, LayoutId,
     MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Overflow, Pixels, ScrollDelta,
-    ScrollWheelEvent, TouchPhase, Visibility, Window, div, prelude::*,
+    ScrollWheelEvent, TouchPhase, UniformListScrollHandle, Visibility, Window, div, prelude::*,
+    uniform_list,
 };
 
+use crate::ProjectionSnapshot;
 use crate::{
     GpuiNodeKeyExt, NodeKey, ProjectedInputEvent, ProjectedInputSink, ProjectedKeyEvent,
     ProjectedKeyPhase, ProjectedNode, ProjectedNodeKind, ProjectedPointerButton,
     ProjectedPointerEvent, ProjectedPointerPhase, ProjectedScrollEvent, ProjectedTextInputState,
-    ProjectedWheelEvent, ProjectedWheelPhase, ProjectionError, ProjectionTree,
+    ProjectedWheelEvent, ProjectedWheelPhase, ProjectionError,
 };
 use wabou_protocol::{TEXT_BEHAVIOR_AGGREGATE_DIRECT, TEXT_BEHAVIOR_AGGREGATE_STYLED};
 
@@ -125,6 +127,7 @@ pub(crate) struct ProjectedElementContext {
     pub(crate) native: Option<ProjectedNativeElementFactory>,
     pub(crate) layout_bounds: Option<ProjectedLayoutBounds>,
     pub(crate) scroll_handles: Option<Rc<BTreeMap<NodeKey, ProjectedScrollHandle>>>,
+    pub(crate) uniform_list_handles: Option<Rc<BTreeMap<NodeKey, UniformListScrollHandle>>>,
 }
 
 impl ProjectedElementContext {
@@ -166,7 +169,7 @@ pub struct ProjectedRequestLayoutState {
 
 impl ProjectedElement {
     pub(crate) fn from_tree(
-        tree: &ProjectionTree,
+        tree: ProjectionSnapshot,
         key: NodeKey,
         context: ProjectedElementContext,
         ancestor_blocked: bool,
@@ -176,15 +179,52 @@ impl ProjectedElement {
         let native_child = context.native.as_ref().and_then(|factory| factory(key));
         let mut children =
             Vec::with_capacity(node.children.len() + usize::from(node.text.is_some()));
-        if let Some(native_child) = native_child {
+        let is_uniform_list = matches!(
+            &node.kind,
+            ProjectedNodeKind::Element(tag) if tag.as_ref() == "virtual-list"
+        );
+        if is_uniform_list {
+            let row_keys = node.children.clone();
+            let row_count = row_keys.len();
+            let row_tree = tree.clone();
+            let row_context = context.for_child();
+            let list = uniform_list(
+                format!("wabou-uniform-list-{}-{}", key.hi, key.lo),
+                row_count,
+                move |range, _window, _cx| {
+                    range
+                        .map(|index| {
+                            Self::from_tree(
+                                row_tree.clone(),
+                                row_keys[index],
+                                row_context.clone(),
+                                interaction_blocked,
+                            )
+                            .expect("uniform-list rows belong to the validated snapshot")
+                        })
+                        .collect::<Vec<_>>()
+                },
+            );
+            let list = if let Some(handle) = context
+                .uniform_list_handles
+                .as_ref()
+                .and_then(|handles| handles.get(&key))
+            {
+                list.track_scroll(handle).size_full()
+            } else {
+                list.size_full()
+            };
+            children.push(list.into_any_element());
+        } else if let Some(native_child) = native_child {
             children.push(native_child);
-        } else if let Some(text) = projected_text(tree, node) {
+        } else if let Some(text) = projected_text(&tree, node) {
             children.push(div().child(text).into_any_element());
         }
         if let Some(image) = &node.image {
             children.push(gpui::img(image.clone()).size_full().into_any_element());
         }
-        for child in &node.children {
+        let ordinary_children: &[NodeKey] = if is_uniform_list { &[] } else { &node.children };
+        for child in ordinary_children {
             if node.text_behavior & TEXT_BEHAVIOR_AGGREGATE_DIRECT != 0
                 && tree
                     .node(*child)
@@ -192,8 +232,12 @@ impl ProjectedElement {
             {
                 continue;
             }
-            let projected =
-                Self::from_tree(tree, *child, context.for_child(), interaction_blocked)?;
+            let projected = Self::from_tree(
+                tree.clone(),
+                *child,
+                context.for_child(),
+                interaction_blocked,
+            )?;
             let priority = tree
                 .node(*child)
                 .ok_or(ProjectionError::MissingNode(*child))?
@@ -241,7 +285,7 @@ impl ProjectedElement {
     }
 }
 
-fn projected_text(tree: &ProjectionTree, node: &ProjectedNode) -> Option<gpui::SharedString> {
+fn projected_text(tree: &ProjectionSnapshot, node: &ProjectedNode) -> Option<gpui::SharedString> {
     if let Some(text) = &node.text {
         return Some(text.clone());
     }
@@ -646,6 +690,7 @@ impl Element for ProjectedElement {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ProjectionTree;
     use std::{cell::RefCell, rc::Rc};
 
     use gpui::{Context, Keystroke, Modifiers, Style, TestAppContext, point, px};
@@ -664,9 +709,13 @@ mod tests {
         )
         .unwrap();
 
-        let element =
-            ProjectedElement::from_tree(&tree, key, ProjectedElementContext::default(), false)
-                .unwrap();
+        let element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            key,
+            ProjectedElementContext::default(),
+            false,
+        )
+        .unwrap();
         assert_eq!(element.id(), Some(key.gpui_element_id()));
     }
 
@@ -686,9 +735,13 @@ mod tests {
         tree.update_transform(key, [1.0, 0.0, 0.0, 1.0, 14.0, -6.0])
             .unwrap();
 
-        let element =
-            ProjectedElement::from_tree(&tree, key, ProjectedElementContext::default(), false)
-                .unwrap();
+        let element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            key,
+            ProjectedElementContext::default(),
+            false,
+        )
+        .unwrap();
         assert_eq!(element.translation(), point(px(14.0), px(-6.0)));
         assert_eq!(element.style.size.width, Style::default().size.width);
         assert_eq!(element.style.size.height, Style::default().size.height);
@@ -710,14 +763,14 @@ mod tests {
         tree.update_attribute(key, "placeholder".into(), "Search".into())
             .unwrap();
         assert_eq!(
-            projected_text(&tree, tree.node(key).unwrap()),
+            projected_text(&tree.snapshot(), tree.node(key).unwrap()),
             Some("Search".into())
         );
 
         tree.update_attribute(key, "value".into(), "typed".into())
             .unwrap();
         assert_eq!(
-            projected_text(&tree, tree.node(key).unwrap()),
+            projected_text(&tree.snapshot(), tree.node(key).unwrap()),
             Some("typed".into())
         );
     }
@@ -759,12 +812,16 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            projected_text(&tree, tree.node(parent).unwrap()),
+            projected_text(&tree.snapshot(), tree.node(parent).unwrap()),
             Some("Hello GPUI".into())
         );
-        let element =
-            ProjectedElement::from_tree(&tree, parent, ProjectedElementContext::default(), false)
-                .unwrap();
+        let element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            parent,
+            ProjectedElementContext::default(),
+            false,
+        )
+        .unwrap();
         assert_eq!(element.children.len(), 1);
     }
 
@@ -801,7 +858,7 @@ mod tests {
         });
 
         ProjectedElement::from_tree(
-            &tree,
+            tree.snapshot(),
             NodeKey::ROOT,
             ProjectedElementContext {
                 native: Some(factory),
@@ -841,7 +898,7 @@ mod tests {
         let input: ProjectedInputSink = Rc::new(|_, _| {});
 
         let root = ProjectedElement::from_tree(
-            &tree,
+            tree.snapshot(),
             NodeKey::ROOT,
             ProjectedElementContext {
                 input: Some(input.clone()),
@@ -880,7 +937,7 @@ mod tests {
         let input: ProjectedInputSink = Rc::new(|_, _| {});
 
         let root = ProjectedElement::from_tree(
-            &tree,
+            tree.snapshot(),
             NodeKey::ROOT,
             ProjectedElementContext {
                 input: Some(input.clone()),
@@ -892,7 +949,7 @@ mod tests {
 
         assert!(root.input.is_none());
         let child = ProjectedElement::from_tree(
-            &tree,
+            tree.snapshot(),
             child,
             ProjectedElementContext {
                 input: Some(input),
@@ -931,7 +988,7 @@ mod tests {
         let bounds = ProjectedLayoutBounds::default();
         let observed = bounds.clone();
         let element = ProjectedElement::from_tree(
-            &tree,
+            tree.snapshot(),
             key,
             ProjectedElementContext {
                 layout_bounds: Some(bounds),
@@ -1063,7 +1120,7 @@ mod tests {
 
         let materialize = || {
             ProjectedElement::from_tree(
-                &tree,
+                tree.snapshot(),
                 parent,
                 ProjectedElementContext {
                     layout_bounds: Some(bounds.clone()),
@@ -1089,6 +1146,84 @@ mod tests {
             |_, _| materialize(),
         );
         assert_eq!(bounds.borrow()[&child].origin.y, px(-50.0));
+    }
+
+    #[gpui::test]
+    fn uniform_virtual_list_materializes_only_gpui_visible_rows(cx: &mut TestAppContext) {
+        struct LayoutHost {
+            tree: ProjectionSnapshot,
+            root: NodeKey,
+            bounds: ProjectedLayoutBounds,
+            list_handles: Rc<BTreeMap<NodeKey, UniformListScrollHandle>>,
+        }
+        impl gpui::Render for LayoutHost {
+            fn render(
+                &mut self,
+                _window: &mut Window,
+                _cx: &mut Context<Self>,
+            ) -> impl IntoElement {
+                ProjectedElement::from_tree(
+                    self.tree.clone(),
+                    self.root,
+                    ProjectedElementContext {
+                        layout_bounds: Some(self.bounds.clone()),
+                        uniform_list_handles: Some(self.list_handles.clone()),
+                        ..Default::default()
+                    },
+                    false,
+                )
+                .unwrap()
+            }
+        }
+
+        let list = NodeKey::new(200, 1);
+        let mut list_style = Style::default();
+        list_style.size.width = px(100.0).into();
+        list_style.size.height = px(100.0).into();
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            list,
+            None,
+            0,
+            list_style,
+            None,
+            ProjectedNodeKind::Element("virtual-list".into()),
+        )
+        .unwrap();
+        for index in 0..100 {
+            let mut row_style = Style::default();
+            row_style.size.width = gpui::relative(1.0).into();
+            row_style.size.height = px(20.0).into();
+            row_style.flex_shrink = 0.0;
+            tree.insert(
+                NodeKey::new(201 + index, 1),
+                Some(list),
+                index as usize,
+                row_style,
+                Some(format!("row {index}").into()),
+                ProjectedNodeKind::Element("view".into()),
+            )
+            .unwrap();
+        }
+
+        let bounds = ProjectedLayoutBounds::default();
+        let list_handles = Rc::new(BTreeMap::from([(list, UniformListScrollHandle::default())]));
+        let (_host, _window) = cx.add_window_view(|_, _| LayoutHost {
+            tree: tree.snapshot(),
+            root: list,
+            bounds: bounds.clone(),
+            list_handles,
+        });
+
+        let visible_rows = bounds.borrow().keys().filter(|key| **key != list).count();
+        assert!(
+            visible_rows > 0,
+            "the native list must materialize visible rows"
+        );
+        assert!(
+            visible_rows < 100,
+            "the native list materialized all {visible_rows} retained rows"
+        );
     }
 
     #[test]

@@ -79,6 +79,7 @@ pub struct GpuiProjection {
     layout_bounds: crate::element::ProjectedLayoutBounds,
     pending_commands: Vec<GpuiCommand>,
     scroll_handles: std::collections::BTreeMap<NodeKey, crate::ProjectedScrollHandle>,
+    uniform_list_handles: std::collections::BTreeMap<NodeKey, crate::gpui::UniformListScrollHandle>,
     protocol_gaps: std::collections::HashMap<NodeKey, std::collections::BTreeSet<&'static str>>,
 }
 
@@ -114,6 +115,7 @@ impl GpuiProjection {
             layout_bounds: Default::default(),
             pending_commands: Vec::new(),
             scroll_handles,
+            uniform_list_handles: Default::default(),
             protocol_gaps: std::collections::HashMap::new(),
         }
     }
@@ -140,6 +142,9 @@ impl GpuiProjection {
                         ProjectedNodeKind::Element(tag.into()),
                     )?;
                     self.scroll_handles.entry(*id).or_default();
+                    if tag == "virtual-list" {
+                        self.uniform_list_handles.entry(*id).or_default();
+                    }
                 }
                 Op::CreateText { id, text } => {
                     self.tree.insert_detached(
@@ -280,6 +285,7 @@ impl GpuiProjection {
                         self.style_diagnostics.remove(&key);
                         self.protocol_gaps.remove(&key);
                         self.scroll_handles.remove(&key);
+                        self.uniform_list_handles.remove(&key);
                     }
                 }
                 Op::SetGraphicSource { id, kind, source } => match *kind {
@@ -511,6 +517,7 @@ impl GpuiProjection {
             native,
             self.layout_bounds.clone(),
             std::rc::Rc::new(self.scroll_handles.clone()),
+            std::rc::Rc::new(self.uniform_list_handles.clone()),
         )
     }
 
