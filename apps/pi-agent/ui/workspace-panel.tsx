@@ -128,34 +128,56 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
           aria-label={i18n.message(m.search_workspace_files, {})}
           placeholder={i18n.message(m.search_workspace_files, {})}
         />
-        <View class="h-56 flex-none min-h-0 rounded-lg border border-subtle overflow-hidden">
-          <Show
-            when={!files.loading() || (files.value()?.length ?? 0) > 0}
-            fallback={
-              <Text role="status" class="p-3 text-sm text-muted">
-                {i18n.message(m.loading_files, {})}
-              </Text>
-            }
-          >
-            <Listbox
-              aria-label={i18n.message(m.workspace_files, {})}
-              options={fileOptions()}
-              value={selected()}
-              viewportHeight={224}
-              itemHeight={48}
-              listClass="p-1 gap-0.5"
-              itemClass="rounded-md"
-              emptyText={i18n.message(m.no_files_found, {})}
-              renderLeading={() => (
-                <Icon source={file} size={14} class="flex-none text-muted" />
+        <View class="h-56 flex-none min-h-0 flex flex-col rounded-lg border border-subtle overflow-hidden">
+          <Switch>
+            <Match when={files.loading() && (files.value()?.length ?? 0) === 0}>
+              <WorkbenchInspectorState
+                state="loading"
+                title={i18n.message(m.loading_files, {})}
+                class="p-4"
+              />
+            </Match>
+            <Match when={files.error()}>
+              {(error) => (
+                <WorkbenchInspectorState
+                  state="error"
+                  title={i18n.message(m.workspace_files_load_failed, {})}
+                  description={String(error())}
+                  class="p-4"
+                  renderAction={() => (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label={i18n.message(m.retry, {})}
+                      onClick={() => void files.refresh()}
+                    >
+                      {i18n.message(m.retry, {})}
+                    </Button>
+                  )}
+                />
               )}
-              onAction={choose}
-            />
-          </Show>
+            </Match>
+            <Match when={true}>
+              <Listbox
+                fill
+                aria-label={i18n.message(m.workspace_files, {})}
+                options={fileOptions()}
+                value={selected()}
+                itemHeight={48}
+                listClass="p-1 gap-0.5"
+                itemClass="rounded-md"
+                emptyText={i18n.message(m.no_files_found, {})}
+                renderLeading={() => (
+                  <Icon source={file} size={14} class="flex-none text-muted" />
+                )}
+                onAction={choose}
+              />
+            </Match>
+          </Switch>
         </View>
         <View class="flex-1 min-h-0 flex flex-col gap-2">
           <Switch>
-            <Match when={files.error() ?? previewError()}>
+            <Match when={previewError()}>
               {(error) => (
                 <WorkbenchInspectorState
                   state="error"

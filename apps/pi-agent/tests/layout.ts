@@ -408,8 +408,9 @@ try {
         assert: (fixture) => {
           getLayoutNode(fixture, {
             role: "alert",
-            name: "Could not load the file preview",
+            name: "Could not load workspace files",
           });
+          getLayoutNode(fixture, { role: "button", name: "Try again" });
         },
       },
       {

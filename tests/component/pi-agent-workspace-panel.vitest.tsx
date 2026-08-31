@@ -82,3 +82,35 @@ test("workspace preview exposes mutually exclusive empty, loading, and error sta
     screen.queryByRole("status", { name: "Loading file preview…" }),
   ).toBeNull();
 });
+
+test("workspace file loading failure is retryable and does not masquerade as a preview error", async () => {
+  let attempt = 0;
+  const screen = renderComponent(() => (
+    <WorkspacePanel
+      cwd="/work/project"
+      loadFiles={async () => {
+        attempt += 1;
+        if (attempt === 1) throw new Error("repository unavailable");
+        return ["src/index.ts"];
+      }}
+      readFile={async (_cwd, path) => ({ path, text: "content" })}
+      addContext={() => {}}
+      close={() => {}}
+    />
+  ));
+
+  await screen.waitFor(() =>
+    expect(
+      screen.getByRole("alert", { name: "Could not load workspace files" })
+        .text,
+    ).toContain("repository unavailable"),
+  );
+  expect(
+    screen.queryByRole("alert", { name: "Could not load the file preview" }),
+  ).toBeNull();
+  screen.getByRole("button", { name: "Try again" }).click();
+  await screen.waitFor(() =>
+    expect(screen.getByRole("option", { name: "src/index.ts" })).toBeDefined(),
+  );
+  expect(attempt).toBe(2);
+});

@@ -235,6 +235,7 @@
   "workspace_context": "工作区上下文",
   "search_workspace_files": "搜索工作区文件",
   "loading_files": "正在加载工作区文件…",
+  "workspace_files_load_failed": "无法加载工作区文件",
   "no_files_found": "没有匹配的文件。",
   "workspace_files": "工作区文件",
   "close_workspace_files": "关闭工作区文件",

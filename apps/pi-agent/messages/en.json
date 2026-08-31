@@ -235,6 +235,7 @@
   "workspace_context": "Workspace context",
   "search_workspace_files": "Search workspace files",
   "loading_files": "Loading workspace files…",
+  "workspace_files_load_failed": "Could not load workspace files",
   "no_files_found": "No matching files.",
   "workspace_files": "Workspace files",
   "close_workspace_files": "Close workspace files",
