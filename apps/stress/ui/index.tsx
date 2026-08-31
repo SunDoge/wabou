@@ -39,7 +39,7 @@ const CHARS = [
   "🎈",
 ];
 const SIZE = 28;
-const HEADER_H = 68;
+const HEADER_H = 120;
 let _jsSink = 0;
 
 type Stats = {
@@ -175,8 +175,66 @@ function App() {
 
   return (
     <View class="w-full h-full flex flex-col bg-slate-950 text-slate-100">
-      <View class="flex-none p-2 flex items-center gap-2 border-b border-slate-700">
-        <Text class="text-sm font-semibold mr-1">emoji stress</Text>
+      <View class="h-9 flex-none px-3 flex items-center gap-3 border-b border-slate-700 bg-slate-900">
+        <Text class="text-sm font-semibold">Emoji stress</Text>
+        <Text class="text-xs text-slate-400">
+          GPUI retained projection · per-node transform updates
+        </Text>
+      </View>
+
+      <View class="h-11 flex-none min-w-0 flex border-b border-slate-700 bg-slate-950">
+        <View class="flex-1 min-w-0 px-3 justify-center border-r border-slate-800">
+          <Text class="text-[10px] uppercase text-slate-500">FPS</Text>
+          <Text class="text-base font-mono font-semibold text-sky-400">
+            {fps().toString()}
+          </Text>
+        </View>
+        <View class="flex-1 min-w-0 px-3 justify-center border-r border-slate-800">
+          <Text class="text-[10px] uppercase text-slate-500">Nodes</Text>
+          <Text class="text-sm font-mono">{n().toLocaleString()}</Text>
+        </View>
+        <View class="flex-1 min-w-0 px-3 justify-center border-r border-slate-800">
+          <Text class="text-[10px] uppercase text-slate-500">Driver</Text>
+          <Text class="text-sm font-mono">{driver()}</Text>
+        </View>
+        <Show
+          when={stats()}
+          fallback={
+            <View class="flex-[4] min-w-0 px-3 justify-center">
+              <Text class={statsError() ? "text-red-400" : "text-slate-500"}>
+                {statsError() ?? "Waiting for the first completed frame"}
+              </Text>
+            </View>
+          }
+        >
+          {(current) => (
+            <>
+              <View class="flex-1 min-w-0 px-3 justify-center border-r border-slate-800">
+                <Text class="text-[10px] uppercase text-slate-500">
+                  JS tick
+                </Text>
+                <Text class="text-sm font-mono">{`${fmt(current().js_tick_ms)} ms`}</Text>
+              </View>
+              <View class="flex-1 min-w-0 px-3 justify-center border-r border-slate-800">
+                <Text class="text-[10px] uppercase text-slate-500">Build</Text>
+                <Text class="text-sm font-mono">{`${fmt(current().build_frame_ms)} ms`}</Text>
+              </View>
+              <View class="flex-1 min-w-0 px-3 justify-center border-r border-slate-800">
+                <Text class="text-[10px] uppercase text-slate-500">Scene</Text>
+                <Text class="text-sm font-mono">{`${fmt(current().scene_ms)} ms`}</Text>
+              </View>
+              <View class="flex-1 min-w-0 px-3 justify-center">
+                <Text class="text-[10px] uppercase text-slate-500">
+                  Present
+                </Text>
+                <Text class="text-sm font-mono">{`${fmt(current().present_ms)} ms`}</Text>
+              </View>
+            </>
+          )}
+        </Show>
+      </View>
+
+      <View class="h-10 flex-none min-w-0 overflow-x-auto overflow-y-hidden px-2 flex items-center gap-2 border-b border-slate-700">
         <ForValue each={PRESETS}>
           {(p) => (
             <Button
@@ -222,33 +280,6 @@ function App() {
         >
           Motion
         </Button>
-        <Text class="ml-auto text-xs font-mono text-slate-400">
-          {n().toLocaleString()}n · {driver()} · {fps()} fps
-        </Text>
-      </View>
-
-      <View class="flex-none px-2 py-1 border-b border-slate-800 bg-slate-900 text-xs font-mono text-slate-300">
-        <Show
-          when={stats()}
-          fallback={
-            <Text class={statsError() ? "text-red-400" : "text-slate-500"}>
-              {statsError()
-                ? `frameStats error: ${statsError()}`
-                : "frameStats: waiting for first completed frame"}
-            </Text>
-          }
-        >
-          {(current) => (
-            <Text>
-              js {fmt(current().js_tick_ms)}ms · build{" "}
-              {fmt(current().build_frame_ms)}ms
-              {" · "}scene {fmt(current().scene_ms)}ms · present{" "}
-              {fmt(current().present_ms)}ms · nodes{" "}
-              {current().node_count.toLocaleString()}
-              {" · "}viewport {current().viewport_w}×{current().viewport_h}
-            </Text>
-          )}
-        </Show>
       </View>
 
       <View class="flex-1 min-h-0 overflow-hidden relative">
