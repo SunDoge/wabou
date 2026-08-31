@@ -10,6 +10,7 @@ import {
   createContext,
   createEffect,
   createSignal,
+  For as ForValue,
   type JSX,
   omit,
   onCleanup,
@@ -21,11 +22,13 @@ import {
   createMeasuredSize,
   Icon,
   rotate2d,
+  Text,
   translate2d,
   View,
   type ViewProps,
 } from "../primitives";
 import { Button, type ButtonProps } from "./button";
+import { Tooltip } from "./tooltip";
 
 export type MessageScrollDirection = "start" | "end";
 
@@ -521,6 +524,91 @@ export function MessageScrollerButton(
           />
         )}
       </Button>
+    </Show>
+  );
+}
+
+export interface MessageScrollerNavigatorItem {
+  id: string;
+  label: string;
+}
+
+export interface MessageScrollerNavigatorProps {
+  items: readonly MessageScrollerNavigatorItem[];
+  "aria-label": string;
+  itemAriaLabel(item: MessageScrollerNavigatorItem, index: number): string;
+  minItems?: number;
+  class?: string;
+  railClass?: string;
+}
+
+/** Compact anchor rail for navigating long retained conversations. */
+export function MessageScrollerNavigator(
+  props: MessageScrollerNavigatorProps,
+): JSX.Element {
+  const context = requireMessageScroller();
+  const reveal = (id: string) => {
+    context.scrollToAnchor(id, { margin: 24, align: "start" });
+  };
+
+  return (
+    <Show when={props.items.length >= (props.minItems ?? 2)}>
+      <View
+        role="group"
+        aria-label={props["aria-label"]}
+        class={mergeClasses(
+          "absolute z-20 right-2 top-4 bottom-14 w-8 flex flex-col items-center justify-center pointer-events-none",
+          props.class,
+        )}
+      >
+        <View
+          class={mergeClasses(
+            "max-h-full py-1 rounded-full border border-subtle bg-surface shadow-xs overflow-y-auto pointer-events-auto",
+            props.railClass,
+          )}
+        >
+          <ForValue each={props.items} keyed={false}>
+            {(item, index) => (
+              <Tooltip
+                placement="left"
+                openDelay={240}
+                contentClass="max-w-sm"
+                trigger={(tooltip) => (
+                  <Button
+                    ref={tooltip.ref}
+                    variant="ghost"
+                    size="icon"
+                    class="w-7 h-7 p-0 rounded-full"
+                    aria-label={props.itemAriaLabel(item(), index)}
+                    aria-current={
+                      context.activeAnchor() === item().id ? "step" : undefined
+                    }
+                    onPointerEnter={tooltip.onPointerEnter}
+                    onPointerLeave={tooltip.onPointerLeave}
+                    onFocus={tooltip.onFocus}
+                    onBlur={tooltip.onBlur}
+                    onKeyDown={tooltip.onKeyDown}
+                    onClick={() => reveal(item().id)}
+                  >
+                    <View
+                      aria-hidden="true"
+                      class={
+                        context.activeAnchor() === item().id
+                          ? "w-4 h-1 rounded-full bg-accent"
+                          : "w-3 h-1 rounded-full bg-subtle"
+                      }
+                    />
+                  </Button>
+                )}
+              >
+                <Text class="text-xs text-primary whitespace-normal">
+                  {item().label}
+                </Text>
+              </Tooltip>
+            )}
+          </ForValue>
+        </View>
+      </View>
     </Show>
   );
 }
