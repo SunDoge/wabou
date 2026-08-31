@@ -14,6 +14,8 @@ import { createControllableState } from "./state";
 export interface ListboxOption {
   value: string;
   label: string;
+  /** Accessible identity when the visible label is not unique or sufficiently descriptive. */
+  accessibilityLabel?: string;
   description?: string;
   disabled?: boolean;
 }
@@ -28,6 +30,11 @@ export interface ListboxProps {
   listClass?: string;
   itemClass?: string;
   maxVisibleItems?: number;
+  /** Fixed row height used for both layout and viewport calculation. */
+  itemHeight?: number;
+  /** Explicit scroll viewport height for inspector and split-pane layouts. */
+  viewportHeight?: number;
+  renderLeading?: (option: ListboxOption) => JSX.Element;
   onValueChange?: (value: string) => void;
   /** Invoked after pointer or keyboard activation of an enabled option. */
   onAction?: (value: string) => void;
@@ -106,12 +113,15 @@ export function Listbox(props: ListboxProps): JSX.Element {
   };
   const visibleItems = () =>
     Math.max(1, Math.min(props.options.length, props.maxVisibleItems ?? 8));
+  const itemHeight = () => Math.max(24, props.itemHeight ?? 40);
+  const viewportHeight = () =>
+    Math.max(1, props.viewportHeight ?? visibleItems() * itemHeight());
 
   return (
     <ScrollArea
       class={mergeClasses("w-full flex-none", props.class)}
       contentClass={mergeClasses("gap-1", props.listClass)}
-      style={{ height: `${visibleItems() * 40}px` }}
+      style={{ height: `${viewportHeight()}px` }}
     >
       <View
         role="listbox"
@@ -134,7 +144,7 @@ export function Listbox(props: ListboxProps): JSX.Element {
                 <View
                   id={option().value}
                   role="option"
-                  aria-label={option().label}
+                  aria-label={option().accessibilityLabel ?? option().label}
                   aria-selected={selected()}
                   aria-disabled={option().disabled}
                   class={mergeClasses(
@@ -144,12 +154,16 @@ export function Listbox(props: ListboxProps): JSX.Element {
                       : "bg-transparent text-secondary",
                     props.itemClass,
                   )}
-                  style={{ opacity: option().disabled ? 0.45 : 1 }}
+                  style={{
+                    height: itemHeight(),
+                    opacity: option().disabled ? 0.45 : 1,
+                  }}
                   onPointerMove={() =>
                     !option().disabled && setHighlighted(option().value)
                   }
                   onClick={() => select(option().value)}
                 >
+                  {props.renderLeading?.(option())}
                   <View class="min-w-0 flex-1 flex flex-col justify-center">
                     <Text class="min-w-0 truncate text-sm">
                       {option().label}

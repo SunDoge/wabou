@@ -20,15 +20,15 @@ test("workspace panel filters, previews, and attaches a file", async () => {
   ));
 
   await screen.waitFor(() =>
-    expect(screen.getByRole("button", { name: "src/index.ts" })).toBeDefined(),
+    expect(screen.getByRole("option", { name: "src/index.ts" })).toBeDefined(),
   );
   expect(loadFiles).toHaveBeenCalledTimes(1);
   screen
     .getByRole("textbox", { name: "Search workspace files" })
     .input("index");
-  expect(screen.queryByRole("button", { name: "README.md" })).toBeNull();
+  expect(screen.queryByRole("option", { name: "README.md" })).toBeNull();
 
-  screen.getByRole("button", { name: "src/index.ts" }).click();
+  screen.getByRole("listbox", { name: "Workspace files" }).press("Enter");
   await screen.waitFor(() =>
     expect(
       screen.getByRole("button", { name: "Add to context" }),

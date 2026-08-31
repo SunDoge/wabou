@@ -384,6 +384,19 @@ try {
             role: "textbox",
             name: "Search workspace files",
           });
+          getLayoutNode(fixture, {
+            role: "listbox",
+            name: "Workspace files",
+          });
+          const file = getLayoutNode(fixture, {
+            role: "option",
+            name: "src/main.rs",
+          });
+          if (Math.abs(file.rect.height - 48) > 0.5) {
+            throw new Error(
+              `workspace file row lost its native target height: height=${file.rect.height}`,
+            );
+          }
         },
       },
       {

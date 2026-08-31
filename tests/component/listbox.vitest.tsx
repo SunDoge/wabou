@@ -1,5 +1,5 @@
 import { renderComponent } from "@wabou/test/component";
-import { Listbox } from "@wabou/ui";
+import { Listbox, Text } from "@wabou/ui";
 import { expect, test, vi } from "vitest";
 
 const options = [
@@ -47,4 +47,27 @@ test("listbox supports pointer selection and explicit dismissal", () => {
   expect(action).toHaveBeenCalledWith("feature");
   screen.getByRole("listbox", { name: "Branches" }).press("Escape");
   expect(dismiss).toHaveBeenCalledOnce();
+});
+
+test("listbox supports inspector rows with explicit geometry and accessible identities", () => {
+  const screen = renderComponent(() => (
+    <Listbox
+      aria-label="Workspace files"
+      viewportHeight={224}
+      itemHeight={48}
+      options={[
+        {
+          value: "src/index.ts",
+          label: "index.ts",
+          accessibilityLabel: "src/index.ts",
+          description: "src/index.ts",
+        },
+      ]}
+      renderLeading={() => <Text aria-hidden="true">file</Text>}
+    />
+  ));
+
+  const option = screen.getByRole("option", { name: "src/index.ts" });
+  expect(option.text).toContain("file");
+  expect(option.text).toContain("index.ts");
 });

@@ -3,6 +3,7 @@ import {
   CodeBlock,
   createLatestAsyncResource,
   Icon,
+  Listbox,
   Markdown,
   ScrollArea,
   SearchField,
@@ -15,13 +16,7 @@ import {
 import file from "lucide-static/icons/file.svg?raw";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  For as ForValue,
-  Show,
-} from "solid-js";
+import { createEffect, createMemo, createSignal, Show } from "solid-js";
 import type { WorkspaceFilePreview } from "./api";
 import { i18n, m } from "./i18n";
 
@@ -69,6 +64,14 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
       ? available.filter((path) => path.toLowerCase().includes(needle))
       : available;
   });
+  const fileOptions = createMemo(() =>
+    filtered().map((path) => ({
+      value: path,
+      label: basename(path),
+      accessibilityLabel: path,
+      description: path,
+    })),
+  );
 
   const choose = (path: string) => {
     const revision = ++previewRevision;
@@ -118,44 +121,29 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
           placeholder={i18n.message(m.search_workspace_files, {})}
         />
         <View class="h-56 flex-none min-h-0 rounded-lg border border-subtle overflow-hidden">
-          <ScrollArea class="h-full" contentClass="p-1 gap-0.5">
-            <Show
-              when={!files.loading() || (files.value()?.length ?? 0) > 0}
-              fallback={
-                <Text role="status" class="p-3 text-sm text-muted">
-                  {i18n.message(m.loading_files, {})}
-                </Text>
-              }
-            >
-              <ForValue
-                each={filtered()}
-                fallback={
-                  <Text role="status" class="p-3 text-sm text-muted">
-                    {i18n.message(m.no_files_found, {})}
-                  </Text>
-                }
-              >
-                {(path) => (
-                  <Button
-                    variant={selected() === path ? "secondary" : "ghost"}
-                    class="w-full h-12 min-w-0 justify-start"
-                    aria-label={path}
-                    onClick={() => choose(path)}
-                  >
-                    <Icon source={file} size={14} class="flex-none" />
-                    <View class="min-w-0 flex flex-col items-start">
-                      <Text class="max-w-72 truncate text-sm">
-                        {basename(path)}
-                      </Text>
-                      <Text class="max-w-72 truncate text-xs text-muted">
-                        {path}
-                      </Text>
-                    </View>
-                  </Button>
-                )}
-              </ForValue>
-            </Show>
-          </ScrollArea>
+          <Show
+            when={!files.loading() || (files.value()?.length ?? 0) > 0}
+            fallback={
+              <Text role="status" class="p-3 text-sm text-muted">
+                {i18n.message(m.loading_files, {})}
+              </Text>
+            }
+          >
+            <Listbox
+              aria-label={i18n.message(m.workspace_files, {})}
+              options={fileOptions()}
+              value={selected()}
+              viewportHeight={224}
+              itemHeight={48}
+              listClass="p-1 gap-0.5"
+              itemClass="rounded-md"
+              emptyText={i18n.message(m.no_files_found, {})}
+              renderLeading={() => (
+                <Icon source={file} size={14} class="flex-none text-muted" />
+              )}
+              onAction={choose}
+            />
+          </Show>
         </View>
         <View class="flex-1 min-h-0 flex flex-col gap-2">
           <Show when={files.error() ?? previewError()}>
