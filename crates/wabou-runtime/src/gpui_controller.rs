@@ -719,6 +719,17 @@ impl GpuiController {
                 metrics.logical_width,
                 metrics.logical_height,
             ))
+            // Protocol revisions do not capture layout-only changes caused by
+            // an ancestor, window constraints, or GPUI text measurement.
+            // Active ResizeObservers therefore require comparing completed
+            // geometry on every rendered frame; unchanged sizes are filtered
+            // below before dispatching an event.
+            || !self
+                .runtime
+                .js
+                .resize_targets_handle()
+                .borrow()
+                .is_empty()
     }
 
     pub(crate) fn has_window_metrics(&self) -> bool {
@@ -727,11 +738,13 @@ impl GpuiController {
 
     /// Publish GPUI's completed prepaint geometry to the synchronous JS layout API.
     ///
-    /// Live windows call this at the start of the following render; the
-    /// headless harness calls it immediately after its explicit draw. Calling
-    /// it before prepaint would expose a structurally current but geometrically
-    /// stale snapshot to floating UI and drag logic.
-    pub(crate) fn publish_completed_layout(&mut self) {
+    /// Both live and headless windows call this at the start of the following
+    /// render. Calling it before a completed prepaint would expose a
+    /// structurally current but geometrically stale snapshot to floating UI
+    /// and drag logic. The return value reports synchronous Solid projection
+    /// writes caused by ResizeObserver delivery.
+    pub(crate) fn publish_completed_layout(&mut self) -> bool {
+        let revision_before_dispatch = self.projection.revision();
         let window = self.last_window_metrics.unwrap_or_default();
         let revision = self.projection.revision();
         let viewport = wabou_host_api::LayoutRect {
@@ -762,6 +775,13 @@ impl GpuiController {
                 if *last_size == Some(size) {
                     continue;
                 }
+                tracing::trace!(
+                    target: "wabou::layout",
+                    ?target,
+                    width = size.0,
+                    height = size.1,
+                    "publishing completed ResizeObserver geometry"
+                );
                 *last_size = Some(size);
                 resize_events.push(HostEvent::Resize(crate::ResizeObservation {
                     target: *target,
@@ -775,6 +795,7 @@ impl GpuiController {
         }
         self.published_layout_revision =
             Some((revision, window.logical_width, window.logical_height));
+        self.projection.revision() != revision_before_dispatch
     }
 
     pub(crate) fn focused_target(&self) -> Option<wabou_host_api::NodeKey> {

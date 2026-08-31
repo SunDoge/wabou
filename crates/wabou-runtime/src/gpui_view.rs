@@ -481,12 +481,6 @@ impl GpuiRuntimeView {
             .collect()
     }
 
-    pub(crate) fn publish_completed_layout(&mut self) {
-        if self.controller.completed_layout_needs_publish() {
-            self.controller.publish_completed_layout();
-        }
-    }
-
     #[cfg(feature = "headless")]
     pub(crate) fn protocol_revision(&self) -> u64 {
         self.controller.protocol_revision()
@@ -897,10 +891,9 @@ impl Render for GpuiRuntimeView {
         // previous completed GPUI prepaint pass. Publish them before running
         // JavaScript work for this frame, so synchronous layout reads never
         // observe a half-built projection.
-        if self.controller.has_window_metrics() && self.controller.completed_layout_needs_publish()
-        {
-            self.controller.publish_completed_layout();
-        }
+        let completed_layout_changed = self.controller.has_window_metrics()
+            && self.controller.completed_layout_needs_publish()
+            && self.controller.publish_completed_layout();
         let metrics = self.window_metrics(window, cx);
         self.controller.update_window_metrics(metrics);
         if let Some(persistence) = &mut self.window_size_persistence {
@@ -922,7 +915,8 @@ impl Render for GpuiRuntimeView {
             // notification coalesced into the render already in progress.
             (self.runtime_wake)();
         }
-        let mut boundary_dirty = projection_changed || self.projection_boundary.is_none();
+        let mut boundary_dirty =
+            completed_layout_changed || projection_changed || self.projection_boundary.is_none();
         self.synchronize_base_theme(cx);
         let fonts = self.controller.take_pending_fonts();
         if !fonts.is_empty() {

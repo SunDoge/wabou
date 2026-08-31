@@ -161,6 +161,11 @@ impl GpuiHeadlessHarness {
     pub fn settle(&mut self, frames: usize) -> crate::Result<()> {
         for _ in 0..frames {
             self.context.run_until_parked();
+            // `GpuiRuntimeView::render` publishes the previous completed
+            // prepaint bounds before advancing JavaScript. Keep that live
+            // ordering intact: publishing outside render would consume the
+            // resulting projection invalidation before the boundary decides
+            // whether it must rebuild.
             self.context
                 .update_window(self.window.into(), |_, window, app| {
                     let _ = window.draw(app);
@@ -168,15 +173,6 @@ impl GpuiHeadlessHarness {
                 .map_err(|error| crate::Error::GpuiShell {
                     message: format!("failed to draw hidden GPUI window: {error}"),
                 })?;
-            // Hidden windows do not have a compositor-driven next-frame
-            // boundary. The draw above has nevertheless completed layout and
-            // prepaint, so publish the same authoritative geometry explicitly.
-            let root = self.root()?;
-            self.context.update(|cx| {
-                root.update(cx, |view, _| {
-                    view.publish_completed_layout();
-                });
-            });
         }
         Ok(())
     }
@@ -484,6 +480,41 @@ mod tests {
         assert_eq!((layout[5], layout[6]), (800.0, 600.0));
         assert_eq!(layout[7], 1.0, "requested projected node is present");
         assert!(layout[12] > 0.0 && layout[13] > 0.0);
+    }
+
+    #[test]
+    fn completed_gpui_layout_notifies_javascript_resize_observers() {
+        let mut harness = GpuiHeadlessHarness::boot(
+            include_str!("gen/test-runtime.js"),
+            None::<Arc<[u8]>>,
+            GpuiHeadlessOptions {
+                window: WindowOptions::new().initial_inner_size(800, 600),
+                settle_frames: 2,
+            },
+        )
+        .expect("boot GPUI headless fixture");
+        harness
+            .eval_script(
+                r#"
+                globalThis.__wabou_resize_result = null;
+                new ResizeObserver(([entry]) => {
+                  globalThis.__wabou_resize_result = [
+                    entry.contentRect.width,
+                    entry.contentRect.height,
+                  ];
+                }).observe({ id: { lo: 1, hi: 1 } });
+                "#,
+            )
+            .expect("observe a projected node");
+        harness.settle(2).expect("publish completed GPUI layout");
+
+        let result = harness
+            .eval_string("JSON.stringify(globalThis.__wabou_resize_result)")
+            .expect("read resize observation");
+        let result: Option<(f32, f32)> =
+            serde_json::from_str(&result).expect("resize result is typed JSON");
+        let (width, height) = result.expect("resize observer received completed geometry");
+        assert!(width > 0.0 && height > 0.0);
     }
 
     #[test]
