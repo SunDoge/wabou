@@ -74,10 +74,10 @@ pub struct GpuiLayoutNode {
     pub key: NodeKey,
     pub kind: ProjectedNodeKind,
     pub parent: Option<NodeKey>,
-    /// Whether this retained node is currently attached to its parent or the
-    /// projected window root. Detached Solid nodes remain cached so their
-    /// identity can be reused, but must not participate in locators or native
-    /// semantics.
+    /// Whether this retained node participated in the latest completed native
+    /// layout. Detached Solid nodes and descendants absorbed into a native
+    /// text/widget element remain observable, but must not participate in
+    /// locators, geometry diagnostics, or native semantics.
     pub attached: bool,
     pub attributes:
         std::collections::BTreeMap<crate::gpui::SharedString, crate::gpui::SharedString>,
@@ -865,7 +865,14 @@ impl GpuiProjection {
                             .max(crate::gpui::Pixels::ZERO),
                     ),
                 );
-                let attached = if node.attached {
+                // `attached` in the public layout snapshot means the node
+                // participated in the completed native layout, not merely
+                // that it remains reachable in Solid's retained tree. GPUI
+                // intentionally absorbs raw text and `text-span` descendants
+                // into their owning `StyledText`; exposing those descendants
+                // as visible 0x0 boxes creates false overflow and hit-test
+                // diagnostics.
+                let retained_attached = if node.attached {
                     let mut parent = node.parent;
                     let mut reachable = true;
                     while let Some(parent_key) = parent {
@@ -883,6 +890,7 @@ impl GpuiProjection {
                 } else {
                     false
                 };
+                let attached = retained_attached && bounds.contains_key(&key);
                 let mut style_diagnostics = self
                     .style_diagnostics
                     .get(&key)
@@ -894,7 +902,7 @@ impl GpuiProjection {
                         node.transform
                     ));
                 }
-                if attached
+                if retained_attached
                     && matches!(
                     &node.kind,
                     ProjectedNodeKind::Element(tag) if tag.as_ref() == "svg"
@@ -985,10 +993,8 @@ impl GpuiProjection {
                     // identity, while their aggregate owner is now queryable
                     // by the visible text users actually see.
                     text,
-                    // Retained nodes remain observable even when GPUI omits
-                    // layout for `display: none` or before their first paint.
-                    // A zero rectangle is more useful than silently deleting
-                    // the node (and potentially its parent) from diagnostics.
+                    // Retained but non-materialized nodes remain observable
+                    // with a zero rectangle and `attached: false`.
                     bounds: node_bounds,
                     content_bounds,
                     text_metrics,
@@ -2725,6 +2731,108 @@ mod tests {
         assert_eq!(
             node.style.text.white_space,
             Some(crate::gpui::WhiteSpace::Nowrap)
+        );
+    }
+
+    #[test]
+    fn styled_text_snapshot_preserves_one_native_paragraph() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let text = atoms.intern("text");
+        let span = atoms.intern("text-span");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: text,
+                        },
+                        Op::SetTextBehavior {
+                            id: key(2),
+                            flags: wabou_protocol::TEXT_BEHAVIOR_AGGREGATE_DIRECT
+                                | wabou_protocol::TEXT_BEHAVIOR_AGGREGATE_STYLED,
+                        },
+                        Op::CreateText {
+                            id: key(3),
+                            text: "Before ",
+                        },
+                        Op::CreateElement {
+                            id: key(4),
+                            tag: span,
+                        },
+                        Op::CreateText {
+                            id: key(5),
+                            text: "code",
+                        },
+                        Op::CreateText {
+                            id: key(6),
+                            text: " after.",
+                        },
+                        Op::AppendChild {
+                            parent: key(4),
+                            child: key(5),
+                        },
+                        Op::AppendChild {
+                            parent: key(2),
+                            child: key(3),
+                        },
+                        Op::AppendChild {
+                            parent: key(2),
+                            child: key(4),
+                        },
+                        Op::AppendChild {
+                            parent: key(2),
+                            child: key(6),
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(2),
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        let tree = projection.tree().snapshot();
+        assert_eq!(
+            crate::element::projected_text(&tree, tree.node(key(2)).unwrap()).as_deref(),
+            Some("Before code after.")
+        );
+        projection.layout_bounds.borrow_mut().extend([
+            (
+                NodeKey::ROOT,
+                crate::gpui::Bounds::new(
+                    crate::gpui::point(crate::gpui::px(0.0), crate::gpui::px(0.0)),
+                    crate::gpui::size(crate::gpui::px(320.0), crate::gpui::px(120.0)),
+                ),
+            ),
+            (
+                key(2),
+                crate::gpui::Bounds::new(
+                    crate::gpui::point(crate::gpui::px(16.0), crate::gpui::px(16.0)),
+                    crate::gpui::size(crate::gpui::px(288.0), crate::gpui::px(26.0)),
+                ),
+            ),
+        ]);
+        let layout = projection.layout_snapshot();
+        assert!(
+            layout
+                .iter()
+                .find(|node| node.key == key(2))
+                .unwrap()
+                .attached
+        );
+        assert!(
+            !layout
+                .iter()
+                .find(|node| node.key == key(4))
+                .unwrap()
+                .attached,
+            "a text span absorbed into GPUI StyledText is retained but not independently rendered"
         );
     }
 

@@ -33,10 +33,11 @@ pub(crate) type ProjectedTextSelections = Rc<BTreeMap<NodeKey, ProjectedTextSele
 pub(crate) fn selectable_text_element(
     selection: ProjectedTextSelection,
     text: SharedString,
+    styled_text: StyledText,
 ) -> AnyElement {
     SelectableTextElement {
         selection,
-        styled_text: StyledText::new(text.clone()),
+        styled_text,
         text,
     }
     .into_any_element()

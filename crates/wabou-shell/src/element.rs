@@ -1,11 +1,11 @@
-use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
+use std::{cell::RefCell, collections::BTreeMap, ops::Range, rc::Rc};
 
 use gpui::{
     AnyElement, App, Bounds, DispatchPhase, Element, ElementId, FocusHandle, GlobalElementId,
-    Hitbox, HitboxBehavior, InspectorElementId, IntoElement, KeyDownEvent, KeyUpEvent, LayoutId,
-    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Overflow, Pixels, ScrollDelta,
-    ScrollWheelEvent, TouchPhase, UniformListScrollHandle, Visibility, Window, div, prelude::*,
-    uniform_list,
+    HighlightStyle, Hitbox, HitboxBehavior, InspectorElementId, IntoElement, KeyDownEvent,
+    KeyUpEvent, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Overflow,
+    Pixels, ScrollDelta, ScrollWheelEvent, StyledText, TouchPhase, UniformListScrollHandle,
+    Visibility, Window, div, prelude::*, uniform_list,
 };
 
 use crate::ProjectionSnapshot;
@@ -428,7 +428,7 @@ impl ProjectedElement {
             children.push(list.into_any_element());
         } else if let Some(native_child) = native_child {
             children.push(native_child);
-        } else if let Some(text) = projected_text(&tree, node) {
+        } else if let Some((text, styled_text)) = projected_text_element(&tree, node) {
             let selectable = (text_selection_policy != TextSelectionPolicy::None)
                 .then(|| {
                     context
@@ -438,9 +438,9 @@ impl ProjectedElement {
                 })
                 .flatten();
             children.push(if let Some(selection) = selectable {
-                crate::text_selection::selectable_text_element(selection.clone(), text)
+                crate::text_selection::selectable_text_element(selection.clone(), text, styled_text)
             } else {
-                div().child(text).into_any_element()
+                div().child(styled_text).into_any_element()
             });
         }
         if let Some(image) = &node.image {
@@ -449,9 +449,15 @@ impl ProjectedElement {
         let ordinary_children: &[NodeKey] = if is_uniform_list { &[] } else { &node.children };
         for child in ordinary_children {
             if node.text_behavior & TEXT_BEHAVIOR_AGGREGATE_DIRECT != 0
-                && tree
-                    .node(*child)
-                    .is_some_and(|child| child.kind == ProjectedNodeKind::Text)
+                && tree.node(*child).is_some_and(|child| {
+                    child.kind == ProjectedNodeKind::Text
+                        || node.text_behavior & TEXT_BEHAVIOR_AGGREGATE_STYLED != 0
+                            && matches!(
+                                &child.kind,
+                                ProjectedNodeKind::Element(tag)
+                                    if tag.as_ref() == "text-span"
+                            )
+                })
             {
                 continue;
             }
@@ -607,11 +613,42 @@ pub(crate) fn projected_text(
             let Some(child) = tree.node(*child) else {
                 continue;
             };
-            if child.kind == ProjectedNodeKind::Text {
-                if let Some(value) = &child.text {
-                    text.push_str(value);
-                }
+            if child.kind == ProjectedNodeKind::Text
+                && let Some(value) = &child.text
+            {
+                text.push_str(value);
             }
+        }
+        if !text.is_empty() {
+            return Some(text.into());
+        }
+    }
+    if node.text_behavior & TEXT_BEHAVIOR_AGGREGATE_STYLED != 0 {
+        fn append_styled_text(tree: &ProjectionSnapshot, key: NodeKey, output: &mut String) {
+            let Some(node) = tree.node(key) else {
+                return;
+            };
+            if node.kind == ProjectedNodeKind::Text {
+                if let Some(value) = &node.text {
+                    output.push_str(value);
+                }
+                return;
+            }
+            let is_span = matches!(
+                &node.kind,
+                ProjectedNodeKind::Element(tag) if tag.as_ref() == "text-span"
+            );
+            if !is_span {
+                return;
+            }
+            for child in &node.children {
+                append_styled_text(tree, *child, output);
+            }
+        }
+
+        let mut text = String::new();
+        for child in &node.children {
+            append_styled_text(tree, *child, &mut text);
         }
         if !text.is_empty() {
             return Some(text.into());
@@ -631,6 +668,124 @@ pub(crate) fn projected_text(
             .flatten()
             .cloned()
     }
+}
+
+struct ProjectedStyledText {
+    text: String,
+    highlights: Vec<(Range<usize>, HighlightStyle)>,
+    font_families: Vec<(Range<usize>, gpui::SharedString)>,
+}
+
+fn projected_styled_text(
+    tree: &ProjectionSnapshot,
+    node: &ProjectedNode,
+) -> Option<ProjectedStyledText> {
+    if node.text_behavior & TEXT_BEHAVIOR_AGGREGATE_STYLED == 0 {
+        return None;
+    }
+
+    #[derive(Clone, Default)]
+    struct SpanStyle {
+        highlight: HighlightStyle,
+        font_family: Option<gpui::SharedString>,
+    }
+
+    fn append(
+        tree: &ProjectionSnapshot,
+        key: NodeKey,
+        inherited: &SpanStyle,
+        output: &mut ProjectedStyledText,
+    ) {
+        let Some(node) = tree.node(key) else {
+            return;
+        };
+        if node.kind == ProjectedNodeKind::Text {
+            let Some(value) = &node.text else {
+                return;
+            };
+            let start = output.text.len();
+            output.text.push_str(value);
+            let range = start..output.text.len();
+            if inherited.highlight != HighlightStyle::default() {
+                output.highlights.push((range.clone(), inherited.highlight));
+            }
+            if let Some(family) = &inherited.font_family {
+                output.font_families.push((range, family.clone()));
+            }
+            return;
+        }
+        let is_span = matches!(
+            &node.kind,
+            ProjectedNodeKind::Element(tag) if tag.as_ref() == "text-span"
+        );
+        if !is_span {
+            return;
+        }
+
+        let mut style = inherited.clone();
+        if let Some(color) = node.style.text.color {
+            style.highlight.color = Some(color);
+        }
+        if let Some(weight) = node.style.text.font_weight {
+            style.highlight.font_weight = Some(weight);
+        }
+        if let Some(font_style) = node.style.text.font_style {
+            style.highlight.font_style = Some(font_style);
+        }
+        if let Some(background) = node
+            .style
+            .background
+            .as_ref()
+            .and_then(gpui::Fill::color)
+            .and_then(|background| background.as_solid())
+        {
+            style.highlight.background_color = Some(background);
+        }
+        if let Some(underline) = node.style.text.underline {
+            style.highlight.underline = Some(underline);
+        }
+        if let Some(strikethrough) = node.style.text.strikethrough {
+            style.highlight.strikethrough = Some(strikethrough);
+        }
+        if let Some(opacity) = node.style.opacity
+            && opacity < 1.0
+        {
+            style.highlight.fade_out = Some(1.0 - opacity);
+        }
+        if let Some(family) = &node.style.text.font_family {
+            style.font_family = Some(family.clone());
+        }
+        for child in &node.children {
+            append(tree, *child, &style, output);
+        }
+    }
+
+    let mut output = ProjectedStyledText {
+        text: String::new(),
+        highlights: Vec::new(),
+        font_families: Vec::new(),
+    };
+    for child in &node.children {
+        append(tree, *child, &SpanStyle::default(), &mut output);
+    }
+    (!output.text.is_empty()).then_some(output)
+}
+
+fn projected_text_element(
+    tree: &ProjectionSnapshot,
+    node: &ProjectedNode,
+) -> Option<(gpui::SharedString, StyledText)> {
+    if let Some(styled) = projected_styled_text(tree, node) {
+        let text: gpui::SharedString = styled.text.into();
+        let element = StyledText::new(text.clone())
+            .with_highlights(styled.highlights)
+            .with_font_family_overrides(styled.font_families);
+        return Some((text, element));
+    }
+    projected_text(tree, node).map(|text| {
+        let element = StyledText::new(text.clone());
+        (text, element)
+    })
 }
 
 fn key_event(
