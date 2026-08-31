@@ -85,16 +85,16 @@ impl ProjectedElement {
         for child in &node.children {
             let projected =
                 Self::from_tree(tree, *child, context.for_child(), interaction_blocked)?;
-            let z_index = tree
+            let priority = tree
                 .node(*child)
                 .ok_or(ProjectionError::MissingNode(*child))?
-                .z_index;
-            if z_index == 0 {
+                .draw_priority();
+            if priority == 0 {
                 children.push(projected.into_any_element());
             } else {
                 children.push(
                     gpui::deferred(projected)
-                        .with_priority(z_index)
+                        .with_priority(priority)
                         .into_any_element(),
                 );
             }

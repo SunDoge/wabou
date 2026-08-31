@@ -269,6 +269,9 @@ impl GpuiProjection {
                 Op::SetTransform2D { id, matrix } => {
                     self.tree.update_transform(*id, *matrix)?;
                 }
+                Op::SetOverlayPlane { id, plane } => {
+                    self.tree.update_overlay_plane(*id, *plane)?;
+                }
                 _ => {}
             }
         }
@@ -993,6 +996,10 @@ mod tests {
                             id: key(2),
                             matrix: [1.0, 0.0, 0.0, 1.0, 12.0, -4.0],
                         },
+                        Op::SetOverlayPlane {
+                            id: key(2),
+                            plane: 2,
+                        },
                     ],
                 },
                 &atoms,
@@ -1002,6 +1009,11 @@ mod tests {
         assert_eq!(
             projection.tree().node(key(2)).unwrap().transform,
             [1.0, 0.0, 0.0, 1.0, 12.0, -4.0]
+        );
+        assert_eq!(projection.tree().node(key(2)).unwrap().overlay_plane, 2);
+        assert_eq!(
+            projection.tree().node(key(2)).unwrap().draw_priority(),
+            2_000_000
         );
 
         projection

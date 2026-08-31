@@ -53,8 +53,17 @@ pub struct ProjectedNode {
     /// GPUI deferred-draw priority for this node. Wabou intentionally exposes
     /// only non-negative stacking priorities rather than CSS stacking contexts.
     pub z_index: usize,
+    /// Explicit Wabou overlay plane: content (0), floating (1), modal (2).
+    pub overlay_plane: u8,
     /// Whether focus traversal is contained inside this subtree.
     pub focus_contained: bool,
+}
+
+impl ProjectedNode {
+    #[must_use]
+    pub fn draw_priority(&self) -> usize {
+        usize::from(self.overlay_plane) * 1_000_000 + self.z_index.min(999_999)
+    }
 }
 
 /// Structural projection failure, always reported before GPUI sees a frame.
@@ -217,6 +226,7 @@ impl ProjectionTree {
                 interaction_blocked: false,
                 pointer_events: true,
                 z_index: 0,
+                overlay_plane: 0,
                 focus_contained: false,
             },
         );
@@ -482,6 +492,22 @@ impl ProjectionTree {
             .z_index = z_index;
         self.dirty
             .invalidate(key, DirtyKind::PAINT | DirtyKind::INTERACTION);
+        Ok(())
+    }
+
+    pub fn update_overlay_plane(
+        &mut self,
+        key: NodeKey,
+        overlay_plane: u8,
+    ) -> Result<(), ProjectionError> {
+        self.nodes
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?
+            .overlay_plane = overlay_plane.min(2);
+        self.dirty.invalidate(
+            key,
+            DirtyKind::PAINT | DirtyKind::INTERACTION | DirtyKind::SEMANTICS,
+        );
         Ok(())
     }
 
