@@ -195,6 +195,12 @@ pub struct ProjectedElement {
     style: gpui::Style,
     children: Vec<AnyElement>,
     input: Option<ProjectedInputSink>,
+    /// Whether this exact node should own a GPUI pointer hitbox.
+    ///
+    /// Descendants without pointer behavior must not steal hover/press state
+    /// from an interactive ancestor merely because every projected node shares
+    /// the same event bridge.
+    hit_testable: bool,
     root_focus: Option<FocusHandle>,
     text_input: Option<ProjectedTextInputState>,
     layout_bounds: Option<ProjectedLayoutBounds>,
@@ -222,6 +228,28 @@ struct ProjectedAccessibility {
     min_numeric_value: Option<f64>,
     max_numeric_value: Option<f64>,
     orientation: Option<gpui::accesskit::Orientation>,
+}
+
+fn has_pointer_listener(node: &crate::tree::ProjectedNode) -> bool {
+    use wabou_protocol::event;
+
+    node.listeners.iter().any(|event_type| {
+        matches!(
+            *event_type,
+            event::CLICK
+                | event::DBLCLICK
+                | event::CONTEXTMENU
+                | event::POINTERDOWN
+                | event::POINTERUP
+                | event::POINTERMOVE
+                | event::POINTERENTER
+                | event::POINTERLEAVE
+                | event::POINTEROVER
+                | event::POINTEROUT
+                | event::POINTERCANCEL
+                | event::WHEEL
+        )
+    })
 }
 
 fn parse_bool(value: Option<&gpui::SharedString>) -> Option<bool> {
@@ -447,6 +475,11 @@ impl ProjectedElement {
                 );
             }
         }
+        let hit_testable = !interaction_blocked
+            && node.pointer_events
+            && (context.root_focus.is_some()
+                || node.focus_order.is_some()
+                || has_pointer_listener(node));
         Ok(Self {
             key,
             style: node.style.clone(),
@@ -454,6 +487,7 @@ impl ProjectedElement {
             input: (!interaction_blocked && node.pointer_events)
                 .then_some(context.input)
                 .flatten(),
+            hit_testable,
             root_focus: context.root_focus,
             text_input: context.text_input,
             layout_bounds: context.layout_bounds,
@@ -839,7 +873,7 @@ impl Element for ProjectedElement {
         } else {
             gpui::Point::default()
         };
-        let hitbox = (self.input.is_some() || self.scroll_x || self.scroll_y)
+        let hitbox = (self.hit_testable || self.scroll_x || self.scroll_y)
             .then(|| window.insert_hitbox(paint_bounds, HitboxBehavior::Normal));
         window.with_text_style(text_style, |window| {
             window.with_content_mask(overflow_mask, |window| {
@@ -877,7 +911,9 @@ impl Element for ProjectedElement {
         }
 
         let bounds = prepaint.paint_bounds;
-        if let (Some(input), Some(hitbox)) = (&self.input, prepaint.hitbox.as_ref()) {
+        if self.hit_testable
+            && let (Some(input), Some(hitbox)) = (&self.input, prepaint.hitbox.as_ref())
+        {
             let down_input = input.clone();
             let down_hitbox = hitbox.clone();
             let key = self.key;
@@ -1472,7 +1508,7 @@ mod tests {
 
     #[test]
     fn pointer_events_none_skips_only_the_exact_hit_target() {
-        let child = NodeKey::new(28, 1);
+        let child_key = NodeKey::new(28, 1);
         let mut tree = ProjectionTree::default();
         tree.insert(
             NodeKey::ROOT,
@@ -1484,7 +1520,7 @@ mod tests {
         )
         .unwrap();
         tree.insert(
-            child,
+            child_key,
             Some(NodeKey::ROOT),
             0,
             Style::default(),
@@ -1509,7 +1545,7 @@ mod tests {
         assert!(root.input.is_none());
         let child = ProjectedElement::from_tree(
             tree.snapshot(),
-            child,
+            child_key,
             ProjectedElementContext {
                 input: Some(input),
                 ..Default::default()
@@ -1518,6 +1554,104 @@ mod tests {
         )
         .unwrap();
         assert!(child.input.is_some());
+        assert!(
+            !child.hit_testable,
+            "a visual descendant without pointer behavior must not steal its ancestor's hit target"
+        );
+
+        tree.add_event_listener(child_key, wabou_protocol::event::CLICK)
+            .unwrap();
+        let child = ProjectedElement::from_tree(
+            tree.snapshot(),
+            child_key,
+            ProjectedElementContext {
+                input: Some(Rc::new(|_, _| {})),
+                ..Default::default()
+            },
+            false,
+        )
+        .unwrap();
+        assert!(child.hit_testable);
+    }
+
+    #[gpui::test]
+    fn visual_descendants_do_not_replace_the_interactive_pointer_target(cx: &mut TestAppContext) {
+        struct PointerHost {
+            tree: ProjectionSnapshot,
+            input: ProjectedInputSink,
+        }
+        impl gpui::Render for PointerHost {
+            fn render(
+                &mut self,
+                _window: &mut Window,
+                _cx: &mut Context<Self>,
+            ) -> impl IntoElement {
+                ProjectedElement::from_tree(
+                    self.tree.clone(),
+                    NodeKey::new(80, 1),
+                    ProjectedElementContext {
+                        input: Some(self.input.clone()),
+                        ..Default::default()
+                    },
+                    false,
+                )
+                .unwrap()
+            }
+        }
+
+        let button = NodeKey::new(80, 1);
+        let label = NodeKey::new(81, 1);
+        let mut button_style = Style::default();
+        button_style.size.width = px(160.0).into();
+        button_style.size.height = px(48.0).into();
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            button,
+            None,
+            0,
+            button_style,
+            None,
+            ProjectedNodeKind::Element("button".into()),
+        )
+        .unwrap();
+        tree.insert(
+            label,
+            Some(button),
+            0,
+            Style::default(),
+            Some("Interactive label".into()),
+            ProjectedNodeKind::Text,
+        )
+        .unwrap();
+        tree.add_event_listener(button, wabou_protocol::event::CLICK)
+            .unwrap();
+
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let observed = events.clone();
+        let input: ProjectedInputSink = Rc::new(move |event, _| {
+            if let ProjectedInputEvent::Pointer(event) = event {
+                observed.borrow_mut().push(event);
+            }
+        });
+        let (_view, cx) = cx.add_window_view(move |_, _| PointerHost {
+            tree: tree.snapshot(),
+            input,
+        });
+        cx.update(|window, cx| {
+            let _ = window.draw(cx);
+        });
+
+        let inside_label = point(px(24.0), px(20.0));
+        cx.simulate_mouse_move(inside_label, None, Modifiers::default());
+        cx.simulate_mouse_down(inside_label, MouseButton::Left, Modifiers::default());
+        cx.simulate_mouse_up(inside_label, MouseButton::Left, Modifiers::default());
+
+        let events = events.borrow();
+        assert_eq!(events.len(), 3);
+        assert!(events.iter().all(|event| event.target == button));
+        assert_eq!(events[0].phase, ProjectedPointerPhase::Move);
+        assert_eq!(events[1].phase, ProjectedPointerPhase::Down);
+        assert_eq!(events[2].phase, ProjectedPointerPhase::Up);
     }
 
     #[gpui::test]
