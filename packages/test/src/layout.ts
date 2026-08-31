@@ -368,11 +368,27 @@ function scopedNodes(
   return result;
 }
 
+function isAggregatedProtocolTextLeaf(
+  node: LayoutSnapshotNode,
+  nodes: ReadonlyMap<string, LayoutSnapshotNode>,
+): boolean {
+  const parent = node.parentId ? nodes.get(key(node.parentId)) : undefined;
+  return (
+    node.tag === "text" &&
+    node.rect.width === 0 &&
+    node.rect.height === 0 &&
+    !node.textMetrics &&
+    parent?.tag === "text"
+  );
+}
+
 export function queryLayoutNodes(
   snapshot: LayoutSnapshot,
   query: LayoutQuery,
 ): readonly LayoutSnapshotNode[] {
+  const nodes = new Map(snapshot.nodes.map((node) => [key(node.id), node]));
   return snapshot.nodes.filter((node) => {
+    if (isAggregatedProtocolTextLeaf(node, nodes)) return false;
     if (query.tag !== undefined && node.tag !== query.tag) return false;
     if (query.role !== undefined && layoutRole(node) !== query.role)
       return false;
@@ -506,6 +522,14 @@ export function visibleOverflowDiagnostics(
   const diagnostics: LayoutDiagnostic[] = [];
   for (const node of scopedNodes(snapshot, options.within)) {
     let parent = node.parentId ? nodes.get(key(node.parentId)) : undefined;
+    // GPUI shapes direct string children as one glyph run owned by the
+    // aggregate Text element. The protocol leaf remains inspectable for
+    // identity/debugging, but intentionally has no independent layout box.
+    // Treating its zero rect as painted geometry produces false overflow at
+    // the window origin for every correctly aggregated text row.
+    if (isAggregatedProtocolTextLeaf(node, nodes)) {
+      continue;
+    }
     while (parent) {
       if (
         (parent.computed.overflowX ?? "Visible") !== "Visible" ||

@@ -6,6 +6,7 @@ import {
   layoutColorContrast,
   layoutRectBottom,
   layoutRectRight,
+  queryLayoutNodes,
   visibleOverflowDiagnostics,
   visualQualityDiagnostics,
 } from "./layout";
@@ -140,6 +141,52 @@ describe("layout rect assertions", () => {
     expect(diagnostic?.message).toContain(
       'path: view#1:1["Attachment row"] > text#2:1',
     );
+  });
+
+  test("ignores protocol text leaves aggregated into a GPUI glyph run", () => {
+    const snapshot: LayoutSnapshot = {
+      status: {
+        viewportWidth: 200,
+        viewportHeight: 100,
+        deviceScale: 1,
+        nodeCount: 2,
+      },
+      nodes: [
+        {
+          id: { lo: 1, hi: 1 },
+          tag: "text",
+          text: "Scrollable row 1",
+          classes: [],
+          attrs: [["role", "label"]],
+          rect: { x: 33, y: 28, width: 119, height: 26 },
+          contentRect: { x: 33, y: 28, width: 119, height: 26 },
+          textMetrics: {
+            source: "node",
+            lineBox: { x: 33, y: 28, width: 119, height: 26 },
+            baseline: 47,
+          },
+          styleDiagnostics: [],
+          computed: { overflowX: "Visible", overflowY: "Visible" },
+        },
+        {
+          id: { lo: 2, hi: 1 },
+          parentId: { lo: 1, hi: 1 },
+          tag: "text",
+          text: "Scrollable row 1",
+          classes: [],
+          attrs: [],
+          rect: { x: 0, y: 0, width: 0, height: 0 },
+          contentRect: { x: 0, y: 0, width: 0, height: 0 },
+          styleDiagnostics: [],
+          computed: {},
+        },
+      ],
+    };
+
+    expect(visibleOverflowDiagnostics(snapshot)).toEqual([]);
+    expect(queryLayoutNodes(snapshot, { text: "Scrollable row 1" })).toEqual([
+      snapshot.nodes[0],
+    ]);
   });
 
   test("measures opaque theme color contrast", () => {

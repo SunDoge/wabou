@@ -537,7 +537,10 @@ impl ProjectedElement {
     }
 }
 
-fn projected_text(tree: &ProjectionSnapshot, node: &ProjectedNode) -> Option<gpui::SharedString> {
+pub(crate) fn projected_text(
+    tree: &ProjectionSnapshot,
+    node: &ProjectedNode,
+) -> Option<gpui::SharedString> {
     if let Some(text) = &node.text {
         return Some(text.clone());
     }

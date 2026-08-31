@@ -696,6 +696,7 @@ impl GpuiProjection {
 
     pub fn layout_snapshot(&self) -> Vec<GpuiLayoutNode> {
         let bounds = self.layout_bounds.borrow();
+        let tree = self.tree.snapshot();
         self.tree
             .keys()
             .filter_map(|key| {
@@ -762,7 +763,11 @@ impl GpuiProjection {
                     parent: node.parent,
                     attached: node.attached,
                     attributes: node.attributes.clone(),
-                    text: node.text.clone(),
+                    // Publish the same effective string GPUI shapes. Direct
+                    // protocol text leaves remain in the snapshot for exact
+                    // identity, while their aggregate owner is now queryable
+                    // by the visible text users actually see.
+                    text: crate::element::projected_text(&tree, node),
                     // Retained nodes remain observable even when GPUI omits
                     // layout for `display: none` or before their first paint.
                     // A zero rectangle is more useful than silently deleting
