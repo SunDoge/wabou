@@ -263,6 +263,7 @@
   "yes": "Yes",
   "no": "No",
   "submit": "Submit",
+  "extension_response_failed": "Could not send the response",
   "danger_zone": "Danger zone",
   "delete_agent": "Delete project",
   "delete_agent_detail": "Remove this project and its session references from the desktop app.",

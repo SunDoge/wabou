@@ -107,6 +107,7 @@ test("supports keyboard-only extension selection and cancellation", async () => 
   listbox.press("ArrowDown");
   listbox.press("Enter");
   expect(respond).toHaveBeenCalledWith({ value: "dev" });
+  await Promise.resolve();
 
   screen.getByRole("button", { name: "Open extension UI" }).click();
   screen.getByRole("listbox", { name: "Choose a branch" }).press("Escape");
@@ -135,6 +136,58 @@ test("returns typed extension input", async () => {
   field.input("feature/dialogs");
   field.press("Enter");
   expect(inputResponse).toHaveBeenCalledWith({ value: "feature/dialogs" });
+});
+
+test("keeps failed extension responses open and retryable", async () => {
+  let attempt = 0;
+  const screen = renderComponent(() => {
+    const [request, setRequest] = createSignal<ExtensionUiDialogRequest>();
+    return (
+      <>
+        <Button
+          onClick={() =>
+            setRequest({
+              agentId: "agent-1",
+              id: "retry-input",
+              method: "input",
+              title: "Name this branch",
+              prefill: "feature/",
+            })
+          }
+        >
+          Open extension UI
+        </Button>
+        <ExtensionUiDialog
+          request={request()}
+          respond={async () => {
+            attempt += 1;
+            if (attempt === 1) throw new Error("bridge unavailable");
+            setRequest(undefined);
+          }}
+        />
+      </>
+    );
+  });
+
+  screen.getByRole("button", { name: "Open extension UI" }).click();
+  const input = screen.getByRole("textbox", { name: "Name this branch" });
+  input.input("feature/retry");
+  screen.getByRole("button", { name: "Submit" }).click();
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("alert", { name: "Could not send the response" }).text,
+    ).toContain("bridge unavailable");
+  });
+  expect(input.value).toBe("feature/retry");
+  expect(screen.getByRole("dialog", { name: "Name this branch" })).toBeTruthy();
+
+  screen.getByRole("button", { name: "Submit" }).click();
+  await screen.waitFor(() => {
+    expect(
+      screen.queryByRole("dialog", { name: "Name this branch" }),
+    ).toBeNull();
+  });
+  expect(attempt).toBe(2);
 });
 
 test("cancels a timed extension dialog exactly once", async () => {

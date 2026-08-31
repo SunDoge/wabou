@@ -1,5 +1,6 @@
 import type { Handle } from "@wabou/core/renderer";
 import {
+  Alert,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -8,6 +9,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   Button,
+  createAsyncAction,
   Dialog,
   DialogDescription,
   DialogFooter,
@@ -283,9 +285,12 @@ export type ExtensionUiAnswer =
 
 export function ExtensionUiDialog(props: {
   request?: ExtensionUiDialogRequest;
-  respond(answer: ExtensionUiAnswer): void;
+  respond(answer: ExtensionUiAnswer): void | Promise<void>;
 }) {
   const [value, setValue] = createSignal("");
+  const response = createAsyncAction((answer: ExtensionUiAnswer) =>
+    props.respond(answer),
+  );
   let initialControl: Handle | undefined;
   let answered = false;
   let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
@@ -294,11 +299,11 @@ export function ExtensionUiDialog(props: {
     clearTimeout(timeoutTimer);
     timeoutTimer = undefined;
   };
-  const respond = (answer: ExtensionUiAnswer) => {
-    if (answered) return;
-    answered = true;
+  const respond = async (answer: ExtensionUiAnswer) => {
+    if (answered || response.pending()) return;
     clearResponseTimeout();
-    props.respond(answer);
+    const result = await response.run(answer);
+    if (result.ok) answered = true;
   };
   onCleanup(clearResponseTimeout);
   createEffect(
@@ -306,16 +311,17 @@ export function ExtensionUiDialog(props: {
     (request) => {
       clearResponseTimeout();
       answered = false;
+      response.reset();
       setValue(request?.prefill ?? "");
       const timeout = request?.timeout;
       if (timeout === undefined) return;
       timeoutTimer = setTimeout(
-        () => respond({ cancelled: true }),
+        () => void respond({ cancelled: true }),
         Math.max(0, timeout - 25),
       );
     },
   );
-  const cancel = () => respond({ cancelled: true });
+  const cancel = () => void respond({ cancelled: true });
   const request = () => props.request;
 
   return (
@@ -335,14 +341,30 @@ export function ExtensionUiDialog(props: {
                     {dialog.message}
                   </AlertDialogDescription>
                 </Show>
+                <Show when={response.error()}>
+                  {(error) => (
+                    <Alert
+                      variant="destructive"
+                      title={i18n.message(m.extension_response_failed, {})}
+                      class="p-3"
+                    >
+                      {String(error())}
+                    </Alert>
+                  )}
+                </Show>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel
-                  onClick={() => respond({ confirmed: false })}
+                  disabled={response.pending()}
+                  onClick={() => void respond({ confirmed: false })}
                 >
                   {i18n.message(m.no, {})}
                 </AlertDialogCancel>
-                <AlertDialogAction onClick={() => respond({ confirmed: true })}>
+                <AlertDialogAction
+                  disabled={response.pending()}
+                  loading={response.pending()}
+                  onClick={() => void respond({ confirmed: true })}
+                >
                   {i18n.message(m.yes, {})}
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -359,6 +381,17 @@ export function ExtensionUiDialog(props: {
               <Show when={dialog.message}>
                 <DialogDescription>{dialog.message}</DialogDescription>
               </Show>
+              <Show when={response.error()}>
+                {(error) => (
+                  <Alert
+                    variant="destructive"
+                    title={i18n.message(m.extension_response_failed, {})}
+                    class="p-3"
+                  >
+                    {String(error())}
+                  </Alert>
+                )}
+              </Show>
               <Show when={dialog.method === "select"}>
                 <Listbox
                   ref={(node) => {
@@ -368,10 +401,11 @@ export function ExtensionUiDialog(props: {
                   options={(dialog.options ?? []).map((label, index) => ({
                     value: String(index),
                     label,
+                    disabled: response.pending(),
                   }))}
                   onAction={(index) => {
                     const option = dialog.options?.[Number(index)];
-                    if (option !== undefined) respond({ value: option });
+                    if (option !== undefined) void respond({ value: option });
                   }}
                   onDismiss={cancel}
                 />
@@ -383,12 +417,13 @@ export function ExtensionUiDialog(props: {
                   }}
                   aria-label={dialog.title}
                   value={value()}
+                  disabled={response.pending()}
                   placeholder={dialog.placeholder}
                   onInput={(event) => setValue(event.currentTarget.value)}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter") return;
                     event.preventDefault();
-                    respond({ value: value() });
+                    void respond({ value: value() });
                   }}
                 />
               </Show>
@@ -400,15 +435,24 @@ export function ExtensionUiDialog(props: {
                   aria-label={dialog.title}
                   class="h-48"
                   value={value()}
+                  disabled={response.pending()}
                   onInput={(event) => setValue(event.currentTarget.value)}
                 />
               </Show>
               <DialogFooter>
-                <Button variant="outline" onClick={cancel}>
+                <Button
+                  variant="outline"
+                  disabled={response.pending()}
+                  onClick={cancel}
+                >
                   {i18n.message(m.cancel, {})}
                 </Button>
                 <Show when={dialog.method !== "select"}>
-                  <Button onClick={() => respond({ value: value() })}>
+                  <Button
+                    disabled={response.pending()}
+                    loading={response.pending()}
+                    onClick={() => void respond({ value: value() })}
+                  >
                     {i18n.message(m.submit, {})}
                   </Button>
                 </Show>

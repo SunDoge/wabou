@@ -674,17 +674,18 @@ export function App() {
     request: ExtensionUiDialogRequest,
     answer: ExtensionUiAnswer,
   ) => {
-    setExtensionDialogs((current) =>
-      current.filter(
-        (candidate) =>
-          candidate.agentId !== request.agentId || candidate.id !== request.id,
-      ),
-    );
     try {
       await api.respondExtensionUi(request.agentId, {
         id: request.id,
         ...answer,
       });
+      setExtensionDialogs((current) =>
+        current.filter(
+          (candidate) =>
+            candidate.agentId !== request.agentId ||
+            candidate.id !== request.id,
+        ),
+      );
     } catch (error) {
       updateAgent(request.agentId, (agent) => ({
         ...agent,
@@ -693,6 +694,7 @@ export function App() {
           message: String(error),
         }),
       }));
+      throw error;
     }
   };
 
@@ -1114,7 +1116,7 @@ export function App() {
         request={extensionDialogs()[0]}
         respond={(answer) => {
           const request = extensionDialogs()[0];
-          if (request) void respondToExtension(request, answer);
+          return request ? respondToExtension(request, answer) : undefined;
         }}
       />
       <ExtensionWindowTitle

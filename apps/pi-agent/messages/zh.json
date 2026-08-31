@@ -263,6 +263,7 @@
   "yes": "是",
   "no": "否",
   "submit": "提交",
+  "extension_response_failed": "无法发送响应",
   "danger_zone": "危险操作",
   "delete_agent": "删除项目",
   "delete_agent_detail": "从桌面应用中移除这个项目及其会话引用。",
