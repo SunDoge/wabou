@@ -5,6 +5,7 @@ import { initialAgentState } from "../../pi-agent/ui/agent-state";
 import { ModelControls } from "../../pi-agent/ui/model-controls";
 import { Sidebar as PiAgentSidebar } from "../../pi-agent/ui/sidebar";
 import { galleryLayoutFixtures } from "./layout-fixture-pages";
+import { OverviewPage } from "./pages/overview";
 
 let activeOwners = 0;
 
@@ -136,6 +137,13 @@ defineLayoutFixtures({
           source={'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>'}
         />
       </View>
+    ),
+  },
+  "gallery/Overview": {
+    width: 1280,
+    height: 1200,
+    render: () => (
+      <OverviewPage theme="light" onCycleTheme={() => {}} onExplore={() => {}} />
     ),
   },
   "component/DirectoryPicker": {

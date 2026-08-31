@@ -37,6 +37,19 @@ const assertIconLayout = (snapshot: LayoutSnapshot) => {
   assertClose(icon.rect.height, 18, "icon height");
 };
 
+const assertOverviewSvgPaint = (snapshot: LayoutSnapshot) => {
+  const icons = queryLayoutNodes(snapshot, { tag: "svg" });
+  if (icons.length < 12)
+    throw new Error(`Gallery overview projected only ${icons.length} SVG icons`);
+  for (const icon of icons) {
+    if (icon.rect.width <= 0 || icon.rect.height <= 0) {
+      throw new Error(
+        `Gallery overview SVG ${icon.id.lo}:${icon.id.hi} has empty paint bounds`,
+      );
+    }
+  }
+};
+
 const assertSidebarLayout = (snapshot: LayoutSnapshot) => {
   const boundary = getLayoutNode(snapshot, {
     name: "Sidebar fixture boundary",
@@ -506,6 +519,12 @@ const assertMarkdownConversationLayout = (snapshot: LayoutSnapshot) => {
 };
 
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
+  "gallery/Overview": {
+    // The complete overview is intentionally taller than the fixture viewport;
+    // this contract targets its real GPUI SVG projection and paint path.
+    checks: [],
+    assert: assertOverviewSvgPaint,
+  },
   // These two fixtures deliberately expose raw palette values rather than
   // product UI. Contrast is documented by the swatches themselves and must
   // not weaken the default quality contract for ordinary components.
