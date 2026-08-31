@@ -33,6 +33,16 @@ describe("utility source extraction", () => {
     ).toThrow("use Solid classList or typed style");
   });
 
+  test("accepts explicit native text-selection policies", () => {
+    expect(() =>
+      assertSupportedWabouCandidates([
+        "select-none",
+        "select-text",
+        "select-all",
+      ]),
+    ).not.toThrow();
+  });
+
   test("compiles utilities directly to typed Style IR without CSS", () => {
     expect(compileWabouUtilities(["px-[13px]", "bg-slate-900"])).toEqual([
       {

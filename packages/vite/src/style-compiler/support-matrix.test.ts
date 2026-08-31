@@ -12,6 +12,7 @@ describe("style support contract", () => {
     expect(allHostProperties().length).toBeGreaterThan(40);
     expect(rejectUnsupportedProperty("display")).toBeUndefined();
     expect(rejectUnsupportedProperty("cursor")).toBeUndefined();
+    expect(rejectUnsupportedProperty("user-select")).toBeUndefined();
     expect(rejectUnsupportedProperty("outline-width")).toMatch(/unsupported/);
     expect(rejectUnsupportedProperty("text-decoration")).toMatch(/unsupported/);
     expect(rejectUnsupportedProperty("text-decoration-line")).toBeUndefined();

@@ -27,7 +27,7 @@ mod tests {
     // These properties intentionally map to retained GPUI node metadata rather
     // than `gpui::Style`. Everything else in the formal matrix must project
     // directly; there is no legacy migration allowlist anymore.
-    const GPUI_NODE_PROPERTIES: &[&str] = &["pointer-events", "z-index"];
+    const GPUI_NODE_PROPERTIES: &[&str] = &["pointer-events", "user-select", "z-index"];
 
     fn keyword(value: &str) -> IrValue {
         IrValue::Keyword {
@@ -45,10 +45,7 @@ mod tests {
     #[test]
     fn every_matrix_host_property_is_known_by_gpui_projection() {
         let matrix: Matrix = serde_json::from_str(MATRIX_JSON).expect("matrix json");
-        let node_properties = GPUI_NODE_PROPERTIES
-            .iter()
-            .copied()
-            .collect::<HashSet<_>>();
+        let node_properties = GPUI_NODE_PROPERTIES.iter().copied().collect::<HashSet<_>>();
         let mut missing = Vec::new();
         let mut stale_gaps = Vec::new();
         for property in matrix.supported.keys() {
