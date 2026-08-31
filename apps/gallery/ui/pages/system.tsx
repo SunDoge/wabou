@@ -1,7 +1,8 @@
+import { clipboard, showNativeMenu, useFileDrop } from "@wabou/core";
 import {
   Button,
-  dialog,
   DirectoryPicker,
+  dialog,
   notification,
   Text,
   View,
@@ -25,6 +26,22 @@ export function SystemPage() {
   );
   const [failed, setFailed] = createSignal(false);
   const [directory, setDirectory] = createSignal("");
+  const [clipboardText, setClipboardText] = createSignal("");
+  const [dropResult, setDropResult] = createSignal(
+    "Drop files anywhere in this window.",
+  );
+
+  useFileDrop((event) => {
+    if (event.phase === "dropped") {
+      setDropResult(
+        event.paths.length
+          ? `Dropped ${event.paths.length} file${event.paths.length === 1 ? "" : "s"}: ${event.paths.join(", ")}`
+          : "Drop completed without files.",
+      );
+    } else if (event.phase === "entered") {
+      setDropResult("Release to import the selected files.");
+    }
+  });
 
   async function run(
     action: SystemAction,
@@ -119,6 +136,52 @@ export function SystemPage() {
             >
               {isPending("notification") ? "Sending..." : "Send notification"}
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                void clipboard
+                  .writeText("Copied from Wabou Gallery")
+                  .then(() => {
+                    setClipboardText(
+                      "Copied a sample string to the system clipboard.",
+                    );
+                  });
+              }}
+            >
+              Copy text
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                void clipboard.readText().then((value) => {
+                  setClipboardText(
+                    value ? `Clipboard: ${value}` : "Clipboard is empty.",
+                  );
+                });
+              }}
+            >
+              Read clipboard
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                void showNativeMenu({
+                  items: [
+                    { kind: "item", id: "refresh", label: "Refresh" },
+                    { kind: "item", id: "inspect", label: "Inspect" },
+                    { kind: "separator" },
+                    {
+                      kind: "item",
+                      id: "disabled",
+                      label: "Disabled action",
+                      enabled: false,
+                    },
+                  ],
+                }).then((id) => setResult(`Native menu selected: ${id}`));
+              }}
+            >
+              Show native menu
+            </Button>
           </View>
 
           <DirectoryPicker
@@ -153,6 +216,19 @@ export function SystemPage() {
             >
               {result()}
             </Text>
+          </View>
+          <View class="p-4 flex flex-col gap-2 rounded-lg border border-slate-700">
+            <ThemeText
+              dark="text-xs font-medium text-slate-400"
+              light="text-xs font-medium text-slate-500"
+            >
+              Clipboard and file drop
+            </ThemeText>
+            <Text class="text-sm text-slate-600">
+              {clipboardText() ||
+                "Use the buttons above to exercise the system clipboard."}
+            </Text>
+            <Text class="text-sm text-slate-600">{dropResult()}</Text>
           </View>
         </View>
       </Preview>
