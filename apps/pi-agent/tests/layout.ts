@@ -205,14 +205,37 @@ try {
         height: 48,
         checks: ["visible-overflow", "text-collision"],
         assert: (fixture) => {
-          getLayoutNode(fixture, {
+          const navigation = getLayoutNode(fixture, {
+            role: "toolbar",
+            name: "Session navigation",
+          });
+          const actions = getLayoutNode(fixture, {
             role: "toolbar",
             name: "Conversation actions",
           });
-          getLayoutNode(fixture, { role: "button", name: "Toggle terminal" });
-          getLayoutNode(fixture, { role: "button", name: "Workspace files" });
-          getLayoutNode(fixture, { role: "button", name: "Code changes" });
-          getLayoutNode(fixture, { role: "button", name: "New session" });
+          const actionButtons = [
+            "Toggle terminal",
+            "Workspace files",
+            "Code changes",
+            "New session",
+            "Session actions",
+          ].map((name) => getLayoutNode(fixture, { role: "button", name }));
+          if (
+            actionButtons.some(
+              (button) =>
+                button.rect.y !== actionButtons[0]?.rect.y ||
+                button.rect.height !== actionButtons[0]?.rect.height,
+            )
+          ) {
+            throw new Error(
+              "conversation toolbar controls lost shared geometry",
+            );
+          }
+          if (navigation.rect.x + navigation.rect.width > actions.rect.x) {
+            throw new Error(
+              "session navigation overlapped conversation actions",
+            );
+          }
         },
       },
       {

@@ -1,8 +1,8 @@
 import { renderComponent } from "@wabou/test/component";
 import { expect, test, vi } from "vitest";
 import { initialAgentState } from "../../apps/pi-agent/ui/agent-state";
-import { ConversationHeader } from "../../apps/pi-agent/ui/conversation-header";
 import { compactBranchLabel } from "../../apps/pi-agent/ui/conversation-context";
+import { ConversationHeader } from "../../apps/pi-agent/ui/conversation-header";
 
 const readyState = {
   ...initialAgentState,
@@ -17,6 +17,7 @@ test("Pi Agent header preserves full semantics while compacting long branches", 
   expect(compactBranchLabel(branch)).toMatch(/^…/);
 
   const toggleFiles = vi.fn();
+  const goBack = vi.fn();
   const screen = renderComponent(() => (
     <ConversationHeader
       project="Documentation workspace"
@@ -29,6 +30,9 @@ test("Pi Agent header preserves full semantics while compacting long branches", 
       filesOpen={false}
       changesOpen={false}
       searchOpen={false}
+      canGoBack
+      canGoForward={false}
+      goBack={goBack}
       toggleTerminal={() => {}}
       toggleFiles={toggleFiles}
       toggleChanges={() => {}}
@@ -49,7 +53,32 @@ test("Pi Agent header preserves full semantics while compacting long branches", 
   expect(
     screen.getByRole("toolbar", { name: "Conversation actions" }),
   ).toBeTruthy();
-  screen.getByRole("button", { name: "Workspace files" }).click();
+  const navigation = screen.getByRole("toolbar", {
+    name: "Session navigation",
+  });
+  const previous = navigation.getByRole("button", { name: "Previous session" });
+  const next = navigation.getByRole("button", {
+    name: "Next session",
+    disabled: true,
+  });
+  expect(previous.focusOrder).toBe(0);
+  expect(next.focusOrder).toBe(-1);
+  previous.click();
+  expect(goBack).toHaveBeenCalledOnce();
+
+  const actions = screen.getByRole("toolbar", { name: "Conversation actions" });
+  const terminal = actions.getByRole("button", { name: "Toggle terminal" });
+  const files = actions.getByRole("button", { name: "Workspace files" });
+  const sessionActions = actions.getByRole("button", {
+    name: "Session actions",
+  });
+  expect(terminal.pressed).toBe(false);
+  terminal.focus();
+  terminal.press("ArrowRight");
+  expect(files.focused).toBe(true);
+  files.press("End");
+  expect(sessionActions.focused).toBe(true);
+  files.click();
   expect(toggleFiles).toHaveBeenCalledOnce();
 });
 

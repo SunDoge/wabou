@@ -1,5 +1,11 @@
-import { Button, DropdownMenu, Icon } from "@wabou/ui";
+import {
+  Button,
+  DropdownMenu,
+  type DropdownMenuTriggerProps,
+  Icon,
+} from "@wabou/ui";
 import ellipsis from "lucide-static/icons/ellipsis.svg?raw";
+import type { JSX } from "solid-js";
 import { i18n, m } from "./i18n";
 
 export function SessionActions(props: {
@@ -7,6 +13,7 @@ export function SessionActions(props: {
   compact(): void;
   clone(): void;
   exportHtml(): void;
+  trigger?: (props: DropdownMenuTriggerProps) => JSX.Element;
 }) {
   const items = () => [
     {
@@ -38,16 +45,18 @@ export function SessionActions(props: {
       aria-label={i18n.message(m.session_actions, {})}
       items={items()}
       contentClass="w-72"
-      trigger={(trigger) => (
-        <Button
-          {...trigger}
-          variant="ghost"
-          size="icon"
-          aria-label={i18n.message(m.session_actions, {})}
-        >
-          <Icon source={ellipsis} size={16} />
-        </Button>
-      )}
+      trigger={(trigger) =>
+        props.trigger?.(trigger) ?? (
+          <Button
+            {...trigger}
+            variant="ghost"
+            size="icon"
+            aria-label={i18n.message(m.session_actions, {})}
+          >
+            <Icon source={ellipsis} size={16} />
+          </Button>
+        )
+      }
     />
   );
 }

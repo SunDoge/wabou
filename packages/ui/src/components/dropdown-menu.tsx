@@ -1,11 +1,16 @@
 import type { Handle } from "@wabou/core/renderer";
 import type { Shadow } from "@wabou/core/style";
-import { createEffect, createSignal, For as ForValue, type JSX } from "solid-js";
+import { mergeClasses } from "@wabou/core/style";
+import {
+  createEffect,
+  createSignal,
+  For as ForValue,
+  type JSX,
+} from "solid-js";
 import { match } from "ts-pattern";
 import { Popover, Text, View } from "../primitives";
 import { createTypeahead } from "../primitives/interactions";
 import type { Placement, PointAnchor } from "../primitives/positioner";
-import { mergeClasses } from "@wabou/core/style";
 import { type MenuStateItem, moveMenuHighlight } from "./menu-state";
 import type { PopupMotionProps } from "./popover";
 import { componentsElevation, useComponentsTheme } from "./theme";
@@ -17,18 +22,20 @@ export interface DropdownMenuItem extends MenuStateItem {
   onSelect?: () => void;
 }
 
+export interface DropdownMenuTriggerProps {
+  ref(node: Handle): void;
+  onClick(event: { stopPropagation(): void }): void;
+  onKeyDown(event: {
+    key: string;
+    preventDefault(): void;
+    stopPropagation(): void;
+  }): void;
+  "aria-haspopup": "menu";
+  "aria-expanded": boolean;
+}
+
 export interface DropdownMenuProps extends PopupMotionProps {
-  trigger(props: {
-    ref(node: Handle): void;
-    onClick(event: { stopPropagation(): void }): void;
-    onKeyDown(event: {
-      key: string;
-      preventDefault(): void;
-      stopPropagation(): void;
-    }): void;
-    "aria-haspopup": "menu";
-    "aria-expanded": boolean;
-  }): JSX.Element;
+  trigger(props: DropdownMenuTriggerProps): JSX.Element;
   items: readonly DropdownMenuItem[];
   "aria-label": string;
   open?: boolean;
