@@ -174,34 +174,36 @@ function App() {
   });
 
   return (
-    <View class="w-full h-full flex flex-col bg-slate-950 text-slate-100">
-      <View class="h-9 flex-none px-3 flex items-center gap-3 border-b border-slate-700 bg-slate-900">
-        <Text class="text-sm font-semibold">Emoji stress</Text>
-        <Text class="text-xs text-slate-400">
+    <View class="w-full h-full flex flex-col bg-canvas text-primary">
+      <View class="h-9 flex-none px-3 flex items-center gap-3 border-b border-subtle bg-surface">
+        <Text class="text-sm font-semibold text-primary">Emoji stress</Text>
+        <Text class="text-xs text-muted">
           GPUI retained projection · per-node transform updates
         </Text>
       </View>
 
-      <View class="h-11 flex-none min-w-0 flex border-b border-slate-700 bg-slate-950">
-        <View class="flex-1 min-w-0 px-3 justify-center border-r border-slate-800">
-          <Text class="text-[10px] uppercase text-slate-500">FPS</Text>
-          <Text class="text-base font-mono font-semibold text-sky-400">
+      <View class="h-11 flex-none min-w-0 flex border-b border-subtle bg-surface-muted">
+        <View class="flex-1 min-w-0 px-3 justify-center border-r border-subtle">
+          <Text class="text-[10px] text-muted">FPS</Text>
+          <Text class="text-base font-mono font-semibold text-accent">
             {fps().toString()}
           </Text>
         </View>
-        <View class="flex-1 min-w-0 px-3 justify-center border-r border-slate-800">
-          <Text class="text-[10px] uppercase text-slate-500">Nodes</Text>
-          <Text class="text-sm font-mono">{n().toLocaleString()}</Text>
+        <View class="flex-1 min-w-0 px-3 justify-center border-r border-subtle">
+          <Text class="text-[10px] text-muted">NODES</Text>
+          <Text class="text-sm font-mono text-primary">
+            {n().toLocaleString()}
+          </Text>
         </View>
-        <View class="flex-1 min-w-0 px-3 justify-center border-r border-slate-800">
-          <Text class="text-[10px] uppercase text-slate-500">Driver</Text>
-          <Text class="text-sm font-mono">{driver()}</Text>
+        <View class="flex-1 min-w-0 px-3 justify-center border-r border-subtle">
+          <Text class="text-[10px] text-muted">DRIVER</Text>
+          <Text class="text-sm font-mono text-primary">{driver()}</Text>
         </View>
         <Show
           when={stats()}
           fallback={
             <View class="flex-[4] min-w-0 px-3 justify-center">
-              <Text class={statsError() ? "text-red-400" : "text-slate-500"}>
+              <Text class={statsError() ? "text-danger-primary" : "text-muted"}>
                 {statsError() ?? "Waiting for the first completed frame"}
               </Text>
             </View>
@@ -209,32 +211,28 @@ function App() {
         >
           {(current) => (
             <>
-              <View class="flex-1 min-w-0 px-3 justify-center border-r border-slate-800">
-                <Text class="text-[10px] uppercase text-slate-500">
-                  JS tick
-                </Text>
-                <Text class="text-sm font-mono">{`${fmt(current().js_tick_ms)} ms`}</Text>
+              <View class="flex-1 min-w-0 px-3 justify-center border-r border-subtle">
+                <Text class="text-[10px] text-muted">JS TICK</Text>
+                <Text class="text-sm font-mono text-primary">{`${fmt(current().js_tick_ms)} ms`}</Text>
               </View>
-              <View class="flex-1 min-w-0 px-3 justify-center border-r border-slate-800">
-                <Text class="text-[10px] uppercase text-slate-500">Build</Text>
-                <Text class="text-sm font-mono">{`${fmt(current().build_frame_ms)} ms`}</Text>
+              <View class="flex-1 min-w-0 px-3 justify-center border-r border-subtle">
+                <Text class="text-[10px] text-muted">BUILD</Text>
+                <Text class="text-sm font-mono text-primary">{`${fmt(current().build_frame_ms)} ms`}</Text>
               </View>
-              <View class="flex-1 min-w-0 px-3 justify-center border-r border-slate-800">
-                <Text class="text-[10px] uppercase text-slate-500">Scene</Text>
-                <Text class="text-sm font-mono">{`${fmt(current().scene_ms)} ms`}</Text>
+              <View class="flex-1 min-w-0 px-3 justify-center border-r border-subtle">
+                <Text class="text-[10px] text-muted">SCENE</Text>
+                <Text class="text-sm font-mono text-primary">{`${fmt(current().scene_ms)} ms`}</Text>
               </View>
               <View class="flex-1 min-w-0 px-3 justify-center">
-                <Text class="text-[10px] uppercase text-slate-500">
-                  Present
-                </Text>
-                <Text class="text-sm font-mono">{`${fmt(current().present_ms)} ms`}</Text>
+                <Text class="text-[10px] text-muted">PRESENT</Text>
+                <Text class="text-sm font-mono text-primary">{`${fmt(current().present_ms)} ms`}</Text>
               </View>
             </>
           )}
         </Show>
       </View>
 
-      <View class="h-10 flex-none min-w-0 overflow-x-auto overflow-y-hidden px-2 flex items-center gap-2 border-b border-slate-700">
+      <View class="h-10 flex-none min-w-0 overflow-x-auto overflow-y-hidden px-2 flex items-center gap-2 border-b border-subtle bg-surface">
         <ForValue each={PRESETS}>
           {(p) => (
             <Button
@@ -248,8 +246,8 @@ function App() {
             </Button>
           )}
         </ForValue>
-        <Text class="ml-1 text-xs text-slate-500">emojis</Text>
-        <Text class="mx-2 text-slate-600">|</Text>
+        <Text class="ml-1 text-xs text-muted">emojis</Text>
+        <Text class="mx-2 text-muted">|</Text>
         <ForValue each={JS_WORK}>
           {(w) => (
             <Button
@@ -262,8 +260,8 @@ function App() {
             </Button>
           )}
         </ForValue>
-        <Text class="ml-1 text-xs text-slate-500">js iters</Text>
-        <Text class="mx-2 text-slate-600">|</Text>
+        <Text class="ml-1 text-xs text-muted">js iters</Text>
+        <Text class="mx-2 text-muted">|</Text>
         <Button
           class="px-2 py-1 text-xs rounded border border-slate-600"
           tone="sky"
