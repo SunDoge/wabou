@@ -1,5 +1,5 @@
 import { mergeClasses } from "@wabou/core/style";
-import { type JSX, omit } from "solid-js";
+import { type JSX, omit, Show } from "solid-js";
 import { match, P } from "ts-pattern";
 import {
   type ButtonState,
@@ -9,6 +9,7 @@ import {
 } from "../primitives";
 import { useButtonGroupOrientation } from "./button-group-context";
 import { componentsControlSize } from "./theme";
+import { Spinner } from "./display";
 
 export type ButtonVariant =
   | "default"
@@ -24,6 +25,10 @@ export interface ButtonProps
   size?: ButtonSize;
   class?: string;
   style?: HeadlessButtonProps["style"];
+  /** Disable activation and replace the leading content with a native spinner. */
+  loading?: boolean;
+  /** Visible label used while loading. Defaults to the ordinary children. */
+  loadingLabel?: string;
 }
 
 function buttonColors(variant: ButtonVariant, state: ButtonState): string {
@@ -101,13 +106,23 @@ function buttonSize(size: ButtonSize): string {
 
 export function Button(props: ButtonProps): JSX.Element {
   const local = props;
-  const forwarded = omit(props, "variant", "size", "class", "style");
+  const forwarded = omit(
+    props,
+    "variant",
+    "size",
+    "class",
+    "style",
+    "loading",
+    "loadingLabel",
+    "children",
+  );
   const variant = () => local.variant ?? "default";
   const size = () => local.size ?? "default";
   const groupOrientation = useButtonGroupOrientation();
   return (
     <HeadlessButton
       {...forwarded}
+      disabled={local.disabled || local.loading}
       unstyled
       class={(state) =>
         mergeClasses(
@@ -127,6 +142,11 @@ export function Button(props: ButtonProps): JSX.Element {
             : local.style),
         }) as WabouStyle
       }
-    />
+    >
+      <Show when={local.loading} fallback={local.children}>
+        <Spinner label={local.loadingLabel ?? "Loading"} class="text-current" />
+        {local.loadingLabel ?? local.children}
+      </Show>
+    </HeadlessButton>
   );
 }

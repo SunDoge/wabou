@@ -62,3 +62,40 @@ test("Pi Agent setup exposes recent runtime diagnostics", () => {
   expect(output.text).toContain("bun install failed");
   expect(output.text).toContain("proxy refused connection");
 });
+
+test("Pi Agent setup reports startup progress and failures with shared status components", async () => {
+  let finishStart: (() => void) | undefined;
+  const start = new Promise<void>((resolve) => {
+    finishStart = resolve;
+  });
+  const screen = renderComponent(() => (
+    <WorkspaceSetup
+      path="/work/wabou"
+      error="Runtime failed to start"
+      updatePath={() => {}}
+      start={() => start}
+      openSettings={() => {}}
+    />
+  ));
+
+  expect(
+    screen.getByRole("alert", { name: "Runtime failed to start" }).text,
+  ).toContain("Runtime failed to start");
+  screen.getByRole("button", { name: "Start agent" }).click();
+  await screen.waitFor(() =>
+    expect(
+      screen.getByRole("button", {
+        name: "Start agent",
+        disabled: true,
+      }).text,
+    ).toContain("Starting"),
+  );
+  expect(screen.getByRole("status", { name: "Starting…" })).toBeDefined();
+
+  finishStart?.();
+  await screen.waitFor(() =>
+    expect(screen.getByRole("button", { name: "Start agent" }).disabled).toBe(
+      false,
+    ),
+  );
+});

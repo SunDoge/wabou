@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   CodeBlock,
   DirectoryPicker,
@@ -6,6 +7,7 @@ import {
   Text,
   View,
 } from "@wabou/ui";
+import circleAlert from "lucide-static/icons/circle-alert.svg?raw";
 import bot from "lucide-static/icons/bot.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import play from "lucide-static/icons/play.svg?raw";
@@ -36,7 +38,7 @@ export function WorkspaceSetup(props: {
     }
   };
   return (
-    <View class="min-h-0 flex-1 overflow-y-auto bg-canvas flex items-center justify-center">
+    <View class="w-full h-full min-h-0 overflow-y-auto bg-canvas flex items-center justify-center">
       <View class="w-full max-w-2xl min-w-0 mx-auto px-8 py-12 gap-5">
         <View class="w-full min-w-0 flex flex-row items-center gap-3 mb-1">
           <View class="w-11 h-11 flex-none rounded-xl bg-control flex items-center justify-center">
@@ -108,23 +110,30 @@ export function WorkspaceSetup(props: {
             variant="default"
             class="w-full"
             aria-label={i18n.message(m.start_agent, {})}
-            disabled={!props.path.trim() || starting()}
+            disabled={!props.path.trim()}
+            loading={starting()}
+            loadingLabel={i18n.message(m.starting, {})}
             onClick={() => void start()}
           >
             <Icon source={play} size={15} />
-            {starting()
-              ? i18n.message(m.starting, {})
-              : i18n.message(m.start_agent, {})}
+            {i18n.message(m.start_agent, {})}
           </Button>
         </View>
 
         {props.error ? (
-          <Text
-            role="alert"
-            class="text-sm text-danger-primary whitespace-normal"
+          <Alert
+            variant="destructive"
+            aria-label={props.error}
+            icon={
+              <Icon
+                source={circleAlert}
+                size={16}
+                class="text-danger-primary"
+              />
+            }
           >
             {props.error}
-          </Text>
+          </Alert>
         ) : null}
         {props.runtimeLogs && props.runtimeLogs.length > 0 ? (
           <View class="w-full min-w-0 max-h-40 overflow-y-auto">
