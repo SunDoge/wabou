@@ -477,6 +477,12 @@ impl GpuiRuntimeView {
         self.controller.layout_snapshot()
     }
 
+    pub(crate) fn publish_completed_layout(&mut self) {
+        if self.controller.completed_layout_needs_publish() {
+            self.controller.publish_completed_layout();
+        }
+    }
+
     #[cfg(feature = "headless")]
     pub(crate) fn protocol_revision(&self) -> u64 {
         self.controller.protocol_revision()
@@ -883,6 +889,14 @@ impl Render for GpuiRuntimeView {
         let viewport = window.viewport_size();
         let viewport_width = f32::from(viewport.width).round().max(1.0) as u32;
         let viewport_height = f32::from(viewport.height).round().max(1.0) as u32;
+        // At the start of a render, the shared bounds still describe the
+        // previous completed GPUI prepaint pass. Publish them before running
+        // JavaScript work for this frame, so synchronous layout reads never
+        // observe a half-built projection.
+        if self.controller.has_window_metrics() && self.controller.completed_layout_needs_publish()
+        {
+            self.controller.publish_completed_layout();
+        }
         let metrics = self.window_metrics(window, cx);
         self.controller.update_window_metrics(metrics);
         if let Some(persistence) = &mut self.window_size_persistence {

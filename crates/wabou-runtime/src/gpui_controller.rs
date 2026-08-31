@@ -4,7 +4,7 @@ use crate::reload::{HmrBatch, HmrDrainResult};
 use crate::{
     ImageResourceHandle, ImageResourceStore,
     host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, NumericEventData},
-    jsrt::HostFrameDisposition,
+    jsrt::{HostFrameDisposition, LayoutMetric, LayoutMetricsSnapshot},
     protocol::{Frame, decode_frame},
     runtime_session::RuntimeSession,
 };
@@ -35,10 +35,73 @@ pub struct GpuiController {
     last_primary_click: Option<(std::time::Instant, wabou_host_api::NodeKey, f32, f32)>,
     focused_target: Option<wabou_host_api::NodeKey>,
     last_window_metrics: Option<wabou_shell::WindowMetrics>,
+    published_layout_revision: Option<(u64, u32, u32)>,
     #[cfg(feature = "devtools")]
     debug_state: Option<wabou_devtools::SharedDebugState>,
     #[cfg(feature = "devtools")]
     published_debug_revision: Option<u64>,
+}
+
+fn completed_layout_metrics(
+    projected: &[wabou_shell::GpuiLayoutNode],
+    viewport: wabou_host_api::LayoutRect,
+) -> std::collections::HashMap<wabou_host_api::NodeKey, LayoutMetric> {
+    let by_key = projected
+        .iter()
+        .map(|node| (node.key, node))
+        .collect::<std::collections::HashMap<_, _>>();
+    projected
+        .iter()
+        .filter(|node| node.attached)
+        .map(|node| {
+            let bounds = node.bounds;
+            let rect = wabou_host_api::LayoutRect {
+                x: f32::from(bounds.origin.x),
+                y: f32::from(bounds.origin.y),
+                width: f32::from(bounds.size.width).max(0.0),
+                height: f32::from(bounds.size.height).max(0.0),
+            };
+            let mut clip = viewport;
+            let mut parent = node.parent;
+            while let Some(parent_key) = parent {
+                let Some(ancestor) = by_key.get(&parent_key) else {
+                    break;
+                };
+                let ancestor_bounds = ancestor.bounds;
+                let ancestor_rect = wabou_host_api::LayoutRect {
+                    x: f32::from(ancestor_bounds.origin.x),
+                    y: f32::from(ancestor_bounds.origin.y),
+                    width: f32::from(ancestor_bounds.size.width).max(0.0),
+                    height: f32::from(ancestor_bounds.size.height).max(0.0),
+                };
+                if ancestor.computed.overflow_x != "Visible" {
+                    let left = clip.x.max(ancestor_rect.x);
+                    let right = (clip.x + clip.width)
+                        .min(ancestor_rect.x + ancestor_rect.width)
+                        .max(left);
+                    clip.x = left;
+                    clip.width = right - left;
+                }
+                if ancestor.computed.overflow_y != "Visible" {
+                    let top = clip.y.max(ancestor_rect.y);
+                    let bottom = (clip.y + clip.height)
+                        .min(ancestor_rect.y + ancestor_rect.height)
+                        .max(top);
+                    clip.y = top;
+                    clip.height = bottom - top;
+                }
+                parent = ancestor.parent;
+            }
+            (
+                node.key,
+                LayoutMetric {
+                    rect,
+                    clip,
+                    scroll: wabou_host_api::LayoutScrollMetrics::default(),
+                },
+            )
+        })
+        .collect()
 }
 
 impl GpuiController {
@@ -54,6 +117,7 @@ impl GpuiController {
             last_primary_click: None,
             focused_target: None,
             last_window_metrics: None,
+            published_layout_revision: None,
             #[cfg(feature = "devtools")]
             debug_state: None,
             #[cfg(feature = "devtools")]
@@ -645,6 +709,72 @@ impl GpuiController {
 
     pub(crate) fn layout_snapshot(&self) -> Vec<wabou_shell::GpuiLayoutNode> {
         self.projection.layout_snapshot()
+    }
+
+    pub(crate) fn completed_layout_needs_publish(&self) -> bool {
+        let metrics = self.last_window_metrics.unwrap_or_default();
+        self.published_layout_revision
+            != Some((
+                self.projection.revision(),
+                metrics.logical_width,
+                metrics.logical_height,
+            ))
+    }
+
+    pub(crate) fn has_window_metrics(&self) -> bool {
+        self.last_window_metrics.is_some()
+    }
+
+    /// Publish GPUI's completed prepaint geometry to the synchronous JS layout API.
+    ///
+    /// Live windows call this at the start of the following render; the
+    /// headless harness calls it immediately after its explicit draw. Calling
+    /// it before prepaint would expose a structurally current but geometrically
+    /// stale snapshot to floating UI and drag logic.
+    pub(crate) fn publish_completed_layout(&mut self) {
+        let window = self.last_window_metrics.unwrap_or_default();
+        let revision = self.projection.revision();
+        let viewport = wabou_host_api::LayoutRect {
+            x: 0.0,
+            y: 0.0,
+            width: window.logical_width as f32,
+            height: window.logical_height as f32,
+        };
+        let projected = self.projection.layout_snapshot();
+        let nodes = completed_layout_metrics(&projected, viewport);
+        let layout = self.runtime.js.layout_metrics_handle();
+        *layout.borrow_mut() = LayoutMetricsSnapshot {
+            revision,
+            viewport,
+            nodes,
+        };
+
+        let resize_targets = self.runtime.js.resize_targets_handle();
+        let mut resize_events = Vec::new();
+        {
+            let layout = layout.borrow();
+            let mut targets = resize_targets.borrow_mut();
+            for (target, last_size) in targets.iter_mut() {
+                let Some(metric) = layout.nodes.get(target) else {
+                    continue;
+                };
+                let size = (metric.rect.width, metric.rect.height);
+                if *last_size == Some(size) {
+                    continue;
+                }
+                *last_size = Some(size);
+                resize_events.push(HostEvent::Resize(crate::ResizeObservation {
+                    target: *target,
+                    width: size.0,
+                    height: size.1,
+                }));
+            }
+        }
+        if !resize_events.is_empty() {
+            let _ = self.dispatch_host_frame(&resize_events);
+        }
+        self.published_layout_revision =
+            Some((revision, window.logical_width, window.logical_height));
     }
 
     pub(crate) fn focused_target(&self) -> Option<wabou_host_api::NodeKey> {

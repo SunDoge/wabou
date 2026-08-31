@@ -168,6 +168,15 @@ impl GpuiHeadlessHarness {
                 .map_err(|error| crate::Error::GpuiShell {
                     message: format!("failed to draw hidden GPUI window: {error}"),
                 })?;
+            // Hidden windows do not have a compositor-driven next-frame
+            // boundary. The draw above has nevertheless completed layout and
+            // prepaint, so publish the same authoritative geometry explicitly.
+            let root = self.root()?;
+            self.context.update(|cx| {
+                root.update(cx, |view, _| {
+                    view.publish_completed_layout();
+                });
+            });
         }
         Ok(())
     }
@@ -456,6 +465,25 @@ mod tests {
         assert!(stats.build_frame_ms >= stats.js_tick_ms);
         assert!(stats.scene_ms >= 0.0);
         assert_eq!(stats.present_ms, 0.0);
+
+        let layout = harness
+            .eval_string(
+                r#"(() => {
+                  const ids = new Uint32Array([1, 1]);
+                  const required = __wabou_layout_snapshot(ids, undefined);
+                  const values = new Float64Array(required);
+                  __wabou_layout_snapshot(ids, values);
+                  return JSON.stringify(Array.from(values));
+                })()"#,
+            )
+            .expect("read completed layout through the synchronous JS host API");
+        let layout: Vec<f64> = serde_json::from_str(&layout).expect("layout ABI is numeric");
+        assert_eq!(layout[0], 1.0, "layout ABI version");
+        assert!(layout[1] > 0.0, "completed layout revision is published");
+        assert_eq!((layout[3], layout[4]), (0.0, 0.0));
+        assert_eq!((layout[5], layout[6]), (800.0, 600.0));
+        assert_eq!(layout[7], 1.0, "requested projected node is present");
+        assert!(layout[12] > 0.0 && layout[13] > 0.0);
     }
 
     #[test]

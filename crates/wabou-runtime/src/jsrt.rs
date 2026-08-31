@@ -869,9 +869,12 @@ impl JsRuntime {
         self.frame_stats.clone()
     }
 
-    #[cfg(test)]
     pub(crate) fn layout_metrics_handle(&self) -> Rc<RefCell<LayoutMetricsSnapshot>> {
         self.layout_metrics.clone()
+    }
+
+    pub(crate) fn resize_targets_handle(&self) -> ResizeTargets {
+        self.resize_targets.clone()
     }
 
     pub(crate) fn atom_pool_handle(&self) -> Rc<RefCell<AtomPool>> {

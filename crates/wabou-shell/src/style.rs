@@ -511,6 +511,9 @@ fn axis_overflow(value: &Value) -> Option<(Overflow, Overflow)> {
 }
 
 fn definite_length(value: &Value) -> Option<DefiniteLength> {
+    if let Some(value) = number(value).filter(|value| value.is_finite()) {
+        return Some(gpui::px(value).into());
+    }
     match ir_length(value)? {
         IrLength::Px { value } if value.is_finite() => Some(gpui::px(*value).into()),
         IrLength::Percent { value } if value.is_finite() => Some(DefiniteLength::Fraction(*value)),
@@ -541,6 +544,9 @@ fn color(value: &Value) -> Option<Hsla> {
 fn length(value: &Value) -> Option<Length> {
     if keyword(value) == Some("auto") {
         return Some(Length::Auto);
+    }
+    if matches!(value, Value::Number { .. }) {
+        return definite_length(value).map(Length::Definite);
     }
     match ir_length(value)? {
         IrLength::Auto => Some(Length::Auto),
@@ -744,6 +750,23 @@ mod tests {
         assert_eq!(style.gap.height, gpui::px(8.0).into());
         assert_eq!(style.overflow.y, Overflow::Scroll);
         assert_eq!(style.align_items, Some(AlignItems::Center));
+    }
+
+    #[test]
+    fn numeric_layout_lengths_are_logical_pixels() {
+        let mut projection = StyleProjection::default();
+        for declaration in [
+            declaration("left", Value::Number { value: 0.0 }),
+            declaration("top", Value::Number { value: -12.0 }),
+            declaration("width", Value::Number { value: 240.0 }),
+        ] {
+            projection.apply(&declaration).unwrap();
+        }
+
+        let style = projection.style();
+        assert_eq!(style.inset.left, Length::Definite(gpui::px(0.0).into()));
+        assert_eq!(style.inset.top, Length::Definite(gpui::px(-12.0).into()));
+        assert_eq!(style.size.width, Length::Definite(gpui::px(240.0).into()));
     }
 
     #[test]
