@@ -35,6 +35,10 @@ test("skills page loads, filters, and selects native skill records", async () =>
       close={close}
     />
   ));
+  screen.getByRole("group", { name: "Skill browser layout" }).resize({
+    width: 960,
+    height: 560,
+  });
 
   await screen.waitFor(() =>
     expect(
@@ -55,6 +59,33 @@ test("skills page loads, filters, and selects native skill records", async () =>
 
   screen.getByRole("button", { name: "Back to projects" }).click();
   expect(close).toHaveBeenCalledTimes(1);
+});
+
+test("skills page presents details as a controlled dialog in compact layouts", async () => {
+  const screen = renderComponent(() => (
+    <SkillsPage
+      cwd="/work/project"
+      project="Project"
+      load={async () => skills}
+      close={() => {}}
+    />
+  ));
+  screen.getByRole("group", { name: "Skill browser layout" }).resize({
+    width: 520,
+    height: 560,
+  });
+
+  await screen.waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Review changes" }),
+    ).toBeDefined(),
+  );
+  expect(screen.queryByRole("dialog", { name: "Review changes" })).toBeNull();
+
+  screen.getByRole("button", { name: "Review changes" }).click();
+  expect(screen.getByRole("dialog", { name: "Review changes" }).text).toContain(
+    "Inspect the current diff before editing.",
+  );
 });
 
 test("skills page exposes loading failures without losing page navigation", async () => {

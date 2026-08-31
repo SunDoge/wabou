@@ -394,6 +394,30 @@ try {
         },
       },
       {
+        id: "skills/catalog-narrow",
+        width: 520,
+        height: 680,
+        waitMs: 20,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, { role: "textbox", name: "Search skills" });
+          getLayoutNode(fixture, {
+            role: "button",
+            name: "Frontend design review",
+          });
+          if (
+            queryLayoutNodes(fixture, {
+              role: "region",
+              name: "Frontend design review",
+            }).length > 0
+          ) {
+            throw new Error(
+              "compact skills page opened detail before selection",
+            );
+          }
+        },
+      },
+      {
         id: "skills/error",
         width: 720,
         height: 560,

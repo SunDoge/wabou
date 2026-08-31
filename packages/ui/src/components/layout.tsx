@@ -1,6 +1,8 @@
+import { mergeClasses } from "@wabou/core/style";
 import {
   type Accessor,
   createContext,
+  createEffect,
   createMemo,
   For as ForValue,
   type JSX,
@@ -10,7 +12,6 @@ import {
 } from "solid-js";
 import { match } from "ts-pattern";
 import { createMeasuredSize, View, type ViewProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import { Dialog } from "./dialog";
 
 export type ResponsiveGridColumnCount = 1 | 2 | 3 | 4;
@@ -232,15 +233,42 @@ const AdaptiveSplitPaneContext = createContext<AdaptiveSplitPaneContextValue>();
  */
 export function AdaptiveSplitPane(props: {
   children?: JSX.Element;
-  compact: boolean;
+  /** Controlled compact mode. Omit it to measure this pane natively. */
+  compact?: boolean;
+  /** Inclusive native content width that activates compact mode. */
+  compactAt?: number;
+  onCompactChange?: (compact: boolean) => void;
+  "aria-label"?: string;
   class?: string;
 }) {
+  const measured = createMeasuredSize();
+  const compact = () =>
+    props.compact ??
+    (measured.measured() && measured.width() <= (props.compactAt ?? 720));
+  createEffect(
+    () =>
+      props.compact !== undefined || measured.measured()
+        ? compact()
+        : undefined,
+    (value) => {
+      if (value !== undefined) props.onCompactChange?.(value);
+    },
+  );
   const context: AdaptiveSplitPaneContextValue = {
-    compact: () => props.compact,
+    compact,
   };
   return (
     <AdaptiveSplitPaneContext value={context}>
-      <SplitPane class={props.class}>{props.children}</SplitPane>
+      <View
+        ref={measured.ref}
+        role="group"
+        aria-label={props["aria-label"]}
+        class="w-full h-full min-w-0 min-h-0"
+      >
+        <SplitPane class={mergeClasses("h-full", props.class)}>
+          {props.children}
+        </SplitPane>
+      </View>
     </AdaptiveSplitPaneContext>
   );
 }

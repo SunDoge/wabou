@@ -36,8 +36,8 @@ import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
 import { SkillsPage } from "./skills-page";
 import { createAgentWorkspace } from "./workspace";
-import { WorkspacePanel } from "./workspace-panel";
 import { WorkspaceChangesPanel } from "./workspace-changes-panel";
+import { WorkspacePanel } from "./workspace-panel";
 import { WorkspaceSetup } from "./workspace-setup";
 
 const project = createAgentWorkspace(1);
@@ -516,6 +516,18 @@ defineLayoutFixtures(
       "skills/catalog": {
         width: 960,
         height: 720,
+        render: () => (
+          <SkillsPage
+            cwd={project.cwd}
+            project={project.name}
+            load={async () => skillFixtures}
+            close={() => {}}
+          />
+        ),
+      },
+      "skills/catalog-narrow": {
+        width: 520,
+        height: 680,
         render: () => (
           <SkillsPage
             cwd={project.cwd}
