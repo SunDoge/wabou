@@ -1,7 +1,8 @@
 use gpui::{
     AbsoluteLength, AlignContent, AlignItems, BoxShadow, CursorStyle, DefiniteLength, Display,
-    FlexDirection, FlexWrap, FontStyle, FontWeight, Hsla, Length, Overflow, Position, Style,
-    TextAlign, TextOverflow, Visibility, WhiteSpace,
+    FlexDirection, FlexWrap, FontStyle, FontWeight, GridPlacement, GridTemplate,
+    GridTemplateMinSize, Hsla, Length, Overflow, Position, Style, TextAlign, TextOverflow,
+    Visibility, WhiteSpace,
 };
 use wabou_style::{Color, Declaration, Length as IrLength, Value};
 
@@ -180,7 +181,10 @@ impl StyleProjection {
                 self.style.align_items = Some(align_items(value).ok_or_else(|| invalid(property))?);
             }
             "align-self" => {
-                self.style.align_self = Some(align_items(value).ok_or_else(|| invalid(property))?);
+                self.style.align_self = match keyword(value) {
+                    Some("auto") => None,
+                    _ => Some(align_items(value).ok_or_else(|| invalid(property))?),
+                };
             }
             "align-content" => {
                 self.style.align_content =
@@ -189,6 +193,31 @@ impl StyleProjection {
             "justify-content" => {
                 self.style.justify_content =
                     Some(align_content(value).ok_or_else(|| invalid(property))?);
+            }
+            "grid-template-columns" => {
+                self.style.grid_cols = Some(grid_template(value).ok_or_else(|| invalid(property))?);
+            }
+            "grid-template-rows" => {
+                self.style.grid_rows = Some(grid_template(value).ok_or_else(|| invalid(property))?);
+            }
+            "grid-column-start" => {
+                self.style
+                    .grid_location
+                    .get_or_insert_default()
+                    .column
+                    .start = grid_placement(value).ok_or_else(|| invalid(property))?;
+            }
+            "grid-column-end" => {
+                self.style.grid_location.get_or_insert_default().column.end =
+                    grid_placement(value).ok_or_else(|| invalid(property))?;
+            }
+            "grid-row-start" => {
+                self.style.grid_location.get_or_insert_default().row.start =
+                    grid_placement(value).ok_or_else(|| invalid(property))?;
+            }
+            "grid-row-end" => {
+                self.style.grid_location.get_or_insert_default().row.end =
+                    grid_placement(value).ok_or_else(|| invalid(property))?;
             }
             "background" | "background-color" => {
                 self.style.background = Some(color(value).ok_or_else(|| invalid(property))?.into());
@@ -573,6 +602,60 @@ fn align_content(value: &Value) -> Option<AlignContent> {
     }
 }
 
+/// GPUI intentionally exposes the useful Wabou subset of grid templates:
+/// `repeat(n, minmax(0, 1fr))`. Keep this parser closed rather than pretending
+/// that GPUI implements arbitrary CSS grid syntax.
+fn grid_template(value: &Value) -> Option<GridTemplate> {
+    let Value::List { values } = value else {
+        return None;
+    };
+    let [repeat] = values.as_slice() else {
+        return None;
+    };
+    if keyword(field(repeat, "kind")?) != Some("repeat") {
+        return None;
+    }
+    let count = number(field(repeat, "count")?)?;
+    if count.fract() != 0.0 || !(1.0..=u16::MAX as f32).contains(&count) {
+        return None;
+    }
+    let Value::List { values: tracks } = field(repeat, "values")? else {
+        return None;
+    };
+    let [track] = tracks.as_slice() else {
+        return None;
+    };
+    if keyword(field(track, "kind")?) != Some("breadth") {
+        return None;
+    }
+    let breadth = field(track, "value")?;
+    if keyword(field(breadth, "kind")?) != Some("flex") || number(field(breadth, "value")?)? != 1.0
+    {
+        return None;
+    }
+    Some(GridTemplate {
+        repeat: count as u16,
+        min_size: GridTemplateMinSize::Zero,
+    })
+}
+
+fn grid_placement(value: &Value) -> Option<GridPlacement> {
+    let kind = keyword(field(value, "kind")?)?;
+    let value = number(field(value, "value")?)?;
+    if value.fract() != 0.0 {
+        return None;
+    }
+    match kind {
+        "line" if (i16::MIN as f32..=i16::MAX as f32).contains(&value) => {
+            Some(GridPlacement::Line(value as i16))
+        }
+        "span" if (1.0..=u16::MAX as f32).contains(&value) => {
+            Some(GridPlacement::Span(value as u16))
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -640,6 +723,65 @@ mod tests {
         assert_eq!(style.gap.height, gpui::px(8.0).into());
         assert_eq!(style.overflow.y, Overflow::Scroll);
         assert_eq!(style.align_items, Some(AlignItems::Center));
+    }
+
+    #[test]
+    fn projects_the_explicit_gpui_grid_subset() {
+        let track = record(&[
+            ("kind", keyword_value("breadth")),
+            (
+                "value",
+                record(&[
+                    ("kind", keyword_value("flex")),
+                    ("value", Value::Number { value: 1.0 }),
+                ]),
+            ),
+        ]);
+        let template = Value::List {
+            values: vec![record(&[
+                ("kind", keyword_value("repeat")),
+                ("count", Value::Number { value: 3.0 }),
+                (
+                    "values",
+                    Value::List {
+                        values: vec![track],
+                    },
+                ),
+            ])],
+        };
+        let mut projection = StyleProjection::default();
+        projection
+            .apply(&declaration("grid-template-columns", template))
+            .unwrap();
+        projection
+            .apply(&declaration(
+                "grid-column-start",
+                record(&[
+                    ("kind", keyword_value("span")),
+                    ("value", Value::Number { value: 2.0 }),
+                ]),
+            ))
+            .unwrap();
+        projection
+            .apply(&declaration(
+                "grid-row-end",
+                record(&[
+                    ("kind", keyword_value("line")),
+                    ("value", Value::Number { value: 4.0 }),
+                ]),
+            ))
+            .unwrap();
+
+        assert_eq!(
+            projection.style().grid_cols,
+            Some(GridTemplate {
+                repeat: 3,
+                min_size: GridTemplateMinSize::Zero,
+            })
+        );
+        let location = projection.style().grid_location.as_ref().unwrap();
+        assert_eq!(location.column.start, GridPlacement::Span(2));
+        assert_eq!(location.row.end, GridPlacement::Line(4));
     }
 
     #[test]
