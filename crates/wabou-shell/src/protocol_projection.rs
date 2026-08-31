@@ -4,6 +4,7 @@
 // runtime crates. It is not a stable application-facing API.
 #![allow(missing_docs)]
 
+use crate::gpui::Refineable as _;
 use crate::{
     DirtyKind, NodeKey, ProjectedNodeKind, ProjectionError, ProjectionTree, StyleDiagnostic,
     StyleProjection, TextSelectionPolicy,
@@ -847,10 +848,34 @@ impl GpuiProjection {
     pub fn layout_snapshot(&self) -> Vec<GpuiLayoutNode> {
         let bounds = self.layout_bounds.borrow();
         let tree = self.tree.snapshot();
+
+        fn resolved_text_style(
+            tree: &crate::ProjectionSnapshot,
+            key: NodeKey,
+        ) -> crate::gpui::TextStyle {
+            let mut path = Vec::new();
+            let mut current = Some(key);
+            while let Some(key) = current {
+                let Some(node) = tree.node(key) else {
+                    break;
+                };
+                path.push(key);
+                current = node.parent;
+            }
+            let mut text = crate::gpui::TextStyle::default();
+            for key in path.into_iter().rev() {
+                if let Some(refinement) = tree.node(key).and_then(|node| node.style.text_style()) {
+                    text.refine(refinement);
+                }
+            }
+            text
+        }
+
         self.tree
             .keys()
             .filter_map(|key| {
                 let node = self.tree.node(key)?;
+                let resolved_text = resolved_text_style(&tree, key);
                 let node_bounds = bounds.get(&key).copied().unwrap_or_default();
                 let padding = node
                     .style
@@ -952,36 +977,40 @@ impl GpuiProjection {
                     ProjectedNodeKind::Element(tag)
                         if matches!(tag.as_ref(), "input" | "password-input")
                 );
-                let text_metrics = node.style.text.font_size.and_then(|font_size| {
-                    let line_box = if native_single_line_editor {
-                        content_bounds
-                    } else if text.as_ref().is_some_and(|text| !text.is_empty()) {
-                        node_bounds
-                    } else {
-                        return None;
-                    };
-                    if line_box.size.width <= crate::gpui::Pixels::ZERO
-                        || line_box.size.height <= crate::gpui::Pixels::ZERO
-                    {
-                        return None;
-                    }
-                    let font_size = f32::from(font_size.to_pixels(crate::gpui::px(16.0)));
-                    let line_top = f32::from(line_box.origin.y);
-                    let line_height = f32::from(line_box.size.height);
-                    Some(GpuiTextMetrics {
-                        source: if native_single_line_editor {
-                            "widget"
-                        } else {
-                            "node"
-                        },
-                        line_box,
-                        // GPUI centers the em box inside the resolved line box.
-                        // A baseline at 0.8em matches GPUI's ordinary Latin
-                        // ascent and, crucially, uses the native editor's
-                        // content box rather than its padded control surface.
-                        baseline: line_top + (line_height - font_size) / 2.0 + font_size * 0.8,
+                let line_box = if native_single_line_editor {
+                    Some(content_bounds)
+                } else if text.as_ref().is_some_and(|text| !text.is_empty()) {
+                    Some(node_bounds)
+                } else {
+                    None
+                };
+                let text_metrics = line_box
+                    .filter(|line_box| {
+                        line_box.size.width > crate::gpui::Pixels::ZERO
+                            && line_box.size.height > crate::gpui::Pixels::ZERO
                     })
-                });
+                    .map(|line_box| {
+                        let font_size = f32::from(
+                            resolved_text.font_size.to_pixels(crate::gpui::px(16.0)),
+                        );
+                        let line_top = f32::from(line_box.origin.y);
+                        let line_height = f32::from(line_box.size.height);
+                        GpuiTextMetrics {
+                            source: if native_single_line_editor {
+                                "widget"
+                            } else {
+                                "node"
+                            },
+                            line_box,
+                            // GPUI centers the em box inside the resolved line box.
+                            // A baseline at 0.8em matches GPUI's ordinary Latin
+                            // ascent and, crucially, uses the native editor's
+                            // content box rather than its padded control surface.
+                            baseline: line_top
+                                + (line_height - font_size) / 2.0
+                                + font_size * 0.8,
+                        }
+                    });
                 Some(GpuiLayoutNode {
                     key,
                     kind: node.kind.clone(),
@@ -1016,13 +1045,11 @@ impl GpuiProjection {
                         position: format!("{:?}", node.style.position),
                         overflow_x: format!("{:?}", node.style.overflow.x),
                         overflow_y: format!("{:?}", node.style.overflow.y),
-                        font_size: node
-                            .style
-                            .text
-                            .font_size
-                            .map(|size| f32::from(size.to_pixels(crate::gpui::px(16.0)))),
-                        font_weight: node.style.text.font_weight.map(|weight| weight.0),
-                        text_color: node.style.text.color,
+                        font_size: Some(f32::from(
+                            resolved_text.font_size.to_pixels(crate::gpui::px(16.0)),
+                        )),
+                        font_weight: Some(resolved_text.font_weight.0),
+                        text_color: Some(resolved_text.color),
                         opacity: node.style.opacity.unwrap_or(1.0),
                     },
                 })
@@ -2819,13 +2846,10 @@ mod tests {
             ),
         ]);
         let layout = projection.layout_snapshot();
-        assert!(
-            layout
-                .iter()
-                .find(|node| node.key == key(2))
-                .unwrap()
-                .attached
-        );
+        let paragraph = layout.iter().find(|node| node.key == key(2)).unwrap();
+        assert!(paragraph.attached);
+        assert_eq!(paragraph.computed.font_size, Some(16.0));
+        assert_eq!(paragraph.computed.font_weight, Some(400.0));
         assert!(
             !layout
                 .iter()
