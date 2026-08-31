@@ -143,7 +143,7 @@ fn run_batch(
     Ok(())
 }
 
-fn boot(
+pub(super) fn boot(
     source: Arc<str>,
     source_map: Option<Arc<[u8]>>,
     width: u32,
@@ -167,7 +167,10 @@ fn fixture_cases(harness: &mut GpuiHeadlessHarness) -> Result<Vec<LayoutBatchCas
     Ok(serde_json::from_str(&encoded)?)
 }
 
-fn mount_fixture(harness: &mut GpuiHeadlessHarness, id: &str) -> Result<LayoutBatchCase> {
+pub(super) fn mount_fixture(
+    harness: &mut GpuiHeadlessHarness,
+    id: &str,
+) -> Result<LayoutBatchCase> {
     let cases = fixture_cases(harness)?;
     let fixture = cases
         .into_iter()
@@ -179,7 +182,7 @@ fn mount_fixture(harness: &mut GpuiHeadlessHarness, id: &str) -> Result<LayoutBa
     Ok(fixture)
 }
 
-fn settle_wait(harness: &mut GpuiHeadlessHarness, wait_ms: u64) -> Result<()> {
+pub(super) fn settle_wait(harness: &mut GpuiHeadlessHarness, wait_ms: u64) -> Result<()> {
     if wait_ms > 0 {
         harness.advance_time(Duration::from_millis(wait_ms))?;
     }
@@ -187,7 +190,7 @@ fn settle_wait(harness: &mut GpuiHeadlessHarness, wait_ms: u64) -> Result<()> {
     Ok(())
 }
 
-fn write_snapshot(
+pub(super) fn write_snapshot(
     path: &Path,
     output: &GpuiHeadlessOutput,
     color_scheme: HeadlessColorScheme,

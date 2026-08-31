@@ -12303,7 +12303,6 @@ dependencies = [
 name = "wabou-cli"
 version = "0.1.0-alpha.3"
 dependencies = [
- "anyrender",
  "cargo-packager",
  "clap",
  "ctrlc",
@@ -12313,12 +12312,9 @@ dependencies = [
  "serde_json",
  "tempfile",
  "toml 0.9.12+spec-1.1.0",
- "vello",
  "wabou-devtools",
- "wabou-legacy-runtime",
- "wabou-legacy-shell",
- "wabou-legacy-widgets",
  "wabou-runtime",
+ "wabou-shell",
 ]
 
 [[package]]

@@ -19,11 +19,10 @@ mod config;
 mod devtools;
 mod doctor;
 mod frontend;
-mod headless_render;
+mod gpui_render;
 mod packaging;
 mod process;
 mod project;
-mod render_metrics;
 mod scaffold;
 
 use artifact::{
@@ -42,9 +41,9 @@ use config::{
 };
 use devtools::InspectCommand;
 use frontend::{build as build_frontend, build_test_script};
-use headless_render::{
+use gpui_render::{
     HeadlessColorScheme, RenderOptions, actions_from_matches as render_actions_from_matches,
-    legacy_actions as legacy_render_actions, run as render,
+    actions as fallback_render_actions, run as render,
 };
 #[cfg(test)]
 use process::wait_for_managed_child;
@@ -556,7 +555,7 @@ fn main() -> Result<()> {
                     snapshot,
                     samples,
                     actions: render_actions
-                        .unwrap_or_else(|| legacy_render_actions(click, wheel, text, key)),
+                        .unwrap_or_else(|| fallback_render_actions(click, wheel, text, key)),
                     layout_only: false,
                     cargo_features: cargo_features.values,
                 },
@@ -1255,7 +1254,7 @@ mod tests {
     use std::thread;
     use std::time::Instant;
 
-    use crate::headless_render::RenderAction;
+    use crate::gpui_render::RenderAction;
 
     use super::*;
 
