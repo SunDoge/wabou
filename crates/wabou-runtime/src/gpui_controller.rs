@@ -1030,6 +1030,26 @@ impl GpuiController {
         )
     }
 
+    /// Cross the synchronous host-event boundary before a behavior action is
+    /// reported complete.
+    ///
+    /// Solid 2 may use the first runtime turn to schedule its flush and emit
+    /// the retained mutation batch on the following turn. Requiring two turns
+    /// and then stopping at the first stable projection keeps actions
+    /// deterministic without waiting for authored, potentially infinite,
+    /// animation frames.
+    pub(crate) fn settle_synchronous_action(&mut self) -> bool {
+        let mut changed = false;
+        for turn in 0..4 {
+            let (turn_changed, _) = self.advance_frame_profiled();
+            changed |= turn_changed;
+            if turn > 0 && !turn_changed {
+                break;
+            }
+        }
+        changed
+    }
+
     pub(crate) fn publish_frame_stats(
         &mut self,
         timing: GpuiFrameTiming,

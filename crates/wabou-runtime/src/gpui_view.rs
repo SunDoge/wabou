@@ -801,6 +801,9 @@ impl Render for GpuiRuntimeView {
                 &self.layout_snapshot(),
                 &mut self.controller,
             );
+            if source_action {
+                self.synchronize_text_controls(window, cx);
+            }
             if window_action || source_action {
                 cx.notify();
             }

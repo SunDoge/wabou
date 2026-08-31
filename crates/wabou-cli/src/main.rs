@@ -42,8 +42,8 @@ use config::{
 use devtools::InspectCommand;
 use frontend::{build as build_frontend, build_test_script};
 use gpui_render::{
-    HeadlessColorScheme, RenderOptions, actions_from_matches as render_actions_from_matches,
-    actions as fallback_render_actions, run as render,
+    HeadlessColorScheme, RenderOptions, actions as fallback_render_actions,
+    actions_from_matches as render_actions_from_matches, run as render,
 };
 #[cfg(test)]
 use process::wait_for_managed_child;
@@ -880,6 +880,9 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     // instead of silently replacing it with the no-op ABI fallback.
     let mut cargo_features = options.cargo_features.clone();
     cargo_features.push(app_framework_feature(workspace, app, "devtools")?);
+    if !options.native {
+        cargo_features.push(app_framework_feature(workspace, app, "headless")?);
+    }
     let executable = build_behavior_host(workspace, &manifest, &binary, &cargo_features)?;
     let mut host = Command::new(executable);
     host.current_dir(workspace)

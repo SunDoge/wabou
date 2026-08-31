@@ -17,6 +17,7 @@ wabou-tray = { workspace = true, optional = true }
 [features]
 bindings = ["wabou-bindgen/generate"]
 devtools = ["wabou-runtime/devtools"]
+headless = ["wabou-runtime/headless"]
 profiling = ["wabou-runtime/profiling"]
 rust-hot-reload = ["wabou-runtime/rust-hot-reload"]
 tray = ["dep:wabou-tray"]

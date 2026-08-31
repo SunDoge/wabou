@@ -1,6 +1,6 @@
 //! Test-only bridge between QuickJS scenarios and the native event loop.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{
     Arc, Mutex,
@@ -205,6 +205,7 @@ struct TestState {
     wake: Option<WakeCallback>,
     report: Option<String>,
     gpui_snapshots: HashMap<WindowKey, Arc<[wabou_shell::GpuiLayoutNode]>>,
+    gpui_select_all: HashSet<(WindowKey, wabou_host_api::NodeKey)>,
     #[cfg(test)]
     semantic_snapshots: HashMap<WindowKey, Arc<SemanticSnapshot>>,
     #[cfg(test)]
@@ -661,6 +662,11 @@ impl TestController {
         self.state.lock().ok()?.report.take()
     }
 
+    #[cfg(feature = "headless")]
+    pub(crate) fn has_report(&self) -> bool {
+        self.state.lock().is_ok_and(|state| state.report.is_some())
+    }
+
     #[cfg(test)]
     pub(crate) fn initialize_headless(
         &self,
@@ -828,6 +834,12 @@ impl TestController {
         nodes: &[wabou_shell::GpuiLayoutNode],
         controller: &mut crate::gpui_controller::GpuiController,
     ) -> bool {
+        let projected_nodes = controller.layout_snapshot();
+        let nodes = if projected_nodes.is_empty() {
+            nodes
+        } else {
+            projected_nodes.as_slice()
+        };
         if nodes.is_empty() {
             return false;
         }
@@ -844,6 +856,7 @@ impl TestController {
         let Some(action) = action else {
             return false;
         };
+        let mut mutation = false;
         let result = match &action.kind {
             TestActionKind::WaitForIdle(_) => TestActionResult::Handled(true),
             TestActionKind::ClickByRole {
@@ -852,10 +865,13 @@ impl TestController {
                 index,
                 scope,
                 ..
-            } => TestActionResult::Handled(
-                gpui_locator(nodes, role, label, *index, scope, false)
-                    .is_some_and(|node| click_gpui_target(controller, node)),
-            ),
+            } => {
+                mutation = true;
+                TestActionResult::Handled(
+                    gpui_locator(nodes, role, label, *index, scope, false)
+                        .is_some_and(|node| click_gpui_target(controller, node)),
+                )
+            }
             TestActionKind::InputByRole {
                 role,
                 label,
@@ -863,8 +879,9 @@ impl TestController {
                 index,
                 scope,
                 ..
-            } => TestActionResult::Handled(
-                gpui_locator(
+            } => {
+                mutation = true;
+                let handled = gpui_locator(
                     nodes,
                     role,
                     label,
@@ -872,8 +889,38 @@ impl TestController {
                     scope,
                     input_allows_disabled_target(input),
                 )
-                .is_some_and(|node| input_gpui_target(controller, node, input)),
-            ),
+                .is_some_and(|node| {
+                    let select_all = matches!(
+                        input,
+                        TestInput::Key { key, modifiers }
+                            if key.eq_ignore_ascii_case("a") && modifiers & (2 | 8) != 0
+                    );
+                    if select_all {
+                        controller.set_text_focus(node.key, true);
+                        if let Ok(mut state) = self.state.lock() {
+                            state.gpui_select_all.insert((window_key, node.key));
+                        }
+                        true
+                    } else {
+                        let replace =
+                            matches!(input, TestInput::Text { .. } | TestInput::Ime { .. })
+                                && self.state.lock().is_ok_and(|mut state| {
+                                    state.gpui_select_all.remove(&(window_key, node.key))
+                                });
+                        if replace {
+                            match input {
+                                TestInput::Text { text } | TestInput::Ime { text } => {
+                                    controller.commit_text_value(node.key, text)
+                                }
+                                _ => unreachable!("replace only applies to text input"),
+                            }
+                        } else {
+                            input_gpui_target(controller, node, input)
+                        }
+                    }
+                });
+                TestActionResult::Handled(handled)
+            }
             TestActionKind::QueryByRole {
                 role,
                 label,
@@ -883,15 +930,21 @@ impl TestController {
             } => {
                 TestActionResult::Query(gpui_locator_query_json(nodes, role, label, *index, scope))
             }
-            TestActionKind::FileDrop { phase, paths, .. } => TestActionResult::Handled(
-                controller.dispatch_file_drop(wabou_shell::FileDropEvent {
-                    phase: (*phase).into(),
-                    paths: paths.clone(),
-                    position: None,
-                }),
-            ),
+            TestActionKind::FileDrop { phase, paths, .. } => {
+                mutation = true;
+                TestActionResult::Handled(controller.dispatch_file_drop(
+                    wabou_shell::FileDropEvent {
+                        phase: (*phase).into(),
+                        paths: paths.clone(),
+                        position: None,
+                    },
+                ))
+            }
             _ => TestActionResult::Handled(false),
         };
+        if mutation {
+            let _ = controller.settle_synchronous_action();
+        }
         let _ = action.completion.send(result);
         true
     }
@@ -979,6 +1032,16 @@ fn gpui_node_label<'a>(
 ) -> Option<String> {
     if let Some(label) = node.attributes.get("aria-label") {
         return Some(label.to_string());
+    }
+    gpui_node_text_content(nodes, node)
+}
+
+fn gpui_node_text_content(
+    nodes: &[wabou_shell::GpuiLayoutNode],
+    node: &wabou_shell::GpuiLayoutNode,
+) -> Option<String> {
+    if let Some(text) = &node.text {
+        return Some(text.to_string());
     }
     let mut text = String::new();
     let mut pending = vec![node.key];
@@ -1069,7 +1132,12 @@ fn gpui_locator_query_json(
             "matchCount": matches.len(),
             "snapshot": {
                 "name": gpui_node_label(nodes, selected),
-                "value": selected.attributes.get("value"),
+                "text": gpui_node_text_content(nodes, selected),
+                "value": selected
+                    .attributes
+                    .get("value")
+                    .map(|value| value.to_string())
+                    .or_else(|| gpui_node_text_content(nodes, selected)),
                 "bounds": {
                     "x": f32::from(selected.bounds.origin.x),
                     "y": f32::from(selected.bounds.origin.y),
@@ -1847,6 +1915,31 @@ mod tests {
             snapshot["snapshot"]["bounds"],
             serde_json::json!({ "x": 10.0, "y": 20.0, "width": 100.0, "height": 40.0 })
         );
+    }
+
+    #[test]
+    fn gpui_locator_snapshot_exposes_descendant_text_after_reactive_updates() {
+        let mut status = gpui_node(
+            wabou_host_api::NodeKey::new(20, 1),
+            None,
+            "view",
+            "Counter value",
+        );
+        status.attributes.insert("role".into(), "status".into());
+        let mut text = gpui_node(
+            wabou_host_api::NodeKey::new(21, 1),
+            Some(status.key),
+            "text",
+            "",
+        );
+        text.attributes.remove("aria-label");
+        text.text = Some("1".into());
+        let snapshot =
+            gpui_locator_query_json(&[status, text], "status", "Counter value", None, &[])
+                .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
+                .expect("GPUI status snapshot");
+        assert_eq!(snapshot["snapshot"]["text"], "1");
+        assert_eq!(snapshot["snapshot"]["value"], "1");
     }
 
     #[test]

@@ -1046,11 +1046,6 @@ impl HostBuilder {
         });
         let headless_test = test_controller.is_some()
             && std::env::var("WABOU_TEST_HEADLESS").is_ok_and(|value| value != "0");
-        if headless_test {
-            return Err(crate::Error::GpuiShell {
-                message: "the legacy headless harness is no longer part of HostBuilder; use the explicit legacy layout oracle until GPUI headless scenarios land".into(),
-            });
-        }
         if let Some(controller) = &test_controller {
             let capability_controller = controller.clone();
             self.capabilities
@@ -1222,6 +1217,50 @@ impl HostBuilder {
                     .then(|| gpui_window_size_persistence.take())
                     .flatten(),
             ));
+        }
+        #[cfg(feature = "headless")]
+        if headless_test {
+            if !self.application_extensions.is_empty() {
+                tracing::debug!(
+                    count = self.application_extensions.len(),
+                    "native application extensions are intentionally omitted from a headless GPUI behavior run"
+                );
+            }
+            let headless_windows = gpui_sources
+                .into_iter()
+                .map(|(key, controller, options, _)| (key, controller, options))
+                .collect();
+            let mut harness = crate::gpui_headless::GpuiHeadlessHarness::boot_application(
+                headless_windows,
+                gpui_windows,
+            )?;
+            let controller = test_controller
+                .clone()
+                .expect("headless behavior tests always install a controller");
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while !controller.has_report() && Instant::now() < deadline {
+                harness.settle(1)?;
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            if recording_effects && let (Some(trace), Some(path)) = (&effect_trace, trace_path) {
+                trace
+                    .write(&path)
+                    .map_err(|message| crate::Error::EffectTrace { message })?;
+            }
+            finish_test_report(controller)?;
+            #[cfg(feature = "vite")]
+            hmr_clients.borrow_mut().clear();
+            #[cfg(feature = "devtools")]
+            drop(devtools_server);
+            services.finish()?;
+            return Ok(());
+        }
+        #[cfg(not(feature = "headless"))]
+        if headless_test {
+            return Err(crate::Error::GpuiShell {
+                message: "headless behavior tests require the `wabou-runtime/headless` feature"
+                    .into(),
+            });
         }
         run_gpui_windows(gpui_sources, gpui_windows, self.application_extensions)?;
         if recording_effects && let (Some(trace), Some(path)) = (&effect_trace, trace_path) {

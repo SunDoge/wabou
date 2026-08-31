@@ -5,7 +5,7 @@ use std::{collections::HashMap, path::Path, rc::Rc, sync::Arc, time::Duration};
 use snafu::ResultExt as _;
 use wabou_shell::gpui::{
     AppContext as _, HeadlessAppContext, Keystroke, Modifiers, MouseButton, MouseDownEvent,
-    MouseUpEvent, PlatformInput, ScrollDelta, ScrollWheelEvent, TouchPhase, point, px, size,
+    MouseUpEvent, PlatformInput, ScrollDelta, ScrollWheelEvent, TouchPhase, point, px,
 };
 
 use crate::{GpuiRuntimeView, JsRuntime, WindowOptions};
@@ -58,6 +58,7 @@ pub enum GpuiHeadlessScreenshot {
 pub struct GpuiHeadlessHarness {
     context: HeadlessAppContext,
     window: wabou_shell::gpui::WindowHandle<GpuiRuntimeView>,
+    _native_close_subscription: wabou_shell::gpui::Subscription,
 }
 
 impl GpuiHeadlessHarness {
@@ -83,17 +84,6 @@ impl GpuiHeadlessHarness {
     ) -> crate::Result<Self> {
         let source = source.into();
         let source_map = source_map.map(Into::into);
-        let platform = gpui_platform::current_platform(true);
-        let mut context = HeadlessAppContext::with_platform(
-            platform.text_system(),
-            Arc::new(()),
-            gpui_platform::current_headless_renderer,
-        );
-        context.update(gpui_base::init);
-
-        let window_key = wabou_shell::initial_window_resource_key(0);
-        let controller =
-            create_controller(window_key, &options.window, &source, source_map.as_deref())?;
         let dynamic_source = source.clone();
         let dynamic_source_map = source_map.clone();
         let dynamic_native_widget_factories = native_widget_factories.clone();
@@ -110,38 +100,61 @@ impl GpuiHeadlessHarness {
             dynamic_native_widget_factories,
             None,
         );
-        let view_window_host = window_host.clone();
-        let window = context
-            .open_window(
-                size(
-                    px(options.window.initial_inner_size.0 as f32),
-                    px(options.window.initial_inner_size.1 as f32),
-                ),
-                move |window, app| {
-                    app.new(|cx| {
-                        GpuiRuntimeView::new(
-                            controller,
-                            crate::gpui_view::GpuiRuntimeViewOptions {
-                                window_size_persistence: None,
-                                native_widget_factories,
-                                test_controller: None,
-                                window_key,
-                                window_host: view_window_host,
-                            },
-                            window,
-                            cx,
-                        )
-                    })
-                },
-            )
-            .map_err(|error| crate::Error::GpuiShell {
-                message: format!("failed to open hidden GPUI window: {error}"),
-            })?;
-        let _ = window_host.attach(window_key, window.into());
-
-        let mut harness = Self { context, window };
+        let window_key = window_host.reserve();
+        debug_assert_eq!(window_key, wabou_shell::initial_window_resource_key(0));
+        let controller =
+            create_controller(window_key, &options.window, &source, source_map.as_deref())?;
+        let mut harness = Self::boot_application(
+            vec![(window_key, controller, options.window.clone())],
+            window_host,
+        )?;
         harness.settle(options.settle_frames.max(1))?;
         Ok(harness)
+    }
+
+    pub(crate) fn boot_application(
+        windows: Vec<(
+            wabou_shell::WindowResourceKey,
+            crate::gpui_controller::GpuiController,
+            WindowOptions,
+        )>,
+        window_host: Rc<crate::gpui_windows::GpuiApplicationWindows>,
+    ) -> crate::Result<Self> {
+        let platform = gpui_platform::current_platform(true);
+        let mut context = HeadlessAppContext::with_platform(
+            platform.text_system(),
+            Arc::new(()),
+            gpui_platform::current_headless_renderer,
+        );
+        let native_close_subscription = context.update(|cx| {
+            gpui_base::init(cx);
+            gpui_base::Theme::global_mut(cx).scrollbar = gpui_base::ScrollbarTheme::new()
+                .with_motion(
+                    gpui_base::ScrollbarMotion::default()
+                        .with_idle(Duration::from_millis(500))
+                        .with_exit(Duration::from_millis(200)),
+                );
+            window_host.observe_native_closes(cx)
+        });
+        let mut primary = None;
+        for (index, (window_key, controller, options)) in windows.into_iter().enumerate() {
+            let handle = context
+                .update(|cx| window_host.open_controller(window_key, controller, options, None, cx))
+                .map_err(|error| crate::Error::GpuiShell {
+                    message: format!("failed to open hidden GPUI window: {error}"),
+                })?;
+            if index == 0 {
+                primary = handle.downcast::<GpuiRuntimeView>();
+            }
+        }
+        let window = primary.ok_or_else(|| crate::Error::GpuiShell {
+            message: "headless GPUI application did not open a primary runtime window".into(),
+        })?;
+        Ok(Self {
+            context,
+            window,
+            _native_close_subscription: native_close_subscription,
+        })
     }
 
     /// Run pending JavaScript work and force GPUI layout/prepaint cycles.
@@ -363,7 +376,7 @@ mod tests {
 
     use wabou_host_api::NodeKey;
     use wabou_shell::gpui::{
-        InteractiveElement as _, IntoElement as _, ParentElement as _, Styled as _, div,
+        InteractiveElement as _, IntoElement as _, ParentElement as _, Styled as _, div, size,
     };
 
     #[derive(Default)]

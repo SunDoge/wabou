@@ -76,7 +76,7 @@ impl GpuiApplicationWindows {
         self.registry.resolve(key)
     }
 
-    #[cfg(any(feature = "headless", test))]
+    #[cfg(test)]
     pub(crate) fn attach(
         &self,
         key: wabou_shell::WindowResourceKey,
