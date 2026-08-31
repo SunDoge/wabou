@@ -165,6 +165,7 @@
   "save": "保存",
   "saving": "正在保存…",
   "stop": "停止",
+  "stop_failed": "无法停止 Pi",
   "empty_title": "今天要构建什么？",
   "empty_workspace_title": "使用 Pi 开发 {workspace}",
   "empty_detail": "选择一个入门任务，或在下方输入自己的任务。发送第一条消息时 Pi 会自动启动。",

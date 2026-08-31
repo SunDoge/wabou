@@ -127,6 +127,10 @@ export function App() {
     (agentId: string) => agentId,
     (agentId: string) => api.newSession(agentId),
   );
+  const abortAction = createKeyedAsyncAction(
+    (agentId: string) => agentId,
+    (agentId: string) => api.abort(agentId),
+  );
   const activeSessionId = () => params().sessionId;
   const drafts = createAgentDraftController({
     kv: openKv(["pi-agent"]),
@@ -729,6 +733,14 @@ export function App() {
         description: String(result.error),
       });
   };
+  const abortActive = async () => {
+    const agentId = activeId();
+    const result = await abortAction.run(agentId);
+    if (!result.ok)
+      toasts.error(i18n.message(m.stop_failed, {}), {
+        description: String(result.error),
+      });
+  };
   const applicationCommands = createMemo<readonly CommandItem[]>(() => [
     {
       id: "new-session",
@@ -916,7 +928,8 @@ export function App() {
                 description: String(error),
               })
             }
-            abort={() => void api.abort(active().id)}
+            abort={abortActive}
+            abortPending={abortAction.pending(activeId())}
           />
 
           <Show

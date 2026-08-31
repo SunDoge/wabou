@@ -112,6 +112,38 @@ test("Pi Agent header swaps session actions for a stop action while running", ()
   expect(abort).toHaveBeenCalledOnce();
 });
 
+test("Pi Agent prevents duplicate stop requests while one is pending", () => {
+  const abort = vi.fn();
+  const screen = renderComponent(() => (
+    <ConversationHeader
+      project="Wabou"
+      session="Current task"
+      state={{ ...readyState, connection: "running" }}
+      cwdAvailable
+      repository={false}
+      terminalOpen={false}
+      filesOpen={false}
+      changesOpen={false}
+      searchOpen={false}
+      toggleTerminal={() => {}}
+      toggleFiles={() => {}}
+      toggleChanges={() => {}}
+      toggleSearch={() => {}}
+      newSession={() => {}}
+      compactSession={() => {}}
+      cloneSession={() => {}}
+      exportSession={() => {}}
+      abort={abort}
+      abortPending
+    />
+  ));
+
+  const stop = screen.getByRole("button", { name: "Stop", disabled: true });
+  expect(screen.getByRole("status", { name: "Loading" })).toBeDefined();
+  expect(() => stop.click()).toThrow("cannot click disabled component");
+  expect(abort).not.toHaveBeenCalled();
+});
+
 test("Pi Agent disables new-session entry points while creation is pending", () => {
   const newSession = vi.fn();
   const screen = renderComponent(() => (

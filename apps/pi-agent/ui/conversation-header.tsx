@@ -49,7 +49,8 @@ export interface ConversationHeaderProps {
   cloneSession(): void | Promise<void>;
   exportSession(): void | Promise<void>;
   sessionActionError?: (action: SessionAction, error: unknown) => void;
-  abort(): void;
+  abort(): void | Promise<void>;
+  abortPending?: boolean;
 }
 
 /** Fixed-height conversation chrome with explicit shrink and action groups. */
@@ -160,7 +161,12 @@ export function ConversationHeader(props: ConversationHeaderProps) {
             />
           </Show>
           <Show when={props.state.connection === "running"}>
-            <ToolbarButton variant="outline" onClick={props.abort}>
+            <ToolbarButton
+              variant="outline"
+              disabled={props.abortPending}
+              loading={props.abortPending}
+              onClick={props.abort}
+            >
               <Icon source={square} size={12} /> {i18n.message(m.stop, {})}
             </ToolbarButton>
           </Show>

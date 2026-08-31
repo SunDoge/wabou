@@ -165,6 +165,7 @@
   "save": "Save",
   "saving": "Saving…",
   "stop": "Stop",
+  "stop_failed": "Could not stop Pi",
   "empty_title": "What are we building?",
   "empty_workspace_title": "Build {workspace} with Pi",
   "empty_detail": "Choose a starter task or write your own below. Pi starts automatically when you send the first message.",
