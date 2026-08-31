@@ -855,10 +855,14 @@ export function App() {
               fallback={
                 <SettingsPage
                   app={defaults.value()}
+                  appLoadError={defaults.loadError()}
+                  appSaveError={defaults.saveError()}
                   project={active()}
                   state={active().state}
                   canDeleteProject={agents().length > 1}
                   updateApp={defaults.update}
+                  reloadApp={defaults.reload}
+                  retryAppSave={defaults.retrySave}
                   updateProject={patchActive}
                   deleteProject={deleteActiveAgent}
                   setAutoCompaction={(enabled) =>

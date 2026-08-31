@@ -784,6 +784,38 @@ defineLayoutFixtures(
           />
         ),
       },
+      "settings/application-save-error": {
+        width: 480,
+        height: 680,
+        render: () => (
+          <SettingsPage
+            app={appSettings}
+            appSaveError={
+              new Error(
+                "The settings database could not be updated because the destination is read-only.",
+              )
+            }
+            retryAppSave={() => {}}
+            updateApp={() => {}}
+            project={project}
+            canDeleteProject
+            state={{
+              ...initialAgentState,
+              connection: "ready",
+              autoCompactionEnabled: true,
+              steeringMode: "one-at-a-time",
+              followUpMode: "one-at-a-time",
+            }}
+            updateProject={() => {}}
+            close={() => {}}
+            deleteProject={() => {}}
+            setAutoCompaction={() => {}}
+            setSteeringMode={() => {}}
+            setFollowUpMode={() => {}}
+            defaultSection="application"
+          />
+        ),
+      },
       "settings/project-narrow": {
         width: 480,
         height: 680,

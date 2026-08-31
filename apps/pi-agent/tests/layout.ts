@@ -749,6 +749,25 @@ try {
         },
       },
       {
+        id: "settings/application-save-error",
+        width: 480,
+        height: 680,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => {
+          const alert = getLayoutNode(fixture, {
+            role: "alert",
+            name: "Could not save application settings",
+          });
+          const retry = getLayoutNode(fixture, {
+            role: "button",
+            name: "Try again",
+          });
+          if (retry.rect.x < alert.contentRect.x) {
+            throw new Error("settings retry action escaped its error surface");
+          }
+        },
+      },
+      {
         id: "settings/project-narrow",
         width: 480,
         height: 680,

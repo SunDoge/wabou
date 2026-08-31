@@ -90,6 +90,43 @@ describe("persisted record", () => {
     });
     expect(saved).toEqual([{ theme: "dark" }]);
   });
+
+  test("exposes a failed save and retries the current value", async () => {
+    const clock = manualScheduler();
+    const saved: Array<{ proxy: string }> = [];
+    const reported: unknown[] = [];
+    let attempts = 0;
+    let record!: ReturnType<typeof createPersistedRecord<{ proxy: string }>>;
+
+    createRoot(() => {
+      record = createPersistedRecord({
+        initial: { proxy: "" },
+        load: async () => ({ proxy: "" }),
+        save: async (value) => {
+          attempts += 1;
+          if (attempts === 1) throw new Error("disk is read-only");
+          saved.push(value);
+        },
+        onLoadError: () => {},
+        onSaveError: (error) => reported.push(error),
+        scheduler: clock.scheduler,
+      });
+      flush();
+    });
+
+    record.update({ proxy: "http://127.0.0.1:7890" });
+    clock.run();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(String(record.saveError())).toContain("disk is read-only");
+    expect(reported).toHaveLength(1);
+
+    record.retrySave();
+    await Promise.resolve();
+    expect(record.saveError()).toBeUndefined();
+    expect(attempts).toBe(2);
+    expect(saved).toEqual([{ proxy: "http://127.0.0.1:7890" }]);
+  });
 });
 
 type PersistedRecordForTest = ReturnType<

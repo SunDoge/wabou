@@ -1,5 +1,6 @@
 import {
   Alert,
+  AlertDescription,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -7,6 +8,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertTitle,
   Button,
   createAsyncAction,
   createContainerMatch,
@@ -46,7 +48,11 @@ export interface AppSettings {
 
 export function SettingsPage(props: {
   app: AppSettings;
+  appLoadError?: unknown;
+  appSaveError?: unknown;
   updateApp: (patch: Partial<AppSettings>) => void;
+  reloadApp?: () => unknown | PromiseLike<unknown>;
+  retryAppSave?: () => void;
   project: AgentWorkspace;
   state: AgentViewState;
   canDeleteProject: boolean;
@@ -253,6 +259,50 @@ export function SettingsPage(props: {
           </TabsContent>
 
           <TabsContent value="application" class="min-w-0 flex flex-col gap-7">
+            <Show when={props.appLoadError}>
+              {(error) => (
+                <Alert
+                  variant="destructive"
+                  aria-label={i18n.message(m.settings_load_failed, {})}
+                >
+                  <AlertTitle>
+                    {i18n.message(m.settings_load_failed, {})}
+                  </AlertTitle>
+                  <AlertDescription>{String(error())}</AlertDescription>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    class="self-start"
+                    aria-label={i18n.message(m.retry, {})}
+                    onClick={() => void props.reloadApp?.()}
+                  >
+                    {i18n.message(m.retry, {})}
+                  </Button>
+                </Alert>
+              )}
+            </Show>
+            <Show when={props.appSaveError}>
+              {(error) => (
+                <Alert
+                  variant="destructive"
+                  aria-label={i18n.message(m.settings_save_failed, {})}
+                >
+                  <AlertTitle>
+                    {i18n.message(m.settings_save_failed, {})}
+                  </AlertTitle>
+                  <AlertDescription>{String(error())}</AlertDescription>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    class="self-start"
+                    aria-label={i18n.message(m.retry, {})}
+                    onClick={props.retryAppSave}
+                  >
+                    {i18n.message(m.retry, {})}
+                  </Button>
+                </Alert>
+              )}
+            </Show>
             <SettingsSection
               title={i18n.message(m.application_settings, {})}
               description={i18n.message(m.application_settings_detail, {})}

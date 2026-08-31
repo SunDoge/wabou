@@ -10,6 +10,12 @@ import { createAgentWorkspace } from "../../apps/pi-agent/ui/workspace";
 function renderSettings(
   canDeleteProject = true,
   remove: () => void | Promise<void> = () => {},
+  persistence: {
+    loadError?: unknown;
+    saveError?: unknown;
+    reload?: () => void;
+    retrySave?: () => void;
+  } = {},
 ) {
   const [defaults, setDefaults] = createSignal<AppSettings>({
     locale: "en",
@@ -24,9 +30,13 @@ function renderSettings(
   const screen = renderComponent(() => (
     <SettingsPage
       app={defaults()}
+      appLoadError={persistence.loadError}
+      appSaveError={persistence.saveError}
       updateApp={(patch) =>
         setDefaults((current) => ({ ...current, ...patch }))
       }
+      reloadApp={persistence.reload}
+      retryAppSave={persistence.retrySave}
       project={agent()}
       canDeleteProject={canDeleteProject}
       state={{
@@ -144,4 +154,34 @@ test("Pi Agent keeps the last project available", () => {
   expect(
     screen.queryByRole("alertdialog", { name: "Delete project" }),
   ).toBeNull();
+});
+
+test("Pi Agent settings expose recoverable persistence failures", () => {
+  let reloads = 0;
+  let retries = 0;
+  const { screen } = renderSettings(true, () => {}, {
+    loadError: new Error("settings database unavailable"),
+    saveError: new Error("settings database is read-only"),
+    reload: () => {
+      reloads += 1;
+    },
+    retrySave: () => {
+      retries += 1;
+    },
+  });
+
+  screen.getByRole("tab", { name: "Application settings" }).click();
+  const loadFailure = screen.getByRole("alert", {
+    name: "Could not load application settings",
+  });
+  const saveFailure = screen.getByRole("alert", {
+    name: "Could not save application settings",
+  });
+  expect(loadFailure.text).toContain("settings database unavailable");
+  expect(saveFailure.text).toContain("settings database is read-only");
+
+  loadFailure.getByRole("button", { name: "Try again" }).click();
+  saveFailure.getByRole("button", { name: "Try again" }).click();
+  expect(reloads).toBe(1);
+  expect(retries).toBe(1);
 });
