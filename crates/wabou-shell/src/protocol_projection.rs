@@ -462,7 +462,19 @@ impl GpuiProjection {
             .style
             .clone();
         let mut projection = StyleProjection::from_style(current);
-        let diagnostic = project_ir(&mut projection, property, value);
+        let diagnostic = if property == "pointer-events" {
+            match pointer_events(value) {
+                Some(enabled) => {
+                    self.tree.update_pointer_events(key, enabled)?;
+                    None
+                }
+                None => Some(StyleDiagnostic::InvalidValue {
+                    property: property.to_owned(),
+                }),
+            }
+        } else {
+            project_ir(&mut projection, property, value)
+        };
         self.update_style(key, projection.into_style())?;
         Ok(diagnostic)
     }
@@ -554,6 +566,7 @@ impl GpuiProjection {
 
     fn recompute_style(&mut self, key: NodeKey) -> Result<(), ProjectionError> {
         let mut projection = StyleProjection::default();
+        let mut pointer_events_enabled = true;
         let mut diagnostics = Vec::new();
         if let Some(stylesheet) = &self.stylesheet {
             let classes = self.classes.get(&key).map_or(&[][..], Vec::as_slice);
@@ -564,20 +577,46 @@ impl GpuiProjection {
             );
             diagnostics.extend(resolved.diagnostics);
             for declaration in resolved.declarations {
-                if let Some(diagnostic) =
+                let diagnostic = if declaration.property == "pointer-events" {
+                    match pointer_events(&declaration.value) {
+                        Some(enabled) => {
+                            pointer_events_enabled = enabled;
+                            None
+                        }
+                        None => Some(StyleDiagnostic::InvalidValue {
+                            property: declaration.property.clone(),
+                        }),
+                    }
+                } else {
                     project_ir(&mut projection, &declaration.property, &declaration.value)
-                {
+                };
+                if let Some(diagnostic) = diagnostic {
                     diagnostics.push(format!("{diagnostic:?}"));
                 }
             }
         }
         if let Some(styles) = self.inline_styles.get(&key) {
             for (property, value) in styles {
-                if let Some(diagnostic) = project_ir(&mut projection, property, value) {
+                let diagnostic = if property == "pointer-events" {
+                    match pointer_events(value) {
+                        Some(enabled) => {
+                            pointer_events_enabled = enabled;
+                            None
+                        }
+                        None => Some(StyleDiagnostic::InvalidValue {
+                            property: property.clone(),
+                        }),
+                    }
+                } else {
+                    project_ir(&mut projection, property, value)
+                };
+                if let Some(diagnostic) = diagnostic {
                     diagnostics.push(format!("{diagnostic:?}"));
                 }
             }
         }
+        self.tree
+            .update_pointer_events(key, pointer_events_enabled)?;
         if diagnostics.is_empty() {
             self.style_diagnostics.remove(&key);
         } else {
@@ -598,6 +637,17 @@ impl GpuiProjection {
 
     pub fn style_diagnostics(&self, key: NodeKey) -> &[String] {
         self.style_diagnostics.get(&key).map_or(&[], Vec::as_slice)
+    }
+}
+
+fn pointer_events(value: &IrValue) -> Option<bool> {
+    let IrValue::Keyword { value } = value else {
+        return None;
+    };
+    match value.as_str() {
+        "auto" => Some(true),
+        "none" => Some(false),
+        _ => None,
     }
 }
 
@@ -814,6 +864,53 @@ mod tests {
             .unwrap();
         assert!(projection.tree().node(key(2)).unwrap().listeners.is_empty());
         assert!(!projection.has_listener_in_chain(key(2), wabou_protocol::event::CLICK));
+    }
+
+    #[test]
+    fn pointer_event_policy_is_projected_as_gpui_node_metadata() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![Op::CreateElement {
+                        id: key(2),
+                        tag: view,
+                    }],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        assert_eq!(
+            projection
+                .apply_style_declaration(
+                    key(2),
+                    "pointer-events",
+                    &IrValue::Keyword {
+                        value: "none".to_owned(),
+                    },
+                )
+                .unwrap(),
+            None
+        );
+        assert!(!projection.tree().node(key(2)).unwrap().pointer_events);
+        assert_eq!(
+            projection
+                .apply_style_declaration(
+                    key(2),
+                    "pointer-events",
+                    &IrValue::Keyword {
+                        value: "auto".to_owned(),
+                    },
+                )
+                .unwrap(),
+            None
+        );
+        assert!(projection.tree().node(key(2)).unwrap().pointer_events);
     }
 
     #[test]

@@ -43,6 +43,9 @@ pub struct ProjectedNode {
     pub focus_order: Option<i32>,
     /// Whether native interaction is blocked for this node and its subtree.
     pub interaction_blocked: bool,
+    /// Whether this exact node may become a pointer hit target. Unlike
+    /// `interaction_blocked`, this does not suppress interactive descendants.
+    pub pointer_events: bool,
     /// Whether focus traversal is contained inside this subtree.
     pub focus_contained: bool,
 }
@@ -204,6 +207,7 @@ impl ProjectionTree {
                 listeners: BTreeSet::new(),
                 focus_order: None,
                 interaction_blocked: false,
+                pointer_events: true,
                 focus_contained: false,
             },
         );
@@ -432,6 +436,19 @@ impl ProjectionTree {
         node.focus_contained = contained;
         self.dirty
             .invalidate(key, DirtyKind::INTERACTION | DirtyKind::SEMANTICS);
+        Ok(())
+    }
+
+    pub fn update_pointer_events(
+        &mut self,
+        key: NodeKey,
+        enabled: bool,
+    ) -> Result<(), ProjectionError> {
+        self.nodes
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?
+            .pointer_events = enabled;
+        self.dirty.invalidate(key, DirtyKind::INTERACTION);
         Ok(())
     }
 

@@ -86,7 +86,9 @@ impl ProjectedElement {
             key,
             style: node.style.clone(),
             children,
-            input: (!interaction_blocked).then_some(context.input).flatten(),
+            input: (!interaction_blocked && node.pointer_events)
+                .then_some(context.input)
+                .flatten(),
             root_focus: context.root_focus,
             text_input: context.text_input,
             layout_bounds: context.layout_bounds,
@@ -531,7 +533,7 @@ mod tests {
             &tree,
             NodeKey::ROOT,
             ProjectedElementContext {
-                input: Some(input),
+                input: Some(input.clone()),
                 ..Default::default()
             },
             false,
@@ -539,6 +541,56 @@ mod tests {
         .unwrap();
 
         assert!(root.input.is_none());
+    }
+
+    #[test]
+    fn pointer_events_none_skips_only_the_exact_hit_target() {
+        let child = NodeKey::new(28, 1);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            NodeKey::ROOT,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Root,
+        )
+        .unwrap();
+        tree.insert(
+            child,
+            Some(NodeKey::ROOT),
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("button".into()),
+        )
+        .unwrap();
+        tree.update_pointer_events(NodeKey::ROOT, false).unwrap();
+        let input: ProjectedInputSink = Rc::new(|_, _| {});
+
+        let root = ProjectedElement::from_tree(
+            &tree,
+            NodeKey::ROOT,
+            ProjectedElementContext {
+                input: Some(input.clone()),
+                ..Default::default()
+            },
+            false,
+        )
+        .unwrap();
+
+        assert!(root.input.is_none());
+        let child = ProjectedElement::from_tree(
+            &tree,
+            child,
+            ProjectedElementContext {
+                input: Some(input),
+                ..Default::default()
+            },
+            false,
+        )
+        .unwrap();
+        assert!(child.input.is_some());
     }
 
     #[gpui::test]
