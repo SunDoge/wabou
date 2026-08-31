@@ -977,19 +977,21 @@ export function renderComponent(
     flushUpdates();
   };
   let focusedNode: AuthoredNode | null = null;
-  const blurFocusedNode = () => {
+  const blurFocusedNode = (flush = true) => {
     if (!focusedNode) return;
     const previous = focusedNode;
     focusedNode = null;
-    commitEvent(previous, EVENT_CODE.blur);
-    commitEvent(previous, EVENT_CODE.focusout);
+    dispatchEvent(previous.id, EVENT_CODE.blur, "");
+    dispatchEvent(previous.id, EVENT_CODE.focusout, "");
+    if (flush) flushUpdates();
   };
-  const focusAuthoredNode = (node: AuthoredNode) => {
+  const focusAuthoredNode = (node: AuthoredNode, flush = true) => {
     if (focusedNode === node) return;
-    blurFocusedNode();
+    blurFocusedNode(false);
     focusedNode = node;
-    commitEvent(node, EVENT_CODE.focus);
-    commitEvent(node, EVENT_CODE.focusin);
+    dispatchEvent(node.id, EVENT_CODE.focus, "");
+    dispatchEvent(node.id, EVENT_CODE.focusin, "");
+    if (flush) flushUpdates();
   };
   // Roving-focus components call Handle.focus(), which writes the same native
   // focus operation used by the real host. Reflect it back into component
@@ -997,7 +999,10 @@ export function renderComponent(
   writer.focusNode = (id) => {
     originals.focusNode.call(writer, id);
     const node = nodes.get(key(id));
-    if (node) focusAuthoredNode(node);
+    // Handle.focus() can be called from an overlay/effect while Solid is
+    // already draining. Those writes belong to that continuation; recursively
+    // flushing here only warns and cannot make them more synchronous.
+    if (node) focusAuthoredNode(node, false);
   };
   const ensureAttached = (node: AuthoredNode, action: string) => {
     if (all().includes(node)) return;

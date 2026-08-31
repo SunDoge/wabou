@@ -69,3 +69,37 @@ test("effect-driven native focus does not recursively flush Solid", () => {
     warn.mockRestore();
   }
 });
+
+test("focus requested outside a harness event does not recursively flush Solid", async () => {
+  const warnings: string[] = [];
+  const warn = vi
+    .spyOn(console, "warn")
+    .mockImplementation((...args) => warnings.push(args.map(String).join(" ")));
+  try {
+    let activate!: () => void;
+    const FocusFromExternalSignal = () => {
+      const [active, setActive] = createSignal(false);
+      let target: Handle | undefined;
+      activate = () => setActive(true);
+      createEffect(active, (isActive) => {
+        if (isActive) target?.focus();
+      });
+      return (
+        <Button aria-label="Focus target" ref={(node) => (target = node)} />
+      );
+    };
+    const screen = renderComponent(FocusFromExternalSignal);
+
+    activate();
+    await Promise.resolve();
+
+    expect(screen.getByRole("button", { name: "Focus target" }).focused).toBe(
+      true,
+    );
+    expect(
+      warnings.some((message) => message.includes("FLUSH_IN_EFFECT_CALLBACK")),
+    ).toBe(false);
+  } finally {
+    warn.mockRestore();
+  }
+});
