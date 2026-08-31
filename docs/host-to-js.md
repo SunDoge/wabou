@@ -75,7 +75,7 @@ slots are reused; until then, IDs are never reused within one runtime.
 ## End-to-end sequence
 
 ```text
-winit / widget / background producer
+GPUI / native widget / background producer
                  │
                  ▼
        normalize and target in Rust
@@ -102,7 +102,7 @@ winit / widget / background producer
      apply ops -> style -> layout -> paint
 ```
 
-An input event may be delivered immediately from the winit callback because the
+An input event may be delivered immediately from the GPUI callback because the
 shell needs a disposition before applying a cancellable default action. It is
 still encoded as a one-or-more-record `HostEventFrame`; it does not call a
 separate JS function. Observation, application and lifecycle records
@@ -168,7 +168,7 @@ to one another.
 
 ## Native event boundary
 
-Wabou exposes window-relative GUI facts rather than mirroring every winit enum:
+Wabou exposes window-relative GUI facts rather than mirroring backend enums:
 
 - pointer identity, type, pressure/tool data, wheel phase, gestures, keyboard,
   IME, file drop, focus and window metrics reach JavaScript;
@@ -419,7 +419,7 @@ ordered JS Mutation Frame bytes
 optional computed-layout snapshots
 ```
 
-Replay replaces winit/background producers, preserves frame sequences and feeds
+Replay replaces GPUI/background producers, preserves frame sequences and feeds
 the recorded bytes into the same guest entry point. Deterministic tests compare
 mutation frames and selected computed-layout snapshots. Mounted capability calls
 and returns are traced separately at the capability boundary when a test depends on

@@ -953,8 +953,7 @@ impl HostBuilder {
 
     /// Install a GPUI-native application lifecycle extension.
     ///
-    /// This is deliberately separate from the legacy winit `ShellExtension`:
-    /// implementations receive GPUI window handles after startup and live for
+    /// Implementations receive GPUI window handles after startup and live for
     /// the complete GPUI application lifetime.
     pub fn application_extension(
         mut self,

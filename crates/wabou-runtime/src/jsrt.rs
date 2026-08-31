@@ -755,7 +755,7 @@ impl JsRuntime {
 
     /// Register the rquickjs-native async `__wabou_fetch(url, initJson)`. rquickjs
     /// owns the Rust Future -> JavaScript Promise conversion; the shell only
-    /// supplies a waker that reconnects its scheduler to winit.
+    /// supplies a waker that reconnects its scheduler to the native event loop.
     fn register_fetch(&self) -> JsResult<()> {
         let client = reqwest::Client::builder()
             .no_proxy()
@@ -803,7 +803,7 @@ impl JsRuntime {
         }
     }
 
-    /// Poll rquickjs's scheduler once with a waker backed by winit. Pending
+    /// Poll rquickjs's scheduler once with a waker backed by the native host. Pending
     /// network IO parks naturally; Tokio calls this waker when it can progress.
     /// Ready jobs are time-sliced so a burst of fetch completions cannot drain
     /// an entire Promise/Solid update graph inside one window callback. Returns

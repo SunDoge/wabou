@@ -13,9 +13,9 @@ use wabou_style::stylesheet::{StyleSheet, StylesheetUpdate};
 
 /// Renderer-side state consumed exclusively by the GPUI application runtime.
 ///
-/// This controller intentionally does not know about Taffy, Parley, Vello,
-/// winit widgets, or the legacy document. It is the extraction boundary that
-/// will remain in `wabou-runtime` after the old behavior oracle moves out.
+/// This controller intentionally does not know about the retired renderer or
+/// its document model. GPUI owns layout, text, painting, widgets, and input;
+/// this type only connects the JavaScript runtime to that retained projection.
 pub struct GpuiController {
     pub(crate) runtime: RuntimeSession,
     projection: GpuiProjection,
