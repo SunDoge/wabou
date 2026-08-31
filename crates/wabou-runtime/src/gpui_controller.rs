@@ -282,8 +282,13 @@ impl GpuiController {
         self.runtime.js.dispatch_host_frame(events)
     }
 
-    /// Deliver one atomic Host→JS event batch and immediately project any
-    /// Solid writes returned by that synchronous dispatch.
+    /// Deliver one atomic Host→JS event batch and stage any Solid writes
+    /// returned by that synchronous dispatch.
+    ///
+    /// The projection is deliberately not finished here. Input dispatch runs
+    /// before GPUI's next render; finishing the projection in the event stack
+    /// would consume its invalidation before `advance_frame_profiled` can use
+    /// it to rebuild the affected projection boundary.
     pub fn dispatch_host_frame(
         &mut self,
         events: &[HostEvent],
@@ -295,7 +300,7 @@ impl GpuiController {
             self.record_protocol_frame();
             self.apply_frame(&frame)
                 .map_err(|_| rquickjs::Error::Unknown)?;
-            disposition.needs_tick |= self.projection.finish_frame();
+            disposition.needs_tick = true;
         }
         Ok(disposition)
     }
@@ -1870,6 +1875,91 @@ mod tests {
                 .eval_string("JSON.stringify(globalThis.receivedCodes)")
                 .expect("read event trace"),
             format!("[{}]", wabou_protocol::event::CLICK)
+        );
+    }
+
+    #[test]
+    fn synchronous_event_mutations_invalidate_the_next_gpui_frame() {
+        let js = JsRuntime::new().expect("runtime");
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        controller
+            .boot(include_str!("gen/test-runtime.js"))
+            .expect("boot generated Solid runtime fixture");
+
+        let target = NodeKey::new(2, 1);
+        controller
+            .apply_frame(&Frame {
+                seq: 1,
+                ops: vec![
+                    Op::CreateText {
+                        id: target,
+                        text: "0",
+                    },
+                    Op::AppendChild {
+                        parent: NodeKey::ROOT,
+                        child: target,
+                    },
+                    Op::AddEventListener {
+                        id: target,
+                        event_type: wabou_protocol::event::CLICK,
+                    },
+                ],
+            })
+            .expect("project interactive text");
+        assert!(controller.advance_frame(), "initial tree must commit");
+
+        // seq=2, one SET_TEXT operation for target 2:1 and inline string "1".
+        let protocol_frame = [
+            2,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            wabou_protocol::op::SET_TEXT,
+            2,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            b'1',
+        ];
+        let bytes = protocol_frame
+            .iter()
+            .map(u8::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        controller
+            .eval_script_diagnostic(&format!(
+                r#"
+                globalThis.__wabou_dispatch_host_frame = () => ({{
+                  needsTick: false,
+                  preventedEventIds: new Uint32Array(),
+                  protocolFrame: new Uint8Array([{bytes}]),
+                }});
+                "#
+            ))
+            .expect("install synchronous event mutation");
+
+        assert_eq!(
+            controller
+                .dispatch_node_json(target, wabou_protocol::event::CLICK, "{}".into(), true)
+                .expect("dispatch click"),
+            (true, false)
+        );
+        assert!(
+            controller.advance_frame(),
+            "the next GPUI frame must observe the event mutation"
         );
     }
 
