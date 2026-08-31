@@ -91,6 +91,20 @@ impl GpuiController {
             .is_some_and(|event| self.handle_projected_scroll(event).handled)
     }
 
+    pub(crate) fn apply_projection_wheel(
+        &mut self,
+        target: wabou_host_api::NodeKey,
+        delta_x: f32,
+        delta_y: f32,
+    ) -> bool {
+        self.projection
+            .apply_wheel_delta(target, delta_x, delta_y)
+            .is_some_and(|event| {
+                self.handle_projected_scroll(event);
+                true
+            })
+    }
+
     pub(crate) fn take_stylesheet_update(&mut self) -> Option<StylesheetUpdate> {
         self.runtime.pending_css.as_ref()?.borrow_mut().take()
     }

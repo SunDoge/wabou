@@ -1387,7 +1387,7 @@ fn input_gpui_target(
                 .handled
         }
         TestInput::Wheel { delta_x, delta_y } => {
-            controller
+            let guest_handled = controller
                 .handle_projected_wheel(wabou_shell::ProjectedWheelEvent {
                     target: node.key,
                     x: f32::from(node.bounds.origin.x),
@@ -1403,7 +1403,12 @@ fn input_gpui_target(
                     alt: false,
                     platform: false,
                 })
-                .handled
+                .handled;
+            controller.apply_projection_wheel(
+                node.key,
+                *delta_x as f32,
+                *delta_y as f32,
+            ) || guest_handled
         }
         TestInput::Drag { delta_x, delta_y } => gpui_drag_events(node, *delta_x, *delta_y)
             .into_iter()

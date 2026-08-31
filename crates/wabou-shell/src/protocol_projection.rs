@@ -458,6 +458,44 @@ impl GpuiProjection {
         })
     }
 
+    /// Apply a synthetic wheel delta using the same nearest-scrollable-
+    /// ancestor policy as the interactive GPUI element tree.
+    ///
+    /// Native GPUI wheel delivery updates the retained scroll handle inside
+    /// `ProjectedElement`. Headless behavior tests bypass that element event
+    /// callback, so they use this seam instead of pretending that a guest
+    /// `wheel` listener is responsible for native scrolling.
+    pub fn apply_wheel_delta(
+        &self,
+        target: NodeKey,
+        delta_x: f32,
+        delta_y: f32,
+    ) -> Option<crate::ProjectedScrollEvent> {
+        let mut current = Some(target);
+        while let Some(key) = current {
+            let node = self.tree.node(key)?;
+            let scroll_x = node.style.overflow.x == crate::gpui::Overflow::Scroll;
+            let scroll_y = node.style.overflow.y == crate::gpui::Overflow::Scroll;
+            if (scroll_x || scroll_y)
+                && self.scroll_handles.get(&key).is_some_and(|handle| {
+                    handle.scroll_by(
+                        if scroll_x { delta_x } else { 0.0 },
+                        if scroll_y { delta_y } else { 0.0 },
+                    )
+                })
+            {
+                let position = self.scroll_handles[&key].position();
+                return Some(crate::ProjectedScrollEvent {
+                    target: key,
+                    x: position.x.into(),
+                    y: position.y.into(),
+                });
+            }
+            current = node.parent;
+        }
+        None
+    }
+
     /// Return explicit formal-runtime gaps. This exists to make unsupported
     /// protocol semantics observable in tests and DevTools rather than being
     /// silently accepted by a backend wildcard.
@@ -2318,6 +2356,56 @@ mod tests {
             ]
         );
         assert!(projection.protocol_gaps().is_empty());
+    }
+
+    #[test]
+    fn synthetic_wheel_scrolls_the_nearest_projected_scroll_ancestor() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        let overflow_y = atoms.intern("overflow-y");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::SetStyle {
+                            id: key(2),
+                            prop: overflow_y,
+                            value: "scroll",
+                        },
+                        Op::CreateElement {
+                            id: key(3),
+                            tag: view,
+                        },
+                        Op::AppendChild {
+                            parent: key(2),
+                            child: key(3),
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(2),
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        assert_eq!(
+            projection.apply_wheel_delta(key(3), 0.0, 80.0),
+            Some(crate::ProjectedScrollEvent {
+                target: key(2),
+                x: 0.0,
+                y: 80.0,
+            })
+        );
+        assert_eq!(projection.apply_wheel_delta(key(3), 0.0, 0.0), None);
     }
 
     #[test]
