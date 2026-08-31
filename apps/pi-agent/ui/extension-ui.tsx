@@ -12,11 +12,18 @@ import {
   DialogFooter,
   DialogTitle,
   Input,
+  Listbox,
   Text,
   TextArea,
   View,
 } from "@wabou/ui";
-import { createEffect, createSignal, For as ForValue, onCleanup, Show } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  For as ForValue,
+  onCleanup,
+  Show,
+} from "solid-js";
 import { match } from "ts-pattern";
 import { i18n, m } from "./i18n";
 
@@ -342,21 +349,18 @@ export function ExtensionUiDialog(props: {
                 <DialogDescription>{dialog.message}</DialogDescription>
               </Show>
               <Show when={dialog.method === "select"}>
-                <View role="listbox" aria-label={dialog.title} class="gap-1">
-                  <ForValue each={dialog.options ?? []}>
-                    {(option) => (
-                      <Button
-                        variant="ghost"
-                        class="w-full justify-start"
-                        role="option"
-                        aria-label={option}
-                        onClick={() => respond({ value: option })}
-                      >
-                        {option}
-                      </Button>
-                    )}
-                  </ForValue>
-                </View>
+                <Listbox
+                  aria-label={dialog.title}
+                  options={(dialog.options ?? []).map((label, index) => ({
+                    value: String(index),
+                    label,
+                  }))}
+                  onAction={(index) => {
+                    const option = dialog.options?.[Number(index)];
+                    if (option !== undefined) respond({ value: option });
+                  }}
+                  onDismiss={cancel}
+                />
               </Show>
               <Show when={dialog.method === "input"}>
                 <Input

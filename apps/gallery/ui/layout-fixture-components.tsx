@@ -24,6 +24,7 @@ import {
   InputGroupInput,
   InputGroupText,
   LabeledSeparator,
+  Listbox,
   Markdown,
   Message,
   MessageActions,
@@ -565,6 +566,26 @@ export function SelectLayoutFixture() {
           { value: "second", label: "Second option" },
           { value: "third", label: "Third option" },
           { value: "disabled", label: "Disabled option", disabled: true },
+        ]}
+      />
+    </View>
+  );
+}
+
+export function ListboxLayoutFixture() {
+  return (
+    <View class="w-full h-full p-6 bg-canvas">
+      <Listbox
+        aria-label="Fixture branches"
+        defaultValue="feature"
+        options={[
+          { value: "main", label: "Main branch" },
+          {
+            value: "feature",
+            label: "Feature branch",
+            description: "Current workspace branch",
+          },
+          { value: "release", label: "Release branch", disabled: true },
         ]}
       />
     </View>

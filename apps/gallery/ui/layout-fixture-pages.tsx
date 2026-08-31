@@ -14,6 +14,7 @@ import {
   ImageViewportLayoutFixture,
   InputGroupLayoutFixture,
   LabeledSeparatorLayoutFixture,
+  ListboxLayoutFixture,
   MarkdownConversationLayoutFixture,
   MarkdownInlineLayoutFixture,
   MessageLayoutFixture,
@@ -98,6 +99,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         height: 420,
         waitMs: 20,
         render: SelectLayoutFixture,
+      },
+      "component/Listbox": {
+        width: 420,
+        height: 240,
+        render: ListboxLayoutFixture,
       },
       "component/Spinner": {
         width: 240,

@@ -84,6 +84,32 @@ test("returns a selected extension value exactly once", () => {
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
+test("supports keyboard-only extension selection and cancellation", () => {
+  const respond = vi.fn();
+  const screen = renderComponent(
+    dialogHarness(
+      {
+        agentId: "agent-1",
+        id: "choice-keyboard",
+        method: "select",
+        title: "Choose a branch",
+        options: ["main", "dev"],
+      },
+      respond,
+    ),
+  );
+
+  screen.getByRole("button", { name: "Open extension UI" }).click();
+  const listbox = screen.getByRole("listbox", { name: "Choose a branch" });
+  listbox.press("ArrowDown");
+  listbox.press("Enter");
+  expect(respond).toHaveBeenCalledWith({ value: "dev" });
+
+  screen.getByRole("button", { name: "Open extension UI" }).click();
+  screen.getByRole("listbox", { name: "Choose a branch" }).press("Escape");
+  expect(respond).toHaveBeenLastCalledWith({ cancelled: true });
+});
+
 test("returns typed extension input", () => {
   const inputResponse = vi.fn();
   const input = renderComponent(

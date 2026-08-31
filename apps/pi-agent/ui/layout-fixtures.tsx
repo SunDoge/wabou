@@ -31,6 +31,7 @@ import { ConversationHeader } from "./conversation-header";
 import { ConversationNavigator } from "./conversation-navigator";
 import { ConversationWelcome } from "./conversation-welcome";
 import { ConversationWorkspaceStatus } from "./conversation-workspace-status";
+import { ExtensionUiDialog } from "./extension-ui";
 import { ModelControls } from "./model-controls";
 import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
@@ -663,6 +664,25 @@ defineLayoutFixtures(
               open
               close={() => {}}
               dispose={() => {}}
+            />
+          </View>
+        ),
+      },
+      "extension/select-dialog": {
+        width: 640,
+        height: 480,
+        render: () => (
+          <View class="w-full h-full bg-canvas">
+            <ExtensionUiDialog
+              request={{
+                agentId: "agent-1",
+                id: "environment",
+                method: "select",
+                title: "Choose an environment",
+                message: "Select where the agent should run the next task.",
+                options: ["Local workspace", "Development", "Production"],
+              }}
+              respond={() => {}}
             />
           </View>
         ),

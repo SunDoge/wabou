@@ -577,6 +577,24 @@ try {
         },
       },
       {
+        id: "extension/select-dialog",
+        width: 640,
+        height: 480,
+        waitMs: 20,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, {
+            role: "dialog",
+            name: "Choose an environment",
+          });
+          getLayoutNode(fixture, {
+            role: "listbox",
+            name: "Choose an environment",
+          });
+          getLayoutNode(fixture, { role: "option", name: "Development" });
+        },
+      },
+      {
         id: "settings/project-and-application",
         width: 760,
         height: 680,
