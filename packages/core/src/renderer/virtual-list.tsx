@@ -5,6 +5,7 @@ import {
   type JSX,
   untrack,
 } from "solid-js";
+import { mergeClasses } from "../style";
 import type { WabouSemanticRole } from "./index";
 
 export interface VirtualListProps<T> {
@@ -107,7 +108,10 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
 
   return (
     <virtual-list
-      class={config.class}
+      class={mergeClasses(
+        "w-full min-w-0 min-h-0 overflow-x-hidden overflow-y-auto",
+        config.class,
+      )}
       role={config.role}
       aria-label={config.accessibilityLabel}
       style={{
