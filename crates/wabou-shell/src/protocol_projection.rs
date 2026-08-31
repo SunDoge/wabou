@@ -303,21 +303,18 @@ impl GpuiProjection {
                     }
                 }
                 Op::SetGraphicSource { id, kind, source } => match *kind {
-                    GRAPHIC_SOURCE_SVG => self.tree.update_image(
-                        *id,
-                        Some(std::sync::Arc::new(crate::gpui::Image::from_bytes(
-                            crate::gpui::ImageFormat::Svg,
-                            source.as_bytes().to_vec(),
-                        ))),
-                    )?,
+                    GRAPHIC_SOURCE_SVG => self
+                        .tree
+                        .update_svg_source(*id, Some(std::sync::Arc::from(source.as_bytes())))?,
                     GRAPHIC_SOURCE_RESOURCE_RASTER => {
                         self.tree.update_image(*id, resolve_raster(source))?;
                     }
                     _ => self.record_protocol_gap(*id, "unsupported graphic source kind"),
                 },
-                Op::ClearGraphicSource { id, kind }
-                    if matches!(*kind, GRAPHIC_SOURCE_SVG | GRAPHIC_SOURCE_RESOURCE_RASTER) =>
-                {
+                Op::ClearGraphicSource { id, kind } if *kind == GRAPHIC_SOURCE_SVG => {
+                    self.tree.update_svg_source(*id, None)?
+                }
+                Op::ClearGraphicSource { id, kind } if *kind == GRAPHIC_SOURCE_RESOURCE_RASTER => {
                     self.tree.update_image(*id, None)?
                 }
                 Op::ClearGraphicSource { id, .. } => {
@@ -566,7 +563,7 @@ impl GpuiProjection {
                     .get(&key)
                     .cloned()
                     .unwrap_or_default();
-                if !is_translation_matrix(node.transform) {
+                if node.svg_source.is_none() && !is_translation_matrix(node.transform) {
                     style_diagnostics.push(format!(
                         "GPUI retained unsupported affine transform {:?}; only translation is painted",
                         node.transform
@@ -1684,6 +1681,10 @@ mod tests {
                             kind: GRAPHIC_SOURCE_SVG,
                             source: r#"<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>"#,
                         },
+                        Op::SetTransform2D {
+                            id: key(3),
+                            matrix: [0.0, 1.0, -1.0, 0.0, 0.0, 0.0],
+                        },
                     ],
                 },
                 &atoms,
@@ -1702,16 +1703,17 @@ mod tests {
                 .format(),
             crate::gpui::ImageFormat::Png
         );
-        assert_eq!(
+        assert!(projection.tree().node(key(3)).unwrap().image.is_none());
+        assert!(projection.tree().node(key(3)).unwrap().svg_source.is_some());
+        assert!(
             projection
-                .tree()
-                .node(key(3))
+                .layout_snapshot()
+                .into_iter()
+                .find(|node| node.key == key(3))
                 .unwrap()
-                .image
-                .as_ref()
-                .unwrap()
-                .format(),
-            crate::gpui::ImageFormat::Svg
+                .style_diagnostics
+                .is_empty(),
+            "GPUI paints the complete affine matrix for retained inline SVG"
         );
 
         projection
@@ -1734,7 +1736,7 @@ mod tests {
             )
             .unwrap();
         assert!(projection.tree().node(key(2)).unwrap().image.is_none());
-        assert!(projection.tree().node(key(3)).unwrap().image.is_none());
+        assert!(projection.tree().node(key(3)).unwrap().svg_source.is_none());
     }
 
     #[test]

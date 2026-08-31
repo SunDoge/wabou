@@ -156,6 +156,7 @@ pub struct ProjectedElement {
     scroll_x: bool,
     scroll_y: bool,
     transform: [f32; 6],
+    svg_source: Option<crate::tree::ProjectedSvgSource>,
     vector_path: Option<std::sync::Arc<crate::vector_path::ProjectedVectorPath>>,
     accessibility: Option<ProjectedAccessibility>,
 }
@@ -393,12 +394,16 @@ impl ProjectedElement {
             scroll_x: node.style.overflow.x == Overflow::Scroll,
             scroll_y: node.style.overflow.y == Overflow::Scroll,
             transform: node.transform,
+            svg_source: node.svg_source.clone(),
             vector_path: node.vector_path.clone(),
             accessibility: projected_accessibility(node),
         })
     }
 
     fn translation(&self) -> gpui::Point<Pixels> {
+        if self.svg_source.is_some() {
+            return gpui::Point::default();
+        }
         if self.transform[0] == 1.0
             && self.transform[1] == 0.0
             && self.transform[2] == 0.0
@@ -407,6 +412,22 @@ impl ProjectedElement {
             gpui::point(gpui::px(self.transform[4]), gpui::px(self.transform[5]))
         } else {
             gpui::point(gpui::px(0.0), gpui::px(0.0))
+        }
+    }
+
+    fn svg_transformation(
+        &self,
+        bounds: Bounds<Pixels>,
+        scale_factor: f32,
+    ) -> gpui::TransformationMatrix {
+        let [a, b, c, d, e, f] = self.transform;
+        let center = bounds.center().scale(scale_factor);
+        gpui::TransformationMatrix {
+            rotation_scale: [[a, c], [b, d]],
+            translation: [
+                center.x.0 + e * scale_factor - a * center.x.0 - c * center.y.0,
+                center.y.0 + f * scale_factor - b * center.x.0 - d * center.y.0,
+            ],
         }
     }
 }
@@ -841,11 +862,26 @@ impl Element for ProjectedElement {
 
         let text_style = self.style.text_style().cloned();
         let overflow_mask = self.style.overflow_mask(bounds, window.rem_size());
+        let svg_transformation = self
+            .svg_source
+            .as_ref()
+            .map(|_| self.svg_transformation(bounds, window.scale_factor()));
+        let svg_color = self.style.text.color.unwrap_or_else(gpui::black);
         self.style.paint(bounds, window, cx, |window, cx| {
             window.with_text_style(text_style, |window| {
                 window.with_content_mask(overflow_mask, |window| {
                     if let Some(vector_path) = &self.vector_path {
                         vector_path.paint(bounds.origin, window);
+                    }
+                    if let Some(source) = &self.svg_source {
+                        let _ = window.paint_svg(
+                            bounds,
+                            source.cache_key.clone(),
+                            Some(&source.bytes),
+                            svg_transformation.unwrap_or_default(),
+                            svg_color,
+                            cx,
+                        );
                     }
                     for child in &mut self.children {
                         child.paint(window, cx);
@@ -886,6 +922,41 @@ mod tests {
         )
         .unwrap();
         assert_eq!(element.id(), Some(key.gpui_element_id()));
+    }
+
+    #[test]
+    fn inline_svg_affine_matrix_pivots_around_the_border_box_center() {
+        let key = NodeKey::new(18, 4);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("svg".into()),
+        )
+        .unwrap();
+        tree.update_svg_source(key, Some(std::sync::Arc::from(b"<svg/>".as_slice())))
+            .unwrap();
+        tree.update_transform(key, [0.0, 1.0, -1.0, 0.0, 5.0, -3.0])
+            .unwrap();
+
+        let element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            key,
+            ProjectedElementContext::default(),
+            false,
+        )
+        .unwrap();
+        let bounds = gpui::Bounds::new(point(px(10.0), px(20.0)), gpui::size(px(40.0), px(20.0)));
+        let matrix = element.svg_transformation(bounds, 2.0);
+
+        // The center remains the pivot plus the authored logical translation.
+        assert_eq!(
+            matrix.apply(point(px(60.0), px(60.0))),
+            point(px(70.0), px(54.0))
+        );
     }
 
     #[test]

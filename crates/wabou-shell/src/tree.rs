@@ -4,6 +4,7 @@ use std::{
 };
 
 use gpui::{SharedString, Style};
+use std::hash::{Hash, Hasher};
 use wabou_protocol::TEXT_BEHAVIOR_SINGLE_LINE;
 
 use crate::element::ProjectedElementContext;
@@ -11,6 +12,12 @@ use crate::{
     DirtyKind, FrameBatch, NodeKey, PendingNode, ProjectedElement, ProjectedInputSink,
     ProjectedNativeElementFactory,
 };
+
+#[derive(Clone, Debug)]
+pub struct ProjectedSvgSource {
+    pub bytes: std::sync::Arc<[u8]>,
+    pub cache_key: SharedString,
+}
 
 /// Explicit semantic kind retained for every projected protocol node.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -47,10 +54,13 @@ pub struct ProjectedNode {
     pub text_max_lines: u32,
     /// Optional GPUI-owned display asset projected from a graphic source.
     pub image: Option<std::sync::Arc<gpui::Image>>,
+    /// Trusted inline SVG bytes retained separately so GPUI can apply its
+    /// native paint transformation instead of flattening the SVG to an image.
+    pub svg_source: Option<ProjectedSvgSource>,
     pub(crate) vector_path: Option<std::sync::Arc<crate::vector_path::ProjectedVectorPath>>,
-    /// Runtime affine transform emitted by the Solid renderer. GPUI currently
-    /// applies translation exactly and retains the full matrix so unsupported
-    /// affine parts are observable instead of disappearing at the boundary.
+    /// Runtime affine transform emitted by the Solid renderer. GPUI applies
+    /// the full matrix to inline SVG and translation to ordinary elements;
+    /// unsupported ordinary-element affine parts remain observable.
     pub transform: [f32; 6],
     /// Authored attributes after the latest completed Solid flush.
     pub attributes: BTreeMap<SharedString, SharedString>,
@@ -279,6 +289,7 @@ impl ProjectionTree {
                 text_behavior: 0,
                 text_max_lines: 0,
                 image: None,
+                svg_source: None,
                 vector_path: None,
                 transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
                 attributes: BTreeMap::new(),
@@ -486,6 +497,27 @@ impl ProjectionTree {
         self.dirty
             .invalidate(key, DirtyKind::LAYOUT | DirtyKind::PAINT);
         self.invalidate_layout_ancestors(key);
+        Ok(())
+    }
+
+    pub fn update_svg_source(
+        &mut self,
+        key: NodeKey,
+        source: Option<std::sync::Arc<[u8]>>,
+    ) -> Result<(), ProjectionError> {
+        let source = source.map(|bytes| {
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            bytes.hash(&mut hasher);
+            ProjectedSvgSource {
+                cache_key: format!("wabou-inline-svg:{:016x}", hasher.finish()).into(),
+                bytes,
+            }
+        });
+        self.nodes_mut()
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?
+            .svg_source = source;
+        self.dirty.invalidate(key, DirtyKind::PAINT);
         Ok(())
     }
 
