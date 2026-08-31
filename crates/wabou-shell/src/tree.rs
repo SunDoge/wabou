@@ -240,45 +240,6 @@ impl ProjectionTree {
         )
     }
 
-    pub(crate) fn interactive_element_with_layout_bounds(
-        &self,
-        root: NodeKey,
-        input: ProjectedInputSink,
-        focus: gpui::FocusHandle,
-        text_input: crate::ProjectedTextInputState,
-        native: Option<ProjectedNativeElementFactory>,
-        layout_bounds: crate::element::ProjectedLayoutBounds,
-        graphic_paint_states: crate::element::ProjectedGraphicPaintStates,
-        scroll_handles: std::rc::Rc<
-            std::collections::BTreeMap<NodeKey, crate::ProjectedScrollHandle>,
-        >,
-        uniform_list_handles: std::rc::Rc<
-            std::collections::BTreeMap<NodeKey, gpui::UniformListScrollHandle>,
-        >,
-        text_selections: std::rc::Rc<
-            std::collections::BTreeMap<NodeKey, crate::ProjectedTextSelection>,
-        >,
-    ) -> Result<ProjectedElement, ProjectionError> {
-        let snapshot = self.snapshot();
-        ProjectedElement::from_tree(
-            snapshot,
-            root,
-            ProjectedElementContext {
-                input: Some(input),
-                root_focus: Some(focus),
-                text_input: Some(text_input),
-                native,
-                layout_bounds: Some(layout_bounds),
-                graphic_paint_states: Some(graphic_paint_states),
-                scroll_handles: Some(scroll_handles),
-                uniform_list_handles: Some(uniform_list_handles),
-                text_selections: Some(text_selections),
-                text_selection_policy: None,
-            },
-            false,
-        )
-    }
-
     pub fn insert(
         &mut self,
         key: NodeKey,

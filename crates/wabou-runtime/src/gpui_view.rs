@@ -13,22 +13,25 @@ use wabou_shell::WakeCallback;
 use wabou_shell::gpui::{
     AppContext as _, ClipboardItem, Context, DragMoveEvent, Entity, ExternalPaths, FocusHandle,
     Focusable as _, InteractiveElement as _, IntoElement as _, ParentElement as _,
-    PathPromptOptions, PromptButton, PromptLevel, Render, Styled as _, Subscription,
-    SystemNotification, Task, Window, div,
+    PathPromptOptions, PromptButton, PromptLevel, Render, StyleRefinement, Styled as _,
+    Subscription, SystemNotification, Task, Window, div,
 };
 
 use crate::gpui_controller::GpuiController;
+use crate::gpui_projection_boundary::{
+    GpuiProjectionBoundary, GpuiProjectionBoundaryState, NativeElementBuilder,
+};
 use wabou_shell::{
     ClipboardRequest, EffectCompletion, EffectErrorCode, EffectPayload, EffectRequest,
     EffectResult, WindowCommand,
 };
 
-/// A coarse GPUI entity for one Solid application runtime.
+/// Window coordinator for one Solid application runtime.
 ///
-/// Solid retains individual UI nodes and emits one mutation batch per flush;
-/// this entity advances that runtime once per GPUI frame and materializes the
-/// resulting retained projection. It intentionally does not create one GPUI
-/// entity per Solid node.
+/// Solid retains individual UI nodes and emits one mutation batch per flush.
+/// The expensive element materialization belongs to an explicitly cached
+/// [`GpuiProjectionBoundary`]; this root remains responsible for native window
+/// services and frame coordination without creating one Entity per JSX node.
 pub struct GpuiRuntimeView {
     controller: GpuiController,
     // Retaining the task ties the async bridge to the lifetime of this view.
@@ -37,7 +40,8 @@ pub struct GpuiRuntimeView {
     focus: FocusHandle,
     text_controls: BTreeMap<wabou_host_api::NodeKey, GpuiTextControlState>,
     text_selections: BTreeMap<wabou_host_api::NodeKey, GpuiTextSelectionState>,
-    native_widget_entities: BTreeMap<wabou_host_api::NodeKey, wabou_shell::gpui::AnyEntity>,
+    projection_boundary: Option<Entity<GpuiProjectionBoundary>>,
+    projection_boundary_revision: u64,
     window_size_persistence: Option<wabou_shell::WindowSizePersistence>,
     native_widget_factories: HashMap<String, wabou_shell::NativeWidgetFactory>,
     test_controller: Option<crate::test_driver::TestController>,
@@ -113,22 +117,30 @@ impl GpuiTextControlState {
         }
     }
 
-    fn element(&self) -> wabou_shell::gpui::AnyElement {
+    fn element_builder(&self) -> NativeElementBuilder {
         match self {
-            Self::Input { state, .. } => div()
-                // `InputState` requests a line-height-sized child.  Without
-                // an alignment context that child is laid out at the top of
-                // the full-height native editor surface, making single-line
-                // text visibly too high in 32px controls.
-                .size_full()
-                .flex()
-                .items_center()
-                .child(Input::new(state))
-                .into_any_element(),
-            Self::Textarea { state, .. } => div()
-                .size_full()
-                .child(Textarea::new(state))
-                .into_any_element(),
+            Self::Input { state, .. } => {
+                let state = state.clone();
+                Rc::new(move || {
+                    div()
+                        // `InputState` requests a line-height-sized child.
+                        // Center it inside the authored editor surface.
+                        .size_full()
+                        .flex()
+                        .items_center()
+                        .child(Input::new(&state))
+                        .into_any_element()
+                })
+            }
+            Self::Textarea { state, .. } => {
+                let state = state.clone();
+                Rc::new(move || {
+                    div()
+                        .size_full()
+                        .child(Textarea::new(&state))
+                        .into_any_element()
+                })
+            }
         }
     }
 
@@ -222,7 +234,8 @@ impl GpuiRuntimeView {
             focus,
             text_controls: BTreeMap::new(),
             text_selections: BTreeMap::new(),
-            native_widget_entities: BTreeMap::new(),
+            projection_boundary: None,
+            projection_boundary_revision: 0,
             window_size_persistence: options.window_size_persistence,
             native_widget_factories: options.native_widget_factories,
             test_controller: options.test_controller,
@@ -870,7 +883,8 @@ impl Render for GpuiRuntimeView {
                 window.is_maximized(),
             );
         }
-        let (_, frame_timing) = self.controller.advance_frame_profiled();
+        let (projection_changed, frame_timing) = self.controller.advance_frame_profiled();
+        let mut boundary_dirty = projection_changed || self.projection_boundary.is_none();
         self.synchronize_base_theme(cx);
         let fonts = self.controller.take_pending_fonts();
         if !fonts.is_empty() {
@@ -883,11 +897,16 @@ impl Render for GpuiRuntimeView {
             } else {
                 // Font availability changes shaping and therefore layout even
                 // when the retained Solid tree itself did not mutate.
+                boundary_dirty = true;
                 cx.notify();
             }
         }
-        self.synchronize_text_controls(window, cx);
-        for command in self.controller.take_projection_commands() {
+        if boundary_dirty {
+            self.synchronize_text_controls(window, cx);
+        }
+        let projection_commands = self.controller.take_projection_commands();
+        boundary_dirty |= !projection_commands.is_empty();
+        for command in projection_commands {
             match command {
                 wabou_shell::GpuiCommand::Focus { id } => {
                     let focus = self
@@ -938,6 +957,7 @@ impl Render for GpuiRuntimeView {
             );
             if source_action {
                 self.synchronize_text_controls(window, cx);
+                boundary_dirty = true;
             }
             if window_action || source_action {
                 cx.notify();
@@ -953,83 +973,57 @@ impl Render for GpuiRuntimeView {
             window.request_animation_frame();
         }
 
-        let view = cx.weak_entity();
-        let input = Rc::new(move |event, cx: &mut wabou_shell::gpui::App| {
-            let _ = view.update(cx, |view, cx| {
-                view.handle_input(event, cx);
+        if boundary_dirty {
+            self.projection_boundary_revision =
+                self.projection_boundary_revision.wrapping_add(1).max(1);
+            let view = cx.weak_entity();
+            let input: wabou_shell::ProjectedInputSink = Rc::new(move |event, app| {
+                let _ = view.update(app, |view, cx| {
+                    view.handle_input(event, cx);
+                });
             });
-        });
-        let mut text_input = self.controller.text_input_state();
-        if self
-            .controller
-            .focused_target()
-            .is_some_and(|target| self.text_controls.contains_key(&target))
-        {
-            // The child InputState owns the platform input handler. Keeping the
-            // transitional root handler active would commit IME text twice.
-            text_input.accepts_text = false;
-        }
-        let mut native_controls = self
-            .text_controls
-            .iter()
-            .map(|(key, state)| (*key, state.element()))
-            .collect::<BTreeMap<_, _>>();
-        let widgets = self
-            .controller
-            .native_widgets(|tag| self.native_widget_factories.contains_key(tag));
-        self.native_widget_entities
-            .retain(|key, _| widgets.iter().any(|widget| widget.key == *key));
-        for widget in &widgets {
-            let factory = self
-                .native_widget_factories
-                .get(widget.tag.as_ref())
-                .expect("native widget descriptors are filtered by the registry");
-            let mount = factory(
-                wabou_shell::NativeWidgetContext::new(
-                    widget.key,
-                    &widget.attributes,
-                    widget.config.as_deref(),
-                    self.native_widget_entities.get(&widget.key),
-                    input.clone(),
-                ),
-                window,
-                cx,
-            );
-            let (element, entity) = mount.into_parts();
-            if let Some(entity) = entity {
-                self.native_widget_entities.insert(widget.key, entity);
-            } else {
-                self.native_widget_entities.remove(&widget.key);
+            let mut text_input = self.controller.text_input_state();
+            if self
+                .controller
+                .focused_target()
+                .is_some_and(|target| self.text_controls.contains_key(&target))
+            {
+                // The child InputState owns the platform input handler. Keeping
+                // the transitional root handler active would commit IME twice.
+                text_input.accepts_text = false;
             }
-            native_controls.insert(widget.key, element);
-        }
-        let native_controls = Rc::new(std::cell::RefCell::new(native_controls));
-        let native: wabou_shell::ProjectedNativeElementFactory =
-            Rc::new(move |key| native_controls.borrow_mut().remove(&key));
-        let text_selections = self.synchronize_text_selections(window, cx);
-        let projected = self
-            .controller
-            .interactive_element(
+            let native_builders = self
+                .text_controls
+                .iter()
+                .map(|(key, state)| (*key, state.element_builder()))
+                .collect();
+            let state = GpuiProjectionBoundaryState {
+                revision: self.projection_boundary_revision,
+                snapshot: self.controller.projection_render_snapshot(),
                 input,
-                self.focus.clone(),
+                focus: self.focus.clone(),
                 text_input,
-                Some(native),
-                text_selections,
-            )
-            .expect("the canonical Wabou root remains retained");
-        #[cfg(feature = "profiling")]
-        tracing::trace!(
-            target: "wabou::perf",
-            revision = frame_timing.invalidation.revision,
-            dirty_nodes = frame_timing.invalidation.dirty_nodes,
-            structure_nodes = frame_timing.invalidation.structure_nodes,
-            layout_nodes = frame_timing.invalidation.layout_nodes,
-            paint_nodes = frame_timing.invalidation.paint_nodes,
-            interaction_nodes = frame_timing.invalidation.interaction_nodes,
-            semantic_nodes = frame_timing.invalidation.semantic_nodes,
-            retained_nodes = self.controller.projected_node_count(),
-            "gpui.projection.materialize_root"
-        );
+                native_builders,
+                text_selections: self.synchronize_text_selections(window, cx),
+                widgets: self
+                    .controller
+                    .native_widgets(|tag| self.native_widget_factories.contains_key(tag)),
+                native_widget_factories: self.native_widget_factories.clone(),
+            };
+            if let Some(boundary) = &self.projection_boundary {
+                boundary.update(cx, |boundary, boundary_cx| {
+                    boundary.synchronize(state, boundary_cx);
+                });
+            } else {
+                self.projection_boundary = Some(cx.new(|_| GpuiProjectionBoundary::new(state)));
+            }
+        }
+        let projected = self
+            .projection_boundary
+            .as_ref()
+            .expect("projection boundary initialized before root composition")
+            .clone()
+            .cached(StyleRefinement::default().size_full());
         let drag_view = cx.weak_entity();
         let drop_view = drag_view.clone();
         let leave_view = drag_view.clone();
@@ -1251,6 +1245,68 @@ mod tests {
                     .any(|node| { node.id == NodeKey::new(2, 1) && node.rect.width > 0.0 })
             );
         }
+    }
+
+    #[test]
+    fn animation_only_frames_reuse_the_cached_solid_projection_boundary() {
+        let platform = gpui_platform::current_platform(true);
+        let mut cx = HeadlessAppContext::new(platform.text_system());
+        let handle = cx
+            .open_window(size(px(800.0), px(600.0)), |window, app| {
+                let mut controller = test_controller();
+                controller
+                    .boot(include_str!("gen/test-runtime.js"))
+                    .expect("boot generated Solid runtime fixture");
+                assert!(controller.advance_frame());
+                controller
+                    .eval_script_diagnostic(
+                        "requestAnimationFrame(function tick() { requestAnimationFrame(tick); })",
+                    )
+                    .expect("schedule an animation with no Solid mutations");
+                app.new(|view_cx| {
+                    GpuiRuntimeView::new(
+                        controller,
+                        GpuiRuntimeViewOptions {
+                            window_size_persistence: None,
+                            native_widget_factories: HashMap::new(),
+                            test_controller: None,
+                            window_key: wabou_shell::initial_window_resource_key(0),
+                            window_host: test_window_host(),
+                        },
+                        window,
+                        view_cx,
+                    )
+                })
+            })
+            .expect("open animated GPUI projection");
+        cx.run_until_parked();
+
+        let root = handle.root(&mut cx).expect("GPUI runtime root entity");
+        let boundary = cx.read_entity(&root, |view, _| {
+            view.projection_boundary
+                .clone()
+                .expect("projection boundary created by the first render")
+        });
+        let initial = cx.read_entity(&boundary, |boundary, _| boundary.materialization_count());
+        assert_eq!(initial, 1);
+
+        for _ in 0..3 {
+            let callbacks = cx
+                .update_window(handle.into(), |_, window, app| {
+                    window.simulate_next_frame(app)
+                })
+                .expect("simulate one native animation frame");
+            assert!(callbacks >= 1);
+            cx.run_until_parked();
+        }
+
+        assert_eq!(
+            cx.read_entity(&boundary, |boundary, _| {
+                boundary.materialization_count()
+            }),
+            initial,
+            "animation frames without Solid mutations must reuse the cached projection"
+        );
     }
 
     #[test]

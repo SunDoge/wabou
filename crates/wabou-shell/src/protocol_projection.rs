@@ -141,6 +141,54 @@ pub struct GpuiProjection {
     protocol_gaps: std::collections::HashMap<NodeKey, std::collections::BTreeSet<&'static str>>,
 }
 
+/// Immutable, cheap-to-clone render view of one committed projection.
+///
+/// A GPUI `View` can retain this snapshot across root renders and only replace
+/// it when the corresponding Wabou projection boundary is invalidated. The
+/// node table and paint/layout handles remain shared rather than cloning the
+/// projected UI tree.
+#[derive(Clone)]
+pub struct GpuiProjectionRenderSnapshot {
+    tree: crate::ProjectionSnapshot,
+    layout_bounds: crate::element::ProjectedLayoutBounds,
+    graphic_paint_states: crate::element::ProjectedGraphicPaintStates,
+    scroll_handles: std::rc::Rc<std::collections::BTreeMap<NodeKey, crate::ProjectedScrollHandle>>,
+    uniform_list_handles:
+        std::rc::Rc<std::collections::BTreeMap<NodeKey, crate::gpui::UniformListScrollHandle>>,
+}
+
+impl GpuiProjectionRenderSnapshot {
+    pub fn interactive_element(
+        &self,
+        root: NodeKey,
+        input: crate::ProjectedInputSink,
+        focus: crate::gpui::FocusHandle,
+        text_input: crate::ProjectedTextInputState,
+        native: Option<crate::ProjectedNativeElementFactory>,
+        text_selections: std::rc::Rc<
+            std::collections::BTreeMap<NodeKey, crate::ProjectedTextSelection>,
+        >,
+    ) -> Result<crate::ProjectedElement, ProjectionError> {
+        crate::ProjectedElement::from_tree(
+            self.tree.clone(),
+            root,
+            crate::element::ProjectedElementContext {
+                input: Some(input),
+                root_focus: Some(focus),
+                text_input: Some(text_input),
+                native,
+                layout_bounds: Some(self.layout_bounds.clone()),
+                graphic_paint_states: Some(self.graphic_paint_states.clone()),
+                scroll_handles: Some(self.scroll_handles.clone()),
+                uniform_list_handles: Some(self.uniform_list_handles.clone()),
+                text_selections: Some(text_selections),
+                text_selection_policy: None,
+            },
+            false,
+        )
+    }
+}
+
 impl Default for GpuiProjection {
     fn default() -> Self {
         Self::new()
@@ -709,18 +757,26 @@ impl GpuiProjection {
             std::collections::BTreeMap<NodeKey, crate::ProjectedTextSelection>,
         >,
     ) -> Result<crate::ProjectedElement, ProjectionError> {
-        self.tree.interactive_element_with_layout_bounds(
+        self.render_snapshot().interactive_element(
             root,
             input,
             focus,
             text_input,
             native,
-            self.layout_bounds.clone(),
-            self.graphic_paint_states.clone(),
-            std::rc::Rc::new(self.scroll_handles.clone()),
-            std::rc::Rc::new(self.uniform_list_handles.clone()),
             text_selections,
         )
+    }
+
+    /// Freeze the current committed projection for a retained GPUI View.
+    #[must_use]
+    pub fn render_snapshot(&self) -> GpuiProjectionRenderSnapshot {
+        GpuiProjectionRenderSnapshot {
+            tree: self.tree.snapshot(),
+            layout_bounds: self.layout_bounds.clone(),
+            graphic_paint_states: self.graphic_paint_states.clone(),
+            scroll_handles: std::rc::Rc::new(self.scroll_handles.clone()),
+            uniform_list_handles: std::rc::Rc::new(self.uniform_list_handles.clone()),
+        }
     }
 
     pub fn selectable_texts(&self) -> Vec<GpuiSelectableText> {

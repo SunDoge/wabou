@@ -32,7 +32,8 @@ pub use projection::{
 };
 pub use protocol_projection::{
     GpuiCommand, GpuiComputedStyle, GpuiLayoutNode, GpuiNativeWidget, GpuiProjection,
-    GpuiSelectableText, GpuiTextControl, GpuiTextControlStyle, GpuiThemeSnapshot, project_ir,
+    GpuiProjectionRenderSnapshot, GpuiSelectableText, GpuiTextControl, GpuiTextControlStyle,
+    GpuiThemeSnapshot, project_ir,
 };
 pub use style::{StyleDiagnostic, StyleProjection};
 pub use text_selection::ProjectedTextSelection;

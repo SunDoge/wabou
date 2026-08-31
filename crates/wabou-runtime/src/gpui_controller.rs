@@ -635,27 +635,8 @@ impl GpuiController {
         self.projection.native_widgets(accepts)
     }
 
-    pub(crate) fn interactive_element(
-        &self,
-        input: wabou_shell::ProjectedInputSink,
-        focus: wabou_shell::gpui::FocusHandle,
-        text_input: wabou_shell::ProjectedTextInputState,
-        native: Option<wabou_shell::ProjectedNativeElementFactory>,
-        text_selections: std::rc::Rc<
-            std::collections::BTreeMap<
-                wabou_host_api::NodeKey,
-                wabou_shell::ProjectedTextSelection,
-            >,
-        >,
-    ) -> Result<wabou_shell::ProjectedElement, ProjectionError> {
-        self.projection.interactive_tree_element(
-            wabou_host_api::NodeKey::ROOT,
-            input,
-            focus,
-            text_input,
-            native,
-            text_selections,
-        )
+    pub(crate) fn projection_render_snapshot(&self) -> wabou_shell::GpuiProjectionRenderSnapshot {
+        self.projection.render_snapshot()
     }
 
     pub(crate) fn selectable_texts(&self) -> Vec<wabou_shell::GpuiSelectableText> {
