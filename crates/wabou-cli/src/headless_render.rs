@@ -10,15 +10,15 @@ use std::time::{Duration, Instant};
 use anyrender::Scene;
 use clap::ArgMatches;
 use serde::{Deserialize, Serialize};
-use wabou_backend_winit::layout::PlacedNode;
-use wabou_backend_winit::renderer::render_to_png;
-use wabou_backend_winit::scene as scene_builder;
-use wabou_backend_winit::{
+use wabou_legacy_runtime::{AppConfig, Applier, JsRuntime};
+use wabou_legacy_shell::layout::PlacedNode;
+use wabou_legacy_shell::renderer::render_to_png;
+use wabou_legacy_shell::scene as scene_builder;
+use wabou_legacy_shell::{
     FrameSource, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent,
     PointerPhase, TextContext, UiEvent, WheelEvent,
 };
-use wabou_backend_winit_widgets::{PasswordInput, SecretStore};
-use wabou_legacy_runtime::{AppConfig, Applier, JsRuntime};
+use wabou_legacy_widgets::{PasswordInput, SecretStore};
 
 use super::artifact::{app_binary, app_framework_feature};
 use super::config::{BuildProfile, bundle_path};
@@ -34,10 +34,10 @@ pub(super) enum HeadlessColorScheme {
 }
 
 impl HeadlessColorScheme {
-    const fn shell(self) -> wabou_backend_winit::ColorScheme {
+    const fn shell(self) -> wabou_legacy_shell::ColorScheme {
         match self {
-            Self::Light => wabou_backend_winit::ColorScheme::Light,
-            Self::Dark => wabou_backend_winit::ColorScheme::Dark,
+            Self::Light => wabou_legacy_shell::ColorScheme::Light,
+            Self::Dark => wabou_legacy_shell::ColorScheme::Dark,
         }
     }
 
@@ -285,8 +285,8 @@ fn apply_actions(
                     position: Point { x: *x, y: *y },
                     delta_x: *delta_x,
                     delta_y: *delta_y,
-                    delta_mode: wabou_backend_winit::WheelDeltaMode::Pixel,
-                    phase: wabou_backend_winit::GesturePhase::Changed,
+                    delta_mode: wabou_legacy_shell::WheelDeltaMode::Pixel,
+                    phase: wabou_legacy_shell::GesturePhase::Changed,
                     modifiers: Modifiers::default(),
                 }));
             }
@@ -317,7 +317,7 @@ fn apply_actions(
 fn run_layout_batch(
     applier: &mut Applier,
     debug_state: &wabou_devtools::SharedDebugState,
-    window_key: wabou_backend_winit::WindowResourceKey,
+    window_key: wabou_legacy_shell::WindowResourceKey,
     manifest_path: &Path,
     out: &Path,
     wait_ms: u64,
@@ -412,7 +412,7 @@ fn run_layout_batch(
         let physical_height = (f64::from(height) * scale_factor)
             .round()
             .clamp(1.0, f64::from(u32::MAX)) as u32;
-        applier.handle_event(UiEvent::WindowMetrics(wabou_backend_winit::WindowMetrics {
+        applier.handle_event(UiEvent::WindowMetrics(wabou_legacy_shell::WindowMetrics {
             window_key,
             logical_width: width,
             logical_height: height,
@@ -531,7 +531,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     }
     let window_key = u32::try_from(*window_id)
         .ok()
-        .and_then(|lo| wabou_backend_winit::WindowResourceKey::from_parts(lo, 1))
+        .and_then(|lo| wabou_legacy_shell::WindowResourceKey::from_parts(lo, 1))
         .ok_or("--window-id must be a non-zero 32-bit logical window id")?;
     let frontend_mode = if fixture.is_some() {
         if mode.as_deref().is_some_and(|mode| mode != "layout-test") {
@@ -553,7 +553,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         JsRuntime::new().map_err(|error| format!("cannot create JavaScript runtime: {error:?}"))?;
 
     let base_color = AppConfig::new("").base_color;
-    let mut factories = wabou_backend_winit_widgets::builtin_factories();
+    let mut factories = wabou_legacy_widgets::builtin_factories();
     factories.insert(
         "password-input".into(),
         Arc::new(|| Box::new(PasswordInput::new(SecretStore::default()))),
@@ -612,7 +612,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     let physical_height = (f64::from(height) * scale_factor)
         .round()
         .clamp(1.0, f64::from(u32::MAX)) as u32;
-    applier.handle_event(UiEvent::WindowMetrics(wabou_backend_winit::WindowMetrics {
+    applier.handle_event(UiEvent::WindowMetrics(wabou_legacy_shell::WindowMetrics {
         window_key,
         logical_width: width,
         logical_height: height,
@@ -627,7 +627,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         color_scheme: Some(color_scheme.shell()),
     }));
     let mut text_context = TextContext::new();
-    let mut profiler = wabou_backend_winit::headless::HeadlessFrameProfiler::default();
+    let mut profiler = wabou_legacy_shell::headless::HeadlessFrameProfiler::default();
     let mut nodes = applier.build_frame(&mut text_context, width, height);
     settle(&mut applier, &mut text_context, &mut nodes, width, height);
     nodes = if *layout_only {

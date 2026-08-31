@@ -6,8 +6,8 @@ use std::time::Instant;
 use anyrender::Scene;
 use serde_json::json;
 use vello::peniko::Color;
-use wabou_backend_winit::{FrameSource, TextContext, scene};
 use wabou_legacy_runtime::Applier;
+use wabou_legacy_shell::{FrameSource, TextContext, scene};
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 

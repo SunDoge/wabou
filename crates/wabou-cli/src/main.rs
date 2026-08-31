@@ -1,7 +1,5 @@
 //! Command-line entry point for developing, building, and testing Wabou apps.
 
-extern crate wabou_backend_winit as wabou_shell;
-
 use std::env;
 use std::error::Error;
 use std::fs;
@@ -51,7 +49,8 @@ use headless_render::{
 #[cfg(test)]
 use process::wait_for_managed_child;
 use process::{
-    ManagedChild, configure_test_backend, supervise, wait_for_behavior_host, wait_for_vite,
+    ManagedChild, configure_test_backend, ensure_host_exit, supervise, wait_for_behavior_host,
+    wait_for_vite,
 };
 use project::{App, ensure_workspace_package_exports, find_app_root, find_workspace, load_app};
 
@@ -815,7 +814,7 @@ fn run(
             .env("WABOU_PROFILE_TRACE", path);
     }
     cargo.env("WABOU_BUNDLE_PATH", bundle_path(workspace, app, profile)?);
-    ensure(cargo.status()?, "Rust host")
+    ensure_host_exit(cargo.status()?)
 }
 
 fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<()> {
