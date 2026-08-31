@@ -1,7 +1,7 @@
 import { renderComponent } from "@wabou/test/component";
 import { Text, View } from "@wabou/ui";
 import { createSignal } from "solid-js";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import type { AgentThinkingLevel } from "../../apps/pi-agent/ui/agent-state";
 import {
   ComposerModelControl,
@@ -94,6 +94,42 @@ test("disables unavailable runtime controls", () => {
   expect(
     screen.getByRole("combobox", { name: "Thinking level" }).disabled,
   ).toBe(true);
+});
+
+test("locks a pending model update and reports a recoverable failure", async () => {
+  let rejectModel: (error: unknown) => void = () => {};
+  const chooseModel = vi.fn(
+    () =>
+      new Promise<void>((_resolve, reject) => {
+        rejectModel = reject;
+      }),
+  );
+  const onActionError = vi.fn();
+  const screen = renderComponent(() => (
+    <ModelControls
+      models={models}
+      modelProvider="anthropic"
+      modelId="claude-sonnet-4-5"
+      thinking="medium"
+      thinkingLevels={["off", "medium", "high"]}
+      chooseModel={chooseModel}
+      chooseThinking={() => {}}
+      onActionError={onActionError}
+    />
+  ));
+  const model = screen.getByRole("combobox", { name: "Choose model" });
+
+  model.click();
+  screen.getByRole("option", { name: "GPT-5.2 Codex" }).click();
+  expect(chooseModel).toHaveBeenCalledWith("openai", "gpt-5.2-codex");
+  expect(model.disabled).toBe(true);
+
+  const failure = new Error("provider rejected model");
+  rejectModel(failure);
+  await screen.waitFor(() => {
+    expect(onActionError).toHaveBeenCalledWith("model", failure);
+  });
+  expect(model.disabled).toBe(false);
 });
 
 test("composer summarizes model configuration until it is requested", () => {

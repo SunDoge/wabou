@@ -1018,10 +1018,13 @@ export function App() {
               changeContextFiles={setContextFiles}
               changeDeliveryMode={setDeliveryMode}
               chooseModel={(provider, modelId) =>
-                void api.setModel(active().id, provider, modelId)
+                api.setModel(active().id, provider, modelId)
               }
-              chooseThinking={(level) =>
-                void api.setThinking(active().id, level)
+              chooseThinking={(level) => api.setThinking(active().id, level)}
+              modelActionError={(_action, error) =>
+                toasts.error(i18n.message(m.model_action_failed, {}), {
+                  description: String(error),
+                })
               }
               loadWorkspaceFiles={api.listWorkspaceFiles}
               submit={() => void submit()}

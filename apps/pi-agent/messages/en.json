@@ -141,6 +141,7 @@
   "cycle_model": "Cycle model",
   "cycle_thinking": "Cycle thinking level",
   "choose_model": "Choose model",
+  "model_action_failed": "Could not update model settings",
   "search_models": "Search models",
   "no_models": "No configured models",
   "choose_thinking": "Thinking level",

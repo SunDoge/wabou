@@ -141,6 +141,7 @@
   "cycle_model": "切换模型",
   "cycle_thinking": "切换思考级别",
   "choose_model": "选择模型",
+  "model_action_failed": "无法更新模型设置",
   "search_models": "搜索模型",
   "no_models": "没有已配置的模型",
   "choose_thinking": "思考级别",

@@ -1,4 +1,13 @@
-import { Button, Combobox, Icon, Popover, Select, Text, View } from "@wabou/ui";
+import {
+  Button,
+  Combobox,
+  createKeyedAsyncAction,
+  Icon,
+  Popover,
+  Select,
+  Text,
+  View,
+} from "@wabou/ui";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import { Show } from "solid-js";
 import type { AgentModel, AgentThinkingLevel } from "./agent-state";
@@ -20,9 +29,21 @@ export function ModelControls(props: {
   thinking?: AgentThinkingLevel;
   thinkingLevels: readonly AgentThinkingLevel[];
   disabled?: boolean;
-  chooseModel(provider: string, modelId: string): void;
-  chooseThinking(level: AgentThinkingLevel): void;
+  chooseModel(provider: string, modelId: string): void | Promise<void>;
+  chooseThinking(level: AgentThinkingLevel): void | Promise<void>;
+  onActionError?: (action: ModelControlAction, error: unknown) => void;
 }) {
+  const action = createKeyedAsyncAction(
+    (id: ModelControlAction, _perform: () => void | Promise<void>) => id,
+    (_id: ModelControlAction, perform: () => void | Promise<void>) => perform(),
+  );
+  const run = async (
+    id: ModelControlAction,
+    perform: () => void | Promise<void>,
+  ) => {
+    const result = await action.run(id, perform);
+    if (!result.ok) props.onActionError?.(id, result.error);
+  };
   const selectedModel = () =>
     props.modelProvider && props.modelId
       ? modelValue({ provider: props.modelProvider, id: props.modelId })
@@ -52,14 +73,15 @@ export function ModelControls(props: {
         placeholder={i18n.message(m.choose_model, {})}
         searchPlaceholder={i18n.message(m.search_models, {})}
         emptyText={i18n.message(m.no_models, {})}
-        disabled={props.disabled || props.models.length === 0}
+        disabled={
+          props.disabled || props.models.length === 0 || action.pending("model")
+        }
         onValueChange={(value) => {
           const separator = value.indexOf("\0");
           if (separator < 1) return;
-          props.chooseModel(
-            value.slice(0, separator),
-            value.slice(separator + 1),
-          );
+          const provider = value.slice(0, separator);
+          const modelId = value.slice(separator + 1);
+          void run("model", () => props.chooseModel(provider, modelId));
         }}
       />
       <Select
@@ -70,14 +92,21 @@ export function ModelControls(props: {
         options={thinkingOptions()}
         value={props.thinking}
         placeholder={i18n.message(m.choose_thinking, {})}
-        disabled={props.disabled || props.thinkingLevels.length === 0}
-        onValueChange={(value) =>
-          props.chooseThinking(value as AgentThinkingLevel)
+        disabled={
+          props.disabled ||
+          props.thinkingLevels.length === 0 ||
+          action.pending("thinking")
         }
+        onValueChange={(value) => {
+          const level = value as AgentThinkingLevel;
+          void run("thinking", () => props.chooseThinking(level));
+        }}
       />
     </View>
   );
 }
+
+export type ModelControlAction = "model" | "thinking";
 
 /**
  * Keeps low-frequency runtime configuration out of the primary composer row.

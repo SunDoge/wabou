@@ -55,7 +55,10 @@ import {
   type ExtensionUiWidget,
 } from "./extension-ui";
 import { i18n, m } from "./i18n";
-import { ComposerModelControl } from "./model-controls";
+import {
+  ComposerModelControl,
+  type ModelControlAction,
+} from "./model-controls";
 import { SessionUsage } from "./session-usage";
 
 export interface ConversationComposerProps {
@@ -83,8 +86,9 @@ export interface ConversationComposerProps {
   changeImages(paths: readonly string[]): void;
   changeContextFiles(paths: readonly string[]): void;
   changeDeliveryMode(value: ComposerDeliveryMode): void;
-  chooseModel(provider: string, modelId: string): void;
-  chooseThinking(level: AgentThinkingLevel): void;
+  chooseModel(provider: string, modelId: string): void | Promise<void>;
+  chooseThinking(level: AgentThinkingLevel): void | Promise<void>;
+  modelActionError?: (action: ModelControlAction, error: unknown) => void;
   loadWorkspaceFiles(cwd: string): Promise<readonly string[]>;
   submit(): void;
 }
@@ -308,6 +312,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
                 thinkingLevels={props.thinkingLevels}
                 chooseModel={props.chooseModel}
                 chooseThinking={props.chooseThinking}
+                onActionError={props.modelActionError}
               />
             </Show>
             <Show when={running()}>
