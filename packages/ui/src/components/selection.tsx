@@ -1,4 +1,5 @@
 import type { Handle } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import check from "lucide-static/icons/check.svg?raw";
 import minus from "lucide-static/icons/minus.svg?raw";
 import {
@@ -22,7 +23,6 @@ import {
   createControllableState,
   createRovingFocus,
 } from "../primitives/interactions";
-import { mergeClasses } from "@wabou/core/style";
 
 const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
 
@@ -112,6 +112,7 @@ interface RadioContextValue {
   value: () => string | undefined;
   select(value: string): void;
   disabled: () => boolean;
+  appearance: () => "radio" | "segment";
   register(value: string, node: Handle, disabled: () => boolean): () => void;
   move(value: string, key: string): boolean;
 }
@@ -122,6 +123,9 @@ export interface RadioGroupProps {
   value?: string;
   defaultValue?: string;
   disabled?: boolean;
+  orientation?: "horizontal" | "vertical";
+  appearance?: "radio" | "segment";
+  loop?: boolean;
   "aria-label"?: string;
   class?: string;
   children?: JSX.Element;
@@ -140,7 +144,8 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
     state.set(next);
   };
   const roving = createRovingFocus({
-    orientation: () => "vertical",
+    orientation: () => props.orientation ?? "vertical",
+    loop: props.loop,
     onMove: select,
   });
   return createComponent(RadioContext, {
@@ -148,6 +153,7 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
       value,
       select,
       disabled: () => props.disabled ?? false,
+      appearance: () => props.appearance ?? "radio",
       register: (id, target, disabled) =>
         roving.register({ id, target, disabled }),
       move: roving.move,
@@ -157,7 +163,14 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
         <View
           role="radiogroup"
           aria-label={props["aria-label"]}
-          class={mergeClasses("flex flex-col gap-3", props.class)}
+          class={mergeClasses(
+            "flex",
+            props.orientation === "horizontal" ? "flex-row" : "flex-col",
+            props.appearance === "segment"
+              ? "items-center gap-0.5 rounded-md border border-subtle bg-control p-0.5"
+              : "gap-3",
+            props.class,
+          )}
         >
           {props.children}
         </View>
@@ -194,8 +207,12 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
       }}
       class={(buttonState) =>
         mergeClasses(
-          "min-h-7 px-1 items-center gap-2 rounded-md border border-transparent",
-          buttonState.hovered && "bg-control-hover",
+          group.appearance() === "segment"
+            ? "h-8 min-w-0 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium"
+            : "min-h-7 px-1 items-center gap-2 rounded-md border border-transparent",
+          group.appearance() === "segment" && checked()
+            ? "bg-selected text-primary shadow-xs"
+            : buttonState.hovered && "bg-control-hover",
           buttonState.focusVisible && "border-focus",
           props.class,
         )
@@ -208,20 +225,31 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
         if (group.move(props.value, event.key)) event.preventDefault();
       }}
     >
-      <Center
-        aria-hidden="true"
-        class={mergeClasses(
-          SELECTION_INDICATOR_CLASS,
-          "rounded-full bg-input",
-          match(checked())
-            .with(true, () => "border-accent")
-            .with(false, () => "border-strong")
-            .exhaustive(),
-        )}
-      >
-        {checked() && <View class="w-2.5 h-2.5 rounded-full bg-accent" />}
-      </Center>
-      {props.label && <Text class="text-sm text-secondary">{props.label}</Text>}
+      {group.appearance() === "radio" && (
+        <Center
+          aria-hidden="true"
+          class={mergeClasses(
+            SELECTION_INDICATOR_CLASS,
+            "rounded-full bg-input",
+            match(checked())
+              .with(true, () => "border-accent")
+              .with(false, () => "border-strong")
+              .exhaustive(),
+          )}
+        >
+          {checked() && <View class="w-2.5 h-2.5 rounded-full bg-accent" />}
+        </Center>
+      )}
+      {props.label && (
+        <Text
+          class={mergeClasses(
+            "text-sm",
+            checked() ? "text-primary" : "text-secondary",
+          )}
+        >
+          {props.label}
+        </Text>
+      )}
     </HeadlessButton>
   );
 }

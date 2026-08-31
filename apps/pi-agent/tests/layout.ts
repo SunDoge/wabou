@@ -628,6 +628,35 @@ try {
             role: "textbox",
             name: "Default proxy URL",
           });
+          const language = getLayoutNode(fixture, {
+            role: "radiogroup",
+            name: "Language",
+          });
+          const languageOptions = queryLayoutNodes(fixture, { role: "radio" });
+          if (languageOptions.length !== 2) {
+            throw new Error(
+              `expected two segmented language choices, found ${languageOptions.length}`,
+            );
+          }
+          if (
+            languageOptions.some(
+              (option) =>
+                option.rect.height !== languageOptions[0]?.rect.height ||
+                option.rect.y !== languageOptions[0]?.rect.y,
+            )
+          ) {
+            throw new Error("segmented language choices lost shared geometry");
+          }
+          if (
+            languageOptions.some(
+              (option) =>
+                option.rect.x < language.rect.x ||
+                option.rect.x + option.rect.width >
+                  language.rect.x + language.rect.width,
+            )
+          ) {
+            throw new Error("segmented language choice escaped its group");
+          }
           getLayoutNode(fixture, { text: "Runtime" });
         },
       },

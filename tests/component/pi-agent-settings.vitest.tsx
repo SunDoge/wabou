@@ -75,10 +75,12 @@ test("Pi Agent settings separate project overrides from global network configura
   subagents.click();
   expect(defaults().subagentsEnabled).toBe(false);
 
-  screen.getByRole("button", { name: "中文" }).click();
+  const language = screen.getByRole("radiogroup", { name: "Language" });
+  expect(language.className).toContain("flex-row");
+  screen.getByRole("radio", { name: "中文" }).click();
   expect(defaults().locale).toBe("zh");
   expect(screen.getByRole("heading", { name: "设置" })).toBeDefined();
-  screen.getByRole("button", { name: "English" }).click();
+  screen.getByRole("radio", { name: "English" }).click();
   expect(defaults().locale).toBe("en");
 
   screen.getByRole("tab", { name: "Project settings" }).click();

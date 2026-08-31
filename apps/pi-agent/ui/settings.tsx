@@ -15,6 +15,8 @@ import {
   Input,
   PageHeader,
   PageViewport,
+  RadioGroup,
+  RadioGroupItem,
   Separator,
   SettingsGroup,
   SettingsSection,
@@ -218,20 +220,25 @@ export function SettingsPage(props: {
                 title={i18n.message(m.language, {})}
                 description={i18n.message(m.language_detail, {})}
               >
-                <View class="min-w-0 flex flex-row items-center gap-2">
-                  <Button
-                    variant={props.app.locale === "en" ? "default" : "outline"}
-                    onClick={() => setLocale("en")}
-                  >
-                    {i18n.message(m.english, {})}
-                  </Button>
-                  <Button
-                    variant={props.app.locale === "zh" ? "default" : "outline"}
-                    onClick={() => setLocale("zh")}
-                  >
-                    {i18n.message(m.chinese, {})}
-                  </Button>
-                </View>
+                <RadioGroup
+                  appearance="segment"
+                  orientation="horizontal"
+                  value={props.app.locale}
+                  aria-label={i18n.message(m.language, {})}
+                  class="w-full max-w-sm"
+                  onValueChange={(value) =>
+                    setLocale(value as AppSettings["locale"])
+                  }
+                >
+                  <RadioGroupItem
+                    value="en"
+                    label={i18n.message(m.english, {})}
+                  />
+                  <RadioGroupItem
+                    value="zh"
+                    label={i18n.message(m.chinese, {})}
+                  />
+                </RadioGroup>
               </SettingsGroup>
               <Separator />
               <SettingsGroup

@@ -96,6 +96,36 @@ test("keeps a controlled radio group stable until its owner accepts a change", (
   expect(screen.getByRole("radio", { name: "Free" }).checked).toBe(true);
 });
 
+test("renders a required horizontal radio choice as a segmented control", () => {
+  const [locale, setLocale] = createSignal("en");
+  const screen = renderComponent(() => (
+    <RadioGroup
+      appearance="segment"
+      orientation="horizontal"
+      loop
+      value={locale()}
+      onValueChange={setLocale}
+      aria-label="Language"
+    >
+      <RadioGroupItem value="en" label="English" />
+      <RadioGroupItem value="zh" label="Chinese" />
+    </RadioGroup>
+  ));
+
+  const group = screen.getByRole("radiogroup", { name: "Language" });
+  expect(group.className).toContain("flex-row");
+  const english = screen.getByRole("radio", { name: "English" });
+  const chinese = screen.getByRole("radio", { name: "Chinese" });
+  expect(english.checked).toBe(true);
+  expect(english.className).toContain("bg-selected");
+  english.focus();
+  english.press("ArrowRight");
+  expect(chinese.focused).toBe(true);
+  expect(chinese.checked).toBe(true);
+  chinese.click();
+  expect(chinese.checked).toBe(true);
+});
+
 test("toggles buttons and single-value groups through semantic state", () => {
   const App = () => {
     const [bold, setBold] = createSignal(false);
