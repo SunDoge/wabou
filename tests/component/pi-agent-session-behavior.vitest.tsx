@@ -22,7 +22,10 @@ test("changes Pi session behavior through explicit controls", () => {
 
   screen.getByRole("switch", { name: "Automatic context compaction" }).click();
   expect(changes).toContain("compact:false");
-  screen.getByRole("combobox", { name: "Steering messages" }).click();
+  screen.getByRole("label", { name: "Steering messages" }).click();
+  const steering = screen.getByRole("combobox", { name: "Steering messages" });
+  expect(steering.focused).toBe(true);
+  steering.click();
   screen.getByRole("option", { name: "All queued messages" }).click();
   screen.getByRole("combobox", { name: "Follow-up messages" }).click();
   screen.getByRole("option", { name: "All queued messages" }).click();

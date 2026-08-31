@@ -45,6 +45,8 @@ export interface SelectProps extends PopupMotionProps {
   open?: boolean;
   defaultOpen?: boolean;
   disabled?: boolean;
+  /** Receives the native trigger handle for explicit label/focus composition. */
+  ref?: (node: Handle) => void;
   placeholder?: string;
   "aria-label": string;
   class?: string;
@@ -159,6 +161,7 @@ export function Select(props: SelectProps): JSX.Element {
           aria-valuetext={selected()?.label}
           ref={(node) => {
             trigger = node;
+            props.ref?.(node);
             popover.ref(node);
           }}
           class={(state) =>

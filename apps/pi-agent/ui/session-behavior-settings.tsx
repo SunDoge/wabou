@@ -1,7 +1,7 @@
 import {
   Field,
   FieldDescription,
-  FieldLabel,
+  LabeledField,
   Select,
   Switch,
   View,
@@ -37,36 +37,40 @@ export function SessionBehaviorSettings(props: {
           {i18n.message(m.auto_compaction_detail, {})}
         </FieldDescription>
       </Field>
-      <Field>
-        <FieldLabel>{i18n.message(m.steering_queue_mode, {})}</FieldLabel>
-        <Select
-          aria-label={i18n.message(m.steering_queue_mode, {})}
-          options={queueModeOptions()}
-          value={props.state.steeringMode}
-          disabled={disabled() || props.state.steeringMode === undefined}
-          onValueChange={(value) =>
-            props.setSteeringMode(value as AgentQueueMode)
-          }
-        />
-        <FieldDescription class="text-secondary">
-          {i18n.message(m.steering_queue_mode_detail, {})}
-        </FieldDescription>
-      </Field>
-      <Field>
-        <FieldLabel>{i18n.message(m.follow_up_queue_mode, {})}</FieldLabel>
-        <Select
-          aria-label={i18n.message(m.follow_up_queue_mode, {})}
-          options={queueModeOptions()}
-          value={props.state.followUpMode}
-          disabled={disabled() || props.state.followUpMode === undefined}
-          onValueChange={(value) =>
-            props.setFollowUpMode(value as AgentQueueMode)
-          }
-        />
-        <FieldDescription class="text-secondary">
-          {i18n.message(m.follow_up_queue_mode_detail, {})}
-        </FieldDescription>
-      </Field>
+      <LabeledField
+        label={i18n.message(m.steering_queue_mode, {})}
+        description={i18n.message(m.steering_queue_mode_detail, {})}
+        disabled={disabled() || props.state.steeringMode === undefined}
+        renderControl={(ref) => (
+          <Select
+            ref={ref}
+            aria-label={i18n.message(m.steering_queue_mode, {})}
+            options={queueModeOptions()}
+            value={props.state.steeringMode}
+            disabled={disabled() || props.state.steeringMode === undefined}
+            onValueChange={(value) =>
+              props.setSteeringMode(value as AgentQueueMode)
+            }
+          />
+        )}
+      />
+      <LabeledField
+        label={i18n.message(m.follow_up_queue_mode, {})}
+        description={i18n.message(m.follow_up_queue_mode_detail, {})}
+        disabled={disabled() || props.state.followUpMode === undefined}
+        renderControl={(ref) => (
+          <Select
+            ref={ref}
+            aria-label={i18n.message(m.follow_up_queue_mode, {})}
+            options={queueModeOptions()}
+            value={props.state.followUpMode}
+            disabled={disabled() || props.state.followUpMode === undefined}
+            onValueChange={(value) =>
+              props.setFollowUpMode(value as AgentQueueMode)
+            }
+          />
+        )}
+      />
     </View>
   );
 }
