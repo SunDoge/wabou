@@ -1140,6 +1140,22 @@ fn click_gpui_target(
     down.handled || up.handled
 }
 
+fn gpui_drag_events(
+    node: &gpui_shell::GpuiLayoutNode,
+    delta_x: f64,
+    delta_y: f64,
+) -> [gpui_shell::ProjectedPointerEvent; 3] {
+    let down = gpui_pointer_event(node, gpui_shell::ProjectedPointerPhase::Down);
+    let mut moved = gpui_pointer_event(node, gpui_shell::ProjectedPointerPhase::Move);
+    moved.x += delta_x as f32;
+    moved.y += delta_y as f32;
+    moved.local_x += delta_x as f32;
+    moved.local_y += delta_y as f32;
+    let mut up = moved.clone();
+    up.phase = gpui_shell::ProjectedPointerPhase::Up;
+    [down, moved, up]
+}
+
 fn input_gpui_target(
     controller: &mut crate::gpui_controller::GpuiController,
     node: &gpui_shell::GpuiLayoutNode,
@@ -1191,7 +1207,11 @@ fn input_gpui_target(
                 })
                 .handled
         }
-        TestInput::Drag { .. } => click_gpui_target(controller, node),
+        TestInput::Drag { delta_x, delta_y } => gpui_drag_events(node, *delta_x, *delta_y)
+            .into_iter()
+            .fold(false, |handled, event| {
+                controller.handle_projected_pointer(event).handled || handled
+            }),
     }
 }
 
@@ -1952,6 +1972,41 @@ mod tests {
             (PointerPhase::Move, 85.0, 35.0, 1)
         );
         assert_eq!((up.phase, up.buttons), (PointerPhase::Up, 0));
+    }
+
+    #[test]
+    fn gpui_drag_uses_the_requested_delta_in_native_logical_coordinates() {
+        let events = gpui_drag_events(
+            &gpui_node(wabou_host_api::NodeKey::new(3, 1), None, "view", "Drag"),
+            25.0,
+            -5.0,
+        );
+        assert_eq!(
+            events.map(|event| (event.phase, event.x, event.y, event.local_x, event.local_y)),
+            [
+                (
+                    gpui_shell::ProjectedPointerPhase::Down,
+                    60.0,
+                    40.0,
+                    50.0,
+                    20.0
+                ),
+                (
+                    gpui_shell::ProjectedPointerPhase::Move,
+                    85.0,
+                    35.0,
+                    75.0,
+                    15.0
+                ),
+                (
+                    gpui_shell::ProjectedPointerPhase::Up,
+                    85.0,
+                    35.0,
+                    75.0,
+                    15.0
+                ),
+            ]
+        );
     }
 
     #[test]
