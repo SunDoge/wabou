@@ -98,7 +98,13 @@ impl GpuiTextControlState {
     fn element(&self) -> wabou_shell::gpui::AnyElement {
         match self {
             Self::Input { state, .. } => div()
+                // `InputState` requests a line-height-sized child.  Without
+                // an alignment context that child is laid out at the top of
+                // the full-height native editor surface, making single-line
+                // text visibly too high in 32px controls.
                 .size_full()
+                .flex()
+                .items_center()
                 .child(Input::new(state))
                 .into_any_element(),
             Self::Textarea { state, .. } => div()
