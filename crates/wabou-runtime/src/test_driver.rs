@@ -7,17 +7,12 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 
+#[cfg(test)]
+use gpui_shell::{
+    FileDropEvent, ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton,
+    PointerEvent, PointerPhase, SemanticRole, SemanticSnapshot, UiEvent, WheelEvent,
+};
 use gpui_shell::{WakeCallback, WindowCapabilities, WindowIntent, WindowLifecycle, WindowPresence};
-#[cfg(test)]
-use legacy_shell::{
-    ExtensionContext, FileDropEvent, ImeEvent, KeyEvent, KeyLocation, KeyPhase, ShellExtension,
-    WheelEvent,
-};
-#[cfg(test)]
-use legacy_shell::{
-    FrameSource, Modifiers, Point, PointerButton, PointerEvent, PointerPhase, SemanticRole,
-    SemanticSnapshot, UiEvent,
-};
 use rquickjs::{Function, prelude::Async};
 use serde::Deserialize;
 use tokio::sync::oneshot;
@@ -26,6 +21,13 @@ const CAPABILITY: &str = "test";
 const MAX_FIXTURE_BYTES: usize = 16 * 1024 * 1024;
 static NEXT_FIXTURE_DIRECTORY: AtomicU64 = AtomicU64::new(1);
 type WindowKey = gpui_shell::WindowResourceKey;
+
+#[cfg(test)]
+trait SemanticTestSource {
+    fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>>;
+    fn handle_event(&mut self, event: UiEvent);
+    fn handle_semantic_action(&mut self, action: gpui_shell::SemanticAction) -> bool;
+}
 
 #[derive(Clone, Copy, Debug)]
 enum FileDropPhase {
@@ -689,7 +691,7 @@ impl TestController {
     }
 
     #[cfg(test)]
-    pub(crate) fn poll_headless_source(&self, window_key: WindowKey, source: &mut dyn FrameSource) {
+    fn poll_headless_source(&self, window_key: WindowKey, source: &mut dyn SemanticTestSource) {
         let snapshot = source.semantic_snapshot();
         if let Some(snapshot) = snapshot.as_ref() {
             self.record_semantic_snapshot(window_key, snapshot.clone());
@@ -776,21 +778,6 @@ impl TestController {
             _ => TestActionResult::Handled(handled),
         };
         let _ = action.completion.send(result);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn has_report(&self) -> bool {
-        self.state.lock().is_ok_and(|state| state.report.is_some())
-    }
-
-    #[cfg(test)]
-    pub(crate) fn report_passed(&self) -> Option<bool> {
-        let state = self.state.lock().ok()?;
-        let report = state.report.as_deref()?;
-        serde_json::from_str::<serde_json::Value>(report)
-            .ok()?
-            .get("passed")?
-            .as_bool()
     }
 
     #[cfg(test)]
@@ -1460,7 +1447,7 @@ fn action_ready(kind: &TestActionKind, snapshot: Option<&SemanticSnapshot>) -> b
 
 #[cfg(test)]
 fn click_semantic_target(
-    source: &mut dyn FrameSource,
+    source: &mut dyn SemanticTestSource,
     snapshot: &SemanticSnapshot,
     role: &str,
     label: &str,
@@ -1495,7 +1482,7 @@ fn click_semantic_target(
 
 #[cfg(test)]
 fn input_semantic_target(
-    source: &mut dyn FrameSource,
+    source: &mut dyn SemanticTestSource,
     snapshot: &SemanticSnapshot,
     role: &str,
     label: &str,
@@ -1520,7 +1507,7 @@ fn input_allows_disabled_target(input: &TestInput) -> bool {
 
 #[cfg(test)]
 fn dispatch_test_input(
-    source: &mut dyn FrameSource,
+    source: &mut dyn SemanticTestSource,
     node: &gpui_shell::SemanticNode,
     input: &TestInput,
 ) -> bool {
@@ -1570,200 +1557,6 @@ fn semantic_query_target<'a>(
         None => {
             let node = matches.next()?;
             matches.next().is_none().then_some(node)
-        }
-    }
-}
-
-#[cfg(test)]
-pub(crate) struct TestDriver {
-    controller: TestController,
-    last_window_key: Option<WindowKey>,
-    failure_screenshot_captured: bool,
-}
-
-#[cfg(test)]
-impl TestDriver {
-    pub(crate) fn new(controller: TestController) -> Self {
-        Self {
-            controller,
-            last_window_key: None,
-            failure_screenshot_captured: false,
-        }
-    }
-
-    fn snapshot(&self, window_key: WindowKey, context: &ExtensionContext<'_>) {
-        let Some(lifecycle) = context.window_lifecycle(window_key) else {
-            return;
-        };
-        let viewport = context
-            .window_metrics(window_key)
-            .map(|metrics| (metrics.logical_width, metrics.logical_height));
-        if let Ok(mut state) = self.controller.state.lock() {
-            state.windows.insert(
-                window_key,
-                WindowSnapshot {
-                    lifecycle,
-                    viewport,
-                },
-            );
-        }
-    }
-}
-
-#[cfg(test)]
-impl ShellExtension for TestDriver {
-    fn requires_semantics(&self) -> bool {
-        true
-    }
-
-    fn initialize(&mut self, wake: WakeCallback) -> Result<(), String> {
-        self.controller
-            .state
-            .lock()
-            .map_err(|_| "test controller mutex poisoned".to_string())?
-            .wake = Some(wake);
-        Ok(())
-    }
-
-    fn poll(&mut self, context: &mut ExtensionContext<'_>) {
-        loop {
-            let action = self
-                .controller
-                .state
-                .lock()
-                .ok()
-                .and_then(|mut state| state.actions.pop_front());
-            let Some(action) = action else {
-                break;
-            };
-            if let Some(window_key) = action_window_key(&action.kind) {
-                self.last_window_key = Some(window_key);
-                self.snapshot(window_key, context);
-            }
-            if let Some(window_key) = action_window_key(&action.kind)
-                && let Some(snapshot) = context.semantic_snapshot(window_key)
-            {
-                self.controller
-                    .record_semantic_snapshot(window_key, snapshot);
-            }
-            let result = match action.kind {
-                TestActionKind::WaitForIdle(_) => TestActionResult::Handled(true),
-                TestActionKind::NativeClose {
-                    window_key,
-                    mutable_visibility,
-                } => {
-                    let handled = context.hide_window_with_capabilities(
-                        window_key,
-                        Some(WindowCapabilities { mutable_visibility }),
-                    );
-                    self.snapshot(window_key, context);
-                    TestActionResult::Handled(handled)
-                }
-                TestActionKind::ShowWindow(window_key) => {
-                    let handled = context.show_window(window_key);
-                    self.snapshot(window_key, context);
-                    TestActionResult::Handled(handled)
-                }
-                TestActionKind::ResizeWindow {
-                    window_key,
-                    width,
-                    height,
-                } => TestActionResult::Handled(context.resize_window(window_key, width, height)),
-                TestActionKind::FileDrop {
-                    window_key,
-                    phase,
-                    paths,
-                } => TestActionResult::Handled(context.dispatch_event(
-                    window_key,
-                    UiEvent::FileDrop(FileDropEvent {
-                        phase: phase.into(),
-                        paths,
-                        position: None,
-                    }),
-                )),
-                TestActionKind::ClickByRole {
-                    window_key,
-                    role,
-                    label,
-                    index,
-                    scope,
-                } => {
-                    let node = context.semantic_snapshot(window_key).and_then(|snapshot| {
-                        semantic_target(&snapshot, &role, &label, index, &scope).cloned()
-                    });
-                    TestActionResult::Handled(node.is_some_and(|node| {
-                        click_events(&node)
-                            .into_iter()
-                            .all(|event| context.dispatch_event(window_key, event))
-                    }))
-                }
-                TestActionKind::InputByRole {
-                    window_key,
-                    role,
-                    label,
-                    input,
-                    index,
-                    scope,
-                } => {
-                    let node = context.semantic_snapshot(window_key).and_then(|snapshot| {
-                        semantic_query_target(&snapshot, &role, &label, index, &scope).cloned()
-                    });
-                    let Some(node) = node else {
-                        let _ = action.completion.send(TestActionResult::Handled(false));
-                        continue;
-                    };
-                    if node.disabled && !input_allows_disabled_target(&input) {
-                        let _ = action.completion.send(TestActionResult::Handled(false));
-                        continue;
-                    }
-                    match &input {
-                        TestInput::Key { .. }
-                        | TestInput::Text { .. }
-                        | TestInput::Paste { .. }
-                        | TestInput::Ime { .. } => {
-                            context.focus_semantic_node(window_key, node.id);
-                        }
-                        _ => {}
-                    }
-                    let events = test_input_events(&node, &input);
-                    TestActionResult::Handled(
-                        events
-                            .into_iter()
-                            .all(|event| context.dispatch_event(window_key, event)),
-                    )
-                }
-                TestActionKind::QueryByRole {
-                    window_key,
-                    role,
-                    label,
-                    index,
-                    scope,
-                } => TestActionResult::Query(context.semantic_snapshot(window_key).and_then(
-                    |snapshot| locator_query_json(&snapshot, &role, &label, index, &scope),
-                )),
-            };
-            let _ = action.completion.send(result);
-        }
-        if self.controller.has_report() {
-            if !self.failure_screenshot_captured
-                && self.controller.report_passed() == Some(false)
-                && std::env::var("WABOU_TEST_FAILURE_SCREENSHOT").is_ok_and(|value| value != "0")
-                && let (Some(window_key), Some(directory)) = (
-                    self.last_window_key,
-                    std::env::var_os("WABOU_TEST_ARTIFACT_DIR").map(std::path::PathBuf::from),
-                )
-            {
-                self.failure_screenshot_captured = true;
-                if let Err(error) = std::fs::create_dir_all(&directory)
-                    .map_err(|error| format!("cannot create failure artifact directory: {error}"))
-                    .and_then(|()| {
-                        context.render_screenshot(window_key, &directory.join("failure.png"))
-                    })
-                {
-                    tracing::warn!(%error, "could not capture native behavior-test failure");
-                }
-            }
-            context.exit();
         }
     }
 }
@@ -1848,32 +1641,6 @@ fn test_input_events(node: &gpui_shell::SemanticNode, input: &TestInput) -> Vec<
 }
 
 #[cfg(test)]
-fn click_events(node: &gpui_shell::SemanticNode) -> [UiEvent; 2] {
-    let position = Point {
-        x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),
-        y: f64::from((node.bounds[1] + node.bounds[3]) * 0.5),
-    };
-    [
-        UiEvent::Pointer(PointerEvent {
-            phase: PointerPhase::Down,
-            position,
-            button: Some(PointerButton::Primary),
-            buttons: 1,
-            modifiers: Modifiers::default(),
-            properties: gpui_shell::PointerProperties::default(),
-        }),
-        UiEvent::Pointer(PointerEvent {
-            phase: PointerPhase::Up,
-            position,
-            button: Some(PointerButton::Primary),
-            buttons: 0,
-            modifiers: Modifiers::default(),
-            properties: gpui_shell::PointerProperties::default(),
-        }),
-    ]
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -1918,22 +1685,15 @@ mod tests {
 
     struct SemanticSource(Arc<SemanticSnapshot>);
 
-    impl FrameSource for SemanticSource {
-        fn build_frame(
-            &mut self,
-            _tcx: &mut legacy_shell::TextContext,
-            _width: u32,
-            _height: u32,
-        ) -> Vec<legacy_shell::layout::PlacedNode> {
-            Vec::new()
-        }
-
+    impl SemanticTestSource for SemanticSource {
         fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>> {
             Some(self.0.clone())
         }
 
-        fn base_color(&self) -> vello::peniko::Color {
-            vello::peniko::Color::BLACK
+        fn handle_event(&mut self, _event: UiEvent) {}
+
+        fn handle_semantic_action(&mut self, _action: gpui_shell::SemanticAction) -> bool {
+            false
         }
     }
 
