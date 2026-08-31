@@ -20,7 +20,7 @@ getrandom.workspace = true
 gpui-shell = { package = "wabou-shell", path = "../wabou-shell" }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
 jiff.workspace = true
-legacy-shell = { package = "wabou-legacy-shell", path = "../wabou-backend-winit" }
+legacy-shell = { package = "wabou-legacy-shell", path = "../wabou-legacy-shell" }
 parley.workspace = true
 open.workspace = true
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }

@@ -82,7 +82,7 @@ vite = ["dep:tungstenite", "dep:ureq"]
 [dev-dependencies]
 # Temporary test-only oracle while the remaining Winit semantic tests move to
 # `wabou-legacy-runtime`. It is never linked by production `wabou-runtime`.
-legacy-shell = { package = "wabou-legacy-shell", path = "../wabou-backend-winit" }
+legacy-shell = { package = "wabou-legacy-shell", path = "../wabou-legacy-shell" }
 gpui-platform.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 image = { workspace = true, features = ["png"] }

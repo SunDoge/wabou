@@ -31,14 +31,14 @@ wabou-runtime = { path = "crates/wabou-runtime" }
 wabou-shell-api = { path = "crates/wabou-shell-api" }
 # Retired Winit/AnyRender implementation, retained only as a migration oracle.
 # Application and platform work belongs in the GPUI-CE `wabou-shell`.
-wabou-legacy-shell = { path = "crates/wabou-backend-winit" }
+wabou-legacy-shell = { path = "crates/wabou-legacy-shell" }
 wabou-shell = { path = "crates/wabou-shell" }
 wabou-style = { path = "crates/wabou-style" }
 wabou-terminal-core = { path = "crates/wabou-terminal-core" }
 wabou-terminal = { path = "crates/wabou-terminal" }
 wabou-tray = { path = "crates/wabou-tray" }
 wabou-legacy-tray = { path = "crates/wabou-legacy-tray" }
-wabou-legacy-widgets = { path = "crates/wabou-backend-winit-widgets" }
+wabou-legacy-widgets = { path = "crates/wabou-legacy-widgets" }
 
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
 arc-swap = "1.9.2"
