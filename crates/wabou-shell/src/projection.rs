@@ -29,6 +29,8 @@ bitflags! {
         const PAINT = 1 << 2;
         const INTERACTION = 1 << 3;
         const SEMANTICS = 1 << 4;
+        /// Child membership/order or projected element identity changed.
+        const STRUCTURE = 1 << 5;
     }
 }
 
@@ -36,6 +38,50 @@ bitflags! {
 pub struct PendingNode {
     pub key: NodeKey,
     pub dirty: DirtyKind,
+}
+
+/// Classified invalidation retained from one completed Solid flush.
+///
+/// Keeping this information past protocol application is required for the
+/// GPUI backend to notify projection boundaries selectively instead of
+/// reducing every non-empty flush to one root-view boolean.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ProjectionInvalidationStats {
+    pub revision: u64,
+    pub dirty_nodes: usize,
+    pub structure_nodes: usize,
+    pub layout_nodes: usize,
+    pub text_nodes: usize,
+    pub paint_nodes: usize,
+    pub interaction_nodes: usize,
+    pub semantic_nodes: usize,
+}
+
+impl ProjectionInvalidationStats {
+    #[must_use]
+    pub fn from_pending(revision: u64, pending: &[PendingNode]) -> Self {
+        let count = |kind| {
+            pending
+                .iter()
+                .filter(|node| node.dirty.contains(kind))
+                .count()
+        };
+        Self {
+            revision,
+            dirty_nodes: pending.len(),
+            structure_nodes: count(DirtyKind::STRUCTURE),
+            layout_nodes: count(DirtyKind::LAYOUT),
+            text_nodes: count(DirtyKind::TEXT),
+            paint_nodes: count(DirtyKind::PAINT),
+            interaction_nodes: count(DirtyKind::INTERACTION),
+            semantic_nodes: count(DirtyKind::SEMANTICS),
+        }
+    }
+
+    #[must_use]
+    pub const fn changed(self) -> bool {
+        self.dirty_nodes != 0
+    }
 }
 
 /// Coalesces all mutations produced by a single Solid flush.
@@ -143,5 +189,31 @@ mod tests {
         );
         assert_eq!(highest, gpui::ElementId::Integer(u64::MAX));
         assert_ne!(oldest, recreated);
+    }
+
+    #[test]
+    fn invalidation_stats_preserve_the_strongest_native_phase() {
+        let pending = [
+            PendingNode {
+                key: NodeKey::new(1, 1),
+                dirty: DirtyKind::STRUCTURE | DirtyKind::LAYOUT | DirtyKind::PAINT,
+            },
+            PendingNode {
+                key: NodeKey::new(2, 1),
+                dirty: DirtyKind::PAINT,
+            },
+        ];
+
+        assert_eq!(
+            ProjectionInvalidationStats::from_pending(7, &pending),
+            ProjectionInvalidationStats {
+                revision: 7,
+                dirty_nodes: 2,
+                structure_nodes: 1,
+                layout_nodes: 1,
+                paint_nodes: 2,
+                ..ProjectionInvalidationStats::default()
+            }
+        );
     }
 }

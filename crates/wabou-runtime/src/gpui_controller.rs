@@ -15,6 +15,8 @@ use wabou_style::stylesheet::{StyleSheet, StylesheetUpdate};
 pub(crate) struct GpuiFrameTiming {
     pub(crate) js_tick_ms: f64,
     pub(crate) projection_ms: f64,
+    #[cfg(feature = "profiling")]
+    pub(crate) invalidation: wabou_shell::ProjectionInvalidationStats,
 }
 
 /// Renderer-side state consumed exclusively by the GPUI application runtime.
@@ -1053,6 +1055,8 @@ impl GpuiController {
                 let timing = GpuiFrameTiming {
                     js_tick_ms: js_started.elapsed().as_secs_f64() * 1_000.0,
                     projection_ms: 0.0,
+                    #[cfg(feature = "profiling")]
+                    invalidation: wabou_shell::ProjectionInvalidationStats::default(),
                 };
                 self.fail_js_tick();
                 tracing::error!(target: "bridge", ?error, "GPUI JavaScript tick failed");
@@ -1076,12 +1080,15 @@ impl GpuiController {
         }
         self.finish_js_tick();
         self.drain_projection_updates();
-        let changed = self.projection.finish_frame();
+        let invalidation = self.projection.finish_frame_profiled();
+        let changed = invalidation.changed();
         (
             changed,
             GpuiFrameTiming {
                 js_tick_ms,
                 projection_ms: projection_started.elapsed().as_secs_f64() * 1_000.0,
+                #[cfg(feature = "profiling")]
+                invalidation,
             },
         )
     }
@@ -1140,6 +1147,11 @@ impl GpuiController {
 
     pub(crate) fn has_animation(&self) -> bool {
         self.runtime.has_raf
+    }
+
+    #[cfg(feature = "profiling")]
+    pub(crate) fn projected_node_count(&self) -> usize {
+        self.projection.node_count()
     }
 
     /// Monotonically increasing count of non-empty JS-to-host frames.

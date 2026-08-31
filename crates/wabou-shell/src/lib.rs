@@ -27,7 +27,9 @@ pub use input::{
 pub use native_widget::{
     NativeWidgetContext, NativeWidgetEventSink, NativeWidgetFactory, NativeWidgetMount,
 };
-pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
+pub use projection::{
+    DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode, ProjectionInvalidationStats,
+};
 pub use protocol_projection::{
     GpuiCommand, GpuiComputedStyle, GpuiLayoutNode, GpuiNativeWidget, GpuiProjection,
     GpuiSelectableText, GpuiTextControl, GpuiTextControlStyle, GpuiThemeSnapshot, project_ir,

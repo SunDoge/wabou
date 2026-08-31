@@ -1017,6 +1017,19 @@ impl Render for GpuiRuntimeView {
                 text_selections,
             )
             .expect("the canonical Wabou root remains retained");
+        #[cfg(feature = "profiling")]
+        tracing::trace!(
+            target: "wabou::perf",
+            revision = frame_timing.invalidation.revision,
+            dirty_nodes = frame_timing.invalidation.dirty_nodes,
+            structure_nodes = frame_timing.invalidation.structure_nodes,
+            layout_nodes = frame_timing.invalidation.layout_nodes,
+            paint_nodes = frame_timing.invalidation.paint_nodes,
+            interaction_nodes = frame_timing.invalidation.interaction_nodes,
+            semantic_nodes = frame_timing.invalidation.semantic_nodes,
+            retained_nodes = self.controller.projected_node_count(),
+            "gpui.projection.materialize_root"
+        );
         let drag_view = cx.weak_entity();
         let drop_view = drag_view.clone();
         let leave_view = drag_view.clone();

@@ -359,7 +359,8 @@ impl ProjectionTree {
                 | DirtyKind::TEXT
                 | DirtyKind::PAINT
                 | DirtyKind::INTERACTION
-                | DirtyKind::SEMANTICS,
+                | DirtyKind::SEMANTICS
+                | DirtyKind::STRUCTURE,
         );
         Ok(())
     }
@@ -402,8 +403,11 @@ impl ProjectionTree {
         node.parent = Some(parent);
         node.attached = true;
         self.invalidate_layout_chain(parent);
-        self.dirty
-            .invalidate(key, DirtyKind::LAYOUT | DirtyKind::PAINT);
+        self.dirty.invalidate(parent, DirtyKind::STRUCTURE);
+        self.dirty.invalidate(
+            key,
+            DirtyKind::STRUCTURE | DirtyKind::LAYOUT | DirtyKind::PAINT,
+        );
         Ok(())
     }
 
@@ -413,8 +417,10 @@ impl ProjectionTree {
             return Err(ProjectionError::MissingNode(key));
         }
         self.detach_from_location(key);
-        self.dirty
-            .invalidate(key, DirtyKind::LAYOUT | DirtyKind::PAINT);
+        self.dirty.invalidate(
+            key,
+            DirtyKind::STRUCTURE | DirtyKind::LAYOUT | DirtyKind::PAINT,
+        );
         Ok(())
     }
 
@@ -427,6 +433,7 @@ impl ProjectionTree {
             .get_mut(&key)
             .expect("node was just inserted")
             .attached = true;
+        self.dirty.invalidate(key, DirtyKind::STRUCTURE);
         Ok(())
     }
 
@@ -445,6 +452,7 @@ impl ProjectionTree {
                 .children
                 .retain(|child| *child != key);
             self.invalidate_layout_chain(parent);
+            self.dirty.invalidate(parent, DirtyKind::STRUCTURE);
         } else {
             self.roots.retain(|root| *root != key);
         }
@@ -762,6 +770,7 @@ impl ProjectionTree {
                 .children
                 .retain(|child| *child != key);
             self.invalidate_layout_chain(parent);
+            self.dirty.invalidate(parent, DirtyKind::STRUCTURE);
         } else if self.nodes[&key].attached {
             self.roots.retain(|root| *root != key);
         }
@@ -773,7 +782,8 @@ impl ProjectionTree {
                 DirtyKind::LAYOUT
                     | DirtyKind::PAINT
                     | DirtyKind::INTERACTION
-                    | DirtyKind::SEMANTICS,
+                    | DirtyKind::SEMANTICS
+                    | DirtyKind::STRUCTURE,
             );
         }
         Ok(removed)
@@ -851,13 +861,14 @@ mod tests {
                 .iter()
                 .any(|node| { node.key == key(1) && node.dirty == DirtyKind::LAYOUT })
         );
-        assert!(
-            dirty
-                .iter()
-                .any(|node| { node.key == key(2) && node.dirty == DirtyKind::LAYOUT })
-        );
         assert!(dirty.iter().any(|node| {
-            node.key == key(3) && node.dirty.contains(DirtyKind::LAYOUT | DirtyKind::PAINT)
+            node.key == key(2) && node.dirty == (DirtyKind::LAYOUT | DirtyKind::STRUCTURE)
+        }));
+        assert!(dirty.iter().any(|node| {
+            node.key == key(3)
+                && node
+                    .dirty
+                    .contains(DirtyKind::STRUCTURE | DirtyKind::LAYOUT | DirtyKind::PAINT)
         }));
     }
 

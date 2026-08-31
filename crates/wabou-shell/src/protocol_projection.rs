@@ -529,11 +529,18 @@ impl GpuiProjection {
 
     /// Publish structure, text, and resolved-style changes as one GPUI update.
     #[must_use]
-    pub fn finish_frame(&mut self) -> bool {
+    pub fn finish_frame_profiled(&mut self) -> crate::ProjectionInvalidationStats {
         self.layout_bounds
             .borrow_mut()
             .retain(|key, _| self.tree.node(*key).is_some());
-        !self.tree.commit().is_empty()
+        let pending = self.tree.commit();
+        crate::ProjectionInvalidationStats::from_pending(self.tree.revision(), &pending)
+    }
+
+    /// Publish structure, text, and resolved-style changes as one GPUI update.
+    #[must_use]
+    pub fn finish_frame(&mut self) -> bool {
+        self.finish_frame_profiled().changed()
     }
 
     #[doc(hidden)]
