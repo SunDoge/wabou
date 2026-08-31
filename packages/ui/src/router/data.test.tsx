@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { createMemoryHistory } from "@tanstack/history";
+import type { Kv, KvValue } from "@wabou/core";
 import { isServer, mount } from "@wabou/core/renderer";
 import {
   createComponent,
@@ -283,6 +284,74 @@ test("router-owned stores can publish while a Solid owner is current", async () 
   await createRoot(() => router.load());
   expect(router.state.status).toBe("idle");
 });
+
+test.skipIf(isServer)(
+  "restores and persists the last location through application KV",
+  async () => {
+    const values = new Map<string, KvValue>([
+      ["router/main", { version: 2, href: "/settings?tab=theme" }],
+    ]);
+    const writes: KvValue[] = [];
+    const kv = {
+      async get(key: readonly (string | number | boolean | Uint8Array)[]) {
+        const value = values.get(key.join("/"));
+        return value === undefined ? null : { key, value, versionstamp: "1" };
+      },
+      async set(
+        key: readonly (string | number | boolean | Uint8Array)[],
+        value: KvValue,
+      ) {
+        values.set(key.join("/"), value);
+        writes.push(value);
+        return String(writes.length + 1);
+      },
+    } as Kv;
+
+    let navigate: ReturnType<typeof useNavigate> | undefined;
+    const seen: string[] = [];
+    const root = new BaseRootRoute({
+      component: (props: { children?: JSX.Element }) => {
+        navigate = useNavigate();
+        return props.children;
+      },
+    });
+    const home = new BaseRoute({
+      getParentRoute: () => root,
+      path: "/",
+      component: () => null,
+    });
+    const settings = new BaseRoute({
+      getParentRoute: () => root,
+      path: "settings",
+      component: () => {
+        const location = useLocation();
+        createEffect(
+          () => location().href,
+          (href) => {
+            seen.push(href);
+          },
+        );
+        return null;
+      },
+    });
+    const router = createDataRouter({
+      routeTree: root.addChildren([home, settings]),
+      history: createMemoryHistory({ initialEntries: ["/"] }),
+      context: {},
+      persistence: { kv, key: ["router", "main"], version: 2 },
+    });
+
+    const dispose = mount(() => createComponent(RouterProvider, { router }));
+    await settle();
+    expect(seen).toContain("/settings?tab=theme");
+    expect(writes).toHaveLength(0);
+
+    await navigate?.({ to: "/" });
+    await settle();
+    expect(writes.at(-1)).toEqual({ version: 2, href: "/" });
+    dispose();
+  },
+);
 
 test.skipIf(isServer)(
   "context from the root route reaches nested route components",
