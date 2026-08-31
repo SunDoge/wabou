@@ -290,7 +290,9 @@ export function compileWabouUtilities(
   sourceOrderStart = 0,
   semanticTokens: ReadonlySet<string> = new Set(),
 ): StyleRule[] {
-  return [...candidates].sort().map((candidate, index) => {
+  const ordered = [...candidates].sort();
+  assertSupportedWabouCandidates(ordered, semanticTokens);
+  return ordered.map((candidate, index) => {
     const semantic = semanticColorDeclaration(candidate, semanticTokens);
     if (semantic) {
       return {

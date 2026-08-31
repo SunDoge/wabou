@@ -40,8 +40,6 @@ add(
     "display",
     "flex-direction",
     "justify-content",
-    "justify-items",
-    "justify-self",
     "align-items",
     "align-content",
     "align-self",
@@ -50,17 +48,12 @@ add(
     "overflow",
     "overflow-x",
     "overflow-y",
-    "box-sizing",
     "white-space",
     "text-overflow",
     "text-align",
     "pointer-events",
-    "user-select",
     "font-family",
     "cursor",
-    "outline-style",
-    "grid-auto-flow",
-    "contain",
   ],
   { string: true, number: false },
 );
@@ -109,10 +102,6 @@ add(
     "border-bottom-width",
     "border-left-width",
     "font-size",
-    "outline-width",
-    "outline-offset",
-    "transform-origin-x",
-    "transform-origin-y",
   ],
   { string: true, number: true, typed: [PX] },
 );
@@ -149,7 +138,7 @@ add(["letter-spacing"], {
   number: true,
   typed: [PX],
 });
-add(["background", "background-color", "color", "border-color", "outline-color"], {
+add(["background", "background-color", "color", "border-color"], {
   string: true,
   number: false,
   typed: [COLOR],
@@ -159,20 +148,12 @@ const missing = Object.keys(matrix.supported).filter(
   (property) =>
     !(property in contract) &&
     ![
-      "flex",
       "grid-template-columns",
       "grid-template-rows",
-      "grid-template-areas",
       "grid-template",
-      "transform",
       "box-shadow",
       "gap-x",
       "gap-y",
-      "transform-component",
-      "transform-translate-x",
-      "transform-translate-y",
-      "transform-scale",
-      "transform-rotate",
     ].includes(property),
 );
 if (missing.length) {

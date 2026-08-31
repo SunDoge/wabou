@@ -1303,15 +1303,6 @@
         }
       }
     ],
-    "cursor-wait": [
-      {
-        "property": "cursor",
-        "value": {
-          "type": "keyword",
-          "value": "wait"
-        }
-      }
-    ],
     "flex": [
       {
         "property": "display",

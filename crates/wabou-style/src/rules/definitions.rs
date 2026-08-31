@@ -404,7 +404,6 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("cursor-text", vec![keyword("cursor", "text")]),
         ("cursor-crosshair", vec![keyword("cursor", "crosshair")]),
         ("cursor-move", vec![keyword("cursor", "move")]),
-        ("cursor-wait", vec![keyword("cursor", "wait")]),
         ("cursor-not-allowed", vec![keyword("cursor", "not-allowed")]),
         ("cursor-ew-resize", vec![keyword("cursor", "ew-resize")]),
         ("cursor-ns-resize", vec![keyword("cursor", "ns-resize")]),

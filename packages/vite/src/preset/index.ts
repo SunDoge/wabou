@@ -1,4 +1,5 @@
 import type { Preset, Rule } from "@unocss/core";
+import { rejectUnsupportedProperty } from "../style-compiler/support-matrix.ts";
 import manifestJson from "./manifest.json" with { type: "json" };
 
 type Length = { unit: "px" | "percent"; value: number } | { unit: "auto" };
@@ -417,7 +418,11 @@ export function validateWabouUtility(
   candidate: string,
 ): UtilityDiagnostic | undefined {
   const result = parseCandidate(candidate);
-  return "message" in result ? result : undefined;
+  if ("message" in result) return result;
+  const rejected = result.declarations
+    .map((declaration) => rejectUnsupportedProperty(declaration.property))
+    .find((message) => message !== undefined);
+  return rejected ? { candidate, message: rejected } : undefined;
 }
 
 function cssValue(value: WabouStyleValue): string | number {

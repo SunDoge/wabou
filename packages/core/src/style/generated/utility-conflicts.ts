@@ -383,7 +383,6 @@ export const UTILITY_CONFLICT_DATA = {
     "cursor-ns-resize": ["cursor"],
     "cursor-pointer": ["cursor"],
     "cursor-text": ["cursor"],
-    "cursor-wait": ["cursor"],
     flex: ["display"],
     "flex-1": ["flex-grow", "flex-shrink", "flex-basis"],
     "flex-col": ["flex-direction"],

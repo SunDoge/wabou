@@ -24,35 +24,10 @@ mod tests {
         include_str!("../../../packages/vite/src/style-compiler/css-support-matrix.json");
     const CONFORMANCE_JSON: &str = include_str!("gen/style-conformance.json");
 
-    // Explicit migration ledger for valid Style IR that the formal GPUI path
-    // does not own yet. Tests reject both newly introduced gaps and stale
-    // entries, so this cannot turn into a permissive ignore list.
-    const GPUI_STYLE_MIGRATION_GAPS: &[&str] = &[
-        "box-sizing",
-        "contain",
-        "flex",
-        "grid-auto-flow",
-        "grid-template",
-        "grid-template-areas",
-        "justify-items",
-        "justify-self",
-        "outline-color",
-        "outline-offset",
-        "outline-style",
-        "outline-width",
-        "pointer-events",
-        "transform",
-        "transform-component",
-        "transform-origin-x",
-        "transform-origin-y",
-        "transform-rotate",
-        "transform-scale",
-        "transform-translate-x",
-        "transform-translate-y",
-        "user-select",
-        "z-index",
-    ];
-    const GPUI_VALUE_MIGRATION_GAPS: &[&str] = &["cursor-wait:cursor"];
+    // These properties intentionally map to retained GPUI node metadata rather
+    // than `gpui::Style`. Everything else in the formal matrix must project
+    // directly; there is no legacy migration allowlist anymore.
+    const GPUI_NODE_PROPERTIES: &[&str] = &["pointer-events", "z-index"];
 
     fn keyword(value: &str) -> IrValue {
         IrValue::Keyword {
@@ -70,7 +45,7 @@ mod tests {
     #[test]
     fn every_matrix_host_property_is_known_by_gpui_projection() {
         let matrix: Matrix = serde_json::from_str(MATRIX_JSON).expect("matrix json");
-        let expected_gaps = GPUI_STYLE_MIGRATION_GAPS
+        let node_properties = GPUI_NODE_PROPERTIES
             .iter()
             .copied()
             .collect::<HashSet<_>>();
@@ -82,9 +57,9 @@ mod tests {
                 project_ir(&mut projection, property, &sample_value(property)),
                 Some(StyleDiagnostic::UnsupportedProperty(_))
             );
-            if unsupported && !expected_gaps.contains(property.as_str()) {
+            if unsupported && !node_properties.contains(property.as_str()) {
                 missing.push(property.clone());
-            } else if !unsupported && expected_gaps.contains(property.as_str()) {
+            } else if !unsupported && node_properties.contains(property.as_str()) {
                 stale_gaps.push(property.clone());
             }
         }
@@ -92,7 +67,7 @@ mod tests {
             missing.is_empty() && stale_gaps.is_empty(),
             "GPUI does not handle matrix properties (compiler would emit \
              dead IR): {missing:?}; stale migration gaps: {stale_gaps:?}\n\
-             Implement the property or update the explicit GPUI migration ledger."
+             Implement the GPUI projection or remove the property from the formal matrix."
         );
     }
 
@@ -111,10 +86,10 @@ mod tests {
                 let mut projection = StyleProjection::default();
                 let diagnostic =
                     project_ir(&mut projection, &declaration.property, &declaration.value);
-                if GPUI_STYLE_MIGRATION_GAPS.contains(&declaration.property.as_str()) {
+                if GPUI_NODE_PROPERTIES.contains(&declaration.property.as_str()) {
                     assert!(
                         matches!(diagnostic, Some(StyleDiagnostic::UnsupportedProperty(_))),
-                        "migration ledger is stale: class={} property={} is now accepted",
+                        "node-metadata classification is stale: class={} property={} is now a GPUI Style field",
                         rule.class_name,
                         declaration.property,
                     );
@@ -128,21 +103,9 @@ mod tests {
                 }
             }
         }
-        let actual = invalid_values
-            .iter()
-            .map(|entry| {
-                entry
-                    .split_once(":Some")
-                    .map_or(entry.as_str(), |pair| pair.0)
-            })
-            .collect::<HashSet<_>>();
-        let expected = GPUI_VALUE_MIGRATION_GAPS
-            .iter()
-            .copied()
-            .collect::<HashSet<_>>();
-        assert_eq!(
-            actual, expected,
-            "compiler/GPUI value migration ledger drifted; diagnostics: {invalid_values:#?}"
+        assert!(
+            invalid_values.is_empty(),
+            "compiler emitted values outside the GPUI contract: {invalid_values:#?}"
         );
     }
 

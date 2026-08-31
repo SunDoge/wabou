@@ -72,7 +72,6 @@ export type WabouStaticUtility =
   | "cursor-ns-resize"
   | "cursor-pointer"
   | "cursor-text"
-  | "cursor-wait"
   | "flex"
   | "flex-1"
   | "flex-col"

@@ -55,8 +55,6 @@ export interface ButtonProps
   variant?: "solid" | "ghost";
   /** Keep interaction behavior but do not inject the default visual geometry. */
   unstyled?: boolean;
-  /** Allow selecting the label text. Button labels are non-selectable by default. */
-  selectable?: boolean;
   selected?: boolean;
   disabled?: boolean;
   ref?: (node: Handle) => void;
@@ -210,12 +208,7 @@ export function Button(props: ButtonProps): JSX.Element {
     "align-items": "center",
     "flex-shrink": 0,
     "white-space": "nowrap",
-    "user-select": props.selectable ? "text" : "none",
     cursor: disabled() ? "not-allowed" : "pointer",
-    "outline-width": state().focusVisible ? "2px" : "0px",
-    "outline-offset": "2px",
-    "outline-color": "#38bdf8",
-    "outline-style": "solid",
   });
   const defaultStyle = (): WabouStyle => {
     // `unstyled` removes the opinionated skin, not the structural button
