@@ -31,10 +31,20 @@ test("keeps terminal tabs bound to the workspace where they were created", () =>
   expect(tabs[0]?.name).toContain("alpha");
   expect(tabs[1]?.name).toContain("beta");
   expect(tabs[1]?.selected).toBe(true);
+  expect(screen.getAllByRole("textbox")).toHaveLength(2);
+  expect(screen.getByRole("textbox", { name: "Terminal 1" }).identity).toEqual(
+    terminal.identity,
+  );
   tabs[0]?.hover();
   expect(tabs[0]?.className).toContain("bg-slate-800");
   tabs[0]?.unhover();
   expect(tabs[0]?.className).not.toContain("bg-slate-800");
+  tabs[0]?.click();
+  tabs[0]?.press("ArrowRight");
+  expect(tabs[1]?.selected).toBe(true);
+  expect(screen.getByRole("textbox", { name: "Terminal 1" }).identity).toEqual(
+    terminal.identity,
+  );
 
   screen.getByRole("button", { name: "Close terminal 2" }).click();
   expect(screen.getAllByRole("tab")).toHaveLength(1);

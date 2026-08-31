@@ -105,3 +105,43 @@ test("follows vertical arrow-key orientation", () => {
 
   expect(screen.getByRole("tab", { name: "Settings" }).selected).toBe(true);
 });
+
+test("keeps native tab panels mounted while hiding inactive content", () => {
+  const App = () => {
+    const [value, setValue] = createSignal("one");
+    return (
+      <Tabs value={value()} onValueChange={setValue}>
+        <TabsList aria-label="Native sessions">
+          <TabsTrigger value="one">One</TabsTrigger>
+          <TabsTrigger value="two">Two</TabsTrigger>
+        </TabsList>
+        <TabsContent value="one" keepMounted>
+          <Text role="status" aria-label="Native session one">
+            First native session
+          </Text>
+        </TabsContent>
+        <TabsContent value="two" keepMounted>
+          <Text role="status" aria-label="Native session two">
+            Second native session
+          </Text>
+        </TabsContent>
+      </Tabs>
+    );
+  };
+  const screen = renderComponent(App);
+  const first = screen.getByRole("status", { name: "Native session one" });
+  const firstIdentity = first.identity;
+  const panels = screen.getAllByRole("tabpanel");
+
+  expect(panels).toHaveLength(2);
+  expect(panels[0]?.attribute("aria-hidden")).toBe("false");
+  expect(panels[1]?.attribute("aria-hidden")).toBe("true");
+
+  screen.getByRole("tab", { name: "Two" }).click();
+
+  expect(
+    screen.getByRole("status", { name: "Native session one" }).identity,
+  ).toEqual(firstIdentity);
+  expect(panels[0]?.attribute("aria-hidden")).toBe("true");
+  expect(panels[1]?.attribute("aria-hidden")).toBe("false");
+});

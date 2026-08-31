@@ -562,6 +562,21 @@ try {
         },
       },
       {
+        id: "terminal/panel",
+        width: 720,
+        height: 256,
+        waitMs: 20,
+        checks: ["visible-overflow", "text-collision"],
+        assert: (fixture) => {
+          getLayoutNode(fixture, { role: "region", name: "Terminal panel" });
+          getLayoutNode(fixture, {
+            role: "tablist",
+            name: "Terminal sessions",
+          });
+          getLayoutNode(fixture, { role: "textbox", name: "Terminal 1" });
+        },
+      },
+      {
         id: "settings/project-and-application",
         width: 760,
         height: 680,

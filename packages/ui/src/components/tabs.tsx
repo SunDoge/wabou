@@ -1,4 +1,5 @@
 import type { Handle } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import {
   createComponent,
   createContext,
@@ -18,7 +19,6 @@ import {
   createControllableState,
   createRovingFocus,
 } from "../primitives/interactions";
-import { mergeClasses } from "@wabou/core/style";
 
 const orientationClass = (
   orientation: "horizontal" | "vertical",
@@ -184,21 +184,33 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
         if (context.move(props.value, event.key)) event.preventDefault();
       }}
     >
-      <Text class="text-sm font-medium">{props.children}</Text>
+      {props.unstyled ? (
+        props.children
+      ) : (
+        <Text class="text-sm font-medium">{props.children}</Text>
+      )}
     </HeadlessButton>
   );
 }
 
 export function TabsContent(props: {
   value: string;
+  /** Keep stateful/native content mounted while hiding inactive panels. */
+  keepMounted?: boolean;
   class?: string;
   children?: JSX.Element;
 }): JSX.Element {
   const context = useContext(TabsContext);
   if (!context) throw new Error("TabsContent must be used inside Tabs");
+  const selected = () => context.value() === props.value;
   return (
-    <Show when={context.value() === props.value}>
-      <View role="tabpanel" class={mergeClasses("flex-1", props.class)}>
+    <Show when={props.keepMounted || selected()}>
+      <View
+        role="tabpanel"
+        aria-hidden={!selected()}
+        class={mergeClasses("flex-1", props.class)}
+        style={{ display: selected() ? "flex" : "none" }}
+      >
         {props.children}
       </View>
     </Show>

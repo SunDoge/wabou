@@ -35,6 +35,7 @@ import { ModelControls } from "./model-controls";
 import { type AppSettings, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
 import { SkillsPage } from "./skills-page";
+import { AgentTerminalPanel } from "./terminal-panel";
 import { createAgentWorkspace } from "./workspace";
 import { WorkspaceChangesPanel } from "./workspace-changes-panel";
 import { WorkspacePanel } from "./workspace-panel";
@@ -648,6 +649,20 @@ defineLayoutFixtures(
               thinkingLevels={["off", "medium", "high"]}
               chooseModel={() => {}}
               chooseThinking={() => {}}
+            />
+          </View>
+        ),
+      },
+      "terminal/panel": {
+        width: 720,
+        height: 256,
+        render: () => (
+          <View class="w-full h-full bg-canvas">
+            <AgentTerminalPanel
+              cwd="/work/wabou"
+              open
+              close={() => {}}
+              dispose={() => {}}
             />
           </View>
         ),
