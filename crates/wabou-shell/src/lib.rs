@@ -27,7 +27,7 @@ pub use native_widget::{NativeWidgetContext, NativeWidgetFactory, NativeWidgetMo
 pub use projection::{DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode};
 pub use protocol_projection::{
     GpuiCommand, GpuiComputedStyle, GpuiLayoutNode, GpuiNativeWidget, GpuiProjection,
-    GpuiTextControl, project_ir,
+    GpuiTextControl, GpuiTextControlStyle, project_ir,
 };
 pub use style::{StyleDiagnostic, StyleProjection};
 pub use tree::{

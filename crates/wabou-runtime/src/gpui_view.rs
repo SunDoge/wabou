@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
 };
 
-use gpui_base::input::{Input, InputEvent, InputState, Textarea, TextareaState};
+use gpui_base::input::{Input, InputEditorStyle, InputEvent, InputState, Textarea, TextareaState};
 use wabou_shell::WakeCallback;
 use wabou_shell::gpui::{
     AppContext as _, ClipboardItem, Context, DragMoveEvent, Entity, ExternalPaths, FocusHandle,
@@ -86,6 +86,15 @@ impl GpuiTextControlState {
                     }
                     state.set_disabled(descriptor.disabled, cx);
                     state.set_readonly(descriptor.readonly, cx);
+                    state.set_editor_style(InputEditorStyle {
+                        foreground: descriptor.style.foreground,
+                        muted_foreground: descriptor.style.muted_foreground,
+                        background: descriptor.style.background,
+                        border: descriptor.style.border,
+                        selection: descriptor.style.selection,
+                        caret: descriptor.style.caret,
+                        ..InputEditorStyle::default()
+                    });
                 })
             };
         }

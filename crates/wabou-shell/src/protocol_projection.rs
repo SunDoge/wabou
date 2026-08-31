@@ -15,7 +15,7 @@ use wabou_protocol::{
     StyleValue, TEXT_BEHAVIOR_SINGLE_LINE,
 };
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GpuiTextControl {
     pub key: NodeKey,
     pub multiline: bool,
@@ -23,6 +23,33 @@ pub struct GpuiTextControl {
     pub placeholder: String,
     pub disabled: bool,
     pub readonly: bool,
+    pub style: GpuiTextControlStyle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct GpuiTextControlStyle {
+    pub foreground: crate::gpui::Hsla,
+    pub muted_foreground: crate::gpui::Hsla,
+    pub background: crate::gpui::Hsla,
+    pub border: crate::gpui::Hsla,
+    pub selection: crate::gpui::Hsla,
+    pub caret: crate::gpui::Hsla,
+}
+
+impl Default for GpuiTextControlStyle {
+    fn default() -> Self {
+        let foreground = crate::gpui::black();
+        let mut selection = foreground;
+        selection.alpha = 0.4;
+        Self {
+            foreground,
+            muted_foreground: foreground,
+            background: crate::gpui::transparent_black(),
+            border: crate::gpui::transparent_black(),
+            selection,
+            caret: foreground,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -548,6 +575,22 @@ impl GpuiProjection {
             if !matches!(tag.as_ref(), "input" | "textarea") {
                 continue;
             }
+            let theme_color = |name: &str| {
+                self.active_theme_colors
+                    .as_ref()?
+                    .get(name)
+                    .copied()
+                    .map(crate::gpui::rgba)
+                    .map(crate::gpui::rgb_to_hsla)
+            };
+            let foreground = node
+                .style
+                .text
+                .color
+                .or_else(|| theme_color("primary"))
+                .unwrap_or_else(crate::gpui::black);
+            let mut selection = theme_color("accent").unwrap_or(foreground);
+            selection.alpha = 0.4;
             controls.push(GpuiTextControl {
                 key,
                 multiline: tag.as_ref() == "textarea",
@@ -562,6 +605,25 @@ impl GpuiProjection {
                 disabled: node.attributes.contains_key("disabled"),
                 readonly: node.attributes.contains_key("readonly")
                     || node.attributes.contains_key("readOnly"),
+                style: GpuiTextControlStyle {
+                    foreground,
+                    muted_foreground: theme_color("muted").unwrap_or(foreground),
+                    background: node
+                        .style
+                        .background
+                        .as_ref()
+                        .and_then(crate::gpui::Fill::color)
+                        .and_then(|background| background.as_solid())
+                        .or_else(|| theme_color("input"))
+                        .unwrap_or_else(crate::gpui::transparent_black),
+                    border: node
+                        .style
+                        .border_color
+                        .or_else(|| theme_color("strong"))
+                        .unwrap_or_else(crate::gpui::transparent_black),
+                    selection,
+                    caret: theme_color("focus").unwrap_or(foreground),
+                },
             });
         }
         controls
@@ -1724,6 +1786,90 @@ mod tests {
     }
 
     #[test]
+    fn named_theme_switch_updates_native_text_control_ink() {
+        use wabou_style::stylesheet::{
+            Appearance, ColorTheme, ColorThemes, StyleSheet,
+            fixture::{color_token, declaration, rule},
+        };
+
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let input = atoms.intern("input");
+        let field = atoms.intern("field");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: input,
+                        },
+                        Op::SetClassName {
+                            id: key(2),
+                            classes: vec![field],
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(2),
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        projection
+            .set_stylesheet(
+                StyleSheet::builder()
+                    .color_themes(ColorThemes {
+                        default: "light".into(),
+                        themes: std::collections::HashMap::from([
+                            (
+                                "light".into(),
+                                ColorTheme {
+                                    _appearance: Appearance::Light,
+                                    colors: std::collections::HashMap::from([(
+                                        "primary".into(),
+                                        0x171a_1fff,
+                                    )]),
+                                },
+                            ),
+                            (
+                                "dark".into(),
+                                ColorTheme {
+                                    _appearance: Appearance::Dark,
+                                    colors: std::collections::HashMap::from([(
+                                        "primary".into(),
+                                        0xf2f4_f7ff,
+                                    )]),
+                                },
+                            ),
+                        ]),
+                    })
+                    .rules(vec![rule(
+                        "field",
+                        vec![declaration("color", color_token("primary"))],
+                    )])
+                    .build(),
+            )
+            .unwrap();
+
+        let light = projection.text_controls()[0].style.foreground;
+        assert_eq!(
+            light,
+            crate::gpui::rgb_to_hsla(crate::gpui::rgba(0x171a_1fff))
+        );
+        assert!(projection.set_color_theme("dark").unwrap());
+        let dark = projection.text_controls()[0].style.foreground;
+        assert_eq!(
+            dark,
+            crate::gpui::rgb_to_hsla(crate::gpui::rgba(0xf2f4_f7ff))
+        );
+        assert_ne!(dark, light);
+    }
+
+    #[test]
     fn graphic_sources_project_to_gpui_images_and_clear_explicitly() {
         let mut projection = GpuiProjection::new();
         let mut atoms = AtomPool::default();
@@ -1958,6 +2104,7 @@ mod tests {
                     placeholder: "Search".into(),
                     disabled: false,
                     readonly: false,
+                    style: GpuiTextControlStyle::default(),
                 },
                 GpuiTextControl {
                     key: key(3),
@@ -1966,6 +2113,7 @@ mod tests {
                     placeholder: String::new(),
                     disabled: true,
                     readonly: false,
+                    style: GpuiTextControlStyle::default(),
                 },
             ]
         );
