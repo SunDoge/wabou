@@ -93,3 +93,32 @@ test("discards a stale file list when the active workspace changes", async () =>
   );
   expect(screen.queryByRole("option", { name: "stale-first.txt" })).toBeNull();
 });
+
+test("keeps workspace file picker failures visible and retryable", async () => {
+  let attempt = 0;
+  const screen = renderComponent(() => (
+    <WorkspaceContextPicker
+      cwd="/workspace"
+      paths={[]}
+      change={() => {}}
+      loadFiles={async () => {
+        attempt += 1;
+        if (attempt === 1) throw new Error("index unavailable");
+        return ["README.md"];
+      }}
+    />
+  ));
+
+  screen.getByRole("button", { name: "Add context file" }).click();
+  await screen.waitFor(() =>
+    expect(
+      screen.getByRole("alert", { name: "Could not load workspace files" })
+        .text,
+    ).toContain("index unavailable"),
+  );
+  screen.getByRole("button", { name: "Try again" }).click();
+  await screen.waitFor(() =>
+    expect(screen.getByRole("option", { name: "README.md" })).toBeDefined(),
+  );
+  expect(attempt).toBe(2);
+});

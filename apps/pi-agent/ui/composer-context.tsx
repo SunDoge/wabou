@@ -122,28 +122,23 @@ export function WorkspaceContextPicker(
           {i18n.message(m.context_files_detail, {})}
         </Text>
       </View>
-      <Show
-        when={!files.loading() && !files.error()}
-        fallback={
-          <Text role="status" class="px-3 py-4 text-sm text-muted">
-            {files.loading()
-              ? i18n.message(m.loading_files, {})
-              : String(files.error() ?? "")}
-          </Text>
-        }
-      >
-        <Command
-          aria-label={i18n.message(m.search_workspace_files, {})}
-          items={visibleItems()}
-          query={query()}
-          onQueryChange={setQuery}
-          placeholder={i18n.message(m.search_workspace_files, {})}
-          emptyText={i18n.message(m.no_files_found, {})}
-          listClass="max-h-60 overflow-y-auto"
-          onAction={(path) => props.change([...props.paths, path])}
-          onDismiss={() => setOpen(false)}
-        />
-      </Show>
+      <Command
+        aria-label={i18n.message(m.search_workspace_files, {})}
+        items={visibleItems()}
+        query={query()}
+        onQueryChange={setQuery}
+        placeholder={i18n.message(m.search_workspace_files, {})}
+        emptyText={i18n.message(m.no_files_found, {})}
+        loading={files.loading()}
+        loadingText={i18n.message(m.loading_files, {})}
+        error={files.error()}
+        errorText={i18n.message(m.workspace_files_load_failed, {})}
+        retryLabel={i18n.message(m.retry, {})}
+        listClass="max-h-60 overflow-y-auto"
+        onRetry={() => void files.refresh()}
+        onAction={(path) => props.change([...props.paths, path])}
+        onDismiss={() => setOpen(false)}
+      />
     </Popover>
   );
 }

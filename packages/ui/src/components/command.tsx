@@ -34,10 +34,16 @@ export interface CommandProps {
   defaultQuery?: string;
   placeholder?: string;
   emptyText?: string;
+  loading?: boolean;
+  loadingText?: string;
+  error?: unknown;
+  errorText?: string;
+  retryLabel?: string;
   class?: string;
   listClass?: string;
   onQueryChange?: (query: string) => void;
   onAction?: (id: string) => void;
+  onRetry?: () => void;
   onDismiss?: () => void;
   inputRef?: (node: Handle) => void;
 }
@@ -242,6 +248,12 @@ export function Command(props: CommandProps): JSX.Element {
         items={filtered()}
         highlighted={navigation.highlighted()}
         emptyText={props.emptyText}
+        loading={props.loading}
+        loadingText={props.loadingText}
+        error={props.error}
+        errorText={props.errorText}
+        retryLabel={props.retryLabel}
+        onRetry={props.onRetry}
         class={props.listClass}
         onHighlightChange={navigation.setHighlighted}
         onAction={navigation.select}
