@@ -19,5 +19,8 @@ test("formal packages cannot regain a retired rendering backend", () => {
         },
       ],
     }),
-  ).toEqual(["wabou-runtime -> vello (vello)"]);
+  ).toEqual([
+    "wabou-runtime -> legacy-shell (wabou-legacy-shell, dev)",
+    "wabou-runtime -> vello (vello, normal)",
+  ]);
 });

@@ -34,13 +34,15 @@ export function gpuiBoundaryViolations(metadata: CargoMetadata): string[] {
   for (const pkg of metadata.packages) {
     if (!FORMAL_PACKAGES.has(pkg.name)) continue;
     for (const dependency of pkg.dependencies) {
-      if (dependency.kind === "dev") continue;
       const visibleName = dependency.rename ?? dependency.name;
       if (
         dependency.name.startsWith("wabou-legacy-") ||
         RETIRED_DIRECT_DEPENDENCIES.has(dependency.name)
       ) {
-        violations.push(`${pkg.name} -> ${visibleName} (${dependency.name})`);
+        const kind = dependency.kind ?? "normal";
+        violations.push(
+          `${pkg.name} -> ${visibleName} (${dependency.name}, ${kind})`,
+        );
       }
     }
   }
@@ -64,7 +66,7 @@ async function main(): Promise<void> {
   const violations = gpuiBoundaryViolations(await metadata());
   if (violations.length === 0) return;
   throw new Error(
-    `Formal GPUI packages depend directly on retired renderer crates:\n${violations
+    `Formal GPUI packages depend on retired renderer crates in normal, build, or test code:\n${violations
       .map((violation) => `  - ${violation}`)
       .join("\n")}`,
   );
