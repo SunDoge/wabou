@@ -347,6 +347,46 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   });
 };
 
+const assertSelectionControlsLayout = (snapshot: LayoutSnapshot) => {
+  const iconOnly = getLayoutNode(snapshot, {
+    role: "checkbox",
+    name: "Fixture icon-only checkbox",
+  });
+  const checkbox = getLayoutNode(snapshot, {
+    role: "checkbox",
+    name: "Keep completed downloads available after the application restarts",
+  });
+  const checkboxLabel = getLayoutNode(snapshot, {
+    text: "Keep completed downloads available after the application restarts",
+  });
+  const radio = getLayoutNode(snapshot, {
+    role: "radio",
+    name: "Automatically choose the best download policy for this network",
+  });
+  const radioLabel = getLayoutNode(snapshot, {
+    text: "Automatically choose the best download policy for this network",
+  });
+  const iconOnlyRadio = getLayoutNode(snapshot, {
+    role: "radio",
+    name: "Fixture icon-only radio",
+  });
+
+  assertClose(iconOnly.rect.width, 40, "icon-only checkbox target width");
+  assertClose(iconOnly.rect.height, 28, "icon-only checkbox target height");
+  assertClose(iconOnlyRadio.rect.width, 40, "icon-only radio target width");
+  assertClose(iconOnlyRadio.rect.height, 28, "icon-only radio target height");
+  assertLayoutRectContains(checkbox.contentRect, checkboxLabel.rect, {
+    label: "wrapped checkbox label",
+  });
+  assertLayoutRectContains(radio.contentRect, radioLabel.rect, {
+    label: "wrapped radio label",
+  });
+  if (checkboxLabel.rect.height < 40)
+    throw new Error("long checkbox label did not wrap to two lines");
+  if (radioLabel.rect.height < 40)
+    throw new Error("long radio label did not wrap to two lines");
+};
+
 const assertEmptyLayout = (snapshot: LayoutSnapshot) => {
   const header = getLayoutNode(snapshot, { name: "Fixture empty header" });
   const description = getLayoutNode(snapshot, {
@@ -791,6 +831,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/ScrollArea": { assert: assertScrollAreaLayout },
   "component/Select": { assert: assertSelectLayout },
   "component/ControlBaseline": { assert: assertControlBaselineLayout },
+  "component/SelectionControls": { assert: assertSelectionControlsLayout },
   "component/Tabs": { assert: assertTabsLayout },
   "component/Alert": { assert: assertAlertLayout },
   "component/CardSurface": { assert: assertCardSurfaceLayout },

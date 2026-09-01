@@ -20,6 +20,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
+  Checkbox,
   ComponentsProvider,
   ContentState,
   Dialog,
@@ -57,6 +58,8 @@ import {
   PromptSuggestion,
   PromptSuggestions,
   QRCode,
+  RadioGroup,
+  RadioGroupItem,
   Reasoning,
   ReasoningContent,
   ReasoningTrigger,
@@ -639,6 +642,28 @@ export function ControlBaselineLayoutFixture() {
           Delete
         </Button>
       </ButtonGroup>
+    </View>
+  );
+}
+
+export function SelectionControlsLayoutFixture() {
+  return (
+    <View class="w-full h-full p-6 items-start gap-5 bg-canvas">
+      <Checkbox aria-label="Fixture icon-only checkbox" />
+      <Checkbox
+        class="w-64"
+        label="Keep completed downloads available after the application restarts"
+        defaultChecked
+      />
+      <Checkbox class="w-64" label="Disabled selection" disabled />
+      <RadioGroup aria-label="Fixture download policy" class="w-64">
+        <RadioGroupItem value="system" aria-label="Fixture icon-only radio" />
+        <RadioGroupItem
+          value="automatic"
+          label="Automatically choose the best download policy for this network"
+        />
+        <RadioGroupItem value="manual" label="Choose manually" disabled />
+      </RadioGroup>
     </View>
   );
 }
