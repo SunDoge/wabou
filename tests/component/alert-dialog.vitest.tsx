@@ -43,7 +43,7 @@ test("requires an explicit choice and closes after confirmation", () => {
   expect(trigger.expanded).toBe(true);
   const dialog = screen.getByRole("alertdialog", { name: "Delete project" });
   expect(dialog.transform).toEqual([0.98, 0, 0, 0.98, 0, 0]);
-  expect(dialog.className).toContain("rounded-xl");
+  expect(dialog.className).toContain("rounded-lg");
 
   screen.getByRole("button", { name: "Delete" }).click();
   expect(confirmations).toBe(1);

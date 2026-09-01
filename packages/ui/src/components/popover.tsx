@@ -7,7 +7,11 @@ import {
   Text,
   View,
 } from "../primitives";
-import { componentsElevation, useComponentsTheme } from "./theme";
+import {
+  componentsElevation,
+  componentsSurfaceClass,
+  useComponentsTheme,
+} from "./theme";
 
 export type PopoverProps = HeadlessPopoverProps;
 
@@ -24,7 +28,8 @@ export function Popover(props: PopoverProps): JSX.Element {
     <HeadlessPopover
       {...props}
       contentClass={mergeClasses(
-        "min-w-48 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-xl border border-subtle bg-surface",
+        "min-w-48 max-w-sm min-h-0 p-4 flex flex-col gap-3",
+        componentsSurfaceClass("floating"),
         props.contentClass,
       )}
       contentShadows={

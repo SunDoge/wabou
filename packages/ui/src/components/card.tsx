@@ -1,7 +1,11 @@
 import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
-import { componentsElevation, useComponentsTheme } from "./theme";
+import {
+  componentsElevation,
+  componentsSurfaceClass,
+  useComponentsTheme,
+} from "./theme";
 
 export interface CardProps extends Omit<ViewProps, "class"> {
   class?: string;
@@ -14,7 +18,8 @@ export function Card(props: CardProps): JSX.Element {
     <View
       {...rest}
       class={mergeClasses(
-        "min-w-0 min-h-0 flex-none flex flex-col overflow-hidden rounded-xl border border-subtle bg-surface",
+        "min-w-0 min-h-0 flex-none flex flex-col overflow-hidden",
+        componentsSurfaceClass("raised"),
         props.class,
       )}
       shadows={
