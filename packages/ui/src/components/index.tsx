@@ -1,4 +1,4 @@
-import { createFps } from "@wabou/core/renderer";
+import { createFps, type Handle } from "@wabou/core/renderer";
 import { mergeClasses } from "@wabou/core/style";
 import { createSignal, type JSX } from "solid-js";
 import { match, P } from "ts-pattern";
@@ -6,11 +6,11 @@ import { createTransition, useReducedMotion } from "../animation";
 import {
   type ButtonState,
   Button as HeadlessButton,
-  Text,
   translate2d,
   View,
 } from "../primitives";
 import { Badge, type BadgeProps } from "./badge";
+import { Label } from "./label";
 
 export * from "./activity-status";
 export * from "./alert";
@@ -222,6 +222,7 @@ export function Switch(props: SwitchProps): JSX.Element {
     ease: [0.22, 1, 0.36, 1],
     reducedMotion,
   });
+  let control: Handle | undefined;
   const toggle = () => {
     if (props.disabled) return;
     const next = !checked();
@@ -236,6 +237,9 @@ export function Switch(props: SwitchProps): JSX.Element {
       )}
     >
       <HeadlessButton
+        ref={(node) => {
+          control = node;
+        }}
         unstyled
         role="switch"
         disabled={props.disabled}
@@ -260,9 +264,19 @@ export function Switch(props: SwitchProps): JSX.Element {
         />
       </HeadlessButton>
       {props.label && (
-        <Text class="min-w-0 flex-1 whitespace-normal text-sm text-secondary">
+        <Label
+          control={() => control}
+          disabled={props.disabled}
+          class={mergeClasses(
+            "min-w-0 flex-1 select-none whitespace-normal text-sm font-normal text-secondary",
+          )}
+          onClick={(event) => {
+            if (props.disabled || event.defaultPrevented) return;
+            toggle();
+          }}
+        >
           {props.label}
-        </Text>
+        </Label>
       )}
     </View>
   );

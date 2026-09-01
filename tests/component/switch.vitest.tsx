@@ -36,3 +36,27 @@ test("publishes the final switch position under reduced motion", () => {
   screen.getByRole("switch", { name: "Sync" }).click();
   expect(thumbX(screen)).toBe(20);
 });
+
+test("switch label focuses and activates its explicit control", () => {
+  const screen = renderComponent(() => (
+    <Switch label="Enable subagents" defaultChecked={false} />
+  ));
+  const control = screen.getByRole("switch", { name: "Enable subagents" });
+  const label = screen.getByRole("label", { name: "Enable subagents" });
+
+  label.click();
+  expect(control.checked).toBe(true);
+  expect(control.focused).toBe(true);
+});
+
+test("disabled switch labels cannot activate the control", () => {
+  const screen = renderComponent(() => (
+    <Switch label="Enable subagents" disabled defaultChecked={false} />
+  ));
+  const control = screen.getByRole("switch", { name: "Enable subagents" });
+  const label = screen.getByRole("label", { name: "Enable subagents" });
+
+  expect(() => label.click()).toThrow("cannot click disabled");
+  expect(control.checked).toBe(false);
+  expect(control.focused).toBe(false);
+});
