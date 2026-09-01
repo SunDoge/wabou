@@ -159,7 +159,7 @@ export function Listbox(props: ListboxProps): JSX.Element {
                   aria-selected={selected()}
                   aria-disabled={option().disabled}
                   class={mergeClasses(
-                    "w-full min-h-9 px-3 py-1.5 flex-none flex flex-row items-center gap-3 rounded-lg",
+                    "w-full min-h-8 px-2 py-1 flex-none flex flex-row items-center gap-2 rounded-md",
                     active()
                       ? "bg-control-hover text-primary"
                       : "bg-transparent text-secondary",

@@ -25,9 +25,10 @@ test("listbox navigates enabled options and activates the highlighted value", ()
   listbox.press("Enter");
 
   expect(action).toHaveBeenCalledWith("feature");
-  expect(screen.getByRole("option", { name: "Feature branch" }).selected).toBe(
-    true,
-  );
+  const feature = screen.getByRole("option", { name: "Feature branch" });
+  expect(feature.selected).toBe(true);
+  expect(feature.className).toContain("rounded-md");
+  expect(feature.className).toContain("min-h-8");
 });
 
 test("listbox supports pointer selection and explicit dismissal", () => {
