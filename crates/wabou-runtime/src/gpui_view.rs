@@ -1154,10 +1154,18 @@ impl Render for GpuiRuntimeView {
                         true
                     }
                 });
+            let projection_boundary = self.projection_boundary.clone();
             let source_action = test_controller.poll_gpui_source(
                 self.window_key,
                 &self.layout_snapshot(),
                 &mut self.controller,
+                |key, event| {
+                    projection_boundary.as_ref().is_some_and(|boundary| {
+                        boundary.update(cx, |boundary, cx| {
+                            boundary.dispatch_native_input(key, event, window, cx)
+                        })
+                    })
+                },
             );
             if source_action {
                 self.synchronize_text_controls(window, cx);

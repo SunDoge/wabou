@@ -12,11 +12,12 @@ use serde::Deserialize;
 use tokio::sync::oneshot;
 #[cfg(test)]
 use wabou_shell::{
-    FileDropEvent, ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton,
-    PointerEvent, PointerPhase, SemanticRole, SemanticSnapshot, UiEvent, WheelEvent,
+    FileDropEvent, Point, PointerButton, PointerEvent, PointerPhase, SemanticRole,
+    SemanticSnapshot, WheelEvent,
 };
 use wabou_shell::{
-    WakeCallback, WindowCapabilities, WindowIntent, WindowLifecycle, WindowPresence,
+    ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, NodeKey, UiEvent, WakeCallback,
+    WindowCapabilities, WindowIntent, WindowLifecycle, WindowPresence,
 };
 
 const CAPABILITY: &str = "test";
@@ -846,6 +847,7 @@ impl TestController {
         window_key: WindowKey,
         nodes: &[wabou_shell::GpuiLayoutNode],
         controller: &mut crate::gpui_controller::GpuiController,
+        mut dispatch_native_input: impl FnMut(NodeKey, UiEvent) -> bool,
     ) -> bool {
         if nodes.is_empty() {
             return false;
@@ -897,6 +899,14 @@ impl TestController {
                     input_allows_disabled_target(input),
                 )
                 .is_some_and(|node| {
+                    let native_handled = native_input_events(input)
+                        .into_iter()
+                        .fold(false, |handled, event| {
+                            dispatch_native_input(node.key, event) || handled
+                        });
+                    if native_handled {
+                        return true;
+                    }
                     let select_all = matches!(
                         input,
                         TestInput::Key { key, modifiers }
@@ -1247,7 +1257,10 @@ fn gpui_locator_query_json(
         .filter(|node| gpui_node_role(node) == Some(role))
         .filter(|node| gpui_node_label(nodes, node).as_deref() == Some(label))
         .collect::<Vec<_>>();
-    let selected = gpui_locator(nodes, role, label, index, scope, true)?;
+    let selected = match index {
+        Some(index) => matches.get(index).copied(),
+        None => matches.first().copied(),
+    }?;
     let bool_attribute = |name: &str| gpui_bool_attribute(selected, name);
     let toggle_attribute = |name: &str| match selected.attributes.get(name).map(AsRef::as_ref) {
         Some("true") => serde_json::Value::Bool(true),
@@ -1449,6 +1462,44 @@ fn input_gpui_target(
             .fold(false, |handled, event| {
                 controller.handle_projected_pointer(event).handled || handled
             }),
+    }
+}
+
+/// Convert inputs which do not require synthetic layout geometry into the
+/// backend-neutral native widget event contract. Pointer and wheel input stay
+/// on the projected hit-testing path because their coordinates come from the
+/// laid-out GPUI node.
+fn native_input_events(input: &TestInput) -> Vec<UiEvent> {
+    match input {
+        TestInput::Key { key, modifiers } => [KeyPhase::Down, KeyPhase::Up]
+            .into_iter()
+            .map(|phase| {
+                UiEvent::Key(KeyEvent {
+                    phase,
+                    key: key.clone(),
+                    key_without_modifiers: key.clone(),
+                    code: key.clone(),
+                    text: None,
+                    text_with_all_modifiers: None,
+                    location: KeyLocation::Standard,
+                    modifiers: Modifiers::from_bits_truncate(*modifiers),
+                    repeat: false,
+                    synthetic: false,
+                })
+            })
+            .collect(),
+        TestInput::Text { text } => vec![UiEvent::TextInput(text.clone())],
+        TestInput::Paste { text } => vec![UiEvent::Paste(text.clone())],
+        TestInput::Ime { text } => vec![
+            UiEvent::Ime(ImeEvent::Enabled),
+            UiEvent::Ime(ImeEvent::Preedit {
+                text: text.clone(),
+                cursor: Some((text.len(), text.len())),
+            }),
+            UiEvent::Ime(ImeEvent::Commit(text.clone())),
+            UiEvent::Ime(ImeEvent::Disabled),
+        ],
+        TestInput::Probe | TestInput::Drag { .. } | TestInput::Wheel { .. } => Vec::new(),
     }
 }
 
@@ -2118,6 +2169,38 @@ mod tests {
     }
 
     #[test]
+    fn gpui_locator_query_counts_repeated_semantics_without_requiring_uniqueness() {
+        let nodes = [
+            gpui_node(
+                wabou_host_api::NodeKey::new(27, 1),
+                None,
+                "view",
+                "Repeated error",
+            ),
+            gpui_node(
+                wabou_host_api::NodeKey::new(28, 1),
+                None,
+                "view",
+                "Repeated error",
+            ),
+        ]
+        .map(|mut node| {
+            node.attributes.insert("role".into(), "label".into());
+            node
+        });
+
+        assert!(
+            gpui_locator(&nodes, "label", "Repeated error", None, &[], true).is_none(),
+            "an action target remains intentionally ambiguous"
+        );
+        let query = gpui_locator_query_json(&nodes, "label", "Repeated error", None, &[], None)
+            .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
+            .expect("a repeated locator still has a query snapshot");
+        assert_eq!(query["matchCount"], 2);
+        assert_eq!(query["snapshot"]["name"], "Repeated error");
+    }
+
+    #[test]
     fn gpui_accessible_names_ignore_detached_aggregate_text_sources() {
         let option_key = wabou_host_api::NodeKey::new(22, 1);
         let text_key = wabou_host_api::NodeKey::new(23, 1);
@@ -2287,6 +2370,7 @@ mod tests {
             wabou_shell::initial_window_resource_key(0),
             &[gpui_node(target, None, "button", "Save")],
             &mut runtime,
+            |_, _| false,
         ));
         let result = completion.try_recv();
         assert!(
@@ -2346,6 +2430,7 @@ mod tests {
             wabou_shell::initial_window_resource_key(0),
             &[gpui_node(target, None, "input", "Project name")],
             &mut runtime,
+            |_, _| false,
         ));
         let result = completion.try_recv();
         assert!(
@@ -2353,6 +2438,49 @@ mod tests {
             "unexpected textbox click result: {result:?}"
         );
         assert_eq!(runtime.focused_target(), Some(target));
+    }
+
+    #[test]
+    fn gpui_test_driver_routes_text_through_native_widget_input_before_fallback() {
+        use crate::runtime_session::RuntimeSession;
+
+        let js = crate::JsRuntime::new().expect("runtime");
+        let mut runtime = crate::gpui_controller::GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        let target = wabou_host_api::NodeKey::new(41, 3);
+        let driver = TestController::default();
+        let mut completion = driver.request(TestActionKind::InputByRole {
+            window_key: wabou_shell::initial_window_resource_key(0),
+            role: "textbox".into(),
+            label: "Terminal 1".into(),
+            input: TestInput::Text { text: "pwd".into() },
+            index: None,
+            scope: Vec::new(),
+        });
+        let mut received = Vec::new();
+
+        assert!(driver.poll_gpui_source(
+            wabou_shell::initial_window_resource_key(0),
+            &[gpui_node(target, None, "input", "Terminal 1")],
+            &mut runtime,
+            |key, event| {
+                assert_eq!(key, target);
+                received.push(event);
+                true
+            },
+        ));
+        assert!(matches!(
+            completion.try_recv(),
+            Ok(TestActionResult::Handled(true))
+        ));
+        assert!(matches!(received.as_slice(), [UiEvent::TextInput(text)] if text == "pwd"));
+        assert_eq!(
+            runtime.focused_target(),
+            None,
+            "native input must not mutate the fallback text controller"
+        );
     }
 
     #[test]
@@ -2384,6 +2512,7 @@ mod tests {
                 "Root",
             )],
             &mut runtime,
+            |_, _| false,
         ));
         assert!(matches!(
             completion.try_recv(),

@@ -1,4 +1,4 @@
-use std::{ops::Range, sync::Arc};
+use std::{ops::Range, rc::Rc, sync::Arc};
 
 use gpui::{AppContext as _, IntoElement as _, ParentElement as _, Styled as _};
 use wabou_shell::{NativeWidgetContext, NativeWidgetMount, gpui};
@@ -352,9 +352,24 @@ pub fn gpui_terminal_factory()
             })
         });
         entity.update(cx, |state, _| state.update_attributes(&context));
-        NativeWidgetMount::entity(
+        let input_entity = entity.clone();
+        let input = Rc::new(
+            move |event: UiEvent, _window: &mut gpui::Window, cx: &mut gpui::App| {
+                let mut handled = false;
+                input_entity.update(cx, |state, entity_cx| {
+                    let result = state.terminal.dispatch_native_event(&event);
+                    handled = state.apply_input_result(result, entity_cx);
+                    if handled {
+                        entity_cx.notify();
+                    }
+                });
+                handled
+            },
+        );
+        NativeWidgetMount::entity_with_input(
             entity.clone(),
             gpui::div().size_full().child(entity).into_any_element(),
+            input,
         )
     }
 }
@@ -395,8 +410,12 @@ mod tests {
                 window,
                 cx,
             );
-            let (_, retained) = first.into_parts();
+            let (_, retained, native_input) = first.into_parts();
             let retained = retained.expect("terminal factory retains state");
+            assert!(
+                native_input.is_some(),
+                "terminal factory retains an input path"
+            );
             let first_id = retained.entity_id();
             let second = factory(
                 NativeWidgetContext::new(
@@ -409,7 +428,11 @@ mod tests {
                 window,
                 cx,
             );
-            let (_, retained) = second.into_parts();
+            let (_, retained, native_input) = second.into_parts();
+            assert!(
+                native_input.is_some(),
+                "reused terminal retains an input path"
+            );
             assert_eq!(
                 retained.expect("reused terminal state").entity_id(),
                 first_id

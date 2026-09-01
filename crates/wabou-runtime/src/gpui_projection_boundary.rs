@@ -5,8 +5,8 @@ use std::{collections::BTreeMap, rc::Rc};
 use wabou_shell::gpui::{AnyElement, AnyEntity, Context, Render, Window};
 use wabou_shell::{
     GpuiNativeWidget, GpuiProjectionRenderSnapshot, NativeWidgetContext, NativeWidgetFactory,
-    NodeKey, ProjectedInputSink, ProjectedNativeElementFactory, ProjectedTextInputState,
-    ProjectedTextSelection,
+    NativeWidgetInputHandler, NodeKey, ProjectedInputSink, ProjectedNativeElementFactory,
+    ProjectedTextInputState, ProjectedTextSelection,
 };
 
 /// Rebuilds one native child element from retained GPUI state.
@@ -29,6 +29,7 @@ pub(crate) struct GpuiProjectionBoundary {
     widgets: Vec<GpuiNativeWidget>,
     native_widget_factories: std::collections::HashMap<String, NativeWidgetFactory>,
     native_widget_entities: BTreeMap<NodeKey, AnyEntity>,
+    native_widget_inputs: BTreeMap<NodeKey, NativeWidgetInputHandler>,
     native_widget_attributes: BTreeMap<
         NodeKey,
         BTreeMap<wabou_shell::gpui::SharedString, wabou_shell::gpui::SharedString>,
@@ -62,6 +63,7 @@ impl GpuiProjectionBoundary {
             widgets: state.widgets,
             native_widget_factories: state.native_widget_factories,
             native_widget_entities: BTreeMap::new(),
+            native_widget_inputs: BTreeMap::new(),
             native_widget_attributes: BTreeMap::new(),
             #[cfg(any(test, feature = "profiling"))]
             materialization_count: 0,
@@ -92,6 +94,18 @@ impl GpuiProjectionBoundary {
     pub(crate) fn materialization_count(&self) -> u64 {
         self.materialization_count
     }
+
+    pub(crate) fn dispatch_native_input(
+        &self,
+        key: NodeKey,
+        event: wabou_shell::UiEvent,
+        window: &mut Window,
+        cx: &mut wabou_shell::gpui::App,
+    ) -> bool {
+        self.native_widget_inputs
+            .get(&key)
+            .is_some_and(|input| input(event, window, cx))
+    }
 }
 
 impl Render for GpuiProjectionBoundary {
@@ -119,6 +133,8 @@ impl Render for GpuiProjectionBoundary {
             .collect::<BTreeMap<_, _>>();
         self.native_widget_entities
             .retain(|key, _| self.widgets.iter().any(|widget| widget.key == *key));
+        self.native_widget_inputs
+            .retain(|key, _| self.widgets.iter().any(|widget| widget.key == *key));
         self.native_widget_attributes
             .retain(|key, _| self.widgets.iter().any(|widget| widget.key == *key));
         for widget in &self.widgets {
@@ -137,7 +153,7 @@ impl Render for GpuiProjectionBoundary {
                 window,
                 cx,
             );
-            let (element, entity) = mount.into_parts();
+            let (element, entity, input) = mount.into_parts();
             if let Some(entity) = entity {
                 self.native_widget_entities.insert(widget.key, entity);
             } else {
@@ -145,6 +161,11 @@ impl Render for GpuiProjectionBoundary {
             }
             self.native_widget_attributes
                 .insert(widget.key, widget.attributes.clone());
+            if let Some(input) = input {
+                self.native_widget_inputs.insert(widget.key, input);
+            } else {
+                self.native_widget_inputs.remove(&widget.key);
+            }
             native_controls.insert(widget.key, element);
         }
         let native_controls = Rc::new(std::cell::RefCell::new(native_controls));

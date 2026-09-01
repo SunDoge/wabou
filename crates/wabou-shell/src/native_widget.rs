@@ -1,8 +1,9 @@
 //! Application-defined GPUI elements mounted behind explicit Wabou tags.
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, rc::Rc, sync::Arc};
 
 use gpui::{AnyElement, AnyEntity, App, Entity, SharedString, Window};
+use wabou_shell_api::UiEvent;
 
 use crate::NodeKey;
 
@@ -213,7 +214,11 @@ impl<'a> NativeWidgetContext<'a> {
 pub struct NativeWidgetMount {
     element: AnyElement,
     entity: Option<AnyEntity>,
+    input: Option<NativeWidgetInputHandler>,
 }
+
+/// Backend-owned input path for a retained native widget.
+pub type NativeWidgetInputHandler = Rc<dyn Fn(UiEvent, &mut Window, &mut App) -> bool + 'static>;
 
 impl NativeWidgetMount {
     /// Construct a stateless native widget mount.
@@ -222,6 +227,7 @@ impl NativeWidgetMount {
         Self {
             element,
             entity: None,
+            input: None,
         }
     }
 
@@ -231,12 +237,34 @@ impl NativeWidgetMount {
         Self {
             element,
             entity: Some(entity.into_any()),
+            input: None,
+        }
+    }
+
+    /// Construct a retained widget that can consume semantic test/native
+    /// input through the same backend event path as its GPUI element.
+    #[must_use]
+    pub fn entity_with_input<T: 'static>(
+        entity: Entity<T>,
+        element: AnyElement,
+        input: NativeWidgetInputHandler,
+    ) -> Self {
+        Self {
+            element,
+            entity: Some(entity.into_any()),
+            input: Some(input),
         }
     }
 
     #[doc(hidden)]
-    pub fn into_parts(self) -> (AnyElement, Option<AnyEntity>) {
-        (self.element, self.entity)
+    pub fn into_parts(
+        self,
+    ) -> (
+        AnyElement,
+        Option<AnyEntity>,
+        Option<NativeWidgetInputHandler>,
+    ) {
+        (self.element, self.entity, self.input)
     }
 }
 

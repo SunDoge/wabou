@@ -959,7 +959,9 @@ impl GpuiProjection {
                 // into their owning `StyledText`; exposing those descendants
                 // as visible 0x0 boxes creates false overflow and hit-test
                 // diagnostics.
-                let retained_attached = if node.attached {
+                let retained_attached = if node.attached
+                    && node.style.display != crate::gpui::Display::None
+                {
                     let mut parent = node.parent;
                     let mut reachable = true;
                     while let Some(parent_key) = parent {
@@ -967,7 +969,9 @@ impl GpuiProjection {
                             reachable = false;
                             break;
                         };
-                        if !ancestor.attached {
+                        if !ancestor.attached
+                            || ancestor.style.display == crate::gpui::Display::None
+                        {
                             reachable = false;
                             break;
                         }
@@ -2827,6 +2831,68 @@ mod tests {
                 .unwrap()
                 .attached,
             "a locally attached child is not rendered when its ancestor is detached"
+        );
+    }
+
+    #[test]
+    fn layout_snapshot_excludes_display_none_subtrees_even_with_stale_bounds() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::CreateElement {
+                            id: key(3),
+                            tag: view,
+                        },
+                        Op::AppendChild {
+                            parent: key(2),
+                            child: key(3),
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(2),
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        let bounds = crate::gpui::Bounds::new(
+            crate::gpui::point(crate::gpui::px(0.0), crate::gpui::px(0.0)),
+            crate::gpui::size(crate::gpui::px(100.0), crate::gpui::px(40.0)),
+        );
+        projection
+            .layout_bounds
+            .borrow_mut()
+            .extend([(key(2), bounds), (key(3), bounds)]);
+        let mut hidden = crate::gpui::Style::default();
+        hidden.display = crate::gpui::Display::None;
+        projection.update_style(key(2), hidden).unwrap();
+
+        let snapshot = projection.layout_snapshot();
+        assert!(
+            !snapshot
+                .iter()
+                .find(|node| node.key == key(2))
+                .unwrap()
+                .attached
+        );
+        assert!(
+            !snapshot
+                .iter()
+                .find(|node| node.key == key(3))
+                .unwrap()
+                .attached,
+            "a child with stale bounds is not exposed below display:none"
         );
     }
 
