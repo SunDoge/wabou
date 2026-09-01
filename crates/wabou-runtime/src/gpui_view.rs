@@ -663,6 +663,13 @@ impl GpuiRuntimeView {
             }
         }
         if response.request_redraw {
+            // A native event may synchronously enqueue Solid mutations in the
+            // QuickJS protocol writer. Merely notifying the GPUI Entity is not
+            // sufficient: render() is allowed to skip the runtime when no RAF
+            // or external wake is pending, which would strand mutations from
+            // transition completion, text controls, and native widgets until
+            // an unrelated input arrives.
+            self.runtime_work_pending = true;
             cx.notify();
         }
     }
@@ -1509,6 +1516,134 @@ mod tests {
             JsRuntime::new().expect("QuickJS runtime"),
             wabou_shell::initial_window_resource_key(0),
         ))
+    }
+
+    #[test]
+    fn native_event_mutations_are_drained_by_the_notified_render() {
+        let platform = gpui_platform::current_platform(true);
+        let mut cx = HeadlessAppContext::new(platform.text_system());
+        let target = NodeKey::new(2, 1);
+        let handle = cx
+            .open_window(size(px(320.0), px(200.0)), |window, app| {
+                let mut controller = test_controller();
+                controller
+                    .boot(include_str!("gen/test-runtime.js"))
+                    .expect("boot generated Solid runtime fixture");
+                controller
+                    .apply_frame(&Frame {
+                        seq: 1,
+                        ops: vec![
+                            Op::CreateText {
+                                id: target,
+                                text: "before",
+                            },
+                            Op::AppendChild {
+                                parent: NodeKey::ROOT,
+                                child: target,
+                            },
+                            Op::AddEventListener {
+                                id: target,
+                                event_type: wabou_protocol::event::TRANSITIONEND,
+                            },
+                        ],
+                    })
+                    .expect("project transition target");
+                assert!(controller.advance_frame(), "initial tree must commit");
+
+                // seq=2, one SET_TEXT operation for target 2:1 and inline
+                // string "after". The host-frame callback returns this frame
+                // synchronously from the native transition completion.
+                let protocol_frame = [
+                    2,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    wabou_protocol::op::SET_TEXT,
+                    2,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    5,
+                    0,
+                    b'a',
+                    b'f',
+                    b't',
+                    b'e',
+                    b'r',
+                ];
+                let bytes = protocol_frame
+                    .iter()
+                    .map(u8::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                controller
+                    .eval_script_diagnostic(&format!(
+                        r#"
+                        globalThis.__wabou_dispatch_host_frame = () => ({{
+                          needsTick: false,
+                          preventedEventIds: new Uint32Array(),
+                          protocolFrame: new Uint8Array([{bytes}]),
+                        }});
+                        "#
+                    ))
+                    .expect("install synchronous transition mutation");
+
+                app.new(|view_cx| {
+                    GpuiRuntimeView::new(
+                        controller,
+                        GpuiRuntimeViewOptions {
+                            window_size_persistence: None,
+                            native_widget_factories: HashMap::new(),
+                            test_controller: None,
+                            window_key: wabou_shell::initial_window_resource_key(0),
+                            window_host: test_window_host(),
+                        },
+                        window,
+                        view_cx,
+                    )
+                })
+            })
+            .expect("open native event fixture");
+        cx.run_until_parked();
+        cx.update_window(handle.into(), |_, window, app| {
+            let _ = window.draw(app);
+        })
+        .expect("draw initial native event fixture");
+
+        let root = handle.root(&mut cx).expect("GPUI runtime root entity");
+        let revision_before = cx.read_entity(&root, |view, _| view.controller.protocol_revision());
+        cx.update_entity(&root, |view, view_cx| {
+            assert!(!view.runtime_work_pending);
+            view.handle_input(
+                wabou_shell::ProjectedInputEvent::TransitionEnd {
+                    target,
+                    generation: 7,
+                },
+                view_cx,
+            );
+            assert!(
+                view.runtime_work_pending,
+                "a handled native event must make its synchronous JS work visible to render"
+            );
+        });
+        cx.run_until_parked();
+        cx.update_window(handle.into(), |_, window, app| {
+            let _ = window.draw(app);
+        })
+        .expect("draw the event-triggered Solid mutation");
+
+        assert!(
+            cx.read_entity(&root, |view, _| view.controller.protocol_revision()) > revision_before,
+            "the notified render must commit the event's protocol frame without another input"
+        );
     }
 
     #[test]
