@@ -17,8 +17,8 @@ mod vector_path;
 mod window_state;
 
 pub use element::{
-    ProjectedElement, ProjectedNativeElementFactory, ProjectedScrollHandle,
-    ProjectedSubtreeElementFactory,
+    ProjectedElement, ProjectedNativeElementFactory, ProjectedPhaseTimings, ProjectedScrollHandle,
+    ProjectedSubtreeElementFactory, take_projected_phase_timings,
 };
 pub use gpui;
 pub use input::{
@@ -53,7 +53,7 @@ pub use wabou_shell_api::{
     EffectExecutor, EffectId, EffectOp, EffectPayload, EffectRequest, EffectResult, EffectScope,
     EffectTapeEntry, MenuPosition, MessageDialogButtons, MessageDialogLevel, MessageDialogRequest,
     MethodId, NotificationRequest, OpenDialogRequest, PickDirectoryRequest,
-    RecordingEffectExecutor, ReplayEffectExecutor, RgbaColor, SaveDialogRequest,
+    RecordingEffectExecutor, ReplayEffectExecutor, RgbaColor, SaveDialogRequest, WindowBackground,
     WindowCapabilities, WindowCommand, WindowCreateRequest, WindowEffect, WindowInputMode,
     WindowIntent, WindowLevel, WindowLifecycle, WindowOptions, WindowPresence, WindowResourceKey,
     initial_window_resource_key,

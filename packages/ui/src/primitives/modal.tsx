@@ -1,5 +1,10 @@
 import { type Handle, Portal } from "@wabou/core/renderer";
-import { type Affine2D, number, type Shadow } from "@wabou/core/style";
+import {
+  type Affine2D,
+  mergeClasses,
+  number,
+  type Shadow,
+} from "@wabou/core/style";
 import {
   createComponent,
   createEffect,
@@ -196,7 +201,7 @@ export function Modal(props: ModalProps): JSX.Element {
             return !open();
           },
           get class() {
-            return props.backdropClass;
+            return mergeClasses("backdrop-blur-sm", props.backdropClass);
           },
           get style() {
             return {

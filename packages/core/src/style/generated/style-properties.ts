@@ -21,6 +21,11 @@ export const INLINE_STYLE_CONTRACT = {
     number: true,
     typed: [3],
   },
+  "backdrop-blur": {
+    string: true,
+    number: true,
+    typed: [1],
+  },
   background: {
     string: true,
     number: false,
@@ -90,6 +95,11 @@ export const INLINE_STYLE_CONTRACT = {
     string: true,
     number: false,
     typed: [],
+  },
+  "filter-blur": {
+    string: true,
+    number: true,
+    typed: [1],
   },
   "flex-basis": {
     string: true,
@@ -325,6 +335,11 @@ export const INLINE_STYLE_CONTRACT = {
     string: true,
     number: true,
     typed: [1, 2, 3, 6],
+  },
+  "user-select": {
+    string: true,
+    number: false,
+    typed: [],
   },
   "white-space": {
     string: true,

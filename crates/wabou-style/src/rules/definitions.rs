@@ -902,6 +902,54 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("select-none", vec![keyword("user-select", "none")]),
         ("select-text", vec![keyword("user-select", "text")]),
         ("select-all", vec![keyword("user-select", "all")]),
+        (
+            "blur-none",
+            vec![length("filter-blur", Length::Px { value: 0.0 })],
+        ),
+        (
+            "blur-sm",
+            vec![length("filter-blur", Length::Px { value: 4.0 })],
+        ),
+        (
+            "blur",
+            vec![length("filter-blur", Length::Px { value: 8.0 })],
+        ),
+        (
+            "blur-md",
+            vec![length("filter-blur", Length::Px { value: 12.0 })],
+        ),
+        (
+            "blur-lg",
+            vec![length("filter-blur", Length::Px { value: 16.0 })],
+        ),
+        (
+            "blur-xl",
+            vec![length("filter-blur", Length::Px { value: 24.0 })],
+        ),
+        (
+            "backdrop-blur-none",
+            vec![length("backdrop-blur", Length::Px { value: 0.0 })],
+        ),
+        (
+            "backdrop-blur-sm",
+            vec![length("backdrop-blur", Length::Px { value: 4.0 })],
+        ),
+        (
+            "backdrop-blur",
+            vec![length("backdrop-blur", Length::Px { value: 8.0 })],
+        ),
+        (
+            "backdrop-blur-md",
+            vec![length("backdrop-blur", Length::Px { value: 12.0 })],
+        ),
+        (
+            "backdrop-blur-lg",
+            vec![length("backdrop-blur", Length::Px { value: 16.0 })],
+        ),
+        (
+            "backdrop-blur-xl",
+            vec![length("backdrop-blur", Length::Px { value: 24.0 })],
+        ),
         ("shadow-none", vec![shadows(vec![])]),
         (
             "shadow-xs",

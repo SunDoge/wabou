@@ -313,12 +313,156 @@
         }
       }
     ],
+    "backdrop-blur": [
+      {
+        "property": "backdrop-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      }
+    ],
+    "backdrop-blur-lg": [
+      {
+        "property": "backdrop-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 16.0
+          }
+        }
+      }
+    ],
+    "backdrop-blur-md": [
+      {
+        "property": "backdrop-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 12.0
+          }
+        }
+      }
+    ],
+    "backdrop-blur-none": [
+      {
+        "property": "backdrop-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 0.0
+          }
+        }
+      }
+    ],
+    "backdrop-blur-sm": [
+      {
+        "property": "backdrop-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 4.0
+          }
+        }
+      }
+    ],
+    "backdrop-blur-xl": [
+      {
+        "property": "backdrop-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 24.0
+          }
+        }
+      }
+    ],
     "block": [
       {
         "property": "display",
         "value": {
           "type": "keyword",
           "value": "block"
+        }
+      }
+    ],
+    "blur": [
+      {
+        "property": "filter-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      }
+    ],
+    "blur-lg": [
+      {
+        "property": "filter-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 16.0
+          }
+        }
+      }
+    ],
+    "blur-md": [
+      {
+        "property": "filter-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 12.0
+          }
+        }
+      }
+    ],
+    "blur-none": [
+      {
+        "property": "filter-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 0.0
+          }
+        }
+      }
+    ],
+    "blur-sm": [
+      {
+        "property": "filter-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 4.0
+          }
+        }
+      }
+    ],
+    "blur-xl": [
+      {
+        "property": "filter-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 24.0
+          }
         }
       }
     ],

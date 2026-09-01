@@ -187,7 +187,17 @@ pub(super) fn decode_effect_payload(
             if let Some(decorations) = value.get("decorations").and_then(|value| value.as_bool()) {
                 options = options.decorations(decorations);
             }
-            if let Some(transparent) = value.get("transparent").and_then(|value| value.as_bool()) {
+            if let Some(background) = value.get("background").and_then(|value| value.as_str()) {
+                options = options.background(match background {
+                    "transparent" => wabou_shell::WindowBackground::Transparent,
+                    "blurred" => wabou_shell::WindowBackground::Blurred,
+                    "mica" => wabou_shell::WindowBackground::Mica,
+                    "micaAlt" => wabou_shell::WindowBackground::MicaAlt,
+                    _ => wabou_shell::WindowBackground::Opaque,
+                });
+            } else if let Some(transparent) =
+                value.get("transparent").and_then(|value| value.as_bool())
+            {
                 options = options.transparent(transparent);
             }
             if let Some(window_level) = value.get("windowLevel").and_then(|value| value.as_str()) {

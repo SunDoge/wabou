@@ -30,9 +30,9 @@ pub use wabou_runtime::{
     HostServiceContext, HostServiceHandle, ImageResource, ImageResourceHandle, ImageResourceStore,
     JsonCapability, ManagedHostService, NativeCapability, NativeWidgetContext, NativeWidgetFactory,
     NativeWidgetMount, PersistentJsonCache, Result, RevisionedHostPublication,
-    RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker, WindowInputMode, WindowLevel,
-    WindowMetrics, WindowOptions, WindowResourceKey, initial_window_resource_key,
-    managed_host_service,
+    RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker, WindowBackground,
+    WindowInputMode, WindowLevel, WindowMetrics, WindowOptions, WindowResourceKey,
+    initial_window_resource_key, managed_host_service,
 };
 #[cfg(feature = "tray")]
 pub use wabou_tray::{SystemTray, TrayContext, TrayImage};
