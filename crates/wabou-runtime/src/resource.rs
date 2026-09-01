@@ -4,24 +4,28 @@
 //! This module is for objects whose lifetime can outlive or move independently
 //! of a retained node.
 
-use slotmap::{Key, KeyData, SlotMap};
+use std::marker::PhantomData;
+
+use slotmap::{DefaultKey, Key, KeyData, SlotMap};
 
 pub use wabou_host_api::ResourceKey;
 
 /// A SlotMap whose public boundary only exposes family-branded wire keys.
-pub struct ResourceRegistry<Family: Key, Value> {
-    entries: SlotMap<Family, Value>,
+pub struct ResourceRegistry<Family, Value> {
+    entries: SlotMap<DefaultKey, Value>,
+    family: PhantomData<fn() -> Family>,
 }
 
-impl<Family: Key, Value> Default for ResourceRegistry<Family, Value> {
+impl<Family, Value> Default for ResourceRegistry<Family, Value> {
     fn default() -> Self {
         Self {
             entries: SlotMap::with_key(),
+            family: PhantomData,
         }
     }
 }
 
-impl<Family: Key, Value> ResourceRegistry<Family, Value> {
+impl<Family, Value> ResourceRegistry<Family, Value> {
     /// Create an empty typed registry.
     pub fn new() -> Self {
         Self::default()
@@ -36,19 +40,19 @@ impl<Family: Key, Value> ResourceRegistry<Family, Value> {
     /// Resolve a live handle. Removed generations return `None`.
     pub fn get(&self, key: ResourceKey<Family>) -> Option<&Value> {
         self.entries
-            .get(Family::from(KeyData::from_ffi(key.as_ffi())))
+            .get(DefaultKey::from(KeyData::from_ffi(key.as_ffi())))
     }
 
     /// Mutably resolve a live handle. Removed generations return `None`.
     pub fn get_mut(&mut self, key: ResourceKey<Family>) -> Option<&mut Value> {
         self.entries
-            .get_mut(Family::from(KeyData::from_ffi(key.as_ffi())))
+            .get_mut(DefaultKey::from(KeyData::from_ffi(key.as_ffi())))
     }
 
     /// Remove a resource and invalidate this generation.
     pub fn remove(&mut self, key: ResourceKey<Family>) -> Option<Value> {
         self.entries
-            .remove(Family::from(KeyData::from_ffi(key.as_ffi())))
+            .remove(DefaultKey::from(KeyData::from_ffi(key.as_ffi())))
     }
 
     /// Number of currently live resources.
@@ -66,10 +70,10 @@ impl<Family: Key, Value> ResourceRegistry<Family, Value> {
 mod tests {
     use super::*;
 
-    slotmap::new_key_type! {
-        struct ImageKey;
-        struct FontKey;
-    }
+    #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+    enum ImageKey {}
+    #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+    enum FontKey {}
 
     #[test]
     fn registry_round_trips_both_wire_halves_and_rejects_stale_keys() {

@@ -132,10 +132,7 @@ impl GpuiController {
         let atoms = self.runtime.atoms.borrow();
         self.projection.apply_ops(frame, &atoms, |source| {
             let (lo, hi) = source.split_once(':')?;
-            let handle = ImageResourceHandle {
-                lo: lo.parse().ok()?,
-                hi: hi.parse().ok()?,
-            };
+            let handle = ImageResourceHandle::from_parts(lo.parse().ok()?, hi.parse().ok()?)?;
             self.image_resources
                 .get(handle)
                 .map(|resource| resource.gpui_image())
