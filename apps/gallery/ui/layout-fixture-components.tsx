@@ -10,12 +10,14 @@ import {
   AlertTitle,
   AnnotationLayer,
   Avatar,
+  Badge,
   Bubble,
   BubbleContent,
   Button,
   ButtonGroup,
   ButtonGroupSeparator,
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -799,21 +801,56 @@ export function ToastLayoutFixture() {
 
 export function CardSurfaceLayoutFixture() {
   return (
-    <View class="w-full h-full p-6 items-start bg-canvas">
+    <View class="w-full h-full p-6 items-start gap-4 bg-canvas">
       <Card role="group" aria-label="Fixture card surface" class="w-96">
-        <CardHeader aria-label="Fixture card header">
+        <CardHeader role="group" aria-label="Fixture card header">
           <CardTitle>Project activity</CardTitle>
           <CardDescription>
             A raised surface keeps its content inside one compact rhythm.
           </CardDescription>
+          <CardAction role="group" aria-label="Fixture card action">
+            <Badge>Ready</Badge>
+          </CardAction>
         </CardHeader>
-        <CardContent aria-label="Fixture card content">
+        <CardContent role="group" aria-label="Fixture card content">
           <Text>Three tasks completed today.</Text>
         </CardContent>
-        <CardFooter aria-label="Fixture card footer">
+        <CardFooter role="group" aria-label="Fixture card footer">
           <Button size="sm">View details</Button>
         </CardFooter>
       </Card>
+      <View class="w-full min-w-0 flex flex-row gap-3 items-start">
+        <Card
+          role="group"
+          aria-label="Fixture compact filled card"
+          variant="filled"
+          size="sm"
+          class="min-w-0 flex-1"
+        >
+          <CardHeader role="group" aria-label="Fixture compact card header">
+            <CardTitle>Compact</CardTitle>
+            <CardDescription>Dense surface</CardDescription>
+          </CardHeader>
+          <CardContent role="group" aria-label="Fixture compact card content">
+            <Text>One task</Text>
+          </CardContent>
+        </Card>
+        <Card
+          role="group"
+          aria-label="Fixture outline card"
+          variant="outline"
+          size="sm"
+          class="min-w-0 flex-1"
+        >
+          <CardHeader>
+            <CardTitle>Outlined</CardTitle>
+            <CardDescription>Quiet surface</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Text>Two tasks</Text>
+          </CardContent>
+        </Card>
+      </View>
     </View>
   );
 }

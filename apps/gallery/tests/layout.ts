@@ -623,6 +623,7 @@ const assertCardSurfaceLayout = (snapshot: LayoutSnapshot) => {
   const header = getLayoutNode(snapshot, { name: "Fixture card header" });
   const content = getLayoutNode(snapshot, { name: "Fixture card content" });
   const footer = getLayoutNode(snapshot, { name: "Fixture card footer" });
+  const action = getLayoutNode(snapshot, { name: "Fixture card action" });
   for (const [label, node] of [
     ["card header", header],
     ["card content", content],
@@ -634,6 +635,28 @@ const assertCardSurfaceLayout = (snapshot: LayoutSnapshot) => {
     throw new Error("card header overlaps its content");
   if (layoutRectBottom(content.rect) > footer.rect.y)
     throw new Error("card content overlaps its footer");
+  assertLayoutRectContains(header.rect, action.rect, {
+    label: "card action",
+  });
+
+  const compact = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Fixture compact filled card",
+  });
+  const compactHeader = getLayoutNode(snapshot, {
+    name: "Fixture compact card header",
+  });
+  const compactContent = getLayoutNode(snapshot, {
+    name: "Fixture compact card content",
+  });
+  assertLayoutRectContains(compact.contentRect, compactHeader.rect, {
+    label: "compact card header",
+  });
+  assertLayoutRectContains(compact.contentRect, compactContent.rect, {
+    label: "compact card content",
+  });
+  if (layoutRectBottom(compactHeader.rect) > compactContent.rect.y)
+    throw new Error("compact card header overlaps its content");
 };
 
 const assertDarkSurfaceLayout = (snapshot: LayoutSnapshot) => {
