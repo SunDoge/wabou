@@ -59,6 +59,7 @@ import {
   OnboardingHeader,
   OnboardingHeading,
   OnboardingTitle,
+  Progress,
   PromptSuggestion,
   PromptSuggestions,
   QRCode,
@@ -649,6 +650,9 @@ export function ControlBaselineLayoutFixture() {
         aria-label="Fixture baseline input"
         placeholder="Native text input"
       />
+      <View class="w-72">
+        <Progress label="Fixture progress" value={40} size="lg" />
+      </View>
       <Switch label="Fixture default switch" defaultChecked />
       <Switch label="Fixture compact switch" size="sm" />
       <ButtonGroup aria-label="Fixture destructive button group">

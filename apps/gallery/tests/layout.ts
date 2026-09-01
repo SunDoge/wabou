@@ -372,6 +372,10 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
     name: "Wabou Project",
   });
   const avatarFallback = getLayoutNode(snapshot, { text: "WP" });
+  const progress = getLayoutNode(snapshot, {
+    role: "progressbar",
+    name: "Fixture progress",
+  });
   const switchControl = getLayoutNode(snapshot, {
     role: "switch",
     name: "Fixture default switch",
@@ -413,6 +417,14 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   assertLayoutRectContains(avatar.contentRect, avatarFallback.rect, {
     label: "avatar fallback",
   });
+  const progressTrack = queryLayoutNodes(snapshot, { tag: "view" }).find(
+    (node) =>
+      node.parentId?.lo === progress.id.lo &&
+      node.parentId.hi === progress.id.hi &&
+      node.classes.includes("h-2.5"),
+  );
+  if (!progressTrack) throw new Error("large progress track was not projected");
+  assertClose(progressTrack.rect.height, 10, "large progress track height");
   assertClose(input.rect.height, 32, "input height");
   assertClose(switchControl.rect.width, 40, "switch target width");
   assertClose(switchControl.rect.height, 24, "switch target height");

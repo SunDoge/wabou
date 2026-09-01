@@ -1,3 +1,4 @@
+import { mergeClasses } from "@wabou/core/style";
 import {
   type Accessor,
   createContext,
@@ -15,7 +16,6 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import { finiteOr } from "./range";
 
 export interface ProgressValueDetails {
@@ -37,6 +37,8 @@ export interface ProgressRootProps
   children?: JSX.Element;
   class?: string;
 }
+
+export type ProgressSize = "xs" | "sm" | "default" | "lg";
 
 interface ProgressContextValue {
   value: Accessor<number>;
@@ -127,21 +129,36 @@ export function ProgressRoot(props: ProgressRootProps): JSX.Element {
   );
 }
 
-export function ProgressTrack(props: ViewProps): JSX.Element {
+export interface ProgressTrackProps extends ViewProps {
+  size?: ProgressSize;
+}
+
+const progressTrackSize = (size: ProgressSize | undefined) =>
+  size === "xs"
+    ? "h-1"
+    : size === "sm"
+      ? "h-1.5"
+      : size === "lg"
+        ? "h-2.5"
+        : "h-2";
+
+export function ProgressTrack(props: ProgressTrackProps): JSX.Element {
   const context = useProgressContext();
+  const forwarded = omit(props, "size");
   const measured = createMeasuredSize({
     onChange: ({ width }) => context.setTrackWidth(width),
   });
   return (
     <View
-      {...props}
+      {...forwarded}
       ref={(node) => {
         measured.ref(node);
         props.ref?.(node);
       }}
       aria-hidden="true"
       class={mergeClasses(
-        "w-full h-2 flex-none overflow-hidden rounded-full bg-control",
+        "w-full flex-none overflow-hidden rounded-full bg-control",
+        progressTrackSize(props.size),
         props.class,
       )}
     />
@@ -179,7 +196,11 @@ export function ProgressFill(props: ViewProps): JSX.Element {
       <View
         {...props}
         aria-hidden="true"
-        class={mergeClasses("h-full rounded-full bg-accent", props.class)}
+        class={mergeClasses(
+          "h-full rounded-full bg-accent",
+          context.percent() < 100 && "rounded-r-none",
+          props.class,
+        )}
         style={{ width: `${context.percent()}%`, ...props.style }}
       />
     </Show>
@@ -217,14 +238,15 @@ export interface ProgressProps
   extends Omit<ProgressRootProps, "children" | "class"> {
   /** Classes applied to the visual track, preserving the original shorthand. */
   class?: string;
+  size?: ProgressSize;
 }
 
 /** Compact progress bar; use ProgressRoot and parts for custom composition. */
 export function Progress(props: ProgressProps): JSX.Element {
-  const forwarded = omit(props, "class");
+  const forwarded = omit(props, "class", "size");
   return (
     <ProgressRoot {...forwarded}>
-      <ProgressTrack class={props.class}>
+      <ProgressTrack class={props.class} size={props.size}>
         <ProgressFill />
       </ProgressTrack>
     </ProgressRoot>

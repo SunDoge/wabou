@@ -78,3 +78,33 @@ test("composes labels and omits a determinate value while pending", () => {
   expect(progress.text).toContain("Preparing files");
   expect(progress.text).toContain("In progress");
 });
+
+test("owns native size variants and closes the fill only when complete", () => {
+  const screen = renderComponent(() => (
+    <View>
+      <Progress label="Tiny task" value={25} size="xs" />
+      <Progress label="Small task" value={50} size="sm" />
+      <Progress label="Default task" value={75} />
+      <Progress label="Large task" value={100} size="lg" />
+    </View>
+  ));
+
+  const progressParts = (name: string) => {
+    const root = screen.getByRole("progressbar", { name });
+    const track = root.children[0];
+    const fill = track?.children[0];
+    if (!track || !fill) throw new Error(`${name} did not render its parts`);
+    return { track, fill };
+  };
+
+  expect(progressParts("Tiny task").track.className).toContain("h-1");
+  expect(progressParts("Small task").track.className).toContain("h-1.5");
+  expect(progressParts("Default task").track.className).toContain("h-2");
+  expect(progressParts("Large task").track.className).toContain("h-2.5");
+  expect(progressParts("Default task").fill.className).toContain(
+    "rounded-r-none",
+  );
+  expect(progressParts("Large task").fill.className).not.toContain(
+    "rounded-r-none",
+  );
+});
