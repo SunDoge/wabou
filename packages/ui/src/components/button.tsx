@@ -113,6 +113,14 @@ function buttonSize(size: ButtonSize, grouped: boolean): string {
     : componentsControlSize(size);
 }
 
+function buttonSpinnerColor(variant: ButtonVariant): string {
+  return match(variant)
+    .with("default", "destructive", () => "text-on-accent")
+    .with("secondary", () => "text-primary")
+    .with("outline", "ghost", () => "text-secondary")
+    .exhaustive();
+}
+
 export function Button(props: ButtonProps): JSX.Element {
   const local = props;
   const forwarded = omit(
@@ -128,6 +136,8 @@ export function Button(props: ButtonProps): JSX.Element {
   const groupItem = useButtonGroupItem();
   const variant = () => local.variant ?? groupItem?.variant() ?? "default";
   const size = () => local.size ?? groupItem?.size() ?? "default";
+  const visuallyDisabled = () =>
+    local.disabled || groupItem?.disabled() || false;
   const disabled = () =>
     local.disabled || local.loading || groupItem?.disabled() || false;
   return (
@@ -149,7 +159,9 @@ export function Button(props: ButtonProps): JSX.Element {
       style={(state) =>
         ({
           "border-width": 1,
-          opacity: state.disabled ? 0.45 : 1,
+          // Loading is inert but remains visually prominent; only an actual
+          // disabled policy fades the control.
+          opacity: visuallyDisabled() ? 0.45 : 1,
           ...(typeof local.style === "function"
             ? local.style(state)
             : local.style),
@@ -157,7 +169,10 @@ export function Button(props: ButtonProps): JSX.Element {
       }
     >
       <Show when={local.loading} fallback={local.children}>
-        <Spinner label={local.loadingLabel ?? "Loading"} class="text-current" />
+        <Spinner
+          label={local.loadingLabel ?? "Loading"}
+          class={buttonSpinnerColor(variant())}
+        />
         {local.loadingLabel ?? local.children}
       </Show>
     </HeadlessButton>

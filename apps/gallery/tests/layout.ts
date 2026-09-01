@@ -377,6 +377,10 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
     role: "textbox",
     name: "Fixture baseline input",
   });
+  const loadingButton = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Fixture loading button",
+  });
   const keycap = getLayoutNode(snapshot, {
     role: "label",
     name: "Fixture keyboard key",
@@ -447,6 +451,12 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   if (!progressTrack) throw new Error("large progress track was not projected");
   assertClose(progressTrack.rect.height, 10, "large progress track height");
   assertClose(input.rect.height, 32, "input height");
+  assertClose(loadingButton.rect.height, 32, "loading button height");
+  if (loadingButton.computed.opacity !== 1)
+    throw new Error("loading button was faded like a disabled action");
+  const loadingAttrs = new Map(loadingButton.attrs);
+  if (loadingAttrs.get("aria-busy") !== "true")
+    throw new Error("loading button lost its busy semantics");
   assertClose(switchControl.rect.width, 40, "switch target width");
   assertClose(switchControl.rect.height, 24, "switch target height");
   assertClose(compactSwitch.rect.width, 40, "compact switch target width");

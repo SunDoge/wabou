@@ -84,6 +84,10 @@ test("Button exposes one stable disabled loading state", async () => {
   });
 
   expect(start.busy).toBe(true);
+  expect(start.style("opacity")).toBe("1");
+  expect(screen.getByRole("status", { name: "Starting…" }).className).toContain(
+    "text-on-accent",
+  );
   expect(start.text).toContain("Starting…");
   expect(start.text).not.toContain("Start agent");
   expect(screen.getByRole("status", { name: "Starting…" })).toBeDefined();
@@ -100,4 +104,27 @@ test("Button exposes one stable disabled loading state", async () => {
   expect(screen.getByRole("button", { name: "Start agent" }).text).toContain(
     "Start agent",
   );
+});
+
+test("distinguishes an inert loading action from a visually disabled action", () => {
+  const screen = renderComponent(() => (
+    <>
+      <Button aria-label="Publishing" loading loadingLabel="Publishing…" />
+      <Button aria-label="Unavailable" disabled>
+        Unavailable
+      </Button>
+    </>
+  ));
+
+  const loading = screen.getByRole("button", {
+    name: "Publishing",
+    disabled: true,
+    busy: true,
+  });
+  const disabled = screen.getByRole("button", {
+    name: "Unavailable",
+    disabled: true,
+  });
+  expect(loading.style("opacity")).toBe("1");
+  expect(disabled.style("opacity")).toBe("0.45");
 });

@@ -657,6 +657,11 @@ export function ControlBaselineLayoutFixture() {
         aria-label="Fixture baseline input"
         placeholder="Native text input"
       />
+      <Button
+        aria-label="Fixture loading button"
+        loading
+        loadingLabel="Saving changes…"
+      />
       <View class="w-72">
         <Progress label="Fixture progress" value={40} size="lg" />
       </View>
