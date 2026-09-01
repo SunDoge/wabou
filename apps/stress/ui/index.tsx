@@ -10,7 +10,6 @@ import "virtual:wabou-stylesheet";
 import {
   type AnimationControls,
   animate,
-  PrimitiveButton as Button,
   createFps,
   type Handle,
   mount,
@@ -20,6 +19,7 @@ import {
   useHost,
   View,
 } from "@wabou/ui";
+import { Button } from "@wabou/ui/primitives";
 import { createEffect, createSignal, For as ForValue, Show } from "solid-js";
 
 const PRESETS = [100, 1_000, 5_000, 10_000, 25_000];
