@@ -6,35 +6,39 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use slotmap::{DefaultKey, Key, KeyData, SlotMap};
+
+use crate::resource::{ResourceKey, ResourceRegistry};
 
 const MAX_SOURCE_PIXELS: u64 = 100 * 1024 * 1024;
 const MAX_NETWORK_RESOURCE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_CONCURRENT_NETWORK_LOADS: usize = 8;
 
 /// Full-width generational identity for one decoded image resource.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum ImageResourceFamily {}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ImageResourceHandle {
-    /// Slot index in the host resource table.
-    pub lo: u32,
-    /// Slot generation. Stale handles never address a replacement resource.
-    pub hi: u32,
-}
+#[serde(transparent)]
+/// Validated generational identity for one decoded image resource.
+pub struct ImageResourceHandle(ResourceKey<ImageResourceFamily>);
 
 impl ImageResourceHandle {
-    fn from_key(key: DefaultKey) -> Self {
-        let ffi = key.data().as_ffi();
-        Self {
-            lo: ffi as u32,
-            hi: (ffi >> 32) as u32,
+    /// Construct a validated handle from its complete wire representation.
+    pub const fn from_parts(lo: u32, hi: u32) -> Option<Self> {
+        match ResourceKey::from_parts(lo, hi) {
+            Some(key) => Some(Self(key)),
+            None => None,
         }
     }
 
-    fn key(self) -> DefaultKey {
-        DefaultKey::from(KeyData::from_ffi(
-            u64::from(self.lo) | (u64::from(self.hi) << 32),
-        ))
+    /// Slot index in the host resource table.
+    pub const fn lo(self) -> u32 {
+        self.0.lo()
+    }
+
+    /// Slot generation. Stale handles never address a replacement resource.
+    pub const fn hi(self) -> u32 {
+        self.0.hi()
     }
 }
 
@@ -106,7 +110,7 @@ fn gpui_image_format(format: image::ImageFormat) -> Result<wabou_shell::gpui::Im
 
 #[derive(Default)]
 struct StoreInner {
-    images: SlotMap<DefaultKey, Arc<ImageResource>>,
+    images: ResourceRegistry<ImageResourceFamily, Arc<ImageResource>>,
 }
 
 /// Process-wide decoded image registry. Clones address the same resources.
@@ -138,8 +142,7 @@ impl ImageResourceStore {
     pub fn create(&self, bytes: &[u8]) -> Result<ImageResourceHandle, String> {
         let resource = Arc::new(ImageResource::decode(bytes)?);
         let mut inner = self.inner.lock().map_err(|_| "image store lock poisoned")?;
-        let stored = inner.images.insert(resource);
-        Ok(ImageResourceHandle::from_key(stored))
+        Ok(ImageResourceHandle(inner.images.insert(resource)))
     }
 
     /// Read a file and decode it into a new resource.
@@ -193,7 +196,7 @@ impl ImageResourceStore {
 
     /// Resolve a live handle. A stale generation returns `None`.
     pub fn get(&self, handle: ImageResourceHandle) -> Option<Arc<ImageResource>> {
-        self.inner.lock().ok()?.images.get(handle.key()).cloned()
+        self.inner.lock().ok()?.images.get(handle.0).cloned()
     }
 
     /// Explicitly release a resource and invalidate every copy of its handle.
@@ -201,8 +204,7 @@ impl ImageResourceStore {
         let Ok(mut inner) = self.inner.lock() else {
             return false;
         };
-        let key = handle.key();
-        if inner.images.remove(key).is_none() {
+        if inner.images.remove(handle.0).is_none() {
             return false;
         }
         true
@@ -224,15 +226,15 @@ mod tests {
         let resource = Arc::new(ImageResource::decode(&png).unwrap());
         let first = {
             let mut inner = store.inner.lock().unwrap();
-            ImageResourceHandle::from_key(inner.images.insert(resource.clone()))
+            ImageResourceHandle(inner.images.insert(resource.clone()))
         };
         assert!(store.remove(first));
         let second = {
             let mut inner = store.inner.lock().unwrap();
-            ImageResourceHandle::from_key(inner.images.insert(resource))
+            ImageResourceHandle(inner.images.insert(resource))
         };
-        assert_eq!(first.lo, second.lo);
-        assert_ne!(first.hi, second.hi);
+        assert_eq!(first.lo(), second.lo());
+        assert_ne!(first.hi(), second.hi());
         assert!(store.get(first).is_none());
         assert_eq!(store.get(second).unwrap().dimensions(), (1, 1));
     }
