@@ -159,6 +159,15 @@ example, `NotificationRegion` keeps arbitrary toast content in TSX while a
 native `ToastStack` owns measurement, overlap, hover expansion and stack
 motion. JS does not duplicate GPUI's layout state.
 
+Leaf widgets and native containers are intentionally different adapters. A
+leaf factory creates one GPUI element from a node snapshot. A container
+factory receives the already-projected `(NodeKey, element)` children and moves
+them into one GPUI-base primitive exactly once. This preserves Solid ownership
+of content and generational identity without rendering the same descendants as
+both native and projected siblings. New framework integrations that need to
+measure, position, or animate arbitrary TSX children must use the container
+adapter rather than adding another tag-specific branch to tree traversal.
+
 ## Testing
 
 Test widget state as ordinary GPUI entities where possible. Add a Wabou

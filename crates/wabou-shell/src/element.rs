@@ -31,6 +31,20 @@ use wabou_protocol::{TEXT_BEHAVIOR_AGGREGATE_DIRECT, TEXT_BEHAVIOR_AGGREGATE_STY
 /// state into the lightweight projection cache.
 pub type ProjectedNativeElementFactory = Rc<dyn Fn(NodeKey) -> Option<AnyElement>>;
 
+/// Materializes a framework-owned GPUI container around ordinary projected
+/// Solid children.
+///
+/// Leaf native widgets use [`ProjectedNativeElementFactory`]. Containers are
+/// deliberately separate: their children have already been projected, keep
+/// their exact generational identities, and must be moved into the native
+/// primitive exactly once. This is the shared bridge used by GPUI-base
+/// composition primitives such as toast stacks.
+pub(crate) type ProjectedContainerElementFactory = std::sync::Arc<
+    dyn Fn(NodeKey, &ProjectedNode, Vec<(NodeKey, AnyElement)>) -> AnyElement + Send + Sync,
+>;
+
+type ProjectedContainerFactories = BTreeMap<gpui::SharedString, ProjectedContainerElementFactory>;
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ProjectedPhaseTimings {
     pub layout_ms: f64,
@@ -511,6 +525,31 @@ fn toast_stack_placement(node: &ProjectedNode) -> Anchor {
     }
 }
 
+fn builtin_container_factories() -> &'static ProjectedContainerFactories {
+    static FACTORIES: std::sync::OnceLock<ProjectedContainerFactories> = std::sync::OnceLock::new();
+    FACTORIES.get_or_init(|| {
+        BTreeMap::from([(
+            gpui::SharedString::from("toast-stack"),
+            std::sync::Arc::new(
+                |key: NodeKey,
+                 node: &ProjectedNode,
+                 items: Vec<(NodeKey, AnyElement)>|
+                 -> AnyElement {
+                    ProjectedToastStack {
+                        id: key.gpui_element_id(),
+                        placement: toast_stack_placement(node),
+                        items: items
+                            .into_iter()
+                            .map(|(key, child)| (key.gpui_element_id(), child))
+                            .collect(),
+                    }
+                    .into_any_element()
+                },
+            ) as ProjectedContainerElementFactory,
+        )])
+    })
+}
+
 impl ProjectedElement {
     pub(crate) fn from_tree(
         tree: ProjectionSnapshot,
@@ -642,26 +681,19 @@ impl ProjectedElement {
                 );
             }
         }
-        if matches!(
-            &node.kind,
-            ProjectedNodeKind::Element(tag) if tag.as_ref() == "toast-stack"
-        ) {
+        let container_factory = match &node.kind {
+            ProjectedNodeKind::Element(tag) => builtin_container_factories().get(tag).cloned(),
+            _ => None,
+        };
+        if let Some(container_factory) = container_factory {
             debug_assert_eq!(children.len(), node.children.len());
             let items = node
                 .children
                 .iter()
                 .copied()
                 .zip(std::mem::take(&mut children))
-                .map(|(key, child)| (key.gpui_element_id(), child))
                 .collect();
-            children.push(
-                ProjectedToastStack {
-                    id: key.gpui_element_id(),
-                    placement: toast_stack_placement(node),
-                    items,
-                }
-                .into_any_element(),
-            );
+            children.push(container_factory(key, node, items));
         }
         let hit_testable = !has_native_child
             && !interaction_blocked
