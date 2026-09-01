@@ -4,19 +4,19 @@ import { expect, test } from "vitest";
 
 test("slides a solid edge panel fully out before unmounting it", () => {
   const screen = renderComponent(() => (
-      <Sheet
-        aria-label="Preferences"
-        side="right"
-        trigger={(trigger) => <Button {...trigger}>Preferences</Button>}
-      >
-        {(controls) => (
-          <>
-            <SheetTitle>Preferences</SheetTitle>
-            <Button onClick={controls.close}>Done</Button>
-          </>
-        )}
-      </Sheet>
-    ));
+    <Sheet
+      aria-label="Preferences"
+      side="right"
+      trigger={(trigger) => <Button {...trigger}>Preferences</Button>}
+    >
+      {(controls) => (
+        <>
+          <SheetTitle>Preferences</SheetTitle>
+          <Button onClick={controls.close}>Done</Button>
+        </>
+      )}
+    </Sheet>
+  ));
 
   screen.getByRole("button", { name: "Preferences" }).click();
   const sheet = screen.getByRole("dialog", { name: "Preferences" });
@@ -38,6 +38,7 @@ test("slides a solid edge panel fully out before unmounting it", () => {
   screen.getByRole("button", { name: "Done" }).click();
   expect(screen.queryByRole("dialog") !== null).toBe(true);
   expect(sheet.attribute("aria-hidden")).toBe("true");
+  expect(sheet.parent?.className).not.toContain("backdrop-blur-sm");
   const exiting = JSON.parse(
     sheet.attribute("__wabou_native_transition") ?? "null",
   );

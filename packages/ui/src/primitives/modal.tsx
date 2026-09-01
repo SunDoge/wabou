@@ -233,7 +233,10 @@ export function Modal(props: ModalProps): JSX.Element {
             return !open();
           },
           get class() {
-            return mergeClasses("backdrop-blur-sm", props.backdropClass);
+            return mergeClasses(
+              open() && "backdrop-blur-sm",
+              props.backdropClass,
+            );
           },
           get style() {
             return {
