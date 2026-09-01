@@ -701,6 +701,34 @@ export function TabsLayoutFixture() {
   );
 }
 
+export function VerticalTabsLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-6 items-start bg-canvas">
+      <Tabs
+        defaultValue="general"
+        orientation="vertical"
+        class="w-[460px]"
+      >
+        <TabsList aria-label="Fixture vertical settings sections">
+          <TabsTrigger value="general">General preferences</TabsTrigger>
+          <TabsTrigger value="integrations">Integrations</TabsTrigger>
+        </TabsList>
+        <TabsContent value="general">
+          <Card role="group" aria-label="Fixture vertical account card">
+            <CardContent>
+              <Text class="text-sm font-medium text-primary">Preferences</Text>
+              <Text class="whitespace-normal text-sm text-muted">
+                Vertical tabs reserve the remaining width for their active
+                panel instead of forcing both columns to occupy the full row.
+              </Text>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </View>
+  );
+}
+
 export function AlertLayoutFixture() {
   return (
     <View class="w-full h-full min-w-0 p-5 items-start bg-canvas">

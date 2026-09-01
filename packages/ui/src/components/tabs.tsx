@@ -72,7 +72,7 @@ export function Tabs(props: TabsProps): JSX.Element {
     select,
     register: (next, node, disabled) => {
       const unregister = roving.register({ id: next, target: node, disabled });
-      if (value() === undefined) select(next);
+      if (value() === undefined && !disabled()) select(next);
       return unregister;
     },
     move: roving.move,
@@ -83,7 +83,7 @@ export function Tabs(props: TabsProps): JSX.Element {
       return (
         <View
           class={mergeClasses(
-            "flex gap-3",
+            "min-w-0 flex gap-3",
             orientationClass(context.orientation(), "flex-col", "flex-row"),
             props.class,
           )}
@@ -114,8 +114,12 @@ export function TabsList(props: {
         props.unstyled
           ? props.class
           : mergeClasses(
-              "flex-none flex items-center gap-1",
-              orientationClass(context.orientation(), "flex-row", "flex-col"),
+              "min-w-0 max-w-full flex-none flex items-center gap-1",
+              orientationClass(
+                context.orientation(),
+                "flex-row overflow-x-scroll",
+                "flex-col overflow-y-scroll",
+              ),
               match(props.variant ?? "default")
                 .with("default", () => "p-0.5 rounded-lg bg-control")
                 .with("line", () => "bg-transparent")
@@ -225,6 +229,7 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
       disabled={props.disabled}
       selected={selected()}
       aria-selected={selected()}
+      focusOrder={selected() ? 0 : -1}
       ref={(node) => {
         unregister?.();
         unregister = context.register(
@@ -239,7 +244,7 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
             ? props.class(state)
             : (props.class ?? "")
           : mergeClasses(
-              "h-7 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium",
+              "h-7 px-3 flex-none whitespace-nowrap items-center justify-center rounded-md border border-transparent text-sm font-medium",
               match({ selected: selected(), hovered: state.hovered })
                 .with(
                   { selected: true },
@@ -284,7 +289,12 @@ export function TabsContent(props: {
         role="tabpanel"
         aria-hidden={!selected()}
         class={mergeClasses(
-          "w-full min-w-0 flex-none flex flex-col",
+          "min-w-0 flex flex-col",
+          orientationClass(
+            context.orientation(),
+            "w-full flex-none",
+            "flex-1",
+          ),
           props.class,
         )}
         style={{ display: selected() ? "flex" : "none" }}

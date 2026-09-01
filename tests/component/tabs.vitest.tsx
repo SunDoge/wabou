@@ -48,7 +48,11 @@ test("selects tabs and publishes only the active panel", () => {
     screen.getByRole("tablist", { name: "Project sections" }).className,
   ).toContain("rounded-lg");
   expect(overview.className).toContain("rounded-md");
+  expect(overview.className).toContain("flex-none");
+  expect(overview.className).toContain("whitespace-nowrap");
   expect(overview.selected).toBe(true);
+  expect(overview.focusOrder).toBe(0);
+  expect(settings.focusOrder).toBe(-1);
   const panel = screen.getByRole("tabpanel");
   expect(panel.text).toBe("Overview panel");
   expect(panel.className).toContain("w-full");
@@ -59,7 +63,9 @@ test("selects tabs and publishes only the active panel", () => {
   settings.click();
 
   expect(overview.selected).toBe(false);
+  expect(overview.focusOrder).toBe(-1);
   expect(settings.selected).toBe(true);
+  expect(settings.focusOrder).toBe(0);
   expect(screen.getByRole("tabpanel").text).toBe("Settings panel");
 });
 
@@ -112,10 +118,36 @@ test("follows vertical arrow-key orientation", () => {
   const overview = screen.getByRole("tab", { name: "Overview" });
 
   expect(screen.getByRole("tablist").orientation).toBe("vertical");
+  expect(screen.getByRole("tabpanel").className).toContain("flex-1");
+  expect(screen.getByRole("tabpanel").className).not.toContain("w-full");
   overview.focus();
   overview.press("ArrowDown");
 
   expect(screen.getByRole("tab", { name: "Settings" }).selected).toBe(true);
+});
+
+test("chooses the first enabled tab when no initial value is provided", () => {
+  const changes: string[] = [];
+  const screen = renderComponent(() => (
+    <Tabs onValueChange={(value) => changes.push(value)}>
+      <TabsList aria-label="Fallback selection">
+        <TabsTrigger value="disabled" disabled>
+          Disabled
+        </TabsTrigger>
+        <TabsTrigger value="available">Available</TabsTrigger>
+      </TabsList>
+      <TabsContent value="available">
+        <Text>Available panel</Text>
+      </TabsContent>
+    </Tabs>
+  ));
+
+  expect(screen.getByRole("tab", { name: "Disabled" }).selected).toBe(false);
+  expect(screen.getByRole("tab", { name: "Disabled" }).focusOrder).toBe(-1);
+  expect(screen.getByRole("tab", { name: "Available" }).selected).toBe(true);
+  expect(screen.getByRole("tab", { name: "Available" }).focusOrder).toBe(0);
+  expect(screen.getByRole("tabpanel").text).toBe("Available panel");
+  expect(changes).toEqual(["available"]);
 });
 
 test("keeps native tab panels mounted while hiding inactive content", () => {
