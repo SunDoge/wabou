@@ -50,6 +50,7 @@ import {
   SpinnerLayoutFixture,
   TabsLayoutFixture,
   ToastLayoutFixture,
+  ToggleGroupLayoutFixture,
   ToolLayoutFixture,
   TooltipLayoutFixture,
   VerticalTabsLayoutFixture,
@@ -226,6 +227,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 420,
         height: 220,
         render: TooltipLayoutFixture,
+      },
+      "component/ToggleGroup": {
+        width: 400,
+        height: 140,
+        render: ToggleGroupLayoutFixture,
       },
       "component/AdaptiveSplitPane": {
         width: 720,

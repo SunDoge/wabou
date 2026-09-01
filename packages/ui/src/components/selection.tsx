@@ -424,6 +424,7 @@ interface ToggleGroupContextValue {
   move(value: string, key: string): boolean;
   variant: () => "default" | "outline";
   size: () => "sm" | "default" | "lg";
+  segmented: () => boolean;
 }
 
 const ToggleGroupContext = createContext<ToggleGroupContextValue>();
@@ -434,6 +435,8 @@ interface ToggleGroupBaseProps {
   variant?: "default" | "outline";
   size?: "sm" | "default" | "lg";
   spacing?: 0 | 1 | 2;
+  /** Join items into one clipped control surface owned by the group. */
+  segmented?: boolean;
   loop?: boolean;
   class?: string;
   children?: JSX.Element;
@@ -518,6 +521,7 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
     move: roving.move,
     variant: () => props.variant ?? "default",
     size: () => props.size ?? "default",
+    segmented: () => props.segmented ?? false,
   };
   return createComponent(ToggleGroupContext, {
     value: context,
@@ -526,13 +530,20 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
         <View
           role="group"
           aria-label={props["aria-label"]}
+          aria-orientation="horizontal"
+          aria-disabled={props.disabled}
           class={mergeClasses(
-            "flex flex-row items-center rounded-md bg-transparent",
-            match(props.spacing ?? 0)
-              .with(0, () => "gap-0")
-              .with(1, () => "gap-1")
-              .with(2, () => "gap-2")
-              .exhaustive(),
+            "flex flex-row items-stretch rounded-md",
+            props.segmented
+              ? "gap-0 overflow-hidden border border-strong bg-surface"
+              : mergeClasses(
+                  "bg-transparent",
+                  match(props.spacing ?? 0)
+                    .with(0, () => "gap-0")
+                    .with(1, () => "gap-1")
+                    .with(2, () => "gap-2")
+                    .exhaustive(),
+                ),
             props.class,
           )}
         >
@@ -545,6 +556,7 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
 
 export interface ToggleGroupItemProps {
   value: string;
+  "aria-label"?: string;
   disabled?: boolean;
   variant?: "default" | "outline" | "accent";
   size?: "sm" | "default" | "lg";
@@ -565,6 +577,7 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
       unstyled
       disabled={disabled()}
       selected={selected()}
+      aria-label={props["aria-label"]}
       aria-pressed={selected()}
       focusOrder={group.isTabStop(props.value) ? 0 : -1}
       ref={(node) => {
@@ -591,7 +604,10 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
             .with({ selected: true }, () => "bg-selected text-primary")
             .with({ hovered: true }, () => "bg-control-hover text-primary")
             .otherwise(() => "bg-transparent text-muted"),
-          (props.variant ?? group.variant()) === "outline" && "border-strong",
+          group.segmented() && "rounded-none border-transparent",
+          !group.segmented() &&
+            (props.variant ?? group.variant()) === "outline" &&
+            "border-strong",
           state.focusVisible && "border-focus",
           props.class,
         )

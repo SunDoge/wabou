@@ -643,6 +643,34 @@ const assertTooltipLayout = (snapshot: LayoutSnapshot) => {
     throw new Error("tooltip shortcut did not follow its description");
 };
 
+const assertToggleGroupLayout = (snapshot: LayoutSnapshot) => {
+  const group = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Fixture view mode",
+  });
+  const items = ["List", "Grid", "Columns"].map((name) =>
+    getLayoutNode(snapshot, { role: "button", name }),
+  );
+  assertClose(group.rect.width, 288, "segmented toggle width");
+  assertClose(group.rect.height, 34, "segmented toggle height");
+  for (const item of items) {
+    assertLayoutRectContains(group.contentRect, item.rect, {
+      label: `${item.text} toggle`,
+    });
+    assertClose(item.rect.height, 32, `${item.text} toggle height`);
+  }
+  assertClose(
+    layoutRectRight(items[0].rect),
+    items[1].rect.x,
+    "first toggle seam",
+  );
+  assertClose(
+    layoutRectRight(items[1].rect),
+    items[2].rect.x,
+    "second toggle seam",
+  );
+};
+
 const assertOnboardingLayout = (snapshot: LayoutSnapshot) => {
   const viewport = getLayoutNode(snapshot, {
     role: "region",
@@ -1129,6 +1157,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/Badge": { assert: assertBadgeLayout },
   "component/Field": { assert: assertFieldLayout },
   "component/Tooltip": { assert: assertTooltipLayout },
+  "component/ToggleGroup": { assert: assertToggleGroupLayout },
   "component/Onboarding": { assert: assertOnboardingLayout },
   "component/Dialog": { assert: assertDialogLayout },
   "component/Sheet": { assert: assertSheetLayout },

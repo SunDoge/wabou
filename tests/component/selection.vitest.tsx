@@ -264,3 +264,33 @@ test("toggles buttons and single-value groups through semantic state", () => {
   expect(right.focused).toBe(true);
   expect(right.pressed).toBe(true);
 });
+
+test("segmented toggle groups own one clipped outer control surface", () => {
+  const screen = renderComponent(() => (
+    <ToggleGroup
+      segmented
+      type="multiple"
+      defaultValue={["bold"]}
+      variant="outline"
+      aria-label="Formatting"
+    >
+      <ToggleGroupItem value="bold">Bold</ToggleGroupItem>
+      <ToggleGroupItem value="italic">Italic</ToggleGroupItem>
+      <ToggleGroupItem value="underline">Underline</ToggleGroupItem>
+    </ToggleGroup>
+  ));
+
+  const group = screen.getByRole("group", {
+    name: "Formatting",
+    orientation: "horizontal",
+  });
+  expect(group.className).toContain("overflow-hidden");
+  expect(group.className).toContain("border-strong");
+  for (const item of screen.getAllByRole("button")) {
+    expect(item.className).toContain("rounded-none");
+    expect(item.className).toContain("border-transparent");
+  }
+  screen.getByRole("button", { name: "Italic" }).click();
+  expect(screen.getByRole("button", { name: "Bold" }).pressed).toBe(true);
+  expect(screen.getByRole("button", { name: "Italic" }).pressed).toBe(true);
+});
