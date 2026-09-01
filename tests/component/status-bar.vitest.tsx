@@ -21,11 +21,11 @@ test("composes stable desktop status regions", () => {
     </StatusBar>
   ));
 
-  expect(
-    screen.getByRole("status", { name: "Editor status" }).className,
-  ).toContain("h-7");
+  const status = screen.getByRole("status", { name: "Editor status" });
+  expect(status.className).toContain("h-7");
   expect(screen.getAllByRole("separator")).toHaveLength(2);
   expect(screen.roots[0]?.text).toContain("Ln 12, Col 4");
+  expect(status.children[0]?.attribute("grow")).toBeNull();
 });
 
 test("groups rich status content without sacrificing shrink semantics", () => {
@@ -48,7 +48,9 @@ test("groups rich status content without sacrificing shrink semantics", () => {
   const status = screen.getByRole("status", { name: "Workspace status" });
   expect(status.children[0]?.className).toContain("min-w-0");
   expect(status.children[0]?.className).toContain("flex-1");
+  expect(status.children[0]?.attribute("grow")).toBeNull();
   expect(status.children[1]?.className).toContain("flex-none");
   expect(status.children[2]?.className).toContain("shrink");
+  expect(status.children[2]?.attribute("shrink")).toBeNull();
   expect(status.text).toContain("Ready");
 });

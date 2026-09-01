@@ -1,5 +1,5 @@
 import { mergeClasses } from "@wabou/core/style";
-import type { JSX } from "solid-js";
+import { type JSX, omit } from "solid-js";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
 
 export interface StatusBarProps extends Omit<ViewProps, "class"> {
@@ -28,9 +28,10 @@ export interface StatusBarItemProps extends Omit<TextProps, "class"> {
 }
 
 export function StatusBarItem(props: StatusBarItemProps): JSX.Element {
+  const forwarded = omit(props, "class", "grow", "children");
   return (
     <Text
-      {...props}
+      {...forwarded}
       class={mergeClasses(
         "h-full min-w-0 px-1.5 flex items-center text-xs text-muted whitespace-nowrap",
         props.grow ? "flex-1" : "flex-none",
@@ -60,9 +61,10 @@ export interface StatusBarGroupProps extends Omit<ViewProps, "class"> {
 
 /** A shrink-safe status bar group for icons, indicators and related text. */
 export function StatusBarGroup(props: StatusBarGroupProps): JSX.Element {
+  const forwarded = omit(props, "class", "grow", "shrink", "children");
   return (
     <View
-      {...props}
+      {...forwarded}
       class={mergeClasses(
         "h-full min-w-0 px-1.5 flex flex-row items-center gap-1.5 text-xs text-muted",
         props.grow ? "flex-1" : props.shrink ? "shrink" : "flex-none",
