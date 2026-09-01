@@ -367,6 +367,11 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
     role: "label",
     name: "Fixture keyboard key",
   });
+  const avatar = getLayoutNode(snapshot, {
+    role: "img",
+    name: "Wabou Project",
+  });
+  const avatarFallback = getLayoutNode(snapshot, { text: "WP" });
   const switchControl = getLayoutNode(snapshot, {
     role: "switch",
     name: "Fixture default switch",
@@ -401,6 +406,13 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   if (keycap.rect.width < 20)
     throw new Error(`keyboard key width was only ${keycap.rect.width}px`);
   assertLayoutTextStyle(keycap, { fontSize: 12, fontWeight: 500 });
+  assertClose(avatar.rect.width, 32, "small avatar width");
+  assertClose(avatar.rect.height, 32, "small avatar height");
+  if (!avatar.classes.includes("overflow-hidden"))
+    throw new Error("avatar image and fallback were not clipped");
+  assertLayoutRectContains(avatar.contentRect, avatarFallback.rect, {
+    label: "avatar fallback",
+  });
   assertClose(input.rect.height, 32, "input height");
   assertClose(switchControl.rect.width, 40, "switch target width");
   assertClose(switchControl.rect.height, 24, "switch target height");
