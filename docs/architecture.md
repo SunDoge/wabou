@@ -25,6 +25,50 @@ and the projection into GPUI elements. There is no renderer feature switch and
 no lowest-common-denominator backend interface. The retired Winit/Vello system
 is isolated in unpublished `wabou-legacy-*` crates as a migration oracle.
 
+## Sources of truth
+
+Wabou has one source of truth for each kind of state; no test backend or native
+widget may maintain a competing model:
+
+- Solid signals and owners are the source of truth for application state and
+  authored component structure.
+- `packages/core/src/protocol/index.ts` is the source of truth for the binary
+  wire format. Generated Rust constants and golden frames prove that both sides
+  implement it; they do not define a second schema.
+- The committed Rust projection tree is the source of truth for the latest
+  authored native tree. A partially decoded frame is never observable.
+- GPUI layout, focus, hit testing, text editing, IME, and retained widget
+  entities are the source of truth for native interaction state.
+- Completed GPUI semantic, layout, and paint snapshots are the source of truth
+  for behavior tests and DevTools. Protocol nodes, inferred rectangles, or a
+  JavaScript-only mock cannot overwrite native results.
+
+Component tests may isolate JavaScript composition and declared behavior, but
+must not pretend to prove native geometry or input. Native behavior tests boot
+the production QuickJS → protocol → projection → GPUI path. A widget-specific
+test adapter is acceptable only when it delegates to the same retained widget
+input contract used by the real window.
+
+## GPUI-oriented protocol evolution
+
+The opcode stream describes retained UI intent, not GPUI builder calls. Basic
+node creation, attachment, text, style, listener, and imperative command
+operations remain backend-neutral and should not be rewritten as calls such as
+`div().flex().child()`. The projection layer classifies their effect into
+structure, layout, text, paint, interaction, and semantic invalidation.
+
+Add an opcode only when Solid must express stable information that the current
+retained model cannot represent. Explicit projection-boundary ownership is the
+primary planned addition because it lets GPUI stop invalidation at stable route,
+scroll, overlay, native-widget, animation, and diagnostic regions. It must be a
+new immutable opcode and component contract; it must not be inferred from tag
+names, CSS classes, or transient Solid component boundaries.
+
+GPUI-only execution details stay behind the projection boundary. Element IDs,
+layout IDs, focus handles, tasks, and entities never cross the wire. This keeps
+the JavaScript API predictable while still allowing the Rust implementation to
+use GPUI's retained state and invalidation model directly.
+
 ## Fine-grained retained projection
 
 Choosing Solid is an architectural commitment to preserve fine-grained
