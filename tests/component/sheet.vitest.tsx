@@ -39,6 +39,11 @@ test("slides a solid edge panel fully out before unmounting it", () => {
   expect(screen.queryByRole("dialog") !== null).toBe(true);
   expect(sheet.attribute("aria-hidden")).toBe("true");
   expect(sheet.parent?.className).not.toContain("backdrop-blur-sm");
+  expect(sheet.parent?.style("background-color")).toEqual({
+    kind: 5,
+    value: 0,
+  });
+  expect(sheet.parent?.attribute("__wabou_native_transition")).toBeNull();
   const exiting = JSON.parse(
     sheet.attribute("__wabou_native_transition") ?? "null",
   );

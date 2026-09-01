@@ -3,7 +3,12 @@ import {
   Portal,
   type WabouNativeTransition,
 } from "@wabou/core/renderer";
-import { type Affine2D, mergeClasses, type Shadow } from "@wabou/core/style";
+import {
+  type Affine2D,
+  mergeClasses,
+  rgba,
+  type Shadow,
+} from "@wabou/core/style";
 import {
   createComponent,
   createEffect,
@@ -90,6 +95,8 @@ export interface ModalProps {
   contentRole?: "dialog" | "alertdialog";
   backdropClass?: string;
   backdropStyle?: WabouStyle;
+  /** Keep the backdrop visible while the content exits. Edge panels disable this. */
+  backdropFade?: boolean;
   contentClass?: string;
   contentStyle?: WabouStyle;
   /** Fade the content with the backdrop. Edge panels disable this and slide as solid surfaces. */
@@ -235,7 +242,7 @@ export function Modal(props: ModalProps): JSX.Element {
           get class() {
             return mergeClasses(
               open() && "backdrop-blur-sm",
-              props.backdropClass,
+              (open() || props.backdropFade !== false) && props.backdropClass,
             );
           },
           get style() {
@@ -249,6 +256,12 @@ export function Modal(props: ModalProps): JSX.Element {
               "align-items": "center",
               "justify-content": "center",
               ...props.backdropStyle,
+              // An edge panel may remain mounted for its slide-out transition,
+              // but its modal scrim must stop affecting the application at the
+              // moment the logical open state changes.
+              ...(open() || props.backdropFade !== false
+                ? undefined
+                : { "background-color": rgba(0x00000000) }),
               "pointer-events": open() ? "auto" : "none",
               // Portal containers share one native plane. Make open order
               // explicit so nested overlays paint above their owning modal.
@@ -256,6 +269,7 @@ export function Modal(props: ModalProps): JSX.Element {
             };
           },
           get nativeTransition() {
+            if (props.backdropFade === false) return undefined;
             const entering = open();
             return nativeTransition(
               [1, 0, 0, 1, 0, 0],
