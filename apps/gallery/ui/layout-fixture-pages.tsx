@@ -51,6 +51,7 @@ import {
   TabsLayoutFixture,
   ToastLayoutFixture,
   ToolLayoutFixture,
+  TooltipLayoutFixture,
   VerticalTabsLayoutFixture,
 } from "./layout-fixture-components";
 import * as animation from "./pages/animation";
@@ -220,6 +221,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 520,
         height: 220,
         render: FieldLayoutFixture,
+      },
+      "component/Tooltip": {
+        width: 420,
+        height: 220,
+        render: TooltipLayoutFixture,
       },
       "component/AdaptiveSplitPane": {
         width: 720,
