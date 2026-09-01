@@ -125,13 +125,15 @@ export function Button(props: ButtonProps): JSX.Element {
     "loadingLabel",
     "children",
   );
-  const variant = () => local.variant ?? "default";
-  const size = () => local.size ?? "default";
   const groupItem = useButtonGroupItem();
+  const variant = () => local.variant ?? groupItem?.variant() ?? "default";
+  const size = () => local.size ?? groupItem?.size() ?? "default";
+  const disabled = () =>
+    local.disabled || local.loading || groupItem?.disabled() || false;
   return (
     <HeadlessButton
       {...forwarded}
-      disabled={local.disabled || local.loading}
+      disabled={disabled()}
       aria-busy={local.loading ?? false}
       unstyled
       class={(state) =>
