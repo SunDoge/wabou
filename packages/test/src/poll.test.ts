@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { pollUntil, resolvePollOptions } from "./poll";
+import { pollUntil, resolvePollOptions, retryUntilHandled } from "./poll";
 
 describe("pollUntil", () => {
   test("supports async reads and runs the frame barrier for every attempt", async () => {
@@ -67,5 +67,19 @@ describe("pollUntil", () => {
       stableFor: 5,
     });
     expect(() => resolvePollOptions({ timeout: Number.NaN })).toThrow();
+  });
+
+  test("retries rejected host actions without repeating an accepted action", async () => {
+    let attempts = 0;
+    const handled = await retryUntilHandled(
+      () => {
+        attempts += 1;
+        return attempts === 3;
+      },
+      { timeout: 100, interval: 0, stableFor: 50 },
+    );
+
+    expect(handled).toBe(true);
+    expect(attempts).toBe(3);
   });
 });

@@ -21,6 +21,7 @@ import {
 import {
   type PollOptions,
   pollUntil,
+  retryUntilHandled,
   type ResolvedPollOptions,
   resolvePollOptions,
 } from "./poll";
@@ -582,8 +583,11 @@ function createPage(
         }
         return true;
       };
-      const input = async (value: TestInput): Promise<void> => {
-        if (!(await sendInput(value))) {
+      const input = async (
+        value: TestInput,
+        wait: ResolvedPollOptions,
+      ): Promise<void> => {
+        if (!(await retryUntilHandled(() => sendInput(value), wait))) {
           throw new Error(`no enabled ${locatorLabel}`);
         }
       };
@@ -688,13 +692,17 @@ function createPage(
           });
           await waitUntilActionable(wait);
           if (
-            !(await capability().clickByRole(
-              windowId.lo,
-              windowId.hi,
-              role,
-              options.name,
-              index ?? null,
-              encodedScope,
+            !(await retryUntilHandled(
+              () =>
+                capability().clickByRole(
+                  windowId.lo,
+                  windowId.hi,
+                  role,
+                  options.name,
+                  index ?? null,
+                  encodedScope,
+                ),
+              wait,
             ))
           ) {
             throw new Error(`no enabled ${locatorLabel}`);
@@ -714,7 +722,7 @@ function createPage(
             wait,
           });
           await waitUntilActionable(wait);
-          await input({ type: "drag", deltaX, deltaY });
+          await input({ type: "drag", deltaX, deltaY }, wait);
         },
         async press(key, modifiers = {}, assertionOptions) {
           validateKey(key);
@@ -735,7 +743,7 @@ function createPage(
             wait,
           });
           await waitUntilActionable(wait);
-          await input({ type: "key", key, modifiers: bits });
+          await input({ type: "key", key, modifiers: bits }, wait);
         },
         async type(text, assertionOptions) {
           const wait = resolvePollOptions(assertionOptions);
@@ -750,7 +758,7 @@ function createPage(
             wait,
           });
           await waitUntilActionable(wait);
-          await input({ type: "text", text });
+          await input({ type: "text", text }, wait);
         },
         async paste(text, assertionOptions) {
           const wait = resolvePollOptions(assertionOptions);
@@ -765,7 +773,7 @@ function createPage(
             wait,
           });
           await waitUntilActionable(wait);
-          await input({ type: "paste", text });
+          await input({ type: "paste", text }, wait);
         },
         async ime(text, assertionOptions) {
           const wait = resolvePollOptions(assertionOptions);
@@ -780,7 +788,7 @@ function createPage(
             wait,
           });
           await waitUntilActionable(wait);
-          await input({ type: "ime", text });
+          await input({ type: "ime", text }, wait);
         },
         async wheel(deltaY, deltaX = 0, assertionOptions) {
           validateInputDeltas("wheel", deltaX, deltaY);
@@ -798,7 +806,12 @@ function createPage(
           // Wheel input is positional and may scroll an enabled ancestor even
           // when the semantic node under the pointer is disabled.
           await waitUntilPresent(wait);
-          if (!(await sendInput({ type: "wheel", deltaX, deltaY }))) {
+          if (
+            !(await retryUntilHandled(
+              () => sendInput({ type: "wheel", deltaX, deltaY }),
+              wait,
+            ))
+          ) {
             throw new Error(`cannot wheel ${locatorLabel}`);
           }
         },

@@ -1130,6 +1130,7 @@ impl Render for GpuiRuntimeView {
             }
         }
         if let Some(test_controller) = self.test_controller.clone() {
+            test_controller.record_gpui_viewport(self.window_key, viewport_width, viewport_height);
             let window_action =
                 test_controller.poll_gpui_window_action(self.window_key, |command| match command {
                     crate::test_driver::GpuiWindowTestCommand::Hide { mutable_visibility } => {

@@ -1237,7 +1237,12 @@ impl HostBuilder {
             let controller = test_controller
                 .clone()
                 .expect("headless behavior tests always install a controller");
-            let deadline = Instant::now() + Duration::from_secs(10);
+            // The scenario runtime derives its suite budget from every
+            // registered test and caps that budget at 300 seconds. Keep this
+            // native watchdog just beyond the same hard cap; a fixed ten
+            // seconds terminated healthy multi-test scenarios before they
+            // could publish their structured report.
+            let deadline = Instant::now() + Duration::from_secs(305);
             while !controller.has_report() && Instant::now() < deadline {
                 harness.settle(1)?;
                 std::thread::sleep(Duration::from_millis(1));

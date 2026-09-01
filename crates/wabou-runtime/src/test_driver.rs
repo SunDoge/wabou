@@ -249,6 +249,19 @@ impl TestController {
         }
     }
 
+    pub(crate) fn record_gpui_viewport(&self, window_key: WindowKey, width: u32, height: u32) {
+        if let Ok(mut state) = self.state.lock() {
+            state
+                .windows
+                .entry(window_key)
+                .or_insert(WindowSnapshot {
+                    lifecycle: WindowLifecycle::visible(),
+                    viewport: None,
+                })
+                .viewport = Some((width, height));
+        }
+    }
+
     fn request(&self, kind: TestActionKind) -> oneshot::Receiver<TestActionResult> {
         let (completion, receiver) = oneshot::channel();
         let wake = {
@@ -902,17 +915,23 @@ impl TestController {
                         }
                         true
                     } else {
-                        let replace =
-                            matches!(input, TestInput::Text { .. } | TestInput::Ime { .. })
-                                && self.state.lock().is_ok_and(|mut state| {
-                                    state.gpui_select_all.remove(&(window_key, node.key))
-                                });
-                        if replace {
+                        let selected_all = self.state.lock().is_ok_and(|mut state| {
+                            state.gpui_select_all.remove(&(window_key, node.key))
+                        });
+                        if selected_all {
                             match input {
-                                TestInput::Text { text } | TestInput::Ime { text } => {
+                                TestInput::Text { text }
+                                | TestInput::Ime { text }
+                                | TestInput::Paste { text } => {
                                     controller.commit_text_value(node.key, text)
                                 }
-                                _ => unreachable!("replace only applies to text input"),
+                                TestInput::Key { key, .. }
+                                    if key.eq_ignore_ascii_case("Backspace")
+                                        || key.eq_ignore_ascii_case("Delete") =>
+                                {
+                                    controller.commit_text_value(node.key, "")
+                                }
+                                _ => input_gpui_target(controller, node, input),
                             }
                         } else {
                             input_gpui_target(controller, node, input)
@@ -1363,9 +1382,14 @@ fn input_gpui_target(
         TestInput::Probe => true,
         TestInput::Text { text } | TestInput::Ime { text } => {
             controller.set_text_focus(node.key, true);
-            controller
-                .handle_projected_ime(wabou_shell::ProjectedImeEvent::Commit(text.clone()))
-                .handled
+            // The real GPUI editor applies the IME/key edit to its retained
+            // InputState and then reports the complete value through
+            // ProjectedInputEvent::TextChange. The headless driver has no
+            // InputState entity, so reproduce that public boundary directly
+            // instead of emitting the lower-level `imecommit` notification.
+            let mut value = controller.text_input_state().text.unwrap_or_default();
+            value.push_str(text);
+            controller.commit_text_value(node.key, &value)
         }
         TestInput::Paste { text } => {
             controller.set_text_focus(node.key, true);
@@ -2625,6 +2649,11 @@ mod tests {
         let controller = TestController::default();
         let window_key = key(1);
         controller.connect_gpui_window(window_key, Arc::new(|| {}));
+        controller.record_gpui_viewport(window_key, 1_180, 780);
+        assert_eq!(
+            controller.window_viewport_json(window_key),
+            r#"{"x":0,"y":0,"width":1180,"height":780}"#
+        );
 
         let resize = controller.request(TestActionKind::ResizeWindow {
             window_key,
