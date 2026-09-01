@@ -1,9 +1,8 @@
-import { mergeClasses } from "@wabou/core/style";
 import x from "lucide-static/icons/x.svg?raw";
 import { type JSX, omit } from "solid-js";
 import { Icon, Text, View, type ViewProps } from "../primitives";
 import { Button } from "./button";
-import { Spinner } from "./display";
+import { ContentState, type ContentStateProps } from "./content-state";
 import { Sidebar, type SidebarProps } from "./sidebar";
 import {
   workbenchClass,
@@ -107,9 +106,7 @@ export function WorkbenchInspectorTitlebar(
   return (
     <WorkbenchInspectorHeader {...forwarded} class={props.class}>
       <View class="min-w-0 flex-1 flex flex-col">
-        <Text class="w-full min-w-0 truncate font-semibold">
-          {props.title}
-        </Text>
+        <Text class="w-full min-w-0 truncate font-semibold">{props.title}</Text>
         {props.description === undefined ? null : (
           <Text class="w-full min-w-0 truncate text-xs text-muted">
             {props.description}
@@ -141,83 +138,11 @@ export function WorkbenchInspectorContent(props: ViewProps): JSX.Element {
   );
 }
 
-export type WorkbenchInspectorStateKind = "empty" | "loading" | "error";
-
-export interface WorkbenchInspectorStateProps
-  extends Omit<ViewProps, "children" | "role"> {
-  state: WorkbenchInspectorStateKind;
-  title: string;
-  description?: string;
-  /** Standard compact action rendered below the state message. */
-  action?: {
-    label: string;
-    onAction(): void;
-  };
-  /** Lazily render media inside the inspector state's reactive owner. */
-  renderMedia?: () => JSX.Element;
-  /** Lazily render actions inside the inspector state's reactive owner. */
-  renderAction?: () => JSX.Element;
-}
+export interface WorkbenchInspectorStateProps extends ContentStateProps {}
 
 /** Mutually exclusive centered state for a bounded inspector body. */
 export function WorkbenchInspectorState(
   props: WorkbenchInspectorStateProps,
 ): JSX.Element {
-  const forwarded = omit(
-    props,
-    "state",
-    "title",
-    "description",
-    "action",
-    "renderMedia",
-    "renderAction",
-    "class",
-  );
-  const error = () => props.state === "error";
-  return (
-    <View
-      {...forwarded}
-      role={error() ? "alert" : "status"}
-      aria-label={props["aria-label"] ?? props.title}
-      class={mergeClasses(
-        "w-full h-full min-w-0 min-h-0 flex-1 p-6 flex flex-col items-center justify-center gap-3 text-center",
-        error() ? "text-danger-primary" : "text-secondary",
-        props.class,
-      )}
-    >
-      {props.renderMedia?.() ??
-        (props.state === "loading" ? <Spinner decorative /> : null)}
-      <View class="w-full max-w-sm min-w-0 flex flex-col items-center gap-1">
-        <Text
-          class={mergeClasses(
-            "w-full min-w-0 whitespace-normal text-sm font-medium",
-            error() ? "text-danger-primary" : "text-primary",
-          )}
-        >
-          {props.title}
-        </Text>
-        {props.description === undefined ? null : (
-          <Text
-            class={mergeClasses(
-              "w-full min-w-0 whitespace-normal text-xs",
-              error() ? "text-danger-primary" : "text-muted",
-            )}
-          >
-            {props.description}
-          </Text>
-        )}
-      </View>
-      {props.renderAction?.() ??
-        (props.action ? (
-          <Button
-            size="sm"
-            variant="outline"
-            aria-label={props.action.label}
-            onClick={props.action.onAction}
-          >
-            {props.action.label}
-          </Button>
-        ) : null)}
-    </View>
-  );
+  return <ContentState {...props} />;
 }

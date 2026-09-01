@@ -7,6 +7,7 @@ import {
   Bubble,
   BubbleContent,
   Button,
+  ContentState,
   Dialog,
   DialogDescription,
   DialogScrollBody,
@@ -630,6 +631,20 @@ export function ActivityStatusLayoutFixture() {
         label="Indexing a workspace with a deliberately long descriptive name"
         animated
         class="w-full"
+      />
+    </View>
+  );
+}
+
+export function ContentStateLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-3 bg-canvas">
+      <ContentState
+        state="error"
+        title="Could not load this workspace"
+        description="Permission denied while reading a deliberately long workspace path that must wrap inside the bounded region."
+        action={{ label: "Try again", onAction: () => {} }}
+        class="rounded-lg border border-subtle bg-surface"
       />
     </View>
   );

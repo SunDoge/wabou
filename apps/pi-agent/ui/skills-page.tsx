@@ -4,13 +4,8 @@ import {
   AdaptiveSplitPaneMain,
   Badge,
   Button,
+  ContentState,
   createLatestAsyncResource,
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
   Icon,
   Listbox,
   Markdown,
@@ -20,7 +15,6 @@ import {
   SearchField,
   Text,
   View,
-  WorkbenchInspectorState,
 } from "@wabou/ui";
 import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
 import sparkles from "lucide-static/icons/sparkles.svg?raw";
@@ -117,27 +111,14 @@ export function SkillsPage(props: SkillsPageProps) {
           <Show
             when={!skills.error()}
             fallback={
-              <Empty
-                variant="plain"
-                role="alert"
+              <ContentState
+                state="error"
+                title={i18n.message(m.skills_load_failed, {})}
+                description={String(skills.error())}
                 aria-label={i18n.message(m.skills_load_failed, {})}
                 class="h-full min-h-80 p-8"
-              >
-                <EmptyMedia
-                  variant="icon"
-                  class="bg-danger-surface text-danger-primary"
-                >
-                  <Icon source={triangleAlert} size={18} />
-                </EmptyMedia>
-                <EmptyHeader>
-                  <EmptyTitle class="text-danger-primary">
-                    {i18n.message(m.skills_load_failed, {})}
-                  </EmptyTitle>
-                  <EmptyDescription class="text-danger-primary">
-                    {String(skills.error())}
-                  </EmptyDescription>
-                </EmptyHeader>
-                <EmptyContent>
+                renderMedia={() => <Icon source={triangleAlert} size={18} />}
+                renderAction={() => (
                   <Button
                     variant="outline"
                     aria-label={i18n.message(m.retry, {})}
@@ -146,8 +127,8 @@ export function SkillsPage(props: SkillsPageProps) {
                     <Icon source={refreshCw} size={14} />
                     {i18n.message(m.retry, {})}
                   </Button>
-                </EmptyContent>
-              </Empty>
+                )}
+              />
             }
           >
             <AdaptiveSplitPane
@@ -174,13 +155,13 @@ export function SkillsPage(props: SkillsPageProps) {
                           (skills.value()?.length ?? 0) === 0
                         }
                       >
-                        <WorkbenchInspectorState
+                        <ContentState
                           state="loading"
                           title={i18n.message(m.loading_skills, {})}
                         />
                       </Match>
                       <Match when={filtered().length === 0}>
-                        <WorkbenchInspectorState
+                        <ContentState
                           state="empty"
                           title={i18n.message(
                             (skills.value()?.length ?? 0) === 0
@@ -243,16 +224,12 @@ export function SkillsPage(props: SkillsPageProps) {
                   <Show
                     when={selected()}
                     fallback={
-                      <Empty variant="plain" class="min-h-80 p-8">
-                        <EmptyMedia variant="icon">
-                          <Icon source={sparkles} size={18} />
-                        </EmptyMedia>
-                        <EmptyHeader>
-                          <EmptyDescription class="text-secondary">
-                            {i18n.message(m.select_skill, {})}
-                          </EmptyDescription>
-                        </EmptyHeader>
-                      </Empty>
+                      <ContentState
+                        state="empty"
+                        title={i18n.message(m.select_skill, {})}
+                        class="min-h-80 p-8"
+                        renderMedia={() => <Icon source={sparkles} size={18} />}
+                      />
                     }
                   >
                     {(skill) => (

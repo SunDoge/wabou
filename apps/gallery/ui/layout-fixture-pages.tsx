@@ -7,6 +7,7 @@ import { type Component, createComponent } from "solid-js";
 import {
   ActivityStatusLayoutFixture,
   AdaptiveSplitPaneLayoutFixture,
+  ContentStateLayoutFixture,
   DialogLayoutFixture,
   EditorLayoutFixture,
   EmptyLayoutFixture,
@@ -115,6 +116,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 280,
         height: 72,
         render: ActivityStatusLayoutFixture,
+      },
+      "component/ContentState": {
+        width: 320,
+        height: 240,
+        render: ContentStateLayoutFixture,
       },
       "component/Slider": {
         width: 480,
