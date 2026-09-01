@@ -31,7 +31,7 @@ pub use wabou_runtime::{
     ManagedHostService, NativeCapability, NativeWidgetContext, NativeWidgetFactory,
     NativeWidgetMount, PersistentJsonCache, Result, RevisionedHostPublication,
     RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker, WindowBackground,
-    WindowInputMode, WindowLevel, WindowMetrics, WindowOptions, WindowResourceKey,
+    WindowInputMode, WindowLevel, WindowOptions, WindowResourceKey,
     initial_window_resource_key, managed_host_service,
 };
 #[cfg(feature = "tray")]
