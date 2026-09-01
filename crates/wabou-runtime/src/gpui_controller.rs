@@ -307,6 +307,16 @@ impl GpuiController {
                 .map_err(|_| rquickjs::Error::Unknown)?;
             disposition.needs_tick = true;
         }
+        if disposition.needs_tick
+            && let Some(wake) = self.runtime.wake_callback.as_ref()
+        {
+            // Host callbacks can synchronously enqueue Solid work without
+            // touching QuickJS's async-job waker. Keep the follow-up explicit:
+            // the bounded native wake channel coalesces repeated events and
+            // guarantees that deferred mutations are committed on a fresh
+            // GPUI update instead of waiting for unrelated input.
+            wake();
+        }
         Ok(disposition)
     }
 
@@ -1674,6 +1684,10 @@ fn gpui_debug_node(
 mod tests {
     use super::*;
     use crate::{JsRuntime, protocol::Op};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
     use wabou_shell::NodeKey;
 
     #[test]
@@ -1748,6 +1762,40 @@ mod tests {
                 .expect("read async marker"),
             "true"
         );
+    }
+
+    #[test]
+    fn host_frames_that_need_a_tick_schedule_a_fresh_runtime_turn() {
+        let js = JsRuntime::new().expect("runtime");
+        js.eval_script(
+            r#"
+            globalThis.__wabou_dispatch_host_frame = () => ({
+              needsTick: true,
+              preventedEventIds: new Uint32Array(),
+            });
+            "#,
+        )
+        .expect("install host-frame probe");
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        let wakes = Arc::new(AtomicUsize::new(0));
+        let observed = wakes.clone();
+        controller.install_runtime_wake(Arc::new(move || {
+            observed.fetch_add(1, Ordering::Relaxed);
+        }));
+        // Installing the callback intentionally schedules the initial pump.
+        wakes.store(0, Ordering::Relaxed);
+
+        let disposition = controller
+            .dispatch_host_frame(&[HostEvent::Application(crate::HostMessage::str(
+                "layout", "changed",
+            ))])
+            .expect("dispatch host frame");
+
+        assert!(disposition.needs_tick);
+        assert_eq!(wakes.load(Ordering::Relaxed), 1);
     }
 
     fn install_application_message_probe(js: &JsRuntime) {
