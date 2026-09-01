@@ -135,6 +135,9 @@ test("toggles buttons and single-value groups through semantic state", () => {
         <Toggle pressed={bold()} onPressedChange={setBold} aria-label="Bold">
           B
         </Toggle>
+        <Toggle size="sm" aria-label="Compact toggle">
+          S
+        </Toggle>
         <ToggleGroup
           type="single"
           value={alignment()}
@@ -152,6 +155,7 @@ test("toggles buttons and single-value groups through semantic state", () => {
   };
   const screen = renderComponent(App);
   const bold = screen.getByRole("button", { name: "Bold" });
+  const compact = screen.getByRole("button", { name: "Compact toggle" });
   const left = screen.getByRole("button", { name: "Left" });
   const center = screen.getByRole("button", {
     name: "Center",
@@ -161,6 +165,9 @@ test("toggles buttons and single-value groups through semantic state", () => {
 
   bold.click();
   expect(bold.pressed).toBe(true);
+  expect(bold.className).toContain("h-8");
+  expect(compact.className).toContain("h-7");
+  expect(compact.className).not.toContain("h-6");
   left.focus();
   left.press("ArrowRight");
 

@@ -23,8 +23,9 @@ import {
   createControllableState,
   createRovingFocus,
 } from "../primitives/interactions";
+import { componentsControlSize } from "./theme";
 
-const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
+const SELECTION_INDICATOR_CLASS = "w-4 h-4 flex-none border";
 
 export interface CheckboxProps {
   checked?: boolean;
@@ -98,12 +99,12 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
         {indicator() && (
           <Icon
             source={indicator() as string}
-            size={14}
+            size={12}
             class="text-on-accent"
           />
         )}
       </Center>
-      {props.label && <Text class="text-sm text-secondary">{props.label}</Text>}
+      {props.label && <Text class="text-sm text-primary">{props.label}</Text>}
     </HeadlessButton>
   );
 }
@@ -237,7 +238,7 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
               .exhaustive(),
           )}
         >
-          {checked() && <View class="w-2.5 h-2.5 rounded-full bg-accent" />}
+          {checked() && <View class="w-2 h-2 rounded-full bg-accent" />}
         </Center>
       )}
       {props.label && (
@@ -279,9 +280,9 @@ export function Toggle(props: ToggleProps): JSX.Element {
   };
   const size = () =>
     match(props.size ?? "default")
-      .with("sm", () => "h-6 min-w-6 px-2 text-xs")
-      .with("default", () => "h-8 min-w-8 px-2.5 text-sm")
-      .with("lg", () => "h-10 min-w-10 px-3 text-sm")
+      .with("sm", () => `${componentsControlSize("sm")} min-w-7`)
+      .with("default", () => `${componentsControlSize("default")} min-w-8`)
+      .with("lg", () => `${componentsControlSize("lg")} min-w-10`)
       .exhaustive();
   const colors = (state: ButtonState) =>
     match({ selected: pressed(), hovered: state.hovered })
@@ -297,7 +298,7 @@ export function Toggle(props: ToggleProps): JSX.Element {
       aria-pressed={pressed()}
       class={(state) =>
         mergeClasses(
-          "items-center justify-center rounded-md border font-medium",
+          "items-center justify-center border font-medium",
           size(),
           colors(state),
           match(props.variant ?? "default")
@@ -498,9 +499,9 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
         mergeClasses(
           "h-7 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
           match(props.size ?? group.size())
-            .with("sm", () => "h-6 px-2 text-xs")
-            .with("default", () => "h-8 px-3 text-sm")
-            .with("lg", () => "h-10 px-4 text-sm")
+            .with("sm", () => componentsControlSize("sm"))
+            .with("default", () => componentsControlSize("default"))
+            .with("lg", () => componentsControlSize("lg"))
             .exhaustive(),
           match({
             selected: selected(),
