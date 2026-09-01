@@ -42,13 +42,14 @@ import {
   ScrollAreaLayoutFixture,
   SelectionControlsLayoutFixture,
   SelectLayoutFixture,
+  SheetLayoutFixture,
   SidebarLayoutFixture,
   SliderLayoutFixture,
   SpinnerLayoutFixture,
   TabsLayoutFixture,
-  VerticalTabsLayoutFixture,
   ToastLayoutFixture,
   ToolLayoutFixture,
+  VerticalTabsLayoutFixture,
 } from "./layout-fixture-components";
 import * as animation from "./pages/animation";
 import * as basics from "./pages/basics";
@@ -197,6 +198,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 640,
         height: 480,
         render: DialogLayoutFixture,
+      },
+      "component/Sheet": {
+        width: 720,
+        height: 480,
+        render: SheetLayoutFixture,
       },
       "component/Empty": {
         width: 320,
