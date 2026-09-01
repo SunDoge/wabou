@@ -115,6 +115,8 @@ pub struct ProjectedScrollEvent {
 /// Input transition emitted from one retained GPUI hit target.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProjectedInputEvent {
+    /// A finite GPUI-owned transition reached its final native frame.
+    TransitionEnd { target: NodeKey, generation: u64 },
     /// Semantic activation emitted by a native widget that already owns its
     /// pointer and keyboard interaction lifecycle.
     Activate { target: NodeKey },

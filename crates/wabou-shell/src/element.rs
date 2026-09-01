@@ -1,4 +1,10 @@
-use std::{cell::RefCell, collections::BTreeMap, ops::Range, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::BTreeMap,
+    ops::Range,
+    rc::Rc,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use gpui::{
     AnyElement, App, Bounds, DispatchPhase, Element, ElementId, FocusHandle, GlobalElementId,
@@ -7,6 +13,7 @@ use gpui::{
     Pixels, ScrollDelta, ScrollWheelEvent, StyledText, TouchPhase, UniformListScrollHandle,
     Visibility, Window, div, prelude::*, uniform_list,
 };
+use serde::Deserialize;
 
 use crate::ProjectionSnapshot;
 use crate::{
@@ -23,6 +30,35 @@ use wabou_protocol::{TEXT_BEHAVIOR_AGGREGATE_DIRECT, TEXT_BEHAVIOR_AGGREGATE_STY
 /// runtime preserve platform control state in `Entity<T>` without moving that
 /// state into the lightweight projection cache.
 pub type ProjectedNativeElementFactory = Rc<dyn Fn(NodeKey) -> Option<AnyElement>>;
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ProjectedPhaseTimings {
+    pub layout_ms: f64,
+    pub prepaint_ms: f64,
+    pub paint_ms: f64,
+}
+
+static PROJECTED_LAYOUT_NS: AtomicU64 = AtomicU64::new(0);
+static PROJECTED_PREPAINT_NS: AtomicU64 = AtomicU64::new(0);
+static PROJECTED_PAINT_NS: AtomicU64 = AtomicU64::new(0);
+
+pub fn take_projected_phase_timings() -> ProjectedPhaseTimings {
+    let milliseconds = |value: &AtomicU64| value.swap(0, Ordering::Relaxed) as f64 / 1_000_000.0;
+    ProjectedPhaseTimings {
+        layout_ms: milliseconds(&PROJECTED_LAYOUT_NS),
+        prepaint_ms: milliseconds(&PROJECTED_PREPAINT_NS),
+        paint_ms: milliseconds(&PROJECTED_PAINT_NS),
+    }
+}
+
+fn record_phase(started: Option<std::time::Instant>, total: &AtomicU64) {
+    if let Some(started) = started {
+        total.fetch_add(
+            started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64,
+            Ordering::Relaxed,
+        );
+    }
+}
 
 pub(crate) type ProjectedLayoutBounds = Rc<RefCell<BTreeMap<NodeKey, Bounds<Pixels>>>>;
 
@@ -220,6 +256,59 @@ pub struct ProjectedElement {
     vector_path: Option<std::sync::Arc<crate::vector_path::ProjectedVectorPath>>,
     accessibility: Option<ProjectedAccessibility>,
     scrollbar_style: Option<crate::tree::ProjectedScrollbarStyle>,
+    boundary_root: bool,
+    native_transition: Option<NativeTransition>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct NativeTransition {
+    generation: u64,
+    duration: f32,
+    #[serde(default)]
+    easing: NativeTransitionEasing,
+    #[serde(default = "identity_transform")]
+    from_transform: [f32; 6],
+    #[serde(default = "identity_transform")]
+    to_transform: [f32; 6],
+    #[serde(default = "one")]
+    from_opacity: f32,
+    #[serde(default = "one")]
+    to_opacity: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum NativeTransitionEasing {
+    Linear,
+    #[default]
+    EaseInOut,
+    EaseOut,
+}
+
+const fn identity_transform() -> [f32; 6] {
+    [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+}
+const fn one() -> f32 {
+    1.0
+}
+
+fn parse_native_transition(node: &ProjectedNode) -> Option<NativeTransition> {
+    let value = node.attributes.get("__wabou_native_transition")?;
+    let transition: NativeTransition = serde_json::from_str(value).ok()?;
+    (transition.duration.is_finite()
+        && transition.duration > 0.0
+        && transition
+            .from_transform
+            .iter()
+            .all(|value| value.is_finite())
+        && transition
+            .to_transform
+            .iter()
+            .all(|value| value.is_finite())
+        && transition.from_opacity.is_finite()
+        && transition.to_opacity.is_finite())
+    .then_some(transition)
 }
 
 #[derive(Clone)]
@@ -500,10 +589,10 @@ impl ProjectedElement {
                 .ok_or(ProjectionError::MissingNode(*child))?
                 .draw_priority();
             if priority == 0 {
-                children.push(projected.into_any_element());
+                children.push(projected.into_native_transition_element());
             } else {
                 children.push(
-                    gpui::deferred(projected)
+                    gpui::deferred(projected.into_native_transition_element())
                         .with_priority(priority)
                         .into_any_element(),
                 );
@@ -539,7 +628,39 @@ impl ProjectedElement {
             vector_path: node.vector_path.clone(),
             accessibility: projected_accessibility(node),
             scrollbar_style: node.scrollbar_style,
+            boundary_root: false,
+            native_transition: parse_native_transition(node),
         })
+    }
+
+    fn into_native_transition_element(self) -> AnyElement {
+        let Some(transition) = self.native_transition else {
+            return self.into_any_element();
+        };
+        NativeTransitionElement {
+            id: format!(
+                "wabou-transition-{}-{}-{}",
+                self.key.hi, self.key.lo, transition.generation
+            )
+            .into(),
+            target: self.key,
+            input: self.input.clone(),
+            element: Some(self),
+            transition,
+        }
+        .into_any_element()
+    }
+
+    fn apply_transition_progress(&mut self, transition: NativeTransition, progress: f32) {
+        let progress = progress.clamp(0.0, 1.0);
+        for index in 0..6 {
+            self.transform[index] = transition.from_transform[index]
+                + (transition.to_transform[index] - transition.from_transform[index]) * progress;
+        }
+        self.style.opacity = Some(
+            transition.from_opacity + (transition.to_opacity - transition.from_opacity) * progress,
+        )
+        .map(|opacity| opacity.clamp(0.0, 1.0));
     }
 
     /// Render a retained projection boundary inside the size already assigned
@@ -553,6 +674,7 @@ impl ProjectedElement {
     /// padding, overflow, paint, and child-layout styles.
     #[must_use]
     pub fn into_projection_boundary_content(mut self) -> Self {
+        self.boundary_root = true;
         let defaults = gpui::Style::default();
         self.style.position = defaults.position;
         self.style.inset = defaults.inset;
@@ -652,6 +774,117 @@ impl ProjectedElement {
                     .thumb_active(|value| value.bg(active))
             });
         Some(div().absolute().inset_0().child(bar).into_any_element())
+    }
+}
+
+struct NativeTransitionState {
+    started: std::time::Instant,
+    completion_sent: bool,
+}
+
+struct NativeTransitionElement {
+    id: ElementId,
+    target: NodeKey,
+    input: Option<ProjectedInputSink>,
+    element: Option<ProjectedElement>,
+    transition: NativeTransition,
+}
+
+impl IntoElement for NativeTransitionElement {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
+}
+
+impl Element for NativeTransitionElement {
+    type RequestLayoutState = AnyElement;
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<ElementId> {
+        Some(self.id.clone())
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        global_id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, Self::RequestLayoutState) {
+        window.with_element_state(
+            global_id.expect("native transition has a stable element id"),
+            |state, window| {
+                let mut state = state.unwrap_or_else(|| NativeTransitionState {
+                    started: std::time::Instant::now(),
+                    completion_sent: false,
+                });
+                let raw_progress = if cx.reduce_motion() {
+                    1.0
+                } else {
+                    (state.started.elapsed().as_secs_f32() / self.transition.duration).min(1.0)
+                };
+                let progress = match self.transition.easing {
+                    NativeTransitionEasing::Linear => gpui::linear(raw_progress),
+                    NativeTransitionEasing::EaseInOut => gpui::ease_in_out(raw_progress),
+                    NativeTransitionEasing::EaseOut => gpui::ease_out_quint()(raw_progress),
+                };
+                let mut element = self
+                    .element
+                    .take()
+                    .expect("native transition is laid out once");
+                element.apply_transition_progress(self.transition, progress);
+                let mut element = element.into_any_element();
+                let layout = element.request_layout(window, cx);
+
+                if raw_progress < 1.0 {
+                    window.request_animation_frame();
+                } else if !state.completion_sent {
+                    state.completion_sent = true;
+                    if let Some(input) = self.input.clone() {
+                        let target = self.target;
+                        let generation = self.transition.generation;
+                        cx.defer(move |cx| {
+                            input(
+                                ProjectedInputEvent::TransitionEnd { target, generation },
+                                cx,
+                            );
+                        });
+                    }
+                }
+                ((layout, element), state)
+            },
+        )
+    }
+
+    fn prepaint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        _bounds: Bounds<Pixels>,
+        element: &mut Self::RequestLayoutState,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Self::PrepaintState {
+        element.prepaint(window, cx);
+    }
+
+    fn paint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        _bounds: Bounds<Pixels>,
+        element: &mut Self::RequestLayoutState,
+        _prepaint: &mut Self::PrepaintState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        element.paint(window, cx);
     }
 }
 
@@ -992,6 +1225,7 @@ impl Element for ProjectedElement {
         window: &mut Window,
         cx: &mut App,
     ) -> (LayoutId, Self::RequestLayoutState) {
+        let started = self.boundary_root.then(std::time::Instant::now);
         // Taffy deliberately does not visit descendants of `display: none`.
         // Requesting their GPUI layout anyway creates text layout handles whose
         // measure callbacks never run; prepainting those children later then
@@ -999,7 +1233,7 @@ impl Element for ProjectedElement {
         // subtree as absent from both phases.
         if self.style.display == gpui::Display::None {
             let layout_id = window.request_layout(self.style.clone(), [], cx);
-            return (
+            let result = (
                 layout_id,
                 ProjectedRequestLayoutState {
                     child_layouts: Vec::new(),
@@ -1007,6 +1241,8 @@ impl Element for ProjectedElement {
                     scrollbar: None,
                 },
             );
+            record_phase(started, &PROJECTED_LAYOUT_NS);
+            return result;
         }
         // GPUI shapes text during request_layout and stores the resolved color,
         // family, weight, and line metrics in its text runs. Applying inherited
@@ -1029,14 +1265,16 @@ impl Element for ProjectedElement {
         let mut layout_children = child_layouts.clone();
         layout_children.extend(scrollbar_layout);
         let layout_id = window.request_layout(self.style.clone(), layout_children, cx);
-        (
+        let result = (
             layout_id,
             ProjectedRequestLayoutState {
                 child_layouts,
                 scrollbar_layout,
                 scrollbar,
             },
-        )
+        );
+        record_phase(started, &PROJECTED_LAYOUT_NS);
+        result
     }
 
     fn prepaint(
@@ -1048,15 +1286,18 @@ impl Element for ProjectedElement {
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
+        let started = self.boundary_root.then(std::time::Instant::now);
         if let Some(layout_bounds) = &self.layout_bounds {
             layout_bounds.borrow_mut().insert(self.key, bounds);
         }
         if self.style.display == gpui::Display::None {
-            return ProjectedPrepaintState {
+            let result = ProjectedPrepaintState {
                 hitbox: None,
                 paint_bounds: bounds,
                 scrollbar: None,
             };
+            record_phase(started, &PROJECTED_PREPAINT_NS);
+            return result;
         }
         let translation = self.translation();
         let paint_bounds = Bounds {
@@ -1124,11 +1365,13 @@ impl Element for ProjectedElement {
         {
             window.with_element_offset(translation, |window| scrollbar.prepaint(window, cx));
         }
-        ProjectedPrepaintState {
+        let result = ProjectedPrepaintState {
             hitbox,
             paint_bounds,
             scrollbar,
-        }
+        };
+        record_phase(started, &PROJECTED_PREPAINT_NS);
+        result
     }
 
     fn paint(
@@ -1141,8 +1384,10 @@ impl Element for ProjectedElement {
         window: &mut Window,
         cx: &mut App,
     ) {
+        let started = self.boundary_root.then(std::time::Instant::now);
         if self.style.display == gpui::Display::None || self.style.visibility == Visibility::Hidden
         {
+            record_phase(started, &PROJECTED_PAINT_NS);
             return;
         }
 
@@ -1373,6 +1618,7 @@ impl Element for ProjectedElement {
         if let Some(scrollbar) = &mut prepaint.scrollbar {
             scrollbar.paint(window, cx);
         }
+        record_phase(started, &PROJECTED_PAINT_NS);
     }
 }
 
@@ -1425,6 +1671,72 @@ mod tests {
         )
         .unwrap();
         assert_eq!(element.id(), Some(key.gpui_element_id()));
+    }
+
+    #[test]
+    fn native_transition_is_parsed_once_and_interpolated_in_gpui() {
+        let key = NodeKey::new(171, 4);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        tree.update_attribute(
+            key,
+            "__wabou_native_transition".into(),
+            r#"{"generation":7,"duration":0.26,"easing":"easeInOut","fromTransform":[1,0,0,1,400,0],"toTransform":[1,0,0,1,0,0],"fromOpacity":0.2,"toOpacity":1}"#.into(),
+        )
+        .unwrap();
+
+        let mut element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            key,
+            ProjectedElementContext::default(),
+            false,
+        )
+        .unwrap();
+        let transition = element
+            .native_transition
+            .expect("valid native transition is projected");
+        assert_eq!(transition.generation, 7);
+        element.apply_transition_progress(transition, 0.25);
+        assert_eq!(element.transform, [1.0, 0.0, 0.0, 1.0, 300.0, 0.0]);
+        assert_eq!(element.style.opacity, Some(0.4));
+    }
+
+    #[test]
+    fn malformed_native_transition_is_ignored_without_poisoning_projection() {
+        let key = NodeKey::new(172, 4);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        tree.update_attribute(
+            key,
+            "__wabou_native_transition".into(),
+            r#"{"generation":1,"duration":"fast"}"#.into(),
+        )
+        .unwrap();
+
+        let element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            key,
+            ProjectedElementContext::default(),
+            false,
+        )
+        .unwrap();
+        assert!(element.native_transition.is_none());
     }
 
     #[test]

@@ -142,6 +142,7 @@ export const EVENT_CODE = {
   imedeletesurrounding: 36,
   imedisabled: 37,
   windowcloserequested: 38,
+  transitionend: 39,
 } as const;
 
 export type EventType = keyof typeof EVENT_CODE;

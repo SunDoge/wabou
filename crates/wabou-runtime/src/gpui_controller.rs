@@ -945,6 +945,23 @@ impl GpuiController {
         event: wabou_shell::ProjectedInputEvent,
     ) -> wabou_shell::EventResponse {
         match event {
+            wabou_shell::ProjectedInputEvent::TransitionEnd { target, generation } => {
+                let payload = serde_json::json!({ "generation": generation }).to_string();
+                let changed = self
+                    .dispatch_node_json(
+                        target,
+                        wabou_protocol::event::TRANSITIONEND,
+                        payload,
+                        false,
+                    )
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                wabou_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..wabou_shell::EventResponse::default()
+                }
+            }
             wabou_shell::ProjectedInputEvent::Activate { target } => {
                 let handled = self
                     .dispatch_node_json(target, wabou_protocol::event::CLICK, "{}".into(), true)
