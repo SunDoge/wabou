@@ -145,5 +145,6 @@ test("supports explicit popup motion", () => {
 
   screen.getByRole("combobox").click();
   const panel = screen.getByRole("listbox").closestByRole("presentation");
-  expect(panel?.transform?.[0]).toBeLessThan(1);
+  expect(panel?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+  expect(panel?.attribute("__wabou_native_transition")).toBeNull();
 });
