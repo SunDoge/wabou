@@ -31,6 +31,7 @@ import {
   DialogDescription,
   DialogScrollBody,
   DialogTitle,
+  DropdownMenu,
   Editor,
   Empty,
   EmptyContent,
@@ -108,6 +109,7 @@ import {
   View,
   WorkbenchHeader,
 } from "@wabou/ui";
+import folderIcon from "lucide-static/icons/folder.svg?raw";
 import imageIcon from "lucide-static/icons/image.svg?raw";
 import { For as ForValue } from "solid-js";
 import { AgentActivityStatus } from "../../pi-agent/ui/agent-activity";
@@ -621,6 +623,38 @@ export function SelectLayoutFixture() {
           { value: "third", label: "Third option" },
           { value: "disabled", label: "Disabled option", disabled: true },
         ]}
+      />
+    </View>
+  );
+}
+
+export function DropdownMenuLayoutFixture() {
+  return (
+    <View class="w-full h-full p-6 items-start bg-canvas">
+      <DropdownMenu
+        aria-label="Fixture project actions"
+        defaultOpen
+        motion={false}
+        items={[
+          {
+            id: "open",
+            label: "Open a project with a deliberately long name",
+            description: "Use the current native window",
+            icon: folderIcon,
+            shortcut: "Ctrl O",
+          },
+          {
+            id: "hidden",
+            label: "Show hidden files",
+            checked: true,
+          },
+          { id: "plain", label: "Plain aligned action" },
+        ]}
+        trigger={(trigger) => (
+          <Button aria-label="Fixture menu trigger" {...trigger}>
+            Actions
+          </Button>
+        )}
       />
     </View>
   );
