@@ -1,4 +1,4 @@
-import { ColorThemeProvider } from "@wabou/core";
+import { ColorThemeProvider } from "@wabou/ui";
 import {
   ActivityStatus,
   AdaptiveSplitPane,

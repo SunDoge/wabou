@@ -1,4 +1,4 @@
-import type { Handle } from "@wabou/core/renderer";
+import type { Handle } from "@wabou/ui";
 import {
   Alert,
   AlertDialog,

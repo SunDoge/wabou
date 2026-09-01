@@ -1,4 +1,4 @@
-import type { Kv, KvKey, KvValue } from "@wabou/core";
+import type { Kv, KvKey, KvValue } from "@wabou/ui";
 import { type Accessor, createSignal, getOwner, onCleanup } from "solid-js";
 
 const DRAFT_SCHEMA_VERSION = 1 as const;

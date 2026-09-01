@@ -1,4 +1,4 @@
-import { openKv } from "@wabou/core";
+import { openKv } from "@wabou/ui";
 import {
   type CommandItem,
   createAsyncQuery,
