@@ -115,7 +115,7 @@ export function ToolHeader(props: ToolHeaderProps): JSX.Element {
           size={14}
           class="flex-none text-muted"
         />
-        <Text class="flex-none text-sm font-semibold text-primary">
+        <Text class="min-w-0 max-w-2/5 truncate text-sm font-semibold text-primary">
           {props.title}
         </Text>
         {props.summary && (

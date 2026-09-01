@@ -196,7 +196,7 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         waitMs: 220,
       },
       "component/Tool": {
-        width: 560,
+        width: 360,
         height: 420,
         render: ToolLayoutFixture,
       },

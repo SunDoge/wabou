@@ -41,3 +41,30 @@ test("tool anatomy owns disclosure, status and payload semantics", () => {
     "Loaded 120 lines",
   );
 });
+
+test("tool header lets dynamic names and summaries shrink before status", () => {
+  const screen = renderComponent(() => (
+    <Tool>
+      <ToolHeader
+        title="mcp__workspace__read_repository_file"
+        summary="packages/ui/src/components/tool.tsx at the requested revision"
+        status="running"
+      />
+    </Tool>
+  ));
+
+  const trigger = screen.getByRole("button", {
+    name: "mcp__workspace__read_repository_file: packages/ui/src/components/tool.tsx at the requested revision: Running",
+  });
+  const title = trigger.children[0]?.children.find((node) =>
+    node.text.includes("mcp__workspace__read_repository_file"),
+  );
+  const summary = trigger.children[0]?.children.find((node) =>
+    node.text.includes("packages/ui/src/components/tool.tsx"),
+  );
+  expect(title?.className).toContain("min-w-0");
+  expect(title?.className).toContain("max-w-2/5");
+  expect(title?.className).toContain("truncate");
+  expect(title?.className).not.toContain("flex-none");
+  expect(summary?.className).toContain("flex-1");
+});

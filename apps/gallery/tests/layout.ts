@@ -108,14 +108,17 @@ const assertToolLayout = (snapshot: LayoutSnapshot) => {
   const root = getLayoutNode(snapshot, { role: "group", name: "Tool fixture" });
   const trigger = getLayoutNode(snapshot, {
     role: "button",
-    name: "read: crates/wabou-runtime/src/host.rs: Completed",
+    name: "mcp__workspace__read_repository_file: crates/wabou-runtime/src/gpui_projection_boundary.rs: Running",
   });
   const details = getLayoutNode(snapshot, {
     role: "region",
     name: "Tool details",
   });
   const summary = getLayoutNode(snapshot, {
-    text: "crates/wabou-runtime/src/host.rs",
+    text: "crates/wabou-runtime/src/gpui_projection_boundary.rs",
+  });
+  const title = getLayoutNode(snapshot, {
+    text: "mcp__workspace__read_repository_file",
   });
   assertLayoutRectContains(root.rect, trigger.rect, {
     label: "tool header",
@@ -125,6 +128,9 @@ const assertToolLayout = (snapshot: LayoutSnapshot) => {
   });
   assertLayoutRectContains(trigger.contentRect, summary.rect, {
     label: "tool summary",
+  });
+  assertLayoutRectContains(trigger.contentRect, title.rect, {
+    label: "tool title",
   });
   if (trigger.rect.height < 40)
     throw new Error(`tool trigger is too short: ${trigger.rect.height}`);
