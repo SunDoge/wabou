@@ -107,6 +107,17 @@ test("composes labels and omits a determinate value while pending", () => {
   expect(progress.valueText).toBeNull();
   expect(progress.text).toContain("Preparing files");
   expect(progress.text).toContain("In progress");
+  const indicator = progress.children[1]?.children[0];
+  expect(indicator?.tag).toBe("progress-indeterminate");
+  expect(indicator?.widgetConfig).toEqual({
+    animation: {
+      kind: "loop",
+      duration: 1.35,
+      speed: 1,
+      paused: false,
+      reducedMotion: false,
+    },
+  });
 });
 
 test("owns native size variants and closes the fill only when complete", () => {

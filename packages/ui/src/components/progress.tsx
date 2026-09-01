@@ -3,15 +3,14 @@ import {
   type Accessor,
   createContext,
   createMemo,
-  createSignal,
   type JSX,
   omit,
   Show,
   useContext,
 } from "solid-js";
-import { createSweep, useReducedMotion } from "../animation";
+import { createNativeLoopAnimation, useReducedMotion } from "../animation";
 import {
-  createMeasuredSize,
+  NativeWidget,
   Svg,
   Text,
   type TextProps,
@@ -52,8 +51,6 @@ interface ProgressContextValue {
   indeterminate: Accessor<boolean>;
   label: Accessor<string>;
   valueLabel: Accessor<string | undefined>;
-  trackWidth: Accessor<number>;
-  setTrackWidth(width: number): void;
 }
 
 const ProgressContext = createContext<ProgressContextValue>();
@@ -84,7 +81,6 @@ export function normalizeProgressValue(
 
 /** Semantic progress state with explicit, composable visual parts. */
 export function ProgressRoot(props: ProgressRootProps): JSX.Element {
-  const [trackWidth, setTrackWidth] = createSignal(0, { ownedWrite: true });
   const forwarded = omit(
     props,
     "value",
@@ -111,8 +107,6 @@ export function ProgressRoot(props: ProgressRootProps): JSX.Element {
       indeterminate()
         ? undefined
         : (props.getValueLabel?.(details()) ?? defaultValueLabel()),
-    trackWidth,
-    setTrackWidth,
   };
 
   return (
@@ -147,18 +141,10 @@ const progressTrackSize = (size: ProgressSize | undefined) =>
         : "h-2";
 
 export function ProgressTrack(props: ProgressTrackProps): JSX.Element {
-  const context = useProgressContext();
   const forwarded = omit(props, "size");
-  const measured = createMeasuredSize({
-    onChange: ({ width }) => context.setTrackWidth(width),
-  });
   return (
     <View
       {...forwarded}
-      ref={(node) => {
-        measured.ref(node);
-        props.ref?.(node);
-      }}
       aria-hidden="true"
       class={mergeClasses(
         "w-full flex-none overflow-hidden rounded-full bg-control",
@@ -170,22 +156,18 @@ export function ProgressTrack(props: ProgressTrackProps): JSX.Element {
 }
 
 function IndeterminateProgressFill(props: ViewProps): JSX.Element {
-  const context = useProgressContext();
   const reducedMotion = useReducedMotion();
-  const sweep = createSweep({
-    extent: context.trackWidth,
-    itemRatio: 0.4,
+  const animation = createNativeLoopAnimation({
     duration: 1.35,
-    ease: "easeInOut",
     reducedMotion,
-    reducedValue: 0.5,
   });
   return (
-    <View
+    <NativeWidget
       {...props}
+      tag="progress-indeterminate"
       aria-hidden="true"
-      class={mergeClasses("w-2/5 h-full rounded-full bg-accent", props.class)}
-      transform={sweep.transform()}
+      class={mergeClasses("w-full h-full flex-none", props.class)}
+      config={{ animation: animation() }}
     />
   );
 }

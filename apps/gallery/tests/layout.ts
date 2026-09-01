@@ -394,6 +394,10 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
     role: "progressbar",
     name: "Fixture progress",
   });
+  const pendingProgress = getLayoutNode(snapshot, {
+    role: "progressbar",
+    name: "Fixture pending progress",
+  });
   const circularProgress = getLayoutNode(snapshot, {
     role: "progressbar",
     name: "Fixture circular progress",
@@ -458,6 +462,22 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   );
   if (!progressTrack) throw new Error("large progress track was not projected");
   assertClose(progressTrack.rect.height, 10, "large progress track height");
+  const pendingIndicator = queryLayoutNodes(snapshot, {
+    tag: "progress-indeterminate",
+  }).find(
+    (node) =>
+      node.parentId !== null &&
+      queryLayoutNodes(snapshot, { tag: "view" }).some(
+        (track) =>
+          track.id.lo === node.parentId?.lo &&
+          track.id.hi === node.parentId?.hi &&
+          track.parentId?.lo === pendingProgress.id.lo &&
+          track.parentId.hi === pendingProgress.id.hi,
+      ),
+  );
+  if (!pendingIndicator)
+    throw new Error("native indeterminate progress was not projected");
+  assertClose(pendingIndicator.rect.height, 10, "pending progress height");
   assertClose(circularProgress.rect.width, 24, "large circular progress width");
   assertClose(
     circularProgress.rect.height,
