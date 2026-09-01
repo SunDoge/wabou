@@ -63,10 +63,10 @@ impl Drop for HostTaskGuard {
 
 /// Default bound: producers `try_send` and get [`HostMessageError::Full`] when the
 /// UI thread is not draining fast enough.
-pub const DEFAULT_HOST_MESSAGE_CAPACITY: usize = 1024;
+pub(crate) const DEFAULT_HOST_MESSAGE_CAPACITY: usize = 1024;
 
 /// Max messages forwarded to JS in a single frame.
-pub const MAX_HOST_MESSAGES_PER_FRAME: usize = 128;
+const MAX_HOST_MESSAGES_PER_FRAME: usize = 128;
 
 /// Max UTF-8 topic length (u16).
 pub const MAX_TOPIC_BYTES: usize = 0xffff;

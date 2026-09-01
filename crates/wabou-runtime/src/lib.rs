@@ -62,9 +62,9 @@ pub use host::{
     managed_host_service,
 };
 pub use host_message::{
-    DEFAULT_HOST_MESSAGE_CAPACITY, HostMessage, HostMessageContext, HostMessageError,
-    HostMessageHandle, HostMessagePayload, HostMessageRouter, MAX_HOST_MESSAGES_PER_FRAME,
-    RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot,
+    HostMessage, HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload,
+    HostMessageRouter, RevisionedHostPublication, RevisionedHostPublisher,
+    RevisionedHostSnapshot,
 };
 pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use jsrt::{DEFAULT_QUICKJS_STACK_SIZE, JsRuntime, JsRuntimeOptions};
