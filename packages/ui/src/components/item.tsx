@@ -32,17 +32,40 @@ export function itemClass(
 export interface ItemProps extends Omit<ViewProps, "class"> {
   variant?: ItemVariant;
   size?: ItemSize;
+  /** Persistent list selection, independent from transient pointer hover. */
+  selected?: boolean;
+  /** Disable the complete row subtree, including trailing actions. */
+  disabled?: boolean;
   class?: string;
 }
 
 /** A composable list row based on shadcn's Item anatomy. */
 export function Item(props: ItemProps): JSX.Element {
-  const rest = omit(props, "variant", "size", "class", "children");
+  const rest = omit(
+    props,
+    "variant",
+    "size",
+    "selected",
+    "disabled",
+    "class",
+    "style",
+    "children",
+  );
   return (
     <View
       {...rest}
-      role={props.role ?? "none"}
-      class={itemClass(props.variant, props.size, props.class)}
+      role={props.role ?? "listitem"}
+      aria-selected={props.selected}
+      interactionBlocked={props.disabled || props.interactionBlocked}
+      class={itemClass(
+        props.variant,
+        props.size,
+        mergeClasses(
+          props.selected && "border-strong bg-selected",
+          props.class,
+        ),
+      )}
+      style={{ ...props.style, opacity: props.disabled ? 0.45 : undefined }}
     >
       {props.children}
     </View>
@@ -53,7 +76,7 @@ export function ItemGroup(props: ViewProps): JSX.Element {
   return (
     <View
       {...props}
-      role={props.role ?? "group"}
+      role={props.role ?? "list"}
       class={mergeClasses("w-full min-w-0 flex flex-col", props.class)}
     >
       {props.children}
@@ -112,8 +135,9 @@ export function ItemTitle(props: TextProps): JSX.Element {
   return (
     <Text
       {...props}
+      maxLines={props.maxLines ?? 1}
       class={mergeClasses(
-        "min-w-0 text-sm font-medium text-primary",
+        "min-w-0 truncate text-sm font-medium text-primary",
         props.class,
       )}
     >

@@ -51,6 +51,13 @@ import {
   InputGroupAddon,
   InputGroupInput,
   InputGroupText,
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
   Kbd,
   LabeledSeparator,
   Listbox,
@@ -656,6 +663,32 @@ export function DropdownMenuLayoutFixture() {
           </Button>
         )}
       />
+    </View>
+  );
+}
+
+export function ItemLayoutFixture() {
+  return (
+    <View class="w-full h-full p-6 bg-canvas">
+      <ItemGroup aria-label="Fixture project list" class="w-full">
+        <Item selected aria-label="Fixture selected project">
+          <ItemMedia variant="icon">
+            <Icon source={folderIcon} size={16} />
+          </ItemMedia>
+          <ItemContent aria-label="Fixture item content">
+            <ItemTitle>
+              A project title long enough to require native truncation
+            </ItemTitle>
+            <ItemDescription>
+              The description stays readable without colliding with the fixed
+              trailing action.
+            </ItemDescription>
+          </ItemContent>
+          <ItemActions aria-label="Fixture item actions">
+            <Button size="sm">Open project</Button>
+          </ItemActions>
+        </Item>
+      </ItemGroup>
     </View>
   );
 }

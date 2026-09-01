@@ -523,6 +523,41 @@ const assertDropdownMenuLayout = (snapshot: LayoutSnapshot) => {
   assertClose(firstLabel.rect.x, plainLabel.rect.x, "plain item label edge");
 };
 
+const assertItemLayout = (snapshot: LayoutSnapshot) => {
+  const list = getLayoutNode(snapshot, {
+    role: "list",
+    name: "Fixture project list",
+  });
+  const item = getLayoutNode(snapshot, {
+    role: "listitem",
+    name: "Fixture selected project",
+  });
+  const content = getLayoutNode(snapshot, {
+    name: "Fixture item content",
+  });
+  const actions = getLayoutNode(snapshot, {
+    name: "Fixture item actions",
+  });
+  const title = getLayoutNode(snapshot, {
+    text: "A project title long enough to require native truncation",
+  });
+  assertLayoutRectContains(list.contentRect, item.rect, {
+    label: "selected item",
+  });
+  assertLayoutRectContains(item.contentRect, content.rect, {
+    label: "item content",
+  });
+  assertLayoutRectContains(item.contentRect, actions.rect, {
+    label: "item actions",
+  });
+  if (layoutRectRight(content.rect) > actions.rect.x)
+    throw new Error("item content collided with its trailing actions");
+  if (!title.classes.includes("truncate"))
+    throw new Error("item title did not retain single-line truncation");
+  if (!item.classes.includes("bg-selected"))
+    throw new Error("selected item did not retain its active surface");
+};
+
 const assertSelectionControlsLayout = (snapshot: LayoutSnapshot) => {
   const iconOnly = getLayoutNode(snapshot, {
     role: "checkbox",
@@ -1181,6 +1216,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/ScrollArea": { assert: assertScrollAreaLayout },
   "component/Select": { assert: assertSelectLayout },
   "component/DropdownMenu": { assert: assertDropdownMenuLayout },
+  "component/Item": { assert: assertItemLayout },
   "component/ControlBaseline": { assert: assertControlBaselineLayout },
   "component/SelectionControls": { assert: assertSelectionControlsLayout },
   "component/Tabs": { assert: assertTabsLayout },
