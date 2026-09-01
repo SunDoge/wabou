@@ -14,12 +14,14 @@ test("turns ordinary buttons into one horizontal control surface", () => {
       <ButtonGroupSeparator />
       <Button variant="outline">Forward</Button>
       <ButtonGroupText>2 selected</ButtonGroupText>
+      <Button variant="destructive">Delete</Button>
     </ButtonGroup>
   ));
   const group = screen.getByRole("group", { name: "History" });
   expect(group.className).toContain("overflow-hidden");
   expect(group.className).toContain("border-strong");
   expect(group.className).toContain("rounded-lg");
+  expect(group.className).toContain("p-px");
   for (const button of screen.getAllByRole("button")) {
     expect(button.className).toContain("rounded-none");
     expect(button.className).toContain("border-transparent");
@@ -40,7 +42,7 @@ test("propagates vertical composition without changing standalone buttons", () =
   ));
   const standalone = screen.getByRole("button", { name: "Standalone" });
   expect(standalone.className).toContain("h-8");
-  expect(standalone.className).toContain("rounded-lg");
+  expect(standalone.className).toContain("rounded-md");
   expect(screen.getByRole("group", { name: "Account" }).className).toContain(
     "flex-col",
   );
