@@ -25,8 +25,8 @@ pub use input::{
     ProjectedWheelPhase,
 };
 pub use native_widget::{
-    NativeWidgetContext, NativeWidgetEventSink, NativeWidgetFactory, NativeWidgetInputHandler,
-    NativeWidgetMount,
+    NativeWidgetContext, NativeWidgetEventSink, NativeWidgetFactory, NativeWidgetInput,
+    NativeWidgetInputHandler, NativeWidgetMount,
 };
 pub use projection::{
     DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode, ProjectionInvalidationStats,

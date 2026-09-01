@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeMap, rc::Rc, sync::Arc};
 
-use gpui::{AnyElement, AnyEntity, App, Entity, SharedString, Window};
+use gpui::{AnyElement, AnyEntity, App, Context, Entity, SharedString, Window};
 use wabou_shell_api::UiEvent;
 
 use crate::NodeKey;
@@ -220,6 +220,24 @@ pub struct NativeWidgetMount {
 /// Backend-owned input path for a retained native widget.
 pub type NativeWidgetInputHandler = Rc<dyn Fn(UiEvent, &mut Window, &mut App) -> bool + 'static>;
 
+/// Common input contract for retained native widgets.
+///
+/// Implementations receive the same semantic input used by Wabou's test
+/// driver and native event bridge. Returning `true` schedules a GPUI repaint;
+/// callers therefore cannot accidentally update retained state without making
+/// the result visible. Output events still travel through
+/// [`NativeWidgetContext::events`], keeping input and output on the ordinary
+/// batched Wabou event path.
+pub trait NativeWidgetInput: Sized + 'static {
+    /// Apply one semantic input event to retained widget state.
+    fn handle_native_input(
+        &mut self,
+        event: &UiEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool;
+}
+
 impl NativeWidgetMount {
     /// Construct a stateless native widget mount.
     #[must_use]
@@ -256,6 +274,31 @@ impl NativeWidgetMount {
         }
     }
 
+    /// Construct an interactive retained widget from its input contract.
+    ///
+    /// This is the preferred constructor for editors, terminals and other
+    /// stateful controls. It guarantees that test input and native input use
+    /// the same handler and that handled state changes notify GPUI exactly
+    /// once.
+    #[must_use]
+    pub fn interactive_entity<T: NativeWidgetInput>(
+        entity: Entity<T>,
+        element: AnyElement,
+    ) -> Self {
+        let input_entity = entity.clone();
+        let input = Rc::new(move |event: UiEvent, window: &mut Window, cx: &mut App| {
+            let mut handled = false;
+            input_entity.update(cx, |state, entity_cx| {
+                handled = state.handle_native_input(&event, window, entity_cx);
+                if handled {
+                    entity_cx.notify();
+                }
+            });
+            handled
+        });
+        Self::entity_with_input(entity, element, input)
+    }
+
     #[doc(hidden)]
     pub fn into_parts(
         self,
@@ -284,7 +327,19 @@ pub type NativeWidgetFactory = Arc<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::{AppContext as _, TestAppContext};
+    use gpui::{AppContext as _, IntoElement as _, Render, TestAppContext};
+
+    struct Harness;
+
+    impl Render for Harness {
+        fn render(
+            &mut self,
+            _window: &mut Window,
+            _cx: &mut Context<Self>,
+        ) -> impl gpui::IntoElement {
+            gpui::div()
+        }
+    }
 
     #[test]
     fn context_exposes_exact_key_and_deterministic_authored_attributes() {
@@ -453,5 +508,52 @@ mod tests {
                 .change_f64(42.5, app);
             assert_eq!(changed.get(), Some((key, 42.5)));
         });
+    }
+
+    #[gpui::test]
+    fn interactive_entity_routes_semantic_input_through_retained_state(cx: &mut TestAppContext) {
+        struct EditorState {
+            text: String,
+        }
+
+        impl NativeWidgetInput for EditorState {
+            fn handle_native_input(
+                &mut self,
+                event: &UiEvent,
+                _window: &mut Window,
+                _cx: &mut Context<Self>,
+            ) -> bool {
+                let UiEvent::TextInput(text) = event else {
+                    return false;
+                };
+                self.text.push_str(text);
+                true
+            }
+        }
+
+        let (_view, window) = cx.add_window_view(|window, cx| {
+            let editor = cx.new(|_| EditorState {
+                text: String::new(),
+            });
+            let mount = NativeWidgetMount::interactive_entity(
+                editor.clone(),
+                gpui::div().into_any_element(),
+            );
+            let (_, retained, input) = mount.into_parts();
+            assert_eq!(
+                retained
+                    .expect("interactive entity remains retained")
+                    .entity_id(),
+                editor.entity_id()
+            );
+            assert!(input.expect("interactive entity exposes input")(
+                UiEvent::TextInput("你好".into()),
+                window,
+                cx,
+            ));
+            assert_eq!(editor.read(cx).text, "你好");
+            Harness
+        });
+        window.update(|_, _| {});
     }
 }

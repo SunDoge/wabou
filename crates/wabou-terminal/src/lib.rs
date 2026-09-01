@@ -1,7 +1,7 @@
-use std::{ops::Range, rc::Rc, sync::Arc};
+use std::{ops::Range, sync::Arc};
 
 use gpui::{AppContext as _, IntoElement as _, ParentElement as _, Styled as _};
-use wabou_shell::{NativeWidgetContext, NativeWidgetMount, gpui};
+use wabou_shell::{NativeWidgetContext, NativeWidgetInput, NativeWidgetMount, gpui};
 use wabou_shell_api::{KeyEvent, KeyLocation, KeyPhase, Modifiers, UiEvent, WakeCallback};
 
 use wabou_terminal_core::{TerminalColor, TerminalInputResult, TerminalWidget};
@@ -15,6 +15,18 @@ struct GpuiTerminal {
     terminal: TerminalWidget,
     focus: gpui::FocusHandle,
     _wake_task: gpui::Task<()>,
+}
+
+impl NativeWidgetInput for GpuiTerminal {
+    fn handle_native_input(
+        &mut self,
+        event: &UiEvent,
+        _window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) -> bool {
+        let result = self.terminal.dispatch_native_event(event);
+        self.apply_input_result(result, cx)
+    }
 }
 
 impl GpuiTerminal {
@@ -352,24 +364,9 @@ pub fn gpui_terminal_factory()
             })
         });
         entity.update(cx, |state, _| state.update_attributes(&context));
-        let input_entity = entity.clone();
-        let input = Rc::new(
-            move |event: UiEvent, _window: &mut gpui::Window, cx: &mut gpui::App| {
-                let mut handled = false;
-                input_entity.update(cx, |state, entity_cx| {
-                    let result = state.terminal.dispatch_native_event(&event);
-                    handled = state.apply_input_result(result, entity_cx);
-                    if handled {
-                        entity_cx.notify();
-                    }
-                });
-                handled
-            },
-        );
-        NativeWidgetMount::entity_with_input(
+        NativeWidgetMount::interactive_entity(
             entity.clone(),
             gpui::div().size_full().child(entity).into_any_element(),
-            input,
         )
     }
 }
