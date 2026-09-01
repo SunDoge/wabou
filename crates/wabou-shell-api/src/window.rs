@@ -26,6 +26,23 @@ pub enum WindowInputMode {
     Passthrough,
 }
 
+/// Native compositor material used behind transparent window content.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WindowBackground {
+    /// Fully opaque window background.
+    #[default]
+    Opaque,
+    /// Preserve alpha without applying a system backdrop effect.
+    Transparent,
+    /// Ask the platform compositor to blur content behind the window.
+    Blurred,
+    /// Windows 11 Mica material; unsupported platforms may fall back.
+    Mica,
+    /// Windows 11 Mica Alt material; unsupported platforms may fall back.
+    MicaAlt,
+}
+
 /// Requested properties used when creating a native window.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,8 +57,8 @@ pub struct WindowOptions {
     pub resizable: bool,
     /// Whether the OS draws its standard title bar and border.
     pub decorations: bool,
-    /// Whether the native surface preserves alpha.
-    pub transparent: bool,
+    /// Native compositor material visible through transparent app content.
+    pub background: WindowBackground,
     /// Requested initial stacking level.
     pub window_level: WindowLevel,
     /// Requested initial pointer hit-test behavior.
@@ -56,7 +73,7 @@ impl Default for WindowOptions {
             min_inner_size: None,
             resizable: true,
             decorations: true,
-            transparent: false,
+            background: WindowBackground::Opaque,
             window_level: WindowLevel::Normal,
             input_mode: WindowInputMode::Interactive,
         }
@@ -101,7 +118,17 @@ impl WindowOptions {
 
     /// Request a native window whose background preserves rendered alpha.
     pub fn transparent(mut self, transparent: bool) -> Self {
-        self.transparent = transparent;
+        self.background = if transparent {
+            WindowBackground::Transparent
+        } else {
+            WindowBackground::Opaque
+        };
+        self
+    }
+
+    /// Select the native compositor material behind transparent app content.
+    pub fn background(mut self, background: WindowBackground) -> Self {
+        self.background = background;
         self
     }
 

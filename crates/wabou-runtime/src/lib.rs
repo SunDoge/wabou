@@ -83,8 +83,8 @@ pub use rquickjs;
 pub use serial_worker::SerialWorker;
 pub use wabou_shell::{
     AppDirectories, AppDirectoryConfig, GpuiLayoutNode, NativeWidgetContext, NativeWidgetEventSink,
-    NativeWidgetFactory, NativeWidgetMount, ProjectedNodeKind, RgbaColor, WindowInputMode,
-    WindowLevel, WindowMetrics, WindowOptions, WindowResourceKey, gpui,
+    NativeWidgetFactory, NativeWidgetMount, ProjectedNodeKind, RgbaColor, WindowBackground,
+    WindowInputMode, WindowLevel, WindowMetrics, WindowOptions, WindowResourceKey, gpui,
     initial_window_resource_key,
 };
 

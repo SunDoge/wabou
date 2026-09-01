@@ -202,10 +202,22 @@ fn project_gpui_window_options(
                 wabou_shell::gpui::px(height as f32),
             )
         }),
-        window_background: if options.transparent {
-            wabou_shell::gpui::WindowBackgroundAppearance::Transparent
-        } else {
-            wabou_shell::gpui::WindowBackgroundAppearance::Opaque
+        window_background: match options.background {
+            wabou_shell::WindowBackground::Opaque => {
+                wabou_shell::gpui::WindowBackgroundAppearance::Opaque
+            }
+            wabou_shell::WindowBackground::Transparent => {
+                wabou_shell::gpui::WindowBackgroundAppearance::Transparent
+            }
+            wabou_shell::WindowBackground::Blurred => {
+                wabou_shell::gpui::WindowBackgroundAppearance::Blurred
+            }
+            wabou_shell::WindowBackground::Mica => {
+                wabou_shell::gpui::WindowBackgroundAppearance::MicaBackdrop
+            }
+            wabou_shell::WindowBackground::MicaAlt => {
+                wabou_shell::gpui::WindowBackgroundAppearance::MicaAltBackdrop
+            }
         },
         window_decorations: Some(if options.decorations {
             wabou_shell::gpui::WindowDecorations::Server
@@ -299,7 +311,7 @@ mod tests {
             .initial_inner_size(900, 640)
             .min_inner_size(480, 320)
             .decorations(false)
-            .transparent(true)
+            .background(wabou_shell::WindowBackground::Blurred)
             .window_level(wabou_shell::WindowLevel::AlwaysOnTop);
         let projected = project_gpui_window_options(&options, Default::default());
 
@@ -312,7 +324,7 @@ mod tests {
         );
         assert_eq!(
             projected.window_background,
-            wabou_shell::gpui::WindowBackgroundAppearance::Transparent
+            wabou_shell::gpui::WindowBackgroundAppearance::Blurred
         );
         assert_eq!(
             projected.window_min_size,

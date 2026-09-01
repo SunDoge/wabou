@@ -876,12 +876,28 @@ function PlatformPage() {
                   minWidth: 640,
                   minHeight: 400,
                   decorations: false,
-                  transparent: true,
+                  background: "transparent",
                   windowLevel: "alwaysOnTop",
                 });
               }}
             >
               Open transparent window
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                void createWindow({
+                  title: "Wabou blurred window",
+                  width: 900,
+                  height: 600,
+                  minWidth: 640,
+                  minHeight: 400,
+                  decorations: false,
+                  background: "blurred",
+                });
+              }}
+            >
+              Open blurred window
             </Button>
           </View>
         </View>
@@ -892,7 +908,11 @@ function PlatformPage() {
 
 function ChildWindowPage() {
   const window = useWindow();
-  if (currentWindowOptions().transparent) return <TransparentWindowPage />;
+  if (
+    currentWindowOptions().background === "transparent" ||
+    currentWindowOptions().background === "blurred"
+  )
+    return <TransparentWindowPage />;
   return (
     <View class="w-full h-full flex flex-col bg-slate-900 text-white">
       <TitleBar class="border-slate-700 bg-slate-950">

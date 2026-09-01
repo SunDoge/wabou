@@ -33,6 +33,23 @@ fn parses_explicit_text_decoration_utilities() {
 }
 
 #[test]
+fn blur_utilities_keep_content_and_backdrop_filters_distinct() {
+    for (candidate, property, radius) in [
+        ("blur-sm", "filter-blur", 4.0),
+        ("backdrop-blur-md", "backdrop-blur", 12.0),
+    ] {
+        let declaration = &parse_utility(candidate).unwrap().declarations[0];
+        assert_eq!(declaration.property, property);
+        assert_eq!(
+            declaration.value,
+            Value::Length {
+                value: Length::Px { value: radius }
+            }
+        );
+    }
+}
+
+#[test]
 fn interaction_feedback_utilities_are_explicit_style_ir() {
     let cursor = parse_utility("cursor-pointer").unwrap();
     assert_eq!(cursor.declarations[0].property, "cursor");

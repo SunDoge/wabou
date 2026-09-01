@@ -20,7 +20,9 @@ export interface CreateWindowOptions {
   resizable?: boolean;
   /** Show native window-manager borders and title bar. */
   decorations?: boolean;
-  /** Preserve rendered alpha when the platform compositor supports it. */
+  /** Native compositor material visible through transparent app content. */
+  background?: "opaque" | "transparent" | "blurred" | "mica" | "micaAlt";
+  /** @deprecated Use `background: "transparent"`. */
   transparent?: boolean;
   /** Initial native stacking request. Wayland generally ignores non-normal levels. */
   windowLevel?: "alwaysOnBottom" | "normal" | "alwaysOnTop";

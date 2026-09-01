@@ -54,6 +54,7 @@ add(
     "pointer-events",
     "font-family",
     "cursor",
+    "user-select",
   ],
   { string: true, number: false },
 );
@@ -102,6 +103,8 @@ add(
     "border-bottom-width",
     "border-left-width",
     "font-size",
+    "filter-blur",
+    "backdrop-blur",
   ],
   { string: true, number: true, typed: [PX] },
 );

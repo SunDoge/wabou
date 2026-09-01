@@ -1,6 +1,6 @@
 use gpui::{
     AbsoluteLength, AlignContent, AlignItems, BoxShadow, CursorStyle, DefiniteLength, Display,
-    FlexDirection, FlexWrap, FontStyle, FontWeight, GridPlacement, GridTemplate,
+    Filter, FlexDirection, FlexWrap, FontStyle, FontWeight, GridPlacement, GridTemplate,
     GridTemplateMinSize, Hsla, Length, Overflow, Position, StrikethroughStyle, Style, TextAlign,
     TextOverflow, UnderlineStyle, Visibility, WhiteSpace,
 };
@@ -383,6 +383,18 @@ impl StyleProjection {
             }
             "box-shadow" => {
                 self.style.box_shadow = box_shadows(value).ok_or_else(|| invalid(property))?;
+            }
+            "filter-blur" => {
+                let radius = pixels(value)
+                    .filter(|radius| *radius >= gpui::px(0.0))
+                    .ok_or_else(|| invalid(property))?;
+                self.style.filter = vec![Filter::Blur(radius)];
+            }
+            "backdrop-blur" => {
+                let radius = pixels(value)
+                    .filter(|radius| *radius >= gpui::px(0.0))
+                    .ok_or_else(|| invalid(property))?;
+                self.style.backdrop_filter = vec![Filter::Blur(radius)];
             }
             _ => return Err(StyleDiagnostic::UnsupportedProperty(property.to_owned())),
         }
@@ -1033,6 +1045,29 @@ mod tests {
     }
 
     #[test]
+    fn projects_content_and_backdrop_blur_independently() {
+        let mut projection = StyleProjection::default();
+        projection
+            .apply(&declaration(
+                "filter-blur",
+                length_value(IrLength::Px { value: 4.0 }),
+            ))
+            .unwrap();
+        projection
+            .apply(&declaration(
+                "backdrop-blur",
+                length_value(IrLength::Px { value: 12.0 }),
+            ))
+            .unwrap();
+
+        assert_eq!(projection.style().filter, vec![Filter::Blur(gpui::px(4.0))]);
+        assert_eq!(
+            projection.style().backdrop_filter,
+            vec![Filter::Blur(gpui::px(12.0))]
+        );
+    }
+
+    #[test]
     fn unsupported_and_invalid_values_are_never_silently_ignored() {
         let mut projection = StyleProjection::default();
         assert_eq!(
@@ -1066,6 +1101,7 @@ mod tests {
         for (property, value) in [
             ("opacity", Value::Number { value: 1.1 }),
             ("aspect-ratio", Value::Number { value: 0.0 }),
+            ("backdrop-blur", length_value(IrLength::Px { value: -1.0 })),
         ] {
             assert_eq!(
                 projection.apply(&declaration(property, value)),

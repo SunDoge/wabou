@@ -75,6 +75,8 @@
     "pointer-events": "none",
     "cursor": "pointer",
     "user-select": "text",
+    "filter-blur": { "sample": "8px", "rustOnly": true },
+    "backdrop-blur": { "sample": "8px", "rustOnly": true },
     "box-shadow": "0 1px 2px #00000080"
   },
   "unsupported": {
