@@ -1508,9 +1508,9 @@ impl Render for GpuiRuntimeView {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::{Frame, Op};
     use crate::{JsRuntime, runtime_session::RuntimeSession};
     use wabou_host_api::NodeKey;
+    use wabou_protocol::{Frame, Op};
     use wabou_shell::gpui::{HeadlessAppContext, TestAppContext, px, size};
     use wabou_shell::{
         EffectId, EffectScope, OpenDialogRequest, WindowCreateRequest, WindowOptions,

@@ -3,13 +3,11 @@
 use crate::reload::{HmrBatch, HmrDrainResult};
 use crate::{
     ImageResourceHandle, ImageResourceStore,
-    host_frame::{
-        HostEvent, HostNodeEvent, NodeEventPayload, NumericEventData, ResizeObservation,
-    },
+    host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, NumericEventData, ResizeObservation},
     jsrt::{HostFrameDisposition, LayoutMetric, LayoutMetricsSnapshot},
-    protocol::{Frame, decode_frame},
     runtime_session::RuntimeSession,
 };
+use wabou_protocol::{Frame, decode_frame};
 use wabou_shell::{GpuiProjection, ProjectionError};
 use wabou_style::stylesheet::{StyleSheet, StylesheetUpdate};
 
@@ -1797,11 +1795,12 @@ mod tests {
             Some("ui/index.tsx"),
         ));
     }
-    use crate::{JsRuntime, protocol::Op};
+    use crate::JsRuntime;
     use std::sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
+    use wabou_protocol::Op;
 
     #[test]
     fn dropping_a_node_retires_all_native_interaction_state() {

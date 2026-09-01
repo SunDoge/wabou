@@ -2317,7 +2317,8 @@ mod tests {
 
     #[test]
     fn gpui_test_driver_clicks_the_projected_protocol_target() {
-        use crate::{protocol::Op, runtime_session::RuntimeSession};
+        use crate::runtime_session::RuntimeSession;
+        use wabou_protocol::Op;
 
         let js = crate::JsRuntime::new().expect("runtime");
         js.eval_script(
@@ -2335,7 +2336,7 @@ mod tests {
             wabou_shell::initial_window_resource_key(0),
         ));
         runtime
-            .apply_frame(&crate::protocol::Frame {
+            .apply_frame(&wabou_protocol::Frame {
                 seq: 1,
                 ops: vec![
                     Op::CreateElement {
@@ -2381,7 +2382,8 @@ mod tests {
 
     #[test]
     fn gpui_test_driver_focuses_native_textbox_without_projected_pointer_listener() {
-        use crate::{protocol::Op, runtime_session::RuntimeSession};
+        use crate::runtime_session::RuntimeSession;
+        use wabou_protocol::Op;
 
         let js = crate::JsRuntime::new().expect("runtime");
         js.eval_script(
@@ -2399,7 +2401,7 @@ mod tests {
             wabou_shell::initial_window_resource_key(0),
         ));
         runtime
-            .apply_frame(&crate::protocol::Frame {
+            .apply_frame(&wabou_protocol::Frame {
                 seq: 1,
                 ops: vec![
                     Op::CreateElement {

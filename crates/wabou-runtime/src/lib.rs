@@ -36,7 +36,6 @@ mod jsrt;
 mod kv;
 mod native_capability;
 mod persistent_cache;
-mod protocol;
 mod reload;
 pub mod resource;
 mod runtime_session;
@@ -63,8 +62,7 @@ pub use host::{
 };
 pub use host_message::{
     HostMessage, HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload,
-    HostMessageRouter, RevisionedHostPublication, RevisionedHostPublisher,
-    RevisionedHostSnapshot,
+    HostMessageRouter, RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot,
 };
 pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use jsrt::{DEFAULT_QUICKJS_STACK_SIZE, JsRuntime, JsRuntimeOptions};
@@ -72,12 +70,12 @@ pub use native_capability::NativeCapability;
 pub use persistent_cache::PersistentJsonCache;
 pub use rquickjs;
 pub use serial_worker::SerialWorker;
-#[cfg(feature = "headless")]
-pub use wabou_shell::{GpuiLayoutNode, ProjectedNodeKind};
 pub use wabou_shell::{
     AppDirectories, AppDirectoryConfig, NativeWidgetContext, NativeWidgetFactory,
     NativeWidgetMount, RgbaColor, WindowBackground, WindowInputMode, WindowLevel, WindowOptions,
     WindowResourceKey, gpui, initial_window_resource_key,
 };
+#[cfg(feature = "headless")]
+pub use wabou_shell::{GpuiLayoutNode, ProjectedNodeKind};
 
 mod intl;
