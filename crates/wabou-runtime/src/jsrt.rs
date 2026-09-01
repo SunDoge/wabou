@@ -105,14 +105,14 @@ struct RuntimeWake {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct HostFrameDisposition {
-    pub prevented_event_ids: Vec<u32>,
-    pub needs_tick: bool,
-    pub protocol_frame: Vec<u8>,
+pub(crate) struct HostFrameDisposition {
+    pub(crate) prevented_event_ids: Vec<u32>,
+    pub(crate) needs_tick: bool,
+    pub(crate) protocol_frame: Vec<u8>,
 }
 
 impl HostFrameDisposition {
-    pub fn is_prevented(&self, event_id: u32) -> bool {
+    pub(crate) fn is_prevented(&self, event_id: u32) -> bool {
         self.prevented_event_ids.contains(&event_id)
     }
 }
@@ -1134,7 +1134,10 @@ impl JsRuntime {
     /// Deliver unsolicited Host facts through the single versioned binary
     /// entry point. Guest-initiated mounted functions return through their own
     /// value/Promise and never use this path.
-    pub fn dispatch_host_frame(&mut self, events: &[HostEvent]) -> JsResult<HostFrameDisposition> {
+    pub(crate) fn dispatch_host_frame(
+        &mut self,
+        events: &[HostEvent],
+    ) -> JsResult<HostFrameDisposition> {
         if events.is_empty() {
             return Ok(HostFrameDisposition::default());
         }
