@@ -149,6 +149,36 @@ impl ViteState {
         promise.finish()
     }
 
+    /// Re-evaluate a Vite module whose update is itself the complete effect.
+    /// Unlike component HMR, this does not require an accept boundary. Wabou's
+    /// generated Style IR module uses this path to install the new stylesheet
+    /// without remounting the Solid application.
+    pub(crate) fn apply_side_effect_update<'js>(
+        &self,
+        ctx: &rquickjs::Ctx<'js>,
+        accepted_path: &str,
+        timestamp: u64,
+        source: String,
+    ) -> rquickjs::Result<()> {
+        let mut update_url = self
+            .origin
+            .join(accepted_path)
+            .map_err(|_| rquickjs::Error::Unknown)?;
+        update_url
+            .query_pairs_mut()
+            .append_pair("t", &timestamp.to_string());
+        let update_url = update_url.to_string();
+        self.cache.insert(update_url.clone(), source);
+        let update_literal =
+            serde_json::to_string(&update_url).map_err(|_| rquickjs::Error::Unknown)?;
+        Module::evaluate(
+            ctx.clone(),
+            "wabou-runtime:vite-side-effect-update",
+            format!("import {update_literal};"),
+        )?
+        .finish()
+    }
+
     /// Re-import the app entry after a full reload. Uses a cache-busting query
     /// so the loader does not reuse a stale entry module record.
     pub(crate) fn boot_full_reload<'js>(
@@ -691,6 +721,27 @@ mod tests {
             cache.get("http://127.0.0.1:5173/src/App.tsx?t=42"),
             Some("export const value = 42;".to_owned())
         );
+    }
+
+    #[test]
+    fn side_effect_update_reexecutes_without_a_hot_accept_boundary() {
+        let runtime = rquickjs::AsyncRuntime::new().unwrap();
+        let context =
+            futures_lite::future::block_on(rquickjs::AsyncContext::full(&runtime)).unwrap();
+        let vite = ViteState::new(Url::parse("http://127.0.0.1:5173/").unwrap());
+        vite.install_loader(&runtime).unwrap();
+
+        futures_lite::future::block_on(context.with(|ctx| {
+            vite.apply_side_effect_update(
+                &ctx,
+                "/@id/__x00__virtual:wabou-stylesheet",
+                42,
+                "globalThis.__styleRevision = 42; export default 42;".into(),
+            )?;
+            assert_eq!(ctx.eval::<i32, _>("globalThis.__styleRevision")?, 42);
+            Ok::<_, rquickjs::Error>(())
+        }))
+        .unwrap();
     }
 
     #[test]
