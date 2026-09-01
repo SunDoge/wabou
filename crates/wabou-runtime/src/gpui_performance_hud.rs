@@ -9,6 +9,7 @@ use wabou_shell::gpui::{
 pub(crate) struct GpuiPerformanceHud {
     stats: Option<FrameStats>,
     fps: f64,
+    previous_frame_at: std::time::Instant,
     projection_revision: u64,
 }
 
@@ -17,6 +18,7 @@ impl GpuiPerformanceHud {
         Self {
             stats: None,
             fps: 0.0,
+            previous_frame_at: std::time::Instant::now(),
             projection_revision: 0,
         }
     }
@@ -24,19 +26,32 @@ impl GpuiPerformanceHud {
     pub(crate) fn update(
         &mut self,
         stats: Option<FrameStats>,
-        fps: f64,
         projection_revision: u64,
         cx: &mut Context<Self>,
     ) {
         self.stats = stats;
-        self.fps = fps;
         self.projection_revision = projection_revision;
         cx.notify();
     }
 }
 
 impl Render for GpuiPerformanceHud {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Associate the next platform frame with this native Entity, not the
+        // Solid projection root. The HUD remains live while an otherwise idle
+        // event-driven application correctly performs no application work.
+        window.request_animation_frame();
+        let now = std::time::Instant::now();
+        let elapsed = now.duration_since(self.previous_frame_at).as_secs_f64();
+        self.previous_frame_at = now;
+        if elapsed > 0.0 {
+            let sample = 1.0 / elapsed;
+            self.fps = if self.fps == 0.0 {
+                sample
+            } else {
+                self.fps * 0.9 + sample * 0.1
+            };
+        }
         let theme = Theme::global(cx);
         let colors = &theme.tokens.colors;
         let stats = self.stats.unwrap_or_default();

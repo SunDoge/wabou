@@ -51,8 +51,6 @@ pub struct GpuiRuntimeView {
     projection_force_revision: u64,
     observed_projection_revision: u64,
     performance_hud: Option<Entity<GpuiPerformanceHud>>,
-    previous_frame_at: std::time::Instant,
-    fps_ema: f64,
     window_size_persistence: Option<wabou_shell::WindowSizePersistence>,
     native_widget_factories: HashMap<String, wabou_shell::NativeWidgetFactory>,
     test_controller: Option<crate::test_driver::TestController>,
@@ -340,8 +338,6 @@ impl GpuiRuntimeView {
             projection_force_revision: 0,
             observed_projection_revision: 0,
             performance_hud,
-            previous_frame_at: std::time::Instant::now(),
-            fps_ema: 0.0,
             window_size_persistence: options.window_size_persistence,
             native_widget_factories: options.native_widget_factories,
             test_controller: options.test_controller,
@@ -1428,17 +1424,6 @@ impl Render for GpuiRuntimeView {
             // drag first without changing Wabou's event-target contract.
             .child(projected)
             .child(TextSelectionLayer);
-        let now = std::time::Instant::now();
-        let elapsed = now.duration_since(self.previous_frame_at).as_secs_f64();
-        self.previous_frame_at = now;
-        if elapsed > 0.0 {
-            let sample = 1.0 / elapsed;
-            self.fps_ema = if self.fps_ema == 0.0 {
-                sample
-            } else {
-                self.fps_ema * 0.9 + sample * 0.1
-            };
-        }
         self.controller.publish_frame_stats(
             frame_timing,
             frame_started.elapsed().as_secs_f64() * 1_000.0,
@@ -1447,12 +1432,7 @@ impl Render for GpuiRuntimeView {
         if let Some(hud) = &self.performance_hud {
             let stats = self.controller.frame_stats();
             hud.update(cx, |hud, hud_cx| {
-                hud.update(
-                    stats,
-                    self.fps_ema,
-                    self.projection_boundary_revision,
-                    hud_cx,
-                );
+                hud.update(stats, self.projection_boundary_revision, hud_cx);
             });
             root = root.child(hud.clone());
         }
@@ -1880,7 +1860,6 @@ mod tests {
                     viewport_h: 600,
                     ..wabou_shell::FrameStats::default()
                 }),
-                60.0,
                 2,
                 hud_cx,
             );
@@ -1890,6 +1869,20 @@ mod tests {
             let _ = window.draw(app);
         })
         .expect("draw updated HUD frame");
+        let callbacks = cx
+            .update_window(handle.into(), |_, window, app| {
+                window.simulate_next_frame(app)
+            })
+            .expect("simulate HUD-owned animation frame");
+        assert!(
+            callbacks >= 1,
+            "the native HUD must keep its own frame clock"
+        );
+        cx.run_until_parked();
+        cx.update_window(handle.into(), |_, window, app| {
+            let _ = window.draw(app);
+        })
+        .expect("draw HUD-owned animation frame");
 
         assert_eq!(
             cx.read_entity(&boundary, |boundary, _| {
