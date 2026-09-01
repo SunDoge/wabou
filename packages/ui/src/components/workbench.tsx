@@ -1,6 +1,7 @@
 import { mergeClasses } from "@wabou/core/style";
+import x from "lucide-static/icons/x.svg?raw";
 import { type JSX, omit } from "solid-js";
-import { Text, View, type ViewProps } from "../primitives";
+import { Icon, Text, View, type ViewProps } from "../primitives";
 import { Button } from "./button";
 import { Spinner } from "./display";
 import { Sidebar, type SidebarProps } from "./sidebar";
@@ -74,6 +75,61 @@ export function WorkbenchInspectorHeader(props: ViewProps): JSX.Element {
   const forwarded = omit(props, "class");
   return (
     <View {...forwarded} class={workbenchInspectorHeaderClass(props.class)} />
+  );
+}
+
+export interface WorkbenchInspectorTitlebarProps
+  extends Omit<ViewProps, "children"> {
+  title: string;
+  description?: string;
+  closeLabel?: string;
+  onClose?: () => void;
+  /** Lazily render an optional action before the standard close button. */
+  renderAction?: () => JSX.Element;
+}
+
+/**
+ * Consistent inspector chrome with a bounded title, optional description and
+ * correctly sized trailing actions.
+ */
+export function WorkbenchInspectorTitlebar(
+  props: WorkbenchInspectorTitlebarProps,
+): JSX.Element {
+  const forwarded = omit(
+    props,
+    "title",
+    "description",
+    "closeLabel",
+    "onClose",
+    "renderAction",
+    "class",
+  );
+  return (
+    <WorkbenchInspectorHeader {...forwarded} class={props.class}>
+      <View class="min-w-0 flex-1 flex flex-col">
+        <Text class="w-full min-w-0 truncate font-semibold">
+          {props.title}
+        </Text>
+        {props.description === undefined ? null : (
+          <Text class="w-full min-w-0 truncate text-xs text-muted">
+            {props.description}
+          </Text>
+        )}
+      </View>
+      <View class="flex-none flex flex-row items-center gap-1">
+        {props.renderAction?.()}
+        {props.onClose ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={props.closeLabel ?? "Close inspector"}
+            onClick={props.onClose}
+          >
+            <Icon source={x} size={15} />
+          </Button>
+        ) : null}
+      </View>
+    </WorkbenchInspectorHeader>
   );
 }
 

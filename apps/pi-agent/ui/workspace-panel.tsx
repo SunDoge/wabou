@@ -12,12 +12,11 @@ import {
   View,
   WorkbenchInspector,
   WorkbenchInspectorContent,
-  WorkbenchInspectorHeader,
   WorkbenchInspectorState,
+  WorkbenchInspectorTitlebar,
 } from "@wabou/ui";
 import file from "lucide-static/icons/file.svg?raw";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
-import x from "lucide-static/icons/x.svg?raw";
 import {
   createEffect,
   createMemo,
@@ -92,22 +91,12 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
       role="region"
       aria-label={i18n.message(m.workspace_files, {})}
     >
-      <WorkbenchInspectorHeader>
-        <View class="min-w-0 flex flex-col">
-          <Text class="font-semibold">
-            {i18n.message(m.workspace_files, {})}
-          </Text>
-          <Text class="max-w-72 truncate text-xs text-muted">{props.cwd}</Text>
-        </View>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={i18n.message(m.close_workspace_files, {})}
-          onClick={props.close}
-        >
-          <Icon source={x} size={15} />
-        </Button>
-      </WorkbenchInspectorHeader>
+      <WorkbenchInspectorTitlebar
+        title={i18n.message(m.workspace_files, {})}
+        description={props.cwd}
+        closeLabel={i18n.message(m.close_workspace_files, {})}
+        onClose={props.close}
+      />
       <WorkbenchInspectorContent class="gap-3 p-3">
         <SearchField
           value={query()}

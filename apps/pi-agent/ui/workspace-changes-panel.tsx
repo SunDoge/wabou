@@ -8,11 +8,10 @@ import {
   View,
   WorkbenchInspector,
   WorkbenchInspectorContent,
-  WorkbenchInspectorHeader,
   WorkbenchInspectorState,
+  WorkbenchInspectorTitlebar,
 } from "@wabou/ui";
 import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
-import x from "lucide-static/icons/x.svg?raw";
 import { Match, Switch } from "solid-js";
 import type { WorkspaceChanges } from "./api";
 import { i18n, m } from "./i18n";
@@ -36,20 +35,12 @@ export function WorkspaceChangesPanel(props: WorkspaceChangesPanelProps) {
       role="region"
       aria-label={i18n.message(m.code_changes, {})}
     >
-      <WorkbenchInspectorHeader>
-        <View class="min-w-0 flex flex-col">
-          <Text class="font-semibold">{i18n.message(m.code_changes, {})}</Text>
-          <Text class="max-w-72 truncate text-xs text-muted">{props.cwd}</Text>
-        </View>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={i18n.message(m.close_code_changes, {})}
-          onClick={props.close}
-        >
-          <Icon source={x} size={15} />
-        </Button>
-      </WorkbenchInspectorHeader>
+      <WorkbenchInspectorTitlebar
+        title={i18n.message(m.code_changes, {})}
+        description={props.cwd}
+        closeLabel={i18n.message(m.close_code_changes, {})}
+        onClose={props.close}
+      />
       <WorkbenchInspectorContent>
         <Switch>
           <Match when={changes.error()}>
