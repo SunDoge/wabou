@@ -545,6 +545,27 @@ const assertEmptyLayout = (snapshot: LayoutSnapshot) => {
   assertClose(description.rect.height, 40, "two-line empty-state summary");
 };
 
+const assertBadgeLayout = (snapshot: LayoutSnapshot) => {
+  const small = getLayoutNode(snapshot, {
+    role: "status",
+    name: "Fixture small badge",
+  });
+  const standard = getLayoutNode(snapshot, {
+    role: "status",
+    name: "Fixture default badge",
+  });
+  const large = getLayoutNode(snapshot, {
+    role: "status",
+    name: "Fixture large badge",
+  });
+  assertClose(small.rect.height, 16, "small badge height");
+  assertClose(standard.rect.height, 20, "default badge height");
+  assertClose(large.rect.height, 24, "large badge height");
+  const center = (node: typeof small) => node.rect.y + node.rect.height / 2;
+  assertClose(center(small), center(standard), "small badge vertical center");
+  assertClose(center(large), center(standard), "large badge vertical center");
+};
+
 const assertOnboardingLayout = (snapshot: LayoutSnapshot) => {
   const viewport = getLayoutNode(snapshot, {
     role: "region",
@@ -1028,6 +1049,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/CompactSurface": { assert: assertCompactSurfaceLayout },
   "component/Slider": { assert: assertSliderLayout },
   "component/Empty": { assert: assertEmptyLayout },
+  "component/Badge": { assert: assertBadgeLayout },
   "component/Onboarding": { assert: assertOnboardingLayout },
   "component/Dialog": { assert: assertDialogLayout },
   "component/Sheet": { assert: assertSheetLayout },
