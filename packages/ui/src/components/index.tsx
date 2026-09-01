@@ -247,9 +247,9 @@ export function Switch(props: SwitchProps): JSX.Element {
         aria-checked={checked()}
         class={(state) =>
           mergeClasses(
-            "w-11 h-6 flex-none rounded-full p-0.5",
+            "w-10 h-6 flex-none overflow-hidden rounded-full border border-transparent p-0.5",
             switchColors(checked(), state),
-            state.focused && "border border-focus",
+            state.focused && "border-focus",
           )
         }
         style={(state) => ({
@@ -259,7 +259,7 @@ export function Switch(props: SwitchProps): JSX.Element {
       >
         <View
           aria-hidden="true"
-          class="w-5 h-5 rounded-full bg-on-accent"
+          class="w-4 h-4 rounded-full bg-surface"
           transform={translate2d(movement.value(), 0)}
         />
       </HeadlessButton>
@@ -268,7 +268,7 @@ export function Switch(props: SwitchProps): JSX.Element {
           control={() => control}
           disabled={props.disabled}
           class={mergeClasses(
-            "min-w-0 flex-1 select-none whitespace-normal text-sm font-normal text-secondary",
+            "min-w-0 flex-1 select-none whitespace-normal text-sm font-normal text-primary",
           )}
           onClick={(event) => {
             if (props.disabled || event.defaultPrevented) return;
