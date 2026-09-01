@@ -46,6 +46,7 @@ import {
   SliderLayoutFixture,
   SpinnerLayoutFixture,
   TabsLayoutFixture,
+  ToastLayoutFixture,
   ToolLayoutFixture,
 } from "./layout-fixture-components";
 import * as animation from "./pages/animation";
@@ -130,6 +131,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 420,
         height: 240,
         render: AlertLayoutFixture,
+      },
+      "component/Toast": {
+        width: 480,
+        height: 240,
+        render: ToastLayoutFixture,
       },
       "component/CardSurface": {
         width: 480,

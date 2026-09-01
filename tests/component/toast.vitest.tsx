@@ -31,7 +31,9 @@ test("shows and dismisses a polite toast", () => {
   screen.getByRole("button", { name: "Save" }).click();
   const toast = screen.getByRole("status", { name: "Saved" });
   expect(toast.text).toContain("Changes are on disk.");
-  expect(toast.children[0]?.className).toContain("rounded-xl");
+  expect(toast.children[0]?.className).toContain("rounded-lg");
+  expect(toast.children[0]?.className).toContain("border-subtle");
+  expect(toast.children[0]?.className).toContain("py-3.5");
   expect(toast.transform).toEqual([1, 0, 0, 1, 0, 0]);
   const entering = transitionOf(toast);
   expect(entering).toMatchObject({
