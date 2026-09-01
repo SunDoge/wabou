@@ -1,6 +1,6 @@
+import { mergeClasses } from "@wabou/core/style";
 import type { JSX } from "solid-js";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 type TypographyTextProps = Omit<TextProps, "class"> & { class?: string };
 
@@ -12,20 +12,32 @@ function styledText(
 }
 
 export const TypographyH1 = (props: TypographyTextProps) =>
-  styledText(props, "text-4xl font-bold text-primary whitespace-normal");
+  styledText(
+    props,
+    "text-4xl leading-tight font-bold tracking-tight text-primary whitespace-normal",
+  );
 export const TypographyH2 = (props: TypographyTextProps) =>
-  styledText(props, "text-3xl font-semibold text-primary whitespace-normal");
+  styledText(
+    props,
+    "text-3xl leading-tight font-semibold tracking-tight text-primary whitespace-normal",
+  );
 export const TypographyH3 = (props: TypographyTextProps) =>
-  styledText(props, "text-2xl font-semibold text-primary whitespace-normal");
+  styledText(
+    props,
+    "text-2xl leading-tight font-semibold tracking-tight text-primary whitespace-normal",
+  );
 export const TypographyH4 = (props: TypographyTextProps) =>
-  styledText(props, "text-xl font-semibold text-primary whitespace-normal");
+  styledText(
+    props,
+    "text-xl leading-normal font-semibold text-primary whitespace-normal",
+  );
 export const TypographyP = (props: TypographyTextProps) =>
   styledText(
     props,
     "text-base leading-relaxed text-secondary whitespace-normal",
   );
 export const TypographyLead = (props: TypographyTextProps) =>
-  styledText(props, "text-xl leading-relaxed text-muted whitespace-normal");
+  styledText(props, "text-xl leading-normal text-muted whitespace-normal");
 export const TypographyLarge = (props: TypographyTextProps) =>
   styledText(props, "text-lg font-semibold text-primary whitespace-normal");
 export const TypographySmall = (props: TypographyTextProps) =>

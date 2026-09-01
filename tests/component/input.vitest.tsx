@@ -34,7 +34,7 @@ test("updates controlled single-line and multiline editors", () => {
   const notes = screen.getByRole("textbox", { name: "Notes" });
 
   expect(name.className).toContain("h-8");
-  expect(name.className).toContain("rounded-lg");
+  expect(name.className).toContain("rounded-md");
 
   name.input("Ada");
   expect(name.focused).toBe(true);

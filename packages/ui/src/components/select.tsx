@@ -29,7 +29,9 @@ import {
   useComponentsTheme,
 } from "./theme";
 
-const ITEM_HEIGHT = 40;
+// A medium native option is 32px tall with a 4px inter-item gap. Keeping the
+// scroll pitch equal to rendered geometry avoids keyboard navigation drift.
+const ITEM_HEIGHT = 36;
 const VISIBLE_ITEMS = 6;
 
 export interface SelectOption {
@@ -138,7 +140,7 @@ export function Select(props: SelectProps): JSX.Element {
       placement="bottom-start"
       openOnPointerDown
       contentClass={mergeClasses(
-        "w-72 p-1 rounded-xl border border-subtle bg-surface",
+        "w-72 p-1 rounded-lg border border-subtle bg-surface",
         props.contentClass,
       )}
       contentShadows={
@@ -233,7 +235,7 @@ export function Select(props: SelectProps): JSX.Element {
                   aria-selected={selected()}
                   aria-disabled={option().disabled}
                   class={mergeClasses(
-                    "w-full h-8 flex-none px-3 flex items-center justify-between gap-3 rounded-lg text-sm",
+                    "w-full h-8 flex-none px-2.5 flex items-center justify-between gap-2 rounded-md text-sm leading-normal",
                     highlighted()
                       ? "bg-control-hover text-primary"
                       : "bg-transparent text-secondary",

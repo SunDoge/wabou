@@ -3,6 +3,26 @@ import { Button } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test, vi } from "vitest";
 
+test("Button uses the shared native desktop geometry across sizes", () => {
+  const screen = renderComponent(() => (
+    <>
+      <Button aria-label="Small action" size="sm" />
+      <Button aria-label="Default action" />
+      <Button aria-label="Large action" size="lg" />
+    </>
+  ));
+
+  expect(
+    screen.getByRole("button", { name: "Small action" }).className,
+  ).toContain("h-7 px-2 gap-1 text-xs rounded-md");
+  expect(
+    screen.getByRole("button", { name: "Default action" }).className,
+  ).toContain("h-8 px-2.5 gap-2 text-sm rounded-md");
+  expect(
+    screen.getByRole("button", { name: "Large action" }).className,
+  ).toContain("h-10 px-3 gap-2 text-base rounded-md");
+});
+
 test("Button exposes one stable disabled loading state", async () => {
   const activate = vi.fn();
   const App = () => {

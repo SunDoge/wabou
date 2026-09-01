@@ -40,7 +40,9 @@ const assertIconLayout = (snapshot: LayoutSnapshot) => {
 const assertOverviewSvgPaint = (snapshot: LayoutSnapshot) => {
   const icons = queryLayoutNodes(snapshot, { tag: "svg" });
   if (icons.length < 12)
-    throw new Error(`Gallery overview projected only ${icons.length} SVG icons`);
+    throw new Error(
+      `Gallery overview projected only ${icons.length} SVG icons`,
+    );
   for (const icon of icons) {
     if (icon.rect.width <= 0 || icon.rect.height <= 0) {
       throw new Error(
@@ -224,7 +226,51 @@ const assertSelectLayout = (snapshot: LayoutSnapshot) => {
   if (!selectedOption)
     throw new Error("select popup did not expose its selected option");
   if (!listbox.classes.includes("select-none"))
-    throw new Error("select popup exposed option labels to native text selection");
+    throw new Error(
+      "select popup exposed option labels to native text selection",
+    );
+  assertClose(trigger.rect.height, 32, "select trigger height");
+  for (const option of queryLayoutNodes(snapshot, { role: "option" }))
+    assertClose(option.rect.height, 32, "select option height");
+};
+
+const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
+  const small = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Fixture small button",
+  });
+  const ordinary = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Fixture default button",
+  });
+  const large = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Fixture large button",
+  });
+  const input = getLayoutNode(snapshot, {
+    role: "textbox",
+    name: "Fixture baseline input",
+  });
+  const heading = getLayoutNode(snapshot, {
+    role: "heading",
+    name: "Fixture section title",
+  });
+  const body = getLayoutNode(snapshot, {
+    text: "Controls share one compact desktop rhythm without local offsets.",
+  });
+
+  assertClose(small.rect.height, 28, "small button height");
+  assertClose(ordinary.rect.height, 32, "default button height");
+  assertClose(large.rect.height, 40, "large button height");
+  assertClose(input.rect.height, 32, "input height");
+  assertLayoutTextStyle(heading, {
+    fontSize: 24,
+    fontWeight: 600,
+  });
+  assertLayoutTextStyle(body, {
+    fontSize: 16,
+    fontWeight: 400,
+  });
 };
 
 const assertEmptyLayout = (snapshot: LayoutSnapshot) => {
@@ -605,6 +651,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/PromptSuggestion": { assert: assertPromptSuggestionLayout },
   "component/ScrollArea": { assert: assertScrollAreaLayout },
   "component/Select": { assert: assertSelectLayout },
+  "component/ControlBaseline": { assert: assertControlBaselineLayout },
   "component/Slider": { assert: assertSliderLayout },
   "component/Empty": { assert: assertEmptyLayout },
   "component/Onboarding": { assert: assertOnboardingLayout },

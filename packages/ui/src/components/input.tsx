@@ -94,10 +94,10 @@ export function TextArea(props: TextAreaProps): JSX.Element {
           : "native-editor"
       }
       class={mergeClasses(
-        "h-24 w-full px-3 py-2 text-sm text-primary",
+        "h-24 w-full px-2.5 py-2 text-sm leading-normal text-primary",
         (props.chrome ?? "default") === "default" &&
           mergeClasses(
-            "rounded-lg border border-subtle shadow-xs",
+            "rounded-md border border-subtle shadow-xs",
             props.surfaceClass ?? "bg-input",
           ),
         props.disabled && "opacity-50",
