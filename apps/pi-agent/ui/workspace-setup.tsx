@@ -4,6 +4,7 @@ import {
   CodeBlock,
   DirectoryPicker,
   Icon,
+  IconFrame,
   Text,
   View,
 } from "@wabou/ui";
@@ -41,9 +42,12 @@ export function WorkspaceSetup(props: {
     <View class="w-full h-full min-h-0 overflow-y-auto bg-canvas flex items-center justify-center">
       <View class="w-full max-w-2xl min-w-0 mx-auto px-8 py-12 gap-5">
         <View class="w-full min-w-0 flex flex-row items-center gap-3 mb-1">
-          <View class="w-11 h-11 flex-none rounded-xl bg-control flex items-center justify-center">
-            <Icon source={bot} size={21} class="text-secondary" />
-          </View>
+          <IconFrame
+            source={bot}
+            size="default"
+            variant="muted"
+            iconSize={21}
+          />
           <View class="min-w-0 flex-1 gap-2">
             <Text class="text-lg font-semibold text-primary">
               {i18n.message(m.setup_welcome, {})}
@@ -56,9 +60,12 @@ export function WorkspaceSetup(props: {
 
         <View class="w-full min-w-0 rounded-xl border border-subtle bg-surface p-4 gap-3">
           <View class="min-w-0 flex flex-row items-center gap-3">
-            <View class="w-9 h-9 flex-none rounded-lg bg-control flex items-center justify-center">
-              <Icon source={folder} size={17} class="text-secondary" />
-            </View>
+            <IconFrame
+              source={folder}
+              size="sm"
+              variant="muted"
+              iconSize={17}
+            />
             <View class="min-w-0 flex-1 gap-0">
               <Text class="text-sm font-medium">
                 {i18n.message(m.setup_title, {})}

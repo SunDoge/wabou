@@ -3,6 +3,7 @@ import {
   CodeBlock,
   createLatestAsyncResource,
   Icon,
+  IconFrame,
   Listbox,
   Markdown,
   ScrollArea,
@@ -216,9 +217,11 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                 title={i18n.message(m.select_file_preview, {})}
                 class="p-4"
                 renderMedia={() => (
-                  <View class="w-10 h-10 flex-none rounded-lg bg-control text-primary flex items-center justify-center">
-                    <Icon source={file} size={18} />
-                  </View>
+                  <IconFrame
+                    source={file}
+                    variant="muted"
+                    iconSize={18}
+                  />
                 )}
               />
             </Match>
