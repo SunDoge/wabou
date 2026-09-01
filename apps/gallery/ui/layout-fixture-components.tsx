@@ -1,4 +1,5 @@
 import {
+  ActivityStatus,
   AdaptiveSplitPane,
   AdaptiveSplitPaneDetail,
   AdaptiveSplitPaneMain,
@@ -618,6 +619,18 @@ export function SpinnerLayoutFixture() {
         <Spinner label="Fixture loading indicator" />
         <Text class="text-sm text-secondary">Loading</Text>
       </View>
+    </View>
+  );
+}
+
+export function ActivityStatusLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-4 flex items-center bg-canvas">
+      <ActivityStatus
+        label="Indexing a workspace with a deliberately long descriptive name"
+        animated
+        class="w-full"
+      />
     </View>
   );
 }

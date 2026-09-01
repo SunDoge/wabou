@@ -12,6 +12,7 @@ import {
 } from "../primitives";
 import { Badge, type BadgeProps } from "./badge";
 
+export * from "./activity-status";
 export * from "./alert";
 export * from "./alert-dialog";
 export * from "./aspect-ratio";

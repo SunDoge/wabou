@@ -1,4 +1,4 @@
-import { Badge, Icon, Pulse, Spinner, Text, View } from "@wabou/ui";
+import { ActivityStatus, Badge, Icon, Spinner, View } from "@wabou/ui";
 import circle from "lucide-static/icons/circle.svg?raw";
 import circleAlert from "lucide-static/icons/circle-alert.svg?raw";
 import { Match, Show, Switch } from "solid-js";
@@ -32,21 +32,7 @@ export function AgentActivityStatus(props: { state: AgentViewState }) {
   return (
     <View class="min-w-0 flex flex-row items-center gap-2">
       <Show when={label()}>
-        {(text) => (
-          <View
-            role="status"
-            class="min-w-0 flex flex-row items-center gap-1.5"
-          >
-            <Pulse
-              aria-hidden="true"
-              class="w-1.5 h-1.5 flex-none rounded-full bg-accent"
-              from={0.3}
-              to={1}
-              duration={0.8}
-            />
-            <Text class="min-w-0 truncate text-xs text-muted">{text()}</Text>
-          </View>
-        )}
+        {(text) => <ActivityStatus label={text()} animated />}
       </Show>
       <Show when={queued() > 0}>
         <Badge variant="secondary">

@@ -1,4 +1,6 @@
 import {
+  ActivityStatus,
+  ActivityStatusIndicator,
   Badge,
   Bubble,
   BubbleContent,
@@ -19,7 +21,6 @@ import {
   MessageHeader,
   MessageScrollerItem,
   number,
-  Pulse,
   Reasoning,
   ReasoningContent,
   ReasoningTrigger,
@@ -302,13 +303,7 @@ export function ToolActivityGroup(props: {
             transform={open() ? rotate2d(Math.PI / 2) : undefined}
           />
           <Show when={running()}>
-            <Pulse
-              aria-hidden="true"
-              class="w-1.5 h-1.5 rounded-full bg-accent"
-              from={0.3}
-              to={1}
-              duration={0.8}
-            />
+            <ActivityStatusIndicator animated />
           </Show>
           <Text class="min-w-0 truncate text-xs font-medium text-secondary">
             {label()}
@@ -474,20 +469,7 @@ export function ConversationItem(props: {
             <Show
               when={props.item.kind === "assistant" && props.item.streaming}
             >
-              <View
-                role="status"
-                aria-label="Pi is writing"
-                class="h-6 px-1 flex flex-row items-center gap-1.5"
-              >
-                <Pulse
-                  aria-hidden="true"
-                  class="w-1.5 h-1.5 rounded-full bg-accent"
-                  from={0.3}
-                  to={1}
-                  duration={0.8}
-                />
-                <Text class="text-xs text-muted">Pi is writing</Text>
-              </View>
+              <ActivityStatus label="Pi is writing" animated class="h-6 px-1" />
             </Show>
             <Show
               when={props.item.kind === "assistant" && props.item.thinkingText}

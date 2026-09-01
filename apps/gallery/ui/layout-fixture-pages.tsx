@@ -5,6 +5,7 @@ import {
 import { ComponentsProvider, View } from "@wabou/ui";
 import { type Component, createComponent } from "solid-js";
 import {
+  ActivityStatusLayoutFixture,
   AdaptiveSplitPaneLayoutFixture,
   DialogLayoutFixture,
   EditorLayoutFixture,
@@ -109,6 +110,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 240,
         height: 120,
         render: SpinnerLayoutFixture,
+      },
+      "component/ActivityStatus": {
+        width: 280,
+        height: 72,
+        render: ActivityStatusLayoutFixture,
       },
       "component/Slider": {
         width: 480,
