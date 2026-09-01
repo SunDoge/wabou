@@ -112,7 +112,11 @@ export function Select(props: SelectProps): JSX.Element {
   });
   const selected = () =>
     props.options.find((option) => option.value === interaction.value());
-  const handleKeyDown = (event: { key: string; preventDefault(): void }) => {
+  const handleKeyDown = (event: {
+    key: string;
+    preventDefault(): void;
+    stopPropagation?(): void;
+  }) => {
     const handled = match(event.key)
       .with("ArrowDown", () => interaction.send({ type: "ARROW_DOWN" }))
       .with("ArrowUp", () => interaction.send({ type: "ARROW_UP" }))
@@ -126,7 +130,10 @@ export function Select(props: SelectProps): JSX.Element {
       )
       .with("Escape", () => interaction.send({ type: "CLOSE" }))
       .otherwise((key) => interaction.typeahead(key));
-    if (handled) event.preventDefault();
+    if (handled) {
+      event.preventDefault();
+      if (event.key === "Escape") event.stopPropagation?.();
+    }
   };
 
   return (
