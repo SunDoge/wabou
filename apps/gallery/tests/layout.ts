@@ -398,6 +398,13 @@ const assertSelectionControlsLayout = (snapshot: LayoutSnapshot) => {
   const radioLabel = getLayoutNode(snapshot, {
     text: "Automatically choose the best download policy for this network",
   });
+  const switchControl = getLayoutNode(snapshot, {
+    role: "switch",
+    name: "Warn before quitting while active downloads are still running",
+  });
+  const switchLabel = getLayoutNode(snapshot, {
+    text: "Warn before quitting while active downloads are still running",
+  });
   const iconOnlyRadio = getLayoutNode(snapshot, {
     role: "radio",
     name: "Fixture icon-only radio",
@@ -413,6 +420,12 @@ const assertSelectionControlsLayout = (snapshot: LayoutSnapshot) => {
   assertLayoutRectContains(radio.contentRect, radioLabel.rect, {
     label: "wrapped radio label",
   });
+  if (Math.abs(switchControl.rect.y - switchLabel.rect.y) > 3)
+    throw new Error(
+      `switch track drifted ${Math.abs(switchControl.rect.y - switchLabel.rect.y)}px from the first label line`,
+    );
+  if (switchLabel.rect.height < 40)
+    throw new Error("long switch label did not wrap to two lines");
   if (checkboxLabel.rect.height < 40)
     throw new Error("long checkbox label did not wrap to two lines");
   if (radioLabel.rect.height < 40)

@@ -107,10 +107,7 @@ export function Switch(props: SwitchProps): JSX.Element {
   };
   return (
     <View
-      class={mergeClasses(
-        "w-full min-w-0 flex items-center gap-2",
-        props.class,
-      )}
+      class={mergeClasses("w-full min-w-0 flex items-start gap-2", props.class)}
     >
       <HeadlessButton
         ref={(node) => {
