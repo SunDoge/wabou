@@ -127,6 +127,8 @@ interface RadioContextValue {
   disabled: () => boolean;
   appearance: () => "radio" | "segment";
   register(value: string, node: Handle, disabled: () => boolean): () => void;
+  activate(value: string): void;
+  isTabStop(value: string): boolean;
   move(value: string, key: string): boolean;
 }
 
@@ -159,6 +161,7 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
   const roving = createRovingFocus({
     orientation: () => props.orientation ?? "vertical",
     loop: props.loop,
+    preferred: (id) => value() === id,
     onMove: select,
   });
   return createComponent(RadioContext, {
@@ -169,6 +172,10 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
       appearance: () => props.appearance ?? "radio",
       register: (id, target, disabled) =>
         roving.register({ id, target, disabled }),
+      activate: (id) => {
+        roving.activate(id);
+      },
+      isTabStop: roving.isTabStop,
       move: roving.move,
     },
     get children() {
@@ -215,6 +222,7 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
       selected={checked()}
       aria-label={props["aria-label"] ?? props.label}
       aria-checked={checked()}
+      focusOrder={group.isTabStop(props.value) ? 0 : -1}
       ref={(node) => {
         unregister?.();
         unregister = group.register(props.value, node, disabled);
@@ -235,6 +243,7 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
         opacity: buttonState.disabled ? 0.45 : 1,
       })}
       onClick={() => group.select(props.value)}
+      onFocus={() => group.activate(props.value)}
       onKeyDown={(event) => {
         if (group.move(props.value, event.key)) event.preventDefault();
       }}
@@ -385,14 +394,6 @@ export function nextToggleGroupValue(
 
 /** Shadcn-style single-value toggle group with native roving focus. */
 export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
-  const entries: Array<{ value: string; disabled: () => boolean }> = [];
-  const [activeValue, setActiveValue] = createSignal<string | undefined>(
-    undefined,
-    { ownedWrite: true },
-  );
-  const [registryVersion, setRegistryVersion] = createSignal(0, {
-    ownedWrite: true,
-  });
   const type = () => props.type ?? "single";
   const state = createControllableState<string | readonly string[]>({
     value: () => props.value,
@@ -407,12 +408,15 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
     },
   });
   const activateFromKeyboard = (value: string) => {
-    setActiveValue(value);
     if (type() === "single" && state.value() !== value) state.set(value);
   };
   const roving = createRovingFocus({
     orientation: () => "horizontal",
     loop: props.loop,
+    preferred: (id) => {
+      const current = state.value();
+      return Array.isArray(current) ? current.includes(id) : current === id;
+    },
     onMove: activateFromKeyboard,
   });
   const context: ToggleGroupContextValue = {
@@ -426,32 +430,16 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
     toggle: (value) =>
       state.set(nextToggleGroupValue(state.value(), value, type())),
     register(value, node, disabled) {
-      const entry = { value, disabled };
-      entries.push(entry);
-      const unregisterRoving = roving.register({
+      return roving.register({
         id: value,
         target: node,
         disabled,
       });
-      setRegistryVersion((version) => version + 1);
-      return () => {
-        unregisterRoving();
-        const index = entries.indexOf(entry);
-        if (index >= 0) entries.splice(index, 1);
-        setRegistryVersion((version) => version + 1);
-      };
     },
-    activate: setActiveValue,
-    isTabStop(value) {
-      registryVersion();
-      const enabled = entries.filter((entry) => !entry.disabled());
-      const active = activeValue();
-      const current = enabled.some((entry) => entry.value === active)
-        ? active
-        : (enabled.find((entry) => context.selected(entry.value))?.value ??
-          enabled[0]?.value);
-      return value === current;
+    activate(value) {
+      roving.activate(value);
     },
+    isTabStop: roving.isTabStop,
     move: roving.move,
     variant: () => props.variant ?? "default",
     size: () => props.size ?? "default",

@@ -1,4 +1,5 @@
 import { match, P } from "ts-pattern";
+import { createSignal } from "solid-js";
 
 export interface FocusTarget {
   focus(): void;
@@ -12,18 +13,44 @@ export interface RovingFocusOptions {
   orientation?: () => "horizontal" | "vertical";
   loop?: boolean;
   onMove?: (id: string) => void;
+  /** Prefer a selected/active item when focus has not entered the group yet. */
+  preferred?: (id: string) => boolean;
 }
 
 export function createRovingFocus(options: RovingFocusOptions = {}) {
   const items: RovingFocusItem[] = [];
+  const [activeId, setActiveId] = createSignal<string>();
+  const [registryVersion, setRegistryVersion] = createSignal(0);
   const enabled = () => items.filter((item) => !item.disabled?.());
+  const currentTabStop = () => {
+    registryVersion();
+    const candidates = enabled();
+    const active = activeId();
+    return (
+      candidates.find((item) => item.id === active)?.id ??
+      candidates.find((item) => options.preferred?.(item.id))?.id ??
+      candidates[0]?.id
+    );
+  };
+  const activate = (id: string) => {
+    if (!enabled().some((item) => item.id === id)) return false;
+    setActiveId(id);
+    return true;
+  };
   return {
     register(item: RovingFocusItem) {
       items.push(item);
+      setRegistryVersion((version) => version + 1);
       return () => {
         const index = items.indexOf(item);
         if (index >= 0) items.splice(index, 1);
+        if (activeId() === item.id) setActiveId(undefined);
+        setRegistryVersion((version) => version + 1);
       };
+    },
+    activate,
+    isTabStop(id: string) {
+      return currentTabStop() === id;
     },
     move(current: string, key: string) {
       const orientation = options.orientation?.() ?? "horizontal";
@@ -66,6 +93,7 @@ export function createRovingFocus(options: RovingFocusOptions = {}) {
         )
         .exhaustive();
       if (!target) return false;
+      activate(target.id);
       options.onMove?.(target.id);
       target.target.focus();
       return true;

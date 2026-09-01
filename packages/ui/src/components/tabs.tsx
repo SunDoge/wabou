@@ -38,6 +38,8 @@ interface TabsContextValue {
   orientation: () => "horizontal" | "vertical";
   select(value: string): void;
   register(value: string, node: Handle, disabled: () => boolean): () => void;
+  activate(value: string): void;
+  isTabStop(value: string): boolean;
   move(value: string, key: string): boolean;
 }
 
@@ -64,6 +66,7 @@ export function Tabs(props: TabsProps): JSX.Element {
   };
   const roving = createRovingFocus({
     orientation: () => props.orientation ?? "horizontal",
+    preferred: (id) => value() === id,
     onMove: select,
   });
   const context: TabsContextValue = {
@@ -75,6 +78,10 @@ export function Tabs(props: TabsProps): JSX.Element {
       if (value() === undefined && !disabled()) select(next);
       return unregister;
     },
+    activate: (next) => {
+      roving.activate(next);
+    },
+    isTabStop: roving.isTabStop,
     move: roving.move,
   };
   return createComponent(TabsContext, {
@@ -229,7 +236,7 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
       disabled={props.disabled}
       selected={selected()}
       aria-selected={selected()}
-      focusOrder={selected() ? 0 : -1}
+      focusOrder={context.isTabStop(props.value) ? 0 : -1}
       ref={(node) => {
         unregister?.();
         unregister = context.register(
@@ -260,6 +267,7 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
       }
       style={(state) => ({ opacity: state.disabled ? 0.45 : 1 })}
       onClick={() => context.select(props.value)}
+      onFocus={() => context.activate(props.value)}
       onKeyDown={(event) => {
         if (context.move(props.value, event.key)) event.preventDefault();
       }}
@@ -290,11 +298,7 @@ export function TabsContent(props: {
         aria-hidden={!selected()}
         class={mergeClasses(
           "min-w-0 flex flex-col",
-          orientationClass(
-            context.orientation(),
-            "w-full flex-none",
-            "flex-1",
-          ),
+          orientationClass(context.orientation(), "w-full flex-none", "flex-1"),
           props.class,
         )}
         style={{ display: selected() ? "flex" : "none" }}

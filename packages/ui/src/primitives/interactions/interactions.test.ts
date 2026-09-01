@@ -147,6 +147,48 @@ test("roving focus follows orientation and skips disabled targets", () => {
   expect(focused).toEqual(["three"]);
 });
 
+test("roving focus owns one enabled tab stop and recovers after removal", () => {
+  createRoot((dispose) => {
+    const [selected, setSelected] = createSignal("two");
+    const roving = createRovingFocus({
+      preferred: (id) => id === selected(),
+    });
+    const unregisterOne = roving.register({
+      id: "one",
+      target: { focus() {} },
+    });
+    const unregisterTwo = roving.register({
+      id: "two",
+      target: { focus() {} },
+    });
+    roving.register({
+      id: "three",
+      disabled: () => true,
+      target: { focus() {} },
+    });
+    flush();
+
+    expect(roving.isTabStop("one")).toBe(false);
+    expect(roving.isTabStop("two")).toBe(true);
+    expect(roving.isTabStop("three")).toBe(false);
+
+    roving.activate("one");
+    flush();
+    expect(roving.isTabStop("one")).toBe(true);
+    expect(roving.isTabStop("two")).toBe(false);
+
+    unregisterOne();
+    flush();
+    expect(roving.isTabStop("two")).toBe(true);
+
+    setSelected("missing");
+    unregisterTwo();
+    flush();
+    expect(roving.isTabStop("three")).toBe(false);
+    dispose();
+  });
+});
+
 describe("select behavior", () => {
   const items = [
     { id: "apple", textValue: "Apple" },

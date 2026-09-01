@@ -101,13 +101,36 @@ test("selects radio items and skips disabled choices during roving focus", () =>
   const pro = screen.getByRole("radio", { name: "Pro", disabled: true });
   const team = screen.getByRole("radio", { name: "Team" });
 
+  expect(free.focusOrder).toBe(0);
+  expect(pro.focusOrder).toBe(-1);
+  expect(team.focusOrder).toBe(-1);
+
   free.focus();
   free.press("ArrowDown");
 
   expect(pro.focused).toBe(false);
   expect(team.focused).toBe(true);
   expect(team.checked).toBe(true);
+  expect(free.focusOrder).toBe(-1);
+  expect(team.focusOrder).toBe(0);
   expect(screen.getByRole("status").text).toBe("team");
+});
+
+test("keeps one enabled radio tabbable when the group has no selection", () => {
+  const screen = renderComponent(() => (
+    <RadioGroup aria-label="Unselected policy">
+      <RadioGroupItem value="blocked" label="Blocked" disabled />
+      <RadioGroupItem value="automatic" label="Automatic" />
+      <RadioGroupItem value="manual" label="Manual" />
+    </RadioGroup>
+  ));
+
+  expect(
+    screen.getByRole("radio", { name: "Blocked", disabled: true }).focusOrder,
+  ).toBe(-1);
+  expect(screen.getByRole("radio", { name: "Automatic" }).focusOrder).toBe(0);
+  expect(screen.getByRole("radio", { name: "Automatic" }).checked).toBe(false);
+  expect(screen.getByRole("radio", { name: "Manual" }).focusOrder).toBe(-1);
 });
 
 test("keeps a controlled radio group stable until its owner accepts a change", () => {
