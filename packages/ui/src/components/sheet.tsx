@@ -46,7 +46,10 @@ const sheetMotion = (side: SheetSide): ModalMotionOptions =>
       () =>
         ({
           duration: 0.26,
-          ease: "easeInOut",
+          enterDuration: 0.22,
+          exitDuration: 0.18,
+          enterEase: "easeOut",
+          exitEase: "linear",
           fromX: -400,
         }) as ModalMotionOptions,
     )
@@ -55,7 +58,10 @@ const sheetMotion = (side: SheetSide): ModalMotionOptions =>
       () =>
         ({
           duration: 0.26,
-          ease: "easeInOut",
+          enterDuration: 0.22,
+          exitDuration: 0.18,
+          enterEase: "easeOut",
+          exitEase: "linear",
           fromX: 400,
         }) as ModalMotionOptions,
     )
@@ -64,7 +70,10 @@ const sheetMotion = (side: SheetSide): ModalMotionOptions =>
       () =>
         ({
           duration: 0.26,
-          ease: "easeInOut",
+          enterDuration: 0.22,
+          exitDuration: 0.18,
+          enterEase: "easeOut",
+          exitEase: "linear",
           fromY: -320,
         }) as ModalMotionOptions,
     )
@@ -73,7 +82,10 @@ const sheetMotion = (side: SheetSide): ModalMotionOptions =>
       () =>
         ({
           duration: 0.26,
-          ease: "easeInOut",
+          enterDuration: 0.22,
+          exitDuration: 0.18,
+          enterEase: "easeOut",
+          exitEase: "linear",
           fromY: 320,
         }) as ModalMotionOptions,
     )

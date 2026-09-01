@@ -28,7 +28,8 @@ test("slides a solid edge panel fully out before unmounting it", () => {
     sheet.attribute("__wabou_native_transition") ?? "null",
   );
   expect(entering).toMatchObject({
-    duration: 0.26,
+    duration: 0.22,
+    easing: "easeOut",
     fromTransform: [1, 0, 0, 1, 400, 0],
     toTransform: [1, 0, 0, 1, 0, 0],
     fromOpacity: 1,
@@ -49,6 +50,8 @@ test("slides a solid edge panel fully out before unmounting it", () => {
     sheet.attribute("__wabou_native_transition") ?? "null",
   );
   expect(exiting).toMatchObject({
+    duration: 0.18,
+    easing: "linear",
     fromTransform: [1, 0, 0, 1, 0, 0],
     toTransform: [1, 0, 0, 1, 400, 0],
   });
