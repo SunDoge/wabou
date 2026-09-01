@@ -54,9 +54,9 @@ pub(crate) struct LayoutMetricsSnapshot {
     pub nodes: HashMap<NodeKey, LayoutMetric>,
 }
 
-use crate::atom::AtomPool;
 use crate::host_frame::{HostEvent, encode_host_frame};
 use crate::style_ir::{ColorThemes, StylesheetUpdate};
+use wabou_protocol::AtomPool;
 use wabou_shell::FrameStats;
 
 const CORE_PRELUDE: &str = include_str!("gen/core-prelude.js");
