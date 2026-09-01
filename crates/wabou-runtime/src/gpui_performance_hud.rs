@@ -92,7 +92,7 @@ impl GpuiPerformanceHud {
         if self.last_diagnostic_at.elapsed() >= std::time::Duration::from_secs(1) {
             tracing::debug!(
                 target: "wabou::perf",
-                fps = self.fps,
+                draw_rate_hz = self.fps,
                 draw_ms = self.draw_ms,
                 dirty_to_draw_ms = self.dirty_to_draw_ms,
                 invalidations_per_frame = self.invalidations_per_frame,
@@ -160,7 +160,7 @@ impl Render for GpuiPerformanceHud {
                     .justify_between()
                     .font_semibold()
                     .child("Performance HUD")
-                    .child(format!("{:>4.0} FPS", self.fps)),
+                    .child(format!("{:>4.0} draw/s", self.fps)),
             )
             .child(format!(
                 "JS {:>6.2} ms  projection {:>6.2} ms",
