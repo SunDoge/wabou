@@ -209,6 +209,7 @@ export function Drawer(props: DrawerProps): JSX.Element {
       return (
         <Modal
           {...props}
+          backdropFade={false}
           contentFade={false}
           open={open()}
           onOpenChange={(next, reason) => setOpen(next, reason)}
