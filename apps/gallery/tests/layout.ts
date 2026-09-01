@@ -251,6 +251,18 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
     role: "textbox",
     name: "Fixture baseline input",
   });
+  const switchControl = getLayoutNode(snapshot, {
+    role: "switch",
+    name: "Fixture compact switch",
+  });
+  const buttonGroup = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Fixture destructive button group",
+  });
+  const destructiveButton = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Fixture destructive group action",
+  });
   const heading = getLayoutNode(snapshot, {
     role: "heading",
     name: "Fixture section title",
@@ -263,6 +275,11 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   assertClose(ordinary.rect.height, 32, "default button height");
   assertClose(large.rect.height, 40, "large button height");
   assertClose(input.rect.height, 32, "input height");
+  assertClose(switchControl.rect.width, 40, "switch target width");
+  assertClose(switchControl.rect.height, 24, "switch target height");
+  assertLayoutRectContains(buttonGroup.contentRect, destructiveButton.rect, {
+    label: "destructive button group edge",
+  });
   assertLayoutTextStyle(heading, {
     fontSize: 24,
     fontWeight: 600,

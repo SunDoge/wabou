@@ -37,6 +37,18 @@ test("publishes the final switch position under reduced motion", () => {
   expect(thumbX(screen)).toBe(20);
 });
 
+test("uses compact GPUI-native track geometry without focus reflow", () => {
+  const screen = renderComponent(() => <Switch aria-label="Sync" />);
+  const control = screen.getByRole("switch", { name: "Sync" });
+  const thumb = control.children[0];
+
+  expect(control.className).toContain("w-10 h-6");
+  expect(control.className).toContain("overflow-hidden");
+  expect(control.className).toContain("border border-transparent");
+  expect(thumb?.className).toContain("w-4 h-4");
+  expect(thumb?.className).toContain("bg-surface");
+});
+
 test("switch label focuses and activates its explicit control", () => {
   const screen = renderComponent(() => (
     <Switch label="Enable subagents" defaultChecked={false} />

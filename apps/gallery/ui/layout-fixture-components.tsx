@@ -8,6 +8,8 @@ import {
   Bubble,
   BubbleContent,
   Button,
+  ButtonGroup,
+  ButtonGroupSeparator,
   Card,
   CardContent,
   CardDescription,
@@ -66,6 +68,7 @@ import {
   SidebarMenuLabel,
   Slider,
   Spinner,
+  Switch,
   Text,
   Tool,
   ToolContent,
@@ -616,6 +619,17 @@ export function ControlBaselineLayoutFixture() {
         aria-label="Fixture baseline input"
         placeholder="Native text input"
       />
+      <Switch label="Fixture compact switch" defaultChecked />
+      <ButtonGroup aria-label="Fixture destructive button group">
+        <Button variant="outline">Keep</Button>
+        <ButtonGroupSeparator />
+        <Button
+          variant="destructive"
+          aria-label="Fixture destructive group action"
+        >
+          Delete
+        </Button>
+      </ButtonGroup>
     </View>
   );
 }
