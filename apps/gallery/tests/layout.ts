@@ -172,11 +172,18 @@ const assertAlertLayout = (snapshot: LayoutSnapshot) => {
     role: "group",
     name: "Fixture recovery actions",
   });
+  const close = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Dismiss Fixture failed native build",
+  });
   assertLayoutRectContains(alert.contentRect, description.rect, {
     label: "alert description",
   });
   assertLayoutRectContains(alert.contentRect, actions.rect, {
     label: "alert recovery actions",
+  });
+  assertLayoutRectContains(alert.contentRect, close.rect, {
+    label: "alert close control",
   });
   if (alert.rect.height > 150)
     throw new Error(`inline alert expanded to ${alert.rect.height}px`);
@@ -184,10 +191,11 @@ const assertAlertLayout = (snapshot: LayoutSnapshot) => {
     throw new Error(
       `alert description was compressed to ${description.textMetrics?.lineBox.width ?? 0}px`,
     );
-  for (const button of queryLayoutNodes(snapshot, { role: "button" }))
-    assertLayoutRectContains(actions.contentRect, button.rect, {
-      label: button.semantic?.label ?? "alert action",
-    });
+  for (const name of ["Retry build", "Open output"])
+    for (const button of queryLayoutNodes(snapshot, { role: "button", name }))
+      assertLayoutRectContains(actions.contentRect, button.rect, {
+        label: button.semantic?.label ?? "alert action",
+      });
 };
 
 const assertToastLayout = (snapshot: LayoutSnapshot) => {

@@ -29,6 +29,33 @@ test("alert actions provide a stable recovery region", () => {
   expect(retry).toHaveBeenCalledOnce();
 });
 
+test("provides semantic variants, sizing, banner chrome, and close delegation", () => {
+  const close = vi.fn();
+  const screen = renderComponent(() => (
+    <>
+      <Alert variant="success" size="lg" title="Published" onClose={close}>
+        The release is available.
+      </Alert>
+      <Alert variant="warning" banner title="Network warning">
+        Proxy settings need attention.
+      </Alert>
+      <Alert variant="info" title="Indexed" />
+    </>
+  ));
+  const success = screen.getByRole("alert", { name: "Published" });
+  const warning = screen.getByRole("alert", { name: "Network warning" });
+  const informational = screen.getByRole("alert", { name: "Indexed" });
+
+  expect(success.className).toContain("px-5 py-3");
+  expect(success.className).toContain("bg-success-surface");
+  expect(success.children[0]?.children[0]?.tag).toBe("svg");
+  expect(warning.className).toContain("rounded-none");
+  expect(warning.className).toContain("border-0");
+  expect(informational.className).toContain("bg-selected");
+  screen.getByRole("button", { name: "Dismiss Published" }).click();
+  expect(close).toHaveBeenCalledOnce();
+});
+
 test("alert uses the compact inline feedback surface contract", () => {
   const screen = renderComponent(() => (
     <Alert title="Workspace ready">All checks passed.</Alert>

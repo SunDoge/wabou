@@ -759,9 +759,11 @@ export function AlertLayoutFixture() {
     <View class="w-full h-full min-w-0 p-5 items-start bg-canvas">
       <Alert
         variant="destructive"
+        size="lg"
         aria-label="Fixture failed native build"
         class="w-full"
         icon={<Icon source={imageIcon} size={16} aria-hidden="true" />}
+        onClose={() => {}}
       >
         <AlertTitle>Native build failed</AlertTitle>
         <AlertDescription>
