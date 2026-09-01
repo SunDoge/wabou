@@ -1,8 +1,8 @@
 use motrix_wabou::downloads;
 use snafu::{ResultExt, Whatever};
 use wabou::{
-    AppDirectoryConfig, HostBuilder, HostMessage, HostMessageRouter, WindowOptions,
-    initial_window_resource_key,
+    AppDirectoryConfig, HostBuilder, HostMessage, HostMessageRouter, WindowBackground,
+    WindowOptions, initial_window_resource_key,
 };
 use wabou::{SystemTray, TrayImage};
 
@@ -75,7 +75,7 @@ fn main() -> Result<(), Whatever> {
                 .initial_inner_size(1280, 820)
                 .min_inner_size(900, 600)
                 .decorations(false)
-                .transparent(true),
+                .background(WindowBackground::Blurred),
         )
         .json_capability(downloads::CAPABILITY, move |capability| {
             downloads::mount(capability, capability_service.clone())
