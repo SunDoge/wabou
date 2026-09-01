@@ -233,6 +233,7 @@ impl Render for GpuiProjectionBoundary {
                 self.text_selections.clone(),
             )
             .expect("the projection boundary root remains retained")
+            .into_projection_boundary_content()
     }
 }
 

@@ -542,6 +542,33 @@ impl ProjectedElement {
         })
     }
 
+    /// Render a retained projection boundary inside the size already assigned
+    /// to its cached GPUI entity.
+    ///
+    /// The entity wrapper owns the authored external layout contract (margin,
+    /// position, flex/grid participation, and min/max sizing). Reapplying that
+    /// contract to the projected root makes a flex scroll viewport measure at
+    /// its intrinsic content height inside the entity, eliminating its scroll
+    /// range. The inner root instead fills the entity while retaining its
+    /// padding, overflow, paint, and child-layout styles.
+    #[must_use]
+    pub fn into_projection_boundary_content(mut self) -> Self {
+        let defaults = gpui::Style::default();
+        self.style.position = defaults.position;
+        self.style.inset = defaults.inset;
+        self.style.size.width = gpui::relative(1.0).into();
+        self.style.size.height = gpui::relative(1.0).into();
+        self.style.min_size = defaults.min_size;
+        self.style.max_size = defaults.max_size;
+        self.style.margin = defaults.margin;
+        self.style.align_self = defaults.align_self;
+        self.style.flex_basis = defaults.flex_basis;
+        self.style.flex_grow = defaults.flex_grow;
+        self.style.flex_shrink = defaults.flex_shrink;
+        self.style.grid_location = defaults.grid_location;
+        self
+    }
+
     fn translation(&self) -> gpui::Point<Pixels> {
         if self.svg_source.is_some() {
             return gpui::Point::default();
@@ -2409,6 +2436,79 @@ mod tests {
             |_, _| materialize(),
         );
         assert_eq!(bounds.borrow()[&child].origin.y, px(-50.0));
+    }
+
+    #[gpui::test]
+    fn projection_boundary_scroll_root_fills_its_cached_entity_viewport(cx: &mut TestAppContext) {
+        struct LayoutHost;
+        impl gpui::Render for LayoutHost {
+            fn render(
+                &mut self,
+                _window: &mut Window,
+                _cx: &mut Context<Self>,
+            ) -> impl IntoElement {
+                div()
+            }
+        }
+
+        let viewport = NodeKey::new(50, 1);
+        let content = NodeKey::new(51, 1);
+        let mut viewport_style = Style::default();
+        viewport_style.flex_grow = 1.0;
+        viewport_style.min_size.height = px(0.0).into();
+        viewport_style.overflow.y = Overflow::Scroll;
+        let mut content_style = Style::default();
+        content_style.size.width = gpui::relative(1.0).into();
+        content_style.size.height = px(240.0).into();
+        content_style.flex_shrink = 0.0;
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            viewport,
+            None,
+            0,
+            viewport_style,
+            None,
+            ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        tree.insert(
+            content,
+            Some(viewport),
+            0,
+            content_style,
+            None,
+            ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        let handle = ProjectedScrollHandle::default();
+        let scroll_handles = Rc::new(BTreeMap::from([(viewport, handle.clone())]));
+        let bounds = ProjectedLayoutBounds::default();
+        let (_host, window) = cx.add_window_view(|_, _| LayoutHost);
+
+        window.draw(
+            point(px(0.0), px(0.0)),
+            gpui::size(px(100.0), px(100.0)),
+            |_, _| {
+                ProjectedElement::from_tree(
+                    tree.snapshot(),
+                    viewport,
+                    ProjectedElementContext {
+                        layout_bounds: Some(bounds.clone()),
+                        scroll_handles: Some(scroll_handles.clone()),
+                        ..Default::default()
+                    },
+                    false,
+                )
+                .unwrap()
+                .into_projection_boundary_content()
+            },
+        );
+
+        assert_eq!(bounds.borrow()[&viewport].size.height, px(100.0));
+        assert!(
+            handle.scroll_to(f32::NAN, 50.0),
+            "content taller than the cached boundary must establish a scroll range"
+        );
     }
 
     #[gpui::test]
