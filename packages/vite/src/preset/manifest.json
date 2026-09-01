@@ -3140,6 +3140,28 @@
         }
       }
     ],
+    "rounded-r-none": [
+      {
+        "property": "border-top-right-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 0.0
+          }
+        }
+      },
+      {
+        "property": "border-bottom-right-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 0.0
+          }
+        }
+      }
+    ],
     "rounded-sm": [
       {
         "property": "border-radius",

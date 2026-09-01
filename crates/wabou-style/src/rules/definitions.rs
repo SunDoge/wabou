@@ -674,6 +674,13 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
             ],
         ),
         (
+            "rounded-r-none",
+            vec![
+                length("border-top-right-radius", Length::Px { value: 0.0 }),
+                length("border-bottom-right-radius", Length::Px { value: 0.0 }),
+            ],
+        ),
+        (
             "rounded-t-lg",
             vec![
                 length("border-top-left-radius", Length::Px { value: 8.0 }),

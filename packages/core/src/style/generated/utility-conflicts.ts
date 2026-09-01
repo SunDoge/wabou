@@ -510,6 +510,7 @@ export const UTILITY_CONFLICT_DATA = {
     "rounded-md": ["border-radius"],
     "rounded-none": ["border-radius"],
     "rounded-r-lg": ["border-top-right-radius", "border-bottom-right-radius"],
+    "rounded-r-none": ["border-top-right-radius", "border-bottom-right-radius"],
     "rounded-sm": ["border-radius"],
     "rounded-t-lg": ["border-top-left-radius", "border-top-right-radius"],
     "rounded-xl": ["border-radius"],

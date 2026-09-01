@@ -199,6 +199,7 @@ export type WabouStaticUtility =
   | "rounded-md"
   | "rounded-none"
   | "rounded-r-lg"
+  | "rounded-r-none"
   | "rounded-sm"
   | "rounded-t-lg"
   | "rounded-xl"
