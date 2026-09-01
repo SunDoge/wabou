@@ -36,7 +36,7 @@ use wabou_shell::{
 /// The expensive element materialization belongs to an explicitly cached
 /// [`GpuiProjectionBoundary`]; this root remains responsible for native window
 /// services and frame coordination without creating one Entity per JSX node.
-pub struct GpuiRuntimeView {
+pub(crate) struct GpuiRuntimeView {
     controller: GpuiController,
     // Retaining the task ties the async bridge to the lifetime of this view.
     // The task itself only owns a weak entity handle, so this is not a cycle.

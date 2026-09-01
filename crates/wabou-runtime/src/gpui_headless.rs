@@ -8,7 +8,7 @@ use wabou_shell::gpui::{
     MouseUpEvent, PlatformInput, ScrollDelta, ScrollWheelEvent, TouchPhase, point, px,
 };
 
-use crate::{GpuiRuntimeView, JsRuntime, WindowOptions};
+use crate::{JsRuntime, WindowOptions, gpui_view::GpuiRuntimeView};
 
 const HEADLESS_FRAME_DURATION: Duration = Duration::from_micros(16_667);
 

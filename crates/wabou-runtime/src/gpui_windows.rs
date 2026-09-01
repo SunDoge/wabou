@@ -153,7 +153,7 @@ impl GpuiApplicationWindows {
         let opened = cx.open_window(gpui_options, move |window, cx| {
             window.set_window_title(&title);
             cx.new(|cx| {
-                crate::GpuiRuntimeView::new(
+                crate::gpui_view::GpuiRuntimeView::new(
                     controller,
                     crate::gpui_view::GpuiRuntimeViewOptions {
                         window_size_persistence: persistence,
