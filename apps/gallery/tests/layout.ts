@@ -147,6 +147,8 @@ const assertAlertLayout = (snapshot: LayoutSnapshot) => {
   assertLayoutRectContains(alert.contentRect, actions.rect, {
     label: "alert recovery actions",
   });
+  if (alert.rect.height > 150)
+    throw new Error(`inline alert expanded to ${alert.rect.height}px`);
   if (!description.textMetrics || description.textMetrics.lineBox.width < 260)
     throw new Error(
       `alert description was compressed to ${description.textMetrics?.lineBox.width ?? 0}px`,
