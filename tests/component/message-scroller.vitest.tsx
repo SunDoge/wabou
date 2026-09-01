@@ -75,10 +75,41 @@ test("MessageScrollerNavigator exposes retained anchors without app-owned chrome
   const second = screen.getByRole("button", {
     name: "Jump to request 2: Run focused tests",
   });
+  expect(second.current).toBe("step");
   expect(first.focusOrder).toBe(0);
   expect(second.focusOrder).toBe(-1);
   first.focus();
   first.press("ArrowDown");
   expect(second.focused).toBe(true);
   expect(() => second.click()).not.toThrow();
+});
+
+test("MessageScrollerNavigator makes a newly appended turn current while following the end", () => {
+  const [items, setItems] = createSignal([
+    { id: "request-1", label: "Inspect the renderer" },
+  ]);
+  const screen = renderComponent(() => (
+    <MessageScroller>
+      <MessageScrollerNavigator
+        items={items()}
+        minItems={1}
+        aria-label="Request navigator"
+        itemAriaLabel={(item, index) =>
+          `Jump to request ${index + 1}: ${item.label}`
+        }
+      />
+    </MessageScroller>
+  ));
+
+  setItems((current) => [
+    ...current,
+    { id: "request-2", label: "Run focused tests" },
+  ]);
+  screen.flush();
+
+  expect(
+    screen.getByRole("button", {
+      name: "Jump to request 2: Run focused tests",
+    }).current,
+  ).toBe("step");
 });

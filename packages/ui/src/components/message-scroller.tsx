@@ -169,6 +169,7 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
   let anchorFrame: number | undefined;
   const anchors = new Map<string, Handle>();
   let measuredAnchors: MessageAnchorRect[] = [];
+  const newestAnchor = () => [...anchors.keys()].at(-1);
 
   const updateActiveFromScroll = (position = scrollY()) => {
     if (
@@ -185,7 +186,7 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
           !current || anchor.rect.y > current.rect.y ? anchor : current,
         undefined,
       );
-      setActiveAnchor(last?.id);
+      setActiveAnchor(last?.id ?? newestAnchor());
       return;
     }
     setActiveAnchor(
@@ -204,7 +205,7 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
   const measureAnchors = () => {
     if (!viewport || anchors.size === 0) {
       measuredAnchors = [];
-      setActiveAnchor(undefined);
+      setActiveAnchor(followingEnd() ? newestAnchor() : undefined);
       return;
     }
     const targets = [...anchors.entries()];
@@ -351,6 +352,11 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
     },
     registerAnchor: (anchor, node) => {
       anchors.set(anchor, node);
+      // Following the end semantically means the newest registered turn is
+      // current. Publish that immediately; native layout measurement can
+      // refine the result later, but must not leave aria-current unset while
+      // the new frame is still being measured.
+      if (followingEnd()) setActiveAnchor(anchor);
       scheduleAnchorMeasure();
     },
     unregisterAnchor: (anchor, node) => {
@@ -548,6 +554,10 @@ export function MessageScrollerNavigator(
   props: MessageScrollerNavigatorProps,
 ): JSX.Element {
   const context = requireMessageScroller();
+  const currentAnchor = () =>
+    context.followingEnd()
+      ? props.items.at(-1)?.id
+      : context.activeAnchor();
   const reveal = (id: string) => {
     context.scrollToAnchor(id, { margin: 24, align: "start" });
   };
@@ -582,7 +592,7 @@ export function MessageScrollerNavigator(
                     class="w-7 h-7 p-0 rounded-full"
                     aria-label={props.itemAriaLabel(item(), index)}
                     aria-current={
-                      context.activeAnchor() === item().id ? "step" : undefined
+                      currentAnchor() === item().id ? "step" : undefined
                     }
                     onPointerEnter={tooltip.onPointerEnter}
                     onPointerLeave={tooltip.onPointerLeave}
@@ -594,7 +604,7 @@ export function MessageScrollerNavigator(
                     <View
                       aria-hidden="true"
                       class={
-                        context.activeAnchor() === item().id
+                        currentAnchor() === item().id
                           ? "w-4 h-1 rounded-full bg-accent"
                           : "w-3 h-1 rounded-full bg-subtle"
                       }
