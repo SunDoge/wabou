@@ -212,9 +212,64 @@ export {
 } from "./glue/window-metrics";
 export * from "./keyed-list";
 export * from "./registry";
-// The renderer and typed style surface are re-exported here so application
-// code has one stable runtime entry point. Separate source workspaces remain
-// an implementation detail and are bundled into this package for release.
-export * from "./renderer";
+// Keep application-facing renderer types at the stable root. Reconciler hooks,
+// protocol writers, dispatch functions, and generated opcodes remain available
+// only from `@wabou/core/renderer` to JSX tooling and host infrastructure.
+export {
+  type BuiltinHost,
+  type DebugOverlayOptions,
+  type DebugOverlayPaintStats,
+  defaultHost,
+  Dynamic,
+  type DynamicProps,
+  type FrameStats,
+  type Handle,
+  type Host,
+  HostProvider,
+  type HostProviderProps,
+  isDirectEvent,
+  type LayoutNodeMetrics,
+  type LayoutRect,
+  type LayoutScrollMetrics,
+  type LayoutSnapshot,
+  type LayoutTarget,
+  mount,
+  observeGlobalPointerEvent,
+  Portal,
+  type PortalProps,
+  setTransform2D,
+  useHost,
+  type WabouBuiltinIntrinsicElements,
+  type WabouControlProps,
+  type WabouElementProps,
+  type WabouEventTarget,
+  type WabouExposedSemanticRole,
+  type WabouGlobalPointerEventType,
+  type WabouGlobalPointerListener,
+  type WabouImageProps,
+  type WabouImeDeleteSurroundingEvent,
+  type WabouImePreeditEvent,
+  type WabouInputEvent,
+  type WabouInputProps,
+  type WabouKeyEvent,
+  type WabouNativeElements,
+  type WabouNativeTag,
+  type WabouNativeTransition,
+  type WabouNodeEvent,
+  type WabouPointerEvent,
+  type WabouPositionedEvent,
+  type WabouScrollEvent,
+  type WabouSemanticRole,
+  type WabouSubmitEvent,
+  type WabouSvgProps,
+  type WabouSvgShapeProps,
+  type WabouTextCommitEvent,
+  type WabouTextSelectionChangeEvent,
+  type WabouTransitionEvent,
+  type WabouValueChangeEvent,
+  type WabouVectorPathProps,
+  type WabouWheelEvent,
+} from "./renderer";
+export { createFps, VirtualList, type VirtualListProps } from "./renderer";
 export * from "./style";
 export * from "./vector-path";
