@@ -22,9 +22,17 @@ export type ComponentsControlSize = "sm" | "default" | "lg" | "icon";
  */
 export const componentsThemeContract = Object.freeze({
   controlHeight: Object.freeze({ sm: 28, default: 32, lg: 40, icon: 32 }),
+  controlPaddingX: Object.freeze({ sm: 8, default: 10, lg: 12, icon: 0 }),
   iconSize: Object.freeze({ sm: 14, default: 16, lg: 18 }),
-  controlRadius: 8,
-  containerRadius: 12,
+  typography: Object.freeze({
+    xs: Object.freeze({ size: 12, lineHeight: 16 }),
+    sm: Object.freeze({ size: 14, lineHeight: 20 }),
+    md: Object.freeze({ size: 16, lineHeight: 24 }),
+    lg: Object.freeze({ size: 18, lineHeight: 28 }),
+    xl: Object.freeze({ size: 20, lineHeight: 28 }),
+  }),
+  controlRadius: 6,
+  containerRadius: 8,
   containerPadding: 20,
   sectionGap: 16,
 });
@@ -34,18 +42,18 @@ export function componentsControlContentSize(
 ): string {
   switch (size) {
     case "sm":
-      return "h-7 px-2 gap-1.5 text-xs";
+      return "h-7 px-2 gap-1 text-xs";
     case "lg":
-      return "h-10 px-4 gap-2.5 text-base";
+      return "h-10 px-3 gap-2 text-base";
     case "icon":
       return "w-8 h-8 p-0 gap-0 text-sm";
     default:
-      return "h-8 px-3 gap-2 text-sm";
+      return "h-8 px-2.5 gap-2 text-sm";
   }
 }
 
 export function componentsControlSize(size: ComponentsControlSize): string {
-  return `${componentsControlContentSize(size)} rounded-lg`;
+  return `${componentsControlContentSize(size)} rounded-md`;
 }
 
 /**

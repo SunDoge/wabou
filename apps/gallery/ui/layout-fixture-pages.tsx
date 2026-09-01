@@ -8,6 +8,7 @@ import {
   ActivityStatusLayoutFixture,
   AdaptiveSplitPaneLayoutFixture,
   ContentStateLayoutFixture,
+  ControlBaselineLayoutFixture,
   DialogLayoutFixture,
   EditorLayoutFixture,
   EmptyLayoutFixture,
@@ -103,6 +104,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         height: 420,
         waitMs: 20,
         render: SelectLayoutFixture,
+      },
+      "component/ControlBaseline": {
+        width: 520,
+        height: 280,
+        render: ControlBaselineLayoutFixture,
       },
       "component/Listbox": {
         width: 420,

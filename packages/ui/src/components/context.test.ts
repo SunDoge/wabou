@@ -8,13 +8,21 @@ import {
 test("default desktop geometry is shared by high-frequency controls", () => {
   expect(componentsThemeContract).toMatchObject({
     controlHeight: { sm: 28, default: 32, lg: 40, icon: 32 },
-    controlRadius: 8,
-    containerRadius: 12,
+    controlPaddingX: { sm: 8, default: 10, lg: 12, icon: 0 },
+    typography: {
+      xs: { size: 12, lineHeight: 16 },
+      sm: { size: 14, lineHeight: 20 },
+      md: { size: 16, lineHeight: 24 },
+      lg: { size: 18, lineHeight: 28 },
+      xl: { size: 20, lineHeight: 28 },
+    },
+    controlRadius: 6,
+    containerRadius: 8,
     containerPadding: 20,
     sectionGap: 16,
   });
   expect(componentsControlSize("default")).toBe(
-    "h-8 px-3 gap-2 text-sm rounded-lg",
+    "h-8 px-2.5 gap-2 text-sm rounded-md",
   );
   expect(componentsControlSize("icon")).toContain("w-8 h-8");
 });

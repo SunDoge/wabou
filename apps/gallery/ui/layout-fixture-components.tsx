@@ -21,6 +21,7 @@ import {
   IconFrame,
   ImageList,
   ImageViewport,
+  Input,
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
@@ -62,6 +63,8 @@ import {
   ToolHeader,
   ToolInput,
   ToolOutput,
+  TypographyH3,
+  TypographyP,
   View,
   WorkbenchHeader,
 } from "@wabou/ui";
@@ -576,6 +579,33 @@ export function SelectLayoutFixture() {
           { value: "third", label: "Third option" },
           { value: "disabled", label: "Disabled option", disabled: true },
         ]}
+      />
+    </View>
+  );
+}
+
+export function ControlBaselineLayoutFixture() {
+  return (
+    <View class="w-full h-full p-6 items-start gap-4 bg-canvas">
+      <TypographyH3 role="heading" aria-label="Fixture section title">
+        Native control baseline
+      </TypographyH3>
+      <TypographyP>
+        Controls share one compact desktop rhythm without local offsets.
+      </TypographyP>
+      <View class="flex flex-row items-center gap-3">
+        <Button size="sm" aria-label="Fixture small button">
+          Small
+        </Button>
+        <Button aria-label="Fixture default button">Default</Button>
+        <Button size="lg" aria-label="Fixture large button">
+          Large
+        </Button>
+      </View>
+      <Input
+        class="w-72"
+        aria-label="Fixture baseline input"
+        placeholder="Native text input"
       />
     </View>
   );
