@@ -732,8 +732,9 @@ export function ControlBaselineLayoutFixture() {
         loading
         loadingLabel="Saving changes…"
       />
-      <View class="w-72">
+      <View class="w-72 flex flex-col gap-2">
         <Progress label="Fixture progress" value={40} size="lg" />
+        <Progress label="Fixture pending progress" indeterminate size="lg" />
       </View>
       <ProgressCircle label="Fixture circular progress" value={65} size="lg" />
       <ProgressCircle

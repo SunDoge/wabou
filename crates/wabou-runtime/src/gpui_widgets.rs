@@ -10,7 +10,7 @@ use wabou_shell::gpui::prelude::FluentBuilder as _;
 use wabou_shell::gpui::{
     AppContext as _, Axis, Bounds, Context, Entity, InteractiveElement as _, IntoElement as _,
     MouseButton, ParentElement as _, Pixels, Render, StatefulInteractiveElement as _, Styled as _,
-    Subscription, Window, bounds, canvas, div, fill, point, px, relative, size,
+    Subscription, Window, bounds, canvas, div, ease_in_out, fill, point, px, relative, size,
 };
 use wabou_shell::{NativeWidgetFactory, NativeWidgetMount};
 
@@ -25,6 +25,10 @@ struct SpinnerConfig {
 }
 
 struct GpuiSpinner {
+    timeline: NativeLoopTimeline,
+}
+
+struct GpuiIndeterminateProgress {
     timeline: NativeLoopTimeline,
 }
 
@@ -288,6 +292,51 @@ impl Render for GpuiSpinner {
     }
 }
 
+impl GpuiIndeterminateProgress {
+    fn new(config: SpinnerConfig) -> Self {
+        Self {
+            timeline: NativeLoopTimeline::new(config.animation),
+        }
+    }
+
+    fn synchronize(&mut self, config: SpinnerConfig) -> bool {
+        self.timeline.synchronize(config.animation)
+    }
+}
+
+fn indeterminate_progress_edges(phase: f32) -> (f32, f32) {
+    let phase = phase.clamp(0.0, 1.0);
+    let left = ease_in_out(((phase - 0.5) / 0.5).clamp(0.0, 1.0));
+    let right = ease_in_out(1.0 - phase);
+    (left, right)
+}
+
+impl Render for GpuiIndeterminateProgress {
+    fn render(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl wabou_shell::gpui::IntoElement {
+        let reduced_motion = cx.reduce_motion();
+        let phase = self.timeline.phase(reduced_motion);
+        if self.timeline.is_running(reduced_motion) {
+            window.request_animation_frame();
+        }
+        let (left, right) = indeterminate_progress_edges(phase);
+        let color = Theme::global(cx).tokens.colors.accent;
+        div().size_full().relative().overflow_hidden().child(
+            div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .left(relative(left))
+                .right(relative(right))
+                .rounded_full()
+                .bg(color),
+        )
+    }
+}
+
 fn spinner_dots(outer: Bounds<Pixels>, phase: f32) -> Vec<Bounds<Pixels>> {
     let extent = outer.size.width.min(outer.size.height);
     let dot = (extent * 0.18).max(px(1.0));
@@ -358,6 +407,30 @@ pub(crate) fn builtin_native_widgets() -> HashMap<String, NativeWidgetFactory> {
                 },
             ) as NativeWidgetFactory,
         ),
+        (
+            "progress-indeterminate".to_owned(),
+            Arc::new(
+                |context: wabou_shell::NativeWidgetContext<'_>,
+                 _: &mut wabou_shell::gpui::Window,
+                 cx: &mut wabou_shell::gpui::App| {
+                    let config = context
+                        .config_json()
+                        .and_then(|json| serde_json::from_str(json).ok())
+                        .unwrap_or_default();
+                    let entity = context
+                        .entity::<GpuiIndeterminateProgress>()
+                        .unwrap_or_else(|| cx.new(|_| GpuiIndeterminateProgress::new(config)));
+                    if context.entity::<GpuiIndeterminateProgress>().is_some() {
+                        entity.update(cx, |progress, cx| {
+                            if progress.synchronize(config) {
+                                cx.notify();
+                            }
+                        });
+                    }
+                    NativeWidgetMount::entity(entity.clone(), entity.into_any_element())
+                },
+            ) as NativeWidgetFactory,
+        ),
     ])
 }
 
@@ -379,6 +452,16 @@ mod tests {
             assert!(dot.top() >= outer.top() - epsilon);
             assert!(dot.right() <= outer.right() + epsilon);
             assert!(dot.bottom() <= outer.bottom() + epsilon);
+        }
+    }
+
+    #[test]
+    fn indeterminate_progress_edges_stay_ordered_inside_the_track() {
+        for phase in [0.0, 0.25, 0.5, 0.75, 1.0] {
+            let (left, right) = indeterminate_progress_edges(phase);
+            assert!((0.0..=1.0).contains(&left));
+            assert!((0.0..=1.0).contains(&right));
+            assert!(left + right <= 1.0 + f32::EPSILON);
         }
     }
 
