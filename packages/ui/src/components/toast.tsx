@@ -17,7 +17,11 @@ import {
   View,
 } from "../primitives";
 import { Button } from "./button";
-import { componentsElevation, useComponentsTheme } from "./theme";
+import {
+  componentsElevation,
+  componentsSurfaceClass,
+  useComponentsTheme,
+} from "./theme";
 
 export type ToastVariant = "default" | "success" | "warning" | "destructive";
 
@@ -78,7 +82,10 @@ function ToastContent(props: {
   const style = () => treatment(props.input.variant ?? "default");
   return (
     <View
-      class="w-full min-w-0 flex items-start gap-3 rounded-xl border border-subtle bg-surface p-4"
+      class={mergeClasses(
+        "w-full min-w-0 flex items-start gap-3 px-4 py-3.5",
+        componentsSurfaceClass("floating"),
+      )}
       shadows={componentsElevation(theme(), "floating")}
     >
       <Icon
@@ -100,6 +107,7 @@ function ToastContent(props: {
             <Button
               size="sm"
               variant="outline"
+              aria-label={props.input.action.label}
               onClick={() => {
                 props.input.action?.onAction();
                 if (props.input.action?.dismiss !== false) props.dismiss();

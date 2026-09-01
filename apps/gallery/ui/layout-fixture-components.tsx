@@ -23,6 +23,7 @@ import {
   Checkbox,
   ComponentsProvider,
   ContentState,
+  createToasts,
   Dialog,
   DialogDescription,
   DialogScrollBody,
@@ -81,6 +82,7 @@ import {
   TabsList,
   TabsTrigger,
   Text,
+  Toaster,
   Tool,
   ToolContent,
   ToolHeader,
@@ -715,6 +717,20 @@ export function AlertLayoutFixture() {
           </Button>
         </AlertActions>
       </Alert>
+    </View>
+  );
+}
+
+export function ToastLayoutFixture() {
+  const toasts = createToasts({ defaultDuration: 0 });
+  toasts.success("Project saved", {
+    description:
+      "Your changes were written to disk and are ready for the next build.",
+    action: { label: "View output", onAction: () => {} },
+  });
+  return (
+    <View class="w-full h-full min-w-0 bg-canvas">
+      <Toaster toasts={toasts} placement="top-end" motion={false} />
     </View>
   );
 }

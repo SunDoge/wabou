@@ -157,6 +157,36 @@ const assertAlertLayout = (snapshot: LayoutSnapshot) => {
     });
 };
 
+const assertToastLayout = (snapshot: LayoutSnapshot) => {
+  const toast = getLayoutNode(snapshot, {
+    role: "status",
+    name: "Project saved",
+  });
+  const surface = snapshot.nodes.find(
+    (node) =>
+      node.parentId?.lo === toast.id.lo && node.parentId.hi === toast.id.hi,
+  );
+  if (!surface) throw new Error("toast did not project its visual surface");
+  assertLayoutRectContains(toast.rect, surface.rect, {
+    label: "toast surface",
+  });
+  if (surface.rect.width < 300 || surface.rect.width > 384)
+    throw new Error(`toast surface width drifted to ${surface.rect.width}px`);
+  const description = getLayoutNode(snapshot, {
+    text: "Your changes were written to disk and are ready for the next build.",
+  });
+  assertLayoutRectContains(surface.contentRect, description.rect, {
+    label: "toast description",
+  });
+  const action = getLayoutNode(snapshot, {
+    role: "button",
+    name: "View output",
+  });
+  assertLayoutRectContains(surface.contentRect, action.rect, {
+    label: "toast action",
+  });
+};
+
 const assertToolLayout = (snapshot: LayoutSnapshot) => {
   const root = getLayoutNode(snapshot, { role: "group", name: "Tool fixture" });
   const trigger = getLayoutNode(snapshot, {
@@ -834,6 +864,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/SelectionControls": { assert: assertSelectionControlsLayout },
   "component/Tabs": { assert: assertTabsLayout },
   "component/Alert": { assert: assertAlertLayout },
+  "component/Toast": { assert: assertToastLayout },
   "component/CardSurface": { assert: assertCardSurfaceLayout },
   "component/DarkSurface": { assert: assertDarkSurfaceLayout },
   "component/CompactSurface": { assert: assertCompactSurfaceLayout },
