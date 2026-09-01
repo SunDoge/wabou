@@ -23,6 +23,7 @@ import {
   ImageListLayoutFixture,
   ImageViewportLayoutFixture,
   InputGroupLayoutFixture,
+  ItemLayoutFixture,
   LabeledSeparatorLayoutFixture,
   ListboxLayoutFixture,
   MarkdownConversationLayoutFixture,
@@ -124,6 +125,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         height: 300,
         waitMs: 20,
         render: DropdownMenuLayoutFixture,
+      },
+      "component/Item": {
+        width: 520,
+        height: 220,
+        render: ItemLayoutFixture,
       },
       "component/ControlBaseline": {
         width: 520,
