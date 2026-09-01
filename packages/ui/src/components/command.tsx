@@ -120,7 +120,7 @@ export function CommandList(props: CommandListProps): JSX.Element {
                 aria-selected={props.highlighted === item().id}
                 aria-disabled={item().disabled}
                 class={mergeClasses(
-                  "min-h-9 px-3 py-1.5 flex flex-row items-center gap-2 rounded-lg",
+                  "min-h-8 px-2 py-1 flex flex-row items-center gap-2 rounded-md",
                   props.highlighted === item().id
                     ? "bg-control-hover text-primary"
                     : "bg-transparent text-secondary",

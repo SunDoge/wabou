@@ -21,9 +21,10 @@ test("filters commands and selects the highlighted result", () => {
 
   input.input("dark");
   expect(screen.queryByRole("option", { name: "Open project" })).toBeNull();
-  expect(
-    screen.getByRole("option", { name: "Change theme" }).className,
-  ).toContain("bg-control-hover");
+  const theme = screen.getByRole("option", { name: "Change theme" });
+  expect(theme.className).toContain("bg-control-hover");
+  expect(theme.className).toContain("rounded-md");
+  expect(theme.className).toContain("min-h-8");
   input.press("Enter");
   expect(actions).toEqual(["theme"]);
 });
