@@ -136,11 +136,11 @@ fn javascript_and_rust_share_runtime_atom_ids() {
     let atoms = runtime.atom_pool_handle();
     let atoms = atoms.borrow();
     assert_eq!(
-        atoms.resolve(crate::atom::Atom::from_raw(ids[0])),
+        atoms.resolve(wabou_protocol::Atom::from_raw(ids[0])),
         Some("width")
     );
     assert_eq!(
-        atoms.resolve(crate::atom::Atom::from_raw(ids[2])),
+        atoms.resolve(wabou_protocol::Atom::from_raw(ids[2])),
         Some("height")
     );
 }
@@ -474,7 +474,10 @@ fn installing_a_wake_callback_replays_work_queued_during_boot() {
             )
         })
         .expect("start boot work");
-    assert!(runtime.poll_async_runtime(), "boot work must enter the scheduler");
+    assert!(
+        runtime.poll_async_runtime(),
+        "boot work must enter the scheduler"
+    );
     std::thread::sleep(std::time::Duration::from_millis(20));
 
     let wake_count = Arc::new(AtomicUsize::new(0));

@@ -5,7 +5,6 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    atom::AtomPool,
     effect_bridge::EffectBridge,
     host_message::{
         DEFAULT_HOST_MESSAGE_CAPACITY, HostMessageHandle, HostMessageInbox, host_message_channel,
@@ -14,6 +13,7 @@ use crate::{
     reload::ReloadState,
     style_ir::StylesheetUpdate,
 };
+use wabou_protocol::AtomPool;
 use wabou_shell::{FrameStats, WakeCallback, WindowResourceKey};
 
 /// QuickJS and host-bridge state with one shared cancellation lifetime.

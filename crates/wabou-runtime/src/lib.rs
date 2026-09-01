@@ -10,7 +10,6 @@
 #![warn(missing_docs)]
 
 mod actor;
-mod atom;
 mod bundle;
 mod clock;
 mod effect_bridge;
