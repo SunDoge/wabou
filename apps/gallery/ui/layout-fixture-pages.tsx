@@ -19,6 +19,7 @@ import {
   EditorLayoutFixture,
   EmptyLayoutFixture,
   FieldLayoutFixture,
+  GroupBoxLayoutFixture,
   IconFrameLayoutFixture,
   ImageListLayoutFixture,
   ImageViewportLayoutFixture,
@@ -146,6 +147,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 460,
         height: 330,
         render: SettingsItemLayoutFixture,
+      },
+      "component/GroupBox": {
+        width: 480,
+        height: 390,
+        render: GroupBoxLayoutFixture,
       },
       "component/Tabs": {
         width: 560,

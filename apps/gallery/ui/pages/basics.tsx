@@ -20,6 +20,7 @@ import {
   currentWindowOptions,
   Editor,
   Fps,
+  GroupBox,
   Icon,
   Input,
   Kbd,
@@ -130,27 +131,45 @@ function BadgePage() {
 
 function CardPage() {
   return (
-    <Preview title="Example">
-      <Card class="w-72">
-        <CardHeader>
-          <CardTitle>Create project</CardTitle>
-          <CardAction>
-            <Badge variant="secondary">Draft</Badge>
-          </CardAction>
-          <CardDescription maxLines={2}>
-            Deploy a new Wabou application from a reusable project template with
-            predictable native text truncation.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Input placeholder="Project name" />
-        </CardContent>
-        <CardFooter>
-          <Button>Create project</Button>
-          <Button variant="ghost">Cancel</Button>
-        </CardFooter>
-      </Card>
-    </Preview>
+    <View class="flex flex-col gap-5">
+      <Preview title="Card">
+        <Card class="w-72">
+          <CardHeader>
+            <CardTitle>Create project</CardTitle>
+            <CardAction>
+              <Badge variant="secondary">Draft</Badge>
+            </CardAction>
+            <CardDescription maxLines={2}>
+              Deploy a new Wabou application from a reusable project template
+              with predictable native text truncation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Input placeholder="Project name" />
+          </CardContent>
+          <CardFooter>
+            <Button>Create project</Button>
+            <Button variant="ghost">Cancel</Button>
+          </CardFooter>
+        </Card>
+      </Preview>
+      <Preview title="Group box">
+        <GroupBox
+          class="w-96"
+          title="Network access"
+          description="Controls shared by related background services."
+          variant="outline"
+        >
+          <SettingsItem title="Use system proxy">
+            <Switch aria-label="Use system proxy" defaultChecked />
+          </SettingsItem>
+          <Separator />
+          <SettingsItem title="Allow metered connections">
+            <Switch aria-label="Allow metered connections" />
+          </SettingsItem>
+        </GroupBox>
+      </Preview>
+    </View>
   );
 }
 
