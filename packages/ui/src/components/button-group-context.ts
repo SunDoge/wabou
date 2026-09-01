@@ -7,12 +7,22 @@ import {
 } from "solid-js";
 
 export type ButtonGroupOrientation = "horizontal" | "vertical";
+export type ButtonGroupButtonSize = "sm" | "default" | "lg" | "icon";
+export type ButtonGroupButtonVariant =
+  | "default"
+  | "secondary"
+  | "outline"
+  | "ghost"
+  | "destructive";
 
 export type ButtonGroupItemPosition = "only" | "first" | "middle" | "last";
 
 export interface ButtonGroupItemContext {
   orientation: Accessor<ButtonGroupOrientation>;
   position: Accessor<ButtonGroupItemPosition>;
+  size: Accessor<ButtonGroupButtonSize>;
+  variant: Accessor<ButtonGroupButtonVariant>;
+  disabled: Accessor<boolean>;
 }
 
 export interface ButtonGroupContextValue {
@@ -26,6 +36,11 @@ export const ButtonGroupContext = createContext<ButtonGroupContextValue | null>(
 
 export function createButtonGroupContext(
   orientation: Accessor<ButtonGroupOrientation>,
+  options: {
+    size: Accessor<ButtonGroupButtonSize>;
+    variant: Accessor<ButtonGroupButtonVariant>;
+    disabled: Accessor<boolean>;
+  },
 ): ButtonGroupContextValue {
   const [items, setItems] = createSignal<readonly object[]>([], {
     ownedWrite: true,
@@ -40,6 +55,9 @@ export function createButtonGroupContext(
       );
       return {
         orientation,
+        size: options.size,
+        variant: options.variant,
+        disabled: options.disabled,
         position: () => {
           const current = items();
           const index = current.indexOf(token);

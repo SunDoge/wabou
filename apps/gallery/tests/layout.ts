@@ -398,6 +398,10 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
     role: "button",
     name: "Fixture destructive group action",
   });
+  const inheritedButton = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Fixture inherited group action",
+  });
   const heading = getLayoutNode(snapshot, {
     role: "heading",
     name: "Fixture section title",
@@ -439,6 +443,16 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   assertLayoutRectContains(buttonGroup.contentRect, destructiveButton.rect, {
     label: "destructive button group edge",
   });
+  assertClose(inheritedButton.rect.height, 40, "inherited group button height");
+  assertClose(
+    destructiveButton.rect.height,
+    40,
+    "overridden group button height",
+  );
+  if (!inheritedButton.classes.includes("bg-control"))
+    throw new Error("button did not inherit the group variant");
+  if (!destructiveButton.classes.includes("bg-danger"))
+    throw new Error("explicit child variant did not override the group");
   assertLayoutTextStyle(heading, {
     fontSize: 24,
     fontWeight: 600,

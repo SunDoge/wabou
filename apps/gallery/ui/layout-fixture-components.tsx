@@ -655,8 +655,12 @@ export function ControlBaselineLayoutFixture() {
       </View>
       <Switch label="Fixture default switch" defaultChecked />
       <Switch label="Fixture compact switch" size="sm" />
-      <ButtonGroup aria-label="Fixture destructive button group">
-        <Button variant="outline">Keep</Button>
+      <ButtonGroup
+        aria-label="Fixture destructive button group"
+        size="lg"
+        variant="secondary"
+      >
+        <Button aria-label="Fixture inherited group action">Keep</Button>
         <ButtonGroupSeparator />
         <Button
           variant="destructive"

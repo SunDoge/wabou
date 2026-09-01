@@ -76,3 +76,35 @@ test("keeps control labels non-selectable while allowing an explicit override", 
   expect(selectable.className).toContain("select-text");
   expect(selectable.className).not.toContain("select-none");
 });
+
+test("inherits group control properties while preserving child overrides", () => {
+  const screen = renderComponent(() => (
+    <ButtonGroup
+      aria-label="Bulk actions"
+      size="lg"
+      variant="secondary"
+      disabled
+    >
+      <Button>Archive</Button>
+      <Button size="sm" variant="destructive" disabled={false}>
+        Delete
+      </Button>
+      <ButtonGroupText>2 selected</ButtonGroupText>
+    </ButtonGroup>
+  ));
+  const group = screen.getByRole("group", { name: "Bulk actions" });
+  const archive = screen.getByRole("button", { name: "Archive" });
+  const remove = screen.getByRole("button", { name: "Delete" });
+
+  expect(group.orientation).toBe("horizontal");
+  expect(group.disabled).toBe(true);
+  expect(group.attribute("size")).toBeNull();
+  expect(group.attribute("variant")).toBeNull();
+  expect(archive.className).toContain("h-10");
+  expect(archive.className).toContain("bg-control");
+  expect(archive.disabled).toBe(true);
+  expect(remove.className).toContain("h-7");
+  expect(remove.className).toContain("bg-danger");
+  expect(remove.disabled).toBe(true);
+  expect(group.children[2]?.className).toContain("h-10");
+});
