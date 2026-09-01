@@ -121,9 +121,9 @@ let login_secrets = secrets.clone();
 const UNLOCK: JsonMethod<UnlockRequest, UnlockResult> = JsonMethod::new("unlock");
 HostBuilder::new()
     .password_inputs(secrets)
-    .json_capability(VAULT, move |capability| {
+    .capability(VAULT, move |capability| {
         let login_secrets = login_secrets.clone();
-        capability.method(UNLOCK, move |request: UnlockRequest| {
+        capability.json_method(UNLOCK, move |request: UnlockRequest| {
             let login_secrets = login_secrets.clone();
             async move {
                 let password = login_secrets.take(&request.secret_slot);

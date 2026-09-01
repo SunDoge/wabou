@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
-use wabou::{Bindings, Capability, JsonCapabilityContract, JsonMethod, Type, specta};
+use wabou::{Bindings, Capability, CapabilityContract, JsonMethod, Type, specta};
 
 /// Capability containing the gallery's binding demonstration.
-pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("bindingsDemo", 1);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("bindingsDemo", 1);
 /// Input accepted by the palette-description example.
 #[derive(Deserialize, Type)]
 #[serde(rename_all = "camelCase")]

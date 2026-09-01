@@ -9,13 +9,13 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use wabou::{
+    CapabilityContract, HostMessageContext, HostMethod, HostService, HostServiceHandle, JsonMethod,
+    ManagedHostService, NativeCapability, RevisionedHostPublisher, RevisionedHostSnapshot,
+    managed_host_service, rquickjs,
+};
 #[cfg(feature = "bindings")]
 use wabou::{FunctionModule, NativeMethod};
-use wabou::{
-    HostMessageContext, HostMethod, HostService, HostServiceHandle, JsonCapability,
-    JsonCapabilityContract, JsonMethod, ManagedHostService, NativeCapability,
-    RevisionedHostPublisher, RevisionedHostSnapshot, managed_host_service, rquickjs,
-};
 
 use crate::{
     activity::ActivityLog,
@@ -27,9 +27,8 @@ use crate::{
     torrent::{TorrentPreview, read_torrent},
 };
 
-pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("downloads", 1);
-pub const NATIVE_CAPABILITY: JsonCapabilityContract =
-    JsonCapabilityContract::new("downloadsNative", 1);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("downloads", 1);
+pub const NATIVE_CAPABILITY: CapabilityContract = CapabilityContract::new("downloadsNative", 1);
 const SNAPSHOT: &str = "downloads.snapshot";
 const SNAPSHOT_PATCH: &str = "downloads.snapshot.patch";
 pub const QUIT_REQUESTED: &str = "motrix.quitRequested";
@@ -583,34 +582,34 @@ struct TaskFileDetails {
     completed_length: u64,
     selected: bool,
 }
-pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquickjs::Result<()> {
+pub fn mount(capability: NativeCapability<'_>, service: DownloadService) -> rquickjs::Result<()> {
     let get = service.clone();
-    capability.method(GET_SNAPSHOT, move |(): ()| {
+    capability.json_method(GET_SNAPSHOT, move |(): ()| {
         let service = get.clone();
         async move { Ok::<_, String>(service.snapshot().await) }
     })?;
     let get = service.clone();
-    capability.method(GET_CONFIG, move |(): ()| {
+    capability.json_method(GET_CONFIG, move |(): ()| {
         let service = get.clone();
         async move { service.config() }
     })?;
     let set = service.clone();
-    capability.method(SET_CONFIG, move |config| {
+    capability.json_method(SET_CONFIG, move |config| {
         let service = set.clone();
         async move { service.save_config(config).await }
     })?;
     let details = service.clone();
-    capability.method(GET_TASK_DETAILS, move |request: GetTaskDetailsRequest| {
+    capability.json_method(GET_TASK_DETAILS, move |request: GetTaskDetailsRequest| {
         let service = details.clone();
         async move { service.details(&request.id).await }
     })?;
     let retry = service.clone();
-    capability.method(RETRY_ENGINE, move |(): ()| {
+    capability.json_method(RETRY_ENGINE, move |(): ()| {
         let service = retry.clone();
         async move { service.engine_service.retry_async().await }
     })?;
     let add = service.clone();
-    capability.method(ADD_URI, move |request: AddUriRequest| {
+    capability.json_method(ADD_URI, move |request: AddUriRequest| {
         let service = add.clone();
         async move {
             let uris = request
@@ -667,7 +666,7 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
         }
     })?;
     let add = service.clone();
-    capability.method(ADD_TORRENT, move |request: AddTorrentRequest| {
+    capability.json_method(ADD_TORRENT, move |request: AddTorrentRequest| {
         let service = add.clone();
         async move {
             let (data, _) = read_torrent(Path::new(&request.path))?;
@@ -690,7 +689,7 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
         }
     })?;
     let action = service.clone();
-    capability.method(TASK_ACTION, move |request: TaskActionRequest| {
+    capability.json_method(TASK_ACTION, move |request: TaskActionRequest| {
         let service = action.clone();
         async move {
             service
@@ -699,7 +698,7 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
         }
     })?;
     let priority = service.clone();
-    capability.method(SET_TASK_PRIORITY, move |request: SetTaskPriorityRequest| {
+    capability.json_method(SET_TASK_PRIORITY, move |request: SetTaskPriorityRequest| {
         let service = priority.clone();
         async move {
             service
@@ -709,7 +708,7 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
         }
     })?;
     let action = service.clone();
-    capability.method(BATCH_TASK_ACTION, move |request: BatchTaskActionRequest| {
+    capability.json_method(BATCH_TASK_ACTION, move |request: BatchTaskActionRequest| {
         let service = action.clone();
         async move {
             let mut done = Vec::new();
@@ -723,7 +722,7 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
         }
     })?;
     let global = service.clone();
-    capability.method(
+    capability.json_method(
         GLOBAL_TASK_ACTION,
         move |request: GlobalTaskActionRequest| {
             let service = global.clone();
@@ -736,7 +735,7 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
             }
         },
     )?;
-    capability.method(
+    capability.json_method(
         OPEN_TASK_FOLDER,
         move |request: OpenTaskFolderRequest| async move {
             let path = PathBuf::from(request.path);
@@ -750,14 +749,14 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
             open::that(target).map_err(|error| error.to_string())
         },
     )?;
-    capability.method(
+    capability.json_method(
         OPEN_PATH,
         move |request: OpenTaskFolderRequest| async move {
             open::that(PathBuf::from(request.path)).map_err(|error| error.to_string())
         },
     )?;
     let folder = service.clone();
-    capability.method(OPEN_CONFIG_FOLDER, move |(): ()| {
+    capability.json_method(OPEN_CONFIG_FOLDER, move |(): ()| {
         let service = folder.clone();
         async move {
             open::that(service.runtime()?.config_store.directory()?)

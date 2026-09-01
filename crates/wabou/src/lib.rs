@@ -16,7 +16,7 @@
 
 #[cfg(feature = "bindings")]
 pub use wabou_bindgen::{Bindings, Capability, FunctionModule, NativeMethod, Type, specta};
-pub use wabou_bindgen::{CapabilityContract, HostMethod, JsonCapabilityContract, JsonMethod};
+pub use wabou_bindgen::{CapabilityContract, HostMethod, JsonMethod};
 pub use wabou_database::{
     AtomicCommit as KvAtomicCommit, KvCheck, KvEntry, KvKey, KvKeyPart, KvListOptions, KvMutation,
     KvStore, Versionstamp as KvVersionstamp,
@@ -28,7 +28,7 @@ pub use wabou_runtime::{
     AppDirectories, AppDirectoryConfig, Error, HostBuilder, HostMessage, HostMessageContext,
     HostMessageError, HostMessageHandle, HostMessagePayload, HostMessageRouter, HostService,
     HostServiceContext, HostServiceHandle, ImageResource, ImageResourceHandle, ImageResourceStore,
-    JsonCapability, ManagedHostService, NativeCapability, NativeWidgetContext, NativeWidgetFactory,
+    ManagedHostService, NativeCapability, NativeWidgetContext, NativeWidgetFactory,
     NativeWidgetMount, PersistentJsonCache, Result, RevisionedHostPublication,
     RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker, WindowBackground,
     WindowInputMode, WindowLevel, WindowMetrics, WindowOptions, WindowResourceKey,
@@ -58,8 +58,8 @@ mod tests {
             ready: bool,
         }
 
-        let _ = Bindings::new()
-            .capability(Capability::new(JsonCapabilityContract::new("workspace", 1)));
+        let _ =
+            Bindings::new().capability(Capability::new(CapabilityContract::new("workspace", 1)));
         let mut types = specta::Types::default();
         let _ = Payload::definition(&mut types);
     }

@@ -15,11 +15,11 @@ use oar_ocr::prelude::{OAROCR, OAROCRBuilder, TextRegion};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use wabou::{
-    ImageResourceHandle, ImageResourceStore, JsonCapability, JsonCapabilityContract, JsonMethod,
+    CapabilityContract, ImageResourceHandle, ImageResourceStore, JsonMethod, NativeCapability,
     PersistentJsonCache, SerialWorker, rquickjs,
 };
 
-pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("mangaReader", 2);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("mangaReader", 2);
 const LIST_IMAGES: JsonMethod<ListImagesRequest, Vec<ImagePage>> = JsonMethod::new("listImages");
 const DESCRIBE_IMAGES: JsonMethod<DescribeImagesRequest, Vec<ImagePage>> =
     JsonMethod::new("describeImages");
@@ -378,34 +378,34 @@ impl ReaderService {
     }
 }
 
-pub fn mount(capability: JsonCapability<'_>, service: ReaderService) -> rquickjs::Result<()> {
+pub fn mount(capability: NativeCapability<'_>, service: ReaderService) -> rquickjs::Result<()> {
     let list = service.clone();
-    capability.method(LIST_IMAGES, move |request: ListImagesRequest| {
+    capability.json_method(LIST_IMAGES, move |request: ListImagesRequest| {
         let service = list.clone();
         async move { service.list_images(&request.directory) }
     })?;
     let describe = service.clone();
-    capability.method(DESCRIBE_IMAGES, move |request: DescribeImagesRequest| {
+    capability.json_method(DESCRIBE_IMAGES, move |request: DescribeImagesRequest| {
         let service = describe.clone();
         async move { service.describe_images(&request.paths) }
     })?;
     let status = service.clone();
-    capability.method(MODEL_STATUS, move |(): ()| {
+    capability.json_method(MODEL_STATUS, move |(): ()| {
         let service = status.clone();
         async move { Ok::<_, String>(service.model_status()) }
     })?;
     let progress = service.clone();
-    capability.method(MODEL_DOWNLOAD_PROGRESS, move |(): ()| {
+    capability.json_method(MODEL_DOWNLOAD_PROGRESS, move |(): ()| {
         let service = progress.clone();
         async move { Ok::<_, String>(service.download_progress()) }
     })?;
     let recent = service.clone();
-    capability.method(RECENT_ENTRIES, move |(): ()| {
+    capability.json_method(RECENT_ENTRIES, move |(): ()| {
         let service = recent.clone();
         async move { Ok::<_, String>(service.recent_entries()) }
     })?;
     let download = service.clone();
-    capability.method(DOWNLOAD_MODEL, move |(): ()| {
+    capability.json_method(DOWNLOAD_MODEL, move |(): ()| {
         let service = download.clone();
         async move {
             let result = service.download_model().await;
@@ -420,17 +420,17 @@ pub fn mount(capability: JsonCapability<'_>, service: ReaderService) -> rquickjs
         }
     })?;
     let recognize = service.clone();
-    capability.method(RECOGNIZE_PAGE, move |request: RecognizePageRequest| {
+    capability.json_method(RECOGNIZE_PAGE, move |request: RecognizePageRequest| {
         let service = recognize.clone();
         async move { service.0.ocr.recognize(request.handle).await }
     })?;
     let translate = service.clone();
-    capability.method(TRANSLATE, move |request: TranslateRequest| {
+    capability.json_method(TRANSLATE, move |request: TranslateRequest| {
         let service = translate.clone();
         async move { service.0.llm.translate(request).await }
     })?;
     let adjust = service.clone();
-    capability.method(ADJUST_BBOXES, move |request: AdjustBboxesRequest| {
+    capability.json_method(ADJUST_BBOXES, move |request: AdjustBboxesRequest| {
         let service = adjust.clone();
         async move { service.0.llm.adjust_bboxes(request).await }
     })?;

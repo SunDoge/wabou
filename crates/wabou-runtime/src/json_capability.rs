@@ -13,7 +13,7 @@ use wabou_bindgen::{JsonCapabilityErrorCode, JsonMethod};
 /// owns the matching decode, Promise installation, and result envelope so
 /// applications do not duplicate transport glue around ordinary Rust async
 /// functions.
-pub struct JsonCapability<'js> {
+pub(crate) struct JsonCapability<'js> {
     pub(crate) ctx: rquickjs::Ctx<'js>,
     pub(crate) object: rquickjs::Object<'js>,
 }
@@ -25,7 +25,7 @@ impl<'js> JsonCapability<'js> {
     /// This intentionally accepts a function pointer instead of a closure.
     /// Persistent state must be passed in the request or retained by the stable
     /// host rather than captured inside the hot-patched code.
-    pub fn hot_method<Request, Response, Error, HandlerFuture>(
+    pub(crate) fn hot_method<Request, Response, Error, HandlerFuture>(
         &self,
         method: JsonMethod<Request, Response>,
         handler: fn(Request) -> HandlerFuture,
@@ -56,7 +56,7 @@ impl<'js> JsonCapability<'js> {
     /// Install a hot method with state owned by the stable host process.
     /// Patches replace only `handler`; `state` is cloned into each invocation
     /// and is never reconstructed by the patch loader.
-    pub fn hot_method_with<State, Request, Response, Error, HandlerFuture>(
+    pub(crate) fn hot_method_with<State, Request, Response, Error, HandlerFuture>(
         &self,
         method: JsonMethod<Request, Response>,
         state: State,
@@ -88,7 +88,7 @@ impl<'js> JsonCapability<'js> {
 
     /// Install one async method accepting a JSON-encoded request and returning
     /// Wabou's `{ ok, value | error }` envelope.
-    pub fn method<Request, Response, Error, Handler, HandlerFuture>(
+    pub(crate) fn method<Request, Response, Error, Handler, HandlerFuture>(
         &self,
         method: JsonMethod<Request, Response>,
         handler: Handler,

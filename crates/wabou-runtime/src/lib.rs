@@ -72,7 +72,6 @@ pub use host_message::{
     RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot,
 };
 pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore};
-pub use json_capability::JsonCapability;
 pub use jsrt::{DEFAULT_QUICKJS_STACK_SIZE, JsRuntime, JsRuntimeOptions};
 pub use native_capability::NativeCapability;
 pub use persistent_cache::PersistentJsonCache;

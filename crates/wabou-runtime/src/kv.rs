@@ -5,12 +5,12 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-use wabou_bindgen::{HostMethod, JsonCapabilityContract};
+use wabou_bindgen::{CapabilityContract, HostMethod};
 use wabou_database::{KvCheck, KvKey, KvKeyPart, KvListOptions, KvMutation, KvStore, Versionstamp};
 
 use crate::{JsRuntime, NativeCapability};
 
-pub(crate) const CONTRACT: JsonCapabilityContract = JsonCapabilityContract::new("kv", 1);
+pub(crate) const CONTRACT: CapabilityContract = CapabilityContract::new("kv", 1);
 
 type LazyStore = Arc<tokio::sync::OnceCell<Arc<KvStore>>>;
 

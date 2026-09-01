@@ -3,7 +3,7 @@ import {
   bindJsonCapability,
   type Host,
   hostMessages,
-  type NativeJsonCapability,
+  type NativeCapability,
   useHost,
 } from "@wabou/ui";
 
@@ -84,7 +84,7 @@ export interface PersistedAppSettings {
   subagentsEnabled: boolean;
 }
 
-interface PiCapability extends NativeJsonCapability {
+interface PiCapability extends NativeCapability {
   __wabouCapabilityVersion: number;
   getStatus(request: string): string | PromiseLike<string>;
   start(request: string): string | PromiseLike<string>;

@@ -77,10 +77,10 @@ fn main() -> Result<(), Whatever> {
                 .decorations(false)
                 .background(WindowBackground::Blurred),
         )
-        .json_capability(downloads::CAPABILITY, move |capability| {
+        .capability(downloads::CAPABILITY, move |capability| {
             downloads::mount(capability, capability_service.clone())
         })
-        .native_capability(downloads::NATIVE_CAPABILITY, downloads::mount_native)
+        .capability(downloads::NATIVE_CAPABILITY, downloads::mount_native)
         .application_extension(tray)
         .host_message_router(application_messages)
         .host_message_producer(move |context| {

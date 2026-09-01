@@ -132,6 +132,50 @@ impl<'js> NativeCapability<'js> {
         .method(method, handler)
     }
 
+    /// Install a JSON-coded method whose function body can be hot-patched.
+    ///
+    /// This is the JSON codec counterpart of [`Self::hot_method`]. The
+    /// capability namespace remains the same; only this method's request and
+    /// response use JSON text on the QuickJS boundary.
+    pub fn json_hot_method<Request, Response, Error, HandlerFuture>(
+        &self,
+        method: JsonMethod<Request, Response>,
+        handler: fn(Request) -> HandlerFuture,
+    ) -> rquickjs::Result<()>
+    where
+        Request: DeserializeOwned + 'static,
+        Response: Serialize + 'static,
+        Error: Display + 'static,
+        HandlerFuture: Future<Output = Result<Response, Error>> + 'static,
+    {
+        JsonCapability {
+            ctx: self.ctx.clone(),
+            object: self.object.clone(),
+        }
+        .hot_method(method, handler)
+    }
+
+    /// Install a hot JSON-coded method whose state remains owned by the host.
+    pub fn json_hot_method_with<State, Request, Response, Error, HandlerFuture>(
+        &self,
+        method: JsonMethod<Request, Response>,
+        state: State,
+        handler: fn(State, Request) -> HandlerFuture,
+    ) -> rquickjs::Result<()>
+    where
+        State: Clone + rquickjs::markers::ParallelSend + 'static,
+        Request: DeserializeOwned + 'static,
+        Response: Serialize + 'static,
+        Error: Display + 'static,
+        HandlerFuture: Future<Output = Result<Response, Error>> + 'static,
+    {
+        JsonCapability {
+            ctx: self.ctx.clone(),
+            object: self.object.clone(),
+        }
+        .hot_method_with(method, state, handler)
+    }
+
     /// Install a typed method whose function body can be replaced by
     /// Subsecond without restarting the Wabou host.
     ///

@@ -150,10 +150,7 @@ export {
 export {
   bindJsonCapability,
   type JsonCapabilityClient,
-  type JsonCapabilityClientOptions,
-  JsonCapabilityError,
   type JsonCapabilityMethodName,
-  type NativeJsonCapability,
 } from "./glue/json-capability";
 export {
   type KeyboardModifiers,
