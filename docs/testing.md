@@ -13,6 +13,47 @@ remain separate CI steps. Expensive all-target checks, replay variants,
 standalone scaffold builds, captures, HiDPI renders, and performance sampling
 belong to local pre-release verification rather than every pushed commit.
 
+## Solid-to-GPUI architecture contracts
+
+The GPUI backend has two non-negotiable retained-runtime contracts. Test them
+below component and pixel layers so visual success cannot hide duplicated trees
+or excessive native rebuilding.
+
+### Fine-grained projection
+
+A Solid write must produce one completed protocol frame, merge repeated writes
+to the same node, and advance only the nearest explicit GPUI projection
+boundary. The contract is split into deterministic layers:
+
+1. renderer tests execute real Solid and assert the exact mutation frame
+   emitted by a signal;
+2. `wabou-shell` tests feed that operation into the retained projection and
+   assert dirty-kind coalescing plus independent boundary revision clocks;
+3. headless GPUI tests assert that an unrelated root notification or an
+   animation-only frame does not rematerialize cached projection boundaries.
+
+Do not replace these assertions with FPS thresholds. Timing is machine-specific;
+mutation count, changed boundary identity, and materialization count are the
+stable architecture contracts.
+
+### HMR lifecycle
+
+HMR must preserve one logical application tree at all times:
+
+1. a normal Solid Refresh replaces the component while retaining parent state
+   and parent mount identity;
+2. entry-module and generated Style IR updates are classified as side-effect
+   updates instead of being forced through a component accept boundary;
+3. a remount emits retirement and replacement operations in the same host
+   frame, leaving the previous root detached;
+4. dropping a generation clears native hover, press, click, and focus state;
+5. a native smoke cycle may additionally assert baseline node count → changed
+   route node count → baseline node count and run `wabou inspect validate`.
+
+The first four checks belong in the normal test suite and require no Vite
+server or screenshot. Keep the fifth as a focused integration check for changes
+to the Vite client, module loader, or native reload pump.
+
 ## Authored captures and themes
 
 Use authored captures only when component behavior and layout contracts already
