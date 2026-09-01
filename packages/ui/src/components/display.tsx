@@ -1,11 +1,18 @@
 import { mergeClasses } from "@wabou/core/style";
-import { createSignal, type JSX } from "solid-js";
+import { createSignal, type JSX, omit } from "solid-js";
 import {
   createNativeLoopAnimation,
   createSweep,
   useReducedMotion,
 } from "../animation";
-import { createMeasuredSize, NativeWidget, Text, View } from "../primitives";
+import {
+  createMeasuredSize,
+  NativeWidget,
+  Text,
+  type TextProps,
+  View,
+  type ViewProps,
+} from "../primitives";
 
 export interface SkeletonProps {
   class?: string;
@@ -73,28 +80,33 @@ export function Spinner(props: {
   );
 }
 
-export function Kbd(props: {
-  class?: string;
-  children?: JSX.Element;
-}): JSX.Element {
+export type KbdProps = TextProps;
+
+export function Kbd(props: KbdProps): JSX.Element {
+  const forwarded = omit(props, "class", "style", "children");
   return (
     <Text
+      {...forwarded}
       class={mergeClasses(
         "h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted",
         props.class,
       )}
+      style={{ "line-height": 1, ...props.style }}
     >
       {props.children}
     </Text>
   );
 }
 
-export function KbdGroup(props: {
-  class?: string;
-  children?: JSX.Element;
-}): JSX.Element {
+export type KbdGroupProps = ViewProps;
+
+export function KbdGroup(props: KbdGroupProps): JSX.Element {
+  const forwarded = omit(props, "class", "children");
   return (
-    <View class={mergeClasses("inline-flex items-center gap-1", props.class)}>
+    <View
+      {...forwarded}
+      class={mergeClasses("inline-flex items-center gap-1", props.class)}
+    >
       {props.children}
     </View>
   );

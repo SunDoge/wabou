@@ -127,7 +127,6 @@ const assertTabsLayout = (snapshot: LayoutSnapshot) => {
     throw new Error(
       `tab description remained compressed: ${description.textMetrics?.lineBox.width ?? 0}px`,
     );
-
 };
 
 const assertVerticalTabsLayout = (snapshot: LayoutSnapshot) => {
@@ -364,6 +363,10 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
     role: "textbox",
     name: "Fixture baseline input",
   });
+  const keycap = getLayoutNode(snapshot, {
+    role: "label",
+    name: "Fixture keyboard key",
+  });
   const switchControl = getLayoutNode(snapshot, {
     role: "switch",
     name: "Fixture default switch",
@@ -394,6 +397,10 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   assertClose(selected.rect.height, 32, "selected button height");
   if (!selected.classes.includes("bg-control-pressed"))
     throw new Error("selected button did not retain its active palette");
+  assertClose(keycap.rect.height, 20, "keyboard key height");
+  if (keycap.rect.width < 20)
+    throw new Error(`keyboard key width was only ${keycap.rect.width}px`);
+  assertLayoutTextStyle(keycap, { fontSize: 12, fontWeight: 500 });
   assertClose(input.rect.height, 32, "input height");
   assertClose(switchControl.rect.width, 40, "switch target width");
   assertClose(switchControl.rect.height, 24, "switch target height");
