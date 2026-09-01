@@ -7,6 +7,7 @@ use wabou_shell::{
     GpuiNativeWidget, GpuiProjectionRenderSnapshot, NativeWidgetContext, NativeWidgetFactory,
     NativeWidgetInputHandler, NodeKey, ProjectedInputSink, ProjectedNativeElementFactory,
     ProjectedSubtreeElementFactory, ProjectedTextInputState, ProjectedTextSelection,
+    ProjectionBoundaryRevision,
 };
 
 /// Rebuilds one native child element from retained GPUI state.
@@ -19,7 +20,8 @@ pub(crate) type NativeElementBuilder = Rc<dyn Fn() -> AnyElement>;
 /// then reuse this View through `Entity::cached` without recursively
 /// materializing every projected node.
 pub(crate) struct GpuiProjectionBoundary {
-    revision: u64,
+    root: NodeKey,
+    revision: (ProjectionBoundaryRevision, u64),
     snapshot: GpuiProjectionRenderSnapshot,
     input: ProjectedInputSink,
     focus: wabou_shell::gpui::FocusHandle,
@@ -35,12 +37,15 @@ pub(crate) struct GpuiProjectionBoundary {
         NodeKey,
         BTreeMap<wabou_shell::gpui::SharedString, wabou_shell::gpui::SharedString>,
     >,
-    #[cfg(any(test, feature = "profiling"))]
+    #[cfg(any(test, debug_assertions, feature = "profiling"))]
     materialization_count: u64,
+    #[cfg(any(debug_assertions, feature = "profiling"))]
+    materialization_window: (std::time::Instant, u32),
 }
 
 pub(crate) struct GpuiProjectionBoundaryState {
-    pub(crate) revision: u64,
+    pub(crate) root: NodeKey,
+    pub(crate) revision: (ProjectionBoundaryRevision, u64),
     pub(crate) snapshot: GpuiProjectionRenderSnapshot,
     pub(crate) input: ProjectedInputSink,
     pub(crate) focus: wabou_shell::gpui::FocusHandle,
@@ -55,6 +60,7 @@ pub(crate) struct GpuiProjectionBoundaryState {
 impl GpuiProjectionBoundary {
     pub(crate) fn new(state: GpuiProjectionBoundaryState) -> Self {
         Self {
+            root: state.root,
             revision: state.revision,
             snapshot: state.snapshot,
             input: state.input,
@@ -68,8 +74,10 @@ impl GpuiProjectionBoundary {
             native_widget_entities: BTreeMap::new(),
             native_widget_inputs: BTreeMap::new(),
             native_widget_attributes: BTreeMap::new(),
-            #[cfg(any(test, feature = "profiling"))]
+            #[cfg(any(test, debug_assertions, feature = "profiling"))]
             materialization_count: 0,
+            #[cfg(any(debug_assertions, feature = "profiling"))]
+            materialization_window: (std::time::Instant::now(), 0),
         }
     }
 
@@ -82,6 +90,7 @@ impl GpuiProjectionBoundary {
             return;
         }
         self.revision = state.revision;
+        self.root = state.root;
         self.snapshot = state.snapshot;
         self.input = state.input;
         self.focus = state.focus;
@@ -97,6 +106,11 @@ impl GpuiProjectionBoundary {
     #[cfg(test)]
     pub(crate) fn materialization_count(&self) -> u64 {
         self.materialization_count
+    }
+
+    #[cfg(test)]
+    pub(crate) fn revision(&self) -> (ProjectionBoundaryRevision, u64) {
+        self.revision
     }
 
     pub(crate) fn dispatch_native_input(
@@ -118,17 +132,38 @@ impl Render for GpuiProjectionBoundary {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl wabou_shell::gpui::IntoElement {
-        #[cfg(any(test, feature = "profiling"))]
+        #[cfg(any(test, debug_assertions, feature = "profiling"))]
         {
             self.materialization_count += 1;
         }
-        #[cfg(feature = "profiling")]
-        tracing::trace!(
-            target: "wabou::perf",
-            revision = self.revision,
-            materializations = self.materialization_count,
-            "gpui.projection.boundary_materialize"
-        );
+        #[cfg(any(debug_assertions, feature = "profiling"))]
+        {
+            self.materialization_window.1 = self.materialization_window.1.saturating_add(1);
+            let elapsed = self.materialization_window.0.elapsed();
+            if elapsed >= std::time::Duration::from_secs(1) {
+                let rate = f64::from(self.materialization_window.1) / elapsed.as_secs_f64();
+                let threshold = projection_materialization_warning_hz();
+                if threshold > 0.0 && rate > threshold {
+                    tracing::warn!(
+                        target: "wabou::perf",
+                        root = ?self.root,
+                        revision = ?self.revision.0,
+                        force_revision = self.revision.1,
+                        materializations_per_second = rate,
+                        threshold,
+                        "GPUI projection boundary is materializing too frequently"
+                    );
+                }
+                self.materialization_window = (std::time::Instant::now(), 0);
+            }
+            tracing::trace!(
+                target: "wabou::perf",
+                root = ?self.root,
+                revision = ?self.revision,
+                materializations = self.materialization_count,
+                "gpui.projection.boundary_materialize"
+            );
+        }
 
         let mut native_controls = self
             .native_builders
@@ -186,7 +221,7 @@ impl Render for GpuiProjectionBoundary {
 
         self.snapshot
             .interactive_element(
-                NodeKey::ROOT,
+                self.root,
                 self.input.clone(),
                 self.focus.clone(),
                 self.text_input.clone(),
@@ -194,6 +229,17 @@ impl Render for GpuiProjectionBoundary {
                 Some(subtree),
                 self.text_selections.clone(),
             )
-            .expect("the canonical Wabou root remains retained")
+            .expect("the projection boundary root remains retained")
     }
+}
+
+#[cfg(any(debug_assertions, feature = "profiling"))]
+fn projection_materialization_warning_hz() -> f64 {
+    static THRESHOLD: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
+    *THRESHOLD.get_or_init(|| {
+        std::env::var("WABOU_PROJECTION_WARN_HZ")
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(90.0)
+    })
 }

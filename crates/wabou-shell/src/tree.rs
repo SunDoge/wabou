@@ -178,6 +178,29 @@ impl ProjectionSnapshot {
         }
         None
     }
+
+    /// Boundary roots directly owned by `root`, excluding deeper descendants.
+    pub fn direct_projection_boundaries(&self, root: NodeKey) -> Vec<NodeKey> {
+        self.projection_boundaries()
+            .filter(|candidate| *candidate != root)
+            .filter(|candidate| {
+                let mut parent = self.nodes.get(candidate).and_then(|node| node.parent);
+                while let Some(key) = parent {
+                    if key == root {
+                        return true;
+                    }
+                    let Some(node) = self.nodes.get(&key) else {
+                        return false;
+                    };
+                    if node.projection_boundary || key == NodeKey::ROOT {
+                        return false;
+                    }
+                    parent = node.parent;
+                }
+                false
+            })
+            .collect()
+    }
 }
 
 /// Retained projection updated by completed Solid mutation batches.
@@ -1001,6 +1024,27 @@ mod tests {
         tree.update_projection_boundary(key(1), false).unwrap();
         assert!(!tree.node(key(1)).unwrap().projection_boundary);
         assert!(!tree.commit().is_empty());
+    }
+
+    #[test]
+    fn snapshot_reports_only_direct_nested_projection_boundaries() {
+        let mut tree = ProjectionTree::default();
+        insert(&mut tree, 1, None);
+        insert(&mut tree, 2, Some(1));
+        insert(&mut tree, 3, Some(2));
+        insert(&mut tree, 4, Some(3));
+        insert(&mut tree, 5, Some(1));
+        tree.update_projection_boundary(key(2), true).unwrap();
+        tree.update_projection_boundary(key(4), true).unwrap();
+        tree.update_projection_boundary(key(5), true).unwrap();
+
+        let snapshot = tree.snapshot();
+        assert_eq!(
+            snapshot.direct_projection_boundaries(key(1)),
+            [key(2), key(5)]
+        );
+        assert_eq!(snapshot.direct_projection_boundaries(key(2)), [key(4)]);
+        assert!(snapshot.direct_projection_boundaries(key(4)).is_empty());
     }
 
     #[test]

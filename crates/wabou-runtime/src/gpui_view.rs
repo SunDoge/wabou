@@ -46,7 +46,10 @@ pub struct GpuiRuntimeView {
     text_controls: BTreeMap<wabou_host_api::NodeKey, GpuiTextControlState>,
     text_selections: BTreeMap<wabou_host_api::NodeKey, GpuiTextSelectionState>,
     projection_boundary: Option<Entity<GpuiProjectionBoundary>>,
+    projection_subtrees: BTreeMap<wabou_host_api::NodeKey, Entity<GpuiProjectionBoundary>>,
     projection_boundary_revision: u64,
+    projection_force_revision: u64,
+    observed_projection_revision: u64,
     performance_hud: Option<Entity<GpuiPerformanceHud>>,
     previous_frame_at: std::time::Instant,
     fps_ema: f64,
@@ -332,7 +335,10 @@ impl GpuiRuntimeView {
             text_controls: BTreeMap::new(),
             text_selections: BTreeMap::new(),
             projection_boundary: None,
+            projection_subtrees: BTreeMap::new(),
             projection_boundary_revision: 0,
+            projection_force_revision: 0,
+            observed_projection_revision: 0,
             performance_hud,
             previous_frame_at: std::time::Instant::now(),
             fps_ema: 0.0,
@@ -1046,8 +1052,14 @@ impl Render for GpuiRuntimeView {
                 window.is_maximized(),
             );
         }
-        let (projection_changed, needs_runtime_followup, frame_timing) =
+        let (advanced_projection, needs_runtime_followup, frame_timing) =
             self.controller.advance_ready_work_profiled(8);
+        let committed_projection_revision = self.controller.projection_revision();
+        let projection_changed = advanced_projection
+            || committed_projection_revision != self.observed_projection_revision;
+        if projection_changed {
+            self.observed_projection_revision = committed_projection_revision;
+        }
         if needs_runtime_followup {
             // Solid 2 and asynchronously loaded Vite modules may enqueue their
             // retained mutations after this turn's protocol writer was flushed.
@@ -1058,6 +1070,7 @@ impl Render for GpuiRuntimeView {
         }
         let mut boundary_dirty =
             completed_layout_changed || projection_changed || self.projection_boundary.is_none();
+        let mut force_boundary_sync = self.projection_boundary.is_none();
         self.synchronize_base_theme(cx);
         let fonts = self.controller.take_pending_fonts();
         if !fonts.is_empty() {
@@ -1071,6 +1084,7 @@ impl Render for GpuiRuntimeView {
                 // Font availability changes shaping and therefore layout even
                 // when the retained Solid tree itself did not mutate.
                 boundary_dirty = true;
+                force_boundary_sync = true;
                 cx.notify();
             }
         }
@@ -1154,13 +1168,25 @@ impl Render for GpuiRuntimeView {
                         true
                     }
                 });
-            let projection_boundary = self.projection_boundary.clone();
+            let input_snapshot = self.controller.projection_render_snapshot();
+            let root_projection_boundary = self.projection_boundary.clone();
+            let projection_subtrees = self.projection_subtrees.clone();
             let source_action = test_controller.poll_gpui_source(
                 self.window_key,
                 &self.layout_snapshot(),
                 &mut self.controller,
                 |key, event| {
-                    projection_boundary.as_ref().is_some_and(|boundary| {
+                    let boundary =
+                        input_snapshot
+                            .nearest_projection_boundary(key)
+                            .and_then(|owner| {
+                                if owner == wabou_host_api::NodeKey::ROOT {
+                                    root_projection_boundary.as_ref()
+                                } else {
+                                    projection_subtrees.get(&owner)
+                                }
+                            });
+                    boundary.is_some_and(|boundary| {
                         boundary.update(cx, |boundary, cx| {
                             boundary.dispatch_native_input(key, event, window, cx)
                         })
@@ -1170,6 +1196,7 @@ impl Render for GpuiRuntimeView {
             if source_action {
                 self.synchronize_text_controls(window, cx);
                 boundary_dirty = true;
+                force_boundary_sync = true;
             }
             if window_action || source_action {
                 cx.notify();
@@ -1188,6 +1215,10 @@ impl Render for GpuiRuntimeView {
         if boundary_dirty {
             self.projection_boundary_revision =
                 self.projection_boundary_revision.wrapping_add(1).max(1);
+            if force_boundary_sync {
+                self.projection_force_revision =
+                    self.projection_force_revision.wrapping_add(1).max(1);
+            }
             let view = cx.weak_entity();
             let input: wabou_shell::ProjectedInputSink = Rc::new(move |event, app| {
                 let _ = view.update(app, |view, cx| {
@@ -1204,23 +1235,137 @@ impl Render for GpuiRuntimeView {
                 // the transitional root handler active would commit IME twice.
                 text_input.accepts_text = false;
             }
+            let snapshot = self.controller.projection_render_snapshot();
+            let revisions = self.controller.projection_boundary_revisions();
+            let all_widgets = self
+                .controller
+                .native_widgets(|tag| self.native_widget_factories.contains_key(tag));
+            let text_selections = self.synchronize_text_selections(window, cx);
+            let boundary_keys = snapshot
+                .projection_boundaries()
+                .into_iter()
+                .filter(|key| *key != wabou_host_api::NodeKey::ROOT)
+                .collect::<std::collections::BTreeSet<_>>();
+            self.projection_subtrees
+                .retain(|key, _| boundary_keys.contains(key));
+
+            // Materialize retained boundary entities from the leaves upward so
+            // each parent can replace a direct child subtree with its Entity.
+            let mut pending = boundary_keys;
+            while !pending.is_empty() {
+                let ready = pending
+                    .iter()
+                    .copied()
+                    .find(|key| {
+                        snapshot
+                            .direct_projection_boundaries(*key)
+                            .iter()
+                            .all(|child| self.projection_subtrees.contains_key(child))
+                    })
+                    .expect("projection boundaries form an acyclic retained tree");
+                let subtree_builders = snapshot
+                    .direct_projection_boundaries(ready)
+                    .into_iter()
+                    .filter_map(|key| {
+                        self.projection_subtrees
+                            .get(&key)
+                            .cloned()
+                            .map(|entity| (key, entity))
+                    })
+                    .map(|(key, entity)| {
+                        let build: NativeElementBuilder =
+                            Rc::new(move || entity.clone().into_any_element());
+                        (key, build)
+                    })
+                    .collect();
+                let native_builders = self
+                    .text_controls
+                    .iter()
+                    .filter(|(key, _)| snapshot.nearest_projection_boundary(**key) == Some(ready))
+                    .map(|(key, state)| (*key, state.element_builder()))
+                    .collect();
+                let widgets = all_widgets
+                    .iter()
+                    .filter(|widget| {
+                        snapshot.nearest_projection_boundary(widget.key) == Some(ready)
+                    })
+                    .cloned()
+                    .collect();
+                let state = GpuiProjectionBoundaryState {
+                    root: ready,
+                    revision: (
+                        revisions.get(&ready).copied().unwrap_or_default(),
+                        self.projection_force_revision,
+                    ),
+                    snapshot: snapshot.clone(),
+                    input: input.clone(),
+                    focus: self.focus.clone(),
+                    text_input: text_input.clone(),
+                    native_builders,
+                    subtree_builders,
+                    text_selections: text_selections.clone(),
+                    widgets,
+                    native_widget_factories: self.native_widget_factories.clone(),
+                };
+                if let Some(boundary) = self.projection_subtrees.get(&ready) {
+                    boundary.update(cx, |boundary, boundary_cx| {
+                        boundary.synchronize(state, boundary_cx);
+                    });
+                } else {
+                    self.projection_subtrees
+                        .insert(ready, cx.new(|_| GpuiProjectionBoundary::new(state)));
+                }
+                pending.remove(&ready);
+            }
+
+            let subtree_builders = snapshot
+                .direct_projection_boundaries(wabou_host_api::NodeKey::ROOT)
+                .into_iter()
+                .filter_map(|key| {
+                    self.projection_subtrees
+                        .get(&key)
+                        .cloned()
+                        .map(|entity| (key, entity))
+                })
+                .map(|(key, entity)| {
+                    let build: NativeElementBuilder =
+                        Rc::new(move || entity.clone().into_any_element());
+                    (key, build)
+                })
+                .collect();
             let native_builders = self
                 .text_controls
                 .iter()
+                .filter(|(key, _)| {
+                    snapshot.nearest_projection_boundary(**key)
+                        == Some(wabou_host_api::NodeKey::ROOT)
+                })
                 .map(|(key, state)| (*key, state.element_builder()))
                 .collect();
+            let root_widgets = all_widgets
+                .into_iter()
+                .filter(|widget| {
+                    snapshot.nearest_projection_boundary(widget.key)
+                        == Some(wabou_host_api::NodeKey::ROOT)
+                })
+                .collect();
             let state = GpuiProjectionBoundaryState {
-                revision: self.projection_boundary_revision,
-                snapshot: self.controller.projection_render_snapshot(),
+                root: wabou_host_api::NodeKey::ROOT,
+                revision: (
+                    revisions
+                        .get(&wabou_host_api::NodeKey::ROOT)
+                        .copied()
+                        .unwrap_or_default(),
+                    self.projection_force_revision,
+                ),
+                snapshot,
                 input,
                 focus: self.focus.clone(),
                 text_input,
                 native_builders,
-                subtree_builders: BTreeMap::new(),
-                text_selections: self.synchronize_text_selections(window, cx),
-                widgets: self
-                    .controller
-                    .native_widgets(|tag| self.native_widget_factories.contains_key(tag)),
+                subtree_builders,
+                text_selections,
+                widgets: root_widgets,
                 native_widget_factories: self.native_widget_factories.clone(),
             };
             if let Some(boundary) = &self.projection_boundary {
@@ -1231,12 +1376,22 @@ impl Render for GpuiRuntimeView {
                 self.projection_boundary = Some(cx.new(|_| GpuiProjectionBoundary::new(state)));
             }
         }
-        let projected = self
+        let projection_boundary = self
             .projection_boundary
             .as_ref()
             .expect("projection boundary initialized before root composition")
-            .clone()
-            .cached(StyleRefinement::default().size_full());
+            .clone();
+        let projected = if self.projection_subtrees.is_empty() {
+            projection_boundary
+                .cached(StyleRefinement::default().size_full())
+                .into_any_element()
+        } else {
+            // GPUI's outer cached View freezes nested cached views as one unit.
+            // Keep this lightweight composition root live when explicit child
+            // boundaries exist; each child remains an independently retained
+            // Entity and the root revision clocks still avoid structural work.
+            projection_boundary.into_any_element()
+        };
         let drag_view = cx.weak_entity();
         let drop_view = drag_view.clone();
         let leave_view = drag_view.clone();
@@ -1325,6 +1480,7 @@ impl Render for GpuiRuntimeView {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol::{Frame, Op};
     use crate::{JsRuntime, runtime_session::RuntimeSession};
     use wabou_host_api::NodeKey;
     use wabou_shell::gpui::{HeadlessAppContext, TestAppContext, px, size};
@@ -1337,6 +1493,121 @@ mod tests {
             JsRuntime::new().expect("QuickJS runtime"),
             wabou_shell::initial_window_resource_key(0),
         ))
+    }
+
+    #[test]
+    fn explicit_projection_boundary_materializes_independently_from_root() {
+        let platform = gpui_platform::current_platform(true);
+        let mut cx = HeadlessAppContext::new(platform.text_system());
+        let boundary_key = NodeKey::new(100, 1);
+        let handle = cx
+            .open_window(size(px(800.0), px(600.0)), |window, app| {
+                let mut controller = test_controller();
+                controller
+                    .boot(include_str!("gen/test-runtime.js"))
+                    .expect("boot generated Solid runtime fixture");
+                assert!(controller.advance_frame());
+                controller
+                    .apply_frame(&Frame {
+                        seq: 2,
+                        ops: vec![
+                            Op::CreateText {
+                                id: boundary_key,
+                                text: "before",
+                            },
+                            Op::AppendChild {
+                                parent: NodeKey::ROOT,
+                                child: boundary_key,
+                            },
+                            Op::SetProjectionBoundary {
+                                id: boundary_key,
+                                enabled: true,
+                            },
+                        ],
+                    })
+                    .expect("create explicit projection boundary");
+                app.new(|view_cx| {
+                    GpuiRuntimeView::new(
+                        controller,
+                        GpuiRuntimeViewOptions {
+                            window_size_persistence: None,
+                            native_widget_factories: HashMap::new(),
+                            test_controller: None,
+                            window_key: wabou_shell::initial_window_resource_key(0),
+                            window_host: test_window_host(),
+                        },
+                        window,
+                        view_cx,
+                    )
+                })
+            })
+            .expect("open retained boundary fixture");
+        cx.run_until_parked();
+        cx.update_window(handle.into(), |_, window, app| {
+            let _ = window.draw(app);
+        })
+        .expect("draw initial retained boundaries");
+
+        let root = handle.root(&mut cx).expect("GPUI runtime root entity");
+        let (root_boundary, child_boundary) = cx.read_entity(&root, |view, _| {
+            (
+                view.projection_boundary.clone().expect("root boundary"),
+                view.projection_subtrees
+                    .get(&boundary_key)
+                    .cloned()
+                    .expect("child boundary"),
+            )
+        });
+        let root_revision_before =
+            cx.read_entity(&root_boundary, |boundary, _| boundary.revision());
+        let (child_before, child_revision_before) = cx
+            .read_entity(&child_boundary, |boundary, _| {
+                (boundary.materialization_count(), boundary.revision())
+            });
+
+        cx.update_entity(&root, |view, view_cx| {
+            view.controller
+                .apply_frame(&Frame {
+                    seq: 3,
+                    ops: vec![Op::SetText {
+                        id: boundary_key,
+                        text: "after",
+                    }],
+                })
+                .expect("mutate child boundary");
+            assert!(view.controller.finish_projection_frame());
+            view_cx.notify();
+        });
+        cx.run_until_parked();
+        cx.update_window(handle.into(), |_, window, app| {
+            let _ = window.draw(app);
+        })
+        .expect("synchronize updated retained boundary");
+        cx.update_window(handle.into(), |_, window, app| {
+            window.simulate_next_frame(app)
+        })
+        .expect("commit child boundary state at the GPUI frame boundary");
+        cx.run_until_parked();
+        cx.update_window(handle.into(), |_, window, app| {
+            let _ = window.draw(app);
+        })
+        .expect("draw updated retained boundary");
+
+        assert_eq!(
+            cx.read_entity(&root_boundary, |boundary, _| boundary
+                .revision()
+                .0
+                .structure),
+            root_revision_before.0.structure,
+            "child text mutation must not rebuild root structure"
+        );
+        assert!(
+            cx.read_entity(&child_boundary, |boundary, _| {
+                assert_ne!(boundary.revision(), child_revision_before);
+                boundary.materialization_count()
+            }) > child_before,
+            "the owning child boundary must rematerialize"
+        );
     }
 
     #[test]

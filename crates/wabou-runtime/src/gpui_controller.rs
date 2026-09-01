@@ -147,6 +147,11 @@ impl GpuiController {
         &self.projection
     }
 
+    #[cfg(test)]
+    pub(crate) fn finish_projection_frame(&mut self) -> bool {
+        self.projection.finish_frame_profiled().changed()
+    }
+
     pub(crate) fn take_projection_commands(&mut self) -> Vec<wabou_shell::GpuiCommand> {
         self.projection.take_commands()
     }
@@ -706,6 +711,17 @@ impl GpuiController {
 
     pub(crate) fn projection_render_snapshot(&self) -> wabou_shell::GpuiProjectionRenderSnapshot {
         self.projection.render_snapshot()
+    }
+
+    pub(crate) fn projection_boundary_revisions(
+        &self,
+    ) -> std::collections::BTreeMap<wabou_shell::NodeKey, wabou_shell::ProjectionBoundaryRevision>
+    {
+        self.projection.projection_boundary_revisions().clone()
+    }
+
+    pub(crate) fn projection_revision(&self) -> u64 {
+        self.projection.revision()
     }
 
     pub(crate) fn selectable_texts(&self) -> Vec<wabou_shell::GpuiSelectableText> {

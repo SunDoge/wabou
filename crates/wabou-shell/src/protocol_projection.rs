@@ -208,6 +208,18 @@ pub struct GpuiProjectionRenderSnapshot {
 }
 
 impl GpuiProjectionRenderSnapshot {
+    pub fn projection_boundaries(&self) -> Vec<NodeKey> {
+        self.tree.projection_boundaries().collect()
+    }
+
+    pub fn nearest_projection_boundary(&self, key: NodeKey) -> Option<NodeKey> {
+        self.tree.nearest_projection_boundary(key)
+    }
+
+    pub fn direct_projection_boundaries(&self, root: NodeKey) -> Vec<NodeKey> {
+        self.tree.direct_projection_boundaries(root)
+    }
+
     pub fn interactive_element(
         &self,
         root: NodeKey,
