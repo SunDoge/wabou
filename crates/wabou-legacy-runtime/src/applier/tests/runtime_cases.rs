@@ -303,7 +303,7 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
                 r#"
             globalThis.created = __wabou_test_host_api.createWindow({
               title: "Child", width: 640, height: 480,
-              resizable: false, decorations: false, transparent: true
+              resizable: false, decorations: false, background: "transparent"
             }).then(created => {
               created.setTitle("Renamed");
               created.minimize();

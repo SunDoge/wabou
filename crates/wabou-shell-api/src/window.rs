@@ -116,16 +116,6 @@ impl WindowOptions {
         self
     }
 
-    /// Request a native window whose background preserves rendered alpha.
-    pub fn transparent(mut self, transparent: bool) -> Self {
-        self.background = if transparent {
-            WindowBackground::Transparent
-        } else {
-            WindowBackground::Opaque
-        };
-        self
-    }
-
     /// Select the native compositor material behind transparent app content.
     pub fn background(mut self, background: WindowBackground) -> Self {
         self.background = background;
@@ -181,7 +171,7 @@ mod tests {
     fn window_options_have_a_stable_serialized_contract() {
         let options = WindowOptions::new()
             .title("Contract")
-            .transparent(true)
+            .background(WindowBackground::Transparent)
             .input_mode(WindowInputMode::Passthrough)
             .window_level(WindowLevel::AlwaysOnTop);
         let encoded = serde_json::to_string(&options).expect("serialize window options");

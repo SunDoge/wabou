@@ -187,8 +187,14 @@ pub(super) fn decode_effect_payload(
             if let Some(decorations) = value.get("decorations").and_then(|value| value.as_bool()) {
                 options = options.decorations(decorations);
             }
-            if let Some(transparent) = value.get("transparent").and_then(|value| value.as_bool()) {
-                options = options.transparent(transparent);
+            if let Some(background) = value.get("background").and_then(|value| value.as_str()) {
+                options = options.background(match background {
+                    "transparent" => gpui_shell::WindowBackground::Transparent,
+                    "blurred" => gpui_shell::WindowBackground::Blurred,
+                    "mica" => gpui_shell::WindowBackground::Mica,
+                    "micaAlt" => gpui_shell::WindowBackground::MicaAlt,
+                    _ => gpui_shell::WindowBackground::Opaque,
+                });
             }
             if let Some(window_level) = value.get("windowLevel").and_then(|value| value.as_str()) {
                 options = options.window_level(match window_level {
