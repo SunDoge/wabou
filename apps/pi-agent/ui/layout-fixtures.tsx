@@ -40,7 +40,7 @@ import { AgentTerminalPanel } from "./terminal-panel";
 import { createAgentWorkspace } from "./workspace";
 import { WorkspaceChangesPanel } from "./workspace-changes-panel";
 import { WorkspacePanel } from "./workspace-panel";
-import { WorkspaceSetup } from "./workspace-setup";
+import { WorkspaceSetup, WorkspaceSetupBoundary } from "./workspace-setup";
 
 const project = createAgentWorkspace(1);
 project.name = "Documentation workspace";
@@ -878,6 +878,21 @@ defineLayoutFixtures(
               provider="anthropic"
               model="claude-sonnet-4-5"
               proxy="http://127.0.0.1:7890"
+              updatePath={() => {}}
+              start={async () => {}}
+              openSettings={() => {}}
+            />
+          </View>
+        ),
+      },
+      "workspace/preparing": {
+        width: 480,
+        height: 320,
+        render: () => (
+          <View class="w-full h-full bg-canvas">
+            <WorkspaceSetupBoundary
+              pending
+              path=""
               updatePath={() => {}}
               start={async () => {}}
               openSettings={() => {}}

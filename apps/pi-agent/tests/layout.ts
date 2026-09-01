@@ -873,6 +873,23 @@ try {
         },
       },
       {
+        id: "workspace/preparing",
+        width: 480,
+        height: 320,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => {
+          const loading = getLayoutNode(fixture, {
+            role: "status",
+            name: "Preparing your workspace…",
+          });
+          if (loading.rect.width !== 480 || loading.rect.height !== 320) {
+            throw new Error(
+              `workspace loading state lost its bounded viewport: ${loading.rect.width}x${loading.rect.height}`,
+            );
+          }
+        },
+      },
+      {
         id: "workspace/setup-error",
         width: 620,
         height: 560,

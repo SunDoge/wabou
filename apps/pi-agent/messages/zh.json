@@ -75,6 +75,8 @@
   "setup_system_network": "系统设置",
   "setup_change_settings": "检查设置",
   "setup_safety": "启动 Agent 时会自动创建这个目录；也可以浏览并选择一个已有仓库。",
+  "preparing_workspace": "正在准备工作区…",
+  "preparing_workspace_detail": "正在为这个项目创建默认的私有目录；准备完成后仍可选择其他代码仓库。",
   "restart_agent": "重启 Agent",
   "starting": "正在启动…",
   "provider": "模型服务商",

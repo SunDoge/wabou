@@ -27,6 +27,14 @@ function manualScheduler() {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((accept) => {
+    resolve = accept;
+  });
+  return { promise, resolve };
+}
+
 const storedProject = {
   id: "agent-4",
   name: "Wabou",
@@ -112,6 +120,39 @@ describe("agent profiles", () => {
       ],
     ]);
     dispose();
+  });
+
+  test("exposes one pending default workspace request per project", async () => {
+    const workspace = deferred<string>();
+    let calls = 0;
+    let profiles!: ReturnType<typeof createAgentProfiles>;
+    createRoot(() => {
+      profiles = createAgentProfiles({
+        api: {
+          listAgents: () => [storedProject],
+          saveAgents: () => {},
+          defaultWorkspace: () => {
+            calls += 1;
+            return workspace.promise;
+          },
+        } as never,
+        routeAgentId: () => undefined,
+      });
+      flush();
+    });
+    await Promise.resolve();
+    flush();
+
+    const first = profiles.prepareDefaultWorkspace("agent-4");
+    const duplicate = profiles.prepareDefaultWorkspace("agent-4");
+    expect(profiles.workspacePending("agent-4")).toBe(true);
+    expect(calls).toBe(1);
+
+    workspace.resolve("/work/default/agent-4");
+    await Promise.all([first, duplicate]);
+    flush();
+    expect(profiles.workspacePending("agent-4")).toBe(false);
+    expect(profiles.active().cwd).toBe("/work/wabou");
   });
 
   test("repairs and persists a stored project with no workspace", async () => {

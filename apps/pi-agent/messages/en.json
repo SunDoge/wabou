@@ -75,6 +75,8 @@
   "setup_system_network": "system settings",
   "setup_change_settings": "Review settings",
   "setup_safety": "This folder will be created when the agent starts. You can browse to an existing repository instead.",
+  "preparing_workspace": "Preparing your workspace…",
+  "preparing_workspace_detail": "Creating a private default folder for this project. You can choose another repository after it is ready.",
   "restart_agent": "Restart agent",
   "starting": "Starting…",
   "provider": "Provider",

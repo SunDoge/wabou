@@ -61,10 +61,13 @@ describe("persisted record", () => {
       flush();
     });
 
+    expect(record.loading()).toBe(true);
+
     record.update({ proxy: "http://127.0.0.1:7890" });
     initialLoad.resolve({ proxy: "http://persisted", model: "gpt-5" });
     await initialLoad.promise;
     await Promise.resolve();
+    expect(record.loading()).toBe(false);
     expect(record.value()).toEqual({
       proxy: "http://127.0.0.1:7890",
       model: "",

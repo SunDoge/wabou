@@ -19,6 +19,11 @@ export function createAgentProfiles(options: {
 }) {
   const { api } = options;
   const [lastActiveId, setLastActiveId] = createSignal("agent-1");
+  const workspacePendingIds = new Set<string>();
+  const [workspacePendingRevision, setWorkspacePendingRevision] = createSignal(
+    0,
+    { ownedWrite: true },
+  );
   const repairedLoads = new WeakSet<object>();
   const restore = (
     stored: Awaited<ReturnType<PiApi["listAgents"]>>,
@@ -83,6 +88,9 @@ export function createAgentProfiles(options: {
     );
 
   const prepareDefaultWorkspace = async (id: string): Promise<void> => {
+    if (workspacePendingIds.has(id)) return;
+    workspacePendingIds.add(id);
+    setWorkspacePendingRevision((revision) => revision + 1);
     try {
       const cwd = await api.defaultWorkspace(id);
       updateAgent(id, (agent) => (agent.cwd ? agent : { ...agent, cwd }));
@@ -90,6 +98,9 @@ export function createAgentProfiles(options: {
       console.error(
         `[pi-agent] could not prepare the default workspace: ${String(error)}`,
       );
+    } finally {
+      workspacePendingIds.delete(id);
+      setWorkspacePendingRevision((revision) => revision + 1);
     }
   };
 
@@ -126,6 +137,10 @@ export function createAgentProfiles(options: {
     updateAgent,
     patchActive,
     prepareDefaultWorkspace,
+    workspacePending: (id: string) => {
+      workspacePendingRevision();
+      return profiles.loading() || workspacePendingIds.has(id);
+    },
     loadError: profiles.loadError,
     saveError: profiles.saveError,
     reload: profiles.reload,

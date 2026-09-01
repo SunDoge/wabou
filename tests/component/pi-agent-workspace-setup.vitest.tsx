@@ -2,7 +2,10 @@ import type { Dialog } from "@wabou/core";
 import { renderComponent } from "@wabou/test/component";
 import { createSignal } from "solid-js";
 import { expect, test, vi } from "vitest";
-import { WorkspaceSetup } from "../../apps/pi-agent/ui/workspace-setup";
+import {
+  WorkspaceSetup,
+  WorkspaceSetupBoundary,
+} from "../../apps/pi-agent/ui/workspace-setup";
 
 const dialogWith = (pickDirectory: Dialog["pickDirectory"]): Dialog => ({
   open: async () => null,
@@ -61,6 +64,23 @@ test("Pi Agent setup exposes recent runtime diagnostics", () => {
   const output = screen.getByRole("group", { name: "Runtime output" });
   expect(output.text).toContain("bun install failed");
   expect(output.text).toContain("proxy refused connection");
+});
+
+test("Pi Agent setup keeps the directory form hidden while preparing its default workspace", () => {
+  const screen = renderComponent(() => (
+    <WorkspaceSetupBoundary
+      pending
+      path=""
+      updatePath={() => {}}
+      start={async () => {}}
+      openSettings={() => {}}
+    />
+  ));
+
+  expect(
+    screen.getByRole("status", { name: "Preparing your workspace…" }),
+  ).toBeDefined();
+  expect(screen.queryByRole("button", { name: "Start agent" })).toBeNull();
 });
 
 test("Pi Agent setup reports startup progress and failures with shared status components", async () => {

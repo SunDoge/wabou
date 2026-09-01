@@ -4,6 +4,7 @@ import {
   Card,
   CardContent,
   CodeBlock,
+  ContentState,
   DirectoryPicker,
   Icon,
   IconFrame,
@@ -22,10 +23,10 @@ import folder from "lucide-static/icons/folder.svg?raw";
 import play from "lucide-static/icons/play.svg?raw";
 import settings from "lucide-static/icons/settings-2.svg?raw";
 import shield from "lucide-static/icons/shield-check.svg?raw";
-import { createSignal } from "solid-js";
+import { createSignal, omit, Show } from "solid-js";
 import { i18n, m } from "./i18n";
 
-export function WorkspaceSetup(props: {
+export interface WorkspaceSetupProps {
   path: string;
   error?: string;
   runtimeLogs?: readonly string[];
@@ -35,7 +36,30 @@ export function WorkspaceSetup(props: {
   updatePath: (path: string) => void;
   start: () => Promise<unknown>;
   openSettings: () => void;
-}) {
+}
+
+export function WorkspaceSetupBoundary(
+  props: WorkspaceSetupProps & { pending: boolean },
+) {
+  const setup = omit(props, "pending");
+  return (
+    <Show
+      when={!props.pending}
+      fallback={
+        <ContentState
+          state="loading"
+          title={i18n.message(m.preparing_workspace, {})}
+          description={i18n.message(m.preparing_workspace_detail, {})}
+          class="bg-canvas"
+        />
+      }
+    >
+      <WorkspaceSetup {...setup} />
+    </Show>
+  );
+}
+
+export function WorkspaceSetup(props: WorkspaceSetupProps) {
   const [starting, setStarting] = createSignal(false);
   const start = async () => {
     if (starting() || !props.path.trim()) return;

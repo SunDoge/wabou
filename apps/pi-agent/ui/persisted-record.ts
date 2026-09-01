@@ -7,6 +7,7 @@ import {
 
 export interface PersistedRecord<T extends object> {
   value(): T;
+  loading(): boolean;
   loadError(): unknown;
   saveError(): unknown;
   update(patch: Partial<T>): void;
@@ -17,6 +18,7 @@ export interface PersistedRecord<T extends object> {
 
 export interface PersistedValue<T> {
   value(): T;
+  loading(): boolean;
   loadError(): unknown;
   saveError(): unknown;
   set(next: T): void;
@@ -89,6 +91,7 @@ export function createPersistedValue<T>(
   onCleanup(flush);
   return {
     value,
+    loading: resource.loading,
     loadError: resource.error,
     saveError,
     set,
@@ -105,6 +108,7 @@ export function createPersistedRecord<T extends object>(
   const state = createPersistedValue(options);
   return {
     value: state.value,
+    loading: state.loading,
     loadError: state.loadError,
     saveError: state.saveError,
     update: (patch) => state.update((current) => ({ ...current, ...patch })),

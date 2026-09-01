@@ -72,7 +72,7 @@ import {
 import { type AgentWorkspace, createAgentWorkspace } from "./workspace";
 import { WorkspaceChangesPanel } from "./workspace-changes-panel";
 import { WorkspacePanel } from "./workspace-panel";
-import { WorkspaceSetup } from "./workspace-setup";
+import { WorkspaceSetupBoundary } from "./workspace-setup";
 
 function ExtensionWindowTitle(props: { title: string }) {
   createEffect(
@@ -122,6 +122,7 @@ export function App() {
     updateAgent,
     patchActive,
     prepareDefaultWorkspace,
+    workspacePending,
     loadError: projectLoadError,
     saveError: projectSaveError,
     reload: reloadProjects,
@@ -965,7 +966,8 @@ export function App() {
           <Show
             when={active().cwd.trim()}
             fallback={
-              <WorkspaceSetup
+              <WorkspaceSetupBoundary
+                pending={workspacePending(active().id)}
                 path={active().cwd}
                 error={active().state.error}
                 runtimeLogs={active().state.runtimeLogs}
