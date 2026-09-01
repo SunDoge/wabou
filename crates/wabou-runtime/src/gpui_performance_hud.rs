@@ -4,14 +4,18 @@ use gpui_base::{StyledExt as _, Theme};
 use std::collections::VecDeque;
 use wabou_shell::FrameStats;
 use wabou_shell::gpui::{
-    Context, IntoElement, ParentElement as _, Render, Styled as _, Window, div,
+    Context, FrameTiming, FrameTimingCollector, IntoElement, ParentElement as _, Render,
+    Styled as _, Window, div, set_frame_trace_enabled,
 };
 
 pub(crate) struct GpuiPerformanceHud {
     stats: Option<FrameStats>,
     fps: f64,
-    frame_ms: f64,
-    frame_times: VecDeque<std::time::Instant>,
+    draw_ms: f64,
+    dirty_to_draw_ms: f64,
+    invalidations_per_frame: f64,
+    frame_timings: VecDeque<FrameTiming>,
+    frame_timing_collector: FrameTimingCollector,
     last_diagnostic_at: std::time::Instant,
     projection_revision: u64,
     projection_materializations: u64,
@@ -22,11 +26,15 @@ pub(crate) struct GpuiPerformanceHud {
 
 impl GpuiPerformanceHud {
     pub(crate) fn new() -> Self {
+        set_frame_trace_enabled(true);
         Self {
             stats: None,
             fps: 0.0,
-            frame_ms: 0.0,
-            frame_times: VecDeque::new(),
+            draw_ms: 0.0,
+            dirty_to_draw_ms: 0.0,
+            invalidations_per_frame: 0.0,
+            frame_timings: VecDeque::new(),
+            frame_timing_collector: FrameTimingCollector::new(),
             last_diagnostic_at: std::time::Instant::now(),
             projection_revision: 0,
             projection_materializations: 0,
@@ -75,11 +83,20 @@ impl Render for GpuiPerformanceHud {
             let _ = hud.update(cx, |_, hud_cx| hud_cx.notify());
         });
         let now = std::time::Instant::now();
-        record_frame_sample(
-            &mut self.frame_times,
+        let window_id = window.window_handle().window_id();
+        self.frame_timings.extend(
+            self.frame_timing_collector
+                .collect_unseen()
+                .into_iter()
+                .filter(|timing| timing.window_id == window_id),
+        );
+        summarize_frame_timings(
+            &mut self.frame_timings,
             now,
             &mut self.fps,
-            &mut self.frame_ms,
+            &mut self.draw_ms,
+            &mut self.dirty_to_draw_ms,
+            &mut self.invalidations_per_frame,
         );
         record_counter_sample(
             &mut self.materialization_samples,
@@ -91,7 +108,9 @@ impl Render for GpuiPerformanceHud {
             tracing::debug!(
                 target: "wabou::perf",
                 fps = self.fps,
-                frame_ms = self.frame_ms,
+                draw_ms = self.draw_ms,
+                dirty_to_draw_ms = self.dirty_to_draw_ms,
+                invalidations_per_frame = self.invalidations_per_frame,
                 materializations_per_second,
                 "native performance HUD sample"
             );
@@ -129,12 +148,16 @@ impl Render for GpuiPerformanceHud {
                 stats.js_tick_ms, stats.scene_ms
             ))
             .child(format!(
-                "frame {:>6.2} ms  nodes {:>6}",
-                self.frame_ms, stats.node_count
+                "draw {:>6.2} ms  dirty→draw {:>6.2} ms",
+                self.draw_ms, self.dirty_to_draw_ms
+            ))
+            .child(format!(
+                "invalidations {:>4.1}/frame  nodes {:>6}",
+                self.invalidations_per_frame, stats.node_count
             ))
             .child(format!(
                 "build {:>6.2} ms  materialize {:>4.0}/s",
-                stats.build_frame_ms, materializations_per_second
+                stats.build_frame_ms, materializations_per_second,
             ))
             .child(format!(
                 "viewport {}×{}  revision {}",
@@ -145,28 +168,51 @@ impl Render for GpuiPerformanceHud {
 
 const SAMPLE_WINDOW: std::time::Duration = std::time::Duration::from_secs(1);
 
-fn record_frame_sample(
-    samples: &mut VecDeque<std::time::Instant>,
+fn summarize_frame_timings(
+    samples: &mut VecDeque<FrameTiming>,
     now: std::time::Instant,
     fps: &mut f64,
-    frame_ms: &mut f64,
+    draw_ms: &mut f64,
+    dirty_to_draw_ms: &mut f64,
+    invalidations_per_frame: &mut f64,
 ) {
-    if let Some(previous) = samples.back() {
-        *frame_ms = now.duration_since(*previous).as_secs_f64() * 1_000.0;
-    }
-    samples.push_back(now);
     while samples
         .front()
-        .is_some_and(|sample| now.duration_since(*sample) > SAMPLE_WINDOW)
+        .is_some_and(|sample| now.saturating_duration_since(sample.draw_end) > SAMPLE_WINDOW)
     {
         samples.pop_front();
     }
     if let (Some(first), Some(last)) = (samples.front(), samples.back()) {
-        let elapsed = last.duration_since(*first).as_secs_f64();
+        let elapsed = last.draw_end.duration_since(first.draw_end).as_secs_f64();
         if elapsed > 0.0 {
             *fps = (samples.len().saturating_sub(1) as f64) / elapsed;
         }
     }
+    if samples.is_empty() {
+        return;
+    }
+    let sample_count = samples.len() as f64;
+    *draw_ms = samples
+        .iter()
+        .map(|timing| timing.draw_duration().as_secs_f64() * 1_000.0)
+        .sum::<f64>()
+        / sample_count;
+    let observed_dirty_samples = samples
+        .iter()
+        .filter_map(|timing| timing.dirty_to_draw_duration())
+        .collect::<Vec<_>>();
+    if !observed_dirty_samples.is_empty() {
+        *dirty_to_draw_ms = observed_dirty_samples
+            .iter()
+            .map(|duration| duration.as_secs_f64() * 1_000.0)
+            .sum::<f64>()
+            / observed_dirty_samples.len() as f64;
+    }
+    *invalidations_per_frame = samples
+        .iter()
+        .map(|timing| timing.invalidations as f64)
+        .sum::<f64>()
+        / sample_count;
 }
 
 fn record_counter_sample(
@@ -221,24 +267,47 @@ mod tests {
     }
 
     #[test]
-    fn sliding_window_fps_ignores_time_before_the_first_render() {
+    fn sliding_window_uses_gpui_draw_timings_instead_of_hud_render_time() {
         let start = std::time::Instant::now();
-        let mut samples = VecDeque::new();
-        let mut fps = 0.0;
-        let mut frame_ms = 0.0;
+        let frame = |draw_start, draw_end, dirty_at, invalidations| FrameTiming {
+            window_id: wabou_shell::gpui::WindowId::from(1),
+            dirty_at,
+            invalidations,
+            draw_start,
+            draw_end,
+        };
+        let mut samples = VecDeque::from([
+            frame(
+                start,
+                start + std::time::Duration::from_millis(4),
+                Some(start - std::time::Duration::from_millis(2)),
+                2,
+            ),
+            frame(
+                start + std::time::Duration::from_millis(14),
+                start + std::time::Duration::from_millis(20),
+                Some(start + std::time::Duration::from_millis(10)),
+                4,
+            ),
+        ]);
+        let mut fps = 0.0_f64;
+        let mut draw_ms = 0.0_f64;
+        let mut dirty_to_draw_ms = 0.0_f64;
+        let mut invalidations_per_frame = 0.0_f64;
 
-        // The HUD may be constructed long before its first render. Sampling
-        // begins here, so startup and route-loading time cannot depress FPS.
-        record_frame_sample(&mut samples, start, &mut fps, &mut frame_ms);
-        record_frame_sample(
+        summarize_frame_timings(
             &mut samples,
-            start + std::time::Duration::from_millis(16),
+            start + std::time::Duration::from_millis(20),
             &mut fps,
-            &mut frame_ms,
+            &mut draw_ms,
+            &mut dirty_to_draw_ms,
+            &mut invalidations_per_frame,
         );
 
         assert!((fps - 62.5).abs() < 0.01);
-        assert!((frame_ms - 16.0).abs() < 0.01);
+        assert!((draw_ms - 5.0).abs() < 0.01);
+        assert!((dirty_to_draw_ms - 8.0).abs() < 0.01);
+        assert!((invalidations_per_frame - 3.0).abs() < 0.01);
     }
 
     #[test]
