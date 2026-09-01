@@ -8,12 +8,12 @@ export interface CapabilityClientOptions {
 }
 
 export class CapabilityError extends Error {
-  readonly code: "capability_unavailable";
+  readonly code: string;
 
-  constructor(message: string) {
+  constructor(message: string, code = "capability_unavailable") {
     super(message);
     this.name = "CapabilityError";
-    this.code = "capability_unavailable";
+    this.code = code;
   }
 }
 

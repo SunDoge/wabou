@@ -1,7 +1,7 @@
 import {
   bindJsonCapability,
   type Host,
-  type NativeJsonCapability,
+  type NativeCapability,
   useHost,
 } from "@wabou/ui";
 
@@ -45,7 +45,7 @@ export interface ModelDownloadProgress {
   error?: string;
 }
 
-interface MangaReaderCapability extends NativeJsonCapability {
+interface MangaReaderCapability extends NativeCapability {
   __wabouCapabilityVersion: number;
   listImages(request: string): string | PromiseLike<string>;
   describeImages(request: string): string | PromiseLike<string>;

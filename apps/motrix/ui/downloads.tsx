@@ -5,7 +5,7 @@ import {
   type Host,
   hostMessages,
   type JsonCapabilityMethodName,
-  type NativeJsonCapability,
+  type NativeCapability,
   notification,
   reconcileKeyedList,
   useHost,
@@ -223,7 +223,7 @@ export interface TaskEvent {
   time: string;
 }
 
-interface NativeDownloadsCapability extends NativeJsonCapability {
+interface NativeDownloadsCapability extends NativeCapability {
   __wabouCapabilityVersion: number;
   getSnapshot(): string | PromiseLike<string>;
   addUri(request: string): string | PromiseLike<string>;

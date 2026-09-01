@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { bindJsonCapability, JsonCapabilityError } from "./json-capability";
+import { bindJsonCapability } from "./json-capability";
+import { CapabilityError } from "./native-capability";
 
 test("JSON capability clients encode requests and decode successful envelopes", async () => {
   const requests: string[] = [];
@@ -35,11 +36,11 @@ test("JSON capability clients preserve native error codes and reject drift", asy
   };
   const call = bindJsonCapability(capability, { name: "demo", version: 1 });
   await expect(call("fail")).rejects.toMatchObject({
-    name: "JsonCapabilityError",
+    name: "CapabilityError",
     code: "handler_failure",
     message: "not today",
   });
-  await expect(call("malformed")).rejects.toBeInstanceOf(JsonCapabilityError);
+  await expect(call("malformed")).rejects.toBeInstanceOf(CapabilityError);
   await expect(call("missing")).rejects.toMatchObject({
     code: "method_unavailable",
   });

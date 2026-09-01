@@ -15,8 +15,8 @@ fn main() -> Result<(), Whatever> {
                 .initial_inner_size(1280, 840)
                 .min_inner_size(900, 600),
         )
-        .json_capability(gallery::bindings::CAPABILITY, |capability| {
-            capability.hot_method(
+        .capability(gallery::bindings::CAPABILITY, |capability| {
+            capability.json_hot_method(
                 gallery::bindings::DESCRIBE_PALETTE,
                 gallery::bindings::describe_palette,
             )

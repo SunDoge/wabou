@@ -6,7 +6,7 @@
 //!
 //! ```ignore
 //! use serde::{Deserialize, Serialize};
-//! use wabou_bindgen::{JsonCapabilityContract, JsonMethod};
+//! use wabou_bindgen::{CapabilityContract, JsonMethod};
 //! use wabou_runtime::{HostBuilder, Widget};
 //!
 //! #[derive(Deserialize)]
@@ -19,12 +19,12 @@
 //!     contents: String,
 //! }
 //!
-//! const WORKSPACE: JsonCapabilityContract = JsonCapabilityContract::new("workspace", 1);
+//! const WORKSPACE: CapabilityContract = CapabilityContract::new("workspace", 1);
 //!
 //! HostBuilder::new()
 //!     .widget("chart", || Box::new(MyChart::new()))
-//!     .json_capability(WORKSPACE, |capability| {
-//!         capability.method(JsonMethod::new("readFile"), |request: ReadFileRequest| async move {
+//!     .capability(WORKSPACE, |capability| {
+//!         capability.json_method(JsonMethod::new("readFile"), |request: ReadFileRequest| async move {
 //!             let contents = std::fs::read_to_string(request.path)
 //!                 .map_err(|error| error.to_string())?;
 //!             Ok::<_, String>(ReadFileResponse { contents })
@@ -41,12 +41,11 @@ use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use wabou_bindgen::JsonCapabilityContract;
+use wabou_bindgen::CapabilityContract;
 use wabou_bindgen::JsonMethod;
 
 use crate::WindowOptions;
 use crate::bundle;
-use crate::json_capability::JsonCapability;
 use crate::jsrt::JsRuntime;
 use crate::kv::mount_kv_capability;
 use crate::native_capability::NativeCapability;
@@ -55,7 +54,7 @@ use crate::{HostMessageContext, HostMessageRouter};
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;
-const IMAGE_RESOURCES: JsonCapabilityContract = JsonCapabilityContract::new("imageResources", 1);
+const IMAGE_RESOURCES: CapabilityContract = CapabilityContract::new("imageResources", 1);
 const CREATE_FILE_IMAGE: JsonMethod<CreateFileImageRequest, ImageResourceDescriptor> =
     JsonMethod::new("createFile");
 const CREATE_NETWORK_IMAGE: JsonMethod<CreateNetworkImageRequest, ImageResourceDescriptor> =
@@ -677,9 +676,9 @@ impl HostBuilder {
             js_runtime_options: crate::JsRuntimeOptions::default(),
         };
         let mounted = image_resources.clone();
-        builder.json_capability(IMAGE_RESOURCES, move |capability| {
+        builder.capability(IMAGE_RESOURCES, move |capability| {
             let files = mounted.clone();
-            capability.method(CREATE_FILE_IMAGE, move |request: CreateFileImageRequest| {
+            capability.json_method(CREATE_FILE_IMAGE, move |request: CreateFileImageRequest| {
                 let resources = files.clone();
                 async move {
                     let loader = resources.clone();
@@ -699,7 +698,7 @@ impl HostBuilder {
                 }
             })?;
             let network = mounted.clone();
-            capability.method(
+            capability.json_method(
                 CREATE_NETWORK_IMAGE,
                 move |request: CreateNetworkImageRequest| {
                     let resources = network.clone();
@@ -718,7 +717,7 @@ impl HostBuilder {
                 },
             )?;
             let release = mounted.clone();
-            capability.method(RELEASE_IMAGE, move |handle: crate::ImageResourceHandle| {
+            capability.json_method(RELEASE_IMAGE, move |handle: crate::ImageResourceHandle| {
                 let resources = release.clone();
                 async move { Ok::<_, String>(resources.remove(handle)) }
             })
@@ -787,28 +786,11 @@ impl HostBuilder {
         self
     }
 
-    /// Mount structured async methods without exposing QuickJS transport
-    /// details to application code.
-    pub fn json_capability<F>(self, contract: JsonCapabilityContract, mount: F) -> Self
-    where
-        F: for<'js> Fn(JsonCapability<'js>) -> rquickjs::Result<()>
-            + rquickjs::markers::ParallelSend
-            + Send
-            + Sync
-            + 'static,
-    {
-        self.mount_capability(contract.name(), move |ctx, object| {
-            object.set("__wabouCapabilityVersion", contract.version())?;
-            mount(JsonCapability { ctx, object })
-        })
-    }
-
-    /// Mount typed asynchronous methods that exchange structured QuickJS
-    /// values directly without JSON text encoding.
+    /// Mount one versioned capability namespace.
     ///
-    /// Prefer [`HostBuilder::capability`] in application code. This explicit
-    /// spelling remains useful while existing applications migrate.
-    pub fn native_capability<F>(self, contract: JsonCapabilityContract, mount: F) -> Self
+    /// Methods use direct structured QuickJS values by default and may opt
+    /// into JSON coding through [`NativeCapability::json_method`].
+    pub fn capability<F>(self, contract: CapabilityContract, mount: F) -> Self
     where
         F: for<'js> Fn(NativeCapability<'js>) -> rquickjs::Result<()>
             + rquickjs::markers::ParallelSend
@@ -820,21 +802,6 @@ impl HostBuilder {
             object.set("__wabouCapabilityVersion", contract.version())?;
             mount(NativeCapability { ctx, object })
         })
-    }
-
-    /// Mount one versioned capability namespace.
-    ///
-    /// Methods use direct structured QuickJS values by default and may opt
-    /// into JSON coding through [`NativeCapability::json_method`].
-    pub fn capability<F>(self, contract: JsonCapabilityContract, mount: F) -> Self
-    where
-        F: for<'js> Fn(NativeCapability<'js>) -> rquickjs::Result<()>
-            + rquickjs::markers::ParallelSend
-            + Send
-            + Sync
-            + 'static,
-    {
-        self.native_capability(contract, mount)
     }
 
     /// Register a producer for application-level Rust → JavaScript messages.
@@ -1373,8 +1340,8 @@ fn install_gpui_host_message_producers(
 #[cfg(test)]
 mod tests {
     use super::{
-        HostBuilder, HostService, HostServiceContext, HostServiceHandle, HostServicesGuard,
-        JsonCapabilityContract, install_gpui_host_message_producers, managed_host_service,
+        CapabilityContract, HostBuilder, HostService, HostServiceContext, HostServiceHandle,
+        HostServicesGuard, install_gpui_host_message_producers, managed_host_service,
         start_host_services,
     };
     use crate::host_message::{HostMessagePayload, HostTaskTracker, host_message_channel};
@@ -1914,8 +1881,8 @@ mod tests {
 
     #[test]
     fn json_capability_publishes_the_shared_abi_version() {
-        const CONTRACT: JsonCapabilityContract = JsonCapabilityContract::new("versioned", 7);
-        let host = HostBuilder::new().json_capability(CONTRACT, |_capability| Ok(()));
+        const CONTRACT: CapabilityContract = CapabilityContract::new("versioned", 7);
+        let host = HostBuilder::new().capability(CONTRACT, |_capability| Ok(()));
         let runtime = JsRuntime::new().expect("runtime");
 
         for install in host.capabilities {

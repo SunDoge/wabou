@@ -1,8 +1,13 @@
-import { bindJsonCapability, type Host, type NativeJsonCapability, useHost } from "@wabou/core";
+import {
+  bindJsonCapability,
+  type Host,
+  type NativeCapability,
+  useHost,
+} from "@wabou/core";
 import type { ImageResourceHandle } from "./view";
 import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
 
-interface ImageResourcesCapability extends NativeJsonCapability {
+interface ImageResourcesCapability extends NativeCapability {
   __wabouCapabilityVersion: number;
   createFile(request: string): string | PromiseLike<string>;
   createNetwork(request: string): string | PromiseLike<string>;
