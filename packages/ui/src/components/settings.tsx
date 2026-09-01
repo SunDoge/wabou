@@ -1,6 +1,86 @@
 import { mergeClasses } from "@wabou/core/style";
-import type { JSX } from "solid-js";
-import { Text, View } from "../primitives";
+import { type JSX, omit } from "solid-js";
+import { Text, View, type ViewProps } from "../primitives";
+
+export type SettingsItemOrientation = "horizontal" | "vertical";
+
+export interface SettingsItemProps
+  extends Omit<ViewProps, "children" | "class"> {
+  title: string;
+  description?: JSX.Element;
+  children?: JSX.Element;
+  orientation?: SettingsItemOrientation;
+  disabled?: boolean;
+  class?: string;
+  labelClass?: string;
+  controlClass?: string;
+}
+
+/**
+ * One settings row with stable explanatory and control regions.
+ * The row blocks its complete subtree when disabled; controls should also
+ * receive `disabled` when they need to expose that state independently.
+ */
+export function SettingsItem(props: SettingsItemProps): JSX.Element {
+  const orientation = () => props.orientation ?? "horizontal";
+  const rest = omit(
+    props,
+    "title",
+    "description",
+    "children",
+    "orientation",
+    "disabled",
+    "class",
+    "labelClass",
+    "controlClass",
+    "style",
+  );
+  return (
+    <View
+      {...rest}
+      role={props.role ?? "group"}
+      aria-label={props["aria-label"] ?? props.title}
+      aria-orientation={orientation()}
+      aria-disabled={props.disabled}
+      interactionBlocked={props.disabled || props.interactionBlocked}
+      class={mergeClasses(
+        "w-full min-w-0 flex",
+        orientation() === "horizontal"
+          ? "flex-row items-start justify-between gap-6"
+          : "flex-col items-stretch gap-3",
+        props.class,
+      )}
+      style={{ ...props.style, opacity: props.disabled ? 0.45 : undefined }}
+    >
+      <View
+        class={mergeClasses(
+          "min-w-0 flex-1 flex flex-col gap-1",
+          props.labelClass,
+        )}
+      >
+        <Text class="min-w-0 whitespace-normal text-sm font-medium text-primary">
+          {props.title}
+        </Text>
+        {props.description !== undefined && props.description !== null ? (
+          <Text class="min-w-0 whitespace-normal text-sm text-secondary">
+            {props.description}
+          </Text>
+        ) : null}
+      </View>
+      <View
+        class={mergeClasses(
+          "min-w-0 flex items-center gap-2",
+          orientation() === "horizontal"
+            ? "flex-none justify-end"
+            : "w-full justify-start",
+          props.controlClass,
+        )}
+      >
+        {props.children}
+      </View>
+    </View>
+  );
+}
 
 export interface SettingsSectionProps {
   title: string;

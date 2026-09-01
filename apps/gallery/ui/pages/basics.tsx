@@ -40,6 +40,7 @@ import {
   ScrollArea,
   SearchField,
   Separator,
+  SettingsItem,
   Skeleton,
   Slider,
   Spinner,
@@ -248,29 +249,24 @@ function SwitchPage() {
     <Preview title="Settings">
       <Card class="w-96">
         <CardContent>
-          <View class="flex items-center justify-between gap-4">
-            <View class="flex flex-col gap-1">
-              <ThemeText
-                dark="text-sm font-medium text-slate-100"
-                light="text-sm font-medium text-slate-900"
-              >
-                Desktop notifications
-              </ThemeText>
-              <ThemeText
-                dark="text-xs text-slate-400"
-                light="text-xs text-slate-500"
-              >
-                Notify when a background task finishes.
-              </ThemeText>
-            </View>
+          <SettingsItem
+            title="Desktop notifications"
+            description="Notify when a background task finishes."
+          >
             <Switch
               checked={enabled()}
               aria-label="Desktop notifications"
               onCheckedChange={setEnabled}
             />
-          </View>
+          </SettingsItem>
           <Separator />
-          <Switch disabled label="Experimental renderer" />
+          <SettingsItem
+            title="Experimental renderer"
+            description="Try rendering features that are still under evaluation."
+            disabled
+          >
+            <Switch disabled aria-label="Experimental renderer" />
+          </SettingsItem>
         </CardContent>
       </Card>
     </Preview>

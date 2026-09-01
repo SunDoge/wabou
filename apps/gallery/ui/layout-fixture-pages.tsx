@@ -46,6 +46,7 @@ import {
   ScrollAreaLayoutFixture,
   SelectionControlsLayoutFixture,
   SelectLayoutFixture,
+  SettingsItemLayoutFixture,
   SheetLayoutFixture,
   SidebarLayoutFixture,
   SliderLayoutFixture,
@@ -140,6 +141,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 420,
         height: 360,
         render: SelectionControlsLayoutFixture,
+      },
+      "component/SettingsItem": {
+        width: 460,
+        height: 330,
+        render: SettingsItemLayoutFixture,
       },
       "component/Tabs": {
         width: 560,
