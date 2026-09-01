@@ -633,8 +633,13 @@ impl GpuiRuntimeView {
     }
 
     #[cfg(feature = "headless")]
-    pub(crate) fn eval_script_diagnostic(&self, source: &str) -> Result<(), String> {
-        self.controller.eval_script_diagnostic(source)
+    pub(crate) fn eval_script_diagnostic(&mut self, source: &str) -> Result<(), String> {
+        self.controller.eval_script_diagnostic(source)?;
+        // Headless fixture setup runs outside a GPUI render turn. Mark the
+        // runtime dirty so rAF scheduled by the evaluated component receives
+        // its first native frame instead of waiting for unrelated input.
+        self.runtime_work_pending = true;
+        Ok(())
     }
 
     #[cfg(feature = "headless")]

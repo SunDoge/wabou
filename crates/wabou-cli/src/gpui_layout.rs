@@ -152,14 +152,16 @@ pub(super) fn boot(
     width: u32,
     height: u32,
 ) -> Result<GpuiHeadlessHarness> {
-    Ok(GpuiHeadlessHarness::boot(
+    let mut harness = GpuiHeadlessHarness::boot(
         source,
         source_map,
         GpuiHeadlessOptions {
             window: WindowOptions::new().initial_inner_size(width, height),
             settle_frames: 4,
         },
-    )?)
+    )?;
+    harness.set_reduced_motion(true)?;
+    Ok(harness)
 }
 
 fn fixture_cases(harness: &mut GpuiHeadlessHarness) -> Result<Vec<LayoutBatchCase>> {

@@ -10,6 +10,8 @@ use wabou_shell::gpui::{
 
 use crate::{GpuiRuntimeView, JsRuntime, WindowOptions};
 
+const HEADLESS_FRAME_DURATION: Duration = Duration::from_micros(16_667);
+
 /// Configuration for one hidden GPUI test window.
 #[derive(Clone, Debug)]
 pub struct GpuiHeadlessOptions {
@@ -183,20 +185,51 @@ impl GpuiHeadlessHarness {
     /// Run pending JavaScript work and force GPUI layout/prepaint cycles.
     pub fn settle(&mut self, frames: usize) -> crate::Result<()> {
         for _ in 0..frames {
-            self.context.run_until_parked();
-            // `GpuiRuntimeView::render` publishes the previous completed
-            // prepaint bounds before advancing JavaScript. Keep that live
-            // ordering intact: publishing outside render would consume the
-            // resulting projection invalidation before the boundary decides
-            // whether it must rebuild.
-            self.context
-                .update_window(self.window.into(), |_, window, app| {
-                    let _ = window.draw(app);
-                })
-                .map_err(|error| crate::Error::GpuiShell {
-                    message: format!("failed to draw hidden GPUI window: {error}"),
-                })?;
+            if let Some(clock) = &self.runtime_clock {
+                clock.advance(HEADLESS_FRAME_DURATION);
+                self.context.advance_clock(HEADLESS_FRAME_DURATION);
+            }
+            self.settle_frame()?;
         }
+        Ok(())
+    }
+
+    /// Set the platform motion preference exposed to GPUI and JavaScript.
+    ///
+    /// Layout contracts normally enable reduced motion so geometry can settle
+    /// without turning a component test into a multi-frame paint benchmark.
+    /// Dedicated animation tests leave it disabled and advance frames
+    /// explicitly.
+    pub fn set_reduced_motion(&mut self, reduced_motion: bool) -> crate::Result<()> {
+        self.context.update(|app| {
+            app.set_reduce_motion(reduced_motion);
+        });
+        self.settle_frame()
+    }
+
+    fn settle_frame(&mut self) -> crate::Result<()> {
+        // `run_until_parked` cannot be used while JavaScript owns an active
+        // requestAnimationFrame loop: the callback schedules the next frame,
+        // but GPUI's deterministic clock does not advance while the scheduler
+        // is draining, so even a finite animation spins forever at one time.
+        // Do not drain GPUI's executor here. One ready task can itself enter a
+        // continuous refresh chain when JavaScript owns requestAnimationFrame,
+        // so even a one-task bound does not define one deterministic frame.
+        // The explicit draw below advances the runtime exactly once; callers
+        // that need more progress settle more frames.
+        // `GpuiRuntimeView::render` publishes the previous completed
+        // prepaint bounds before advancing JavaScript. Keep that live
+        // ordering intact: publishing outside render would consume the
+        // resulting projection invalidation before the boundary decides
+        // whether it must rebuild.
+        self.context
+            .update_window(self.window.into(), |_, window, app| {
+                window.refresh();
+                let _ = window.draw(app);
+            })
+            .map_err(|error| crate::Error::GpuiShell {
+                message: format!("failed to draw hidden GPUI window: {error}"),
+            })?;
         Ok(())
     }
 
@@ -206,7 +239,7 @@ impl GpuiHeadlessHarness {
             clock.advance(duration);
         }
         self.context.advance_clock(duration);
-        self.settle(1)
+        self.settle_frame()
     }
 
     /// Dispatch a native GPUI primary-button click in logical window coordinates.
@@ -296,7 +329,7 @@ impl GpuiHeadlessHarness {
     pub fn eval_script(&mut self, source: &str) -> crate::Result<()> {
         let root = self.root()?;
         self.context
-            .read_entity(&root, |view, _| view.eval_script_diagnostic(source))
+            .update_entity(&root, |view, _| view.eval_script_diagnostic(source))
             .map_err(|message| crate::Error::GpuiShell { message })
     }
 
@@ -536,6 +569,11 @@ mod tests {
             },
         )
         .expect("boot deterministic GPUI runtime");
+        let before = harness
+            .eval_string("String(performance.now())")
+            .expect("read initial deterministic clock")
+            .parse::<f64>()
+            .expect("initial clock is numeric");
         harness
             .eval_script(
                 "globalThis.__clock_probe = -1; requestAnimationFrame((time) => { globalThis.__clock_probe = time; });",
@@ -548,7 +586,48 @@ mod tests {
             .eval_string("JSON.stringify([performance.now(), globalThis.__clock_probe])")
             .expect("read deterministic clock values");
         let values: Vec<f64> = serde_json::from_str(&values).expect("clock values are JSON");
-        assert_eq!(values, vec![220.0, 220.0]);
+        assert_eq!(values[0], values[1]);
+        assert!((values[0] - before - 220.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn settling_headless_frames_completes_a_finite_animation_loop() {
+        let mut harness = GpuiHeadlessHarness::boot(
+            include_str!("gen/test-runtime.js"),
+            None::<Arc<[u8]>>,
+            GpuiHeadlessOptions {
+                window: WindowOptions::new().initial_inner_size(320, 200),
+                settle_frames: 1,
+            },
+        )
+        .expect("boot deterministic GPUI runtime");
+        harness
+            .eval_script(
+                r#"
+                globalThis.__finite_frames = 0;
+                const startedAt = performance.now();
+                function finiteFrame(now) {
+                  globalThis.__finite_frames += 1;
+                  if (now - startedAt < 40) requestAnimationFrame(finiteFrame);
+                }
+                requestAnimationFrame(finiteFrame);
+                "#,
+            )
+            .expect("schedule finite animation");
+
+        harness.settle(4).expect("settle finite animation frames");
+
+        let values = harness
+            .eval_string(
+                "JSON.stringify([globalThis.__finite_frames, globalThis.__wabou_has_raf()])",
+            )
+            .expect("read finite animation state");
+        let values: (u32, bool) = serde_json::from_str(&values).expect("animation state is JSON");
+        assert!(
+            values.0 >= 3,
+            "finite animation observed advancing frames: {values:?}"
+        );
+        assert!(!values.1, "finite animation released the frame clock");
     }
 
     #[test]
