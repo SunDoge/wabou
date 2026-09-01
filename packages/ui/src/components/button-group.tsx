@@ -5,6 +5,9 @@ import { Text, type TextProps, View, type ViewProps } from "../primitives";
 import {
   ButtonGroupContext,
   type ButtonGroupOrientation,
+  buttonGroupItemCorners,
+  createButtonGroupContext,
+  useButtonGroupItem,
 } from "./button-group-context";
 
 export interface ButtonGroupProps extends Omit<ViewProps, "class"> {
@@ -20,10 +23,9 @@ export function ButtonGroup(props: ButtonGroupProps): JSX.Element {
       .with("horizontal", () => "flex-row items-stretch")
       .with("vertical", () => "flex-col items-stretch")
       .exhaustive();
+  const context = createButtonGroupContext(orientation);
   return createComponent(ButtonGroupContext, {
-    get value() {
-      return orientation();
-    },
+    value: context,
     get children() {
       return (
         <View
@@ -31,7 +33,7 @@ export function ButtonGroup(props: ButtonGroupProps): JSX.Element {
           role="group"
           aria-label={props["aria-label"]}
           class={mergeClasses(
-            "min-w-0 flex gap-0 overflow-hidden rounded-lg border border-strong bg-surface p-px shadow-xs",
+            "min-w-0 flex gap-0 rounded-lg border border-strong bg-surface shadow-xs",
             layout(),
             props.class,
           )}
@@ -44,11 +46,13 @@ export function ButtonGroup(props: ButtonGroupProps): JSX.Element {
 }
 
 export function ButtonGroupText(props: TextProps): JSX.Element {
+  const groupItem = useButtonGroupItem();
   return (
     <Text
       {...props}
       class={mergeClasses(
         "min-h-8 px-3 flex-none flex items-center whitespace-nowrap text-sm font-medium text-secondary bg-control",
+        groupItem && buttonGroupItemCorners(groupItem),
         props.class,
       )}
     >
