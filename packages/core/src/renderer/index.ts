@@ -154,6 +154,8 @@ export interface WabouElementProps {
   overlayPlane?: "content" | "floating" | "modal";
   /** Retains this subtree behind an independently invalidated GPUI Entity. */
   projectionBoundary?: boolean;
+  /** A finite transition sampled by the native renderer without per-frame JS traffic. */
+  nativeTransition?: WabouNativeTransition;
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
   "aria-modal"?: boolean | "true" | "false";
@@ -203,6 +205,22 @@ export interface WabouElementProps {
   onSubmit?: EventHandler<WabouSubmitEvent>;
   /** Preventing this event keeps the native window open. */
   onWindowCloseRequested?: EventHandler<WabouNodeEvent>;
+  onTransitionEnd?: EventHandler<WabouTransitionEvent>;
+}
+
+export interface WabouTransitionEvent extends WabouNodeEvent {
+  generation: number;
+}
+
+export interface WabouNativeTransition {
+  /** Changes whenever a transition should restart. */
+  generation: number;
+  duration: number;
+  easing?: "linear" | "easeInOut" | "easeOut";
+  fromTransform?: Affine2D;
+  toTransform?: Affine2D;
+  fromOpacity?: number;
+  toOpacity?: number;
 }
 
 export interface WabouControlProps extends WabouElementProps {
@@ -629,6 +647,21 @@ function applyProperty(
   }
   if (name === "projectionBoundary") {
     writer.setProjectionBoundary(node.id, value === true);
+    return;
+  }
+  if (name === "nativeTransition") {
+    if (value == null || value === false) {
+      writer.removeAttribute(node.id, "__wabou_native_transition");
+      return;
+    }
+    if (!isStructuredConfigValue(value)) {
+      throw new TypeError("nativeTransition must be a plain object");
+    }
+    writer.setAttribute(
+      node.id,
+      "__wabou_native_transition",
+      stringifyWidgetConfig(value),
+    );
     return;
   }
   if (name === "textBehavior") {

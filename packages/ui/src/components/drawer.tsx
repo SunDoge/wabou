@@ -1,6 +1,7 @@
 import { rgba } from "@wabou/core";
 import type { WabouPointerEvent } from "@wabou/core/renderer";
 import type { Affine2D } from "@wabou/core/style";
+import { mergeClasses } from "@wabou/core/style";
 import {
   createComponent,
   createContext,
@@ -29,7 +30,6 @@ import {
   type ViewProps,
 } from "../primitives";
 import { Button, type ButtonProps } from "./button";
-import { mergeClasses } from "@wabou/core/style";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
 export type DrawerDirection = "top" | "right" | "bottom" | "left";
@@ -209,6 +209,7 @@ export function Drawer(props: DrawerProps): JSX.Element {
       return (
         <Modal
           {...props}
+          contentFade={false}
           open={open()}
           onOpenChange={(next, reason) => setOpen(next, reason)}
           motion={{ duration: 0.22, ...placement().motion }}
