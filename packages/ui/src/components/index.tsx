@@ -58,7 +58,6 @@ export * from "./markdown";
 export * from "./menubar";
 export * from "./message";
 export * from "./message-scroller";
-export * from "./native-select";
 export * from "./navigation";
 export * from "./navigation-menu";
 export * from "./number-field";
