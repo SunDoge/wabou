@@ -996,7 +996,7 @@ impl GpuiProjection {
         visit(
             &tree,
             NodeKey::ROOT,
-            TextSelectionPolicy::Text,
+            TextSelectionPolicy::None,
             &mut order,
             &mut output,
         );
@@ -1939,17 +1939,20 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(projection.selectable_texts()[0].key, key(3));
+        assert!(
+            projection.selectable_texts().is_empty(),
+            "ordinary projected text is not selectable unless its subtree opts in"
+        );
         projection
             .apply_style_declaration(
                 key(2),
                 "user-select",
                 &IrValue::Keyword {
-                    value: "none".to_owned(),
+                    value: "text".to_owned(),
                 },
             )
             .unwrap();
-        assert!(projection.selectable_texts().is_empty());
+        assert_eq!(projection.selectable_texts()[0].key, key(3));
 
         projection
             .apply_style_declaration(
