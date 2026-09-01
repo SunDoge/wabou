@@ -17,6 +17,8 @@ export interface SwitchProps {
   disabled?: boolean;
   onCheckedChange?: (checked: boolean) => void;
   label?: string;
+  /** Place the label before or after the control in reading order. */
+  labelPlacement?: "start" | "end";
   "aria-label"?: string;
   class?: string;
   size?: "sm" | "default";
@@ -107,7 +109,11 @@ export function Switch(props: SwitchProps): JSX.Element {
   };
   return (
     <View
-      class={mergeClasses("w-full min-w-0 flex items-start gap-2", props.class)}
+      class={mergeClasses(
+        "w-full min-w-0 flex items-start gap-2",
+        props.labelPlacement === "start" && "flex-row-reverse",
+        props.class,
+      )}
     >
       <HeadlessButton
         ref={(node) => {

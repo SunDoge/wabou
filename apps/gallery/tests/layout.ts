@@ -398,6 +398,9 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
     role: "switch",
     name: "Fixture compact switch",
   });
+  const compactSwitchLabel = getLayoutNode(snapshot, {
+    text: "Fixture compact switch",
+  });
   const buttonGroup = getLayoutNode(snapshot, {
     role: "group",
     name: "Fixture destructive button group",
@@ -448,6 +451,8 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   assertClose(switchControl.rect.height, 24, "switch target height");
   assertClose(compactSwitch.rect.width, 40, "compact switch target width");
   assertClose(compactSwitch.rect.height, 24, "compact switch target height");
+  if (layoutRectRight(compactSwitchLabel.rect) > compactSwitch.rect.x)
+    throw new Error("start switch label was not laid out before its control");
   assertLayoutRectContains(buttonGroup.contentRect, destructiveButton.rect, {
     label: "destructive button group edge",
   });
