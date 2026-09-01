@@ -29,7 +29,8 @@ pub use native_widget::{
     NativeWidgetInputHandler, NativeWidgetMount,
 };
 pub use projection::{
-    DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode, ProjectionInvalidationStats,
+    DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode, ProjectionBoundaryRevision,
+    ProjectionInvalidationStats,
 };
 pub use protocol_projection::{
     GpuiCommand, GpuiComputedStyle, GpuiLayoutNode, GpuiNativeWidget, GpuiProjection,

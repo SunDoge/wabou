@@ -188,6 +188,7 @@ pub struct GpuiProjection {
     scroll_handles: std::collections::BTreeMap<NodeKey, crate::ProjectedScrollHandle>,
     uniform_list_handles: std::collections::BTreeMap<NodeKey, crate::gpui::UniformListScrollHandle>,
     protocol_gaps: std::collections::HashMap<NodeKey, std::collections::BTreeSet<&'static str>>,
+    boundary_revisions: std::collections::BTreeMap<NodeKey, crate::ProjectionBoundaryRevision>,
 }
 
 /// Immutable, cheap-to-clone render view of one committed projection.
@@ -273,6 +274,10 @@ impl GpuiProjection {
             scroll_handles,
             uniform_list_handles: Default::default(),
             protocol_gaps: std::collections::HashMap::new(),
+            boundary_revisions: std::collections::BTreeMap::from([(
+                NodeKey::ROOT,
+                crate::ProjectionBoundaryRevision::default(),
+            )]),
         }
     }
 
@@ -655,7 +660,30 @@ impl GpuiProjection {
             .borrow_mut()
             .retain(|key, _| self.tree.node(*key).is_some());
         let pending = self.tree.commit();
+        let snapshot = self.tree.snapshot();
+        let boundary_keys = snapshot.projection_boundaries().collect::<Vec<_>>();
+        self.boundary_revisions
+            .retain(|key, _| boundary_keys.contains(key));
+        for key in boundary_keys {
+            self.boundary_revisions.entry(key).or_default();
+        }
+        for pending_node in &pending {
+            let Some(boundary) = snapshot.nearest_projection_boundary(pending_node.key) else {
+                continue;
+            };
+            self.boundary_revisions
+                .entry(boundary)
+                .or_default()
+                .invalidate(pending_node.dirty);
+        }
         crate::ProjectionInvalidationStats::from_pending(self.tree.revision(), &pending)
+    }
+
+    /// Revision clocks for every explicit retained projection boundary.
+    pub fn projection_boundary_revisions(
+        &self,
+    ) -> &std::collections::BTreeMap<NodeKey, crate::ProjectionBoundaryRevision> {
+        &self.boundary_revisions
     }
 
     /// Publish structure, text, and resolved-style changes as one GPUI update.
@@ -1622,6 +1650,67 @@ mod tests {
             tree.node(key(3)).unwrap().text.as_deref(),
             Some("updated once per flush")
         );
+    }
+
+    #[test]
+    fn completed_frames_advance_only_the_nearest_projection_boundary() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::CreateText {
+                            id: key(3),
+                            text: "first",
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(2),
+                        },
+                        Op::AppendChild {
+                            parent: key(2),
+                            child: key(3),
+                        },
+                        Op::SetProjectionBoundary {
+                            id: key(2),
+                            enabled: true,
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        assert!(projection.finish_frame());
+        let initial = projection.projection_boundary_revisions().clone();
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 2,
+                    ops: vec![Op::SetText {
+                        id: key(3),
+                        text: "second",
+                    }],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        assert!(projection.finish_frame());
+        let updated = projection.projection_boundary_revisions();
+
+        assert_eq!(updated[&NodeKey::ROOT], initial[&NodeKey::ROOT]);
+        assert_eq!(updated[&key(2)].structure, initial[&key(2)].structure);
+        assert!(updated[&key(2)].layout > initial[&key(2)].layout);
+        assert!(updated[&key(2)].paint > initial[&key(2)].paint);
     }
 
     #[test]

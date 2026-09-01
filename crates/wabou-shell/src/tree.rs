@@ -156,6 +156,28 @@ impl ProjectionSnapshot {
     pub fn keys(&self) -> impl Iterator<Item = NodeKey> + '_ {
         self.nodes.keys().copied()
     }
+
+    /// Explicit retained roots that own independent GPUI projection entities.
+    pub fn projection_boundaries(&self) -> impl Iterator<Item = NodeKey> + '_ {
+        self.nodes
+            .values()
+            .filter(|node| node.key == NodeKey::ROOT || node.projection_boundary)
+            .map(|node| node.key)
+    }
+
+    /// Find the nearest boundary containing a retained node.
+    #[must_use]
+    pub fn nearest_projection_boundary(&self, key: NodeKey) -> Option<NodeKey> {
+        let mut current = Some(key);
+        while let Some(key) = current {
+            let node = self.nodes.get(&key)?;
+            if key == NodeKey::ROOT || node.projection_boundary {
+                return Some(key);
+            }
+            current = node.parent;
+        }
+        None
+    }
 }
 
 /// Retained projection updated by completed Solid mutation batches.
@@ -731,10 +753,14 @@ impl ProjectionTree {
             return Ok(());
         }
         node.projection_boundary = enabled;
+        let parent = node.parent;
         self.dirty.invalidate(
             key,
             DirtyKind::STRUCTURE | DirtyKind::LAYOUT | DirtyKind::PAINT,
         );
+        if let Some(parent) = parent {
+            self.dirty.invalidate(parent, DirtyKind::STRUCTURE);
+        }
         self.invalidate_layout_ancestors(key);
         Ok(())
     }
@@ -796,7 +822,14 @@ impl ProjectionTree {
         let mut parent = self.nodes.get(&key).and_then(|node| node.parent);
         while let Some(key) = parent {
             self.dirty.invalidate(key, DirtyKind::LAYOUT);
-            parent = self.nodes.get(&key).and_then(|node| node.parent);
+            let node = self
+                .nodes
+                .get(&key)
+                .expect("a retained parent remains available during invalidation");
+            if node.projection_boundary {
+                break;
+            }
+            parent = node.parent;
         }
     }
 

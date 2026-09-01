@@ -57,6 +57,28 @@ pub struct ProjectionInvalidationStats {
     pub semantic_nodes: usize,
 }
 
+/// Independent revision clocks owned by one explicit projection boundary.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ProjectionBoundaryRevision {
+    pub structure: u64,
+    pub layout: u64,
+    pub paint: u64,
+}
+
+impl ProjectionBoundaryRevision {
+    pub(crate) fn invalidate(&mut self, dirty: DirtyKind) {
+        if dirty.intersects(DirtyKind::STRUCTURE | DirtyKind::INTERACTION | DirtyKind::SEMANTICS) {
+            self.structure = self.structure.wrapping_add(1).max(1);
+        }
+        if dirty.intersects(DirtyKind::STRUCTURE | DirtyKind::LAYOUT | DirtyKind::TEXT) {
+            self.layout = self.layout.wrapping_add(1).max(1);
+        }
+        if !dirty.is_empty() {
+            self.paint = self.paint.wrapping_add(1).max(1);
+        }
+    }
+}
+
 impl ProjectionInvalidationStats {
     #[must_use]
     pub fn from_pending(revision: u64, pending: &[PendingNode]) -> Self {
