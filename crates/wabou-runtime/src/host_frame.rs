@@ -7,7 +7,7 @@
 use std::time::Duration;
 
 use crate::host_message::{HostMessage, HostMessagePayload};
-use crate::protocol::{NodeKey, host_frame, host_node_payload, host_record};
+use wabou_protocol::{NodeKey, host_frame, host_node_payload, host_record};
 
 /// Maximum encoded bytes accepted for one atomic host frame.
 const MAX_HOST_FRAME_BYTES: usize = 4 * 1024 * 1024;
@@ -19,14 +19,14 @@ const FLAG_CANCELLABLE: u8 = 1;
 #[derive(Debug, Clone, PartialEq)]
 /// Stack-backed numeric payload which encodes only the event's used prefix.
 pub(crate) struct NumericEventData {
-    values: [f64; crate::protocol::event_data::LEN],
+    values: [f64; wabou_protocol::event_data::LEN],
     len: u16,
 }
 
 impl NumericEventData {
     /// Retain `values` without allocating and expose only `len` slots on wire.
-    pub(crate) fn prefix(values: [f64; crate::protocol::event_data::LEN], len: usize) -> Self {
-        assert!(len <= crate::protocol::event_data::LEN);
+    pub(crate) fn prefix(values: [f64; wabou_protocol::event_data::LEN], len: usize) -> Self {
+        assert!(len <= wabou_protocol::event_data::LEN);
         Self {
             values,
             len: len as u16,
@@ -292,15 +292,15 @@ mod tests {
 
     #[test]
     fn numeric_records_encode_only_the_declared_prefix() {
-        let mut values = [0.0; crate::protocol::event_data::LEN];
-        values[crate::protocol::event_data::SCROLL_Y as usize] = 42.0;
-        let numeric_len = crate::protocol::event_data::SCROLL_Y as usize + 1;
+        let mut values = [0.0; wabou_protocol::event_data::LEN];
+        values[wabou_protocol::event_data::SCROLL_Y as usize] = 42.0;
+        let numeric_len = wabou_protocol::event_data::SCROLL_Y as usize + 1;
         let frame = encode_host_frame(
             1,
             Duration::ZERO,
             &[HostEvent::Node(HostNodeEvent {
                 target: NodeKey::new(2, 1),
-                event_code: crate::protocol::event::SCROLL,
+                event_code: wabou_protocol::event::SCROLL,
                 event_id: 0,
                 cancellable: false,
                 payload: NodeEventPayload::Numeric(NumericEventData::prefix(values, numeric_len)),
