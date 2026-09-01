@@ -78,6 +78,39 @@ test("selection controls separate compact indicators from stable targets and wra
   ).toContain("w-10 h-7");
 });
 
+test("sizes checkbox and radio geometry through a shared group contract", () => {
+  const screen = renderComponent(() => (
+    <View>
+      <Checkbox size="sm" label="Compact checkbox" />
+      <Checkbox size="lg" aria-label="Large checkbox" />
+      <RadioGroup size="lg" aria-label="Density">
+        <RadioGroupItem value="inherited" label="Inherited large" />
+        <RadioGroupItem value="compact" size="sm" label="Compact override" />
+      </RadioGroup>
+    </View>
+  ));
+
+  const compactCheckbox = screen.getByRole("checkbox", {
+    name: "Compact checkbox",
+  });
+  const largeCheckbox = screen.getByRole("checkbox", {
+    name: "Large checkbox",
+  });
+  const inheritedRadio = screen.getByRole("radio", {
+    name: "Inherited large",
+  });
+  const compactRadio = screen.getByRole("radio", {
+    name: "Compact override",
+  });
+  expect(compactCheckbox.children[0]?.className).toContain("w-3.5 h-3.5");
+  expect(largeCheckbox.className).toContain("w-10 h-10");
+  expect(largeCheckbox.children[0]?.className).toContain("w-[18px] h-[18px]");
+  expect(inheritedRadio.className).toContain("min-h-10");
+  expect(inheritedRadio.children[0]?.className).toContain("w-[18px] h-[18px]");
+  expect(compactRadio.className).toContain("min-h-7");
+  expect(compactRadio.children[0]?.className).toContain("w-3.5 h-3.5");
+});
+
 test("selects radio items and skips disabled choices during roving focus", () => {
   const App = () => {
     const [plan, setPlan] = createSignal("free");

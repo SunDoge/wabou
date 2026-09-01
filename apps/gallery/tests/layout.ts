@@ -493,11 +493,21 @@ const assertSelectionControlsLayout = (snapshot: LayoutSnapshot) => {
     role: "radio",
     name: "Fixture icon-only radio",
   });
+  const largeCheckbox = getLayoutNode(snapshot, {
+    role: "checkbox",
+    name: "Disabled selection",
+  });
+  const largeRadio = getLayoutNode(snapshot, {
+    role: "radio",
+    name: "Choose manually",
+  });
 
   assertClose(iconOnly.rect.width, 40, "icon-only checkbox target width");
   assertClose(iconOnly.rect.height, 28, "icon-only checkbox target height");
   assertClose(iconOnlyRadio.rect.width, 40, "icon-only radio target width");
   assertClose(iconOnlyRadio.rect.height, 28, "icon-only radio target height");
+  assertClose(largeCheckbox.rect.height, 40, "large checkbox target height");
+  assertClose(largeRadio.rect.height, 40, "large radio target height");
   assertLayoutRectContains(checkbox.contentRect, checkboxLabel.rect, {
     label: "wrapped checkbox label",
   });

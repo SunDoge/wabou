@@ -682,7 +682,7 @@ export function SelectionControlsLayoutFixture() {
         label="Keep completed downloads available after the application restarts"
         defaultChecked
       />
-      <Checkbox class="w-64" label="Disabled selection" disabled />
+      <Checkbox class="w-64" size="lg" label="Disabled selection" disabled />
       <Switch
         class="w-64"
         label="Warn before quitting while active downloads are still running"
@@ -694,7 +694,12 @@ export function SelectionControlsLayoutFixture() {
           value="automatic"
           label="Automatically choose the best download policy for this network"
         />
-        <RadioGroupItem value="manual" label="Choose manually" disabled />
+        <RadioGroupItem
+          value="manual"
+          size="lg"
+          label="Choose manually"
+          disabled
+        />
       </RadioGroup>
     </View>
   );
