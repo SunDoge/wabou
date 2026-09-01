@@ -53,6 +53,8 @@ test("authors one native slider config and accepts native value changes", () => 
     step: 2,
     value: 10,
     disabled: false,
+    orientation: "horizontal",
+    reversed: false,
   });
 
   slider.emit("change", { value: 16 });
@@ -61,6 +63,27 @@ test("authors one native slider config and accepts native value changes", () => 
   slider.emit("change", { value: 30 });
   expect(slider.numericValue).toBe(30);
   expect(changes.mock.calls.map(([value]) => value)).toEqual([16, 30]);
+});
+
+test("projects vertical and reversed presentation without changing value semantics", () => {
+  const screen = renderComponent(() => (
+    <Slider
+      label="Remaining time"
+      orientation="vertical"
+      reversed
+      defaultValue={40}
+    />
+  ));
+  const slider = screen.getByRole("slider", { name: "Remaining time" });
+
+  expect(slider.orientation).toBe("vertical");
+  expect(slider.widgetConfig).toMatchObject({
+    orientation: "vertical",
+    reversed: true,
+    value: 40,
+  });
+  slider.press("ArrowUp");
+  expect(slider.numericValue).toBe(41);
 });
 
 test("supports controlled values and rejects disabled interaction", () => {

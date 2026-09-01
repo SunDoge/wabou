@@ -104,6 +104,12 @@ const assertSliderLayout = (snapshot: LayoutSnapshot) => {
   });
   assertClose(slider.rect.width, 384, "slider width");
   assertClose(slider.rect.height, 28, "slider height");
+  const vertical = getLayoutNode(snapshot, {
+    role: "slider",
+    name: "Fixture remaining",
+  });
+  assertClose(vertical.rect.width, 28, "vertical slider width");
+  assertClose(vertical.rect.height, 120, "vertical slider height");
 };
 
 const assertTabsLayout = (snapshot: LayoutSnapshot) => {
