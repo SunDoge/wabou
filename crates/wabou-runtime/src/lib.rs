@@ -70,15 +70,14 @@ pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore}
 pub use jsrt::{DEFAULT_QUICKJS_STACK_SIZE, JsRuntime, JsRuntimeOptions};
 pub use native_capability::NativeCapability;
 pub use persistent_cache::PersistentJsonCache;
-/// Generated event codes shared with native widget adapters.
-pub use protocol::event;
 pub use rquickjs;
 pub use serial_worker::SerialWorker;
+#[cfg(feature = "headless")]
+pub use wabou_shell::{GpuiLayoutNode, ProjectedNodeKind};
 pub use wabou_shell::{
-    AppDirectories, AppDirectoryConfig, GpuiLayoutNode, NativeWidgetContext, NativeWidgetEventSink,
-    NativeWidgetFactory, NativeWidgetMount, ProjectedNodeKind, RgbaColor, WindowBackground,
-    WindowInputMode, WindowLevel, WindowMetrics, WindowOptions, WindowResourceKey, gpui,
-    initial_window_resource_key,
+    AppDirectories, AppDirectoryConfig, NativeWidgetContext, NativeWidgetFactory,
+    NativeWidgetMount, RgbaColor, WindowBackground, WindowInputMode, WindowLevel, WindowOptions,
+    WindowResourceKey, gpui, initial_window_resource_key,
 };
 
 mod intl;
