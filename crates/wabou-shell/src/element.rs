@@ -237,6 +237,9 @@ pub struct ProjectedElement {
     style: gpui::Style,
     children: Vec<AnyElement>,
     input: Option<ProjectedInputSink>,
+    /// Framework-owned completion events must survive user-interaction
+    /// blocking while an exiting node remains retained.
+    lifecycle_input: Option<ProjectedInputSink>,
     /// Whether this exact node should own a GPUI pointer hitbox.
     ///
     /// Descendants without pointer behavior must not steal hover/press state
@@ -604,11 +607,16 @@ impl ProjectedElement {
             && (context.root_focus.is_some()
                 || node.focus_order.is_some()
                 || has_pointer_listener(node));
+        let native_transition = parse_native_transition(node);
         Ok(Self {
             key,
             style: node.style.clone(),
             children,
             input: (!interaction_blocked && node.pointer_events)
+                .then_some(context.input.clone())
+                .flatten(),
+            lifecycle_input: native_transition
+                .is_some()
                 .then_some(context.input)
                 .flatten(),
             hit_testable,
@@ -629,7 +637,7 @@ impl ProjectedElement {
             accessibility: projected_accessibility(node),
             scrollbar_style: node.scrollbar_style,
             boundary_root: false,
-            native_transition: parse_native_transition(node),
+            native_transition,
         })
     }
 
@@ -640,7 +648,7 @@ impl ProjectedElement {
         NativeTransitionElement {
             id: format!("wabou-transition-{}-{}", self.key.hi, self.key.lo).into(),
             target: self.key,
-            input: self.input.clone(),
+            input: self.lifecycle_input.clone(),
             element: Some(self),
             transition,
         }
@@ -2174,7 +2182,7 @@ mod tests {
     }
 
     #[test]
-    fn blocked_interaction_policy_removes_native_input_from_the_subtree() {
+    fn blocked_interaction_removes_user_input_but_preserves_transition_completion() {
         let child = NodeKey::new(27, 1);
         let mut tree = ProjectionTree::default();
         tree.insert(
@@ -2197,6 +2205,12 @@ mod tests {
         .unwrap();
         tree.update_interaction_policy(NodeKey::ROOT, None, true, false)
             .unwrap();
+        tree.update_attribute(
+            NodeKey::ROOT,
+            "__wabou_native_transition".into(),
+            r#"{"generation":1,"duration":0.18}"#.into(),
+        )
+        .unwrap();
         let input: ProjectedInputSink = Rc::new(|_, _| {});
 
         let root = ProjectedElement::from_tree(
@@ -2211,6 +2225,8 @@ mod tests {
         .unwrap();
 
         assert!(root.input.is_none());
+        assert!(root.lifecycle_input.is_some());
+        assert!(!root.hit_testable);
     }
 
     #[test]
