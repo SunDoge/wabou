@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   componentsControlSize,
   componentsElevation,
+  componentsSurfaceClass,
   componentsThemeContract,
 } from "./theme";
 
@@ -25,6 +26,12 @@ test("default desktop geometry is shared by high-frequency controls", () => {
     "h-8 px-2.5 gap-2 text-sm rounded-md",
   );
   expect(componentsControlSize("icon")).toContain("w-8 h-8");
+  expect(componentsSurfaceClass("raised")).toBe(
+    "rounded-lg border border-subtle bg-surface",
+  );
+  expect(componentsSurfaceClass("floating")).toBe(
+    componentsSurfaceClass("modal"),
+  );
 });
 
 test("component elevations use restrained native shadows and a themed popup ring", () => {

@@ -337,6 +337,27 @@ const assertDialogLayout = (snapshot: LayoutSnapshot) => {
   );
 };
 
+const assertCardSurfaceLayout = (snapshot: LayoutSnapshot) => {
+  const card = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Fixture card surface",
+  });
+  const header = getLayoutNode(snapshot, { name: "Fixture card header" });
+  const content = getLayoutNode(snapshot, { name: "Fixture card content" });
+  const footer = getLayoutNode(snapshot, { name: "Fixture card footer" });
+  for (const [label, node] of [
+    ["card header", header],
+    ["card content", content],
+    ["card footer", footer],
+  ] as const) {
+    assertLayoutRectContains(card.contentRect, node.rect, { label });
+  }
+  if (layoutRectBottom(header.rect) > content.rect.y)
+    throw new Error("card header overlaps its content");
+  if (layoutRectBottom(content.rect) > footer.rect.y)
+    throw new Error("card content overlaps its footer");
+};
+
 const assertAdaptiveSplitPaneLayout = (snapshot: LayoutSnapshot) => {
   const boundary = getLayoutNode(snapshot, {
     name: "Adaptive split pane boundary",
@@ -652,6 +673,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/ScrollArea": { assert: assertScrollAreaLayout },
   "component/Select": { assert: assertSelectLayout },
   "component/ControlBaseline": { assert: assertControlBaselineLayout },
+  "component/CardSurface": { assert: assertCardSurfaceLayout },
   "component/Slider": { assert: assertSliderLayout },
   "component/Empty": { assert: assertEmptyLayout },
   "component/Onboarding": { assert: assertOnboardingLayout },

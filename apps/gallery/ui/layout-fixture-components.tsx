@@ -7,6 +7,12 @@ import {
   Bubble,
   BubbleContent,
   Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
   ContentState,
   Dialog,
   DialogDescription,
@@ -607,6 +613,27 @@ export function ControlBaselineLayoutFixture() {
         aria-label="Fixture baseline input"
         placeholder="Native text input"
       />
+    </View>
+  );
+}
+
+export function CardSurfaceLayoutFixture() {
+  return (
+    <View class="w-full h-full p-6 items-start bg-canvas">
+      <Card role="group" aria-label="Fixture card surface" class="w-96">
+        <CardHeader aria-label="Fixture card header">
+          <CardTitle>Project activity</CardTitle>
+          <CardDescription>
+            A raised surface keeps its content inside one compact rhythm.
+          </CardDescription>
+        </CardHeader>
+        <CardContent aria-label="Fixture card content">
+          <Text>Three tasks completed today.</Text>
+        </CardContent>
+        <CardFooter aria-label="Fixture card footer">
+          <Button size="sm">View details</Button>
+        </CardFooter>
+      </Card>
     </View>
   );
 }

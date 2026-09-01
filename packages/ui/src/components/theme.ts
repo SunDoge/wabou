@@ -12,6 +12,7 @@ import { DevServerErrorOverlay } from "./dev-server-error";
 export type ComponentsTheme = "light" | "dark";
 export type ComponentsElevation = "raised" | "floating" | "modal";
 export type ComponentsControlSize = "sm" | "default" | "lg" | "icon";
+export type ComponentsSurface = "raised" | "floating" | "modal";
 
 /**
  * Geometry contract for Wabou's default desktop theme.
@@ -54,6 +55,14 @@ export function componentsControlContentSize(
 
 export function componentsControlSize(size: ComponentsControlSize): string {
   return `${componentsControlContentSize(size)} rounded-md`;
+}
+
+/**
+ * Shared native panel chrome. Component composition owns padding and layout;
+ * this contract owns the edge geometry that must not drift between surfaces.
+ */
+export function componentsSurfaceClass(_surface: ComponentsSurface): string {
+  return "rounded-lg border border-subtle bg-surface";
 }
 
 /**

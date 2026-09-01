@@ -13,7 +13,11 @@ import { createTypeahead } from "../primitives/interactions";
 import type { Placement, PointAnchor } from "../primitives/positioner";
 import { type MenuStateItem, moveMenuHighlight } from "./menu-state";
 import type { PopupMotionProps } from "./popover";
-import { componentsElevation, useComponentsTheme } from "./theme";
+import {
+  componentsElevation,
+  componentsSurfaceClass,
+  useComponentsTheme,
+} from "./theme";
 
 export interface DropdownMenuItem extends MenuStateItem {
   description?: string;
@@ -144,7 +148,8 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
       outsidePointerStrategy={props.outsidePointerStrategy}
       anchorPoint={props.anchorPoint}
       contentClass={mergeClasses(
-        "w-56 p-1 flex flex-col gap-0.5 rounded-xl border border-subtle bg-surface",
+        "w-56 p-1 flex flex-col gap-0.5",
+        componentsSurfaceClass("floating"),
         props.contentClass,
       )}
       contentShadows={
@@ -203,7 +208,7 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
                 aria-label={item().label}
                 aria-disabled={item().disabled}
                 class={mergeClasses(
-                  "w-full min-h-8 flex-none px-2 py-1.5 flex flex-col justify-center rounded-lg",
+                  "w-full min-h-8 flex-none px-2 py-1.5 flex flex-col justify-center rounded-md",
                   highlighted() === item().id
                     ? "bg-control-hover"
                     : "bg-transparent",

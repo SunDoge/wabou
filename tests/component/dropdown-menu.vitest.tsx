@@ -24,14 +24,12 @@ test("opens, skips disabled actions, and selects with the keyboard", () => {
 
   trigger.click();
   const menu = screen.getByRole("menu", { name: "Project actions" });
-  expect(menu.closestByRole("presentation")?.className).toContain(
-    "rounded-xl",
-  );
+  expect(menu.closestByRole("presentation")?.className).toContain("rounded-lg");
   expect(screen.getByRole("menuitem", { name: "Open" }).className).toContain(
     "bg-control-hover",
   );
   expect(screen.getByRole("menuitem", { name: "Open" }).className).toContain(
-    "rounded-lg",
+    "rounded-md",
   );
 
   menu.press("ArrowDown");
