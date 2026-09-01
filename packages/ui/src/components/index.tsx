@@ -107,6 +107,9 @@ export * from "./table";
 export {
   Tabs,
   TabsContent,
+  TabsItem,
+  type TabsItemProps,
+  type TabsItemState,
   TabsList,
   type TabsProps,
   TabsTrigger,

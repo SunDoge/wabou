@@ -1,5 +1,12 @@
 import { renderComponent } from "@wabou/test/component";
-import { Tabs, TabsContent, TabsList, TabsTrigger, Text } from "@wabou/ui";
+import {
+  Tabs,
+  TabsContent,
+  TabsItem,
+  TabsList,
+  TabsTrigger,
+  Text,
+} from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 
@@ -144,4 +151,34 @@ test("keeps native tab panels mounted while hiding inactive content", () => {
   ).toEqual(firstIdentity);
   expect(panels[0]?.attribute("aria-hidden")).toBe("true");
   expect(panels[1]?.attribute("aria-hidden")).toBe("false");
+});
+
+test("closeable tab items keep selection and close actions independent", () => {
+  const [value, setValue] = createSignal("one");
+  const closed: string[] = [];
+  const screen = renderComponent(() => (
+    <Tabs value={value()} onValueChange={setValue}>
+      <TabsList unstyled aria-label="Documents">
+        <TabsItem value="one" onClose={() => closed.push("one")}>
+          <Text class="truncate">One</Text>
+        </TabsItem>
+        <TabsItem value="two" onClose={() => closed.push("two")}>
+          <Text class="truncate">A very long second document</Text>
+        </TabsItem>
+      </TabsList>
+    </Tabs>
+  ));
+
+  const second = screen.getByRole("tab", {
+    name: "A very long second document",
+  });
+  expect(second.parent?.className).toContain("max-w-56");
+  expect(second.parent?.className).toContain("overflow-hidden");
+
+  screen.getByRole("button", { name: "Close two" }).click();
+  expect(closed).toEqual(["two"]);
+  expect(screen.getByRole("tab", { name: "One" }).selected).toBe(true);
+
+  second.click();
+  expect(second.selected).toBe(true);
 });

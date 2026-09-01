@@ -1,5 +1,6 @@
 import type { Handle } from "@wabou/core/renderer";
 import { mergeClasses } from "@wabou/core/style";
+import x from "lucide-static/icons/x.svg?raw";
 import {
   createComponent,
   createContext,
@@ -12,6 +13,7 @@ import { match } from "ts-pattern";
 import {
   type ButtonState,
   Button as HeadlessButton,
+  Icon,
   Text,
   View,
 } from "../primitives";
@@ -19,6 +21,7 @@ import {
   createControllableState,
   createRovingFocus,
 } from "../primitives/interactions";
+import { Button } from "./button";
 
 const orientationClass = (
   orientation: "horizontal" | "vertical",
@@ -134,6 +137,78 @@ export interface TabsTriggerProps {
   "aria-label"?: string;
   class?: string | ((state: ButtonState) => string);
   children?: JSX.Element;
+}
+
+export interface TabsItemState {
+  selected: boolean;
+}
+
+export interface TabsItemProps {
+  value: string;
+  disabled?: boolean;
+  closeLabel?: string;
+  onClose?: () => void;
+  class?: string | ((state: TabsItemState) => string);
+  triggerClass?: string | ((state: ButtonState) => string);
+  children?: JSX.Element;
+}
+
+/**
+ * Bounded, optionally closeable tab chrome. The tab trigger and close action
+ * remain sibling hit targets so closing a tab never selects it first.
+ */
+export function TabsItem(props: TabsItemProps): JSX.Element {
+  const context = useContext(TabsContext);
+  if (!context) throw new Error("TabsItem must be used inside Tabs");
+  const selected = () => context.value() === props.value;
+  const itemClass = () =>
+    typeof props.class === "function"
+      ? props.class({ selected: selected() })
+      : props.class;
+  return (
+    <View
+      class={mergeClasses(
+        "h-8 min-w-24 max-w-56 flex flex-row items-center overflow-hidden rounded-md border border-transparent",
+        selected()
+          ? "bg-surface text-primary shadow-xs"
+          : "bg-transparent text-muted",
+        itemClass(),
+      )}
+    >
+      <TabsTrigger
+        unstyled
+        value={props.value}
+        disabled={props.disabled}
+        class={(state) =>
+          mergeClasses(
+            "h-full min-w-0 flex-1 px-2 flex flex-row items-center gap-2",
+            !selected() && state.hovered && "bg-control-hover text-primary",
+            state.focusVisible && "border border-focus",
+            typeof props.triggerClass === "function"
+              ? props.triggerClass(state)
+              : props.triggerClass,
+          )
+        }
+      >
+        {props.children}
+      </TabsTrigger>
+      {props.onClose ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={props.closeLabel ?? `Close ${props.value}`}
+          class="w-6 h-6 flex-none text-muted"
+          style={{ padding: 0 }}
+          onClick={(event) => {
+            event.stopPropagation();
+            props.onClose?.();
+          }}
+        >
+          <Icon source={x} size={12} />
+        </Button>
+      ) : null}
+    </View>
+  );
 }
 
 export function TabsTrigger(props: TabsTriggerProps): JSX.Element {

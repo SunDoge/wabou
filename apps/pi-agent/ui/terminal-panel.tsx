@@ -8,8 +8,8 @@ import {
   Icon,
   Tabs,
   TabsContent,
+  TabsItem,
   TabsList,
-  TabsTrigger,
   Text,
   View,
 } from "@wabou/ui";
@@ -112,48 +112,27 @@ export function AgentTerminalPanel(
             <ForEntity each={tabs()} by={(tab) => tab.id}>
               {(tab) => {
                 return (
-                  <View
-                    class="h-7 min-w-28 max-w-56 flex flex-row items-center rounded-md text-xs overflow-hidden"
-                    classList={{
-                      "bg-slate-700 text-white": activeId() === tab.id,
-                      "text-slate-400": activeId() !== tab.id,
-                    }}
+                  <TabsItem
+                    value={String(tab.id)}
+                    closeLabel={`Close terminal ${tab.id}`}
+                    onClose={() => closeTab(tab.id)}
+                    class={({ selected }) =>
+                      selected
+                        ? "h-7 min-w-28 bg-slate-700 text-white shadow-none"
+                        : "h-7 min-w-28 text-slate-400"
+                    }
+                    triggerClass={(state) =>
+                      activeId() !== tab.id && state.hovered
+                        ? "bg-slate-800"
+                        : ""
+                    }
                   >
-                    <TabsTrigger
-                      unstyled
-                      value={String(tab.id)}
-                      class={(state) =>
-                        `h-full min-w-0 flex-1 px-2 flex flex-row items-center gap-2 ${
-                          activeId() !== tab.id && state.hovered
-                            ? "bg-slate-800"
-                            : ""
-                        }`
-                      }
-                    >
-                      <Icon
-                        source={squareTerminal}
-                        size={13}
-                        class="flex-none"
-                      />
-                      <Text class="min-w-0 flex-1 truncate text-xs">
-                        {tab.title()}
-                        {tab.exited() ? " · exited" : ""}
-                      </Text>
-                    </TabsTrigger>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Close terminal ${tab.id}`}
-                      class="w-5 h-5 flex-none text-slate-400"
-                      style={{ padding: 0 }}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        closeTab(tab.id);
-                      }}
-                    >
-                      <Icon source={x} size={12} />
-                    </Button>
-                  </View>
+                    <Icon source={squareTerminal} size={13} class="flex-none" />
+                    <Text class="min-w-0 flex-1 truncate text-xs">
+                      {tab.title()}
+                      {tab.exited() ? " · exited" : ""}
+                    </Text>
+                  </TabsItem>
                 );
               }}
             </ForEntity>
