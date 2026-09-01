@@ -61,6 +61,7 @@ import {
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
+  SidebarMenuLabel,
   Slider,
   Spinner,
   Text,
@@ -451,7 +452,7 @@ export function SidebarLayoutFixture() {
                   value={`section-${index}`}
                   aria-label={`Section ${index}`}
                 >
-                  <Text>{`Section ${index}`}</Text>
+                  <SidebarMenuLabel>{`Section ${index}`}</SidebarMenuLabel>
                 </SidebarMenuButton>
               )}
             </ForValue>

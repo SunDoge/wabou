@@ -126,7 +126,7 @@ export function SidebarContent(props: SidebarContentProps): JSX.Element {
     <ScrollArea
       {...props}
       class={mergeClasses("min-h-0 flex-1", props.class)}
-      contentClass={mergeClasses("px-3 py-4", props.contentClass)}
+      contentClass={mergeClasses("px-3 py-3", props.contentClass)}
     />
   );
 }
@@ -136,7 +136,7 @@ export function SidebarGroup(props: ViewProps): JSX.Element {
     <View
       {...props}
       role={props.role ?? "group"}
-      class={mergeClasses("flex-none flex flex-col gap-1 mb-5", props.class)}
+      class={mergeClasses("flex-none flex flex-col gap-2 mb-3", props.class)}
     />
   );
 }
@@ -146,7 +146,7 @@ export function SidebarGroupLabel(props: TextProps): JSX.Element {
     <Text
       {...props}
       class={mergeClasses(
-        "px-2 py-1.5 text-xs font-medium text-muted",
+        "h-8 px-2 flex-none flex items-center text-xs font-medium text-muted",
         props.class,
       )}
     />
@@ -189,7 +189,7 @@ export function SidebarMenu(props: SidebarMenuProps): JSX.Element {
         <View
           {...forwarded}
           role={props.role ?? "group"}
-          class={mergeClasses("min-w-0 flex flex-col gap-1", props.class)}
+          class={mergeClasses("min-w-0 flex flex-col gap-2", props.class)}
         >
           {props.children}
         </View>
@@ -221,13 +221,13 @@ export function SidebarMenuButton(props: SidebarMenuButtonProps): JSX.Element {
       aria-selected={selected()}
       class={(state) =>
         mergeClasses(
-          "w-full min-w-0 h-8 px-3 justify-start gap-2.5 rounded-lg border border-transparent text-sm",
+          "w-full min-w-0 h-8 px-2 justify-start gap-2 rounded-md border border-transparent text-sm",
           state.pressed
             ? "bg-control-pressed text-primary"
-            : state.hovered
-              ? "bg-control-hover text-primary"
-              : state.selected
-                ? "bg-selected text-primary"
+            : state.selected
+              ? "bg-selected font-medium text-primary"
+              : state.hovered
+                ? "bg-control-hover text-primary"
                 : "bg-transparent text-secondary",
           state.focusVisible && "border-focus",
           props.class,
@@ -237,6 +237,44 @@ export function SidebarMenuButton(props: SidebarMenuButtonProps): JSX.Element {
         if (props.value !== undefined && menu.managed) menu.select(props.value);
         props.onClick?.(event);
       }}
+    />
+  );
+}
+
+/** Fixed icon slot that keeps navigation labels on one shared baseline. */
+export function SidebarMenuIcon(props: ViewProps): JSX.Element {
+  return (
+    <View
+      {...props}
+      role={props.role ?? "img"}
+      class={mergeClasses(
+        "w-4 h-4 flex-none flex items-center justify-center",
+        props.class,
+      )}
+    />
+  );
+}
+
+/** Truncating label slot for rows that also contain icons or suffix actions. */
+export function SidebarMenuLabel(props: TextProps): JSX.Element {
+  return (
+    <Text
+      {...props}
+      class={mergeClasses("min-w-0 flex-1 truncate text-left", props.class)}
+    />
+  );
+}
+
+/** End-aligned metadata or action slot that never compresses the row label. */
+export function SidebarMenuSuffix(props: ViewProps): JSX.Element {
+  return (
+    <View
+      {...props}
+      role={props.role ?? "group"}
+      class={mergeClasses(
+        "min-w-0 flex-none flex items-center justify-end",
+        props.class,
+      )}
     />
   );
 }

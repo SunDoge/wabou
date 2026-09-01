@@ -10,6 +10,9 @@ import {
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
+  SidebarMenuIcon,
+  SidebarMenuLabel,
+  SidebarMenuSuffix,
   SidebarSearch,
 } from "@wabou/ui";
 import { createMemo, createSignal, For as ForValue, Show } from "solid-js";
@@ -57,7 +60,13 @@ test("controls one selected sidebar destination while leaving actions neutral", 
       value={value()}
       onValueChange={setValue}
     >
-      <SidebarMenuButton value="files" aria-label="Files" />
+      <SidebarMenuButton value="files" aria-label="Files">
+        <SidebarMenuIcon aria-label="Files icon" />
+        <SidebarMenuLabel role="label" aria-label="Files label">
+          Files
+        </SidebarMenuLabel>
+        <SidebarMenuSuffix aria-label="Files status" />
+      </SidebarMenuButton>
       <SidebarMenuButton value="search" aria-label="Search" />
       <SidebarMenuButton aria-label="Create file" />
     </SidebarMenu>
@@ -71,6 +80,17 @@ test("controls one selected sidebar destination while leaving actions neutral", 
   expect(create.selected).toBe(false);
   expect(files.className).toContain("border-transparent");
   expect(files.className).toContain("bg-selected");
+  expect(files.className).toContain("font-medium");
+  expect(files.className).toContain("rounded-md");
+  expect(screen.getByRole("img", { name: "Files icon" }).className).toContain(
+    "w-4",
+  );
+  expect(
+    screen.getByRole("label", { name: "Files label" }).className,
+  ).toContain("truncate");
+  expect(
+    screen.getByRole("group", { name: "Files status" }).className,
+  ).toContain("flex-none");
   expect(files.className).not.toContain("shadow-xs");
   expect(search.className).toContain("border-transparent");
 
@@ -139,8 +159,8 @@ test("composes fixed chrome, searchable content, navigation and empty state", ()
   expect(screen.getByRole("status", { name: "Nothing here" })).not.toBeNull();
   search.press("Escape");
   const searchButton = screen.getByRole("button", { name: "Search" });
-  expect(searchButton.className).toContain("rounded-lg");
-  expect(searchButton.className).toContain("gap-2.5");
+  expect(searchButton.className).toContain("rounded-md");
+  expect(searchButton.className).toContain("gap-2");
   searchButton.click();
   expect(selected).toBe("search");
 });
