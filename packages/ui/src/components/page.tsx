@@ -1,6 +1,6 @@
 import type { Handle } from "@wabou/core/renderer";
 import { mergeClasses } from "@wabou/core/style";
-import { type JSX, Show } from "solid-js";
+import { type JSX, omit, Show } from "solid-js";
 import {
   createScrollReset,
   ScrollArea,
@@ -36,12 +36,24 @@ export interface PageViewportProps
  */
 export function PageViewport(props: PageViewportProps): JSX.Element {
   let viewport: Handle | undefined;
+  const forwarded = omit(
+    props,
+    "children",
+    "class",
+    "contentClass",
+    "resetKey",
+    "ref",
+    "style",
+    "scrollbar",
+    "onScroll",
+  );
   createScrollReset({
     target: () => viewport,
     key: () => props.resetKey,
   });
   return (
     <ScrollArea
+      {...forwarded}
       class={pageViewportClass(props.class)}
       contentClass={pageViewportContentClass(props.contentClass)}
       style={props.style}

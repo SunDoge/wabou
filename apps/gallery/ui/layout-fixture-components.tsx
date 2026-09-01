@@ -33,6 +33,12 @@ import {
   MessageContent,
   MessageGroup,
   MessageScroller,
+  Onboarding,
+  OnboardingDescription,
+  OnboardingFooter,
+  OnboardingHeader,
+  OnboardingHeading,
+  OnboardingTitle,
   PromptSuggestion,
   PromptSuggestions,
   QRCode,
@@ -646,6 +652,49 @@ export function ContentStateLayoutFixture() {
         action={{ label: "Try again", onAction: () => {} }}
         class="rounded-lg border border-subtle bg-surface"
       />
+    </View>
+  );
+}
+
+export function OnboardingLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 bg-canvas">
+      <Onboarding aria-label="Fixture onboarding">
+        <OnboardingHeader aria-label="Fixture onboarding header">
+          <IconFrame
+            source={imageIcon}
+            size="default"
+            variant="muted"
+            aria-label="Fixture onboarding icon"
+          />
+          <OnboardingHeading>
+            <OnboardingTitle>
+              Prepare a workspace for your first native agent
+            </OnboardingTitle>
+            <OnboardingDescription>
+              Keep the default location or choose another project directory.
+            </OnboardingDescription>
+          </OnboardingHeading>
+        </OnboardingHeader>
+        <View
+          role="group"
+          aria-label="Fixture onboarding task"
+          class="w-full min-w-0 rounded-xl border border-subtle bg-surface p-5 gap-4"
+        >
+          <Text class="whitespace-normal text-sm text-secondary">
+            The selected directory remains visible and editable before the
+            runtime starts.
+          </Text>
+          <Button class="w-full" aria-label="Continue">
+            Continue
+          </Button>
+        </View>
+        <OnboardingFooter>
+          <Text class="whitespace-normal text-xs text-muted">
+            You can change this later in settings.
+          </Text>
+        </OnboardingFooter>
+      </Onboarding>
     </View>
   );
 }

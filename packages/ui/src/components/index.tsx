@@ -69,6 +69,7 @@ export * from "./native-select";
 export * from "./navigation";
 export * from "./navigation-menu";
 export * from "./number-field";
+export * from "./onboarding";
 export * from "./page";
 export * from "./popover";
 export * from "./progress";

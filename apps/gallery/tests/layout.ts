@@ -232,6 +232,35 @@ const assertEmptyLayout = (snapshot: LayoutSnapshot) => {
   assertClose(description.rect.height, 40, "two-line empty-state summary");
 };
 
+const assertOnboardingLayout = (snapshot: LayoutSnapshot) => {
+  const viewport = getLayoutNode(snapshot, {
+    role: "region",
+    name: "Fixture onboarding",
+  });
+  const header = getLayoutNode(snapshot, {
+    name: "Fixture onboarding header",
+  });
+  const task = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Fixture onboarding task",
+  });
+  const action = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Continue",
+  });
+  assertLayoutRectContains(viewport.contentRect, header.rect, {
+    label: "onboarding header",
+  });
+  assertLayoutRectContains(viewport.contentRect, task.rect, {
+    label: "onboarding task",
+  });
+  assertLayoutRectContains(task.contentRect, action.rect, {
+    label: "onboarding primary action",
+  });
+  if (viewport.computed.overflowY !== "Scroll")
+    throw new Error("Onboarding did not retain its native scroll boundary");
+};
+
 const assertDialogLayout = (snapshot: LayoutSnapshot) => {
   const dialog = getLayoutNode(snapshot, {
     role: "dialog",
@@ -572,6 +601,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/Select": { assert: assertSelectLayout },
   "component/Slider": { assert: assertSliderLayout },
   "component/Empty": { assert: assertEmptyLayout },
+  "component/Onboarding": { assert: assertOnboardingLayout },
   "component/Dialog": { assert: assertDialogLayout },
   "component/AdaptiveSplitPane": { assert: assertAdaptiveSplitPaneLayout },
   "component/ImageViewport": {

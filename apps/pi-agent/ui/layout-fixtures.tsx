@@ -908,6 +908,23 @@ defineLayoutFixtures(
           </View>
         ),
       },
+      "workspace/setup-narrow": {
+        width: 400,
+        height: 480,
+        render: () => (
+          <View class="w-full h-full bg-canvas">
+            <WorkspaceSetup
+              path="/home/user/PiWorkspace/projects/a-long-project-name"
+              provider="openai-codex-with-a-long-provider-name"
+              model="gpt-5.6-codex-with-an-extra-long-model-name"
+              proxy="http://127.0.0.1:7890"
+              updatePath={() => {}}
+              start={async () => {}}
+              openSettings={() => {}}
+            />
+          </View>
+        ),
+      },
     },
     {
       wrap: (render) =>

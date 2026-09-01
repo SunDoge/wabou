@@ -899,6 +899,34 @@ try {
           }
         },
       },
+      {
+        id: "workspace/setup-narrow",
+        width: 400,
+        height: 480,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => {
+          const viewport = getLayoutNode(fixture, {
+            role: "region",
+            name: "Start your first coding agent",
+          });
+          const workspace = getLayoutNode(fixture, {
+            role: "textbox",
+            name: "Workspace",
+          });
+          const start = getLayoutNode(fixture, {
+            role: "button",
+            name: "Start agent",
+          });
+          if (viewport.computed.overflowY !== "Scroll") {
+            throw new Error("narrow setup lost its native scroll boundary");
+          }
+          if (workspace.rect.width < 200 || start.rect.width < 280) {
+            throw new Error(
+              `narrow setup controls became unusable: workspace=${workspace.rect.width}, start=${start.rect.width}`,
+            );
+          }
+        },
+      },
     ),
     mode: "layout-test",
     skipBuild: process.env.WABOU_LAYOUT_SKIP_BUILD === "1",

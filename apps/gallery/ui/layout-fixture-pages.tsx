@@ -20,6 +20,7 @@ import {
   MarkdownConversationLayoutFixture,
   MarkdownInlineLayoutFixture,
   MessageLayoutFixture,
+  OnboardingLayoutFixture,
   PiAgentHeaderLayoutFixture,
   PiComposerContextLayoutFixture,
   PiComposerDeliveryLayoutFixture,
@@ -121,6 +122,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 320,
         height: 240,
         render: ContentStateLayoutFixture,
+      },
+      "component/Onboarding": {
+        width: 360,
+        height: 420,
+        render: OnboardingLayoutFixture,
       },
       "component/Slider": {
         width: 480,
