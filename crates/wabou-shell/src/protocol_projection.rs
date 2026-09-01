@@ -180,6 +180,8 @@ pub struct GpuiProjection {
     active_color_theme: Option<String>,
     active_theme_colors: Option<std::collections::HashMap<String, u32>>,
     classes: std::collections::HashMap<NodeKey, Vec<String>>,
+    resolved_class_styles:
+        std::collections::HashMap<Vec<String>, wabou_style::stylesheet::CascadeResult>,
     style_diagnostics: std::collections::HashMap<NodeKey, Vec<String>>,
     inline_styles: std::collections::HashMap<NodeKey, std::collections::BTreeMap<String, IrValue>>,
     layout_bounds: crate::element::ProjectedLayoutBounds,
@@ -280,6 +282,7 @@ impl GpuiProjection {
             active_color_theme: None,
             active_theme_colors: None,
             classes: std::collections::HashMap::new(),
+            resolved_class_styles: std::collections::HashMap::new(),
             style_diagnostics: std::collections::HashMap::new(),
             inline_styles: std::collections::HashMap::new(),
             layout_bounds: Default::default(),
@@ -1247,6 +1250,7 @@ impl GpuiProjection {
         self.active_color_theme = selected.as_ref().map(|(name, _)| name.clone());
         self.active_theme_colors = selected.map(|(_, colors)| colors);
         self.stylesheet = Some(stylesheet);
+        self.resolved_class_styles.clear();
         self.recompute_all_styles()
     }
 
@@ -1265,6 +1269,7 @@ impl GpuiProjection {
         }
         self.active_color_theme = Some(name.to_owned());
         self.active_theme_colors = Some(colors);
+        self.resolved_class_styles.clear();
         self.recompute_all_styles()?;
         Ok(true)
     }
@@ -1277,6 +1282,7 @@ impl GpuiProjection {
             return Ok(false);
         }
         self.active_theme_colors = Some(colors);
+        self.resolved_class_styles.clear();
         self.recompute_all_styles()?;
         Ok(true)
     }
@@ -1330,12 +1336,18 @@ impl GpuiProjection {
         let mut z_index_value = 0;
         let mut diagnostics = Vec::new();
         if let Some(stylesheet) = &self.stylesheet {
-            let classes = self.classes.get(&key).map_or(&[][..], Vec::as_slice);
-            let resolved = wabou_style::stylesheet::resolve_classes_with_colors(
-                stylesheet,
-                &classes.iter().map(String::as_str).collect::<Vec<_>>(),
-                self.active_theme_colors.as_ref(),
-            );
+            let classes = self.classes.get(&key).cloned().unwrap_or_default();
+            let resolved = if let Some(resolved) = self.resolved_class_styles.get(&classes) {
+                resolved.clone()
+            } else {
+                let resolved = wabou_style::stylesheet::resolve_classes_with_colors(
+                    stylesheet,
+                    &classes.iter().map(String::as_str).collect::<Vec<_>>(),
+                    self.active_theme_colors.as_ref(),
+                );
+                self.resolved_class_styles.insert(classes, resolved.clone());
+                resolved
+            };
             diagnostics.extend(resolved.diagnostics);
             for declaration in resolved.declarations {
                 let diagnostic = if declaration.property == "pointer-events" {
@@ -2307,6 +2319,81 @@ mod tests {
         assert_eq!(
             projection.style(key(2)).unwrap().size.width,
             Length::Definite(DefiniteLength::Absolute(crate::gpui::px(480.0).into()))
+        );
+    }
+
+    #[test]
+    fn repeated_class_sets_share_resolution_and_refresh_after_theme_changes() {
+        use wabou_style::stylesheet::{
+            Appearance, ColorTheme, ColorThemes, StyleSheet,
+            fixture::{color_token, declaration, rule},
+        };
+
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        let swatch = atoms.intern("swatch");
+        let mut ops = Vec::new();
+        for index in 2..=401 {
+            ops.push(Op::CreateElement {
+                id: key(index),
+                tag: view,
+            });
+            ops.push(Op::SetClassName {
+                id: key(index),
+                classes: vec![swatch],
+            });
+        }
+        projection
+            .apply_ops(&Frame { seq: 1, ops }, &atoms, |_| None)
+            .unwrap();
+        projection
+            .set_stylesheet(
+                StyleSheet::builder()
+                    .color_themes(ColorThemes {
+                        default: "light".into(),
+                        themes: std::collections::HashMap::from([
+                            (
+                                "light".into(),
+                                ColorTheme {
+                                    _appearance: Appearance::Light,
+                                    colors: std::collections::HashMap::from([(
+                                        "surface".into(),
+                                        0xffff_ffff,
+                                    )]),
+                                },
+                            ),
+                            (
+                                "dark".into(),
+                                ColorTheme {
+                                    _appearance: Appearance::Dark,
+                                    colors: std::collections::HashMap::from([(
+                                        "surface".into(),
+                                        0x1010_10ff,
+                                    )]),
+                                },
+                            ),
+                        ]),
+                    })
+                    .rules(vec![rule(
+                        "swatch",
+                        vec![declaration("background-color", color_token("surface"))],
+                    )])
+                    .build(),
+            )
+            .unwrap();
+
+        assert_eq!(projection.resolved_class_styles.len(), 1);
+        assert_eq!(
+            projection.style(key(401)).unwrap().background,
+            Some(crate::gpui::rgba(0xffff_ffff).into())
+        );
+
+        assert!(projection.set_color_theme("dark").unwrap());
+        assert_eq!(projection.resolved_class_styles.len(), 1);
+        assert_eq!(
+            projection.style(key(2)).unwrap().background,
+            Some(crate::gpui::rgba(0x1010_10ff).into())
         );
     }
 
