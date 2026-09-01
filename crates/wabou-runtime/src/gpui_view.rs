@@ -1283,8 +1283,12 @@ impl Render for GpuiRuntimeView {
                             .map(|entity| (key, entity))
                     })
                     .map(|(key, entity)| {
-                        let build: NativeElementBuilder =
-                            Rc::new(move || entity.clone().into_any_element());
+                        let layout = snapshot
+                            .projection_boundary_layout(key)
+                            .expect("retained projection boundary has a style");
+                        let build: NativeElementBuilder = Rc::new(move || {
+                            entity.clone().cached(layout.clone()).into_any_element()
+                        });
                         (key, build)
                     })
                     .collect();
@@ -1338,8 +1342,11 @@ impl Render for GpuiRuntimeView {
                         .map(|entity| (key, entity))
                 })
                 .map(|(key, entity)| {
+                    let layout = snapshot
+                        .projection_boundary_layout(key)
+                        .expect("retained projection boundary has a style");
                     let build: NativeElementBuilder =
-                        Rc::new(move || entity.clone().into_any_element());
+                        Rc::new(move || entity.clone().cached(layout.clone()).into_any_element());
                     (key, build)
                 })
                 .collect();
@@ -1573,6 +1580,19 @@ mod tests {
             .read_entity(&child_boundary, |boundary, _| {
                 (boundary.materialization_count(), boundary.revision())
             });
+
+        cx.update_entity(&root, |_, view_cx| view_cx.notify());
+        cx.run_until_parked();
+        cx.update_window(handle.into(), |_, window, app| {
+            let _ = window.draw(app);
+        })
+        .expect("draw an unrelated root invalidation");
+        assert_eq!(
+            cx.read_entity(&child_boundary, |boundary, _| boundary
+                .materialization_count()),
+            child_before,
+            "an unrelated root draw must reuse the cached child boundary"
+        );
 
         cx.update_entity(&root, |view, view_cx| {
             view.controller

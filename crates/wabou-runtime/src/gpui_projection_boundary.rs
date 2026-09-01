@@ -99,6 +99,15 @@ impl GpuiProjectionBoundary {
         self.widgets = state.widgets;
         self.native_widget_factories = state.native_widget_factories;
         cx.notify();
+        // Boundary state is synchronized while its parent is rendering. GPUI
+        // clears dirty-view bookkeeping as that draw completes, so an entity
+        // notification issued only here can be consumed before the cached
+        // child is visited. Carry one invalidation into the next effect cycle;
+        // this is the cache-bust that makes the new immutable snapshot visible.
+        let boundary = cx.weak_entity();
+        cx.defer(move |app| {
+            let _ = boundary.update(app, |_, boundary_cx| boundary_cx.notify());
+        });
     }
 
     pub(crate) fn materialization_count(&self) -> u64 {

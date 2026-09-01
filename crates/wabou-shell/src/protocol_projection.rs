@@ -212,6 +212,41 @@ pub struct GpuiProjectionRenderSnapshot {
 }
 
 impl GpuiProjectionRenderSnapshot {
+    /// Layout contract used by a GPUI cached View which replaces this node in
+    /// its parent. The cached View still renders the projected node itself;
+    /// this refinement only lets the parent size and position the retained
+    /// entity without materializing its contents first.
+    pub fn projection_boundary_layout(
+        &self,
+        root: NodeKey,
+    ) -> Option<crate::gpui::StyleRefinement> {
+        let style = &self.tree.node(root)?.style;
+        let mut layout = crate::gpui::StyleRefinement::default();
+        layout.display = Some(style.display);
+        layout.position = Some(style.position);
+        layout.inset.top = Some(style.inset.top);
+        layout.inset.right = Some(style.inset.right);
+        layout.inset.bottom = Some(style.inset.bottom);
+        layout.inset.left = Some(style.inset.left);
+        layout.size.width = Some(style.size.width);
+        layout.size.height = Some(style.size.height);
+        layout.min_size.width = Some(style.min_size.width);
+        layout.min_size.height = Some(style.min_size.height);
+        layout.max_size.width = Some(style.max_size.width);
+        layout.max_size.height = Some(style.max_size.height);
+        layout.aspect_ratio = style.aspect_ratio;
+        layout.margin.top = Some(style.margin.top);
+        layout.margin.right = Some(style.margin.right);
+        layout.margin.bottom = Some(style.margin.bottom);
+        layout.margin.left = Some(style.margin.left);
+        layout.align_self = style.align_self;
+        layout.flex_basis = Some(style.flex_basis);
+        layout.flex_grow = Some(style.flex_grow);
+        layout.flex_shrink = Some(style.flex_shrink);
+        layout.grid_location = style.grid_location.clone();
+        Some(layout)
+    }
+
     pub fn projection_boundaries(&self) -> Vec<NodeKey> {
         self.tree.projection_boundaries().collect()
     }
