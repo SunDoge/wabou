@@ -36,6 +36,26 @@ test("Button clips every visual state to its control radius", () => {
   expect(button.className).toContain("bg-danger");
 });
 
+test("Button keeps a selected control on its active palette", () => {
+  const screen = renderComponent(() => (
+    <>
+      <Button aria-label="Selected view" variant="outline" selected>
+        Selected
+      </Button>
+      <Button aria-label="Ordinary view" variant="outline">
+        Ordinary
+      </Button>
+    </>
+  ));
+
+  expect(
+    screen.getByRole("button", { name: "Selected view" }).className,
+  ).toContain("bg-control-pressed");
+  expect(
+    screen.getByRole("button", { name: "Ordinary view" }).className,
+  ).toContain("bg-transparent");
+});
+
 test("Button exposes one stable disabled loading state", async () => {
   const activate = vi.fn();
   const App = () => {

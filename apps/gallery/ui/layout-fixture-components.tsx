@@ -631,6 +631,14 @@ export function ControlBaselineLayoutFixture() {
         <Button size="lg" aria-label="Fixture large button">
           Large
         </Button>
+        <Button
+          variant="outline"
+          selected
+          aria-pressed={true}
+          aria-label="Fixture selected button"
+        >
+          Selected
+        </Button>
       </View>
       <Input
         class="w-72"

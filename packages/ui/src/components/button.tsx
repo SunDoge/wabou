@@ -36,6 +36,10 @@ export interface ButtonProps
 
 function buttonColors(variant: ButtonVariant, state: ButtonState): string {
   const focus = state.focusVisible ? "border-focus" : "";
+  // A selected button is a persistent active control. Match gpui-component's
+  // state ordering: selected owns the active palette and hover must not wash
+  // it out while an associated page, menu or mode remains active.
+  const active = state.pressed || state.selected;
   const passiveBorder = (value: ButtonVariant) =>
     match(value)
       .with("outline", () => "border-strong")
@@ -45,7 +49,7 @@ function buttonColors(variant: ButtonVariant, state: ButtonState): string {
       )
       .exhaustive();
 
-  return match({ variant, pressed: state.pressed, hovered: state.hovered })
+  return match({ variant, pressed: active, hovered: state.hovered })
     .with({ variant: "default", pressed: true }, () =>
       mergeClasses(
         "bg-accent-pressed border-transparent text-on-accent",

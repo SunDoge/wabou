@@ -356,6 +356,10 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
     role: "button",
     name: "Fixture large button",
   });
+  const selected = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Fixture selected button",
+  });
   const input = getLayoutNode(snapshot, {
     role: "textbox",
     name: "Fixture baseline input",
@@ -387,6 +391,9 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   assertClose(small.rect.height, 28, "small button height");
   assertClose(ordinary.rect.height, 32, "default button height");
   assertClose(large.rect.height, 40, "large button height");
+  assertClose(selected.rect.height, 32, "selected button height");
+  if (!selected.classes.includes("bg-control-pressed"))
+    throw new Error("selected button did not retain its active palette");
   assertClose(input.rect.height, 32, "input height");
   assertClose(switchControl.rect.width, 40, "switch target width");
   assertClose(switchControl.rect.height, 24, "switch target height");
