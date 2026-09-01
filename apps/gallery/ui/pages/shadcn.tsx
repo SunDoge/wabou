@@ -10,7 +10,7 @@ import {
   DirectionProvider,
   DropZone,
   InlineEdit,
-  NativeSelect,
+  Select,
   PropertyList,
   PropertyRow,
   ShortcutRecorder,
@@ -65,17 +65,18 @@ export function DropZonePage() {
   );
 }
 
-export function NativeSelectPage() {
+export function ImmediateSelectPage() {
   return (
     <Card class="max-w-lg">
       <CardHeader>
-        <CardTitle>Native select</CardTitle>
+        <CardTitle>Immediate select</CardTitle>
       </CardHeader>
       <CardContent class="flex flex-col gap-3">
-        <NativeSelect
+        <Select
           aria-label="Preferred runtime"
           class="w-full"
           defaultValue="quickjs"
+          motion={false}
           options={[
             { value: "quickjs", label: "QuickJS" },
             { value: "v8", label: "V8" },

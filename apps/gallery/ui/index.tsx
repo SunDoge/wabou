@@ -139,7 +139,7 @@ const groups: Array<{
       { id: "input-otp", name: "Input OTP" },
       { id: "number-field", name: "Number field" },
       { id: "select", name: "Select" },
-      { id: "native-select", name: "Native select" },
+      { id: "native-select", name: "Immediate select" },
       { id: "combobox", name: "Combobox" },
       { id: "date-picker", name: "Date picker" },
       { id: "checkbox", name: "Checkbox" },
@@ -377,7 +377,7 @@ import { MenubarPage } from "./pages/menubar";
 import { OverviewPage } from "./pages/overview";
 import {
   DirectionPage,
-  NativeSelectPage,
+  ImmediateSelectPage,
   TypographyPage,
 } from "./pages/shadcn";
 import { ToolbarPage } from "./pages/toolbar";
@@ -738,7 +738,7 @@ function App() {
                     <SelectPage />
                   </Match>
                   <Match when={selected() === "native-select"}>
-                    <NativeSelectPage />
+                    <ImmediateSelectPage />
                   </Match>
                   <Match when={selected() === "combobox"}>
                     <ComboboxPage />

@@ -9,7 +9,7 @@ import {
   DirectionalRow,
   DirectionalText,
   DirectionProvider,
-  NativeSelect,
+  Select,
   StatCard,
   Stepper,
   Text,
@@ -53,11 +53,12 @@ test("projects explicit logical direction into native layout classes", () => {
   expect(byText(screen, "First").parent?.className).toContain("text-right");
 });
 
-test("keeps NativeSelect immediate and data driven", () => {
+test("allows Select motion to be disabled explicitly", () => {
   const screen = renderComponent(() => (
-    <NativeSelect
+    <Select
       aria-label="Runtime"
       defaultValue="quickjs"
+      motion={false}
       options={[
         { value: "quickjs", label: "QuickJS" },
         { value: "v8", label: "V8" },
