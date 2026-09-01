@@ -156,6 +156,7 @@ pub trait FrameSource {
 #[cfg(test)]
 mod tests {
     use super::{Modifiers, WindowInputMode, WindowLevel, WindowOptions};
+    use wabou_shell_api::WindowBackground;
 
     #[test]
     fn modifier_flags_match_host_protocol_bits() {
@@ -175,7 +176,7 @@ mod tests {
             .min_inner_size(960, 600)
             .resizable(false)
             .decorations(false)
-            .transparent(true)
+            .background(WindowBackground::Transparent)
             .window_level(WindowLevel::AlwaysOnTop)
             .input_mode(WindowInputMode::Passthrough);
         assert_eq!(options.title, "Inspector");
@@ -183,7 +184,7 @@ mod tests {
         assert_eq!(options.min_inner_size, Some((960, 600)));
         assert!(!options.resizable);
         assert!(!options.decorations);
-        assert!(options.transparent);
+        assert_eq!(options.background, WindowBackground::Transparent);
         assert_eq!(options.window_level, WindowLevel::AlwaysOnTop);
         assert_eq!(options.input_mode, WindowInputMode::Passthrough);
     }
