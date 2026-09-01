@@ -1073,6 +1073,8 @@ fn gpui_node_text_content(
         for child in nodes
             .iter()
             .filter(|candidate| candidate.parent == Some(parent))
+            .filter(|candidate| gpui_is_effectively_attached(nodes, candidate))
+            .filter(|candidate| !gpui_is_aria_hidden(nodes, candidate))
         {
             if let Some(value) = &child.text {
                 text.push_str(value);
@@ -1428,11 +1430,8 @@ fn input_gpui_target(
                     platform: false,
                 })
                 .handled;
-            controller.apply_projection_wheel(
-                node.key,
-                *delta_x as f32,
-                *delta_y as f32,
-            ) || guest_handled
+            controller.apply_projection_wheel(node.key, *delta_x as f32, *delta_y as f32)
+                || guest_handled
         }
         TestInput::Drag { delta_x, delta_y } => gpui_drag_events(node, *delta_x, *delta_y)
             .into_iter()
@@ -2105,6 +2104,32 @@ mod tests {
                 .expect("GPUI status snapshot");
         assert_eq!(snapshot["snapshot"]["text"], "1");
         assert_eq!(snapshot["snapshot"]["value"], "1");
+    }
+
+    #[test]
+    fn gpui_accessible_names_ignore_detached_aggregate_text_sources() {
+        let option_key = wabou_host_api::NodeKey::new(22, 1);
+        let text_key = wabou_host_api::NodeKey::new(23, 1);
+        let mut option = gpui_node(option_key, None, "view", "");
+        option.attributes.clear();
+        option.attributes.insert("role".into(), "option".into());
+        let mut aggregate = gpui_node(text_key, Some(option_key), "text", "");
+        aggregate.attributes.clear();
+        aggregate.text = Some("All queued messages".into());
+        let mut source = gpui_node(
+            wabou_host_api::NodeKey::new(24, 1),
+            Some(text_key),
+            "#text",
+            "",
+        );
+        source.attributes.clear();
+        source.text = Some("All queued messages".into());
+        source.attached = false;
+
+        let nodes = [option, aggregate, source];
+        let found = gpui_locator(&nodes, "option", "All queued messages", None, &[], false)
+            .expect("detached source text must not duplicate the option name");
+        assert_eq!(found.key, option_key);
     }
 
     #[test]
