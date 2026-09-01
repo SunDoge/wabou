@@ -86,6 +86,7 @@ import {
   ResourceBoundary,
   ScrollArea,
   Select,
+  SettingsItem,
   Sheet,
   SheetTitle,
   Sidebar,
@@ -758,6 +759,37 @@ export function ControlBaselineLayoutFixture() {
           Delete
         </Button>
       </ButtonGroup>
+    </View>
+  );
+}
+
+export function SettingsItemLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-5 flex flex-col gap-5 bg-canvas">
+      <SettingsItem
+        title="Automatically download application updates"
+        description="Updates are fetched in the background and installed after the application restarts."
+      >
+        <Switch
+          aria-label="Automatically download application updates"
+          defaultChecked
+        />
+      </SettingsItem>
+      <SettingsItem
+        title="Proxy URL"
+        description="Used for package installation, model requests, and extension downloads."
+        orientation="vertical"
+        controlClass="w-full"
+      >
+        <Input class="w-full" aria-label="Fixture proxy URL" />
+      </SettingsItem>
+      <SettingsItem
+        title="Managed setting"
+        description="This value is controlled by an administrator."
+        disabled
+      >
+        <Switch disabled aria-label="Managed setting" />
+      </SettingsItem>
     </View>
   );
 }

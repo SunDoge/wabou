@@ -542,6 +542,45 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   });
 };
 
+const assertSettingsItemLayout = (snapshot: LayoutSnapshot) => {
+  const updates = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Automatically download application updates",
+  });
+  const updateSwitch = getLayoutNode(snapshot, {
+    role: "switch",
+    name: "Automatically download application updates",
+  });
+  const proxy = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Proxy URL",
+  });
+  const proxyDescription = getLayoutNode(snapshot, {
+    text: "Used for package installation, model requests, and extension downloads.",
+  });
+  const proxyInput = getLayoutNode(snapshot, {
+    role: "textbox",
+    name: "Fixture proxy URL",
+  });
+  const managed = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Managed setting",
+  });
+
+  assertLayoutRectContains(updates.contentRect, updateSwitch.rect, {
+    label: "horizontal settings control",
+  });
+  if (updateSwitch.rect.x <= updates.rect.x + updates.rect.width / 2)
+    throw new Error("horizontal settings control did not remain trailing");
+  if (proxyInput.rect.y < layoutRectBottom(proxyDescription.rect))
+    throw new Error("vertical settings control overlapped its description");
+  assertLayoutRectContains(proxy.contentRect, proxyInput.rect, {
+    label: "vertical settings control",
+  });
+  if (Math.abs(managed.computed.opacity - 0.45) > 0.001)
+    throw new Error("disabled settings item did not expose reduced emphasis");
+};
+
 const assertDropdownMenuLayout = (snapshot: LayoutSnapshot) => {
   const menu = getLayoutNode(snapshot, {
     role: "menu",
@@ -1274,6 +1313,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/DropdownMenu": { assert: assertDropdownMenuLayout },
   "component/Item": { assert: assertItemLayout },
   "component/ControlBaseline": { assert: assertControlBaselineLayout },
+  "component/SettingsItem": { assert: assertSettingsItemLayout },
   "component/SelectionControls": { assert: assertSelectionControlsLayout },
   "component/Tabs": { assert: assertTabsLayout },
   "component/VerticalTabs": { assert: assertVerticalTabsLayout },
