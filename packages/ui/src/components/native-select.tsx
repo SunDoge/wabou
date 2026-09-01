@@ -13,12 +13,5 @@ export interface NativeSelectProps
  * and elevation so callers only own options, value, and form sizing.
  */
 export function NativeSelect(props: NativeSelectProps): JSX.Element {
-  return (
-    <Select
-      {...props}
-      motion={false}
-      contentClass="rounded-xl"
-      contentShadows={null}
-    />
-  );
+  return <Select {...props} motion={false} />;
 }

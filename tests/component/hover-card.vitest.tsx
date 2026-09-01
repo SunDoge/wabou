@@ -42,7 +42,7 @@ test("keeps the card open while the pointer travels into its content", async () 
   await screen.advanceTime(300);
   const card = screen.getByRole("dialog", { name: "Project preview" });
   expect(card.text).toBe("Native Solid applications");
-  expect(card.className).toContain("rounded-xl");
+  expect(card.className).toContain("rounded-lg");
 
   trigger.unhover();
   card.hover();

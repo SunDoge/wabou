@@ -13,6 +13,7 @@ import {
 import {
   componentsControlSize,
   componentsElevation,
+  componentsSurfaceClass,
   useComponentsTheme,
 } from "./theme";
 
@@ -80,7 +81,8 @@ export function Combobox(props: ComboboxProps): JSX.Element {
       onOpenChange={setOpen}
       placement="bottom-start"
       contentClass={mergeClasses(
-        "w-72 p-2 rounded-xl border border-subtle bg-surface",
+        "w-72 p-2",
+        componentsSurfaceClass("floating"),
         props.contentClass,
       )}
       contentShadows={

@@ -120,7 +120,7 @@ export function NavigationMenu(props: NavigationMenuProps): JSX.Element {
           placement="bottom-start"
           outsidePointerStrategy="passthrough"
           contentClass={mergeClasses(
-            "w-[520px] max-w-full min-w-0 overflow-hidden rounded-xl p-2",
+            "w-[520px] max-w-full min-w-0 overflow-hidden p-2",
             props.viewportClass,
           )}
           trigger={(trigger) => (
