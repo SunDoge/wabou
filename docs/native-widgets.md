@@ -117,6 +117,48 @@ The widget receives `&mut Window` and `&mut App`, so it can use normal GPUI
 facilities directly. It must not retain either reference. Use a retained entity,
 GPUI task, or application-owned service for asynchronous work.
 
+## Bidirectional contract
+
+Native controls use one controlled-component loop. Do not add a second widget
+message bus or call JavaScript from a GPUI render callback:
+
+```text
+Solid props/config snapshot
+          │ one mutation frame
+          ▼
+generational NodeKey + retained GPUI Entity
+          │ typed native event
+          ▼
+HostEventFrame ──► Solid handler ──► next complete props/config snapshot
+```
+
+The safety rules are:
+
+1. **Identity is `(lo, hi)`.** Both halves of `NodeKey` cross the boundary.
+   An event from a removed entity cannot target a later node that reused its
+   numeric slot.
+2. **Props are snapshots, not patches.** A widget synchronizes its GPUI entity
+   from the complete current `config`; it never reconstructs application state
+   from an event history.
+3. **Events are facts, not state replication.** Use `activate`, `change_f64`,
+   `input_text`, `focus`, `text_selection`, or `submit`. The guest handles them
+   once from a versioned `HostEventFrame`, then Solid decides the next state.
+4. **No re-entrant JavaScript.** GPUI callbacks enqueue/dispatch through the
+   normal host-event boundary. JavaScript never runs while GPUI is rendering,
+   laying out, or painting.
+5. **One owner per kind of state.** Solid owns durable application state; the
+   GPUI entity owns focus, composition, selection, pointer gestures and other
+   transient native state. Controlled text reconciliation prevents either side
+   from silently winning a same-frame echo.
+6. **Async work retains identities, not contexts.** Retain an entity/weak
+   entity and `NativeWidgetEventSink`; never retain `Window`, `App`, or
+   `NativeWidgetContext`. Delivery validates the generational target again.
+
+This division also applies to framework-owned GPUI-base containers. For
+example, `NotificationRegion` keeps arbitrary toast content in TSX while a
+native `ToastStack` owns measurement, overlap, hover expansion and stack
+motion. JS does not duplicate GPUI's layout state.
+
 ## Testing
 
 Test widget state as ordinary GPUI entities where possible. Add a Wabou

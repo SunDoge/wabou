@@ -173,7 +173,8 @@ export function Toaster(props: ToasterProps): JSX.Element {
       notifications={props.toasts.notifications}
       placement={props.placement ?? "bottom-end"}
       class={props.class}
-      itemClass={mergeClasses("w-96 max-w-full", props.itemClass)}
+      stackClass="w-96 max-w-full"
+      itemClass={mergeClasses("w-full max-w-full", props.itemClass)}
       motion={props.motion ?? false}
     />
   );
