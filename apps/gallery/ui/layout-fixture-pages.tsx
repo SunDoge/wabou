@@ -7,6 +7,7 @@ import { type Component, createComponent } from "solid-js";
 import {
   ActivityStatusLayoutFixture,
   AdaptiveSplitPaneLayoutFixture,
+  AlertLayoutFixture,
   CardSurfaceLayoutFixture,
   CompactSurfaceLayoutFixture,
   ContentStateLayoutFixture,
@@ -118,6 +119,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 560,
         height: 280,
         render: TabsLayoutFixture,
+      },
+      "component/Alert": {
+        width: 420,
+        height: 240,
+        render: AlertLayoutFixture,
       },
       "component/CardSurface": {
         width: 480,

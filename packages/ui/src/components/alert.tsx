@@ -120,3 +120,19 @@ export function AlertDescription(props: TextProps): JSX.Element {
     />
   );
 }
+
+/** Recovery and acknowledgement controls belonging to an alert. */
+export function AlertActions(props: ViewProps): JSX.Element {
+  return (
+    <View
+      {...props}
+      role={props.role ?? "group"}
+      class={mergeClasses(
+        "w-full min-w-0 mt-2 flex flex-row flex-wrap items-center gap-2",
+        props.class,
+      )}
+    >
+      {props.children}
+    </View>
+  );
+}
