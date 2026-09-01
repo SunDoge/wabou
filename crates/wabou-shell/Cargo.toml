@@ -16,7 +16,6 @@ gpui-platform.workspace = true
 lyon_tessellation.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-slotmap.workspace = true
 tracing.workspace = true
 wabou-accessibility.workspace = true
 wabou-host-api.workspace = true

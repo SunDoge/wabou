@@ -12,8 +12,6 @@ path = "src/lib.rs"
 [dependencies]
 anyhow = { workspace = true }
 arc-swap = { workspace = true }
-bitflags = { workspace = true }
-bon = { workspace = true }
 dioxus-devtools = { workspace = true, optional = true }
 flume = { workspace = true }
 futures-channel = { workspace = true }
@@ -83,5 +81,4 @@ vite = ["dep:tungstenite", "dep:ureq"]
 gpui-platform.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 image = { workspace = true, features = ["png"] }
-proptest = "1"
 wabou-devtools = { workspace = true }

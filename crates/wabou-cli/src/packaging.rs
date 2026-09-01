@@ -177,7 +177,9 @@ fn decode_config(bytes: &[u8]) -> Result<Config> {
 mod tests {
     use std::fs;
 
-    use super::{copy_resource, decode_config, macos_packager_config};
+    use super::{copy_resource, decode_config};
+    #[cfg(target_os = "macos")]
+    use super::macos_packager_config;
 
     #[test]
     fn generated_adapter_input_is_a_typed_packager_config() {

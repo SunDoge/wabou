@@ -3474,10 +3474,7 @@ version = "0.1.0"
 dependencies = [
  "image",
  "serde",
- "serde_json",
  "snafu",
- "tracing",
- "tracing-subscriber",
  "wabou",
 ]
 
@@ -5286,8 +5283,6 @@ name = "hackernews"
 version = "0.1.0"
 dependencies = [
  "snafu",
- "tracing",
- "tracing-subscriber",
  "wabou",
 ]
 
@@ -6872,8 +6867,6 @@ dependencies = [
  "specta-typescript",
  "tokio",
  "tracing",
- "tracing-subscriber",
- "trash",
  "url",
  "uuid",
  "wabou",
@@ -10259,7 +10252,6 @@ name = "seven-guis"
 version = "0.1.0"
 dependencies = [
  "snafu",
- "tracing-subscriber",
  "wabou",
 ]
 
@@ -10820,8 +10812,6 @@ name = "stress"
 version = "0.1.0"
 dependencies = [
  "snafu",
- "tracing",
- "tracing-subscriber",
  "wabou",
 ]
 
@@ -11771,24 +11761,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "trash"
-version = "5.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7602e0c7d66ec2d92a8c917219fbc7894039efa2063b9064260110828a356f46"
-dependencies = [
- "chrono",
- "libc",
- "log",
- "objc2 0.6.4",
- "objc2-foundation 0.3.2",
- "once_cell",
- "percent-encoding",
- "scopeguard",
- "urlencoding",
- "windows 0.56.0",
-]
-
-[[package]]
 name = "tray-icon"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12243,8 +12215,6 @@ name = "vlist"
 version = "0.1.0"
 dependencies = [
  "snafu",
- "tracing",
- "tracing-subscriber",
  "wabou",
 ]
 
@@ -12517,8 +12487,6 @@ version = "0.1.0-alpha.3"
 dependencies = [
  "anyhow",
  "arc-swap",
- "bitflags 2.13.1",
- "bon",
  "dioxus-devtools",
  "flume 0.12.0",
  "futures-channel",
@@ -12530,7 +12498,6 @@ dependencies = [
  "image",
  "jiff",
  "open",
- "proptest",
  "reqwest",
  "rquickjs",
  "rquickjs-serde",
@@ -12576,7 +12543,6 @@ dependencies = [
  "lyon_tessellation",
  "serde",
  "serde_json",
- "slotmap",
  "tempfile",
  "tracing",
  "wabou-host-api",

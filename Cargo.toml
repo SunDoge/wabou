@@ -29,6 +29,7 @@ default-members = [
   "crates/wabou-tray",
 ]
 exclude = [
+  "templates/basic",
   "vendor/bitwarden-sdk",
 ]
 

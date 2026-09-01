@@ -19,9 +19,7 @@ serde_json = { workspace = true }
 specta = { workspace = true, optional = true }
 snafu = { workspace = true }
 tokio = { workspace = true, features = ["rt", "sync", "time"] }
-trash = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
 uuid = { workspace = true, features = ["v4"] }
 url = { workspace = true }
 wabou = { workspace = true, features = ["tray"] }
