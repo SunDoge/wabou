@@ -1,8 +1,8 @@
-import type { Handle } from "@wabou/core/renderer";
+import type { Handle, WabouNativeTransition } from "@wabou/core/renderer";
 import { mergeClasses } from "@wabou/core/style";
-import { createSignal, type JSX } from "solid-js";
+import { createEffect, createSignal, type JSX, untrack } from "solid-js";
 import { match } from "ts-pattern";
-import { createTransition, useReducedMotion } from "../animation";
+import { useReducedMotion } from "../animation";
 import {
   type ButtonState,
   Button as HeadlessButton,
@@ -72,11 +72,32 @@ export function Switch(props: SwitchProps): JSX.Element {
   const reducedMotion = useReducedMotion();
   const size = () => props.size ?? "default";
   const geometry = () => switchGeometry(size());
-  const movement = createTransition(() => (checked() ? geometry().travel : 0), {
-    duration: 0.18,
-    ease: [0.22, 1, 0.36, 1],
-    reducedMotion,
-  });
+  const [thumbTransition, setThumbTransition] = createSignal<
+    WabouNativeTransition | undefined
+  >();
+  let previousChecked = untrack(checked);
+  let previousTravel = untrack(() => geometry().travel);
+  let transitionGeneration = 0;
+  createEffect(
+    () => [checked(), geometry().travel, reducedMotion()] as const,
+    ([nextChecked, nextTravel, prefersReducedMotion]) => {
+      const fromX = previousChecked ? previousTravel : 0;
+      const toX = nextChecked ? nextTravel : 0;
+      previousChecked = nextChecked;
+      previousTravel = nextTravel;
+      if (Object.is(fromX, toX) || prefersReducedMotion) {
+        setThumbTransition(undefined);
+        return;
+      }
+      setThumbTransition({
+        generation: ++transitionGeneration,
+        duration: 0.15,
+        easing: "easeInOut",
+        fromTransform: translate2d(fromX, 0),
+        toTransform: translate2d(toX, 0),
+      });
+    },
+  );
   let control: Handle | undefined;
   const toggle = () => {
     if (props.disabled) return;
@@ -115,7 +136,8 @@ export function Switch(props: SwitchProps): JSX.Element {
                 geometry().thumbClass,
                 "rounded-full bg-surface",
               )}
-              transform={translate2d(movement.value(), 0)}
+              transform={translate2d(checked() ? geometry().travel : 0, 0)}
+              nativeTransition={thumbTransition()}
             />
           </View>
         )}
