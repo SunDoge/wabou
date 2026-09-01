@@ -1,11 +1,11 @@
 //! GPUI-native performance overlay kept outside the Solid projection tree.
 
-use gpui_base::{StyledExt as _, Theme};
+use gpui_base::{StyledExt as _, Theme, ThemeAppearance};
 use std::collections::VecDeque;
 use wabou_shell::FrameStats;
 use wabou_shell::gpui::{
-    Context, FrameTiming, FrameTimingCollector, IntoElement, ParentElement as _, Render,
-    Styled as _, Window, div, set_frame_trace_enabled,
+    Context, FrameTiming, FrameTimingCollector, Hsla, IntoElement, ParentElement as _, Render,
+    Styled as _, Window, div, rgb_to_hsla, rgba, set_frame_trace_enabled,
 };
 
 pub(crate) struct GpuiPerformanceHud {
@@ -138,6 +138,18 @@ impl Render for GpuiPerformanceHud {
         let theme = Theme::global(cx);
         let colors = &theme.tokens.colors;
         let stats = self.stats.unwrap_or_default();
+        let draw_color = frame_health_color(
+            frame_health(self.draw_ms),
+            theme.appearance,
+            colors.muted_foreground,
+            colors.destructive,
+        );
+        let latency_color = frame_health_color(
+            frame_health(self.dirty_to_draw_ms),
+            theme.appearance,
+            colors.muted_foreground,
+            colors.destructive,
+        );
         div()
             .absolute()
             .top_3()
@@ -166,10 +178,22 @@ impl Render for GpuiPerformanceHud {
                 "JS {:>6.2} ms  projection {:>6.2} ms",
                 stats.js_tick_ms, stats.scene_ms
             ))
-            .child(format!(
-                "draw {:>6.2} ms  dirty→draw {:>6.2} ms",
-                self.draw_ms, self.dirty_to_draw_ms
-            ))
+            .child(
+                div().flex().justify_between().child("draw").child(
+                    div()
+                        .font_semibold()
+                        .text_color(draw_color)
+                        .child(format!("{:>6.2} ms", self.draw_ms)),
+                ),
+            )
+            .child(
+                div().flex().justify_between().child("dirty→draw").child(
+                    div()
+                        .font_semibold()
+                        .text_color(latency_color)
+                        .child(format!("{:>6.2} ms", self.dirty_to_draw_ms)),
+                ),
+            )
             .child(format!(
                 "invalidations {:>4.1}/frame  nodes {:>6}",
                 self.invalidations_per_frame, stats.node_count
@@ -186,6 +210,42 @@ impl Render for GpuiPerformanceHud {
 }
 
 const SAMPLE_WINDOW: std::time::Duration = std::time::Duration::from_secs(1);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FrameHealth {
+    Unknown,
+    Healthy,
+    Warning,
+    Critical,
+}
+
+fn frame_health(milliseconds: f64) -> FrameHealth {
+    if milliseconds <= 0.0 || !milliseconds.is_finite() {
+        FrameHealth::Unknown
+    } else if milliseconds < 8.0 {
+        FrameHealth::Healthy
+    } else if milliseconds < 16.7 {
+        FrameHealth::Warning
+    } else {
+        FrameHealth::Critical
+    }
+}
+
+fn frame_health_color(
+    health: FrameHealth,
+    appearance: ThemeAppearance,
+    unknown: Hsla,
+    critical: Hsla,
+) -> Hsla {
+    match (health, appearance) {
+        (FrameHealth::Unknown, _) => unknown,
+        (FrameHealth::Healthy, ThemeAppearance::Light) => rgb_to_hsla(rgba(0x1680_3cff)),
+        (FrameHealth::Healthy, ThemeAppearance::Dark) => rgb_to_hsla(rgba(0x4ade_80ff)),
+        (FrameHealth::Warning, ThemeAppearance::Light) => rgb_to_hsla(rgba(0xb453_09ff)),
+        (FrameHealth::Warning, ThemeAppearance::Dark) => rgb_to_hsla(rgba(0xfbbf_24ff)),
+        (FrameHealth::Critical, _) => critical,
+    }
+}
 
 fn summarize_frame_timings(
     samples: &mut VecDeque<FrameTiming>,
@@ -283,6 +343,16 @@ mod tests {
         for value in ["", "0", "false", "off", "enabled"] {
             assert!(!parse_enabled(value), "{value}");
         }
+    }
+
+    #[test]
+    fn frame_health_matches_interactive_frame_budgets() {
+        assert_eq!(frame_health(0.0), FrameHealth::Unknown);
+        assert_eq!(frame_health(f64::NAN), FrameHealth::Unknown);
+        assert_eq!(frame_health(7.99), FrameHealth::Healthy);
+        assert_eq!(frame_health(8.0), FrameHealth::Warning);
+        assert_eq!(frame_health(16.69), FrameHealth::Warning);
+        assert_eq!(frame_health(16.7), FrameHealth::Critical);
     }
 
     #[test]
