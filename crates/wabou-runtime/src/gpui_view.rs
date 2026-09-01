@@ -1391,6 +1391,14 @@ impl Render for GpuiRuntimeView {
             .as_ref()
             .expect("projection boundary initialized before root composition")
             .clone();
+        let projection_materializations = self.performance_hud.as_ref().map(|_| {
+            projection_boundary.read(cx).materialization_count()
+                + self
+                    .projection_subtrees
+                    .values()
+                    .map(|boundary| boundary.read(cx).materialization_count())
+                    .sum::<u64>()
+        });
         let projected = if self.projection_subtrees.is_empty() {
             projection_boundary
                 .cached(StyleRefinement::default().size_full())
@@ -1448,7 +1456,12 @@ impl Render for GpuiRuntimeView {
         if let Some(hud) = &self.performance_hud {
             let stats = self.controller.frame_stats();
             hud.update(cx, |hud, hud_cx| {
-                hud.update(stats, self.projection_boundary_revision, hud_cx);
+                hud.update(
+                    stats,
+                    self.projection_boundary_revision,
+                    projection_materializations.unwrap_or_default(),
+                    hud_cx,
+                );
             });
             root = root.child(hud.clone());
         }
@@ -1895,6 +1908,7 @@ mod tests {
                     ..wabou_shell::FrameStats::default()
                 }),
                 2,
+                initial,
                 hud_cx,
             );
         });

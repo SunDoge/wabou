@@ -37,7 +37,6 @@ pub(crate) struct GpuiProjectionBoundary {
         NodeKey,
         BTreeMap<wabou_shell::gpui::SharedString, wabou_shell::gpui::SharedString>,
     >,
-    #[cfg(any(test, debug_assertions, feature = "profiling"))]
     materialization_count: u64,
     #[cfg(any(debug_assertions, feature = "profiling"))]
     materialization_window: (std::time::Instant, u32),
@@ -74,7 +73,6 @@ impl GpuiProjectionBoundary {
             native_widget_entities: BTreeMap::new(),
             native_widget_inputs: BTreeMap::new(),
             native_widget_attributes: BTreeMap::new(),
-            #[cfg(any(test, debug_assertions, feature = "profiling"))]
             materialization_count: 0,
             #[cfg(any(debug_assertions, feature = "profiling"))]
             materialization_window: (std::time::Instant::now(), 0),
@@ -103,7 +101,6 @@ impl GpuiProjectionBoundary {
         cx.notify();
     }
 
-    #[cfg(test)]
     pub(crate) fn materialization_count(&self) -> u64 {
         self.materialization_count
     }
@@ -132,10 +129,7 @@ impl Render for GpuiProjectionBoundary {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl wabou_shell::gpui::IntoElement {
-        #[cfg(any(test, debug_assertions, feature = "profiling"))]
-        {
-            self.materialization_count += 1;
-        }
+        self.materialization_count = self.materialization_count.wrapping_add(1);
         #[cfg(any(debug_assertions, feature = "profiling"))]
         {
             self.materialization_window.1 = self.materialization_window.1.saturating_add(1);
