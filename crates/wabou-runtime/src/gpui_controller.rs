@@ -139,7 +139,31 @@ impl GpuiController {
             self.image_resources
                 .get(handle)
                 .map(|resource| resource.gpui_image())
-        })
+        })?;
+        drop(atoms);
+        self.retain_live_interaction_targets();
+        Ok(())
+    }
+
+    /// Retained input state must never outlive the projected node generation
+    /// that established it. Whole-tree remounts (including entry-module HMR)
+    /// can retire a hovered, pressed, or focused node without another platform
+    /// pointer/focus event arriving to clear it.
+    fn retain_live_interaction_targets(&mut self) {
+        let is_live = |target| self.projection.contains(target);
+        if self.hovered_target.is_some_and(|target| !is_live(target)) {
+            self.hovered_target = None;
+        }
+        self.pressed_targets.retain(|_, target| is_live(*target));
+        if self
+            .last_primary_click
+            .is_some_and(|(_, target, _, _)| !is_live(target))
+        {
+            self.last_primary_click = None;
+        }
+        if self.focused_target.is_some_and(|target| !is_live(target)) {
+            self.focused_target = None;
+        }
     }
 
     #[cfg(test)]
@@ -1169,9 +1193,45 @@ impl GpuiController {
 
         #[cfg(feature = "vite")]
         let mut applied = 0usize;
+        #[cfg(feature = "vite")]
+        let vite_entry = self.runtime.reload.vite_entry().map(str::to_owned);
         #[cfg(not(feature = "vite"))]
         let applied = batch.js_updates.len();
         for update in batch.js_updates {
+            #[cfg(feature = "vite")]
+            let side_effect_update = is_wabou_side_effect_update(
+                &update.path,
+                &update.accepted_path,
+                vite_entry.as_deref(),
+            );
+            #[cfg(feature = "vite")]
+            tracing::debug!(
+                target: "hmr",
+                path = %update.path,
+                accepted_path = %update.accepted_path,
+                ?vite_entry,
+                side_effect_update,
+                "classified Vite update"
+            );
+            #[cfg(feature = "vite")]
+            if side_effect_update {
+                match self.runtime.js.apply_vite_side_effect_update(
+                    &update.accepted_path,
+                    update.timestamp,
+                    update.source,
+                ) {
+                    Ok(()) => {
+                        applied += 1;
+                        continue;
+                    }
+                    Err(error) => {
+                        let reason =
+                            format!("side-effect HMR failed for {}: {error:?}", update.path);
+                        self.perform_full_reload(&reason);
+                        return HmrDrainResult::FullReload { reason };
+                    }
+                }
+            }
             #[cfg(feature = "vite")]
             match self.runtime.js.apply_hmr_update(
                 &update.path,
@@ -1593,6 +1653,26 @@ impl GpuiController {
     }
 }
 
+#[cfg(feature = "vite")]
+fn is_wabou_side_effect_update(path: &str, accepted_path: &str, vite_entry: Option<&str>) -> bool {
+    if [path, accepted_path]
+        .into_iter()
+        .any(|path| path.contains("virtual:wabou-stylesheet"))
+    {
+        return true;
+    }
+    let Some(vite_entry) = vite_entry else {
+        return false;
+    };
+    let vite_entry = vite_entry.trim_start_matches('/');
+    [path, accepted_path].into_iter().any(|path| {
+        path.split_once('?')
+            .map_or(path, |(path, _)| path)
+            .trim_start_matches('/')
+            == vite_entry
+    })
+}
+
 #[cfg(feature = "devtools")]
 fn gpui_debug_node(
     node: wabou_shell::GpuiLayoutNode,
@@ -1683,11 +1763,64 @@ fn gpui_debug_node(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "vite")]
+    #[test]
+    fn entry_and_generated_style_ir_modules_use_side_effect_hmr() {
+        assert!(is_wabou_side_effect_update(
+            "/@id/__x00__virtual:wabou-stylesheet",
+            "/@id/__x00__virtual:wabou-stylesheet",
+            Some("ui/index.tsx"),
+        ));
+        assert!(is_wabou_side_effect_update(
+            "/ui/index.tsx",
+            "/ui/index.tsx?t=42",
+            Some("ui/index.tsx"),
+        ));
+        assert!(!is_wabou_side_effect_update(
+            "/ui/pages/colors.tsx",
+            "/ui/pages/colors.tsx",
+            Some("ui/index.tsx"),
+        ));
+    }
     use crate::{JsRuntime, protocol::Op};
     use std::sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
+
+    #[test]
+    fn dropping_a_node_retires_all_native_interaction_state() {
+        let js = JsRuntime::new().expect("runtime");
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        let tag = controller.runtime.atoms.borrow_mut().intern("button");
+        let target = wabou_host_api::NodeKey::new(2, 1);
+        controller
+            .apply_frame(&Frame {
+                seq: 1,
+                ops: vec![Op::CreateElement { id: target, tag }],
+            })
+            .expect("create target");
+        controller.hovered_target = Some(target);
+        controller.pressed_targets.insert(0, target);
+        controller.last_primary_click = Some((std::time::Instant::now(), target, 0.0, 0.0));
+        controller.focused_target = Some(target);
+
+        controller
+            .apply_frame(&Frame {
+                seq: 2,
+                ops: vec![Op::DropNode { id: target }],
+            })
+            .expect("drop target");
+
+        assert_eq!(controller.hovered_target, None);
+        assert!(controller.pressed_targets.is_empty());
+        assert_eq!(controller.last_primary_click, None);
+        assert_eq!(controller.focused_target, None);
+    }
     use wabou_shell::NodeKey;
 
     #[test]

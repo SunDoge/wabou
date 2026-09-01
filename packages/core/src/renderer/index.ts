@@ -1127,6 +1127,11 @@ export function mount(code: () => JSX.Element): () => void {
     if (disposed) return;
     disposed = true;
     dispose();
+    // Solid disposes reactive owners but the universal renderer does not
+    // implicitly detach the host container's retained children. Explicitly
+    // retire them so remounts emit RemoveChild + DropNode instead of leaving
+    // an unreachable native tree beside the replacement mount.
+    while (root.firstChild) removeNode(root, root.firstChild);
     if (mountState.mountedRoot === root) {
       mountState.overlayRoots.clear();
       mountState.mountedRoot = null;
@@ -1135,7 +1140,9 @@ export function mount(code: () => JSX.Element): () => void {
       mountState.activeMountDispose = null;
     }
     runSweep();
-    writer.flush();
+    // Do not flush here: only the host-owned animation-frame boundary may
+    // consume writer bytes. Keeping retire + replacement ops together lets
+    // Rust apply a remount atomically instead of losing the retired subtree.
   };
   mountState.activeMountDispose = disposeMount;
   return () => {

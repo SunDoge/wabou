@@ -1268,6 +1268,19 @@ impl JsRuntime {
         self.with(|ctx| vite.apply_hmr(&ctx, path, accepted_path, timestamp, source))
     }
 
+    /// Apply an HMR module whose evaluation is the whole update, such as the
+    /// generated Wabou Style IR module.
+    #[cfg(feature = "vite")]
+    pub fn apply_vite_side_effect_update(
+        &mut self,
+        accepted_path: &str,
+        timestamp: u64,
+        source: String,
+    ) -> JsResult<()> {
+        let vite = self.vite.as_ref().expect("vite runtime");
+        self.with(|ctx| vite.apply_side_effect_update(&ctx, accepted_path, timestamp, source))
+    }
+
     /// In-process full reload: clear the Vite module cache and re-import `entry`
     /// with a cache-busting query. Call after the applier has reset its tree.
     #[cfg(feature = "vite")]
