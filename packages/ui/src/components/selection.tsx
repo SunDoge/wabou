@@ -26,6 +26,14 @@ import {
 import { componentsControlSize } from "./theme";
 
 const SELECTION_INDICATOR_CLASS = "w-4 h-4 flex-none border";
+const SELECTION_LABEL_CLASS =
+  "min-w-0 flex-1 whitespace-normal text-sm text-left";
+
+function selectionControlClass(hasLabel: boolean): string {
+  return hasLabel
+    ? "min-h-7 px-1 items-start gap-2 rounded-md border border-transparent"
+    : "w-10 h-7 p-0 items-center justify-center gap-0 rounded-md border border-transparent";
+}
 
 export interface CheckboxProps {
   checked?: boolean;
@@ -77,7 +85,7 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
       selected={checked()}
       class={(buttonState) =>
         mergeClasses(
-          "min-h-7 px-1 items-center gap-2 rounded-md border border-transparent",
+          selectionControlClass(!!props.label),
           buttonState.hovered && "bg-control-hover",
           buttonState.focusVisible && "border-focus",
           props.class,
@@ -104,7 +112,11 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
           />
         )}
       </Center>
-      {props.label && <Text class="text-sm text-primary">{props.label}</Text>}
+      {props.label && (
+        <Text class={mergeClasses(SELECTION_LABEL_CLASS, "text-primary")}>
+          {props.label}
+        </Text>
+      )}
     </HeadlessButton>
   );
 }
@@ -183,6 +195,7 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
 export interface RadioGroupItemProps {
   value: string;
   label?: string;
+  "aria-label"?: string;
   disabled?: boolean;
   class?: string;
 }
@@ -200,7 +213,7 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
       role="radio"
       disabled={disabled()}
       selected={checked()}
-      aria-label={props.label}
+      aria-label={props["aria-label"] ?? props.label}
       aria-checked={checked()}
       ref={(node) => {
         unregister?.();
@@ -210,7 +223,7 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
         mergeClasses(
           group.appearance() === "segment"
             ? "h-8 min-w-0 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium"
-            : "min-h-7 px-1 items-center gap-2 rounded-md border border-transparent",
+            : selectionControlClass(!!props.label),
           group.appearance() === "segment" && checked()
             ? "bg-selected text-primary shadow-xs"
             : buttonState.hovered && "bg-control-hover",
@@ -244,7 +257,7 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
       {props.label && (
         <Text
           class={mergeClasses(
-            "text-sm",
+            SELECTION_LABEL_CLASS,
             checked() ? "text-primary" : "text-secondary",
           )}
         >

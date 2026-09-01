@@ -45,6 +45,39 @@ test("supports uncontrolled, controlled, mixed, and disabled checkboxes", () => 
   ).not.toBeNull();
 });
 
+test("selection controls separate compact indicators from stable targets and wrapping labels", () => {
+  const screen = renderComponent(() => (
+    <View>
+      <Checkbox aria-label="Icon-only choice" />
+      <Checkbox label="A deliberately long checkbox label" />
+      <RadioGroup aria-label="Policy">
+        <RadioGroupItem value="system" aria-label="Icon-only policy" />
+        <RadioGroupItem
+          value="automatic"
+          label="A deliberately long radio label"
+        />
+      </RadioGroup>
+    </View>
+  ));
+
+  expect(
+    screen.getByRole("checkbox", { name: "Icon-only choice" }).className,
+  ).toContain("w-10 h-7");
+  expect(
+    screen.getByRole("checkbox", {
+      name: "A deliberately long checkbox label",
+    }).className,
+  ).toContain("items-start");
+  expect(
+    screen.getByRole("radio", {
+      name: "A deliberately long radio label",
+    }).className,
+  ).toContain("items-start");
+  expect(
+    screen.getByRole("radio", { name: "Icon-only policy" }).className,
+  ).toContain("w-10 h-7");
+});
+
 test("selects radio items and skips disabled choices during roving focus", () => {
   const App = () => {
     const [plan, setPlan] = createSignal("free");
