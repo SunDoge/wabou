@@ -174,15 +174,7 @@ export function Toaster(props: ToasterProps): JSX.Element {
       placement={props.placement ?? "bottom-end"}
       class={props.class}
       itemClass={mergeClasses("w-96 max-w-full", props.itemClass)}
-      motion={
-        props.motion === undefined
-          ? {
-              fromY: (props.placement ?? "bottom-end").startsWith("bottom")
-                ? 12
-                : -12,
-            }
-          : props.motion
-      }
+      motion={props.motion ?? false}
     />
   );
 }
