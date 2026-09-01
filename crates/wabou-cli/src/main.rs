@@ -118,6 +118,9 @@ enum Commands {
         port: u16,
         #[arg(long)]
         devtools: bool,
+        /// Show the native GPUI performance HUD.
+        #[arg(long)]
+        hud: bool,
         /// Hot-patch explicitly registered Rust capability functions without restarting the host.
         #[arg(long)]
         rust_hot_reload: bool,
@@ -164,6 +167,9 @@ enum Commands {
         /// Write an opt-in performance trace for Perfetto/Chrome tracing.
         #[arg(long, value_name = "JSON")]
         profile_trace: Option<PathBuf>,
+        /// Show the native GPUI performance HUD.
+        #[arg(long)]
+        hud: bool,
         #[command(flatten)]
         cargo_features: CargoFeatures,
     },
@@ -410,6 +416,7 @@ fn main() -> Result<()> {
             app,
             port,
             devtools,
+            hud,
             rust_hot_reload,
             mode,
             cargo_features,
@@ -420,6 +427,7 @@ fn main() -> Result<()> {
                 app,
                 port,
                 devtools,
+                hud,
                 rust_hot_reload,
                 mode.as_deref(),
                 &cargo_features.values,
@@ -460,6 +468,7 @@ fn main() -> Result<()> {
             release,
             source_map,
             profile_trace,
+            hud,
             cargo_features,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
@@ -470,6 +479,7 @@ fn main() -> Result<()> {
                 release,
                 source_map,
                 profile_trace.as_deref(),
+                hud,
                 &cargo_features.values,
             )
         }
@@ -786,6 +796,7 @@ fn run(
     release: bool,
     source_map_override: Option<bool>,
     profile_trace: Option<&Path>,
+    hud: bool,
     cargo_features: &[String],
 ) -> Result<()> {
     let profile = BuildProfile::from_release(release);
@@ -813,6 +824,9 @@ fn run(
             .env("WABOU_PROFILE_TRACE", path);
     }
     cargo.env("WABOU_BUNDLE_PATH", bundle_path(workspace, app, profile)?);
+    if hud {
+        cargo.env("WABOU_PERFORMANCE_HUD", "1");
+    }
     ensure_host_exit(cargo.status()?)
 }
 
@@ -1109,6 +1123,7 @@ fn dev(
     app: App,
     port: u16,
     open_devtools: bool,
+    hud: bool,
     rust_hot_reload: bool,
     mode: Option<&str>,
     cargo_features: &[String],
@@ -1177,6 +1192,9 @@ fn dev(
     host_command
         .env("WABOU_VITE_URL", &url)
         .env("WABOU_VITE_ENTRY", &app.entry);
+    if hud {
+        host_command.env("WABOU_PERFORMANCE_HUD", "1");
+    }
     apply_cargo_features(&mut host_command, cargo_features);
     let mut host = ManagedChild::spawn(host_command)?;
 
@@ -2165,6 +2183,24 @@ out-dir = "dist/resources"
         };
         assert!(release);
         assert_eq!(profile_trace.as_deref(), Some(Path::new("trace.json")));
+    }
+
+    #[test]
+    fn parses_native_performance_hud_for_dev_and_run() {
+        let Cli {
+            command: Commands::Dev { hud: dev_hud, .. },
+        } = Cli::try_parse_from(["wabou", "dev", "--hud"]).unwrap()
+        else {
+            panic!("expected dev command");
+        };
+        let Cli {
+            command: Commands::Run { hud: run_hud, .. },
+        } = Cli::try_parse_from(["wabou", "run", "--hud"]).unwrap()
+        else {
+            panic!("expected run command");
+        };
+        assert!(dev_hud);
+        assert!(run_hud);
     }
 
     #[test]

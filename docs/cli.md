@@ -210,6 +210,18 @@ bun run wabou run apps/stress --release \
 See the [performance profiling guide](performance.md) for trace contents and
 privacy guarantees.
 
+For immediate native frame feedback, show the GPUI performance HUD without
+putting a reactive FPS component in the application tree:
+
+```bash
+bun run wabou dev apps/gallery --hud
+bun run wabou run apps/gallery --hud
+```
+
+The HUD reports FPS, JavaScript time, projection time, frame time, projected
+node count, viewport size, and projection revision. `WABOU_PERFORMANCE_HUD=1`
+remains available for direct host launches.
+
 `run` builds the UI and supplies its path to the Rust host through
 `WABOU_BUNDLE_PATH`; changing the bundle never recompiles Rust.
 
