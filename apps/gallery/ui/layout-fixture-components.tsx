@@ -34,6 +34,7 @@ import {
   EmptyDescription,
   EmptyHeader,
   EmptyTitle,
+  Icon,
   IconFrame,
   ImageList,
   ImageViewport,
@@ -702,6 +703,7 @@ export function AlertLayoutFixture() {
         variant="destructive"
         aria-label="Fixture failed native build"
         class="w-full"
+        icon={<Icon source={imageIcon} size={16} aria-hidden="true" />}
       >
         <AlertTitle>Native build failed</AlertTitle>
         <AlertDescription>

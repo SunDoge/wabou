@@ -8,6 +8,7 @@ import {
 } from "solid-js";
 import { match } from "ts-pattern";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
+import { componentsSurfaceClass } from "./theme";
 
 export type AlertVariant = "default" | "destructive";
 
@@ -78,13 +79,14 @@ export function Alert(props: AlertProps): JSX.Element {
           role="alert"
           aria-label={props["aria-label"] ?? props.title}
           class={mergeClasses(
-            "w-full min-w-0 flex flex-row items-start gap-3 rounded-xl border p-4 shadow-xs",
+            "w-full min-w-0 flex flex-row items-start gap-3 px-4 py-2.5",
+            componentsSurfaceClass("raised"),
             colors().container,
             props.class,
           )}
         >
           {props.icon === undefined ? null : (
-            <View class="flex-none pt-0.5">{props.icon}</View>
+            <View class="h-5 flex-none flex items-center">{props.icon}</View>
           )}
           <View class="min-w-0 flex-1 flex flex-col gap-1">{content()}</View>
         </View>

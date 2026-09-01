@@ -28,3 +28,16 @@ test("alert actions provide a stable recovery region", () => {
   screen.getByRole("button", { name: "Retry" }).click();
   expect(retry).toHaveBeenCalledOnce();
 });
+
+test("alert uses the compact inline feedback surface contract", () => {
+  const screen = renderComponent(() => (
+    <Alert title="Workspace ready">All checks passed.</Alert>
+  ));
+
+  const alert = screen.getByRole("alert", { name: "Workspace ready" });
+  expect(alert.className).toContain("rounded-lg");
+  expect(alert.className).toContain("px-4");
+  expect(alert.className).toContain("py-2.5");
+  expect(alert.className).not.toContain("rounded-xl");
+  expect(alert.className).not.toContain("shadow-xs");
+});
