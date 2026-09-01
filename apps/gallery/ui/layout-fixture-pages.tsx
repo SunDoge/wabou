@@ -43,6 +43,7 @@ import {
   SidebarLayoutFixture,
   SliderLayoutFixture,
   SpinnerLayoutFixture,
+  TabsLayoutFixture,
   ToolLayoutFixture,
 } from "./layout-fixture-components";
 import * as animation from "./pages/animation";
@@ -112,6 +113,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 520,
         height: 280,
         render: ControlBaselineLayoutFixture,
+      },
+      "component/Tabs": {
+        width: 560,
+        height: 280,
+        render: TabsLayoutFixture,
       },
       "component/CardSurface": {
         width: 480,

@@ -106,6 +106,29 @@ const assertSliderLayout = (snapshot: LayoutSnapshot) => {
   assertClose(slider.rect.height, 28, "slider height");
 };
 
+const assertTabsLayout = (snapshot: LayoutSnapshot) => {
+  const list = getLayoutNode(snapshot, {
+    role: "tablist",
+    name: "Fixture settings sections",
+  });
+  const panel = getLayoutNode(snapshot, { role: "tabpanel" });
+  const card = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Fixture account card",
+  });
+  const description = getLayoutNode(snapshot, {
+    text: "Update your public profile and contact details without compressing the panel into a narrow column.",
+  });
+  if (panel.rect.width < 450)
+    throw new Error(`tab panel was compressed to ${panel.rect.width}px`);
+  assertClose(panel.rect.width, list.rect.width, "tab panel width");
+  assertClose(card.rect.width, panel.contentRect.width, "tab card width");
+  if (!description.textMetrics || description.textMetrics.lineBox.width < 300)
+    throw new Error(
+      `tab description remained compressed: ${description.textMetrics?.lineBox.width ?? 0}px`,
+    );
+};
+
 const assertToolLayout = (snapshot: LayoutSnapshot) => {
   const root = getLayoutNode(snapshot, { role: "group", name: "Tool fixture" });
   const trigger = getLayoutNode(snapshot, {
@@ -734,6 +757,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/ScrollArea": { assert: assertScrollAreaLayout },
   "component/Select": { assert: assertSelectLayout },
   "component/ControlBaseline": { assert: assertControlBaselineLayout },
+  "component/Tabs": { assert: assertTabsLayout },
   "component/CardSurface": { assert: assertCardSurfaceLayout },
   "component/DarkSurface": { assert: assertDarkSurfaceLayout },
   "component/CompactSurface": { assert: assertCompactSurfaceLayout },

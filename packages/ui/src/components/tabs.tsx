@@ -283,7 +283,10 @@ export function TabsContent(props: {
       <View
         role="tabpanel"
         aria-hidden={!selected()}
-        class={mergeClasses("flex-1", props.class)}
+        class={mergeClasses(
+          "w-full min-w-0 flex-none flex flex-col",
+          props.class,
+        )}
         style={{ display: selected() ? "flex" : "none" }}
       >
         {props.children}

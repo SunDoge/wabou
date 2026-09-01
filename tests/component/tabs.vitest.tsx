@@ -49,7 +49,12 @@ test("selects tabs and publishes only the active panel", () => {
   ).toContain("rounded-lg");
   expect(overview.className).toContain("rounded-md");
   expect(overview.selected).toBe(true);
-  expect(screen.getByRole("tabpanel").text).toBe("Overview panel");
+  const panel = screen.getByRole("tabpanel");
+  expect(panel.text).toBe("Overview panel");
+  expect(panel.className).toContain("w-full");
+  expect(panel.className).toContain("min-w-0");
+  expect(panel.className).toContain("flex-none");
+  expect(panel.className).toContain("flex-col");
 
   settings.click();
 
