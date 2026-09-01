@@ -215,6 +215,7 @@ impl GpuiProjectionRenderSnapshot {
         focus: crate::gpui::FocusHandle,
         text_input: crate::ProjectedTextInputState,
         native: Option<crate::ProjectedNativeElementFactory>,
+        subtree: Option<crate::ProjectedSubtreeElementFactory>,
         text_selections: std::rc::Rc<
             std::collections::BTreeMap<NodeKey, crate::ProjectedTextSelection>,
         >,
@@ -227,6 +228,7 @@ impl GpuiProjectionRenderSnapshot {
                 root_focus: Some(focus),
                 text_input: Some(text_input),
                 native,
+                subtree,
                 layout_bounds: Some(self.layout_bounds.clone()),
                 graphic_paint_states: Some(self.graphic_paint_states.clone()),
                 scroll_handles: Some(self.scroll_handles.clone()),
@@ -868,6 +870,7 @@ impl GpuiProjection {
             focus,
             text_input,
             native,
+            None,
             text_selections,
         )
     }

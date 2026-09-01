@@ -168,6 +168,7 @@ pub(crate) struct ProjectedElementContext {
     pub(crate) root_focus: Option<FocusHandle>,
     pub(crate) text_input: Option<ProjectedTextInputState>,
     pub(crate) native: Option<ProjectedNativeElementFactory>,
+    pub(crate) subtree: Option<ProjectedSubtreeElementFactory>,
     pub(crate) layout_bounds: Option<ProjectedLayoutBounds>,
     pub(crate) graphic_paint_states: Option<ProjectedGraphicPaintStates>,
     pub(crate) scroll_handles: Option<Rc<BTreeMap<NodeKey, ProjectedScrollHandle>>>,
@@ -175,6 +176,11 @@ pub(crate) struct ProjectedElementContext {
     pub(crate) text_selections: Option<crate::text_selection::ProjectedTextSelections>,
     pub(crate) text_selection_policy: Option<TextSelectionPolicy>,
 }
+
+/// Replaces an entire authored child subtree with an independently retained
+/// GPUI element. Unlike a native widget's content factory, the projected child
+/// wrapper and descendants are not materialized by the parent boundary.
+pub type ProjectedSubtreeElementFactory = Rc<dyn Fn(NodeKey) -> Option<AnyElement>>;
 
 impl ProjectedElementContext {
     fn for_child(&self) -> Self {
@@ -461,6 +467,26 @@ impl ProjectedElement {
                             )
                 })
             {
+                continue;
+            }
+            if let Some(replacement) = child_context
+                .subtree
+                .as_ref()
+                .and_then(|factory| factory(*child))
+            {
+                let priority = tree
+                    .node(*child)
+                    .ok_or(ProjectionError::MissingNode(*child))?
+                    .draw_priority();
+                if priority == 0 {
+                    children.push(replacement);
+                } else {
+                    children.push(
+                        gpui::deferred(replacement)
+                            .with_priority(priority)
+                            .into_any_element(),
+                    );
+                }
                 continue;
             }
             let projected = Self::from_tree(
@@ -1695,6 +1721,64 @@ mod tests {
             !element.hit_testable,
             "the projected wrapper must not intercept gestures owned by its native child"
         );
+    }
+
+    #[test]
+    fn retained_subtree_replacement_stops_parent_materialization() {
+        let boundary = NodeKey::new(29, 1);
+        let descendant = NodeKey::new(30, 1);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            NodeKey::ROOT,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Root,
+        )
+        .unwrap();
+        tree.insert(
+            boundary,
+            Some(NodeKey::ROOT),
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        tree.insert(
+            descendant,
+            Some(boundary),
+            0,
+            Style::default(),
+            Some("must stay inside child entity".into()),
+            crate::ProjectedNodeKind::Text,
+        )
+        .unwrap();
+
+        let materialized = Rc::new(RefCell::new(Vec::new()));
+        let observed = materialized.clone();
+        let native: ProjectedNativeElementFactory = Rc::new(move |key| {
+            observed.borrow_mut().push(key);
+            None
+        });
+        let subtree: ProjectedSubtreeElementFactory =
+            Rc::new(move |key| (key == boundary).then(|| div().into_any_element()));
+
+        let root = ProjectedElement::from_tree(
+            tree.snapshot(),
+            NodeKey::ROOT,
+            ProjectedElementContext {
+                native: Some(native),
+                subtree: Some(subtree),
+                ..Default::default()
+            },
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(root.children.len(), 1);
+        assert_eq!(*materialized.borrow(), [NodeKey::ROOT]);
     }
 
     #[test]

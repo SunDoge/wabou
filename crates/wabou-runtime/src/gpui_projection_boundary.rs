@@ -6,7 +6,7 @@ use wabou_shell::gpui::{AnyElement, AnyEntity, Context, Render, Window};
 use wabou_shell::{
     GpuiNativeWidget, GpuiProjectionRenderSnapshot, NativeWidgetContext, NativeWidgetFactory,
     NativeWidgetInputHandler, NodeKey, ProjectedInputSink, ProjectedNativeElementFactory,
-    ProjectedTextInputState, ProjectedTextSelection,
+    ProjectedSubtreeElementFactory, ProjectedTextInputState, ProjectedTextSelection,
 };
 
 /// Rebuilds one native child element from retained GPUI state.
@@ -25,6 +25,7 @@ pub(crate) struct GpuiProjectionBoundary {
     focus: wabou_shell::gpui::FocusHandle,
     text_input: ProjectedTextInputState,
     native_builders: BTreeMap<NodeKey, NativeElementBuilder>,
+    subtree_builders: BTreeMap<NodeKey, NativeElementBuilder>,
     text_selections: Rc<BTreeMap<NodeKey, ProjectedTextSelection>>,
     widgets: Vec<GpuiNativeWidget>,
     native_widget_factories: std::collections::HashMap<String, NativeWidgetFactory>,
@@ -45,6 +46,7 @@ pub(crate) struct GpuiProjectionBoundaryState {
     pub(crate) focus: wabou_shell::gpui::FocusHandle,
     pub(crate) text_input: ProjectedTextInputState,
     pub(crate) native_builders: BTreeMap<NodeKey, NativeElementBuilder>,
+    pub(crate) subtree_builders: BTreeMap<NodeKey, NativeElementBuilder>,
     pub(crate) text_selections: Rc<BTreeMap<NodeKey, ProjectedTextSelection>>,
     pub(crate) widgets: Vec<GpuiNativeWidget>,
     pub(crate) native_widget_factories: std::collections::HashMap<String, NativeWidgetFactory>,
@@ -59,6 +61,7 @@ impl GpuiProjectionBoundary {
             focus: state.focus,
             text_input: state.text_input,
             native_builders: state.native_builders,
+            subtree_builders: state.subtree_builders,
             text_selections: state.text_selections,
             widgets: state.widgets,
             native_widget_factories: state.native_widget_factories,
@@ -84,6 +87,7 @@ impl GpuiProjectionBoundary {
         self.focus = state.focus;
         self.text_input = state.text_input;
         self.native_builders = state.native_builders;
+        self.subtree_builders = state.subtree_builders;
         self.text_selections = state.text_selections;
         self.widgets = state.widgets;
         self.native_widget_factories = state.native_widget_factories;
@@ -131,6 +135,12 @@ impl Render for GpuiProjectionBoundary {
             .iter()
             .map(|(key, build)| (*key, build()))
             .collect::<BTreeMap<_, _>>();
+        let retained_subtrees = Rc::new(std::cell::RefCell::new(
+            self.subtree_builders
+                .iter()
+                .map(|(key, build)| (*key, build()))
+                .collect::<BTreeMap<_, _>>(),
+        ));
         self.native_widget_entities
             .retain(|key, _| self.widgets.iter().any(|widget| widget.key == *key));
         self.native_widget_inputs
@@ -171,6 +181,8 @@ impl Render for GpuiProjectionBoundary {
         let native_controls = Rc::new(std::cell::RefCell::new(native_controls));
         let native: ProjectedNativeElementFactory =
             Rc::new(move |key| native_controls.borrow_mut().remove(&key));
+        let subtree: ProjectedSubtreeElementFactory =
+            Rc::new(move |key| retained_subtrees.borrow_mut().remove(&key));
 
         self.snapshot
             .interactive_element(
@@ -179,6 +191,7 @@ impl Render for GpuiProjectionBoundary {
                 self.focus.clone(),
                 self.text_input.clone(),
                 Some(native),
+                Some(subtree),
                 self.text_selections.clone(),
             )
             .expect("the canonical Wabou root remains retained")

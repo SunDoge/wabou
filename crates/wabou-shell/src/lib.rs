@@ -16,7 +16,10 @@ mod tree;
 mod vector_path;
 mod window_state;
 
-pub use element::{ProjectedElement, ProjectedNativeElementFactory, ProjectedScrollHandle};
+pub use element::{
+    ProjectedElement, ProjectedNativeElementFactory, ProjectedScrollHandle,
+    ProjectedSubtreeElementFactory,
+};
 pub use gpui;
 pub use input::{
     ProjectedImeEvent, ProjectedInputEvent, ProjectedInputHandler, ProjectedInputSink,

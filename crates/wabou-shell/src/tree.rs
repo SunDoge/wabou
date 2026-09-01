@@ -253,6 +253,7 @@ impl ProjectionTree {
                 root_focus: Some(focus),
                 text_input: Some(text_input),
                 native,
+                subtree: None,
                 layout_bounds: None,
                 graphic_paint_states: None,
                 scroll_handles: None,

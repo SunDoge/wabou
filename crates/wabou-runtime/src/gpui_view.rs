@@ -1216,6 +1216,7 @@ impl Render for GpuiRuntimeView {
                 focus: self.focus.clone(),
                 text_input,
                 native_builders,
+                subtree_builders: BTreeMap::new(),
                 text_selections: self.synchronize_text_selections(window, cx),
                 widgets: self
                     .controller
