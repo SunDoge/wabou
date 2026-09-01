@@ -24,12 +24,14 @@ test("switch labels can shrink and wrap inside constrained forms", () => {
 
   expect(
     classes.some((value) =>
-      value.includes("w-full min-w-0 flex items-center gap-3"),
+      value.includes("w-full min-w-0 flex items-start gap-2"),
     ),
   ).toBe(true);
   expect(
-    classes.some((value) =>
-      value.includes("min-w-0 flex-1 whitespace-normal text-sm"),
+    classes.some(
+      (value) =>
+        value.includes("min-w-0 flex-1") &&
+        value.includes("whitespace-normal text-sm"),
     ),
   ).toBe(true);
 });

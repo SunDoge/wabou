@@ -659,6 +659,11 @@ export function SelectionControlsLayoutFixture() {
         defaultChecked
       />
       <Checkbox class="w-64" label="Disabled selection" disabled />
+      <Switch
+        class="w-64"
+        label="Warn before quitting while active downloads are still running"
+        defaultChecked
+      />
       <RadioGroup aria-label="Fixture download policy" class="w-64">
         <RadioGroupItem value="system" aria-label="Fixture icon-only radio" />
         <RadioGroupItem
