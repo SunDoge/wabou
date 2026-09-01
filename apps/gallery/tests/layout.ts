@@ -358,6 +358,50 @@ const assertCardSurfaceLayout = (snapshot: LayoutSnapshot) => {
     throw new Error("card content overlaps its footer");
 };
 
+const assertDarkSurfaceLayout = (snapshot: LayoutSnapshot) => {
+  const card = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Fixture dark card",
+  });
+  const title = getLayoutNode(snapshot, {
+    role: "heading",
+    name: "Fixture dark title",
+  });
+  const input = getLayoutNode(snapshot, {
+    role: "textbox",
+    name: "Fixture dark input",
+  });
+  const item = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Fixture dark item",
+  });
+  assertLayoutRectContains(card.contentRect, title.rect, {
+    label: "dark card title",
+  });
+  if (title.computed.textColor === "#000000")
+    throw new Error("dark surface resolved its primary foreground to black");
+  if (new Map(item.attrs).get("aria-selected") !== "true")
+    throw new Error("dark sidebar item lost its selected state");
+  if (input.rect.width <= 0 || input.rect.height <= 0)
+    throw new Error("dark input has empty native bounds");
+};
+
+const assertCompactSurfaceLayout = (snapshot: LayoutSnapshot) => {
+  const card = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Fixture compact card",
+  });
+  const input = getLayoutNode(snapshot, {
+    role: "textbox",
+    name: "Fixture compact input",
+  });
+  assertLayoutRectContains(card.contentRect, input.rect, {
+    label: "compact input",
+  });
+  if (card.rect.width > snapshot.status.viewportWidth)
+    throw new Error("compact card exceeds the narrow viewport");
+};
+
 const assertAdaptiveSplitPaneLayout = (snapshot: LayoutSnapshot) => {
   const boundary = getLayoutNode(snapshot, {
     name: "Adaptive split pane boundary",
@@ -674,6 +718,8 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/Select": { assert: assertSelectLayout },
   "component/ControlBaseline": { assert: assertControlBaselineLayout },
   "component/CardSurface": { assert: assertCardSurfaceLayout },
+  "component/DarkSurface": { assert: assertDarkSurfaceLayout },
+  "component/CompactSurface": { assert: assertCompactSurfaceLayout },
   "component/Slider": { assert: assertSliderLayout },
   "component/Empty": { assert: assertEmptyLayout },
   "component/Onboarding": { assert: assertOnboardingLayout },

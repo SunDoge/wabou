@@ -1,3 +1,4 @@
+import { ColorThemeProvider } from "@wabou/core";
 import {
   ActivityStatus,
   AdaptiveSplitPane,
@@ -13,6 +14,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
+  ComponentsProvider,
   ContentState,
   Dialog,
   DialogDescription,
@@ -634,6 +636,54 @@ export function CardSurfaceLayoutFixture() {
         <CardFooter aria-label="Fixture card footer">
           <Button size="sm">View details</Button>
         </CardFooter>
+      </Card>
+    </View>
+  );
+}
+
+export function DarkSurfaceLayoutFixture() {
+  return (
+    <ColorThemeProvider theme="dark" transition={false}>
+      <ComponentsProvider theme="dark">
+        <View class="w-full h-full min-w-0 p-4 gap-3 bg-canvas text-primary">
+          <Card role="group" aria-label="Fixture dark card" class="w-full">
+            <CardHeader>
+              <CardTitle role="heading" aria-label="Fixture dark title">
+                Dark surface
+              </CardTitle>
+              <CardDescription>
+                Foreground and muted text must remain distinct from the panel.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Input aria-label="Fixture dark input" value="Native control" />
+            </CardContent>
+          </Card>
+          <SidebarMenu value="active">
+            <SidebarMenuButton value="active" aria-label="Fixture dark item">
+              <SidebarMenuLabel>Selected destination</SidebarMenuLabel>
+            </SidebarMenuButton>
+          </SidebarMenu>
+        </View>
+      </ComponentsProvider>
+    </ColorThemeProvider>
+  );
+}
+
+export function CompactSurfaceLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-3 gap-3 bg-canvas text-primary">
+      <Card role="group" aria-label="Fixture compact card" class="w-full">
+        <CardHeader>
+          <CardTitle>Compact workspace</CardTitle>
+          <CardDescription>
+            Component surfaces must shrink without clipping their content.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Input aria-label="Fixture compact input" value="Compact input" />
+          <Button class="w-full">Continue</Button>
+        </CardContent>
       </Card>
     </View>
   );
