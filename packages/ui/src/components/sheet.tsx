@@ -87,6 +87,7 @@ export function Sheet(props: SheetProps): JSX.Element {
   return (
     <Modal
       {...props}
+      backdropFade={false}
       contentFade={false}
       motion={props.motion === undefined ? sheetMotion(side()) : props.motion}
       backdropStyle={{
