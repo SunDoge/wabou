@@ -33,6 +33,7 @@ import {
   PromptSuggestionLayoutFixture,
   QRCodeLayoutFixture,
   ReasoningLayoutFixture,
+  ResourceBoundaryLayoutFixture,
   ScrollAreaLayoutFixture,
   SelectLayoutFixture,
   SidebarLayoutFixture,
@@ -122,6 +123,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 320,
         height: 240,
         render: ContentStateLayoutFixture,
+      },
+      "component/ResourceBoundary": {
+        width: 320,
+        height: 240,
+        render: ResourceBoundaryLayoutFixture,
       },
       "component/Onboarding": {
         width: 360,

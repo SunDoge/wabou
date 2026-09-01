@@ -1,18 +1,12 @@
 import {
-  Button,
   createLatestAsyncResource,
   DiffViewer,
-  Icon,
+  ResourceBoundary,
   ScrollArea,
-  Text,
-  View,
   WorkbenchInspector,
   WorkbenchInspectorContent,
-  WorkbenchInspectorState,
   WorkbenchInspectorTitlebar,
 } from "@wabou/ui";
-import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
-import { Match, Switch } from "solid-js";
 import type { WorkspaceChanges } from "./api";
 import { i18n, m } from "./i18n";
 
@@ -42,31 +36,21 @@ export function WorkspaceChangesPanel(props: WorkspaceChangesPanelProps) {
         onClose={props.close}
       />
       <WorkbenchInspectorContent>
-        <Switch>
-          <Match when={changes.error()}>
-            {(error) => (
-              <WorkbenchInspectorState
-                state="error"
-                title={i18n.message(m.changes_load_failed, {})}
-                description={String(error())}
-                renderAction={() => (
-                  <Button
-                    variant="outline"
-                    aria-label={i18n.message(m.retry, {})}
-                    onClick={() => void changes.refresh()}
-                  >
-                    <Icon source={refreshCw} size={14} />
-                    {i18n.message(m.retry, {})}
-                  </Button>
-                )}
-              />
-            )}
-          </Match>
-          <Match when={changes.value()}>
-            {(value) => (
+        <ResourceBoundary
+          loading={changes.loading()}
+          error={changes.error()}
+          hasContent={changes.value() !== undefined}
+          loadingTitle={i18n.message(m.loading_changes, {})}
+          errorTitle={i18n.message(m.changes_load_failed, {})}
+          emptyTitle={i18n.message(m.no_code_changes, {})}
+          retryLabel={i18n.message(m.retry, {})}
+          onRetry={() => void changes.refresh()}
+          renderContent={() => {
+            const value = changes.value();
+            return value === undefined ? null : (
               <ScrollArea class="flex-1 min-h-0" contentClass="p-3">
                 <DiffViewer
-                  files={value().files}
+                  files={value.files}
                   labels={{
                     filesChanged: (count) =>
                       count === 1
@@ -79,15 +63,9 @@ export function WorkspaceChangesPanel(props: WorkspaceChangesPanelProps) {
                   }}
                 />
               </ScrollArea>
-            )}
-          </Match>
-          <Match when={true}>
-            <WorkbenchInspectorState
-              state="loading"
-              title={i18n.message(m.loading_changes, {})}
-            />
-          </Match>
-        </Switch>
+            );
+          }}
+        />
       </WorkbenchInspectorContent>
     </WorkbenchInspector>
   );

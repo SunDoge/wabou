@@ -6,25 +6,18 @@ import {
   IconFrame,
   Listbox,
   Markdown,
+  ResourceBoundary,
   ScrollArea,
   SearchField,
   Text,
   View,
   WorkbenchInspector,
   WorkbenchInspectorContent,
-  WorkbenchInspectorState,
   WorkbenchInspectorTitlebar,
 } from "@wabou/ui";
 import file from "lucide-static/icons/file.svg?raw";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  Match,
-  Show,
-  Switch,
-} from "solid-js";
+import { createEffect, createMemo, createSignal, Show } from "solid-js";
 import type { WorkspaceFilePreview } from "./api";
 import { i18n, m } from "./i18n";
 
@@ -105,29 +98,17 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
           placeholder={i18n.message(m.search_workspace_files, {})}
         />
         <View class="h-56 flex-none min-h-0 flex flex-col rounded-lg border border-subtle overflow-hidden">
-          <Switch>
-            <Match when={files.loading() && (files.value()?.length ?? 0) === 0}>
-              <WorkbenchInspectorState
-                state="loading"
-                title={i18n.message(m.loading_files, {})}
-                class="p-4"
-              />
-            </Match>
-            <Match when={files.error()}>
-              {(error) => (
-                <WorkbenchInspectorState
-                  state="error"
-                  title={i18n.message(m.workspace_files_load_failed, {})}
-                  description={String(error())}
-                  class="p-4"
-                  action={{
-                    label: i18n.message(m.retry, {}),
-                    onAction: () => void files.refresh(),
-                  }}
-                />
-              )}
-            </Match>
-            <Match when={true}>
+          <ResourceBoundary
+            loading={files.loading()}
+            error={files.error()}
+            hasContent={files.value() !== undefined}
+            loadingTitle={i18n.message(m.loading_files, {})}
+            errorTitle={i18n.message(m.workspace_files_load_failed, {})}
+            emptyTitle={i18n.message(m.no_files_found, {})}
+            retryLabel={i18n.message(m.retry, {})}
+            onRetry={() => void files.refresh()}
+            class="p-0"
+            renderContent={() => (
               <Listbox
                 fill
                 aria-label={i18n.message(m.workspace_files, {})}
@@ -142,42 +123,34 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                 )}
                 onAction={choose}
               />
-            </Match>
-          </Switch>
+            )}
+          />
         </View>
         <View class="flex-1 min-h-0 flex flex-col gap-2">
-          <Switch>
-            <Match when={preview.error()}>
-              {(error) => (
-                <WorkbenchInspectorState
-                  state="error"
-                  title={i18n.message(m.file_preview_failed, {})}
-                  description={String(error())}
-                  class="p-4"
-                  action={{
-                    label: i18n.message(m.retry, {}),
-                    onAction: () => void preview.refresh(),
-                  }}
-                />
-              )}
-            </Match>
-            <Match when={preview.loading()}>
-              <WorkbenchInspectorState
-                state="loading"
-                title={i18n.message(m.loading_file_preview, {})}
-                class="p-4"
-              />
-            </Match>
-            <Match when={preview.value()}>
-              {(value) => (
+          <ResourceBoundary
+            loading={preview.loading()}
+            error={preview.error()}
+            hasContent={preview.value()?.path === selected()}
+            loadingTitle={i18n.message(m.loading_file_preview, {})}
+            errorTitle={i18n.message(m.file_preview_failed, {})}
+            emptyTitle={i18n.message(m.select_file_preview, {})}
+            retryLabel={i18n.message(m.retry, {})}
+            onRetry={selected() ? () => void preview.refresh() : undefined}
+            class="p-0"
+            renderEmptyMedia={() => (
+              <IconFrame source={file} variant="muted" iconSize={18} />
+            )}
+            renderContent={() => {
+              const value = preview.value();
+              return value === undefined ? null : (
                 <>
                   <View class="flex-none flex flex-row items-center justify-between gap-2">
                     <Text class="min-w-0 flex-1 truncate text-sm font-medium">
-                      {value().path}
+                      {value.path}
                     </Text>
                     <Button
                       size="sm"
-                      onClick={() => props.addContext(value().path)}
+                      onClick={() => props.addContext(value.path)}
                     >
                       <Icon source={filePlus} size={13} />
                       {i18n.message(m.add_to_context, {})}
@@ -185,36 +158,22 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
                   </View>
                   <ScrollArea class="flex-1 min-h-0">
                     <Show
-                      when={extension(value().path) === "md"}
+                      when={extension(value.path) === "md"}
                       fallback={
                         <CodeBlock
-                          code={value().text}
-                          language={extension(value().path) ?? "text"}
+                          code={value.text}
+                          language={extension(value.path) ?? "text"}
                           copyable={false}
                         />
                       }
                     >
-                      <Markdown source={value().text} class="p-3" />
+                      <Markdown source={value.text} class="p-3" />
                     </Show>
                   </ScrollArea>
                 </>
-              )}
-            </Match>
-            <Match when={true}>
-              <WorkbenchInspectorState
-                state="empty"
-                title={i18n.message(m.select_file_preview, {})}
-                class="p-4"
-                renderMedia={() => (
-                  <IconFrame
-                    source={file}
-                    variant="muted"
-                    iconSize={18}
-                  />
-                )}
-              />
-            </Match>
-          </Switch>
+              );
+            }}
+          />
         </View>
       </WorkbenchInspectorContent>
     </WorkbenchInspector>

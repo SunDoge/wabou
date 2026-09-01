@@ -45,6 +45,7 @@ import {
   Reasoning,
   ReasoningContent,
   ReasoningTrigger,
+  ResourceBoundary,
   ScrollArea,
   Select,
   Sidebar,
@@ -650,6 +651,25 @@ export function ContentStateLayoutFixture() {
         title="Could not load this workspace"
         description="Permission denied while reading a deliberately long workspace path that must wrap inside the bounded region."
         action={{ label: "Try again", onAction: () => {} }}
+        class="rounded-lg border border-subtle bg-surface"
+      />
+    </View>
+  );
+}
+
+export function ResourceBoundaryLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-3 bg-canvas">
+      <ResourceBoundary
+        loading={false}
+        error={new Error("Permission denied while reading this workspace")}
+        hasContent={false}
+        loadingTitle="Loading workspace files"
+        errorTitle="Could not load this workspace"
+        emptyTitle="No workspace files"
+        retryLabel="Try again"
+        onRetry={() => {}}
+        renderContent={() => <Text>README.md</Text>}
         class="rounded-lg border border-subtle bg-surface"
       />
     </View>

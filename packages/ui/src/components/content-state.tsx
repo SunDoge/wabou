@@ -1,5 +1,5 @@
 import { mergeClasses } from "@wabou/core/style";
-import { type JSX, omit } from "solid-js";
+import { type JSX, Match, omit, Switch } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
 import { Button } from "./button";
 import { Spinner } from "./display";
@@ -80,6 +80,98 @@ export function ContentState(props: ContentStateProps): JSX.Element {
             {props.action.label}
           </Button>
         ) : null)}
+    </View>
+  );
+}
+
+export interface ResourceBoundaryProps
+  extends Omit<ViewProps, "children" | "role"> {
+  /** True while the resource is performing its initial load or refreshing. */
+  loading: boolean;
+  /** A rejected resource value. `undefined` and `null` mean no error. */
+  error?: unknown;
+  /** Whether a usable resource value currently exists, including an empty collection. */
+  hasContent: boolean;
+  loadingTitle: string;
+  errorTitle: string;
+  emptyTitle: string;
+  loadingDescription?: string;
+  emptyDescription?: string;
+  retryLabel?: string;
+  onRetry?: () => void;
+  renderContent(): JSX.Element;
+  renderEmptyMedia?: () => JSX.Element;
+  renderErrorMedia?: () => JSX.Element;
+}
+
+/**
+ * Mutually exclusive async resource boundary.
+ *
+ * Existing content remains mounted during a background refresh. This avoids
+ * replacing a useful inspector or list with a loading spinner every time its
+ * resource is refreshed.
+ */
+export function ResourceBoundary(props: ResourceBoundaryProps): JSX.Element {
+  const forwarded = omit(
+    props,
+    "loading",
+    "error",
+    "hasContent",
+    "loadingTitle",
+    "errorTitle",
+    "emptyTitle",
+    "loadingDescription",
+    "emptyDescription",
+    "retryLabel",
+    "onRetry",
+    "renderContent",
+    "renderEmptyMedia",
+    "renderErrorMedia",
+    "class",
+  );
+  const failed = () => props.error !== undefined && props.error !== null;
+  return (
+    <View
+      {...forwarded}
+      class={mergeClasses(
+        "w-full min-w-0 min-h-0 flex-1 flex flex-col",
+        props.class,
+      )}
+    >
+      <Switch>
+        <Match when={failed()}>
+          <ContentState
+            state="error"
+            title={props.errorTitle}
+            description={String(props.error)}
+            renderMedia={props.renderErrorMedia}
+            action={
+              props.onRetry
+                ? {
+                    label: props.retryLabel ?? "Try again",
+                    onAction: props.onRetry,
+                  }
+                : undefined
+            }
+          />
+        </Match>
+        <Match when={props.loading && !props.hasContent}>
+          <ContentState
+            state="loading"
+            title={props.loadingTitle}
+            description={props.loadingDescription}
+          />
+        </Match>
+        <Match when={!props.hasContent}>
+          <ContentState
+            state="empty"
+            title={props.emptyTitle}
+            description={props.emptyDescription}
+            renderMedia={props.renderEmptyMedia}
+          />
+        </Match>
+        <Match when={true}>{props.renderContent()}</Match>
+      </Switch>
     </View>
   );
 }

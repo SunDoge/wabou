@@ -11,6 +11,7 @@ import {
   Markdown,
   PageHeader,
   PageViewport,
+  ResourceBoundary,
   ScrollArea,
   SearchField,
   Text,
@@ -19,14 +20,7 @@ import {
 import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
 import sparkles from "lucide-static/icons/sparkles.svg?raw";
 import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  Match,
-  Show,
-  Switch,
-} from "solid-js";
+import { createEffect, createMemo, createSignal, Show } from "solid-js";
 import type { PiSkill } from "./api";
 import { i18n, m } from "./i18n";
 
@@ -148,37 +142,25 @@ export function SkillsPage(props: SkillsPageProps) {
                     />
                   </View>
                   <View class="min-h-0 flex-1 p-2 flex flex-col">
-                    <Switch>
-                      <Match
-                        when={
-                          skills.loading() &&
-                          (skills.value()?.length ?? 0) === 0
-                        }
-                      >
-                        <ContentState
-                          state="loading"
-                          title={i18n.message(m.loading_skills, {})}
+                    <ResourceBoundary
+                      loading={skills.loading()}
+                      hasContent={filtered().length > 0}
+                      loadingTitle={i18n.message(m.loading_skills, {})}
+                      errorTitle={i18n.message(m.skills_load_failed, {})}
+                      emptyTitle={i18n.message(
+                        (skills.value()?.length ?? 0) === 0
+                          ? m.no_skills
+                          : m.no_skills_found,
+                        {},
+                      )}
+                      renderEmptyMedia={() => (
+                        <Icon
+                          source={sparkles}
+                          size={20}
+                          class="text-secondary"
                         />
-                      </Match>
-                      <Match when={filtered().length === 0}>
-                        <ContentState
-                          state="empty"
-                          title={i18n.message(
-                            (skills.value()?.length ?? 0) === 0
-                              ? m.no_skills
-                              : m.no_skills_found,
-                            {},
-                          )}
-                          renderMedia={() => (
-                            <Icon
-                              source={sparkles}
-                              size={20}
-                              class="text-secondary"
-                            />
-                          )}
-                        />
-                      </Match>
-                      <Match when={true}>
+                      )}
+                      renderContent={() => (
                         <Listbox
                           fill
                           aria-label={i18n.message(m.skills, {})}
@@ -203,8 +185,8 @@ export function SkillsPage(props: SkillsPageProps) {
                             );
                           }}
                         />
-                      </Match>
-                    </Switch>
+                      )}
+                    />
                   </View>
                 </View>
               </AdaptiveSplitPaneMain>
