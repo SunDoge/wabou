@@ -17,6 +17,7 @@ import {
   DialogLayoutFixture,
   EditorLayoutFixture,
   EmptyLayoutFixture,
+  FieldLayoutFixture,
   IconFrameLayoutFixture,
   ImageListLayoutFixture,
   ImageViewportLayoutFixture,
@@ -214,6 +215,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 360,
         height: 120,
         render: BadgeLayoutFixture,
+      },
+      "component/Field": {
+        width: 520,
+        height: 220,
+        render: FieldLayoutFixture,
       },
       "component/AdaptiveSplitPane": {
         width: 720,

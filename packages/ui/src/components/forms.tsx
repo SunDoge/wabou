@@ -21,6 +21,19 @@ import { Button, type ButtonProps } from "./button";
 import { Input, type InputProps } from "./input";
 import { Label, type LabelProps } from "./label";
 export type FieldOrientation = "vertical" | "horizontal";
+
+interface FieldContextValue {
+  orientation(): FieldOrientation;
+  invalid(): boolean;
+  required(): boolean;
+}
+
+const FieldContext = createContext<FieldContextValue>({
+  orientation: () => "vertical",
+  invalid: () => false,
+  required: () => false,
+});
+
 export function fieldClass(
   orientation: FieldOrientation = "vertical",
   invalid = false,
@@ -42,15 +55,30 @@ export function Field(props: {
   children?: JSX.Element;
   orientation?: FieldOrientation;
   invalid?: boolean;
+  required?: boolean;
   class?: string;
 }) {
+  const context: FieldContextValue = {
+    orientation: () => props.orientation ?? "vertical",
+    invalid: () => props.invalid ?? false,
+    required: () => props.required ?? false,
+  };
   return (
-    <View
-      role="group"
-      class={fieldClass(props.orientation, props.invalid ?? false, props.class)}
-    >
-      {props.children}
-    </View>
+    <FieldContext value={context}>
+      <View
+        role="group"
+        aria-orientation={context.orientation()}
+        aria-invalid={context.invalid()}
+        aria-required={context.required()}
+        class={fieldClass(
+          context.orientation(),
+          context.invalid(),
+          props.class,
+        )}
+      >
+        {props.children}
+      </View>
+    </FieldContext>
   );
 }
 
@@ -93,13 +121,39 @@ export function FieldGroup(props: { children?: JSX.Element; class?: string }) {
 export interface FieldLabelProps extends LabelProps {}
 
 export function FieldLabel(props: FieldLabelProps) {
-  return <Label {...props} />;
+  const field = useContext(FieldContext);
+  const forwarded = omit(props, "class", "children");
+  return (
+    <View
+      class={mergeClasses(
+        "min-w-0 flex flex-row items-center gap-1",
+        field.orientation() === "horizontal" ? "w-36 flex-none" : "w-full",
+      )}
+    >
+      <Label
+        {...forwarded}
+        class={mergeClasses(
+          "min-w-0 flex-1",
+          field.invalid() && "text-danger-primary",
+          props.class,
+        )}
+      >
+        {props.children}
+      </Label>
+      <Show when={field.required()}>
+        <Text aria-hidden="true" class="flex-none text-sm text-danger-primary">
+          *
+        </Text>
+      </Show>
+    </View>
+  );
 }
 
 export interface LabeledFieldProps {
   label: JSX.Element;
   description?: JSX.Element;
   invalid?: boolean;
+  required?: boolean;
   disabled?: boolean;
   errors?: ReadonlyArray<FieldErrorLike | undefined>;
   class?: string;
@@ -116,7 +170,11 @@ export function LabeledField(props: LabeledFieldProps) {
   let control: Handle | undefined;
   const errors = () => uniqueFieldErrors(props.errors);
   return (
-    <Field invalid={props.invalid ?? errors().length > 0} class={props.class}>
+    <Field
+      invalid={props.invalid ?? errors().length > 0}
+      required={props.required}
+      class={props.class}
+    >
       <FieldLabel disabled={props.disabled} control={() => control}>
         {props.label}
       </FieldLabel>

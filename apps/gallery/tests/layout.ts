@@ -571,6 +571,44 @@ const assertBadgeLayout = (snapshot: LayoutSnapshot) => {
   assertClose(center(large), center(standard), "large badge vertical center");
 };
 
+const assertFieldLayout = (snapshot: LayoutSnapshot) => {
+  const repositoryLabel = getLayoutNode(snapshot, {
+    role: "label",
+    name: "Fixture repository label",
+  });
+  const branchLabel = getLayoutNode(snapshot, {
+    role: "label",
+    name: "Fixture branch label",
+  });
+  const repository = getLayoutNode(snapshot, {
+    role: "textbox",
+    name: "Fixture repository input",
+  });
+  const branch = getLayoutNode(snapshot, {
+    role: "textbox",
+    name: "Fixture branch input",
+  });
+  const parentOf = (node: typeof repositoryLabel) =>
+    snapshot.nodes.find(
+      (candidate) =>
+        candidate.id.lo === node.parentId?.lo &&
+        candidate.id.hi === node.parentId?.hi,
+    );
+  const repositoryLabelColumn = parentOf(repositoryLabel);
+  const branchLabelColumn = parentOf(branchLabel);
+  if (!repositoryLabelColumn || !branchLabelColumn)
+    throw new Error("horizontal field label column was not projected");
+  assertClose(repositoryLabelColumn.rect.width, 144, "repository label column");
+  assertClose(branchLabelColumn.rect.width, 144, "branch label column");
+  assertClose(
+    repository.rect.x,
+    branch.rect.x,
+    "horizontal field control edge",
+  );
+  if (repository.rect.x <= layoutRectRight(repositoryLabel.rect))
+    throw new Error("repository label overlaps its field control");
+};
+
 const assertOnboardingLayout = (snapshot: LayoutSnapshot) => {
   const viewport = getLayoutNode(snapshot, {
     role: "region",
@@ -1055,6 +1093,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/Slider": { assert: assertSliderLayout },
   "component/Empty": { assert: assertEmptyLayout },
   "component/Badge": { assert: assertBadgeLayout },
+  "component/Field": { assert: assertFieldLayout },
   "component/Onboarding": { assert: assertOnboardingLayout },
   "component/Dialog": { assert: assertDialogLayout },
   "component/Sheet": { assert: assertSheetLayout },
