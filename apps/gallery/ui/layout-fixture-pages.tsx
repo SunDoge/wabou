@@ -133,7 +133,7 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
       },
       "component/ControlBaseline": {
         width: 520,
-        height: 340,
+        height: 380,
         render: ControlBaselineLayoutFixture,
       },
       "component/SelectionControls": {

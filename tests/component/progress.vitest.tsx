@@ -2,6 +2,7 @@ import { renderComponent } from "@wabou/test/component";
 import {
   normalizeProgressValue,
   Progress,
+  ProgressCircle,
   ProgressFill,
   ProgressLabel,
   ProgressRoot,
@@ -11,6 +12,7 @@ import {
 } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
+import { progressCircleSource } from "../../packages/ui/src/components/progress-circle-source";
 
 test("normalizes arbitrary finite ranges without invalid geometry", () => {
   expect(normalizeProgressValue(15, 10, 30)).toEqual({
@@ -26,6 +28,34 @@ test("normalizes arbitrary finite ranges without invalid geometry", () => {
     max: 5,
     percent: 0,
   });
+});
+
+test("renders circular progress with the shared range semantics", () => {
+  const screen = renderComponent(() => (
+    <View>
+      <ProgressCircle label="Indexing" value={15} minValue={10} maxValue={30} />
+      <ProgressCircle label="Connecting" indeterminate size="lg" />
+    </View>
+  ));
+
+  const indexing = screen.getByRole("progressbar", { name: "Indexing" });
+  expect(indexing.numericValue).toBe(15);
+  expect(indexing.valueText).toBe("25 percent");
+  expect(indexing.className).toContain("w-5");
+  expect(indexing.children[0]?.tag).toBe("svg");
+
+  const connecting = screen.getByRole("progressbar", { name: "Connecting" });
+  expect(connecting.numericValue).toBeNull();
+  expect(connecting.className).toContain("w-6");
+  expect(connecting.children[0]?.tag).toBe("spinner");
+});
+
+test("builds stable circular arc geometry for empty, partial and complete values", () => {
+  expect(progressCircleSource(0)).not.toContain("<path");
+  expect(progressCircleSource(25)).toContain("A 9 9 0 0 1");
+  expect(progressCircleSource(75)).toContain("A 9 9 0 1 1");
+  expect(progressCircleSource(100).match(/<circle/g)).toHaveLength(2);
+  expect(progressCircleSource(Number.NaN)).not.toContain("<path");
 });
 
 test("keeps the shorthand reactive and publishes normalized semantics", () => {

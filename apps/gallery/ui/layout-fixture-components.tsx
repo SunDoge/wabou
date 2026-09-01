@@ -74,6 +74,7 @@ import {
   OnboardingHeading,
   OnboardingTitle,
   Progress,
+  ProgressCircle,
   PromptSuggestion,
   PromptSuggestions,
   QRCode,
@@ -734,6 +735,12 @@ export function ControlBaselineLayoutFixture() {
       <View class="w-72">
         <Progress label="Fixture progress" value={40} size="lg" />
       </View>
+      <ProgressCircle label="Fixture circular progress" value={65} size="lg" />
+      <ProgressCircle
+        label="Fixture circular loading"
+        indeterminate
+        size="sm"
+      />
       <Switch label="Fixture default switch" defaultChecked />
       <Switch label="Fixture compact switch" labelPlacement="start" size="sm" />
       <ButtonGroup

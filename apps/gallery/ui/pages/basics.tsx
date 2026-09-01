@@ -27,6 +27,7 @@ import {
   MotionConfigProvider,
   NumberField,
   Progress,
+  ProgressCircle,
   ProgressFill,
   ProgressLabel,
   ProgressRoot,
@@ -579,6 +580,14 @@ function ProgressPage() {
               <ProgressFill />
             </ProgressTrack>
           </ProgressRoot>
+        </View>
+      </Preview>
+      <Preview title="Circular states">
+        <View class="flex items-center gap-5">
+          <ProgressCircle label="Queued" value={0} size="sm" />
+          <ProgressCircle label="Downloading" value={64} />
+          <ProgressCircle label="Complete" value={100} size="lg" />
+          <ProgressCircle label="Connecting" indeterminate />
         </View>
       </Preview>
     </View>
