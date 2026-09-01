@@ -14,7 +14,6 @@ anyrender.workspace = true
 arc-swap.workspace = true
 bitflags.workspace = true
 flume.workspace = true
-futures-channel.workspace = true
 futures-lite = "2"
 getrandom.workspace = true
 gpui-shell = { package = "wabou-shell", path = "../wabou-shell" }
@@ -25,7 +24,6 @@ parley.workspace = true
 open.workspace = true
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 rquickjs = { version = "0.12.1", features = ["full-async", "loader", "rust-alloc"] }
-rquickjs-serde = "0.6.1"
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 sha1.workspace = true
@@ -35,7 +33,6 @@ snafu.workspace = true
 sourcemap = "9.2.2"
 sys-locale.workspace = true
 taffy = { workspace = true, features = ["content_size", "parse"] }
-tempfile = "3"
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 tracing.workspace = true

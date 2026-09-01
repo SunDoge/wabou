@@ -58,15 +58,17 @@ impl From<TerminalNodeEvent> for WidgetNodeEvent {
     fn from(event: TerminalNodeEvent) -> Self {
         Self {
             event_code: match event.kind {
-                TerminalEventKind::Exit => wabou_runtime::event::TERMINALEXIT,
-                TerminalEventKind::Progress => wabou_runtime::event::TERMINALPROGRESS,
-                TerminalEventKind::Notification => wabou_runtime::event::TERMINALNOTIFICATION,
-                TerminalEventKind::TitleChange => wabou_runtime::event::TERMINALTITLECHANGE,
+                TerminalEventKind::Exit => wabou_protocol::event::TERMINALEXIT,
+                TerminalEventKind::Progress => wabou_protocol::event::TERMINALPROGRESS,
+                TerminalEventKind::Notification => wabou_protocol::event::TERMINALNOTIFICATION,
+                TerminalEventKind::TitleChange => wabou_protocol::event::TERMINALTITLECHANGE,
                 TerminalEventKind::CurrentDirectoryChange => {
-                    wabou_runtime::event::TERMINALCWDCHANGE
+                    wabou_protocol::event::TERMINALCWDCHANGE
                 }
-                TerminalEventKind::SelectionChange => wabou_runtime::event::TERMINALSELECTIONCHANGE,
-                TerminalEventKind::Bell => wabou_runtime::event::TERMINALBELL,
+                TerminalEventKind::SelectionChange => {
+                    wabou_protocol::event::TERMINALSELECTIONCHANGE
+                }
+                TerminalEventKind::Bell => wabou_protocol::event::TERMINALBELL,
             },
             json: event.json,
         }
