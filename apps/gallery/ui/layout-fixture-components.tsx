@@ -656,7 +656,7 @@ export function ControlBaselineLayoutFixture() {
         <Progress label="Fixture progress" value={40} size="lg" />
       </View>
       <Switch label="Fixture default switch" defaultChecked />
-      <Switch label="Fixture compact switch" size="sm" />
+      <Switch label="Fixture compact switch" labelPlacement="start" size="sm" />
       <ButtonGroup
         aria-label="Fixture destructive button group"
         size="lg"

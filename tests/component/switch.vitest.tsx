@@ -115,3 +115,21 @@ test("disabled switch labels cannot activate the control", () => {
   expect(control.checked).toBe(false);
   expect(control.focused).toBe(false);
 });
+
+test("places a start label before the control without splitting activation", () => {
+  const screen = renderComponent(() => (
+    <Switch
+      label="Automatic updates"
+      labelPlacement="start"
+      defaultChecked={false}
+    />
+  ));
+  const control = screen.getByRole("switch", { name: "Automatic updates" });
+  const label = screen.getByRole("label", { name: "Automatic updates" });
+
+  expect(control.parent?.className).toContain("flex-row-reverse");
+  expect(control.attribute("labelPlacement")).toBeNull();
+  label.click();
+  expect(control.checked).toBe(true);
+  expect(control.focused).toBe(true);
+});
