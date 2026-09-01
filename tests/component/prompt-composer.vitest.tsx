@@ -9,6 +9,7 @@ import {
   PromptComposerTools,
   Text,
 } from "@wabou/ui";
+import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 
 test("prompt composer owns one focus-aware compound surface", () => {
@@ -84,4 +85,24 @@ test("invalid prompt composer takes precedence over focus styling", () => {
   expect(composer.attribute("aria-invalid")).toBe("true");
   expect(composer.className).toContain("border-danger");
   expect(composer.className).not.toContain("border-focus");
+});
+
+test("prompt composer status does not reserve an empty layout row", () => {
+  const [usage, setUsage] = createSignal<string>();
+  const screen = renderComponent(() => (
+    <PromptComposer aria-label="Agent prompt">
+      <PromptComposerStatus role="status" aria-label="Usage">
+        {usage() ? <Text>{usage()}</Text> : null}
+      </PromptComposerStatus>
+      <PromptComposerEditor aria-label="Message" />
+    </PromptComposer>
+  ));
+
+  expect(screen.queryByRole("status", { name: "Usage" })).toBeNull();
+  setUsage("4k tokens");
+  screen.flush();
+  expect(screen.getByRole("status", { name: "Usage" }).text).toBe("4k tokens");
+  setUsage(undefined);
+  screen.flush();
+  expect(screen.queryByRole("status", { name: "Usage" })).toBeNull();
 });

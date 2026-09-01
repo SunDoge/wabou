@@ -1,5 +1,5 @@
 import { mergeClasses } from "@wabou/core/style";
-import { type JSX, omit } from "solid-js";
+import { children, type JSX, omit, Show } from "solid-js";
 import { createFocusWithin, View, type ViewProps } from "../primitives";
 import { Button, type ButtonProps } from "./button";
 import { TextArea, type TextAreaProps } from "./input";
@@ -112,14 +112,22 @@ export function PromptComposer(props: PromptComposerProps): JSX.Element {
 
 /** Compact metadata row above the authored prompt. */
 export function PromptComposerStatus(props: ViewProps): JSX.Element {
+  const content = children(() => props.children);
+  const forwarded = omit(props, "children", "class");
   return (
-    <View
-      {...props}
-      class={mergeClasses(
-        "w-full min-w-0 flex flex-row items-center justify-end gap-2",
-        props.class,
+    <Show when={content()}>
+      {(resolved) => (
+        <View
+          {...forwarded}
+          class={mergeClasses(
+            "w-full min-w-0 flex flex-row items-center justify-end gap-2",
+            props.class,
+          )}
+        >
+          {resolved()}
+        </View>
       )}
-    />
+    </Show>
   );
 }
 
