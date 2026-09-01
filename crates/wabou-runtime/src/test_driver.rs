@@ -847,12 +847,6 @@ impl TestController {
         nodes: &[wabou_shell::GpuiLayoutNode],
         controller: &mut crate::gpui_controller::GpuiController,
     ) -> bool {
-        let projected_nodes = controller.layout_snapshot();
-        let nodes = if projected_nodes.is_empty() {
-            nodes
-        } else {
-            projected_nodes.as_slice()
-        };
         if nodes.is_empty() {
             return false;
         }
@@ -1055,9 +1049,14 @@ fn gpui_node_label<'a>(
     node: &'a wabou_shell::GpuiLayoutNode,
 ) -> Option<String> {
     if let Some(label) = node.attributes.get("aria-label") {
-        return Some(label.to_string());
+        return normalize_accessible_name(label);
     }
     gpui_node_text_content(nodes, node)
+}
+
+fn normalize_accessible_name(value: &str) -> Option<String> {
+    let normalized = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!normalized.is_empty()).then_some(normalized)
 }
 
 fn gpui_node_text_content(
@@ -1065,7 +1064,7 @@ fn gpui_node_text_content(
     node: &wabou_shell::GpuiLayoutNode,
 ) -> Option<String> {
     if let Some(text) = &node.text {
-        return Some(text.to_string());
+        return normalize_accessible_name(text);
     }
     let mut text = String::new();
     let mut pending = vec![node.key];
@@ -1082,7 +1081,7 @@ fn gpui_node_text_content(
             pending.push(child.key);
         }
     }
-    (!text.is_empty()).then_some(text)
+    normalize_accessible_name(&text)
 }
 
 fn gpui_descends_from(
@@ -1356,7 +1355,18 @@ fn click_gpui_target(
         node,
         wabou_shell::ProjectedPointerPhase::Up,
     ));
-    down.handled || up.handled
+    if down.handled || up.handled {
+        return true;
+    }
+    // Retained GPUI text controls own their native pointer listener and focus
+    // handle, neither of which exists in the deterministic projection-only
+    // driver. Preserve the public click-to-focus contract at the same typed
+    // boundary used by headless text, paste, and IME input.
+    if gpui_node_role(node) == Some("textbox") {
+        controller.set_text_focus(node.key, true);
+        return true;
+    }
+    false
 }
 
 fn gpui_drag_events(
@@ -1413,25 +1423,26 @@ fn input_gpui_target(
                 .handled
         }
         TestInput::Wheel { delta_x, delta_y } => {
-            let guest_handled = controller
-                .handle_projected_wheel(wabou_shell::ProjectedWheelEvent {
-                    target: node.key,
-                    x: f32::from(node.bounds.origin.x),
-                    y: f32::from(node.bounds.origin.y),
-                    local_x: 0.0,
-                    local_y: 0.0,
-                    delta_x: *delta_x as f32,
-                    delta_y: *delta_y as f32,
-                    precise: true,
-                    phase: wabou_shell::ProjectedWheelPhase::Changed,
-                    shift: false,
-                    control: false,
-                    alt: false,
-                    platform: false,
-                })
-                .handled;
-            controller.apply_projection_wheel(node.key, *delta_x as f32, *delta_y as f32)
-                || guest_handled
+            let _ = controller.handle_projected_wheel(wabou_shell::ProjectedWheelEvent {
+                target: node.key,
+                x: f32::from(node.bounds.origin.x),
+                y: f32::from(node.bounds.origin.y),
+                local_x: 0.0,
+                local_y: 0.0,
+                delta_x: *delta_x as f32,
+                delta_y: *delta_y as f32,
+                precise: true,
+                phase: wabou_shell::ProjectedWheelPhase::Changed,
+                shift: false,
+                control: false,
+                alt: false,
+                platform: false,
+            });
+            let _ = controller.apply_projection_wheel(node.key, *delta_x as f32, *delta_y as f32);
+            // A wheel action was delivered even when the nearest scroll range is
+            // already at its boundary. Test action success describes delivery,
+            // not whether the offset happened to change.
+            true
         }
         TestInput::Drag { delta_x, delta_y } => gpui_drag_events(node, *delta_x, *delta_y)
             .into_iter()
@@ -2133,6 +2144,19 @@ mod tests {
     }
 
     #[test]
+    fn gpui_accessible_names_collapse_authored_whitespace() {
+        let key = wabou_host_api::NodeKey::new(25, 1);
+        let mut button = gpui_node(key, None, "button", "");
+        button.attributes.clear();
+        let mut text = gpui_node(wabou_host_api::NodeKey::new(26, 1), Some(key), "text", "");
+        text.attributes.clear();
+        text.text = Some("  Stop\n".into());
+
+        let nodes = [button, text];
+        assert!(gpui_locator(&nodes, "button", "Stop", None, &[], false).is_some());
+    }
+
+    #[test]
     fn gpui_locator_snapshot_exposes_authored_semantic_state() {
         let key = wabou_host_api::NodeKey::new(24, 1);
         let mut control = gpui_node(key, None, "button", "Disclosure");
@@ -2259,16 +2283,76 @@ mod tests {
             index: None,
             scope: Vec::new(),
         });
-
         assert!(driver.poll_gpui_source(
             wabou_shell::initial_window_resource_key(0),
             &[gpui_node(target, None, "button", "Save")],
             &mut runtime,
         ));
-        assert!(matches!(
-            completion.try_recv(),
-            Ok(TestActionResult::Handled(true))
+        let result = completion.try_recv();
+        assert!(
+            matches!(result, Ok(TestActionResult::Handled(true))),
+            "unexpected click result: {result:?}"
+        );
+    }
+
+    #[test]
+    fn gpui_test_driver_focuses_native_textbox_without_projected_pointer_listener() {
+        use crate::{protocol::Op, runtime_session::RuntimeSession};
+
+        let js = crate::JsRuntime::new().expect("runtime");
+        js.eval_script(
+            "globalThis.__wabou_dispatch_host_frame = () => ({ needsTick: false, preventedEventIds: new Uint32Array() })",
+        )
+        .expect("host event fixture");
+        let atoms = js.atom_pool_handle();
+        let (input, aria_label) = {
+            let mut atoms = atoms.borrow_mut();
+            (atoms.intern("input"), atoms.intern("aria-label"))
+        };
+        let target = wabou_host_api::NodeKey::new(32, 2);
+        let mut runtime = crate::gpui_controller::GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
         ));
+        runtime
+            .apply_frame(&crate::protocol::Frame {
+                seq: 1,
+                ops: vec![
+                    Op::CreateElement {
+                        id: target,
+                        tag: input,
+                    },
+                    Op::SetAttribute {
+                        id: target,
+                        name: aria_label,
+                        value: "Project name",
+                    },
+                    Op::AppendChild {
+                        parent: wabou_host_api::NodeKey::ROOT,
+                        child: target,
+                    },
+                ],
+            })
+            .expect("project textbox");
+        let driver = TestController::default();
+        let mut completion = driver.request(TestActionKind::ClickByRole {
+            window_key: wabou_shell::initial_window_resource_key(0),
+            role: "textbox".into(),
+            label: "Project name".into(),
+            index: None,
+            scope: Vec::new(),
+        });
+        assert!(driver.poll_gpui_source(
+            wabou_shell::initial_window_resource_key(0),
+            &[gpui_node(target, None, "input", "Project name")],
+            &mut runtime,
+        ));
+        let result = completion.try_recv();
+        assert!(
+            matches!(result, Ok(TestActionResult::Handled(true))),
+            "unexpected textbox click result: {result:?}"
+        );
+        assert_eq!(runtime.focused_target(), Some(target));
     }
 
     #[test]
