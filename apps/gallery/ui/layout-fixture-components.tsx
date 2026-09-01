@@ -9,6 +9,7 @@ import {
   AlertDescription,
   AlertTitle,
   AnnotationLayer,
+  Avatar,
   Bubble,
   BubbleContent,
   Button,
@@ -641,6 +642,7 @@ export function ControlBaselineLayoutFixture() {
           Selected
         </Button>
         <Kbd aria-label="Fixture keyboard key">Ctrl</Kbd>
+        <Avatar name="Wabou Project" size="sm" />
       </View>
       <Input
         class="w-72"
