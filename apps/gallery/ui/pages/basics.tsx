@@ -647,6 +647,21 @@ function SliderPage() {
           <Slider label="Unavailable range" defaultValue={60} disabled />
         </View>
       </Preview>
+      <Preview title="Orientation and fill direction">
+        <View class="h-40 flex items-center gap-8 p-4">
+          <Slider
+            orientation="vertical"
+            label="Vertical volume"
+            defaultValue={65}
+          />
+          <Slider
+            orientation="vertical"
+            reversed
+            label="Remaining time"
+            defaultValue={35}
+          />
+        </View>
+      </Preview>
       <PropertyRow name="keyboard" value="arrows | page up/down | home | end" />
       <PropertyRow name="pointer" value="click | captured drag" />
     </View>

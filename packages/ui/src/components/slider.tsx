@@ -15,6 +15,10 @@ export interface SliderProps {
   max?: number;
   step?: number;
   disabled?: boolean;
+  /** Direction of the track and pointer interaction. */
+  orientation?: "horizontal" | "vertical";
+  /** Fill from the thumb toward the maximum end without changing values. */
+  reversed?: boolean;
   label: string;
   valueText?: (value: number) => string;
   onValueChange?: (value: number) => void;
@@ -22,6 +26,7 @@ export interface SliderProps {
 }
 
 export function Slider(props: SliderProps): JSX.Element {
+  const orientation = () => props.orientation ?? "horizontal";
   const range = () => normalizeRange(props.min, props.max, props.step);
   const min = () => range().min;
   const max = () => range().max;
@@ -69,9 +74,12 @@ export function Slider(props: SliderProps): JSX.Element {
       aria-valuenow={value()}
       aria-valuetext={props.valueText?.(value()) ?? String(value())}
       aria-disabled={props.disabled ?? false}
+      aria-orientation={orientation()}
       focusOrder={props.disabled ? -1 : 0}
       class={mergeClasses(
-        "h-7 select-none",
+        orientation() === "vertical"
+          ? "w-7 h-[120px] select-none"
+          : "w-full h-7 select-none",
         props.disabled ? "cursor-not-allowed" : "cursor-pointer",
         props.class,
       )}
@@ -81,6 +89,8 @@ export function Slider(props: SliderProps): JSX.Element {
         step: step(),
         value: value(),
         disabled: props.disabled ?? false,
+        orientation: orientation(),
+        reversed: props.reversed ?? false,
       }}
       onChange={(event) => update(event.value)}
       onKeyDown={onKeyDown}

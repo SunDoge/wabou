@@ -995,8 +995,14 @@ export function OnboardingLayoutFixture() {
 
 export function SliderLayoutFixture() {
   return (
-    <View class="w-full h-full flex items-center justify-center bg-canvas">
+    <View class="w-full h-full flex items-center justify-center gap-8 bg-canvas">
       <Slider class="w-96" value={50} label="Fixture volume" />
+      <Slider
+        orientation="vertical"
+        reversed
+        value={25}
+        label="Fixture remaining"
+      />
     </View>
   );
 }

@@ -5,10 +5,10 @@ use std::{collections::HashMap, sync::Arc};
 use serde::Deserialize;
 
 use gpui_base::slider::{SliderEvent, SliderState};
-use gpui_base::{SliderIndicator, SliderThumb, SliderTrack, Theme};
+use gpui_base::{AxisExt as _, SliderIndicator, SliderThumb, SliderTrack, Theme};
 use wabou_shell::gpui::prelude::FluentBuilder as _;
 use wabou_shell::gpui::{
-    AppContext as _, Bounds, Context, Entity, InteractiveElement as _, IntoElement as _,
+    AppContext as _, Axis, Bounds, Context, Entity, InteractiveElement as _, IntoElement as _,
     MouseButton, ParentElement as _, Pixels, Render, StatefulInteractiveElement as _, Styled as _,
     Subscription, Window, bounds, canvas, div, fill, point, px, relative, size,
 };
@@ -49,6 +49,27 @@ struct SliderConfig {
     value: f32,
     #[serde(default)]
     disabled: bool,
+    #[serde(default)]
+    orientation: SliderOrientation,
+    #[serde(default)]
+    reversed: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+enum SliderOrientation {
+    #[default]
+    Horizontal,
+    Vertical,
+}
+
+impl SliderOrientation {
+    fn axis(self) -> Axis {
+        match self {
+            Self::Horizontal => Axis::Horizontal,
+            Self::Vertical => Axis::Vertical,
+        }
+    }
 }
 
 impl Default for SliderConfig {
@@ -59,6 +80,8 @@ impl Default for SliderConfig {
             step: slider_default_step(),
             value: 0.0,
             disabled: false,
+            orientation: SliderOrientation::Horizontal,
+            reversed: false,
         }
     }
 }
@@ -119,7 +142,10 @@ impl GpuiSlider {
                 state.set_value(config.value, window, state_cx)
             });
         }
-        if self.config.disabled != config.disabled {
+        if self.config.disabled != config.disabled
+            || self.config.orientation != config.orientation
+            || self.config.reversed != config.reversed
+        {
             cx.notify();
         }
         self.config = config;
@@ -136,6 +162,8 @@ impl Render for GpuiSlider {
         let percentage = self.state.read(cx).percentage().end;
         let state = self.state.clone();
         let disabled = self.config.disabled;
+        let axis = self.config.orientation.axis();
+        let reversed = self.config.reversed;
         div()
             .size_full()
             .flex()
@@ -156,6 +184,7 @@ impl Render for GpuiSlider {
             })
             .child(
                 SliderTrack::new(&self.state)
+                    .axis(axis)
                     .disabled(disabled)
                     .relative()
                     .w_full()
@@ -165,27 +194,43 @@ impl Render for GpuiSlider {
                     .child(
                         SliderIndicator::new(&self.state)
                             .relative()
-                            .w_full()
-                            .h(px(6.0))
+                            .when(axis.is_horizontal(), |this| this.w_full().h(px(6.0)))
+                            .when(axis.is_vertical(), |this| this.h_full().w(px(6.0)))
                             .rounded_full()
                             .bg(colors.muted)
                             .child(
                                 div()
                                     .absolute()
-                                    .top_0()
-                                    .bottom_0()
-                                    .left_0()
-                                    .right(relative(1.0 - percentage))
+                                    .when(axis.is_horizontal(), |this| {
+                                        this.top_0().bottom_0().when_else(
+                                            reversed,
+                                            |this| this.left(relative(percentage)).right_0(),
+                                            |this| this.left_0().right(relative(1.0 - percentage)),
+                                        )
+                                    })
+                                    .when(axis.is_vertical(), |this| {
+                                        this.left_0().right_0().when_else(
+                                            reversed,
+                                            |this| this.bottom(relative(percentage)).top_0(),
+                                            |this| this.bottom_0().top(relative(1.0 - percentage)),
+                                        )
+                                    })
                                     .rounded_full()
                                     .bg(colors.accent),
                             )
                             .child(
                                 SliderThumb::new(&self.state)
+                                    .axis(axis)
                                     .disabled(disabled)
                                     .absolute()
-                                    .top(px(-5.0))
-                                    .left(relative(percentage))
-                                    .ml(px(-8.0))
+                                    .when(axis.is_horizontal(), |this| {
+                                        this.top(px(-5.0)).left(relative(percentage)).ml(px(-8.0))
+                                    })
+                                    .when(axis.is_vertical(), |this| {
+                                        this.left(px(-5.0))
+                                            .bottom(relative(percentage))
+                                            .mb(px(-8.0))
+                                    })
                                     .size(px(16.0))
                                     .rounded_full()
                                     .border_1()
@@ -345,6 +390,7 @@ mod tests {
             step: 0.0,
             value: 99.0,
             disabled: false,
+            ..Default::default()
         }
         .normalized();
         assert_eq!(config.max, 11.0);
