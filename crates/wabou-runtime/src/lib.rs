@@ -57,7 +57,6 @@ pub use error::{Error, Result};
 pub use gpui_headless::{
     GpuiHeadlessHarness, GpuiHeadlessOptions, GpuiHeadlessOutput, GpuiHeadlessScreenshot,
 };
-pub use gpui_view::GpuiRuntimeView;
 pub use host::{
     HostBuilder, HostService, HostServiceContext, HostServiceHandle, ManagedHostService,
     managed_host_service,
