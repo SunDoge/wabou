@@ -195,10 +195,6 @@ pub(super) fn decode_effect_payload(
                     "micaAlt" => wabou_shell::WindowBackground::MicaAlt,
                     _ => wabou_shell::WindowBackground::Opaque,
                 });
-            } else if let Some(transparent) =
-                value.get("transparent").and_then(|value| value.as_bool())
-            {
-                options = options.transparent(transparent);
             }
             if let Some(window_level) = value.get("windowLevel").and_then(|value| value.as_str()) {
                 options = options.window_level(match window_level {

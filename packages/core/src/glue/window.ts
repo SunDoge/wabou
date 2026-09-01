@@ -22,8 +22,6 @@ export interface CreateWindowOptions {
   decorations?: boolean;
   /** Native compositor material visible through transparent app content. */
   background?: "opaque" | "transparent" | "blurred" | "mica" | "micaAlt";
-  /** @deprecated Use `background: "transparent"`. */
-  transparent?: boolean;
   /** Initial native stacking request. Wayland generally ignores non-normal levels. */
   windowLevel?: "alwaysOnBottom" | "normal" | "alwaysOnTop";
   /** Allow pointer input to pass through this native window where supported. */
