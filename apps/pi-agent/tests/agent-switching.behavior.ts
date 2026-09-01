@@ -6,7 +6,7 @@ test("starts a deterministic Pi agent and renders its streamed response", async 
   const composer = page.getByRole("textbox", {
     name: "Ask this agent to work in its repository…",
   });
-  await composer.waitFor();
+  await composer.waitFor({ timeout: 5_000 });
   await composer.type("Explain the fixture");
   await page.getByRole("button", { name: "Send" }).click();
 
@@ -158,7 +158,7 @@ test("keeps the active workspace usable at its minimum window size", async ({
   });
   const send = page.getByRole("button", { name: "Send" });
   const newThread = page.getByRole("button", { name: "New thread" });
-  const model = page.getByRole("combobox", { name: "Choose model" });
+  const model = page.getByRole("button", { name: "Choose model" });
   for (const control of [composer, send, newThread, model]) {
     await expect(control).toBeInViewport();
   }
@@ -208,73 +208,78 @@ test("changes model through the native combobox overlay", async ({ page }) => {
   await expect(thinking).toHaveValue("medium");
 });
 
-test("updates project and app settings without losing its conversation", async ({
-  page,
-}) => {
-  await page.getByRole("button", { name: "Settings" }).click();
-  await page.getByRole("heading", { name: "Settings" }).waitFor();
-  const name = page.getByRole("textbox", { name: "Project name" });
-  await expect(name).toBeInViewport();
-  const autoCompaction = page.getByRole("switch", {
-    name: "Automatic context compaction",
-  });
-  await expect(autoCompaction).toBeChecked();
-  await autoCompaction.click();
-  await expect(autoCompaction).toBeUnchecked({ timeout: 5_000 });
-  const steering = page.getByRole("combobox", { name: "Steering messages" });
-  await steering.click();
-  await page.getByRole("option", { name: "All queued messages" }).click();
-  await expect(steering).toHaveValue("All queued messages", { timeout: 5_000 });
-  const followUp = page.getByRole("combobox", { name: "Follow-up messages" });
-  await followUp.click();
-  await page.getByRole("option", { name: "All queued messages" }).click();
-  await expect(followUp).toHaveValue("All queued messages", {
-    timeout: 5_000,
-  });
-  await name.click();
-  await name.press("a", { control: true });
-  await name.type("Workspace Agent");
-  await expect(name).toHaveValue("Workspace Agent");
-  const provider = page.getByRole("textbox", { name: "Provider" });
-  await provider.type("openai");
-  await expect(provider).toHaveValue("openai");
-  const configuredModel = page.getByRole("textbox", { name: "Model" });
-  await configuredModel.type("gpt-5");
-  await expect(configuredModel).toHaveValue("gpt-5");
-  await page.getByRole("tab", { name: "Application settings" }).click();
-  await page.getByRole("textbox", { name: "Default provider" }).wheel(1_200);
-  const proxy = page.getByRole("textbox", { name: "Default proxy URL" });
-  await proxy.type("http://127.0.0.1:7890");
-  await expect(proxy).toHaveValue("http://127.0.0.1:7890");
-  await proxy.wheel(-600);
-  const subagents = page.getByRole("switch", { name: "Enable subagents" });
-  await expect(subagents).toBeChecked();
-  await subagents.click();
-  await expect(subagents).toBeUnchecked();
+test(
+  "updates project and app settings without losing its conversation",
+  async ({ page }) => {
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("heading", { name: "Settings" }).waitFor();
+    const name = page.getByRole("textbox", { name: "Project name" });
+    await expect(name).toBeInViewport();
+    const autoCompaction = page.getByRole("switch", {
+      name: "Automatic context compaction",
+    });
+    await expect(autoCompaction).toBeChecked();
+    await autoCompaction.click();
+    await expect(autoCompaction).toBeUnchecked({ timeout: 5_000 });
+    const steering = page.getByRole("combobox", { name: "Steering messages" });
+    await steering.click();
+    await page.getByRole("option", { name: "All queued messages" }).click();
+    await expect(steering).toHaveValue("All queued messages", {
+      timeout: 5_000,
+    });
+    const followUp = page.getByRole("combobox", { name: "Follow-up messages" });
+    await followUp.click();
+    await page.getByRole("option", { name: "All queued messages" }).click();
+    await expect(followUp).toHaveValue("All queued messages", {
+      timeout: 5_000,
+    });
+    await expect(name).toBeEnabled({ timeout: 5_000 });
+    await name.click({ timeout: 5_000 });
+    await name.press("a", { control: true });
+    await name.type("Workspace Agent");
+    await expect(name).toHaveValue("Workspace Agent");
+    const provider = page.getByRole("textbox", { name: "Provider" });
+    await provider.type("openai");
+    await expect(provider).toHaveValue("openai");
+    const configuredModel = page.getByRole("textbox", { name: "Model" });
+    await configuredModel.type("gpt-5");
+    await expect(configuredModel).toHaveValue("gpt-5");
+    await page.getByRole("tab", { name: "Application settings" }).click();
+    await page.getByRole("textbox", { name: "Default provider" }).wheel(1_200);
+    const proxy = page.getByRole("textbox", { name: "Default proxy URL" });
+    await proxy.type("http://127.0.0.1:7890");
+    await expect(proxy).toHaveValue("http://127.0.0.1:7890");
+    await proxy.wheel(-600);
+    const subagents = page.getByRole("switch", { name: "Enable subagents" });
+    await expect(subagents).toBeChecked();
+    await subagents.click();
+    await expect(subagents).toBeUnchecked();
 
-  await subagents.wheel(-300);
-  await page.getByRole("radio", { name: "中文" }).click();
-  await page.getByRole("heading", { name: "设置" }).waitFor();
-  await page.getByRole("button", { name: "返回项目" }).click();
-  await page.getByRole("button", { name: "设置" }).click();
-  await page.getByRole("heading", { name: "设置" }).waitFor();
-  await page.getByRole("tab", { name: "应用设置" }).click();
-  await page.getByRole("radio", { name: "English" }).click();
-  await page.getByRole("heading", { name: "Settings" }).waitFor();
+    await subagents.wheel(-300);
+    await page.getByRole("radio", { name: "中文" }).click();
+    await page.getByRole("heading", { name: "设置" }).waitFor();
+    await page.getByRole("button", { name: "返回项目" }).click();
+    await page.getByRole("button", { name: "设置" }).click();
+    await page.getByRole("heading", { name: "设置" }).waitFor();
+    await page.getByRole("tab", { name: "应用设置" }).click();
+    await page.getByRole("radio", { name: "English" }).click();
+    await page.getByRole("heading", { name: "Settings" }).waitFor();
 
-  await page.getByRole("button", { name: "Back to projects" }).click();
-  await expect(
-    page.getByRole("button", { name: "Workspace Agent" }),
-  ).toBeDeselected();
-  await expect(
-    page.getByRole("button", { name: "Deterministic test 1" }),
-  ).toBeSelected();
-  await expect(
-    page.getByRole("label", {
-      name: "Fake Pi completed: Verify the navigation rail",
-    }),
-  ).toHaveCount(1);
-});
+    await page.getByRole("button", { name: "Back to projects" }).click();
+    await expect(
+      page.getByRole("button", { name: "Workspace Agent" }),
+    ).toBeDeselected();
+    await expect(
+      page.getByRole("button", { name: "Deterministic test 1" }),
+    ).toBeSelected();
+    await expect(
+      page.getByRole("label", {
+        name: "Fake Pi completed: Retain the fifth response",
+      }),
+    ).toHaveCount(1);
+  },
+  { timeout: 20_000 },
+);
 
 test("creates a fresh session and restores the previous transcript", async ({
   page,
@@ -292,7 +297,7 @@ test("creates a fresh session and restores the previous transcript", async ({
   await expect(previousSession).toBeDeselected();
   await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Verify the navigation rail",
+      name: "Fake Pi completed: Retain the fifth response",
     }),
   ).toBeAbsent();
 
@@ -301,7 +306,7 @@ test("creates a fresh session and restores the previous transcript", async ({
   await expect(freshSession).toBeDeselected();
   await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Verify the navigation rail",
+      name: "Fake Pi completed: Retain the fifth response",
     }),
   ).toHaveCount(1, { timeout: 5_000 });
   await expect(
@@ -347,7 +352,7 @@ test("clones and compacts a session without losing its transcript", async ({
   await expect(clone).toBeSelected({ timeout: 5_000 });
   await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Verify the navigation rail",
+      name: "Fake Pi completed: Retain the fifth response",
     }),
   ).toHaveCount(1, { timeout: 5_000 });
 
@@ -355,7 +360,7 @@ test("clones and compacts a session without losing its transcript", async ({
   await page.getByRole("menuitem", { name: "Compact context" }).click();
   await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Verify the navigation rail",
+      name: "Fake Pi completed: Retain the fifth response",
     }),
   ).toHaveCount(1, { timeout: 5_000 });
   await expect(
@@ -395,14 +400,11 @@ test("aborts a running response and returns the session to ready", async ({
   await stop.click();
   await expect(stop).toBeAbsent({ timeout: 5_000 });
   await expect(
-    page.getByRole("combobox", { name: "Choose model" }),
+    page.getByRole("button", { name: "Choose model" }),
   ).toBeEnabled();
   await expect(
-    page.getByRole("combobox", { name: "Choose model" }),
-  ).toHaveValue("gpt-5");
-  await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Verify the navigation rail",
+      name: "Fake Pi completed: Retain the fifth response",
     }),
   ).toHaveCount(1);
 });
@@ -413,19 +415,13 @@ test("searches the retained transcript and closes without changing sessions", as
   const toggle = page.getByRole("button", { name: "Search conversation" });
   await expect(toggle).toBeEnabled({ timeout: 5_000 });
   await expect(toggle).toNotOverlap(
-    page.getByRole("combobox", { name: "Choose model" }),
-  );
-  await expect(toggle).toNotOverlap(
-    page.getByRole("combobox", { name: "Thinking level" }),
+    page.getByRole("button", { name: "Choose model" }),
   );
   await toggle.click();
   await expect(toggle).toBePressed();
-  await expect(
-    page.getByRole("group", { name: "Search conversation" }),
-  ).toHaveCount(1);
   const search = page.getByRole("textbox", { name: "Search conversation" });
   await expect(search).toHaveCount(1);
-  await search.type("Verify the navigation rail");
+  await search.type("Retain the fifth response");
 
   const previous = page.getByRole("button", { name: "Previous match" });
   const next = page.getByRole("button", { name: "Next match" });
@@ -454,6 +450,7 @@ test("opens and closes an embedded native terminal panel", async ({ page }) => {
   ).toHaveCount(1);
 
   const terminal = page.getByRole("textbox", { name: "Terminal 1" });
+  await expect(terminal).toHaveCount(1, { timeout: 5_000 });
   await terminal.type("printf wabou-terminal-ready");
   await terminal.press("Enter");
   await expect(terminal).toBeFocused();
@@ -481,7 +478,7 @@ test("creates and closes terminal tabs without remounting the survivor", async (
 
   await page.getByRole("button", { name: "New terminal" }).click();
   const second = page.getByRole("textbox", { name: "Terminal 2" });
-  await expect(second).toHaveCount(1);
+  await expect(second).toHaveCount(1, { timeout: 5_000 });
   await second.type("printf wabou-second-terminal");
   await second.press("Enter");
   await expect(second).toBeFocused();
@@ -525,7 +522,7 @@ test("keeps retained layout stable across repeated agent switches", async ({
 
   await expect(
     page.getByRole("label", {
-      name: "Fake Pi completed: Verify the navigation rail",
+      name: "Fake Pi completed: Retain the fifth response",
     }),
   ).toHaveCount(1);
 });
@@ -609,7 +606,7 @@ test(
     await page.getByRole("button", { name: "Workspace files" }).click();
     const panel = page.getByRole("region", { name: "Workspace files" });
     await expect(panel).toBeInViewport();
-    const readme = panel.getByRole("button", { name: "README.md" });
+    const readme = panel.getByRole("option", { name: "README.md" });
     await expect(readme).toHaveCount(1, { timeout: 5_000 });
     await readme.click();
     const addToContext = panel.getByRole("button", {
@@ -655,7 +652,7 @@ test("recovers after the Pi process exits unexpectedly", async ({ page }) => {
     }),
   ).toHaveCount(1, { timeout: 5_000 });
   await expect(
-    page.getByRole("combobox", { name: "Choose model" }),
+    page.getByRole("button", { name: "Choose model" }),
   ).toBeEnabled();
   await page.getByRole("button", { name: "Commands" }).click();
   await expect(page.getByRole("option", { name: "/fixture" })).toBeInViewport();

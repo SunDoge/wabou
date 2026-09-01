@@ -3,6 +3,27 @@ import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 import { AgentTerminalPanel } from "../../apps/pi-agent/ui/terminal-panel";
 
+test("reacts to retained panel visibility without remounting the terminal", () => {
+  const [open, setOpen] = createSignal(true);
+  const screen = renderComponent(() => (
+    <AgentTerminalPanel
+      cwd="/work/alpha"
+      open={open()}
+      close={() => setOpen(false)}
+      dispose={() => {}}
+    />
+  ));
+  const panel = screen.getByRole("region", { name: "Terminal panel" });
+  const terminal = screen.getByRole("textbox", { name: "Terminal 1" });
+
+  expect(panel.className.split(/\s+/u)).not.toContain("hidden");
+  screen.getByRole("button", { name: "Close terminal panel" }).click();
+  expect(panel.className.split(/\s+/u)).toContain("hidden");
+  expect(screen.getByRole("textbox", { name: "Terminal 1" }).identity).toEqual(
+    terminal.identity,
+  );
+});
+
 test("keeps terminal tabs bound to the workspace where they were created", () => {
   const [cwd, setCwd] = createSignal("/work/alpha");
   let closed = 0;

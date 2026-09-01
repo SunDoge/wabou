@@ -95,8 +95,7 @@ export function AgentTerminalPanel(
     <View
       role="region"
       aria-label="Terminal panel"
-      class="h-64 min-h-40 flex-none flex flex-col overflow-hidden border-t border-strong bg-slate-950 text-slate-200 shadow-lg"
-      style={{ display: props.open ? "flex" : "none" }}
+      class={`h-64 min-h-40 flex-none flex flex-col overflow-hidden border-t border-strong bg-slate-950 text-slate-200 shadow-lg${props.open ? "" : " hidden"}`}
     >
       <Tabs
         value={String(activeId())}
