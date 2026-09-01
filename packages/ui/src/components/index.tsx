@@ -42,6 +42,7 @@ export * from "./drop-zone";
 export * from "./dropdown-menu";
 export * from "./empty";
 export * from "./forms";
+export * from "./group-box";
 export * from "./hover-card";
 export * from "./icon-frame";
 export * from "./image-list";

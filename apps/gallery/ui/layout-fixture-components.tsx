@@ -42,6 +42,7 @@ import {
   FieldContent,
   FieldDescription,
   FieldLabel,
+  GroupBox,
   Icon,
   IconFrame,
   ImageList,
@@ -790,6 +791,33 @@ export function SettingsItemLayoutFixture() {
       >
         <Switch disabled aria-label="Managed setting" />
       </SettingsItem>
+    </View>
+  );
+}
+
+export function GroupBoxLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-5 flex flex-col gap-5 bg-canvas">
+      <GroupBox
+        title="Network access"
+        description="Controls shared by related background services and long enough to wrap safely."
+        variant="outline"
+      >
+        <SettingsItem title="Use system proxy">
+          <Switch aria-label="Use system proxy" defaultChecked />
+        </SettingsItem>
+        <SettingsItem
+          title="Allow metered connections"
+          description="Background downloads may consume mobile data."
+        >
+          <Switch aria-label="Allow metered connections" />
+        </SettingsItem>
+      </GroupBox>
+      <GroupBox title="Local defaults" variant="fill">
+        <SettingsItem title="Keep recent projects">
+          <Switch aria-label="Keep recent projects" defaultChecked />
+        </SettingsItem>
+      </GroupBox>
     </View>
   );
 }

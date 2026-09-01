@@ -577,8 +577,66 @@ const assertSettingsItemLayout = (snapshot: LayoutSnapshot) => {
   assertLayoutRectContains(proxy.contentRect, proxyInput.rect, {
     label: "vertical settings control",
   });
-  if (Math.abs(managed.computed.opacity - 0.45) > 0.001)
+  if (
+    managed.computed.opacity === null ||
+    managed.computed.opacity === undefined ||
+    Math.abs(managed.computed.opacity - 0.45) > 0.001
+  )
     throw new Error("disabled settings item did not expose reduced emphasis");
+};
+
+const assertGroupBoxLayout = (snapshot: LayoutSnapshot) => {
+  const network = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Network access",
+  });
+  const proxy = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Use system proxy",
+  });
+  const metered = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Allow metered connections",
+  });
+  const local = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Local defaults",
+  });
+  const recent = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Keep recent projects",
+  });
+  const networkContent = snapshot.nodes.find(
+    (node) =>
+      node.id.lo === proxy.parentId?.lo && node.id.hi === proxy.parentId?.hi,
+  );
+  if (!networkContent)
+    throw new Error("outlined group box did not project a content surface");
+  assertLayoutRectContains(network.contentRect, networkContent.rect, {
+    label: "outlined group content surface",
+  });
+
+  assertLayoutRectContains(networkContent.contentRect, proxy.rect, {
+    label: "outlined group first item",
+  });
+  assertLayoutRectContains(networkContent.contentRect, metered.rect, {
+    label: "outlined group second item",
+  });
+  assertLayoutRectContains(local.contentRect, recent.rect, {
+    label: "filled group item",
+  });
+  if (metered.rect.y <= layoutRectBottom(proxy.rect))
+    throw new Error("group box items did not retain vertical spacing");
+  assertClose(
+    networkContent.contentRect.x - networkContent.rect.x,
+    16,
+    "outlined group horizontal padding",
+  );
+  assertClose(
+    networkContent.contentRect.y - networkContent.rect.y,
+    16,
+    "outlined group vertical padding",
+  );
 };
 
 const assertDropdownMenuLayout = (snapshot: LayoutSnapshot) => {
@@ -1314,6 +1372,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/Item": { assert: assertItemLayout },
   "component/ControlBaseline": { assert: assertControlBaselineLayout },
   "component/SettingsItem": { assert: assertSettingsItemLayout },
+  "component/GroupBox": { assert: assertGroupBoxLayout },
   "component/SelectionControls": { assert: assertSelectionControlsLayout },
   "component/Tabs": { assert: assertTabsLayout },
   "component/VerticalTabs": { assert: assertVerticalTabsLayout },
