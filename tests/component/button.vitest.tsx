@@ -23,6 +23,19 @@ test("Button uses the shared native desktop geometry across sizes", () => {
   ).toContain("h-10 px-3 gap-2 text-base rounded-md");
 });
 
+test("Button clips every visual state to its control radius", () => {
+  const screen = renderComponent(() => (
+    <Button aria-label="Delete" variant="destructive">
+      Delete
+    </Button>
+  ));
+
+  const button = screen.getByRole("button", { name: "Delete" });
+  expect(button.className).toContain("rounded-md");
+  expect(button.className).toContain("overflow-hidden");
+  expect(button.className).toContain("bg-danger");
+});
+
 test("Button exposes one stable disabled loading state", async () => {
   const activate = vi.fn();
   const App = () => {

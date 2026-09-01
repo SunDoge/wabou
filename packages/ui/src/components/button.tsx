@@ -127,7 +127,7 @@ export function Button(props: ButtonProps): JSX.Element {
       unstyled
       class={(state) =>
         mergeClasses(
-          "inline-flex flex-none whitespace-nowrap items-center justify-center border font-medium",
+          "inline-flex flex-none overflow-hidden whitespace-nowrap items-center justify-center border font-medium",
           buttonColors(variant(), state),
           buttonSize(size()),
           groupOrientation && "rounded-none border-transparent",
