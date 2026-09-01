@@ -5,7 +5,6 @@ import minus from "lucide-static/icons/minus.svg?raw";
 import {
   createComponent,
   createContext,
-  createSignal,
   type JSX,
   onCleanup,
   useContext,
@@ -25,14 +24,56 @@ import {
 } from "../primitives/interactions";
 import { componentsControlSize } from "./theme";
 
-const SELECTION_INDICATOR_CLASS = "w-4 h-4 flex-none border";
-const SELECTION_LABEL_CLASS =
-  "min-w-0 flex-1 whitespace-normal text-sm text-left";
+export type SelectionControlSize = "sm" | "default" | "lg";
 
-function selectionControlClass(hasLabel: boolean): string {
-  return hasLabel
-    ? "min-h-7 px-1 items-start gap-2 rounded-md border border-transparent"
-    : "w-10 h-7 p-0 items-center justify-center gap-0 rounded-md border border-transparent";
+export function selectionGeometry(size: SelectionControlSize) {
+  return match(size)
+    .with("sm", () => ({
+      controlWithLabel:
+        "min-h-7 px-1 items-start gap-2 rounded-md border border-transparent",
+      controlWithoutLabel:
+        "w-9 h-7 p-0 items-center justify-center gap-0 rounded-md border border-transparent",
+      indicator: "w-3.5 h-3.5",
+      label: "text-xs",
+      iconSize: 10,
+      radioDot: "w-1.5 h-1.5",
+    }))
+    .with("default", () => ({
+      controlWithLabel:
+        "min-h-7 px-1 items-start gap-2 rounded-md border border-transparent",
+      controlWithoutLabel:
+        "w-10 h-7 p-0 items-center justify-center gap-0 rounded-md border border-transparent",
+      indicator: "w-4 h-4",
+      label: "text-sm",
+      iconSize: 12,
+      radioDot: "w-2 h-2",
+    }))
+    .with("lg", () => ({
+      controlWithLabel:
+        "min-h-10 px-1 items-start gap-2 rounded-md border border-transparent",
+      controlWithoutLabel:
+        "w-10 h-10 p-0 items-center justify-center gap-0 rounded-md border border-transparent",
+      indicator: "w-[18px] h-[18px]",
+      label: "text-base",
+      iconSize: 14,
+      radioDot: "w-2.5 h-2.5",
+    }))
+    .exhaustive();
+}
+
+function selectionControlClass(
+  hasLabel: boolean,
+  size: SelectionControlSize,
+): string {
+  const geometry = selectionGeometry(size);
+  return hasLabel ? geometry.controlWithLabel : geometry.controlWithoutLabel;
+}
+
+function selectionLabelClass(size: SelectionControlSize): string {
+  return mergeClasses(
+    "min-w-0 flex-1 whitespace-normal text-left",
+    selectionGeometry(size).label,
+  );
 }
 
 export interface CheckboxProps {
@@ -40,6 +81,7 @@ export interface CheckboxProps {
   defaultChecked?: boolean;
   indeterminate?: boolean;
   disabled?: boolean;
+  size?: SelectionControlSize;
   label?: string;
   "aria-label"?: string;
   class?: string;
@@ -47,6 +89,7 @@ export interface CheckboxProps {
 }
 
 export function Checkbox(props: CheckboxProps): JSX.Element {
+  const size = () => props.size ?? "default";
   const state = createControllableState({
     value: () => props.checked,
     defaultValue: props.defaultChecked ?? false,
@@ -85,7 +128,7 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
       selected={checked()}
       class={(buttonState) =>
         mergeClasses(
-          selectionControlClass(!!props.label),
+          selectionControlClass(!!props.label, size()),
           buttonState.hovered && "bg-control-hover",
           buttonState.focusVisible && "border-focus",
           props.class,
@@ -99,7 +142,8 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
       <Center
         aria-hidden="true"
         class={mergeClasses(
-          SELECTION_INDICATOR_CLASS,
+          selectionGeometry(size()).indicator,
+          "flex-none border",
           "rounded text-xs font-bold",
           boxColors(),
         )}
@@ -107,13 +151,13 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
         {indicator() && (
           <Icon
             source={indicator() as string}
-            size={12}
+            size={selectionGeometry(size()).iconSize}
             class="text-on-accent"
           />
         )}
       </Center>
       {props.label && (
-        <Text class={mergeClasses(SELECTION_LABEL_CLASS, "text-primary")}>
+        <Text class={mergeClasses(selectionLabelClass(size()), "text-primary")}>
           {props.label}
         </Text>
       )}
@@ -126,6 +170,7 @@ interface RadioContextValue {
   select(value: string): void;
   disabled: () => boolean;
   appearance: () => "radio" | "segment";
+  size: () => SelectionControlSize;
   register(value: string, node: Handle, disabled: () => boolean): () => void;
   activate(value: string): void;
   isTabStop(value: string): boolean;
@@ -140,6 +185,7 @@ export interface RadioGroupProps {
   disabled?: boolean;
   orientation?: "horizontal" | "vertical";
   appearance?: "radio" | "segment";
+  size?: SelectionControlSize;
   loop?: boolean;
   "aria-label"?: string;
   class?: string;
@@ -170,6 +216,7 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
       select,
       disabled: () => props.disabled ?? false,
       appearance: () => props.appearance ?? "radio",
+      size: () => props.size ?? "default",
       register: (id, target, disabled) =>
         roving.register({ id, target, disabled }),
       activate: (id) => {
@@ -204,6 +251,7 @@ export interface RadioGroupItemProps {
   label?: string;
   "aria-label"?: string;
   disabled?: boolean;
+  size?: SelectionControlSize;
   class?: string;
 }
 
@@ -212,6 +260,25 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
   if (!group) throw new Error("RadioGroupItem must be used inside RadioGroup");
   const checked = () => group.value() === props.value;
   const disabled = () => group.disabled() || (props.disabled ?? false);
+  const size = () => props.size ?? group.size();
+  const segmentSize = () =>
+    match(size())
+      .with(
+        "sm",
+        () =>
+          "h-7 min-w-0 flex-1 px-2 items-center justify-center rounded-sm border border-transparent text-xs font-medium",
+      )
+      .with(
+        "default",
+        () =>
+          "h-8 min-w-0 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
+      )
+      .with(
+        "lg",
+        () =>
+          "h-10 min-w-0 flex-1 px-4 items-center justify-center rounded-sm border border-transparent text-base font-medium",
+      )
+      .exhaustive();
   let unregister: (() => void) | undefined;
   onCleanup(() => unregister?.());
   return (
@@ -230,8 +297,8 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
       class={(buttonState) =>
         mergeClasses(
           group.appearance() === "segment"
-            ? "h-8 min-w-0 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium"
-            : selectionControlClass(!!props.label),
+            ? segmentSize()
+            : selectionControlClass(!!props.label, size()),
           group.appearance() === "segment" && checked()
             ? "bg-selected text-primary shadow-xs"
             : buttonState.hovered && "bg-control-hover",
@@ -252,7 +319,8 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
         <Center
           aria-hidden="true"
           class={mergeClasses(
-            SELECTION_INDICATOR_CLASS,
+            selectionGeometry(size()).indicator,
+            "flex-none border",
             "rounded-full bg-input",
             match(checked())
               .with(true, () => "border-accent")
@@ -260,13 +328,20 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
               .exhaustive(),
           )}
         >
-          {checked() && <View class="w-2 h-2 rounded-full bg-accent" />}
+          {checked() && (
+            <View
+              class={mergeClasses(
+                selectionGeometry(size()).radioDot,
+                "rounded-full bg-accent",
+              )}
+            />
+          )}
         </Center>
       )}
       {props.label && (
         <Text
           class={mergeClasses(
-            SELECTION_LABEL_CLASS,
+            selectionLabelClass(size()),
             checked() ? "text-primary" : "text-secondary",
           )}
         >
