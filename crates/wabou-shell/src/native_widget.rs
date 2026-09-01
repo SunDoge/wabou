@@ -109,6 +109,7 @@ impl NativeWidgetEventSink {
 pub struct NativeWidgetContext<'a> {
     key: NodeKey,
     attributes: &'a BTreeMap<SharedString, SharedString>,
+    previous_attributes: Option<&'a BTreeMap<SharedString, SharedString>>,
     config: Option<&'a str>,
     entity: Option<&'a AnyEntity>,
     input: crate::ProjectedInputSink,
@@ -126,6 +127,26 @@ impl<'a> NativeWidgetContext<'a> {
         Self {
             key,
             attributes,
+            previous_attributes: None,
+            config,
+            entity,
+            input,
+        }
+    }
+
+    #[doc(hidden)]
+    pub fn new_with_previous_attributes(
+        key: NodeKey,
+        attributes: &'a BTreeMap<SharedString, SharedString>,
+        previous_attributes: Option<&'a BTreeMap<SharedString, SharedString>>,
+        config: Option<&'a str>,
+        entity: Option<&'a AnyEntity>,
+        input: crate::ProjectedInputSink,
+    ) -> Self {
+        Self {
+            key,
+            attributes,
+            previous_attributes,
             config,
             entity,
             input,
@@ -149,6 +170,13 @@ impl<'a> NativeWidgetContext<'a> {
         self.attributes
             .iter()
             .map(|(name, value)| (name.as_ref(), value.as_ref()))
+    }
+
+    /// Whether the authored attribute map changed since this retained widget
+    /// was last materialized. Initial mounts always report a change.
+    #[must_use]
+    pub fn attributes_changed(&self) -> bool {
+        self.previous_attributes != Some(self.attributes)
     }
 
     /// Return the validated JSON payload authored through `widgetConfig`.
@@ -249,6 +277,42 @@ mod tests {
         assert_eq!(
             context.attributes().collect::<Vec<_>>(),
             [("center-x", "-0.745"), ("iterations", "96")]
+        );
+    }
+
+    #[test]
+    fn context_distinguishes_initial_unchanged_and_updated_attributes() {
+        let key = NodeKey::new(18, 9);
+        let original =
+            BTreeMap::from([(SharedString::from("cwd"), SharedString::from("/workspace"))]);
+        let updated = BTreeMap::from([(SharedString::from("cwd"), SharedString::from("/other"))]);
+        let input = std::rc::Rc::new(|_, _: &mut App| {});
+
+        assert!(
+            NativeWidgetContext::new(key, &original, None, None, input.clone())
+                .attributes_changed()
+        );
+        assert!(
+            !NativeWidgetContext::new_with_previous_attributes(
+                key,
+                &original,
+                Some(&original),
+                None,
+                None,
+                input.clone(),
+            )
+            .attributes_changed()
+        );
+        assert!(
+            NativeWidgetContext::new_with_previous_attributes(
+                key,
+                &updated,
+                Some(&original),
+                None,
+                None,
+                input,
+            )
+            .attributes_changed()
         );
     }
 

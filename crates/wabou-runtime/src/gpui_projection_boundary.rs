@@ -29,6 +29,10 @@ pub(crate) struct GpuiProjectionBoundary {
     widgets: Vec<GpuiNativeWidget>,
     native_widget_factories: std::collections::HashMap<String, NativeWidgetFactory>,
     native_widget_entities: BTreeMap<NodeKey, AnyEntity>,
+    native_widget_attributes: BTreeMap<
+        NodeKey,
+        BTreeMap<wabou_shell::gpui::SharedString, wabou_shell::gpui::SharedString>,
+    >,
     #[cfg(any(test, feature = "profiling"))]
     materialization_count: u64,
 }
@@ -58,6 +62,7 @@ impl GpuiProjectionBoundary {
             widgets: state.widgets,
             native_widget_factories: state.native_widget_factories,
             native_widget_entities: BTreeMap::new(),
+            native_widget_attributes: BTreeMap::new(),
             #[cfg(any(test, feature = "profiling"))]
             materialization_count: 0,
         }
@@ -114,14 +119,17 @@ impl Render for GpuiProjectionBoundary {
             .collect::<BTreeMap<_, _>>();
         self.native_widget_entities
             .retain(|key, _| self.widgets.iter().any(|widget| widget.key == *key));
+        self.native_widget_attributes
+            .retain(|key, _| self.widgets.iter().any(|widget| widget.key == *key));
         for widget in &self.widgets {
             let Some(factory) = self.native_widget_factories.get(widget.tag.as_ref()) else {
                 continue;
             };
             let mount = factory(
-                NativeWidgetContext::new(
+                NativeWidgetContext::new_with_previous_attributes(
                     widget.key,
                     &widget.attributes,
+                    self.native_widget_attributes.get(&widget.key),
                     widget.config.as_deref(),
                     self.native_widget_entities.get(&widget.key),
                     self.input.clone(),
@@ -135,6 +143,8 @@ impl Render for GpuiProjectionBoundary {
             } else {
                 self.native_widget_entities.remove(&widget.key);
             }
+            self.native_widget_attributes
+                .insert(widget.key, widget.attributes.clone());
             native_controls.insert(widget.key, element);
         }
         let native_controls = Rc::new(std::cell::RefCell::new(native_controls));

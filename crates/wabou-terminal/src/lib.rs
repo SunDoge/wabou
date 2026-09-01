@@ -64,6 +64,9 @@ impl GpuiTerminal {
     }
 
     fn update_attributes(&mut self, context: &NativeWidgetContext<'_>) {
+        if !context.attributes_changed() {
+            return;
+        }
         for (name, value) in context.attributes() {
             self.terminal.apply_native_attribute(name, value);
         }
@@ -380,12 +383,14 @@ mod tests {
         let factory = gpui_terminal_factory();
         let (_view, _cx) = cx.add_window_view(move |window, cx| {
             let attributes = BTreeMap::new();
+            let input = std::rc::Rc::new(|_, _: &mut gpui::App| {});
             let first = factory(
                 NativeWidgetContext::new(
                     wabou_host_api::NodeKey::new(9, 2),
                     &attributes,
                     None,
                     None,
+                    input.clone(),
                 ),
                 window,
                 cx,
@@ -399,6 +404,7 @@ mod tests {
                     &attributes,
                     None,
                     Some(&retained),
+                    input,
                 ),
                 window,
                 cx,
