@@ -104,6 +104,78 @@ test("keeps controlled open state owned by the application", () => {
   expect(trigger.expanded).toBe(false);
 });
 
+test("does not move focus when a controlled owner rejects an open request", async () => {
+  const requests: boolean[] = [];
+  const screen = renderComponent(
+    () => (
+      <Select
+        aria-label="Controlled closed technology"
+        options={options}
+        open={false}
+        onOpenChange={(open) => requests.push(open)}
+      />
+    ),
+    { clock: "fake" },
+  );
+  const trigger = screen.getByRole("combobox", {
+    name: "Controlled closed technology",
+  });
+  trigger.focus();
+  trigger.press("ArrowDown");
+  await screen.advanceTime(16);
+
+  expect(requests).toEqual([true]);
+  expect(trigger.expanded).toBe(false);
+  expect(trigger.focused).toBe(true);
+  expect(screen.queryByRole("listbox")).toBeNull();
+});
+
+test("keeps popup focus when a controlled owner rejects dismissal", async () => {
+  const requests: boolean[] = [];
+  const screen = renderComponent(
+    () => (
+      <Select
+        aria-label="Controlled open technology"
+        options={options}
+        open
+        onOpenChange={(open) => requests.push(open)}
+      />
+    ),
+    { clock: "fake" },
+  );
+  await screen.advanceTime(16);
+  const trigger = screen.getByRole("combobox", {
+    name: "Controlled open technology",
+  });
+  const listbox = screen.getByRole("listbox", {
+    name: "Controlled open technology",
+  });
+  expect(listbox.focused).toBe(true);
+
+  listbox.press("Escape");
+  await screen.advanceTime(16);
+
+  expect(requests).toEqual([false]);
+  expect(trigger.expanded).toBe(true);
+  expect(listbox.focused).toBe(true);
+  expect(trigger.focused).toBe(false);
+});
+
+test("opens at the first enabled option when the controlled value is stale", async () => {
+  const screen = renderComponent(
+    () => (
+      <Select aria-label="Stale technology" options={options} value="removed" />
+    ),
+    { clock: "fake" },
+  );
+  screen.getByRole("combobox", { name: "Stale technology" }).press("ArrowDown");
+  await screen.advanceTime(16);
+
+  expect(screen.getByRole("option", { name: "SolidJS" }).className).toContain(
+    "bg-control-hover",
+  );
+});
+
 test("opens on pointer down without waiting for the pressed state to release", () => {
   const screen = renderComponent(() => (
     <Select aria-label="Technology" options={options} defaultValue="solid" />

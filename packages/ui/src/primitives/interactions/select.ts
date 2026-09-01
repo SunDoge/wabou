@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js";
+import { createEffect, createSignal } from "solid-js";
 import { match, P } from "ts-pattern";
 import { createCollection, type CollectionItem } from "./collection";
 import { createControllableState } from "./state";
@@ -38,6 +38,12 @@ export function updateSelect<T extends SelectItem>(
   options: SelectUpdateOptions<T>,
 ): { state: SelectState; commands: readonly SelectCommand[] } {
   const collection = createCollection(() => options.items);
+  const initialHighlight = (fallback: string | undefined) => {
+    const candidate = fallback ? collection.find(fallback) : undefined;
+    return candidate && !candidate.disabled
+      ? candidate.id
+      : collection.first()?.id;
+  };
   const openAt = (id: string | undefined) => ({
     state: { ...state, open: true, highlighted: id },
     commands: [
@@ -60,7 +66,7 @@ export function updateSelect<T extends SelectItem>(
     .with({ type: "OPEN" }, () =>
       state.open
         ? { state, commands: [] }
-        : openAt(state.value ?? collection.first()?.id),
+        : openAt(initialHighlight(state.value)),
     )
     .with({ type: "CLOSE" }, () => ({
       state: { ...state, open: false, highlighted: undefined },
@@ -72,10 +78,10 @@ export function updateSelect<T extends SelectItem>(
             state: { ...state, open: false, highlighted: undefined },
             commands: [{ type: "FOCUS_TRIGGER" as const }],
           }
-        : openAt(state.value ?? collection.first()?.id),
+        : openAt(initialHighlight(state.value)),
     )
     .with({ type: "ARROW_DOWN" }, () =>
-      state.open ? move("next") : openAt(state.value ?? collection.first()?.id),
+      state.open ? move("next") : openAt(initialHighlight(state.value)),
     )
     .with({ type: "ARROW_UP" }, () =>
       state.open
@@ -146,8 +152,24 @@ export function createSelectInteraction<T extends SelectItem>(
     value: value.value(),
     highlighted: highlighted(),
   });
+  let observedOpen = false;
+  let observedOpenInitialized = false;
+  createEffect(open.value, (current) => {
+    if (!observedOpenInitialized) {
+      observedOpenInitialized = true;
+      observedOpen = current;
+      if (current) options.execute?.({ type: "FOCUS_CONTENT" });
+      return;
+    }
+    if (current === observedOpen) return;
+    observedOpen = current;
+    options.execute?.({
+      type: current ? "FOCUS_CONTENT" : "FOCUS_TRIGGER",
+    });
+  });
   const send = (event: SelectEvent) => {
     if (options.disabled?.()) return false;
+    const controlledOpen = options.open?.();
     const result = updateSelect(state(), event, {
       items: options.items(),
       loop: options.loop,
@@ -155,8 +177,16 @@ export function createSelectInteraction<T extends SelectItem>(
     const previous = state();
     open.set(result.state.open);
     if (result.state.value !== undefined) value.set(result.state.value);
-    setHighlighted(result.state.highlighted);
-    for (const command of result.commands) options.execute?.(command);
+    const openRequestRejected =
+      controlledOpen !== undefined && controlledOpen !== result.state.open;
+    if (!openRequestRejected) {
+      setHighlighted(result.state.highlighted);
+    }
+    for (const command of result.commands) {
+      if (command.type === "SCROLL_TO_ITEM" && result.state.open) {
+        options.execute?.(command);
+      }
+    }
     return (
       previous.open !== result.state.open ||
       previous.value !== result.state.value ||
