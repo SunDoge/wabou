@@ -2,6 +2,7 @@ import { mergeClasses } from "@wabou/core/style";
 import {
   type Accessor,
   createContext,
+  createMemo,
   createSignal,
   type JSX,
   omit,
@@ -11,11 +12,14 @@ import {
 import { createSweep, useReducedMotion } from "../animation";
 import {
   createMeasuredSize,
+  Svg,
   Text,
   type TextProps,
   View,
   type ViewProps,
 } from "../primitives";
+import { Spinner } from "./display";
+import { progressCircleSource } from "./progress-circle-source";
 import { finiteOr } from "./range";
 
 export interface ProgressValueDetails {
@@ -249,6 +253,53 @@ export function Progress(props: ProgressProps): JSX.Element {
       <ProgressTrack class={props.class} size={props.size}>
         <ProgressFill />
       </ProgressTrack>
+    </ProgressRoot>
+  );
+}
+
+export interface ProgressCircleProps
+  extends Omit<ProgressRootProps, "children" | "class"> {
+  class?: string;
+  size?: ProgressSize;
+}
+
+const progressCircleSize = (size: ProgressSize | undefined) =>
+  size === "xs"
+    ? "w-3 h-3"
+    : size === "sm"
+      ? "w-4 h-4"
+      : size === "lg"
+        ? "w-6 h-6"
+        : "w-5 h-5";
+
+/** Compact circular progress indicator using the same semantic range contract. */
+export function ProgressCircle(props: ProgressCircleProps): JSX.Element {
+  const forwarded = omit(props, "class", "size");
+  const details = createMemo(() =>
+    normalizeProgressValue(props.value, props.minValue, props.maxValue),
+  );
+  const source = createMemo(() =>
+    progressCircleSource(props.indeterminate ? 30 : details().percent),
+  );
+  const graphic = () => (
+    <Svg
+      source={source()}
+      aria-hidden="true"
+      class="absolute inset-0 w-full h-full flex-none"
+    />
+  );
+  return (
+    <ProgressRoot
+      {...forwarded}
+      class={mergeClasses(
+        "relative flex-none items-center justify-center gap-0 text-accent",
+        progressCircleSize(props.size),
+        props.class,
+      )}
+    >
+      <Show when={props.indeterminate} fallback={graphic()}>
+        <Spinner decorative class="absolute inset-0 w-full h-full" />
+      </Show>
     </ProgressRoot>
   );
 }

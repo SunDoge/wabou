@@ -394,6 +394,14 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
     role: "progressbar",
     name: "Fixture progress",
   });
+  const circularProgress = getLayoutNode(snapshot, {
+    role: "progressbar",
+    name: "Fixture circular progress",
+  });
+  const circularLoading = getLayoutNode(snapshot, {
+    role: "progressbar",
+    name: "Fixture circular loading",
+  });
   const switchControl = getLayoutNode(snapshot, {
     role: "switch",
     name: "Fixture default switch",
@@ -450,6 +458,34 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   );
   if (!progressTrack) throw new Error("large progress track was not projected");
   assertClose(progressTrack.rect.height, 10, "large progress track height");
+  assertClose(circularProgress.rect.width, 24, "large circular progress width");
+  assertClose(
+    circularProgress.rect.height,
+    24,
+    "large circular progress height",
+  );
+  const circularGraphic = queryLayoutNodes(snapshot, { tag: "svg" }).find(
+    (node) =>
+      node.parentId?.lo === circularProgress.id.lo &&
+      node.parentId.hi === circularProgress.id.hi,
+  );
+  if (!circularGraphic)
+    throw new Error("circular progress graphic was not projected");
+  assertLayoutRectContains(circularProgress.contentRect, circularGraphic.rect, {
+    label: "circular progress graphic",
+  });
+  assertClose(circularLoading.rect.width, 16, "small circular loading width");
+  assertClose(circularLoading.rect.height, 16, "small circular loading height");
+  const circularSpinner = queryLayoutNodes(snapshot, { tag: "spinner" }).find(
+    (node) =>
+      node.parentId?.lo === circularLoading.id.lo &&
+      node.parentId.hi === circularLoading.id.hi,
+  );
+  if (!circularSpinner)
+    throw new Error("circular loading spinner was not projected");
+  assertLayoutRectContains(circularLoading.contentRect, circularSpinner.rect, {
+    label: "circular loading spinner",
+  });
   assertClose(input.rect.height, 32, "input height");
   assertClose(loadingButton.rect.height, 32, "loading button height");
   if (loadingButton.computed.opacity !== 1)
