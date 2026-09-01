@@ -53,6 +53,8 @@ export interface ButtonProps
   classList?: WabouClassList | ((state: ButtonState) => WabouClassList);
   style?: WabouStyle | ((state: ButtonState) => WabouStyle);
   children?: JSX.Element;
+  /** Render an internal visual layer from normalized interaction state. */
+  renderContent?: (state: ButtonState) => JSX.Element;
   tone?: keyof typeof ACCENTS;
   variant?: "solid" | "ghost";
   /** Keep interaction behavior but do not inject the default visual geometry. */
@@ -313,7 +315,7 @@ export function Button(props: ButtonProps): JSX.Element {
       onKeyUp={props.onKeyUp}
       onWheel={props.onWheel}
     >
-      {props.children}
+      {props.renderContent?.(state()) ?? props.children}
     </InternalButton>
   );
 }

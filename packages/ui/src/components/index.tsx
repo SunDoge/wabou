@@ -1,16 +1,8 @@
-import { createFps, type Handle } from "@wabou/core/renderer";
+import { createFps } from "@wabou/core/renderer";
 import { mergeClasses } from "@wabou/core/style";
-import { createSignal, type JSX } from "solid-js";
+import type { JSX } from "solid-js";
 import { match, P } from "ts-pattern";
-import { createTransition, useReducedMotion } from "../animation";
-import {
-  type ButtonState,
-  Button as HeadlessButton,
-  translate2d,
-  View,
-} from "../primitives";
 import { Badge, type BadgeProps } from "./badge";
-import { Label } from "./label";
 
 export * from "./activity-status";
 export * from "./alert";
@@ -106,6 +98,7 @@ export * from "./split-button";
 export * from "./stat-card";
 export * from "./status-bar";
 export * from "./stepper";
+export { Switch, type SwitchProps } from "./switch";
 export * from "./table";
 export {
   Tabs,
@@ -189,95 +182,5 @@ export function Fps(props: FpsProps): JSX.Element {
       {value()}
       {props.label === "" ? "" : ` ${props.label ?? "fps"}`}
     </Badge>
-  );
-}
-
-export interface SwitchProps {
-  checked?: boolean;
-  defaultChecked?: boolean;
-  disabled?: boolean;
-  onCheckedChange?: (checked: boolean) => void;
-  label?: string;
-  "aria-label"?: string;
-  class?: string;
-}
-
-function switchColors(checked: boolean, state: ButtonState): string {
-  return match({ checked, pressed: state.pressed, hovered: state.hovered })
-    .with({ checked: true, pressed: true }, () => "bg-accent-pressed")
-    .with({ checked: true, hovered: true }, () => "bg-accent-hover")
-    .with({ checked: true }, () => "bg-accent")
-    .with({ checked: false, pressed: true }, () => "bg-control-pressed")
-    .with({ checked: false, hovered: true }, () => "bg-control-hover")
-    .with({ checked: false }, () => "bg-control")
-    .exhaustive();
-}
-
-export function Switch(props: SwitchProps): JSX.Element {
-  const [local, setLocal] = createSignal(props.defaultChecked ?? false);
-  const checked = () => props.checked ?? local();
-  const reducedMotion = useReducedMotion();
-  const movement = createTransition(() => (checked() ? 20 : 0), {
-    duration: 0.18,
-    ease: [0.22, 1, 0.36, 1],
-    reducedMotion,
-  });
-  let control: Handle | undefined;
-  const toggle = () => {
-    if (props.disabled) return;
-    const next = !checked();
-    if (props.checked === undefined) setLocal(next);
-    props.onCheckedChange?.(next);
-  };
-  return (
-    <View
-      class={mergeClasses(
-        "w-full min-w-0 flex items-center gap-3",
-        props.class,
-      )}
-    >
-      <HeadlessButton
-        ref={(node) => {
-          control = node;
-        }}
-        unstyled
-        role="switch"
-        disabled={props.disabled}
-        aria-label={props["aria-label"] ?? props.label}
-        aria-checked={checked()}
-        class={(state) =>
-          mergeClasses(
-            "w-10 h-6 flex-none overflow-hidden rounded-full border border-transparent p-0.5",
-            switchColors(checked(), state),
-            state.focused && "border-focus",
-          )
-        }
-        style={(state) => ({
-          opacity: state.disabled ? 0.45 : 1,
-        })}
-        onClick={toggle}
-      >
-        <View
-          aria-hidden="true"
-          class="w-4 h-4 rounded-full bg-surface"
-          transform={translate2d(movement.value(), 0)}
-        />
-      </HeadlessButton>
-      {props.label && (
-        <Label
-          control={() => control}
-          disabled={props.disabled}
-          class={mergeClasses(
-            "min-w-0 flex-1 select-none whitespace-normal text-sm font-normal text-primary",
-          )}
-          onClick={(event) => {
-            if (props.disabled || event.defaultPrevented) return;
-            toggle();
-          }}
-        >
-          {props.label}
-        </Label>
-      )}
-    </View>
   );
 }
