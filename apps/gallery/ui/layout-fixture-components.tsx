@@ -69,6 +69,10 @@ import {
   Slider,
   Spinner,
   Switch,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   Text,
   Tool,
   ToolContent,
@@ -630,6 +634,31 @@ export function ControlBaselineLayoutFixture() {
           Delete
         </Button>
       </ButtonGroup>
+    </View>
+  );
+}
+
+export function TabsLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-6 items-start bg-canvas">
+      <Tabs defaultValue="account" class="w-[460px]">
+        <TabsList aria-label="Fixture settings sections">
+          <TabsTrigger value="account">Account</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="billing">Billing</TabsTrigger>
+        </TabsList>
+        <TabsContent value="account">
+          <Card role="group" aria-label="Fixture account card">
+            <CardContent>
+              <Text class="text-sm font-medium text-primary">Account</Text>
+              <Text class="whitespace-normal text-sm text-muted">
+                Update your public profile and contact details without
+                compressing the panel into a narrow column.
+              </Text>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </View>
   );
 }
