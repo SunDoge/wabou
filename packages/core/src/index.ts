@@ -42,15 +42,7 @@ import "./glue/intl";
 
 export {
   type AppDirectories,
-  appCacheDir,
-  appConfigDir,
-  appDataDir,
   appDirs,
-  appLocalDataDir,
-  appLogDir,
-  resolveAppDirectories,
-  resourceDir,
-  tempDir,
 } from "./glue/app-dirs";
 export {
   type AppLifecycleEvent,
