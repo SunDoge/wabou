@@ -42,6 +42,7 @@ pub struct GpuiRuntimeView {
     // The task itself only owns a weak entity handle, so this is not a cycle.
     _wake_task: Task<()>,
     runtime_wake: WakeCallback,
+    runtime_work_pending: bool,
     focus: FocusHandle,
     text_controls: BTreeMap<wabou_host_api::NodeKey, GpuiTextControlState>,
     text_selections: BTreeMap<wabou_host_api::NodeKey, GpuiTextSelectionState>,
@@ -312,6 +313,7 @@ impl GpuiRuntimeView {
                         // input event or animation frame. The following render pass
                         // publishes any resulting Solid mutation batch to GPUI.
                         let _ = view.controller.poll_runtime();
+                        view.runtime_work_pending = true;
                         cx.notify();
                     })
                     .is_err()
@@ -329,6 +331,7 @@ impl GpuiRuntimeView {
             controller,
             _wake_task: wake_task,
             runtime_wake: wake,
+            runtime_work_pending: true,
             focus,
             text_controls: BTreeMap::new(),
             text_selections: BTreeMap::new(),
@@ -1048,8 +1051,19 @@ impl Render for GpuiRuntimeView {
                 window.is_maximized(),
             );
         }
-        let (advanced_projection, needs_runtime_followup, frame_timing) =
-            self.controller.advance_ready_work_profiled(8);
+        let advance_runtime = self.runtime_work_pending
+            || self.projection_boundary.is_none()
+            || self.controller.has_animation();
+        self.runtime_work_pending = false;
+        let (advanced_projection, needs_runtime_followup, frame_timing) = if advance_runtime {
+            self.controller.advance_ready_work_profiled(8)
+        } else {
+            (
+                false,
+                false,
+                crate::gpui_controller::GpuiFrameTiming::default(),
+            )
+        };
         let committed_projection_revision = self.controller.projection_revision();
         let projection_changed = advanced_projection
             || committed_projection_revision != self.observed_projection_revision;
@@ -1424,11 +1438,13 @@ impl Render for GpuiRuntimeView {
             // drag first without changing Wabou's event-target contract.
             .child(projected)
             .child(TextSelectionLayer);
-        self.controller.publish_frame_stats(
-            frame_timing,
-            frame_started.elapsed().as_secs_f64() * 1_000.0,
-            (viewport_width, viewport_height),
-        );
+        if advance_runtime || boundary_dirty {
+            self.controller.publish_frame_stats(
+                frame_timing,
+                frame_started.elapsed().as_secs_f64() * 1_000.0,
+                (viewport_width, viewport_height),
+            );
+        }
         if let Some(hud) = &self.performance_hud {
             let stats = self.controller.frame_stats();
             hud.update(cx, |hud, hud_cx| {
@@ -1818,6 +1834,18 @@ mod tests {
                     .boot(include_str!("gen/test-runtime.js"))
                     .expect("boot generated Solid runtime fixture");
                 assert!(controller.advance_frame());
+                controller
+                    .eval_script_diagnostic(
+                        r#"
+                        globalThis.__wabou_test_tick_count = 0;
+                        const originalTick = globalThis.__wabou_tick;
+                        globalThis.__wabou_tick = (time) => {
+                          globalThis.__wabou_test_tick_count += 1;
+                          return originalTick(time);
+                        };
+                        "#,
+                    )
+                    .expect("instrument QuickJS animation ticks");
                 app.new(|view_cx| {
                     let mut view = GpuiRuntimeView::new(
                         controller,
@@ -1852,6 +1880,12 @@ mod tests {
             )
         });
         let initial = cx.read_entity(&boundary, |boundary, _| boundary.materialization_count());
+        let initial_hud_render_count = cx.read_entity(&hud, |hud, _| hud.render_count());
+        let initial_tick_count = cx.read_entity(&root, |view, _| {
+            view.controller
+                .eval_string("String(globalThis.__wabou_test_tick_count)")
+                .expect("read initial QuickJS tick count")
+        });
         cx.update_entity(&hud, |hud, hud_cx| {
             hud.update(
                 Some(wabou_shell::FrameStats {
@@ -1890,6 +1924,19 @@ mod tests {
             }),
             initial,
             "native HUD updates must stay outside the Solid projection boundary"
+        );
+        assert!(
+            cx.read_entity(&hud, |hud, _| hud.render_count()) > initial_hud_render_count,
+            "the native HUD must render again on its own frame clock"
+        );
+        assert_eq!(
+            cx.read_entity(&root, |view, _| {
+                view.controller
+                    .eval_string("String(globalThis.__wabou_test_tick_count)")
+                    .expect("read final QuickJS tick count")
+            }),
+            initial_tick_count,
+            "native HUD frames must not poll an idle QuickJS runtime"
         );
     }
 
