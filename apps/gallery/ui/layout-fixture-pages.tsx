@@ -146,7 +146,7 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
       },
       "component/CardSurface": {
         width: 480,
-        height: 320,
+        height: 440,
         render: CardSurfaceLayoutFixture,
       },
       "component/DarkSurface": {
