@@ -67,24 +67,22 @@ test("opens at the last action with ArrowUp and closes with Escape", () => {
   expect(screen.queryByRole("menu")).toBeNull();
 });
 
-test("forwards popup motion configuration", () => {
-  const screen = renderComponent(
-    () => (
-      <DropdownMenu
-        aria-label="Animated actions"
-        items={[{ id: "open", label: "Open" }]}
-        motion={{ duration: 10, fromScale: 0.9 }}
-        trigger={(trigger) => (
-          <Button aria-label="Animated" {...trigger}>
-            Animated
-          </Button>
-        )}
-      />
-    ),
-    { clock: "fake" },
-  );
+test("keeps the authored endpoint while native popup positioning is pending", () => {
+  const screen = renderComponent(() => (
+    <DropdownMenu
+      aria-label="Animated actions"
+      items={[{ id: "open", label: "Open" }]}
+      motion={{ duration: 10, fromScale: 0.9 }}
+      trigger={(trigger) => (
+        <Button aria-label="Animated" {...trigger}>
+          Animated
+        </Button>
+      )}
+    />
+  ));
 
   screen.getByRole("button", { name: "Animated" }).click();
   const panel = screen.getByRole("menu").closestByRole("presentation");
-  expect(panel?.transform).toEqual([0.9, 0, 0, 0.9, 0, 0]);
+  expect(panel?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+  expect(panel?.attribute("__wabou_native_transition")).toBeNull();
 });
