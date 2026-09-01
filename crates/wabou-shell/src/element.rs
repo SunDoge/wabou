@@ -638,11 +638,7 @@ impl ProjectedElement {
             return self.into_any_element();
         };
         NativeTransitionElement {
-            id: format!(
-                "wabou-transition-{}-{}-{}",
-                self.key.hi, self.key.lo, transition.generation
-            )
-            .into(),
+            id: format!("wabou-transition-{}-{}", self.key.hi, self.key.lo).into(),
             target: self.key,
             input: self.input.clone(),
             element: Some(self),
@@ -779,6 +775,7 @@ impl ProjectedElement {
 
 struct NativeTransitionState {
     started: std::time::Instant,
+    transition: NativeTransition,
     completion_sent: bool,
 }
 
@@ -822,23 +819,33 @@ impl Element for NativeTransitionElement {
             |state, window| {
                 let mut state = state.unwrap_or_else(|| NativeTransitionState {
                     started: std::time::Instant::now(),
+                    transition: self.transition,
                     completion_sent: false,
                 });
+                if state.transition.generation != self.transition.generation {
+                    let progress = transition_progress(
+                        state.transition,
+                        state.started.elapsed().as_secs_f32(),
+                    );
+                    let (transform, opacity) = sample_transition(state.transition, progress);
+                    state.started = std::time::Instant::now();
+                    state.transition = NativeTransition {
+                        from_transform: transform,
+                        from_opacity: opacity,
+                        ..self.transition
+                    };
+                    state.completion_sent = false;
+                }
                 let raw_progress = if cx.reduce_motion() {
                     1.0
                 } else {
-                    (state.started.elapsed().as_secs_f32() / self.transition.duration).min(1.0)
-                };
-                let progress = match self.transition.easing {
-                    NativeTransitionEasing::Linear => gpui::linear(raw_progress),
-                    NativeTransitionEasing::EaseInOut => gpui::ease_in_out(raw_progress),
-                    NativeTransitionEasing::EaseOut => gpui::ease_out_quint()(raw_progress),
+                    transition_progress(state.transition, state.started.elapsed().as_secs_f32())
                 };
                 let mut element = self
                     .element
                     .take()
                     .expect("native transition is laid out once");
-                element.apply_transition_progress(self.transition, progress);
+                element.apply_transition_progress(state.transition, raw_progress);
                 let mut element = element.into_any_element();
                 let layout = element.request_layout(window, cx);
 
@@ -886,6 +893,26 @@ impl Element for NativeTransitionElement {
     ) {
         element.paint(window, cx);
     }
+}
+
+fn transition_progress(transition: NativeTransition, elapsed: f32) -> f32 {
+    let progress = (elapsed / transition.duration).clamp(0.0, 1.0);
+    match transition.easing {
+        NativeTransitionEasing::Linear => gpui::linear(progress),
+        NativeTransitionEasing::EaseInOut => gpui::ease_in_out(progress),
+        NativeTransitionEasing::EaseOut => gpui::ease_out_quint()(progress),
+    }
+}
+
+fn sample_transition(transition: NativeTransition, progress: f32) -> ([f32; 6], f32) {
+    let mut transform = transition.from_transform;
+    for (index, value) in transform.iter_mut().enumerate() {
+        *value = transition.from_transform[index]
+            + (transition.to_transform[index] - transition.from_transform[index]) * progress;
+    }
+    let opacity =
+        transition.from_opacity + (transition.to_opacity - transition.from_opacity) * progress;
+    (transform, opacity.clamp(0.0, 1.0))
 }
 
 pub(crate) fn projected_text(
@@ -1737,6 +1764,32 @@ mod tests {
         )
         .unwrap();
         assert!(element.native_transition.is_none());
+    }
+
+    #[test]
+    fn native_transition_retargeting_can_continue_from_the_sampled_frame() {
+        let first = NativeTransition {
+            generation: 1,
+            duration: 1.0,
+            easing: NativeTransitionEasing::Linear,
+            from_transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            to_transform: [1.0, 0.0, 0.0, 1.0, 16.0, 0.0],
+            from_opacity: 0.0,
+            to_opacity: 1.0,
+        };
+        let (transform, opacity) = sample_transition(first, 0.5);
+        let reversed = NativeTransition {
+            generation: 2,
+            from_transform: transform,
+            from_opacity: opacity,
+            to_transform: first.from_transform,
+            to_opacity: first.from_opacity,
+            ..first
+        };
+
+        assert_eq!(reversed.from_transform[4], 8.0);
+        assert_eq!(reversed.from_opacity, 0.5);
+        assert_eq!(sample_transition(reversed, 0.0), (transform, opacity));
     }
 
     #[test]

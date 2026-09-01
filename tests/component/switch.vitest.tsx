@@ -1,10 +1,7 @@
 import { renderComponent } from "@wabou/test/component";
 import { MotionConfigProvider, Switch } from "@wabou/ui";
 import { expect, test } from "vitest";
-import {
-  switchControlClass,
-  switchTrackClass,
-} from "../../packages/ui/src/components/switch";
+import { switchControlClass } from "../../packages/ui/src/components/switch";
 
 const thumbX = (screen: ReturnType<typeof renderComponent>): number => {
   const control = screen.getByRole("switch", { name: "Sync" });
@@ -13,21 +10,25 @@ const thumbX = (screen: ReturnType<typeof renderComponent>): number => {
   return thumb.transform?.[4] ?? 0;
 };
 
-test("interpolates the switch thumb and settles at the selected position", async () => {
-  const screen = renderComponent(
-    () => <Switch aria-label="Sync" defaultChecked={false} />,
-    { clock: "fake" },
-  );
+test("delegates switch thumb interpolation to a finite GPUI transition", () => {
+  const screen = renderComponent(() => (
+    <Switch aria-label="Sync" defaultChecked={false} />
+  ));
   const control = screen.getByRole("switch", { name: "Sync" });
 
   expect(thumbX(screen)).toBe(0);
   control.click();
   expect(control.checked).toBe(true);
-  await screen.advanceTime(90);
-  expect(thumbX(screen)).toBeGreaterThan(0);
-  expect(thumbX(screen)).toBeLessThan(16);
-  await screen.advanceTime(200);
   expect(thumbX(screen)).toBe(16);
+  const thumb = control.children[0]?.children[0];
+  expect(
+    JSON.parse(thumb?.attribute("__wabou_native_transition") ?? "null"),
+  ).toMatchObject({
+    duration: 0.15,
+    easing: "easeInOut",
+    fromTransform: [1, 0, 0, 1, 0, 0],
+    toTransform: [1, 0, 0, 1, 16, 0],
+  });
 });
 
 test("publishes the final switch position under reduced motion", () => {
@@ -39,6 +40,9 @@ test("publishes the final switch position under reduced motion", () => {
 
   screen.getByRole("switch", { name: "Sync" }).click();
   expect(thumbX(screen)).toBe(16);
+  const thumb = screen.getByRole("switch", { name: "Sync" }).children[0]
+    ?.children[0];
+  expect(thumb?.attribute("__wabou_native_transition")).toBeNull();
 });
 
 test("uses compact GPUI-native track geometry without focus reflow", () => {
