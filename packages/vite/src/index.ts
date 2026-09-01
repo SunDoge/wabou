@@ -89,7 +89,7 @@ export const defaultWabouColorThemes: WabouColorThemeOptions = {
     light: {
       appearance: "light",
       colors: {
-        canvas: "#f6f7f9",
+        canvas: "#ffffff",
         surface: "#ffffff",
         "surface-muted": "#f0f2f5",
         input: "#ffffff",

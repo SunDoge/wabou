@@ -86,6 +86,7 @@ describe("@wabou/vite", () => {
       );
     }
     expect(auditColorThemeContrast(compiled!)).toEqual([]);
+    expect(defaultWabouColorThemes.themes.light.colors.canvas).toBe("#ffffff");
   });
 
   test("defines conventional entry and bundle output", async () => {
