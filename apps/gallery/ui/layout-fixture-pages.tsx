@@ -8,6 +8,7 @@ import {
   ActivityStatusLayoutFixture,
   AdaptiveSplitPaneLayoutFixture,
   AlertLayoutFixture,
+  BadgeLayoutFixture,
   CardSurfaceLayoutFixture,
   CompactSurfaceLayoutFixture,
   ContentStateLayoutFixture,
@@ -208,6 +209,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 320,
         height: 420,
         render: EmptyLayoutFixture,
+      },
+      "component/Badge": {
+        width: 360,
+        height: 120,
+        render: BadgeLayoutFixture,
       },
       "component/AdaptiveSplitPane": {
         width: 720,

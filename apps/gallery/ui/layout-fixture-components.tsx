@@ -953,6 +953,22 @@ export function SpinnerLayoutFixture() {
   );
 }
 
+export function BadgeLayoutFixture() {
+  return (
+    <View class="w-full h-full p-6 flex flex-row items-center gap-4 bg-canvas">
+      <Badge role="status" aria-label="Fixture small badge" size="sm">
+        2
+      </Badge>
+      <Badge role="status" aria-label="Fixture default badge">
+        Ready
+      </Badge>
+      <Badge role="status" aria-label="Fixture large badge" size="lg">
+        Published
+      </Badge>
+    </View>
+  );
+}
+
 export function ActivityStatusLayoutFixture() {
   return (
     <View class="w-full h-full min-w-0 p-4 flex items-center bg-canvas">
