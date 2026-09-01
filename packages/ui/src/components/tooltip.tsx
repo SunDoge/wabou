@@ -2,7 +2,8 @@ import type { Handle } from "@wabou/core/renderer";
 import { mergeClasses } from "@wabou/core/style";
 import { createSignal, type JSX, onCleanup } from "solid-js";
 import type { Placement } from "../primitives";
-import { Popover, Text } from "../primitives";
+import { Popover, Text, View } from "../primitives";
+import { Kbd } from "./display";
 import type { PopupMotionProps } from "./popover";
 import { componentsElevation, useComponentsTheme } from "./theme";
 import { createTooltipDelayController } from "./tooltip-state";
@@ -32,6 +33,38 @@ export interface TooltipProps extends PopupMotionProps {
   offset?: number;
   contentClass?: string;
   disabled?: boolean;
+  /** Optional keyboard shortcut presented as a native keycap. */
+  shortcut?: string;
+}
+
+export interface TooltipContentProps {
+  children?: JSX.Element;
+  shortcut?: string;
+  id?: string;
+  class?: string;
+}
+
+/** Visual content shared by managed and explicitly composed tooltips. */
+export function TooltipContent(props: TooltipContentProps): JSX.Element {
+  return (
+    <View
+      class={mergeClasses(
+        "min-w-0 flex flex-row items-center gap-3",
+        props.class,
+      )}
+    >
+      <Text
+        id={props.id}
+        role="tooltip"
+        class="min-w-0 flex-1 whitespace-normal text-xs text-primary"
+      >
+        {props.children}
+      </Text>
+      {props.shortcut === undefined ? null : (
+        <Kbd aria-label={`${props.shortcut} shortcut`}>{props.shortcut}</Kbd>
+      )}
+    </View>
+  );
 }
 
 let tooltipId = 0;
@@ -87,13 +120,9 @@ export function Tooltip(props: TooltipProps): JSX.Element {
         })
       }
     >
-      <Text
-        id={id}
-        role="tooltip"
-        class="whitespace-normal text-xs text-primary"
-      >
+      <TooltipContent id={id} shortcut={props.shortcut}>
         {props.children}
-      </Text>
+      </TooltipContent>
     </Popover>
   );
 }

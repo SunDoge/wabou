@@ -609,6 +609,30 @@ const assertFieldLayout = (snapshot: LayoutSnapshot) => {
     throw new Error("repository label overlaps its field control");
 };
 
+const assertTooltipLayout = (snapshot: LayoutSnapshot) => {
+  const tooltip = getLayoutNode(snapshot, {
+    text: "Open command palette",
+  });
+  const shortcut = getLayoutNode(snapshot, {
+    role: "label",
+    name: "Ctrl K shortcut",
+  });
+  const popup = snapshot.nodes.find(
+    (node) =>
+      node.id.lo === tooltip.parentId?.lo &&
+      node.id.hi === tooltip.parentId?.hi,
+  );
+  if (!popup) throw new Error("tooltip content row was not projected");
+  assertLayoutRectContains(popup.contentRect, tooltip.rect, {
+    label: "tooltip text",
+  });
+  assertLayoutRectContains(popup.contentRect, shortcut.rect, {
+    label: "tooltip shortcut",
+  });
+  if (shortcut.rect.x <= layoutRectRight(tooltip.rect))
+    throw new Error("tooltip shortcut did not follow its description");
+};
+
 const assertOnboardingLayout = (snapshot: LayoutSnapshot) => {
   const viewport = getLayoutNode(snapshot, {
     role: "region",
@@ -1094,6 +1118,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/Empty": { assert: assertEmptyLayout },
   "component/Badge": { assert: assertBadgeLayout },
   "component/Field": { assert: assertFieldLayout },
+  "component/Tooltip": { assert: assertTooltipLayout },
   "component/Onboarding": { assert: assertOnboardingLayout },
   "component/Dialog": { assert: assertDialogLayout },
   "component/Sheet": { assert: assertSheetLayout },

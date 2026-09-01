@@ -51,3 +51,25 @@ test("honors hover delay and cancels a pending open", async () => {
   await screen.advanceTime(400);
   expect(screen.getByRole("tooltip").text).toBe("Explains this action");
 });
+
+test("owns optional shortcut presentation without changing tooltip semantics", () => {
+  const screen = renderComponent(() => (
+    <Tooltip
+      defaultOpen
+      shortcut="Ctrl K"
+      trigger={(trigger) => (
+        <Button aria-label="Commands" {...trigger}>
+          Commands
+        </Button>
+      )}
+    >
+      Open commands
+    </Tooltip>
+  ));
+
+  const tooltip = screen.getByRole("tooltip", { name: "Open commands" });
+  const shortcut = screen.getByRole("label", { name: "Ctrl K shortcut" });
+  expect(tooltip.parent?.className).toContain("gap-3");
+  expect(shortcut.className).toContain("text-xs");
+  expect(shortcut.text).toBe("Ctrl K");
+});

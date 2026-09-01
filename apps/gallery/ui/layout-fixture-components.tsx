@@ -100,6 +100,7 @@ import {
   ToolHeader,
   ToolInput,
   ToolOutput,
+  TooltipContent,
   TypographyH3,
   TypographyP,
   View,
@@ -992,6 +993,16 @@ export function FieldLayoutFixture() {
           <FieldDescription>Choose a valid branch name.</FieldDescription>
         </FieldContent>
       </Field>
+    </View>
+  );
+}
+
+export function TooltipLayoutFixture() {
+  return (
+    <View class="w-full h-full p-8 flex items-center justify-center bg-canvas">
+      <View class="max-w-xs rounded-lg border border-subtle bg-surface px-2 py-1.5">
+        <TooltipContent shortcut="Ctrl K">Open command palette</TooltipContent>
+      </View>
     </View>
   );
 }
