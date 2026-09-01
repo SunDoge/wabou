@@ -1,5 +1,6 @@
 import { renderComponent } from "@wabou/test/component";
 import { Button, Sheet, SheetTitle } from "@wabou/ui";
+import { createComponent, createSignal } from "solid-js";
 import { expect, test } from "vitest";
 
 test("slides a solid edge panel fully out before unmounting it", () => {
@@ -88,4 +89,43 @@ test("supports top and bottom placement without a separate overlay primitive", (
     JSON.parse(bottomSheet.attribute("__wabou_native_transition") ?? "null")
       .fromTransform,
   ).toEqual([1, 0, 0, 1, 0, 320]);
+});
+
+test("waits for a controlled owner before starting the exit transition", () => {
+  let commitOpen: ((open: boolean) => void) | undefined;
+  let closeRequested = false;
+  const screen = renderComponent(() => {
+    const [open, setOpen] = createSignal(false);
+    commitOpen = setOpen;
+    return createComponent(Sheet, {
+      "aria-label": "Controlled sheet",
+      get open() {
+        return open();
+      },
+      onOpenChange(next) {
+        if (next) setOpen(true);
+        else closeRequested = true;
+      },
+      trigger: (trigger) =>
+        createComponent(Button, {
+          ...trigger,
+          children: "Open controlled sheet",
+        }),
+      children: (controls) => <Button onClick={controls.close}>Close</Button>,
+    });
+  });
+
+  screen.getByRole("button", { name: "Open controlled sheet" }).click();
+  const sheet = screen.getByRole("dialog", { name: "Controlled sheet" });
+  screen.getByRole("button", { name: "Close" }).click();
+  expect(closeRequested).toBe(true);
+  expect(sheet.attribute("aria-hidden")).toBeNull();
+  expect(sheet.parent?.className).toContain("backdrop-blur-sm");
+  expect(sheet.transform).toEqual([1, 0, 0, 1, 0, 0]);
+
+  commitOpen?.(false);
+  screen.flush();
+  expect(sheet.attribute("aria-hidden")).toBe("true");
+  expect(sheet.parent?.className).not.toContain("backdrop-blur-sm");
+  expect(sheet.parent?.style("pointer-events")).toBe("none");
 });

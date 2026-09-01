@@ -62,6 +62,33 @@ export interface ModalMotionOptions {
   fromY?: number;
 }
 
+export interface ModalVisualState {
+  /** The modal currently owns focus, pointer input, and the native scrim. */
+  active: boolean;
+  /** Keep authored backdrop visuals mounted while a fade-out completes. */
+  retainBackdropVisuals: boolean;
+  /** A closing edge panel remains mounted, but must expose the application immediately. */
+  transparentBackdrop: boolean;
+}
+
+/**
+ * Derive every modal-plane policy from the committed controlled state.
+ *
+ * Presence only controls how long the subtree remains mounted. It must never
+ * prolong focus containment, hit testing, blur, or an opaque scrim after the
+ * owner has committed `open=false`.
+ */
+export function modalVisualState(
+  open: boolean,
+  backdropFade: boolean | undefined,
+): ModalVisualState {
+  return {
+    active: open,
+    retainBackdropVisuals: open || backdropFade !== false,
+    transparentBackdrop: !open && backdropFade === false,
+  };
+}
+
 export function modalMotionTransform(
   options: ModalMotionOptions | undefined,
   progress: number,
@@ -129,6 +156,7 @@ export function Modal(props: ModalProps): JSX.Element {
   const motionEnabled = motionOptions !== undefined;
   const duration = motionOptions?.duration ?? (motionEnabled ? 0.16 : 0);
   const presence = createPresence(open);
+  const visualState = () => modalVisualState(open(), props.backdropFade);
   const [transitionGeneration, setTransitionGeneration] = createSignal(0);
   let trigger: Handle | undefined;
   let focusFrame = 0;
@@ -234,18 +262,20 @@ export function Modal(props: ModalProps): JSX.Element {
           role: "presentation",
           "aria-modal": "true",
           get focusContained() {
-            return open();
+            return visualState().active;
           },
           get interactionBlocked() {
-            return !open();
+            return !visualState().active;
           },
           get class() {
+            const visual = visualState();
             return mergeClasses(
-              open() && "backdrop-blur-sm",
-              (open() || props.backdropFade !== false) && props.backdropClass,
+              visual.active && "backdrop-blur-sm",
+              visual.retainBackdropVisuals && props.backdropClass,
             );
           },
           get style() {
+            const visual = visualState();
             return {
               position: "absolute",
               left: 0,
@@ -259,10 +289,10 @@ export function Modal(props: ModalProps): JSX.Element {
               // An edge panel may remain mounted for its slide-out transition,
               // but its modal scrim must stop affecting the application at the
               // moment the logical open state changes.
-              ...(open() || props.backdropFade !== false
-                ? undefined
-                : { "background-color": rgba(0x00000000) }),
-              "pointer-events": open() ? "auto" : "none",
+              ...(visual.transparentBackdrop
+                ? { "background-color": rgba(0x00000000) }
+                : undefined),
+              "pointer-events": visual.active ? "auto" : "none",
               // Portal containers share one native plane. Make open order
               // explicit so nested overlays paint above their owning modal.
               "z-index": layer.zIndex(),
@@ -327,10 +357,10 @@ export function Modal(props: ModalProps): JSX.Element {
                 else presence.finishExit();
               },
               get interactionBlocked() {
-                return !open();
+                return !visualState().active;
               },
               get "aria-hidden"() {
-                return open() ? undefined : "true";
+                return visualState().active ? undefined : "true";
               },
               onClick: (event: ModalEvent) => event.stopPropagation(),
               get children() {

@@ -68,6 +68,8 @@ import {
   ResourceBoundary,
   ScrollArea,
   Select,
+  Sheet,
+  SheetTitle,
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -1011,6 +1013,20 @@ export function DialogLayoutFixture() {
           <Button>Done</Button>
         </View>
       </Dialog>
+    </View>
+  );
+}
+
+export function SheetLayoutFixture() {
+  return (
+    <View class="w-full h-full bg-canvas">
+      <Sheet open motion={false} side="right" aria-label="Fixture sheet">
+        <SheetTitle>Sheet title</SheetTitle>
+        <Text class="whitespace-normal text-sm text-muted">
+          The edge panel stays within the viewport and preserves its authored
+          width.
+        </Text>
+      </Sheet>
     </View>
   );
 }

@@ -522,6 +522,23 @@ const assertDialogLayout = (snapshot: LayoutSnapshot) => {
   );
 };
 
+const assertSheetLayout = (snapshot: LayoutSnapshot) => {
+  const sheet = getLayoutNode(snapshot, {
+    role: "dialog",
+    name: "Fixture sheet",
+  });
+  const viewport = {
+    x: 0,
+    y: 0,
+    width: snapshot.status.viewportWidth,
+    height: snapshot.status.viewportHeight,
+  };
+  assertLayoutRectContains(viewport, sheet.rect, { label: "sheet" });
+  assertClose(sheet.rect.width, 400, "sheet width");
+  assertClose(sheet.rect.height, viewport.height, "sheet height");
+  assertClose(layoutRectRight(sheet.rect), viewport.width, "sheet right edge");
+};
+
 const assertCardSurfaceLayout = (snapshot: LayoutSnapshot) => {
   const card = getLayoutNode(snapshot, {
     role: "group",
@@ -914,6 +931,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/Empty": { assert: assertEmptyLayout },
   "component/Onboarding": { assert: assertOnboardingLayout },
   "component/Dialog": { assert: assertDialogLayout },
+  "component/Sheet": { assert: assertSheetLayout },
   "component/AdaptiveSplitPane": { assert: assertAdaptiveSplitPaneLayout },
   "component/ImageViewport": {
     width: 720,
