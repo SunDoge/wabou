@@ -265,6 +265,22 @@ impl StyleProjection {
                 self.style.corner_radii.bottom_right = radius;
                 self.style.corner_radii.bottom_left = radius;
             }
+            "border-top-left-radius" => {
+                self.style.corner_radii.top_left =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "border-top-right-radius" => {
+                self.style.corner_radii.top_right =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "border-bottom-right-radius" => {
+                self.style.corner_radii.bottom_right =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "border-bottom-left-radius" => {
+                self.style.corner_radii.bottom_left =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
             "font-size" => {
                 self.style.text.font_size =
                     Some(absolute_length(value).ok_or_else(|| invalid(property))?);
@@ -895,6 +911,30 @@ mod tests {
         assert_eq!(style.text.font_size, Some(gpui::px(18.0).into()));
         assert_eq!(style.text.font_weight, Some(FontWeight(600.0)));
         assert_eq!(style.text.line_height, Some(DefiniteLength::Fraction(1.5)));
+    }
+
+    #[test]
+    fn projects_independent_corner_radii_into_gpui() {
+        let mut projection = StyleProjection::default();
+        for (property, radius) in [
+            ("border-top-left-radius", 8.0),
+            ("border-top-right-radius", 7.0),
+            ("border-bottom-right-radius", 6.0),
+            ("border-bottom-left-radius", 5.0),
+        ] {
+            projection
+                .apply(&declaration(
+                    property,
+                    length_value(IrLength::Px { value: radius }),
+                ))
+                .unwrap();
+        }
+
+        let radii = projection.style().corner_radii;
+        assert_eq!(radii.top_left, gpui::px(8.0).into());
+        assert_eq!(radii.top_right, gpui::px(7.0).into());
+        assert_eq!(radii.bottom_right, gpui::px(6.0).into());
+        assert_eq!(radii.bottom_left, gpui::px(5.0).into());
     }
 
     #[test]

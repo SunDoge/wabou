@@ -2882,6 +2882,28 @@
         }
       }
     ],
+    "rounded-b-lg": [
+      {
+        "property": "border-bottom-left-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      },
+      {
+        "property": "border-bottom-right-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      }
+    ],
     "rounded-full": [
       {
         "property": "border-radius",
@@ -2890,6 +2912,28 @@
           "value": {
             "unit": "px",
             "value": 9999.0
+          }
+        }
+      }
+    ],
+    "rounded-l-lg": [
+      {
+        "property": "border-top-left-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      },
+      {
+        "property": "border-bottom-left-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
           }
         }
       }
@@ -2930,6 +2974,28 @@
         }
       }
     ],
+    "rounded-r-lg": [
+      {
+        "property": "border-top-right-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      },
+      {
+        "property": "border-bottom-right-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      }
+    ],
     "rounded-sm": [
       {
         "property": "border-radius",
@@ -2938,6 +3004,28 @@
           "value": {
             "unit": "px",
             "value": 2.0
+          }
+        }
+      }
+    ],
+    "rounded-t-lg": [
+      {
+        "property": "border-top-left-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      },
+      {
+        "property": "border-top-right-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
           }
         }
       }

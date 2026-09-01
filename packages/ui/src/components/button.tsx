@@ -7,9 +7,12 @@ import {
   type ButtonProps as HeadlessButtonProps,
   type WabouStyle,
 } from "../primitives";
-import { useButtonGroupOrientation } from "./button-group-context";
+import {
+  buttonGroupItemCorners,
+  useButtonGroupItem,
+} from "./button-group-context";
 import { Spinner } from "./display";
-import { componentsControlSize } from "./theme";
+import { componentsControlContentSize, componentsControlSize } from "./theme";
 
 export type ButtonVariant =
   | "default"
@@ -100,8 +103,10 @@ function buttonColors(variant: ButtonVariant, state: ButtonState): string {
     .exhaustive();
 }
 
-function buttonSize(size: ButtonSize): string {
-  return componentsControlSize(size);
+function buttonSize(size: ButtonSize, grouped: boolean): string {
+  return grouped
+    ? componentsControlContentSize(size)
+    : componentsControlSize(size);
 }
 
 export function Button(props: ButtonProps): JSX.Element {
@@ -118,7 +123,7 @@ export function Button(props: ButtonProps): JSX.Element {
   );
   const variant = () => local.variant ?? "default";
   const size = () => local.size ?? "default";
-  const groupOrientation = useButtonGroupOrientation();
+  const groupItem = useButtonGroupItem();
   return (
     <HeadlessButton
       {...forwarded}
@@ -129,8 +134,9 @@ export function Button(props: ButtonProps): JSX.Element {
         mergeClasses(
           "inline-flex flex-none overflow-hidden whitespace-nowrap items-center justify-center border font-medium",
           buttonColors(variant(), state),
-          buttonSize(size()),
-          groupOrientation && "rounded-none border-transparent",
+          buttonSize(size(), groupItem !== undefined),
+          groupItem && buttonGroupItemCorners(groupItem),
+          groupItem && "border-transparent",
           local.class,
         )
       }
