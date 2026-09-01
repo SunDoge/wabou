@@ -30,6 +30,9 @@ test("headless NotificationRegion remains static and removes items directly", ()
   });
 
   screen.getByRole("button", { name: "Show static notification" }).click();
+  const tags = (nodes: ReturnType<typeof screen.snapshot>): string[] =>
+    nodes.flatMap((node) => [node.tag, ...tags(node.children ?? [])]);
+  expect(tags(screen.snapshot())).toContain("toast-stack");
   expect(
     screen.getByRole("status", { name: "Static notification" }).transform,
   ).toBeNull();

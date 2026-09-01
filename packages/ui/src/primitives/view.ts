@@ -174,6 +174,7 @@ type InternalPrimitiveTag =
   | "textarea"
   | "password-input"
   | "editor"
+  | "toast-stack"
   | "vector-path";
 
 /** @internal Host tags are renderer details, not public JSX elements. */
@@ -197,6 +198,7 @@ function primitive(
     | "textarea"
     | "password-input"
     | "editor"
+    | "toast-stack"
     | "vector-path",
   props: PrimitiveProps,
 ) {

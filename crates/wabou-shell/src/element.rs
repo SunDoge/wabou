@@ -7,11 +7,11 @@ use std::{
 };
 
 use gpui::{
-    AnyElement, App, Bounds, DispatchPhase, Element, ElementId, FocusHandle, GlobalElementId,
-    HighlightStyle, Hitbox, HitboxBehavior, InspectorElementId, IntoElement, KeyDownEvent,
-    KeyUpEvent, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Overflow,
-    Pixels, ScrollDelta, ScrollWheelEvent, StyledText, TouchPhase, UniformListScrollHandle,
-    Visibility, Window, div, prelude::*, uniform_list,
+    Anchor, AnyElement, App, Bounds, DispatchPhase, Element, ElementId, FocusHandle,
+    GlobalElementId, HighlightStyle, Hitbox, HitboxBehavior, InspectorElementId, IntoElement,
+    KeyDownEvent, KeyUpEvent, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    Overflow, Pixels, RenderOnce, ScrollDelta, ScrollWheelEvent, StyledText, TouchPhase,
+    UniformListScrollHandle, Visibility, Window, div, prelude::*, uniform_list,
 };
 use serde::Deserialize;
 
@@ -470,6 +470,47 @@ pub struct ProjectedRequestLayoutState {
     scrollbar: Option<AnyElement>,
 }
 
+/// A GPUI-base container whose children remain ordinary Solid-authored nodes.
+///
+/// Unlike a native widget factory, this bridge owns its projected children so
+/// GPUI-base can measure and animate the whole stack with stable `NodeKey`
+/// identities. Presentation stays in TSX; stack geometry stays native.
+#[derive(IntoElement)]
+struct ProjectedToastStack {
+    id: ElementId,
+    placement: Anchor,
+    items: Vec<(ElementId, AnyElement)>,
+}
+
+impl RenderOnce for ProjectedToastStack {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let state = window
+            .use_keyed_state(self.id.clone(), cx, |_, _| {
+                gpui_base::ToastStackState::default()
+            })
+            .read(cx)
+            .clone();
+        let mut stack = gpui_base::ToastStack::new(self.id, state)
+            .placement(self.placement)
+            .w_full();
+        for (id, item) in self.items {
+            stack = stack.item(id, item);
+        }
+        stack
+    }
+}
+
+fn toast_stack_placement(node: &ProjectedNode) -> Anchor {
+    match node.attributes.get("placement").map(AsRef::as_ref) {
+        Some("top-start") => Anchor::TopLeft,
+        Some("top") => Anchor::TopCenter,
+        Some("bottom-start") => Anchor::BottomLeft,
+        Some("bottom") => Anchor::BottomCenter,
+        Some("bottom-end") => Anchor::BottomRight,
+        _ => Anchor::TopRight,
+    }
+}
+
 impl ProjectedElement {
     pub(crate) fn from_tree(
         tree: ProjectionSnapshot,
@@ -600,6 +641,27 @@ impl ProjectedElement {
                         .into_any_element(),
                 );
             }
+        }
+        if matches!(
+            &node.kind,
+            ProjectedNodeKind::Element(tag) if tag.as_ref() == "toast-stack"
+        ) {
+            debug_assert_eq!(children.len(), node.children.len());
+            let items = node
+                .children
+                .iter()
+                .copied()
+                .zip(std::mem::take(&mut children))
+                .map(|(key, child)| (key.gpui_element_id(), child))
+                .collect();
+            children.push(
+                ProjectedToastStack {
+                    id: key.gpui_element_id(),
+                    placement: toast_stack_placement(node),
+                    items,
+                }
+                .into_any_element(),
+            );
         }
         let hit_testable = !has_native_child
             && !interaction_blocked
@@ -2036,6 +2098,48 @@ mod tests {
         )
         .unwrap();
         assert_eq!(element.children.len(), 1);
+    }
+
+    #[test]
+    fn toast_stack_keeps_solid_children_inside_one_gpui_base_container() {
+        let stack = NodeKey::new(32, 1);
+        let first = NodeKey::new(33, 1);
+        let second = NodeKey::new(34, 1);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            stack,
+            None,
+            0,
+            Style::default(),
+            None,
+            ProjectedNodeKind::Element("toast-stack".into()),
+        )
+        .unwrap();
+        for (index, key) in [first, second].into_iter().enumerate() {
+            tree.insert(
+                key,
+                Some(stack),
+                index,
+                Style::default(),
+                Some(format!("Toast {index}").into()),
+                ProjectedNodeKind::Element("view".into()),
+            )
+            .unwrap();
+        }
+
+        let element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            stack,
+            ProjectedElementContext::default(),
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(
+            element.children.len(),
+            1,
+            "the native stack, rather than the projected wrapper, must own every toast item"
+        );
     }
 
     #[test]

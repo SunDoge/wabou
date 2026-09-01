@@ -13,7 +13,7 @@ import {
 import { type Easing, useReducedMotion } from "../animation";
 import { createPresence } from "./presence";
 import { createRetainedItems, type RetainedItem } from "./retained-items";
-import { View, type WabouStyle } from "./view";
+import { createInternalPrimitive, View, type WabouStyle } from "./view";
 
 export type NotificationPriority = "polite" | "assertive";
 export type NotificationDismissReason =
@@ -191,6 +191,8 @@ export interface NotificationRegionProps {
   placement?: NotificationPlacement;
   class?: string;
   style?: WabouStyle;
+  /** Width and presentation of the native GPUI-base stack container. */
+  stackClass?: string;
   itemClass?: string;
   itemStyle?: WabouStyle;
   /** Headless regions are static unless motion is explicitly requested. */
@@ -245,8 +247,17 @@ const alignment = (placement: NotificationPlacement) => ({
 const renderNotificationPortal = (
   props: NotificationRegionProps,
   children: JSX.Element,
-) =>
-  createComponent(Portal, {
+) => {
+  const stack = createInternalPrimitive("toast-stack", {
+    get placement() {
+      return props.placement ?? "top-end";
+    },
+    get class() {
+      return props.stackClass ?? "w-96 max-w-full";
+    },
+    children,
+  });
+  return createComponent(Portal, {
     plane: "floating",
     role: "presentation",
     get class() {
@@ -268,8 +279,9 @@ const renderNotificationPortal = (
         ...props.style,
       };
     },
-    children,
+    children: stack,
   });
+};
 
 /** Render a non-blocking stack on the native floating overlay plane. */
 export function NotificationRegion(
