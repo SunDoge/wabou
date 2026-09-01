@@ -1944,13 +1944,17 @@ mod tests {
             .expect("simulate HUD-owned animation frame");
         assert!(
             callbacks >= 1,
-            "the native HUD must keep its own frame clock"
+            "the native HUD must schedule one post-draw sample"
         );
         cx.run_until_parked();
         cx.update_window(handle.into(), |_, window, app| {
             let _ = window.draw(app);
         })
         .expect("draw HUD-owned animation frame");
+        assert!(
+            !cx.read_entity(&hud, |hud, _| hud.sample_after_draw_pending()),
+            "the native HUD must consume its one post-mount sample request"
+        );
 
         assert_eq!(
             cx.read_entity(&boundary, |boundary, _| {

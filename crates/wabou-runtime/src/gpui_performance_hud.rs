@@ -20,6 +20,7 @@ pub(crate) struct GpuiPerformanceHud {
     projection_revision: u64,
     projection_materializations: u64,
     materialization_samples: VecDeque<(std::time::Instant, u64)>,
+    sample_after_draw: bool,
     #[cfg(test)]
     render_count: u64,
 }
@@ -39,6 +40,7 @@ impl GpuiPerformanceHud {
             projection_revision: 0,
             projection_materializations: 0,
             materialization_samples: VecDeque::new(),
+            sample_after_draw: true,
             #[cfg(test)]
             render_count: 0,
         }
@@ -63,27 +65,11 @@ impl GpuiPerformanceHud {
         cx.notify();
     }
 
-    #[cfg(test)]
-    pub(crate) fn render_count(&self) -> u64 {
-        self.render_count
-    }
-}
-
-impl Render for GpuiPerformanceHud {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        #[cfg(test)]
-        {
-            self.render_count = self.render_count.wrapping_add(1);
-        }
-        // A platform frame alone does not dirty an Entity. Explicitly notify
-        // this HUD on the next frame so its clock remains live without making
-        // the Solid projection or QuickJS runtime participate in the loop.
-        let hud = cx.weak_entity();
-        window.on_next_frame(move |_, cx| {
-            let _ = hud.update(cx, |_, hud_cx| hud_cx.notify());
-        });
-        let now = std::time::Instant::now();
-        let window_id = window.window_handle().window_id();
+    fn sample_after_completed_draw(
+        &mut self,
+        window_id: wabou_shell::gpui::WindowId,
+        now: std::time::Instant,
+    ) {
         self.frame_timings.extend(
             self.frame_timing_collector
                 .collect_unseen()
@@ -103,7 +89,6 @@ impl Render for GpuiPerformanceHud {
             now,
             self.projection_materializations,
         );
-        let materializations_per_second = counter_rate(&self.materialization_samples);
         if self.last_diagnostic_at.elapsed() >= std::time::Duration::from_secs(1) {
             tracing::debug!(
                 target: "wabou::perf",
@@ -111,11 +96,45 @@ impl Render for GpuiPerformanceHud {
                 draw_ms = self.draw_ms,
                 dirty_to_draw_ms = self.dirty_to_draw_ms,
                 invalidations_per_frame = self.invalidations_per_frame,
-                materializations_per_second,
+                materializations_per_second = counter_rate(&self.materialization_samples),
                 "native performance HUD sample"
             );
             self.last_diagnostic_at = now;
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn render_count(&self) -> u64 {
+        self.render_count
+    }
+
+    #[cfg(test)]
+    pub(crate) fn sample_after_draw_pending(&self) -> bool {
+        self.sample_after_draw
+    }
+}
+
+impl Render for GpuiPerformanceHud {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        #[cfg(test)]
+        {
+            self.render_count = self.render_count.wrapping_add(1);
+        }
+        // Frame timing is recorded after rendering finishes. Request exactly
+        // one post-mount follow-up so the first timing becomes visible. Later
+        // samples are collected only when real application work renders the
+        // HUD again; the profiler must never manufacture its own frame loop.
+        if std::mem::take(&mut self.sample_after_draw) {
+            let hud = cx.weak_entity();
+            window.on_next_frame(move |_, cx| {
+                let _ = hud.update(cx, |_, hud_cx| hud_cx.notify());
+            });
+        }
+        self.sample_after_completed_draw(
+            window.window_handle().window_id(),
+            std::time::Instant::now(),
+        );
+        let materializations_per_second = counter_rate(&self.materialization_samples);
         let theme = Theme::global(cx);
         let colors = &theme.tokens.colors;
         let stats = self.stats.unwrap_or_default();
