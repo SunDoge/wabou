@@ -50,7 +50,7 @@ mod ui_inbox;
 #[cfg(test)]
 mod css_support_matrix_test;
 #[cfg(feature = "vite")]
-pub mod vite;
+mod vite;
 
 pub use error::{Error, Result};
 #[cfg(feature = "headless")]
@@ -76,7 +76,6 @@ pub use native_capability::NativeCapability;
 pub use persistent_cache::PersistentJsonCache;
 /// Generated event codes shared with native widget adapters.
 pub use protocol::event;
-pub use reload::{HmrDrainResult, ReloadHandle, ReloadMsg};
 pub use rquickjs;
 pub use serial_worker::SerialWorker;
 pub use wabou_shell::{
@@ -86,6 +85,4 @@ pub use wabou_shell::{
     initial_window_resource_key,
 };
 
-#[cfg(feature = "vite")]
-pub use vite::{HmrClient, ViteError, start_hmr_client, vite_url_from_env};
 mod intl;

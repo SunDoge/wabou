@@ -8,7 +8,7 @@ use crate::ui_inbox::{UiInbox, UiInboxSender};
 
 /// A Vite HMR signal forwarded from the background HMR client to the applier.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ReloadMsg {
+pub(crate) enum ReloadMsg {
     /// Updated Vite module accepted by an HMR boundary.
     HmrUpdate {
         /// Module path reported by Vite.
@@ -38,7 +38,7 @@ pub enum ReloadMsg {
 
 /// Result of draining the HMR queue for one frame (for tests / diagnostics).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum HmrDrainResult {
+pub(crate) enum HmrDrainResult {
     /// No queued update changed the runtime.
     Idle,
     /// One or more JS modules were accepted; Style IR may also have updated
@@ -61,13 +61,13 @@ pub enum HmrDrainResult {
 
 /// Sendable handle the HMR client holds to push [`ReloadMsg`]s into the applier.
 #[derive(Clone)]
-pub struct ReloadHandle {
+pub(crate) struct ReloadHandle {
     tx: UiInboxSender<ReloadMsg>,
 }
 
 impl ReloadHandle {
     /// Enqueue an HMR signal and wake an otherwise idle render loop.
-    pub fn send(&self, message: ReloadMsg) -> Result<(), mpsc::SendError<ReloadMsg>> {
+    pub(crate) fn send(&self, message: ReloadMsg) -> Result<(), mpsc::SendError<ReloadMsg>> {
         match self.tx.try_send(message) {
             Ok(()) => Ok(()),
             Err(flume::TrySendError::Full(message))
