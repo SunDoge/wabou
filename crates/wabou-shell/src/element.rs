@@ -939,6 +939,22 @@ impl Element for ProjectedElement {
         window: &mut Window,
         cx: &mut App,
     ) -> (LayoutId, Self::RequestLayoutState) {
+        // Taffy deliberately does not visit descendants of `display: none`.
+        // Requesting their GPUI layout anyway creates text layout handles whose
+        // measure callbacks never run; prepainting those children later then
+        // violates GPUI's measure -> prepaint contract. Treat the whole hidden
+        // subtree as absent from both phases.
+        if self.style.display == gpui::Display::None {
+            let layout_id = window.request_layout(self.style.clone(), [], cx);
+            return (
+                layout_id,
+                ProjectedRequestLayoutState {
+                    child_layouts: Vec::new(),
+                    scrollbar_layout: None,
+                    scrollbar: None,
+                },
+            );
+        }
         // GPUI shapes text during request_layout and stores the resolved color,
         // family, weight, and line metrics in its text runs. Applying inherited
         // refinements only during prepaint/paint leaves those runs at GPUI's
@@ -981,6 +997,13 @@ impl Element for ProjectedElement {
     ) -> Self::PrepaintState {
         if let Some(layout_bounds) = &self.layout_bounds {
             layout_bounds.borrow_mut().insert(self.key, bounds);
+        }
+        if self.style.display == gpui::Display::None {
+            return ProjectedPrepaintState {
+                hitbox: None,
+                paint_bounds: bounds,
+                scrollbar: None,
+            };
         }
         let translation = self.translation();
         let paint_bounds = Bounds {
@@ -1065,7 +1088,8 @@ impl Element for ProjectedElement {
         window: &mut Window,
         cx: &mut App,
     ) {
-        if self.style.visibility == Visibility::Hidden {
+        if self.style.display == gpui::Display::None || self.style.visibility == Visibility::Hidden
+        {
             return;
         }
 
@@ -2008,6 +2032,58 @@ mod tests {
         assert_eq!(bounds.origin, point(px(7.0), px(11.0)));
         assert!(bounds.size.width > px(0.0));
         assert!(bounds.size.height > px(0.0));
+    }
+
+    #[gpui::test]
+    fn display_none_skips_text_measure_and_prepaint_together(cx: &mut TestAppContext) {
+        struct LayoutHost;
+        impl gpui::Render for LayoutHost {
+            fn render(
+                &mut self,
+                _window: &mut Window,
+                _cx: &mut Context<Self>,
+            ) -> impl IntoElement {
+                div()
+            }
+        }
+
+        let hidden = NodeKey::new(30, 3);
+        let text = NodeKey::new(31, 3);
+        let mut hidden_style = Style::default();
+        hidden_style.display = gpui::Display::None;
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            hidden,
+            None,
+            0,
+            hidden_style,
+            None,
+            crate::ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        tree.insert(
+            text,
+            Some(hidden),
+            0,
+            Style::default(),
+            Some("hidden text must not be prepainted".into()),
+            crate::ProjectedNodeKind::Text,
+        )
+        .unwrap();
+        let element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            hidden,
+            ProjectedElementContext::default(),
+            false,
+        )
+        .unwrap();
+
+        let (_host, window) = cx.add_window_view(|_, _| LayoutHost);
+        window.draw(
+            point(px(0.0), px(0.0)),
+            gpui::size(px(320.0), px(200.0)),
+            |_, _| element,
+        );
     }
 
     #[gpui::test]
