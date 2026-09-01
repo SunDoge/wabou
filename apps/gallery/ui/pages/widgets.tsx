@@ -157,6 +157,7 @@ import {
   View,
 } from "@wabou/ui";
 import file from "lucide-static/icons/file.svg?raw";
+import folder from "lucide-static/icons/folder.svg?raw";
 import rocket from "lucide-static/icons/rocket.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
@@ -574,6 +575,7 @@ export function PaginationPage() {
 
 export function DropdownMenuPage() {
   const [action, setAction] = createSignal("No action selected");
+  const [showHidden, setShowHidden] = createSignal(false);
   return (
     <Preview title="Keyboard and pointer actions">
       <View class="flex flex-col items-start gap-4">
@@ -585,8 +587,16 @@ export function DropdownMenuPage() {
               id: "open",
               label: "Open project",
               description: "Open in the current window",
+              icon: folder,
+              shortcut: "Ctrl O",
             },
             { id: "rename", label: "Rename project" },
+            {
+              id: "hidden",
+              label: "Show hidden files",
+              checked: showHidden(),
+              onSelect: () => setShowHidden((value) => !value),
+            },
             { id: "archive", label: "Archive project", disabled: true },
             {
               id: "delete",

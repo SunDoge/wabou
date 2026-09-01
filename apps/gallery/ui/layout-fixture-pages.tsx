@@ -15,6 +15,7 @@ import {
   ControlBaselineLayoutFixture,
   DarkSurfaceLayoutFixture,
   DialogLayoutFixture,
+  DropdownMenuLayoutFixture,
   EditorLayoutFixture,
   EmptyLayoutFixture,
   FieldLayoutFixture,
@@ -117,6 +118,12 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         height: 420,
         waitMs: 20,
         render: SelectLayoutFixture,
+      },
+      "component/DropdownMenu": {
+        width: 420,
+        height: 300,
+        waitMs: 20,
+        render: DropdownMenuLayoutFixture,
       },
       "component/ControlBaseline": {
         width: 520,

@@ -2,6 +2,9 @@ import { renderComponent } from "@wabou/test/component";
 import { Button, DropdownMenu } from "@wabou/ui";
 import { expect, test } from "vitest";
 
+const fixtureIcon =
+  '<svg viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v10H3z"/></svg>';
+
 test("opens, skips disabled actions, and selects with the keyboard", () => {
   const actions: string[] = [];
   const screen = renderComponent(() => (
@@ -85,4 +88,34 @@ test("keeps the authored endpoint while native popup positioning is pending", ()
   const panel = screen.getByRole("menu").closestByRole("presentation");
   expect(panel?.transform).toEqual([1, 0, 0, 1, 0, 0]);
   expect(panel?.attribute("__wabou_native_transition")).toBeNull();
+});
+
+test("owns aligned leading status and shortcut slots", () => {
+  const screen = renderComponent(() => (
+    <DropdownMenu
+      aria-label="View actions"
+      defaultOpen
+      items={[
+        {
+          id: "open",
+          label: "Open folder",
+          icon: fixtureIcon,
+          shortcut: "Ctrl O",
+        },
+        { id: "hidden", label: "Show hidden files", checked: true },
+        { id: "plain", label: "Plain action" },
+      ]}
+      trigger={(trigger) => <Button {...trigger}>View</Button>}
+    />
+  ));
+
+  const checked = screen.getByRole("menuitem", {
+    name: "Show hidden files",
+  });
+  expect(checked.checked).toBe(true);
+  expect(screen.getByRole("menuitem", { name: "Open folder" }).text).toContain(
+    "Ctrl O",
+  );
+  const plain = screen.getByRole("menuitem", { name: "Plain action" });
+  expect(plain.children[0]?.className).toContain("w-4 h-4");
 });

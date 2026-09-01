@@ -486,6 +486,43 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   });
 };
 
+const assertDropdownMenuLayout = (snapshot: LayoutSnapshot) => {
+  const menu = getLayoutNode(snapshot, {
+    role: "menu",
+    name: "Fixture project actions",
+  });
+  const items = [
+    "Open a project with a deliberately long name",
+    "Show hidden files",
+    "Plain aligned action",
+  ].map((name) => getLayoutNode(snapshot, { role: "menuitem", name }));
+  for (const item of items) {
+    assertLayoutRectContains(menu.contentRect, item.rect, {
+      label: `${item.text ?? "menu item"} bounds`,
+    });
+    if (item.rect.height < 32)
+      throw new Error(`menu item collapsed to ${item.rect.height}px`);
+  }
+  const labels = items.map((item) =>
+    snapshot.nodes.find(
+      (node) =>
+        node.parentId?.lo === item.id.lo &&
+        node.parentId?.hi === item.id.hi &&
+        node.tag === "view" &&
+        node.classes.includes("flex-1"),
+    ),
+  );
+  const [firstLabel, checkedLabel, plainLabel] = labels;
+  if (!firstLabel || !checkedLabel || !plainLabel)
+    throw new Error("menu item label columns were not projected");
+  assertClose(
+    firstLabel.rect.x,
+    checkedLabel.rect.x,
+    "checked item label edge",
+  );
+  assertClose(firstLabel.rect.x, plainLabel.rect.x, "plain item label edge");
+};
+
 const assertSelectionControlsLayout = (snapshot: LayoutSnapshot) => {
   const iconOnly = getLayoutNode(snapshot, {
     role: "checkbox",
@@ -1143,6 +1180,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/PromptSuggestion": { assert: assertPromptSuggestionLayout },
   "component/ScrollArea": { assert: assertScrollAreaLayout },
   "component/Select": { assert: assertSelectLayout },
+  "component/DropdownMenu": { assert: assertDropdownMenuLayout },
   "component/ControlBaseline": { assert: assertControlBaselineLayout },
   "component/SelectionControls": { assert: assertSelectionControlsLayout },
   "component/Tabs": { assert: assertTabsLayout },
