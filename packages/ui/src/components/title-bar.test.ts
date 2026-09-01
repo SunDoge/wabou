@@ -6,6 +6,7 @@ import {
   titleBarLayoutStyle,
   windowFrameBackdropClassList,
   windowFrameClientClassList,
+  windowFrameMaterialStyle,
   windowFrameShadows,
 } from "./title-bar";
 
@@ -46,6 +47,16 @@ test("window frame uses bounded ambient and contact shadows", () => {
   expect(dark.map((layer) => layer.color)).not.toEqual(
     light.map((layer) => layer.color),
   );
+});
+
+test("window frame exposes a theme-aware translucent material without fading content", () => {
+  expect(windowFrameMaterialStyle("light")).toEqual({});
+  expect(windowFrameMaterialStyle("light", "translucent")).toMatchObject({
+    "background-color": { kind: 5, value: 0xf8fafce8 },
+  });
+  expect(windowFrameMaterialStyle("dark", "translucent")).toMatchObject({
+    "background-color": { kind: 5, value: 0x111827e8 },
+  });
 });
 
 test("custom title bar owns structural row layout without generated utilities", () => {

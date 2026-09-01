@@ -42,7 +42,7 @@ interface ShellChromeProps {
 export function AppTitleBar(props: ShellChromeProps) {
   const window = useWindow();
   return (
-    <TitleBar class="px-2 bg-canvas">
+    <TitleBar class="px-2 bg-transparent">
       <View
         class="h-full flex-none px-2 flex items-center gap-2"
         style={{ width: px(props.sidebarWidth) }}

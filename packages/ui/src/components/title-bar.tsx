@@ -1,13 +1,12 @@
 import { useWindow } from "@wabou/core";
-import { type Shadow, shadow } from "@wabou/core/style";
-import type { JSX } from "solid-js";
+import { mergeClasses, rgba, type Shadow, shadow } from "@wabou/core/style";
+import { type JSX, omit } from "solid-js";
 import {
   View,
   type ViewProps,
   type WabouClassList,
   type WabouStyle,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import { useComponentsTheme } from "./theme";
 
 export interface WindowFrameProps extends ViewProps {
@@ -15,6 +14,18 @@ export interface WindowFrameProps extends ViewProps {
   children?: JSX.Element;
   /** Clip the application surface to desktop-style corners when restored. */
   rounded?: boolean;
+  /** Let the native window material remain visible beneath a translucent client surface. */
+  material?: "solid" | "translucent";
+}
+
+export function windowFrameMaterialStyle(
+  theme: "light" | "dark",
+  material: "solid" | "translucent" = "solid",
+): WabouStyle {
+  if (material === "solid") return {};
+  return {
+    "background-color": rgba(theme === "dark" ? 0x111827e8 : 0xf8fafce8),
+  };
 }
 
 export function windowFrameBackdropClassList(
@@ -60,6 +71,7 @@ export function windowFrameShadows(theme: "light" | "dark"): Shadow[] {
  * intentionally square so their content reaches every display edge.
  */
 export function WindowFrame(props: WindowFrameProps): JSX.Element {
+  const viewProps = omit(props, "rounded", "material");
   const window = useWindow();
   const theme = useComponentsTheme();
   const decorated = () => props.rounded !== false && !window.maximized();
@@ -72,16 +84,20 @@ export function WindowFrame(props: WindowFrameProps): JSX.Element {
       )}
     >
       <View
-        {...props}
-        class={mergeClasses("w-full h-full", props.class)}
+        {...viewProps}
+        class={mergeClasses("w-full h-full", viewProps.class)}
         classList={windowFrameClientClassList(
           window.maximized(),
           props.rounded !== false,
-          props.classList,
+          viewProps.classList,
         )}
+        style={{
+          ...windowFrameMaterialStyle(theme(), props.material),
+          ...viewProps.style,
+        }}
         shadows={
-          props.shadows !== undefined
-            ? props.shadows
+          viewProps.shadows !== undefined
+            ? viewProps.shadows
             : decorated()
               ? windowFrameShadows(theme())
               : null
