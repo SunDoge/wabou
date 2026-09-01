@@ -388,13 +388,21 @@ impl StyleProjection {
                 let radius = pixels(value)
                     .filter(|radius| *radius >= gpui::px(0.0))
                     .ok_or_else(|| invalid(property))?;
-                self.style.filter = vec![Filter::Blur(radius)];
+                self.style.filter = if radius == gpui::px(0.0) {
+                    Vec::new()
+                } else {
+                    vec![Filter::Blur(radius)]
+                };
             }
             "backdrop-blur" => {
                 let radius = pixels(value)
                     .filter(|radius| *radius >= gpui::px(0.0))
                     .ok_or_else(|| invalid(property))?;
-                self.style.backdrop_filter = vec![Filter::Blur(radius)];
+                self.style.backdrop_filter = if radius == gpui::px(0.0) {
+                    Vec::new()
+                } else {
+                    vec![Filter::Blur(radius)]
+                };
             }
             _ => return Err(StyleDiagnostic::UnsupportedProperty(property.to_owned())),
         }
@@ -1065,6 +1073,38 @@ mod tests {
             projection.style().backdrop_filter,
             vec![Filter::Blur(gpui::px(12.0))]
         );
+    }
+
+    #[test]
+    fn zero_blur_removes_filter_layers() {
+        let mut projection = StyleProjection::default();
+        projection
+            .apply(&declaration(
+                "filter-blur",
+                length_value(IrLength::Px { value: 8.0 }),
+            ))
+            .unwrap();
+        projection
+            .apply(&declaration(
+                "backdrop-blur",
+                length_value(IrLength::Px { value: 8.0 }),
+            ))
+            .unwrap();
+        projection
+            .apply(&declaration(
+                "filter-blur",
+                length_value(IrLength::Px { value: 0.0 }),
+            ))
+            .unwrap();
+        projection
+            .apply(&declaration(
+                "backdrop-blur",
+                length_value(IrLength::Px { value: 0.0 }),
+            ))
+            .unwrap();
+
+        assert!(projection.style().filter.is_empty());
+        assert!(projection.style().backdrop_filter.is_empty());
     }
 
     #[test]
