@@ -304,6 +304,10 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   });
   const switchControl = getLayoutNode(snapshot, {
     role: "switch",
+    name: "Fixture default switch",
+  });
+  const compactSwitch = getLayoutNode(snapshot, {
+    role: "switch",
     name: "Fixture compact switch",
   });
   const buttonGroup = getLayoutNode(snapshot, {
@@ -328,6 +332,8 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   assertClose(input.rect.height, 32, "input height");
   assertClose(switchControl.rect.width, 40, "switch target width");
   assertClose(switchControl.rect.height, 24, "switch target height");
+  assertClose(compactSwitch.rect.width, 40, "compact switch target width");
+  assertClose(compactSwitch.rect.height, 24, "compact switch target height");
   assertLayoutRectContains(buttonGroup.contentRect, destructiveButton.rect, {
     label: "destructive button group edge",
   });

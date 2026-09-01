@@ -627,7 +627,8 @@ export function ControlBaselineLayoutFixture() {
         aria-label="Fixture baseline input"
         placeholder="Native text input"
       />
-      <Switch label="Fixture compact switch" defaultChecked />
+      <Switch label="Fixture default switch" defaultChecked />
+      <Switch label="Fixture compact switch" size="sm" />
       <ButtonGroup aria-label="Fixture destructive button group">
         <Button variant="outline">Keep</Button>
         <ButtonGroupSeparator />
