@@ -54,6 +54,14 @@ export interface ModalControls {
 export interface ModalMotionOptions {
   duration?: number;
   ease?: Easing;
+  /** Enter-only timing override. Falls back to `duration`. */
+  enterDuration?: number;
+  /** Exit-only timing override. Falls back to `duration`. */
+  exitDuration?: number;
+  /** Enter-only easing override. Falls back to `ease`. */
+  enterEase?: Easing;
+  /** Exit-only easing override. Falls back to `ease`. */
+  exitEase?: Easing;
   /** Initial content scale around its center. Defaults to 1. */
   fromScale?: number;
   /** Initial horizontal offset in logical pixels. Defaults to 0. */
@@ -154,7 +162,10 @@ export function Modal(props: ModalProps): JSX.Element {
   const motion = untrack(() => props.motion);
   const motionOptions = motion === false ? undefined : motion;
   const motionEnabled = motionOptions !== undefined;
-  const duration = motionOptions?.duration ?? (motionEnabled ? 0.16 : 0);
+  const transitionDuration = (entering: boolean) =>
+    (entering ? motionOptions?.enterDuration : motionOptions?.exitDuration) ??
+    motionOptions?.duration ??
+    (motionEnabled ? 0.16 : 0);
   const presence = createPresence(open);
   const visualState = () => modalVisualState(open(), props.backdropFade);
   const [transitionGeneration, setTransitionGeneration] = createSignal(0);
@@ -186,7 +197,11 @@ export function Modal(props: ModalProps): JSX.Element {
     () => [open(), reducedMotion()] as const,
     ([isOpen, prefersReducedMotion]) => {
       setTransitionGeneration((value) => value + 1);
-      if (!motionEnabled || prefersReducedMotion || duration <= 0) {
+      if (
+        !motionEnabled ||
+        prefersReducedMotion ||
+        transitionDuration(isOpen) <= 0
+      ) {
         if (isOpen) presence.finishEnter();
         else presence.finishExit();
       }
@@ -208,13 +223,16 @@ export function Modal(props: ModalProps): JSX.Element {
   });
 
   const nativeTransition = (
+    entering: boolean,
     fromTransform: Affine2D,
     toTransform: Affine2D,
     fromOpacity: number,
     toOpacity: number,
   ): WabouNativeTransition | undefined => {
     if (!motionEnabled || reducedMotion()) return undefined;
-    const authoredEase = motionOptions?.ease;
+    const authoredEase =
+      (entering ? motionOptions?.enterEase : motionOptions?.exitEase) ??
+      motionOptions?.ease;
     const easing =
       authoredEase === "linear" ||
       authoredEase === "easeInOut" ||
@@ -223,7 +241,7 @@ export function Modal(props: ModalProps): JSX.Element {
         : "easeInOut";
     return {
       generation: transitionGeneration(),
-      duration,
+      duration: transitionDuration(entering),
       easing,
       fromTransform,
       toTransform,
@@ -302,6 +320,7 @@ export function Modal(props: ModalProps): JSX.Element {
             if (props.backdropFade === false) return undefined;
             const entering = open();
             return nativeTransition(
+              entering,
               [1, 0, 0, 1, 0, 0],
               [1, 0, 0, 1, 0, 0],
               entering ? 0 : 1,
@@ -345,6 +364,7 @@ export function Modal(props: ModalProps): JSX.Element {
                 const from = modalMotionTransform(motionOptions, fromProgress);
                 const to = modalMotionTransform(motionOptions, toProgress);
                 return nativeTransition(
+                  entering,
                   props.contentTransform?.(from, fromProgress) ?? from,
                   props.contentTransform?.(to, toProgress) ?? to,
                   props.contentFade === false ? 1 : fromProgress,

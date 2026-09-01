@@ -1002,7 +1002,7 @@ fn transition_progress(transition: NativeTransition, elapsed: f32) -> f32 {
     match transition.easing {
         NativeTransitionEasing::Linear => gpui::linear(progress),
         NativeTransitionEasing::EaseInOut => gpui::ease_in_out(progress),
-        NativeTransitionEasing::EaseOut => gpui::ease_out_quint()(progress),
+        NativeTransitionEasing::EaseOut => 1.0 - (1.0 - progress).powi(3),
     }
 }
 
@@ -1892,6 +1892,22 @@ mod tests {
         assert_eq!(reversed.from_transform[4], 8.0);
         assert_eq!(reversed.from_opacity, 0.5);
         assert_eq!(sample_transition(reversed, 0.0), (transform, opacity));
+    }
+
+    #[test]
+    fn native_ease_out_uses_a_cubic_curve_without_a_hidden_tail() {
+        let transition = NativeTransition {
+            generation: 1,
+            duration: 1.0,
+            easing: NativeTransitionEasing::EaseOut,
+            from_transform: identity_transform(),
+            to_transform: identity_transform(),
+            from_opacity: 0.0,
+            to_opacity: 1.0,
+        };
+
+        assert!((transition_progress(transition, 0.5) - 0.875).abs() < f32::EPSILON);
+        assert_eq!(transition_progress(transition, 1.0), 1.0);
     }
 
     #[test]
