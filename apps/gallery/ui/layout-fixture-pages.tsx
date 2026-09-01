@@ -8,8 +8,10 @@ import {
   ActivityStatusLayoutFixture,
   AdaptiveSplitPaneLayoutFixture,
   CardSurfaceLayoutFixture,
+  CompactSurfaceLayoutFixture,
   ContentStateLayoutFixture,
   ControlBaselineLayoutFixture,
+  DarkSurfaceLayoutFixture,
   DialogLayoutFixture,
   EditorLayoutFixture,
   EmptyLayoutFixture,
@@ -115,6 +117,16 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 480,
         height: 320,
         render: CardSurfaceLayoutFixture,
+      },
+      "component/DarkSurface": {
+        width: 420,
+        height: 340,
+        render: DarkSurfaceLayoutFixture,
+      },
+      "component/CompactSurface": {
+        width: 300,
+        height: 360,
+        render: CompactSurfaceLayoutFixture,
       },
       "component/Listbox": {
         width: 420,
