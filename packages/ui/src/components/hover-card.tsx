@@ -7,7 +7,11 @@ import { Popover as HeadlessPopover } from "../primitives";
 import { createDelayedOpenController } from "./delayed-open";
 import type { PopupMotionProps } from "./popover";
 import { createControllableState } from "./state";
-import { componentsElevation, useComponentsTheme } from "./theme";
+import {
+  componentsElevation,
+  componentsSurfaceClass,
+  useComponentsTheme,
+} from "./theme";
 
 export interface HoverCardTriggerProps {
   ref(node: Handle): void;
@@ -69,7 +73,8 @@ export function HoverCard(props: HoverCardProps): JSX.Element {
       closeOnEscape
       restoreFocus={false}
       contentClass={mergeClasses(
-        "min-w-56 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-xl border border-subtle bg-surface",
+        "min-w-56 max-w-sm min-h-0 p-4 flex flex-col gap-3",
+        componentsSurfaceClass("floating"),
         props.contentClass,
       )}
       contentShadows={

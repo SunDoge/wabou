@@ -29,7 +29,7 @@ test("searches and selects a value", () => {
   trigger.click();
   expect(
     screen.getByRole("listbox").closestByRole("presentation")?.className,
-  ).toContain("rounded-xl");
+  ).toContain("rounded-lg");
   screen.getByRole("textbox", { name: "Technology search" }).input("native");
   screen.getByRole("option", { name: "Rust" }).click();
 

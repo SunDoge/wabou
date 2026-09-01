@@ -12,7 +12,13 @@ import { mergeClasses } from "@wabou/core/style";
 import calendarIcon from "lucide-static/icons/calendar.svg?raw";
 import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
-import { createMemo, createSignal, For as ForValue, type JSX, untrack } from "solid-js";
+import {
+  createMemo,
+  createSignal,
+  For as ForValue,
+  type JSX,
+  untrack,
+} from "solid-js";
 import {
   Button as HeadlessButton,
   Icon,
@@ -24,6 +30,7 @@ import type { PopupMotionProps } from "./popover";
 import {
   componentsControlSize,
   componentsElevation,
+  componentsSurfaceClass,
   useComponentsTheme,
 } from "./theme";
 
@@ -354,7 +361,7 @@ export function DatePicker(props: DatePickerProps): JSX.Element {
       open={open()}
       onOpenChange={setOpen}
       placement="bottom-start"
-      contentClass="rounded-xl border border-subtle bg-surface"
+      contentClass={componentsSurfaceClass("floating")}
       contentShadows={
         props.contentShadows === undefined
           ? componentsElevation(theme(), "floating")
