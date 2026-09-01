@@ -62,9 +62,6 @@ pub use host::{
     HostBuilder, HostService, HostServiceContext, HostServiceHandle, ManagedHostService,
     managed_host_service,
 };
-pub use host_frame::{
-    HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, NumericEventData, ResizeObservation,
-};
 pub use host_message::{
     DEFAULT_HOST_MESSAGE_CAPACITY, HostMessage, HostMessageContext, HostMessageError,
     HostMessageHandle, HostMessagePayload, HostMessageRouter, MAX_HOST_MESSAGES_PER_FRAME,

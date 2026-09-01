@@ -3,7 +3,9 @@
 use crate::reload::{HmrBatch, HmrDrainResult};
 use crate::{
     ImageResourceHandle, ImageResourceStore,
-    host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, NumericEventData},
+    host_frame::{
+        HostEvent, HostNodeEvent, NodeEventPayload, NumericEventData, ResizeObservation,
+    },
     jsrt::{HostFrameDisposition, LayoutMetric, LayoutMetricsSnapshot},
     protocol::{Frame, decode_frame},
     runtime_session::RuntimeSession,
@@ -318,7 +320,7 @@ impl GpuiController {
     /// before GPUI's next render; finishing the projection in the event stack
     /// would consume its invalidation before `advance_frame_profiled` can use
     /// it to rebuild the affected projection boundary.
-    pub fn dispatch_host_frame(
+    pub(crate) fn dispatch_host_frame(
         &mut self,
         events: &[HostEvent],
     ) -> rquickjs::Result<HostFrameDisposition> {
@@ -838,7 +840,7 @@ impl GpuiController {
                     "publishing completed ResizeObserver geometry"
                 );
                 *last_size = Some(size);
-                resize_events.push(HostEvent::Resize(crate::ResizeObservation {
+                resize_events.push(HostEvent::Resize(ResizeObservation {
                     target: *target,
                     width: size.0,
                     height: size.1,
@@ -1512,11 +1514,6 @@ impl GpuiController {
 
     pub(crate) fn has_animation(&self) -> bool {
         self.runtime.has_raf
-    }
-
-    #[cfg(feature = "profiling")]
-    pub(crate) fn projected_node_count(&self) -> usize {
-        self.projection.node_count()
     }
 
     /// Monotonically increasing count of non-empty JS-to-host frames.

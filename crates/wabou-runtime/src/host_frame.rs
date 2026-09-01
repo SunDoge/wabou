@@ -10,22 +10,22 @@ use crate::host_message::{HostMessage, HostMessagePayload};
 use crate::protocol::{NodeKey, host_frame, host_node_payload, host_record};
 
 /// Maximum encoded bytes accepted for one atomic host frame.
-pub const MAX_HOST_FRAME_BYTES: usize = 4 * 1024 * 1024;
+const MAX_HOST_FRAME_BYTES: usize = 4 * 1024 * 1024;
 /// Maximum records delivered to JavaScript in one host frame.
-pub const MAX_HOST_FRAME_RECORDS: usize = 512;
+const MAX_HOST_FRAME_RECORDS: usize = 512;
 /// Node-event header flag indicating JavaScript may cancel the event.
-pub const FLAG_CANCELLABLE: u8 = 1;
+const FLAG_CANCELLABLE: u8 = 1;
 
 #[derive(Debug, Clone, PartialEq)]
 /// Stack-backed numeric payload which encodes only the event's used prefix.
-pub struct NumericEventData {
+pub(crate) struct NumericEventData {
     values: [f64; crate::protocol::event_data::LEN],
     len: u16,
 }
 
 impl NumericEventData {
     /// Retain `values` without allocating and expose only `len` slots on wire.
-    pub fn prefix(values: [f64; crate::protocol::event_data::LEN], len: usize) -> Self {
+    pub(crate) fn prefix(values: [f64; crate::protocol::event_data::LEN], len: usize) -> Self {
         assert!(len <= crate::protocol::event_data::LEN);
         Self {
             values,
@@ -40,9 +40,7 @@ impl NumericEventData {
 
 #[derive(Debug, Clone, PartialEq)]
 /// Payload representation for an unsolicited event targeting one Solid node.
-pub enum NodeEventPayload {
-    /// Event carries only its header fields.
-    None,
+pub(crate) enum NodeEventPayload {
     /// Event-specific prefix of the generated numeric event-data slots.
     Numeric(NumericEventData),
     /// Event-specific JSON object.
@@ -51,7 +49,7 @@ pub enum NodeEventPayload {
 
 #[derive(Debug, Clone, PartialEq)]
 /// Unsolicited event addressed to one retained Solid node.
-pub struct HostNodeEvent {
+pub(crate) struct HostNodeEvent {
     /// Solid node identifier.
     pub target: NodeKey,
     /// Generated event discriminator.
@@ -66,7 +64,7 @@ pub struct HostNodeEvent {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// Content-box size observation for one retained Solid node.
-pub struct ResizeObservation {
+pub(crate) struct ResizeObservation {
     /// Solid node identifier.
     pub target: NodeKey,
     /// Content-box width in logical pixels.
@@ -77,7 +75,7 @@ pub struct ResizeObservation {
 
 #[derive(Debug, Clone, PartialEq)]
 /// Record that can be batched into one Rust-to-JavaScript host frame.
-pub enum HostEvent {
+pub(crate) enum HostEvent {
     /// Event addressed to one retained node.
     Node(HostNodeEvent),
     /// ResizeObserver-compatible content-box observation.
@@ -88,7 +86,7 @@ pub enum HostEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Boundary validation failure while encoding an atomic host frame.
-pub enum HostFrameError {
+pub(crate) enum HostFrameError {
     /// Record count exceeds the host-frame record limit.
     TooManyRecords,
     /// Complete frame or a record exceeds the binary ABI limit.
@@ -171,7 +169,7 @@ fn encode_application(out: &mut Vec<u8>, msg: &HostMessage) -> Result<(), HostFr
 
 /// Encode one atomic Host frame. `monotonic_time` is relative to the runtime's
 /// own epoch; callers may pass zero for deterministic tests/replay.
-pub fn encode_host_frame(
+pub(crate) fn encode_host_frame(
     sequence: u64,
     monotonic_time: Duration,
     events: &[HostEvent],
@@ -211,7 +209,6 @@ pub fn encode_host_frame(
                 push_u32(&mut out, node.target.hi);
                 out.push(node.event_code);
                 out.push(match node.payload {
-                    NodeEventPayload::None => host_node_payload::NONE,
                     NodeEventPayload::Numeric(_) => host_node_payload::NUMERIC,
                     NodeEventPayload::Json(_) => host_node_payload::JSON,
                 });
@@ -224,7 +221,6 @@ pub fn encode_host_frame(
                 );
                 push_u32(&mut out, node.event_id);
                 match &node.payload {
-                    NodeEventPayload::None => {}
                     NodeEventPayload::Numeric(values) => {
                         for value in values.as_slice() {
                             push_f64(&mut out, *value);
