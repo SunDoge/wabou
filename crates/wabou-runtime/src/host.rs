@@ -614,12 +614,12 @@ impl RuntimeSourceConfig {
     fn start_gpui_hmr(
         &self,
         controller: &mut crate::gpui_controller::GpuiController,
-    ) -> crate::Result<Option<crate::HmrClient>> {
+    ) -> crate::Result<Option<crate::vite::HmrClient>> {
         let ApplicationSource::Vite { url, entry } = &self.source else {
             return Ok(None);
         };
         controller.set_vite_entry(entry.as_ref());
-        crate::start_hmr_client(url, controller.reload_handle())
+        crate::vite::start_hmr_client(url, controller.reload_handle())
             .map(Some)
             .context(crate::error::ViteSnafu)
     }

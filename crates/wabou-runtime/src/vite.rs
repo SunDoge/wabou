@@ -3,8 +3,7 @@
 //! Ported from blitz-js's `vite.rs` (host-agnostic). In dev mode the rquickjs
 //! runtime gets a module [`Loader`] + [`Resolver`] that fetch ESM from the
 //! Vite dev server; the HMR client connects to Vite's WebSocket, prefetches
-//! updated module sources, and forwards them to the [`crate::Applier`] via a
-//! [`crate::ReloadHandle`].
+//! updated module sources, and forwards them to the GPUI controller.
 
 use std::collections::HashMap;
 use std::sync::{
@@ -354,6 +353,8 @@ use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use tungstenite::client::IntoClientRequest;
 
+use crate::reload::ReloadMsg;
+
 #[derive(Debug, Snafu)]
 /// Failure while connecting to or loading updates from a Vite development server.
 pub enum ViteError {
@@ -475,7 +476,7 @@ enum ViteMessage {
 /// server's WebSocket, fetches updated module/stylesheet sources via blocking
 /// HTTP, and forwards them to the Applier through `reload`. CSS notifications
 /// carry only their path because Wabou styles are delivered as Style IR.
-pub struct HmrClient {
+pub(crate) struct HmrClient {
     stop: Arc<AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
 }
@@ -493,9 +494,9 @@ impl Drop for HmrClient {
 ///
 /// The returned handle owns the background client; dropping it requests
 /// shutdown and joins the client thread.
-pub fn start_hmr_client(
+pub(crate) fn start_hmr_client(
     server_url: &str,
-    reload: crate::ReloadHandle,
+    reload: crate::reload::ReloadHandle,
 ) -> std::result::Result<HmrClient, ViteError> {
     let mut websocket_url = url::Url::parse(server_url).context(InvalidUrlSnafu)?;
     websocket_url
@@ -559,7 +560,7 @@ pub fn start_hmr_client(
                     } => {
                         tracing::debug!(%path, %accepted_path, timestamp, "received Vite HMR update");
                         match fetch_module(&client, &server_url, &accepted_path, timestamp) {
-                            Ok(source) => reload.send(crate::ReloadMsg::HmrUpdate {
+                            Ok(source) => reload.send(ReloadMsg::HmrUpdate {
                                 path,
                                 accepted_path,
                                 timestamp,
@@ -572,13 +573,13 @@ pub fn start_hmr_client(
                         }
                     }
                     ViteMessage::CssUpdate { accepted_path } => {
-                        reload.send(crate::ReloadMsg::CssUpdate {
+                        reload.send(ReloadMsg::CssUpdate {
                             path: accepted_path,
                         })
                     }
-                    ViteMessage::FullReload => reload.send(crate::ReloadMsg::FullReload),
+                    ViteMessage::FullReload => reload.send(ReloadMsg::FullReload),
                     ViteMessage::Error { diagnostic } => {
-                        reload.send(crate::ReloadMsg::Error { diagnostic })
+                        reload.send(ReloadMsg::Error { diagnostic })
                     }
                 };
                 if result.is_err() {
@@ -622,11 +623,6 @@ fn fetch_module(
         });
     }
     response.body_mut().read_to_string().context(HttpSnafu)
-}
-
-/// Read the Vite dev server URL from the `VITE_URL` environment variable.
-pub fn vite_url_from_env() -> Option<String> {
-    std::env::var("VITE_URL").ok().filter(|s| !s.is_empty())
 }
 
 fn messages(payload: VitePayload) -> Vec<ViteMessage> {
