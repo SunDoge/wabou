@@ -9,7 +9,7 @@ import {
 
 export interface LatestAsyncResourceOptions<K, T> {
   source: Accessor<K | undefined>;
-  load: (key: K, context: { signal: AbortSignal }) => Promise<T>;
+  load: (key: K, context: { signal: AbortSignal }) => T | PromiseLike<T>;
   initialValue?: T;
   retainPrevious?: boolean;
   autoLoad?: boolean;
@@ -69,7 +69,13 @@ export function createLatestAsyncResource<K, T>(
     setError(undefined);
     setStatus("pending");
     try {
-      const next = await options.load(key, { signal });
+      const loaded = options.load(key, { signal });
+      const next =
+        loaded !== null &&
+        (typeof loaded === "object" || typeof loaded === "function") &&
+        typeof (loaded as PromiseLike<T>).then === "function"
+          ? await loaded
+          : (loaded as T);
       if (disposed || request !== generation) return undefined;
       flush(() => {
         options.onCommit?.(next);

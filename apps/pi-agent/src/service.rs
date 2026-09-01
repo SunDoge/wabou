@@ -74,7 +74,7 @@ const LIST_SKILLS: HostMethod<WorkspaceFilesRequest, Vec<SkillEntry>> =
     HostMethod::new("listSkills");
 const RESPOND_EXTENSION_UI: JsonMethod<ExtensionUiResponseRequest, ()> =
     JsonMethod::new("respondExtensionUi");
-const LIST_AGENTS: JsonMethod<(), Vec<AgentProfile>> = JsonMethod::no_request("listAgents");
+const LIST_AGENTS: HostMethod<(), Vec<AgentProfile>> = HostMethod::no_request("listAgents");
 const SAVE_AGENTS: JsonMethod<Vec<AgentProfile>, ()> = JsonMethod::new("saveAgents");
 const GET_APP_SETTINGS: JsonMethod<(), AppSettings> = JsonMethod::no_request("getAppSettings");
 const SAVE_APP_SETTINGS: JsonMethod<AppSettings, ()> = JsonMethod::new("saveAppSettings");
@@ -1645,10 +1645,7 @@ pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::
         default_workspace(&request.agent_id)
     })?;
     let list_agents = service.clone();
-    capability.json_method(LIST_AGENTS, move |(): ()| {
-        let service = list_agents.clone();
-        async move { service.agents() }
-    })?;
+    capability.sync_method(LIST_AGENTS, move |(): ()| list_agents.agents())?;
     let save_agents = service.clone();
     capability.json_method(SAVE_AGENTS, move |agents: Vec<AgentProfile>| {
         let service = save_agents.clone();

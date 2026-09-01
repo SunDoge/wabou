@@ -20,28 +20,39 @@ export function createAgentProfiles(options: {
   const { api } = options;
   const [lastActiveId, setLastActiveId] = createSignal("agent-1");
   const repairedLoads = new WeakSet<object>();
+  const restore = (
+    stored: Awaited<ReturnType<PiApi["listAgents"]>>,
+  ): readonly AgentWorkspace[] | Promise<readonly AgentWorkspace[]> => {
+    const loaded =
+      stored.length > 0
+        ? stored.map(restoreAgentWorkspace)
+        : [createAgentWorkspace(1)];
+    const needsRepair =
+      stored.length === 0 || loaded.some((agent) => !agent.cwd.trim());
+    if (!needsRepair) return loaded;
+    return Promise.all(
+      loaded.map(async (agent) => {
+        if (agent.cwd.trim()) return agent;
+        const cwd = await api.defaultWorkspace(agent.id);
+        return {
+          ...agent,
+          cwd,
+        };
+      }),
+    ).then((agents) => {
+      repairedLoads.add(agents);
+      return agents;
+    });
+  };
   const profiles = createPersistedValue<readonly AgentWorkspace[]>({
     initial: [createAgentWorkspace(1)],
-    load: async () => {
-      const stored = await api.listAgents();
-      const loaded =
-        stored.length > 0
-          ? stored.map(restoreAgentWorkspace)
-          : [createAgentWorkspace(1)];
-      let repaired = stored.length === 0;
-      const agents = await Promise.all(
-        loaded.map(async (agent) => {
-          if (agent.cwd.trim()) return agent;
-          repaired = true;
-          const cwd = await api.defaultWorkspace(agent.id);
-          return {
-            ...agent,
-            cwd,
-          };
-        }),
-      );
-      if (repaired) repairedLoads.add(agents);
-      return agents;
+    load: () => {
+      const stored = api.listAgents();
+      return stored !== null &&
+        typeof stored === "object" &&
+        typeof (stored as unknown as PromiseLike<unknown>).then === "function"
+        ? Promise.resolve(stored).then(restore)
+        : restore(stored);
     },
     save: (agents) => api.saveAgents(agents.map(agentProfile)),
     onLoadError: (error) =>

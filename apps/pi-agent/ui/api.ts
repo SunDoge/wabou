@@ -152,7 +152,7 @@ interface PiCapability extends NativeJsonCapability {
     | PromiseLike<WorktreeCheckpoint | undefined>;
   listSkills(request: { cwd: string }): PiSkill[] | PromiseLike<PiSkill[]>;
   respondExtensionUi(request: string): string | PromiseLike<string>;
-  listAgents(request?: string): string | PromiseLike<string>;
+  listAgents(request?: undefined): PersistedAgentProfile[];
   saveAgents(request: string): string | PromiseLike<string>;
   deleteAgent(request: string): string | PromiseLike<string>;
   defaultWorkspace(request: string): string | PromiseLike<string>;
@@ -173,7 +173,7 @@ export function usePiApi() {
     version: 1,
   });
   return {
-    listAgents: () => call<PersistedAgentProfile[]>("listAgents"),
+    listAgents: () => capability.listAgents(),
     saveAgents: (agents: readonly PersistedAgentProfile[]) =>
       call<void>("saveAgents", agents),
     getAppSettings: () => call<PersistedAppSettings>("getAppSettings"),

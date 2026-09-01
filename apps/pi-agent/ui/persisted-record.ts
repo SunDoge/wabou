@@ -28,7 +28,7 @@ export interface PersistedValue<T> {
 
 export interface PersistedValueOptions<T> {
   initial: T;
-  load(): Promise<T>;
+  load(): T | PromiseLike<T>;
   save(value: T): void | PromiseLike<void>;
   onLoadError(error: unknown): void;
   onSaveError(error: unknown): void;

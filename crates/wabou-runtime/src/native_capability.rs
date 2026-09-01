@@ -51,6 +51,64 @@ pub struct NativeCapability<'js> {
 }
 
 impl<'js> NativeCapability<'js> {
+    /// Install a typed synchronous native method.
+    ///
+    /// Use this for bounded in-memory/bootstrap reads that must be available
+    /// during the initial Solid render. Operations that can wait on IO belong
+    /// in [`Self::method`] so they do not block the UI thread.
+    pub fn sync_method<Request, Response, Error, Handler>(
+        &self,
+        method: HostMethod<Request, Response>,
+        handler: Handler,
+    ) -> rquickjs::Result<()>
+    where
+        Request: DeserializeOwned + 'static,
+        Response: Serialize + 'static,
+        Error: Display + 'static,
+        Handler: Fn(Request) -> Result<Response, Error>
+            + Clone
+            + rquickjs::markers::ParallelSend
+            + 'static,
+    {
+        if !wabou_bindgen::is_contract_identifier(method.name()) {
+            return Err(rquickjs::Exception::throw_type(
+                &self.ctx,
+                &format!("invalid native method identifier `{}`", method.name()),
+            ));
+        }
+        if self.object.contains_key(method.name())? {
+            return Err(rquickjs::Exception::throw_type(
+                &self.ctx,
+                &format!("duplicate native method `{}`", method.name()),
+            ));
+        }
+
+        if method.has_request() {
+            let function = rquickjs::Function::new(
+                self.ctx.clone(),
+                move |SerdeValue(request): SerdeValue<Request>| {
+                    invoke_sync(handler.clone(), request)
+                },
+            )?;
+            self.object.set(method.name(), function)
+        } else {
+            let function = rquickjs::Function::new(self.ctx.clone(), move || {
+                let request = Request::deserialize(serde::de::value::UnitDeserializer::<
+                    serde::de::value::Error,
+                >::new())
+                .map_err(|error| {
+                    rquickjs::Error::new_from_js_message(
+                        "empty native request",
+                        std::any::type_name::<Request>(),
+                        error.to_string(),
+                    )
+                })?;
+                invoke_sync(handler.clone(), request)
+            })?;
+            self.object.set(method.name(), function)
+        }
+    }
+
     /// Install a JSON-coded method in this capability namespace.
     ///
     /// JSON is an optional codec for low-frequency or dynamic DTOs; it does
@@ -198,6 +256,24 @@ impl<'js> NativeCapability<'js> {
     }
 }
 
+fn invoke_sync<Request, Response, Error, Handler>(
+    handler: Handler,
+    request: Request,
+) -> rquickjs::Result<SerdeValue<Response>>
+where
+    Response: Serialize,
+    Error: Display,
+    Handler: Fn(Request) -> Result<Response, Error>,
+{
+    handler(request).map(SerdeValue).map_err(|error| {
+        rquickjs::Error::new_into_js_message(
+            "Rust native capability",
+            "JavaScript value",
+            error.to_string(),
+        )
+    })
+}
+
 async fn invoke<Request, Response, Error, Handler, HandlerFuture>(
     handler: Handler,
     request: Request,
@@ -260,6 +336,37 @@ mod tests {
             .with(|ctx| ctx.eval::<Option<u32>, _>("globalThis.nativeResult"))
             .expect("read native result");
         assert_eq!(result, Some(42));
+    }
+
+    #[test]
+    fn synchronous_native_methods_return_during_the_call() {
+        const DOUBLE: HostMethod<DoubleRequest, DoubleResponse> = HostMethod::new("doubleSync");
+        const READY: HostMethod<(), DoubleResponse> = HostMethod::no_request("readySync");
+        let runtime = JsRuntime::new().expect("runtime");
+        runtime
+            .mount_capability("syncTest", |ctx, object| {
+                let capability = NativeCapability { ctx, object };
+                capability.sync_method(DOUBLE, |request: DoubleRequest| {
+                    Ok::<_, String>(DoubleResponse {
+                        value: request.value * 2,
+                    })
+                })?;
+                capability.sync_method(READY, |(): ()| Ok::<_, String>(DoubleResponse { value: 7 }))
+            })
+            .expect("mount synchronous native capability");
+
+        let result = runtime
+            .with(|ctx| {
+                ctx.eval::<String, _>(
+                    "JSON.stringify([__wabou_capabilities.syncTest.doubleSync({ value: 21 }).value, __wabou_capabilities.syncTest.readySync().value])",
+                )
+            })
+            .expect("invoke synchronous native methods");
+        assert_eq!(result, "[42,7]");
+        assert!(
+            !runtime.poll_async_runtime(),
+            "sync calls must not enqueue jobs"
+        );
     }
 
     #[test]

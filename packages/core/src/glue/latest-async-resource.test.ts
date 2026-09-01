@@ -12,6 +12,26 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+test("publishes a synchronous bootstrap load in the initiating flush", () => {
+  let resource!: ReturnType<
+    typeof createLatestAsyncResource<string, string>
+  >;
+  const committed: string[] = [];
+  createRoot((dispose) => {
+    resource = createLatestAsyncResource({
+      source: () => "bootstrap",
+      load: () => "ready",
+      onCommit: (value) => committed.push(value),
+    });
+    flush();
+    expect(resource.value()).toBe("ready");
+    expect(resource.status()).toBe("ready");
+    expect(resource.loading()).toBe(false);
+    expect(committed).toEqual(["ready"]);
+    dispose();
+  });
+});
+
 test("only the latest key can update the resource", async () => {
   const first = deferred<string>();
   const second = deferred<string>();
