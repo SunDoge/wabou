@@ -46,6 +46,7 @@ import {
   SliderLayoutFixture,
   SpinnerLayoutFixture,
   TabsLayoutFixture,
+  VerticalTabsLayoutFixture,
   ToastLayoutFixture,
   ToolLayoutFixture,
 } from "./layout-fixture-components";
@@ -126,6 +127,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 560,
         height: 280,
         render: TabsLayoutFixture,
+      },
+      "component/VerticalTabs": {
+        width: 560,
+        height: 280,
+        render: VerticalTabsLayoutFixture,
       },
       "component/Alert": {
         width: 420,

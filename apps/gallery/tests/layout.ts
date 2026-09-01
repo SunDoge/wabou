@@ -127,6 +127,32 @@ const assertTabsLayout = (snapshot: LayoutSnapshot) => {
     throw new Error(
       `tab description remained compressed: ${description.textMetrics?.lineBox.width ?? 0}px`,
     );
+
+};
+
+const assertVerticalTabsLayout = (snapshot: LayoutSnapshot) => {
+  const verticalList = getLayoutNode(snapshot, {
+    role: "tablist",
+    name: "Fixture vertical settings sections",
+  });
+  const verticalPanel = getLayoutNode(snapshot, {
+    role: "tabpanel",
+  });
+  const verticalCard = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Fixture vertical account card",
+  });
+  if (verticalPanel.rect.x < verticalList.rect.x + verticalList.rect.width)
+    throw new Error("vertical tab panel overlaps its tab list");
+  if (verticalPanel.rect.width < 220)
+    throw new Error(
+      `vertical tab panel was compressed to ${verticalPanel.rect.width}px`,
+    );
+  assertClose(
+    verticalCard.rect.width,
+    verticalPanel.contentRect.width,
+    "vertical tab card width",
+  );
 };
 
 const assertAlertLayout = (snapshot: LayoutSnapshot) => {
@@ -878,6 +904,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/ControlBaseline": { assert: assertControlBaselineLayout },
   "component/SelectionControls": { assert: assertSelectionControlsLayout },
   "component/Tabs": { assert: assertTabsLayout },
+  "component/VerticalTabs": { assert: assertVerticalTabsLayout },
   "component/Alert": { assert: assertAlertLayout },
   "component/Toast": { assert: assertToastLayout },
   "component/CardSurface": { assert: assertCardSurfaceLayout },
