@@ -390,7 +390,7 @@ impl ProjectedElement {
         let text_selection_policy = node.text_selection.unwrap_or(
             context
                 .text_selection_policy
-                .unwrap_or(TextSelectionPolicy::Text),
+                .unwrap_or(TextSelectionPolicy::None),
         );
         let mut child_context = context.for_child();
         child_context.text_selection_policy = Some(text_selection_policy);
@@ -2733,6 +2733,15 @@ mod tests {
                 },
                 &atoms,
                 |_| None,
+            )
+            .unwrap();
+        projection
+            .apply_style_declaration(
+                NodeKey::ROOT,
+                "user-select",
+                &wabou_style::IrValue::Keyword {
+                    value: "text".to_owned(),
+                },
             )
             .unwrap();
         let _ = projection.finish_frame();
