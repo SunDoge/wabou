@@ -71,3 +71,35 @@ test("labeled field owns validation feedback without losing its control binding"
     true,
   );
 });
+
+test("field owns required and horizontal label-column semantics", () => {
+  const screen = renderComponent(() => (
+    <Field orientation="horizontal" required invalid>
+      <FieldLabel aria-label="Repository label">Repository</FieldLabel>
+      <Input aria-label="Repository input" />
+    </Field>
+  ));
+  const field = screen.getByRole("group");
+  const label = screen.getByRole("label", { name: "Repository label" });
+
+  expect(field.orientation).toBe("horizontal");
+  expect(field.attribute("aria-required")).toBe("true");
+  expect(field.attribute("aria-invalid")).toBe("true");
+  expect(label.parent?.className).toContain("w-36");
+  expect(label.className).toContain("text-danger-primary");
+  expect(label.text).toBe("Repository");
+  expect(label.parent?.text).toContain("*");
+});
+
+test("labeled field forwards its required state without changing the label name", () => {
+  const screen = renderComponent(() => (
+    <LabeledField
+      required
+      label="Provider"
+      renderControl={(ref) => <Input ref={ref} aria-label="Provider input" />}
+    />
+  ));
+
+  expect(screen.getByRole("group").attribute("aria-required")).toBe("true");
+  expect(screen.getByRole("label", { name: "Provider" }).text).toBe("Provider");
+});

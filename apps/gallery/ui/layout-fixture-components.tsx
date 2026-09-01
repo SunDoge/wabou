@@ -37,6 +37,10 @@ import {
   EmptyDescription,
   EmptyHeader,
   EmptyTitle,
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
   Icon,
   IconFrame,
   ImageList,
@@ -965,6 +969,29 @@ export function BadgeLayoutFixture() {
       <Badge role="status" aria-label="Fixture large badge" size="lg">
         Published
       </Badge>
+    </View>
+  );
+}
+
+export function FieldLayoutFixture() {
+  return (
+    <View class="w-full h-full p-6 items-start gap-4 bg-canvas">
+      <Field orientation="horizontal" required class="w-full">
+        <FieldLabel aria-label="Fixture repository label">
+          Repository
+        </FieldLabel>
+        <FieldContent>
+          <Input aria-label="Fixture repository input" value="wabou" />
+          <FieldDescription>Local project folder.</FieldDescription>
+        </FieldContent>
+      </Field>
+      <Field orientation="horizontal" invalid class="w-full">
+        <FieldLabel aria-label="Fixture branch label">Branch</FieldLabel>
+        <FieldContent>
+          <Input aria-label="Fixture branch input" value="" />
+          <FieldDescription>Choose a valid branch name.</FieldDescription>
+        </FieldContent>
+      </Field>
     </View>
   );
 }
