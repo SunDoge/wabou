@@ -32,6 +32,7 @@ export function WorkspaceChangesPanel(props: WorkspaceChangesPanelProps) {
 
   return (
     <WorkbenchInspector
+      projectionBoundary
       role="region"
       aria-label={i18n.message(m.code_changes, {})}
     >

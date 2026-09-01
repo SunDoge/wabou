@@ -26,6 +26,7 @@ interface AuthoredNode {
   focusOrder: number | null;
   interactionBlocked: boolean;
   focusContained: boolean;
+  projectionBoundary: boolean;
   overlayPlane: ComponentOverlayPlane;
   className: string;
   readonly styles: Map<string, ComponentStyleValue>;
@@ -92,6 +93,7 @@ export interface ComponentSnapshotNode {
   readonly focusOrder?: number;
   readonly interactionBlocked?: true;
   readonly focusContained?: true;
+  readonly projectionBoundary?: true;
   readonly overlayPlane?: Exclude<ComponentOverlayPlane, "content">;
   readonly transform?: readonly [
     number,
@@ -169,6 +171,8 @@ export interface ComponentLocator extends ComponentQueries {
   readonly focusContained: boolean;
   /** Native stacking plane authored for this node. */
   readonly overlayPlane: ComponentOverlayPlane;
+  /** Whether this node owns an explicit retained GPUI projection boundary. */
+  readonly projectionBoundary: boolean;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;
   /** Dispatch an uncaptured native pointer move with no pressed buttons. */
@@ -574,6 +578,7 @@ export function renderComponent(
     removeWidgetConfig: writer.removeWidgetConfig,
     setInteractionPolicy: writer.setInteractionPolicy,
     setOverlayPlane: writer.setOverlayPlane,
+    setProjectionBoundary: writer.setProjectionBoundary,
     dropNode: writer.dropNode,
     focusNode: writer.focusNode,
   };
@@ -588,6 +593,7 @@ export function renderComponent(
       focusOrder: null,
       interactionBlocked: false,
       focusContained: false,
+      projectionBoundary: false,
       overlayPlane: "content",
       className: "",
       styles: new Map(),
@@ -710,6 +716,11 @@ export function renderComponent(
         plane === 2 ? "modal" : plane === 1 ? "floating" : "content";
     }
     originals.setOverlayPlane.call(writer, id, plane);
+  };
+  writer.setProjectionBoundary = (id, enabled) => {
+    const node = nodes.get(key(id));
+    if (node) node.projectionBoundary = enabled;
+    originals.setProjectionBoundary.call(writer, id, enabled);
   };
   writer.dropNode = (id) => {
     const node = nodes.get(key(id));
@@ -1154,6 +1165,9 @@ export function renderComponent(
       get overlayPlane() {
         return node.overlayPlane;
       },
+      get projectionBoundary() {
+        return node.projectionBoundary;
+      },
       attribute: (name) => node.attributes.get(name) ?? null,
       pointerDown: (position = {}) => {
         ensureEnabled(node, "press");
@@ -1269,6 +1283,9 @@ export function renderComponent(
       ...(node.focusOrder !== null ? { focusOrder: node.focusOrder } : {}),
       ...(node.interactionBlocked ? { interactionBlocked: true as const } : {}),
       ...(node.focusContained ? { focusContained: true as const } : {}),
+      ...(node.projectionBoundary
+        ? { projectionBoundary: true as const }
+        : {}),
       ...(node.overlayPlane !== "content"
         ? { overlayPlane: node.overlayPlane }
         : {}),

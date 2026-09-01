@@ -87,6 +87,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
 
   return (
     <WorkbenchInspector
+      projectionBoundary
       role="region"
       aria-label={i18n.message(m.workspace_files, {})}
     >

@@ -875,7 +875,7 @@ export function App() {
           location().pathname !== "/skills"
         }
         fallback={
-          <WorkbenchMain>
+          <WorkbenchMain projectionBoundary>
             <Show
               when={location().pathname === "/skills"}
               fallback={
@@ -914,7 +914,7 @@ export function App() {
           </WorkbenchMain>
         }
       >
-        <WorkbenchMain>
+        <WorkbenchMain projectionBoundary>
           <ConversationHeader
             project={active().name}
             branch={workspaceInfo.latest()?.branch}
@@ -979,6 +979,7 @@ export function App() {
             }
           >
             <MessageScroller
+              projectionBoundary
               class="flex-1 min-h-0"
               followEnd={active().state.items.length > 0}
             >

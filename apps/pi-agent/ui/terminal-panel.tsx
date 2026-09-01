@@ -93,6 +93,7 @@ export function AgentTerminalPanel(
 
   return (
     <View
+      projectionBoundary
       role="region"
       aria-label="Terminal panel"
       class={`h-64 min-h-40 flex-none flex flex-col overflow-hidden border-t border-strong bg-slate-950 text-slate-200 shadow-lg${props.open ? "" : " hidden"}`}
