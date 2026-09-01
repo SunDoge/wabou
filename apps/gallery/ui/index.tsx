@@ -14,7 +14,6 @@ import {
   type Handle,
   mount,
   PrimitiveButton,
-  ProjectionBoundary,
   RouterProvider,
   Separator,
   Text,
@@ -518,9 +517,7 @@ function App() {
                 </Show>
               </View>
             </View>
-            <ProjectionBoundary
-              role="region"
-              aria-label="Gallery route content"
+            <View
               ref={(node) => (contentViewport = node)}
               class="flex-1 min-w-0 min-h-0 overflow-x-hidden overflow-y-auto"
             >
@@ -772,7 +769,7 @@ function App() {
                   </Match>
                 </ShowCase>
               </View>
-            </ProjectionBoundary>
+            </View>
           </View>
         </View>
       </ComponentsProvider>
