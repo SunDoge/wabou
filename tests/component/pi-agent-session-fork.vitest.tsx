@@ -36,7 +36,7 @@ test("requires confirmation before rewinding a Pi session", () => {
   expect(confirm).toHaveBeenCalledOnce();
 });
 
-test("does not fork until workspace checkpoint inspection completes", () => {
+test("allows confirmation while workspace checkpoint inspection completes", () => {
   const confirm = vi.fn();
   let complete!: () => void;
   const screen = renderComponent(() => {
@@ -60,12 +60,9 @@ test("does not fork until workspace checkpoint inspection completes", () => {
 
   screen.getByRole("button", { name: "Fork message" }).click();
   const checking = screen.getByRole("button", { name: "Fork" });
-  expect(checking.disabled).toBe(true);
-  expect(checking.text).toContain("Checking…");
-  expect(screen.getByRole("status", { name: "Checking…" })).toBeDefined();
-  expect(() => checking.click()).toThrow("cannot click disabled");
+  expect(checking.disabled).toBe(false);
+  checking.click();
+  expect(confirm).toHaveBeenCalledOnce();
   complete();
   screen.flush();
-  screen.getByRole("button", { name: "Fork" }).click();
-  expect(confirm).toHaveBeenCalledOnce();
 });

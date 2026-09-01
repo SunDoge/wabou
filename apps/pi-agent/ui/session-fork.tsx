@@ -38,9 +38,6 @@ export function SessionForkDialog(props: {
         <AlertDialogCancel>{i18n.message(m.cancel, {})}</AlertDialogCancel>
         <AlertDialogAction
           aria-label={i18n.message(m.fork, {})}
-          disabled={props.checkpoint === "checking"}
-          loading={props.checkpoint === "checking"}
-          loadingLabel={i18n.message(m.fork_session_checking_action, {})}
           onClick={props.confirm}
         >
           {i18n.message(m.fork, {})}
