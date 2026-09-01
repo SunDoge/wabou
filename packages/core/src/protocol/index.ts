@@ -66,6 +66,7 @@ export const OP = {
   SetTextSelection: 0x23,
   TextCommand: 0x24,
   BlurNode: 0x25,
+  SetProjectionBoundary: 0x26,
 } as const;
 
 export type OpCode = (typeof OP)[keyof typeof OP];
@@ -418,6 +419,11 @@ export class Writer {
     this.emit(OP.SetTextMaxLines);
     this.key(id);
     this.u32(maxLines);
+  }
+  setProjectionBoundary(id: NodeKey, enabled: boolean): void {
+    this.emit(OP.SetProjectionBoundary);
+    this.key(id);
+    this.u8(enabled ? 1 : 0);
   }
   setInteractionPolicy(id: NodeKey, flags: number, focusOrder: number): void {
     if (

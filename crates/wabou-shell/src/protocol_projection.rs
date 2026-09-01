@@ -501,6 +501,9 @@ impl GpuiProjection {
                 Op::SetOverlayPlane { id, plane } => {
                     self.tree.update_overlay_plane(*id, *plane)?;
                 }
+                Op::SetProjectionBoundary { id, enabled } => {
+                    self.tree.update_projection_boundary(*id, *enabled)?;
+                }
                 Op::SetScrollbarStyle {
                     id,
                     visibility,

@@ -119,6 +119,8 @@ pub struct ProjectedNode {
     pub overlay_plane: u8,
     /// Whether focus traversal is contained inside this subtree.
     pub focus_contained: bool,
+    /// Whether this subtree owns an independently invalidated GPUI Entity.
+    pub projection_boundary: bool,
 }
 
 impl ProjectedNode {
@@ -312,6 +314,7 @@ impl ProjectionTree {
                 z_index: 0,
                 overlay_plane: 0,
                 focus_contained: false,
+                projection_boundary: false,
             },
         );
         self.dirty.invalidate(
@@ -715,6 +718,27 @@ impl ProjectionTree {
         Ok(())
     }
 
+    pub fn update_projection_boundary(
+        &mut self,
+        key: NodeKey,
+        enabled: bool,
+    ) -> Result<(), ProjectionError> {
+        let node = self
+            .nodes_mut()
+            .get_mut(&key)
+            .ok_or(ProjectionError::MissingNode(key))?;
+        if node.projection_boundary == enabled {
+            return Ok(());
+        }
+        node.projection_boundary = enabled;
+        self.dirty.invalidate(
+            key,
+            DirtyKind::STRUCTURE | DirtyKind::LAYOUT | DirtyKind::PAINT,
+        );
+        self.invalidate_layout_ancestors(key);
+        Ok(())
+    }
+
     pub fn remove(&mut self, key: NodeKey) -> Result<Vec<NodeKey>, ProjectionError> {
         let parent = self
             .nodes
@@ -923,6 +947,26 @@ mod tests {
         assert_eq!(tree.revision(), 1);
         assert!(tree.commit().is_empty());
         assert_eq!(tree.revision(), 1);
+    }
+
+    #[test]
+    fn projection_boundary_is_explicit_and_idempotent() {
+        let mut tree = ProjectionTree::default();
+        insert(&mut tree, 1, None);
+        let _ = tree.commit();
+
+        tree.update_projection_boundary(key(1), true).unwrap();
+        let dirty = tree.commit();
+        assert_eq!(dirty.len(), 1);
+        assert!(dirty[0].dirty.contains(DirtyKind::STRUCTURE));
+        assert!(tree.node(key(1)).unwrap().projection_boundary);
+
+        tree.update_projection_boundary(key(1), true).unwrap();
+        assert!(tree.commit().is_empty());
+
+        tree.update_projection_boundary(key(1), false).unwrap();
+        assert!(!tree.node(key(1)).unwrap().projection_boundary);
+        assert!(!tree.commit().is_empty());
     }
 
     #[test]

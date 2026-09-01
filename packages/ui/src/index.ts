@@ -89,6 +89,7 @@ export {
   Path,
   PathBuilder,
   type PathProps,
+  ProjectionBoundary,
   Popover as PrimitivePopover,
   type PopoverProps as PrimitivePopoverProps,
   type PressResult,

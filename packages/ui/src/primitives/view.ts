@@ -243,6 +243,21 @@ export function View(props: ViewProps): JSX.Element {
   return primitive("view", props);
 }
 
+/**
+ * Stable retained region projected through its own GPUI Entity.
+ *
+ * Use this around independently changing route content, scroll viewports,
+ * overlays, native-widget regions, animation surfaces, or diagnostic HUDs.
+ * It does not create application state and has the same layout semantics as a
+ * View; it only limits native invalidation and materialization.
+ */
+export function ProjectionBoundary(props: ViewProps): JSX.Element {
+  const node = createElement("view");
+  spread(node, props, false);
+  spread(node, { projectionBoundary: true }, false);
+  return node as unknown as JSX.Element;
+}
+
 function resolvedTextBehavior(maxLines: number | undefined) {
   if (maxLines != null && (!Number.isInteger(maxLines) || maxLines < 1)) {
     throw new RangeError("Text maxLines must be a positive integer");

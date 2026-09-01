@@ -152,6 +152,8 @@ export interface WabouElementProps {
   focusContained?: boolean;
   /** Places this subtree in a native overlay plane above ordinary content. */
   overlayPlane?: "content" | "floating" | "modal";
+  /** Retains this subtree behind an independently invalidated GPUI Entity. */
+  projectionBoundary?: boolean;
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
   "aria-modal"?: boolean | "true" | "false";
@@ -623,6 +625,10 @@ function applyProperty(
   if (name === "overlayPlane") {
     const plane = value === "modal" ? 2 : value === "floating" ? 1 : 0;
     writer.setOverlayPlane(node.id, plane);
+    return;
+  }
+  if (name === "projectionBoundary") {
+    writer.setProjectionBoundary(node.id, value === true);
     return;
   }
   if (name === "textBehavior") {

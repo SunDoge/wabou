@@ -189,6 +189,7 @@ export {
   PathBuilder,
   type PathProps,
   type PrimitiveProps,
+  ProjectionBoundary,
   RichText,
   type RichTextProps,
   RichTextSpan,

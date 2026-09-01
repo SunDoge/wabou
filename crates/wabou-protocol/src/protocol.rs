@@ -218,6 +218,10 @@ pub enum Op<'a> {
         id: NodeKey,
         command: u8,
     },
+    SetProjectionBoundary {
+        id: NodeKey,
+        enabled: bool,
+    },
 }
 
 #[derive(Debug)]
@@ -260,6 +264,9 @@ pub enum DecodeError {
 
     #[snafu(display("invalid text command {command}"))]
     BadTextCommand { command: u8 },
+
+    #[snafu(display("invalid projection boundary flag {value}"))]
+    BadProjectionBoundary { value: u8 },
 
     #[snafu(display(
         "invalid interaction policy flags 0x{flags:02x} with focus order {focus_order}"
@@ -675,6 +682,17 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             }
             Op::TextCommand { id, command }
         }
+        op::SET_PROJECTION_BOUNDARY => {
+            let id = r.node_key()?;
+            let enabled = r.u8()?;
+            if enabled > 1 {
+                return Err(DecodeError::BadProjectionBoundary { value: enabled });
+            }
+            Op::SetProjectionBoundary {
+                id,
+                enabled: enabled != 0,
+            }
+        }
         other => return Err(DecodeError::BadOp { opcode: other }),
     })
 }
@@ -961,6 +979,36 @@ mod tests {
                 id: NodeKey { lo: 42, hi: 1 },
                 flags: 0x03,
             }]
+        ));
+    }
+
+    #[test]
+    fn decodes_the_shared_projection_boundary_v1_golden_frame() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../fixtures/protocol/set-projection-boundary-v1.json"
+        ))
+        .unwrap();
+        let bytes = fixture["bytes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| u8::try_from(value.as_u64().unwrap()).unwrap())
+            .collect::<Vec<_>>();
+
+        let frame = decode_frame(&bytes).unwrap();
+        assert!(matches!(
+            &frame.ops[..],
+            [Op::SetProjectionBoundary {
+                id: NodeKey { lo: 42, hi: 1 },
+                enabled: true,
+            }]
+        ));
+
+        let mut invalid = bytes;
+        *invalid.last_mut().unwrap() = 2;
+        assert!(matches!(
+            decode_frame(&invalid),
+            Err(DecodeError::BadProjectionBoundary { value: 2 })
         ));
     }
 

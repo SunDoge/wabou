@@ -21,6 +21,16 @@ const textBehaviorV1 = JSON.parse(
   ),
 ) as { name: string; bytes: number[] };
 
+const projectionBoundaryV1 = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../../fixtures/protocol/set-projection-boundary-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+) as { name: string; bytes: number[] };
+
 describe("Writer limits", () => {
   test("rejects strings that cannot be represented by the wire format", () => {
     const writer = new Writer();
@@ -199,6 +209,17 @@ describe("Writer limits", () => {
     expect(frame[17]).toBe(0x03);
     expect(() => writer.setTextBehavior(k(42), 0x08)).toThrow(RangeError);
     expect(() => writer.setTextBehavior(k(42), 0x07)).not.toThrow();
+  });
+
+  test("preserves the projection boundary v1 golden frame", () => {
+    const writer = new Writer();
+    writer.setProjectionBoundary(k(42), true);
+    const frame = writer.flush()!;
+
+    expect(projectionBoundaryV1.name).toBe("set-projection-boundary-v1");
+    expect(Array.from(frame)).toEqual(projectionBoundaryV1.bytes);
+    expect(frame[8]).toBe(OP.SetProjectionBoundary);
+    expect(frame[17]).toBe(1);
   });
 
   test("encodes text line limits without changing the text behavior ABI", () => {
