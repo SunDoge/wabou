@@ -154,6 +154,7 @@ export function PiConversationLayoutFixture() {
       class="w-full h-full min-w-0 p-5 flex flex-col gap-3 overflow-y-auto bg-canvas"
     >
       <ConversationItem
+        animate={false}
         item={{
           id: "fixture-assistant",
           kind: "assistant",
@@ -163,6 +164,7 @@ export function PiConversationLayoutFixture() {
         }}
       />
       <ConversationItem
+        animate={false}
         item={{
           id: "fixture-tool",
           kind: "tool",
