@@ -992,7 +992,10 @@ export function App() {
                   close={() => setSearchOpen(false)}
                 />
               </Show>
-              <MessageScrollerViewport>
+              <MessageScrollerViewport
+                role="region"
+                aria-label="Conversation transcript"
+              >
                 <MessageScrollerContent>
                   <WorkbenchContentColumn class="px-6 py-5">
                     <Show

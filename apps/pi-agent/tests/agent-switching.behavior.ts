@@ -88,6 +88,17 @@ test("keeps conversation turn navigation synchronized with native scrolling", as
       name: "Fake Pi completed: Verify the navigation rail",
     }),
   ).toHaveCount(1, { timeout: 5_000 });
+  for (const message of [
+    "Retain the third response",
+    "Retain the fourth response",
+    "Retain the fifth response",
+  ]) {
+    await composer.type(message);
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(
+      page.getByRole("label", { name: `Fake Pi completed: ${message}` }),
+    ).toHaveCount(1, { timeout: 5_000 });
+  }
 
   const first = page.getByRole("button", {
     name: "Jump to turn 1: Explain the fixture",
@@ -95,10 +106,14 @@ test("keeps conversation turn navigation synchronized with native scrolling", as
   const second = page.getByRole("button", {
     name: "Jump to turn 2: Verify the navigation rail",
   });
-  await expect(second).toBeCurrent("step");
+  await expect(
+    page.getByRole("button", {
+      name: "Jump to turn 5: Retain the fifth response",
+    }),
+  ).toBeCurrent("step");
 
   await page
-    .getByRole("region", { name: "Assistant response", index: 0 })
+    .getByRole("region", { name: "Conversation transcript" })
     .wheel(-5_000);
   await expect(first).toBeCurrent("step");
 
