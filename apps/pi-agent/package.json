@@ -9,7 +9,6 @@
     "dev": "vite --host 127.0.0.1 --port 5187 --strictPort"
   },
   "dependencies": {
-    "@wabou/core": "workspace:*",
     "@wabou/terminal": "workspace:*",
     "@wabou/ui": "workspace:*",
     "lucide-static": "1.31.0",

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { Host } from "@wabou/core";
+import type { Host } from "@wabou/ui";
 import { createDevtoolsClient } from "./generated/host-bindings";
 
 test("generated DevTools client sends one structured request", async () => {

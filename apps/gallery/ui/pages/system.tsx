@@ -1,4 +1,4 @@
-import { clipboard, showNativeMenu, useFileDrop } from "@wabou/core";
+import { clipboard, showNativeMenu, useFileDrop } from "@wabou/ui";
 import {
   Button,
   DirectoryPicker,

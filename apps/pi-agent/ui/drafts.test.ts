@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Kv, KvEntry, KvKey, KvListOptions, KvValue } from "@wabou/core";
+import type { Kv, KvEntry, KvKey, KvListOptions, KvValue } from "@wabou/ui";
 import { createRoot, createSignal, flush } from "solid-js";
 import { agentDraftKey, createAgentDraftController } from "./drafts";
 

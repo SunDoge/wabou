@@ -9,7 +9,6 @@
     "test": "bun test ui"
   },
   "dependencies": {
-    "@wabou/core": "workspace:*",
     "@wabou/ui": "workspace:*",
     "solid-js": "2.0.0-rc.2"
   },
