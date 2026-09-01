@@ -191,6 +191,8 @@ pub struct GpuiProjection {
     uniform_list_handles: std::collections::BTreeMap<NodeKey, crate::gpui::UniformListScrollHandle>,
     protocol_gaps: std::collections::HashMap<NodeKey, std::collections::BTreeSet<&'static str>>,
     boundary_revisions: std::collections::BTreeMap<NodeKey, crate::ProjectionBoundaryRevision>,
+    #[cfg(test)]
+    style_recomputation_count: usize,
 }
 
 /// Immutable, cheap-to-clone render view of one committed projection.
@@ -295,6 +297,8 @@ impl GpuiProjection {
                 NodeKey::ROOT,
                 crate::ProjectionBoundaryRevision::default(),
             )]),
+            #[cfg(test)]
+            style_recomputation_count: 0,
         }
     }
 
@@ -309,6 +313,10 @@ impl GpuiProjection {
         atoms: &AtomPool,
         mut resolve_raster: impl FnMut(&str) -> Option<std::sync::Arc<crate::gpui::Image>>,
     ) -> Result<(), ProjectionError> {
+        // A Solid commit is already atomic. Resolve the final cascade once per
+        // node instead of rebuilding the complete GPUI style after every
+        // class, color, size, shadow, and inline-style record in the batch.
+        let mut dirty_styles = std::collections::BTreeSet::new();
         for op in &frame.ops {
             match op {
                 Op::CreateElement { id, tag } => {
@@ -390,7 +398,7 @@ impl GpuiProjection {
                             .entry(*id)
                             .or_default()
                             .insert(property.to_owned(), protocol_style_value(*value));
-                        self.recompute_style(*id)?;
+                        dirty_styles.insert(*id);
                     }
                 }
                 Op::SetStyle { id, prop, value } => {
@@ -399,7 +407,7 @@ impl GpuiProjection {
                             .entry(*id)
                             .or_default()
                             .insert(property.to_owned(), wabou_style::parse_inline_value(value));
-                        self.recompute_style(*id)?;
+                        dirty_styles.insert(*id);
                     }
                 }
                 Op::SetShadows { id, shadows } => {
@@ -409,7 +417,7 @@ impl GpuiProjection {
                             values: shadows.iter().copied().map(protocol_shadow_value).collect(),
                         },
                     );
-                    self.recompute_style(*id)?;
+                    dirty_styles.insert(*id);
                 }
                 Op::RemoveStyle { id, prop } => {
                     if let Some(property) = atoms.resolve(*prop) {
@@ -422,7 +430,7 @@ impl GpuiProjection {
                         if remove_entry {
                             self.inline_styles.remove(id);
                         }
-                        self.recompute_style(*id)?;
+                        dirty_styles.insert(*id);
                     }
                 }
                 Op::SetClassName { id, classes } => {
@@ -433,7 +441,7 @@ impl GpuiProjection {
                             .filter_map(|class| atoms.resolve(*class).map(str::to_owned))
                             .collect(),
                     );
-                    self.recompute_style(*id)?;
+                    dirty_styles.insert(*id);
                 }
                 Op::AddEventListener { id, event_type } => {
                     self.tree.add_event_listener(*id, *event_type)?;
@@ -465,6 +473,7 @@ impl GpuiProjection {
                     }
                     let removed = self.tree.remove(*id)?;
                     for key in removed {
+                        dirty_styles.remove(&key);
                         self.layout_bounds.borrow_mut().remove(&key);
                         self.graphic_paint_states.borrow_mut().remove(&key);
                         self.inline_styles.remove(&key);
@@ -579,6 +588,9 @@ impl GpuiProjection {
                         .push(GpuiCommand::Text { id: *id, command });
                 }
             }
+        }
+        for key in dirty_styles {
+            self.recompute_style(key)?;
         }
         Ok(())
     }
@@ -1330,6 +1342,10 @@ impl GpuiProjection {
     }
 
     fn recompute_style(&mut self, key: NodeKey) -> Result<(), ProjectionError> {
+        #[cfg(test)]
+        {
+            self.style_recomputation_count = self.style_recomputation_count.saturating_add(1);
+        }
         let mut projection = StyleProjection::default();
         let mut pointer_events_enabled = true;
         let mut text_selection_policy = None;
@@ -1462,6 +1478,11 @@ impl GpuiProjection {
 
     pub fn style_diagnostics(&self, key: NodeKey) -> &[String] {
         self.style_diagnostics.get(&key).map_or(&[], Vec::as_slice)
+    }
+
+    #[cfg(test)]
+    fn style_recomputation_count(&self) -> usize {
+        self.style_recomputation_count
     }
 }
 
@@ -2005,6 +2026,58 @@ mod tests {
         assert_eq!(projection.revision(), initial_revision + 1);
         assert!(!projection.finish_frame());
         assert_eq!(projection.revision(), initial_revision + 1);
+    }
+
+    #[test]
+    fn one_protocol_frame_resolves_each_nodes_final_style_once() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        let panel = atoms.intern("panel");
+        let width = atoms.intern("width");
+        let opacity = atoms.intern("opacity");
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::SetClassName {
+                            id: key(2),
+                            classes: vec![panel],
+                        },
+                        Op::SetStyleValue {
+                            id: key(2),
+                            prop: width,
+                            value: StyleValue::Px(320.0),
+                        },
+                        Op::SetStyleValue {
+                            id: key(2),
+                            prop: opacity,
+                            value: StyleValue::Number(0.5),
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(2),
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+
+        assert_eq!(projection.style_recomputation_count(), 1);
+        let style = projection.style(key(2)).unwrap();
+        assert_eq!(
+            style.size.width,
+            Length::Definite(DefiniteLength::Absolute(crate::gpui::px(320.0).into()))
+        );
+        assert_eq!(style.opacity, Some(0.5));
     }
 
     #[test]
