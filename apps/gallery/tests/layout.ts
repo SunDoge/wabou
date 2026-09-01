@@ -129,6 +129,34 @@ const assertTabsLayout = (snapshot: LayoutSnapshot) => {
     );
 };
 
+const assertAlertLayout = (snapshot: LayoutSnapshot) => {
+  const alert = getLayoutNode(snapshot, {
+    role: "alert",
+    name: "Fixture failed native build",
+  });
+  const description = getLayoutNode(snapshot, {
+    text: "The linker could not create the application bundle. Review the output before retrying the build.",
+  });
+  const actions = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Fixture recovery actions",
+  });
+  assertLayoutRectContains(alert.contentRect, description.rect, {
+    label: "alert description",
+  });
+  assertLayoutRectContains(alert.contentRect, actions.rect, {
+    label: "alert recovery actions",
+  });
+  if (!description.textMetrics || description.textMetrics.lineBox.width < 260)
+    throw new Error(
+      `alert description was compressed to ${description.textMetrics?.lineBox.width ?? 0}px`,
+    );
+  for (const button of queryLayoutNodes(snapshot, { role: "button" }))
+    assertLayoutRectContains(actions.contentRect, button.rect, {
+      label: button.semantic?.label ?? "alert action",
+    });
+};
+
 const assertToolLayout = (snapshot: LayoutSnapshot) => {
   const root = getLayoutNode(snapshot, { role: "group", name: "Tool fixture" });
   const trigger = getLayoutNode(snapshot, {
@@ -758,6 +786,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/Select": { assert: assertSelectLayout },
   "component/ControlBaseline": { assert: assertControlBaselineLayout },
   "component/Tabs": { assert: assertTabsLayout },
+  "component/Alert": { assert: assertAlertLayout },
   "component/CardSurface": { assert: assertCardSurfaceLayout },
   "component/DarkSurface": { assert: assertDarkSurfaceLayout },
   "component/CompactSurface": { assert: assertCompactSurfaceLayout },

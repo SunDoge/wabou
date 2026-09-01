@@ -1,5 +1,6 @@
 import {
   Alert,
+  AlertActions,
   AlertDescription,
   AlertTitle,
   type AnimationControls,
@@ -1023,6 +1024,14 @@ function AlertPage() {
           >
             The native bundle could not be linked. Review the linker output and
             retry the build.
+            <AlertActions aria-label="Build recovery actions">
+              <Button size="sm" variant="outline">
+                Retry build
+              </Button>
+              <Button size="sm" variant="ghost">
+                Open output
+              </Button>
+            </AlertActions>
           </Alert>
         </View>
       </Preview>

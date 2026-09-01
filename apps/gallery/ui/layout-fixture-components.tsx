@@ -4,6 +4,10 @@ import {
   AdaptiveSplitPane,
   AdaptiveSplitPaneDetail,
   AdaptiveSplitPaneMain,
+  Alert,
+  AlertActions,
+  AlertDescription,
+  AlertTitle,
   AnnotationLayer,
   Bubble,
   BubbleContent,
@@ -659,6 +663,32 @@ export function TabsLayoutFixture() {
           </Card>
         </TabsContent>
       </Tabs>
+    </View>
+  );
+}
+
+export function AlertLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-5 items-start bg-canvas">
+      <Alert
+        variant="destructive"
+        aria-label="Fixture failed native build"
+        class="w-full"
+      >
+        <AlertTitle>Native build failed</AlertTitle>
+        <AlertDescription>
+          The linker could not create the application bundle. Review the output
+          before retrying the build.
+        </AlertDescription>
+        <AlertActions aria-label="Fixture recovery actions">
+          <Button size="sm" variant="outline">
+            Retry build
+          </Button>
+          <Button size="sm" variant="ghost">
+            Open output
+          </Button>
+        </AlertActions>
+      </Alert>
     </View>
   );
 }
