@@ -95,6 +95,8 @@ import {
   TabsTrigger,
   Text,
   Toaster,
+  ToggleGroup,
+  ToggleGroupItem,
   Tool,
   ToolContent,
   ToolHeader,
@@ -1008,6 +1010,31 @@ export function TooltipLayoutFixture() {
       <View class="max-w-xs rounded-lg border border-subtle bg-surface px-2 py-1.5">
         <TooltipContent shortcut="Ctrl K">Open command palette</TooltipContent>
       </View>
+    </View>
+  );
+}
+
+export function ToggleGroupLayoutFixture() {
+  return (
+    <View class="w-full h-full p-6 items-start bg-canvas">
+      <ToggleGroup
+        segmented
+        type="single"
+        defaultValue="list"
+        size="default"
+        aria-label="Fixture view mode"
+        class="w-72"
+      >
+        <ToggleGroupItem value="list" aria-label="List">
+          List
+        </ToggleGroupItem>
+        <ToggleGroupItem value="grid" aria-label="Grid">
+          Grid
+        </ToggleGroupItem>
+        <ToggleGroupItem value="columns" aria-label="Columns">
+          Columns
+        </ToggleGroupItem>
+      </ToggleGroup>
     </View>
   );
 }
