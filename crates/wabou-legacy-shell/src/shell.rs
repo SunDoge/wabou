@@ -19,6 +19,7 @@ use crate::accessibility::AccessibilityState;
 use crate::renderer_backend::AnyWindowRenderer;
 use crate::source::{WindowInputMode, WindowLevel, WindowOptions};
 use crate::text::TextContext;
+use wabou_shell_api::WindowBackground;
 
 /// Native rendering resources owned by one live window.
 pub struct Shell {
@@ -43,12 +44,13 @@ impl Shell {
         event_loop: &dyn ActiveEventLoop,
         options: &WindowOptions,
     ) -> crate::Result<Shell> {
+        let transparent = options.background != WindowBackground::Opaque;
         let mut attrs = WindowAttributes::default()
             .with_title(options.title.clone())
             .with_visible(false)
             .with_resizable(options.resizable)
             .with_decorations(options.decorations)
-            .with_transparent(options.transparent)
+            .with_transparent(transparent)
             .with_window_level(match options.window_level {
                 WindowLevel::AlwaysOnBottom => winit::window::WindowLevel::AlwaysOnBottom,
                 WindowLevel::Normal => winit::window::WindowLevel::Normal,
@@ -77,10 +79,7 @@ impl Shell {
         window.set_visible(true);
         let surface_width = physical_size.width.max(1);
         let surface_height = physical_size.height.max(1);
-        let mut renderer = AnyWindowRenderer::new(
-            crate::RendererBackend::Vello,
-            options.transparent,
-        )?;
+        let mut renderer = AnyWindowRenderer::new(crate::RendererBackend::Vello, transparent)?;
         renderer.resume(window.clone(), surface_width, surface_height);
 
         Ok(Shell {
