@@ -1,11 +1,11 @@
 import {
   Button,
   Input,
-  Button as PrimitiveButton,
   ScrollArea,
   Text,
   View,
 } from "@wabou/ui";
+import { Button as PrimitiveButton } from "@wabou/ui/primitives";
 import { createMemo, createSignal, For as ForValue } from "solid-js";
 import { FieldLabel, TaskPage } from "../shared";
 

@@ -3,13 +3,13 @@ import {
   Button,
   ColorThemeProvider,
   ComponentsProvider,
-  Button as PrimitiveButton,
   ScrollArea,
   Text,
   useNavigate,
   useParams,
   View,
 } from "@wabou/ui";
+import { Button as PrimitiveButton } from "@wabou/ui/primitives";
 import { createSignal, For as ForValue, Match, Switch } from "solid-js";
 import { CellsTask } from "./tasks/cells";
 import { CircleDrawerTask } from "./tasks/circle-drawer";

@@ -13,7 +13,6 @@ import {
   Fps,
   type Handle,
   mount,
-  PrimitiveButton,
   ProjectionBoundary,
   RouterProvider,
   Separator,
@@ -24,6 +23,7 @@ import {
   useWindow,
   View,
 } from "@wabou/ui";
+import { Button as PrimitiveButton } from "@wabou/ui/primitives";
 import { createSignal, Match, Show, Switch as ShowCase } from "solid-js";
 import "virtual:wabou-stylesheet";
 

@@ -9,12 +9,12 @@ import {
   EmptyTitle,
   Icon,
   PageHeader,
-  PrimitiveButton,
   ScrollArea,
   Text,
   useNavigate,
   View,
 } from "@wabou/ui";
+import { Button as PrimitiveButton } from "@wabou/ui/primitives";
 import checkCircle from "lucide-static/icons/circle-check.svg?raw";
 import xCircle from "lucide-static/icons/circle-x.svg?raw";
 import { createMemo, createSignal, For as ForValue, Show } from "solid-js";

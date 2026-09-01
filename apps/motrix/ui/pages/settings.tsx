@@ -18,7 +18,6 @@ import {
   Icon,
   Input,
   PageHeader,
-  PrimitiveButton,
   ResponsiveGrid,
   ResponsiveGridRemainder,
   Switch,
@@ -30,6 +29,7 @@ import {
   useResponsiveGrid,
   View,
 } from "@wabou/ui";
+import { Button as PrimitiveButton } from "@wabou/ui/primitives";
 import boxes from "lucide-static/icons/boxes.svg?raw";
 import download from "lucide-static/icons/download.svg?raw";
 import gauge from "lucide-static/icons/gauge.svg?raw";

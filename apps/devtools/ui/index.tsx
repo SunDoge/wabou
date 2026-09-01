@@ -10,8 +10,6 @@ import {
   Image,
   Input,
   mount,
-  PrimitiveButton,
-  PrimitivePopover,
   ScrollArea,
   Sidebar,
   SidebarContent,
@@ -30,6 +28,10 @@ import {
   View,
   type WabouPointerEvent,
 } from "@wabou/ui";
+import {
+  Button as PrimitiveButton,
+  Popover as PrimitivePopover,
+} from "@wabou/ui/primitives";
 import {
   createEffect,
   createMemo,

@@ -5,10 +5,10 @@ import {
   createHover,
   Icon,
   Text,
-  PrimitiveTextInput as TextInput,
   useNavigate,
   View,
 } from "@wabou/ui";
+import { TextInput } from "@wabou/ui/primitives";
 import bookmark from "lucide-static/icons/bookmark.svg?raw";
 import messageSquare from "lucide-static/icons/message-square.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
