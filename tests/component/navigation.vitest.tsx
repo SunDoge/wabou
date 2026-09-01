@@ -1,22 +1,18 @@
 import { renderComponent } from "@wabou/test/component";
 import {
   Breadcrumb,
-  BreadcrumbItem,
   BreadcrumbEllipsis,
+  BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
   Pagination,
   PaginationContent,
-  PaginationItem,
   PaginationItems,
-  PaginationLink,
   PaginationNext,
   PaginationPrevious,
-  Text,
 } from "@wabou/ui";
-import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 
 test("breadcrumb exposes explicit links and the current page", () => {
@@ -98,48 +94,4 @@ test("managed pagination remains controlled when its owner does not update", () 
   screen.getByRole("button", { name: "Advance" }).click();
   expect(changes).toEqual([3]);
   expect(screen.getByRole("link", { name: "Page 2" }).current).toBe("page");
-});
-
-test("pagination composes controlled page navigation", () => {
-  const Pager = () => {
-    const [page, setPage] = createSignal(2);
-    return (
-      <Pagination aria-label={`Page ${page()}`}>
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious
-              aria-label="Previous page"
-              onClick={() => setPage((value) => Math.max(1, value - 1))}
-            />
-          </PaginationItem>
-          {[1, 2, 3].map((value) => (
-            <PaginationItem>
-              <PaginationLink
-                aria-label={`Page ${value}`}
-                active={page() === value}
-                onClick={() => setPage(value)}
-              >
-                {String(value)}
-              </PaginationLink>
-            </PaginationItem>
-          ))}
-          <PaginationItem>
-            <PaginationNext
-              aria-label="Next page"
-              onClick={() => setPage((value) => Math.min(3, value + 1))}
-            />
-          </PaginationItem>
-        </PaginationContent>
-        <Text role="status" aria-label={`Current page ${page()}`}>
-          {String(page())}
-        </Text>
-      </Pagination>
-    );
-  };
-  const screen = renderComponent(Pager);
-
-  expect(screen.getByRole("link", { name: "Page 2" }).current).toBe("page");
-  screen.getByRole("button", { name: "Next page" }).click();
-  expect(screen.getByRole("status", { name: "Current page 3" }).text).toBe("3");
-  expect(screen.getByRole("link", { name: "Page 3" }).current).toBe("page");
 });

@@ -1,3 +1,6 @@
+import { mergeClasses } from "@wabou/core/style";
+import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
+import ellipsis from "lucide-static/icons/ellipsis.svg?raw";
 import {
   createComponent,
   createContext,
@@ -14,16 +17,13 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
-import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
-import ellipsis from "lucide-static/icons/ellipsis.svg?raw";
+import { createControllableState } from "../primitives/interactions";
 import { Button, type ButtonProps } from "./button";
-import { mergeClasses } from "@wabou/core/style";
 import {
   clampPage,
   createPaginationRange,
   normalizePageCount,
 } from "./pagination-state";
-import { createControllableState } from "../primitives/interactions";
 
 export {
   clampPage,
@@ -169,29 +169,26 @@ export function BreadcrumbEllipsis(
 }
 
 interface PaginationContextValue {
-  managed: boolean;
   count(): number;
   page(): number;
   disabled(): boolean;
   select(page: number): void;
 }
 
-// A real sentinel keeps the legacy composition-only controls usable outside
-// managed pagination. Solid 2 treats `undefined` as no context default.
-const PaginationContext = createContext<PaginationContextValue>({
-  managed: false,
-  count: () => 1,
-  page: () => 1,
-  disabled: () => false,
-  select: () => {},
-});
+const PaginationContext = createContext<PaginationContextValue>();
+
+function usePaginationContext(): PaginationContextValue {
+  const context = useContext(PaginationContext);
+  if (!context)
+    throw new Error("Pagination controls must be used inside Pagination");
+  return context;
+}
 
 export interface PaginationProps {
   children?: JSX.Element;
   class?: string;
   "aria-label"?: string;
-  /** Enables managed pagination. Omit it to retain the composition-only API. */
-  count?: number;
+  count: number;
   page?: number;
   defaultPage?: number;
   disabled?: boolean;
@@ -204,15 +201,14 @@ export function Pagination(props: PaginationProps): JSX.Element {
     defaultValue: props.defaultPage ?? 1,
     onChange: props.onPageChange,
   });
-  const count = () => normalizePageCount(props.count ?? 1);
+  const count = () => normalizePageCount(props.count);
   const page = () => clampPage(state.value(), count());
   const context: PaginationContextValue = {
-    managed: true,
     count,
     page,
     disabled: () => props.disabled ?? false,
     select: (next) => {
-      if (props.count === undefined || context.disabled()) return;
+      if (context.disabled()) return;
       state.set(clampPage(next, count()));
     },
   };
@@ -226,14 +222,12 @@ export function Pagination(props: PaginationProps): JSX.Element {
       {props.children}
     </View>
   );
-  return props.count === undefined
-    ? content()
-    : createComponent(PaginationContext, {
-        value: context,
-        get children() {
-          return content();
-        },
-      });
+  return createComponent(PaginationContext, {
+    value: context,
+    get children() {
+      return content();
+    },
+  });
 }
 
 export function PaginationContent(props: ViewProps): JSX.Element {
@@ -257,13 +251,10 @@ export interface PaginationLinkProps
 }
 
 export function PaginationLink(props: PaginationLinkProps): JSX.Element {
-  const context = useContext(PaginationContext);
+  const context = usePaginationContext();
   const forwarded = omit(props, "active", "page");
   const active = () =>
-    props.active ??
-    (props.page !== undefined &&
-      context.managed &&
-      context.page() === props.page);
+    props.active ?? (props.page !== undefined && context.page() === props.page);
   return (
     <Button
       {...forwarded}
@@ -276,7 +267,7 @@ export function PaginationLink(props: PaginationLinkProps): JSX.Element {
         props["aria-label"] ??
         (props.page === undefined ? undefined : `Page ${props.page}`)
       }
-      disabled={props.disabled ?? (context.managed && context.disabled())}
+      disabled={props.disabled ?? context.disabled()}
       onClick={(event) => {
         props.onClick?.(event);
         if (!event.defaultPrevented && props.page !== undefined)
@@ -303,9 +294,7 @@ export function PaginationItems(props: {
   renderItem?: (page: number) => JSX.Element;
   renderEllipsis?: (side: "start" | "end") => JSX.Element;
 }): JSX.Element {
-  const context = useContext(PaginationContext);
-  if (!context.managed)
-    throw new Error("PaginationItems must be used inside a managed Pagination");
+  const context = usePaginationContext();
   const items = () =>
     createPaginationRange({
       count: context.count(),
@@ -333,20 +322,16 @@ export function PaginationItems(props: {
 export function PaginationPrevious(
   props: Omit<ButtonProps, "variant" | "size">,
 ): JSX.Element {
-  const context = useContext(PaginationContext);
+  const context = usePaginationContext();
   return (
     <Button
       {...props}
       variant="ghost"
       size="sm"
-      disabled={
-        props.disabled ??
-        (context.managed ? context.disabled() || context.page() <= 1 : false)
-      }
+      disabled={props.disabled ?? (context.disabled() || context.page() <= 1)}
       onClick={(event) => {
         props.onClick?.(event);
-        if (!event.defaultPrevented && context.managed)
-          context.select(context.page() - 1);
+        if (!event.defaultPrevented) context.select(context.page() - 1);
       }}
     >
       {props.children ?? "Previous"}
@@ -357,7 +342,7 @@ export function PaginationPrevious(
 export function PaginationNext(
   props: Omit<ButtonProps, "variant" | "size">,
 ): JSX.Element {
-  const context = useContext(PaginationContext);
+  const context = usePaginationContext();
   return (
     <Button
       {...props}
@@ -365,14 +350,11 @@ export function PaginationNext(
       size="sm"
       disabled={
         props.disabled ??
-        (context.managed
-          ? context.disabled() || context.page() >= context.count()
-          : false)
+        (context.disabled() || context.page() >= context.count())
       }
       onClick={(event) => {
         props.onClick?.(event);
-        if (!event.defaultPrevented && context.managed)
-          context.select(context.page() + 1);
+        if (!event.defaultPrevented) context.select(context.page() + 1);
       }}
     >
       {props.children ?? "Next"}
