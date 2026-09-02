@@ -1,4 +1,5 @@
 use std::{
+    collections::{BTreeMap, BTreeSet},
     path::PathBuf,
     sync::{Arc, RwLock},
     time::{SystemTime, UNIX_EPOCH},
@@ -12,7 +13,7 @@ use rustic_core::{
 use serde::{Deserialize, Serialize};
 use wabou::{CapabilityContract, HostMethod, NativeCapability, rquickjs};
 
-pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 3);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 4);
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
@@ -25,6 +26,8 @@ const LIST_SNAPSHOTS: HostMethod<ProfileIdRequest, Vec<SnapshotEntry>> =
     HostMethod::new("listSnapshots");
 const LIST_FILES: HostMethod<ListFilesRequest, Vec<FileEntry>> = HostMethod::new("listFiles");
 const SEARCH_FILES: HostMethod<SearchFilesRequest, Vec<FileEntry>> = HostMethod::new("searchFiles");
+const DIFF_SNAPSHOTS: HostMethod<DiffSnapshotsRequest, SnapshotDiff> =
+    HostMethod::new("diffSnapshots");
 const PREVIEW_RESTORE: HostMethod<RestorePathRequest, RestorePlanSummary> =
     HostMethod::new("previewRestore");
 const RESTORE_PATH: HostMethod<RestorePathRequest, RestoreResult> = HostMethod::new("restorePath");
@@ -99,6 +102,18 @@ pub struct SearchFilesRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DiffSnapshotsRequest {
+    pub profile_id: String,
+    pub base_snapshot_id: String,
+    pub snapshot_id: String,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub include_metadata: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RestorePathRequest {
     pub profile_id: String,
     pub snapshot_id: String,
@@ -136,6 +151,7 @@ pub struct SnapshotEntry {
     pub paths: Vec<String>,
     pub files_new: u64,
     pub files_changed: u64,
+    pub parent_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -146,6 +162,36 @@ pub struct FileEntry {
     pub kind: String,
     pub size: u64,
     pub modified: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotDiffEntry {
+    pub name: String,
+    pub path: String,
+    pub kind: String,
+    pub change: String,
+    pub previous_size: Option<u64>,
+    pub current_size: Option<u64>,
+    pub previous_modified: Option<String>,
+    pub current_modified: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotDiffSummary {
+    pub added: u64,
+    pub removed: u64,
+    pub modified: u64,
+    pub metadata: u64,
+    pub type_changed: u64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotDiff {
+    pub entries: Vec<SnapshotDiffEntry>,
+    pub summary: SnapshotDiffSummary,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -375,6 +421,82 @@ impl RusticService {
         Ok(matches)
     }
 
+    fn diff_snapshots(&self, request: DiffSnapshotsRequest) -> Result<SnapshotDiff, String> {
+        if request.base_snapshot_id == request.snapshot_id {
+            return Err("choose two different snapshots to compare".to_string());
+        }
+        let (path, password, _) = self.profile_config(&request.profile_id)?;
+        let repo = open_repository(&path, &password)?
+            .to_indexed_ids()
+            .map_err(display_error)?;
+        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
+        let base = snapshots
+            .iter()
+            .find(|snapshot| snapshot.id.to_string() == request.base_snapshot_id)
+            .ok_or_else(|| format!("snapshot {} was not found", request.base_snapshot_id))?;
+        let current = snapshots
+            .iter()
+            .find(|snapshot| snapshot.id.to_string() == request.snapshot_id)
+            .ok_or_else(|| format!("snapshot {} was not found", request.snapshot_id))?;
+        let base_node = repo
+            .node_from_snapshot_and_path(base, &request.path)
+            .map_err(display_error)?;
+        let current_node = repo
+            .node_from_snapshot_and_path(current, &request.path)
+            .map_err(display_error)?;
+        let options = LsOptions::default().recursive(true);
+        let base_entries = repo
+            .ls(&base_node, &options)
+            .map_err(display_error)?
+            .collect::<Result<BTreeMap<_, _>, _>>()
+            .map_err(display_error)?;
+        let current_entries = repo
+            .ls(&current_node, &options)
+            .map_err(display_error)?
+            .collect::<Result<BTreeMap<_, _>, _>>()
+            .map_err(display_error)?;
+        let paths = base_entries
+            .keys()
+            .chain(current_entries.keys())
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let mut result = SnapshotDiff::default();
+        for relative_path in paths {
+            let previous = base_entries.get(&relative_path);
+            let current = current_entries.get(&relative_path);
+            let Some(change) = diff_change(previous, current, request.include_metadata) else {
+                continue;
+            };
+            match change {
+                "added" => result.summary.added += 1,
+                "removed" => result.summary.removed += 1,
+                "modified" => result.summary.modified += 1,
+                "metadata" => result.summary.metadata += 1,
+                "typeChanged" => result.summary.type_changed += 1,
+                _ => {}
+            }
+            let node = current.or(previous).expect("a diff entry has one side");
+            let full_path = if request.path.is_empty() {
+                relative_path
+            } else {
+                PathBuf::from(&request.path).join(relative_path)
+            };
+            result.entries.push(SnapshotDiffEntry {
+                name: node.name().to_string_lossy().into_owned(),
+                path: full_path.to_string_lossy().into_owned(),
+                kind: node_kind(node),
+                change: change.to_string(),
+                previous_size: previous.map(|node| node.meta.size),
+                current_size: current.map(|node| node.meta.size),
+                previous_modified: previous
+                    .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
+                current_modified: current
+                    .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
+            });
+        }
+        Ok(result)
+    }
+
     fn preview_restore(&self, request: RestorePathRequest) -> Result<RestorePlanSummary, String> {
         let (path, password, _) = self.profile_config(&request.profile_id)?;
         validate_restore_request(&request)?;
@@ -495,18 +617,51 @@ fn file_entry(path: PathBuf, node: &rustic_core::repofile::Node) -> FileEntry {
     FileEntry {
         name: node.name().to_string_lossy().into_owned(),
         path: path.to_string_lossy().into_owned(),
-        kind: if node.is_dir() {
-            "directory"
-        } else if node.is_file() {
-            "file"
-        } else if node.is_symlink() {
-            "symlink"
-        } else {
-            "special"
-        }
-        .to_string(),
+        kind: node_kind(node),
         size: node.meta.size,
         modified: node.meta.mtime.map(|time| time.to_string()),
+    }
+}
+
+fn node_kind(node: &rustic_core::repofile::Node) -> String {
+    if node.is_dir() {
+        "directory"
+    } else if node.is_file() {
+        "file"
+    } else if node.is_symlink() {
+        "symlink"
+    } else {
+        "special"
+    }
+    .to_string()
+}
+
+fn diff_change(
+    previous: Option<&rustic_core::repofile::Node>,
+    current: Option<&rustic_core::repofile::Node>,
+    include_metadata: bool,
+) -> Option<&'static str> {
+    match (previous, current) {
+        (None, Some(_)) => Some("added"),
+        (Some(_), None) => Some("removed"),
+        (Some(previous), Some(current)) if previous.node_type != current.node_type => {
+            Some("typeChanged")
+        }
+        (Some(previous), Some(current))
+            if previous.is_file() && previous.content != current.content =>
+        {
+            Some("modified")
+        }
+        (Some(previous), Some(current))
+            if previous.is_symlink()
+                && previous.node_type.to_link() != current.node_type.to_link() =>
+        {
+            Some("modified")
+        }
+        (Some(previous), Some(current)) if include_metadata && previous.meta != current.meta => {
+            Some("metadata")
+        }
+        _ => None,
     }
 }
 
@@ -583,6 +738,7 @@ fn snapshot_entry(snapshot: &rustic_core::repofile::SnapshotFile) -> SnapshotEnt
         paths: snapshot.paths.iter().cloned().collect(),
         files_new: summary.map_or(0, |summary| summary.files_new),
         files_changed: summary.map_or(0, |summary| summary.files_changed),
+        parent_id: snapshot.parent.map(|id| id.to_string()),
     }
 }
 
@@ -704,6 +860,16 @@ pub fn mount(capability: NativeCapability<'_>, service: RusticService) -> rquick
             tokio::task::spawn_blocking(move || service.search_files(request))
                 .await
                 .map_err(|error| format!("file search task failed: {error}"))?
+        }
+    })?;
+
+    let diff = service.clone();
+    capability.method(DIFF_SNAPSHOTS, move |request| {
+        let service = diff.clone();
+        async move {
+            tokio::task::spawn_blocking(move || service.diff_snapshots(request))
+                .await
+                .map_err(|error| format!("snapshot diff task failed: {error}"))?
         }
     })?;
 
@@ -875,7 +1041,7 @@ mod tests {
         let preview = service
             .preview_path(PreviewPathRequest {
                 profile_id: "photos".to_string(),
-                snapshot_id: backup.snapshot.id,
+                snapshot_id: backup.snapshot.id.clone(),
                 path: settings.path.clone(),
             })
             .expect("restore temporary preview");
@@ -885,6 +1051,42 @@ mod tests {
             fs::read_to_string(&preview_path).expect("preview settings"),
             "theme = 'light'"
         );
+
+        fs::write(photos.join("cover.txt"), "updated cover").expect("modify photo file");
+        fs::remove_file(documents.join("notes.md")).expect("remove document file");
+        fs::write(documents.join("new.md"), "new document").expect("add document file");
+        let next_backup = service
+            .run_backup(ProfileIdRequest {
+                profile_id: "photos".to_string(),
+            })
+            .expect("backup changed source");
+        let diff = service
+            .diff_snapshots(DiffSnapshotsRequest {
+                profile_id: "photos".to_string(),
+                base_snapshot_id: backup.snapshot.id,
+                snapshot_id: next_backup.snapshot.id,
+                path: String::new(),
+                include_metadata: false,
+            })
+            .expect("compare snapshots");
+        assert!(
+            diff.entries
+                .iter()
+                .any(|entry| entry.name == "cover.txt" && entry.change == "modified")
+        );
+        assert!(
+            diff.entries
+                .iter()
+                .any(|entry| entry.name == "notes.md" && entry.change == "removed")
+        );
+        assert!(
+            diff.entries
+                .iter()
+                .any(|entry| entry.name == "new.md" && entry.change == "added")
+        );
+        assert_eq!(diff.summary.modified, 1);
+        assert_eq!(diff.summary.removed, 1);
+        assert_eq!(diff.summary.added, 1);
     }
 
     #[test]

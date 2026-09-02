@@ -24,6 +24,7 @@ export interface SnapshotEntry {
   paths: string[];
   filesNew: number;
   filesChanged: number;
+  parentId?: string;
 }
 
 export interface FileEntry {
@@ -32,6 +33,35 @@ export interface FileEntry {
   kind: "directory" | "file" | "symlink" | "special";
   size: number;
   modified?: string;
+}
+
+export type SnapshotDiffChange =
+  | "added"
+  | "removed"
+  | "modified"
+  | "metadata"
+  | "typeChanged";
+
+export interface SnapshotDiffEntry {
+  name: string;
+  path: string;
+  kind: FileEntry["kind"];
+  change: SnapshotDiffChange;
+  previousSize?: number;
+  currentSize?: number;
+  previousModified?: string;
+  currentModified?: string;
+}
+
+export interface SnapshotDiff {
+  entries: SnapshotDiffEntry[];
+  summary: {
+    added: number;
+    removed: number;
+    modified: number;
+    metadata: number;
+    typeChanged: number;
+  };
 }
 
 export interface RestorePlanSummary {
@@ -89,6 +119,13 @@ interface RusticCapability extends NativeCapability {
     query: string;
     limit?: number;
   }): FileEntry[] | PromiseLike<FileEntry[]>;
+  diffSnapshots(request: {
+    profileId: string;
+    baseSnapshotId: string;
+    snapshotId: string;
+    path: string;
+    includeMetadata?: boolean;
+  }): SnapshotDiff | PromiseLike<SnapshotDiff>;
   previewRestore(request: {
     profileId: string;
     snapshotId: string;
@@ -116,6 +153,6 @@ interface RusticHost extends Host {
 export function useRusticApi(): RusticCapability {
   return bindCapability(useHost<RusticHost>().rustic, {
     name: "rustic",
-    version: 3,
+    version: 4,
   });
 }

@@ -24,6 +24,7 @@ import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
 import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import folderTree from "lucide-static/icons/folder-tree.svg?raw";
+import gitCompare from "lucide-static/icons/git-compare-arrows.svg?raw";
 import list from "lucide-static/icons/list.svg?raw";
 import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
@@ -34,6 +35,7 @@ import { FileDetails } from "./file-details";
 import { useRusticSession } from "./session";
 import { createSnapshotBrowserCache } from "./snapshot-browser-cache";
 import { formatSnapshotTime, SnapshotDetails } from "./snapshot-details";
+import { SnapshotDiffPanel } from "./snapshot-diff";
 import { SnapshotFileTree } from "./snapshot-tree";
 import { BackupSourcesPanel } from "./workspace-components";
 
@@ -146,6 +148,9 @@ export function SnapshotsPage() {
   const [searchActive, setSearchActive] = createSignal(false);
   const [searching, setSearching] = createSignal(false);
   const [browserMode, setBrowserMode] = createSignal<"list" | "tree">("list");
+  const [workspaceMode, setWorkspaceMode] = createSignal<"browse" | "changes">(
+    "browse",
+  );
   const [currentPath, setCurrentPath] = createSignal("");
   const [loading, setLoading] = createSignal(true);
   const [loadingFiles, setLoadingFiles] = createSignal(false);
@@ -442,156 +447,195 @@ export function SnapshotsPage() {
                           : `/${currentPath() || ""}`}
                       </Text>
                     </View>
-                    <SnapshotDetails snapshot={snapshot()} />
                     <ButtonGroup
                       size="sm"
-                      variant="ghost"
-                      aria-label="File view"
+                      variant="outline"
+                      aria-label="Snapshot workspace"
                     >
                       <Button
-                        size="icon"
-                        variant="ghost"
-                        selected={browserMode() === "list"}
-                        aria-label="List view"
-                        onClick={() => setBrowserMode("list")}
+                        size="sm"
+                        variant="outline"
+                        selected={workspaceMode() === "browse"}
+                        onClick={() => setWorkspaceMode("browse")}
                       >
-                        <Icon source={list} size={14} />
+                        <Icon source={folder} size={14} /> Browse
                       </Button>
                       <Button
-                        size="icon"
-                        variant="ghost"
-                        selected={browserMode() === "tree"}
-                        aria-label="Tree view"
-                        onClick={() => {
-                          clearSearch();
-                          setBrowserMode("tree");
-                        }}
+                        size="sm"
+                        variant="outline"
+                        selected={workspaceMode() === "changes"}
+                        onClick={() => setWorkspaceMode("changes")}
                       >
-                        <Icon source={folderTree} size={14} />
+                        <Icon source={gitCompare} size={14} /> Changes
                       </Button>
                     </ButtonGroup>
-                    <Badge variant="secondary">
-                      {loadingFiles()
-                        ? "Loading…"
-                        : `${visibleFiles().length} items`}
-                    </Badge>
-                  </View>
-                  <View class="flex flex-row items-center gap-2">
-                    <InputGroup class="min-w-0 flex-1">
-                      <InputGroupAddon align="inline-start" class="px-2.5">
-                        <Icon source={search} size={14} class="text-muted" />
-                      </InputGroupAddon>
-                      <InputGroupInput
-                        aria-label="Search snapshot"
-                        placeholder="Search this snapshot…"
-                        value={searchQuery()}
-                        onInput={(event) =>
-                          setSearchQuery(event.currentTarget.value)
-                        }
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            void runSearch();
-                          }
-                        }}
-                      />
-                    </InputGroup>
-                    <Button
-                      variant="outline"
-                      disabled={!searchQuery().trim() || searching()}
-                      loading={searching()}
-                      loadingLabel="Searching…"
-                      onClick={() => void runSearch()}
-                    >
-                      Search
-                    </Button>
-                    <Show when={searchActive()}>
-                      <Button
-                        size="icon"
+                    <SnapshotDetails snapshot={snapshot()} />
+                    <Show when={workspaceMode() === "browse"}>
+                      <ButtonGroup
+                        size="sm"
                         variant="ghost"
-                        aria-label="Clear search"
-                        onClick={clearSearch}
+                        aria-label="File view"
                       >
-                        <Icon source={x} size={14} />
-                      </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          selected={browserMode() === "list"}
+                          aria-label="List view"
+                          onClick={() => setBrowserMode("list")}
+                        >
+                          <Icon source={list} size={14} />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          selected={browserMode() === "tree"}
+                          aria-label="Tree view"
+                          onClick={() => {
+                            clearSearch();
+                            setBrowserMode("tree");
+                          }}
+                        >
+                          <Icon source={folderTree} size={14} />
+                        </Button>
+                      </ButtonGroup>
+                      <Badge variant="secondary">
+                        {loadingFiles()
+                          ? "Loading…"
+                          : `${visibleFiles().length} items`}
+                      </Badge>
                     </Show>
                   </View>
+                  <Show when={workspaceMode() === "browse"}>
+                    <View class="flex flex-row items-center gap-2">
+                      <InputGroup class="min-w-0 flex-1">
+                        <InputGroupAddon align="inline-start" class="px-2.5">
+                          <Icon source={search} size={14} class="text-muted" />
+                        </InputGroupAddon>
+                        <InputGroupInput
+                          aria-label="Search snapshot"
+                          placeholder="Search this snapshot…"
+                          value={searchQuery()}
+                          onInput={(event) =>
+                            setSearchQuery(event.currentTarget.value)
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              void runSearch();
+                            }
+                          }}
+                        />
+                      </InputGroup>
+                      <Button
+                        variant="outline"
+                        disabled={!searchQuery().trim() || searching()}
+                        loading={searching()}
+                        loadingLabel="Searching…"
+                        onClick={() => void runSearch()}
+                      >
+                        Search
+                      </Button>
+                      <Show when={searchActive()}>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label="Clear search"
+                          onClick={clearSearch}
+                        >
+                          <Icon source={x} size={14} />
+                        </Button>
+                      </Show>
+                    </View>
+                  </Show>
                 </View>
                 <Show
-                  when={!loadingFiles()}
+                  when={workspaceMode() === "browse"}
                   fallback={
-                    <ContentState
-                      state="loading"
-                      title="Loading snapshot files"
-                      description="Reading this snapshot’s directory…"
-                      class="min-h-0 flex-1 border-0 shadow-none"
+                    <SnapshotDiffPanel
+                      profileId={session.activeProfile()?.id ?? ""}
+                      snapshot={snapshot()}
+                      snapshots={snapshots()}
                     />
                   }
                 >
-                  <View class="min-w-0 min-h-0 flex-1 flex flex-row">
-                    <Show
-                      when={browserMode() === "list" || searchActive()}
-                      fallback={
+                  <Show
+                    when={!loadingFiles()}
+                    fallback={
+                      <ContentState
+                        state="loading"
+                        title="Loading snapshot files"
+                        description="Reading this snapshot’s directory…"
+                        class="min-h-0 flex-1 border-0 shadow-none"
+                      />
+                    }
+                  >
+                    <View class="min-w-0 min-h-0 flex-1 flex flex-row">
+                      <Show
+                        when={browserMode() === "list" || searchActive()}
+                        fallback={
+                          <ScrollArea
+                            class="min-w-0 min-h-0 flex-1"
+                            contentClass="min-w-full px-2 py-2"
+                          >
+                            <SnapshotFileTree
+                              profileId={session.activeProfile()?.id ?? ""}
+                              snapshotId={snapshot().id}
+                              selectedPath={selectedEntry()?.path}
+                              onSelect={setSelectedEntry}
+                            />
+                          </ScrollArea>
+                        }
+                      >
                         <ScrollArea
                           class="min-w-0 min-h-0 flex-1"
-                          contentClass="min-w-full px-2 py-2"
+                          contentClass="min-w-full"
                         >
-                          <SnapshotFileTree
-                            profileId={session.activeProfile()?.id ?? ""}
-                            snapshotId={snapshot().id}
-                            selectedPath={selectedEntry()?.path}
-                            onSelect={setSelectedEntry}
-                          />
+                          <Table>
+                            <TableHeader>
+                              <TableRow class="bg-surface-muted">
+                                <TableHead class="min-w-64 flex-1">
+                                  Name
+                                </TableHead>
+                                <TableHead class="w-24 flex-none">
+                                  Size
+                                </TableHead>
+                                <TableHead class="w-36 flex-none">
+                                  Modified
+                                </TableHead>
+                                <TableHead class="w-20 flex-none" />
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              <For each={visibleFiles()}>
+                                {(entry) => (
+                                  <SnapshotFileRow
+                                    entry={entry}
+                                    selected={
+                                      selectedEntry()?.path === entry.path
+                                    }
+                                    searchActive={searchActive()}
+                                    onSelect={setSelectedEntry}
+                                    onOpenDirectory={(directory) =>
+                                      void loadFiles(
+                                        session.activeProfile()?.id ?? "",
+                                        snapshot(),
+                                        directory.path,
+                                      )
+                                    }
+                                  />
+                                )}
+                              </For>
+                            </TableBody>
+                          </Table>
                         </ScrollArea>
-                      }
-                    >
-                      <ScrollArea
-                        class="min-w-0 min-h-0 flex-1"
-                        contentClass="min-w-full"
-                      >
-                        <Table>
-                          <TableHeader>
-                            <TableRow class="bg-surface-muted">
-                              <TableHead class="min-w-64 flex-1">
-                                Name
-                              </TableHead>
-                              <TableHead class="w-24 flex-none">Size</TableHead>
-                              <TableHead class="w-36 flex-none">
-                                Modified
-                              </TableHead>
-                              <TableHead class="w-20 flex-none" />
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            <For each={visibleFiles()}>
-                              {(entry) => (
-                                <SnapshotFileRow
-                                  entry={entry}
-                                  selected={
-                                    selectedEntry()?.path === entry.path
-                                  }
-                                  searchActive={searchActive()}
-                                  onSelect={setSelectedEntry}
-                                  onOpenDirectory={(directory) =>
-                                    void loadFiles(
-                                      session.activeProfile()?.id ?? "",
-                                      snapshot(),
-                                      directory.path,
-                                    )
-                                  }
-                                />
-                              )}
-                            </For>
-                          </TableBody>
-                        </Table>
-                      </ScrollArea>
-                    </Show>
-                    <FileDetails
-                      profileId={session.activeProfile()?.id ?? ""}
-                      snapshotId={snapshot().id}
-                      entry={selectedEntry()}
-                    />
-                  </View>
+                      </Show>
+                      <FileDetails
+                        profileId={session.activeProfile()?.id ?? ""}
+                        snapshotId={snapshot().id}
+                        entry={selectedEntry()}
+                      />
+                    </View>
+                  </Show>
                 </Show>
               </>
             )}

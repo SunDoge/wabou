@@ -15,6 +15,7 @@ import {
   formatSnapshotTime,
   SnapshotDetails,
 } from "../../apps/rustic-gui/ui/snapshot-details";
+import { SnapshotDiffPanel } from "../../apps/rustic-gui/ui/snapshot-diff";
 import { SnapshotFileTree } from "../../apps/rustic-gui/ui/snapshot-tree";
 import {
   formatModified,
@@ -58,6 +59,76 @@ test("snapshot summaries stay compact while details preserve full metadata", () 
   expect(details.text).toContain(snapshot.id);
 });
 
+test("snapshot changes compare against the recorded parent and can include metadata", async () => {
+  const current = {
+    id: "current-snapshot",
+    parentId: "parent-snapshot",
+    time: "2026-09-02T04:18:35Z",
+    hostname: "workstation",
+    paths: ["/data/photos"],
+    filesNew: 1,
+    filesChanged: 1,
+  };
+  const parent = {
+    ...current,
+    id: "parent-snapshot",
+    parentId: undefined,
+    time: "2026-09-01T04:18:35Z",
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 4,
+      diffSnapshots: async (request: { includeMetadata?: boolean }) => ({
+        entries: [
+          {
+            name: request.includeMetadata ? "mode.txt" : "new.txt",
+            path: request.includeMetadata ? "docs/mode.txt" : "docs/new.txt",
+            kind: "file" as const,
+            change: request.includeMetadata
+              ? ("metadata" as const)
+              : ("added" as const),
+            currentSize: 12,
+          },
+        ],
+        summary: {
+          added: request.includeMetadata ? 0 : 1,
+          removed: 0,
+          modified: 0,
+          metadata: request.includeMetadata ? 1 : 0,
+          typeChanged: 0,
+        },
+      }),
+    },
+  });
+  const screen = renderComponent(
+    () => (
+      <SnapshotDiffPanel
+        profileId="photos"
+        snapshot={current}
+        snapshots={[current, parent]}
+      />
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("row", { name: "docs/new.txt" })).toBeDefined();
+  });
+  expect(fixture.callsTo("rustic.diffSnapshots")[0]?.args[0]).toEqual({
+    profileId: "photos",
+    snapshotId: "current-snapshot",
+    baseSnapshotId: "parent-snapshot",
+    includeMetadata: false,
+    path: "",
+  });
+
+  screen.getByRole("checkbox", { name: "Metadata changes" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("row", { name: "docs/mode.txt" })).toBeDefined();
+  });
+  expect(fixture.callsTo("rustic.diffSnapshots")).toHaveLength(2);
+});
+
 test("snapshot browser cache restores each snapshot path independently", () => {
   const cache = createSnapshotBrowserCache();
   const docs = [
@@ -81,7 +152,7 @@ test("snapshot file tree loads child directories only when expanded", async () =
   const selected = vi.fn();
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 3,
+      __wabouCapabilityVersion: 4,
       listFiles: async (request: { path: string }) =>
         request.path === "docs"
           ? [
@@ -143,7 +214,7 @@ test("snapshot file tree loads child directories only when expanded", async () =
 test("file details preview and extract through the native rustic capability", async () => {
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 3,
+      __wabouCapabilityVersion: 4,
       previewPath: async () => ({
         destination: "/tmp/wabou-rustic-preview/42",
         plan: {
@@ -348,7 +419,7 @@ test("rustic session hydrates durable profiles and exposes their locked state", 
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 3,
+      __wabouCapabilityVersion: 4,
       status: async () => ({
         unlockedProfileIds: [],
       }),
@@ -382,7 +453,7 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 3,
+      __wabouCapabilityVersion: 4,
       status: async () => ({ unlockedProfileIds: [] }),
       createProfile: async (request: { id: string }) => ({
         unlockedProfileIds: [request.id],
