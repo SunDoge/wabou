@@ -1,6 +1,5 @@
 import { Badge, Button, DirectoryPicker, Icon, Text, View } from "@wabou/ui";
 import folder from "lucide-static/icons/folder.svg?raw";
-import plus from "lucide-static/icons/plus.svg?raw";
 import trash2 from "lucide-static/icons/trash-2.svg?raw";
 import { createSignal, For } from "solid-js";
 
@@ -14,8 +13,8 @@ export interface BackupSourcesPanelProps {
 export function BackupSourcesPanel(props: BackupSourcesPanelProps) {
   const [draft, setDraft] = createSignal("");
 
-  function add(): void {
-    const value = draft().trim();
+  function add(candidate = draft()): void {
+    const value = candidate.trim();
     if (!value || props.disabled || props.sources.includes(value)) return;
     props.onChange([...props.sources, value]);
     setDraft("");
@@ -30,20 +29,18 @@ export function BackupSourcesPanel(props: BackupSourcesPanelProps) {
       <DirectoryPicker
         value={draft()}
         onValueChange={setDraft}
+        onBrowseSelect={add}
         disabled={props.disabled}
         browseLabel="Browse"
         browseAriaLabel="Choose backup folder"
         aria-label="Backup folder"
         placeholder="Add a folder"
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          add();
+        }}
       />
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={props.disabled || !draft().trim()}
-        onClick={add}
-      >
-        <Icon source={plus} size={14} /> Add folder
-      </Button>
       <For each={props.sources}>
         {(source) => (
           <View class="min-w-0 flex flex-row items-center gap-2 rounded-md bg-surface-muted px-2.5 py-2">
