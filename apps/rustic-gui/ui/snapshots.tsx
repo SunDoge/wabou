@@ -3,6 +3,7 @@ import {
   Button,
   ButtonGroup,
   ContentState,
+  createTanStackDataTable,
   Icon,
   InputGroup,
   InputGroupAddon,
@@ -16,6 +17,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  type TanStackDataTableColumn,
   Text,
   useNavigate,
   View,
@@ -28,6 +30,7 @@ import gitCompare from "lucide-static/icons/git-compare-arrows.svg?raw";
 import list from "lucide-static/icons/list.svg?raw";
 import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
+import shieldCheck from "lucide-static/icons/shield-check.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import { type FileEntry, type SnapshotEntry, useRusticApi } from "./api";
@@ -37,7 +40,14 @@ import { createSnapshotBrowserCache } from "./snapshot-browser-cache";
 import { formatSnapshotTime, SnapshotDetails } from "./snapshot-details";
 import { SnapshotDiffPanel } from "./snapshot-diff";
 import { SnapshotFileTree } from "./snapshot-tree";
+import { SortableTableHead } from "./sortable-table-head";
 import { BackupSourcesPanel } from "./workspace-components";
+
+const fileColumns: TanStackDataTableColumn<FileEntry>[] = [
+  { accessorKey: "name", header: "Name" },
+  { accessorKey: "size", header: "Size" },
+  { accessorKey: "modified", header: "Modified" },
+];
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -286,6 +296,29 @@ export function SnapshotsPage() {
     }
   }
 
+  async function updateSnapshot(
+    snapshot: SnapshotEntry,
+    changes: Pick<
+      SnapshotEntry,
+      "label" | "description" | "tags" | "deleteProtected"
+    >,
+  ) {
+    const profile = session.activeProfile();
+    if (!profile) return;
+    const updated = await api.updateSnapshot({
+      profileId: profile.id,
+      snapshotId: snapshot.id,
+      label: changes.label,
+      description: changes.description ?? "",
+      tags: changes.tags,
+      deleteProtected: changes.deleteProtected,
+    });
+    setSnapshots((items) =>
+      items.map((item) => (item.id === snapshot.id ? updated : item)),
+    );
+    if (selected()?.id === snapshot.id) setSelected(updated);
+  }
+
   function parentPath(path: string): string {
     const parts = path.split(/[\\/]/).filter(Boolean);
     parts.pop();
@@ -310,6 +343,17 @@ export function SnapshotsPage() {
   );
 
   const visibleFiles = () => (searchActive() ? searchResults() : files());
+  const fileTable = createTanStackDataTable<FileEntry>({
+    data: visibleFiles,
+    columns: fileColumns,
+    getRowId: (entry) => entry.path,
+    initialSorting: [{ id: "name", desc: false }],
+  });
+
+  const sortDirection = (columnId: string) => {
+    const sorting = fileTable.sorting().find(({ id }) => id === columnId);
+    return sorting ? (sorting.desc ? "desc" : "asc") : undefined;
+  };
 
   return (
     <View class="w-full h-full min-w-0 min-h-0 flex flex-col">
@@ -389,12 +433,24 @@ export function SnapshotsPage() {
                   >
                     <View class="min-w-0 flex-1 flex flex-col items-start gap-0.5">
                       <Text class="font-medium">
-                        {formatSnapshotTime(snapshot.time)}
+                        {snapshot.label || formatSnapshotTime(snapshot.time)}
                       </Text>
-                      <Text class="w-full truncate text-xs text-muted">
-                        {shortId(snapshot.id)} ·{" "}
-                        {snapshot.hostname || "Unknown host"}
-                      </Text>
+                      <View class="w-full min-w-0 flex flex-row items-center gap-1.5">
+                        <Show when={snapshot.deleteProtected}>
+                          <Icon
+                            source={shieldCheck}
+                            size={12}
+                            class="flex-none text-success-primary"
+                          />
+                        </Show>
+                        <Text class="min-w-0 flex-1 truncate text-xs text-muted">
+                          {snapshot.label
+                            ? `${formatSnapshotTime(snapshot.time)} · `
+                            : ""}
+                          {shortId(snapshot.id)} ·{" "}
+                          {snapshot.hostname || "Unknown host"}
+                        </Text>
+                      </View>
                     </View>
                   </Button>
                 )}
@@ -469,7 +525,10 @@ export function SnapshotsPage() {
                         <Icon source={gitCompare} size={14} /> Changes
                       </Button>
                     </ButtonGroup>
-                    <SnapshotDetails snapshot={snapshot()} />
+                    <SnapshotDetails
+                      snapshot={snapshot()}
+                      onSave={(changes) => updateSnapshot(snapshot(), changes)}
+                    />
                     <Show when={workspaceMode() === "browse"}>
                       <ButtonGroup
                         size="sm"
@@ -593,25 +652,47 @@ export function SnapshotsPage() {
                           <Table>
                             <TableHeader>
                               <TableRow class="bg-surface-muted">
-                                <TableHead class="min-w-64 flex-1">
-                                  Name
-                                </TableHead>
-                                <TableHead class="w-24 flex-none">
-                                  Size
-                                </TableHead>
-                                <TableHead class="w-36 flex-none">
-                                  Modified
-                                </TableHead>
+                                <SortableTableHead
+                                  label="Name"
+                                  class="min-w-64 flex-1"
+                                  direction={() => sortDirection("name")}
+                                  onToggle={() =>
+                                    fileTable.table
+                                      .getColumn("name")
+                                      ?.toggleSorting()
+                                  }
+                                />
+                                <SortableTableHead
+                                  label="Size"
+                                  class="w-24 flex-none"
+                                  direction={() => sortDirection("size")}
+                                  onToggle={() =>
+                                    fileTable.table
+                                      .getColumn("size")
+                                      ?.toggleSorting()
+                                  }
+                                />
+                                <SortableTableHead
+                                  label="Modified"
+                                  class="w-36 flex-none"
+                                  direction={() => sortDirection("modified")}
+                                  onToggle={() =>
+                                    fileTable.table
+                                      .getColumn("modified")
+                                      ?.toggleSorting()
+                                  }
+                                />
                                 <TableHead class="w-20 flex-none" />
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              <For each={visibleFiles()}>
-                                {(entry) => (
+                              <For each={fileTable.rows()}>
+                                {(row) => (
                                   <SnapshotFileRow
-                                    entry={entry}
+                                    entry={row.original}
                                     selected={
-                                      selectedEntry()?.path === entry.path
+                                      selectedEntry()?.path ===
+                                      row.original.path
                                     }
                                     searchActive={searchActive()}
                                     onSelect={setSelectedEntry}

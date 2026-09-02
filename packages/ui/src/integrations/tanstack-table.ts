@@ -10,7 +10,13 @@ import {
   type SortingState,
   type Table,
 } from "@tanstack/table-core";
-import { createMemo, createSignal, type Accessor, type Setter } from "solid-js";
+import {
+  type Accessor,
+  createMemo,
+  createSignal,
+  type Setter,
+  untrack,
+} from "solid-js";
 
 export interface TanStackDataTableOptions<TData> {
   /** Static data or a reactive accessor. */
@@ -67,7 +73,10 @@ export function createTanStackDataTable<TData>(
     options.initialRowSelection ?? {},
   );
   const table = createTable<TData>({
-    data: [...access(options.data)],
+    // TanStack needs an initial value before the reactive row memo is created.
+    // Reading an accessor here would escape Solid's tracking scope in strict
+    // mode; the memo below performs every reactive synchronization.
+    data: [...untrack(() => access(options.data))],
     columns: [...options.columns],
     state: {},
     onStateChange: () => {},
