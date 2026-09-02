@@ -74,17 +74,20 @@ enum GpuiTextControlState {
     Input {
         state: Entity<InputState>,
         submit_on_enter: bool,
+        authored_value_revision: u64,
         _subscriptions: [Subscription; 2],
     },
     Textarea {
         state: Entity<TextareaState>,
         submit_on_enter: bool,
+        authored_value_revision: u64,
         _subscriptions: [Subscription; 2],
     },
     Editor {
         state: Entity<EditorState>,
         language: Option<String>,
         submit_on_enter: bool,
+        authored_value_revision: u64,
         _subscriptions: [Subscription; 2],
     },
 }
@@ -128,24 +131,29 @@ fn utf8_to_utf16_offset(value: &str, byte: usize) -> u32 {
 /// with `set_value` would clear GPUI's marked range and reset a multiline
 /// selection to `0..0`.
 ///
-/// A committed native edit can also race a later controlled rewrite without a
-/// marked range (notably with Linux IMEs). `set_value` intentionally resets a
-/// multiline editor's selection and scroll position, which is appropriate for
-/// initialization but not while the user owns focus. Preserve and clamp that
-/// native state around focused controlled updates.
+/// A committed native edit can also race a stale descriptor without a marked
+/// range (notably with Linux IMEs). While focused, only a newer JS-authored
+/// value revision whose native edit has been acknowledged may overwrite the
+/// buffer. `set_value` intentionally resets a multiline editor's selection and
+/// scroll position, so preserve and clamp that native state around a legitimate
+/// controlled rewrite.
 fn synchronize_controlled_text_value<M: InputModeKind>(
     state: &mut InputBaseState<M>,
     authored_value: &str,
+    allow_focused_overwrite: bool,
     window: &mut Window,
     cx: &mut Context<InputBaseState<M>>,
-) {
+) -> bool {
     if state.value().as_ref() == authored_value {
-        return;
+        return true;
     }
     if EntityInputHandler::marked_text_range(state, window, cx).is_some() {
-        return;
+        return false;
     }
     let focused = state.presentation().focus_handle().is_focused(window);
+    if focused && !allow_focused_overwrite {
+        return false;
+    }
     let selection = focused.then(|| state.selected_range());
     let scroll_offset = focused.then(|| state.scroll_offset());
     state.set_value(authored_value.to_owned(), window, cx);
@@ -155,6 +163,7 @@ fn synchronize_controlled_text_value<M: InputModeKind>(
     if let Some(scroll_offset) = scroll_offset {
         state.set_scroll_offset(scroll_offset, cx);
     }
+    true
 }
 
 impl GpuiTextControlState {
@@ -173,9 +182,19 @@ impl GpuiTextControlState {
         cx: &mut Context<GpuiRuntimeView>,
     ) {
         macro_rules! synchronize {
-            ($state:expr, $submit_on_enter:expr) => {
-                $state.update(cx, |state, cx| {
-                    synchronize_controlled_text_value(state, &descriptor.value, window, cx);
+            ($state:expr, $submit_on_enter:expr, $authored_value_revision:expr) => {{
+                let authored_value_changed =
+                    *$authored_value_revision != descriptor.authored_value_revision;
+                let native_edit_settled =
+                    descriptor.native_edit_revision == descriptor.native_ack_revision;
+                let consumed = $state.update(cx, |state, cx| {
+                    let consumed = synchronize_controlled_text_value(
+                        state,
+                        &descriptor.value,
+                        authored_value_changed && native_edit_settled,
+                        window,
+                        cx,
+                    );
                     if state.presentation().placeholder().as_ref() != descriptor.placeholder {
                         state.set_placeholder(descriptor.placeholder.clone(), window, cx);
                     }
@@ -193,33 +212,40 @@ impl GpuiTextControlState {
                         caret: descriptor.style.caret,
                         ..InputEditorStyle::default()
                     });
-                })
-            };
+                    consumed
+                });
+                if consumed {
+                    *$authored_value_revision = descriptor.authored_value_revision;
+                }
+            }};
         }
         match self {
             Self::Input {
                 state,
                 submit_on_enter,
+                authored_value_revision,
                 ..
             } => {
-                synchronize!(state, *submit_on_enter);
+                synchronize!(state, *submit_on_enter, authored_value_revision);
                 *submit_on_enter = descriptor.submit_on_enter;
             }
             Self::Textarea {
                 state,
                 submit_on_enter,
+                authored_value_revision,
                 ..
             } => {
-                synchronize!(state, *submit_on_enter);
+                synchronize!(state, *submit_on_enter, authored_value_revision);
                 *submit_on_enter = descriptor.submit_on_enter;
             }
             Self::Editor {
                 state,
                 language,
                 submit_on_enter,
+                authored_value_revision,
                 ..
             } => {
-                synchronize!(state, *submit_on_enter);
+                synchronize!(state, *submit_on_enter, authored_value_revision);
                 *submit_on_enter = descriptor.submit_on_enter;
                 if language != &descriptor.language {
                     state.update(cx, |state, state_cx| {
@@ -647,6 +673,7 @@ impl GpuiRuntimeView {
                         GpuiTextControlState::Input {
                             state,
                             submit_on_enter: false,
+                            authored_value_revision: 0,
                             _subscriptions: subscriptions,
                         }
                     }
@@ -656,6 +683,7 @@ impl GpuiRuntimeView {
                         GpuiTextControlState::Textarea {
                             state,
                             submit_on_enter: false,
+                            authored_value_revision: 0,
                             _subscriptions: subscriptions,
                         }
                     }
@@ -669,6 +697,7 @@ impl GpuiRuntimeView {
                             state,
                             language,
                             submit_on_enter: false,
+                            authored_value_revision: 0,
                             _subscriptions: subscriptions,
                         }
                     }
@@ -1720,7 +1749,7 @@ mod tests {
                 // Solid still owns the last committed value while macOS owns
                 // the marked candidate. The stale controlled value must not
                 // reset the native selection to the beginning.
-                synchronize_controlled_text_value(state, "hello ", window, cx);
+                synchronize_controlled_text_value(state, "hello ", true, window, cx);
                 assert_eq!(state.value(), "hello n");
                 assert_eq!(state.selected_range(), 7..7);
                 assert_eq!(
@@ -1736,12 +1765,12 @@ mod tests {
                     window,
                     cx,
                 );
-                synchronize_controlled_text_value(state, "hello ", window, cx);
+                synchronize_controlled_text_value(state, "hello ", true, window, cx);
                 assert_eq!(state.value(), "hello ni");
                 assert_eq!(state.selected_range(), 8..8);
 
                 EntityInputHandler::replace_text_in_range(state, None, "你", window, cx);
-                synchronize_controlled_text_value(state, "hello 你", window, cx);
+                synchronize_controlled_text_value(state, "hello 你", true, window, cx);
                 assert_eq!(state.value(), "hello 你");
                 assert_eq!(state.selected_range(), 9..9);
                 assert_eq!(
@@ -1783,10 +1812,16 @@ mod tests {
                     None
                 );
 
-                // Linux IMEs may commit ordinary text without leaving a
-                // marked range. A controlled normalization must not move the
-                // caret to GPUI's multiline reset position at the beginning.
-                synchronize_controlled_text_value(state, "alpha BETA", window, cx);
+                // Linux IMEs may mutate the native buffer before their change
+                // notification reaches JavaScript. A descriptor without a new
+                // authored revision must not overwrite that edit.
+                synchronize_controlled_text_value(state, "stale", false, window, cx);
+                assert_eq!(state.value(), "alpha beta");
+                assert_eq!(state.selected_range(), 6..6);
+
+                // A genuinely new JavaScript-authored revision is allowed to
+                // normalize the value, while retaining the native selection.
+                synchronize_controlled_text_value(state, "alpha BETA", true, window, cx);
                 assert_eq!(state.value(), "alpha BETA");
                 assert_eq!(state.selected_range(), 6..6);
             });

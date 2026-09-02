@@ -1,4 +1,4 @@
-import { g as NodeKey$1, h as Writer } from "./protocol-U96s-ArE.mjs";
+import { g as NodeKey$1, h as Writer } from "./protocol-C7gC5Ufi.mjs";
 import { n as WabouIntrinsicElements, t as HostCapabilities } from "./registry-DXOPfC3L.mjs";
 import { A as WabouStyle, t as Affine2D } from "./style-D-UEvXmH.mjs";
 import { Accessor, Element as Element$1, JSX } from "solid-js";
@@ -588,14 +588,17 @@ declare function mount(code: () => JSX$1.Element): () => void;
  */
 declare function dispatchEvent(solidId: NodeKey$1, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 /**
- * Reassert controlled native-editor values after one atomic host event frame.
+ * Settle native-editor revisions after one atomic host event frame and reassert
+ * controlled values when JavaScript rejected or normalized the native edit.
  *
  * Input and submit can arrive in the same frame. Solid then legitimately
  * coalesces `"" -> "typed" -> ""` and emits no property effect, while the
  * native widget has already accepted `"typed"`. This reconciliation closes
- * that split-brain without making uncontrolled editors JS-owned.
+ * that split-brain without making uncontrolled editors JS-owned. The internal
+ * acknowledgement lets Rust distinguish this settlement from a later
+ * JavaScript-authored value update.
  */
 declare function reconcileControlledInputValues(): void;
 //#endregion
 export { reconcileControlledInputValues as $, WabouTextSelectionChangeEvent as A, jsx as At, delegateEvents as B, isVectorPath as Bt, WabouPositionedEvent as C, FrameStats as Ct, WabouSvgProps as D, LayoutSnapshot as Dt, WabouSubmitEvent as E, LayoutScrollMetrics as Et, acquireOverlayRoot as F, PathLineCap as Ft, insert as G, effect as H, applyRef as I, PathLineJoin as It, isServer as J, insertNode as K, createComponent$1 as L, PathPoint as Lt, WabouValueChangeEvent as M, jsxs as Mt, WabouVectorPathProps as N, PathBuilder as Nt, WabouSvgShapeProps as O, Fragment as Ot, WabouWheelEvent as P, PathFillRule as Pt, observeGlobalPointerEvent as Q, createElement as R, VectorPath as Rt, WabouPointerEvent as S, DebugOverlayPaintStats as St, WabouSemanticRole as T, LayoutRect as Tt, getMountRoot as U, dispatchEvent as V, getRequestEvent as W, mergeProps as X, memo as Y, mount as Z, WabouKeyEvent as _, HostProvider as _t, WabouBuiltinIntrinsicElements as a, runSweep as at, WabouNativeTransition as b, defaultHost as bt, WabouEventTarget as c, spread as ct, WabouGlobalPointerListener as d, VirtualListProps as dt, ref as et, WabouImageProps as f, Portal as ft, WabouInputProps as g, Host as gt, WabouInputEvent as h, DebugOverlayOptions as ht, NativeScrollbarStyle as i, render as it, WabouTransitionEvent as j, jsxDEV as jt, WabouTextCommitEvent as k, JSX$1 as kt, WabouExposedSemanticRole as l, writer as lt, WabouImePreeditEvent as m, BuiltinHost as mt, DynamicProps as n, releaseOverlayRoot as nt, WabouControlProps as o, setProp as ot, WabouImeDeleteSurroundingEvent as p, PortalProps as pt, isDirectEvent as q, Handle as r, removeNode as rt, WabouElementProps as s, setTransform2D as st, Dynamic as t, registerRoot as tt, WabouGlobalPointerEventType as u, VirtualList as ut, WabouNativeElements as v, HostProviderProps as vt, WabouScrollEvent as w, LayoutNodeMetrics as wt, WabouNodeEvent as x, useHost as xt, WabouNativeTag as y, LayoutTarget as yt, createTextNode as z, VectorPathPaint as zt };
-//# sourceMappingURL=index-CJcmAMic.d.mts.map
+//# sourceMappingURL=index-BT3a6GvT.d.mts.map

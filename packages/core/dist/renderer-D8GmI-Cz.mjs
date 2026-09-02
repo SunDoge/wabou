@@ -1,4 +1,4 @@
-import { _ as isNodeKey, a as GRAPHIC_SOURCE, f as Writer, g as formatNodeKey, h as ROOT_NODE_KEY, i as GRAPHIC_DATA, l as INTERACTION_POLICY, m as NodeKeyTable, p as NodeKeyAllocator, t as EVENT_CODE, y as nodeKeyEquals } from "./protocol-CdThEzKd.mjs";
+import { _ as isNodeKey, a as GRAPHIC_SOURCE, f as Writer, g as formatNodeKey, h as ROOT_NODE_KEY, i as GRAPHIC_DATA, l as INTERACTION_POLICY, m as NodeKeyTable, p as NodeKeyAllocator, t as EVENT_CODE, y as nodeKeyEquals } from "./protocol-BSt1kJCB.mjs";
 import { c as mergeClasses, r as assertInlineStyleValue, s as isTypedStyleValue } from "./style-DgJ-RVg4.mjs";
 import { For, createComponent, createContext, createMemo, createSignal, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { createRenderer } from "@solidjs/universal";
@@ -458,7 +458,7 @@ const nodesByKey = new NodeKeyTable();
 const classesByNode = /* @__PURE__ */ new WeakMap();
 const interactionByNode = /* @__PURE__ */ new WeakMap();
 const controlledValueByNode = /* @__PURE__ */ new WeakMap();
-const nativeValueByNode = /* @__PURE__ */ new Map();
+const nativeInputByNode = /* @__PURE__ */ new Map();
 function emitInteractionPolicy(writer, node) {
 	const state = interactionByNode.get(node) ?? {
 		focusOrder: null,
@@ -1026,7 +1026,12 @@ function dispatchEvent(solidId, eventCode, payloadStr, numericData) {
 	}
 	if (eventCode === EVENT_CODE.input && typeof data.value === "string") {
 		const target = derefHandle(solidId);
-		if (target && controlledValueByNode.has(target)) nativeValueByNode.set(target, data.value);
+		const nativeRevision = data.nativeRevision;
+		delete data.nativeRevision;
+		if (target && typeof nativeRevision === "number" && Number.isSafeInteger(nativeRevision) && nativeRevision > 0) nativeInputByNode.set(target, {
+			value: data.value,
+			revision: nativeRevision
+		});
 	}
 	let stopped = false;
 	let defaultPrevented = false;
@@ -1072,19 +1077,23 @@ function dispatchEvent(solidId, eventCode, payloadStr, numericData) {
 	return defaultPrevented;
 }
 /**
-* Reassert controlled native-editor values after one atomic host event frame.
+* Settle native-editor revisions after one atomic host event frame and reassert
+* controlled values when JavaScript rejected or normalized the native edit.
 *
 * Input and submit can arrive in the same frame. Solid then legitimately
 * coalesces `"" -> "typed" -> ""` and emits no property effect, while the
 * native widget has already accepted `"typed"`. This reconciliation closes
-* that split-brain without making uncontrolled editors JS-owned.
+* that split-brain without making uncontrolled editors JS-owned. The internal
+* acknowledgement lets Rust distinguish this settlement from a later
+* JavaScript-authored value update.
 */
 function reconcileControlledInputValues() {
-	for (const [node, nativeValue] of nativeValueByNode) {
+	for (const [node, nativeInput] of nativeInputByNode) {
 		const controlledValue = controlledValueByNode.get(node);
-		if (controlledValue !== void 0 && controlledValue !== nativeValue) writer.setAttribute(node.id, "value", controlledValue);
+		if (controlledValue !== void 0 && controlledValue !== nativeInput.value) writer.setAttribute(node.id, "value", controlledValue);
+		writer.acknowledgeTextValue(node.id, nativeInput.revision);
 	}
-	nativeValueByNode.clear();
+	nativeInputByNode.clear();
 }
 function derefHandle(id) {
 	return nodesByKey.get(id)?.deref();
@@ -1123,4 +1132,4 @@ function eventName(code) {
 //#endregion
 export { writer as A, releaseOverlayRoot as C, setProp as D, runSweep as E, defaultHost as F, useHost as I, PathBuilder as L, createFps as M, Portal as N, setTransform2D as O, HostProvider as P, isVectorPath as R, registerRoot as S, render as T, mergeProps as _, createElement as a, reconcileControlledInputValues as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, VirtualList as j, spread as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, removeNode as w, ref as x, observeGlobalPointerEvent as y };
 
-//# sourceMappingURL=renderer-B2b6MCpZ.mjs.map
+//# sourceMappingURL=renderer-D8GmI-Cz.mjs.map

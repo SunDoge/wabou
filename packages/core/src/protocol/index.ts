@@ -67,6 +67,7 @@ export const OP = {
   TextCommand: 0x24,
   BlurNode: 0x25,
   SetProjectionBoundary: 0x26,
+  AcknowledgeTextValue: 0x27,
 } as const;
 
 export type OpCode = (typeof OP)[keyof typeof OP];
@@ -635,6 +636,11 @@ export class Writer {
     this.emit(OP.TextCommand);
     this.key(id);
     this.u8(command);
+  }
+  acknowledgeTextValue(id: NodeKey, revision: number): void {
+    this.emit(OP.AcknowledgeTextValue);
+    this.key(id);
+    this.u32(revision);
   }
 
   /** Drain the buffer into a frame, or null if no ops were emitted this tick. */

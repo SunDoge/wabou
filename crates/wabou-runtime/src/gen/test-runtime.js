@@ -7428,7 +7428,8 @@
     SetTextSelection: 35,
     TextCommand: 36,
     BlurNode: 37,
-    SetProjectionBoundary: 38
+    SetProjectionBoundary: 38,
+    AcknowledgeTextValue: 39
   };
   var TEXT_BEHAVIOR = {
     AggregateDirectText: 1,
@@ -7903,6 +7904,11 @@
       this.emit(OP.TextCommand);
       this.key(id);
       this.u8(command);
+    }
+    acknowledgeTextValue(id, revision) {
+      this.emit(OP.AcknowledgeTextValue);
+      this.key(id);
+      this.u32(revision);
     }
     flush() {
       if (this.count === 0)
@@ -9751,7 +9757,7 @@
   var classesByNode = new WeakMap;
   var interactionByNode = new WeakMap;
   var controlledValueByNode = new WeakMap;
-  var nativeValueByNode = new Map;
+  var nativeInputByNode = new Map;
   function emitInteractionPolicy(writer, node) {
     const state = interactionByNode.get(node) ?? {
       focusOrder: null,
@@ -10313,8 +10319,13 @@
     }
     if (eventCode === EVENT_CODE.input && typeof data.value === "string") {
       const target = derefHandle(solidId);
-      if (target && controlledValueByNode.has(target)) {
-        nativeValueByNode.set(target, data.value);
+      const nativeRevision = data.nativeRevision;
+      delete data.nativeRevision;
+      if (target && typeof nativeRevision === "number" && Number.isSafeInteger(nativeRevision) && nativeRevision > 0) {
+        nativeInputByNode.set(target, {
+          value: data.value,
+          revision: nativeRevision
+        });
       }
     }
     let stopped = false;
@@ -10357,13 +10368,14 @@
     return defaultPrevented;
   }
   function reconcileControlledInputValues() {
-    for (const [node, nativeValue] of nativeValueByNode) {
+    for (const [node, nativeInput] of nativeInputByNode) {
       const controlledValue = controlledValueByNode.get(node);
-      if (controlledValue !== undefined && controlledValue !== nativeValue) {
+      if (controlledValue !== undefined && controlledValue !== nativeInput.value) {
         writer.setAttribute(node.id, "value", controlledValue);
       }
+      writer.acknowledgeTextValue(node.id, nativeInput.revision);
     }
-    nativeValueByNode.clear();
+    nativeInputByNode.clear();
   }
   function derefHandle(id) {
     return nodesByKey.get(id)?.deref();

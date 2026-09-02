@@ -29,6 +29,7 @@ pub struct GpuiController {
     projection: GpuiProjection,
     image_resources: ImageResourceStore,
     next_host_event_id: u32,
+    next_native_text_revision: u32,
     hovered_target: Option<wabou_host_api::NodeKey>,
     pressed_targets: std::collections::BTreeMap<u8, wabou_host_api::NodeKey>,
     pointer_buttons: u32,
@@ -111,6 +112,7 @@ impl GpuiController {
             projection: GpuiProjection::new(),
             image_resources: ImageResourceStore::default(),
             next_host_event_id: 0,
+            next_native_text_revision: 0,
             hovered_target: None,
             pressed_targets: std::collections::BTreeMap::new(),
             pointer_buttons: 0,
@@ -901,14 +903,20 @@ impl GpuiController {
         target: wabou_host_api::NodeKey,
         value: &str,
     ) -> bool {
+        self.next_native_text_revision = self.next_native_text_revision.wrapping_add(1).max(1);
+        let native_revision = self.next_native_text_revision;
         if self
             .projection
-            .update_authored_attribute(target, "value", value)
+            .update_native_text_value(target, value, native_revision)
             .is_err()
         {
             return false;
         }
-        let payload = serde_json::json!({ "value": value }).to_string();
+        let payload = serde_json::json!({
+            "value": value,
+            "nativeRevision": native_revision,
+        })
+        .to_string();
         self.dispatch_node_json(target, wabou_protocol::event::INPUT, payload, false)
             .map(|result| result.0)
             .unwrap_or(false)

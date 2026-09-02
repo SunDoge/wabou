@@ -891,7 +891,8 @@ impl Applier {
             }
             Op::SetTextSelection { .. }
             | Op::TextCommand { .. }
-            | Op::SetProjectionBoundary { .. } => {
+            | Op::SetProjectionBoundary { .. }
+            | Op::AcknowledgeTextValue { .. } => {
                 // These operations are implemented by the GPUI runtime. The
                 // retired renderer keeps decoding them so mixed workspaces
                 // remain buildable, but intentionally has no equivalent state.
