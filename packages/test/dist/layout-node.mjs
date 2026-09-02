@@ -21,6 +21,7 @@ function layoutCommandArgs(options) {
 	];
 	if (options.withHost && options.batch !== void 0) throw new Error("host-backed layout does not support batch fixtures");
 	if (options.batch !== void 0) args.push("--batch", options.batch);
+	if (options.fixture !== void 0) args.push("--fixture", options.fixture);
 	if (options.width !== void 0) args.push("--width", String(options.width));
 	if (options.height !== void 0) args.push("--height", String(options.height));
 	if (options.scaleFactor !== void 0) args.push("--scale-factor", String(options.scaleFactor));
@@ -28,7 +29,26 @@ function layoutCommandArgs(options) {
 	if (options.mode !== void 0) args.push("--mode", options.mode);
 	if (options.skipBuild) args.push("--skip-build");
 	if (options.waitMs !== void 0) args.push("--wait-ms", String(options.waitMs));
+	if (options.probe !== void 0) args.push("--probe", options.probe);
 	return args;
+}
+function projectionBoundaryProbe(report, label) {
+	const boundary = report.boundaries.find((candidate) => candidate.label === label);
+	if (!boundary) throw new Error(`no projection boundary found with aria-label=${JSON.stringify(label)}`);
+	return boundary;
+}
+async function probeAppProjection(options) {
+	await runLayoutCommand(options);
+	const probe = JSON.parse(await readFile(options.out, "utf8")).projectionProbe;
+	if (!probe || !Number.isInteger(probe.protocolRevisionDelta) || !Array.isArray(probe.boundaries)) throw new Error("invalid Wabou projection probe report");
+	const boundaries = probe.boundaries.map((entry, index) => {
+		if (typeof entry !== "object" || entry === null || !("root" in entry) || typeof entry.root !== "object" || entry.root === null) throw new Error(`invalid projection boundary probe at index ${index}`);
+		return entry;
+	});
+	return {
+		protocolRevisionDelta: probe.protocolRevisionDelta,
+		boundaries
+	};
 }
 /** Return the first Solid runtime diagnostic that makes a layout run invalid. */
 function reactiveRuntimeDiagnostic(output) {
@@ -161,6 +181,6 @@ async function runLayoutCommand(options) {
 	});
 }
 //#endregion
-export { layoutCommandArgs, parseLayoutFixtureReport, reactiveRuntimeDiagnostic, renderAppLayout, renderLayoutFixtures, validateLayoutFixtureReport };
+export { layoutCommandArgs, parseLayoutFixtureReport, probeAppProjection, projectionBoundaryProbe, reactiveRuntimeDiagnostic, renderAppLayout, renderLayoutFixtures, validateLayoutFixtureReport };
 
 //# sourceMappingURL=layout-node.mjs.map

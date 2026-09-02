@@ -744,11 +744,27 @@ impl GpuiController {
         self.projection.render_snapshot()
     }
 
+    #[cfg(feature = "headless")]
     pub(crate) fn projection_boundary_revisions(
         &self,
     ) -> std::collections::BTreeMap<wabou_shell::NodeKey, wabou_shell::ProjectionBoundaryRevision>
     {
         self.projection.projection_boundary_revisions().clone()
+    }
+
+    pub(crate) fn take_projection_boundary_changes(
+        &mut self,
+    ) -> std::collections::BTreeMap<wabou_shell::NodeKey, wabou_shell::DirtyKind> {
+        self.projection.take_boundary_changes()
+    }
+
+    pub(crate) fn projection_boundary_revision(
+        &self,
+        key: wabou_shell::NodeKey,
+    ) -> wabou_shell::ProjectionBoundaryRevision {
+        self.projection
+            .projection_boundary_revision(key)
+            .unwrap_or_default()
     }
 
     pub(crate) fn projection_revision(&self) -> u64 {

@@ -7,9 +7,14 @@ import { Terminal } from "../dist/index.mjs";
 
 test("Terminal explicitly participates in native focus routing", () => {
   const focusOrders: number[] = [];
+  const projectionBoundaries: Array<[number, boolean]> = [];
   const setInteractionPolicy = writer.setInteractionPolicy.bind(writer);
+  const setProjectionBoundary = writer.setProjectionBoundary.bind(writer);
   writer.setInteractionPolicy = (_id, flags, focusOrder) => {
     if ((flags & 0x01) !== 0) focusOrders.push(focusOrder);
+  };
+  writer.setProjectionBoundary = (id, enabled) => {
+    projectionBoundaries.push([id.lo, enabled]);
   };
   let disposeMount: (() => void) | undefined;
   try {
@@ -21,7 +26,9 @@ test("Terminal explicitly participates in native focus routing", () => {
   } finally {
     disposeMount?.();
     writer.setInteractionPolicy = setInteractionPolicy;
+    writer.setProjectionBoundary = setProjectionBoundary;
   }
 
   expect(focusOrders).toEqual([0, -1]);
+  expect(projectionBoundaries.filter(([, enabled]) => enabled)).toHaveLength(2);
 });

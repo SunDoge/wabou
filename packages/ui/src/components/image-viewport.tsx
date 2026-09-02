@@ -191,6 +191,7 @@ export function ImageViewport(props: ImageViewportProps): JSX.Element {
     <ImageViewportContext value={{ transform }}>
       <View
         {...rest}
+        projectionBoundary
         ref={measured.ref}
         role={props.role ?? "group"}
         class={mergeClasses(
