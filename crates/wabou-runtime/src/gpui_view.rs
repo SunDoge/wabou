@@ -73,15 +73,18 @@ pub(crate) struct GpuiRuntimeViewOptions {
 enum GpuiTextControlState {
     Input {
         state: Entity<InputState>,
+        submit_on_enter: bool,
         _subscriptions: [Subscription; 2],
     },
     Textarea {
         state: Entity<TextareaState>,
+        submit_on_enter: bool,
         _subscriptions: [Subscription; 2],
     },
     Editor {
         state: Entity<EditorState>,
         language: Option<String>,
+        submit_on_enter: bool,
         _subscriptions: [Subscription; 2],
     },
 }
@@ -116,14 +119,20 @@ fn utf8_to_utf16_offset(value: &str, byte: usize) -> u32 {
         .count() as u32
 }
 
-/// Synchronize an authored controlled value without destroying an active
-/// platform composition.
+/// Synchronize an authored controlled value without destroying native editing
+/// state.
 ///
 /// GPUI intentionally keeps IME preedit text native and does not emit
 /// `InputEvent::Change` until the candidate is committed. During that interval
 /// Solid's `value` is necessarily one edit behind. Applying that stale value
 /// with `set_value` would clear GPUI's marked range and reset a multiline
 /// selection to `0..0`.
+///
+/// A committed native edit can also race a later controlled rewrite without a
+/// marked range (notably with Linux IMEs). `set_value` intentionally resets a
+/// multiline editor's selection and scroll position, which is appropriate for
+/// initialization but not while the user owns focus. Preserve and clamp that
+/// native state around focused controlled updates.
 fn synchronize_controlled_text_value<M: InputModeKind>(
     state: &mut InputBaseState<M>,
     authored_value: &str,
@@ -136,7 +145,16 @@ fn synchronize_controlled_text_value<M: InputModeKind>(
     if EntityInputHandler::marked_text_range(state, window, cx).is_some() {
         return;
     }
+    let focused = state.presentation().focus_handle().is_focused(window);
+    let selection = focused.then(|| state.selected_range());
+    let scroll_offset = focused.then(|| state.scroll_offset());
     state.set_value(authored_value.to_owned(), window, cx);
+    if let Some(selection) = selection {
+        state.set_selected_range(selection, cx);
+    }
+    if let Some(scroll_offset) = scroll_offset {
+        state.set_scroll_offset(scroll_offset, cx);
+    }
 }
 
 impl GpuiTextControlState {
@@ -155,7 +173,7 @@ impl GpuiTextControlState {
         cx: &mut Context<GpuiRuntimeView>,
     ) {
         macro_rules! synchronize {
-            ($state:expr) => {
+            ($state:expr, $submit_on_enter:expr) => {
                 $state.update(cx, |state, cx| {
                     synchronize_controlled_text_value(state, &descriptor.value, window, cx);
                     if state.presentation().placeholder().as_ref() != descriptor.placeholder {
@@ -163,7 +181,9 @@ impl GpuiTextControlState {
                     }
                     state.set_disabled(descriptor.disabled, cx);
                     state.set_readonly(descriptor.readonly, cx);
-                    state.set_submit_on_enter(descriptor.submit_on_enter, cx);
+                    if $submit_on_enter != descriptor.submit_on_enter {
+                        state.set_submit_on_enter(descriptor.submit_on_enter, cx);
+                    }
                     state.set_editor_style(InputEditorStyle {
                         foreground: descriptor.style.foreground,
                         muted_foreground: descriptor.style.muted_foreground,
@@ -177,12 +197,30 @@ impl GpuiTextControlState {
             };
         }
         match self {
-            Self::Input { state, .. } => synchronize!(state),
-            Self::Textarea { state, .. } => synchronize!(state),
-            Self::Editor {
-                state, language, ..
+            Self::Input {
+                state,
+                submit_on_enter,
+                ..
             } => {
-                synchronize!(state);
+                synchronize!(state, *submit_on_enter);
+                *submit_on_enter = descriptor.submit_on_enter;
+            }
+            Self::Textarea {
+                state,
+                submit_on_enter,
+                ..
+            } => {
+                synchronize!(state, *submit_on_enter);
+                *submit_on_enter = descriptor.submit_on_enter;
+            }
+            Self::Editor {
+                state,
+                language,
+                submit_on_enter,
+                ..
+            } => {
+                synchronize!(state, *submit_on_enter);
+                *submit_on_enter = descriptor.submit_on_enter;
                 if language != &descriptor.language {
                     state.update(cx, |state, state_cx| {
                         state.set_highlighter(
@@ -608,6 +646,7 @@ impl GpuiRuntimeView {
                         let subscriptions = subscribe_text_control!(state, key);
                         GpuiTextControlState::Input {
                             state,
+                            submit_on_enter: false,
                             _subscriptions: subscriptions,
                         }
                     }
@@ -616,6 +655,7 @@ impl GpuiRuntimeView {
                         let subscriptions = subscribe_text_control!(state, key);
                         GpuiTextControlState::Textarea {
                             state,
+                            submit_on_enter: false,
                             _subscriptions: subscriptions,
                         }
                     }
@@ -628,6 +668,7 @@ impl GpuiRuntimeView {
                         GpuiTextControlState::Editor {
                             state,
                             language,
+                            submit_on_enter: false,
                             _subscriptions: subscriptions,
                         }
                     }
@@ -1707,6 +1748,47 @@ mod tests {
                     EntityInputHandler::marked_text_range(state, window, cx),
                     None
                 );
+            });
+        });
+    }
+
+    #[wabou_shell::gpui::test]
+    fn controlled_text_sync_preserves_focused_linux_style_committed_selection(
+        cx: &mut TestAppContext,
+    ) {
+        cx.update(gpui_base::init);
+        let state_slot = Rc::new(std::cell::RefCell::new(None));
+        let state_for_window = state_slot.clone();
+        let window = cx.update(|cx| {
+            cx.open_window(Default::default(), move |window, cx| {
+                let state = cx.new(|cx| TextareaState::new(window, cx));
+                state_for_window.replace(Some(state.clone()));
+                cx.new(|_| TextareaTestRoot(state))
+            })
+            .expect("open textarea controlled-sync fixture")
+        });
+        let state = state_slot
+            .borrow()
+            .clone()
+            .expect("textarea state created with the fixture window");
+        let mut cx = VisualTestContext::from_window(window.into(), cx);
+
+        cx.update(|window, cx| {
+            state.update(cx, |state, cx| {
+                state.set_value("alpha beta", window, cx);
+                state.set_selected_range(6..6, cx);
+                state.focus(window, cx);
+                assert_eq!(
+                    EntityInputHandler::marked_text_range(state, window, cx),
+                    None
+                );
+
+                // Linux IMEs may commit ordinary text without leaving a
+                // marked range. A controlled normalization must not move the
+                // caret to GPUI's multiline reset position at the beginning.
+                synchronize_controlled_text_value(state, "alpha BETA", window, cx);
+                assert_eq!(state.value(), "alpha BETA");
+                assert_eq!(state.selected_range(), 6..6);
             });
         });
     }
