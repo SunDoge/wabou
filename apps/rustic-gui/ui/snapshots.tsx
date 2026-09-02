@@ -30,8 +30,10 @@ import search from "lucide-static/icons/search.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import { type FileEntry, type SnapshotEntry, useRusticApi } from "./api";
-import { useRusticSession } from "./session";
 import { FileDetails } from "./file-details";
+import { useRusticSession } from "./session";
+import { createSnapshotBrowserCache } from "./snapshot-browser-cache";
+import { formatSnapshotTime, SnapshotDetails } from "./snapshot-details";
 import { SnapshotFileTree } from "./snapshot-tree";
 import { BackupSourcesPanel } from "./workspace-components";
 
@@ -49,7 +51,9 @@ function shortId(id: string): string {
 export function formatModified(value?: string): string {
   if (!value) return "—";
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-  return match ? `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}` : value;
+  return match
+    ? `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}`
+    : value;
 }
 
 export function SnapshotFileRow(props: {
@@ -144,8 +148,11 @@ export function SnapshotsPage() {
   const [browserMode, setBrowserMode] = createSignal<"list" | "tree">("list");
   const [currentPath, setCurrentPath] = createSignal("");
   const [loading, setLoading] = createSignal(true);
+  const [loadingFiles, setLoadingFiles] = createSignal(false);
   const [backingUp, setBackingUp] = createSignal(false);
   const [error, setError] = createSignal<string>();
+  const browserCache = createSnapshotBrowserCache();
+  let fileRequestGeneration = 0;
 
   async function loadSnapshots(profileId: string, selectNewest = false) {
     setLoading(true);
@@ -153,7 +160,7 @@ export function SnapshotsPage() {
     try {
       const next = await api.listSnapshots({ profileId });
       setSnapshots(next);
-      if (selectNewest && next[0]) await selectSnapshot(profileId, next[0]);
+      if (selectNewest && next[0]) selectSnapshot(profileId, next[0]);
       else if (selected()) {
         const refreshed = next.find((item) => item.id === selected()?.id);
         if (refreshed) setSelected(refreshed);
@@ -170,20 +177,34 @@ export function SnapshotsPage() {
     snapshot: SnapshotEntry,
     path: string,
   ) {
+    const generation = ++fileRequestGeneration;
+    setCurrentPath(path);
+    setFiles([]);
+    setSelectedEntry(undefined);
+    setSearchActive(false);
+    setSearchResults([]);
     setError(undefined);
+    const cached = browserCache.entries(snapshot.id, path);
+    if (cached) {
+      setFiles([...cached]);
+      setLoadingFiles(false);
+      return;
+    }
+    setLoadingFiles(true);
     try {
       const next = await api.listFiles({
         profileId,
         snapshotId: snapshot.id,
         path,
       });
-      setCurrentPath(path);
+      browserCache.remember(snapshot.id, path, next);
+      if (generation !== fileRequestGeneration) return;
       setFiles(next);
-      setSelectedEntry(undefined);
-      setSearchActive(false);
-      setSearchResults([]);
     } catch (cause) {
+      if (generation !== fileRequestGeneration) return;
       setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      if (generation === fileRequestGeneration) setLoadingFiles(false);
     }
   }
 
@@ -219,9 +240,20 @@ export function SnapshotsPage() {
     setSelectedEntry(undefined);
   }
 
-  async function selectSnapshot(profileId: string, snapshot: SnapshotEntry) {
+  function selectSnapshot(profileId: string, snapshot: SnapshotEntry) {
     setSelected(snapshot);
-    await loadFiles(profileId, snapshot, "");
+    void loadFiles(profileId, snapshot, browserCache.lastPath(snapshot.id));
+  }
+
+  async function refreshSnapshots(profileId: string) {
+    const selectedId = selected()?.id;
+    const path = currentPath();
+    browserCache.clear();
+    await loadSnapshots(profileId);
+    const refreshed = snapshots().find(
+      (snapshot) => snapshot.id === selectedId,
+    );
+    if (refreshed) await loadFiles(profileId, refreshed, path);
   }
 
   async function saveSources(sources: string[]) {
@@ -272,8 +304,7 @@ export function SnapshotsPage() {
     },
   );
 
-  const visibleFiles = () =>
-    searchActive() ? searchResults() : files();
+  const visibleFiles = () => (searchActive() ? searchResults() : files());
 
   return (
     <View class="w-full h-full min-w-0 min-h-0 flex flex-col">
@@ -287,7 +318,7 @@ export function SnapshotsPage() {
                 variant="outline"
                 onClick={() => {
                   const profile = session.activeProfile();
-                  if (profile) void loadSnapshots(profile.id);
+                  if (profile) void refreshSnapshots(profile.id);
                 }}
               >
                 <Icon source={refreshCw} size={14} /> Refresh
@@ -348,13 +379,16 @@ export function SnapshotsPage() {
                     class="mx-2 min-h-14 justify-start px-3"
                     onClick={() => {
                       const profile = session.activeProfile();
-                      if (profile) void selectSnapshot(profile.id, snapshot);
+                      if (profile) selectSnapshot(profile.id, snapshot);
                     }}
                   >
                     <View class="min-w-0 flex-1 flex flex-col items-start gap-0.5">
-                      <Text class="font-medium">{shortId(snapshot.id)}</Text>
+                      <Text class="font-medium">
+                        {formatSnapshotTime(snapshot.time)}
+                      </Text>
                       <Text class="w-full truncate text-xs text-muted">
-                        {snapshot.time}
+                        {shortId(snapshot.id)} ·{" "}
+                        {snapshot.hostname || "Unknown host"}
                       </Text>
                     </View>
                   </Button>
@@ -408,7 +442,12 @@ export function SnapshotsPage() {
                           : `/${currentPath() || ""}`}
                       </Text>
                     </View>
-                    <ButtonGroup size="sm" variant="ghost" aria-label="File view">
+                    <SnapshotDetails snapshot={snapshot()} />
+                    <ButtonGroup
+                      size="sm"
+                      variant="ghost"
+                      aria-label="File view"
+                    >
                       <Button
                         size="icon"
                         variant="ghost"
@@ -431,7 +470,11 @@ export function SnapshotsPage() {
                         <Icon source={folderTree} size={14} />
                       </Button>
                     </ButtonGroup>
-                    <Badge variant="secondary">{visibleFiles().length} items</Badge>
+                    <Badge variant="secondary">
+                      {loadingFiles()
+                        ? "Loading…"
+                        : `${visibleFiles().length} items`}
+                    </Badge>
                   </View>
                   <View class="flex flex-row items-center gap-2">
                     <InputGroup class="min-w-0 flex-1">
@@ -442,7 +485,9 @@ export function SnapshotsPage() {
                         aria-label="Search snapshot"
                         placeholder="Search this snapshot…"
                         value={searchQuery()}
-                        onInput={(event) => setSearchQuery(event.currentTarget.value)}
+                        onInput={(event) =>
+                          setSearchQuery(event.currentTarget.value)
+                        }
                         onKeyDown={(event) => {
                           if (event.key === "Enter") {
                             event.preventDefault();
@@ -461,67 +506,93 @@ export function SnapshotsPage() {
                       Search
                     </Button>
                     <Show when={searchActive()}>
-                      <Button size="icon" variant="ghost" aria-label="Clear search" onClick={clearSearch}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label="Clear search"
+                        onClick={clearSearch}
+                      >
                         <Icon source={x} size={14} />
                       </Button>
                     </Show>
                   </View>
                 </View>
-                <View class="min-w-0 min-h-0 flex-1 flex flex-row">
-                  <Show
-                    when={browserMode() === "list" || searchActive()}
-                    fallback={
+                <Show
+                  when={!loadingFiles()}
+                  fallback={
+                    <ContentState
+                      state="loading"
+                      title="Loading snapshot files"
+                      description="Reading this snapshot’s directory…"
+                      class="min-h-0 flex-1 border-0 shadow-none"
+                    />
+                  }
+                >
+                  <View class="min-w-0 min-h-0 flex-1 flex flex-row">
+                    <Show
+                      when={browserMode() === "list" || searchActive()}
+                      fallback={
+                        <ScrollArea
+                          class="min-w-0 min-h-0 flex-1"
+                          contentClass="min-w-full px-2 py-2"
+                        >
+                          <SnapshotFileTree
+                            profileId={session.activeProfile()?.id ?? ""}
+                            snapshotId={snapshot().id}
+                            selectedPath={selectedEntry()?.path}
+                            onSelect={setSelectedEntry}
+                          />
+                        </ScrollArea>
+                      }
+                    >
                       <ScrollArea
                         class="min-w-0 min-h-0 flex-1"
-                        contentClass="min-w-full px-2 py-2"
+                        contentClass="min-w-full"
                       >
-                        <SnapshotFileTree
-                          profileId={session.activeProfile()?.id ?? ""}
-                          snapshotId={snapshot().id}
-                          selectedPath={selectedEntry()?.path}
-                          onSelect={setSelectedEntry}
-                        />
+                        <Table>
+                          <TableHeader>
+                            <TableRow class="bg-surface-muted">
+                              <TableHead class="min-w-64 flex-1">
+                                Name
+                              </TableHead>
+                              <TableHead class="w-24 flex-none">Size</TableHead>
+                              <TableHead class="w-36 flex-none">
+                                Modified
+                              </TableHead>
+                              <TableHead class="w-20 flex-none" />
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            <For each={visibleFiles()}>
+                              {(entry) => (
+                                <SnapshotFileRow
+                                  entry={entry}
+                                  selected={
+                                    selectedEntry()?.path === entry.path
+                                  }
+                                  searchActive={searchActive()}
+                                  onSelect={setSelectedEntry}
+                                  onOpenDirectory={(directory) =>
+                                    void loadFiles(
+                                      session.activeProfile()?.id ?? "",
+                                      snapshot(),
+                                      directory.path,
+                                    )
+                                  }
+                                />
+                              )}
+                            </For>
+                          </TableBody>
+                        </Table>
                       </ScrollArea>
-                    }
-                  >
-                    <ScrollArea class="min-w-0 min-h-0 flex-1" contentClass="min-w-full">
-                    <Table>
-                      <TableHeader>
-                        <TableRow class="bg-surface-muted">
-                          <TableHead class="min-w-64 flex-1">Name</TableHead>
-                          <TableHead class="w-24 flex-none">Size</TableHead>
-                          <TableHead class="w-36 flex-none">Modified</TableHead>
-                          <TableHead class="w-20 flex-none" />
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        <For each={visibleFiles()}>
-                          {(entry) => (
-                            <SnapshotFileRow
-                              entry={entry}
-                              selected={selectedEntry()?.path === entry.path}
-                              searchActive={searchActive()}
-                              onSelect={setSelectedEntry}
-                              onOpenDirectory={(directory) =>
-                                void loadFiles(
-                                  session.activeProfile()?.id ?? "",
-                                  snapshot(),
-                                  directory.path,
-                                )
-                              }
-                            />
-                          )}
-                        </For>
-                      </TableBody>
-                    </Table>
-                    </ScrollArea>
-                  </Show>
-                  <FileDetails
-                    profileId={session.activeProfile()?.id ?? ""}
-                    snapshotId={snapshot().id}
-                    entry={selectedEntry()}
-                  />
-                </View>
+                    </Show>
+                    <FileDetails
+                      profileId={session.activeProfile()?.id ?? ""}
+                      snapshotId={snapshot().id}
+                      entry={selectedEntry()}
+                    />
+                  </View>
+                </Show>
               </>
             )}
           </Show>
