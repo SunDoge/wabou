@@ -1004,35 +1004,11 @@ impl Widget for TextInput {
         if !self.focused || self.disabled {
             return None;
         }
-        let area = self.editor.ime_cursor_area();
-        let caret = self.editor.cursor_geometry(1.5);
-        let (x0, x1, y0, y1) = caret.map_or(
-            (
-                area.x1 as f32,
-                area.x1 as f32 + 1.5,
-                area.y0 as f32,
-                area.y1 as f32,
-            ),
-            |caret| {
-                (
-                    caret.x0 as f32,
-                    caret.x1 as f32,
-                    caret.y0 as f32,
-                    caret.y1 as f32,
-                )
-            },
-        );
-        let y_offset = if self.multiline {
-            -self.scroll_y
-        } else {
-            self.single_line_y_offset
-        };
-        Some([
-            x0 - self.scroll_x,
-            y0 + y_offset,
-            x1 - self.scroll_x,
-            y1 + y_offset,
-        ])
+        // AppKit is much more stable when the IME client keeps one candidate
+        // area for the lifetime of a composition. This mirrors Blitz: use the
+        // native editor's content box rather than chasing a reshaped preedit
+        // caret across multiline layout and scroll updates.
+        Some([0.0, 0.0, self.viewport_width, self.viewport_height])
     }
 }
 
@@ -1173,7 +1149,7 @@ mod tests {
     }
 
     #[test]
-    fn single_line_input_scrolls_caret_and_keeps_pointer_and_ime_coordinates_in_sync() {
+    fn single_line_input_scrolls_caret_and_keeps_a_stable_ime_content_box() {
         let mut input = TextInput::new();
         input.attribute_changed("value", "the quick brown fox jumps over the lazy dog");
         input.focus_changed(true);
@@ -1187,10 +1163,8 @@ mod tests {
         assert_eq!(text_x, 4.0 + input.scroll_x);
         assert_eq!(text_y, 12.0 - input.single_line_y_offset);
 
-        let raw = input.editor.cursor_geometry(1.5).expect("caret");
         let ime = input.ime_cursor_area().expect("IME cursor area");
-        assert_eq!(ime[0], raw.x0 as f32 - input.scroll_x);
-        assert_eq!(ime[2], raw.x1 as f32 - input.scroll_x);
+        assert_eq!(ime, [0.0, 0.0, 48.0, 30.0]);
 
         input.queue(PendingEdit::MoveToStart);
         input.paint(48.0, 30.0, &mut tcx);
@@ -1546,10 +1520,8 @@ mod tests {
                 .is_handled()
         );
         input.paint(200.0, 32.0, &mut tcx);
-        let raw_area = input.editor.cursor_geometry(1.5).expect("preedit caret");
         let area = input.ime_cursor_area().expect("IME cursor area");
-        assert_eq!(area[1], raw_area.y0 as f32 + input.single_line_y_offset);
-        assert_eq!(area[3], raw_area.y1 as f32 + input.single_line_y_offset);
+        assert_eq!(area, [0.0, 0.0, 200.0, 32.0]);
 
         let mut paint = PaintContext::new_clipped(200.0, 32.0, 6.0, 2.0, &mut tcx);
         <TextInput as Widget>::paint(&mut input, &mut paint);

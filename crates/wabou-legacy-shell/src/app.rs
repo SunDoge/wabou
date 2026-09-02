@@ -25,8 +25,8 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, KeyLocation as WinitKeyLocation, ModifiersState};
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{
-    ImeCapabilities, ImeEnableRequest, ImeHint, ImePurpose, ImeRequest, ImeRequestData,
-    ResizeDirection, UserAttentionType, WindowId,
+    ImeCapabilities, ImeEnableRequest, ImeRequest, ImeRequestData, ResizeDirection,
+    UserAttentionType, WindowId,
 };
 
 use crate::WindowResourceKey;
@@ -656,33 +656,22 @@ impl App {
         if !self.ime_requested || self.ime_enabled {
             return;
         }
-        let Some(area) = self.ime_cursor_area else {
-            return;
-        };
         let Some(shell) = self.state.as_ref() else {
             return;
         };
-        let (position, size) = Self::ime_cursor_rect(Some(area));
-        let capabilities = ImeCapabilities::new()
-            .with_hint_and_purpose()
-            .with_cursor_area();
-        let data = ImeRequestData::default()
-            .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
-            .with_cursor_area(position.into(), size.into());
+        // Match Blitz's macOS lifecycle: enable composition immediately when
+        // focus enters an editor, then publish a stable content-box area once
+        // layout is available. Waiting for a painted caret makes AppKit start
+        // composition against stale geometry on the first preedit event.
+        let capabilities = ImeCapabilities::new();
+        let data = ImeRequestData::default();
         let request = ImeRequest::Enable(
             ImeEnableRequest::new(capabilities, data)
                 .expect("IME capabilities and initial data must match"),
         );
         if shell.window().request_ime_update(request).is_ok() {
             self.ime_enabled = true;
-            tracing::debug!(
-                target: "wabou::ime",
-                x = position.x,
-                y = position.y,
-                width = size.width,
-                height = size.height,
-                "enabled IME with resolved caret area"
-            );
+            tracing::debug!(target: "wabou::ime", "enabled IME for focused editor");
         }
     }
 
@@ -692,7 +681,6 @@ impl App {
         self.ime_cursor_area = area;
         if self.ime_requested && !self.ime_enabled {
             self.enable_ime_if_ready();
-            return;
         }
         if !changed {
             return;
