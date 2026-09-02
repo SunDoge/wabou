@@ -3,14 +3,16 @@ import {
   Button,
   ColorThemeProvider,
   ComponentsProvider,
+  mergeClasses,
   ScrollArea,
   Text,
   useNavigate,
   useParams,
   View,
+  type ViewProps,
 } from "@wabou/ui";
 import { Button as PrimitiveButton } from "@wabou/ui/primitives";
-import { createSignal, For as ForValue, Match, Switch } from "solid-js";
+import { createSignal, For as ForValue, Match, omit, Switch } from "solid-js";
 import { CellsTask } from "./tasks/cells";
 import { CircleDrawerTask } from "./tasks/circle-drawer";
 import { CounterTask } from "./tasks/counter";
@@ -42,6 +44,22 @@ const tasks: Array<{
   { id: "cells", number: 7, label: "Cells", note: "Dependencies" },
 ];
 
+const SHELL_HEADER_HEIGHT = "h-16";
+
+export function ShellHeader(props: ViewProps) {
+  const forwarded = omit(props, "class");
+  return (
+    <View
+      {...forwarded}
+      class={mergeClasses(
+        SHELL_HEADER_HEIGHT,
+        "flex-none flex items-center border-b border-subtle bg-surface",
+        props.class,
+      )}
+    />
+  );
+}
+
 export function App() {
   const params = useParams<{ task?: string }>();
   const navigate = useNavigate();
@@ -56,7 +74,11 @@ export function App() {
       <ComponentsProvider theme={theme()}>
         <View class="w-full h-full flex overflow-hidden bg-canvas text-primary font-sans">
           <View class="w-64 h-full flex-none flex flex-col border-r border-subtle bg-surface">
-            <View class="h-20 flex-none px-5 flex items-center gap-3 border-b border-subtle">
+            <ShellHeader
+              role="group"
+              aria-label="Sidebar header"
+              class="px-5 gap-3"
+            >
               <View class="w-10 h-10 flex items-center justify-center rounded-xl bg-accent">
                 <Text class="font-bold text-on-accent">7</Text>
               </View>
@@ -64,7 +86,7 @@ export function App() {
                 <Text class="font-semibold text-primary">7GUIs</Text>
                 <Text class="text-xs text-muted">Wabou benchmark</Text>
               </View>
-            </View>
+            </ShellHeader>
             <ScrollArea class="flex-1" contentClass="p-3 gap-2">
               <ForValue each={tasks}>
                 {(item) => (
@@ -114,7 +136,11 @@ export function App() {
             </View>
           </View>
           <View class="flex-1 min-w-0 h-full flex flex-col">
-            <View class="h-16 flex-none px-6 flex items-center justify-between border-b border-subtle bg-surface">
+            <ShellHeader
+              role="group"
+              aria-label="Content header"
+              class="px-6 justify-between"
+            >
               <View class="flex items-center gap-3">
                 <Text class="text-sm font-semibold text-primary">
                   Wabou native UI
@@ -131,7 +157,7 @@ export function App() {
                   {dark() ? "Light theme" : "Dark theme"}
                 </Button>
               </View>
-            </View>
+            </ShellHeader>
             <ScrollArea class="flex-1 min-h-0" contentClass="px-8 py-8">
               <Switch>
                 <Match when={task() === "counter"}>
