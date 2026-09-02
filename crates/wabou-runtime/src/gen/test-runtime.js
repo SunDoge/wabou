@@ -7424,7 +7424,11 @@
     ClearGraphicSource: 31,
     SetGraphicData: 32,
     ClearGraphicData: 33,
-    SetTextMaxLines: 34
+    SetTextMaxLines: 34,
+    SetTextSelection: 35,
+    TextCommand: 36,
+    BlurNode: 37,
+    SetProjectionBoundary: 38
   };
   var TEXT_BEHAVIOR = {
     AggregateDirectText: 1,
@@ -7485,7 +7489,8 @@
     imepreedit: 35,
     imedeletesurrounding: 36,
     imedisabled: 37,
-    windowcloserequested: 38
+    windowcloserequested: 38,
+    transitionend: 39
   };
   var EVENT_DATA_SLOT = {
     clientX: 0,
@@ -7715,6 +7720,11 @@
       this.key(id);
       this.u32(maxLines);
     }
+    setProjectionBoundary(id, enabled) {
+      this.emit(OP.SetProjectionBoundary);
+      this.key(id);
+      this.u8(enabled ? 1 : 0);
+    }
     setInteractionPolicy(id, flags, focusOrder) {
       if (!Number.isInteger(flags) || flags < 0 || (flags & ~INTERACTION_POLICY_MASK) !== 0) {
         throw new RangeError(`invalid interaction policy flags ${flags}`);
@@ -7867,6 +7877,10 @@
       this.emit(OP.FocusNode);
       this.key(id);
     }
+    blurNode(id) {
+      this.emit(OP.BlurNode);
+      this.key(id);
+    }
     scrollTo(id, x2, y2) {
       this.emit(OP.ScrollTo);
       this.key(id);
@@ -7878,6 +7892,17 @@
       this.key(id);
       this.f32(x2);
       this.f32(y2);
+    }
+    setTextSelection(id, anchor, head) {
+      this.emit(OP.SetTextSelection);
+      this.key(id);
+      this.u32(anchor);
+      this.u32(head);
+    }
+    textCommand(id, command) {
+      this.emit(OP.TextCommand);
+      this.key(id);
+      this.u8(command);
     }
     flush() {
       if (this.count === 0)
@@ -7921,6 +7946,11 @@
       number: true,
       typed: [3]
     },
+    "backdrop-blur": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
     background: {
       string: true,
       number: false,
@@ -7930,6 +7960,16 @@
       string: true,
       number: false,
       typed: [5]
+    },
+    "border-bottom-left-radius": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "border-bottom-right-radius": {
+      string: true,
+      number: true,
+      typed: [1]
     },
     "border-bottom-width": {
       string: true,
@@ -7956,6 +7996,16 @@
       number: true,
       typed: [1]
     },
+    "border-top-left-radius": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "border-top-right-radius": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
     "border-top-width": {
       string: true,
       number: true,
@@ -7971,11 +8021,6 @@
       number: true,
       typed: [1, 2, 3, 6]
     },
-    "box-sizing": {
-      string: true,
-      number: false,
-      typed: []
-    },
     color: {
       string: true,
       number: false,
@@ -7986,11 +8031,6 @@
       number: true,
       typed: [1, 2, 3]
     },
-    contain: {
-      string: true,
-      number: false,
-      typed: []
-    },
     cursor: {
       string: true,
       number: false,
@@ -8000,6 +8040,11 @@
       string: true,
       number: false,
       typed: []
+    },
+    "filter-blur": {
+      string: true,
+      number: true,
+      typed: [1]
     },
     "flex-basis": {
       string: true,
@@ -8051,11 +8096,6 @@
       number: true,
       typed: [1, 2, 3]
     },
-    "grid-auto-flow": {
-      string: true,
-      number: false,
-      typed: []
-    },
     "grid-column-end": {
       string: true,
       number: true,
@@ -8082,16 +8122,6 @@
       typed: [1, 2, 3, 6]
     },
     "justify-content": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "justify-items": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "justify-self": {
       string: true,
       number: false,
       typed: []
@@ -8171,26 +8201,6 @@
       number: true,
       typed: [3]
     },
-    "outline-color": {
-      string: true,
-      number: false,
-      typed: [5]
-    },
-    "outline-offset": {
-      string: true,
-      number: true,
-      typed: [1]
-    },
-    "outline-style": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "outline-width": {
-      string: true,
-      number: true,
-      typed: [1]
-    },
     overflow: {
       string: true,
       number: false,
@@ -8256,6 +8266,11 @@
       number: false,
       typed: []
     },
+    "text-decoration-line": {
+      string: true,
+      number: false,
+      typed: []
+    },
     "text-overflow": {
       string: true,
       number: false,
@@ -8265,16 +8280,6 @@
       string: true,
       number: true,
       typed: [1, 2, 3, 6]
-    },
-    "transform-origin-x": {
-      string: true,
-      number: true,
-      typed: [1]
-    },
-    "transform-origin-y": {
-      string: true,
-      number: true,
-      typed: [1]
     },
     "user-select": {
       string: true,
@@ -8588,7 +8593,19 @@
       absolute: ["position"],
       "aspect-square": ["aspect-ratio"],
       "aspect-video": ["aspect-ratio"],
+      "backdrop-blur": ["backdrop-blur"],
+      "backdrop-blur-lg": ["backdrop-blur"],
+      "backdrop-blur-md": ["backdrop-blur"],
+      "backdrop-blur-none": ["backdrop-blur"],
+      "backdrop-blur-sm": ["backdrop-blur"],
+      "backdrop-blur-xl": ["backdrop-blur"],
       block: ["display"],
+      blur: ["filter-blur"],
+      "blur-lg": ["filter-blur"],
+      "blur-md": ["filter-blur"],
+      "blur-none": ["filter-blur"],
+      "blur-sm": ["filter-blur"],
+      "blur-xl": ["filter-blur"],
       border: [
         "border-top-width",
         "border-right-width",
@@ -8682,7 +8699,6 @@
       "cursor-ns-resize": ["cursor"],
       "cursor-pointer": ["cursor"],
       "cursor-text": ["cursor"],
-      "cursor-wait": ["cursor"],
       flex: ["display"],
       "flex-1": ["flex-grow", "flex-shrink", "flex-basis"],
       "flex-col": ["flex-direction"],
@@ -8744,6 +8760,7 @@
       "leading-normal": ["line-height"],
       "leading-relaxed": ["line-height"],
       "leading-tight": ["line-height"],
+      "line-through": ["text-decoration-line"],
       "max-w-2xl": ["max-width"],
       "max-w-3xl": ["max-width"],
       "max-w-4xl": ["max-width"],
@@ -8755,6 +8772,7 @@
       "max-w-sm": ["max-width"],
       "max-w-xl": ["max-width"],
       "max-w-xs": ["max-width"],
+      "no-underline": ["text-decoration-line"],
       "not-italic": ["font-style"],
       "origin-bottom-left": ["transform-origin-x", "transform-origin-y"],
       "origin-bottom-right": ["transform-origin-x", "transform-origin-y"],
@@ -8789,11 +8807,16 @@
       rounded: ["border-radius"],
       "rounded-2xl": ["border-radius"],
       "rounded-3xl": ["border-radius"],
+      "rounded-b-lg": ["border-bottom-left-radius", "border-bottom-right-radius"],
       "rounded-full": ["border-radius"],
+      "rounded-l-lg": ["border-top-left-radius", "border-bottom-left-radius"],
       "rounded-lg": ["border-radius"],
       "rounded-md": ["border-radius"],
       "rounded-none": ["border-radius"],
+      "rounded-r-lg": ["border-top-right-radius", "border-bottom-right-radius"],
+      "rounded-r-none": ["border-top-right-radius", "border-bottom-right-radius"],
       "rounded-sm": ["border-radius"],
+      "rounded-t-lg": ["border-top-left-radius", "border-top-right-radius"],
       "rounded-xl": ["border-radius"],
       "row-end-1": ["grid-row-end"],
       "row-end-10": ["grid-row-end"],
@@ -8879,6 +8902,7 @@
       "translate-x-4": ["transform-translate-x"],
       "translate-y-4": ["transform-translate-y"],
       truncate: ["overflow-x", "overflow-y", "white-space", "text-overflow"],
+      underline: ["text-decoration-line"],
       "whitespace-normal": ["white-space"],
       "whitespace-nowrap": ["white-space"],
       "z-0": ["z-index"],
@@ -9716,6 +9740,11 @@
   var HostContext = createContext(defaultHost);
   // packages/core/src/renderer/index.ts
   var globalPointerListeners = new Map;
+  var TEXT_COMMAND = {
+    SelectAll: 1,
+    Undo: 2,
+    Redo: 3
+  };
   var nodeKeys = new NodeKeyAllocator;
   var listenersByNode = new NodeKeyTable;
   var nodesByKey = new NodeKeyTable;
@@ -9798,8 +9827,13 @@
     };
     return {
       focus: () => writer.focusNode(id),
+      blur: () => writer.blurNode(id),
       scrollTo,
-      scrollBy
+      scrollBy,
+      setTextSelection: (anchor, head = anchor) => writer.setTextSelection(id, anchor, head),
+      selectAll: () => writer.textCommand(id, TEXT_COMMAND.SelectAll),
+      undo: () => writer.textCommand(id, TEXT_COMMAND.Undo),
+      redo: () => writer.textCommand(id, TEXT_COMMAND.Redo)
     };
   }
   function makeHandle(tag) {
@@ -9870,6 +9904,21 @@
     if (name === "overlayPlane") {
       const plane = value === "modal" ? 2 : value === "floating" ? 1 : 0;
       writer.setOverlayPlane(node.id, plane);
+      return;
+    }
+    if (name === "projectionBoundary") {
+      writer.setProjectionBoundary(node.id, value === true);
+      return;
+    }
+    if (name === "nativeTransition") {
+      if (value == null || value === false) {
+        writer.removeAttribute(node.id, "__wabou_native_transition");
+        return;
+      }
+      if (!isStructuredConfigValue(value)) {
+        throw new TypeError("nativeTransition must be a plain object");
+      }
+      writer.setAttribute(node.id, "__wabou_native_transition", stringifyWidgetConfig(value));
       return;
     }
     if (name === "textBehavior") {
@@ -10151,6 +10200,11 @@
   var createElement = renderer.createElement;
   var createTextNode = renderer.createTextNode;
   var insertNode = renderer.insertNode;
+  function removeNode(parent, node) {
+    unlinkChild(parent, node);
+    writer.removeChild(parent.id, node.id);
+    sweepSet.add(node);
+  }
   var insert = renderer.insert;
   var setProp = renderer.setProp;
   var createComponent2 = renderer.createComponent;
@@ -10195,12 +10249,15 @@
     mountState.overlayRoots.clear();
     registerRoot(root);
     const dispose = render(code, root);
+    flush();
     let disposed = false;
     const disposeMount = () => {
       if (disposed)
         return;
       disposed = true;
       dispose();
+      while (root.firstChild)
+        removeNode(root, root.firstChild);
       if (mountState.mountedRoot === root) {
         mountState.overlayRoots.clear();
         mountState.mountedRoot = null;
@@ -10209,7 +10266,6 @@
         mountState.activeMountDispose = null;
       }
       runSweep();
-      writer.flush();
     };
     mountState.activeMountDispose = disposeMount;
     return () => {
@@ -10930,10 +10986,11 @@ ${detail}`);
     outerX: null,
     outerY: null,
     occluded: false,
-    colorScheme: "light"
+    colorScheme: "light",
+    reducedMotion: false
   };
   function sameMetrics(previous, next) {
-    return previous.windowId.lo === next.windowId.lo && previous.windowId.hi === next.windowId.hi && previous.logicalWidth === next.logicalWidth && previous.logicalHeight === next.logicalHeight && previous.physicalWidth === next.physicalWidth && previous.physicalHeight === next.physicalHeight && previous.scaleFactor === next.scaleFactor && previous.maximized === next.maximized && previous.focused === next.focused && previous.outerX === next.outerX && previous.outerY === next.outerY && previous.occluded === next.occluded && previous.colorScheme === next.colorScheme;
+    return previous.windowId.lo === next.windowId.lo && previous.windowId.hi === next.windowId.hi && previous.logicalWidth === next.logicalWidth && previous.logicalHeight === next.logicalHeight && previous.physicalWidth === next.physicalWidth && previous.physicalHeight === next.physicalHeight && previous.scaleFactor === next.scaleFactor && previous.maximized === next.maximized && previous.focused === next.focused && previous.outerX === next.outerX && previous.outerY === next.outerY && previous.occluded === next.occluded && previous.colorScheme === next.colorScheme && previous.reducedMotion === next.reducedMotion;
   }
   var [metrics, setMetrics] = createSignal2(initial, {
     equals: sameMetrics,
@@ -10949,7 +11006,7 @@ ${detail}`);
         throw new TypeError(`window metrics ${field} must be a finite number`);
       return number;
     };
-    if (typeof next.maximized !== "boolean" || typeof next.focused !== "boolean" || typeof next.occluded !== "boolean")
+    if (typeof next.maximized !== "boolean" || typeof next.focused !== "boolean" || typeof next.occluded !== "boolean" || typeof next.reducedMotion !== "boolean")
       throw new TypeError("window metrics flags must be booleans");
     for (const field of ["outerX", "outerY"]) {
       if (next[field] !== null && (typeof next[field] !== "number" || !Number.isFinite(next[field])))
@@ -10969,7 +11026,8 @@ ${detail}`);
       outerX: next.outerX,
       outerY: next.outerY,
       occluded: next.occluded,
-      colorScheme: next.colorScheme
+      colorScheme: next.colorScheme,
+      reducedMotion: next.reducedMotion
     };
   }
   subscribeJson("wabou:window-metrics", setMetrics, {
@@ -10994,7 +11052,8 @@ ${detail}`);
     outerX: () => metrics().outerX,
     outerY: () => metrics().outerY,
     occluded: () => metrics().occluded,
-    colorScheme: () => metrics().colorScheme ?? "light"
+    colorScheme: () => metrics().colorScheme ?? "light",
+    reducedMotion: () => metrics().reducedMotion
   };
   function useWindow() {
     return usePlatformServices().window ?? state;
@@ -11010,26 +11069,19 @@ ${detail}`);
 
   // packages/core/src/glue/app-dirs.ts
   var resolved;
-  function resolveAppDirectories() {
+  function resolve2() {
     return resolved ??= dispatchEffect(effectOps.appDirsResolve);
   }
   var appDirs = Object.freeze({
-    resolve: resolveAppDirectories,
-    config: () => resolveAppDirectories().then((paths) => paths.configDir),
-    data: () => resolveAppDirectories().then((paths) => paths.dataDir),
-    localData: () => resolveAppDirectories().then((paths) => paths.localDataDir),
-    cache: () => resolveAppDirectories().then((paths) => paths.cacheDir),
-    log: () => resolveAppDirectories().then((paths) => paths.logDir),
-    resource: () => resolveAppDirectories().then((paths) => paths.resourceDir),
-    temp: () => resolveAppDirectories().then((paths) => paths.tempDir)
+    resolve: resolve2,
+    config: () => resolve2().then((paths) => paths.configDir),
+    data: () => resolve2().then((paths) => paths.dataDir),
+    localData: () => resolve2().then((paths) => paths.localDataDir),
+    cache: () => resolve2().then((paths) => paths.cacheDir),
+    log: () => resolve2().then((paths) => paths.logDir),
+    resource: () => resolve2().then((paths) => paths.resourceDir),
+    temp: () => resolve2().then((paths) => paths.tempDir)
   });
-  var appConfigDir = appDirs.config;
-  var appDataDir = appDirs.data;
-  var appLocalDataDir = appDirs.localData;
-  var appCacheDir = appDirs.cache;
-  var appLogDir = appDirs.log;
-  var resourceDir = appDirs.resource;
-  var tempDir = appDirs.temp;
 
   // packages/core/src/glue/application.ts
   var application = Object.freeze({
@@ -11224,8 +11276,8 @@ ${detail}`);
       let start;
       let settled = false;
       let finish;
-      const finished = new Promise((resolve2) => {
-        finish = resolve2;
+      const finished = new Promise((resolve3) => {
+        finish = resolve3;
       });
       const controls = {
         finished,
