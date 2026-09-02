@@ -43,6 +43,18 @@ describe("utility source extraction", () => {
     ).not.toThrow();
   });
 
+  test("accepts directional radii implemented by the GPUI host", () => {
+    expect(() =>
+      assertSupportedWabouCandidates([
+        "rounded-l-lg",
+        "rounded-r-lg",
+        "rounded-r-none",
+        "rounded-t-lg",
+        "rounded-b-lg",
+      ]),
+    ).not.toThrow();
+  });
+
   test("compiles utilities directly to typed Style IR without CSS", () => {
     expect(compileWabouUtilities(["px-[13px]", "bg-slate-900"])).toEqual([
       {
