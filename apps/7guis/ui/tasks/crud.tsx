@@ -1,13 +1,20 @@
 import {
   Button,
+  createFormDraft,
+  createStandardSchemaValidator,
+  Field,
+  FieldError,
+  FieldLabel,
   Input,
+  mergeClasses,
   ScrollArea,
   Text,
   View,
 } from "@wabou/ui";
 import { Button as PrimitiveButton } from "@wabou/ui/primitives";
-import { createMemo, createSignal, For as ForValue } from "solid-js";
-import { FieldLabel, TaskPage } from "../shared";
+import { createMemo, createSignal, For as ForValue, Show } from "solid-js";
+import { TaskPage } from "../shared";
+import { personSchema } from "./validation";
 
 interface Person {
   id: number;
@@ -23,8 +30,11 @@ export function CrudTask() {
   ]);
   const [filter, setFilter] = createSignal("");
   const [selected, setSelected] = createSignal<number | null>(null);
-  const [first, setFirst] = createSignal("");
-  const [last, setLast] = createSignal("");
+  const draft = createFormDraft(
+    { first: "", last: "" },
+    { validate: createStandardSchemaValidator(personSchema) },
+  );
+  const [validationVisible, setValidationVisible] = createSignal(false);
   let nextId = 4;
   const visible = createMemo(() => {
     const query = filter().trim().toLowerCase();
@@ -36,37 +46,43 @@ export function CrudTask() {
   });
   const choose = (person: Person) => {
     setSelected(person.id);
-    setFirst(person.first);
-    setLast(person.last);
+    draft.resetTo({ first: person.first, last: person.last });
+    setValidationVisible(false);
   };
   const create = () => {
-    if (!first().trim() || !last().trim()) return;
+    setValidationVisible(true);
+    if (!draft.valid()) return;
+    const value = draft.value();
     setPeople((items) => [
       ...items,
-      { id: nextId++, first: first().trim(), last: last().trim() },
+      { id: nextId++, first: value.first.trim(), last: value.last.trim() },
     ]);
-    setFirst("");
-    setLast("");
+    draft.resetTo({ first: "", last: "" });
+    setValidationVisible(false);
     setSelected(null);
   };
   const update = () => {
     const id = selected();
-    if (id === null || !first().trim() || !last().trim()) return;
+    setValidationVisible(true);
+    if (id === null || !draft.valid()) return;
+    const value = draft.value();
     setPeople((items) =>
       items.map((person) =>
         person.id === id
-          ? { ...person, first: first().trim(), last: last().trim() }
+          ? { ...person, first: value.first.trim(), last: value.last.trim() }
           : person,
       ),
     );
+    draft.commit();
+    setValidationVisible(false);
   };
   const remove = () => {
     const id = selected();
     if (id === null) return;
     setPeople((items) => items.filter((person) => person.id !== id));
     setSelected(null);
-    setFirst("");
-    setLast("");
+    draft.resetTo({ first: "", last: "" });
+    setValidationVisible(false);
   };
   return (
     <TaskPage
@@ -94,16 +110,16 @@ export function CrudTask() {
                   unstyled
                   aria-label={`${person.last}, ${person.first}`}
                   selected={selected() === person.id}
-                  class="w-full h-9 px-3 justify-start rounded-md text-sm"
-                  style={(state) => ({
-                    "background-color":
+                  class={(state) =>
+                    mergeClasses(
+                      "w-full h-9 px-3 justify-start rounded-md text-sm",
                       selected() === person.id
-                        ? "#15395d"
+                        ? "bg-selected text-primary"
                         : state.hovered
-                          ? "#202b3b"
-                          : "transparent",
-                    color: selected() === person.id ? "#e0f2fe" : "#c4cfdd",
-                  })}
+                          ? "bg-control-hover text-primary"
+                          : "bg-transparent text-secondary",
+                    )
+                  }
                   onClick={() => choose(person)}
                 >
                   {person.last}, {person.first}
@@ -113,22 +129,42 @@ export function CrudTask() {
           </ScrollArea>
         </View>
         <View class="flex-1 flex flex-col gap-4">
-          <View class="flex flex-col gap-2">
+          <Field
+            invalid={validationVisible() && Boolean(draft.fieldError("first"))}
+          >
             <FieldLabel>First name</FieldLabel>
             <Input
               aria-label="First name"
-              value={first()}
-              onInput={(e) => setFirst(e.currentTarget.value)}
+              aria-invalid={
+                validationVisible() && Boolean(draft.fieldError("first"))
+              }
+              value={draft.field("first")}
+              onInput={(e) => draft.set("first", e.currentTarget.value)}
             />
-          </View>
-          <View class="flex flex-col gap-2">
+            <Show
+              when={validationVisible() ? draft.fieldError("first") : undefined}
+            >
+              {(error) => <FieldError>{error()}</FieldError>}
+            </Show>
+          </Field>
+          <Field
+            invalid={validationVisible() && Boolean(draft.fieldError("last"))}
+          >
             <FieldLabel>Surname</FieldLabel>
             <Input
               aria-label="Surname"
-              value={last()}
-              onInput={(e) => setLast(e.currentTarget.value)}
+              aria-invalid={
+                validationVisible() && Boolean(draft.fieldError("last"))
+              }
+              value={draft.field("last")}
+              onInput={(e) => draft.set("last", e.currentTarget.value)}
             />
-          </View>
+            <Show
+              when={validationVisible() ? draft.fieldError("last") : undefined}
+            >
+              {(error) => <FieldError>{error()}</FieldError>}
+            </Show>
+          </Field>
           <View class="flex items-center gap-2">
             <Button aria-label="Create person" onClick={create}>
               Create
