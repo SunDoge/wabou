@@ -159,8 +159,14 @@ function scopedNodes(snapshot, within) {
 	visit(within);
 	return result;
 }
+function isAggregatedProtocolTextLeaf(node, nodes) {
+	const parent = node.parentId ? nodes.get(key(node.parentId)) : void 0;
+	return node.tag === "text" && node.rect.width === 0 && node.rect.height === 0 && !node.textMetrics && parent?.tag === "text";
+}
 function queryLayoutNodes(snapshot, query) {
+	const nodes = new Map(snapshot.nodes.map((node) => [key(node.id), node]));
 	return snapshot.nodes.filter((node) => {
+		if (isAggregatedProtocolTextLeaf(node, nodes)) return false;
 		if (query.tag !== void 0 && node.tag !== query.tag) return false;
 		if (query.role !== void 0 && layoutRole(node) !== query.role) return false;
 		if (query.name !== void 0 && layoutName(node) !== query.name) return false;
@@ -242,6 +248,7 @@ function visibleOverflowDiagnostics(snapshot, options = {}) {
 	const diagnostics = [];
 	for (const node of scopedNodes(snapshot, options.within)) {
 		let parent = node.parentId ? nodes.get(key(node.parentId)) : void 0;
+		if (isAggregatedProtocolTextLeaf(node, nodes)) continue;
 		while (parent) {
 			if ((parent.computed.overflowX ?? "Visible") !== "Visible" || (parent.computed.overflowY ?? "Visible") !== "Visible") break;
 			const amount = overflowAmount(parent.rect, node.rect);
@@ -267,6 +274,33 @@ function visibleOverflowDiagnostics(snapshot, options = {}) {
 }
 function overlaps(first, second, tolerance) {
 	return first.width > 0 && first.height > 0 && second.width > 0 && second.height > 0 && first.x + first.width > second.x + tolerance && second.x + second.width > first.x + tolerance && first.y + first.height > second.y + tolerance && second.y + second.height > first.y + tolerance;
+}
+function intersectLayoutRects(first, second) {
+	const x = Math.max(first.x, second.x);
+	const y = Math.max(first.y, second.y);
+	const right = Math.min(layoutRectRight(first), layoutRectRight(second));
+	const bottom = Math.min(layoutRectBottom(first), layoutRectBottom(second));
+	if (right <= x || bottom <= y) return void 0;
+	return {
+		x,
+		y,
+		width: right - x,
+		height: bottom - y
+	};
+}
+/** Visible border-box bounds after axis-aligned native clipping. */
+function visibleLayoutRect(node) {
+	const clip = node.clip;
+	if (!clip) return node.rect;
+	const effective = clip.effective;
+	if (effective && (effective.coordinateSpace === "window-logical" || effective.coordinateSpace === "layout-window-logical")) return intersectLayoutRects(node.rect, effective.rect);
+	let visible = node.rect;
+	for (const ancestor of clip.chain) {
+		if (ancestor.coordinateSpace !== "window-logical" && ancestor.coordinateSpace !== "layout-window-logical") continue;
+		visible = visible ? intersectLayoutRects(visible, ancestor.rect) : void 0;
+		if (!visible) return void 0;
+	}
+	return visible;
 }
 /** Opt-in collision check for normal-flow siblings. */
 function siblingCollisionDiagnostics(snapshot, options = {}) {
@@ -300,7 +334,9 @@ function textCollisionDiagnostics(snapshot, options = {}) {
 	const diagnostics = [];
 	for (let index = 0; index < textNodes.length; index += 1) for (const second of textNodes.slice(index + 1)) {
 		const first = textNodes[index];
-		if (first.computed.overlayPlane !== second.computed.overlayPlane || !overlaps(first.rect, second.rect, tolerance)) continue;
+		const firstVisible = visibleLayoutRect(first);
+		const secondVisible = visibleLayoutRect(second);
+		if (first.computed.overlayPlane !== second.computed.overlayPlane || !firstVisible || !secondVisible || !overlaps(firstVisible, secondVisible, tolerance)) continue;
 		diagnostics.push({
 			code: "text-overlap",
 			node: second,

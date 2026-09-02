@@ -83,6 +83,19 @@ async function pollUntil(read, matches, options = {}, beforeRead) {
 		await new Promise((resolve) => setTimeout(resolve, Math.min(interval, remaining, stabilityRemaining)));
 	}
 }
+/** Retry a host action until one projection accepts it.
+*
+* A semantic query and the following native action can observe adjacent UI
+* projections. Retrying only rejected actions closes that race without ever
+* repeating an action that the host has already handled.
+*/
+async function retryUntilHandled(action, options = {}) {
+	const wait = resolvePollOptions(options);
+	return (await pollUntil(action, Boolean, {
+		...wait,
+		stableFor: 0
+	})).matched;
+}
 //#endregion
 //#region src/replay.ts
 function locatorForAction(page, action) {
@@ -316,8 +329,8 @@ function createPage(windowId, scope = []) {
 				if (!await capability().inputByRole(windowId.lo, windowId.hi, role, options.name, JSON.stringify(value), index ?? null, encodedScope)) return false;
 				return true;
 			};
-			const input = async (value) => {
-				if (!await sendInput(value)) throw new Error(`no enabled ${locatorLabel}`);
+			const input = async (value, wait) => {
+				if (!await retryUntilHandled(() => sendInput(value), wait)) throw new Error(`no enabled ${locatorLabel}`);
 			};
 			const probe = async () => {
 				return decodeLocatorQuery(await capability().queryByRole(windowId.lo, windowId.hi, role, options.name, index ?? null, encodedScope), description, index);
@@ -383,7 +396,7 @@ function createPage(windowId, scope = []) {
 						wait
 					});
 					await waitUntilActionable(wait);
-					if (!await capability().clickByRole(windowId.lo, windowId.hi, role, options.name, index ?? null, encodedScope)) throw new Error(`no enabled ${locatorLabel}`);
+					if (!await retryUntilHandled(() => capability().clickByRole(windowId.lo, windowId.hi, role, options.name, index ?? null, encodedScope), wait)) throw new Error(`no enabled ${locatorLabel}`);
 				},
 				async dragBy(deltaX, deltaY, assertionOptions) {
 					validateInputDeltas("drag", deltaX, deltaY);
@@ -407,7 +420,7 @@ function createPage(windowId, scope = []) {
 						type: "drag",
 						deltaX,
 						deltaY
-					});
+					}, wait);
 				},
 				async press(key, modifiers = {}, assertionOptions) {
 					validateKey(key);
@@ -432,7 +445,7 @@ function createPage(windowId, scope = []) {
 						type: "key",
 						key,
 						modifiers: bits
-					});
+					}, wait);
 				},
 				async type(text, assertionOptions) {
 					const wait = resolvePollOptions(assertionOptions);
@@ -453,7 +466,7 @@ function createPage(windowId, scope = []) {
 					await input({
 						type: "text",
 						text
-					});
+					}, wait);
 				},
 				async paste(text, assertionOptions) {
 					const wait = resolvePollOptions(assertionOptions);
@@ -474,7 +487,7 @@ function createPage(windowId, scope = []) {
 					await input({
 						type: "paste",
 						text
-					});
+					}, wait);
 				},
 				async ime(text, assertionOptions) {
 					const wait = resolvePollOptions(assertionOptions);
@@ -495,7 +508,7 @@ function createPage(windowId, scope = []) {
 					await input({
 						type: "ime",
 						text
-					});
+					}, wait);
 				},
 				async wheel(deltaY, deltaX = 0, assertionOptions) {
 					validateInputDeltas("wheel", deltaX, deltaY);
@@ -515,11 +528,11 @@ function createPage(windowId, scope = []) {
 						wait
 					});
 					await waitUntilPresent(wait);
-					if (!await sendInput({
+					if (!await retryUntilHandled(() => sendInput({
 						type: "wheel",
 						deltaX,
 						deltaY
-					})) throw new Error(`cannot wheel ${locatorLabel}`);
+					}), wait)) throw new Error(`cannot wheel ${locatorLabel}`);
 				},
 				async waitFor(assertionOptions = {}) {
 					const wait = resolvePollOptions(assertionOptions);

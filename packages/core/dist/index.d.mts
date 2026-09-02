@@ -1,10 +1,10 @@
-import { T as ResourceKey, d as INTERACTION_POLICY, f as OP, h as Writer, m as TEXT_BEHAVIOR, s as GRAPHIC_SOURCE, t as EVENT_CODE } from "./protocol-CC46nxsy.mjs";
+import { T as ResourceKey } from "./protocol-U96s-ArE.mjs";
 import { a as subscribeFileDrop, i as FileDropPosition, n as FileDropHandler, o as useFileDrop, r as FileDropPhase, t as FileDropEvent } from "./file-drop-Ci2RppE8.mjs";
 import { n as WabouIntrinsicElements, t as HostCapabilities } from "./registry-DXOPfC3L.mjs";
-import { A as WabouStyle, C as WabouBaseUtility, D as WabouStaticUtility, E as WabouSpacingToken, O as WabouUtility, S as utilityConflictProperties, T as WabouDynamicUtility, _ as rgba, a as ShadowOptions, b as shadow, c as assertInlineStyleValue, d as classes, f as isTypedStyleValue, g as px, h as percent, i as Shadow, k as INLINE_STYLE_CONTRACT, l as auto, m as number, n as ClassValue, o as StyleValueKind, p as mergeClasses, r as STYLE_VALUE, s as TypedStyleValue, t as Affine2D, u as bool, v as rotate2d, w as WabouColorToken, x as translate2d, y as scale2d } from "./style-BbRTxPA4.mjs";
-import { $ as removeNode, A as WabouWheelEvent, At as PathFillRule, B as getRequestEvent, C as WabouScrollEvent, Ct as LayoutSnapshot, D as WabouTextCommitEvent, E as WabouSvgShapeProps, F as createTextNode, Ft as VectorPathPaint, G as memo, H as insertNode, I as delegateEvents, It as isVectorPath, J as observeGlobalPointerEvent, K as mergeProps, L as dispatchEvent, M as applyRef, Mt as PathLineJoin, N as createComponent, Nt as PathPoint, O as WabouTextSelectionChangeEvent, P as createElement, Pt as VectorPath, Q as releaseOverlayRoot, R as effect, S as WabouPositionedEvent, St as LayoutScrollMetrics, T as WabouSvgProps, Tt as JSX, U as isDirectEvent, V as insert, W as isServer, X as ref, Y as reconcileControlledInputValues, Z as registerRoot, _ as WabouKeyEvent, _t as useHost, a as WabouBuiltinIntrinsicElements, at as writer, b as WabouNodeEvent, bt as LayoutNodeMetrics, c as WabouEventTarget, ct as Portal, d as WabouGlobalPointerListener, dt as DebugOverlayOptions, et as render, f as WabouImageProps, ft as Host, g as WabouInputProps, gt as defaultHost, h as WabouInputEvent, ht as LayoutTarget, i as NativeScrollbarStyle, it as spread, j as acquireOverlayRoot, jt as PathLineCap, k as WabouVectorPathProps, kt as PathBuilder, l as WabouExposedSemanticRole, lt as PortalProps, m as WabouImePreeditEvent, mt as HostProviderProps, n as DynamicProps, nt as setProp, o as WabouControlProps, ot as VirtualList, p as WabouImeDeleteSurroundingEvent, pt as HostProvider, q as mount, r as Handle, rt as setTransform2D, s as WabouElementProps, st as VirtualListProps, t as Dynamic, tt as runSweep, u as WabouGlobalPointerEventType, ut as BuiltinHost, v as WabouNativeElements, vt as DebugOverlayPaintStats, w as WabouSemanticRole, x as WabouPointerEvent, xt as LayoutRect, y as WabouNativeTag, yt as FrameStats, z as getMountRoot } from "./index-CgIAyiYi.mjs";
-import { t as createFps } from "./renderer-CYe_ZSth.mjs";
-import { Accessor, JSX as JSX$1, SourceAccessor } from "solid-js";
+import { A as WabouStyle, C as WabouBaseUtility, D as WabouStaticUtility, E as WabouSpacingToken, O as WabouUtility, S as utilityConflictProperties, T as WabouDynamicUtility, _ as rgba, a as ShadowOptions, b as shadow, c as assertInlineStyleValue, d as classes, f as isTypedStyleValue, g as px, h as percent, i as Shadow, k as INLINE_STYLE_CONTRACT, l as auto, m as number, n as ClassValue, o as StyleValueKind, p as mergeClasses, r as STYLE_VALUE, s as TypedStyleValue, t as Affine2D, u as bool, v as rotate2d, w as WabouColorToken, x as translate2d, y as scale2d } from "./style-D-UEvXmH.mjs";
+import { A as WabouTextSelectionChangeEvent, Bt as isVectorPath, C as WabouPositionedEvent, Ct as FrameStats, D as WabouSvgProps, Dt as LayoutSnapshot, E as WabouSubmitEvent, Et as LayoutScrollMetrics, Ft as PathLineCap, It as PathLineJoin, Lt as PathPoint, M as WabouValueChangeEvent, N as WabouVectorPathProps, Nt as PathBuilder, O as WabouSvgShapeProps, P as WabouWheelEvent, Pt as PathFillRule, Q as observeGlobalPointerEvent, Rt as VectorPath, S as WabouPointerEvent, St as DebugOverlayPaintStats, T as WabouSemanticRole, Tt as LayoutRect, Z as mount, _ as WabouKeyEvent, _t as HostProvider, a as WabouBuiltinIntrinsicElements, b as WabouNativeTransition, bt as defaultHost, c as WabouEventTarget, d as WabouGlobalPointerListener, dt as VirtualListProps, f as WabouImageProps, ft as Portal, g as WabouInputProps, gt as Host, h as WabouInputEvent, ht as DebugOverlayOptions, j as WabouTransitionEvent, k as WabouTextCommitEvent, l as WabouExposedSemanticRole, m as WabouImePreeditEvent, mt as BuiltinHost, n as DynamicProps, o as WabouControlProps, p as WabouImeDeleteSurroundingEvent, pt as PortalProps, q as isDirectEvent, r as Handle, s as WabouElementProps, st as setTransform2D, t as Dynamic, u as WabouGlobalPointerEventType, ut as VirtualList, v as WabouNativeElements, vt as HostProviderProps, w as WabouScrollEvent, wt as LayoutNodeMetrics, x as WabouNodeEvent, xt as useHost, y as WabouNativeTag, yt as LayoutTarget, zt as VectorPathPaint } from "./index-CJcmAMic.mjs";
+import { t as createFps } from "./renderer-CpKrndzz.mjs";
+import { Accessor, JSX, SourceAccessor } from "solid-js";
 //#region src/generated/host-abi.d.ts
 declare global {
   const __wabou_capabilities: Record<string, object>;
@@ -118,10 +118,8 @@ interface CreateWindowOptions {
   resizable?: boolean;
   /** Show native window-manager borders and title bar. */
   decorations?: boolean;
-  /** Preserve rendered alpha when the platform compositor supports it. */
-  transparent?: boolean;
-  /** Select a renderer compiled into the Rust host. */
-  renderer?: "vello" | "skia";
+  /** Native compositor material visible through transparent app content. */
+  background?: "opaque" | "transparent" | "blurred" | "mica" | "micaAlt";
   /** Initial native stacking request. Wayland generally ignores non-normal levels. */
   windowLevel?: "alwaysOnBottom" | "normal" | "alwaysOnTop";
   /** Allow pointer input to pass through this native window where supported. */
@@ -159,6 +157,7 @@ interface WindowMetrics {
   outerY: number | null;
   occluded: boolean;
   colorScheme: "light" | "dark" | null;
+  reducedMotion: boolean;
 }
 interface WindowState extends WindowHandle {
   metrics: Accessor<WindowMetrics>;
@@ -171,6 +170,7 @@ interface WindowState extends WindowHandle {
   outerY: Accessor<number | null>;
   occluded: Accessor<boolean>;
   colorScheme: Accessor<"light" | "dark">;
+  reducedMotion: Accessor<boolean>;
 }
 /** Inclusive logical-pixel constraints evaluated against the native client area. */
 interface WindowSizeQuery {
@@ -235,10 +235,10 @@ interface AppDirectories {
   readonly resourceDir: string;
   readonly tempDir: string;
 }
-/** Resolve all app-private roots once and reuse the same native result. */
-declare function resolveAppDirectories(): Promise<AppDirectories>;
+declare function resolve$1(): Promise<AppDirectories>;
+/** Resolve app-private native roots, caching the host result for this runtime. */
 declare const appDirs: Readonly<{
-  resolve: typeof resolveAppDirectories;
+  resolve: typeof resolve$1;
   config: () => Promise<string>;
   data: () => Promise<string>;
   localData: () => Promise<string>;
@@ -247,13 +247,6 @@ declare const appDirs: Readonly<{
   resource: () => Promise<string>;
   temp: () => Promise<string>;
 }>;
-declare const appConfigDir: () => Promise<string>;
-declare const appDataDir: () => Promise<string>;
-declare const appLocalDataDir: () => Promise<string>;
-declare const appCacheDir: () => Promise<string>;
-declare const appLogDir: () => Promise<string>;
-declare const resourceDir: () => Promise<string>;
-declare const tempDir: () => Promise<string>;
 //#endregion
 //#region src/glue/application.d.ts
 interface Application {
@@ -424,8 +417,8 @@ declare const colorTheme: ColorThemeController;
 declare function ColorThemeProvider(props: {
   theme: string;
   transition?: ColorThemeAnimationOptions | false;
-  children: JSX$1.Element;
-}): JSX$1.Element;
+  children: JSX.Element;
+}): JSX.Element;
 declare function useColorTheme(): ColorThemeController;
 //#endregion
 //#region src/glue/entity-list.d.ts
@@ -433,8 +426,8 @@ type EntityKey = string | number;
 interface ForEntityProps<T, K extends EntityKey> {
   each: readonly T[] | undefined | null | false;
   by: (item: T) => K;
-  fallback?: JSX$1.Element;
-  children: (item: T, index: Accessor<number>) => JSX$1.Element;
+  fallback?: JSX.Element;
+  children: (item: T, index: Accessor<number>) => JSX.Element;
 }
 declare function validateEntityKeys<T, K extends EntityKey>(values: readonly T[], by: (item: T) => K): readonly T[];
 /**
@@ -444,7 +437,7 @@ declare function validateEntityKeys<T, K extends EntityKey>(values: readonly T[]
  * internal signals/stores instead of replacing it with a new snapshot carrying
  * the same key. This keeps native widgets and other owned resources mounted.
  */
-declare function ForEntity<T, K extends EntityKey>(props: ForEntityProps<T, K>): JSX$1.Element;
+declare function ForEntity<T, K extends EntityKey>(props: ForEntityProps<T, K>): JSX.Element;
 //#endregion
 //#region src/glue/event-effect.d.ts
 interface EventEffectOptions<T> {
@@ -539,27 +532,17 @@ interface CapabilityClientOptions {
   version: number;
 }
 declare class CapabilityError extends Error {
-  readonly code: "capability_unavailable";
-  constructor(message: string);
+  readonly code: string;
+  constructor(message: string, code?: string);
 }
 /** Validate and expose one versioned native capability namespace. */
 declare function bindCapability<Capability extends NativeCapability>(capability: Capability | undefined, options: CapabilityClientOptions): Capability;
 //#endregion
 //#region src/glue/json-capability.d.ts
-/** A capability namespace containing one or more JSON-coded methods. */
-interface NativeJsonCapability extends NativeCapability {}
 type JsonCapabilityMethodName<Capability> = Extract<{ [Key in keyof Capability]: Capability[Key] extends ((...args: never[]) => unknown) ? Key : never; }[keyof Capability], string>;
-interface JsonCapabilityClientOptions {
-  name: string;
-  version: number;
-}
-declare class JsonCapabilityError extends Error {
-  readonly code?: string;
-  constructor(message: string, code?: string);
-}
 type JsonCapabilityClient = <Response>(method: string, request?: unknown) => Promise<Response>;
 /** Bind Wabou's versioned JSON capability transport to a typed app wrapper. */
-declare function bindJsonCapability<Capability extends NativeJsonCapability>(capability: Capability | undefined, options: JsonCapabilityClientOptions): JsonCapabilityClient;
+declare function bindJsonCapability<Capability extends NativeCapability>(capability: Capability | undefined, options: CapabilityClientOptions): JsonCapabilityClient;
 //#endregion
 //#region src/glue/kv.d.ts
 /** JSON-compatible values stored by the built-in KV service. */
@@ -712,10 +695,12 @@ interface LatestAsyncResourceOptions<K, T> {
   source: Accessor<K | undefined>;
   load: (key: K, context: {
     signal: AbortSignal;
-  }) => Promise<T>;
+  }) => T | PromiseLike<T>;
   initialValue?: T;
   retainPrevious?: boolean;
   autoLoad?: boolean;
+  /** Runs synchronously before a latest load or local mutation is published. */
+  onCommit?: (value: T) => void;
 }
 type LatestAsyncResourceStatus = "idle" | "pending" | "ready" | "error";
 interface LatestAsyncResource<T> {
@@ -775,10 +760,10 @@ interface PlatformServices {
 }
 interface PlatformProviderProps {
   value: Partial<PlatformServices>;
-  children?: JSX$1.Element;
+  children?: JSX.Element;
 }
 /** Override native services for one Solid subtree, primarily for tests and previews. */
-declare function PlatformProvider(props: PlatformProviderProps): JSX$1.Element;
+declare function PlatformProvider(props: PlatformProviderProps): JSX.Element;
 //#endregion
 //#region src/keyed-list.d.ts
 interface KeyedListPatch<T, Key> {
@@ -793,5 +778,5 @@ interface KeyedListPatch<T, Key> {
  */
 declare function reconcileKeyedList<T, Key>(current: readonly T[], patch: KeyedListPatch<T, Key>, keyOf: (value: T) => Key): T[] | undefined;
 //#endregion
-export { Affine2D, type AppDirectories, type AppLifecycleEvent, type AppLifecycleState, type Application, type AsyncAction, AsyncActionConflictError, type AsyncActionResult, type AsyncQuery, type AsyncQueryOptions, type BuiltinHost, type CalendarDateFields, type CapabilityClientOptions, CapabilityError, ClassValue, type Clipboard, type ColorPalette, type ColorThemeAnimation, type ColorThemeAnimationOptions, type ColorThemeController, type ColorThemeEasing, ColorThemeProvider, type CreateWindowOptions, type DebugOverlayOptions, type DebugOverlayPaintStats, type Dialog, type DialogFilter, Dynamic, DynamicProps, EVENT_CODE, type EntityKey, type EventEffectOptions, type FileDropEvent, type FileDropHandler, type FileDropPhase, type FileDropPosition, ForEntity, type ForEntityProps, type FrameStats, GRAPHIC_SOURCE, type GestureEvent, type GestureHandler, type GesturePhase, Handle, type Host, HostCapabilities, type HostJsonSubscriptionOptions, type HostMessage, type HostMessageAllHandler, type HostMessageHandler, HostProvider, type HostProviderProps, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, type JSX, type JsonCapabilityClient, type JsonCapabilityClientOptions, JsonCapabilityError, type JsonCapabilityMethodName, type KeyboardModifiers, type KeyedAsyncAction, KeyedListPatch, type Kv, KvAtomicOperation, type KvCheck, type KvCommitResult, type KvEntry, type KvKey, type KvKeyPart, type KvListOptions, type KvSetOptions, type KvSignal, type KvValue, type KvVersionstamp, type LatestAsyncResource, type LatestAsyncResourceOptions, type LatestAsyncResourceStatus, type LayoutNodeMetrics, type LayoutRect, type LayoutScrollMetrics, type LayoutSnapshot, type LayoutTarget, type MessageDialogButtons, type MessageDialogLevel, type MessageDialogOptions, type MessageDialogResult, type NativeCapability, type NativeJsonCapability, type NativeMenuItem, type NativeMenuOptions, type NativeMenuPosition, NativeScrollbarStyle, type Notification, type NotificationOptions, OP, type OpenDialogOptions, PathBuilder, PathFillRule, PathLineCap, PathLineJoin, PathPoint, type PickDirectoryOptions, PlatformProvider, type PlatformProviderProps, type PlatformServices, Portal, type PortalProps, type RevisionedHostPatch, type RevisionedHostResource, type RevisionedHostResourceOptions, type RevisionedHostValue, RevisionedHostWaitError, type RevisionedHostWaitErrorReason, type RevisionedHostWaitOptions, STYLE_VALUE, type SaveDialogOptions, Shadow, ShadowOptions, StyleValueKind, TEXT_BEHAVIOR, TypedStyleValue, VectorPath, VectorPathPaint, VirtualList, type VirtualListProps, WabouBaseUtility, WabouBuiltinIntrinsicElements, WabouColorToken, WabouControlProps, WabouDynamicUtility, WabouElementProps, WabouEventTarget, WabouExposedSemanticRole, WabouGlobalPointerEventType, WabouGlobalPointerListener, WabouImageProps, WabouImeDeleteSurroundingEvent, WabouImePreeditEvent, WabouInputEvent, WabouInputProps, WabouIntrinsicElements, WabouKeyEvent, WabouNativeElements, WabouNativeTag, WabouNodeEvent, WabouPointerEvent, WabouPositionedEvent, WabouScrollEvent, WabouSemanticRole, WabouSpacingToken, WabouStaticUtility, type WabouStyle, WabouSvgProps, WabouSvgShapeProps, WabouTextCommitEvent, WabouTextSelectionChangeEvent, WabouUtility, WabouVectorPathProps, WabouWheelEvent, type WindowHandle, type WindowKey, type WindowMetrics, type WindowSizeQuery, type WindowState, type Writer, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createAsyncQuery, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createKvSignal, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, openKv, percent, px, reconcileControlledInputValues, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys, writer };
+export { Affine2D, type AppDirectories, type AppLifecycleEvent, type AppLifecycleState, type Application, type AsyncAction, AsyncActionConflictError, type AsyncActionResult, type AsyncQuery, type AsyncQueryOptions, type BuiltinHost, type CalendarDateFields, type CapabilityClientOptions, CapabilityError, ClassValue, type Clipboard, type ColorPalette, type ColorThemeAnimation, type ColorThemeAnimationOptions, type ColorThemeController, type ColorThemeEasing, ColorThemeProvider, type CreateWindowOptions, type DebugOverlayOptions, type DebugOverlayPaintStats, type Dialog, type DialogFilter, Dynamic, type DynamicProps, type EntityKey, type EventEffectOptions, type FileDropEvent, type FileDropHandler, type FileDropPhase, type FileDropPosition, ForEntity, type ForEntityProps, type FrameStats, type GestureEvent, type GestureHandler, type GesturePhase, type Handle, type Host, HostCapabilities, type HostJsonSubscriptionOptions, type HostMessage, type HostMessageAllHandler, type HostMessageHandler, HostProvider, type HostProviderProps, INLINE_STYLE_CONTRACT, type JsonCapabilityClient, type JsonCapabilityMethodName, type KeyboardModifiers, type KeyedAsyncAction, KeyedListPatch, type Kv, KvAtomicOperation, type KvCheck, type KvCommitResult, type KvEntry, type KvKey, type KvKeyPart, type KvListOptions, type KvSetOptions, type KvSignal, type KvValue, type KvVersionstamp, type LatestAsyncResource, type LatestAsyncResourceOptions, type LatestAsyncResourceStatus, type LayoutNodeMetrics, type LayoutRect, type LayoutScrollMetrics, type LayoutSnapshot, type LayoutTarget, type MessageDialogButtons, type MessageDialogLevel, type MessageDialogOptions, type MessageDialogResult, type NativeCapability, type NativeMenuItem, type NativeMenuOptions, type NativeMenuPosition, type Notification, type NotificationOptions, type OpenDialogOptions, PathBuilder, PathFillRule, PathLineCap, PathLineJoin, PathPoint, type PickDirectoryOptions, PlatformProvider, type PlatformProviderProps, type PlatformServices, Portal, type PortalProps, type RevisionedHostPatch, type RevisionedHostResource, type RevisionedHostResourceOptions, type RevisionedHostValue, RevisionedHostWaitError, type RevisionedHostWaitErrorReason, type RevisionedHostWaitOptions, STYLE_VALUE, type SaveDialogOptions, Shadow, ShadowOptions, StyleValueKind, TypedStyleValue, VectorPath, VectorPathPaint, VirtualList, type VirtualListProps, WabouBaseUtility, type WabouBuiltinIntrinsicElements, WabouColorToken, type WabouControlProps, WabouDynamicUtility, type WabouElementProps, type WabouEventTarget, type WabouExposedSemanticRole, type WabouGlobalPointerEventType, type WabouGlobalPointerListener, type WabouImageProps, type WabouImeDeleteSurroundingEvent, type WabouImePreeditEvent, type WabouInputEvent, type WabouInputProps, WabouIntrinsicElements, type WabouKeyEvent, type WabouNativeElements, type WabouNativeTag, type WabouNativeTransition, type WabouNodeEvent, type WabouPointerEvent, type WabouPositionedEvent, type WabouScrollEvent, type WabouSemanticRole, WabouSpacingToken, WabouStaticUtility, type WabouStyle, type WabouSubmitEvent, type WabouSvgProps, type WabouSvgShapeProps, type WabouTextCommitEvent, type WabouTextSelectionChangeEvent, type WabouTransitionEvent, WabouUtility, type WabouValueChangeEvent, type WabouVectorPathProps, type WabouWheelEvent, type WindowHandle, type WindowKey, type WindowMetrics, type WindowSizeQuery, type WindowState, appDirs, application, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createAsyncQuery, createEventEffect, createFps, createKeyedAsyncAction, createKvSignal, createLatestAsyncResource, createRevisionedHostResource, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, dialog, hostMessages, intl, isDirectEvent, isTypedStyleValue, isVectorPath, mergeClasses, mount, notification, number, observeGlobalPointerEvent, openKv, percent, px, reconcileKeyedList, rgba, rotate2d, scale2d, setTransform2D, shadow, showNativeMenu, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys };
 //# sourceMappingURL=index.d.mts.map

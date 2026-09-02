@@ -20,6 +20,11 @@ const INLINE_STYLE_CONTRACT = {
 		number: true,
 		typed: [3]
 	},
+	"backdrop-blur": {
+		string: true,
+		number: true,
+		typed: [1]
+	},
 	background: {
 		string: true,
 		number: false,
@@ -29,6 +34,16 @@ const INLINE_STYLE_CONTRACT = {
 		string: true,
 		number: false,
 		typed: [5]
+	},
+	"border-bottom-left-radius": {
+		string: true,
+		number: true,
+		typed: [1]
+	},
+	"border-bottom-right-radius": {
+		string: true,
+		number: true,
+		typed: [1]
 	},
 	"border-bottom-width": {
 		string: true,
@@ -55,6 +70,16 @@ const INLINE_STYLE_CONTRACT = {
 		number: true,
 		typed: [1]
 	},
+	"border-top-left-radius": {
+		string: true,
+		number: true,
+		typed: [1]
+	},
+	"border-top-right-radius": {
+		string: true,
+		number: true,
+		typed: [1]
+	},
 	"border-top-width": {
 		string: true,
 		number: true,
@@ -75,11 +100,6 @@ const INLINE_STYLE_CONTRACT = {
 			6
 		]
 	},
-	"box-sizing": {
-		string: true,
-		number: false,
-		typed: []
-	},
 	color: {
 		string: true,
 		number: false,
@@ -94,11 +114,6 @@ const INLINE_STYLE_CONTRACT = {
 			3
 		]
 	},
-	contain: {
-		string: true,
-		number: false,
-		typed: []
-	},
 	cursor: {
 		string: true,
 		number: false,
@@ -108,6 +123,11 @@ const INLINE_STYLE_CONTRACT = {
 		string: true,
 		number: false,
 		typed: []
+	},
+	"filter-blur": {
+		string: true,
+		number: true,
+		typed: [1]
 	},
 	"flex-basis": {
 		string: true,
@@ -168,11 +188,6 @@ const INLINE_STYLE_CONTRACT = {
 			3
 		]
 	},
-	"grid-auto-flow": {
-		string: true,
-		number: false,
-		typed: []
-	},
 	"grid-column-end": {
 		string: true,
 		number: true,
@@ -204,16 +219,6 @@ const INLINE_STYLE_CONTRACT = {
 		]
 	},
 	"justify-content": {
-		string: true,
-		number: false,
-		typed: []
-	},
-	"justify-items": {
-		string: true,
-		number: false,
-		typed: []
-	},
-	"justify-self": {
 		string: true,
 		number: false,
 		typed: []
@@ -353,26 +358,6 @@ const INLINE_STYLE_CONTRACT = {
 		number: true,
 		typed: [3]
 	},
-	"outline-color": {
-		string: true,
-		number: false,
-		typed: [5]
-	},
-	"outline-offset": {
-		string: true,
-		number: true,
-		typed: [1]
-	},
-	"outline-style": {
-		string: true,
-		number: false,
-		typed: []
-	},
-	"outline-width": {
-		string: true,
-		number: true,
-		typed: [1]
-	},
 	overflow: {
 		string: true,
 		number: false,
@@ -467,6 +452,11 @@ const INLINE_STYLE_CONTRACT = {
 		number: false,
 		typed: []
 	},
+	"text-decoration-line": {
+		string: true,
+		number: false,
+		typed: []
+	},
 	"text-overflow": {
 		string: true,
 		number: false,
@@ -481,16 +471,6 @@ const INLINE_STYLE_CONTRACT = {
 			3,
 			6
 		]
-	},
-	"transform-origin-x": {
-		string: true,
-		number: true,
-		typed: [1]
-	},
-	"transform-origin-y": {
-		string: true,
-		number: true,
-		typed: [1]
 	},
 	"user-select": {
 		string: true,
@@ -810,7 +790,19 @@ const UTILITY_CONFLICT_DATA = {
 		absolute: ["position"],
 		"aspect-square": ["aspect-ratio"],
 		"aspect-video": ["aspect-ratio"],
+		"backdrop-blur": ["backdrop-blur"],
+		"backdrop-blur-lg": ["backdrop-blur"],
+		"backdrop-blur-md": ["backdrop-blur"],
+		"backdrop-blur-none": ["backdrop-blur"],
+		"backdrop-blur-sm": ["backdrop-blur"],
+		"backdrop-blur-xl": ["backdrop-blur"],
 		block: ["display"],
+		blur: ["filter-blur"],
+		"blur-lg": ["filter-blur"],
+		"blur-md": ["filter-blur"],
+		"blur-none": ["filter-blur"],
+		"blur-sm": ["filter-blur"],
+		"blur-xl": ["filter-blur"],
 		border: [
 			"border-top-width",
 			"border-right-width",
@@ -904,7 +896,6 @@ const UTILITY_CONFLICT_DATA = {
 		"cursor-ns-resize": ["cursor"],
 		"cursor-pointer": ["cursor"],
 		"cursor-text": ["cursor"],
-		"cursor-wait": ["cursor"],
 		flex: ["display"],
 		"flex-1": [
 			"flex-grow",
@@ -974,6 +965,7 @@ const UTILITY_CONFLICT_DATA = {
 		"leading-normal": ["line-height"],
 		"leading-relaxed": ["line-height"],
 		"leading-tight": ["line-height"],
+		"line-through": ["text-decoration-line"],
 		"max-w-2xl": ["max-width"],
 		"max-w-3xl": ["max-width"],
 		"max-w-4xl": ["max-width"],
@@ -985,6 +977,7 @@ const UTILITY_CONFLICT_DATA = {
 		"max-w-sm": ["max-width"],
 		"max-w-xl": ["max-width"],
 		"max-w-xs": ["max-width"],
+		"no-underline": ["text-decoration-line"],
 		"not-italic": ["font-style"],
 		"origin-bottom-left": ["transform-origin-x", "transform-origin-y"],
 		"origin-bottom-right": ["transform-origin-x", "transform-origin-y"],
@@ -1019,11 +1012,16 @@ const UTILITY_CONFLICT_DATA = {
 		rounded: ["border-radius"],
 		"rounded-2xl": ["border-radius"],
 		"rounded-3xl": ["border-radius"],
+		"rounded-b-lg": ["border-bottom-left-radius", "border-bottom-right-radius"],
 		"rounded-full": ["border-radius"],
+		"rounded-l-lg": ["border-top-left-radius", "border-bottom-left-radius"],
 		"rounded-lg": ["border-radius"],
 		"rounded-md": ["border-radius"],
 		"rounded-none": ["border-radius"],
+		"rounded-r-lg": ["border-top-right-radius", "border-bottom-right-radius"],
+		"rounded-r-none": ["border-top-right-radius", "border-bottom-right-radius"],
 		"rounded-sm": ["border-radius"],
+		"rounded-t-lg": ["border-top-left-radius", "border-top-right-radius"],
 		"rounded-xl": ["border-radius"],
 		"row-end-1": ["grid-row-end"],
 		"row-end-10": ["grid-row-end"],
@@ -1114,6 +1112,7 @@ const UTILITY_CONFLICT_DATA = {
 			"white-space",
 			"text-overflow"
 		],
+		underline: ["text-decoration-line"],
 		"whitespace-normal": ["white-space"],
 		"whitespace-nowrap": ["white-space"],
 		"z-0": ["z-index"],
@@ -1492,7 +1491,7 @@ const number = (value) => typed(StyleValueKind.Number, finite(value, "number"));
 const bool = (value) => typed(StyleValueKind.Boolean, value ? 1 : 0);
 /** Packed RGBA in `0xRRGGBBAA` order. */
 const rgba = (value) => typed(StyleValueKind.Color, finite(value, "rgba") >>> 0);
-/** Construct and validate a Vello-native shadow layer. */
+/** Construct and validate a native retained shadow layer. */
 function shadow(options) {
 	const result = {
 		offsetX: options.offsetX ?? 0,
@@ -1637,4 +1636,4 @@ function mergeClasses(...values) {
 //#endregion
 export { utilityConflictProperties as _, bool as a, mergeClasses as c, px as d, rgba as f, translate2d as g, shadow as h, auto as i, number as l, scale2d as m, StyleValueKind as n, classes as o, rotate2d as p, assertInlineStyleValue as r, isTypedStyleValue as s, STYLE_VALUE as t, percent as u, INLINE_STYLE_CONTRACT as v };
 
-//# sourceMappingURL=style-BoQjkXmV.mjs.map
+//# sourceMappingURL=style-DgJ-RVg4.mjs.map

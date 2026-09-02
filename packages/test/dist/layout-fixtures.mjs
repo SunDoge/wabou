@@ -18,8 +18,8 @@ function defineComponentFixtures(fixtures, options = {}) {
 			scaleFactor: fixture.scaleFactor ?? options.scaleFactor,
 			waitMs: fixture.waitMs ?? options.waitMs,
 			render: () => {
-				const content = createComponent(fixture.render, {});
-				return options.wrap?.(content) ?? content;
+				const render = () => createComponent(fixture.render, {});
+				return options.wrap?.(render) ?? render();
 			}
 		}];
 	}));

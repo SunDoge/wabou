@@ -1,22 +1,18 @@
 import { t as __exportAll } from "./rolldown-runtime-D7D4PA-g.mjs";
-import { PathBuilder, bindJsonCapability, useHost } from "@wabou/core";
-import { mergeClasses, number, px, rotate2d, rotate2d as rotate2d$1, scale2d, translate2d, translate2d as translate2d$1 } from "@wabou/core/style";
+import { PathBuilder, bindJsonCapability, useHost, useWindow } from "@wabou/core";
+import { mergeClasses, number, px, rgba as rgba$1, rotate2d, rotate2d as rotate2d$1, scale2d, translate2d, translate2d as translate2d$1 } from "@wabou/core/style";
 import { animateValue, interpolate } from "motion-dom";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, untrack, useContext } from "solid-js";
 import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, memo, mergeProps, observeGlobalPointerEvent, spread, useHost as useHost$1 } from "@wabou/core/renderer";
 import { match } from "ts-pattern";
-import { EditorSelection, EditorState, findClusterBreak } from "@codemirror/state";
-import { TreeFragment } from "@lezer/common";
-import { highlightTree, tagHighlighter, tags } from "@lezer/highlight";
-import { parser } from "@lezer/json";
 import { arrow, autoPlacement, computePosition, flip, offset, shift, size } from "@floating-ui/core";
 import { formatNodeKey } from "@wabou/core/protocol";
 //#region src/animation/config.tsx
-const DEFAULT_MOTION_CONFIG = Object.freeze({ reducedMotion: () => false });
+const DEFAULT_MOTION_CONFIG = Object.freeze({ reducedMotion: () => useWindow().reducedMotion() });
 const MotionConfigContext = createContext(DEFAULT_MOTION_CONFIG);
 /** Application-level motion policy inherited by all styled Wabou components. */
 function MotionConfigProvider(props) {
-	const parent = useContext(MotionConfigContext);
+	const parent = useMotionConfig();
 	return createComponent$1(MotionConfigContext, {
 		value: { reducedMotion: () => props.reducedMotion ?? parent.reducedMotion() },
 		get children() {
@@ -104,6 +100,22 @@ function animateKeyframes(keyframes, options = {}) {
 	}));
 }
 const read = (value, fallback) => typeof value === "function" ? value() : value ?? fallback;
+function positiveFinite(value, fallback) {
+	return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+/**
+* Compile reactive Solid animation policy into a stable native timeline DTO.
+* This accessor changes only when authored policy changes, never per frame.
+*/
+function createNativeLoopAnimation(options = {}) {
+	return createMemo(() => ({
+		kind: "loop",
+		duration: positiveFinite(read(options.duration, 1), 1),
+		speed: positiveFinite(read(options.speed, 1), 1),
+		paused: read(options.paused, false),
+		reducedMotion: read(options.reducedMotion, false)
+	}));
+}
 /**
 * Lifecycle-owned finite or repeating keyframe animation.
 *
@@ -400,331 +412,6 @@ function createActive(disabled) {
 	};
 }
 //#endregion
-//#region src/primitives/code-editor-state.ts
-const jsonHighlighter = tagHighlighter([
-	{
-		tag: tags.propertyName,
-		class: "property"
-	},
-	{
-		tag: tags.string,
-		class: "string"
-	},
-	{
-		tag: tags.number,
-		class: "number"
-	},
-	{
-		tag: tags.bool,
-		class: "boolean"
-	},
-	{
-		tag: tags.null,
-		class: "null"
-	}
-]);
-function changedRange(previous, next) {
-	let prefix = 0;
-	const shared = Math.min(previous.length, next.length);
-	while (prefix < shared && previous.charCodeAt(prefix) === next.charCodeAt(prefix)) prefix += 1;
-	let previousEnd = previous.length;
-	let nextEnd = next.length;
-	while (previousEnd > prefix && nextEnd > prefix && previous.charCodeAt(previousEnd - 1) === next.charCodeAt(nextEnd - 1)) {
-		previousEnd -= 1;
-		nextEnd -= 1;
-	}
-	return {
-		prefix,
-		previousEnd,
-		nextEnd
-	};
-}
-/**
-* DOM-free CodeMirror document used by Wabou's config/Markdown editor.
-*
-* CodeMirror owns text, selection, transactions and undo. The Rust widget is
-* only a controlled native viewport. A future Helix frontend deliberately
-* uses helix-core instead while reusing the viewport contract.
-*/
-var CodeEditorDocument = class {
-	#state;
-	#tree = null;
-	#language;
-	#composition = null;
-	#undo = [];
-	#redo = [];
-	constructor(value = "", language) {
-		this.#state = EditorState.create({ doc: value });
-		this.setLanguage(language);
-	}
-	get value() {
-		return this.#state.doc.toString();
-	}
-	get selection() {
-		const { anchor, head } = this.#state.selection.main;
-		return {
-			anchor,
-			head
-		};
-	}
-	setLanguage(language) {
-		if (language === this.#language) return;
-		this.#language = language;
-		this.#tree = language === "json" ? parser.parse(this.value) : null;
-	}
-	sync(value, language = this.#language) {
-		this.setLanguage(language);
-		if (value === this.value) return;
-		const { prefix, previousEnd, nextEnd } = changedRange(this.value, value);
-		this.#apply({ changes: {
-			from: prefix,
-			to: previousEnd,
-			insert: value.slice(prefix, nextEnd)
-		} }, false);
-		this.#undo = [];
-		this.#redo = [];
-	}
-	setSelection(anchor, head) {
-		const length = this.#state.doc.length;
-		anchor = Math.max(0, Math.min(anchor, length));
-		head = Math.max(0, Math.min(head, length));
-		const current = this.#state.selection.main;
-		if (current.anchor === anchor && current.head === head) return false;
-		this.#state = this.#state.update({ selection: EditorSelection.single(anchor, head) }).state;
-		return true;
-	}
-	setComposition(text, cursorStart, cursorEnd) {
-		const next = text ? {
-			text,
-			cursorStart,
-			cursorEnd
-		} : null;
-		if (JSON.stringify(next) === JSON.stringify(this.#composition)) return false;
-		this.#composition = next;
-		return true;
-	}
-	commitText(text) {
-		this.#composition = null;
-		const { from, to } = this.#state.selection.main;
-		return this.#apply({
-			changes: {
-				from,
-				to,
-				insert: text
-			},
-			selection: { anchor: from + text.length }
-		});
-	}
-	deleteSurrounding(beforeBytes, afterBytes) {
-		const head = this.#state.selection.main.head;
-		const before = this.#offsetByUtf8Bytes(head, -beforeBytes);
-		const after = this.#offsetByUtf8Bytes(head, afterBytes);
-		this.#composition = null;
-		if (before === after) return false;
-		return this.#apply({
-			changes: {
-				from: before,
-				to: after
-			},
-			selection: { anchor: before }
-		});
-	}
-	handleKey(event) {
-		const key = event.key;
-		if (event.primary && ["c", "v"].includes(key.toLowerCase())) return {
-			handled: false,
-			changed: false
-		};
-		if (event.primary && key.toLowerCase() === "a") {
-			this.setSelection(0, this.#state.doc.length);
-			return {
-				handled: true,
-				changed: false
-			};
-		}
-		if (event.primary && key.toLowerCase() === "z") {
-			if (event.readOnly) return {
-				handled: true,
-				changed: false
-			};
-			return {
-				handled: true,
-				changed: event.shift ? this.#restore(this.#redo, this.#undo) : this.#restore(this.#undo, this.#redo)
-			};
-		}
-		const range = this.#state.selection.main;
-		const collapseOrExtend = (head) => {
-			this.setSelection(event.shift ? range.anchor : head, head);
-			return {
-				handled: true,
-				changed: false
-			};
-		};
-		if (key === "ArrowLeft" || key === "ArrowRight") {
-			if (!event.shift && !range.empty) return collapseOrExtend(key === "ArrowLeft" ? range.from : range.to);
-			return collapseOrExtend(findClusterBreak(this.value, range.head, key === "ArrowRight"));
-		}
-		if (key === "ArrowUp" || key === "ArrowDown") {
-			const line = this.#state.doc.lineAt(range.head);
-			const column = range.head - line.from;
-			const number = Math.max(1, Math.min(this.#state.doc.lines, line.number + (key === "ArrowUp" ? -1 : 1)));
-			const target = this.#state.doc.line(number);
-			return collapseOrExtend(Math.min(target.from + column, target.to));
-		}
-		if (key === "Home" || key === "End") {
-			const line = this.#state.doc.lineAt(range.head);
-			return collapseOrExtend(key === "Home" ? line.from : line.to);
-		}
-		if (key === "Backspace" || key === "Delete") {
-			if (event.readOnly) return {
-				handled: true,
-				changed: false
-			};
-			let { from, to } = range;
-			if (range.empty) {
-				const moved = findClusterBreak(this.value, range.head, key === "Delete");
-				from = Math.min(range.head, moved);
-				to = Math.max(range.head, moved);
-			}
-			return {
-				handled: true,
-				changed: from !== to && this.#apply({
-					changes: {
-						from,
-						to
-					},
-					selection: { anchor: from }
-				})
-			};
-		}
-		if (key === "Enter") {
-			if (event.readOnly) return {
-				handled: true,
-				changed: false
-			};
-			const indentation = this.#state.doc.lineAt(range.head).text.match(/^\s*/)?.[0] ?? "";
-			return {
-				handled: true,
-				changed: this.commitText(`\n${indentation}`)
-			};
-		}
-		if (key === "Tab") return {
-			handled: true,
-			changed: !event.readOnly && this.#indent(event.shift)
-		};
-		return {
-			handled: false,
-			changed: false
-		};
-	}
-	config(language = this.#language) {
-		this.setLanguage(language);
-		const base = {
-			selection: this.selection,
-			composition: this.#composition
-		};
-		if (!this.#tree || !this.#language) return {
-			...base,
-			syntax: null
-		};
-		const ranges = [];
-		highlightTree(this.#tree, jsonHighlighter, (from, to, kind) => {
-			ranges.push({
-				from,
-				to,
-				kind
-			});
-		});
-		return {
-			...base,
-			syntax: {
-				language: this.#language,
-				offsetEncoding: "utf16",
-				documentLength: this.#state.doc.length,
-				ranges
-			}
-		};
-	}
-	update(value, language = this.#language) {
-		this.sync(value, language);
-		return this.config(language);
-	}
-	#snapshot() {
-		return {
-			value: this.value,
-			...this.selection
-		};
-	}
-	#apply(spec, recordHistory = true) {
-		const before = this.#snapshot();
-		const transaction = this.#state.update(spec);
-		if (!transaction.docChanged && transaction.state.selection.eq(this.#state.selection)) return false;
-		if (recordHistory && transaction.docChanged) {
-			this.#undo.push(before);
-			this.#redo = [];
-		}
-		const changedRanges = [];
-		transaction.changes.iterChangedRanges((fromA, toA, fromB, toB) => changedRanges.push({
-			fromA,
-			toA,
-			fromB,
-			toB
-		}));
-		const fragments = this.#tree && transaction.docChanged ? TreeFragment.applyChanges(TreeFragment.addTree(this.#tree), changedRanges) : void 0;
-		this.#state = transaction.state;
-		if (this.#language === "json" && transaction.docChanged) this.#tree = parser.parse(this.value, fragments);
-		return transaction.docChanged;
-	}
-	#restore(source, destination) {
-		const snapshot = source.pop();
-		if (!snapshot) return false;
-		destination.push(this.#snapshot());
-		const previous = this.value;
-		this.#state = EditorState.create({
-			doc: snapshot.value,
-			selection: EditorSelection.single(snapshot.anchor, snapshot.head)
-		});
-		this.#tree = this.#language === "json" ? parser.parse(this.value) : null;
-		return previous !== snapshot.value;
-	}
-	#indent(outdent) {
-		const range = this.#state.selection.main;
-		if (range.empty && !outdent) return this.commitText("  ");
-		const startLine = this.#state.doc.lineAt(range.from);
-		const endLine = this.#state.doc.lineAt(range.to);
-		const changes = [];
-		for (let number = startLine.number; number <= endLine.number; number += 1) {
-			const line = this.#state.doc.line(number);
-			if (outdent) {
-				const count = line.text.startsWith("	") ? 1 : line.text.match(/^ {1,2}/)?.[0].length ?? 0;
-				if (count) changes.push({
-					from: line.from,
-					to: line.from + count
-				});
-			} else changes.push({
-				from: line.from,
-				insert: "  "
-			});
-		}
-		return changes.length > 0 && this.#apply({ changes });
-	}
-	#offsetByUtf8Bytes(start, delta) {
-		const forward = delta >= 0;
-		let offset = start;
-		let remaining = Math.abs(delta);
-		while (remaining > 0 && (forward ? offset < this.value.length : offset > 0)) {
-			const moved = findClusterBreak(this.value, offset, forward);
-			if (moved === offset) break;
-			const codePoint = this.value.slice(Math.min(offset, moved), Math.max(offset, moved)).codePointAt(0) ?? 0;
-			const bytes = codePoint <= 127 ? 1 : codePoint <= 2047 ? 2 : codePoint <= 65535 ? 3 : 4;
-			if (bytes > remaining) break;
-			remaining -= bytes;
-			offset = moved;
-		}
-		return offset;
-	}
-};
-//#endregion
 //#region src/primitives/view.ts
 const ICON_SIZE_UNITLESS_RE = /^-?\d*\.?\d+$/;
 function normalizeIconSize(size) {
@@ -770,6 +457,20 @@ function semanticPrimitive(tag, role, props) {
 /** A layout container. Text content should be placed in a {@link Text}. */
 function View(props) {
 	return primitive("view", props);
+}
+/**
+* Stable retained region projected through its own GPUI Entity.
+*
+* Use this around independently changing route content, scroll viewports,
+* overlays, native-widget regions, animation surfaces, or diagnostic HUDs.
+* It does not create application state and has the same layout semantics as a
+* View; it only limits native invalidation and materialization.
+*/
+function ProjectionBoundary(props) {
+	const node = createElement("view");
+	spread(node, props, false);
+	spread(node, { projectionBoundary: true }, false);
+	return node;
 }
 function resolvedTextBehavior(maxLines) {
 	if (maxLines != null && (!Number.isInteger(maxLines) || maxLines < 1)) throw new RangeError("Text maxLines must be a positive integer");
@@ -842,13 +543,14 @@ function Icon(props) {
 		},
 		get style() {
 			const iconSize = normalizeIconSize(props.size);
+			const layoutSize = typeof iconSize === "number" ? px(iconSize) : iconSize;
 			return {
-				display: "inline-flex",
+				display: "flex",
 				"align-items": "center",
 				"justify-content": "center",
 				"align-self": "center",
-				width: iconSize,
-				height: iconSize,
+				width: layoutSize,
+				height: layoutSize,
 				"flex-shrink": 0,
 				"line-height": "1",
 				"pointer-events": "none",
@@ -901,88 +603,21 @@ function TextArea(props) {
 function PasswordInput(props) {
 	return editorPrimitive("password-input", props);
 }
-/** CodeMirror-owned config/Markdown editor rendered by a native viewport. */
-function CodeEditor(props) {
-	const document = new CodeEditorDocument(untrack(() => props.value ?? ""), untrack(() => props.language));
-	const [revision, setRevision] = createSignal(0);
-	const invalidate = () => setRevision((value) => value + 1);
-	const emitInput = () => props.onInput?.({ currentTarget: { value: document.value } });
-	createEffect(() => props.value, (controlledValue) => {
-		if (controlledValue !== void 0 && controlledValue !== document.value) {
-			document.sync(controlledValue, props.language);
-			invalidate();
-		}
-	});
-	const widgetConfig = createMemo(() => {
-		revision();
-		return document.config(props.language);
-	});
-	const nativeProps = omit(props, "language", "onInput", "onKeyDown", "onImePreedit", "onImeCommit", "onImeDeleteSurrounding", "onImeDisabled", "onTextSelectionChange");
-	return editorPrimitive("code-editor", mergeProps(nativeProps, {
-		get value() {
-			revision();
-			return document.value;
-		},
-		get widgetConfig() {
-			return widgetConfig();
-		},
-		onInput(event) {
-			if (props.disabled || props.readOnly) return;
-			document.sync(event.currentTarget.value, props.language);
-			invalidate();
-			emitInput();
-		},
-		onKeyDown(event) {
-			if (!props.disabled) {
-				const result = document.handleKey({
-					key: event.key,
-					shift: (event.mods & 1) !== 0,
-					primary: event.primary,
-					readOnly: props.readOnly
-				});
-				if (result.handled) {
-					event.preventDefault();
-					invalidate();
-					if (result.changed && !props.readOnly) emitInput();
-				}
-			}
-			props.onKeyDown?.(event);
-		},
-		onImePreedit(event) {
-			if (!props.disabled && !props.readOnly) {
-				document.setComposition(event.data, event.cursorStart, event.cursorEnd);
-				event.preventDefault();
-				invalidate();
-			}
-			props.onImePreedit?.(event);
-		},
-		onImeCommit(event) {
-			if (!props.disabled && !props.readOnly) {
-				const changed = document.commitText(event.data);
-				event.preventDefault();
-				invalidate();
-				if (changed) emitInput();
-			}
-			props.onImeCommit?.(event);
-		},
-		onImeDeleteSurrounding(event) {
-			if (!props.disabled && !props.readOnly) {
-				const changed = document.deleteSurrounding(event.beforeBytes, event.afterBytes);
-				event.preventDefault();
-				invalidate();
-				if (changed) emitInput();
-			}
-			props.onImeDeleteSurrounding?.(event);
-		},
-		onImeDisabled(event) {
-			if (document.setComposition("", null, null)) invalidate();
-			props.onImeDisabled?.(event);
-		},
-		onTextSelectionChange(event) {
-			if (event.anchor !== void 0 && event.head !== void 0 && document.setSelection(event.anchor, event.head)) invalidate();
-			props.onTextSelectionChange?.(event);
-		}
-	}));
+/** General-purpose editor whose document and input lifecycle are owned by GPUI. */
+function Editor(props) {
+	return editorPrimitive("editor", props);
+}
+/** Mount an explicitly registered Rust/GPUI widget without web-element semantics. */
+function NativeWidget(props) {
+	const tag = untrack(() => props.tag.trim());
+	if (!tag) throw new TypeError("NativeWidget tag must not be empty");
+	const rest = omit(props, "tag", "config");
+	const node = createElement(tag);
+	spread(node, rest, false);
+	spread(node, { get widgetConfig() {
+		return props.config;
+	} }, false);
+	return node;
 }
 //#endregion
 //#region src/primitives/button.tsx
@@ -1067,12 +702,7 @@ function Button(props) {
 		"align-items": "center",
 		"flex-shrink": 0,
 		"white-space": "nowrap",
-		"user-select": props.selectable ? "text" : "none",
-		cursor: disabled() ? "not-allowed" : "pointer",
-		"outline-width": state().focusVisible ? "2px" : "0px",
-		"outline-offset": "2px",
-		"outline-color": "#38bdf8",
-		"outline-style": "solid"
+		cursor: disabled() ? "not-allowed" : "pointer"
 	});
 	const defaultStyle = () => {
 		if (props.unstyled) return structuralStyle();
@@ -1135,13 +765,14 @@ function Button(props) {
 		get ["aria-pressed"]() {
 			return props["aria-pressed"];
 		},
+		get ["aria-busy"]() {
+			return props["aria-busy"];
+		},
 		get ["aria-valuetext"]() {
 			return props["aria-valuetext"];
 		},
 		get ["class"]() {
-			return memo(() => {
-				return typeof props.class === "function";
-			})() ? props.class(state()) : props.class;
+			return mergeClasses("select-none", typeof props.class === "function" ? props.class(state()) : props.class);
 		},
 		get classList() {
 			return memo(() => {
@@ -1216,7 +847,7 @@ function Button(props) {
 			return props.onWheel;
 		},
 		get children() {
-			return props.children;
+			return props.renderContent?.(state()) ?? props.children;
 		}
 	}));
 }
@@ -1736,45 +1367,21 @@ function createOverlayLayer(options) {
 	};
 }
 //#endregion
-//#region src/primitives/transition-presence.ts
+//#region src/primitives/modal.tsx
 /**
-* Couples logical presence to an interruptible visual transition.
+* Derive every modal-plane policy from the committed controlled state.
 *
-* Closing disables the logical surface immediately while keeping its visual
-* subtree mounted until progress reaches zero. Reopening during exit simply
-* retargets the current transition instead of remounting the subtree.
+* Presence only controls how long the subtree remains mounted. It must never
+* prolong focus containment, hit testing, blur, or an opaque scrim after the
+* owner has committed `open=false`.
 */
-function createTransitionPresence(open, options = {}) {
-	const presence = createPresence(open);
-	const visuallyPresent = () => open() && (options.ready?.() ?? true);
-	const transition = createTransition(() => visuallyPresent() ? 1 : 0, {
-		initial: options.initialProgress,
-		duration: options.duration ?? .16,
-		ease: options.ease ?? "easeOut",
-		reducedMotion: options.reducedMotion,
-		onComplete(value) {
-			if (value === 1 && untrack(open)) presence.finishEnter();
-			else if (value === 0 && !untrack(open)) presence.finishExit();
-		}
-	});
-	createEffect(() => [
-		open(),
-		visuallyPresent(),
-		transition.value(),
-		presence.phase()
-	], ([isOpen, isVisible, progress, phase]) => {
-		if (isOpen && isVisible && progress === 1 && phase === "entering") presence.finishEnter();
-		else if (!isOpen && progress === 0 && phase === "exiting") presence.finishExit();
-	});
+function modalVisualState(open, backdropFade) {
 	return {
-		phase: presence.phase,
-		mounted: presence.mounted,
-		progress: transition.value,
-		transition
+		active: open,
+		retainBackdropVisuals: open || backdropFade !== false,
+		transparentBackdrop: !open && backdropFade === false
 	};
 }
-//#endregion
-//#region src/primitives/modal.tsx
 function modalMotionTransform(options, progress) {
 	const scale = (options?.fromScale ?? 1) + progress * (1 - (options?.fromScale ?? 1));
 	const remaining = 1 - progress;
@@ -1802,11 +1409,10 @@ function Modal(props) {
 	const motion = untrack(() => props.motion);
 	const motionOptions = motion === false ? void 0 : motion;
 	const motionEnabled = motionOptions !== void 0;
-	const presence = createTransitionPresence(open, {
-		duration: motionOptions?.duration ?? (motionEnabled ? .16 : 0),
-		ease: motionOptions?.ease ?? (motionEnabled ? "easeOut" : "linear"),
-		reducedMotion: () => !motionEnabled || reducedMotion()
-	});
+	const transitionDuration = (entering) => (entering ? motionOptions?.enterDuration : motionOptions?.exitDuration) ?? motionOptions?.duration ?? (motionEnabled ? .16 : 0);
+	const presence = createPresence(open);
+	const visualState = () => modalVisualState(open(), props.backdropFade);
+	const [transitionGeneration, setTransitionGeneration] = createSignal(0);
 	let trigger;
 	let focusFrame = 0;
 	let wasOpenForInitialFocus = false;
@@ -1826,7 +1432,12 @@ function Modal(props) {
 		returnFocus: () => trigger
 	});
 	const handleEscape = (event) => layer.onEscape(event);
-	createEffect(open, (isOpen) => {
+	createEffect(() => [open(), reducedMotion()], ([isOpen, prefersReducedMotion]) => {
+		setTransitionGeneration((value) => value + 1);
+		if (!motionEnabled || prefersReducedMotion || transitionDuration(isOpen) <= 0) {
+			if (isOpen) presence.finishEnter();
+			else presence.finishExit();
+		}
 		if (isOpen && !wasOpenForInitialFocus && props.initialFocus) {
 			cancelAnimationFrame(focusFrame);
 			focusFrame = requestAnimationFrame(() => {
@@ -1842,6 +1453,20 @@ function Modal(props) {
 	onCleanup(() => {
 		if (focusFrame) cancelAnimationFrame(focusFrame);
 	});
+	const nativeTransition = (entering, fromTransform, toTransform, fromOpacity, toOpacity) => {
+		if (!motionEnabled || reducedMotion()) return void 0;
+		const authoredEase = (entering ? motionOptions?.enterEase : motionOptions?.exitEase) ?? motionOptions?.ease;
+		const easing = authoredEase === "linear" || authoredEase === "easeInOut" || authoredEase === "easeOut" ? authoredEase : "easeInOut";
+		return {
+			generation: transitionGeneration(),
+			duration: transitionDuration(entering),
+			easing,
+			fromTransform,
+			toTransform,
+			fromOpacity,
+			toOpacity
+		};
+	};
 	const triggerProps = {
 		ref: (node) => {
 			trigger = node;
@@ -1866,15 +1491,17 @@ function Modal(props) {
 				role: "presentation",
 				"aria-modal": "true",
 				get focusContained() {
-					return open();
+					return visualState().active;
 				},
 				get interactionBlocked() {
-					return !open();
+					return !visualState().active;
 				},
 				get class() {
-					return props.backdropClass;
+					const visual = visualState();
+					return mergeClasses(visual.active && "backdrop-blur-sm", visual.retainBackdropVisuals && props.backdropClass);
 				},
 				get style() {
+					const visual = visualState();
 					return {
 						position: "absolute",
 						left: 0,
@@ -1885,10 +1512,29 @@ function Modal(props) {
 						"align-items": "center",
 						"justify-content": "center",
 						...props.backdropStyle,
-						opacity: number(presence.progress()),
-						"pointer-events": open() ? "auto" : "none",
+						...visual.transparentBackdrop ? { "background-color": rgba$1(0) } : void 0,
+						"pointer-events": visual.active ? "auto" : "none",
 						"z-index": layer.zIndex()
 					};
+				},
+				get nativeTransition() {
+					if (props.backdropFade === false) return void 0;
+					const entering = open();
+					return nativeTransition(entering, [
+						1,
+						0,
+						0,
+						1,
+						0,
+						0
+					], [
+						1,
+						0,
+						0,
+						1,
+						0,
+						0
+					], entering ? 0 : 1, entering ? 1 : 0);
 				},
 				onClick: layer.onOutside,
 				onKeyDown: handleEscape,
@@ -1914,15 +1560,27 @@ function Modal(props) {
 							return props.contentShadows;
 						},
 						get transform() {
-							const progress = presence.progress();
-							const base = modalMotionTransform(motionOptions, progress);
-							return props.contentTransform?.(base, progress) ?? base;
+							const base = modalMotionTransform(motionOptions, open() ? 1 : 0);
+							return props.contentTransform?.(base, open() ? 1 : 0) ?? base;
+						},
+						get nativeTransition() {
+							const entering = open();
+							const fromProgress = entering ? 0 : 1;
+							const toProgress = entering ? 1 : 0;
+							const from = modalMotionTransform(motionOptions, fromProgress);
+							const to = modalMotionTransform(motionOptions, toProgress);
+							return nativeTransition(entering, props.contentTransform?.(from, fromProgress) ?? from, props.contentTransform?.(to, toProgress) ?? to, props.contentFade === false ? 1 : fromProgress, props.contentFade === false ? 1 : toProgress);
+						},
+						onTransitionEnd: (event) => {
+							if (event.generation !== transitionGeneration()) return;
+							if (open()) presence.finishEnter();
+							else presence.finishExit();
 						},
 						get interactionBlocked() {
-							return !open();
+							return !visualState().active;
 						},
 						get "aria-hidden"() {
-							return open() ? void 0 : "true";
+							return visualState().active ? void 0 : "true";
 						},
 						onClick: (event) => event.stopPropagation(),
 						get children() {
@@ -2168,34 +1826,59 @@ function createNotifications(options = {}) {
 	});
 	return notifications;
 }
+function notificationNativeTransition(options) {
+	const offset = translate2d(options.fromX ?? 0, options.fromY ?? 0);
+	const resting = translate2d(0, 0);
+	const easing = options.ease === "linear" || options.ease === "easeInOut" || options.ease === "easeOut" ? options.ease : "easeOut";
+	return {
+		generation: options.generation,
+		duration: options.duration,
+		easing,
+		fromTransform: options.entering ? offset : resting,
+		toTransform: options.entering ? resting : offset,
+		fromOpacity: options.entering ? 0 : 1,
+		toOpacity: options.entering ? 1 : 0
+	};
+}
 const alignment = (placement) => ({
 	"align-items": placement.endsWith("start") ? "flex-start" : placement.endsWith("end") ? "flex-end" : "center",
 	"justify-content": placement.startsWith("bottom") ? "flex-end" : "flex-start"
 });
-const renderNotificationPortal = (props, children) => createComponent(Portal, {
-	plane: "floating",
-	role: "presentation",
-	get class() {
-		return `pointer-events-none ${props.class ?? ""}`;
-	},
-	get style() {
-		const placement = props.placement ?? "top-end";
-		return {
-			position: "absolute",
-			left: 0,
-			top: 0,
-			width: "100%",
-			height: "100%",
-			display: "flex",
-			"flex-direction": "column",
-			gap: 8,
-			padding: 16,
-			...alignment(placement),
-			...props.style
-		};
-	},
-	children
-});
+const renderNotificationPortal = (props, children) => {
+	const stack = createInternalPrimitive("toast-stack", {
+		get placement() {
+			return props.placement ?? "top-end";
+		},
+		get class() {
+			return props.stackClass ?? "w-96 max-w-full";
+		},
+		children
+	});
+	return createComponent(Portal, {
+		plane: "floating",
+		role: "presentation",
+		get class() {
+			return `pointer-events-none ${props.class ?? ""}`;
+		},
+		get style() {
+			const placement = props.placement ?? "top-end";
+			return {
+				position: "absolute",
+				left: 0,
+				top: 0,
+				width: "100%",
+				height: "100%",
+				display: "flex",
+				"flex-direction": "column",
+				gap: 8,
+				padding: 16,
+				...alignment(placement),
+				...props.style
+			};
+		},
+		children: stack
+	});
+};
 /** Render a non-blocking stack on the native floating overlay plane. */
 function NotificationRegion(props) {
 	const motion = untrack(() => props.motion);
@@ -2227,21 +1910,27 @@ function NotificationRegion(props) {
 	const reducedMotion = useReducedMotion();
 	const retained = createRetainedItems(props.notifications.items, (item) => item.id);
 	const renderAnimatedItem = (retainedItem) => {
-		const item = retainedItem.value();
 		const logicallyPresent = retainedItem.present;
-		const presence = createTransitionPresence(logicallyPresent, {
-			initialProgress: 0,
-			duration: motion.duration ?? .18,
-			ease: motion.ease ?? "easeOut",
-			reducedMotion
+		const presence = createPresence(logicallyPresent);
+		const duration = motion.duration ?? .18;
+		const [transitionGeneration, setTransitionGeneration] = createSignal(0);
+		createEffect(() => [logicallyPresent(), reducedMotion()], ([isPresent, prefersReducedMotion]) => {
+			setTransitionGeneration((generation) => generation + 1);
+			if (prefersReducedMotion || duration <= 0) {
+				if (isPresent) presence.finishEnter();
+				else {
+					presence.finishExit();
+					retained.release(retainedItem.key);
+				}
+			}
 		});
-		createEffect(presence.phase, (phase) => {
-			if (phase === "unmounted") retained.release(item.id);
-		});
-		const remaining = () => 1 - presence.progress();
 		return createComponent(View, {
-			role: item.priority === "assertive" ? "alert" : "status",
-			"aria-label": item["aria-label"],
+			get role() {
+				return retainedItem.value().priority === "assertive" ? "alert" : "status";
+			},
+			get "aria-label"() {
+				return retainedItem.value()["aria-label"];
+			},
 			get "aria-hidden"() {
 				return logicallyPresent() ? void 0 : "true";
 			},
@@ -2249,7 +1938,18 @@ function NotificationRegion(props) {
 				return !logicallyPresent();
 			},
 			get transform() {
-				return translate2d((motion.fromX ?? 0) * remaining(), (motion.fromY ?? 0) * remaining());
+				return translate2d(logicallyPresent() ? 0 : motion.fromX ?? 0, logicallyPresent() ? 0 : motion.fromY ?? 0);
+			},
+			get nativeTransition() {
+				if (reducedMotion() || duration <= 0) return void 0;
+				return notificationNativeTransition({
+					generation: transitionGeneration(),
+					duration,
+					ease: motion.ease,
+					fromX: motion.fromX,
+					fromY: motion.fromY,
+					entering: logicallyPresent()
+				});
 			},
 			get class() {
 				return `pointer-events-auto ${props.itemClass ?? ""}`;
@@ -2257,14 +1957,23 @@ function NotificationRegion(props) {
 			get style() {
 				return {
 					...props.itemStyle,
-					opacity: number(presence.progress())
+					opacity: logicallyPresent() ? 1 : 0
 				};
 			},
-			onPointerEnter: () => props.notifications.pause(item.id),
-			onPointerLeave: () => props.notifications.resume(item.id),
-			onFocusIn: () => props.notifications.pause(item.id),
-			onFocusOut: () => props.notifications.resume(item.id),
+			onTransitionEnd: (event) => {
+				if (event.generation !== transitionGeneration()) return;
+				if (logicallyPresent()) presence.finishEnter();
+				else {
+					presence.finishExit();
+					retained.release(retainedItem.key);
+				}
+			},
+			onPointerEnter: () => props.notifications.pause(retainedItem.key),
+			onPointerLeave: () => props.notifications.resume(retainedItem.key),
+			onFocusIn: () => props.notifications.pause(retainedItem.key),
+			onFocusOut: () => props.notifications.resume(retainedItem.key),
 			get children() {
+				const item = retainedItem.value();
 				return item.content({ dismiss: () => props.notifications.dismiss(item.id, "dismiss") });
 			}
 		});
@@ -2354,6 +2063,18 @@ function computeHostPointFloatingPosition(point, floating, host, options = {}) {
 }
 //#endregion
 //#region src/primitives/popover.tsx
+function popoverNativeTransition(options) {
+	const easing = options.ease === "linear" || options.ease === "easeInOut" || options.ease === "easeOut" ? options.ease : "easeOut";
+	return {
+		generation: options.generation,
+		duration: options.duration,
+		easing,
+		fromTransform: scale2d(options.entering ? options.fromScale : 1),
+		toTransform: scale2d(options.entering ? 1 : options.fromScale),
+		fromOpacity: options.entering ? 0 : 1,
+		toOpacity: options.entering ? 1 : 0
+	};
+}
 /** A root-layer floating panel positioned from native layout snapshots. */
 function Popover(props) {
 	const host = useHost$1();
@@ -2368,12 +2089,9 @@ function Popover(props) {
 	const [positioned, setPositioned] = createSignal(false);
 	const open = () => props.open ?? uncontrolledOpen();
 	const motion = untrack(() => props.motion);
-	const presence = createTransitionPresence(open, {
-		ready: positioned,
-		duration: motion === false ? 0 : motion?.duration ?? .14,
-		ease: motion === false ? "linear" : motion?.ease ?? "easeOut",
-		reducedMotion: () => motion === false || reducedMotion()
-	});
+	const duration = motion === false ? 0 : motion?.duration ?? .14;
+	const presence = createPresence(open);
+	const [transitionGeneration, setTransitionGeneration] = createSignal(0);
 	let anchor;
 	let content;
 	let frame = 0;
@@ -2381,6 +2099,16 @@ function Popover(props) {
 	let suppressPointerClick = false;
 	let observer;
 	const motionFromScale = () => motion === false ? 1 : motion?.fromScale ?? .98;
+	const nativeTransition = () => {
+		if (motion === false || reducedMotion() || !positioned()) return void 0;
+		return popoverNativeTransition({
+			generation: transitionGeneration(),
+			duration,
+			ease: motion?.ease,
+			fromScale: motionFromScale(),
+			entering: open()
+		});
+	};
 	const contains = (root, target) => {
 		if (!root || !target) return false;
 		let current = target;
@@ -2461,6 +2189,22 @@ function Popover(props) {
 		observer = new ResizeObserver(schedulePosition);
 		if (anchor) observer.observe(anchor);
 		frame = requestAnimationFrame(() => void updatePosition());
+	});
+	createEffect(() => [
+		open(),
+		positioned(),
+		reducedMotion()
+	], ([isOpen, isPositioned, prefersReducedMotion]) => {
+		if (isOpen && !isPositioned) return;
+		if (!isOpen && !isPositioned) {
+			presence.finishExit();
+			return;
+		}
+		setTransitionGeneration((value) => value + 1);
+		if (motion === false || prefersReducedMotion || duration <= 0) {
+			if (isOpen) presence.finishEnter();
+			else presence.finishExit();
+		}
 	});
 	createEffect(presence.phase, (phase) => {
 		if (phase === "unmounted") setPositioned(false);
@@ -2555,7 +2299,10 @@ function Popover(props) {
 							return props.contentShadows;
 						},
 						get transform() {
-							return scale2d(motionFromScale() + presence.progress() * (1 - motionFromScale()));
+							return scale2d(open() ? 1 : motionFromScale());
+						},
+						get nativeTransition() {
+							return nativeTransition();
 						},
 						get interactionBlocked() {
 							return !open() || props.contentInteractionBlocked;
@@ -2569,7 +2316,7 @@ function Popover(props) {
 								left: positioned() ? `${position().x}px` : "-100000px",
 								top: positioned() ? `${position().y}px` : "-100000px",
 								...props.contentStyle,
-								opacity: number(presence.progress())
+								opacity: open() ? 1 : 0
 							};
 						},
 						onClick: (event) => event.stopPropagation(),
@@ -2586,6 +2333,11 @@ function Popover(props) {
 							return props.onContentFocusOut;
 						},
 						onKeyDown: handleEscape,
+						onTransitionEnd: (event) => {
+							if (event.generation !== transitionGeneration()) return;
+							if (open()) presence.finishEnter();
+							else presence.finishExit();
+						},
 						get children() {
 							return props.children;
 						}
@@ -2853,24 +2605,64 @@ function assertUniqueKeys(tabs, key) {
 	}
 }
 //#endregion
+//#region src/primitives/transition-presence.ts
+/**
+* Couples logical presence to an interruptible visual transition.
+*
+* Closing disables the logical surface immediately while keeping its visual
+* subtree mounted until progress reaches zero. Reopening during exit simply
+* retargets the current transition instead of remounting the subtree.
+*/
+function createTransitionPresence(open, options = {}) {
+	const presence = createPresence(open);
+	const visuallyPresent = () => open() && (options.ready?.() ?? true);
+	const transition = createTransition(() => visuallyPresent() ? 1 : 0, {
+		initial: options.initialProgress,
+		duration: options.duration ?? .16,
+		ease: options.ease ?? "easeOut",
+		reducedMotion: options.reducedMotion,
+		onComplete(value) {
+			if (value === 1 && untrack(open)) presence.finishEnter();
+			else if (value === 0 && !untrack(open)) presence.finishExit();
+		}
+	});
+	createEffect(() => [
+		open(),
+		visuallyPresent(),
+		transition.value(),
+		presence.phase()
+	], ([isOpen, isVisible, progress, phase]) => {
+		if (isOpen && isVisible && progress === 1 && phase === "entering") presence.finishEnter();
+		else if (!isOpen && progress === 0 && phase === "exiting") presence.finishExit();
+	});
+	return {
+		phase: presence.phase,
+		mounted: presence.mounted,
+		progress: transition.value,
+		transition
+	};
+}
+//#endregion
 //#region src/primitives/index.ts
 var primitives_exports = /* @__PURE__ */ __exportAll({
 	Button: () => Button,
 	Center: () => Center,
-	CodeEditor: () => CodeEditor,
 	CollapsiblePresence: () => CollapsiblePresence,
 	Column: () => Column,
+	Editor: () => Editor,
 	FORM_ERROR: () => FORM_ERROR,
 	Icon: () => Icon,
 	Image: () => Image,
 	Link: () => Link,
 	Modal: () => Modal,
+	NativeWidget: () => NativeWidget,
 	NotificationRegion: () => NotificationRegion,
 	OverlayPlaneProvider: () => OverlayPlaneProvider,
 	PasswordInput: () => PasswordInput,
 	Path: () => Path,
 	PathBuilder: () => PathBuilder,
 	Popover: () => Popover,
+	ProjectionBoundary: () => ProjectionBoundary,
 	Pulse: () => Pulse,
 	RichText: () => RichText,
 	RichTextSpan: () => RichTextSpan,
@@ -2919,6 +2711,6 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	useOverlayPlane: () => useOverlayPlane
 });
 //#endregion
-export { Svg as $, isSelected as A, createContainerMatch as B, OverlayPlaneProvider as C, useMotionConfig as Ct, Column as D, Center as E, createNetworkImageResource as F, CodeEditor as G, Button as H, createOwnedImageResource as I, PasswordInput as J, Icon as K, releaseImageResource as L, FORM_ERROR as M, createFormDraft as N, Row as O, createFileImageResource as P, RichTextSpan as Q, CollapsiblePresence as R, createTransitionPresence as S, MotionConfigProvider as St, useOverlayPlane as T, Link as U, createMeasuredSize as V, createButton as W, PathBuilder as X, Path as Y, RichText as Z, createRetainedItems as _, createPulse as _t, ScrollArea as a, translate2d$1 as at, Spin as b, createTransition as bt, autoPlacement as c, createHover as ct, flip as d, createAnimationFrame as dt, Text as et, offset as f, animate as ft, createNotifications as g, createLoop as gt, NotificationRegion as h, createKeyframeAnimation as ht, createScrollReset as i, rotate2d$1 as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createFocus as lt, size as m, createInterpolation as mt, createTabs as n, TextInput as nt, Popover as o, createActive as ot, shift as p, animateKeyframes as pt, Image as q, createShortcuts as r, View as rt, arrow as s, createPress as st, primitives_exports as t, TextArea as tt, computeHostFloatingPosition as u, createFocusWithin as ut, Pulse as v, createRotation as vt, createOverlayLayer as w, useReducedMotion as wt, Modal as x, normalizeSweepGeometry as xt, Ripple as y, createSweep as yt, createPresence as z };
+export { RichText as $, isSelected as A, createContainerMatch as B, OverlayPlaneProvider as C, createTransition as Ct, Column as D, useReducedMotion as Dt, Center as E, useMotionConfig as Et, createNetworkImageResource as F, Editor as G, Button as H, createOwnedImageResource as I, NativeWidget as J, Icon as K, releaseImageResource as L, FORM_ERROR as M, createFormDraft as N, Row as O, createFileImageResource as P, ProjectionBoundary as Q, CollapsiblePresence as R, Modal as S, createSweep as St, useOverlayPlane as T, MotionConfigProvider as Tt, Link as U, createMeasuredSize as V, createButton as W, Path as X, PasswordInput as Y, PathBuilder as Z, createNotifications as _, createKeyframeAnimation as _t, createScrollReset as a, View as at, Ripple as b, createPulse as bt, arrow as c, createActive as ct, computeHostFloatingPosition as d, createFocus as dt, RichTextSpan as et, flip as f, createFocusWithin as ft, NotificationRegion as g, createInterpolation as gt, size as h, animateKeyframes as ht, createShortcuts as i, TextInput as it, toggleSelection as j, createKeyedSelection as k, autoPlacement as l, createPress as lt, shift as m, animate as mt, createTransitionPresence as n, Text as nt, ScrollArea as o, rotate2d$1 as ot, offset as p, createAnimationFrame as pt, Image as q, createTabs as r, TextArea as rt, Popover as s, translate2d$1 as st, primitives_exports as t, Svg as tt, computeFloatingPosition as u, createHover as ut, createRetainedItems as v, createLoop as vt, createOverlayLayer as w, normalizeSweepGeometry as wt, Spin as x, createRotation as xt, Pulse as y, createNativeLoopAnimation as yt, createPresence as z };
 
-//# sourceMappingURL=primitives-Bpim1abf.mjs.map
+//# sourceMappingURL=primitives-BsBk5rN4.mjs.map

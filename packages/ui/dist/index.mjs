@@ -1,9 +1,14 @@
-import { $ as Svg, A as isSelected, B as createContainerMatch, C as OverlayPlaneProvider, Ct as useMotionConfig, D as Column, E as Center, F as createNetworkImageResource, G as CodeEditor, H as Button$1, I as createOwnedImageResource, J as PasswordInput$1, K as Icon, L as releaseImageResource, M as FORM_ERROR, N as createFormDraft, O as Row, P as createFileImageResource, Q as RichTextSpan, R as CollapsiblePresence, S as createTransitionPresence, St as MotionConfigProvider, U as Link, V as createMeasuredSize, W as createButton, X as PathBuilder, Y as Path, Z as RichText, _ as createRetainedItems, _t as createPulse, a as ScrollArea, at as translate2d$1, b as Spin, bt as createTransition, ct as createHover, dt as createAnimationFrame, et as Text, ft as animate, g as createNotifications, gt as createLoop, h as NotificationRegion, ht as createKeyframeAnimation, i as createScrollReset, it as rotate2d$1, j as toggleSelection, k as createKeyedSelection, lt as createFocus, mt as createInterpolation, n as createTabs, nt as TextInput, o as Popover$1, ot as createActive, pt as animateKeyframes, q as Image, r as createShortcuts, rt as View, st as createPress, t as primitives_exports, tt as TextArea, ut as createFocusWithin, v as Pulse, vt as createRotation, w as createOverlayLayer, wt as useReducedMotion, x as Modal, xt as normalizeSweepGeometry, y as Ripple, yt as createSweep, z as createPresence } from "./primitives-Bpim1abf.mjs";
-import { rgba, subscribeHostMessages, subscribeJsonHostMessages, useClipboard, useDialog, useFileDrop, useHost, useWindow } from "@wabou/core";
+import { $ as RichText, A as isSelected, B as createContainerMatch, C as OverlayPlaneProvider, Ct as createTransition, D as Column, Dt as useReducedMotion, E as Center, Et as useMotionConfig, F as createNetworkImageResource, G as Editor, H as Button$1, I as createOwnedImageResource, J as NativeWidget, K as Icon, L as releaseImageResource, M as FORM_ERROR, N as createFormDraft, O as Row, P as createFileImageResource, Q as ProjectionBoundary, R as CollapsiblePresence, S as Modal, St as createSweep, Tt as MotionConfigProvider, V as createMeasuredSize, W as createButton, X as Path, Y as PasswordInput$1, Z as PathBuilder, _ as createNotifications, _t as createKeyframeAnimation, a as createScrollReset, at as View, b as Ripple, bt as createPulse, ct as createActive, dt as createFocus, et as RichTextSpan, ft as createFocusWithin, g as NotificationRegion, gt as createInterpolation, ht as animateKeyframes, i as createShortcuts, it as TextInput, j as toggleSelection, k as createKeyedSelection, lt as createPress, mt as animate, n as createTransitionPresence, nt as Text, o as ScrollArea, ot as rotate2d$1, pt as createAnimationFrame, q as Image, r as createTabs, rt as TextArea$1, s as Popover$1, st as translate2d$1, t as primitives_exports, tt as Svg, ut as createHover, v as createRetainedItems, vt as createLoop, w as createOverlayLayer, wt as normalizeSweepGeometry, x as Spin, xt as createRotation, y as Pulse, yt as createNativeLoopAnimation, z as createPresence } from "./primitives-BsBk5rN4.mjs";
+import { createAsyncAction, rgba, subscribeHostMessages, subscribeJsonHostMessages, useClipboard, useDialog, useFileDrop, useHost, useWindow } from "@wabou/core";
 import { mergeClasses, rgba as rgba$1, scale2d, shadow } from "@wabou/core/style";
-import { For, Match, Show, Switch as Switch$1, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
+import { For, Match, Show, Switch as Switch$1, children, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { VirtualList, applyRef, createComponent as createComponent$1, createFps, memo, mergeProps, useHost as useHost$1 } from "@wabou/core/renderer";
 import { P, match } from "ts-pattern";
+import checkCircle from "lucide-static/icons/circle-check.svg?raw";
+import circleX from "lucide-static/icons/circle-x.svg?raw";
+import info from "lucide-static/icons/info.svg?raw";
+import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
+import x from "lucide-static/icons/x.svg?raw";
 import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
 import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
 import arrowRight from "lucide-static/icons/arrow-right.svg?raw";
@@ -28,12 +33,7 @@ import { encode } from "uqr";
 import star from "lucide-static/icons/star.svg?raw";
 import sparkles from "lucide-static/icons/sparkles.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
-import x from "lucide-static/icons/x.svg?raw";
-import checkCircle from "lucide-static/icons/circle-check.svg?raw";
-import info from "lucide-static/icons/info.svg?raw";
-import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
 import ellipsisCircle from "lucide-static/icons/circle-ellipsis.svg?raw";
-import xCircle from "lucide-static/icons/circle-x.svg?raw";
 import clock from "lucide-static/icons/clock-3.svg?raw";
 import wrench from "lucide-static/icons/wrench.svg?raw";
 import { createTable, functionalUpdate, getCoreRowModel, getFilteredRowModel, getSortedRowModel } from "@tanstack/table-core";
@@ -42,16 +42,217 @@ import { BaseRootRoute, BaseRoute, RouterCore, notFound, redirect } from "@tanst
 export * from "@wabou/core";
 export * from "@wabou/core/i18n";
 //#region src/components/badge.tsx
-function badgeClass(variant = "default", weight = "medium", className) {
+function badgeClass(variant = "default", weight = "medium", className, size = "default") {
 	const colors = match(variant).with("default", () => "bg-accent border-accent text-on-accent").with("secondary", () => "bg-control border-subtle text-primary").with("outline", () => "bg-transparent border-strong text-secondary").with("ghost", () => "bg-transparent border-transparent text-secondary").with("link", () => "bg-transparent border-transparent text-accent").with("success", () => "bg-success-surface border-success-primary text-success-primary").with("destructive", () => "bg-danger-surface border-danger text-danger-primary").exhaustive();
-	return mergeClasses("flex-none overflow-hidden whitespace-nowrap rounded-full border px-2 py-0.5 text-xs", weight === "normal" ? "font-normal" : "font-medium", colors, className);
+	return mergeClasses("flex-none overflow-hidden whitespace-nowrap flex items-center justify-center rounded-full border", match(size).with("sm", () => "h-4 px-1.5 text-xs").with("default", () => "h-5 px-2 py-0.5 text-xs").with("lg", () => "h-6 px-2.5 py-0.5 text-sm").exhaustive(), weight === "normal" ? "font-normal" : "font-medium", colors, className);
 }
 /** Compact status text with shadcn-compatible visual variants. */
 function Badge(props) {
-	const rest = omit(props, "variant", "weight", "class", "children");
+	const rest = omit(props, "variant", "size", "weight", "class", "children");
 	return createComponent$1(Text, mergeProps(rest, {
 		get ["class"]() {
-			return badgeClass(props.variant, props.weight, props.class);
+			return badgeClass(props.variant, props.weight, props.class, props.size);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+//#endregion
+//#region src/components/activity-status.tsx
+const toneClass = {
+	accent: "bg-accent",
+	danger: "bg-danger-primary",
+	muted: "bg-muted",
+	success: "bg-success-primary"
+};
+/** A consistently sized status dot. Animation is explicit so idle state never
+* keeps the native frame clock alive accidentally. */
+function ActivityStatusIndicator(props) {
+	const className = () => mergeClasses("w-1.5 h-1.5 flex-none rounded-full", toneClass[props.tone ?? "accent"], props.class);
+	return createComponent$1(Show, {
+		get when() {
+			return props.animated;
+		},
+		get fallback() {
+			return createComponent$1(View, {
+				"aria-hidden": "true",
+				get ["class"]() {
+					return className();
+				}
+			});
+		},
+		get children() {
+			return createComponent$1(Pulse, {
+				"aria-hidden": "true",
+				get ["class"]() {
+					return className();
+				},
+				from: .3,
+				to: 1,
+				duration: .8
+			});
+		}
+	});
+}
+/** Shrink-safe inline progress or presence status for agent and desktop UI. */
+function ActivityStatus(props) {
+	const forwarded = omit(props, "label", "animated", "tone", "class", "textClass");
+	return createComponent$1(View, mergeProps(forwarded, {
+		get role() {
+			return props.role ?? "status";
+		},
+		get ["aria-label"]() {
+			return props["aria-label"] ?? props.label;
+		},
+		get ["class"]() {
+			return mergeClasses("min-w-0 max-w-full flex flex-row items-center gap-1.5", props.class);
+		},
+		get children() {
+			return [createComponent$1(ActivityStatusIndicator, {
+				get animated() {
+					return props.animated;
+				},
+				get tone() {
+					return props.tone;
+				}
+			}), createComponent$1(Text, {
+				get ["class"]() {
+					return mergeClasses("min-w-0 truncate text-xs text-muted", props.textClass);
+				},
+				get children() {
+					return props.label;
+				}
+			})];
+		}
+	}));
+}
+//#endregion
+//#region src/components/button-group-context.ts
+const ButtonGroupContext = createContext(null);
+function createButtonGroupContext(orientation, options) {
+	const [items, setItems] = createSignal([], { ownedWrite: true });
+	return {
+		orientation,
+		registerItem() {
+			const token = {};
+			setItems((current) => [...current, token]);
+			onCleanup(() => setItems((current) => current.filter((item) => item !== token)));
+			return {
+				orientation,
+				size: options.size,
+				variant: options.variant,
+				disabled: options.disabled,
+				position: () => {
+					const current = items();
+					const index = current.indexOf(token);
+					if (current.length <= 1) return "only";
+					if (index === 0) return "first";
+					if (index === current.length - 1) return "last";
+					return "middle";
+				}
+			};
+		}
+	};
+}
+function buttonGroupItemCorners(item) {
+	const position = item.position();
+	if (position === "only") return "rounded-lg";
+	if (position === "middle") return "rounded-none";
+	if (item.orientation() === "horizontal") return position === "first" ? "rounded-l-lg" : "rounded-r-lg";
+	return position === "first" ? "rounded-t-lg" : "rounded-b-lg";
+}
+function useButtonGroupItem() {
+	return useContext(ButtonGroupContext)?.registerItem();
+}
+//#endregion
+//#region src/components/display.tsx
+function Skeleton(props) {
+	const reducedMotion = useReducedMotion();
+	const motionDisabled = () => props.animated === false || reducedMotion();
+	const [width, setWidth] = createSignal(0, { ownedWrite: true });
+	const measured = createMeasuredSize({ onChange: (size) => setWidth(size.width) });
+	const sweep = createSweep({
+		extent: width,
+		itemRatio: .4,
+		duration: 1.6,
+		ease: "easeInOut",
+		reducedMotion: motionDisabled,
+		reducedValue: .5
+	});
+	return createComponent$1(View, {
+		ref(r$) {
+			var _ref$ = measured.ref;
+			typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : measured.ref = r$;
+		},
+		"aria-hidden": "true",
+		get ["class"]() {
+			return mergeClasses("overflow-hidden rounded-md bg-control", props.class);
+		},
+		get children() {
+			return createComponent$1(View, {
+				class: "w-2/5 h-full flex-none bg-control-hover",
+				get transform() {
+					return sweep.transform();
+				},
+				get style() {
+					return { opacity: motionDisabled() ? 0 : 1 };
+				}
+			});
+		}
+	});
+}
+function Spinner(props) {
+	const reducedMotion = useReducedMotion();
+	const animation = createNativeLoopAnimation({
+		duration: () => props.duration ?? .9,
+		speed: () => props.speed ?? 1,
+		paused: () => props.paused ?? false,
+		reducedMotion
+	});
+	return createComponent$1(NativeWidget, {
+		tag: "spinner",
+		get role() {
+			return props.decorative ? void 0 : "status";
+		},
+		get ["aria-hidden"]() {
+			return props.decorative ? true : void 0;
+		},
+		get ["aria-label"]() {
+			return memo(() => {
+				return !!props.decorative;
+			})() ? void 0 : props.label ?? "Loading";
+		},
+		get ["class"]() {
+			return mergeClasses("w-4 h-4 flex-none text-accent", props.class);
+		},
+		get config() {
+			return { animation: animation() };
+		}
+	});
+}
+function Kbd(props) {
+	const forwarded = omit(props, "class", "style", "children");
+	return createComponent$1(Text, mergeProps(forwarded, {
+		get ["class"]() {
+			return mergeClasses("h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted", props.class);
+		},
+		get style() {
+			return {
+				"line-height": 1,
+				...props.style
+			};
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function KbdGroup(props) {
+	const forwarded = omit(props, "class", "children");
+	return createComponent$1(View, mergeProps(forwarded, {
+		get ["class"]() {
+			return mergeClasses("inline-flex items-center gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -176,26 +377,61 @@ const componentsThemeContract = Object.freeze({
 		lg: 40,
 		icon: 32
 	}),
+	controlPaddingX: Object.freeze({
+		sm: 8,
+		default: 10,
+		lg: 12,
+		icon: 0
+	}),
 	iconSize: Object.freeze({
 		sm: 14,
 		default: 16,
 		lg: 18
 	}),
-	controlRadius: 8,
-	containerRadius: 12,
+	typography: Object.freeze({
+		xs: Object.freeze({
+			size: 12,
+			lineHeight: 16
+		}),
+		sm: Object.freeze({
+			size: 14,
+			lineHeight: 20
+		}),
+		md: Object.freeze({
+			size: 16,
+			lineHeight: 24
+		}),
+		lg: Object.freeze({
+			size: 18,
+			lineHeight: 28
+		}),
+		xl: Object.freeze({
+			size: 20,
+			lineHeight: 28
+		})
+	}),
+	controlRadius: 6,
+	containerRadius: 8,
 	containerPadding: 20,
 	sectionGap: 16
 });
 function componentsControlContentSize(size) {
 	switch (size) {
-		case "sm": return "h-7 px-2 gap-1.5 text-xs";
-		case "lg": return "h-10 px-4 gap-2.5 text-base";
+		case "sm": return "h-7 px-2 gap-1 text-xs";
+		case "lg": return "h-10 px-3 gap-2 text-base";
 		case "icon": return "w-8 h-8 p-0 gap-0 text-sm";
-		default: return "h-8 px-3 gap-2 text-sm";
+		default: return "h-8 px-2.5 gap-2 text-sm";
 	}
 }
 function componentsControlSize(size) {
-	return `${componentsControlContentSize(size)} rounded-lg`;
+	return `${componentsControlContentSize(size)} rounded-md`;
+}
+/**
+* Shared native panel chrome. Component composition owns padding and layout;
+* this contract owns the edge geometry that must not drift between surfaces.
+*/
+function componentsSurfaceClass(_surface) {
+	return "rounded-lg border border-subtle bg-surface";
 }
 /**
 * Native elevation recipes adapted from gpui-component. Wabou and GPUI both
@@ -272,91 +508,14 @@ function useComponentsTheme() {
 	return (getOwner() ? useContext(ThemeContext) : defaultTheme).theme;
 }
 //#endregion
-//#region src/components/alert.tsx
-const AlertContext = createContext({ variant: () => "default" });
-function alertColors(variant) {
-	return match(variant).with("default", () => ({
-		container: "border-subtle bg-surface",
-		title: "text-primary",
-		description: "text-secondary"
-	})).with("destructive", () => ({
-		container: "border-danger bg-danger-surface",
-		title: "text-danger-primary",
-		description: "text-danger-primary"
-	})).exhaustive();
-}
-/** A native status callout with shadcn-compatible compound composition. */
-function Alert(props) {
-	const variant = () => props.variant ?? "default";
-	const colors = () => alertColors(variant());
-	const forwarded = omit(props, "variant", "icon", "title", "class", "children");
-	const content = () => props.title === void 0 ? props.children : [createComponent$1(AlertTitle, { get children() {
-		return props.title;
-	} }), memo(() => {
-		return memo(() => {
-			return props.children === void 0;
-		})() ? null : createComponent$1(AlertDescription, { get children() {
-			return props.children;
-		} });
-	})];
-	return createComponent(AlertContext, {
-		value: { variant },
-		get children() {
-			return createComponent$1(View, mergeProps(forwarded, {
-				role: "alert",
-				get ["aria-label"]() {
-					return props["aria-label"] ?? props.title;
-				},
-				get ["class"]() {
-					return mergeClasses("w-full min-w-0 flex flex-row items-start gap-3 rounded-xl border p-4 shadow-xs", colors().container, props.class);
-				},
-				get children() {
-					return [memo(() => {
-						return memo(() => {
-							return props.icon === void 0;
-						})() ? null : createComponent$1(View, {
-							class: "flex-none pt-0.5",
-							get children() {
-								return props.icon;
-							}
-						});
-					}), createComponent$1(View, {
-						class: "min-w-0 flex-1 flex flex-col gap-1",
-						get children() {
-							return content();
-						}
-					})];
-				}
-			}));
-		}
-	});
-}
-function AlertTitle(props) {
-	const context = useContext(AlertContext);
-	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
-		return mergeClasses("w-full min-w-0 text-sm font-semibold", alertColors(context.variant()).title, props.class);
-	} }));
-}
-function AlertDescription(props) {
-	const context = useContext(AlertContext);
-	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
-		return mergeClasses("w-full min-w-0 whitespace-normal text-sm", alertColors(context.variant()).description, props.class);
-	} }));
-}
-//#endregion
-//#region src/components/button-group-context.ts
-const ButtonGroupContext = createContext(null);
-function useButtonGroupOrientation() {
-	return useContext(ButtonGroupContext) ?? void 0;
-}
-//#endregion
 //#region src/components/button.tsx
 function buttonColors(variant, state) {
 	const focus = state.focusVisible ? "border-focus" : "";
+	const active = state.pressed || state.selected;
 	const passiveBorder = (value) => match(value).with("outline", () => "border-strong").with(P.union("default", "secondary", "ghost", "destructive"), () => "border-transparent").exhaustive();
 	return match({
 		variant,
-		pressed: state.pressed,
+		pressed: active,
 		hovered: state.hovered
 	}).with({
 		variant: "default",
@@ -378,23 +537,193 @@ function buttonColors(variant, state) {
 		hovered: true
 	}, () => mergeClasses("bg-control-hover border-transparent text-primary", focus)).with({ variant: "secondary" }, () => mergeClasses("bg-control border-transparent text-primary", focus)).with({ pressed: true }, ({ variant: value }) => mergeClasses("bg-control-pressed text-secondary", passiveBorder(value), focus)).with({ hovered: true }, ({ variant: value }) => mergeClasses("bg-control-hover text-secondary", passiveBorder(value), focus)).with({ variant: P.union("outline", "ghost") }, ({ variant: value }) => mergeClasses("bg-transparent text-secondary", passiveBorder(value), focus)).exhaustive();
 }
-function buttonSize(size) {
-	return componentsControlSize(size);
+function buttonSize(size, grouped) {
+	return grouped ? componentsControlContentSize(size) : componentsControlSize(size);
+}
+function buttonSpinnerColor(variant) {
+	return match(variant).with("default", "destructive", () => "text-on-accent").with("secondary", () => "text-primary").with("outline", "ghost", () => "text-secondary").exhaustive();
 }
 function Button(props) {
 	const local = props;
-	const forwarded = omit(props, "variant", "size", "class", "style");
-	const variant = () => local.variant ?? "default";
-	const size = () => local.size ?? "default";
-	const groupOrientation = useButtonGroupOrientation();
+	const forwarded = omit(props, "variant", "size", "class", "style", "loading", "loadingLabel", "children");
+	const groupItem = useButtonGroupItem();
+	const variant = () => local.variant ?? groupItem?.variant() ?? "default";
+	const size = () => local.size ?? groupItem?.size() ?? "default";
+	const visuallyDisabled = () => local.disabled || groupItem?.disabled() || false;
+	const disabled = () => local.disabled || local.loading || groupItem?.disabled() || false;
 	return createComponent$1(Button$1, mergeProps(forwarded, {
+		get disabled() {
+			return disabled();
+		},
+		get ["aria-busy"]() {
+			return local.loading ?? false;
+		},
 		unstyled: true,
-		class: (state) => mergeClasses("inline-flex flex-none whitespace-nowrap items-center justify-center border font-medium", buttonColors(variant(), state), buttonSize(size()), groupOrientation && "rounded-none border-transparent", local.class),
+		class: (state) => mergeClasses("inline-flex flex-none overflow-hidden whitespace-nowrap items-center justify-center border font-medium", buttonColors(variant(), state), buttonSize(size(), groupItem !== void 0), groupItem && buttonGroupItemCorners(groupItem), groupItem && "border-transparent", local.class),
 		style: (state) => ({
 			"border-width": 1,
-			opacity: state.disabled ? .45 : 1,
+			opacity: visuallyDisabled() ? .45 : 1,
 			...typeof local.style === "function" ? local.style(state) : local.style
-		})
+		}),
+		get children() {
+			return createComponent$1(Show, {
+				get when() {
+					return local.loading;
+				},
+				get fallback() {
+					return local.children;
+				},
+				get children() {
+					return [createComponent$1(Spinner, {
+						get label() {
+							return local.loadingLabel ?? "Loading";
+						},
+						get ["class"]() {
+							return buttonSpinnerColor(variant());
+						}
+					}), memo(() => {
+						return local.loadingLabel ?? local.children;
+					})];
+				}
+			});
+		}
+	}));
+}
+//#endregion
+//#region src/components/alert.tsx
+const AlertContext = createContext({ variant: () => "default" });
+function alertColors(variant) {
+	return match(variant).with("default", () => ({
+		container: "border-subtle bg-surface",
+		title: "text-primary",
+		description: "text-secondary"
+	})).with("info", () => ({
+		container: "border-accent bg-selected",
+		title: "text-accent",
+		description: "text-secondary"
+	})).with("success", () => ({
+		container: "border-success-primary bg-success-surface",
+		title: "text-success-primary",
+		description: "text-success-primary"
+	})).with("warning", () => ({
+		container: "border-strong bg-control",
+		title: "text-primary",
+		description: "text-secondary"
+	})).with(P.union("error", "destructive"), () => ({
+		container: "border-danger bg-danger-surface",
+		title: "text-danger-primary",
+		description: "text-danger-primary"
+	})).exhaustive();
+}
+function alertGeometry(size) {
+	return match(size).with("sm", () => "gap-2 px-3 py-2").with("default", () => "gap-3 px-4 py-2.5").with("lg", () => "gap-3 px-5 py-3").exhaustive();
+}
+function alertIcon(variant) {
+	return match(variant).with(P.union("default", "info"), () => info).with("success", () => checkCircle).with("warning", () => triangleAlert).with(P.union("error", "destructive"), () => circleX).exhaustive();
+}
+/** A native status callout with shadcn-compatible compound composition. */
+function Alert(props) {
+	const variant = () => props.variant ?? "default";
+	const size = () => props.size ?? "default";
+	const colors = () => alertColors(variant());
+	const forwarded = omit(props, "variant", "size", "icon", "banner", "onClose", "title", "class", "children");
+	const content = () => props.title === void 0 ? props.children : [createComponent$1(AlertTitle, { get children() {
+		return props.title;
+	} }), memo(() => {
+		return memo(() => {
+			return props.children === void 0;
+		})() ? null : createComponent$1(AlertDescription, { get children() {
+			return props.children;
+		} });
+	})];
+	return createComponent(AlertContext, {
+		value: { variant },
+		get children() {
+			return createComponent$1(View, mergeProps(forwarded, {
+				role: "alert",
+				get ["aria-label"]() {
+					return props["aria-label"] ?? props.title;
+				},
+				get ["class"]() {
+					return mergeClasses("w-full min-w-0 flex flex-row items-start", alertGeometry(size()), componentsSurfaceClass("raised"), colors().container, props.banner && "rounded-none border-0", props.class);
+				},
+				get children() {
+					return [
+						memo(() => {
+							return memo(() => {
+								return props.icon === false;
+							})() ? null : createComponent$1(View, {
+								class: "h-5 flex-none flex items-center",
+								get children() {
+									return props.icon ?? createComponent$1(Icon, {
+										get source() {
+											return alertIcon(variant());
+										},
+										size: 16,
+										get ["class"]() {
+											return colors().title;
+										}
+									});
+								}
+							});
+						}),
+						createComponent$1(View, {
+							class: "min-w-0 flex-1 flex flex-col gap-1",
+							get children() {
+								return content();
+							}
+						}),
+						memo(() => {
+							return memo(() => {
+								return !!props.onClose;
+							})() ? createComponent$1(Button, {
+								size: "icon",
+								variant: "ghost",
+								get ["aria-label"]() {
+									return `Dismiss ${props["aria-label"] ?? props.title ?? "alert"}`;
+								},
+								class: "w-7 h-7 flex-none",
+								get onClick() {
+									return props.onClose;
+								},
+								get children() {
+									return createComponent$1(Icon, {
+										source: x,
+										size: 14
+									});
+								}
+							}) : props.onClose;
+						})
+					];
+				}
+			}));
+		}
+	});
+}
+function AlertTitle(props) {
+	const context = useContext(AlertContext);
+	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
+		return mergeClasses("w-full min-w-0 text-sm font-semibold", alertColors(context.variant()).title, props.class);
+	} }));
+}
+function AlertDescription(props) {
+	const context = useContext(AlertContext);
+	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
+		return mergeClasses("w-full min-w-0 whitespace-normal text-sm", alertColors(context.variant()).description, props.class);
+	} }));
+}
+/** Recovery and acknowledgement controls belonging to an alert. */
+function AlertActions(props) {
+	return createComponent$1(View, mergeProps(props, {
+		get role() {
+			return props.role ?? "group";
+		},
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 mt-2 flex flex-row flex-wrap items-center gap-2", props.class);
+		},
+		get children() {
+			return props.children;
+		}
 	}));
 }
 //#endregion
@@ -417,7 +746,7 @@ function Dialog(props) {
 			};
 		},
 		get contentClass() {
-			return mergeClasses("w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-xl border border-subtle bg-surface p-5", props.contentClass);
+			return mergeClasses("w-[480px] max-w-full min-w-0 flex flex-col gap-4 p-5", componentsSurfaceClass("modal"), props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -690,12 +1019,21 @@ function AttachmentGroup(props) {
 }
 //#endregion
 //#region src/components/avatar.tsx
+/** Derive at most two stable initials without depending on Intl. */
+function avatarInitials(name) {
+	const words = name.trim().split(/\s+/).filter(Boolean);
+	if (words.length === 0) return "";
+	return (words.length === 1 ? [...words[0]].slice(0, 2).join("") : words.slice(0, 2).map((word) => [...word][0] ?? "").join("")).toUpperCase();
+}
 function Avatar(props) {
+	const forwarded = omit(props, "image", "name", "alt", "fallback", "size", "class");
 	const size = () => match(props.size ?? "default").with("sm", () => "w-8 h-8 text-xs").with("default", () => "w-10 h-10 text-sm").with("lg", () => "w-12 h-12 text-base").exhaustive();
-	return createComponent$1(Center, {
+	const fallback = () => props.fallback ?? avatarInitials(props.name ?? "");
+	const label = () => props.alt ?? props.name ?? props.fallback ?? "Avatar";
+	return createComponent$1(Center, mergeProps(forwarded, {
 		role: "img",
 		get ["aria-label"]() {
-			return props.alt ?? props.fallback;
+			return label();
 		},
 		get ["class"]() {
 			return mergeClasses("flex-none overflow-hidden rounded-full bg-control border border-subtle", size(), props.class);
@@ -713,24 +1051,25 @@ function Avatar(props) {
 				"aria-hidden": "true",
 				class: "font-medium text-secondary",
 				get children() {
-					return props.fallback;
+					return fallback();
 				}
 			});
 		}
-	});
+	}));
 }
 function AvatarGroup(props) {
-	return createComponent$1(View, {
+	return createComponent$1(View, mergeProps(props, {
+		get role() {
+			return props.role ?? "group";
+		},
 		get ["class"]() {
 			return mergeClasses("flex items-center gap-1", props.class);
-		},
-		get children() {
-			return props.children;
 		}
-	});
+	}));
 }
 function AvatarGroupCount(props) {
-	return createComponent$1(Center, {
+	const forwarded = omit(props, "class", "children");
+	return createComponent$1(Center, mergeProps(forwarded, {
 		get ["class"]() {
 			return mergeClasses("w-10 h-10 flex-none rounded-full bg-control border border-subtle", props.class);
 		},
@@ -742,26 +1081,39 @@ function AvatarGroupCount(props) {
 				}
 			});
 		}
-	});
+	}));
 }
 //#endregion
 //#region src/components/button-group.tsx
 /** A single bordered control surface composed from ordinary Wabou buttons. */
 function ButtonGroup(props) {
 	const orientation = () => props.orientation ?? "horizontal";
+	const size = () => props.size ?? "default";
+	const variant = () => props.variant ?? "default";
+	const disabled = () => props.disabled ?? false;
 	const layout = () => match(orientation()).with("horizontal", () => "flex-row items-stretch").with("vertical", () => "flex-col items-stretch").exhaustive();
+	const context = createButtonGroupContext(orientation, {
+		size,
+		variant,
+		disabled
+	});
+	const forwarded = omit(props, "orientation", "size", "variant", "disabled", "class", "children");
 	return createComponent(ButtonGroupContext, {
-		get value() {
-			return orientation();
-		},
+		value: context,
 		get children() {
-			return createComponent$1(View, mergeProps(props, {
+			return createComponent$1(View, mergeProps(forwarded, {
 				role: "group",
 				get ["aria-label"]() {
 					return props["aria-label"];
 				},
+				get ["aria-orientation"]() {
+					return orientation();
+				},
+				get ["aria-disabled"]() {
+					return disabled();
+				},
 				get ["class"]() {
-					return mergeClasses("min-w-0 flex gap-0 overflow-hidden rounded-lg border border-strong bg-surface shadow-xs", layout(), props.class);
+					return mergeClasses("min-w-0 flex gap-0 rounded-lg border border-strong bg-surface shadow-xs", layout(), props.class);
 				},
 				get children() {
 					return props.children;
@@ -771,9 +1123,11 @@ function ButtonGroup(props) {
 	});
 }
 function ButtonGroupText(props) {
+	const groupItem = useButtonGroupItem();
+	const size = () => groupItem?.size() ?? "default";
 	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return mergeClasses("min-h-8 px-3 flex-none flex items-center whitespace-nowrap text-sm font-medium text-secondary bg-control", props.class);
+			return mergeClasses("flex-none flex items-center whitespace-nowrap font-medium text-secondary bg-control", componentsControlContentSize(size()), groupItem?.disabled() && "opacity-50", groupItem && buttonGroupItemCorners(groupItem), props.class);
 		},
 		get children() {
 			return props.children;
@@ -791,27 +1145,81 @@ function ButtonGroupSeparator(props) {
 }
 //#endregion
 //#region src/components/card.tsx
+const CardContext = createContext({ size: () => "default" });
+function cardChrome(variant) {
+	return match(variant).with("raised", () => componentsSurfaceClass("raised")).with("filled", () => "rounded-lg border border-transparent bg-control").with("outline", () => "rounded-lg border border-strong bg-transparent").with("plain", () => "rounded-none border-0 bg-transparent").exhaustive();
+}
+function cardGeometry(part, size) {
+	return match({
+		part,
+		size
+	}).with({
+		part: "header",
+		size: "sm"
+	}, () => "gap-1 px-4 pt-4 pr-12").with({
+		part: "header",
+		size: "default"
+	}, () => "gap-1.5 px-5 pt-5 pr-14").with({
+		part: "header",
+		size: "lg"
+	}, () => "gap-2 px-6 pt-6 pr-16").with({
+		part: "action",
+		size: "sm"
+	}, () => "top-4 right-4").with({
+		part: "action",
+		size: "default"
+	}, () => "top-5 right-5").with({
+		part: "action",
+		size: "lg"
+	}, () => "top-6 right-6").with({
+		part: "content",
+		size: "sm"
+	}, () => "gap-3 px-4 pt-3 pb-4").with({
+		part: "content",
+		size: "default"
+	}, () => "gap-4 px-5 pt-4 pb-5").with({
+		part: "content",
+		size: "lg"
+	}, () => "gap-5 px-6 pt-5 pb-6").with({
+		part: "footer",
+		size: "sm"
+	}, () => "gap-2 px-4 pb-4").with({
+		part: "footer",
+		size: "default"
+	}, () => "gap-2 px-5 pb-5").with({
+		part: "footer",
+		size: "lg"
+	}, () => "gap-3 px-6 pb-6").exhaustive();
+}
 function Card(props) {
 	const theme = useComponentsTheme();
-	const rest = omit(props, "class", "children", "shadows");
-	return createComponent$1(View, mergeProps(rest, {
-		get ["class"]() {
-			return mergeClasses("min-w-0 min-h-0 flex-none flex flex-col overflow-hidden rounded-xl border border-subtle bg-surface", props.class);
-		},
-		get shadows() {
-			return memo(() => {
-				return props.shadows === void 0;
-			})() ? componentsElevation(theme(), "raised") : props.shadows;
-		},
+	const variant = () => props.variant ?? "raised";
+	const size = () => props.size ?? "default";
+	const rest = omit(props, "variant", "size", "class", "children", "shadows");
+	return createComponent(CardContext, {
+		value: { size },
 		get children() {
-			return props.children;
+			return createComponent$1(View, mergeProps(rest, {
+				get ["class"]() {
+					return mergeClasses("min-w-0 min-h-0 flex-none flex flex-col overflow-hidden", cardChrome(variant()), props.class);
+				},
+				get shadows() {
+					return memo(() => {
+						return !!(props.shadows === void 0 && variant() === "raised");
+					})() ? componentsElevation(theme(), "raised") : props.shadows;
+				},
+				get children() {
+					return props.children;
+				}
+			}));
 		}
-	}));
+	});
 }
 function CardHeader(props) {
+	const context = useContext(CardContext);
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return mergeClasses("relative min-w-0 flex flex-col gap-1.5 px-5 pt-5 pr-14", props.class);
+			return mergeClasses("relative min-w-0 flex flex-col", cardGeometry("header", context.size()), props.class);
 		},
 		get children() {
 			return props.children;
@@ -819,9 +1227,10 @@ function CardHeader(props) {
 	}));
 }
 function CardTitle(props) {
+	const context = useContext(CardContext);
 	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return mergeClasses("min-w-0 text-base font-semibold text-primary", props.class);
+			return mergeClasses("min-w-0 font-semibold text-primary", match(context.size()).with("sm", () => "text-sm").with("default", () => "text-base").with("lg", () => "text-lg").exhaustive(), props.class);
 		},
 		get children() {
 			return props.children;
@@ -829,9 +1238,10 @@ function CardTitle(props) {
 	}));
 }
 function CardDescription(props) {
+	const context = useContext(CardContext);
 	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return mergeClasses("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
+			return mergeClasses("w-full min-w-0 whitespace-normal text-muted", match(context.size()).with("sm", () => "text-xs").with("default", () => "text-sm").with("lg", () => "text-base").exhaustive(), props.class);
 		},
 		get children() {
 			return props.children;
@@ -840,9 +1250,10 @@ function CardDescription(props) {
 }
 /** Top-end action slot owned by the relative CardHeader surface. */
 function CardAction(props) {
+	const context = useContext(CardContext);
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return mergeClasses("absolute top-5 right-5 flex-none flex items-center justify-end", props.class);
+			return mergeClasses("absolute flex-none flex items-center justify-end", cardGeometry("action", context.size()), props.class);
 		},
 		get children() {
 			return props.children;
@@ -850,9 +1261,10 @@ function CardAction(props) {
 	}));
 }
 function CardContent(props) {
+	const context = useContext(CardContext);
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return mergeClasses("min-w-0 min-h-0 flex flex-col gap-4 px-5 pt-4 pb-5", props.class);
+			return mergeClasses("min-w-0 min-h-0 flex flex-col", cardGeometry("content", context.size()), props.class);
 		},
 		get children() {
 			return props.children;
@@ -860,9 +1272,10 @@ function CardContent(props) {
 	}));
 }
 function CardFooter(props) {
+	const context = useContext(CardContext);
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return mergeClasses("min-w-0 flex items-center gap-2 px-5 pb-5", props.class);
+			return mergeClasses("min-w-0 flex items-center", cardGeometry("footer", context.size()), props.class);
 		},
 		get children() {
 			return props.children;
@@ -973,14 +1386,34 @@ function createDisclosure(options = {}) {
 //#region src/primitives/interactions/roving-focus.ts
 function createRovingFocus(options = {}) {
 	const items = [];
+	const [activeId, setActiveId] = createSignal();
+	const [registryVersion, setRegistryVersion] = createSignal(0);
 	const enabled = () => items.filter((item) => !item.disabled?.());
+	const currentTabStop = () => {
+		registryVersion();
+		const candidates = enabled();
+		const active = activeId();
+		return candidates.find((item) => item.id === active)?.id ?? candidates.find((item) => options.preferred?.(item.id))?.id ?? candidates[0]?.id;
+	};
+	const activate = (id) => {
+		if (!enabled().some((item) => item.id === id)) return false;
+		setActiveId(id);
+		return true;
+	};
 	return {
 		register(item) {
 			items.push(item);
+			setRegistryVersion((version) => version + 1);
 			return () => {
 				const index = items.indexOf(item);
 				if (index >= 0) items.splice(index, 1);
+				if (activeId() === item.id) setActiveId(void 0);
+				setRegistryVersion((version) => version + 1);
 			};
+		},
+		activate,
+		isTabStop(id) {
+			return currentTabStop() === id;
 		},
 		move(current, key) {
 			const orientation = options.orientation?.() ?? "horizontal";
@@ -1006,6 +1439,7 @@ function createRovingFocus(options = {}) {
 			const index = candidates.findIndex((item) => item.id === current);
 			const target = match(direction).with("first", () => candidates[0]).with("last", () => candidates.at(-1)).with("next", () => candidates[index + 1] ?? (options.loop === false ? void 0 : candidates[0])).with("previous", () => candidates[index - 1] ?? (options.loop === false ? void 0 : candidates.at(-1))).exhaustive();
 			if (!target) return false;
+			activate(target.id);
 			options.onMove?.(target.id);
 			target.target.focus();
 			return true;
@@ -1047,6 +1481,10 @@ function createTypeahead(options = {}) {
 //#region src/primitives/interactions/select.ts
 function updateSelect(state, event, options) {
 	const collection = createCollection(() => options.items);
+	const initialHighlight = (fallback) => {
+		const candidate = fallback ? collection.find(fallback) : void 0;
+		return candidate && !candidate.disabled ? candidate.id : collection.first()?.id;
+	};
 	const openAt = (id) => ({
 		state: {
 			...state,
@@ -1078,7 +1516,7 @@ function updateSelect(state, event, options) {
 	return match(event).with({ type: "OPEN" }, () => state.open ? {
 		state,
 		commands: []
-	} : openAt(state.value ?? collection.first()?.id)).with({ type: "CLOSE" }, () => ({
+	} : openAt(initialHighlight(state.value))).with({ type: "CLOSE" }, () => ({
 		state: {
 			...state,
 			open: false,
@@ -1092,7 +1530,7 @@ function updateSelect(state, event, options) {
 			highlighted: void 0
 		},
 		commands: [{ type: "FOCUS_TRIGGER" }]
-	} : openAt(state.value ?? collection.first()?.id)).with({ type: "ARROW_DOWN" }, () => state.open ? move("next") : openAt(state.value ?? collection.first()?.id)).with({ type: "ARROW_UP" }, () => state.open ? move("previous") : openAt(state.value ?? collection.last()?.id)).with({ type: "HOME" }, () => openAt(collection.first()?.id)).with({ type: "END" }, () => openAt(collection.last()?.id)).with(P.union({ type: "HIGHLIGHT" }, { type: "TYPEAHEAD" }), ({ id }) => collection.find(id)?.disabled ? {
+	} : openAt(initialHighlight(state.value))).with({ type: "ARROW_DOWN" }, () => state.open ? move("next") : openAt(initialHighlight(state.value))).with({ type: "ARROW_UP" }, () => state.open ? move("previous") : openAt(state.value ?? collection.last()?.id)).with({ type: "HOME" }, () => openAt(collection.first()?.id)).with({ type: "END" }, () => openAt(collection.last()?.id)).with(P.union({ type: "HIGHLIGHT" }, { type: "TYPEAHEAD" }), ({ id }) => collection.find(id)?.disabled ? {
 		state,
 		commands: []
 	} : event.type === "TYPEAHEAD" && !state.open ? openAt(id) : {
@@ -1141,8 +1579,22 @@ function createSelectInteraction(options) {
 		value: value.value(),
 		highlighted: highlighted()
 	});
+	let observedOpen = false;
+	let observedOpenInitialized = false;
+	createEffect(open.value, (current) => {
+		if (!observedOpenInitialized) {
+			observedOpenInitialized = true;
+			observedOpen = current;
+			if (current) options.execute?.({ type: "FOCUS_CONTENT" });
+			return;
+		}
+		if (current === observedOpen) return;
+		observedOpen = current;
+		options.execute?.({ type: current ? "FOCUS_CONTENT" : "FOCUS_TRIGGER" });
+	});
 	const send = (event) => {
 		if (options.disabled?.()) return false;
+		const controlledOpen = options.open?.();
 		const result = updateSelect(state(), event, {
 			items: options.items(),
 			loop: options.loop
@@ -1150,8 +1602,8 @@ function createSelectInteraction(options) {
 		const previous = state();
 		open.set(result.state.open);
 		if (result.state.value !== void 0) value.set(result.state.value);
-		setHighlighted(result.state.highlighted);
-		for (const command of result.commands) options.execute?.(command);
+		if (!(controlledOpen !== void 0 && controlledOpen !== result.state.open)) setHighlighted(result.state.highlighted);
+		for (const command of result.commands) if (command.type === "SCROLL_TO_ITEM" && result.state.open) options.execute?.(command);
 		return previous.open !== result.state.open || previous.value !== result.state.value || previous.highlighted !== result.state.highlighted;
 	};
 	return {
@@ -1627,47 +2079,269 @@ function Input(props) {
 			return (props.chrome ?? "default") === "default" ? "surface native-editor" : "native-editor";
 		},
 		get ["class"]() {
-			return mergeClasses("w-full text-primary", (props.chrome ?? "default") === "default" ? componentsControlSize("default") : componentsControlContentSize("default"), (props.chrome ?? "default") === "default" && mergeClasses("border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
+			return mergeClasses("w-full flex items-center py-2 text-primary", (props.chrome ?? "default") === "default" ? componentsControlSize("default") : componentsControlContentSize("default"), (props.chrome ?? "default") === "default" && mergeClasses("border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
+		}
+	}));
+}
+/** A native secret input whose value never crosses into JavaScript. */
+function PasswordInput(props) {
+	return createComponent$1(PasswordInput$1, mergeProps(props, { get ["class"]() {
+		return mergeClasses("w-full flex items-center py-2 border shadow-xs", componentsControlSize("default"), "border-subtle bg-input text-primary", props.disabled && "opacity-50", props.class);
+	} }));
+}
+function TextArea(props) {
+	const forwarded = omit(props, "chrome", "surfaceClass");
+	return createComponent$1(TextArea$1, mergeProps(forwarded, {
+		get ["data-wabou-owns"]() {
+			return (props.chrome ?? "default") === "default" ? "surface native-editor" : "native-editor";
+		},
+		get ["class"]() {
+			return mergeClasses("h-24 w-full px-2.5 py-2 text-sm leading-normal text-primary", (props.chrome ?? "default") === "default" && mergeClasses("rounded-md border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
 		}
 	}));
 }
 //#endregion
+//#region src/components/select-semantics.ts
+function pickerTriggerClass(variant, state) {
+	const focus = state.focused ? "border-focus" : "border-transparent";
+	if (variant === "default") return mergeClasses("bg-input shadow-xs", state.focused ? "border-focus" : "border-subtle");
+	return mergeClasses(state.pressed ? "bg-control-pressed" : state.hovered ? "bg-control-hover" : "bg-transparent", "shadow-none", focus);
+}
+/** Keep semantic ID references live for the same lifetime as the popup node. */
+function selectControlsId(listboxId, open) {
+	return open ? listboxId : void 0;
+}
+/** Shared visual contract for selectable and explicitly unavailable options. */
+function pickerOptionClass(disabled, highlighted) {
+	if (disabled) return "bg-surface-muted text-muted cursor-not-allowed opacity-60";
+	if (highlighted) return "bg-control-hover text-primary cursor-pointer";
+	return "bg-transparent text-secondary cursor-pointer";
+}
+//#endregion
 //#region src/components/command.tsx
-/** Searchable command list whose filtering and keyboard behavior are host-independent. */
-function Command(props) {
-	const [uncontrolledQuery, setUncontrolledQuery] = createSignal(props.defaultQuery ?? "");
-	const [highlighted, setHighlighted] = createSignal();
-	const query = () => props.query ?? uncontrolledQuery();
-	const filtered = createMemo(() => filterCommandItems(props.items, query()));
-	createEffect(() => ({
-		items: filtered(),
-		highlighted: highlighted()
-	}), ({ items, highlighted: current }) => {
-		setHighlighted(reconcileCommandHighlight(items, current));
+/** Reusable command-result surface for search fields and inline completions. */
+function CommandList(props) {
+	return createComponent$1(View, {
+		role: "listbox",
+		get ["aria-label"]() {
+			return props["aria-label"];
+		},
+		get ["aria-activedescendant"]() {
+			return props.highlighted;
+		},
+		get ["class"]() {
+			return mergeClasses("min-w-0 flex flex-col gap-1", props.class);
+		},
+		get children() {
+			return createComponent$1(Switch$1, { get children() {
+				return [
+					createComponent$1(Match, {
+						get when() {
+							return props.loading;
+						},
+						get children() {
+							return createComponent$1(Text, {
+								role: "status",
+								class: "px-3 py-4 text-sm text-muted text-center",
+								get children() {
+									return props.loadingText ?? "Loading results…";
+								}
+							});
+						}
+					}),
+					createComponent$1(Match, {
+						get when() {
+							return memo(() => {
+								return props.error !== void 0;
+							})() && props.error !== null;
+						},
+						get children() {
+							return createComponent$1(View, {
+								role: "alert",
+								get ["aria-label"]() {
+									return props.errorText ?? "Could not load results";
+								},
+								class: "px-3 py-3 flex flex-col items-center gap-2 text-center",
+								get children() {
+									return [
+										createComponent$1(Text, {
+											class: "text-sm font-medium text-danger-primary",
+											get children() {
+												return props.errorText ?? "Could not load results";
+											}
+										}),
+										createComponent$1(Text, {
+											class: "max-w-full truncate text-xs text-danger-primary",
+											get children() {
+												return String(props.error);
+											}
+										}),
+										memo(() => {
+											return memo(() => {
+												return !!props.onRetry;
+											})() ? createComponent$1(Button, {
+												size: "sm",
+												variant: "outline",
+												get ["aria-label"]() {
+													return props.retryLabel ?? "Try again";
+												},
+												get onClick() {
+													return props.onRetry;
+												},
+												get children() {
+													return props.retryLabel ?? "Try again";
+												}
+											}) : props.onRetry;
+										})
+									];
+								}
+							});
+						}
+					}),
+					createComponent$1(Match, {
+						get when() {
+							return props.items.length === 0;
+						},
+						get children() {
+							return createComponent$1(Text, {
+								role: "status",
+								class: "px-3 py-4 text-sm text-muted text-center",
+								get children() {
+									return props.emptyText ?? "No results found.";
+								}
+							});
+						}
+					}),
+					createComponent$1(Match, {
+						when: true,
+						get children() {
+							return createComponent$1(For, {
+								get each() {
+									return props.items;
+								},
+								keyed: false,
+								children: (item) => createComponent$1(View, {
+									get id() {
+										return item().id;
+									},
+									role: "option",
+									get ["aria-label"]() {
+										return item().label;
+									},
+									get ["aria-selected"]() {
+										return props.highlighted === item().id;
+									},
+									get ["aria-disabled"]() {
+										return item().disabled;
+									},
+									get ["class"]() {
+										return mergeClasses("min-h-8 px-2 py-1 flex flex-row items-center gap-2 rounded-md", pickerOptionClass(item().disabled ?? false, props.highlighted === item().id), props.itemClass);
+									},
+									onPointerMove: () => !item().disabled && props.onHighlightChange?.(item().id),
+									onClick: () => !item().disabled && props.onAction?.(item().id),
+									get children() {
+										return [
+											memo(() => {
+												return props.renderLeading?.(item());
+											}),
+											createComponent$1(View, {
+												class: "min-w-0 flex-1 flex flex-col justify-center",
+												get children() {
+													return [createComponent$1(Text, {
+														class: "min-w-0 truncate text-sm",
+														get children() {
+															return item().label;
+														}
+													}), memo(() => {
+														return memo(() => {
+															return !!item().description;
+														})() ? createComponent$1(Text, {
+															class: "min-w-0 truncate text-xs text-muted",
+															get children() {
+																return item().description;
+															}
+														}) : item().description;
+													})];
+												}
+											}),
+											memo(() => {
+												return memo(() => {
+													return !!item().shortcut;
+												})() ? createComponent$1(Text, {
+													"aria-hidden": "true",
+													class: "flex-none rounded border border-subtle bg-surface px-1.5 py-0.5 text-xs text-muted",
+													get children() {
+														return item().shortcut;
+													}
+												}) : item().shortcut;
+											})
+										];
+									}
+								})
+							});
+						}
+					})
+				];
+			} });
+		}
 	});
-	const setQuery = (next) => {
-		if (props.query === void 0) setUncontrolledQuery(next);
-		props.onQueryChange?.(next);
-	};
+}
+/**
+* Shared command-list navigation for any focus owner, including native editors.
+* The caller forwards key events while the list remains a passive popup.
+*/
+function createCommandListNavigation(items, options = {}) {
+	const [highlighted, setHighlighted] = createSignal();
+	createEffect(() => ({
+		items: items(),
+		highlighted: highlighted()
+	}), ({ items: nextItems, highlighted: current }) => {
+		setHighlighted(reconcileCommandHighlight(nextItems, current));
+	});
 	const select = (id) => {
-		const item = filtered().find((candidate) => candidate.id === id);
+		const item = items().find((candidate) => candidate.id === id);
 		if (!item || item.disabled) return false;
-		item.onSelect?.();
-		props.onAction?.(item.id);
+		options.onAction?.(item.id);
 		return true;
 	};
 	const move = (direction) => {
-		const next = moveMenuHighlight(filtered(), highlighted(), direction);
+		const next = moveMenuHighlight(items(), highlighted(), direction);
 		if (next === void 0) return false;
 		setHighlighted(next);
 		return true;
 	};
-	const onKeyDown = (event) => {
-		if (match(event.key).with("ArrowDown", () => move("next")).with("ArrowUp", () => move("previous")).with("Home", () => move("first")).with("End", () => move("last")).with("Enter", () => select(highlighted())).with("Escape", () => {
-			props.onDismiss?.();
-			return props.onDismiss !== void 0;
-		}).otherwise(() => false)) event.preventDefault();
+	const handleKeyDown = (event) => {
+		const handled = match(event.key).with("ArrowDown", () => move("next")).with("ArrowUp", () => move("previous")).with("Home", () => move("first")).with("End", () => move("last")).with("Enter", () => select(highlighted())).with("Escape", () => {
+			options.onDismiss?.();
+			return options.onDismiss !== void 0;
+		}).otherwise(() => false);
+		if (handled) event.preventDefault();
+		return handled;
 	};
+	return {
+		highlighted,
+		setHighlighted,
+		select,
+		move,
+		handleKeyDown
+	};
+}
+/** Searchable command list whose filtering and keyboard behavior are host-independent. */
+function Command(props) {
+	const [uncontrolledQuery, setUncontrolledQuery] = createSignal(props.defaultQuery ?? "");
+	const query = () => props.query ?? uncontrolledQuery();
+	const filtered = createMemo(() => filterCommandItems(props.items, query()));
+	const setQuery = (next) => {
+		if (props.query === void 0) setUncontrolledQuery(next);
+		props.onQueryChange?.(next);
+	};
+	const navigation = createCommandListNavigation(filtered, {
+		onAction: (id) => {
+			filtered().find((item) => item.id === id)?.onSelect?.();
+			props.onAction?.(id);
+		},
+		onDismiss: props.onDismiss
+	});
 	return createComponent$1(View, {
 		get ["class"]() {
 			return mergeClasses("min-w-0 flex flex-col gap-2", props.class);
@@ -1688,108 +2362,52 @@ function Command(props) {
 					typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : props.inputRef = r$;
 				},
 				onInput: (event) => setQuery(event.currentTarget.value),
-				onKeyDown
-			}), createComponent$1(View, {
-				role: "listbox",
+				get onKeyDown() {
+					return navigation.handleKeyDown;
+				}
+			}), createComponent$1(CommandList, {
 				get ["aria-label"]() {
 					return `${props["aria-label"]} results`;
 				},
-				get ["aria-activedescendant"]() {
-					return highlighted();
+				get items() {
+					return filtered();
+				},
+				get highlighted() {
+					return navigation.highlighted();
+				},
+				get emptyText() {
+					return props.emptyText;
+				},
+				get loading() {
+					return props.loading;
+				},
+				get loadingText() {
+					return props.loadingText;
+				},
+				get error() {
+					return props.error;
+				},
+				get errorText() {
+					return props.errorText;
+				},
+				get retryLabel() {
+					return props.retryLabel;
+				},
+				get onRetry() {
+					return props.onRetry;
 				},
 				get ["class"]() {
-					return mergeClasses("min-w-0 flex flex-col gap-1", props.listClass);
+					return props.listClass;
 				},
-				get children() {
-					return memo(() => {
-						return filtered().length === 0;
-					})() ? createComponent$1(Text, {
-						role: "status",
-						class: "px-3 py-4 text-sm text-muted text-center",
-						get children() {
-							return props.emptyText ?? "No results found.";
-						}
-					}) : createComponent$1(For, {
-						get each() {
-							return filtered();
-						},
-						keyed: false,
-						children: (item) => createComponent$1(View, {
-							get id() {
-								return item().id;
-							},
-							role: "option",
-							get ["aria-label"]() {
-								return item().label;
-							},
-							get ["aria-selected"]() {
-								return highlighted() === item().id;
-							},
-							get ["aria-disabled"]() {
-								return item().disabled;
-							},
-							get ["class"]() {
-								return mergeClasses("min-h-9 px-3 py-1.5 flex flex-col justify-center rounded-lg", highlighted() === item().id ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
-							},
-							get style() {
-								return { opacity: item().disabled ? .45 : 1 };
-							},
-							onPointerMove: () => !item().disabled && setHighlighted(item().id),
-							onClick: () => select(item().id),
-							get children() {
-								return createComponent$1(View, {
-									class: "min-w-0 flex flex-row items-center justify-between gap-3",
-									get children() {
-										return [createComponent$1(View, {
-											class: "min-w-0 flex-1 flex flex-col",
-											get children() {
-												return [createComponent$1(Text, {
-													class: "min-w-0 truncate text-sm",
-													get children() {
-														return item().label;
-													}
-												}), memo(() => {
-													return memo(() => {
-														return !!item().description;
-													})() ? createComponent$1(Text, {
-														class: "min-w-0 truncate text-xs text-muted",
-														get children() {
-															return item().description;
-														}
-													}) : item().description;
-												})];
-											}
-										}), memo(() => {
-											return memo(() => {
-												return !!item().shortcut;
-											})() ? createComponent$1(Text, {
-												"aria-hidden": "true",
-												class: "flex-none rounded border border-subtle bg-surface px-1.5 py-0.5 text-xs text-muted",
-												get children() {
-													return item().shortcut;
-												}
-											}) : item().shortcut;
-										})];
-									}
-								});
-							}
-						})
-					});
+				get onHighlightChange() {
+					return navigation.setHighlighted;
+				},
+				get onAction() {
+					return navigation.select;
 				}
 			})];
 		}
 	});
-}
-//#endregion
-//#region src/components/select-semantics.ts
-function pickerTriggerClass(variant, state) {
-	const focus = state.focused ? "border-focus" : "border-transparent";
-	if (variant === "default") return mergeClasses("bg-input shadow-xs", state.focused ? "border-focus" : "border-subtle");
-	return mergeClasses(state.pressed ? "bg-control-pressed" : state.hovered ? "bg-control-hover" : "bg-transparent", "shadow-none", focus);
-}
-/** Keep semantic ID references live for the same lifetime as the popup node. */
-function selectControlsId(listboxId, open) {
-	return open ? listboxId : void 0;
 }
 //#endregion
 //#region src/components/combobox.tsx
@@ -1829,7 +2447,7 @@ function Combobox(props) {
 		onOpenChange: setOpen,
 		placement: "bottom-start",
 		get contentClass() {
-			return mergeClasses("w-72 p-2 rounded-xl border border-subtle bg-surface", props.contentClass);
+			return mergeClasses("w-72 p-2", componentsSurfaceClass("floating"), props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -1908,16 +2526,159 @@ function Combobox(props) {
 	});
 }
 //#endregion
-//#region src/components/config-editor.tsx
-/**
-* Configuration editor backed by DOM-free CodeMirror state and a controlled
-* native viewport. It is intentionally not a general-purpose IDE editor.
-*/
-function ConfigEditor(props) {
-	return createComponent$1(CodeEditor, mergeProps(props, {
-		language: "json",
+//#region src/components/content-state.tsx
+/** Mutually exclusive loading, empty, or error state for a bounded region. */
+function ContentState(props) {
+	const forwarded = omit(props, "state", "title", "description", "action", "renderMedia", "renderAction", "class");
+	const error = () => props.state === "error";
+	return createComponent$1(View, mergeProps(forwarded, {
+		get role() {
+			return error() ? "alert" : "status";
+		},
+		get ["aria-label"]() {
+			return props["aria-label"] ?? props.title;
+		},
 		get ["class"]() {
-			return mergeClasses("min-h-48 w-full rounded-lg border border-strong bg-input text-primary", props.class);
+			return mergeClasses("w-full h-full min-w-0 min-h-0 flex-1 p-6 flex flex-col items-center justify-center gap-3 text-center", error() ? "text-danger-primary" : "text-secondary", props.class);
+		},
+		get children() {
+			return [
+				memo(() => {
+					return props.renderMedia?.() ?? (props.state === "loading" ? createComponent$1(Spinner, { decorative: true }) : null);
+				}),
+				createComponent$1(View, {
+					class: "w-full max-w-sm min-w-0 flex flex-col items-center gap-1",
+					get children() {
+						return [createComponent$1(Text, {
+							role: "heading",
+							get ["class"]() {
+								return mergeClasses("w-full min-w-0 whitespace-normal text-sm font-medium", error() ? "text-danger-primary" : "text-primary");
+							},
+							get children() {
+								return props.title;
+							}
+						}), memo(() => {
+							return memo(() => {
+								return props.description === void 0;
+							})() ? null : createComponent$1(Text, {
+								get ["class"]() {
+									return mergeClasses("w-full min-w-0 whitespace-normal text-xs", error() ? "text-danger-primary" : "text-muted");
+								},
+								get children() {
+									return props.description;
+								}
+							});
+						})];
+					}
+				}),
+				memo(() => {
+					return props.renderAction?.() ?? (props.action ? createComponent$1(Button, {
+						size: "sm",
+						variant: "outline",
+						get ["aria-label"]() {
+							return props.action.label;
+						},
+						get onClick() {
+							return props.action.onAction;
+						},
+						get children() {
+							return props.action.label;
+						}
+					}) : null);
+				})
+			];
+		}
+	}));
+}
+/**
+* Mutually exclusive async resource boundary.
+*
+* Existing content remains mounted during a background refresh. This avoids
+* replacing a useful inspector or list with a loading spinner every time its
+* resource is refreshed.
+*/
+function ResourceBoundary(props) {
+	const forwarded = omit(props, "loading", "error", "hasContent", "loadingTitle", "errorTitle", "emptyTitle", "loadingDescription", "emptyDescription", "retryLabel", "onRetry", "renderContent", "renderEmptyMedia", "renderErrorMedia", "class");
+	const failed = () => props.error !== void 0 && props.error !== null;
+	return createComponent$1(View, mergeProps(forwarded, {
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 min-h-0 flex-1 flex flex-col", props.class);
+		},
+		get children() {
+			return createComponent$1(Switch$1, { get children() {
+				return [
+					createComponent$1(Match, {
+						get when() {
+							return failed();
+						},
+						get children() {
+							return createComponent$1(ContentState, {
+								state: "error",
+								get title() {
+									return props.errorTitle;
+								},
+								get description() {
+									return String(props.error);
+								},
+								get renderMedia() {
+									return props.renderErrorMedia;
+								},
+								get action() {
+									return memo(() => {
+										return !!props.onRetry;
+									})() ? {
+										label: props.retryLabel ?? "Try again",
+										onAction: props.onRetry
+									} : void 0;
+								}
+							});
+						}
+					}),
+					createComponent$1(Match, {
+						get when() {
+							return memo(() => {
+								return !!props.loading;
+							})() ? !props.hasContent : props.loading;
+						},
+						get children() {
+							return createComponent$1(ContentState, {
+								state: "loading",
+								get title() {
+									return props.loadingTitle;
+								},
+								get description() {
+									return props.loadingDescription;
+								}
+							});
+						}
+					}),
+					createComponent$1(Match, {
+						get when() {
+							return !props.hasContent;
+						},
+						get children() {
+							return createComponent$1(ContentState, {
+								state: "empty",
+								get title() {
+									return props.emptyTitle;
+								},
+								get description() {
+									return props.emptyDescription;
+								},
+								get renderMedia() {
+									return props.renderEmptyMedia;
+								}
+							});
+						}
+					}),
+					createComponent$1(Match, {
+						when: true,
+						get children() {
+							return props.renderContent();
+						}
+					})
+				];
+			} });
 		}
 	}));
 }
@@ -1929,6 +2690,7 @@ function DropdownMenu(props) {
 	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(props.defaultOpen ?? false);
 	const [highlighted, setHighlighted] = createSignal();
 	const open = () => props.open ?? uncontrolledOpen();
+	const hasLeadingSlot = () => props.items.some((item) => item.icon !== void 0 || item.checked !== void 0);
 	const typeahead = createTypeahead();
 	let trigger;
 	let content;
@@ -2000,7 +2762,7 @@ function DropdownMenu(props) {
 			return props.anchorPoint;
 		},
 		get contentClass() {
-			return mergeClasses("w-56 p-1 flex flex-col gap-0.5 rounded-xl border border-subtle bg-surface", props.contentClass);
+			return mergeClasses("w-56 p-1 flex flex-col gap-0.5", componentsSurfaceClass("floating"), props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -2062,8 +2824,11 @@ function DropdownMenu(props) {
 							get ["aria-disabled"]() {
 								return item().disabled;
 							},
+							get ["aria-checked"]() {
+								return item().checked;
+							},
 							get ["class"]() {
-								return mergeClasses("w-full min-h-8 flex-none px-2 py-1.5 flex flex-col justify-center rounded-lg", highlighted() === item().id ? "bg-control-hover" : "bg-transparent", item().destructive ? "text-danger-primary" : "text-primary");
+								return mergeClasses("w-full min-h-8 flex-none px-2 py-1.5 flex flex-row items-center gap-2 rounded-md", highlighted() === item().id ? "bg-control-hover" : "bg-transparent", item().destructive ? "text-danger-primary" : "text-primary");
 							},
 							get style() {
 								return { opacity: item().disabled ? .45 : 1 };
@@ -2071,21 +2836,63 @@ function DropdownMenu(props) {
 							onPointerMove: () => !item().disabled && setHighlighted(item().id),
 							onClick: () => select(item().id),
 							get children() {
-								return [createComponent$1(Text, {
-									class: "text-sm",
-									get children() {
-										return item().label;
-									}
-								}), memo(() => {
-									return memo(() => {
-										return !!item().description;
-									})() ? createComponent$1(Text, {
-										class: "text-xs text-muted",
+								return [
+									memo(() => {
+										return memo(() => {
+											return !!hasLeadingSlot();
+										})() ? createComponent$1(View, {
+											role: "presentation",
+											class: "w-4 h-4 flex-none flex items-center justify-center",
+											get children() {
+												return memo(() => {
+													return !!item().checked;
+												})() ? createComponent$1(Icon, {
+													source: check,
+													class: "text-accent",
+													size: 14
+												}) : memo(() => {
+													return !!item().icon;
+												})() ? createComponent$1(Icon, {
+													get source() {
+														return item().icon ?? "";
+													},
+													size: 14
+												}) : null;
+											}
+										}) : hasLeadingSlot();
+									}),
+									createComponent$1(View, {
+										class: "min-w-0 flex-1 flex flex-col justify-center",
 										get children() {
-											return item().description;
+											return [createComponent$1(Text, {
+												class: "min-w-0 truncate text-sm",
+												get children() {
+													return item().label;
+												}
+											}), memo(() => {
+												return memo(() => {
+													return !!item().description;
+												})() ? createComponent$1(Text, {
+													class: "min-w-0 truncate text-xs text-muted",
+													get children() {
+														return item().description;
+													}
+												}) : item().description;
+											})];
 										}
-									}) : item().description;
-								})];
+									}),
+									memo(() => {
+										return memo(() => {
+											return !!item().shortcut;
+										})() ? createComponent$1(Text, {
+											"aria-hidden": "true",
+											class: "flex-none rounded border border-subtle bg-surface px-1.5 py-0.5 text-xs text-muted",
+											get children() {
+												return item().shortcut;
+											}
+										}) : item().shortcut;
+									})
+								];
 							}
 						})]
 					});
@@ -2715,7 +3522,9 @@ function DatePicker(props) {
 		},
 		onOpenChange: setOpen,
 		placement: "bottom-start",
-		contentClass: "rounded-xl border border-subtle bg-surface",
+		get contentClass() {
+			return componentsSurfaceClass("floating");
+		},
 		get contentShadows() {
 			return memo(() => {
 				return props.contentShadows === void 0;
@@ -2765,20 +3574,14 @@ function DatePicker(props) {
 //#endregion
 //#region src/components/disclosure.tsx
 function DisclosureIndicator(props) {
-	const rotation = createTransition(() => props.open() ? Math.PI : 0, {
-		duration: .2,
-		ease: "easeOut",
-		reducedMotion: props.reducedMotion
-	});
 	return createComponent$1(View, {
 		class: "w-4 h-4 flex-none",
-		get transform() {
-			return rotate2d$1(rotation.value());
-		},
 		"aria-hidden": "true",
 		get children() {
 			return createComponent$1(Icon, {
-				source: chevronDown,
+				get source() {
+					return props.open() ? chevronDown : chevronRight;
+				},
 				class: "text-muted",
 				size: 16
 			});
@@ -2822,7 +3625,7 @@ function Collapsible(props) {
 }
 function CollapsibleTrigger(props) {
 	const context = useCollapsible();
-	const rest = omit(props, "children", "class", "onClick");
+	const rest = omit(props, "children", "indicator", "class", "onClick");
 	return createComponent$1(Button$1, mergeProps(rest, {
 		unstyled: true,
 		get disabled() {
@@ -2841,26 +3644,34 @@ function CollapsibleTrigger(props) {
 		get children() {
 			return [memo(() => {
 				return props.children;
-			}), createComponent$1(DisclosureIndicator, {
-				get open() {
+			}), memo(() => {
+				return memo(() => {
+					return props.indicator !== false;
+				})() && createComponent$1(DisclosureIndicator, { get open() {
 					return context.open;
-				},
-				get reducedMotion() {
-					return context.reducedMotion;
-				}
+				} });
 			})];
 		}
 	}));
 }
 function CollapsibleContent(props) {
 	const context = useCollapsible();
-	const contentProps = omit(props, "children", "class", "style");
+	const contentProps = omit(props, "children", "class", "style", "duration", "ease", "animateInitial");
 	return createComponent$1(CollapsiblePresence, {
 		get open() {
 			return context.open();
 		},
 		get reducedMotion() {
 			return context.reducedMotion();
+		},
+		get duration() {
+			return props.duration;
+		},
+		get ease() {
+			return props.ease;
+		},
+		get animateInitial() {
+			return props.animateInitial;
 		},
 		get contentClass() {
 			return props.class;
@@ -2986,12 +3797,7 @@ function AccordionTrigger(props) {
 				get children() {
 					return props.children;
 				}
-			}), createComponent$1(DisclosureIndicator, {
-				open,
-				get reducedMotion() {
-					return root.reducedMotion;
-				}
-			})];
+			}), createComponent$1(DisclosureIndicator, { open })];
 		}
 	}));
 }
@@ -3202,7 +4008,7 @@ function DiffViewer(props) {
 										}), createComponent$1(AccordionContent, {
 											class: "min-w-0",
 											get children() {
-												return createComponent$1(CodeEditor, {
+												return createComponent$1(Editor, {
 													readOnly: true,
 													get value() {
 														return file.patch;
@@ -3288,18 +4094,42 @@ function Label(props) {
 }
 //#endregion
 //#region src/components/forms.tsx
+const FieldContext = createContext({
+	orientation: () => "vertical",
+	invalid: () => false,
+	required: () => false
+});
 function fieldClass(orientation = "vertical", invalid = false, className) {
 	const layout = match(orientation).with("vertical", () => "flex-col gap-2").with("horizontal", () => "flex-row items-start gap-4").exhaustive();
 	return mergeClasses("w-full min-w-0 flex", layout, invalid && "text-danger-primary", className);
 }
 function Field(props) {
-	return createComponent$1(View, {
-		role: "group",
-		get ["class"]() {
-			return fieldClass(props.orientation, props.invalid ?? false, props.class);
-		},
+	const context = {
+		orientation: () => props.orientation ?? "vertical",
+		invalid: () => props.invalid ?? false,
+		required: () => props.required ?? false
+	};
+	return createComponent$1(FieldContext, {
+		value: context,
 		get children() {
-			return props.children;
+			return createComponent$1(View, {
+				role: "group",
+				get ["aria-orientation"]() {
+					return context.orientation();
+				},
+				get ["aria-invalid"]() {
+					return context.invalid();
+				},
+				get ["aria-required"]() {
+					return context.required();
+				},
+				get ["class"]() {
+					return fieldClass(context.orientation(), context.invalid(), props.class);
+				},
+				get children() {
+					return props.children;
+				}
+			});
 		}
 	});
 }
@@ -3336,7 +4166,94 @@ function FieldGroup(props) {
 	});
 }
 function FieldLabel(props) {
-	return createComponent$1(Label, props);
+	const field = useContext(FieldContext);
+	const forwarded = omit(props, "class", "children");
+	return createComponent$1(View, {
+		get ["class"]() {
+			return mergeClasses("min-w-0 flex flex-row items-center gap-1", field.orientation() === "horizontal" ? "w-36 flex-none" : "w-full");
+		},
+		get children() {
+			return [createComponent$1(Label, mergeProps(forwarded, {
+				get ["class"]() {
+					return mergeClasses("min-w-0 flex-1", field.invalid() && "text-danger-primary", props.class);
+				},
+				get children() {
+					return props.children;
+				}
+			})), createComponent$1(Show, {
+				get when() {
+					return field.required();
+				},
+				get children() {
+					return createComponent$1(Text, {
+						"aria-hidden": "true",
+						class: "flex-none text-sm text-danger-primary",
+						children: "*"
+					});
+				}
+			})];
+		}
+	});
+}
+/**
+* A complete native field whose visible label always focuses its control.
+* This avoids repeating ad-hoc Handle plumbing in every settings surface.
+*/
+function LabeledField(props) {
+	let control;
+	const errors = () => uniqueFieldErrors(props.errors);
+	return createComponent$1(Field, {
+		get invalid() {
+			return props.invalid ?? errors().length > 0;
+		},
+		get required() {
+			return props.required;
+		},
+		get ["class"]() {
+			return props.class;
+		},
+		get children() {
+			return [
+				createComponent$1(FieldLabel, {
+					get disabled() {
+						return props.disabled;
+					},
+					control: () => control,
+					get children() {
+						return props.label;
+					}
+				}),
+				memo(() => {
+					return props.renderControl((node) => {
+						control = node;
+						props.controlRef?.(node);
+					});
+				}),
+				createComponent$1(Show, {
+					get when() {
+						return memo(() => {
+							return props.description !== void 0;
+						})() && props.description !== null;
+					},
+					get children() {
+						return createComponent$1(FieldDescription, { get children() {
+							return props.description;
+						} });
+					}
+				}),
+				createComponent$1(Show, {
+					get when() {
+						return errors().length > 0;
+					},
+					get children() {
+						return createComponent$1(FieldError, { get errors() {
+							return props.errors;
+						} });
+					}
+				})
+			];
+		}
+	});
 }
 function FieldTitle(props) {
 	return createComponent$1(Text, {
@@ -3553,7 +4470,7 @@ function InputGroupButton(props) {
 }
 function InputGroupTextArea(props) {
 	const group = useInputGroup();
-	return createComponent$1(TextArea, mergeProps(props, {
+	return createComponent$1(TextArea$1, mergeProps(props, {
 		ref: (node) => {
 			group?.registerControl(node);
 			props.ref?.(node);
@@ -3569,25 +4486,22 @@ function InputGroupTextArea(props) {
 /** A controlled path input paired with the operating system directory picker. */
 function DirectoryPicker(props) {
 	const nativeDialog = useDialog();
-	const [pending, setPending] = createSignal(false);
 	const local = props;
+	const selection = createAsyncAction(() => nativeDialog.pickDirectory(directoryPickerOptions(local.value, local.dialogOptions)));
 	const inputProps = omit(props, "value", "onValueChange", "dialogOptions", "browseLabel", "pendingLabel", "browseAriaLabel", "class", "inputClass", "buttonClass", "onBrowseError");
 	async function browse() {
-		if (pending() || inputProps.disabled) return;
-		setPending(true);
-		try {
-			const selected = await nativeDialog.pickDirectory(directoryPickerOptions(local.value, local.dialogOptions));
-			if (selected !== null) local.onValueChange(selected);
-		} catch (error) {
-			if (local.onBrowseError) local.onBrowseError(error);
-			else throw error;
-		} finally {
-			setPending(false);
+		if (inputProps.disabled) return;
+		const result = await selection.run();
+		if (!result.ok) {
+			if (local.onBrowseError) local.onBrowseError(result.error);
+			else throw result.error;
+			return;
 		}
+		if (result.value !== null) local.onValueChange(result.value);
 	}
 	return createComponent$1(InputGroup, {
 		get disabled() {
-			return Boolean(inputProps.disabled) || pending();
+			return Boolean(inputProps.disabled) || selection.pending();
 		},
 		get ["class"]() {
 			return local.class;
@@ -3606,7 +4520,7 @@ function DirectoryPicker(props) {
 					return mergeClasses("flex-none", local.buttonClass);
 				},
 				get disabled() {
-					return Boolean(inputProps.disabled) || pending();
+					return Boolean(inputProps.disabled) || selection.pending();
 				},
 				get ["aria-label"]() {
 					return local.browseAriaLabel ?? local.browseLabel ?? "Browse directory";
@@ -3618,88 +4532,11 @@ function DirectoryPicker(props) {
 						size: 14
 					}), memo(() => {
 						return memo(() => {
-							return !!pending();
+							return !!selection.pending();
 						})() ? local.pendingLabel ?? "Opening…" : local.browseLabel ?? "Browse…";
 					})];
 				}
 			})];
-		}
-	});
-}
-//#endregion
-//#region src/components/display.tsx
-const SPINNER_SOURCE = `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"/><path d="M 12 3 A 9 9 0 0 1 21 12" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>`;
-function Skeleton(props) {
-	const reducedMotion = useReducedMotion();
-	const motionDisabled = () => props.animated === false || reducedMotion();
-	const [width, setWidth] = createSignal(0, { ownedWrite: true });
-	const measured = createMeasuredSize({ onChange: (size) => setWidth(size.width) });
-	const sweep = createSweep({
-		extent: width,
-		itemRatio: .4,
-		duration: 1.6,
-		ease: "easeInOut",
-		reducedMotion: motionDisabled,
-		reducedValue: .5
-	});
-	return createComponent$1(View, {
-		ref(r$) {
-			var _ref$ = measured.ref;
-			typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : measured.ref = r$;
-		},
-		"aria-hidden": "true",
-		get ["class"]() {
-			return mergeClasses("overflow-hidden rounded-md bg-control", props.class);
-		},
-		get children() {
-			return createComponent$1(View, {
-				class: "w-2/5 h-full flex-none bg-control-hover",
-				get transform() {
-					return sweep.transform();
-				},
-				get style() {
-					return { opacity: motionDisabled() ? 0 : 1 };
-				}
-			});
-		}
-	});
-}
-function Spinner(props) {
-	return createComponent$1(Spin, {
-		role: "status",
-		get ["aria-label"]() {
-			return props.label ?? "Loading";
-		},
-		get ["class"]() {
-			return mergeClasses("w-4 h-4 flex-none text-accent", props.class);
-		},
-		duration: .9,
-		get children() {
-			return createComponent$1(Svg, {
-				"aria-hidden": "true",
-				class: "w-full h-full",
-				source: SPINNER_SOURCE
-			});
-		}
-	});
-}
-function Kbd(props) {
-	return createComponent$1(Text, {
-		get ["class"]() {
-			return mergeClasses("h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-function KbdGroup(props) {
-	return createComponent$1(View, {
-		get ["class"]() {
-			return mergeClasses("inline-flex items-center gap-1", props.class);
-		},
-		get children() {
-			return props.children;
 		}
 	});
 }
@@ -3828,6 +4665,8 @@ function Drawer(props) {
 		value: context,
 		get children() {
 			return createComponent$1(Modal, mergeProps(props, {
+				backdropFade: false,
+				contentFade: false,
 				get open() {
 					return open();
 				},
@@ -4097,8 +4936,11 @@ function EmptyTitle(props) {
 }
 function EmptyDescription(props) {
 	return createComponent$1(Text, mergeProps(props, {
+		get maxLines() {
+			return props.maxLines ?? 2;
+		},
 		get ["class"]() {
-			return mergeClasses("w-full min-w-0 whitespace-normal text-center text-sm text-muted", props.class);
+			return mergeClasses("w-full min-h-10 min-w-0 whitespace-normal text-center text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -4112,6 +4954,83 @@ function EmptyContent(props) {
 		},
 		get children() {
 			return props.children;
+		}
+	}));
+}
+//#endregion
+//#region src/components/group-box.tsx
+function groupBoxContentClass(variant = "normal", className) {
+	return mergeClasses("w-full min-w-0 flex flex-col gap-4 rounded-lg", match(variant).with("normal", () => "bg-transparent").with("fill", () => "p-4 bg-control").with("outline", () => "p-4 border border-subtle bg-transparent").exhaustive(), className);
+}
+/** A lightweight titled surface for related controls and settings rows. */
+function GroupBox(props) {
+	const variant = () => props.variant ?? "normal";
+	const label = () => props["aria-label"] ?? (typeof props.title === "string" ? props.title : void 0);
+	const rest = omit(props, "title", "description", "children", "variant", "class", "headerClass", "contentClass");
+	return createComponent$1(View, mergeProps(rest, {
+		get role() {
+			return props.role ?? "group";
+		},
+		get ["aria-label"]() {
+			return label();
+		},
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 flex flex-col", variant() === "normal" ? "gap-4" : "gap-3", props.class);
+		},
+		get children() {
+			return [createComponent$1(Show, {
+				get when() {
+					return memo(() => {
+						return props.title !== void 0;
+					})() && props.title !== null || props.description !== void 0 && props.description !== null;
+				},
+				get children() {
+					return createComponent$1(View, {
+						get ["class"]() {
+							return mergeClasses("w-full min-w-0 flex flex-col gap-1", props.headerClass);
+						},
+						get children() {
+							return [createComponent$1(Show, {
+								get when() {
+									return memo(() => {
+										return props.title !== void 0;
+									})() && props.title !== null;
+								},
+								get children() {
+									return createComponent$1(Text, {
+										role: "heading",
+										class: "min-w-0 text-sm font-semibold text-primary",
+										get children() {
+											return props.title;
+										}
+									});
+								}
+							}), createComponent$1(Show, {
+								get when() {
+									return memo(() => {
+										return props.description !== void 0;
+									})() && props.description !== null;
+								},
+								get children() {
+									return createComponent$1(Text, {
+										class: "w-full min-w-0 whitespace-normal text-sm text-muted",
+										get children() {
+											return props.description;
+										}
+									});
+								}
+							})];
+						}
+					});
+				}
+			}), createComponent$1(View, {
+				get ["class"]() {
+					return groupBoxContentClass(variant(), props.contentClass);
+				},
+				get children() {
+					return props.children;
+				}
+			})];
 		}
 	}));
 }
@@ -4187,7 +5106,7 @@ function HoverCard(props) {
 		closeOnEscape: true,
 		restoreFocus: false,
 		get contentClass() {
-			return mergeClasses("min-w-56 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-xl border border-subtle bg-surface", props.contentClass);
+			return mergeClasses("min-w-56 max-w-sm min-h-0 p-4 flex flex-col gap-3", componentsSurfaceClass("floating"), props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -4289,7 +5208,6 @@ function ImageList(props) {
 		getLabel: props.getLabel,
 		getDescription: props.getDescription,
 		viewportHeight: props.viewportHeight,
-		overscan: props.overscan,
 		onSelectionChange: props.onSelectionChange,
 		onResourceReady: props.onResourceReady,
 		onResourceError: props.onResourceError,
@@ -4320,9 +5238,6 @@ function ImageList(props) {
 				itemHeight,
 				get viewportHeight() {
 					return config.viewportHeight;
-				},
-				get overscan() {
-					return config.overscan;
 				},
 				get getItemKey() {
 					return config.getItemKey;
@@ -5060,13 +5975,25 @@ function itemClass(variant = "default", size = "default", className) {
 }
 /** A composable list row based on shadcn's Item anatomy. */
 function Item(props) {
-	const rest = omit(props, "variant", "size", "class", "children");
+	const rest = omit(props, "variant", "size", "selected", "disabled", "class", "style", "children");
 	return createComponent$1(View, mergeProps(rest, {
 		get role() {
-			return props.role ?? "none";
+			return props.role ?? "listitem";
+		},
+		get ["aria-selected"]() {
+			return props.selected;
+		},
+		get interactionBlocked() {
+			return props.disabled || props.interactionBlocked;
 		},
 		get ["class"]() {
-			return itemClass(props.variant, props.size, props.class);
+			return itemClass(props.variant, props.size, mergeClasses(props.selected && "border-strong bg-selected", props.class));
+		},
+		get style() {
+			return {
+				...props.style,
+				opacity: props.disabled ? .45 : void 0
+			};
 		},
 		get children() {
 			return props.children;
@@ -5076,7 +6003,7 @@ function Item(props) {
 function ItemGroup(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get role() {
-			return props.role ?? "group";
+			return props.role ?? "list";
 		},
 		get ["class"]() {
 			return mergeClasses("w-full min-w-0 flex flex-col", props.class);
@@ -5119,8 +6046,11 @@ function ItemContent(props) {
 }
 function ItemTitle(props) {
 	return createComponent$1(Text, mergeProps(props, {
+		get maxLines() {
+			return props.maxLines ?? 1;
+		},
 		get ["class"]() {
-			return mergeClasses("min-w-0 text-sm font-medium text-primary", props.class);
+			return mergeClasses("min-w-0 truncate text-sm font-medium text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -5290,15 +6220,33 @@ const AdaptiveSplitPaneContext = createContext();
 * modal surface without changing the application's selection model.
 */
 function AdaptiveSplitPane(props) {
+	const measured = createMeasuredSize();
+	const compact = () => props.compact ?? (measured.measured() && measured.width() <= (props.compactAt ?? 720));
+	createEffect(() => props.compact !== void 0 || measured.measured() ? compact() : void 0, (value) => {
+		if (value !== void 0) props.onCompactChange?.(value);
+	});
 	return createComponent$1(AdaptiveSplitPaneContext, {
-		value: { compact: () => props.compact },
+		value: { compact },
 		get children() {
-			return createComponent$1(SplitPane, {
-				get ["class"]() {
-					return props.class;
+			return createComponent$1(View, {
+				ref(r$) {
+					var _ref$ = measured.ref;
+					typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : measured.ref = r$;
 				},
+				role: "group",
+				get ["aria-label"]() {
+					return props["aria-label"];
+				},
+				class: "w-full h-full min-w-0 min-h-0",
 				get children() {
-					return props.children;
+					return createComponent$1(SplitPane, {
+						get ["class"]() {
+							return mergeClasses("h-full", props.class);
+						},
+						get children() {
+							return props.children;
+						}
+					});
 				}
 			});
 		}
@@ -5344,6 +6292,180 @@ function AdaptiveSplitPaneDetail(props) {
 				},
 				get children() {
 					return props.children;
+				}
+			});
+		}
+	});
+}
+//#endregion
+//#region src/components/listbox.tsx
+const optionItems = (options) => options.map((option) => ({
+	id: option.value,
+	label: option.label,
+	disabled: option.disabled
+}));
+/**
+* Focusable inline single-selection list.
+*
+* Unlike Select, Listbox owns no popup or trigger. It is suitable for dialogs,
+* inspectors and other surfaces where the choices are already visible.
+*/
+function Listbox(props) {
+	const state = createControllableState({
+		value: () => props.value,
+		defaultValue: props.defaultValue,
+		onChange: (value) => value !== void 0 && props.onValueChange?.(value)
+	});
+	const [highlighted, setHighlighted] = createSignal();
+	const items = () => optionItems(props.options);
+	createEffect(() => ({
+		options: props.options,
+		selected: state.value(),
+		highlighted: highlighted()
+	}), ({ options, selected, highlighted: current }) => {
+		const candidates = optionItems(options);
+		if (candidates.some((item) => item.id === current && !item.disabled)) return;
+		const selectedOption = candidates.find((item) => item.id === selected && !item.disabled);
+		setHighlighted(selectedOption?.id ?? moveMenuHighlight(candidates, void 0, "first"));
+	});
+	const move = (direction) => {
+		const next = moveMenuHighlight(items(), highlighted(), direction);
+		if (next === void 0) return false;
+		setHighlighted(next);
+		return true;
+	};
+	const select = (value) => {
+		const option = props.options.find((candidate) => candidate.value === value);
+		if (!option || option.disabled) return false;
+		state.set(option.value);
+		props.onAction?.(option.value);
+		return true;
+	};
+	const handleKeyDown = (event) => {
+		if (match(event.key).with("ArrowDown", () => move("next")).with("ArrowUp", () => move("previous")).with("Home", () => move("first")).with("End", () => move("last")).with("Enter", () => select(highlighted())).with(" ", () => select(highlighted())).with("Escape", () => {
+			props.onDismiss?.();
+			return props.onDismiss !== void 0;
+		}).otherwise(() => false)) event.preventDefault();
+	};
+	const visibleItems = () => Math.max(1, Math.min(props.options.length, props.maxVisibleItems ?? 8));
+	const itemHeight = () => Math.max(24, props.itemHeight ?? 40);
+	const viewportHeight = () => Math.max(1, props.viewportHeight ?? visibleItems() * itemHeight());
+	return createComponent$1(ScrollArea, {
+		get ["class"]() {
+			return mergeClasses("w-full", props.fill ? "min-h-0 flex-1" : "flex-none", props.class);
+		},
+		get contentClass() {
+			return mergeClasses("gap-1", props.listClass);
+		},
+		get style() {
+			return memo(() => {
+				return !!props.fill;
+			})() ? void 0 : { height: `${viewportHeight()}px` };
+		},
+		get children() {
+			return createComponent$1(View, {
+				ref(r$) {
+					var _ref$ = props.ref;
+					typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : props.ref = r$;
+				},
+				role: "listbox",
+				get ["aria-label"]() {
+					return props["aria-label"];
+				},
+				get ["aria-activedescendant"]() {
+					return highlighted();
+				},
+				focusOrder: 0,
+				class: "select-none min-w-0 flex flex-col gap-1",
+				onKeyDown: handleKeyDown,
+				get children() {
+					return memo(() => {
+						return props.options.length === 0;
+					})() ? createComponent$1(Text, {
+						role: "status",
+						class: "px-3 py-4 text-sm text-muted text-center",
+						get children() {
+							return props.emptyText ?? "No options available.";
+						}
+					}) : createComponent$1(For, {
+						get each() {
+							return props.options;
+						},
+						keyed: false,
+						children: (option) => {
+							const selected = () => state.value() === option().value;
+							const active = () => highlighted() === option().value;
+							return createComponent$1(View, {
+								get id() {
+									return option().value;
+								},
+								role: "option",
+								get ["aria-label"]() {
+									return option().accessibilityLabel ?? option().label;
+								},
+								get ["aria-selected"]() {
+									return selected();
+								},
+								get ["aria-disabled"]() {
+									return option().disabled;
+								},
+								get ["class"]() {
+									return mergeClasses("w-full min-h-8 px-2 py-1 flex-none flex flex-row items-center gap-2 rounded-md", active() ? "bg-control-hover text-primary" : "bg-transparent text-secondary", props.itemClass);
+								},
+								get style() {
+									return {
+										height: itemHeight(),
+										opacity: option().disabled ? .45 : 1
+									};
+								},
+								onPointerMove: () => !option().disabled && setHighlighted(option().value),
+								onClick: () => select(option().value),
+								get children() {
+									return [
+										memo(() => {
+											return props.renderLeading?.(option());
+										}),
+										createComponent$1(View, {
+											class: "min-w-0 flex-1 flex flex-col justify-center",
+											get children() {
+												return [createComponent$1(Text, {
+													class: "min-w-0 truncate text-sm",
+													get children() {
+														return option().label;
+													}
+												}), memo(() => {
+													return memo(() => {
+														return !!option().description;
+													})() ? createComponent$1(Text, {
+														class: "min-w-0 truncate text-xs text-muted",
+														get children() {
+															return option().description;
+														}
+													}) : option().description;
+												})];
+											}
+										}),
+										memo(() => {
+											return props.renderTrailing?.(option());
+										}),
+										createComponent$1(View, {
+											"aria-hidden": "true",
+											class: "w-4 h-4 flex-none",
+											get children() {
+												return memo(() => {
+													return !!selected();
+												})() ? createComponent$1(Icon, {
+													source: check,
+													class: "text-accent",
+													size: 16
+												}) : selected();
+											}
+										})
+									];
+								}
+							});
+						}
+					});
 				}
 			});
 		}
@@ -6114,44 +7236,22 @@ function Markdown(props) {
 const ToolbarContext = createContext();
 /** A compact command surface with one native tab stop and arrow navigation. */
 function Toolbar(props) {
-	const entries = [];
-	const [activeId, setActiveId] = createSignal(void 0, { ownedWrite: true });
-	const [registryVersion, setRegistryVersion] = createSignal(0, { ownedWrite: true });
 	const orientation = () => props.orientation ?? "horizontal";
-	const enabled = () => entries.filter((entry) => !entry.disabled());
 	const roving = createRovingFocus({
 		orientation,
-		loop: props.loop,
-		onMove: setActiveId
+		loop: props.loop
 	});
 	const context = {
 		orientation,
-		register(id, target, disabled) {
-			const entry = {
-				id,
-				disabled
-			};
-			entries.push(entry);
-			const unregisterRoving = roving.register({
-				id,
-				target,
-				disabled
-			});
-			setRegistryVersion((version) => version + 1);
-			return () => {
-				unregisterRoving();
-				const index = entries.indexOf(entry);
-				if (index >= 0) entries.splice(index, 1);
-				setRegistryVersion((version) => version + 1);
-			};
+		register: (id, target, disabled) => roving.register({
+			id,
+			target,
+			disabled
+		}),
+		activate: (id) => {
+			roving.activate(id);
 		},
-		activate: setActiveId,
-		isTabStop(id) {
-			registryVersion();
-			const candidates = enabled();
-			const active = activeId();
-			return id === (candidates.some((entry) => entry.id === active) ? active : candidates[0]?.id);
-		},
+		isTabStop: roving.isTabStop,
 		move: roving.move
 	};
 	return createComponent(ToolbarContext, {
@@ -6496,13 +7596,18 @@ function messageActionsClass(align = "start", className) {
 function MessageActions(props) {
 	const context = useContext(MessageContext);
 	const forwarded = omit(props, "align", "visibility", "class", "children");
-	const interactionClass = () => props.visibility === "interaction" && !context.interacting() ? "opacity-0 pointer-events-none" : "opacity-100";
+	const align = () => props.align ?? context.align();
+	const ownerAlign = () => context.align();
+	const interactionClass = () => {
+		if (props.visibility !== "interaction") return "opacity-100";
+		return mergeClasses("absolute top-0 left-0 z-10 w-full", ownerAlign() === "end" ? "justify-start" : "justify-end", context.interacting() ? "opacity-100" : "opacity-0 pointer-events-none");
+	};
 	return createComponent$1(View, mergeProps(forwarded, {
 		get role() {
 			return props.role ?? "toolbar";
 		},
 		get ["class"]() {
-			return messageActionsClass(props.align ?? context.align(), mergeClasses(interactionClass(), props.class));
+			return messageActionsClass(align(), mergeClasses(interactionClass(), props.class));
 		},
 		get children() {
 			return props.children;
@@ -6634,6 +7739,106 @@ function MarkerContent(props) {
 	}));
 }
 //#endregion
+//#region src/components/tooltip.tsx
+/** Visual content shared by managed and explicitly composed tooltips. */
+function TooltipContent(props) {
+	return createComponent$1(View, {
+		get ["class"]() {
+			return mergeClasses("min-w-0 flex flex-row items-center gap-3", props.class);
+		},
+		get children() {
+			return [createComponent$1(Text, {
+				get id() {
+					return props.id;
+				},
+				role: "tooltip",
+				class: "min-w-0 flex-1 whitespace-normal text-xs text-primary",
+				get children() {
+					return props.children;
+				}
+			}), memo(() => {
+				return memo(() => {
+					return props.shortcut === void 0;
+				})() ? null : createComponent$1(Kbd, {
+					get ["aria-label"]() {
+						return `${props.shortcut} shortcut`;
+					},
+					get children() {
+						return props.shortcut;
+					}
+				});
+			})];
+		}
+	});
+}
+let tooltipId = 0;
+/** A delayed, non-interactive label for pointer and keyboard focus targets. */
+function Tooltip(props) {
+	const theme = useComponentsTheme();
+	const id = `wabou-tooltip-${++tooltipId}`;
+	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(props.defaultOpen ?? false);
+	const open = () => !props.disabled && (props.open ?? uncontrolledOpen());
+	const setOpen = (next) => {
+		if (props.disabled) next = false;
+		if (props.open === void 0) setUncontrolledOpen(next);
+		props.onOpenChange?.(next);
+	};
+	const delay = createDelayedOpenController({
+		openDelay: () => props.openDelay ?? 500,
+		closeDelay: () => props.closeDelay ?? 80,
+		setOpen
+	});
+	onCleanup(delay.dispose);
+	return createComponent$1(Popover$1, {
+		get open() {
+			return open();
+		},
+		onOpenChange: (next) => !next && delay.closeNow(),
+		get placement() {
+			return props.placement ?? "top";
+		},
+		get offset() {
+			return props.offset ?? 8;
+		},
+		contentRole: "presentation",
+		popupRole: "tooltip",
+		outsidePointerStrategy: "passthrough",
+		contentInteractionBlocked: true,
+		closeOnEscape: true,
+		restoreFocus: false,
+		get contentClass() {
+			return mergeClasses("max-w-xs rounded-lg border border-subtle bg-surface px-2 py-1.5", props.contentClass);
+		},
+		get contentShadows() {
+			return componentsElevation(theme(), "floating");
+		},
+		get motion() {
+			return props.motion;
+		},
+		trigger: (popover) => props.trigger({
+			ref: popover.ref,
+			onPointerEnter: delay.scheduleOpen,
+			onPointerLeave: delay.scheduleClose,
+			onFocus: delay.openNow,
+			onBlur: delay.closeNow,
+			onKeyDown: (event) => {
+				if (event.key === "Escape") delay.closeNow();
+			}
+		}),
+		get children() {
+			return createComponent$1(TooltipContent, {
+				id,
+				get shortcut() {
+					return props.shortcut;
+				},
+				get children() {
+					return props.children;
+				}
+			});
+		}
+	});
+}
+//#endregion
 //#region src/components/message-scroller.tsx
 function messageScrollRange(contentHeight, viewportHeight) {
 	return Math.max(0, contentHeight - viewportHeight);
@@ -6688,10 +7893,11 @@ function MessageScroller(props) {
 	let anchorFrame;
 	const anchors = /* @__PURE__ */ new Map();
 	let measuredAnchors = [];
+	const newestAnchor = () => [...anchors.keys()].at(-1);
 	const updateActiveFromScroll = (position = scrollY()) => {
 		if (followingEnd() && isMessageScrollNearEnd(position, contentSize.height(), viewportSize.height(), threshold())) {
 			const last = measuredAnchors.reduce((current, anchor) => !current || anchor.rect.y > current.rect.y ? anchor : current, void 0);
-			setActiveAnchor(last?.id);
+			setActiveAnchor(last?.id ?? newestAnchor());
 			return;
 		}
 		setActiveAnchor(activeMessageAnchor({
@@ -6704,7 +7910,7 @@ function MessageScroller(props) {
 	const measureAnchors = () => {
 		if (!viewport || anchors.size === 0) {
 			measuredAnchors = [];
-			setActiveAnchor(void 0);
+			setActiveAnchor(followingEnd() ? newestAnchor() : void 0);
 			return;
 		}
 		const targets = [...anchors.entries()];
@@ -6800,6 +8006,7 @@ function MessageScroller(props) {
 		},
 		registerAnchor: (anchor, node) => {
 			anchors.set(anchor, node);
+			if (followingEnd()) setActiveAnchor(anchor);
 			scheduleAnchorMeasure();
 		},
 		unregisterAnchor: (anchor, node) => {
@@ -6953,212 +8160,92 @@ function MessageScrollerButton(props) {
 		}
 	});
 }
-//#endregion
-//#region src/components/select.tsx
-const ITEM_HEIGHT = 40;
-const VISIBLE_ITEMS = 6;
-/** Shadcn-inspired single Select backed by Wabou-native interaction state. */
-function Select(props) {
-	const theme = useComponentsTheme();
-	const id = createUniqueId();
-	let trigger;
-	let content;
-	let viewport;
-	let scrollTop = 0;
-	const items = () => props.options.map((option) => ({
-		id: option.value,
-		textValue: option.label,
-		disabled: option.disabled
-	}));
-	const execute = (command) => {
-		match(command).with({ type: "FOCUS_TRIGGER" }, () => requestAnimationFrame(() => trigger?.focus())).with({ type: "FOCUS_CONTENT" }, () => requestAnimationFrame(() => content?.focus())).with({ type: "SCROLL_TO_ITEM" }, ({ id }) => {
-			const index = props.options.findIndex((option) => option.value === id);
-			if (index < 0) return;
-			const firstVisible = Math.floor(scrollTop / ITEM_HEIGHT);
-			const lastVisible = firstVisible + VISIBLE_ITEMS - 1;
-			const nextTop = index < firstVisible ? index * ITEM_HEIGHT : index > lastVisible ? (index - VISIBLE_ITEMS + 1) * ITEM_HEIGHT : scrollTop;
-			if (nextTop !== scrollTop) {
-				scrollTop = nextTop;
-				requestAnimationFrame(() => viewport?.scrollTo({ top: nextTop }));
-			}
-		}).exhaustive();
+/** Compact anchor rail for navigating long retained conversations. */
+function MessageScrollerNavigator(props) {
+	const context = requireMessageScroller();
+	const currentAnchor = () => context.followingEnd() ? props.items.at(-1)?.id : context.activeAnchor();
+	const reveal = (id) => {
+		context.scrollToAnchor(id, {
+			margin: 24,
+			align: "start"
+		});
 	};
-	const interaction = createSelectInteraction({
-		items,
-		value: () => props.value,
-		defaultValue: props.defaultValue,
-		open: () => props.open,
-		defaultOpen: props.defaultOpen,
-		disabled: () => props.disabled ?? false,
-		onValueChange: props.onValueChange,
-		onOpenChange: props.onOpenChange,
-		execute
-	});
-	const selected = () => props.options.find((option) => option.value === interaction.value());
-	const handleKeyDown = (event) => {
-		if (match(event.key).with("ArrowDown", () => interaction.send({ type: "ARROW_DOWN" })).with("ArrowUp", () => interaction.send({ type: "ARROW_UP" })).with("Home", () => interaction.send({ type: "HOME" })).with("End", () => interaction.send({ type: "END" })).with("Enter", () => interaction.send({ type: interaction.open() ? "SELECT" : "OPEN" })).with(" ", () => interaction.send({ type: interaction.open() ? "SELECT" : "OPEN" })).with("Escape", () => interaction.send({ type: "CLOSE" })).otherwise((key) => interaction.typeahead(key))) event.preventDefault();
-	};
-	return createComponent$1(Popover$1, {
-		contentRole: "presentation",
-		popupRole: "listbox",
-		get open() {
-			return interaction.open();
+	return createComponent$1(Show, {
+		get when() {
+			return props.items.length >= (props.minItems ?? 2);
 		},
-		onOpenChange: (open) => {
-			interaction.send({ type: open ? "OPEN" : "CLOSE" });
-		},
-		placement: "bottom-start",
-		openOnPointerDown: true,
-		get contentClass() {
-			return mergeClasses("w-72 p-1 rounded-xl border border-subtle bg-surface", props.contentClass);
-		},
-		get contentShadows() {
-			return memo(() => {
-				return props.contentShadows === void 0;
-			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
-		},
-		get motion() {
-			return props.motion ?? false;
-		},
-		trigger: (popover) => createComponent$1(Button$1, {
-			unstyled: true,
-			role: "combobox",
-			get disabled() {
-				return props.disabled;
-			},
-			get ["aria-label"]() {
-				return props["aria-label"];
-			},
-			"aria-haspopup": "listbox",
-			get ["aria-expanded"]() {
-				return interaction.open();
-			},
-			get ["aria-controls"]() {
-				return selectControlsId(`${id}-listbox`, interaction.open());
-			},
-			get ["aria-valuetext"]() {
-				return selected()?.label;
-			},
-			ref: (node) => {
-				trigger = node;
-				popover.ref(node);
-			},
-			class: (state) => mergeClasses("w-72 overflow-hidden justify-between border", componentsControlSize("default"), pickerTriggerClass(props.triggerVariant ?? "default", state), props.class),
-			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
-			get onClick() {
-				return popover.onClick;
-			},
-			get onPointerDown() {
-				return popover.onPointerDown;
-			},
-			get onPointerCancel() {
-				return popover.onPointerCancel;
-			},
-			onKeyDown: (event) => {
-				popover.onKeyDown(event);
-				handleKeyDown(event);
-			},
-			get children() {
-				return [createComponent$1(Text, {
-					get ["class"]() {
-						return mergeClasses("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
-					},
-					get children() {
-						return selected()?.label ?? props.placeholder ?? "Select an option";
-					}
-				}), createComponent$1(Icon, {
-					source: chevronDown,
-					class: "flex-none text-muted",
-					size: 16
-				})];
-			}
-		}),
 		get children() {
-			return createComponent$1(ScrollArea, {
-				ref: (node) => {
-					viewport = node;
-					scrollTop = 0;
-				},
-				class: "w-full flex-none",
-				contentClass: "gap-1",
-				get style() {
-					return { height: `${Math.max(1, Math.min(props.options.length, VISIBLE_ITEMS)) * ITEM_HEIGHT - 4}px` };
-				},
-				onScroll: (event) => {
-					scrollTop = event.scrollY ?? scrollTop;
+			return createComponent$1(View, {
+				get ["class"]() {
+					return mergeClasses("absolute z-20 right-2 top-4 bottom-14 w-8 flex flex-col items-center justify-center pointer-events-none", props.class);
 				},
 				get children() {
-					return createComponent$1(View, {
-						id: `${id}-listbox`,
-						ref: (node) => content = node,
-						role: "listbox",
+					return createComponent$1(Toolbar, {
 						get ["aria-label"]() {
 							return props["aria-label"];
 						},
-						get ["aria-activedescendant"]() {
-							return memo(() => {
-								return !!interaction.highlighted();
-							})() ? `${id}-option-${interaction.highlighted()}` : void 0;
+						orientation: "vertical",
+						get ["class"]() {
+							return mergeClasses("max-h-full p-0 py-1 gap-0 rounded-full bg-surface shadow-xs overflow-y-auto pointer-events-auto", props.railClass);
 						},
-						focusOrder: 0,
-						class: "min-w-0 flex flex-col gap-1",
-						onKeyDown: handleKeyDown,
 						get children() {
 							return createComponent$1(For, {
 								get each() {
-									return props.options;
+									return props.items;
 								},
 								keyed: false,
-								children: (option) => {
-									const selected = () => interaction.value() === option().value;
-									const highlighted = () => interaction.highlighted() === option().value;
-									return createComponent$1(View, {
-										get id() {
-											return `${id}-option-${option().value}`;
+								children: (item, index) => createComponent$1(Tooltip, {
+									placement: "left",
+									openDelay: 240,
+									contentClass: "max-w-sm",
+									trigger: (tooltip) => createComponent$1(ToolbarButton, {
+										ref(r$) {
+											var _ref$ = tooltip.ref;
+											typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : tooltip.ref = r$;
 										},
-										role: "option",
-										get ["aria-selected"]() {
-											return selected();
+										variant: "ghost",
+										size: "icon",
+										class: "w-7 h-7 p-0 rounded-full",
+										get ["aria-label"]() {
+											return props.itemAriaLabel(item(), index);
 										},
-										get ["aria-disabled"]() {
-											return option().disabled;
+										get ["aria-current"]() {
+											return currentAnchor() === item().id ? "step" : void 0;
 										},
-										get ["class"]() {
-											return mergeClasses("w-full h-8 flex-none px-3 flex items-center justify-between gap-3 rounded-lg text-sm", highlighted() ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
+										get onPointerEnter() {
+											return tooltip.onPointerEnter;
 										},
-										get style() {
-											return { opacity: option().disabled ? .45 : 1 };
+										get onPointerLeave() {
+											return tooltip.onPointerLeave;
 										},
-										onPointerMove: () => interaction.send({
-											type: "HIGHLIGHT",
-											id: option().value
-										}),
-										onClick: () => interaction.send({
-											type: "SELECT",
-											id: option().value
-										}),
+										get onFocus() {
+											return tooltip.onFocus;
+										},
+										get onBlur() {
+											return tooltip.onBlur;
+										},
+										get onKeyDown() {
+											return tooltip.onKeyDown;
+										},
+										onClick: () => reveal(item().id),
 										get children() {
-											return [createComponent$1(Text, {
-												class: "min-w-0 flex-1 text-sm truncate",
-												get children() {
-													return option().label;
-												}
-											}), createComponent$1(View, {
+											return createComponent$1(View, {
 												"aria-hidden": "true",
-												class: "w-4 h-4 flex-none",
-												get children() {
-													return memo(() => {
-														return !!selected();
-													})() ? createComponent$1(Icon, {
-														source: check,
-														class: "text-accent",
-														size: 16
-													}) : selected();
+												get ["class"]() {
+													return currentAnchor() === item().id ? "w-4 h-1 rounded-full bg-accent" : "w-3 h-1 rounded-full bg-subtle";
 												}
-											})];
+											});
 										}
-									});
-								}
+									}),
+									get children() {
+										return createComponent$1(Text, {
+											class: "text-xs text-primary whitespace-normal",
+											get children() {
+												return item().label;
+											}
+										});
+									}
+								})
 							});
 						}
 					});
@@ -7166,21 +8253,6 @@ function Select(props) {
 			});
 		}
 	});
-}
-//#endregion
-//#region src/components/native-select.tsx
-/**
-* Compact Wabou-native select for ordinary forms.
-*
-* Unlike the composable Select skin, this deliberately fixes immediate motion
-* and elevation so callers only own options, value, and form sizing.
-*/
-function NativeSelect(props) {
-	return createComponent$1(Select, mergeProps(props, {
-		motion: false,
-		contentClass: "rounded-xl",
-		contentShadows: null
-	}));
 }
 //#endregion
 //#region src/components/pagination-state.ts
@@ -7312,28 +8384,26 @@ function BreadcrumbEllipsis(props) {
 		}
 	}));
 }
-const PaginationContext = createContext({
-	managed: false,
-	count: () => 1,
-	page: () => 1,
-	disabled: () => false,
-	select: () => {}
-});
+const PaginationContext = createContext();
+function usePaginationContext() {
+	const context = useContext(PaginationContext);
+	if (!context) throw new Error("Pagination controls must be used inside Pagination");
+	return context;
+}
 function Pagination(props) {
 	const state = createControllableState({
 		value: () => props.page,
 		defaultValue: props.defaultPage ?? 1,
 		onChange: props.onPageChange
 	});
-	const count = () => normalizePageCount(props.count ?? 1);
+	const count = () => normalizePageCount(props.count);
 	const page = () => clampPage(state.value(), count());
 	const context = {
-		managed: true,
 		count,
 		page,
 		disabled: () => props.disabled ?? false,
 		select: (next) => {
-			if (props.count === void 0 || context.disabled()) return;
+			if (context.disabled()) return;
 			state.set(clampPage(next, count()));
 		}
 	};
@@ -7352,7 +8422,7 @@ function Pagination(props) {
 			return props.children;
 		}
 	});
-	return props.count === void 0 ? content() : createComponent(PaginationContext, {
+	return createComponent(PaginationContext, {
 		value: context,
 		get children() {
 			return content();
@@ -7370,9 +8440,9 @@ function PaginationItem(props) {
 	} }));
 }
 function PaginationLink(props) {
-	const context = useContext(PaginationContext);
+	const context = usePaginationContext();
 	const forwarded = omit(props, "active", "page");
-	const active = () => props.active ?? (props.page !== void 0 && context.managed && context.page() === props.page);
+	const active = () => props.active ?? (props.page !== void 0 && context.page() === props.page);
 	return createComponent$1(Button, mergeProps(forwarded, {
 		role: "link",
 		size: "icon",
@@ -7389,7 +8459,7 @@ function PaginationLink(props) {
 			return props["aria-label"] ?? (props.page === void 0 ? void 0 : `Page ${props.page}`);
 		},
 		get disabled() {
-			return props.disabled ?? (context.managed && context.disabled());
+			return props.disabled ?? context.disabled();
 		},
 		onClick: (event) => {
 			props.onClick?.(event);
@@ -7407,8 +8477,7 @@ function PaginationEllipsis(props) {
 	});
 }
 function PaginationItems(props) {
-	const context = useContext(PaginationContext);
-	if (!context.managed) throw new Error("PaginationItems must be used inside a managed Pagination");
+	const context = usePaginationContext();
 	const items = () => createPaginationRange({
 		count: context.count(),
 		page: context.page(),
@@ -7430,16 +8499,16 @@ function PaginationItems(props) {
 	});
 }
 function PaginationPrevious(props) {
-	const context = useContext(PaginationContext);
+	const context = usePaginationContext();
 	return createComponent$1(Button, mergeProps(props, {
 		variant: "ghost",
 		size: "sm",
 		get disabled() {
-			return props.disabled ?? (context.managed ? context.disabled() || context.page() <= 1 : false);
+			return props.disabled ?? (context.disabled() || context.page() <= 1);
 		},
 		onClick: (event) => {
 			props.onClick?.(event);
-			if (!event.defaultPrevented && context.managed) context.select(context.page() - 1);
+			if (!event.defaultPrevented) context.select(context.page() - 1);
 		},
 		get children() {
 			return props.children ?? "Previous";
@@ -7447,16 +8516,16 @@ function PaginationPrevious(props) {
 	}));
 }
 function PaginationNext(props) {
-	const context = useContext(PaginationContext);
+	const context = usePaginationContext();
 	return createComponent$1(Button, mergeProps(props, {
 		variant: "ghost",
 		size: "sm",
 		get disabled() {
-			return props.disabled ?? (context.managed ? context.disabled() || context.page() >= context.count() : false);
+			return props.disabled ?? (context.disabled() || context.page() >= context.count());
 		},
 		onClick: (event) => {
 			props.onClick?.(event);
-			if (!event.defaultPrevented && context.managed) context.select(context.page() + 1);
+			if (!event.defaultPrevented) context.select(context.page() + 1);
 		},
 		get children() {
 			return props.children ?? "Next";
@@ -7470,7 +8539,7 @@ function Popover(props) {
 	const theme = useComponentsTheme();
 	return createComponent$1(Popover$1, mergeProps(props, {
 		get contentClass() {
-			return mergeClasses("min-w-48 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-xl border border-subtle bg-surface", props.contentClass);
+			return mergeClasses("min-w-48 max-w-sm min-h-0 p-4 flex flex-col gap-3", componentsSurfaceClass("floating"), props.contentClass);
 		},
 		get contentShadows() {
 			return memo(() => {
@@ -7591,7 +8660,7 @@ function NavigationMenu(props) {
 				placement: "bottom-start",
 				outsidePointerStrategy: "passthrough",
 				get contentClass() {
-					return mergeClasses("w-[520px] max-w-full min-w-0 overflow-hidden rounded-xl p-2", props.viewportClass);
+					return mergeClasses("w-[520px] max-w-full min-w-0 overflow-hidden p-2", props.viewportClass);
 				},
 				trigger: (trigger) => createComponent$1(View, {
 					ref(r$) {
@@ -7986,11 +9055,12 @@ const pageViewportContentClass = (className) => mergeClasses("w-full", className
 */
 function PageViewport(props) {
 	let viewport;
+	const forwarded = omit(props, "children", "class", "contentClass", "resetKey", "ref", "style", "scrollbar", "onScroll");
 	createScrollReset({
 		target: () => viewport,
 		key: () => props.resetKey
 	});
-	return createComponent$1(ScrollArea, {
+	return createComponent$1(ScrollArea, mergeProps(forwarded, {
 		get ["class"]() {
 			return pageViewportClass(props.class);
 		},
@@ -8013,7 +9083,7 @@ function PageViewport(props) {
 		get children() {
 			return props.children;
 		}
-	});
+	}));
 }
 const pageHeaderClass = (className, stacked = false) => mergeClasses("min-w-0 min-h-12 flex-none flex justify-between gap-4", stacked ? "flex-col items-stretch" : "flex-row items-center", className);
 const pageHeaderTitleClass = () => "whitespace-nowrap text-2xl font-semibold text-primary";
@@ -8075,6 +9145,105 @@ function PageHeader(props) {
 	});
 }
 //#endregion
+//#region src/components/onboarding.tsx
+/**
+* Full-height first-run boundary with native scrolling and a readable measure.
+* Content stays centered when it fits and remains reachable when it grows.
+*/
+function Onboarding(props) {
+	const forwarded = omit(props, "class", "contentClass", "children");
+	return createComponent$1(PageViewport, mergeProps(forwarded, {
+		get role() {
+			return props.role ?? "region";
+		},
+		get ["class"]() {
+			return mergeClasses("h-full bg-canvas", props.class);
+		},
+		get contentClass() {
+			return mergeClasses("min-h-full flex items-center justify-center", props.contentClass);
+		},
+		get children() {
+			return createComponent$1(View, {
+				class: "w-full max-w-2xl min-w-0 mx-auto px-8 py-12 flex flex-col gap-5",
+				get children() {
+					return props.children;
+				}
+			});
+		}
+	}));
+}
+function OnboardingHeader(props) {
+	return createComponent$1(View, mergeProps(props, {
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 flex flex-row items-center gap-3", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function OnboardingHeading(props) {
+	return createComponent$1(View, mergeProps(props, {
+		get ["class"]() {
+			return mergeClasses("min-w-0 flex-1 flex flex-col gap-1", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function OnboardingTitle(props) {
+	return createComponent$1(Text, mergeProps(props, {
+		get role() {
+			return props.role ?? "heading";
+		},
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 whitespace-normal text-lg font-semibold text-primary", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function OnboardingDescription(props) {
+	return createComponent$1(Text, mergeProps(props, {
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function OnboardingFooter(props) {
+	return createComponent$1(View, mergeProps(props, {
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 pt-1", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+//#endregion
+//#region src/components/progress-circle-source.ts
+const circlePoint = (angle) => ({
+	x: 12 + 9 * Math.cos(angle),
+	y: 12 + 9 * Math.sin(angle)
+});
+/** Build a theme-colored SVG arc without relying on browser SVG layout. */
+function progressCircleSource(percent) {
+	const normalized = Math.max(0, Math.min(100, finiteOr(percent, 0)));
+	const track = "<circle cx=\"12\" cy=\"12\" r=\"9\" stroke=\"currentColor\" stroke-opacity=\"0.2\" stroke-width=\"3\"/>";
+	if (normalized <= 0) return `<svg viewBox="0 0 24 24" fill="none">${track}</svg>`;
+	if (normalized >= 100) return `<svg viewBox="0 0 24 24" fill="none">${track}<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3"/></svg>`;
+	const start = circlePoint(-Math.PI / 2);
+	const end = circlePoint(-Math.PI / 2 + normalized / 100 * Math.PI * 2);
+	const largeArc = normalized > 50 ? 1 : 0;
+	const value = (coordinate) => coordinate.toFixed(4);
+	return `<svg viewBox="0 0 24 24" fill="none">${track}<path d="${`M ${value(start.x)} ${value(start.y)} A 9 9 0 ${largeArc} 1 ${value(end.x)} ${value(end.y)}`}" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>`;
+}
+//#endregion
 //#region src/components/progress.tsx
 const ProgressContext = createContext();
 function useProgressContext() {
@@ -8096,7 +9265,6 @@ function normalizeProgressValue(value, minValue, maxValue) {
 }
 /** Semantic progress state with explicit, composable visual parts. */
 function ProgressRoot(props) {
-	const [trackWidth, setTrackWidth] = createSignal(0, { ownedWrite: true });
 	const forwarded = omit(props, "value", "minValue", "maxValue", "indeterminate", "label", "getValueLabel", "children", "class");
 	const details = () => normalizeProgressValue(props.value, props.minValue, props.maxValue);
 	const indeterminate = () => props.indeterminate ?? false;
@@ -8108,9 +9276,7 @@ function ProgressRoot(props) {
 		percent: () => details().percent,
 		indeterminate,
 		label: () => props.label ?? "Progress",
-		valueLabel: () => indeterminate() ? void 0 : props.getValueLabel?.(details()) ?? defaultValueLabel(),
-		trackWidth,
-		setTrackWidth
+		valueLabel: () => indeterminate() ? void 0 : props.getValueLabel?.(details()) ?? defaultValueLabel()
 	};
 	return createComponent$1(ProgressContext, {
 		value: context,
@@ -8144,38 +9310,30 @@ function ProgressRoot(props) {
 		}
 	});
 }
+const progressTrackSize = (size) => size === "xs" ? "h-1" : size === "sm" ? "h-1.5" : size === "lg" ? "h-2.5" : "h-2";
 function ProgressTrack(props) {
-	const context = useProgressContext();
-	const measured = createMeasuredSize({ onChange: ({ width }) => context.setTrackWidth(width) });
-	return createComponent$1(View, mergeProps(props, {
-		ref: (node) => {
-			measured.ref(node);
-			props.ref?.(node);
-		},
+	const forwarded = omit(props, "size");
+	return createComponent$1(View, mergeProps(forwarded, {
 		"aria-hidden": "true",
 		get ["class"]() {
-			return mergeClasses("w-full h-2 flex-none overflow-hidden rounded-full bg-control", props.class);
+			return mergeClasses("w-full flex-none overflow-hidden rounded-full bg-control", progressTrackSize(props.size), props.class);
 		}
 	}));
 }
 function IndeterminateProgressFill(props) {
-	const context = useProgressContext();
 	const reducedMotion = useReducedMotion();
-	const sweep = createSweep({
-		extent: context.trackWidth,
-		itemRatio: .4,
+	const animation = createNativeLoopAnimation({
 		duration: 1.35,
-		ease: "easeInOut",
-		reducedMotion,
-		reducedValue: .5
+		reducedMotion
 	});
-	return createComponent$1(View, mergeProps(props, {
+	return createComponent$1(NativeWidget, mergeProps(props, {
+		tag: "progress-indeterminate",
 		"aria-hidden": "true",
 		get ["class"]() {
-			return mergeClasses("w-2/5 h-full rounded-full bg-accent", props.class);
+			return mergeClasses("w-full h-full flex-none", props.class);
 		},
-		get transform() {
-			return sweep.transform();
+		get config() {
+			return { animation: animation() };
 		}
 	}));
 }
@@ -8192,7 +9350,7 @@ function ProgressFill(props) {
 			return createComponent$1(View, mergeProps(props, {
 				"aria-hidden": "true",
 				get ["class"]() {
-					return mergeClasses("h-full rounded-full bg-accent", props.class);
+					return mergeClasses("h-full rounded-full bg-accent", context.percent() < 100 && "rounded-r-none", props.class);
 				},
 				get style() {
 					return {
@@ -8228,11 +9386,14 @@ function ProgressValueLabel(props) {
 }
 /** Compact progress bar; use ProgressRoot and parts for custom composition. */
 function Progress(props) {
-	const forwarded = omit(props, "class");
+	const forwarded = omit(props, "class", "size");
 	return createComponent$1(ProgressRoot, mergeProps(forwarded, { get children() {
 		return createComponent$1(ProgressTrack, {
 			get ["class"]() {
 				return props.class;
+			},
+			get size() {
+				return props.size;
 			},
 			get children() {
 				return createComponent$1(ProgressFill, {});
@@ -8240,8 +9401,73 @@ function Progress(props) {
 		});
 	} }));
 }
+const progressCircleSize = (size) => size === "xs" ? "w-3 h-3" : size === "sm" ? "w-4 h-4" : size === "lg" ? "w-6 h-6" : "w-5 h-5";
+/** Compact circular progress indicator using the same semantic range contract. */
+function ProgressCircle(props) {
+	const forwarded = omit(props, "class", "size");
+	const details = createMemo(() => normalizeProgressValue(props.value, props.minValue, props.maxValue));
+	const source = createMemo(() => progressCircleSource(props.indeterminate ? 30 : details().percent));
+	const graphic = () => createComponent$1(Svg, {
+		get source() {
+			return source();
+		},
+		"aria-hidden": "true",
+		class: "absolute inset-0 w-full h-full flex-none"
+	});
+	return createComponent$1(ProgressRoot, mergeProps(forwarded, {
+		get ["class"]() {
+			return mergeClasses("relative flex-none items-center justify-center gap-0 text-accent", progressCircleSize(props.size), props.class);
+		},
+		get children() {
+			return createComponent$1(Show, {
+				get when() {
+					return props.indeterminate;
+				},
+				get fallback() {
+					return graphic();
+				},
+				get children() {
+					return createComponent$1(Spinner, {
+						decorative: true,
+						class: "absolute inset-0 w-full h-full"
+					});
+				}
+			});
+		}
+	}));
+}
 //#endregion
 //#region src/components/prompt-composer.tsx
+function promptComposerEditorHeightClass(value) {
+	const lines = value.split("\n").length;
+	if (lines >= 5 || value.length > 240) return "h-24";
+	if (lines >= 3 || value.length > 120) return "h-20";
+	if (lines >= 2 || value.length > 48) return "h-16";
+	return "h-12";
+}
+/** Native multiline editor with density and chrome owned by PromptComposer. */
+function PromptComposerEditor(props) {
+	return createComponent$1(TextArea, mergeProps(props, {
+		chrome: "none",
+		get ["class"]() {
+			return mergeClasses("min-w-0 px-0 py-1", promptComposerEditorHeightClass(props.value ?? ""), props.class);
+		}
+	}));
+}
+/** Stable circular primary action for a PromptComposer toolbar. */
+function PromptComposerAction(props) {
+	return createComponent$1(Button, mergeProps(props, {
+		get variant() {
+			return props.variant ?? "secondary";
+		},
+		get size() {
+			return props.size ?? "icon";
+		},
+		get ["class"]() {
+			return mergeClasses("flex-none rounded-full border border-subtle", props.class);
+		}
+	}));
+}
 function promptComposerClass(focused, invalid, disabled, className) {
 	return mergeClasses("w-full min-w-0 rounded-xl border shadow-xs px-3 pt-2 pb-2 flex flex-col gap-2", invalid ? "border-danger" : focused ? "border-focus" : "border-subtle", disabled && "opacity-50", className);
 }
@@ -8272,9 +9498,21 @@ function PromptComposer(props) {
 }
 /** Compact metadata row above the authored prompt. */
 function PromptComposerStatus(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return mergeClasses("w-full min-w-0 flex flex-row items-center justify-end gap-2", props.class);
-	} }));
+	const content = children(() => props.children);
+	const forwarded = omit(props, "children", "class");
+	return createComponent$1(Show, {
+		get when() {
+			return content();
+		},
+		children: (resolved) => createComponent$1(View, mergeProps(forwarded, {
+			get ["class"]() {
+				return mergeClasses("w-full min-w-0 flex flex-row items-center justify-end gap-2", props.class);
+			},
+			get children() {
+				return resolved();
+			}
+		}))
+	});
 }
 /** Responsive action row below the authored prompt. */
 function PromptComposerToolbar(props) {
@@ -8444,7 +9682,7 @@ function rectangle(path, x, y, width, height) {
 	path.moveTo(x, y).lineTo(x + width, y).lineTo(x + width, y + height).lineTo(x, y + height).close();
 }
 /**
-* Convert consecutive dark modules into one retained Vello path. Horizontal
+* Convert consecutive dark modules into one retained native path. Horizontal
 * runs keep the bridge traffic and native scene node count independent of the
 * number of QR modules.
 */
@@ -9019,9 +10257,258 @@ function SearchField(props) {
 	});
 }
 //#endregion
+//#region src/components/select.tsx
+const ITEM_HEIGHT = 36;
+const VISIBLE_ITEMS = 6;
+/** Shadcn-inspired single Select backed by Wabou-native interaction state. */
+function Select(props) {
+	const theme = useComponentsTheme();
+	const id = createUniqueId();
+	let trigger;
+	let content;
+	let viewport;
+	let scrollTop = 0;
+	const items = () => props.options.map((option) => ({
+		id: option.value,
+		textValue: option.label,
+		disabled: option.disabled
+	}));
+	const execute = (command) => {
+		match(command).with({ type: "FOCUS_TRIGGER" }, () => requestAnimationFrame(() => trigger?.focus())).with({ type: "FOCUS_CONTENT" }, () => requestAnimationFrame(() => content?.focus())).with({ type: "SCROLL_TO_ITEM" }, ({ id }) => {
+			const index = props.options.findIndex((option) => option.value === id);
+			if (index < 0) return;
+			const firstVisible = Math.floor(scrollTop / ITEM_HEIGHT);
+			const lastVisible = firstVisible + VISIBLE_ITEMS - 1;
+			const nextTop = index < firstVisible ? index * ITEM_HEIGHT : index > lastVisible ? (index - VISIBLE_ITEMS + 1) * ITEM_HEIGHT : scrollTop;
+			if (nextTop !== scrollTop) {
+				scrollTop = nextTop;
+				requestAnimationFrame(() => viewport?.scrollTo({ top: nextTop }));
+			}
+		}).exhaustive();
+	};
+	const interaction = createSelectInteraction({
+		items,
+		value: () => props.value,
+		defaultValue: props.defaultValue,
+		open: () => props.open,
+		defaultOpen: props.defaultOpen,
+		disabled: () => props.disabled ?? false,
+		onValueChange: props.onValueChange,
+		onOpenChange: props.onOpenChange,
+		execute
+	});
+	const selected = () => props.options.find((option) => option.value === interaction.value());
+	const handleKeyDown = (event) => {
+		if (match(event.key).with("ArrowDown", () => interaction.send({ type: "ARROW_DOWN" })).with("ArrowUp", () => interaction.send({ type: "ARROW_UP" })).with("Home", () => interaction.send({ type: "HOME" })).with("End", () => interaction.send({ type: "END" })).with("Enter", () => interaction.send({ type: interaction.open() ? "SELECT" : "OPEN" })).with(" ", () => interaction.send({ type: interaction.open() ? "SELECT" : "OPEN" })).with("Escape", () => interaction.send({ type: "CLOSE" })).otherwise((key) => interaction.typeahead(key))) {
+			event.preventDefault();
+			if (event.key === "Escape") event.stopPropagation?.();
+		}
+	};
+	return createComponent$1(Popover$1, {
+		contentRole: "presentation",
+		popupRole: "listbox",
+		get open() {
+			return interaction.open();
+		},
+		onOpenChange: (open) => {
+			interaction.send({ type: open ? "OPEN" : "CLOSE" });
+		},
+		placement: "bottom-start",
+		openOnPointerDown: true,
+		get contentClass() {
+			return mergeClasses("w-72 p-1 rounded-lg border border-subtle bg-surface", props.contentClass);
+		},
+		get contentShadows() {
+			return memo(() => {
+				return props.contentShadows === void 0;
+			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
+		},
+		get motion() {
+			return props.motion ?? false;
+		},
+		trigger: (popover) => createComponent$1(Button$1, {
+			unstyled: true,
+			role: "combobox",
+			get disabled() {
+				return props.disabled;
+			},
+			get ["aria-label"]() {
+				return props["aria-label"];
+			},
+			"aria-haspopup": "listbox",
+			get ["aria-expanded"]() {
+				return interaction.open();
+			},
+			get ["aria-controls"]() {
+				return selectControlsId(`${id}-listbox`, interaction.open());
+			},
+			get ["aria-valuetext"]() {
+				return selected()?.label;
+			},
+			ref: (node) => {
+				trigger = node;
+				props.ref?.(node);
+				popover.ref(node);
+			},
+			class: (state) => mergeClasses("w-72 overflow-hidden justify-between border", componentsControlSize("default"), pickerTriggerClass(props.triggerVariant ?? "default", state), props.class),
+			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
+			get onClick() {
+				return popover.onClick;
+			},
+			get onPointerDown() {
+				return popover.onPointerDown;
+			},
+			get onPointerCancel() {
+				return popover.onPointerCancel;
+			},
+			onKeyDown: (event) => {
+				popover.onKeyDown(event);
+				handleKeyDown(event);
+			},
+			get children() {
+				return [createComponent$1(Text, {
+					get ["class"]() {
+						return mergeClasses("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
+					},
+					get children() {
+						return selected()?.label ?? props.placeholder ?? "Select an option";
+					}
+				}), createComponent$1(Icon, {
+					source: chevronDown,
+					class: "flex-none text-muted",
+					size: 16
+				})];
+			}
+		}),
+		get children() {
+			return createComponent$1(ScrollArea, {
+				ref: (node) => {
+					viewport = node;
+					scrollTop = 0;
+				},
+				class: "w-full flex-none",
+				contentClass: "gap-1",
+				get style() {
+					return { height: `${Math.max(1, Math.min(props.options.length, VISIBLE_ITEMS)) * ITEM_HEIGHT - 4}px` };
+				},
+				onScroll: (event) => {
+					scrollTop = event.scrollY ?? scrollTop;
+				},
+				get children() {
+					return createComponent$1(View, {
+						id: `${id}-listbox`,
+						ref: (node) => content = node,
+						role: "listbox",
+						get ["aria-label"]() {
+							return props["aria-label"];
+						},
+						get ["aria-activedescendant"]() {
+							return memo(() => {
+								return !!interaction.highlighted();
+							})() ? `${id}-option-${interaction.highlighted()}` : void 0;
+						},
+						focusOrder: 0,
+						class: "select-none min-w-0 flex flex-col gap-1",
+						onKeyDown: handleKeyDown,
+						get children() {
+							return createComponent$1(For, {
+								get each() {
+									return props.options;
+								},
+								keyed: false,
+								children: (option) => {
+									const selected = () => interaction.value() === option().value;
+									const highlighted = () => interaction.highlighted() === option().value;
+									return createComponent$1(View, {
+										get id() {
+											return `${id}-option-${option().value}`;
+										},
+										role: "option",
+										get ["aria-selected"]() {
+											return selected();
+										},
+										get ["aria-disabled"]() {
+											return option().disabled;
+										},
+										get ["class"]() {
+											return mergeClasses("w-full h-8 flex-none px-2.5 flex items-center justify-between gap-2 rounded-md text-sm leading-normal", pickerOptionClass(option().disabled ?? false, highlighted()));
+										},
+										onPointerMove: () => {
+											if (option().disabled) return;
+											interaction.send({
+												type: "HIGHLIGHT",
+												id: option().value
+											});
+										},
+										onClick: () => interaction.send({
+											type: "SELECT",
+											id: option().value
+										}),
+										get children() {
+											return [createComponent$1(Text, {
+												class: "min-w-0 flex-1 text-sm truncate",
+												get children() {
+													return option().label;
+												}
+											}), createComponent$1(View, {
+												"aria-hidden": "true",
+												class: "w-4 h-4 flex-none",
+												get children() {
+													return memo(() => {
+														return !!selected();
+													})() ? createComponent$1(Icon, {
+														source: check,
+														class: "text-accent",
+														size: 16
+													}) : selected();
+												}
+											})];
+										}
+									});
+								}
+							});
+						}
+					});
+				}
+			});
+		}
+	});
+}
+//#endregion
 //#region src/components/selection.tsx
-const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
+function selectionGeometry(size) {
+	return match(size).with("sm", () => ({
+		controlWithLabel: "min-h-7 px-1 items-start gap-2 rounded-md border border-transparent",
+		controlWithoutLabel: "w-9 h-7 p-0 items-center justify-center gap-0 rounded-md border border-transparent",
+		indicator: "w-3.5 h-3.5",
+		label: "text-xs",
+		iconSize: 10,
+		radioDot: "w-1.5 h-1.5"
+	})).with("default", () => ({
+		controlWithLabel: "min-h-7 px-1 items-start gap-2 rounded-md border border-transparent",
+		controlWithoutLabel: "w-10 h-7 p-0 items-center justify-center gap-0 rounded-md border border-transparent",
+		indicator: "w-4 h-4",
+		label: "text-sm",
+		iconSize: 12,
+		radioDot: "w-2 h-2"
+	})).with("lg", () => ({
+		controlWithLabel: "min-h-10 px-1 items-start gap-2 rounded-md border border-transparent",
+		controlWithoutLabel: "w-10 h-10 p-0 items-center justify-center gap-0 rounded-md border border-transparent",
+		indicator: "w-[18px] h-[18px]",
+		label: "text-base",
+		iconSize: 14,
+		radioDot: "w-2.5 h-2.5"
+	})).exhaustive();
+}
+function selectionControlClass(hasLabel, size) {
+	const geometry = selectionGeometry(size);
+	return hasLabel ? geometry.controlWithLabel : geometry.controlWithoutLabel;
+}
+function selectionLabelClass(size) {
+	return mergeClasses("min-w-0 flex-1 whitespace-normal text-left", selectionGeometry(size).label);
+}
 function Checkbox(props) {
+	const size = () => props.size ?? "default";
 	const state = createControllableState({
 		value: () => props.checked,
 		defaultValue: props.defaultChecked ?? false,
@@ -9059,14 +10546,14 @@ function Checkbox(props) {
 		get selected() {
 			return checked();
 		},
-		class: (buttonState) => mergeClasses("min-h-7 px-1 items-center gap-2 rounded-md border border-transparent", buttonState.hovered && "bg-control-hover", buttonState.focusVisible && "border-focus", props.class),
+		class: (buttonState) => mergeClasses(selectionControlClass(!!props.label, size()), buttonState.hovered && "bg-control-hover", buttonState.focusVisible && "border-focus", props.class),
 		style: (buttonState) => ({ opacity: buttonState.disabled ? .45 : 1 }),
 		onClick: toggle,
 		get children() {
 			return [createComponent$1(Center, {
 				"aria-hidden": "true",
 				get ["class"]() {
-					return mergeClasses(SELECTION_INDICATOR_CLASS, "rounded text-xs font-bold", boxColors());
+					return mergeClasses(selectionGeometry(size()).indicator, "flex-none border", "rounded text-xs font-bold", boxColors());
 				},
 				get children() {
 					return memo(() => {
@@ -9075,7 +10562,9 @@ function Checkbox(props) {
 						get source() {
 							return indicator();
 						},
-						size: 14,
+						get size() {
+							return selectionGeometry(size()).iconSize;
+						},
 						class: "text-on-accent"
 					}) : indicator();
 				}
@@ -9083,7 +10572,9 @@ function Checkbox(props) {
 				return memo(() => {
 					return !!props.label;
 				})() ? createComponent$1(Text, {
-					class: "text-sm text-secondary",
+					get ["class"]() {
+						return mergeClasses(selectionLabelClass(size()), "text-primary");
+					},
 					get children() {
 						return props.label;
 					}
@@ -9105,7 +10596,9 @@ function RadioGroup(props) {
 		state.set(next);
 	};
 	const roving = createRovingFocus({
-		orientation: () => "vertical",
+		orientation: () => props.orientation ?? "vertical",
+		loop: props.loop,
+		preferred: (id) => value() === id,
 		onMove: select
 	});
 	return createComponent(RadioContext, {
@@ -9113,11 +10606,17 @@ function RadioGroup(props) {
 			value,
 			select,
 			disabled: () => props.disabled ?? false,
+			appearance: () => props.appearance ?? "radio",
+			size: () => props.size ?? "default",
 			register: (id, target, disabled) => roving.register({
 				id,
 				target,
 				disabled
 			}),
+			activate: (id) => {
+				roving.activate(id);
+			},
+			isTabStop: roving.isTabStop,
 			move: roving.move
 		},
 		get children() {
@@ -9127,7 +10626,7 @@ function RadioGroup(props) {
 					return props["aria-label"];
 				},
 				get ["class"]() {
-					return mergeClasses("flex flex-col gap-3", props.class);
+					return mergeClasses("flex", props.orientation === "horizontal" ? "flex-row" : "flex-col", props.appearance === "segment" ? "items-center gap-0.5 rounded-md border border-subtle bg-control p-0.5" : "gap-3", props.class);
 				},
 				get children() {
 					return props.children;
@@ -9141,6 +10640,8 @@ function RadioGroupItem(props) {
 	if (!group) throw new Error("RadioGroupItem must be used inside RadioGroup");
 	const checked = () => group.value() === props.value;
 	const disabled = () => group.disabled() || (props.disabled ?? false);
+	const size = () => props.size ?? group.size();
+	const segmentSize = () => match(size()).with("sm", () => "h-7 min-w-0 flex-1 px-2 items-center justify-center rounded-sm border border-transparent text-xs font-medium").with("default", () => "h-8 min-w-0 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium").with("lg", () => "h-10 min-w-0 flex-1 px-4 items-center justify-center rounded-sm border border-transparent text-base font-medium").exhaustive();
 	let unregister;
 	onCleanup(() => unregister?.());
 	return createComponent$1(Button$1, {
@@ -9153,37 +10654,49 @@ function RadioGroupItem(props) {
 			return checked();
 		},
 		get ["aria-label"]() {
-			return props.label;
+			return props["aria-label"] ?? props.label;
 		},
 		get ["aria-checked"]() {
 			return checked();
+		},
+		get focusOrder() {
+			return group.isTabStop(props.value) ? 0 : -1;
 		},
 		ref: (node) => {
 			unregister?.();
 			unregister = group.register(props.value, node, disabled);
 		},
-		class: (buttonState) => mergeClasses("min-h-7 px-1 items-center gap-2 rounded-md border border-transparent", buttonState.hovered && "bg-control-hover", buttonState.focusVisible && "border-focus", props.class),
+		class: (buttonState) => mergeClasses(group.appearance() === "segment" ? segmentSize() : selectionControlClass(!!props.label, size()), group.appearance() === "segment" && checked() ? "bg-selected text-primary shadow-xs" : buttonState.hovered && "bg-control-hover", buttonState.focusVisible && "border-focus", props.class),
 		style: (buttonState) => ({ opacity: buttonState.disabled ? .45 : 1 }),
 		onClick: () => group.select(props.value),
+		onFocus: () => group.activate(props.value),
 		onKeyDown: (event) => {
 			if (group.move(props.value, event.key)) event.preventDefault();
 		},
 		get children() {
-			return [createComponent$1(Center, {
-				"aria-hidden": "true",
-				get ["class"]() {
-					return mergeClasses(SELECTION_INDICATOR_CLASS, "rounded-full bg-input", match(checked()).with(true, () => "border-accent").with(false, () => "border-strong").exhaustive());
-				},
-				get children() {
-					return memo(() => {
-						return !!checked();
-					})() ? createComponent$1(View, { class: "w-2.5 h-2.5 rounded-full bg-accent" }) : checked();
-				}
+			return [memo(() => {
+				return memo(() => {
+					return group.appearance() === "radio";
+				})() && createComponent$1(Center, {
+					"aria-hidden": "true",
+					get ["class"]() {
+						return mergeClasses(selectionGeometry(size()).indicator, "flex-none border", "rounded-full bg-input", match(checked()).with(true, () => "border-accent").with(false, () => "border-strong").exhaustive());
+					},
+					get children() {
+						return memo(() => {
+							return !!checked();
+						})() ? createComponent$1(View, { get ["class"]() {
+							return mergeClasses(selectionGeometry(size()).radioDot, "rounded-full bg-accent");
+						} }) : checked();
+					}
+				});
 			}), memo(() => {
 				return memo(() => {
 					return !!props.label;
 				})() ? createComponent$1(Text, {
-					class: "text-sm text-secondary",
+					get ["class"]() {
+						return mergeClasses(selectionLabelClass(size()), checked() ? "text-primary" : "text-secondary");
+					},
 					get children() {
 						return props.label;
 					}
@@ -9203,7 +10716,7 @@ function Toggle(props) {
 	const toggle = () => {
 		state.set(!pressed());
 	};
-	const size = () => match(props.size ?? "default").with("sm", () => "h-6 min-w-6 px-2 text-xs").with("default", () => "h-8 min-w-8 px-2.5 text-sm").with("lg", () => "h-10 min-w-10 px-3 text-sm").exhaustive();
+	const size = () => match(props.size ?? "default").with("sm", () => `${componentsControlSize("sm")} min-w-7`).with("default", () => `${componentsControlSize("default")} min-w-8`).with("lg", () => `${componentsControlSize("lg")} min-w-10`).exhaustive();
 	const colors = (state) => match({
 		selected: pressed(),
 		hovered: state.hovered
@@ -9222,7 +10735,7 @@ function Toggle(props) {
 		get ["aria-pressed"]() {
 			return pressed();
 		},
-		class: (state) => mergeClasses("items-center justify-center rounded-md border font-medium", size(), colors(state), match(props.variant ?? "default").with("outline", () => "border-strong").with("default", () => "border-transparent").exhaustive(), state.focusVisible && "border-focus", props.class),
+		class: (state) => mergeClasses("items-center justify-center border font-medium", size(), colors(state), match(props.variant ?? "default").with("outline", () => "border-strong").with("default", () => "border-transparent").exhaustive(), state.focusVisible && "border-focus", props.class),
 		style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 		onClick: toggle,
 		get children() {
@@ -9238,9 +10751,6 @@ function nextToggleGroupValue(current, value, type) {
 }
 /** Shadcn-style single-value toggle group with native roving focus. */
 function ToggleGroup(props) {
-	const entries = [];
-	const [activeValue, setActiveValue] = createSignal(void 0, { ownedWrite: true });
-	const [registryVersion, setRegistryVersion] = createSignal(0, { ownedWrite: true });
 	const type = () => props.type ?? "single";
 	const state = createControllableState({
 		value: () => props.value,
@@ -9252,12 +10762,15 @@ function ToggleGroup(props) {
 		}
 	});
 	const activateFromKeyboard = (value) => {
-		setActiveValue(value);
 		if (type() === "single" && state.value() !== value) state.set(value);
 	};
 	const roving = createRovingFocus({
 		orientation: () => "horizontal",
 		loop: props.loop,
+		preferred: (id) => {
+			const current = state.value();
+			return Array.isArray(current) ? current.includes(id) : current === id;
+		},
 		onMove: activateFromKeyboard
 	});
 	const context = {
@@ -9268,34 +10781,20 @@ function ToggleGroup(props) {
 		disabled: () => props.disabled ?? false,
 		toggle: (value) => state.set(nextToggleGroupValue(state.value(), value, type())),
 		register(value, node, disabled) {
-			const entry = {
-				value,
-				disabled
-			};
-			entries.push(entry);
-			const unregisterRoving = roving.register({
+			return roving.register({
 				id: value,
 				target: node,
 				disabled
 			});
-			setRegistryVersion((version) => version + 1);
-			return () => {
-				unregisterRoving();
-				const index = entries.indexOf(entry);
-				if (index >= 0) entries.splice(index, 1);
-				setRegistryVersion((version) => version + 1);
-			};
 		},
-		activate: setActiveValue,
-		isTabStop(value) {
-			registryVersion();
-			const enabled = entries.filter((entry) => !entry.disabled());
-			const active = activeValue();
-			return value === (enabled.some((entry) => entry.value === active) ? active : enabled.find((entry) => context.selected(entry.value))?.value ?? enabled[0]?.value);
+		activate(value) {
+			roving.activate(value);
 		},
+		isTabStop: roving.isTabStop,
 		move: roving.move,
 		variant: () => props.variant ?? "default",
-		size: () => props.size ?? "default"
+		size: () => props.size ?? "default",
+		segmented: () => props.segmented ?? false
 	};
 	return createComponent(ToggleGroupContext, {
 		value: context,
@@ -9305,8 +10804,12 @@ function ToggleGroup(props) {
 				get ["aria-label"]() {
 					return props["aria-label"];
 				},
+				"aria-orientation": "horizontal",
+				get ["aria-disabled"]() {
+					return props.disabled;
+				},
 				get ["class"]() {
-					return mergeClasses("flex flex-row items-center rounded-md bg-transparent", match(props.spacing ?? 0).with(0, () => "gap-0").with(1, () => "gap-1").with(2, () => "gap-2").exhaustive(), props.class);
+					return mergeClasses("flex flex-row items-stretch rounded-md", props.segmented ? "gap-0 overflow-hidden border border-strong bg-surface" : mergeClasses("bg-transparent", match(props.spacing ?? 0).with(0, () => "gap-0").with(1, () => "gap-1").with(2, () => "gap-2").exhaustive()), props.class);
 				},
 				get children() {
 					return props.children;
@@ -9330,6 +10833,9 @@ function ToggleGroupItem(props) {
 		get selected() {
 			return selected();
 		},
+		get ["aria-label"]() {
+			return props["aria-label"];
+		},
 		get ["aria-pressed"]() {
 			return selected();
 		},
@@ -9340,14 +10846,14 @@ function ToggleGroupItem(props) {
 			unregister?.();
 			unregister = group.register(props.value, node, disabled);
 		},
-		class: (state) => mergeClasses("h-7 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium", match(props.size ?? group.size()).with("sm", () => "h-6 px-2 text-xs").with("default", () => "h-8 px-3 text-sm").with("lg", () => "h-10 px-4 text-sm").exhaustive(), match({
+		class: (state) => mergeClasses("h-7 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium", match(props.size ?? group.size()).with("sm", () => componentsControlSize("sm")).with("default", () => componentsControlSize("default")).with("lg", () => componentsControlSize("lg")).exhaustive(), match({
 			selected: selected(),
 			accent: props.variant === "accent",
 			hovered: state.hovered
 		}).with({
 			selected: true,
 			accent: true
-		}, () => "bg-accent text-on-accent").with({ selected: true }, () => "bg-selected text-primary").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-muted"), (props.variant ?? group.variant()) === "outline" && "border-strong", state.focusVisible && "border-focus", props.class),
+		}, () => "bg-accent text-on-accent").with({ selected: true }, () => "bg-selected text-primary").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-muted"), group.segmented() && "rounded-none border-transparent", !group.segmented() && (props.variant ?? group.variant()) === "outline" && "border-strong", state.focusVisible && "border-focus", props.class),
 		style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 		onFocus: () => group.activate(props.value),
 		onClick: () => group.toggle(props.value),
@@ -9356,6 +10862,161 @@ function ToggleGroupItem(props) {
 		},
 		get children() {
 			return props.children;
+		}
+	});
+}
+//#endregion
+//#region src/components/settings.tsx
+/**
+* One settings row with stable explanatory and control regions.
+* The row blocks its complete subtree when disabled; controls should also
+* receive `disabled` when they need to expose that state independently.
+*/
+function SettingsItem(props) {
+	const orientation = () => props.orientation ?? "horizontal";
+	const rest = omit(props, "title", "description", "children", "orientation", "disabled", "class", "labelClass", "controlClass", "style");
+	return createComponent$1(View, mergeProps(rest, {
+		get role() {
+			return props.role ?? "group";
+		},
+		get ["aria-label"]() {
+			return props["aria-label"] ?? props.title;
+		},
+		get ["aria-orientation"]() {
+			return orientation();
+		},
+		get ["aria-disabled"]() {
+			return props.disabled;
+		},
+		get interactionBlocked() {
+			return props.disabled || props.interactionBlocked;
+		},
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 flex", orientation() === "horizontal" ? "flex-row items-start justify-between gap-6" : "flex-col items-stretch gap-3", props.class);
+		},
+		get style() {
+			return {
+				...props.style,
+				opacity: props.disabled ? .45 : void 0
+			};
+		},
+		get children() {
+			return [createComponent$1(View, {
+				get ["class"]() {
+					return mergeClasses("min-w-0 flex-1 flex flex-col gap-1", props.labelClass);
+				},
+				get children() {
+					return [createComponent$1(Text, {
+						class: "min-w-0 whitespace-normal text-sm font-medium text-primary",
+						get children() {
+							return props.title;
+						}
+					}), memo(() => {
+						return memo(() => {
+							return !!(props.description !== void 0 && props.description !== null);
+						})() ? createComponent$1(Text, {
+							class: "min-w-0 whitespace-normal text-sm text-secondary",
+							get children() {
+								return props.description;
+							}
+						}) : null;
+					})];
+				}
+			}), createComponent$1(View, {
+				get ["class"]() {
+					return mergeClasses("min-w-0 flex items-center gap-2", orientation() === "horizontal" ? "flex-none justify-end" : "w-full justify-start", props.controlClass);
+				},
+				get children() {
+					return props.children;
+				}
+			})];
+		}
+	}));
+}
+/**
+* A settings-page section with one explanatory label and one control surface.
+* The page owns the responsive breakpoint and passes `stacked`; the component
+* owns the repeated alignment, spacing, and surface contract.
+*/
+function SettingsSection(props) {
+	return createComponent$1(View, {
+		role: "group",
+		get ["aria-label"]() {
+			return props.title;
+		},
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 flex items-start", props.stacked ? "flex-col gap-3" : "flex-row gap-7", props.class);
+		},
+		get children() {
+			return [createComponent$1(View, {
+				get ["class"]() {
+					return mergeClasses("flex-none flex flex-col gap-1 pt-1", props.stacked ? "w-full" : "w-52");
+				},
+				get children() {
+					return [createComponent$1(Text, {
+						role: "heading",
+						class: "text-base font-semibold text-primary",
+						get children() {
+							return props.title;
+						}
+					}), memo(() => {
+						return memo(() => {
+							return !!props.description;
+						})() ? createComponent$1(Text, {
+							class: "text-sm text-secondary whitespace-normal",
+							get children() {
+								return props.description;
+							}
+						}) : null;
+					})];
+				}
+			}), createComponent$1(View, {
+				get ["class"]() {
+					return mergeClasses("w-full min-w-0 flex-1 flex flex-col gap-5 rounded-xl border border-subtle bg-surface px-5 py-5 shadow-xs", props.contentClass);
+				},
+				get children() {
+					return props.children;
+				}
+			})];
+		}
+	});
+}
+/** A titled field group inside a SettingsSection control surface. */
+function SettingsGroup(props) {
+	return createComponent$1(View, {
+		role: "group",
+		get ["aria-label"]() {
+			return props.title;
+		},
+		get ["class"]() {
+			return mergeClasses("min-w-0 flex flex-col gap-4", props.class);
+		},
+		get children() {
+			return [createComponent$1(View, {
+				class: "min-w-0 flex flex-col gap-1",
+				get children() {
+					return [createComponent$1(Text, {
+						class: "text-sm font-semibold text-primary",
+						get children() {
+							return props.title;
+						}
+					}), memo(() => {
+						return memo(() => {
+							return !!props.description;
+						})() ? createComponent$1(Text, {
+							class: "text-sm text-secondary whitespace-normal",
+							get children() {
+								return props.description;
+							}
+						}) : null;
+					})];
+				}
+			}), createComponent$1(View, {
+				class: "min-w-0 flex flex-col gap-4",
+				get children() {
+					return props.children;
+				}
+			})];
 		}
 	});
 }
@@ -9387,17 +11048,33 @@ const geometry = (side) => match(side).with("left", () => ({
 	content: "w-full max-h-[80%] border-t"
 })).exhaustive();
 const sheetMotion = (side) => match(side).with("left", () => ({
-	duration: .18,
-	fromX: -32
+	duration: .26,
+	enterDuration: .22,
+	exitDuration: .18,
+	enterEase: "easeOut",
+	exitEase: "linear",
+	fromX: -400
 })).with("right", () => ({
-	duration: .18,
-	fromX: 32
+	duration: .26,
+	enterDuration: .22,
+	exitDuration: .18,
+	enterEase: "easeOut",
+	exitEase: "linear",
+	fromX: 400
 })).with("top", () => ({
-	duration: .18,
-	fromY: -32
+	duration: .26,
+	enterDuration: .22,
+	exitDuration: .18,
+	enterEase: "easeOut",
+	exitEase: "linear",
+	fromY: -320
 })).with("bottom", () => ({
-	duration: .18,
-	fromY: 32
+	duration: .26,
+	enterDuration: .22,
+	exitDuration: .18,
+	enterEase: "easeOut",
+	exitEase: "linear",
+	fromY: 320
 })).exhaustive();
 /** A modal edge panel that shares native focus isolation with Dialog. */
 function Sheet(props) {
@@ -9405,6 +11082,8 @@ function Sheet(props) {
 	const side = () => props.side ?? "right";
 	const placement = () => geometry(side());
 	return createComponent$1(Modal, mergeProps(props, {
+		backdropFade: false,
+		contentFade: false,
 		get motion() {
 			return memo(() => {
 				return props.motion === void 0;
@@ -9544,6 +11223,12 @@ const workbenchContentClass = (className) => mergeClasses("min-w-0 min-h-0 flex-
 /** Shared readable column for workbench transcripts, editors and composers. */
 const workbenchContentColumnClass = (className) => mergeClasses("w-full max-w-4xl mx-auto min-w-0", className);
 const workbenchFooterClass = (className) => mergeClasses("min-w-0 flex-none border-t border-subtle bg-surface", className);
+/** Bounded auxiliary pane beside primary workbench content. */
+const workbenchInspectorClass = (className) => mergeClasses("w-96 max-w-full flex-none min-w-0 min-h-0 border-l border-subtle bg-surface flex flex-col overflow-hidden shadow-sm", className);
+/** Fixed inspector chrome aligned with the inspector body. */
+const workbenchInspectorHeaderClass = (className) => mergeClasses("w-full h-14 min-w-0 flex-none px-4 flex flex-row items-center justify-between gap-3 border-b border-subtle", className);
+/** Shrink-safe body for inspector content and nested scroll areas. */
+const workbenchInspectorContentClass = (className) => mergeClasses("min-w-0 min-h-0 flex-1 flex flex-col overflow-hidden", className);
 //#endregion
 //#region src/components/sidebar.tsx
 const SidebarMenuContext = createContext({
@@ -9618,7 +11303,7 @@ function SidebarContent(props) {
 			return mergeClasses("min-h-0 flex-1", props.class);
 		},
 		get contentClass() {
-			return mergeClasses("px-3 py-4", props.contentClass);
+			return mergeClasses("px-3 py-3", props.contentClass);
 		}
 	}));
 }
@@ -9628,13 +11313,13 @@ function SidebarGroup(props) {
 			return props.role ?? "group";
 		},
 		get ["class"]() {
-			return mergeClasses("flex-none flex flex-col gap-1 mb-5", props.class);
+			return mergeClasses("flex-none flex flex-col gap-2 mb-3", props.class);
 		}
 	}));
 }
 function SidebarGroupLabel(props) {
 	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
-		return mergeClasses("px-2 py-1.5 text-xs font-medium text-muted", props.class);
+		return mergeClasses("h-8 px-2 flex-none flex items-center text-xs font-medium text-muted", props.class);
 	} }));
 }
 /**
@@ -9660,7 +11345,7 @@ function SidebarMenu(props) {
 					return props.role ?? "group";
 				},
 				get ["class"]() {
-					return mergeClasses("min-w-0 flex flex-col gap-1", props.class);
+					return mergeClasses("min-w-0 flex flex-col gap-2", props.class);
 				},
 				get children() {
 					return props.children;
@@ -9682,10 +11367,38 @@ function SidebarMenuButton(props) {
 		get ["aria-selected"]() {
 			return selected();
 		},
-		class: (state) => mergeClasses("w-full min-w-0 h-8 px-3 justify-start gap-2.5 rounded-lg border border-transparent text-sm", state.pressed ? "bg-control-pressed text-primary" : state.hovered ? "bg-control-hover text-primary" : state.selected ? "bg-selected text-primary" : "bg-transparent text-secondary", state.focusVisible && "border-focus", props.class),
+		class: (state) => mergeClasses("w-full min-w-0 h-8 px-2 justify-start gap-2 rounded-md border border-transparent text-sm", state.pressed ? "bg-control-pressed text-primary" : state.selected ? "bg-selected font-medium text-primary" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-secondary", state.focusVisible && "border-focus", props.class),
 		onClick: (event) => {
 			if (props.value !== void 0 && menu.managed) menu.select(props.value);
 			props.onClick?.(event);
+		}
+	}));
+}
+/** Fixed icon slot that keeps navigation labels on one shared baseline. */
+function SidebarMenuIcon(props) {
+	return createComponent$1(View, mergeProps(props, {
+		get role() {
+			return props.role ?? "img";
+		},
+		get ["class"]() {
+			return mergeClasses("w-4 h-4 flex-none flex items-center justify-center", props.class);
+		}
+	}));
+}
+/** Truncating label slot for rows that also contain icons or suffix actions. */
+function SidebarMenuLabel(props) {
+	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
+		return mergeClasses("min-w-0 flex-1 truncate text-left", props.class);
+	} }));
+}
+/** End-aligned metadata or action slot that never compresses the row label. */
+function SidebarMenuSuffix(props) {
+	return createComponent$1(View, mergeProps(props, {
+		get role() {
+			return props.role ?? "group";
+		},
+		get ["class"]() {
+			return mergeClasses("min-w-0 flex-none flex items-center justify-end", props.class);
 		}
 	}));
 }
@@ -9722,6 +11435,7 @@ function SidebarFooter(props) {
 //#endregion
 //#region src/components/slider.tsx
 function Slider(props) {
+	const orientation = () => props.orientation ?? "horizontal";
 	const range = () => normalizeRange(props.min, props.max, props.step);
 	const min = () => range().min;
 	const max = () => range().max;
@@ -9734,22 +11448,12 @@ function Slider(props) {
 	};
 	const [local, setLocal] = createSignal(snap(props.defaultValue ?? min()));
 	const value = () => snap(props.value ?? local());
-	const ratio = () => max() === min() ? 0 : (value() - min()) / (max() - min());
-	const measured = createMeasuredSize();
-	const [dragging, setDragging] = createSignal(false);
-	const [focused, setFocused] = createSignal(false);
 	const update = (next) => {
 		if (props.disabled) return;
 		const normalized = snap(next);
 		const changed = normalized !== value();
 		if (props.value === void 0) setLocal(normalized);
 		if (changed) props.onValueChange?.(normalized);
-	};
-	const updateFromPointer = (event) => {
-		const width = measured.width();
-		if (width <= 0) return;
-		event.preventDefault();
-		update(min() + Math.max(0, Math.min(width, event.offsetX)) / width * (max() - min()));
 	};
 	const changeBy = (amount) => update(value() + amount);
 	const onKeyDown = (event) => {
@@ -9763,11 +11467,8 @@ function Slider(props) {
 		else return;
 		event.preventDefault();
 	};
-	return createComponent$1(View, {
-		ref(r$) {
-			var _ref$ = measured.ref;
-			typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : measured.ref = r$;
-		},
+	return createComponent$1(NativeWidget, {
+		tag: "slider",
 		role: "slider",
 		get ["aria-label"]() {
 			return props.label;
@@ -9785,60 +11486,30 @@ function Slider(props) {
 			return props.valueText?.(value()) ?? String(value());
 		},
 		get ["aria-disabled"]() {
-			return props.disabled;
+			return props.disabled ?? false;
+		},
+		get ["aria-orientation"]() {
+			return orientation();
 		},
 		get focusOrder() {
 			return props.disabled ? -1 : 0;
 		},
 		get ["class"]() {
-			return mergeClasses("h-7 relative flex items-center", props.disabled ? "cursor-not-allowed" : "cursor-pointer", props.class);
+			return mergeClasses(orientation() === "vertical" ? "w-7 h-[120px] select-none" : "w-full h-7 select-none", props.disabled ? "cursor-not-allowed" : "cursor-pointer", props.class);
 		},
-		onFocus: () => setFocused(true),
-		onBlur: () => {
-			setFocused(false);
-			setDragging(false);
+		get config() {
+			return {
+				min: min(),
+				max: max(),
+				step: step(),
+				value: value(),
+				disabled: props.disabled ?? false,
+				orientation: orientation(),
+				reversed: props.reversed ?? false
+			};
 		},
-		onPointerDown: (event) => {
-			setDragging(true);
-			updateFromPointer(event);
-		},
-		onPointerMove: (event) => {
-			if (dragging() && event.buttons !== 0) updateFromPointer(event);
-		},
-		onPointerUp: (event) => {
-			if (dragging()) updateFromPointer(event);
-			setDragging(false);
-		},
-		onPointerCancel: () => setDragging(false),
-		onKeyDown,
-		get style() {
-			return { opacity: props.disabled ? .45 : 1 };
-		},
-		get children() {
-			return [createComponent$1(View, {
-				"aria-hidden": "true",
-				class: "w-full h-1.5 overflow-hidden rounded-full border border-subtle bg-control",
-				get children() {
-					return createComponent$1(View, {
-						class: "h-full rounded-full bg-accent",
-						get style() {
-							return { width: `${ratio() * 100}%` };
-						}
-					});
-				}
-			}), createComponent$1(View, {
-				"aria-hidden": "true",
-				get ["class"]() {
-					return mergeClasses("w-4 h-4 absolute rounded-full border bg-surface shadow-xs", focused() || dragging() ? "border-focus" : "border-strong");
-				},
-				get style() {
-					return {
-						left: `${ratio() * Math.max(0, measured.width() - 16)}px`,
-						top: "6px"
-					};
-				}
-			})];
-		}
+		onChange: (event) => update(event.value),
+		onKeyDown
 	});
 }
 //#endregion
@@ -9987,7 +11658,9 @@ function StatCard(props) {
 /** Persistent low-emphasis application state at the bottom of a desktop window. */
 function StatusBar(props) {
 	return createComponent$1(View, mergeProps(props, {
-		role: "status",
+		get role() {
+			return props.role ?? "status";
+		},
 		get ["class"]() {
 			return mergeClasses("h-7 w-full min-w-0 flex-none flex flex-row items-center gap-1 px-2 border-t border-subtle bg-control", props.class);
 		},
@@ -9997,7 +11670,8 @@ function StatusBar(props) {
 	}));
 }
 function StatusBarItem(props) {
-	return createComponent$1(Text, mergeProps(props, {
+	const forwarded = omit(props, "class", "grow", "children");
+	return createComponent$1(Text, mergeProps(forwarded, {
 		get ["class"]() {
 			return mergeClasses("h-full min-w-0 px-1.5 flex items-center text-xs text-muted whitespace-nowrap", props.grow ? "flex-1" : "flex-none", props.class);
 		},
@@ -10012,6 +11686,33 @@ function StatusBarSeparator(props) {
 		"aria-orientation": "vertical",
 		get ["class"]() {
 			return mergeClasses("w-px h-4 flex-none bg-subtle", props.class);
+		}
+	});
+}
+/** A shrink-safe status bar group for icons, indicators and related text. */
+function StatusBarGroup(props) {
+	const forwarded = omit(props, "class", "grow", "shrink", "children");
+	return createComponent$1(View, mergeProps(forwarded, {
+		get ["class"]() {
+			return mergeClasses("h-full min-w-0 px-1.5 flex flex-row items-center gap-1.5 text-xs text-muted", props.grow ? "flex-1" : props.shrink ? "shrink" : "flex-none", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+const indicatorToneClass = {
+	accent: "bg-accent",
+	danger: "bg-danger-primary",
+	muted: "bg-muted",
+	success: "bg-success-primary"
+};
+/** Compact, decorative state indicator with a theme-aware semantic tone. */
+function StatusBarIndicator(props) {
+	return createComponent$1(View, {
+		"aria-hidden": "true",
+		get ["class"]() {
+			return mergeClasses("w-1.5 h-1.5 flex-none rounded-full", indicatorToneClass[props.tone ?? "muted"], props.class);
 		}
 	});
 }
@@ -10090,6 +11791,145 @@ function Stepper(props) {
 	});
 }
 //#endregion
+//#region src/components/switch.tsx
+function switchColors(checked, state) {
+	return match({
+		checked,
+		pressed: state.pressed,
+		hovered: state.hovered
+	}).with({
+		checked: true,
+		pressed: true
+	}, () => "bg-accent-pressed").with({
+		checked: true,
+		hovered: true
+	}, () => "bg-accent-hover").with({ checked: true }, () => "bg-accent").with({
+		checked: false,
+		pressed: true
+	}, () => "bg-control-pressed").with({
+		checked: false,
+		hovered: true
+	}, () => "bg-control-hover").with({ checked: false }, () => "bg-control").exhaustive();
+}
+function switchGeometry(size) {
+	return size === "sm" ? {
+		trackClass: "w-7 h-4 p-0.5",
+		thumbClass: "w-3 h-3",
+		travel: 12
+	} : {
+		trackClass: "w-9 h-5 p-0.5",
+		thumbClass: "w-4 h-4",
+		travel: 16
+	};
+}
+function switchTrackClass(checked, state, size = "default") {
+	return mergeClasses("flex-none overflow-hidden rounded-full border border-transparent", switchGeometry(size).trackClass, switchColors(checked, state));
+}
+function switchControlClass(state) {
+	return mergeClasses("w-10 h-6 p-0 flex-none items-center justify-center rounded-full border border-transparent bg-transparent", state.focusVisible && "border-focus");
+}
+function Switch(props) {
+	const [local, setLocal] = createSignal(props.defaultChecked ?? false);
+	const checked = () => props.checked ?? local();
+	const reducedMotion = useReducedMotion();
+	const size = () => props.size ?? "default";
+	const geometry = () => switchGeometry(size());
+	const [thumbTransition, setThumbTransition] = createSignal();
+	let previousChecked = untrack(checked);
+	let previousTravel = untrack(() => geometry().travel);
+	let transitionGeneration = 0;
+	createEffect(() => [
+		checked(),
+		geometry().travel,
+		reducedMotion()
+	], ([nextChecked, nextTravel, prefersReducedMotion]) => {
+		const fromX = previousChecked ? previousTravel : 0;
+		const toX = nextChecked ? nextTravel : 0;
+		previousChecked = nextChecked;
+		previousTravel = nextTravel;
+		if (Object.is(fromX, toX) || prefersReducedMotion) {
+			setThumbTransition(void 0);
+			return;
+		}
+		setThumbTransition({
+			generation: ++transitionGeneration,
+			duration: .15,
+			easing: "easeInOut",
+			fromTransform: translate2d$1(fromX, 0),
+			toTransform: translate2d$1(toX, 0)
+		});
+	});
+	let control;
+	const toggle = () => {
+		if (props.disabled) return;
+		const next = !checked();
+		if (props.checked === void 0) setLocal(next);
+		props.onCheckedChange?.(next);
+	};
+	return createComponent$1(View, {
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 flex items-start gap-2", props.labelPlacement === "start" && "flex-row-reverse", props.class);
+		},
+		get children() {
+			return [createComponent$1(Button$1, {
+				ref: (node) => {
+					control = node;
+				},
+				unstyled: true,
+				role: "switch",
+				get disabled() {
+					return props.disabled;
+				},
+				get ["aria-label"]() {
+					return props["aria-label"] ?? props.label;
+				},
+				get ["aria-checked"]() {
+					return checked();
+				},
+				class: switchControlClass,
+				style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
+				onClick: toggle,
+				renderContent: (buttonState) => createComponent$1(View, {
+					"aria-hidden": "true",
+					get ["class"]() {
+						return switchTrackClass(checked(), buttonState, size());
+					},
+					get children() {
+						return createComponent$1(View, {
+							get ["class"]() {
+								return mergeClasses(geometry().thumbClass, "rounded-full bg-surface");
+							},
+							get transform() {
+								return translate2d$1(checked() ? geometry().travel : 0, 0);
+							},
+							get nativeTransition() {
+								return thumbTransition();
+							}
+						});
+					}
+				})
+			}), memo(() => {
+				return memo(() => {
+					return !!props.label;
+				})() ? createComponent$1(Label, {
+					control: () => control,
+					get disabled() {
+						return props.disabled;
+					},
+					class: "min-w-0 flex-1 select-none whitespace-normal text-sm font-normal text-primary",
+					onClick: (event) => {
+						if (props.disabled || event.defaultPrevented) return;
+						toggle();
+					},
+					get children() {
+						return props.label;
+					}
+				}) : props.label;
+			})];
+		}
+	});
+}
+//#endregion
 //#region src/components/tabs.tsx
 const orientationClass = (orientation, horizontal, vertical) => match(orientation).with("horizontal", () => horizontal).with("vertical", () => vertical).exhaustive();
 const TabsContext = createContext();
@@ -10105,6 +11945,7 @@ function Tabs(props) {
 	};
 	const roving = createRovingFocus({
 		orientation: () => props.orientation ?? "horizontal",
+		preferred: (id) => value() === id,
 		onMove: select
 	});
 	const context = {
@@ -10117,9 +11958,13 @@ function Tabs(props) {
 				target: node,
 				disabled
 			});
-			if (value() === void 0) select(next);
+			if (value() === void 0 && !disabled()) select(next);
 			return unregister;
 		},
+		activate: (next) => {
+			roving.activate(next);
+		},
+		isTabStop: roving.isTabStop,
 		move: roving.move
 	};
 	return createComponent(TabsContext, {
@@ -10127,7 +11972,7 @@ function Tabs(props) {
 		get children() {
 			return createComponent$1(View, {
 				get ["class"]() {
-					return mergeClasses("flex gap-3", orientationClass(context.orientation(), "flex-col", "flex-row"), props.class);
+					return mergeClasses("min-w-0 flex gap-3", orientationClass(context.orientation(), "flex-col", "flex-row"), props.class);
 				},
 				get children() {
 					return props.children;
@@ -10150,10 +11995,62 @@ function TabsList(props) {
 		get ["class"]() {
 			return memo(() => {
 				return !!props.unstyled;
-			})() ? props.class : mergeClasses("flex-none flex items-center gap-1", orientationClass(context.orientation(), "flex-row", "flex-col"), match(props.variant ?? "default").with("default", () => "p-0.5 rounded-lg bg-control").with("line", () => "bg-transparent").exhaustive(), props.class);
+			})() ? props.class : mergeClasses("min-w-0 max-w-full flex-none flex items-center gap-1", orientationClass(context.orientation(), "flex-row overflow-x-scroll", "flex-col overflow-y-scroll"), match(props.variant ?? "default").with("default", () => "p-0.5 rounded-lg bg-control").with("line", () => "bg-transparent").exhaustive(), props.class);
 		},
 		get children() {
 			return props.children;
+		}
+	});
+}
+/**
+* Bounded, optionally closeable tab chrome. The tab trigger and close action
+* remain sibling hit targets so closing a tab never selects it first.
+*/
+function TabsItem(props) {
+	const context = useContext(TabsContext);
+	if (!context) throw new Error("TabsItem must be used inside Tabs");
+	const selected = () => context.value() === props.value;
+	const itemClass = () => typeof props.class === "function" ? props.class({ selected: selected() }) : props.class;
+	return createComponent$1(View, {
+		get ["class"]() {
+			return mergeClasses("h-8 min-w-24 max-w-56 flex flex-row items-center overflow-hidden rounded-md border border-transparent", selected() ? "bg-surface text-primary shadow-xs" : "bg-transparent text-muted", itemClass());
+		},
+		get children() {
+			return [createComponent$1(TabsTrigger, {
+				unstyled: true,
+				get value() {
+					return props.value;
+				},
+				get disabled() {
+					return props.disabled;
+				},
+				class: (state) => mergeClasses("h-full min-w-0 flex-1 px-2 flex flex-row items-center gap-2", !selected() && state.hovered && "bg-control-hover text-primary", state.focusVisible && "border border-focus", typeof props.triggerClass === "function" ? props.triggerClass(state) : props.triggerClass),
+				get children() {
+					return props.children;
+				}
+			}), memo(() => {
+				return memo(() => {
+					return !!props.onClose;
+				})() ? createComponent$1(Button, {
+					variant: "ghost",
+					size: "icon",
+					get ["aria-label"]() {
+						return props.closeLabel ?? `Close ${props.value}`;
+					},
+					class: "w-6 h-6 flex-none text-muted",
+					style: { padding: 0 },
+					onClick: (event) => {
+						event.stopPropagation();
+						props.onClose?.();
+					},
+					get children() {
+						return createComponent$1(Icon, {
+							source: x,
+							size: 12
+						});
+					}
+				}) : null;
+			})];
 		}
 	});
 }
@@ -10178,21 +12075,27 @@ function TabsTrigger(props) {
 		get ["aria-selected"]() {
 			return selected();
 		},
+		get focusOrder() {
+			return context.isTabStop(props.value) ? 0 : -1;
+		},
 		ref: (node) => {
 			unregister?.();
 			unregister = context.register(props.value, node, () => props.disabled ?? false);
 		},
-		class: (state) => props.unstyled ? typeof props.class === "function" ? props.class(state) : props.class ?? "" : mergeClasses("h-7 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium", match({
+		class: (state) => props.unstyled ? typeof props.class === "function" ? props.class(state) : props.class ?? "" : mergeClasses("h-7 px-3 flex-none whitespace-nowrap items-center justify-center rounded-md border border-transparent text-sm font-medium", match({
 			selected: selected(),
 			hovered: state.hovered
 		}).with({ selected: true }, () => "bg-surface text-primary shadow-xs").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-muted"), state.focusVisible && "border-focus", typeof props.class === "function" ? props.class(state) : props.class),
 		style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 		onClick: () => context.select(props.value),
+		onFocus: () => context.activate(props.value),
 		onKeyDown: (event) => {
 			if (context.move(props.value, event.key)) event.preventDefault();
 		},
 		get children() {
-			return createComponent$1(Text, {
+			return memo(() => {
+				return !!props.unstyled;
+			})() ? props.children : createComponent$1(Text, {
 				class: "text-sm font-medium",
 				get children() {
 					return props.children;
@@ -10204,15 +12107,22 @@ function TabsTrigger(props) {
 function TabsContent(props) {
 	const context = useContext(TabsContext);
 	if (!context) throw new Error("TabsContent must be used inside Tabs");
+	const selected = () => context.value() === props.value;
 	return createComponent$1(Show, {
 		get when() {
-			return context.value() === props.value;
+			return props.keepMounted || selected();
 		},
 		get children() {
 			return createComponent$1(View, {
 				role: "tabpanel",
+				get ["aria-hidden"]() {
+					return !selected();
+				},
 				get ["class"]() {
-					return mergeClasses("flex-1", props.class);
+					return mergeClasses("min-w-0 flex flex-col", orientationClass(context.orientation(), "w-full flex-none", "flex-1"), props.class);
+				},
+				get style() {
+					return { display: selected() ? "flex" : "none" };
 				},
 				get children() {
 					return props.children;
@@ -10293,6 +12203,10 @@ function Timeline(props) {
 }
 //#endregion
 //#region src/components/title-bar.tsx
+function windowFrameMaterialStyle(theme, material = "solid") {
+	if (material === "solid") return {};
+	return { "background-color": rgba$1(theme === "dark" ? 286795752 : 4177198312) };
+}
 function windowFrameBackdropClassList(maximized, rounded = true) {
 	return { "p-3": rounded && !maximized };
 }
@@ -10332,6 +12246,7 @@ function windowFrameShadows(theme) {
 * intentionally square so their content reaches every display edge.
 */
 function WindowFrame(props) {
+	const viewProps = omit(props, "rounded", "material");
 	const window = useWindow();
 	const theme = useComponentsTheme();
 	const decorated = () => props.rounded !== false && !window.maximized();
@@ -10341,17 +12256,23 @@ function WindowFrame(props) {
 			return windowFrameBackdropClassList(window.maximized(), props.rounded !== false);
 		},
 		get children() {
-			return createComponent$1(View, mergeProps(props, {
+			return createComponent$1(View, mergeProps(viewProps, {
 				get ["class"]() {
-					return mergeClasses("w-full h-full", props.class);
+					return mergeClasses("w-full h-full", viewProps.class);
 				},
 				get classList() {
-					return windowFrameClientClassList(window.maximized(), props.rounded !== false, props.classList);
+					return windowFrameClientClassList(window.maximized(), props.rounded !== false, viewProps.classList);
+				},
+				get style() {
+					return {
+						...windowFrameMaterialStyle(theme(), props.material),
+						...viewProps.style
+					};
 				},
 				get shadows() {
 					return memo(() => {
-						return props.shadows !== void 0;
-					})() ? props.shadows : memo(() => {
+						return viewProps.shadows !== void 0;
+					})() ? viewProps.shadows : memo(() => {
 						return !!decorated();
 					})() ? windowFrameShadows(theme()) : null;
 				}
@@ -10428,7 +12349,9 @@ function ToastContent(props) {
 	const theme = useComponentsTheme();
 	const style = () => treatment(props.input.variant ?? "default");
 	return createComponent$1(View, {
-		class: "w-full min-w-0 flex items-start gap-3 rounded-xl border border-subtle bg-surface p-4",
+		get ["class"]() {
+			return mergeClasses("w-full min-w-0 flex items-start gap-3 px-4 py-3.5", componentsSurfaceClass("floating"));
+		},
 		get shadows() {
 			return componentsElevation(theme(), "floating");
 		},
@@ -10472,6 +12395,9 @@ function ToastContent(props) {
 										return createComponent$1(Button, {
 											size: "sm",
 											variant: "outline",
+											get ["aria-label"]() {
+												return props.input.action.label;
+											},
 											onClick: () => {
 												props.input.action?.onAction();
 												if (props.input.action?.dismiss !== false) props.dismiss();
@@ -10556,13 +12482,12 @@ function Toaster(props) {
 		get ["class"]() {
 			return props.class;
 		},
+		stackClass: "w-96 max-w-full",
 		get itemClass() {
-			return mergeClasses("w-96 max-w-full", props.itemClass);
+			return mergeClasses("w-full max-w-full", props.itemClass);
 		},
 		get motion() {
-			return memo(() => {
-				return props.motion === void 0;
-			})() ? { fromY: (props.placement ?? "bottom-end").startsWith("bottom") ? 12 : -12 } : props.motion;
+			return props.motion ?? false;
 		}
 	});
 }
@@ -10589,7 +12514,7 @@ function statusPresentation(status) {
 		label: "Completed",
 		variant: "success"
 	})).with("failed", () => ({
-		icon: xCircle,
+		icon: circleX,
 		label: "Failed",
 		variant: "destructive"
 	})).exhaustive();
@@ -10625,7 +12550,7 @@ function ToolHeader(props) {
 							class: "flex-none text-muted"
 						}),
 						createComponent$1(Text, {
-							class: "flex-none text-sm font-semibold text-primary",
+							class: "min-w-0 max-w-2/5 truncate text-sm font-semibold text-primary",
 							get children() {
 								return props.title;
 							}
@@ -10720,74 +12645,6 @@ function ToolOutput(props) {
 			return mergeClasses("border-t border-subtle", props.error ? "bg-danger-surface" : void 0, props.class);
 		}
 	}));
-}
-//#endregion
-//#region src/components/tooltip.tsx
-let tooltipId = 0;
-/** A delayed, non-interactive label for pointer and keyboard focus targets. */
-function Tooltip(props) {
-	const theme = useComponentsTheme();
-	const id = `wabou-tooltip-${++tooltipId}`;
-	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(props.defaultOpen ?? false);
-	const open = () => !props.disabled && (props.open ?? uncontrolledOpen());
-	const setOpen = (next) => {
-		if (props.disabled) next = false;
-		if (props.open === void 0) setUncontrolledOpen(next);
-		props.onOpenChange?.(next);
-	};
-	const delay = createDelayedOpenController({
-		openDelay: () => props.openDelay ?? 500,
-		closeDelay: () => props.closeDelay ?? 80,
-		setOpen
-	});
-	onCleanup(delay.dispose);
-	return createComponent$1(Popover$1, {
-		get open() {
-			return open();
-		},
-		onOpenChange: (next) => !next && delay.closeNow(),
-		get placement() {
-			return props.placement ?? "top";
-		},
-		get offset() {
-			return props.offset ?? 8;
-		},
-		contentRole: "presentation",
-		popupRole: "tooltip",
-		outsidePointerStrategy: "passthrough",
-		contentInteractionBlocked: true,
-		closeOnEscape: true,
-		restoreFocus: false,
-		get contentClass() {
-			return mergeClasses("max-w-xs rounded-lg border border-subtle bg-surface px-2 py-1.5", props.contentClass);
-		},
-		get contentShadows() {
-			return componentsElevation(theme(), "floating");
-		},
-		get motion() {
-			return props.motion;
-		},
-		trigger: (popover) => props.trigger({
-			ref: popover.ref,
-			onPointerEnter: delay.scheduleOpen,
-			onPointerLeave: delay.scheduleClose,
-			onFocus: delay.openNow,
-			onBlur: delay.closeNow,
-			onKeyDown: (event) => {
-				if (event.key === "Escape") delay.closeNow();
-			}
-		}),
-		get children() {
-			return createComponent$1(Text, {
-				id,
-				role: "tooltip",
-				class: "whitespace-normal text-xs text-primary",
-				get children() {
-					return props.children;
-				}
-			});
-		}
-	});
 }
 //#endregion
 //#region src/components/tree-view.tsx
@@ -11003,12 +12860,12 @@ function styledText(props, className) {
 		return mergeClasses(className, props.class);
 	} }));
 }
-const TypographyH1 = (props) => styledText(props, "text-4xl font-bold text-primary whitespace-normal");
-const TypographyH2 = (props) => styledText(props, "text-3xl font-semibold text-primary whitespace-normal");
-const TypographyH3 = (props) => styledText(props, "text-2xl font-semibold text-primary whitespace-normal");
-const TypographyH4 = (props) => styledText(props, "text-xl font-semibold text-primary whitespace-normal");
+const TypographyH1 = (props) => styledText(props, "text-4xl leading-tight font-bold tracking-tight text-primary whitespace-normal");
+const TypographyH2 = (props) => styledText(props, "text-3xl leading-tight font-semibold tracking-tight text-primary whitespace-normal");
+const TypographyH3 = (props) => styledText(props, "text-2xl leading-tight font-semibold tracking-tight text-primary whitespace-normal");
+const TypographyH4 = (props) => styledText(props, "text-xl leading-normal font-semibold text-primary whitespace-normal");
 const TypographyP = (props) => styledText(props, "text-base leading-relaxed text-secondary whitespace-normal");
-const TypographyLead = (props) => styledText(props, "text-xl leading-relaxed text-muted whitespace-normal");
+const TypographyLead = (props) => styledText(props, "text-xl leading-normal text-muted whitespace-normal");
 const TypographyLarge = (props) => styledText(props, "text-lg font-semibold text-primary whitespace-normal");
 const TypographySmall = (props) => styledText(props, "text-sm font-medium text-secondary whitespace-normal");
 const TypographyMuted = (props) => styledText(props, "text-sm text-muted whitespace-normal");
@@ -11096,11 +12953,97 @@ function WorkbenchFooter(props) {
 		return workbenchFooterClass(props.class);
 	} }));
 }
+/** Fixed-width auxiliary pane for file previews, diffs and contextual tools. */
+function WorkbenchInspector(props) {
+	const forwarded = omit(props, "class");
+	return createComponent$1(View, mergeProps(forwarded, { get ["class"]() {
+		return workbenchInspectorClass(props.class);
+	} }));
+}
+/** Inspector title row with a stable height and bounded children. */
+function WorkbenchInspectorHeader(props) {
+	const forwarded = omit(props, "class");
+	return createComponent$1(View, mergeProps(forwarded, { get ["class"]() {
+		return workbenchInspectorHeaderClass(props.class);
+	} }));
+}
+/**
+* Consistent inspector chrome with a bounded title, optional description and
+* correctly sized trailing actions.
+*/
+function WorkbenchInspectorTitlebar(props) {
+	const forwarded = omit(props, "title", "description", "closeLabel", "onClose", "renderAction", "class");
+	return createComponent$1(WorkbenchInspectorHeader, mergeProps(forwarded, {
+		get ["class"]() {
+			return props.class;
+		},
+		get children() {
+			return [createComponent$1(View, {
+				class: "min-w-0 flex-1 flex flex-col",
+				get children() {
+					return [createComponent$1(Text, {
+						class: "w-full min-w-0 truncate font-semibold",
+						get children() {
+							return props.title;
+						}
+					}), memo(() => {
+						return memo(() => {
+							return props.description === void 0;
+						})() ? null : createComponent$1(Text, {
+							class: "w-full min-w-0 truncate text-xs text-muted",
+							get children() {
+								return props.description;
+							}
+						});
+					})];
+				}
+			}), createComponent$1(View, {
+				class: "flex-none flex flex-row items-center gap-1",
+				get children() {
+					return [memo(() => {
+						return props.renderAction?.();
+					}), memo(() => {
+						return memo(() => {
+							return !!props.onClose;
+						})() ? createComponent$1(Button, {
+							variant: "ghost",
+							size: "icon",
+							get ["aria-label"]() {
+								return props.closeLabel ?? "Close inspector";
+							},
+							get onClick() {
+								return props.onClose;
+							},
+							get children() {
+								return createComponent$1(Icon, {
+									source: x,
+									size: 15
+								});
+							}
+						}) : null;
+					})];
+				}
+			})];
+		}
+	}));
+}
+/** Flexible, clipped inspector body. Add a ScrollArea inside when needed. */
+function WorkbenchInspectorContent(props) {
+	const forwarded = omit(props, "class");
+	return createComponent$1(View, mergeProps(forwarded, { get ["class"]() {
+		return workbenchInspectorContentClass(props.class);
+	} }));
+}
+/** Mutually exclusive centered state for a bounded inspector body. */
+function WorkbenchInspectorState(props) {
+	return createComponent$1(ContentState, props);
+}
 //#endregion
 //#region src/components/index.tsx
-/** Live host frame-rate indicator with sensible performance thresholds. */
+/** Frame-rate indicator. Live measurement is intentionally opt-in because it
+* keeps the platform frame clock active. */
 function Fps(props) {
-	const measured = props.value === void 0 ? createFps() : () => props.value ?? 0;
+	const measured = props.live ? createFps() : () => props.value;
 	const value = () => Math.max(0, Math.round(measured()));
 	const variant = () => match(value()).with(0, () => "outline").with(P.when((fps) => fps >= (props.goodAt ?? 55)), () => "success").with(P.when((fps) => fps < (props.warningBelow ?? 30)), () => "destructive").otherwise(() => "secondary");
 	return createComponent$1(Badge, {
@@ -11118,104 +13061,6 @@ function Fps(props) {
 				return memo(() => {
 					return props.label === "";
 				})() ? "" : ` ${props.label ?? "fps"}`;
-			})];
-		}
-	});
-}
-/** A native secret input whose value never crosses into JavaScript. */
-function PasswordInput(props) {
-	return createComponent$1(PasswordInput$1, mergeProps(props, { get ["class"]() {
-		return mergeClasses("w-full border shadow-xs", componentsControlSize("default"), "border-subtle bg-input text-primary", props.disabled && "opacity-50", props.class);
-	} }));
-}
-function TextArea$1(props) {
-	const forwarded = omit(props, "chrome", "surfaceClass");
-	return createComponent$1(TextArea, mergeProps(forwarded, {
-		get ["data-wabou-owns"]() {
-			return (props.chrome ?? "default") === "default" ? "surface native-editor" : "native-editor";
-		},
-		get ["class"]() {
-			return mergeClasses("h-24 w-full px-3 py-2 text-sm text-primary", (props.chrome ?? "default") === "default" && mergeClasses("rounded-lg border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
-		}
-	}));
-}
-function switchColors(checked, state) {
-	return match({
-		checked,
-		pressed: state.pressed,
-		hovered: state.hovered
-	}).with({
-		checked: true,
-		pressed: true
-	}, () => "bg-accent-pressed").with({
-		checked: true,
-		hovered: true
-	}, () => "bg-accent-hover").with({ checked: true }, () => "bg-accent").with({
-		checked: false,
-		pressed: true
-	}, () => "bg-control-pressed").with({
-		checked: false,
-		hovered: true
-	}, () => "bg-control-hover").with({ checked: false }, () => "bg-control").exhaustive();
-}
-function Switch(props) {
-	const [local, setLocal] = createSignal(props.defaultChecked ?? false);
-	const checked = () => props.checked ?? local();
-	const reducedMotion = useReducedMotion();
-	const movement = createTransition(() => checked() ? 20 : 0, {
-		duration: .18,
-		ease: [
-			.22,
-			1,
-			.36,
-			1
-		],
-		reducedMotion
-	});
-	const toggle = () => {
-		if (props.disabled) return;
-		const next = !checked();
-		if (props.checked === void 0) setLocal(next);
-		props.onCheckedChange?.(next);
-	};
-	return createComponent$1(View, {
-		get ["class"]() {
-			return mergeClasses("w-full min-w-0 flex items-center gap-3", props.class);
-		},
-		get children() {
-			return [createComponent$1(Button$1, {
-				unstyled: true,
-				role: "switch",
-				get disabled() {
-					return props.disabled;
-				},
-				get ["aria-label"]() {
-					return props["aria-label"] ?? props.label;
-				},
-				get ["aria-checked"]() {
-					return checked();
-				},
-				class: (state) => mergeClasses("w-11 h-6 flex-none rounded-full p-0.5", switchColors(checked(), state), state.focused && "border border-focus"),
-				style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
-				onClick: toggle,
-				get children() {
-					return createComponent$1(View, {
-						"aria-hidden": "true",
-						class: "w-5 h-5 rounded-full bg-on-accent",
-						get transform() {
-							return translate2d$1(movement.value(), 0);
-						}
-					});
-				}
-			}), memo(() => {
-				return memo(() => {
-					return !!props.label;
-				})() ? createComponent$1(Text, {
-					class: "min-w-0 flex-1 whitespace-normal text-sm text-secondary",
-					get children() {
-						return props.label;
-					}
-				}) : props.label;
 			})];
 		}
 	});
@@ -11324,19 +13169,27 @@ const solidStores = () => ({
 	createReadonlyStore,
 	batch: flush
 });
+const routerPersistence = /* @__PURE__ */ new WeakMap();
+function isPersistedRouterLocation(value) {
+	if (value === null || Array.isArray(value) || typeof value !== "object") return false;
+	const record = value;
+	return typeof record.version === "number" && Number.isSafeInteger(record.version) && typeof record.href === "string" && record.href.startsWith("/");
+}
 /** Create a TanStack Router Core instance adapted to Solid 2 and native history. */
 function createDataRouter(options) {
-	const history = options.history ?? createMemoryHistory$1({ initialEntries: ["/"] });
+	const { persistence, ...routerOptions } = options;
+	const history = routerOptions.history ?? createMemoryHistory$1({ initialEntries: ["/"] });
 	const router = new RouterCore({
 		isServer: false,
 		origin: "wabou://app",
-		...options,
+		...routerOptions,
 		history
 	}, solidStores);
 	router.startTransition = async (commit) => {
 		flush(commit);
 		return true;
 	};
+	if (persistence) routerPersistence.set(router, persistence);
 	return router;
 }
 const DataRouterContext = createContext();
@@ -11396,8 +13249,33 @@ function RouterProvider(props) {
 	const router = untrack(() => props.router);
 	let disposed = false;
 	let loadScheduled = false;
+	let initialized = false;
+	let pendingHref;
+	let writer;
+	const persistence = routerPersistence.get(router);
+	const persistenceVersion = persistence?.version ?? 1;
+	const persistLocation = (href) => {
+		if (!persistence) return;
+		pendingHref = href;
+		if (writer) return;
+		writer = Promise.resolve().then(async () => {
+			while (!disposed && pendingHref !== void 0) {
+				const next = pendingHref;
+				pendingHref = void 0;
+				await persistence.kv.set(persistence.key, {
+					version: persistenceVersion,
+					href: next
+				});
+			}
+		}).catch((error) => {
+			console.warn(`[wabou-router] could not persist location: ${String(error)}`);
+		}).finally(() => {
+			writer = void 0;
+			if (!disposed && pendingHref !== void 0) persistLocation(pendingHref);
+		});
+	};
 	const scheduleLoad = () => {
-		if (disposed || loadScheduled) return;
+		if (disposed || !initialized || loadScheduled) return;
 		loadScheduled = true;
 		Promise.resolve().then(async () => {
 			loadScheduled = false;
@@ -11406,12 +13284,26 @@ function RouterProvider(props) {
 			console.error(`[wabou-router] route load failed: ${String(error)}`);
 		});
 	};
-	const unsubscribe = router.history.subscribe(scheduleLoad);
+	const unsubscribe = router.history.subscribe(() => {
+		if (!initialized) return;
+		scheduleLoad();
+		persistLocation(router.history.location.href);
+	});
 	onCleanup(() => {
 		disposed = true;
 		unsubscribe();
 	});
-	scheduleLoad();
+	Promise.resolve().then(async () => {
+		if (persistence) {
+			const entry = await persistence.kv.get(persistence.key);
+			if (entry && isPersistedRouterLocation(entry.value) && entry.value.version === persistenceVersion) router.history.replace(entry.value.href);
+		}
+	}).catch((error) => {
+		console.warn(`[wabou-router] could not restore persisted location: ${String(error)}`);
+	}).finally(() => {
+		initialized = true;
+		scheduleLoad();
+	});
 	return createComponent(DataRouterContext, {
 		value: router,
 		get children() {
@@ -11463,6 +13355,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDescription, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertTitle, AnnotationLayer, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Bubble, BubbleContent, BubbleGroup, BubbleReactions, Button, ButtonGroup, ButtonGroupSeparator, ButtonGroupText, Calendar, CalendarDate, Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, Center, ChartContainer, ChartEmpty, ChartLegend, Checkbox, CodeBlock, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, CopyButton, DataTable, DatePicker, DevServerErrorOverlay, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DiffViewer, DirectionProvider, DirectionalRow, DirectionalText, DirectoryPicker, Drawer, DrawerClose, DrawerDescription, DrawerFooter, DrawerHandle, DrawerHeader, DrawerTitle, DropZone, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, IconFrame, Image, ImageList, ImageOverlayLayer, ImageViewport, InlineEdit, Input, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Label, LabeledSeparator, Markdown, Marker, MarkerContent, MarkerIcon, Menubar, MenubarMenu, Message, MessageActions, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerViewport, Modal, MotionConfigProvider, NativeSelect, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, NavigationMenuViewport, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, PromptComposer, PromptComposerStatus, PromptComposerToolbar, PromptComposerTools, PromptSuggestion, PromptSuggestions, PropertyList, PropertyRow, Pulse, QRCode, RadioGroup, RadioGroupItem, Rating, Reasoning, ReasoningContent, ReasoningTrigger, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, RichText, RichTextSpan, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, ShortcutRecorder, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitButton, SplitPane, SplitPaneAside, SplitPaneMain, StatCard, StatusBar, StatusBarItem, StatusBarSeparator, Stepper, Svg, Switch, Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, Timeline, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Tool, ToolCodeSection, ToolContent, ToolHeader, ToolInput, ToolOutput, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, TypographyBlockquote, TypographyH1, TypographyH2, TypographyH3, TypographyH4, TypographyInlineCode, TypographyLarge, TypographyLead, TypographyList, TypographyListItem, TypographyMuted, TypographyP, TypographySmall, View, WindowFrame, Workbench, WorkbenchContent, WorkbenchContentColumn, WorkbenchFooter, WorkbenchHeader, WorkbenchMain, WorkbenchSidebar, activeMessageAnchor, alertColors, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentGroupClass, attachmentMediaClass, badgeClass, bubbleClass, bubbleContentClass, clampAnnotationRegion, clampPage, clampRatingValue, componentsControlSize, componentsElevation, componentsThemeContract, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFileImageResource, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNetworkImageResource, createNotifications, createOverlayLayer, createOwnedImageResource, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, drawerDragOffset, drawerShouldDismiss, emptyClass, emptyMediaClass, encodeQrCode, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, imageViewportTransform, inputGroupAddonClass, inputGroupClass, isMessageScrollNearEnd, itemClass, itemMediaClass, messageActionsClass, messageClass, messageScrollRange, messageScrollRevealDelta, messageScrollStartDelta, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageHeaderDescriptionClass, pageHeaderTitleClass, pageViewportClass, pageViewportContentClass, pointInLayoutRect, primitives_exports as primitives, promptComposerClass, qrCodePath, ratingLabel, reconcileCommandHighlight, redirect, releaseImageResource, responsiveGridColumnCount, responsiveGridRemainderCount, shortcutFromKeyEvent, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, toolHeaderLabel, uniqueFieldErrors, useChartConfig, useComponentsTheme, useDirection, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows, workbenchClass, workbenchContentClass, workbenchContentColumnClass, workbenchFooterClass, workbenchHeaderClass, workbenchMainClass, workbenchSidebarClass };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, ActivityStatus, ActivityStatusIndicator, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertActions, AlertDescription, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertTitle, AnnotationLayer, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Bubble, BubbleContent, BubbleGroup, BubbleReactions, Button, ButtonGroup, ButtonGroupSeparator, ButtonGroupText, Calendar, CalendarDate, Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, Center, ChartContainer, ChartEmpty, ChartLegend, Checkbox, CodeBlock, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, CommandList, ComponentsProvider, ContentState, ContextMenu, CopyButton, DataTable, DatePicker, DevServerErrorOverlay, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DiffViewer, DirectionProvider, DirectionalRow, DirectionalText, DirectoryPicker, Drawer, DrawerClose, DrawerDescription, DrawerFooter, DrawerHandle, DrawerHeader, DrawerTitle, DropZone, DropdownMenu, Editor, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, GroupBox, HoverCard, Icon, IconFrame, Image, ImageList, ImageOverlayLayer, ImageViewport, InlineEdit, Input, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Label, LabeledField, LabeledSeparator, Listbox, Markdown, Marker, MarkerContent, MarkerIcon, Menubar, MenubarMenu, Message, MessageActions, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerNavigator, MessageScrollerViewport, Modal, MotionConfigProvider, NativeWidget, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, NavigationMenuViewport, NotificationRegion, NumberField, Onboarding, OnboardingDescription, OnboardingFooter, OnboardingHeader, OnboardingHeading, OnboardingTitle, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Progress, ProgressCircle, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, ProjectionBoundary, PromptComposer, PromptComposerAction, PromptComposerEditor, PromptComposerStatus, PromptComposerToolbar, PromptComposerTools, PromptSuggestion, PromptSuggestions, PropertyList, PropertyRow, Pulse, QRCode, RadioGroup, RadioGroupItem, Rating, Reasoning, ReasoningContent, ReasoningTrigger, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResourceBoundary, ResponsiveGrid, ResponsiveGridRemainder, RichText, RichTextSpan, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, SettingsGroup, SettingsItem, SettingsSection, Sheet, ShortcutRecorder, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuIcon, SidebarMenuLabel, SidebarMenuSuffix, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitButton, SplitPane, SplitPaneAside, SplitPaneMain, StatCard, StatusBar, StatusBarGroup, StatusBarIndicator, StatusBarItem, StatusBarSeparator, Stepper, Svg, Switch, Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow, Tabs, TabsContent, TabsItem, TabsList, TabsTrigger, Text, TextArea, Timeline, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Tool, ToolCodeSection, ToolContent, ToolHeader, ToolInput, ToolOutput, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TooltipContent, TreeView, TypographyBlockquote, TypographyH1, TypographyH2, TypographyH3, TypographyH4, TypographyInlineCode, TypographyLarge, TypographyLead, TypographyList, TypographyListItem, TypographyMuted, TypographyP, TypographySmall, View, WindowFrame, Workbench, WorkbenchContent, WorkbenchContentColumn, WorkbenchFooter, WorkbenchHeader, WorkbenchInspector, WorkbenchInspectorContent, WorkbenchInspectorHeader, WorkbenchInspectorState, WorkbenchInspectorTitlebar, WorkbenchMain, WorkbenchSidebar, activeMessageAnchor, alertColors, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentGroupClass, attachmentMediaClass, avatarInitials, badgeClass, bubbleClass, bubbleContentClass, clampAnnotationRegion, clampPage, clampRatingValue, componentsControlSize, componentsElevation, componentsThemeContract, createActive, createAnimationFrame, createButton, createCommandListNavigation, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFileImageResource, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNativeLoopAnimation, createNetworkImageResource, createNotifications, createOverlayLayer, createOwnedImageResource, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, drawerDragOffset, drawerShouldDismiss, emptyClass, emptyMediaClass, encodeQrCode, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, groupBoxContentClass, imageViewportTransform, inputGroupAddonClass, inputGroupClass, isMessageScrollNearEnd, itemClass, itemMediaClass, messageActionsClass, messageClass, messageScrollRange, messageScrollRevealDelta, messageScrollStartDelta, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageHeaderDescriptionClass, pageHeaderTitleClass, pageViewportClass, pageViewportContentClass, pointInLayoutRect, primitives_exports as primitives, promptComposerClass, promptComposerEditorHeightClass, qrCodePath, ratingLabel, reconcileCommandHighlight, redirect, releaseImageResource, responsiveGridColumnCount, responsiveGridRemainderCount, shortcutFromKeyEvent, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, toolHeaderLabel, uniqueFieldErrors, useChartConfig, useComponentsTheme, useDirection, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameMaterialStyle, windowFrameShadows, workbenchClass, workbenchContentClass, workbenchContentColumnClass, workbenchFooterClass, workbenchHeaderClass, workbenchInspectorClass, workbenchInspectorContentClass, workbenchInspectorHeaderClass, workbenchMainClass, workbenchSidebarClass };
 
 //# sourceMappingURL=index.mjs.map

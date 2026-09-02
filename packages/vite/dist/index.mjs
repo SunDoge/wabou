@@ -1,4 +1,4 @@
-import { presetWabou, resolveWabouUtility, validateWabouUtility, wabouUtilityManifest } from "./preset.mjs";
+import { i as wabouUtilityManifest, n as resolveWabouUtility, r as validateWabouUtility, t as presetWabou } from "./preset-vuc4FyI1.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, parse, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,6 +34,11 @@ function parseThemeColor(value, theme, token) {
 	const hex = match[1];
 	const parsed = Number.parseInt(hex, 16);
 	return hex.length === 6 ? (parsed << 8 | 255) >>> 0 : parsed >>> 0;
+}
+/** Validate a generated or shared theme color at its declaration site. */
+function color(value) {
+	parseThemeColor(value, "color", "value");
+	return value;
 }
 function colorChannels(rgba) {
 	return [
@@ -140,6 +145,14 @@ function compileColorThemes(options) {
 		themes
 	};
 }
+/**
+* Define and eagerly validate a color theme while preserving its concrete
+* theme names and semantic token keys for editor completion.
+*/
+function defineWabouTheme(theme) {
+	compileColorThemes(theme);
+	return theme;
+}
 function semanticColorDeclaration(candidate, tokens) {
 	const match = candidate.match(/^(bg|text|border)-(.+)$/);
 	if (!match || !tokens.has(match[2])) return;
@@ -159,7 +172,9 @@ function assertSupportedWabouCandidates(candidates, semanticTokens = /* @__PURE_
 	if (unsupported.length) throw new Error(`unsupported Wabou utilities:\n${unsupported.map(({ message }) => `  - ${message}`).join("\n")}`);
 }
 function compileWabouUtilities(candidates, sourceOrderStart = 0, semanticTokens = /* @__PURE__ */ new Set()) {
-	return [...candidates].sort().map((candidate, index) => {
+	const ordered = [...candidates].sort();
+	assertSupportedWabouCandidates(ordered, semanticTokens);
+	return ordered.map((candidate, index) => {
 		const semantic = semanticColorDeclaration(candidate, semanticTokens);
 		if (semantic) return {
 			className: candidate,
@@ -186,7 +201,10 @@ function compileWabouUtilities(candidates, sourceOrderStart = 0, semanticTokens 
 function extractUtilitySource(source) {
 	const values = [];
 	const pushValue = (value, expression = false) => {
-		if (expression) value = value.replace(/(?:===|!==|==|!=)\s*(?:"[^"]*"|'[^']*'|`[^`]*`)/g, "");
+		if (expression) {
+			value = value.replace(/(?:===|!==|==|!=)\s*(?:"[^"]*"|'[^']*'|`[^`]*`)/g, "");
+			value = value.replace(/\.with\s*\(\s*(?:"[^"]*"|'[^']*'|`[^`]*`)\s*,/g, ".with(,");
+		}
 		const interpolations = [...value.matchAll(/\$\{([^}]+)\}/g)];
 		const selectsCompleteUtilities = (code) => /^\s*[\s\S]+?\?\s*(?:"[^"]*"|'[^']*'|`[^`]*`)\s*:\s*(?:"[^"]*"|'[^']*'|`[^`]*`)\s*$/.test(code);
 		if (interpolations.some((match) => !selectsCompleteUtilities(match[1])) || expression && /(?:["'`]\s*\+|\+\s*["'`])/.test(value)) throw new Error("dynamic class construction is not supported; select complete static utilities with classList and put continuous values in typed style");
@@ -409,7 +427,7 @@ const defaultWabouColorThemes = {
 		light: {
 			appearance: "light",
 			colors: {
-				canvas: "#f6f7f9",
+				canvas: "#ffffff",
 				surface: "#ffffff",
 				"surface-muted": "#f0f2f5",
 				input: "#ffffff",
@@ -620,6 +638,6 @@ function readManifest(root) {
 	}
 }
 //#endregion
-export { defaultWabouColorThemes, defineWabouConfig, hasWabouWorkspaceSources, wabouPlugins };
+export { color, defaultWabouColorThemes, defineWabouConfig, defineWabouTheme, hasWabouWorkspaceSources, wabouPlugins };
 
 //# sourceMappingURL=index.mjs.map

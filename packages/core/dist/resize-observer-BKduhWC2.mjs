@@ -1,4 +1,4 @@
-import { m as NodeKeyTable } from "./protocol-ry3FNy19.mjs";
+import { m as NodeKeyTable } from "./protocol-CdThEzKd.mjs";
 //#region src/glue/host-messages.ts
 const listeners = /* @__PURE__ */ new Map();
 const allListeners = /* @__PURE__ */ new Set();
@@ -126,4 +126,4 @@ globalThis.ResizeObserver = WabouResizeObserver;
 //#endregion
 export { subscribeAll as a, subscribe as i, dispatchHostMessage as n, subscribeJson as o, hostMessages as r, dispatchResizeObservation as t };
 
-//# sourceMappingURL=resize-observer-DwtjcJCy.mjs.map
+//# sourceMappingURL=resize-observer-BKduhWC2.mjs.map

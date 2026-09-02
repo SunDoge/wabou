@@ -32,6 +32,14 @@ interface LayoutTextMetrics {
   readonly lineBox: LayoutRect;
   readonly baseline: number;
 }
+interface LayoutClip {
+  readonly coordinateSpace: string;
+  readonly rect: LayoutRect;
+}
+interface LayoutClipInfo {
+  readonly chain: readonly LayoutClip[];
+  readonly effective?: LayoutClip | null;
+}
 interface LayoutSnapshotNode {
   readonly id: LayoutNodeKey;
   readonly parentId?: LayoutNodeKey | null;
@@ -44,6 +52,8 @@ interface LayoutSnapshotNode {
   readonly contentRect: LayoutRect;
   readonly styleDiagnostics: readonly string[];
   readonly semantic?: LayoutSemanticProjection | null;
+  /** Resolved native clipping published by DevTools. */
+  readonly clip?: LayoutClipInfo;
   readonly computed: LayoutComputedStyle;
 }
 interface LayoutSnapshot {
@@ -130,5 +140,5 @@ declare function styleDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiag
 declare function visualQualityDiagnostics(snapshot: LayoutSnapshot, options?: LayoutVisualDiagnosticOptions): readonly LayoutDiagnostic[];
 declare function assertNoLayoutDiagnostics(diagnostics: readonly LayoutDiagnostic[]): void;
 //#endregion
-export { LayoutComputedStyle, LayoutDiagnostic, LayoutDiagnosticOptions, LayoutNodeKey, LayoutQuery, LayoutRect, LayoutRectAssertionOptions, LayoutSemanticProjection, LayoutSnapshot, LayoutSnapshotNode, LayoutTextMetrics, LayoutTextStyleAssertionOptions, LayoutVisualDiagnosticOptions, assertLayoutRectContains, assertLayoutTextStyle, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutColorContrast, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics, visualQualityDiagnostics };
+export { LayoutClip, LayoutClipInfo, LayoutComputedStyle, LayoutDiagnostic, LayoutDiagnosticOptions, LayoutNodeKey, LayoutQuery, LayoutRect, LayoutRectAssertionOptions, LayoutSemanticProjection, LayoutSnapshot, LayoutSnapshotNode, LayoutTextMetrics, LayoutTextStyleAssertionOptions, LayoutVisualDiagnosticOptions, assertLayoutRectContains, assertLayoutTextStyle, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutColorContrast, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics, visualQualityDiagnostics };
 //# sourceMappingURL=layout.d.mts.map

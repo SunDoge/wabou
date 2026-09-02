@@ -7,6 +7,7 @@ import { createSignal, flush } from "solid-js";
 */
 function createLocale(initialLocale, options = {}) {
 	let current = initialLocale;
+	let flushScheduled = false;
 	const [tracked, write] = createSignal(() => current);
 	const locale = () => {
 		tracked();
@@ -17,7 +18,14 @@ function createLocale(initialLocale, options = {}) {
 		set(next) {
 			if (next === current) return;
 			current = next;
-			flush(() => write(() => next));
+			write(() => next);
+			if (!flushScheduled) {
+				flushScheduled = true;
+				Promise.resolve().then(() => {
+					flushScheduled = false;
+					flush();
+				});
+			}
 			options.onChange?.(next);
 		},
 		message(message, inputs) {
