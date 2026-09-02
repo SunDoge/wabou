@@ -14,6 +14,10 @@ pub(crate) struct GpuiPerformanceHud {
     draw_ms: f64,
     dirty_to_draw_ms: f64,
     invalidations_per_frame: f64,
+    materialize_ms: f64,
+    projected_layout_ms: f64,
+    projected_prepaint_ms: f64,
+    projected_paint_ms: f64,
     frame_timings: VecDeque<FrameTiming>,
     frame_timing_collector: FrameTimingCollector,
     last_diagnostic_at: std::time::Instant,
@@ -34,6 +38,10 @@ impl GpuiPerformanceHud {
             draw_ms: 0.0,
             dirty_to_draw_ms: 0.0,
             invalidations_per_frame: 0.0,
+            materialize_ms: 0.0,
+            projected_layout_ms: 0.0,
+            projected_prepaint_ms: 0.0,
+            projected_paint_ms: 0.0,
             frame_timings: VecDeque::new(),
             frame_timing_collector: FrameTimingCollector::new(),
             last_diagnostic_at: std::time::Instant::now(),
@@ -89,6 +97,11 @@ impl GpuiPerformanceHud {
             now,
             self.projection_materializations,
         );
+        self.materialize_ms = crate::gpui_projection_boundary::take_projection_materialize_ms();
+        let projected = wabou_shell::take_projected_phase_timings();
+        self.projected_layout_ms = projected.layout_ms;
+        self.projected_prepaint_ms = projected.prepaint_ms;
+        self.projected_paint_ms = projected.paint_ms;
         if self.last_diagnostic_at.elapsed() >= std::time::Duration::from_secs(1) {
             tracing::debug!(
                 target: "wabou::perf",
@@ -97,6 +110,10 @@ impl GpuiPerformanceHud {
                 dirty_to_draw_ms = self.dirty_to_draw_ms,
                 invalidations_per_frame = self.invalidations_per_frame,
                 materializations_per_second = counter_rate(&self.materialization_samples),
+                materialize_ms = self.materialize_ms,
+                projected_layout_ms = self.projected_layout_ms,
+                projected_prepaint_ms = self.projected_prepaint_ms,
+                projected_paint_ms = self.projected_paint_ms,
                 "native performance HUD sample"
             );
             self.last_diagnostic_at = now;
@@ -201,6 +218,14 @@ impl Render for GpuiPerformanceHud {
             .child(format!(
                 "build {:>6.2} ms  materialize {:>4.0}/s",
                 stats.build_frame_ms, materializations_per_second,
+            ))
+            .child(format!(
+                "mat {:>5.2}  layout {:>5.2} ms",
+                self.materialize_ms, self.projected_layout_ms,
+            ))
+            .child(format!(
+                "prepaint {:>5.2}  paint {:>5.2} ms",
+                self.projected_prepaint_ms, self.projected_paint_ms,
             ))
             .child(format!(
                 "viewport {}×{}  revision {}",
