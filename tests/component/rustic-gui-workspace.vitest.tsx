@@ -5,6 +5,7 @@ import { createSignal } from "solid-js";
 import { expect, test, vi } from "vitest";
 import type { ProfileStore } from "../../apps/rustic-gui/ui/profile-store";
 import { FileDetails } from "../../apps/rustic-gui/ui/file-details";
+import { SnapshotFileTree } from "../../apps/rustic-gui/ui/snapshot-tree";
 import { formatModified } from "../../apps/rustic-gui/ui/snapshots";
 import {
   RusticSessionProvider,
@@ -25,6 +26,67 @@ test("snapshot timestamps stay compact in the table", () => {
     "2026-09-02 04:18",
   );
   expect(formatModified(undefined)).toBe("—");
+});
+
+test("snapshot file tree loads child directories only when expanded", async () => {
+  const selected = vi.fn();
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 3,
+      listFiles: async (request: { path: string }) =>
+        request.path === "docs"
+          ? [
+              {
+                name: "guide.md",
+                path: "docs/guide.md",
+                kind: "file" as const,
+                size: 8,
+              },
+            ]
+          : [
+              {
+                name: "docs",
+                path: "docs",
+                kind: "directory" as const,
+                size: 0,
+              },
+              {
+                name: "README.md",
+                path: "README.md",
+                kind: "file" as const,
+                size: 12,
+              },
+            ],
+    },
+  });
+  const screen = renderComponent(
+    () => (
+      <SnapshotFileTree
+        profileId="profile"
+        snapshotId="snapshot"
+        onSelect={selected}
+      />
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("treeitem", { name: "docs" })).toBeDefined();
+    expect(screen.getByRole("treeitem", { name: "README.md" })).toBeDefined();
+  });
+  expect(fixture.callsTo("rustic.listFiles")).toHaveLength(1);
+
+  screen.getByRole("treeitem", { name: "docs" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("treeitem", { name: "guide.md" })).toBeDefined();
+  });
+  expect(fixture.callsTo("rustic.listFiles")).toHaveLength(2);
+  expect(fixture.callsTo("rustic.listFiles")[1]?.args[0]).toEqual({
+    profileId: "profile",
+    snapshotId: "snapshot",
+    path: "docs",
+  });
+  expect(selected).toHaveBeenCalledWith(expect.objectContaining({ path: "docs" }));
 });
 
 test("file details preview and extract through the native rustic capability", async () => {
