@@ -243,31 +243,41 @@ test("backup sources disable every mutating action during a backup", () => {
   ).toBe(true);
 });
 
-test("list rows select on click and open directories on double click", () => {
+test("list rows give directory double click priority over single selection", async () => {
   const select = vi.fn();
   const open = vi.fn();
-  const screen = renderComponent(() => (
-    <SnapshotFileRow
-      entry={{
-        name: "docs",
-        path: "docs",
-        kind: "directory",
-        size: 0,
-      }}
-      selected={false}
-      searchActive={false}
-      onSelect={select}
-      onOpenDirectory={open}
-    />
-  ));
+  const screen = renderComponent(
+    () => (
+      <SnapshotFileRow
+        entry={{
+          name: "docs",
+          path: "docs",
+          kind: "directory",
+          size: 0,
+        }}
+        selected={false}
+        searchActive={false}
+        onSelect={select}
+        onOpenDirectory={open}
+      />
+    ),
+    { clock: "fake" },
+  );
   const row = screen.getByRole("row", { name: "docs" });
 
   row.click();
+  expect(select).not.toHaveBeenCalled();
+  await screen.advanceTime(410);
   expect(select).toHaveBeenCalledWith(expect.objectContaining({ path: "docs" }));
   expect(open).not.toHaveBeenCalled();
 
+  select.mockClear();
+  row.click();
+  row.click();
   row.emit("dblclick");
   expect(open).toHaveBeenCalledWith(expect.objectContaining({ path: "docs" }));
+  await screen.advanceTime(410);
+  expect(select).not.toHaveBeenCalled();
 });
 
 test("rustic session hydrates durable profiles and exposes their locked state", async () => {
