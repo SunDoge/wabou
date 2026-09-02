@@ -13,17 +13,28 @@ export function createSingleFlight<K, V>() {
   };
 }
 
-export function sessionRouteKey(
+/**
+ * Stable launch identity for the active project route.
+ *
+ * A project route without an explicit session launches Pi in continue mode.
+ * An explicit historical session waits until the session catalog proves that
+ * it belongs to the project, avoiding accidental launches from stale routes.
+ */
+export function activeRuntimeRouteKey(
   agentId: string | undefined,
   sessionId: string | undefined,
   agentIds: readonly string[],
   sessions: readonly { agentId: string; sessionId: string }[],
 ): string {
-  if (!agentId || !sessionId || !agentIds.includes(agentId)) return "";
-  return sessions.some(
-    (candidate) =>
-      candidate.agentId === agentId && candidate.sessionId === sessionId,
-  )
-    ? `${agentId}\0${sessionId}`
-    : "";
+  if (!agentId || !agentIds.includes(agentId)) return "";
+  if (
+    sessionId &&
+    !sessions.some(
+      (candidate) =>
+        candidate.agentId === agentId && candidate.sessionId === sessionId,
+    )
+  ) {
+    return "";
+  }
+  return `${agentId}\0${sessionId ?? ""}`;
 }

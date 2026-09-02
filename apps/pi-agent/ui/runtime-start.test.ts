@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { createSingleFlight, sessionRouteKey } from "./runtime-start";
+import { activeRuntimeRouteKey, createSingleFlight } from "./runtime-start";
 
 describe("Pi runtime startup", () => {
   test("shares an in-flight launch with every identical caller", async () => {
@@ -24,18 +24,38 @@ describe("Pi runtime startup", () => {
     await expect(first).resolves.toBe(true);
   });
 
-  test("reduces a session route to a stable scalar key", () => {
+  test("reduces the active project and session route to a stable scalar key", () => {
     const sessions = [{ agentId: "agent-2", sessionId: "session-1" }];
     expect(
-      sessionRouteKey("agent-2", "session-1", ["agent-2"], sessions),
+      activeRuntimeRouteKey("agent-2", "session-1", ["agent-2"], sessions),
     ).toBe("agent-2\0session-1");
     expect(
-      sessionRouteKey(
+      activeRuntimeRouteKey(
         "agent-2",
         "session-1",
         ["agent-2"],
         sessions.map((session) => ({ ...session })),
       ),
     ).toBe("agent-2\0session-1");
+  });
+
+  test("launches an active project without waiting for a first prompt", () => {
+    expect(activeRuntimeRouteKey("agent-2", undefined, ["agent-2"], [])).toBe(
+      "agent-2\0",
+    );
+  });
+
+  test("waits for a historical session to be present in its project", () => {
+    expect(activeRuntimeRouteKey("agent-2", "missing", ["agent-2"], [])).toBe(
+      "",
+    );
+    expect(
+      activeRuntimeRouteKey(
+        "agent-2",
+        "session-1",
+        ["agent-1"],
+        [{ agentId: "agent-2", sessionId: "session-1" }],
+      ),
+    ).toBe("");
   });
 });
