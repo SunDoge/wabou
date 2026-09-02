@@ -868,13 +868,8 @@ impl Widget for CodeEditor {
         wabou_shell::WidgetChanges::REDRAW
     }
     fn ime_cursor_area(&self) -> Option<[f32; 4]> {
-        let (row, cell) = self.caret_geometry()?;
-        Some([
-            self.geometry.x_for_cell(cell),
-            self.geometry.y_for_row(row.saturating_sub(self.scroll_row)),
-            2.0,
-            self.geometry.line_height,
-        ])
+        self.focused
+            .then_some([0.0, 0.0, self.viewport[0], self.viewport[1]])
     }
 }
 

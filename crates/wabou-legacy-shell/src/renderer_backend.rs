@@ -10,7 +10,7 @@ use vello::kurbo::{Affine, Rect};
 use vello::peniko::{Color, Fill};
 use winit::window::Window;
 
-use crate::source::RendererBackend;
+use crate::RendererBackend;
 
 struct SharedWindow(Arc<dyn Window>);
 
