@@ -72,6 +72,31 @@ interface ReactiveAnimation<T> {
   controls: AnimationControls;
 }
 type MaybeAccessor<T> = T | Accessor<T>;
+/**
+ * Backend-neutral repeating timeline executed by a retained native widget.
+ *
+ * JS owns animation intent and lifecycle; the native backend samples this
+ * descriptor locally without receiving one protocol mutation per frame.
+ */
+interface NativeLoopAnimation {
+  readonly kind: "loop";
+  /** Duration of one iteration in seconds. */
+  readonly duration: number;
+  readonly speed: number;
+  readonly paused: boolean;
+  readonly reducedMotion: boolean;
+}
+interface NativeLoopAnimationOptions {
+  duration?: MaybeAccessor<number>;
+  speed?: MaybeAccessor<number>;
+  paused?: MaybeAccessor<boolean>;
+  reducedMotion?: MaybeAccessor<boolean>;
+}
+/**
+ * Compile reactive Solid animation policy into a stable native timeline DTO.
+ * This accessor changes only when authored policy changes, never per frame.
+ */
+declare function createNativeLoopAnimation(options?: NativeLoopAnimationOptions): Accessor<NativeLoopAnimation>;
 interface KeyframeAnimationOptions<V extends AnimationValue> extends AnimationOptions<V> {
   /** Reactive policy which pauses interpolation and publishes the final keyframe. */
   reducedMotion?: MaybeAccessor<boolean>;
@@ -180,9 +205,6 @@ type AnimationFrameCallback = (timestamp: number) => unknown;
  */
 declare function createAnimationFrame(callback: AnimationFrameCallback): () => void;
 //#endregion
-//#region src/primitives/code-editor-state.d.ts
-type CodeEditorLanguage = "json";
-//#endregion
 //#region src/primitives/view.d.ts
 type WabouClassList = Record<string, boolean | undefined>;
 interface PrimitiveProps extends Omit<WabouElementProps, "children" | "ref" | "style"> {
@@ -269,10 +291,10 @@ interface PasswordInputProps extends Omit<PrimitiveProps, "children"> {
     preventDefault(): void;
   }) => void;
 }
-interface CodeEditorProps extends Omit<PrimitiveProps, "children"> {
+interface EditorProps extends Omit<PrimitiveProps, "children"> {
   value?: string;
-  /** Headless CodeMirror/Lezer language service. */
-  language?: CodeEditorLanguage;
+  /** Optional language identifier consumed by the native editor highlighter. */
+  language?: string;
   disabled?: boolean;
   readOnly?: boolean;
   "aria-label": string;
@@ -282,8 +304,29 @@ interface CodeEditorProps extends Omit<PrimitiveProps, "children"> {
     };
   }) => void;
 }
+type NativeWidgetConfig = object | readonly unknown[];
+/**
+ * Public boundary for an application-defined retained native widget.
+ *
+ * `tag` selects the Rust factory, `config` is its complete immutable authored
+ * snapshot, and ordinary Wabou event props carry typed native events back to
+ * Solid. Stateful native ownership remains keyed by this node's `NodeKey`.
+ */
+interface NativeWidgetProps<Config extends NativeWidgetConfig> extends Omit<PrimitiveProps, "children" | "widgetConfig"> {
+  tag: string;
+  config?: Config;
+}
 /** A layout container. Text content should be placed in a {@link Text}. */
 declare function View(props: ViewProps): JSX.Element;
+/**
+ * Stable retained region projected through its own GPUI Entity.
+ *
+ * Use this around independently changing route content, scroll viewports,
+ * overlays, native-widget regions, animation surfaces, or diagnostic HUDs.
+ * It does not create application state and has the same layout semantics as a
+ * View; it only limits native invalidation and materialization.
+ */
+declare function ProjectionBoundary(props: ViewProps): JSX.Element;
 /**
  * A measured text run that wraps within its available width by default.
  *
@@ -315,8 +358,10 @@ declare function TextInput(props: TextInputProps): JSX.Element;
 declare function TextArea(props: TextAreaProps): JSX.Element;
 /** Native password editor whose value remains in a Rust SecretStore. */
 declare function PasswordInput(props: PasswordInputProps): JSX.Element;
-/** CodeMirror-owned config/Markdown editor rendered by a native viewport. */
-declare function CodeEditor(props: CodeEditorProps): JSX.Element;
+/** General-purpose editor whose document and input lifecycle are owned by GPUI. */
+declare function Editor(props: EditorProps): JSX.Element;
+/** Mount an explicitly registered Rust/GPUI widget without web-element semantics. */
+declare function NativeWidget<Config extends NativeWidgetConfig = object>(props: NativeWidgetProps<Config>): JSX.Element;
 //#endregion
 //#region src/primitives/button.d.ts
 declare const ACCENTS: {
@@ -324,17 +369,17 @@ declare const ACCENTS: {
   readonly sky: "#0284c7";
   readonly amber: "#d97706";
 };
-interface ButtonProps extends Pick<WabouElementProps, "aria-checked" | "aria-controls" | "aria-current" | "aria-expanded" | "aria-haspopup" | "aria-label" | "aria-pressed" | "aria-selected" | "aria-valuetext" | "role" | "focusOrder" | "onBlur" | "onContextMenu" | "onDblClick" | "onFocus" | "onFocusIn" | "onFocusOut" | "onKeyUp" | "onPointerCancel" | "onPointerDown" | "onPointerEnter" | "onPointerLeave" | "onPointerMove" | "onPointerOut" | "onPointerOver" | "onPointerUp" | "onWheel"> {
+interface ButtonProps extends Pick<WabouElementProps, "aria-busy" | "aria-checked" | "aria-controls" | "aria-current" | "aria-expanded" | "aria-haspopup" | "aria-label" | "aria-pressed" | "aria-selected" | "aria-valuetext" | "role" | "focusOrder" | "onBlur" | "onContextMenu" | "onDblClick" | "onFocus" | "onFocusIn" | "onFocusOut" | "onKeyUp" | "onPointerCancel" | "onPointerDown" | "onPointerEnter" | "onPointerLeave" | "onPointerMove" | "onPointerOut" | "onPointerOver" | "onPointerUp" | "onWheel"> {
   class?: string | ((state: ButtonState) => string);
   classList?: WabouClassList | ((state: ButtonState) => WabouClassList);
   style?: WabouStyle$1 | ((state: ButtonState) => WabouStyle$1);
   children?: JSX.Element;
+  /** Render an internal visual layer from normalized interaction state. */
+  renderContent?: (state: ButtonState) => JSX.Element;
   tone?: keyof typeof ACCENTS;
   variant?: "solid" | "ghost";
   /** Keep interaction behavior but do not inject the default visual geometry. */
   unstyled?: boolean;
-  /** Allow selecting the label text. Button labels are non-selectable by default. */
-  selectable?: boolean;
   selected?: boolean;
   disabled?: boolean;
   ref?: (node: Handle) => void;
@@ -632,6 +677,14 @@ interface ModalControls {
 interface ModalMotionOptions {
   duration?: number;
   ease?: Easing;
+  /** Enter-only timing override. Falls back to `duration`. */
+  enterDuration?: number;
+  /** Exit-only timing override. Falls back to `duration`. */
+  exitDuration?: number;
+  /** Enter-only easing override. Falls back to `ease`. */
+  enterEase?: Easing;
+  /** Exit-only easing override. Falls back to `ease`. */
+  exitEase?: Easing;
   /** Initial content scale around its center. Defaults to 1. */
   fromScale?: number;
   /** Initial horizontal offset in logical pixels. Defaults to 0. */
@@ -651,8 +704,12 @@ interface ModalProps {
   contentRole?: "dialog" | "alertdialog";
   backdropClass?: string;
   backdropStyle?: WabouStyle$1;
+  /** Keep the backdrop visible while the content exits. Edge panels disable this. */
+  backdropFade?: boolean;
   contentClass?: string;
   contentStyle?: WabouStyle$1;
+  /** Fade the content with the backdrop. Edge panels disable this and slide as solid surfaces. */
+  contentFade?: boolean;
   /** Composes component-specific movement with the modal presence transform. */
   contentTransform?: (base: Affine2D, presenceProgress: number) => Affine2D;
   contentShadows?: readonly Shadow[] | null;
@@ -735,6 +792,8 @@ interface NotificationRegionProps {
   placement?: NotificationPlacement;
   class?: string;
   style?: WabouStyle$1;
+  /** Width and presentation of the native GPUI-base stack container. */
+  stackClass?: string;
   itemClass?: string;
   itemStyle?: WabouStyle$1;
   /** Headless regions are static unless motion is explicitly requested. */
@@ -1113,8 +1172,8 @@ interface TransitionPresence {
  */
 declare function createTransitionPresence(open: Accessor<boolean>, options?: TransitionPresenceOptions): TransitionPresence;
 declare namespace index_d_exports {
-  export { ActiveResult, AddTabOptions, Affine2D$1 as Affine2D, AnimationFrameCallback, Button, ButtonEvent, ButtonKeyEvent, ButtonPrimitive, ButtonProps, ButtonState, Center, CodeEditor, CodeEditorProps, CollapsiblePresence, CollapsiblePresenceProps, Column, ComputeFloatingPositionOptions, ComputeHostFloatingPositionOptions, ComputePositionReturn$1 as ComputePositionReturn, ContainerMatch, ContainerSizeQuery, CreateButtonOptions, DismissEvent, DismissKeyEvent, FORM_ERROR, FocusResult, FocusTarget, FocusWithinResult, FormDraft, FormDraftErrors, FormDraftFieldUpdater, FormDraftOptions, HoverResult, Icon, IconProps, Image, ImageProps, ImageResourceDescriptor, ImageResourceErrorEvent, ImageResourceHandle, ImageResourceReadyEvent, ImageResourceRequest, KeyedSelection, KeyedSelectionOptions, LayoutProps, LayoutRect$1 as LayoutRect, Link, LinkProps, MeasuredSize, MeasuredSizeOptions, Middleware$1 as Middleware, Modal, ModalControls, ModalEvent, ModalKeyEvent, ModalMotionOptions, ModalOpenChangeReason, ModalProps, ModalTriggerProps, NotificationControls, NotificationDismissReason, NotificationInput, NotificationItem, NotificationMotionOptions, NotificationPlacement, NotificationPriority, NotificationRegion, NotificationRegionProps, Notifications, NotificationsOptions, OverlayDismissReason, OverlayLayer, OverlayLayerOptions, OverlayPlane, OverlayPlaneProvider, OverlayPlaneProviderProps, OwnedImageResource, PasswordInput, PasswordInputProps, Path, PathBuilder, PathProps, Placement$1 as Placement, Popover, PopoverMotionOptions, PopoverProps, PopoverTriggerProps, PositionPlatform, Presence, PresencePhase, PressOptions, PressResult, PrimitiveProps, Pulse, PulseProps, RetainedItem, RetainedItems, RichText, RichTextProps, RichTextSpan, RichTextSpanProps, Ripple, RippleProps, Row, ScrollArea, ScrollAreaProps, ScrollResetOptions, ScrollResetTarget, ShortcutDefinition, ShortcutEvent, ShortcutHandler, ShortcutMap, ShortcutsResult, Spin, SpinProps, Strategy$1 as Strategy, Svg, SvgProps, TabKey, TabKeyEvent, TabsOptions, TabsResult, Text, TextArea, TextAreaProps, TextInput, TextInputProps, TextProps, TransitionPresence, TransitionPresenceOptions, VectorPath$1 as VectorPath, VectorPathPaint, View, ViewProps, WabouClassList, WabouStyle$1 as WabouStyle, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createContainerMatch, createFileImageResource, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createMeasuredSize, createNetworkImageResource, createNotifications, createOverlayLayer, createOwnedImageResource, createPresence, createPress, createRetainedItems, createScrollReset, createShortcuts, createTabs, createTransitionPresence, flip, offset, releaseImageResource, rotate2d$1 as rotate2d, shift, size, translate2d$1 as translate2d, useOverlayPlane };
+  export { ActiveResult, AddTabOptions, Affine2D$1 as Affine2D, AnimationFrameCallback, Button, ButtonEvent, ButtonKeyEvent, ButtonPrimitive, ButtonProps, ButtonState, Center, CollapsiblePresence, CollapsiblePresenceProps, Column, ComputeFloatingPositionOptions, ComputeHostFloatingPositionOptions, ComputePositionReturn$1 as ComputePositionReturn, ContainerMatch, ContainerSizeQuery, CreateButtonOptions, DismissEvent, DismissKeyEvent, Editor, EditorProps, FORM_ERROR, FocusResult, FocusTarget, FocusWithinResult, FormDraft, FormDraftErrors, FormDraftFieldUpdater, FormDraftOptions, HoverResult, Icon, IconProps, Image, ImageProps, ImageResourceDescriptor, ImageResourceErrorEvent, ImageResourceHandle, ImageResourceReadyEvent, ImageResourceRequest, KeyedSelection, KeyedSelectionOptions, LayoutProps, LayoutRect$1 as LayoutRect, Link, LinkProps, MeasuredSize, MeasuredSizeOptions, Middleware$1 as Middleware, Modal, ModalControls, ModalEvent, ModalKeyEvent, ModalMotionOptions, ModalOpenChangeReason, ModalProps, ModalTriggerProps, NativeWidget, NativeWidgetConfig, NativeWidgetProps, NotificationControls, NotificationDismissReason, NotificationInput, NotificationItem, NotificationMotionOptions, NotificationPlacement, NotificationPriority, NotificationRegion, NotificationRegionProps, Notifications, NotificationsOptions, OverlayDismissReason, OverlayLayer, OverlayLayerOptions, OverlayPlane, OverlayPlaneProvider, OverlayPlaneProviderProps, OwnedImageResource, PasswordInput, PasswordInputProps, Path, PathBuilder, PathProps, Placement$1 as Placement, Popover, PopoverMotionOptions, PopoverProps, PopoverTriggerProps, PositionPlatform, Presence, PresencePhase, PressOptions, PressResult, PrimitiveProps, ProjectionBoundary, Pulse, PulseProps, RetainedItem, RetainedItems, RichText, RichTextProps, RichTextSpan, RichTextSpanProps, Ripple, RippleProps, Row, ScrollArea, ScrollAreaProps, ScrollResetOptions, ScrollResetTarget, ShortcutDefinition, ShortcutEvent, ShortcutHandler, ShortcutMap, ShortcutsResult, Spin, SpinProps, Strategy$1 as Strategy, Svg, SvgProps, TabKey, TabKeyEvent, TabsOptions, TabsResult, Text, TextArea, TextAreaProps, TextInput, TextInputProps, TextProps, TransitionPresence, TransitionPresenceOptions, VectorPath$1 as VectorPath, VectorPathPaint, View, ViewProps, WabouClassList, WabouStyle$1 as WabouStyle, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createContainerMatch, createFileImageResource, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createMeasuredSize, createNetworkImageResource, createNotifications, createOverlayLayer, createOwnedImageResource, createPresence, createPress, createRetainedItems, createScrollReset, createShortcuts, createTabs, createTransitionPresence, flip, offset, releaseImageResource, rotate2d$1 as rotate2d, shift, size, translate2d$1 as translate2d, useOverlayPlane };
 }
 //#endregion
-export { shift as $, TextInputProps as $n, FormDraftFieldUpdater as $t, createPress as A, Icon as An, SweepOptions as Ar, ModalControls as At, ComputePositionReturn$1 as B, PathBuilder as Bn, createTransition as Br, MeasuredSizeOptions as Bt, RetainedItem as C, CreateButtonOptions as Cn, ReactiveTransition as Cr, Pulse as Ct, PressOptions as D, Affine2D$1 as Dn, SweepAnimation as Dr, Spin as Dt, ActiveResult as E, createButton as En, RotationOptions as Er, RippleProps as Et, PopoverMotionOptions as F, ImageResourceHandle as Fn, createKeyframeAnimation as Fr, ModalProps as Ft, PositionPlatform as G, RichTextSpan as Gn, useMotionConfig as Gr, LayoutProps as Gt, Middleware$1 as H, PrimitiveProps as Hn, MotionConfig as Hr, createMeasuredSize as Ht, PopoverProps as I, ImageResourceReadyEvent as In, createLoop as Ir, ModalTriggerProps as It, autoPlacement as J, SvgProps as Jn, KeyedSelectionOptions as Jt, Strategy$1 as K, RichTextSpanProps as Kn, useReducedMotion as Kr, Row as Kt, PopoverTriggerProps as L, PasswordInput as Ln, createPulse as Lr, ContainerMatch as Lt, PresencePhase as M, Image as Mn, animate as Mr, ModalKeyEvent as Mt, createPresence as N, ImageProps as Nn, animateKeyframes as Nr, ModalMotionOptions as Nt, PressResult as O, CodeEditor as On, SweepAxis as Or, SpinProps as Ot, Popover as P, ImageResourceErrorEvent as Pn, createInterpolation as Pr, ModalOpenChangeReason as Pt, offset as Q, TextInput as Qn, FormDraftErrors as Qt, ComputeFloatingPositionOptions as R, PasswordInputProps as Rn, createRotation as Rr, ContainerSizeQuery as Rt, ScrollAreaProps as S, ButtonState as Sn, ReactiveAnimation as Sr, createNotifications as St, createRetainedItems as T, LinkProps as Tn, RotationAnimation as Tr, Ripple as Tt, Placement$1 as U, RichText as Un, MotionConfigProvider as Ur, Center as Ut, LayoutRect$1 as V, PathProps as Vn, normalizeSweepGeometry as Vr, createContainerMatch as Vt, PointAnchor as W, RichTextProps as Wn, MotionConfigProviderProps as Wr, Column as Wt, computeHostFloatingPosition as X, TextArea as Xn, FORM_ERROR as Xt, computeFloatingPosition as Y, Text as Yn, createKeyedSelection as Yt, flip as Z, TextAreaProps as Zn, FormDraft as Zt, createShortcuts as _, Button as _n, EasingFunction as _r, NotificationPriority as _t, AddTabOptions as a, createFileImageResource as an, WabouClassList as ar, OverlayLayerOptions as at, createScrollReset as b, ButtonPrimitive as bn, MotionInterpolationOptions as br, Notifications as bt, TabKeyEvent as c, releaseImageResource as cn, translate2d$1 as cr, OverlayPlaneProviderProps as ct, createTabs as d, FocusResult as dn, AnimationControls as dr, NotificationControls as dt, FormDraftOptions as en, TextProps as er, size as et, ShortcutDefinition as f, FocusWithinResult as fn, AnimationOptions as fr, NotificationDismissReason as ft, ShortcutsResult as g, CollapsiblePresenceProps as gn, Easing as gr, NotificationPlacement as gt, ShortcutMap as h, CollapsiblePresence as hn, AnimationValue as hr, NotificationMotionOptions as ht, createTransitionPresence as i, OwnedImageResource as in, ViewProps as ir, OverlayLayer as it, Presence as j, IconProps as jn, TransitionOptions as jr, ModalEvent as jt, createActive as k, CodeEditorProps as kn, SweepGeometry as kr, Modal as kt, TabsOptions as l, HoverResult as ln, AnimationFrameCallback as lr, createOverlayLayer as lt, ShortcutHandler as m, createFocusWithin as mn, AnimationType as mr, NotificationItem as mt, TransitionPresence as n, ImageResourceDescriptor as nn, VectorPathPaint as nr, DismissKeyEvent as nt, FocusTarget as o, createNetworkImageResource as on, WabouStyle$1 as or, OverlayPlane as ot, ShortcutEvent as p, createFocus as pn, AnimationState as pr, NotificationInput as pt, arrow as q, Svg as qn, KeyedSelection as qt, TransitionPresenceOptions as r, ImageResourceRequest as rn, View as rr, OverlayDismissReason as rt, TabKey as s, createOwnedImageResource as sn, rotate2d$1 as sr, OverlayPlaneProvider as st, index_d_exports as t, createFormDraft as tn, VectorPath$1 as tr, DismissEvent as tt, TabsResult as u, createHover as un, createAnimationFrame as ur, useOverlayPlane as ut, ScrollResetOptions as v, ButtonEvent as vn, KeyframeAnimationOptions as vr, NotificationRegion as vt, RetainedItems as w, Link as wn, RepeatType as wr, PulseProps as wt, ScrollArea as x, ButtonProps as xn, PulseOptions as xr, NotificationsOptions as xt, ScrollResetTarget as y, ButtonKeyEvent as yn, LoopOptions as yr, NotificationRegionProps as yt, ComputeHostFloatingPositionOptions as z, Path as zn, createSweep as zr, MeasuredSize as zt };
-//# sourceMappingURL=index-DGPO33AG.d.mts.map
+export { shift as $, Text as $n, useReducedMotion as $r, FormDraftFieldUpdater as $t, createPress as A, Icon as An, RepeatType as Ar, ModalControls as At, ComputePositionReturn$1 as B, PasswordInput as Bn, createInterpolation as Br, MeasuredSizeOptions as Bt, RetainedItem as C, CreateButtonOptions as Cn, LoopOptions as Cr, Pulse as Ct, PressOptions as D, Affine2D$1 as Dn, PulseOptions as Dr, Spin as Dt, ActiveResult as E, createButton as En, NativeLoopAnimationOptions as Er, RippleProps as Et, PopoverMotionOptions as F, ImageResourceHandle as Fn, SweepGeometry as Fr, ModalProps as Ft, PositionPlatform as G, PrimitiveProps as Gn, createRotation as Gr, LayoutProps as Gt, Middleware$1 as H, Path as Hn, createLoop as Hr, createMeasuredSize as Ht, PopoverProps as I, ImageResourceReadyEvent as In, SweepOptions as Ir, ModalTriggerProps as It, autoPlacement as J, RichTextProps as Jn, normalizeSweepGeometry as Jr, KeyedSelectionOptions as Jt, Strategy$1 as K, ProjectionBoundary as Kn, createSweep as Kr, Row as Kt, PopoverTriggerProps as L, NativeWidget as Ln, TransitionOptions as Lr, ContainerMatch as Lt, PresencePhase as M, Image as Mn, RotationOptions as Mr, ModalKeyEvent as Mt, createPresence as N, ImageProps as Nn, SweepAnimation as Nr, ModalMotionOptions as Nt, PressResult as O, Editor as On, ReactiveAnimation as Or, SpinProps as Ot, Popover as P, ImageResourceErrorEvent as Pn, SweepAxis as Pr, ModalOpenChangeReason as Pt, offset as Q, SvgProps as Qn, useMotionConfig as Qr, FormDraftErrors as Qt, ComputeFloatingPositionOptions as R, NativeWidgetConfig as Rn, animate as Rr, ContainerSizeQuery as Rt, ScrollAreaProps as S, ButtonState as Sn, KeyframeAnimationOptions as Sr, createNotifications as St, createRetainedItems as T, LinkProps as Tn, NativeLoopAnimation as Tr, Ripple as Tt, Placement$1 as U, PathBuilder as Un, createNativeLoopAnimation as Ur, Center as Ut, LayoutRect$1 as V, PasswordInputProps as Vn, createKeyframeAnimation as Vr, createContainerMatch as Vt, PointAnchor as W, PathProps as Wn, createPulse as Wr, Column as Wt, computeHostFloatingPosition as X, RichTextSpanProps as Xn, MotionConfigProvider as Xr, FORM_ERROR as Xt, computeFloatingPosition as Y, RichTextSpan as Yn, MotionConfig as Yr, createKeyedSelection as Yt, flip as Z, Svg as Zn, MotionConfigProviderProps as Zr, FormDraft as Zt, createShortcuts as _, Button as _n, AnimationState as _r, NotificationPriority as _t, AddTabOptions as a, createFileImageResource as an, VectorPath$1 as ar, OverlayLayerOptions as at, createScrollReset as b, ButtonPrimitive as bn, Easing as br, Notifications as bt, TabKeyEvent as c, releaseImageResource as cn, ViewProps as cr, OverlayPlaneProviderProps as ct, createTabs as d, FocusResult as dn, rotate2d$1 as dr, NotificationControls as dt, FormDraftOptions as en, TextArea as er, size as et, ShortcutDefinition as f, FocusWithinResult as fn, translate2d$1 as fr, NotificationDismissReason as ft, ShortcutsResult as g, CollapsiblePresenceProps as gn, AnimationOptions as gr, NotificationPlacement as gt, ShortcutMap as h, CollapsiblePresence as hn, AnimationControls as hr, NotificationMotionOptions as ht, createTransitionPresence as i, OwnedImageResource as in, TextProps as ir, OverlayLayer as it, Presence as j, IconProps as jn, RotationAnimation as jr, ModalEvent as jt, createActive as k, EditorProps as kn, ReactiveTransition as kr, Modal as kt, TabsOptions as l, HoverResult as ln, WabouClassList as lr, createOverlayLayer as lt, ShortcutHandler as m, createFocusWithin as mn, createAnimationFrame as mr, NotificationItem as mt, TransitionPresence as n, ImageResourceDescriptor as nn, TextInput as nr, DismissKeyEvent as nt, FocusTarget as o, createNetworkImageResource as on, VectorPathPaint as or, OverlayPlane as ot, ShortcutEvent as p, createFocus as pn, AnimationFrameCallback as pr, NotificationInput as pt, arrow as q, RichText as qn, createTransition as qr, KeyedSelection as qt, TransitionPresenceOptions as r, ImageResourceRequest as rn, TextInputProps as rr, OverlayDismissReason as rt, TabKey as s, createOwnedImageResource as sn, View as sr, OverlayPlaneProvider as st, index_d_exports as t, createFormDraft as tn, TextAreaProps as tr, DismissEvent as tt, TabsResult as u, createHover as un, WabouStyle$1 as ur, useOverlayPlane as ut, ScrollResetOptions as v, ButtonEvent as vn, AnimationType as vr, NotificationRegion as vt, RetainedItems as w, Link as wn, MotionInterpolationOptions as wr, PulseProps as wt, ScrollArea as x, ButtonProps as xn, EasingFunction as xr, NotificationsOptions as xt, ScrollResetTarget as y, ButtonKeyEvent as yn, AnimationValue as yr, NotificationRegionProps as yt, ComputeHostFloatingPositionOptions as z, NativeWidgetProps as zn, animateKeyframes as zr, MeasuredSize as zt };
+//# sourceMappingURL=index-gI4KJtKK.d.mts.map

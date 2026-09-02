@@ -15,7 +15,8 @@ interface ComponentFixtureOptions {
   readonly height?: number;
   readonly scaleFactor?: number;
   readonly waitMs?: number;
-  readonly wrap?: (content: JSX.Element) => JSX.Element;
+  /** Render a fixture inside providers or a shared bounded application shell. */
+  readonly wrap?: (render: LayoutFixture) => JSX.Element;
 }
 interface LayoutFixtureOptions {
   /**

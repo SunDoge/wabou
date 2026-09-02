@@ -1,12 +1,21 @@
 import { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
 //#region src/style-compiler/vite.d.ts
+/** A build-time sRGB color accepted by the Wabou theme compiler. */
+type WabouThemeColor = `#${string}`;
 interface WabouColorThemeOptions {
   default: string;
   themes: Record<string, {
     appearance: "light" | "dark";
-    colors: Record<string, string>;
+    colors: Record<string, WabouThemeColor>;
   }>;
 }
+/** Validate a generated or shared theme color at its declaration site. */
+declare function color(value: string): WabouThemeColor;
+/**
+ * Define and eagerly validate a color theme while preserving its concrete
+ * theme names and semantic token keys for editor completion.
+ */
+declare function defineWabouTheme<const T extends WabouColorThemeOptions>(theme: T): T;
 //#endregion
 //#region src/index.d.ts
 interface WabouViteOptions {
@@ -52,5 +61,5 @@ declare function wabouPlugins(root?: string, theme?: WabouColorThemeOptions, ign
 /** Define the complete conventional Vite configuration for a Wabou app. */
 declare function defineWabouConfig(options: WabouViteOptionsExport): UserConfigExport;
 //#endregion
-export { WabouIntlOptions, WabouViteOptions, WabouViteOptionsExport, defaultWabouColorThemes, defineWabouConfig, hasWabouWorkspaceSources, wabouPlugins };
+export { type WabouColorThemeOptions, WabouIntlOptions, type WabouThemeColor, WabouViteOptions, WabouViteOptionsExport, color, defaultWabouColorThemes, defineWabouConfig, defineWabouTheme, hasWabouWorkspaceSources, wabouPlugins };
 //# sourceMappingURL=index.d.mts.map

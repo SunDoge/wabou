@@ -1,8 +1,7 @@
-import { _ as isNodeKey, a as GRAPHIC_SOURCE, f as Writer, g as formatNodeKey, h as ROOT_NODE_KEY, i as GRAPHIC_DATA, l as INTERACTION_POLICY, m as NodeKeyTable, p as NodeKeyAllocator, t as EVENT_CODE, y as nodeKeyEquals } from "./protocol-ry3FNy19.mjs";
-import { r as assertInlineStyleValue, s as isTypedStyleValue } from "./style-BoQjkXmV.mjs";
-import { For, Show, createComponent, createContext, createMemo, createSignal, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
+import { _ as isNodeKey, a as GRAPHIC_SOURCE, f as Writer, g as formatNodeKey, h as ROOT_NODE_KEY, i as GRAPHIC_DATA, l as INTERACTION_POLICY, m as NodeKeyTable, p as NodeKeyAllocator, t as EVENT_CODE, y as nodeKeyEquals } from "./protocol-CdThEzKd.mjs";
+import { c as mergeClasses, r as assertInlineStyleValue, s as isTypedStyleValue } from "./style-DgJ-RVg4.mjs";
+import { For, createComponent, createContext, createMemo, createSignal, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { createRenderer } from "@solidjs/universal";
-import { Virtualizer } from "@tanstack/virtual-core";
 //#region src/vector-path.ts
 /** Stable, renderer-independent vector path command stream. */
 const PATH_MAGIC = 827343447;
@@ -358,10 +357,9 @@ function createVirtualItemIdentity(items, index, getItemKey) {
 	}, { equals: (previous, next) => previous?.key === next?.key });
 }
 /**
-* Windowed Solid list backed by TanStack Virtual's framework-neutral core.
-* Rust remains authoritative for scrolling, clipping, hit testing and the
-* native scrollbar; this adapter supplies viewport/offset observations instead
-* of relying on HTMLElement, ResizeObserver or getBoundingClientRect().
+* Uniform list whose viewport, scroll state, visible range, layout and paint
+* are owned by GPUI. Solid retains stable row subtrees so reactive updates keep
+* their ordinary component semantics; GPUI materializes only visible rows.
 */
 function VirtualList(props) {
 	const config = untrack(() => ({
@@ -370,162 +368,61 @@ function VirtualList(props) {
 		itemHeight: props.itemHeight,
 		viewportHeight: props.viewportHeight,
 		class: props.class,
-		overscan: props.overscan,
 		getItemKey: props.getItemKey,
 		role: props.role,
 		accessibilityLabel: props.accessibilityLabel
 	}));
-	const surface = {};
-	let scrollHandle;
-	let publishOffset;
-	let publishRect;
-	let resizeObserver;
-	let scrollEndTimer;
-	let lastOffset = 0;
-	const [version, invalidate] = createSignal(0, { equals: false });
-	let currentMeasuredRect = {
-		width: 0,
-		height: 0
-	};
-	const viewportHeight = () => config.viewportHeight ?? currentMeasuredRect.height;
-	let currentItemKeys = validateVirtualItemKeys(untrack(config.items), config.getItemKey);
 	const itemKeys = createMemo(() => {
-		currentItemKeys = validateVirtualItemKeys(config.items(), config.getItemKey);
-		return currentItemKeys;
+		return validateVirtualItemKeys(config.items(), config.getItemKey);
 	});
-	const options = () => ({
-		count: currentItemKeys.length,
-		getItemKey: (index) => currentItemKeys[index] ?? index,
-		getScrollElement: () => scrollHandle ? surface : null,
-		estimateSize: () => config.itemHeight,
-		overscan: config.overscan ?? 4,
-		initialRect: {
-			width: currentMeasuredRect.width,
-			height: viewportHeight()
-		},
-		observeElementRect: (_instance, notify) => {
-			publishRect = notify;
-			notify({
-				width: currentMeasuredRect.width,
-				height: viewportHeight()
-			});
-			return () => {
-				publishRect = void 0;
-			};
-		},
-		observeElementOffset: (_instance, notify) => {
-			publishOffset = notify;
-			notify(0, false);
-			return () => {
-				publishOffset = void 0;
-			};
-		},
-		scrollToFn: (offset) => scrollHandle?.scrollTo({ top: offset }),
-		onChange: () => invalidate((value) => value + 1)
-	});
-	const virtualizer = new Virtualizer(untrack(options));
-	const dispose = untrack(() => virtualizer._didMount());
-	onCleanup(() => {
-		if (scrollEndTimer !== void 0) clearTimeout(scrollEndTimer);
-		resizeObserver?.disconnect();
-		dispose();
-	});
-	const virtualItems = createMemo(() => {
-		version();
-		itemKeys();
-		virtualizer.setOptions(options());
-		virtualizer._willUpdate();
-		return virtualizer.getVirtualItems();
-	});
-	const totalSize = createMemo(() => {
-		virtualItems();
-		return virtualizer.getTotalSize();
-	});
-	var _el$ = createElement("view", { onScroll: (event) => {
-		lastOffset = event.scrollY ?? 0;
-		publishOffset?.(lastOffset, true);
-		if (scrollEndTimer !== void 0) clearTimeout(scrollEndTimer);
-		scrollEndTimer = setTimeout(() => {
-			scrollEndTimer = void 0;
-			publishOffset?.(lastOffset, false);
-		}, 150);
-	} });
-	var _el$2 = createElement("view");
-	insertNode(_el$, _el$2);
-	ref(() => {
-		return (node) => {
-			scrollHandle = node;
-			if (config.viewportHeight === void 0) {
-				resizeObserver?.disconnect();
-				resizeObserver = new ResizeObserver(([entry]) => {
-					if (!entry) return;
-					const rect = {
-						width: entry.contentRect.width,
-						height: entry.contentRect.height
-					};
-					currentMeasuredRect = rect;
-					publishRect?.(rect);
-				});
-				resizeObserver.observe(node);
-			}
-			untrack(() => virtualizer._willUpdate());
-		};
-	}, _el$);
-	insert(_el$2, createComponent$1(For, {
+	var _el$ = createElement("virtual-list");
+	insert(_el$, createComponent$1(For, {
 		get each() {
-			return virtualItems();
+			return config.items();
 		},
 		keyed: false,
-		children: (virtualItem) => {
-			const index = () => virtualItem().index;
-			const item = createVirtualRow(config.items, index);
-			const identity = createVirtualItemIdentity(config.items, index, (_item, currentIndex) => itemKeys()[currentIndex] ?? currentIndex);
-			var _el$3 = createElement("view");
-			insert(_el$3, createComponent$1(Show, {
-				get when() {
-					return identity();
-				},
-				keyed: true,
-				children: (_identity) => config.children(() => {
-					const current = item();
-					if (current === void 0) throw new Error("VirtualList item disappeared while its row was mounted");
-					return current;
-				}, index)
-			}));
+		children: (_value, index) => {
+			const rowIndex = () => index;
+			const item = createVirtualRow(config.items, rowIndex);
+			const identity = createVirtualItemIdentity(config.items, rowIndex, (_item, currentIndex) => itemKeys()[currentIndex] ?? currentIndex);
+			var _el$2 = createElement("view");
+			insert(_el$2, (() => {
+				var _c$ = memo(() => {
+					return !!identity();
+				});
+				return () => {
+					return _c$() ? config.children(() => {
+						const current = item();
+						if (current === void 0) throw new Error("VirtualList item disappeared while its row was mounted");
+						return current;
+					}, rowIndex) : identity();
+				};
+			})());
 			effect(() => ({
-				position: "absolute",
-				top: `${virtualItem().start}px`,
-				height: `${virtualItem().size}px`,
+				height: `${config.itemHeight}px`,
+				"flex-shrink": 0,
 				width: "100%"
 			}), (_v$, _$p) => {
-				setProp(_el$3, "style", _v$, _$p);
+				setProp(_el$2, "style", _v$, _$p);
 			});
-			return _el$3;
+			return _el$2;
 		}
 	}));
 	effect(() => {
 		return {
-			e: config.class,
+			e: mergeClasses("w-full min-w-0 min-h-0 overflow-x-hidden overflow-y-auto", config.class),
 			t: config.role,
 			a: config.accessibilityLabel,
 			o: {
-				overflow: "scroll",
-				position: "relative",
 				...config.viewportHeight === void 0 ? {} : { height: `${config.viewportHeight}px` },
-				width: "100%"
-			},
-			i: {
-				position: "relative",
-				height: `${totalSize()}px`,
 				width: "100%"
 			}
 		};
-	}, ({ e, t, a, o, i }, _p$) => {
+	}, ({ e, t, a, o }, _p$) => {
 		e !== _p$?.e && setProp(_el$, "class", e, _p$?.e);
 		t !== _p$?.t && setProp(_el$, "role", t, _p$?.t);
 		a !== _p$?.a && setProp(_el$, "aria-label", a, _p$?.a);
 		o !== _p$?.o && setProp(_el$, "style", o, _p$?.o);
-		i !== _p$?.i && setProp(_el$2, "style", i, _p$?.i);
 	});
 	return _el$;
 }
@@ -549,6 +446,11 @@ function observeGlobalPointerEvent(type, listener) {
 		if (listeners.size === 0) globalPointerListeners.delete(type);
 	};
 }
+const TEXT_COMMAND = {
+	SelectAll: 1,
+	Undo: 2,
+	Redo: 3
+};
 const nodeKeys = new NodeKeyAllocator();
 const listenersByNode = new NodeKeyTable();
 /** NodeKey -> WeakRef<Handle>, so bubbling does not retain detached nodes. */
@@ -618,8 +520,13 @@ function imperativeMethods(id) {
 	});
 	return {
 		focus: () => writer.focusNode(id),
+		blur: () => writer.blurNode(id),
 		scrollTo,
-		scrollBy
+		scrollBy,
+		setTextSelection: (anchor, head = anchor) => writer.setTextSelection(id, anchor, head),
+		selectAll: () => writer.textCommand(id, TEXT_COMMAND.SelectAll),
+		undo: () => writer.textCommand(id, TEXT_COMMAND.Undo),
+		redo: () => writer.textCommand(id, TEXT_COMMAND.Redo)
 	};
 }
 function makeHandle(tag) {
@@ -676,6 +583,19 @@ function applyProperty(writer, node, name, value, prev) {
 	if (name === "overlayPlane") {
 		const plane = value === "modal" ? 2 : value === "floating" ? 1 : 0;
 		writer.setOverlayPlane(node.id, plane);
+		return;
+	}
+	if (name === "projectionBoundary") {
+		writer.setProjectionBoundary(node.id, value === true);
+		return;
+	}
+	if (name === "nativeTransition") {
+		if (value == null || value === false) {
+			writer.removeAttribute(node.id, "__wabou_native_transition");
+			return;
+		}
+		if (!isStructuredConfigValue(value)) throw new TypeError("nativeTransition must be a plain object");
+		writer.setAttribute(node.id, "__wabou_native_transition", stringifyWidgetConfig(value));
 		return;
 	}
 	if (name === "textBehavior") {
@@ -1029,18 +949,19 @@ function mount(code) {
 	mountState.overlayRoots.clear();
 	registerRoot(root);
 	const dispose = render(code, root);
+	flush();
 	let disposed = false;
 	const disposeMount = () => {
 		if (disposed) return;
 		disposed = true;
 		dispose();
+		while (root.firstChild) removeNode(root, root.firstChild);
 		if (mountState.mountedRoot === root) {
 			mountState.overlayRoots.clear();
 			mountState.mountedRoot = null;
 		}
 		if (mountState.activeMountDispose === disposeMount) mountState.activeMountDispose = null;
 		runSweep();
-		writer.flush();
 	};
 	mountState.activeMountDispose = disposeMount;
 	return () => {
@@ -1202,4 +1123,4 @@ function eventName(code) {
 //#endregion
 export { writer as A, releaseOverlayRoot as C, setProp as D, runSweep as E, defaultHost as F, useHost as I, PathBuilder as L, createFps as M, Portal as N, setTransform2D as O, HostProvider as P, isVectorPath as R, registerRoot as S, render as T, mergeProps as _, createElement as a, reconcileControlledInputValues as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, VirtualList as j, spread as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, removeNode as w, ref as x, observeGlobalPointerEvent as y };
 
-//# sourceMappingURL=renderer-BjaqmVpf.mjs.map
+//# sourceMappingURL=renderer-BYDRnnWQ.mjs.map

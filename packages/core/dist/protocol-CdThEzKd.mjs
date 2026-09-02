@@ -205,7 +205,11 @@ const OP = {
 	ClearGraphicSource: 31,
 	SetGraphicData: 32,
 	ClearGraphicData: 33,
-	SetTextMaxLines: 34
+	SetTextMaxLines: 34,
+	SetTextSelection: 35,
+	TextCommand: 36,
+	BlurNode: 37,
+	SetProjectionBoundary: 38
 };
 const TEXT_BEHAVIOR = {
 	AggregateDirectText: 1,
@@ -266,7 +270,8 @@ const EVENT_CODE = {
 	imepreedit: 35,
 	imedeletesurrounding: 36,
 	imedisabled: 37,
-	windowcloserequested: 38
+	windowcloserequested: 38,
+	transitionend: 39
 };
 const EVENT_DATA_SLOT = {
 	clientX: 0,
@@ -481,6 +486,11 @@ var Writer = class {
 		this.key(id);
 		this.u32(maxLines);
 	}
+	setProjectionBoundary(id, enabled) {
+		this.emit(OP.SetProjectionBoundary);
+		this.key(id);
+		this.u8(enabled ? 1 : 0);
+	}
 	setInteractionPolicy(id, flags, focusOrder) {
 		if (!Number.isInteger(flags) || flags < 0 || (flags & ~INTERACTION_POLICY_MASK) !== 0) throw new RangeError(`invalid interaction policy flags ${flags}`);
 		if (!Number.isInteger(focusOrder) || focusOrder < -2147483648 || focusOrder > 2147483647) throw new RangeError(`invalid focus order ${focusOrder}`);
@@ -611,6 +621,10 @@ var Writer = class {
 		this.emit(OP.FocusNode);
 		this.key(id);
 	}
+	blurNode(id) {
+		this.emit(OP.BlurNode);
+		this.key(id);
+	}
 	scrollTo(id, x, y) {
 		this.emit(OP.ScrollTo);
 		this.key(id);
@@ -622,6 +636,17 @@ var Writer = class {
 		this.key(id);
 		this.f32(x);
 		this.f32(y);
+	}
+	setTextSelection(id, anchor, head) {
+		this.emit(OP.SetTextSelection);
+		this.key(id);
+		this.u32(anchor);
+		this.u32(head);
+	}
+	textCommand(id, command) {
+		this.emit(OP.TextCommand);
+		this.key(id);
+		this.u8(command);
 	}
 	/** Drain the buffer into a frame, or null if no ops were emitted this tick. */
 	flush() {
@@ -646,4 +671,4 @@ var Writer = class {
 //#endregion
 export { formatResourceKeyParts as C, createResourceKeyFamily as S, validateResourceKeyParts as T, isNodeKey as _, GRAPHIC_SOURCE as a, nodeKeyFromSlotMapFfi as b, HOST_RECORD_KIND as c, TEXT_BEHAVIOR as d, Writer as f, formatNodeKey as g, ROOT_NODE_KEY as h, GRAPHIC_DATA as i, INTERACTION_POLICY as l, NodeKeyTable as m, EVENT_DATA_LEN as n, HOST_FRAME as o, NodeKeyAllocator as p, EVENT_DATA_SLOT as r, HOST_NODE_PAYLOAD as s, EVENT_CODE as t, OP as u, nodeKey as v, isResourceKeyParts as w, ResourceKeyTable as x, nodeKeyEquals as y };
 
-//# sourceMappingURL=protocol-ry3FNy19.mjs.map
+//# sourceMappingURL=protocol-CdThEzKd.mjs.map

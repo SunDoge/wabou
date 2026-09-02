@@ -119,6 +119,10 @@ declare const OP: {
   readonly SetGraphicData: 32;
   readonly ClearGraphicData: 33;
   readonly SetTextMaxLines: 34;
+  readonly SetTextSelection: 35;
+  readonly TextCommand: 36;
+  readonly BlurNode: 37;
+  readonly SetProjectionBoundary: 38;
 };
 type OpCode = (typeof OP)[keyof typeof OP];
 declare const TEXT_BEHAVIOR: {
@@ -177,6 +181,7 @@ declare const EVENT_CODE: {
   readonly imedeletesurrounding: 36;
   readonly imedisabled: 37;
   readonly windowcloserequested: 38;
+  readonly transitionend: 39;
 };
 type EventType = keyof typeof EVENT_CODE;
 declare const EVENT_DATA_SLOT: {
@@ -257,6 +262,7 @@ declare class Writer {
   setWidgetConfig(id: NodeKey, json: string): void;
   setTextBehavior(id: NodeKey, flags: number): void;
   setTextMaxLines(id: NodeKey, maxLines: number): void;
+  setProjectionBoundary(id: NodeKey, enabled: boolean): void;
   setInteractionPolicy(id: NodeKey, flags: number, focusOrder: number): void;
   setGraphicSource(id: NodeKey, kind: number, source: string): void;
   clearGraphicSource(id: NodeKey, kind: number): void;
@@ -294,11 +300,14 @@ declare class Writer {
   setClassName(id: NodeKey, value: string): void;
   dropNode(id: NodeKey): void;
   focusNode(id: NodeKey): void;
+  blurNode(id: NodeKey): void;
   scrollTo(id: NodeKey, x: number, y: number): void;
   scrollBy(id: NodeKey, x: number, y: number): void;
+  setTextSelection(id: NodeKey, anchor: number, head: number): void;
+  textCommand(id: NodeKey, command: number): void;
   /** Drain the buffer into a frame, or null if no ops were emitted this tick. */
   flush(): Uint8Array | null;
 }
 //#endregion
 export { formatResourceKeyParts as A, nodeKeyEquals as C, ResourceKeyParts as D, ResourceKeyFamily as E, validateResourceKeyParts as M, ResourceKeyTable as O, nodeKey as S, ResourceKey as T, NodeKeyAllocator as _, EventType as a, formatNodeKey as b, HOST_FRAME as c, INTERACTION_POLICY as d, OP as f, NodeKey as g, Writer as h, EventDataSlot as i, isResourceKeyParts as j, createResourceKeyFamily as k, HOST_NODE_PAYLOAD as l, TEXT_BEHAVIOR as m, EVENT_DATA_LEN as n, GRAPHIC_DATA as o, OpCode as p, EVENT_DATA_SLOT as r, GRAPHIC_SOURCE as s, EVENT_CODE as t, HOST_RECORD_KIND as u, NodeKeyTable as v, nodeKeyFromSlotMapFfi as w, isNodeKey as x, ROOT_NODE_KEY as y };
-//# sourceMappingURL=protocol-CC46nxsy.d.mts.map
+//# sourceMappingURL=protocol-U96s-ArE.d.mts.map

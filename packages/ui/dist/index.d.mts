@@ -1,5 +1,5 @@
-import { $n as TextInputProps, $t as FormDraftFieldUpdater, A as createPress, An as Icon, Ar as SweepOptions, At as ModalControls, Bn as PathBuilder, Br as createTransition, C as RetainedItem, Cr as ReactiveTransition, Ct as Pulse, Dr as SweepAnimation, Dt as Spin, E as ActiveResult, En as createButton, Er as RotationOptions, Et as RippleProps, F as PopoverMotionOptions, Fn as ImageResourceHandle, Fr as createKeyframeAnimation, Ft as ModalProps, Gn as RichTextSpan, Gr as useMotionConfig, Gt as LayoutProps, Hr as MotionConfig, Ht as createMeasuredSize, I as PopoverProps$1, In as ImageResourceReadyEvent, Ir as createLoop, Jn as SvgProps, Jt as KeyedSelectionOptions, Kn as RichTextSpanProps, Kr as useReducedMotion, Kt as Row, Ln as PasswordInput$1, Lr as createPulse, Lt as ContainerMatch, Mn as Image, Mr as animate, N as createPresence, Nn as ImageProps, Nr as animateKeyframes, Nt as ModalMotionOptions, O as PressResult, On as CodeEditor, Or as SweepAxis, P as Popover$1, Pn as ImageResourceErrorEvent, Pr as createInterpolation, Pt as ModalOpenChangeReason, Qn as TextInput, Qt as FormDraftErrors, Rn as PasswordInputProps$1, Rr as createRotation, Rt as ContainerSizeQuery, S as ScrollAreaProps, Sn as ButtonState, Sr as ReactiveAnimation, St as createNotifications, T as createRetainedItems, Tn as LinkProps, Tr as RotationAnimation, Tt as Ripple, U as Placement, Un as RichText, Ur as MotionConfigProvider, Ut as Center, Vn as PathProps, Vr as normalizeSweepGeometry, Vt as createContainerMatch, W as PointAnchor, Wn as RichTextProps, Wr as MotionConfigProviderProps, Wt as Column, Xn as TextArea, Xt as FORM_ERROR, Yn as Text, Yt as createKeyedSelection, Zn as TextAreaProps, Zt as FormDraft, _ as createShortcuts, _n as Button$1, _r as EasingFunction, an as createFileImageResource, ar as WabouClassList, b as createScrollReset, br as MotionInterpolationOptions, bt as Notifications, cn as releaseImageResource, d as createTabs, dn as FocusResult, dr as AnimationControls, en as FormDraftOptions, er as TextProps, fn as FocusWithinResult, fr as AnimationOptions, ft as NotificationDismissReason, gr as Easing, gt as NotificationPlacement, hn as CollapsiblePresence, hr as AnimationValue, ht as NotificationMotionOptions, i as createTransitionPresence, in as OwnedImageResource, ir as ViewProps, it as OverlayLayer, jn as IconProps, jr as TransitionOptions, k as createActive, kn as CodeEditorProps, kr as SweepGeometry, kt as Modal, lr as AnimationFrameCallback, lt as createOverlayLayer, mn as createFocusWithin, mr as AnimationType, n as TransitionPresence, nn as ImageResourceDescriptor, nr as VectorPathPaint, on as createNetworkImageResource, or as WabouStyle, pn as createFocus, pr as AnimationState, qn as Svg, qt as KeyedSelection, r as TransitionPresenceOptions, rn as ImageResourceRequest, rr as View, sn as createOwnedImageResource, st as OverlayPlaneProvider, t as index_d_exports, tn as createFormDraft, tr as VectorPath, u as TabsResult, un as createHover, ur as createAnimationFrame, vr as KeyframeAnimationOptions, vt as NotificationRegion, w as RetainedItems, wn as Link, wr as RepeatType, x as ScrollArea, xn as ButtonProps$1, xr as PulseOptions, yn as ButtonKeyEvent, yr as LoopOptions, yt as NotificationRegionProps, zn as Path, zr as createSweep } from "./index-DGPO33AG.mjs";
-import { FileDropPosition, PickDirectoryOptions } from "@wabou/core";
+import { $n as Text, $r as useReducedMotion, $t as FormDraftFieldUpdater, A as createPress, An as Icon, Ar as RepeatType, At as ModalControls, Br as createInterpolation, C as RetainedItem, Cr as LoopOptions, Ct as Pulse, Dr as PulseOptions, Dt as Spin, E as ActiveResult, En as createButton, Er as NativeLoopAnimationOptions, Et as RippleProps, F as PopoverMotionOptions, Fn as ImageResourceHandle, Fr as SweepGeometry, Ft as ModalProps, Gr as createRotation, Gt as LayoutProps, Hn as Path, Hr as createLoop, Ht as createMeasuredSize, I as PopoverProps$1, In as ImageResourceReadyEvent, Ir as SweepOptions, Jn as RichTextProps, Jr as normalizeSweepGeometry, Jt as KeyedSelectionOptions, Kn as ProjectionBoundary, Kr as createSweep, Kt as Row, Ln as NativeWidget, Lr as TransitionOptions, Lt as ContainerMatch, Mn as Image, Mr as RotationOptions, N as createPresence, Nn as ImageProps, Nr as SweepAnimation, Nt as ModalMotionOptions, O as PressResult, On as Editor, Or as ReactiveAnimation, Pn as ImageResourceErrorEvent, Pr as SweepAxis, Pt as ModalOpenChangeReason, Qn as SvgProps, Qr as useMotionConfig, Qt as FormDraftErrors, Rn as NativeWidgetConfig, Rr as animate, Rt as ContainerSizeQuery, S as ScrollAreaProps, Sn as ButtonState, Sr as KeyframeAnimationOptions, St as createNotifications, T as createRetainedItems, Tr as NativeLoopAnimation, Tt as Ripple, U as Placement, Un as PathBuilder, Ur as createNativeLoopAnimation, Ut as Center, Vn as PasswordInputProps$1, Vr as createKeyframeAnimation, Vt as createContainerMatch, W as PointAnchor, Wn as PathProps, Wr as createPulse, Wt as Column, Xn as RichTextSpanProps, Xr as MotionConfigProvider, Xt as FORM_ERROR, Yn as RichTextSpan, Yr as MotionConfig, Yt as createKeyedSelection, Zn as Svg, Zr as MotionConfigProviderProps, Zt as FormDraft, _ as createShortcuts, _r as AnimationState, an as createFileImageResource, ar as VectorPath, b as createScrollReset, br as Easing, bt as Notifications, cn as releaseImageResource, cr as ViewProps, d as createTabs, dn as FocusResult, en as FormDraftOptions, fn as FocusWithinResult, ft as NotificationDismissReason, gr as AnimationOptions, gt as NotificationPlacement, hn as CollapsiblePresence, hr as AnimationControls, ht as NotificationMotionOptions, i as createTransitionPresence, in as OwnedImageResource, ir as TextProps, it as OverlayLayer, jn as IconProps, jr as RotationAnimation, k as createActive, kn as EditorProps, kr as ReactiveTransition, kt as Modal, lr as WabouClassList, lt as createOverlayLayer, mn as createFocusWithin, mr as createAnimationFrame, n as TransitionPresence, nn as ImageResourceDescriptor, on as createNetworkImageResource, or as VectorPathPaint, pn as createFocus, pr as AnimationFrameCallback, qn as RichText, qr as createTransition, qt as KeyedSelection, r as TransitionPresenceOptions, rn as ImageResourceRequest, rr as TextInputProps, sn as createOwnedImageResource, sr as View, st as OverlayPlaneProvider, t as index_d_exports, tn as createFormDraft, tr as TextAreaProps$1, u as TabsResult, un as createHover, ur as WabouStyle, vr as AnimationType, vt as NotificationRegion, w as RetainedItems, wr as MotionInterpolationOptions, x as ScrollArea, xn as ButtonProps$1, xr as EasingFunction, yn as ButtonKeyEvent, yr as AnimationValue, yt as NotificationRegionProps, zn as NativeWidgetProps, zr as animateKeyframes } from "./index-gI4KJtKK.mjs";
+import { FileDropPosition, Kv, KvKey, PickDirectoryOptions } from "@wabou/core";
 import { Shadow, WabouStyle as WabouStyle$1 } from "@wabou/core/style";
 import { Accessor, JSX, ParentProps, Setter } from "solid-js";
 import { Handle, LayoutRect, WabouPointerEvent } from "@wabou/core/renderer";
@@ -10,8 +10,29 @@ import { RouterHistory, createMemoryHistory } from "@tanstack/history";
 import { AnyRoute, AnyRouter, BaseRootRoute, BaseRoute, RouterConstructorOptions, RouterCore, TrailingSlashOption, notFound, redirect } from "@tanstack/router-core";
 export * from "@wabou/core";
 export * from "@wabou/core/i18n";
+//#region src/components/activity-status.d.ts
+type ActivityStatusTone = "accent" | "danger" | "muted" | "success";
+interface ActivityStatusIndicatorProps {
+  animated?: boolean;
+  tone?: ActivityStatusTone;
+  class?: string;
+}
+/** A consistently sized status dot. Animation is explicit so idle state never
+ * keeps the native frame clock alive accidentally. */
+declare function ActivityStatusIndicator(props: ActivityStatusIndicatorProps): JSX.Element;
+interface ActivityStatusProps extends Omit<ViewProps, "children" | "class"> {
+  label: string;
+  animated?: boolean;
+  tone?: ActivityStatusTone;
+  class?: string;
+  textClass?: string;
+}
+/** Shrink-safe inline progress or presence status for agent and desktop UI. */
+declare function ActivityStatus(props: ActivityStatusProps): JSX.Element;
+//#endregion
 //#region src/components/alert.d.ts
-type AlertVariant = "default" | "destructive";
+type AlertVariant = "default" | "info" | "success" | "warning" | "error" | "destructive";
+type AlertSize = "sm" | "default" | "lg";
 declare function alertColors(variant: AlertVariant): {
   container: string;
   title: string;
@@ -19,8 +40,13 @@ declare function alertColors(variant: AlertVariant): {
 };
 interface AlertProps extends Omit<ViewProps, "role"> {
   variant?: AlertVariant;
-  /** Optional leading graphic with caller-owned size and color. */
-  icon?: JSX.Element;
+  size?: AlertSize;
+  /** Optional leading graphic. Pass false to suppress the semantic default. */
+  icon?: JSX.Element | false;
+  /** Edge-to-edge status strip without container chrome. */
+  banner?: boolean;
+  /** Show a close control and delegate visibility to the owner. */
+  onClose?: () => void;
   /** Convenience form; compound usage can render AlertTitle directly. */
   title?: string;
 }
@@ -28,6 +54,8 @@ interface AlertProps extends Omit<ViewProps, "role"> {
 declare function Alert(props: AlertProps): JSX.Element;
 declare function AlertTitle(props: TextProps): JSX.Element;
 declare function AlertDescription(props: TextProps): JSX.Element;
+/** Recovery and acknowledgement controls belonging to an alert. */
+declare function AlertActions(props: ViewProps): JSX.Element;
 //#endregion
 //#region src/components/button.d.ts
 type ButtonVariant = "default" | "secondary" | "outline" | "ghost" | "destructive";
@@ -37,6 +65,10 @@ interface ButtonProps extends Omit<ButtonProps$1, "variant" | "tone"> {
   size?: ButtonSize;
   class?: string;
   style?: ButtonProps$1["style"];
+  /** Disable activation and replace the leading content with a native spinner. */
+  loading?: boolean;
+  /** Visible label used while loading. Defaults to the ordinary children. */
+  loadingLabel?: string;
 }
 declare function Button(props: ButtonProps): JSX.Element;
 //#endregion
@@ -48,11 +80,11 @@ declare function Dialog(props: DialogProps): JSX.Element;
 declare function DialogHeader(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function DialogFooter(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 /**
  * The shrinking, independently scrollable region between a dialog's fixed
  * header and footer. The dialog surface must have a bounded or maximum height.
@@ -61,15 +93,15 @@ interface DialogScrollBodyProps extends Omit<ScrollAreaProps, "class" | "content
   class?: string;
   contentClass?: string;
 }
-declare function DialogScrollBody(props: DialogScrollBodyProps): import("@wabou/core").JSX.Element;
+declare function DialogScrollBody(props: DialogScrollBodyProps): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function DialogTitle(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function DialogDescription(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 //#endregion
 //#region src/components/alert-dialog.d.ts
 interface AlertDialogProps extends Omit<DialogProps, "children" | "contentRole"> {
@@ -136,41 +168,49 @@ declare function AttachmentGroup(props: ViewProps): JSX.Element;
 //#endregion
 //#region src/components/avatar.d.ts
 type AvatarSize = "sm" | "default" | "lg";
-interface AvatarProps {
+interface AvatarProps extends Omit<ViewProps, "children"> {
   image?: ImageResourceHandle;
+  /** Full accessible name and source for generated initials. */
+  name?: string;
+  /** Accessible label override when it should differ from `name`. */
   alt?: string;
-  fallback: string;
+  /** Explicit visual fallback. Defaults to initials derived from `name`. */
+  fallback?: string;
   size?: AvatarSize;
-  class?: string;
 }
-declare function Avatar(props: AvatarProps): import("@wabou/core").JSX.Element;
-declare function AvatarGroup(props: {
-  children?: JSX.Element;
-  class?: string;
-}): import("@wabou/core").JSX.Element;
-declare function AvatarGroupCount(props: {
-  children?: JSX.Element;
-  class?: string;
-}): import("@wabou/core").JSX.Element;
+/** Derive at most two stable initials without depending on Intl. */
+declare function avatarInitials(name: string): string;
+declare function Avatar(props: AvatarProps): JSX.Element;
+type AvatarGroupProps = ViewProps;
+declare function AvatarGroup(props: AvatarGroupProps): JSX.Element;
+type AvatarGroupCountProps = ViewProps;
+declare function AvatarGroupCount(props: AvatarGroupCountProps): JSX.Element;
 //#endregion
 //#region src/components/badge.d.ts
 type BadgeVariant = "default" | "secondary" | "outline" | "ghost" | "link" | "success" | "destructive";
+type BadgeSize = "sm" | "default" | "lg";
 interface BadgeProps extends Omit<TextProps, "class"> {
   variant?: BadgeVariant;
+  size?: BadgeSize;
   /** Typography weight selected without competing utility declarations. */
   weight?: "normal" | "medium";
   class?: string;
 }
-declare function badgeClass(variant?: BadgeVariant, weight?: NonNullable<BadgeProps["weight"]>, className?: string): string;
+declare function badgeClass(variant?: BadgeVariant, weight?: NonNullable<BadgeProps["weight"]>, className?: string, size?: BadgeSize): string;
 /** Compact status text with shadcn-compatible visual variants. */
 declare function Badge(props: BadgeProps): JSX.Element;
 //#endregion
 //#region src/components/button-group-context.d.ts
 type ButtonGroupOrientation = "horizontal" | "vertical";
+type ButtonGroupButtonSize = "sm" | "default" | "lg" | "icon";
+type ButtonGroupButtonVariant = "default" | "secondary" | "outline" | "ghost" | "destructive";
 //#endregion
 //#region src/components/button-group.d.ts
 interface ButtonGroupProps extends Omit<ViewProps, "class"> {
   orientation?: ButtonGroupOrientation;
+  size?: ButtonGroupButtonSize;
+  variant?: ButtonGroupButtonVariant;
+  disabled?: boolean;
   class?: string;
 }
 /** A single bordered control surface composed from ordinary Wabou buttons. */
@@ -183,7 +223,11 @@ interface ButtonGroupSeparatorProps {
 declare function ButtonGroupSeparator(props: ButtonGroupSeparatorProps): JSX.Element;
 //#endregion
 //#region src/components/card.d.ts
+type CardVariant = "raised" | "filled" | "outline" | "plain";
+type CardSize = "sm" | "default" | "lg";
 interface CardProps extends Omit<ViewProps, "class"> {
+  variant?: CardVariant;
+  size?: CardSize;
   class?: string;
 }
 declare function Card(props: CardProps): JSX.Element;
@@ -300,13 +344,56 @@ interface CommandProps {
   defaultQuery?: string;
   placeholder?: string;
   emptyText?: string;
+  loading?: boolean;
+  loadingText?: string;
+  error?: unknown;
+  errorText?: string;
+  retryLabel?: string;
   class?: string;
   listClass?: string;
   onQueryChange?: (query: string) => void;
   onAction?: (id: string) => void;
+  onRetry?: () => void;
   onDismiss?: () => void;
   inputRef?: (node: Handle) => void;
 }
+interface CommandListProps {
+  items: readonly CommandItem[];
+  "aria-label": string;
+  highlighted?: string;
+  emptyText?: string;
+  class?: string;
+  itemClass?: string;
+  loading?: boolean;
+  loadingText?: string;
+  error?: unknown;
+  errorText?: string;
+  retryLabel?: string;
+  onRetry?: () => void;
+  onHighlightChange?: (id: string) => void;
+  onAction?: (id: string) => void;
+  renderLeading?: (item: CommandItem) => JSX.Element;
+}
+/** Reusable command-result surface for search fields and inline completions. */
+declare function CommandList(props: CommandListProps): JSX.Element;
+interface CommandListNavigationOptions {
+  onAction?: (id: string) => void;
+  onDismiss?: () => void;
+}
+/**
+ * Shared command-list navigation for any focus owner, including native editors.
+ * The caller forwards key events while the list remains a passive popup.
+ */
+declare function createCommandListNavigation(items: Accessor<readonly CommandStateItem[]>, options?: CommandListNavigationOptions): {
+  highlighted: import("solid-js").SourceAccessor<string | undefined>;
+  setHighlighted: import("solid-js").Setter<string | undefined>;
+  select: (id: string | undefined) => boolean;
+  move: (direction: "first" | "last" | "next" | "previous") => boolean;
+  handleKeyDown: (event: {
+    key: string;
+    preventDefault(): void;
+  }) => boolean;
+};
 /** Searchable command list whose filtering and keyboard behavior are host-independent. */
 declare function Command(props: CommandProps): JSX.Element;
 //#endregion
@@ -364,37 +451,79 @@ interface ComboboxProps extends PopupMotionProps {
 /** A searchable single-value picker built from Popover and Command. */
 declare function Combobox(props: ComboboxProps): JSX.Element;
 //#endregion
-//#region src/components/config-editor.d.ts
-interface ConfigEditorProps extends CodeEditorProps {
-  class?: string;
+//#region src/components/content-state.d.ts
+type ContentStateKind = "empty" | "loading" | "error";
+interface ContentStateProps extends Omit<ViewProps, "children" | "role"> {
+  state: ContentStateKind;
+  title: string;
+  description?: string;
+  /** Standard compact recovery or next-step action. */
+  action?: {
+    label: string;
+    onAction(): void;
+  };
+  /** Lazily render media inside the state's reactive owner. */
+  renderMedia?: () => JSX.Element;
+  /** Lazily render custom actions inside the state's reactive owner. */
+  renderAction?: () => JSX.Element;
+}
+/** Mutually exclusive loading, empty, or error state for a bounded region. */
+declare function ContentState(props: ContentStateProps): JSX.Element;
+interface ResourceBoundaryProps extends Omit<ViewProps, "children" | "role"> {
+  /** True while the resource is performing its initial load or refreshing. */
+  loading: boolean;
+  /** A rejected resource value. `undefined` and `null` mean no error. */
+  error?: unknown;
+  /** Whether a usable resource value currently exists, including an empty collection. */
+  hasContent: boolean;
+  loadingTitle: string;
+  errorTitle: string;
+  emptyTitle: string;
+  loadingDescription?: string;
+  emptyDescription?: string;
+  retryLabel?: string;
+  onRetry?: () => void;
+  renderContent(): JSX.Element;
+  renderEmptyMedia?: () => JSX.Element;
+  renderErrorMedia?: () => JSX.Element;
 }
 /**
- * Configuration editor backed by DOM-free CodeMirror state and a controlled
- * native viewport. It is intentionally not a general-purpose IDE editor.
+ * Mutually exclusive async resource boundary.
+ *
+ * Existing content remains mounted during a background refresh. This avoids
+ * replacing a useful inspector or list with a loading spinner every time its
+ * resource is refreshed.
  */
-declare function ConfigEditor(props: ConfigEditorProps): JSX.Element;
+declare function ResourceBoundary(props: ResourceBoundaryProps): JSX.Element;
 //#endregion
 //#region src/components/dropdown-menu.d.ts
 interface DropdownMenuItem extends MenuStateItem {
+  /** Optional decorative Lucide/static SVG shown in the shared leading slot. */
+  icon?: string;
+  /** Checked state. Defining this reserves the shared leading status slot. */
+  checked?: boolean;
   description?: string;
+  /** Human-readable platform shortcut, such as `Ctrl K` or `⌘ K`. */
+  shortcut?: string;
   destructive?: boolean;
   separatorBefore?: boolean;
   onSelect?: () => void;
 }
+interface DropdownMenuTriggerProps {
+  ref(node: Handle): void;
+  onClick(event: {
+    stopPropagation(): void;
+  }): void;
+  onKeyDown(event: {
+    key: string;
+    preventDefault(): void;
+    stopPropagation(): void;
+  }): void;
+  "aria-haspopup": "menu";
+  "aria-expanded": boolean;
+}
 interface DropdownMenuProps extends PopupMotionProps {
-  trigger(props: {
-    ref(node: Handle): void;
-    onClick(event: {
-      stopPropagation(): void;
-    }): void;
-    onKeyDown(event: {
-      key: string;
-      preventDefault(): void;
-      stopPropagation(): void;
-    }): void;
-    "aria-haspopup": "menu";
-    "aria-expanded": boolean;
-  }): JSX.Element;
+  trigger(props: DropdownMenuTriggerProps): JSX.Element;
   items: readonly DropdownMenuItem[];
   "aria-label": string;
   open?: boolean;
@@ -616,7 +745,7 @@ interface DiffViewerProps extends Omit<ViewProps, "children"> {
  * text is mounted only after disclosure and uses the DOM-free CodeMirror
  * document/native editor viewport for selection, copying, and large documents.
  */
-declare function DiffViewer(props: DiffViewerProps): import("@wabou/core").JSX.Element;
+declare function DiffViewer(props: DiffViewerProps): import("@wabou/core/jsx-runtime").JSX.Element;
 //#endregion
 //#region src/components/direction.d.ts
 type Direction = "ltr" | "rtl";
@@ -652,6 +781,19 @@ interface InputProps extends TextInputProps {
 }
 /** A plain-text input. Secrets must use `PasswordInput`. */
 declare function Input(props: InputProps): JSX.Element;
+interface PasswordInputProps extends PasswordInputProps$1 {
+  class?: string;
+}
+/** A native secret input whose value never crosses into JavaScript. */
+declare function PasswordInput(props: PasswordInputProps): JSX.Element;
+interface TextAreaProps extends TextAreaProps$1 {
+  class?: string;
+  /** Background utility owned by this textarea. Defaults to `bg-input`. */
+  surfaceClass?: string;
+  /** Use `none` when an enclosing composition owns the visual surface. */
+  chrome?: "default" | "none";
+}
+declare function TextArea(props: TextAreaProps): JSX.Element;
 //#endregion
 //#region src/components/directory-picker.d.ts
 interface DirectoryPickerProps extends Omit<InputProps, "class" | "onInput" | "value"> {
@@ -680,14 +822,20 @@ interface CollapsibleProps extends Omit<ViewProps, "children" | "class"> {
   onOpenChange?: (open: boolean) => void;
   class?: string;
 }
-declare function Collapsible(props: CollapsibleProps): import("@wabou/core").JSX.Element;
+declare function Collapsible(props: CollapsibleProps): import("@wabou/core/jsx-runtime").JSX.Element;
 interface CollapsibleTriggerProps extends Omit<ButtonProps$1, "children" | "class" | "unstyled"> {
   children?: JSX.Element;
+  /** Render the built-in trailing chevron. Disable when children provide one. */
+  indicator?: boolean;
   class?: string;
 }
-declare function CollapsibleTrigger(props: CollapsibleTriggerProps): import("@wabou/core").JSX.Element;
-type CollapsibleContentProps = ViewProps;
-declare function CollapsibleContent(props: CollapsibleContentProps): import("@wabou/core").JSX.Element;
+declare function CollapsibleTrigger(props: CollapsibleTriggerProps): import("@wabou/core/jsx-runtime").JSX.Element;
+interface CollapsibleContentProps extends ViewProps {
+  duration?: number;
+  ease?: Easing;
+  animateInitial?: boolean;
+}
+declare function CollapsibleContent(props: CollapsibleContentProps): import("@wabou/core/jsx-runtime").JSX.Element;
 type AccordionType = "single" | "multiple";
 type AccordionValue = string | readonly string[];
 declare function nextAccordionValue(current: AccordionValue, type: AccordionType, item: string, collapsible?: boolean): AccordionValue;
@@ -702,21 +850,21 @@ interface AccordionProps extends Omit<ViewProps, "children" | "class"> {
   onValueChange?: (value: AccordionValue) => void;
   class?: string;
 }
-declare function Accordion(props: AccordionProps): import("@wabou/core").JSX.Element;
+declare function Accordion(props: AccordionProps): import("@wabou/core/jsx-runtime").JSX.Element;
 interface AccordionItemProps extends Omit<ViewProps, "children" | "class"> {
   value: string;
   disabled?: boolean;
   children?: JSX.Element;
   class?: string;
 }
-declare function AccordionItem(props: AccordionItemProps): import("@wabou/core").JSX.Element;
+declare function AccordionItem(props: AccordionItemProps): import("@wabou/core/jsx-runtime").JSX.Element;
 interface AccordionTriggerProps extends Omit<ButtonProps$1, "children" | "class" | "unstyled"> {
   children?: JSX.Element;
   class?: string;
 }
-declare function AccordionTrigger(props: AccordionTriggerProps): import("@wabou/core").JSX.Element;
+declare function AccordionTrigger(props: AccordionTriggerProps): import("@wabou/core/jsx-runtime").JSX.Element;
 type AccordionContentProps = ViewProps;
-declare function AccordionContent(props: AccordionContentProps): import("@wabou/core").JSX.Element;
+declare function AccordionContent(props: AccordionContentProps): import("@wabou/core/jsx-runtime").JSX.Element;
 //#endregion
 //#region src/components/display.d.ts
 interface SkeletonProps {
@@ -728,15 +876,18 @@ declare function Skeleton(props: SkeletonProps): JSX.Element;
 declare function Spinner(props: {
   label?: string;
   class?: string;
+  /** Hide spinner semantics when a parent status already announces progress. */
+  decorative?: boolean;
+  /** Duration of one revolution in seconds. */
+  duration?: number;
+  /** Playback-rate multiplier. */
+  speed?: number;
+  paused?: boolean;
 }): JSX.Element;
-declare function Kbd(props: {
-  class?: string;
-  children?: JSX.Element;
-}): JSX.Element;
-declare function KbdGroup(props: {
-  class?: string;
-  children?: JSX.Element;
-}): JSX.Element;
+type KbdProps = TextProps;
+declare function Kbd(props: KbdProps): JSX.Element;
+type KbdGroupProps = ViewProps;
+declare function KbdGroup(props: KbdGroupProps): JSX.Element;
 //#endregion
 //#region src/components/drawer.d.ts
 type DrawerDirection = "top" | "right" | "bottom" | "left";
@@ -828,35 +979,53 @@ declare function Field(props: {
   children?: JSX.Element;
   orientation?: FieldOrientation;
   invalid?: boolean;
+  required?: boolean;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function FieldSet(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function FieldLegend(props: {
   children?: JSX.Element;
   variant?: "legend" | "label";
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function FieldGroup(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 interface FieldLabelProps extends LabelProps {}
-declare function FieldLabel(props: FieldLabelProps): import("@wabou/core").JSX.Element;
+declare function FieldLabel(props: FieldLabelProps): import("@wabou/core/jsx-runtime").JSX.Element;
+interface LabeledFieldProps {
+  label: JSX.Element;
+  description?: JSX.Element;
+  invalid?: boolean;
+  required?: boolean;
+  disabled?: boolean;
+  errors?: ReadonlyArray<FieldErrorLike | undefined>;
+  class?: string;
+  controlRef?: (node: Handle) => void;
+  /** Render the native control and attach the supplied ref to its focus owner. */
+  renderControl: (ref: (node: Handle) => void) => JSX.Element;
+}
+/**
+ * A complete native field whose visible label always focuses its control.
+ * This avoids repeating ad-hoc Handle plumbing in every settings surface.
+ */
+declare function LabeledField(props: LabeledFieldProps): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function FieldTitle(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function FieldContent(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function FieldDescription(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 interface FieldErrorLike {
   message?: string;
 }
@@ -867,11 +1036,11 @@ declare function FieldError(props: {
   errors?: ReadonlyArray<FieldErrorLike | undefined>;
   "aria-label"?: string;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function FieldSeparator(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 type InputGroupOrientation = "horizontal" | "vertical";
 type InputGroupVariant = "default" | "quiet";
 type InputGroupAddonAlign = "inline-start" | "inline-end" | "block-start" | "block-end";
@@ -885,22 +1054,37 @@ interface InputGroupProps extends Omit<ViewProps, "children"> {
   /** Background utility owned by the compound control. Defaults to `bg-input`. */
   surfaceClass?: string;
 }
-declare function InputGroup(props: InputGroupProps): import("@wabou/core").JSX.Element;
-declare function InputGroupInput(props: InputProps): import("@wabou/core").JSX.Element;
+declare function InputGroup(props: InputGroupProps): import("@wabou/core/jsx-runtime").JSX.Element;
+declare function InputGroupInput(props: InputProps): import("@wabou/core/jsx-runtime").JSX.Element;
 interface InputGroupAddonProps extends ViewProps {
   align?: InputGroupAddonAlign;
   focusControl?: boolean;
 }
 declare function inputGroupAddonClass(align: InputGroupAddonAlign): string;
-declare function InputGroupAddon(props: InputGroupAddonProps): import("@wabou/core").JSX.Element;
+declare function InputGroupAddon(props: InputGroupAddonProps): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function InputGroupText(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
-declare function InputGroupButton(props: ButtonProps): import("@wabou/core").JSX.Element;
-declare function InputGroupTextArea(props: TextAreaProps & {
+}): import("@wabou/core/jsx-runtime").JSX.Element;
+declare function InputGroupButton(props: ButtonProps): import("@wabou/core/jsx-runtime").JSX.Element;
+declare function InputGroupTextArea(props: TextAreaProps$1 & {
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
+//#endregion
+//#region src/components/group-box.d.ts
+type GroupBoxVariant = "normal" | "fill" | "outline";
+interface GroupBoxProps extends Omit<ViewProps, "children" | "class"> {
+  title?: JSX.Element;
+  description?: JSX.Element;
+  children?: JSX.Element;
+  variant?: GroupBoxVariant;
+  class?: string;
+  headerClass?: string;
+  contentClass?: string;
+}
+declare function groupBoxContentClass(variant?: GroupBoxVariant, className?: string): string;
+/** A lightweight titled surface for related controls and settings rows. */
+declare function GroupBox(props: GroupBoxProps): JSX.Element;
 //#endregion
 //#region src/components/delayed-open.d.ts
 interface DelayedOpenController {
@@ -969,7 +1153,7 @@ interface IconFrameProps extends Omit<ViewProps, "children">, Pick<IconProps, "s
  * Use this for standalone icon tiles. Buttons and menu items already own their
  * icon alignment and should continue to use `Icon` directly.
  */
-declare function IconFrame(props: IconFrameProps): import("@wabou/core").JSX.Element;
+declare function IconFrame(props: IconFrameProps): import("@wabou/core/jsx-runtime").JSX.Element;
 //#endregion
 //#region src/components/image-list.d.ts
 interface ImageListProps<T> {
@@ -983,7 +1167,6 @@ interface ImageListProps<T> {
   thumbnailWidth?: number;
   thumbnailHeight?: number;
   viewportHeight?: number;
-  overscan?: number;
   selectedKey?: string | number;
   onSelectionChange?: (item: T, index: number) => void;
   onResourceReady?: (item: T, index: number, event: ImageResourceReadyEvent) => void;
@@ -1122,6 +1305,10 @@ declare function itemClass(variant?: ItemVariant, size?: ItemSize, className?: s
 interface ItemProps extends Omit<ViewProps, "class"> {
   variant?: ItemVariant;
   size?: ItemSize;
+  /** Persistent list selection, independent from transient pointer hover. */
+  selected?: boolean;
+  /** Disable the complete row subtree, including trailing actions. */
+  disabled?: boolean;
   class?: string;
 }
 /** A composable list row based on shadcn's Item anatomy. */
@@ -1199,28 +1386,33 @@ declare function ResponsiveGridRemainder(props: {
 declare function SplitPane(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function SplitPaneMain(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function SplitPaneAside(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 /**
  * Master/detail layout whose detail region can move from an inline rail to a
  * modal surface without changing the application's selection model.
  */
 declare function AdaptiveSplitPane(props: {
   children?: JSX.Element;
-  compact: boolean;
+  /** Controlled compact mode. Omit it to measure this pane natively. */
+  compact?: boolean;
+  /** Inclusive native content width that activates compact mode. */
+  compactAt?: number;
+  onCompactChange?: (compact: boolean) => void;
+  "aria-label"?: string;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function AdaptiveSplitPaneMain(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
 declare function AdaptiveSplitPaneDetail(props: {
   children?: JSX.Element;
   open: boolean;
@@ -1228,7 +1420,49 @@ declare function AdaptiveSplitPaneDetail(props: {
   "aria-label": string;
   class?: string;
   modalClass?: string;
-}): import("@wabou/core").JSX.Element;
+}): import("@wabou/core/jsx-runtime").JSX.Element;
+//#endregion
+//#region src/components/listbox.d.ts
+interface ListboxOption {
+  value: string;
+  label: string;
+  /** Accessible identity when the visible label is not unique or sufficiently descriptive. */
+  accessibilityLabel?: string;
+  description?: string;
+  disabled?: boolean;
+}
+interface ListboxProps {
+  options: readonly ListboxOption[];
+  value?: string;
+  defaultValue?: string;
+  "aria-label": string;
+  emptyText?: string;
+  class?: string;
+  listClass?: string;
+  itemClass?: string;
+  maxVisibleItems?: number;
+  /** Fixed row height used for both layout and viewport calculation. */
+  itemHeight?: number;
+  /** Explicit scroll viewport height for inspector and split-pane layouts. */
+  viewportHeight?: number;
+  /** Fill the available flex height instead of deriving a fixed viewport. */
+  fill?: boolean;
+  /** Receives the focusable listbox handle for dialog and popover composition. */
+  ref?: (node: Handle) => void;
+  renderLeading?: (option: ListboxOption) => JSX.Element;
+  renderTrailing?: (option: ListboxOption) => JSX.Element;
+  onValueChange?: (value: string) => void;
+  /** Invoked after pointer or keyboard activation of an enabled option. */
+  onAction?: (value: string) => void;
+  onDismiss?: () => void;
+}
+/**
+ * Focusable inline single-selection list.
+ *
+ * Unlike Select, Listbox owns no popup or trigger. It is suitable for dialogs,
+ * inspectors and other surfaces where the choices are already visible.
+ */
+declare function Listbox(props: ListboxProps): JSX.Element;
 //#endregion
 //#region src/components/markdown.d.ts
 type MarkdownVariant = "document" | "conversation" | "prompt";
@@ -1363,42 +1597,20 @@ interface MessageScrollerButtonProps extends Omit<ButtonProps, "onClick"> {
   onClick?: ButtonProps["onClick"];
 }
 declare function MessageScrollerButton(props: MessageScrollerButtonProps): JSX.Element;
-//#endregion
-//#region src/components/select.d.ts
-interface SelectOption {
-  value: string;
+interface MessageScrollerNavigatorItem {
+  id: string;
   label: string;
-  disabled?: boolean;
 }
-interface SelectProps extends PopupMotionProps {
-  options: readonly SelectOption[];
-  value?: string;
-  defaultValue?: string;
-  open?: boolean;
-  defaultOpen?: boolean;
-  disabled?: boolean;
-  placeholder?: string;
+interface MessageScrollerNavigatorProps {
+  items: readonly MessageScrollerNavigatorItem[];
   "aria-label": string;
+  itemAriaLabel(item: MessageScrollerNavigatorItem, index: number): string;
+  minItems?: number;
   class?: string;
-  triggerVariant?: PickerTriggerVariant;
-  contentClass?: string;
-  contentShadows?: readonly Shadow[] | null;
-  onValueChange?: (value: string) => void;
-  onOpenChange?: (open: boolean) => void;
+  railClass?: string;
 }
-/** Shadcn-inspired single Select backed by Wabou-native interaction state. */
-declare function Select(props: SelectProps): JSX.Element;
-//#endregion
-//#region src/components/native-select.d.ts
-type NativeSelectOption = SelectOption;
-interface NativeSelectProps extends Omit<SelectProps, "motion" | "contentClass" | "contentShadows"> {}
-/**
- * Compact Wabou-native select for ordinary forms.
- *
- * Unlike the composable Select skin, this deliberately fixes immediate motion
- * and elevation so callers only own options, value, and form sizing.
- */
-declare function NativeSelect(props: NativeSelectProps): JSX.Element;
+/** Compact anchor rail for navigating long retained conversations. */
+declare function MessageScrollerNavigator(props: MessageScrollerNavigatorProps): JSX.Element;
 //#endregion
 //#region src/components/pagination-state.d.ts
 type PaginationRangeItem = number | "ellipsis-start" | "ellipsis-end";
@@ -1443,8 +1655,7 @@ interface PaginationProps {
   children?: JSX.Element;
   class?: string;
   "aria-label"?: string;
-  /** Enables managed pagination. Omit it to retain the composition-only API. */
-  count?: number;
+  count: number;
   page?: number;
   defaultPage?: number;
   disabled?: boolean;
@@ -1568,6 +1779,22 @@ interface PageHeaderProps {
 /** Consistent page title, supporting text and trailing application actions. */
 declare function PageHeader(props: PageHeaderProps): JSX.Element;
 //#endregion
+//#region src/components/onboarding.d.ts
+interface OnboardingProps extends Omit<PageViewportProps, "class" | "contentClass"> {
+  class?: string;
+  contentClass?: string;
+}
+/**
+ * Full-height first-run boundary with native scrolling and a readable measure.
+ * Content stays centered when it fits and remains reachable when it grows.
+ */
+declare function Onboarding(props: OnboardingProps): JSX.Element;
+declare function OnboardingHeader(props: ViewProps): JSX.Element;
+declare function OnboardingHeading(props: ViewProps): JSX.Element;
+declare function OnboardingTitle(props: TextProps): JSX.Element;
+declare function OnboardingDescription(props: TextProps): JSX.Element;
+declare function OnboardingFooter(props: ViewProps): JSX.Element;
+//#endregion
 //#region src/components/progress.d.ts
 interface ProgressValueDetails {
   value: number;
@@ -1586,19 +1813,30 @@ interface ProgressRootProps extends Omit<ViewProps, "children" | "class" | "role
   children?: JSX.Element;
   class?: string;
 }
+type ProgressSize = "xs" | "sm" | "default" | "lg";
 declare function normalizeProgressValue(value: number | undefined, minValue: number | undefined, maxValue: number | undefined): ProgressValueDetails;
 /** Semantic progress state with explicit, composable visual parts. */
 declare function ProgressRoot(props: ProgressRootProps): JSX.Element;
-declare function ProgressTrack(props: ViewProps): JSX.Element;
+interface ProgressTrackProps extends ViewProps {
+  size?: ProgressSize;
+}
+declare function ProgressTrack(props: ProgressTrackProps): JSX.Element;
 declare function ProgressFill(props: ViewProps): JSX.Element;
 declare function ProgressLabel(props: TextProps): JSX.Element;
 declare function ProgressValueLabel(props: TextProps): JSX.Element;
 interface ProgressProps extends Omit<ProgressRootProps, "children" | "class"> {
   /** Classes applied to the visual track, preserving the original shorthand. */
   class?: string;
+  size?: ProgressSize;
 }
 /** Compact progress bar; use ProgressRoot and parts for custom composition. */
 declare function Progress(props: ProgressProps): JSX.Element;
+interface ProgressCircleProps extends Omit<ProgressRootProps, "children" | "class"> {
+  class?: string;
+  size?: ProgressSize;
+}
+/** Compact circular progress indicator using the same semantic range contract. */
+declare function ProgressCircle(props: ProgressCircleProps): JSX.Element;
 //#endregion
 //#region src/components/prompt-composer.d.ts
 interface PromptComposerProps extends Omit<ViewProps, "class"> {
@@ -1613,6 +1851,14 @@ interface PromptComposerRowProps extends Omit<ViewProps, "class"> {
   /** Allow controls to form additional rows when the embedding surface opts in. */
   wrap?: boolean;
 }
+declare function promptComposerEditorHeightClass(value: string): string;
+interface PromptComposerEditorProps extends TextAreaProps {
+  value?: string;
+}
+/** Native multiline editor with density and chrome owned by PromptComposer. */
+declare function PromptComposerEditor(props: PromptComposerEditorProps): JSX.Element;
+/** Stable circular primary action for a PromptComposer toolbar. */
+declare function PromptComposerAction(props: ButtonProps): JSX.Element;
 declare function promptComposerClass(focused: boolean, invalid: boolean, disabled: boolean, className?: string): string;
 /** Shared compound surface for prompts, attachments, controls and status. */
 declare function PromptComposer(props: PromptComposerProps): JSX.Element;
@@ -1679,7 +1925,7 @@ interface QRCodeProps extends Omit<ViewProps, "children" | "style"> {
 /** Encode with uqr while keeping its renderer-independent matrix contract. */
 declare function encodeQrCode(value: QrCodeGenerateData, errorCorrection?: QrCodeErrorCorrection): QrCodeMatrix;
 /**
- * Convert consecutive dark modules into one retained Vello path. Horizontal
+ * Convert consecutive dark modules into one retained native path. Horizontal
  * runs keep the bridge traffic and native scene node count independent of the
  * number of QR modules.
  */
@@ -1792,12 +2038,41 @@ interface SearchFieldProps extends Omit<InputProps, "class" | "onInput" | "ref" 
 /** A native search input with consistent clear, Escape, and submit behavior. */
 declare function SearchField(props: SearchFieldProps): JSX.Element;
 //#endregion
+//#region src/components/select.d.ts
+interface SelectOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+interface SelectProps extends PopupMotionProps {
+  options: readonly SelectOption[];
+  value?: string;
+  defaultValue?: string;
+  open?: boolean;
+  defaultOpen?: boolean;
+  disabled?: boolean;
+  /** Receives the native trigger handle for explicit label/focus composition. */
+  ref?: (node: Handle) => void;
+  placeholder?: string;
+  "aria-label": string;
+  class?: string;
+  triggerVariant?: PickerTriggerVariant;
+  contentClass?: string;
+  contentShadows?: readonly Shadow[] | null;
+  onValueChange?: (value: string) => void;
+  onOpenChange?: (open: boolean) => void;
+}
+/** Shadcn-inspired single Select backed by Wabou-native interaction state. */
+declare function Select(props: SelectProps): JSX.Element;
+//#endregion
 //#region src/components/selection.d.ts
+type SelectionControlSize = "sm" | "default" | "lg";
 interface CheckboxProps {
   checked?: boolean;
   defaultChecked?: boolean;
   indeterminate?: boolean;
   disabled?: boolean;
+  size?: SelectionControlSize;
   label?: string;
   "aria-label"?: string;
   class?: string;
@@ -1808,6 +2083,10 @@ interface RadioGroupProps {
   value?: string;
   defaultValue?: string;
   disabled?: boolean;
+  orientation?: "horizontal" | "vertical";
+  appearance?: "radio" | "segment";
+  size?: SelectionControlSize;
+  loop?: boolean;
   "aria-label"?: string;
   class?: string;
   children?: JSX.Element;
@@ -1817,7 +2096,9 @@ declare function RadioGroup(props: RadioGroupProps): JSX.Element;
 interface RadioGroupItemProps {
   value: string;
   label?: string;
+  "aria-label"?: string;
   disabled?: boolean;
+  size?: SelectionControlSize;
   class?: string;
 }
 declare function RadioGroupItem(props: RadioGroupItemProps): JSX.Element;
@@ -1839,6 +2120,8 @@ interface ToggleGroupBaseProps {
   variant?: "default" | "outline";
   size?: "sm" | "default" | "lg";
   spacing?: 0 | 1 | 2;
+  /** Join items into one clipped control surface owned by the group. */
+  segmented?: boolean;
   loop?: boolean;
   class?: string;
   children?: JSX.Element;
@@ -1858,6 +2141,7 @@ type ToggleGroupProps = ToggleGroupBaseProps & ({
 declare function ToggleGroup(props: ToggleGroupProps): JSX.Element;
 interface ToggleGroupItemProps {
   value: string;
+  "aria-label"?: string;
   disabled?: boolean;
   variant?: "default" | "outline" | "accent";
   size?: "sm" | "default" | "lg";
@@ -1889,6 +2173,48 @@ interface LabeledSeparatorProps extends Omit<ViewProps, "class"> {
  * explain what happened between two regions without turning into a full row.
  */
 declare function LabeledSeparator(props: LabeledSeparatorProps): JSX.Element;
+//#endregion
+//#region src/components/settings.d.ts
+type SettingsItemOrientation = "horizontal" | "vertical";
+interface SettingsItemProps extends Omit<ViewProps, "children" | "class"> {
+  title: string;
+  description?: JSX.Element;
+  children?: JSX.Element;
+  orientation?: SettingsItemOrientation;
+  disabled?: boolean;
+  class?: string;
+  labelClass?: string;
+  controlClass?: string;
+}
+/**
+ * One settings row with stable explanatory and control regions.
+ * The row blocks its complete subtree when disabled; controls should also
+ * receive `disabled` when they need to expose that state independently.
+ */
+declare function SettingsItem(props: SettingsItemProps): JSX.Element;
+interface SettingsSectionProps {
+  title: string;
+  description?: string;
+  children?: JSX.Element;
+  /** Stack the explanation above the controls at a constrained viewport. */
+  stacked?: boolean;
+  class?: string;
+  contentClass?: string;
+}
+/**
+ * A settings-page section with one explanatory label and one control surface.
+ * The page owns the responsive breakpoint and passes `stacked`; the component
+ * owns the repeated alignment, spacing, and surface contract.
+ */
+declare function SettingsSection(props: SettingsSectionProps): JSX.Element;
+interface SettingsGroupProps {
+  title: string;
+  description?: string;
+  children?: JSX.Element;
+  class?: string;
+}
+/** A titled field group inside a SettingsSection control surface. */
+declare function SettingsGroup(props: SettingsGroupProps): JSX.Element;
 //#endregion
 //#region src/components/sheet.d.ts
 type SheetSide = "top" | "right" | "bottom" | "left";
@@ -1934,13 +2260,41 @@ declare const componentsThemeContract: Readonly<{
     lg: 40;
     icon: 32;
   }>;
+  controlPaddingX: Readonly<{
+    sm: 8;
+    default: 10;
+    lg: 12;
+    icon: 0;
+  }>;
   iconSize: Readonly<{
     sm: 14;
     default: 16;
     lg: 18;
   }>;
-  controlRadius: 8;
-  containerRadius: 12;
+  typography: Readonly<{
+    xs: Readonly<{
+      size: 12;
+      lineHeight: 16;
+    }>;
+    sm: Readonly<{
+      size: 14;
+      lineHeight: 20;
+    }>;
+    md: Readonly<{
+      size: 16;
+      lineHeight: 24;
+    }>;
+    lg: Readonly<{
+      size: 18;
+      lineHeight: 28;
+    }>;
+    xl: Readonly<{
+      size: 20;
+      lineHeight: 28;
+    }>;
+  }>;
+  controlRadius: 6;
+  containerRadius: 8;
   containerPadding: 20;
   sectionGap: 16;
 }>;
@@ -2002,6 +2356,12 @@ interface SidebarMenuButtonProps extends Omit<ButtonProps$1, "class" | "unstyled
 }
 /** Consistent navigation row; applications still own activation and routing. */
 declare function SidebarMenuButton(props: SidebarMenuButtonProps): JSX.Element;
+/** Fixed icon slot that keeps navigation labels on one shared baseline. */
+declare function SidebarMenuIcon(props: ViewProps): JSX.Element;
+/** Truncating label slot for rows that also contain icons or suffix actions. */
+declare function SidebarMenuLabel(props: TextProps): JSX.Element;
+/** End-aligned metadata or action slot that never compresses the row label. */
+declare function SidebarMenuSuffix(props: ViewProps): JSX.Element;
 declare function SidebarEmpty(props: {
   title?: string;
   description?: string;
@@ -2017,6 +2377,10 @@ interface SliderProps {
   max?: number;
   step?: number;
   disabled?: boolean;
+  /** Direction of the track and pointer interaction. */
+  orientation?: "horizontal" | "vertical";
+  /** Fill from the thumb toward the maximum end without changing values. */
+  reversed?: boolean;
   label: string;
   valueText?: (value: number) => string;
   onValueChange?: (value: number) => void;
@@ -2063,6 +2427,20 @@ declare function StatusBarItem(props: StatusBarItemProps): JSX.Element;
 declare function StatusBarSeparator(props: {
   class?: string;
 }): JSX.Element;
+interface StatusBarGroupProps extends Omit<ViewProps, "class"> {
+  class?: string;
+  grow?: boolean;
+  shrink?: boolean;
+}
+/** A shrink-safe status bar group for icons, indicators and related text. */
+declare function StatusBarGroup(props: StatusBarGroupProps): JSX.Element;
+type StatusBarIndicatorTone = "accent" | "danger" | "muted" | "success";
+interface StatusBarIndicatorProps {
+  tone?: StatusBarIndicatorTone;
+  class?: string;
+}
+/** Compact, decorative state indicator with a theme-aware semantic tone. */
+declare function StatusBarIndicator(props: StatusBarIndicatorProps): JSX.Element;
 //#endregion
 //#region src/components/stepper.d.ts
 interface StepperStep {
@@ -2077,6 +2455,21 @@ interface StepperProps extends Omit<ViewProps, "children"> {
   onValueChange?: (value: string) => void;
 }
 declare function Stepper(props: StepperProps): JSX.Element;
+//#endregion
+//#region src/components/switch.d.ts
+interface SwitchProps {
+  checked?: boolean;
+  defaultChecked?: boolean;
+  disabled?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+  label?: string;
+  /** Place the label before or after the control in reading order. */
+  labelPlacement?: "start" | "end";
+  "aria-label"?: string;
+  class?: string;
+  size?: "sm" | "default";
+}
+declare function Switch(props: SwitchProps): JSX.Element;
 //#endregion
 //#region src/components/table.d.ts
 interface TableProps extends Omit<ViewProps, "class"> {
@@ -2137,9 +2530,28 @@ interface TabsTriggerProps {
   class?: string | ((state: ButtonState) => string);
   children?: JSX.Element;
 }
+interface TabsItemState {
+  selected: boolean;
+}
+interface TabsItemProps {
+  value: string;
+  disabled?: boolean;
+  closeLabel?: string;
+  onClose?: () => void;
+  class?: string | ((state: TabsItemState) => string);
+  triggerClass?: string | ((state: ButtonState) => string);
+  children?: JSX.Element;
+}
+/**
+ * Bounded, optionally closeable tab chrome. The tab trigger and close action
+ * remain sibling hit targets so closing a tab never selects it first.
+ */
+declare function TabsItem(props: TabsItemProps): JSX.Element;
 declare function TabsTrigger(props: TabsTriggerProps): JSX.Element;
 declare function TabsContent(props: {
   value: string;
+  /** Keep stateful/native content mounted while hiding inactive panels. */
+  keepMounted?: boolean;
   class?: string;
   children?: JSX.Element;
 }): JSX.Element;
@@ -2163,7 +2575,10 @@ interface WindowFrameProps extends ViewProps {
   children?: JSX.Element;
   /** Clip the application surface to desktop-style corners when restored. */
   rounded?: boolean;
+  /** Let the native window material remain visible beneath a translucent client surface. */
+  material?: "solid" | "translucent";
 }
+declare function windowFrameMaterialStyle(theme: "light" | "dark", material?: "solid" | "translucent"): WabouStyle;
 declare function windowFrameBackdropClassList(maximized: boolean, rounded?: boolean): WabouClassList;
 declare function windowFrameClientClassList(maximized: boolean, rounded?: boolean, classList?: WabouClassList): WabouClassList;
 /** Two restrained client-decoration layers sized to fit the 12px backdrop. */
@@ -2341,7 +2756,17 @@ interface TooltipProps extends PopupMotionProps {
   offset?: number;
   contentClass?: string;
   disabled?: boolean;
+  /** Optional keyboard shortcut presented as a native keycap. */
+  shortcut?: string;
 }
+interface TooltipContentProps {
+  children?: JSX.Element;
+  shortcut?: string;
+  id?: string;
+  class?: string;
+}
+/** Visual content shared by managed and explicitly composed tooltips. */
+declare function TooltipContent(props: TooltipContentProps): JSX.Element;
 /** A delayed, non-interactive label for pointer and keyboard focus targets. */
 declare function Tooltip(props: TooltipProps): JSX.Element;
 //#endregion
@@ -2394,16 +2819,16 @@ declare function TreeView(props: TreeViewProps): JSX.Element;
 type TypographyTextProps = Omit<TextProps, "class"> & {
   class?: string;
 };
-declare const TypographyH1: (props: TypographyTextProps) => import("@wabou/core").JSX.Element;
-declare const TypographyH2: (props: TypographyTextProps) => import("@wabou/core").JSX.Element;
-declare const TypographyH3: (props: TypographyTextProps) => import("@wabou/core").JSX.Element;
-declare const TypographyH4: (props: TypographyTextProps) => import("@wabou/core").JSX.Element;
-declare const TypographyP: (props: TypographyTextProps) => import("@wabou/core").JSX.Element;
-declare const TypographyLead: (props: TypographyTextProps) => import("@wabou/core").JSX.Element;
-declare const TypographyLarge: (props: TypographyTextProps) => import("@wabou/core").JSX.Element;
-declare const TypographySmall: (props: TypographyTextProps) => import("@wabou/core").JSX.Element;
-declare const TypographyMuted: (props: TypographyTextProps) => import("@wabou/core").JSX.Element;
-declare const TypographyInlineCode: (props: TypographyTextProps) => import("@wabou/core").JSX.Element;
+declare const TypographyH1: (props: TypographyTextProps) => import("@wabou/core/jsx-runtime").JSX.Element;
+declare const TypographyH2: (props: TypographyTextProps) => import("@wabou/core/jsx-runtime").JSX.Element;
+declare const TypographyH3: (props: TypographyTextProps) => import("@wabou/core/jsx-runtime").JSX.Element;
+declare const TypographyH4: (props: TypographyTextProps) => import("@wabou/core/jsx-runtime").JSX.Element;
+declare const TypographyP: (props: TypographyTextProps) => import("@wabou/core/jsx-runtime").JSX.Element;
+declare const TypographyLead: (props: TypographyTextProps) => import("@wabou/core/jsx-runtime").JSX.Element;
+declare const TypographyLarge: (props: TypographyTextProps) => import("@wabou/core/jsx-runtime").JSX.Element;
+declare const TypographySmall: (props: TypographyTextProps) => import("@wabou/core/jsx-runtime").JSX.Element;
+declare const TypographyMuted: (props: TypographyTextProps) => import("@wabou/core/jsx-runtime").JSX.Element;
+declare const TypographyInlineCode: (props: TypographyTextProps) => import("@wabou/core/jsx-runtime").JSX.Element;
 declare function TypographyBlockquote(props: TypographyTextProps): JSX.Element;
 declare function TypographyList(props: ViewProps): JSX.Element;
 declare function TypographyListItem(props: TypographyTextProps): JSX.Element;
@@ -2417,6 +2842,12 @@ declare const workbenchContentClass: (className?: string) => string;
 /** Shared readable column for workbench transcripts, editors and composers. */
 declare const workbenchContentColumnClass: (className?: string) => string;
 declare const workbenchFooterClass: (className?: string) => string;
+/** Bounded auxiliary pane beside primary workbench content. */
+declare const workbenchInspectorClass: (className?: string) => string;
+/** Fixed inspector chrome aligned with the inspector body. */
+declare const workbenchInspectorHeaderClass: (className?: string) => string;
+/** Shrink-safe body for inspector content and nested scroll areas. */
+declare const workbenchInspectorContentClass: (className?: string) => string;
 //#endregion
 //#region src/components/workbench.d.ts
 /** Full-window desktop application boundary with explicit shrink semantics. */
@@ -2433,11 +2864,31 @@ declare function WorkbenchContent(props: ViewProps): JSX.Element;
 declare function WorkbenchContentColumn(props: ViewProps): JSX.Element;
 /** Fixed chrome below the workbench content, such as a composer or status bar. */
 declare function WorkbenchFooter(props: ViewProps): JSX.Element;
+/** Fixed-width auxiliary pane for file previews, diffs and contextual tools. */
+declare function WorkbenchInspector(props: ViewProps): JSX.Element;
+/** Inspector title row with a stable height and bounded children. */
+declare function WorkbenchInspectorHeader(props: ViewProps): JSX.Element;
+interface WorkbenchInspectorTitlebarProps extends Omit<ViewProps, "children"> {
+  title: string;
+  description?: string;
+  closeLabel?: string;
+  onClose?: () => void;
+  /** Lazily render an optional action before the standard close button. */
+  renderAction?: () => JSX.Element;
+}
+/**
+ * Consistent inspector chrome with a bounded title, optional description and
+ * correctly sized trailing actions.
+ */
+declare function WorkbenchInspectorTitlebar(props: WorkbenchInspectorTitlebarProps): JSX.Element;
+/** Flexible, clipped inspector body. Add a ScrollArea inside when needed. */
+declare function WorkbenchInspectorContent(props: ViewProps): JSX.Element;
+interface WorkbenchInspectorStateProps extends ContentStateProps {}
+/** Mutually exclusive centered state for a bounded inspector body. */
+declare function WorkbenchInspectorState(props: WorkbenchInspectorStateProps): JSX.Element;
 //#endregion
 //#region src/components/index.d.ts
-interface FpsProps {
-  /** Controlled FPS value. When omitted, the component measures host frames. */
-  value?: number;
+interface FpsBaseProps {
   /** Text displayed after the value. Set to an empty string for value only. */
   label?: string;
   /** FPS at or above this value uses the success treatment. */
@@ -2446,36 +2897,35 @@ interface FpsProps {
   warningBelow?: number;
   class?: string;
 }
-/** Live host frame-rate indicator with sensible performance thresholds. */
+type FpsProps = FpsBaseProps & ({
+  /** Explicitly drive the native animation clock to measure live FPS. */
+  live: true;
+  value?: never;
+} | {
+  /** Render an externally measured FPS value without scheduling frames. */
+  value: number;
+  live?: false;
+});
+/** Frame-rate indicator. Live measurement is intentionally opt-in because it
+ * keeps the platform frame clock active. */
 declare function Fps(props: FpsProps): JSX.Element;
-interface PasswordInputProps extends PasswordInputProps$1 {
-  class?: string;
-}
-/** A native secret input whose value never crosses into JavaScript. */
-declare function PasswordInput(props: PasswordInputProps): JSX.Element;
-interface TextAreaProps$1 extends TextAreaProps {
-  class?: string;
-  /** Background utility owned by this textarea. Defaults to `bg-input`. */
-  surfaceClass?: string;
-  /** Use `none` when an enclosing composition owns the visual surface. */
-  chrome?: "default" | "none";
-}
-declare function TextArea$1(props: TextAreaProps$1): JSX.Element;
-interface SwitchProps {
-  checked?: boolean;
-  defaultChecked?: boolean;
-  disabled?: boolean;
-  onCheckedChange?: (checked: boolean) => void;
-  label?: string;
-  "aria-label"?: string;
-  class?: string;
-}
-declare function Switch(props: SwitchProps): JSX.Element;
 //#endregion
 //#region src/router/data.d.ts
 type WabouDataRouter<TRouteTree extends AnyRoute = AnyRoute> = RouterCore<TRouteTree, TrailingSlashOption, boolean, RouterHistory>;
+interface RouterPersistenceOptions {
+  /** Application-scoped KV handle. The host must opt in with `HostBuilder::kv()`. */
+  kv: Kv;
+  /** Explicit hierarchical identity for this router. */
+  key: KvKey;
+  /** Ignore locations written by another schema version. Defaults to 1. */
+  version?: number;
+}
+type WabouRouterConstructorOptions<TRouteTree extends AnyRoute, TTrailingSlash extends TrailingSlashOption, TStructuralSharing extends boolean, THistory extends RouterHistory, TDehydrated extends Record<string, any>> = RouterConstructorOptions<TRouteTree, TTrailingSlash, TStructuralSharing, THistory, TDehydrated> & {
+  /** Optionally restore and save the last committed native location. */
+  persistence?: RouterPersistenceOptions;
+};
 /** Create a TanStack Router Core instance adapted to Solid 2 and native history. */
-declare function createDataRouter<TRouteTree extends AnyRoute, TTrailingSlash extends TrailingSlashOption = "never", TStructuralSharing extends boolean = false, THistory extends RouterHistory = RouterHistory, TDehydrated extends Record<string, any> = Record<string, any>>(options: RouterConstructorOptions<TRouteTree, TTrailingSlash, TStructuralSharing, THistory, TDehydrated>): RouterCore<TRouteTree, TTrailingSlash, TStructuralSharing, THistory, TDehydrated>;
+declare function createDataRouter<TRouteTree extends AnyRoute, TTrailingSlash extends TrailingSlashOption = "never", TStructuralSharing extends boolean = false, THistory extends RouterHistory = RouterHistory, TDehydrated extends Record<string, any> = Record<string, any>>(options: WabouRouterConstructorOptions<TRouteTree, TTrailingSlash, TStructuralSharing, THistory, TDehydrated>): RouterCore<TRouteTree, TTrailingSlash, TStructuralSharing, THistory, TDehydrated>;
 interface RouterProviderProps {
   router: AnyRouter;
   fallback?: JSX.Element;
@@ -2504,5 +2954,5 @@ declare function useRouteActive(to: string, options?: RouteActiveOptions): Acces
 declare function useParams<T extends Record<string, string> = Record<string, string>>(): Accessor<T>;
 declare function useLoaderData<T = unknown>(): Accessor<T | undefined>;
 //#endregion
-export { Accordion, AccordionContent, AccordionContentProps, AccordionItem, AccordionItemProps, AccordionProps, AccordionTrigger, AccordionTriggerProps, AccordionType, type ActiveResult, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDescription, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogProps, AlertDialogTitle, AlertProps, AlertTitle, AlertVariant, AnimationControls, type AnimationFrameCallback, AnimationOptions, AnimationState, AnimationType, AnimationValue, AnnotationLayer, AnnotationLayerProps, AnnotationRegion, AspectRatio, AspectRatioProps, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentOrientation, AttachmentProps, AttachmentSize, AttachmentState, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, AvatarProps, AvatarSize, Badge, BadgeProps, BadgeVariant, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbEllipsisProps, BreadcrumbItem, BreadcrumbLink, BreadcrumbLinkProps, BreadcrumbList, BreadcrumbPage, BreadcrumbPageProps, BreadcrumbProps, BreadcrumbSeparator, BreadcrumbSeparatorProps, Bubble, BubbleContent, BubbleGroup, BubbleProps, BubbleReactions, BubbleVariant, Button, ButtonGroup, ButtonGroupProps, ButtonGroupSeparator, ButtonGroupSeparatorProps, ButtonGroupText, ButtonProps, ButtonSize, ButtonVariant, Calendar, CalendarDate, CalendarLabels, CalendarProps, Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardProps, CardTitle, Carousel, CarouselApi, CarouselContent, CarouselContentProps, CarouselItem, CarouselItemProps, CarouselNext, CarouselOrientation, CarouselPrevious, CarouselProps, Center, ChartConfig, ChartContainer, ChartContainerProps, ChartEmpty, ChartLegend, ChartSeriesConfig, Checkbox, type CheckboxProps, CodeBlock, CodeBlockProps, CodeEditor, type CodeEditorProps, Collapsible, CollapsibleContent, CollapsibleContentProps, CollapsiblePresence, CollapsibleProps, CollapsibleTrigger, CollapsibleTriggerProps, Column, Combobox, ComboboxOption, ComboboxProps, Command, CommandItem, CommandProps, type ComponentsControlSize, type ComponentsElevation, ComponentsProvider, type ComponentsProviderProps, type ComponentsTheme, ConfigEditor, ConfigEditorProps, type ContainerMatch, type ContainerSizeQuery, ContextMenu, ContextMenuProps, ContextMenuTriggerProps, CopyButton, CopyButtonProps, CreateToastsOptions, DataTable, DataTableProps, DatePicker, DatePickerProps, type DelayedOpenController, type DelayedOpenOptions, DevServerDiagnostic, DevServerErrorOverlay, Dialog, type ModalControls as DialogControls, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogProps, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogScrollBodyProps, DialogTitle, DialogTitle as SheetTitle, DiffFile, DiffFileStatus, DiffViewer, DiffViewerLabels, DiffViewerProps, Direction, DirectionProvider, DirectionProviderProps, DirectionalRow, DirectionalRowProps, DirectionalText, DirectionalTextProps, DirectoryPicker, DirectoryPickerProps, Drawer, DrawerClose, DrawerDescription, DrawerDirection, DrawerFooter, DrawerHandle, DrawerHeader, DrawerOpenChangeReason, DrawerProps, DrawerTitle, DropZone, DropZoneProps, DropdownMenu, DropdownMenuItem, DropdownMenuKeyEvent, DropdownMenuProps, Easing, EasingFunction, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyMediaProps, EmptyMediaVariant, EmptyProps, EmptyTitle, EmptyVariant, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldErrorLike, FieldGroup, FieldLabel, FieldLabelProps, FieldLegend, FieldOrientation, FieldSeparator, FieldSet, FieldTitle, type FocusResult, type FocusWithinResult, type FormDraft, type FormDraftErrors, type FormDraftFieldUpdater, type FormDraftOptions, Fps, FpsProps, HoverCard, HoverCardProps, HoverCardTriggerProps, Icon, IconFrame, IconFrameProps, IconFrameSize, IconFrameVariant, type IconProps, Image, ImageList, ImageListProps, ImageOverlayItem, ImageOverlayLayer, ImageOverlayLayerProps, type ImageProps, type ImageResourceDescriptor, type ImageResourceErrorEvent, type ImageResourceHandle, type ImageResourceReadyEvent, type ImageResourceRequest, ImageViewport, ImageViewportPoint, ImageViewportProps, ImageViewportRect, ImageViewportSize, ImageViewportTransform, InlineEdit, InlineEditProps, Input, InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupAddonProps, InputGroupButton, InputGroupInput, InputGroupOrientation, InputGroupProps, InputGroupText, InputGroupTextArea, InputGroupVariant, InputOTP, InputOTPGroup, InputOTPProps, InputOTPSeparator, InputOTPSlot, InputOTPSlotProps, InputProps, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemMediaVariant, ItemProps, ItemSeparator, ItemSize, ItemTitle, ItemVariant, Kbd, KbdGroup, type KeyedSelection, type KeyedSelectionOptions, KeyframeAnimationOptions, Label, LabelProps, LabeledSeparator, LabeledSeparatorProps, type LayoutProps, LoopOptions, Markdown, MarkdownProps, MarkdownVariant, Marker, MarkerContent, MarkerIcon, MarkerVariant, Menubar, MenubarMenu, MenubarMenuProps, MenubarProps, Message, MessageActions, MessageActionsProps, MessageAlign, MessageAnchorRect, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageProps, MessageScrollDirection, MessageScrollIntoViewOptions, MessageScroller, MessageScrollerButton, MessageScrollerButtonProps, MessageScrollerContent, MessageScrollerControls, MessageScrollerItem, MessageScrollerItemProps, MessageScrollerProps, MessageScrollerViewport, MessageScrollerViewportProps, Modal, type ModalMotionOptions, type ModalProps, type MotionConfig, MotionConfigProvider, type MotionConfigProviderProps, MotionInterpolationOptions, NativeSelect, NativeSelectOption, NativeSelectProps, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuItemProps, NavigationMenuLink, NavigationMenuLinkProps, NavigationMenuList, NavigationMenuProps, NavigationMenuTrigger, NavigationMenuTriggerProps, NavigationMenuViewport, type NotificationMotionOptions, NotificationRegion, type NotificationRegionProps, type Notifications, NumberField, NumberFieldProps, type OverlayLayer, OverlayPlaneProvider, type OwnedImageResource, PageHeader, PageHeaderProps, PageViewport, PageViewportProps, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationLinkProps, PaginationNext, PaginationPrevious, PaginationProps, type PaginationRangeItem, PasswordInput, PasswordInputProps, Path, PathBuilder, type PathProps, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverProps, PopoverTitle, PopupMotionProps, type PressResult, Button$1 as PrimitiveButton, type ButtonProps$1 as PrimitiveButtonProps, type ButtonState as PrimitiveButtonState, Link as PrimitiveLink, type LinkProps as PrimitiveLinkProps, PasswordInput$1 as PrimitivePasswordInput, type PasswordInputProps$1 as PrimitivePasswordInputProps, Popover$1 as PrimitivePopover, type PopoverProps$1 as PrimitivePopoverProps, TextArea as PrimitiveTextArea, type TextAreaProps as PrimitiveTextAreaProps, TextInput as PrimitiveTextInput, type TextInputProps as PrimitiveTextInputProps, Progress, ProgressFill, ProgressLabel, ProgressProps, ProgressRoot, ProgressRootProps, ProgressTrack, ProgressValueDetails, ProgressValueLabel, PromptComposer, PromptComposerProps, PromptComposerRowProps, PromptComposerStatus, PromptComposerToolbar, PromptComposerTools, PromptSuggestion, PromptSuggestionProps, PromptSuggestions, PromptSuggestionsProps, PropertyList, PropertyListProps, PropertyRow, PropertyRowProps, Pulse, PulseOptions, QRCode, QRCodeProps, QrCodeErrorCorrection, QrCodeMatrix, RadioGroup, RadioGroupItem, type RadioGroupItemProps, type RadioGroupProps, Rating, RatingProps, ReactiveAnimation, ReactiveTransition, Reasoning, ReasoningContent, ReasoningProps, ReasoningTrigger, ReasoningTriggerProps, RecordedShortcut, RepeatType, ResizableDirection, ResizableHandle, ResizableHandleProps, ResizablePanel, ResizablePanelDefinition, ResizablePanelGroup, ResizablePanelGroupProps, ResizablePanelSizes, ResizablePanelState, ResponsiveGrid, ResponsiveGridColumnCount, ResponsiveGridProps, ResponsiveGridRemainder, ResponsiveGridState, type RetainedItem, type RetainedItems, RichText, type RichTextProps, RichTextSpan, type RichTextSpanProps, Ripple, type RippleProps, RotationAnimation, RotationOptions, RouteActiveOptions, RouterProvider, RouterProviderProps, Row, ScrollArea, type ScrollAreaProps, SearchField, SearchFieldProps, Select, SelectOption, SelectProps, Separator, SeparatorProps, Sheet, SheetProps, SheetSide, ShortcutRecorder, ShortcutRecorderProps, Sidebar, SidebarContent, SidebarContentProps, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuButtonProps, SidebarMenuProps, SidebarProps, SidebarSearch, SidebarSearchGroup, Skeleton, type SkeletonProps, Slider, SliderProps, Spin, Spinner, SplitButton, SplitButtonProps, SplitPane, SplitPaneAside, SplitPaneMain, StandardSchema, StandardSchemaIssue, StandardSchemaResult, StatCard, StatCardProps, StatusBar, StatusBarItem, StatusBarItemProps, StatusBarProps, StatusBarSeparator, Stepper, StepperProps, StepperStep, Svg, type SvgProps, SweepAnimation, SweepAxis, SweepGeometry, SweepOptions, Switch, SwitchProps, Table, TableBody, TableCaption, TableCell, TableCellProps, TableFooter, TableHead, TableHeadProps, TableHeader, TableProps, TableRow, TableRowProps, Tabs, TabsContent, TabsList, type TabsProps, type TabsResult, TabsTrigger, type TabsTriggerProps, TanStackDataTable, TanStackDataTableColumn, TanStackDataTableOptions, Text, TextArea$1 as TextArea, TextAreaProps$1 as TextAreaProps, type TextProps, Timeline, TimelineItem, TimelineProps, TitleBar, TitleBarDragRegion, TitleBarDragRegionProps, TitleBarProps, ToastAction, ToastInput, ToastVariant, Toaster, ToasterProps, Toasts, Toggle, ToggleGroup, ToggleGroupItem, type ToggleGroupItemProps, type ToggleGroupProps, type ToggleProps, Tool, ToolCodeSection, ToolCodeSectionProps, ToolContent, ToolHeader, ToolHeaderProps, ToolInput, ToolInputProps, ToolOutput, ToolOutputProps, ToolProps, ToolStatus, Toolbar, ToolbarButton, ToolbarButtonProps, ToolbarGroup, ToolbarOrientation, ToolbarProps, ToolbarSeparator, ToolbarToggle, ToolbarToggleProps, Tooltip, TooltipProps, TooltipTriggerProps, TransitionOptions, type TransitionPresence, type TransitionPresenceOptions, TreeItemRenderState, TreeModel, TreeNode, TreeView, TreeViewProps, TypographyBlockquote, TypographyH1, TypographyH2, TypographyH3, TypographyH4, TypographyInlineCode, TypographyLarge, TypographyLead, TypographyList, TypographyListItem, TypographyMuted, TypographyP, TypographySmall, type VectorPath, type VectorPathPaint, View, type ViewProps, VisibleTreeNode, type WabouClassList, WabouDataRouter, type WabouStyle, WindowFrame, WindowFrameProps, Workbench, WorkbenchContent, WorkbenchContentColumn, WorkbenchFooter, WorkbenchHeader, WorkbenchMain, WorkbenchSidebar, activeMessageAnchor, alertColors, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentGroupClass, attachmentMediaClass, badgeClass, bubbleClass, bubbleContentClass, clampAnnotationRegion, clampPage, clampRatingValue, componentsControlSize, componentsElevation, componentsThemeContract, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFileImageResource, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNetworkImageResource, createNotifications, createOverlayLayer, createOwnedImageResource, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, drawerDragOffset, drawerShouldDismiss, emptyClass, emptyMediaClass, encodeQrCode, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, imageViewportTransform, inputGroupAddonClass, inputGroupClass, isMessageScrollNearEnd, itemClass, itemMediaClass, messageActionsClass, messageClass, messageScrollRange, messageScrollRevealDelta, messageScrollStartDelta, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageHeaderDescriptionClass, pageHeaderTitleClass, pageViewportClass, pageViewportContentClass, pointInLayoutRect, index_d_exports as primitives, promptComposerClass, qrCodePath, ratingLabel, reconcileCommandHighlight, redirect, releaseImageResource, responsiveGridColumnCount, responsiveGridRemainderCount, shortcutFromKeyEvent, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, toolHeaderLabel, uniqueFieldErrors, useChartConfig, useComponentsTheme, useDirection, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows, workbenchClass, workbenchContentClass, workbenchContentColumnClass, workbenchFooterClass, workbenchHeaderClass, workbenchMainClass, workbenchSidebarClass };
+export { Accordion, AccordionContent, AccordionContentProps, AccordionItem, AccordionItemProps, AccordionProps, AccordionTrigger, AccordionTriggerProps, AccordionType, type ActiveResult, ActivityStatus, ActivityStatusIndicator, ActivityStatusIndicatorProps, ActivityStatusProps, ActivityStatusTone, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertActions, AlertDescription, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogProps, AlertDialogTitle, AlertProps, AlertSize, AlertTitle, AlertVariant, AnimationControls, type AnimationFrameCallback, AnimationOptions, AnimationState, AnimationType, AnimationValue, AnnotationLayer, AnnotationLayerProps, AnnotationRegion, AspectRatio, AspectRatioProps, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentOrientation, AttachmentProps, AttachmentSize, AttachmentState, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, AvatarGroupCountProps, AvatarGroupProps, AvatarProps, AvatarSize, Badge, BadgeProps, BadgeSize, BadgeVariant, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbEllipsisProps, BreadcrumbItem, BreadcrumbLink, BreadcrumbLinkProps, BreadcrumbList, BreadcrumbPage, BreadcrumbPageProps, BreadcrumbProps, BreadcrumbSeparator, BreadcrumbSeparatorProps, Bubble, BubbleContent, BubbleGroup, BubbleProps, BubbleReactions, BubbleVariant, Button, ButtonGroup, ButtonGroupProps, ButtonGroupSeparator, ButtonGroupSeparatorProps, ButtonGroupText, ButtonProps, ButtonSize, ButtonVariant, Calendar, CalendarDate, CalendarLabels, CalendarProps, Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardProps, CardSize, CardTitle, CardVariant, Carousel, CarouselApi, CarouselContent, CarouselContentProps, CarouselItem, CarouselItemProps, CarouselNext, CarouselOrientation, CarouselPrevious, CarouselProps, Center, ChartConfig, ChartContainer, ChartContainerProps, ChartEmpty, ChartLegend, ChartSeriesConfig, Checkbox, type CheckboxProps, CodeBlock, CodeBlockProps, Collapsible, CollapsibleContent, CollapsibleContentProps, CollapsiblePresence, CollapsibleProps, CollapsibleTrigger, CollapsibleTriggerProps, Column, Combobox, ComboboxOption, ComboboxProps, Command, CommandItem, CommandList, CommandListNavigationOptions, CommandListProps, CommandProps, type ComponentsControlSize, type ComponentsElevation, ComponentsProvider, type ComponentsProviderProps, type ComponentsTheme, type ContainerMatch, type ContainerSizeQuery, ContentState, ContentStateKind, ContentStateProps, ContextMenu, ContextMenuProps, ContextMenuTriggerProps, CopyButton, CopyButtonProps, CreateToastsOptions, DataTable, DataTableProps, DatePicker, DatePickerProps, type DelayedOpenController, type DelayedOpenOptions, DevServerDiagnostic, DevServerErrorOverlay, Dialog, type ModalControls as DialogControls, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogProps, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogScrollBodyProps, DialogTitle, DialogTitle as SheetTitle, DiffFile, DiffFileStatus, DiffViewer, DiffViewerLabels, DiffViewerProps, Direction, DirectionProvider, DirectionProviderProps, DirectionalRow, DirectionalRowProps, DirectionalText, DirectionalTextProps, DirectoryPicker, DirectoryPickerProps, Drawer, DrawerClose, DrawerDescription, DrawerDirection, DrawerFooter, DrawerHandle, DrawerHeader, DrawerOpenChangeReason, DrawerProps, DrawerTitle, DropZone, DropZoneProps, DropdownMenu, DropdownMenuItem, DropdownMenuKeyEvent, DropdownMenuProps, DropdownMenuTriggerProps, Easing, EasingFunction, Editor, type EditorProps, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyMediaProps, EmptyMediaVariant, EmptyProps, EmptyTitle, EmptyVariant, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldErrorLike, FieldGroup, FieldLabel, FieldLabelProps, FieldLegend, FieldOrientation, FieldSeparator, FieldSet, FieldTitle, type FocusResult, type FocusWithinResult, type FormDraft, type FormDraftErrors, type FormDraftFieldUpdater, type FormDraftOptions, Fps, FpsProps, GroupBox, GroupBoxProps, GroupBoxVariant, HoverCard, HoverCardProps, HoverCardTriggerProps, Icon, IconFrame, IconFrameProps, IconFrameSize, IconFrameVariant, type IconProps, Image, ImageList, ImageListProps, ImageOverlayItem, ImageOverlayLayer, ImageOverlayLayerProps, type ImageProps, type ImageResourceDescriptor, type ImageResourceErrorEvent, type ImageResourceHandle, type ImageResourceReadyEvent, type ImageResourceRequest, ImageViewport, ImageViewportPoint, ImageViewportProps, ImageViewportRect, ImageViewportSize, ImageViewportTransform, InlineEdit, InlineEditProps, Input, InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupAddonProps, InputGroupButton, InputGroupInput, InputGroupOrientation, InputGroupProps, InputGroupText, InputGroupTextArea, InputGroupVariant, InputOTP, InputOTPGroup, InputOTPProps, InputOTPSeparator, InputOTPSlot, InputOTPSlotProps, InputProps, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemMediaVariant, ItemProps, ItemSeparator, ItemSize, ItemTitle, ItemVariant, Kbd, KbdGroup, type KeyedSelection, type KeyedSelectionOptions, KeyframeAnimationOptions, Label, LabelProps, LabeledField, LabeledFieldProps, LabeledSeparator, LabeledSeparatorProps, type LayoutProps, Listbox, ListboxOption, ListboxProps, LoopOptions, Markdown, MarkdownProps, MarkdownVariant, Marker, MarkerContent, MarkerIcon, MarkerVariant, Menubar, MenubarMenu, MenubarMenuProps, MenubarProps, Message, MessageActions, MessageActionsProps, MessageAlign, MessageAnchorRect, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageProps, MessageScrollDirection, MessageScrollIntoViewOptions, MessageScroller, MessageScrollerButton, MessageScrollerButtonProps, MessageScrollerContent, MessageScrollerControls, MessageScrollerItem, MessageScrollerItemProps, MessageScrollerNavigator, MessageScrollerNavigatorItem, MessageScrollerNavigatorProps, MessageScrollerProps, MessageScrollerViewport, MessageScrollerViewportProps, Modal, type ModalMotionOptions, type ModalProps, type MotionConfig, MotionConfigProvider, type MotionConfigProviderProps, MotionInterpolationOptions, NativeLoopAnimation, NativeLoopAnimationOptions, NativeWidget, type NativeWidgetConfig, type NativeWidgetProps, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuItemProps, NavigationMenuLink, NavigationMenuLinkProps, NavigationMenuList, NavigationMenuProps, NavigationMenuTrigger, NavigationMenuTriggerProps, NavigationMenuViewport, type NotificationMotionOptions, NotificationRegion, type NotificationRegionProps, type Notifications, NumberField, NumberFieldProps, Onboarding, OnboardingDescription, OnboardingFooter, OnboardingHeader, OnboardingHeading, OnboardingProps, OnboardingTitle, type OverlayLayer, OverlayPlaneProvider, type OwnedImageResource, PageHeader, PageHeaderProps, PageViewport, PageViewportProps, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationLinkProps, PaginationNext, PaginationPrevious, PaginationProps, type PaginationRangeItem, PasswordInput, PasswordInputProps, Path, PathBuilder, type PathProps, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverProps, PopoverTitle, PopupMotionProps, type PressResult, Progress, ProgressCircle, ProgressCircleProps, ProgressFill, ProgressLabel, ProgressProps, ProgressRoot, ProgressRootProps, ProgressSize, ProgressTrack, ProgressTrackProps, ProgressValueDetails, ProgressValueLabel, ProjectionBoundary, PromptComposer, PromptComposerAction, PromptComposerEditor, PromptComposerEditorProps, PromptComposerProps, PromptComposerRowProps, PromptComposerStatus, PromptComposerToolbar, PromptComposerTools, PromptSuggestion, PromptSuggestionProps, PromptSuggestions, PromptSuggestionsProps, PropertyList, PropertyListProps, PropertyRow, PropertyRowProps, Pulse, PulseOptions, QRCode, QRCodeProps, QrCodeErrorCorrection, QrCodeMatrix, RadioGroup, RadioGroupItem, type RadioGroupItemProps, type RadioGroupProps, Rating, RatingProps, ReactiveAnimation, ReactiveTransition, Reasoning, ReasoningContent, ReasoningProps, ReasoningTrigger, ReasoningTriggerProps, RecordedShortcut, RepeatType, ResizableDirection, ResizableHandle, ResizableHandleProps, ResizablePanel, ResizablePanelDefinition, ResizablePanelGroup, ResizablePanelGroupProps, ResizablePanelSizes, ResizablePanelState, ResourceBoundary, ResourceBoundaryProps, ResponsiveGrid, ResponsiveGridColumnCount, ResponsiveGridProps, ResponsiveGridRemainder, ResponsiveGridState, type RetainedItem, type RetainedItems, RichText, type RichTextProps, RichTextSpan, type RichTextSpanProps, Ripple, type RippleProps, RotationAnimation, RotationOptions, RouteActiveOptions, RouterPersistenceOptions, RouterProvider, RouterProviderProps, Row, ScrollArea, type ScrollAreaProps, SearchField, SearchFieldProps, Select, SelectOption, SelectProps, Separator, SeparatorProps, SettingsGroup, SettingsGroupProps, SettingsItem, SettingsItemOrientation, SettingsItemProps, SettingsSection, SettingsSectionProps, Sheet, SheetProps, SheetSide, ShortcutRecorder, ShortcutRecorderProps, Sidebar, SidebarContent, SidebarContentProps, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuButtonProps, SidebarMenuIcon, SidebarMenuLabel, SidebarMenuProps, SidebarMenuSuffix, SidebarProps, SidebarSearch, SidebarSearchGroup, Skeleton, type SkeletonProps, Slider, SliderProps, Spin, Spinner, SplitButton, SplitButtonProps, SplitPane, SplitPaneAside, SplitPaneMain, StandardSchema, StandardSchemaIssue, StandardSchemaResult, StatCard, StatCardProps, StatusBar, StatusBarGroup, StatusBarGroupProps, StatusBarIndicator, StatusBarIndicatorProps, StatusBarIndicatorTone, StatusBarItem, StatusBarItemProps, StatusBarProps, StatusBarSeparator, Stepper, StepperProps, StepperStep, Svg, type SvgProps, SweepAnimation, SweepAxis, SweepGeometry, SweepOptions, Switch, type SwitchProps, Table, TableBody, TableCaption, TableCell, TableCellProps, TableFooter, TableHead, TableHeadProps, TableHeader, TableProps, TableRow, TableRowProps, Tabs, TabsContent, TabsItem, type TabsItemProps, type TabsItemState, TabsList, type TabsProps, type TabsResult, TabsTrigger, type TabsTriggerProps, TanStackDataTable, TanStackDataTableColumn, TanStackDataTableOptions, Text, TextArea, TextAreaProps, type TextProps, Timeline, TimelineItem, TimelineProps, TitleBar, TitleBarDragRegion, TitleBarDragRegionProps, TitleBarProps, ToastAction, ToastInput, ToastVariant, Toaster, ToasterProps, Toasts, Toggle, ToggleGroup, ToggleGroupItem, type ToggleGroupItemProps, type ToggleGroupProps, type ToggleProps, Tool, ToolCodeSection, ToolCodeSectionProps, ToolContent, ToolHeader, ToolHeaderProps, ToolInput, ToolInputProps, ToolOutput, ToolOutputProps, ToolProps, ToolStatus, Toolbar, ToolbarButton, ToolbarButtonProps, ToolbarGroup, ToolbarOrientation, ToolbarProps, ToolbarSeparator, ToolbarToggle, ToolbarToggleProps, Tooltip, TooltipContent, TooltipContentProps, TooltipProps, TooltipTriggerProps, TransitionOptions, type TransitionPresence, type TransitionPresenceOptions, TreeItemRenderState, TreeModel, TreeNode, TreeView, TreeViewProps, TypographyBlockquote, TypographyH1, TypographyH2, TypographyH3, TypographyH4, TypographyInlineCode, TypographyLarge, TypographyLead, TypographyList, TypographyListItem, TypographyMuted, TypographyP, TypographySmall, type VectorPath, type VectorPathPaint, View, type ViewProps, VisibleTreeNode, type WabouClassList, WabouDataRouter, WabouRouterConstructorOptions, type WabouStyle, WindowFrame, WindowFrameProps, Workbench, WorkbenchContent, WorkbenchContentColumn, WorkbenchFooter, WorkbenchHeader, WorkbenchInspector, WorkbenchInspectorContent, WorkbenchInspectorHeader, WorkbenchInspectorState, WorkbenchInspectorStateProps, WorkbenchInspectorTitlebar, WorkbenchInspectorTitlebarProps, WorkbenchMain, WorkbenchSidebar, activeMessageAnchor, alertColors, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentGroupClass, attachmentMediaClass, avatarInitials, badgeClass, bubbleClass, bubbleContentClass, clampAnnotationRegion, clampPage, clampRatingValue, componentsControlSize, componentsElevation, componentsThemeContract, createActive, createAnimationFrame, createButton, createCommandListNavigation, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFileImageResource, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNativeLoopAnimation, createNetworkImageResource, createNotifications, createOverlayLayer, createOwnedImageResource, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, drawerDragOffset, drawerShouldDismiss, emptyClass, emptyMediaClass, encodeQrCode, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, groupBoxContentClass, imageViewportTransform, inputGroupAddonClass, inputGroupClass, isMessageScrollNearEnd, itemClass, itemMediaClass, messageActionsClass, messageClass, messageScrollRange, messageScrollRevealDelta, messageScrollStartDelta, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageHeaderDescriptionClass, pageHeaderTitleClass, pageViewportClass, pageViewportContentClass, pointInLayoutRect, index_d_exports as primitives, promptComposerClass, promptComposerEditorHeightClass, qrCodePath, ratingLabel, reconcileCommandHighlight, redirect, releaseImageResource, responsiveGridColumnCount, responsiveGridRemainderCount, shortcutFromKeyEvent, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, toolHeaderLabel, uniqueFieldErrors, useChartConfig, useComponentsTheme, useDirection, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameMaterialStyle, windowFrameShadows, workbenchClass, workbenchContentClass, workbenchContentColumnClass, workbenchFooterClass, workbenchHeaderClass, workbenchInspectorClass, workbenchInspectorContentClass, workbenchInspectorHeaderClass, workbenchMainClass, workbenchSidebarClass };
 //# sourceMappingURL=index.d.mts.map

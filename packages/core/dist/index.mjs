@@ -1,13 +1,13 @@
-import { S as createResourceKeyFamily, a as GRAPHIC_SOURCE, c as HOST_RECORD_KIND, d as TEXT_BEHAVIOR, l as INTERACTION_POLICY, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, t as EVENT_CODE, u as OP, v as nodeKey } from "./protocol-ry3FNy19.mjs";
-import { _ as utilityConflictProperties, a as bool, c as mergeClasses, d as px, f as rgba, g as translate2d, h as shadow, i as auto, l as number, m as scale2d, n as StyleValueKind, o as classes, p as rotate2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as percent, v as INLINE_STYLE_CONTRACT } from "./style-BoQjkXmV.mjs";
-import { A as writer, C as releaseOverlayRoot, D as setProp, E as runSweep, F as defaultHost, I as useHost, L as PathBuilder, M as createFps, N as Portal, O as setTransform2D, P as HostProvider, R as isVectorPath, S as registerRoot, T as render, _ as mergeProps, a as createElement, b as reconcileControlledInputValues, c as dispatchEvent, d as getRequestEvent, f as insert, g as memo, h as isServer, i as createComponent, j as VirtualList, k as spread, l as effect, m as isDirectEvent, n as acquireOverlayRoot, o as createTextNode, p as insertNode, r as applyRef, s as delegateEvents, t as Dynamic, u as getMountRoot, v as mount, w as removeNode, x as ref, y as observeGlobalPointerEvent } from "./renderer-BjaqmVpf.mjs";
-import { a as subscribeAll, i as subscribe, n as dispatchHostMessage, o as subscribeJson, r as hostMessages, t as dispatchResizeObservation } from "./resize-observer-DwtjcJCy.mjs";
+import { S as createResourceKeyFamily, c as HOST_RECORD_KIND, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, v as nodeKey } from "./protocol-CdThEzKd.mjs";
+import { _ as utilityConflictProperties, a as bool, c as mergeClasses, d as px, f as rgba, g as translate2d, h as shadow, i as auto, l as number, m as scale2d, n as StyleValueKind, o as classes, p as rotate2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as percent, v as INLINE_STYLE_CONTRACT } from "./style-DgJ-RVg4.mjs";
+import { A as writer, E as runSweep, F as defaultHost, I as useHost, L as PathBuilder, M as createFps, N as Portal, O as setTransform2D, P as HostProvider, R as isVectorPath, b as reconcileControlledInputValues, c as dispatchEvent, j as VirtualList, m as isDirectEvent, t as Dynamic, v as mount, y as observeGlobalPointerEvent } from "./renderer-BYDRnnWQ.mjs";
+import { a as subscribeAll, i as subscribe, n as dispatchHostMessage, o as subscribeJson, r as hostMessages, t as dispatchResizeObservation } from "./resize-observer-BKduhWC2.mjs";
 import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
 import "./registry.mjs";
 import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
 import { ByteLengthQueuingStrategy, CountQueuingStrategy, ReadableByteStreamController, ReadableStream as ReadableStream$1, ReadableStreamBYOBReader, ReadableStreamBYOBRequest, ReadableStreamDefaultController, ReadableStreamDefaultReader, TransformStream, TransformStreamDefaultController, WritableStream, WritableStreamDefaultController, WritableStreamDefaultWriter } from "web-streams-polyfill";
 import { TextDecoderStream, TextEncoderStream } from "@stardazed/streams-text-encoding";
-import { For, createComponent as createComponent$1, createContext, createEffect, createMemo, createSignal, flush, getOwner, latest, onCleanup, refresh, resolve, untrack, useContext } from "solid-js";
+import { For, createComponent, createContext, createEffect, createMemo, createSignal, flush, getOwner, latest, onCleanup, refresh, resolve, untrack, useContext } from "solid-js";
 //#region src/polyfills/abort-controller.ts
 /** Install cancellation primitives when the embedding runtime lacks them. */
 function installAbortControllerPolyfill() {
@@ -661,7 +661,7 @@ const PlatformContext = createContext({});
 /** Override native services for one Solid subtree, primarily for tests and previews. */
 function PlatformProvider(props) {
 	const parent = useContext(PlatformContext) ?? {};
-	return createComponent$1(PlatformContext, {
+	return createComponent(PlatformContext, {
 		value: {
 			get clipboard() {
 				return props.value.clipboard ?? parent.clipboard;
@@ -806,10 +806,11 @@ const initial = {
 	outerX: null,
 	outerY: null,
 	occluded: false,
-	colorScheme: "light"
+	colorScheme: "light",
+	reducedMotion: false
 };
 function sameMetrics(previous, next) {
-	return previous.windowId.lo === next.windowId.lo && previous.windowId.hi === next.windowId.hi && previous.logicalWidth === next.logicalWidth && previous.logicalHeight === next.logicalHeight && previous.physicalWidth === next.physicalWidth && previous.physicalHeight === next.physicalHeight && previous.scaleFactor === next.scaleFactor && previous.maximized === next.maximized && previous.focused === next.focused && previous.outerX === next.outerX && previous.outerY === next.outerY && previous.occluded === next.occluded && previous.colorScheme === next.colorScheme;
+	return previous.windowId.lo === next.windowId.lo && previous.windowId.hi === next.windowId.hi && previous.logicalWidth === next.logicalWidth && previous.logicalHeight === next.logicalHeight && previous.physicalWidth === next.physicalWidth && previous.physicalHeight === next.physicalHeight && previous.scaleFactor === next.scaleFactor && previous.maximized === next.maximized && previous.focused === next.focused && previous.outerX === next.outerX && previous.outerY === next.outerY && previous.occluded === next.occluded && previous.colorScheme === next.colorScheme && previous.reducedMotion === next.reducedMotion;
 }
 const [metrics, setMetrics] = createSignal(initial, {
 	equals: sameMetrics,
@@ -823,7 +824,7 @@ function decodeWindowMetrics(value) {
 		if (typeof number !== "number" || !Number.isFinite(number)) throw new TypeError(`window metrics ${field} must be a finite number`);
 		return number;
 	};
-	if (typeof next.maximized !== "boolean" || typeof next.focused !== "boolean" || typeof next.occluded !== "boolean") throw new TypeError("window metrics flags must be booleans");
+	if (typeof next.maximized !== "boolean" || typeof next.focused !== "boolean" || typeof next.occluded !== "boolean" || typeof next.reducedMotion !== "boolean") throw new TypeError("window metrics flags must be booleans");
 	for (const field of ["outerX", "outerY"]) if (next[field] !== null && (typeof next[field] !== "number" || !Number.isFinite(next[field]))) throw new TypeError(`window metrics ${field} must be null or a finite number`);
 	if (next.colorScheme !== null && next.colorScheme !== "light" && next.colorScheme !== "dark") throw new TypeError("window metrics colorScheme is invalid");
 	return {
@@ -838,7 +839,8 @@ function decodeWindowMetrics(value) {
 		outerX: next.outerX,
 		outerY: next.outerY,
 		occluded: next.occluded,
-		colorScheme: next.colorScheme
+		colorScheme: next.colorScheme,
+		reducedMotion: next.reducedMotion
 	};
 }
 subscribeJson("wabou:window-metrics", setMetrics, { decode: decodeWindowMetrics });
@@ -861,7 +863,8 @@ const state = {
 	outerX: () => metrics().outerX,
 	outerY: () => metrics().outerY,
 	occluded: () => metrics().occluded,
-	colorScheme: () => metrics().colorScheme ?? "light"
+	colorScheme: () => metrics().colorScheme ?? "light",
+	reducedMotion: () => metrics().reducedMotion
 };
 /** Reactive state and controls for the native window owning this JS runtime. */
 function useWindow() {
@@ -942,27 +945,20 @@ function useClipboard() {
 //#endregion
 //#region src/glue/app-dirs.ts
 let resolved;
-/** Resolve all app-private roots once and reuse the same native result. */
-function resolveAppDirectories() {
+function resolve$1() {
 	return resolved ??= dispatchEffect(effectOps.appDirsResolve);
 }
+/** Resolve app-private native roots, caching the host result for this runtime. */
 const appDirs = Object.freeze({
-	resolve: resolveAppDirectories,
-	config: () => resolveAppDirectories().then((paths) => paths.configDir),
-	data: () => resolveAppDirectories().then((paths) => paths.dataDir),
-	localData: () => resolveAppDirectories().then((paths) => paths.localDataDir),
-	cache: () => resolveAppDirectories().then((paths) => paths.cacheDir),
-	log: () => resolveAppDirectories().then((paths) => paths.logDir),
-	resource: () => resolveAppDirectories().then((paths) => paths.resourceDir),
-	temp: () => resolveAppDirectories().then((paths) => paths.tempDir)
+	resolve: resolve$1,
+	config: () => resolve$1().then((paths) => paths.configDir),
+	data: () => resolve$1().then((paths) => paths.dataDir),
+	localData: () => resolve$1().then((paths) => paths.localDataDir),
+	cache: () => resolve$1().then((paths) => paths.cacheDir),
+	log: () => resolve$1().then((paths) => paths.logDir),
+	resource: () => resolve$1().then((paths) => paths.resourceDir),
+	temp: () => resolve$1().then((paths) => paths.tempDir)
 });
-const appConfigDir = appDirs.config;
-const appDataDir = appDirs.data;
-const appLocalDataDir = appDirs.localData;
-const appCacheDir = appDirs.cache;
-const appLogDir = appDirs.log;
-const resourceDir = appDirs.resource;
-const tempDir = appDirs.temp;
 //#endregion
 //#region src/glue/application.ts
 const application = Object.freeze({
@@ -1074,24 +1070,35 @@ function createAsyncAction(action) {
 		setPendingArgs(() => args);
 		setError(void 0);
 		inFlightArgs = args;
-		inFlight = Promise.resolve().then(() => action(...args)).then((value) => ({
+		let resolveRequest;
+		const request = new Promise((resolve) => {
+			resolveRequest = resolve;
+		});
+		inFlight = request;
+		let outcome;
+		try {
+			outcome = action(...args);
+		} catch (cause) {
+			outcome = Promise.reject(cause);
+		}
+		Promise.resolve(outcome).then((value) => settle({
 			ok: true,
 			value
-		}), (cause) => {
-			if (!disposed) setError(cause);
-			return {
-				ok: false,
-				error: cause
-			};
-		}).finally(() => {
+		}), (cause) => settle({
+			ok: false,
+			error: cause
+		}));
+		return request;
+		function settle(result) {
+			if (!result.ok && !disposed) setError(result.error);
 			inFlight = void 0;
 			inFlightArgs = void 0;
 			if (!disposed) {
 				setPending(false);
 				setPendingArgs(void 0);
 			}
-		});
-		return inFlight;
+			resolveRequest(result);
+		}
 	};
 	const reset = () => {
 		if (!disposed) setError(void 0);
@@ -1145,26 +1152,36 @@ function createKeyedAsyncAction(keyOf, action) {
 			next.delete(key);
 			return next;
 		});
-		const request = Promise.resolve().then(() => action(...args)).then((value) => ({
+		let resolveRequest;
+		const request = new Promise((resolve) => {
+			resolveRequest = resolve;
+		});
+		inFlight.set(key, request);
+		let outcome;
+		try {
+			outcome = action(...args);
+		} catch (cause) {
+			outcome = Promise.reject(cause);
+		}
+		Promise.resolve(outcome).then((value) => settle({
 			ok: true,
 			value
-		}), (cause) => {
-			if (!disposed) setErrors((current) => new Map(current).set(key, cause));
-			return {
-				ok: false,
-				error: cause
-			};
-		}).finally(() => {
-			inFlight.delete(key);
+		}), (cause) => settle({
+			ok: false,
+			error: cause
+		}));
+		return request;
+		function settle(result) {
+			if (!result.ok && !disposed) setErrors((current) => new Map(current).set(key, result.error));
+			if (inFlight.get(key) === request) inFlight.delete(key);
 			if (!disposed) setPendingKeys((current) => {
 				if (!current.has(key)) return current;
 				const next = new Set(current);
 				next.delete(key);
 				return next;
 			});
-		});
-		inFlight.set(key, request);
-		return request;
+			resolveRequest(result);
+		}
 	};
 	const reset = (key) => {
 		if (disposed) return;
@@ -1386,7 +1403,7 @@ function ColorThemeProvider(props) {
 		initialized = true;
 		return animation ? () => animation.cancel() : void 0;
 	});
-	return createComponent$1(ColorThemeContext, {
+	return createComponent(ColorThemeContext, {
 		value: colorTheme,
 		get children() {
 			return props.children;
@@ -1421,7 +1438,7 @@ function ForEntity(props) {
 		if (!values) return values;
 		return validateEntityKeys(values, by);
 	});
-	return createComponent$1(For, {
+	return createComponent(For, {
 		get each() {
 			return entities();
 		},
@@ -1660,53 +1677,45 @@ function createRevisionedHostResource(options) {
 	};
 }
 //#endregion
-//#region src/glue/json-capability.ts
-var JsonCapabilityError = class extends Error {
-	code;
-	constructor(message, code) {
-		super(message);
-		this.name = "JsonCapabilityError";
-		this.code = code;
-	}
-};
-/** Bind Wabou's versioned JSON capability transport to a typed app wrapper. */
-function bindJsonCapability(capability, options) {
-	return async (method, request) => {
-		if (capability?.__wabouCapabilityVersion !== options.version) throw new JsonCapabilityError(`The native ${options.name} capability version ${options.version} is unavailable`, "capability_unavailable");
-		const functionValue = capability[method];
-		if (typeof functionValue !== "function") throw new JsonCapabilityError(`The native ${options.name}.${method} method is unavailable`, "method_unavailable");
-		const raw = await (request === void 0 ? functionValue.call(capability) : functionValue.call(capability, JSON.stringify(request)));
-		if (typeof raw !== "string") throw new JsonCapabilityError(`The native ${options.name}.${method} method returned a non-string response`, "invalid_response");
-		let envelope;
-		try {
-			envelope = JSON.parse(raw);
-		} catch {
-			throw new JsonCapabilityError(`The native ${options.name}.${method} method returned invalid JSON`, "invalid_response");
-		}
-		if (typeof envelope !== "object" || envelope === null || !("ok" in envelope)) throw new JsonCapabilityError(`The native ${options.name}.${method} method returned an invalid response envelope`, "invalid_response");
-		if (envelope.ok === true) {
-			if (!("value" in envelope)) throw new JsonCapabilityError(`The native ${options.name}.${method} method returned a success envelope without a value`, "invalid_response");
-			return envelope.value;
-		}
-		const error = envelope.error;
-		const code = typeof error?.code === "string" ? error.code : void 0;
-		throw new JsonCapabilityError(typeof error?.message === "string" ? error.message : `${options.name}.${method} failed`, code);
-	};
-}
-//#endregion
 //#region src/glue/native-capability.ts
 var CapabilityError = class extends Error {
 	code;
-	constructor(message) {
+	constructor(message, code = "capability_unavailable") {
 		super(message);
 		this.name = "CapabilityError";
-		this.code = "capability_unavailable";
+		this.code = code;
 	}
 };
 /** Validate and expose one versioned native capability namespace. */
 function bindCapability(capability, options) {
 	if (capability?.__wabouCapabilityVersion !== options.version) throw new CapabilityError(`The native ${options.name} capability version ${options.version} is unavailable`);
 	return capability;
+}
+//#endregion
+//#region src/glue/json-capability.ts
+/** Bind Wabou's versioned JSON capability transport to a typed app wrapper. */
+function bindJsonCapability(capability, options) {
+	return async (method, request) => {
+		if (capability?.__wabouCapabilityVersion !== options.version) throw new CapabilityError(`The native ${options.name} capability version ${options.version} is unavailable`, "capability_unavailable");
+		const functionValue = capability[method];
+		if (typeof functionValue !== "function") throw new CapabilityError(`The native ${options.name}.${method} method is unavailable`, "method_unavailable");
+		const raw = await (request === void 0 ? functionValue.call(capability) : functionValue.call(capability, JSON.stringify(request)));
+		if (typeof raw !== "string") throw new CapabilityError(`The native ${options.name}.${method} method returned a non-string response`, "invalid_response");
+		let envelope;
+		try {
+			envelope = JSON.parse(raw);
+		} catch {
+			throw new CapabilityError(`The native ${options.name}.${method} method returned invalid JSON`, "invalid_response");
+		}
+		if (typeof envelope !== "object" || envelope === null || !("ok" in envelope)) throw new CapabilityError(`The native ${options.name}.${method} method returned an invalid response envelope`, "invalid_response");
+		if (envelope.ok === true) {
+			if (!("value" in envelope)) throw new CapabilityError(`The native ${options.name}.${method} method returned a success envelope without a value`, "invalid_response");
+			return envelope.value;
+		}
+		const error = envelope.error;
+		const code = typeof error?.code === "string" ? error.code : void 0;
+		throw new CapabilityError(typeof error?.message === "string" ? error.message : `${options.name}.${method} failed`, code ?? "handlerFailure");
+	};
 }
 //#endregion
 //#region src/glue/kv.ts
@@ -1949,20 +1958,26 @@ function createLatestAsyncResource(options) {
 		setError(void 0);
 		setStatus("pending");
 		try {
-			const next = await options.load(key, { signal });
+			const loaded = options.load(key, { signal });
+			const next = loaded !== null && (typeof loaded === "object" || typeof loaded === "function") && typeof loaded.then === "function" ? await loaded : loaded;
 			if (disposed || request !== generation) return void 0;
-			setValueBox({ value: next });
-			setStatus("ready");
+			flush(() => {
+				options.onCommit?.(next);
+				setValueBox({ value: next });
+				setStatus("ready");
+			});
 			return next;
 		} catch (cause) {
 			if (disposed || request !== generation || signal.aborted) return void 0;
-			setError(cause);
-			setStatus("error");
+			flush(() => {
+				setError(cause);
+				setStatus("error");
+			});
 			return;
 		} finally {
 			if (!disposed && request === generation) {
 				controller = void 0;
-				setLoading(false);
+				flush(() => setLoading(false));
 			}
 		}
 	};
@@ -1983,6 +1998,7 @@ function createLatestAsyncResource(options) {
 		generation++;
 		controller?.abort();
 		controller = void 0;
+		options.onCommit?.(next);
 		setValueBox({ value: next });
 		setError(void 0);
 		setLoading(false);
@@ -2040,6 +2056,6 @@ function reconcileKeyedList(current, patch, keyOf) {
 	return ordered;
 }
 //#endregion
-export { AsyncActionConflictError, CapabilityError, ColorThemeProvider, Dynamic, EVENT_CODE, ForEntity, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, KvAtomicOperation, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createAsyncQuery, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createKvSignal, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, openKv, percent, px, reconcileControlledInputValues, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys, writer };
+export { AsyncActionConflictError, CapabilityError, ColorThemeProvider, Dynamic, ForEntity, HostProvider, INLINE_STYLE_CONTRACT, KvAtomicOperation, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, VirtualList, appDirs, application, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createAsyncQuery, createEventEffect, createFps, createKeyedAsyncAction, createKvSignal, createLatestAsyncResource, createRevisionedHostResource, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, dialog, hostMessages, intl, isDirectEvent, isTypedStyleValue, isVectorPath, mergeClasses, mount, notification, number, observeGlobalPointerEvent, openKv, percent, px, reconcileKeyedList, rgba, rotate2d, scale2d, setTransform2D, shadow, showNativeMenu, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys };
 
 //# sourceMappingURL=index.mjs.map

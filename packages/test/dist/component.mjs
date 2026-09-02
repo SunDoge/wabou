@@ -238,8 +238,11 @@ function renderComponent(render, options = {}) {
 		setStyleValue: writer.setStyleValue,
 		removeStyle: writer.removeStyle,
 		setTransform2D: writer.setTransform2D,
+		setWidgetConfig: writer.setWidgetConfig,
+		removeWidgetConfig: writer.removeWidgetConfig,
 		setInteractionPolicy: writer.setInteractionPolicy,
 		setOverlayPlane: writer.setOverlayPlane,
+		setProjectionBoundary: writer.setProjectionBoundary,
 		dropNode: writer.dropNode,
 		focusNode: writer.focusNode
 	};
@@ -253,9 +256,11 @@ function renderComponent(render, options = {}) {
 			focusOrder: null,
 			interactionBlocked: false,
 			focusContained: false,
+			projectionBoundary: false,
 			overlayPlane: "content",
 			className: "",
 			styles: /* @__PURE__ */ new Map(),
+			widgetConfig: null,
 			transform: null,
 			text
 		});
@@ -337,6 +342,16 @@ function renderComponent(render, options = {}) {
 		if (node) node.transform = [...value];
 		originals.setTransform2D.call(writer, id, value);
 	};
+	writer.setWidgetConfig = (id, json) => {
+		const node = nodes.get(key(id));
+		if (node) node.widgetConfig = JSON.parse(json);
+		originals.setWidgetConfig.call(writer, id, json);
+	};
+	writer.removeWidgetConfig = (id) => {
+		const node = nodes.get(key(id));
+		if (node) node.widgetConfig = null;
+		originals.removeWidgetConfig.call(writer, id);
+	};
 	writer.setInteractionPolicy = (id, flags, focusOrder) => {
 		const node = nodes.get(key(id));
 		if (node) {
@@ -350,6 +365,11 @@ function renderComponent(render, options = {}) {
 		const node = nodes.get(key(id));
 		if (node) node.overlayPlane = plane === 2 ? "modal" : plane === 1 ? "floating" : "content";
 		originals.setOverlayPlane.call(writer, id, plane);
+	};
+	writer.setProjectionBoundary = (id, enabled) => {
+		const node = nodes.get(key(id));
+		if (node) node.projectionBoundary = enabled;
+		originals.setProjectionBoundary.call(writer, id, enabled);
 	};
 	writer.dropNode = (id) => {
 		const node = nodes.get(key(id));
@@ -478,7 +498,7 @@ function renderComponent(render, options = {}) {
 	const describeRole = (role, options) => {
 		return `role=${role}${Object.entries(options).filter(([name, value]) => name !== "index" && value !== void 0).map(([name, value]) => ` ${name}=${JSON.stringify(value)}`).join("")}`;
 	};
-	const matchesState = (node, options) => (options.disabled === void 0 || disabledState(node) === options.disabled) && (options.readOnly === void 0 || readOnlyState(node) === options.readOnly) && (options.checked === void 0 || toggleState(node, "aria-checked") === options.checked) && (options.selected === void 0 || booleanState(node, "aria-selected") === options.selected) && (options.expanded === void 0 || booleanState(node, "aria-expanded") === options.expanded) && (options.pressed === void 0 || toggleState(node, "aria-pressed") === options.pressed) && (options.current === void 0 || currentState(node) === options.current) && (options.orientation === void 0 || orientationState(node) === options.orientation) && (options.focused === void 0 || focusedNode === node === options.focused);
+	const matchesState = (node, options) => (options.disabled === void 0 || disabledState(node) === options.disabled) && (options.readOnly === void 0 || readOnlyState(node) === options.readOnly) && (options.checked === void 0 || toggleState(node, "aria-checked") === options.checked) && (options.selected === void 0 || booleanState(node, "aria-selected") === options.selected) && (options.expanded === void 0 || booleanState(node, "aria-expanded") === options.expanded) && (options.pressed === void 0 || toggleState(node, "aria-pressed") === options.pressed) && (options.busy === void 0 || booleanState(node, "aria-busy") === options.busy) && (options.current === void 0 || currentState(node) === options.current) && (options.orientation === void 0 || orientationState(node) === options.orientation) && (options.focused === void 0 || focusedNode === node === options.focused);
 	const matchingRole = (root, role, options) => scopeNodes(root).filter((node) => matchesRole(node, role, options));
 	const matchesRole = (node, role, options) => roleOf(node) === role && (options.name === void 0 || nameOf(node) === options.name) && matchesState(node, options);
 	const scopeSuffix = (root) => root === null ? "" : ` within ${roleOf(root) ?? root.tag} "${nameOf(root)}"`;
@@ -514,24 +534,26 @@ function renderComponent(render, options = {}) {
 		flushUpdates();
 	};
 	let focusedNode = null;
-	const blurFocusedNode = () => {
+	const blurFocusedNode = (flush = true) => {
 		if (!focusedNode) return;
 		const previous = focusedNode;
 		focusedNode = null;
-		commitEvent(previous, EVENT_CODE.blur);
-		commitEvent(previous, EVENT_CODE.focusout);
+		dispatchEvent(previous.id, EVENT_CODE.blur, "");
+		dispatchEvent(previous.id, EVENT_CODE.focusout, "");
+		if (flush) flushUpdates();
 	};
-	const focusAuthoredNode = (node) => {
+	const focusAuthoredNode = (node, flush = true) => {
 		if (focusedNode === node) return;
-		blurFocusedNode();
+		blurFocusedNode(false);
 		focusedNode = node;
-		commitEvent(node, EVENT_CODE.focus);
-		commitEvent(node, EVENT_CODE.focusin);
+		dispatchEvent(node.id, EVENT_CODE.focus, "");
+		dispatchEvent(node.id, EVENT_CODE.focusin, "");
+		if (flush) flushUpdates();
 	};
 	writer.focusNode = (id) => {
 		originals.focusNode.call(writer, id);
 		const node = nodes.get(key(id));
-		if (node) focusAuthoredNode(node);
+		if (node) focusAuthoredNode(node, false);
 	};
 	const ensureAttached = (node, action) => {
 		if (all().includes(node)) return;
@@ -589,6 +611,9 @@ function renderComponent(render, options = {}) {
 				return node.className;
 			},
 			style: (name) => node.styles.get(name) ?? null,
+			get widgetConfig() {
+				return node.widgetConfig;
+			},
 			get children() {
 				return node.children.map(locator);
 			},
@@ -619,6 +644,9 @@ function renderComponent(render, options = {}) {
 			},
 			get pressed() {
 				return toggleState(node, "aria-pressed");
+			},
+			get busy() {
+				return booleanState(node, "aria-busy") === true;
 			},
 			get current() {
 				return currentState(node);
@@ -658,6 +686,9 @@ function renderComponent(render, options = {}) {
 			},
 			get overlayPlane() {
 				return node.overlayPlane;
+			},
+			get projectionBoundary() {
+				return node.projectionBoundary;
 			},
 			attribute: (name) => node.attributes.get(name) ?? null,
 			pointerDown: (position = {}) => {
@@ -751,6 +782,7 @@ function renderComponent(render, options = {}) {
 			...node.focusOrder !== null ? { focusOrder: node.focusOrder } : {},
 			...node.interactionBlocked ? { interactionBlocked: true } : {},
 			...node.focusContained ? { focusContained: true } : {},
+			...node.projectionBoundary ? { projectionBoundary: true } : {},
 			...node.overlayPlane !== "content" ? { overlayPlane: node.overlayPlane } : {},
 			...node.transform ? { transform: node.transform } : {},
 			...node.children.length > 0 ? { children: node.children.map(snapshotNode) } : {}
