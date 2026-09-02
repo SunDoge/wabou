@@ -5,10 +5,16 @@ import {
   useHost,
 } from "@wabou/ui";
 
-export interface AppStatus {
-  connected: boolean;
-  repositoryPath?: string;
+export interface BackupProfile {
+  id: string;
+  name: string;
+  repositoryPath: string;
   sources: string[];
+}
+
+export interface RuntimeStatus {
+  unlockedProfileIds: string[];
+  activeProfileId?: string;
 }
 
 export interface SnapshotEntry {
@@ -29,23 +35,36 @@ export interface FileEntry {
 }
 
 interface RusticCapability extends NativeCapability {
-  status(): AppStatus | PromiseLike<AppStatus>;
-  createRepository(request: {
+  status(): RuntimeStatus | PromiseLike<RuntimeStatus>;
+  createProfile(request: {
+    id: string;
+    name: string;
     path: string;
     password: string;
-  }): AppStatus | PromiseLike<AppStatus>;
-  openRepository(request: {
-    path: string;
-    password: string;
-  }): AppStatus | PromiseLike<AppStatus>;
-  setSources(request: {
     sources: string[];
-  }): AppStatus | PromiseLike<AppStatus>;
-  runBackup():
-    | { snapshot: SnapshotEntry }
-    | PromiseLike<{ snapshot: SnapshotEntry }>;
-  listSnapshots(): SnapshotEntry[] | PromiseLike<SnapshotEntry[]>;
+  }): RuntimeStatus | PromiseLike<RuntimeStatus>;
+  openProfile(request: {
+    id: string;
+    name: string;
+    path: string;
+    password: string;
+    sources: string[];
+  }): RuntimeStatus | PromiseLike<RuntimeStatus>;
+  selectProfile(request: {
+    profileId: string;
+  }): RuntimeStatus | PromiseLike<RuntimeStatus>;
+  setSources(request: {
+    profileId: string;
+    sources: string[];
+  }): RuntimeStatus | PromiseLike<RuntimeStatus>;
+  runBackup(request: {
+    profileId: string;
+  }): { snapshot: SnapshotEntry } | PromiseLike<{ snapshot: SnapshotEntry }>;
+  listSnapshots(request: {
+    profileId: string;
+  }): SnapshotEntry[] | PromiseLike<SnapshotEntry[]>;
   listFiles(request: {
+    profileId: string;
     snapshotId: string;
     path: string;
   }): FileEntry[] | PromiseLike<FileEntry[]>;
@@ -58,6 +77,6 @@ interface RusticHost extends Host {
 export function useRusticApi(): RusticCapability {
   return bindCapability(useHost<RusticHost>().rustic, {
     name: "rustic",
-    version: 1,
+    version: 2,
   });
 }

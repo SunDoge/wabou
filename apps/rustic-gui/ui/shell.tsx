@@ -13,6 +13,7 @@ import {
   SidebarMenuButton,
   SidebarMenuIcon,
   SidebarMenuLabel,
+  SidebarMenuSuffix,
   Text,
   useNavigate,
   useRouteActive,
@@ -20,15 +21,17 @@ import {
 } from "@wabou/ui";
 import archive from "lucide-static/icons/archive.svg?raw";
 import database from "lucide-static/icons/database.svg?raw";
-import history from "lucide-static/icons/history.svg?raw";
-import type { JSX } from "solid-js";
+import plus from "lucide-static/icons/plus.svg?raw";
+import { For, type JSX, Show } from "solid-js";
+import type { BackupProfile } from "./api";
 import { useRusticSession } from "./session";
 
 export interface RusticSidebarProps {
-  active: "/" | "/snapshots";
-  connected: boolean;
-  repositoryPath?: string;
-  onNavigate(to: "/" | "/snapshots"): void;
+  active: "new" | string;
+  profiles: readonly BackupProfile[];
+  unlockedProfileIds: readonly string[];
+  onCreate(): void;
+  onSelectProfile(profileId: string): void;
 }
 
 export function RusticSidebar(props: RusticSidebarProps) {
@@ -46,51 +49,57 @@ export function RusticSidebar(props: RusticSidebarProps) {
       </SidebarHeader>
 
       <SidebarContent contentClass="px-3 py-3">
-        <SidebarGroup aria-label="Workspace">
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+        <SidebarGroup aria-label="Backups">
+          <SidebarGroupLabel>Backups</SidebarGroupLabel>
           <SidebarMenu value={props.active}>
-            <SidebarMenuButton
-              value="/"
-              aria-label="Repository"
-              onClick={() => props.onNavigate("/")}
+            <Show
+              when={props.profiles.length > 0}
+              fallback={
+                <Text class="px-2 py-3 text-xs text-muted">
+                  Create your first backup to begin.
+                </Text>
+              }
             >
-              <SidebarMenuIcon>
-                <Icon source={database} size={16} />
-              </SidebarMenuIcon>
-              <SidebarMenuLabel>Repository</SidebarMenuLabel>
-            </SidebarMenuButton>
-            <SidebarMenuButton
-              value="/snapshots"
-              aria-label="Snapshots"
-              onClick={() => props.onNavigate("/snapshots")}
-            >
-              <SidebarMenuIcon>
-                <Icon source={history} size={16} />
-              </SidebarMenuIcon>
-              <SidebarMenuLabel>Snapshots</SidebarMenuLabel>
-            </SidebarMenuButton>
+              <For each={props.profiles}>
+                {(profile) => (
+                  <SidebarMenuButton
+                    value={profile.id}
+                    aria-label={profile.name}
+                    onClick={() => props.onSelectProfile(profile.id)}
+                  >
+                    <SidebarMenuIcon>
+                      <Icon source={database} size={16} />
+                    </SidebarMenuIcon>
+                    <SidebarMenuLabel>{profile.name}</SidebarMenuLabel>
+                    <SidebarMenuSuffix>
+                      <View
+                        aria-label={
+                          props.unlockedProfileIds.includes(profile.id)
+                            ? `${profile.name} unlocked`
+                            : `${profile.name} locked`
+                        }
+                        class={`w-2 h-2 rounded-full ${props.unlockedProfileIds.includes(profile.id) ? "bg-success-primary" : "bg-muted"}`}
+                      />
+                    </SidebarMenuSuffix>
+                  </SidebarMenuButton>
+                )}
+              </For>
+            </Show>
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter class="px-4 py-3 bg-surface-muted">
-        <View
-          role="status"
-          aria-label={props.connected ? "Repository open" : "Not connected"}
-          class="min-w-0 flex flex-row items-center gap-2"
+      <SidebarFooter class="p-3 bg-surface-muted">
+        <SidebarMenuButton
+          selected={props.active === "new"}
+          aria-label="New backup"
+          onClick={props.onCreate}
         >
-          <View
-            class={`w-2 h-2 flex-none rounded-full ${props.connected ? "bg-success-primary" : "bg-muted"}`}
-          />
-          <View class="min-w-0 flex-1 flex flex-col gap-0.5">
-            <Text class="truncate text-xs font-medium text-secondary">
-              {props.connected ? "Repository open" : "Not connected"}
-            </Text>
-            <Text class="truncate text-xs text-muted">
-              {props.repositoryPath ?? "Choose a local repository"}
-            </Text>
-          </View>
-        </View>
+          <SidebarMenuIcon>
+            <Icon source={plus} size={16} />
+          </SidebarMenuIcon>
+          <SidebarMenuLabel>New backup</SidebarMenuLabel>
+        </SidebarMenuButton>
       </SidebarFooter>
     </Sidebar>
   );
@@ -99,16 +108,35 @@ export function RusticSidebar(props: RusticSidebarProps) {
 export function AppShell(props: { children?: JSX.Element }) {
   const session = useRusticSession();
   const navigate = useNavigate();
+  const createActive = useRouteActive("/");
   const snapshotsActive = useRouteActive("/snapshots");
+
+  async function selectProfile(profileId: string): Promise<void> {
+    try {
+      const unlocked = await session.activateProfile(profileId);
+      await navigate({ to: unlocked ? "/snapshots" : "/" });
+    } catch (cause) {
+      session.setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
   return (
     <ColorThemeProvider theme="light">
       <ComponentsProvider theme="light">
         <View class="w-full h-full min-w-0 min-h-0 flex flex-row bg-canvas text-primary">
           <RusticSidebar
-            active={snapshotsActive() ? "/snapshots" : "/"}
-            connected={session.status().connected}
-            repositoryPath={session.status().repositoryPath}
-            onNavigate={(to) => void navigate({ to })}
+            active={
+              session.pendingUnlock()?.id ??
+              (createActive() || !snapshotsActive()
+                ? "new"
+                : (session.activeProfile()?.id ?? "new"))
+            }
+            profiles={session.profiles()}
+            unlockedProfileIds={session.runtime().unlockedProfileIds}
+            onCreate={() => {
+              session.beginCreate();
+              void navigate({ to: "/" });
+            }}
+            onSelectProfile={(profileId) => void selectProfile(profileId)}
           />
           <View class="min-w-0 min-h-0 flex-1 flex flex-col">
             {props.children}

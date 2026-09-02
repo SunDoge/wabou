@@ -48,14 +48,13 @@ export function SnapshotsPage() {
   const [backingUp, setBackingUp] = createSignal(false);
   const [error, setError] = createSignal<string>();
 
-  async function loadSnapshots(selectNewest = false) {
-    if (!session.status().connected) return;
+  async function loadSnapshots(profileId: string, selectNewest = false) {
     setLoading(true);
     setError(undefined);
     try {
-      const next = await api.listSnapshots();
+      const next = await api.listSnapshots({ profileId });
       setSnapshots(next);
-      if (selectNewest && next[0]) await selectSnapshot(next[0]);
+      if (selectNewest && next[0]) await selectSnapshot(profileId, next[0]);
       else if (selected()) {
         const refreshed = next.find((item) => item.id === selected()?.id);
         if (refreshed) setSelected(refreshed);
@@ -67,10 +66,18 @@ export function SnapshotsPage() {
     }
   }
 
-  async function loadFiles(snapshot: SnapshotEntry, path: string) {
+  async function loadFiles(
+    profileId: string,
+    snapshot: SnapshotEntry,
+    path: string,
+  ) {
     setError(undefined);
     try {
-      const next = await api.listFiles({ snapshotId: snapshot.id, path });
+      const next = await api.listFiles({
+        profileId,
+        snapshotId: snapshot.id,
+        path,
+      });
       setCurrentPath(path);
       setFiles(next);
     } catch (cause) {
@@ -78,27 +85,29 @@ export function SnapshotsPage() {
     }
   }
 
-  async function selectSnapshot(snapshot: SnapshotEntry) {
+  async function selectSnapshot(profileId: string, snapshot: SnapshotEntry) {
     setSelected(snapshot);
-    await loadFiles(snapshot, "");
+    await loadFiles(profileId, snapshot, "");
   }
 
   async function saveSources(sources: string[]) {
+    const profile = session.activeProfile();
+    if (!profile) return;
     try {
-      const status = await api.setSources({ sources });
-      session.setStatus(status);
+      await session.updateSources(profile.id, sources);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
   }
 
   async function runBackup() {
-    if (backingUp() || session.status().sources.length === 0) return;
+    const profile = session.activeProfile();
+    if (!profile || backingUp() || profile.sources.length === 0) return;
     setBackingUp(true);
     setError(undefined);
     try {
-      await api.runBackup();
-      await loadSnapshots(true);
+      await api.runBackup({ profileId: profile.id });
+      await loadSnapshots(profile.id, true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -113,13 +122,19 @@ export function SnapshotsPage() {
   }
 
   createEffect(
-    () => session.status().connected,
-    (connected) => {
-      if (!connected) {
-        void navigate({ to: "/" });
+    () => {
+      const profile = session.activeProfile();
+      return profile &&
+        session.runtime().unlockedProfileIds.includes(profile.id)
+        ? profile.id
+        : undefined;
+    },
+    (profileId) => {
+      if (!profileId) {
+        queueMicrotask(() => void navigate({ to: "/" }));
         return;
       }
-      void loadSnapshots(true);
+      void loadSnapshots(profileId, true);
     },
   );
 
@@ -127,17 +142,23 @@ export function SnapshotsPage() {
     <View class="w-full h-full min-w-0 min-h-0 flex flex-col">
       <View class="flex-none px-6 py-5 border-b border-subtle bg-surface">
         <PageHeader
-          title="Backup workspace"
-          description={
-            session.status().repositoryPath ?? "No repository selected"
-          }
+          title={session.activeProfile()?.name ?? "Backup"}
+          description={session.activeProfile()?.repositoryPath ?? ""}
           actions={
             <>
-              <Button variant="outline" onClick={() => void loadSnapshots()}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const profile = session.activeProfile();
+                  if (profile) void loadSnapshots(profile.id);
+                }}
+              >
                 <Icon source={refreshCw} size={14} /> Refresh
               </Button>
               <Button
-                disabled={session.status().sources.length === 0 || backingUp()}
+                disabled={
+                  !session.activeProfile()?.sources.length || backingUp()
+                }
                 onClick={() => void runBackup()}
               >
                 {backingUp() ? "Backing up…" : "Back up now"}
@@ -157,7 +178,7 @@ export function SnapshotsPage() {
         <ProjectionBoundary id="rustic-sidebar">
           <View class="w-72 min-h-0 flex-none flex flex-col rounded-xl border border-subtle bg-surface shadow-sm overflow-hidden">
             <BackupSourcesPanel
-              sources={session.status().sources}
+              sources={session.activeProfile()?.sources ?? []}
               disabled={backingUp()}
               onChange={(sources) => void saveSources(sources)}
             />
@@ -189,7 +210,10 @@ export function SnapshotsPage() {
                       variant="ghost"
                       selected={selected()?.id === snapshot.id}
                       class="mx-2 min-h-14 justify-start px-3"
-                      onClick={() => void selectSnapshot(snapshot)}
+                      onClick={() => {
+                        const profile = session.activeProfile();
+                        if (profile) void selectSnapshot(profile.id, snapshot);
+                      }}
                     >
                       <View class="min-w-0 flex-1 flex flex-col items-start gap-0.5">
                         <Text class="font-medium">{shortId(snapshot.id)}</Text>
@@ -227,7 +251,11 @@ export function SnapshotsPage() {
                       disabled={!currentPath()}
                       aria-label="Open parent folder"
                       onClick={() =>
-                        void loadFiles(snapshot(), parentPath(currentPath()))
+                        void loadFiles(
+                          session.activeProfile()?.id ?? "",
+                          snapshot(),
+                          parentPath(currentPath()),
+                        )
                       }
                     >
                       <Icon source={chevronLeft} size={15} />
@@ -264,7 +292,11 @@ export function SnapshotsPage() {
                               }
                               onClick={() =>
                                 entry.kind === "directory"
-                                  ? void loadFiles(snapshot(), entry.path)
+                                  ? void loadFiles(
+                                      session.activeProfile()?.id ?? "",
+                                      snapshot(),
+                                      entry.path,
+                                    )
                                   : undefined
                               }
                             >
