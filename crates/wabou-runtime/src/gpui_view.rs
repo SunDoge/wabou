@@ -8,16 +8,16 @@ use std::{
 };
 
 use gpui_base::input::{
-    Editor, EditorState, Input, InputEditorStyle, InputEvent, InputState, Redo, Textarea,
-    TextareaState, Undo,
+    Editor, EditorState, Input, InputBaseState, InputEditorStyle, InputEvent, InputModeKind,
+    InputState, Redo, Textarea, TextareaState, Undo,
 };
 use gpui_base::{TextSelectionHandle, TextSelectionLayer};
 use wabou_shell::WakeCallback;
 use wabou_shell::gpui::{
-    AppContext as _, ClipboardItem, Context, DragMoveEvent, Entity, ExternalPaths, FocusHandle,
-    Focusable as _, InteractiveElement as _, IntoElement as _, ParentElement as _,
-    PathPromptOptions, PromptButton, PromptLevel, Render, StyleRefinement, Styled as _,
-    Subscription, SystemNotification, Task, Window, div,
+    AppContext as _, ClipboardItem, Context, DragMoveEvent, Entity, EntityInputHandler,
+    ExternalPaths, FocusHandle, Focusable as _, InteractiveElement as _, IntoElement as _,
+    ParentElement as _, PathPromptOptions, PromptButton, PromptLevel, Render, StyleRefinement,
+    Styled as _, Subscription, SystemNotification, Task, Window, div,
 };
 
 use crate::gpui_controller::GpuiController;
@@ -116,6 +116,29 @@ fn utf8_to_utf16_offset(value: &str, byte: usize) -> u32 {
         .count() as u32
 }
 
+/// Synchronize an authored controlled value without destroying an active
+/// platform composition.
+///
+/// GPUI intentionally keeps IME preedit text native and does not emit
+/// `InputEvent::Change` until the candidate is committed. During that interval
+/// Solid's `value` is necessarily one edit behind. Applying that stale value
+/// with `set_value` would clear GPUI's marked range and reset a multiline
+/// selection to `0..0`.
+fn synchronize_controlled_text_value<M: InputModeKind>(
+    state: &mut InputBaseState<M>,
+    authored_value: &str,
+    window: &mut Window,
+    cx: &mut Context<InputBaseState<M>>,
+) {
+    if state.value().as_ref() == authored_value {
+        return;
+    }
+    if EntityInputHandler::marked_text_range(state, window, cx).is_some() {
+        return;
+    }
+    state.set_value(authored_value.to_owned(), window, cx);
+}
+
 impl GpuiTextControlState {
     fn kind(&self) -> wabou_shell::GpuiTextControlKind {
         match self {
@@ -134,9 +157,7 @@ impl GpuiTextControlState {
         macro_rules! synchronize {
             ($state:expr) => {
                 $state.update(cx, |state, cx| {
-                    if state.value().as_ref() != descriptor.value {
-                        state.set_value(descriptor.value.clone(), window, cx);
-                    }
+                    synchronize_controlled_text_value(state, &descriptor.value, window, cx);
                     if state.presentation().placeholder().as_ref() != descriptor.placeholder {
                         state.set_placeholder(descriptor.placeholder.clone(), window, cx);
                     }
@@ -1595,7 +1616,7 @@ mod tests {
     use crate::{JsRuntime, runtime_session::RuntimeSession};
     use wabou_host_api::NodeKey;
     use wabou_protocol::{Frame, Op};
-    use wabou_shell::gpui::{HeadlessAppContext, TestAppContext, px, size};
+    use wabou_shell::gpui::{HeadlessAppContext, TestAppContext, VisualTestContext, px, size};
     use wabou_shell::{
         EffectId, EffectScope, OpenDialogRequest, WindowCreateRequest, WindowOptions,
     };
@@ -1605,6 +1626,88 @@ mod tests {
             JsRuntime::new().expect("QuickJS runtime"),
             wabou_shell::initial_window_resource_key(0),
         ))
+    }
+
+    struct TextareaTestRoot(Entity<TextareaState>);
+
+    impl Render for TextareaTestRoot {
+        fn render(
+            &mut self,
+            _: &mut Window,
+            _: &mut Context<Self>,
+        ) -> impl wabou_shell::gpui::IntoElement {
+            div().size_full().child(Textarea::new(&self.0))
+        }
+    }
+
+    #[wabou_shell::gpui::test]
+    fn controlled_text_sync_preserves_native_ime_composition(cx: &mut TestAppContext) {
+        cx.update(gpui_base::init);
+        let state_slot = Rc::new(std::cell::RefCell::new(None));
+        let state_for_window = state_slot.clone();
+        let window = cx.update(|cx| {
+            cx.open_window(Default::default(), move |window, cx| {
+                let state = cx.new(|cx| TextareaState::new(window, cx));
+                state_for_window.replace(Some(state.clone()));
+                cx.new(|_| TextareaTestRoot(state))
+            })
+            .expect("open textarea IME fixture")
+        });
+        let state = state_slot
+            .borrow()
+            .clone()
+            .expect("textarea state created with the fixture window");
+        let mut cx = VisualTestContext::from_window(window.into(), cx);
+
+        cx.update(|window, cx| {
+            state.update(cx, |state, cx| {
+                state.set_value("hello ", window, cx);
+                state.set_selected_range(6..6, cx);
+
+                EntityInputHandler::replace_and_mark_text_in_range(
+                    state,
+                    None,
+                    "n",
+                    Some(1..1),
+                    window,
+                    cx,
+                );
+                assert_eq!(state.value(), "hello n");
+                assert_eq!(state.selected_range(), 7..7);
+
+                // Solid still owns the last committed value while macOS owns
+                // the marked candidate. The stale controlled value must not
+                // reset the native selection to the beginning.
+                synchronize_controlled_text_value(state, "hello ", window, cx);
+                assert_eq!(state.value(), "hello n");
+                assert_eq!(state.selected_range(), 7..7);
+                assert_eq!(
+                    EntityInputHandler::marked_text_range(state, window, cx),
+                    Some(6..7)
+                );
+
+                EntityInputHandler::replace_and_mark_text_in_range(
+                    state,
+                    None,
+                    "ni",
+                    Some(2..2),
+                    window,
+                    cx,
+                );
+                synchronize_controlled_text_value(state, "hello ", window, cx);
+                assert_eq!(state.value(), "hello ni");
+                assert_eq!(state.selected_range(), 8..8);
+
+                EntityInputHandler::replace_text_in_range(state, None, "你", window, cx);
+                synchronize_controlled_text_value(state, "hello 你", window, cx);
+                assert_eq!(state.value(), "hello 你");
+                assert_eq!(state.selected_range(), 9..9);
+                assert_eq!(
+                    EntityInputHandler::marked_text_range(state, window, cx),
+                    None
+                );
+            });
+        });
     }
 
     #[test]
