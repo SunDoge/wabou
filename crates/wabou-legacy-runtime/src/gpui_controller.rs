@@ -611,6 +611,7 @@ impl GpuiController {
             focus,
             text_input,
             native,
+            std::rc::Rc::default(),
         )
     }
 
@@ -710,6 +711,111 @@ impl GpuiController {
         event: gpui_shell::ProjectedInputEvent,
     ) -> gpui_shell::EventResponse {
         match event {
+            gpui_shell::ProjectedInputEvent::TransitionEnd { target, generation } => {
+                let changed = self
+                    .dispatch_node_json(
+                        target,
+                        wabou_protocol::event::TRANSITIONEND,
+                        serde_json::json!({ "generation": generation }).to_string(),
+                        false,
+                    )
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                gpui_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..gpui_shell::EventResponse::default()
+                }
+            }
+            gpui_shell::ProjectedInputEvent::Activate { target } => {
+                let changed = self
+                    .dispatch_node_json(target, wabou_protocol::event::CLICK, "{}".into(), true)
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                gpui_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..gpui_shell::EventResponse::default()
+                }
+            }
+            gpui_shell::ProjectedInputEvent::ValueChange { target, value } => {
+                let changed = self
+                    .dispatch_node_json(
+                        target,
+                        wabou_protocol::event::CHANGE,
+                        serde_json::json!({ "value": value }).to_string(),
+                        false,
+                    )
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                gpui_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..gpui_shell::EventResponse::default()
+                }
+            }
+            gpui_shell::ProjectedInputEvent::TextChange { target, value } => {
+                let changed = self.commit_text_value(target, &value);
+                gpui_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..gpui_shell::EventResponse::default()
+                }
+            }
+            gpui_shell::ProjectedInputEvent::FocusChange { target, focused } => {
+                let changed = self.set_text_focus(target, focused);
+                gpui_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..gpui_shell::EventResponse::default()
+                }
+            }
+            gpui_shell::ProjectedInputEvent::TextSelectionChange {
+                target,
+                anchor,
+                head,
+            } => {
+                let changed = self
+                    .dispatch_node_json(
+                        target,
+                        wabou_protocol::event::TEXTSELECTIONCHANGE,
+                        serde_json::json!({
+                            "anchor": anchor,
+                            "head": head,
+                            "text": null,
+                            "kind": "simple",
+                        })
+                        .to_string(),
+                        false,
+                    )
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                gpui_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..gpui_shell::EventResponse::default()
+                }
+            }
+            gpui_shell::ProjectedInputEvent::Submit {
+                target,
+                secondary,
+                shift,
+            } => {
+                let changed = self
+                    .dispatch_node_json(
+                        target,
+                        wabou_protocol::event::SUBMIT,
+                        serde_json::json!({ "secondary": secondary, "shift": shift }).to_string(),
+                        true,
+                    )
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                gpui_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..gpui_shell::EventResponse::default()
+                }
+            }
             gpui_shell::ProjectedInputEvent::Pointer(event) => self.handle_projected_pointer(event),
             gpui_shell::ProjectedInputEvent::Wheel(event) => self.handle_projected_wheel(event),
             gpui_shell::ProjectedInputEvent::Scroll(event) => self.handle_projected_scroll(event),
