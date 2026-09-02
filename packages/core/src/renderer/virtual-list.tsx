@@ -108,6 +108,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
 
   return (
     <virtual-list
+      projectionBoundary
       class={mergeClasses(
         "w-full min-w-0 min-h-0 overflow-x-hidden overflow-y-auto",
         config.class,

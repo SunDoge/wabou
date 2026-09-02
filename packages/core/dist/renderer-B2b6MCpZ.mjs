@@ -375,7 +375,7 @@ function VirtualList(props) {
 	const itemKeys = createMemo(() => {
 		return validateVirtualItemKeys(config.items(), config.getItemKey);
 	});
-	var _el$ = createElement("virtual-list");
+	var _el$ = createElement("virtual-list", { projectionBoundary: true });
 	insert(_el$, createComponent$1(For, {
 		get each() {
 			return config.items();
@@ -1123,4 +1123,4 @@ function eventName(code) {
 //#endregion
 export { writer as A, releaseOverlayRoot as C, setProp as D, runSweep as E, defaultHost as F, useHost as I, PathBuilder as L, createFps as M, Portal as N, setTransform2D as O, HostProvider as P, isVectorPath as R, registerRoot as S, render as T, mergeProps as _, createElement as a, reconcileControlledInputValues as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, VirtualList as j, spread as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, removeNode as w, ref as x, observeGlobalPointerEvent as y };
 
-//# sourceMappingURL=renderer-BYDRnnWQ.mjs.map
+//# sourceMappingURL=renderer-B2b6MCpZ.mjs.map

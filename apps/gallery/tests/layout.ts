@@ -1,4 +1,6 @@
-import { resolve } from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import {
   assertLayoutRectContains,
   assertLayoutTextStyle,
@@ -10,6 +12,8 @@ import {
 } from "@wabou/test/layout";
 import {
   type LayoutFixtureCase,
+  probeAppProjection,
+  projectionBoundaryProbe,
   renderLayoutFixtures,
 } from "@wabou/test/layout/node";
 
@@ -1461,6 +1465,49 @@ if (narrow && wide) {
       throw new Error(
         `fixture \`${fixture.id}\` leaked its preceding Solid owner`,
       );
+  }
+}
+
+if (selected.length === 0 || selected.includes("runtime/projection-boundary")) {
+  const directory = await mkdtemp(join(tmpdir(), "wabou-projection-"));
+  try {
+    const projection = await probeAppProjection({
+      app: "apps/gallery",
+      out: join(directory, "report.json"),
+      fixture: "runtime/projection-boundary",
+      probe: 'globalThis.__wabou_projection_probe_set_left?.("left-after")',
+      command,
+      skipBuild: true,
+      width: 480,
+      height: 160,
+    });
+    if (projection.protocolRevisionDelta !== 1)
+      throw new Error(
+        `one Solid flush produced ${projection.protocolRevisionDelta} protocol frames`,
+      );
+    const mutable = projectionBoundaryProbe(
+      projection,
+      "Mutable projection boundary",
+    );
+    const stable = projectionBoundaryProbe(
+      projection,
+      "Stable projection boundary",
+    );
+    if (mutable.materializationDelta !== 1)
+      throw new Error(
+        `changed boundary materialized ${mutable.materializationDelta} times`,
+      );
+    if (
+      stable.structureDelta !== 0 ||
+      stable.layoutDelta !== 0 ||
+      stable.paintDelta !== 0 ||
+      stable.materializationDelta !== 0
+    )
+      throw new Error(
+        `stable sibling was invalidated: ${JSON.stringify(stable)}`,
+      );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 }
 

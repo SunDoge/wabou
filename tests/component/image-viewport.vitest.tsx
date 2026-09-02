@@ -49,6 +49,7 @@ test("pans media and read-only overlays through one controlled transform", () =>
   };
   const screen = renderComponent(Harness);
   const viewport = screen.getByRole("group", { name: "Pannable page" });
+  expect(viewport.projectionBoundary).toBe(true);
   viewport.resize({ width: 400, height: 300 });
   const overlay = screen.getByRole("note", { name: "Translation" }).parent!;
   expect(overlay.style("left")).toBe("40px");

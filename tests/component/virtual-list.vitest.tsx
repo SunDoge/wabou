@@ -21,4 +21,5 @@ test("owns the native scrolling and clipping viewport contract", () => {
   expect(list.className).toContain("overflow-x-hidden");
   expect(list.className).toContain("overflow-y-auto");
   expect(list.className).toContain("h-full");
+  expect(list.projectionBoundary).toBe(true);
 });

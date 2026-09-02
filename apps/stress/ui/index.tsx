@@ -187,7 +187,10 @@ function App() {
         </Text>
       </View>
 
-      <View class="h-14 flex-none min-w-0 flex overflow-x-auto overflow-y-hidden border-b border-subtle bg-surface-muted">
+      <View
+        projectionBoundary
+        class="h-14 flex-none min-w-0 flex overflow-x-auto overflow-y-hidden border-b border-subtle bg-surface-muted"
+      >
         <View class="w-28 flex-none px-3 justify-center border-r border-subtle">
           <Text class="text-[10px] text-muted">FPS</Text>
           <Text class="text-base font-mono font-semibold text-accent">
@@ -285,7 +288,11 @@ function App() {
         </Button>
       </View>
 
-      <View class="flex-1 min-h-0 overflow-hidden relative">
+      <View
+        projectionBoundary
+        aria-label="Emoji animation surface"
+        class="flex-1 min-h-0 overflow-hidden relative"
+      >
         <ForValue each={bodies()} keyed={false}>
           {(body, index) => (
             <View

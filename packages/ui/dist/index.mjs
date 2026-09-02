@@ -5424,6 +5424,7 @@ function ImageViewport(props) {
 		value: { transform },
 		get children() {
 			return createComponent$1(View, mergeProps(rest, {
+				projectionBoundary: true,
 				ref(r$) {
 					var _ref$ = measured.ref;
 					typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : measured.ref = r$;

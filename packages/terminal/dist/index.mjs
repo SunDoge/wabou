@@ -2,7 +2,10 @@ import { createElement, effect, ref, setProp } from "@wabou/core/renderer";
 //#region src/index.tsx
 /** Typed Solid wrapper around the Rust `terminal` widget. */
 function Terminal(props) {
-	var _el$ = createElement("terminal", { role: "textbox" });
+	var _el$ = createElement("terminal", {
+		projectionBoundary: true,
+		role: "textbox"
+	});
 	var _ref$ = props.ref;
 	typeof _ref$ === "function" || Array.isArray(_ref$) ? ref(() => {
 		return _ref$;
