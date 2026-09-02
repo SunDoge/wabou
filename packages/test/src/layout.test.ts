@@ -10,7 +10,11 @@ import {
   visibleOverflowDiagnostics,
   visualQualityDiagnostics,
 } from "./layout";
-import { layoutCommandArgs, reactiveRuntimeDiagnostic } from "./layout-node";
+import {
+  layoutCommandArgs,
+  projectionBoundaryProbe,
+  reactiveRuntimeDiagnostic,
+} from "./layout-node";
 
 describe("layout rect assertions", () => {
   test("reports stable right and bottom edges", () => {
@@ -95,6 +99,39 @@ describe("layout rect assertions", () => {
       colorScheme: "dark",
     });
     expect(args.slice(-2)).toEqual(["--color-scheme", "dark"]);
+  });
+
+  test("forwards one incremental projection probe to the GPUI harness", () => {
+    const args = layoutCommandArgs({
+      app: "apps/gallery",
+      out: "/tmp/layout.json",
+      probe: "globalThis.__fixture_set_count(2)",
+    });
+    expect(args.slice(-2)).toEqual([
+      "--probe",
+      "globalThis.__fixture_set_count(2)",
+    ]);
+  });
+
+  test("locates projection deltas by a stable semantic label", () => {
+    const boundary = projectionBoundaryProbe(
+      {
+        protocolRevisionDelta: 1,
+        boundaries: [
+          {
+            root: { lo: 3, hi: 1 },
+            label: "Stable projection boundary",
+            structureDelta: 0,
+            layoutDelta: 0,
+            paintDelta: 0,
+            materializationDelta: 0,
+            ownedNodes: 3,
+          },
+        ],
+      },
+      "Stable projection boundary",
+    );
+    expect(boundary.materializationDelta).toBe(0);
   });
 
   test("reports actionable context for visible overflow", () => {

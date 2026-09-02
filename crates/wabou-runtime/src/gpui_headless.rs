@@ -47,6 +47,28 @@ pub struct GpuiHeadlessOutput {
     pub scale_factor: f64,
 }
 
+/// One observable retained boundary in a deterministic GPUI checkpoint.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GpuiProjectionBoundaryCheckpoint {
+    /// Generational protocol identity of the boundary root.
+    pub root: wabou_shell::NodeKey,
+    /// Independent structure, layout, and paint revision clocks.
+    pub revision: wabou_shell::ProjectionBoundaryRevision,
+    /// Number of times GPUI requested this boundary's Render implementation.
+    pub materializations: u64,
+    /// Retained protocol nodes recursively owned by this boundary.
+    pub owned_nodes: usize,
+}
+
+/// Incremental-work checkpoint from the real QuickJS → GPUI projection.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GpuiProjectionCheckpoint {
+    /// Last completed Solid protocol revision.
+    pub protocol_revision: u64,
+    /// Stable boundary observations sorted by root NodeKey.
+    pub boundaries: Vec<GpuiProjectionBoundaryCheckpoint>,
+}
+
 /// Outcome of a platform pixel-capture request.
 #[derive(Debug)]
 pub enum GpuiHeadlessScreenshot {
@@ -194,6 +216,22 @@ impl GpuiHeadlessHarness {
         Ok(())
     }
 
+    /// Advance pending runtime work without forcing GPUI to discard cached views.
+    ///
+    /// Use this for incremental projection tests. [`Self::settle`] deliberately
+    /// calls `Window::refresh` so layout and pixel fixtures always repaint, but
+    /// GPUI defines that operation as bypassing every cached `View`.
+    pub fn settle_incremental(&mut self, frames: usize) -> crate::Result<()> {
+        for _ in 0..frames {
+            if let Some(clock) = &self.runtime_clock {
+                clock.advance(HEADLESS_FRAME_DURATION);
+                self.context.advance_clock(HEADLESS_FRAME_DURATION);
+            }
+            self.draw_incremental()?;
+        }
+        Ok(())
+    }
+
     /// Set the platform motion preference exposed to GPUI and JavaScript.
     ///
     /// Layout contracts normally enable reduced motion so geometry can settle
@@ -229,6 +267,17 @@ impl GpuiHeadlessHarness {
             })
             .map_err(|error| crate::Error::GpuiShell {
                 message: format!("failed to draw hidden GPUI window: {error}"),
+            })?;
+        Ok(())
+    }
+
+    fn draw_incremental(&mut self) -> crate::Result<()> {
+        self.context
+            .update_window(self.window.into(), |_, window, app| {
+                let _ = window.draw(app);
+            })
+            .map_err(|error| crate::Error::GpuiShell {
+                message: format!("failed to incrementally draw hidden GPUI window: {error}"),
             })?;
         Ok(())
     }
@@ -368,6 +417,16 @@ impl GpuiHeadlessHarness {
                 viewport_height,
                 scale_factor,
             }))
+    }
+
+    /// Observe incremental projection work without constructing a second test
+    /// renderer. Call this before and after `eval_script` + `settle` to prove
+    /// which real GPUI boundary was invalidated and materialized.
+    pub fn projection_checkpoint(&mut self) -> crate::Result<GpuiProjectionCheckpoint> {
+        let root = self.root()?;
+        Ok(self
+            .context
+            .read_entity(&root, |view, cx| view.projection_checkpoint(cx)))
     }
 
     /// Capture pixels when GPUI supplies a renderer for the current platform.

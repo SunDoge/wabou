@@ -255,6 +255,16 @@ impl GpuiProjectionRenderSnapshot {
         self.tree.nearest_projection_boundary(key)
     }
 
+    /// Number of retained protocol nodes materialized by this boundary.
+    /// Nested boundary roots are represented by one cached Entity in the
+    /// parent and are therefore excluded from the parent's recursive work.
+    pub fn projection_boundary_node_count(&self, root: NodeKey) -> usize {
+        self.tree
+            .keys()
+            .filter(|key| self.tree.nearest_projection_boundary(*key) == Some(root))
+            .count()
+    }
+
     pub fn direct_projection_boundaries(&self, root: NodeKey) -> Vec<NodeKey> {
         self.tree.direct_projection_boundaries(root)
     }
@@ -739,6 +749,25 @@ impl GpuiProjection {
                 .entry(boundary)
                 .or_default()
                 .invalidate(pending_node.dirty);
+
+            // A boundary root is also a layout child of its owning boundary.
+            // Its contents are materialized by its own Entity, but the parent
+            // captures the child's `StyleRefinement` when it installs the
+            // cached Entity. Propagate layout-affecting root changes one level
+            // so that placement is refreshed without invalidating siblings or
+            // walking the boundary's descendants in the parent.
+            if boundary == pending_node.key
+                && pending_node
+                    .dirty
+                    .intersects(DirtyKind::STRUCTURE | DirtyKind::LAYOUT | DirtyKind::TEXT)
+                && let Some(parent) = snapshot.node(boundary).and_then(|node| node.parent)
+                && let Some(owner) = snapshot.nearest_projection_boundary(parent)
+            {
+                self.boundary_revisions
+                    .entry(owner)
+                    .or_default()
+                    .invalidate(DirtyKind::LAYOUT);
+            }
         }
         crate::ProjectionInvalidationStats::from_pending(self.tree.revision(), &pending)
     }
@@ -1790,10 +1819,89 @@ mod tests {
         assert!(projection.finish_frame());
         let updated = projection.projection_boundary_revisions();
 
-        assert_eq!(updated[&NodeKey::ROOT], initial[&NodeKey::ROOT]);
+        assert_eq!(
+            updated[&NodeKey::ROOT].structure,
+            initial[&NodeKey::ROOT].structure,
+            "descendant text must not rebuild parent structure"
+        );
+        assert!(
+            updated[&NodeKey::ROOT].layout > initial[&NodeKey::ROOT].layout,
+            "a boundary's intrinsic size may change, so its parent placement must relayout"
+        );
         assert_eq!(updated[&key(2)].structure, initial[&key(2)].structure);
         assert!(updated[&key(2)].layout > initial[&key(2)].layout);
         assert!(updated[&key(2)].paint > initial[&key(2)].paint);
+    }
+
+    #[test]
+    fn boundary_root_layout_changes_invalidate_its_parent_placement_only() {
+        let mut projection = GpuiProjection::new();
+        let mut atoms = AtomPool::default();
+        let view = atoms.intern("view");
+        let width = atoms.intern("width");
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 1,
+                    ops: vec![
+                        Op::CreateElement {
+                            id: key(2),
+                            tag: view,
+                        },
+                        Op::CreateElement {
+                            id: key(3),
+                            tag: view,
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(2),
+                        },
+                        Op::AppendChild {
+                            parent: NodeKey::ROOT,
+                            child: key(3),
+                        },
+                        Op::SetProjectionBoundary {
+                            id: key(2),
+                            enabled: true,
+                        },
+                        Op::SetProjectionBoundary {
+                            id: key(3),
+                            enabled: true,
+                        },
+                    ],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        assert!(projection.finish_frame());
+        let initial = projection.projection_boundary_revisions().clone();
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 2,
+                    ops: vec![Op::SetStyleValue {
+                        id: key(2),
+                        prop: width,
+                        value: StyleValue::Px(480.0),
+                    }],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        assert!(projection.finish_frame());
+        let updated = projection.projection_boundary_revisions();
+
+        assert!(updated[&key(2)].layout > initial[&key(2)].layout);
+        assert_eq!(updated[&key(2)].structure, initial[&key(2)].structure);
+        assert_eq!(updated[&key(3)], initial[&key(3)]);
+        assert!(updated[&NodeKey::ROOT].layout > initial[&NodeKey::ROOT].layout);
+        assert_eq!(
+            updated[&NodeKey::ROOT].structure,
+            initial[&NodeKey::ROOT].structure
+        );
     }
 
     #[test]

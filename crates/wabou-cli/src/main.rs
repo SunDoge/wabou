@@ -298,6 +298,9 @@ enum Commands {
         /// Render every fixture described by a batch manifest in an isolated GPUI runtime.
         #[arg(long, value_name = "JSON")]
         batch: Option<PathBuf>,
+        /// Mount one application-owned layout fixture before probing.
+        #[arg(long, value_name = "ID", conflicts_with = "batch")]
+        fixture: Option<String>,
         #[arg(long, default_value_t = 1440)]
         width: u32,
         #[arg(long, default_value_t = 900)]
@@ -320,6 +323,10 @@ enum Commands {
         /// Keep driving layout frames so finite reactive work can settle.
         #[arg(long, default_value_t = 0)]
         wait_ms: u64,
+        /// Evaluate JavaScript after the initial checkpoint and report the
+        /// resulting per-boundary GPUI invalidation/materialization delta.
+        #[arg(long, value_name = "JAVASCRIPT", conflicts_with = "batch")]
+        probe: Option<String>,
     },
     /// Open the native Wabou inspector.
     Devtools,
@@ -567,6 +574,7 @@ fn main() -> Result<()> {
                     actions: render_actions
                         .unwrap_or_else(|| fallback_render_actions(click, wheel, text, key)),
                     layout_only: false,
+                    projection_probe: None,
                     cargo_features: cargo_features.values,
                 },
             )
@@ -575,6 +583,7 @@ fn main() -> Result<()> {
             app,
             out,
             batch,
+            fixture,
             width,
             height,
             window_id,
@@ -583,6 +592,7 @@ fn main() -> Result<()> {
             mode,
             skip_build,
             wait_ms,
+            probe,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
             render(
@@ -597,7 +607,7 @@ fn main() -> Result<()> {
                     scale_factor,
                     color_scheme,
                     mode,
-                    fixture: None,
+                    fixture,
                     skip_build,
                     with_host: false,
                     scenario: None,
@@ -607,6 +617,7 @@ fn main() -> Result<()> {
                     samples: 0,
                     actions: Vec::new(),
                     layout_only: true,
+                    projection_probe: probe,
                     cargo_features: Vec::new(),
                 },
             )
@@ -1679,6 +1690,26 @@ mod tests {
         };
         assert_eq!(batch, Some(PathBuf::from("fixtures.json")));
         assert_eq!(mode.as_deref(), Some("layout-test"));
+    }
+
+    #[test]
+    fn layout_accepts_one_incremental_projection_probe() {
+        let Cli {
+            command: Commands::Layout { probe, .. },
+        } = Cli::try_parse_from([
+            "wabou",
+            "layout",
+            "apps/gallery",
+            "--out",
+            "layout.json",
+            "--probe",
+            "globalThis.__fixture_set_count(2)",
+        ])
+        .unwrap()
+        else {
+            panic!("expected layout command");
+        };
+        assert_eq!(probe.as_deref(), Some("globalThis.__fixture_set_count(2)"));
     }
 
     #[test]

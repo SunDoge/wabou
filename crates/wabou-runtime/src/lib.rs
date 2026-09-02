@@ -55,6 +55,7 @@ pub use error::{Error, Result};
 #[cfg(feature = "headless")]
 pub use gpui_headless::{
     GpuiHeadlessHarness, GpuiHeadlessOptions, GpuiHeadlessOutput, GpuiHeadlessScreenshot,
+    GpuiProjectionBoundaryCheckpoint, GpuiProjectionCheckpoint,
 };
 pub use host::{
     HostBuilder, HostService, HostServiceContext, HostServiceHandle, ManagedHostService,

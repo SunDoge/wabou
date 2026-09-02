@@ -36,6 +36,23 @@ Do not replace these assertions with FPS thresholds. Timing is machine-specific;
 mutation count, changed boundary identity, and materialization count are the
 stable architecture contracts.
 
+For an application-level regression, use the incremental projection probe. It
+boots the real QuickJS bundle in GPUI headless, records a checkpoint, evaluates
+one JavaScript write, then draws without `Window::refresh` so GPUI's view cache
+remains observable:
+
+```bash
+wabou layout apps/gallery --fixture runtime/projection-boundary \
+  --probe 'globalThis.__wabou_projection_probe_set_left?.("left-after")' \
+  --out /tmp/projection.json
+```
+
+TypeScript tests can call `probeAppProjection` and locate a named boundary with
+`projectionBoundaryProbe`. Give boundaries under test an `aria-label`; assert
+that the changed boundary advances while an unrelated sibling has zero
+revision and materialization deltas. Ordinary layout fixtures continue to use
+the forced-refresh settle path because they test final geometry, not caching.
+
 ### HMR lifecycle
 
 HMR must preserve one logical application tree at all times:

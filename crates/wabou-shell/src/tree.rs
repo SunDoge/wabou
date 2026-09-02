@@ -716,10 +716,14 @@ impl ProjectionTree {
         key: NodeKey,
         enabled: bool,
     ) -> Result<(), ProjectionError> {
-        self.nodes_mut()
+        let node = self
+            .nodes_mut()
             .get_mut(&key)
-            .ok_or(ProjectionError::MissingNode(key))?
-            .pointer_events = enabled;
+            .ok_or(ProjectionError::MissingNode(key))?;
+        if node.pointer_events == enabled {
+            return Ok(());
+        }
+        node.pointer_events = enabled;
         self.dirty.invalidate(key, DirtyKind::INTERACTION);
         Ok(())
     }
@@ -729,20 +733,28 @@ impl ProjectionTree {
         key: NodeKey,
         policy: Option<TextSelectionPolicy>,
     ) -> Result<(), ProjectionError> {
-        self.nodes_mut()
+        let node = self
+            .nodes_mut()
             .get_mut(&key)
-            .ok_or(ProjectionError::MissingNode(key))?
-            .text_selection = policy;
+            .ok_or(ProjectionError::MissingNode(key))?;
+        if node.text_selection == policy {
+            return Ok(());
+        }
+        node.text_selection = policy;
         self.dirty
             .invalidate(key, DirtyKind::PAINT | DirtyKind::INTERACTION);
         Ok(())
     }
 
     pub fn update_z_index(&mut self, key: NodeKey, z_index: usize) -> Result<(), ProjectionError> {
-        self.nodes_mut()
+        let node = self
+            .nodes_mut()
             .get_mut(&key)
-            .ok_or(ProjectionError::MissingNode(key))?
-            .z_index = z_index;
+            .ok_or(ProjectionError::MissingNode(key))?;
+        if node.z_index == z_index {
+            return Ok(());
+        }
+        node.z_index = z_index;
         self.dirty
             .invalidate(key, DirtyKind::PAINT | DirtyKind::INTERACTION);
         Ok(())
