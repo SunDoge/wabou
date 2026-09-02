@@ -93,6 +93,23 @@ test("Pi Agent composer keeps the primary action and configuration discoverable"
   expect(submit).toHaveBeenCalledOnce();
 });
 
+test("Pi Agent composer submits on Enter and reserves Shift+Enter for a newline", () => {
+  const submit = vi.fn();
+  const screen = renderComponent(() => (
+    <ConversationComposer {...baseProps} submit={submit} />
+  ));
+  const editor = screen.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+
+  expect(editor.attribute("submitOnEnter")).toBe("true");
+  editor.emit("submit", { secondary: false, shift: false });
+  expect(submit).toHaveBeenCalledOnce();
+
+  editor.emit("submit", { secondary: false, shift: true });
+  expect(submit).toHaveBeenCalledOnce();
+});
+
 test("keeps the composer mounted and exposes Pi connection failures", () => {
   const [connection, setConnection] = createSignal<"ready" | "failed">("ready");
   const screen = renderComponent(() => (
