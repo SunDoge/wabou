@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeSet, HashMap},
     env,
+    ffi::{OsStr, OsString},
     io::{BufRead as _, BufReader, Write as _},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
@@ -19,6 +20,7 @@ use wabou::{
 
 pub const CAPABILITY: CapabilityContract = CapabilityContract::new("piAgent", 1);
 const EVENT_TOPIC: &str = "pi.event";
+const PI_PACKAGE: &str = "@earendil-works/pi-coding-agent@0.84.3";
 
 const GET_STATUS: JsonMethod<AgentRequest, PiStatus> = JsonMethod::new("getStatus");
 const START: JsonMethod<StartRequest, PiStatus> = JsonMethod::new("start");
@@ -978,26 +980,7 @@ impl PiService {
                 format!("could not create workspace {}: {error}", cwd.display())
             })?;
         }
-        let explicit_pi = env::var_os("WABOU_PI_BIN");
-        let mut command = match explicit_pi {
-            Some(executable) => {
-                let mut command = Command::new(executable);
-                command.args(["--mode", "rpc"]);
-                command
-            }
-            None => {
-                let mut command = Command::new("bun");
-                command.args([
-                    "x",
-                    "--package",
-                    "@earendil-works/pi-coding-agent@0.84.3",
-                    "pi",
-                    "--mode",
-                    "rpc",
-                ]);
-                command
-            }
-        };
+        let mut command = pi_command()?;
         configure_pi_command(&mut command, &request);
         if let Some(session_file) = session_file {
             command.arg("--session").arg(session_file);
@@ -1014,9 +997,16 @@ impl PiService {
             use std::os::windows::process::CommandExt as _;
             command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
         }
-        let mut child = command.spawn().map_err(|error| {
-            format!("could not start Pi through Bun. Install Bun or set WABOU_PI_BIN: {error}")
-        })?;
+        let program = command.get_program().to_string_lossy().into_owned();
+        tracing::info!(
+            agent_id = %request.agent_id,
+            cwd = %cwd.display(),
+            runtime = %program,
+            "starting Pi RPC runtime"
+        );
+        let mut child = command
+            .spawn()
+            .map_err(|error| format!("could not start Pi with `{program}`: {error}"))?;
         let stdin = Arc::new(Mutex::new(
             child.stdin.take().ok_or("Pi stdin was not piped")?,
         ));
@@ -1248,6 +1238,92 @@ fn write_rpc_request(stdin: &Arc<Mutex<ChildStdin>>, value: &Value) -> Result<()
     serde_json::to_writer(&mut *stdin, value).map_err(|error| error.to_string())?;
     stdin.write_all(b"\n").map_err(|error| error.to_string())?;
     stdin.flush().map_err(|error| error.to_string())
+}
+
+fn pi_command() -> Result<Command, String> {
+    let search_path = runtime_search_path();
+    let current_dir = env::current_dir().map_err(|error| error.to_string())?;
+    if let Some(executable) = env::var_os("WABOU_PI_BIN") {
+        let executable = resolve_runtime_executable(&executable, &search_path, &current_dir)
+            .map_err(|error| format!("WABOU_PI_BIN is not executable: {error}"))?;
+        let mut command = Command::new(executable);
+        command.args(["--mode", "rpc"]);
+        command.env("PATH", &search_path);
+        return Ok(command);
+    }
+
+    let requested_bun = env::var_os("WABOU_BUN_BIN").unwrap_or_else(|| OsString::from("bun"));
+    let bun = resolve_runtime_executable(&requested_bun, &search_path, &current_dir).map_err(
+        |error| {
+            format!(
+                "could not locate Bun ({error}). Install Bun, set WABOU_BUN_BIN to its executable, or set WABOU_PI_BIN to an installed Pi executable"
+            )
+        },
+    )?;
+    let mut command = Command::new(bun);
+    command.args(["x", "--package", PI_PACKAGE, "pi", "--mode", "rpc"]);
+    // Desktop launchers do not inherit the user's interactive shell PATH.
+    // Pass the same enriched path to Pi so its tools resolve consistently too.
+    command.env("PATH", search_path);
+    Ok(command)
+}
+
+fn resolve_runtime_executable(
+    executable: &OsStr,
+    search_path: &OsStr,
+    current_dir: &Path,
+) -> Result<PathBuf, which::Error> {
+    which::which_in(executable, Some(search_path), current_dir)
+}
+
+fn runtime_search_path() -> OsString {
+    let inherited = env::var_os("PATH");
+    let bun_install = env::var_os("BUN_INSTALL");
+    let mise_data = env::var_os("MISE_DATA_DIR");
+    let base = directories::BaseDirs::new();
+    runtime_search_path_from(
+        inherited.as_deref(),
+        bun_install.as_deref(),
+        mise_data.as_deref(),
+        base.as_ref().map(directories::BaseDirs::home_dir),
+    )
+}
+
+fn runtime_search_path_from(
+    inherited: Option<&OsStr>,
+    bun_install: Option<&OsStr>,
+    mise_data: Option<&OsStr>,
+    home: Option<&Path>,
+) -> OsString {
+    let mut search_directories = inherited
+        .map(env::split_paths)
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    if let Some(install) = bun_install {
+        search_directories.push(PathBuf::from(install).join("bin"));
+    }
+    if let Some(data) = mise_data {
+        search_directories.push(PathBuf::from(data).join("shims"));
+    }
+    if let Some(home) = home {
+        search_directories.extend([
+            home.join(".bun/bin"),
+            home.join(".cargo/bin"),
+            home.join(".local/bin"),
+            home.join(".local/share/mise/shims"),
+            home.join(".asdf/shims"),
+            home.join(".proto/shims"),
+        ]);
+    }
+    #[cfg(unix)]
+    search_directories.extend([
+        PathBuf::from("/opt/homebrew/bin"),
+        PathBuf::from("/usr/local/bin"),
+    ]);
+    let mut seen = BTreeSet::new();
+    search_directories.retain(|directory| seen.insert(directory.clone()));
+    env::join_paths(&search_directories).unwrap_or_else(|_| inherited.unwrap_or_default().into())
 }
 
 fn follow_up_request(event: &Value) -> Option<Value> {
@@ -2041,6 +2117,24 @@ mod tests {
         let status = PiService::new().status("default").expect("status");
         assert!(!status.running);
         assert_eq!(status.runtime, "bun");
+    }
+
+    #[test]
+    fn runtime_search_path_includes_gui_launcher_fallbacks() {
+        let inherited = env::join_paths([PathBuf::from("/usr/bin")]).expect("inherited path");
+        let search_path = runtime_search_path_from(
+            Some(&inherited),
+            Some(OsStr::new("/runtime/bun")),
+            Some(OsStr::new("/runtime/mise")),
+            Some(Path::new("/home/wabou")),
+        );
+        let entries = env::split_paths(&search_path).collect::<Vec<_>>();
+
+        assert!(entries.contains(&PathBuf::from("/usr/bin")));
+        assert!(entries.contains(&PathBuf::from("/runtime/bun/bin")));
+        assert!(entries.contains(&PathBuf::from("/runtime/mise/shims")));
+        assert!(entries.contains(&PathBuf::from("/home/wabou/.bun/bin")));
+        assert!(entries.contains(&PathBuf::from("/home/wabou/.local/share/mise/shims")));
     }
 
     #[test]

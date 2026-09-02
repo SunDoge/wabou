@@ -6,6 +6,20 @@ use wabou_shell_api::{KeyEvent, KeyLocation, KeyPhase, Modifiers, UiEvent, WakeC
 
 use wabou_terminal_core::{TerminalColor, TerminalInputResult, TerminalWidget};
 
+#[cfg(target_os = "macos")]
+const PLATFORM_MONOSPACE_FONT: &str = "Menlo";
+#[cfg(target_os = "windows")]
+const PLATFORM_MONOSPACE_FONT: &str = "Consolas";
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+const PLATFORM_MONOSPACE_FONT: &str = "DejaVu Sans Mono";
+
+fn terminal_font_family(value: &str) -> &str {
+    match value.trim() {
+        "" | "monospace" | "ui-monospace" => PLATFORM_MONOSPACE_FONT,
+        _ => value,
+    }
+}
+
 fn gpui_color(color: TerminalColor) -> gpui::Rgba {
     let [r, g, b, a] = color.components();
     gpui::rgba((u32::from(r) << 24) | (u32::from(g) << 16) | (u32::from(b) << 8) | u32::from(a))
@@ -80,7 +94,12 @@ impl GpuiTerminal {
             return;
         }
         for (name, value) in context.attributes() {
-            self.terminal.apply_native_attribute(name, value);
+            if name == "font-family" {
+                self.terminal
+                    .apply_native_attribute(name, terminal_font_family(value));
+            } else {
+                self.terminal.apply_native_attribute(name, value);
+            }
         }
     }
 }
@@ -339,6 +358,7 @@ pub fn gpui_terminal_factory()
             let (sender, receiver) = flume::bounded::<()>(1);
             cx.new(|entity_cx: &mut gpui::Context<GpuiTerminal>| {
                 let mut terminal = TerminalWidget::lazy_default_shell();
+                terminal.apply_native_attribute("font-family", PLATFORM_MONOSPACE_FONT);
                 let wake: WakeCallback = Arc::new(move || {
                     let _ = sender.try_send(());
                 });
@@ -380,6 +400,16 @@ mod tests {
 
     struct Harness;
 
+    #[test]
+    fn generic_monospace_alias_uses_a_platform_font() {
+        assert_eq!(terminal_font_family("monospace"), PLATFORM_MONOSPACE_FONT);
+        assert_eq!(
+            terminal_font_family("ui-monospace"),
+            PLATFORM_MONOSPACE_FONT
+        );
+        assert_eq!(terminal_font_family("Hack"), "Hack");
+    }
+
     impl gpui::Render for Harness {
         fn render(
             &mut self,
@@ -394,7 +424,8 @@ mod tests {
     fn factory_reuses_the_entity_retained_for_the_same_node(cx: &mut TestAppContext) {
         let factory = gpui_terminal_factory();
         let (_view, _cx) = cx.add_window_view(move |window, cx| {
-            let attributes = BTreeMap::new();
+            let mut attributes = BTreeMap::new();
+            attributes.insert("font-family".into(), "monospace".into());
             let input = std::rc::Rc::new(|_, _: &mut gpui::App| {});
             let first = factory(
                 NativeWidgetContext::new(
@@ -412,6 +443,15 @@ mod tests {
             assert!(
                 native_input.is_some(),
                 "terminal factory retains an input path"
+            );
+            let terminal = retained
+                .clone()
+                .downcast::<GpuiTerminal>()
+                .expect("terminal entity type");
+            assert_eq!(
+                terminal.read(cx).terminal.font_family(),
+                PLATFORM_MONOSPACE_FONT,
+                "the native terminal must shape text with a real platform monospace family"
             );
             let first_id = retained.entity_id();
             let second = factory(

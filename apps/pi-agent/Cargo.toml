@@ -22,3 +22,4 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tokio = { workspace = true, features = ["fs", "macros"] }
 wabou = { workspace = true }
 wabou-terminal = { workspace = true }
+which = { workspace = true }
