@@ -1,7 +1,13 @@
 import type { Handle } from "@wabou/core/renderer";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
-import { createMemo, createSignal, For as ForValue, type JSX } from "solid-js";
+import {
+  createMemo,
+  createSignal,
+  For as ForValue,
+  type JSX,
+  untrack,
+} from "solid-js";
 import { Button as HeadlessButton, Icon, Text, View } from "../primitives";
 import { mergeClasses } from "@wabou/core/style";
 import { createControllableState } from "./state";
@@ -10,6 +16,8 @@ export interface TreeNode {
   id: string;
   label: string;
   disabled?: boolean;
+  /** The node is expandable even when its children have not been loaded yet. */
+  hasChildren?: boolean;
   children?: readonly TreeNode[];
 }
 
@@ -57,7 +65,10 @@ export function createTreeModel(nodes: readonly TreeNode[]): TreeModel {
   };
   visit(nodes, null);
 
-  const isBranch = (id: string) => (byId.get(id)?.children?.length ?? 0) > 0;
+  const isBranch = (id: string) => {
+    const node = byId.get(id);
+    return Boolean(node?.hasChildren || node?.children?.length);
+  };
   return {
     get: (id) => byId.get(id),
     parent: (id) => parents.get(id),
@@ -119,11 +130,11 @@ function validateExpandedIds(
 
 /** A single-select tree with explicit data, expansion, and native focus routing. */
 export function TreeView(props: TreeViewProps): JSX.Element {
-  const initialModel = createTreeModel(props.items);
+  const initialModel = createTreeModel(untrack(() => props.items));
   const model = createMemo(() => createTreeModel(props.items));
   const defaultExpanded = validateExpandedIds(
     initialModel,
-    props.defaultExpandedIds ?? [],
+    untrack(() => props.defaultExpandedIds) ?? [],
   );
   const expandedState = createControllableState<readonly string[]>({
     value: () =>
@@ -135,7 +146,7 @@ export function TreeView(props: TreeViewProps): JSX.Element {
   });
   const selectedState = createControllableState<string | null>({
     value: () => props.selectedId,
-    defaultValue: props.defaultSelectedId ?? null,
+    defaultValue: untrack(() => props.defaultSelectedId) ?? null,
     onChange: props.onSelectedChange,
   });
   const [activeId, setActiveId] = createSignal<string | undefined>(undefined, {

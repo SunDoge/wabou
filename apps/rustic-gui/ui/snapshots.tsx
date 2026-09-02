@@ -1,6 +1,7 @@
 import {
   Badge,
   Button,
+  ButtonGroup,
   ContentState,
   Icon,
   InputGroup,
@@ -22,6 +23,8 @@ import {
 import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
 import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
+import folderTree from "lucide-static/icons/folder-tree.svg?raw";
+import list from "lucide-static/icons/list.svg?raw";
 import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
@@ -29,6 +32,7 @@ import { createEffect, createSignal, For, Show } from "solid-js";
 import { type FileEntry, type SnapshotEntry, useRusticApi } from "./api";
 import { useRusticSession } from "./session";
 import { FileDetails } from "./file-details";
+import { SnapshotFileTree } from "./snapshot-tree";
 import { BackupSourcesPanel } from "./workspace-components";
 
 function formatBytes(bytes: number): string {
@@ -60,6 +64,7 @@ export function SnapshotsPage() {
   const [searchResults, setSearchResults] = createSignal<FileEntry[]>([]);
   const [searchActive, setSearchActive] = createSignal(false);
   const [searching, setSearching] = createSignal(false);
+  const [browserMode, setBrowserMode] = createSignal<"list" | "tree">("list");
   const [currentPath, setCurrentPath] = createSignal("");
   const [loading, setLoading] = createSignal(true);
   const [backingUp, setBackingUp] = createSignal(false);
@@ -326,6 +331,29 @@ export function SnapshotsPage() {
                           : `/${currentPath() || ""}`}
                       </Text>
                     </View>
+                    <ButtonGroup size="sm" variant="ghost" aria-label="File view">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        selected={browserMode() === "list"}
+                        aria-label="List view"
+                        onClick={() => setBrowserMode("list")}
+                      >
+                        <Icon source={list} size={14} />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        selected={browserMode() === "tree"}
+                        aria-label="Tree view"
+                        onClick={() => {
+                          clearSearch();
+                          setBrowserMode("tree");
+                        }}
+                      >
+                        <Icon source={folderTree} size={14} />
+                      </Button>
+                    </ButtonGroup>
                     <Badge variant="secondary">{visibleFiles().length} items</Badge>
                   </View>
                   <View class="flex flex-row items-center gap-2">
@@ -363,7 +391,23 @@ export function SnapshotsPage() {
                   </View>
                 </View>
                 <View class="min-w-0 min-h-0 flex-1 flex flex-row">
-                  <ScrollArea class="min-w-0 min-h-0 flex-1" contentClass="min-w-full">
+                  <Show
+                    when={browserMode() === "list" || searchActive()}
+                    fallback={
+                      <ScrollArea
+                        class="min-w-0 min-h-0 flex-1"
+                        contentClass="min-w-full px-2 py-2"
+                      >
+                        <SnapshotFileTree
+                          profileId={session.activeProfile()?.id ?? ""}
+                          snapshotId={snapshot().id}
+                          selectedPath={selectedEntry()?.path}
+                          onSelect={setSelectedEntry}
+                        />
+                      </ScrollArea>
+                    }
+                  >
+                    <ScrollArea class="min-w-0 min-h-0 flex-1" contentClass="min-w-full">
                     <Table>
                       <TableHeader>
                         <TableRow class="bg-surface-muted">
@@ -425,7 +469,8 @@ export function SnapshotsPage() {
                         </For>
                       </TableBody>
                     </Table>
-                  </ScrollArea>
+                    </ScrollArea>
+                  </Show>
                   <FileDetails
                     profileId={session.activeProfile()?.id ?? ""}
                     snapshotId={snapshot().id}
