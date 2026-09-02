@@ -6,7 +6,10 @@ import { expect, test, vi } from "vitest";
 import type { ProfileStore } from "../../apps/rustic-gui/ui/profile-store";
 import { FileDetails } from "../../apps/rustic-gui/ui/file-details";
 import { SnapshotFileTree } from "../../apps/rustic-gui/ui/snapshot-tree";
-import { formatModified } from "../../apps/rustic-gui/ui/snapshots";
+import {
+  formatModified,
+  SnapshotFileRow,
+} from "../../apps/rustic-gui/ui/snapshots";
 import {
   RusticSessionProvider,
   useRusticSession,
@@ -175,7 +178,7 @@ test("file details preview and extract through the native rustic capability", as
   });
 });
 
-test("backup sources add normalized unique paths and remove existing paths", () => {
+test("backup sources add manual paths with Enter and remove existing paths", () => {
   const changes = vi.fn<(sources: string[]) => void>();
   const App = () => {
     const [sources, setSources] = createSignal<string[]>(["/data/photos"]);
@@ -193,11 +196,31 @@ test("backup sources add normalized unique paths and remove existing paths", () 
   const input = screen.getByRole("textbox", { name: "Backup folder" });
 
   input.input("  /data/documents  ");
-  screen.getByRole("button", { name: "Add folder" }).click();
+  input.press("Enter");
   expect(changes).toHaveBeenLastCalledWith(["/data/photos", "/data/documents"]);
 
   screen.getByRole("button", { name: "Remove /data/photos" }).click();
   expect(changes).toHaveBeenLastCalledWith(["/data/documents"]);
+});
+
+test("backup sources add a directory as soon as the native picker commits it", async () => {
+  const changes = vi.fn<(sources: string[]) => void>();
+  const screen = renderComponent(
+    () => <BackupSourcesPanel sources={[]} onChange={changes} />,
+    {
+      platform: {
+        dialog: {
+          ...dialog,
+          pickDirectory: async () => "/data/photos",
+        },
+      },
+    },
+  );
+
+  screen.getByRole("button", { name: "Choose backup folder" }).click();
+  await screen.waitFor(() => {
+    expect(changes).toHaveBeenCalledWith(["/data/photos"]);
+  });
 });
 
 test("backup sources disable every mutating action during a backup", () => {
@@ -215,12 +238,36 @@ test("backup sources disable every mutating action during a backup", () => {
   expect(
     screen.getByRole("button", { name: "Choose backup folder" }).disabled,
   ).toBe(true);
-  expect(screen.getByRole("button", { name: "Add folder" }).disabled).toBe(
-    true,
-  );
   expect(
     screen.getByRole("button", { name: "Remove /data/photos" }).disabled,
   ).toBe(true);
+});
+
+test("list rows select on click and open directories on double click", () => {
+  const select = vi.fn();
+  const open = vi.fn();
+  const screen = renderComponent(() => (
+    <SnapshotFileRow
+      entry={{
+        name: "docs",
+        path: "docs",
+        kind: "directory",
+        size: 0,
+      }}
+      selected={false}
+      searchActive={false}
+      onSelect={select}
+      onOpenDirectory={open}
+    />
+  ));
+  const row = screen.getByRole("row", { name: "docs" });
+
+  row.click();
+  expect(select).toHaveBeenCalledWith(expect.objectContaining({ path: "docs" }));
+  expect(open).not.toHaveBeenCalled();
+
+  row.emit("dblclick");
+  expect(open).toHaveBeenCalledWith(expect.objectContaining({ path: "docs" }));
 });
 
 test("rustic session hydrates durable profiles and exposes their locked state", async () => {

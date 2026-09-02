@@ -28,6 +28,8 @@ export interface DirectoryPickerProps
   inputClass?: string;
   buttonClass?: string;
   onBrowseError?: (error: unknown) => void;
+  /** Called only after the native picker commits a directory selection. */
+  onBrowseSelect?: (value: string) => void;
 }
 
 /** A controlled path input paired with the operating system directory picker. */
@@ -51,6 +53,7 @@ export function DirectoryPicker(props: DirectoryPickerProps): JSX.Element {
     "inputClass",
     "buttonClass",
     "onBrowseError",
+    "onBrowseSelect",
   );
 
   async function browse(): Promise<void> {
@@ -61,7 +64,10 @@ export function DirectoryPicker(props: DirectoryPickerProps): JSX.Element {
       else throw result.error;
       return;
     }
-    if (result.value !== null) local.onValueChange(result.value);
+    if (result.value !== null) {
+      local.onValueChange(result.value);
+      local.onBrowseSelect?.(result.value);
+    }
   }
 
   return (

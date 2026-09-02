@@ -52,6 +52,63 @@ export function formatModified(value?: string): string {
   return match ? `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}` : value;
 }
 
+export function SnapshotFileRow(props: {
+  entry: FileEntry;
+  selected: boolean;
+  searchActive: boolean;
+  onSelect: (entry: FileEntry) => void;
+  onOpenDirectory: (entry: FileEntry) => void;
+}) {
+  const entry = () => props.entry;
+  return (
+    <TableRow
+      aria-label={entry().name}
+      selected={props.selected}
+      class="cursor-pointer"
+      onClick={() => props.onSelect(entry())}
+      onDblClick={() => {
+        if (entry().kind === "directory") props.onOpenDirectory(entry());
+      }}
+    >
+      <TableCell class="min-w-64 flex-1 gap-2">
+        <Icon
+          source={entry().kind === "directory" ? folder : file}
+          size={15}
+          class="flex-none text-muted"
+        />
+        <View class="min-w-0 flex-1 flex flex-col gap-0.5">
+          <Text class="w-full truncate">{entry().name}</Text>
+          <Show when={props.searchActive}>
+            <Text class="w-full truncate text-xs text-muted">
+              {entry().path}
+            </Text>
+          </Show>
+        </View>
+      </TableCell>
+      <TableCell class="w-24 flex-none text-muted">
+        {entry().kind === "directory" ? "—" : formatBytes(entry().size)}
+      </TableCell>
+      <TableCell class="w-36 flex-none text-muted">
+        {formatModified(entry().modified)}
+      </TableCell>
+      <TableCell class="w-20 flex-none justify-end">
+        <Show when={entry().kind === "directory"}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(event) => {
+              event.stopPropagation();
+              props.onOpenDirectory(entry());
+            }}
+          >
+            Open
+          </Button>
+        </Show>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 export function SnapshotsPage() {
   const api = useRusticApi();
   const session = useRusticSession();
@@ -420,51 +477,19 @@ export function SnapshotsPage() {
                       <TableBody>
                         <For each={visibleFiles()}>
                           {(entry) => (
-                            <TableRow
+                            <SnapshotFileRow
+                              entry={entry}
                               selected={selectedEntry()?.path === entry.path}
-                              class="cursor-pointer"
-                              onClick={() => setSelectedEntry(entry)}
-                            >
-                              <TableCell class="min-w-64 flex-1 gap-2">
-                                <Icon
-                                  source={entry.kind === "directory" ? folder : file}
-                                  size={15}
-                                  class="flex-none text-muted"
-                                />
-                                <View class="min-w-0 flex-1 flex flex-col gap-0.5">
-                                  <Text class="w-full truncate">{entry.name}</Text>
-                                  <Show when={searchActive()}>
-                                    <Text class="w-full truncate text-xs text-muted">
-                                      {entry.path}
-                                    </Text>
-                                  </Show>
-                                </View>
-                              </TableCell>
-                              <TableCell class="w-24 flex-none text-muted">
-                                {entry.kind === "directory" ? "—" : formatBytes(entry.size)}
-                              </TableCell>
-                              <TableCell class="w-36 flex-none text-muted">
-                                {formatModified(entry.modified)}
-                              </TableCell>
-                              <TableCell class="w-20 flex-none justify-end">
-                                <Show when={entry.kind === "directory"}>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      void loadFiles(
-                                        session.activeProfile()?.id ?? "",
-                                        snapshot(),
-                                        entry.path,
-                                      );
-                                    }}
-                                  >
-                                    Open
-                                  </Button>
-                                </Show>
-                              </TableCell>
-                            </TableRow>
+                              searchActive={searchActive()}
+                              onSelect={setSelectedEntry}
+                              onOpenDirectory={(directory) =>
+                                void loadFiles(
+                                  session.activeProfile()?.id ?? "",
+                                  snapshot(),
+                                  directory.path,
+                                )
+                              }
+                            />
                           )}
                         </For>
                       </TableBody>
