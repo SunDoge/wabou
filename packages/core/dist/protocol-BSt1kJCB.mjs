@@ -209,7 +209,8 @@ const OP = {
 	SetTextSelection: 35,
 	TextCommand: 36,
 	BlurNode: 37,
-	SetProjectionBoundary: 38
+	SetProjectionBoundary: 38,
+	AcknowledgeTextValue: 39
 };
 const TEXT_BEHAVIOR = {
 	AggregateDirectText: 1,
@@ -648,6 +649,11 @@ var Writer = class {
 		this.key(id);
 		this.u8(command);
 	}
+	acknowledgeTextValue(id, revision) {
+		this.emit(OP.AcknowledgeTextValue);
+		this.key(id);
+		this.u32(revision);
+	}
 	/** Drain the buffer into a frame, or null if no ops were emitted this tick. */
 	flush() {
 		if (this.count === 0) return null;
@@ -671,4 +677,4 @@ var Writer = class {
 //#endregion
 export { formatResourceKeyParts as C, createResourceKeyFamily as S, validateResourceKeyParts as T, isNodeKey as _, GRAPHIC_SOURCE as a, nodeKeyFromSlotMapFfi as b, HOST_RECORD_KIND as c, TEXT_BEHAVIOR as d, Writer as f, formatNodeKey as g, ROOT_NODE_KEY as h, GRAPHIC_DATA as i, INTERACTION_POLICY as l, NodeKeyTable as m, EVENT_DATA_LEN as n, HOST_FRAME as o, NodeKeyAllocator as p, EVENT_DATA_SLOT as r, HOST_NODE_PAYLOAD as s, EVENT_CODE as t, OP as u, nodeKey as v, isResourceKeyParts as w, ResourceKeyTable as x, nodeKeyEquals as y };
 
-//# sourceMappingURL=protocol-CdThEzKd.mjs.map
+//# sourceMappingURL=protocol-BSt1kJCB.mjs.map

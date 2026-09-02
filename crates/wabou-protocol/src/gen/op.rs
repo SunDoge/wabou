@@ -38,6 +38,7 @@ pub mod op {
     pub const TEXT_COMMAND: u8 = 0x24;
     pub const BLUR_NODE: u8 = 0x25;
     pub const SET_PROJECTION_BOUNDARY: u8 = 0x26;
+    pub const ACKNOWLEDGE_TEXT_VALUE: u8 = 0x27;
 }
 
 #[allow(missing_docs)]

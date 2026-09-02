@@ -414,26 +414,67 @@ test("controlled input reconciliation survives a batched input and submit", () =
   writer.flush();
 
   const original = writer.setAttribute.bind(writer);
-  const values: string[] = [];
+  const originalAck = writer.acknowledgeTextValue.bind(writer);
+  const attributes: Array<[string, string]> = [];
   writer.setAttribute = (id, name, value) => {
-    if (id === input.id && name === "value") values.push(value);
+    if (id === input.id) attributes.push([name, value]);
     original(id, name, value);
+  };
+  writer.acknowledgeTextValue = (id, revision) => {
+    if (id === input.id) attributes.push(["ack", String(revision)]);
+    originalAck(id, revision);
   };
   try {
     flush(() => {
       dispatchEvent(
         input.id,
         EVENT_CODE.input,
-        JSON.stringify({ value: "typed" }),
+        JSON.stringify({ value: "typed", nativeRevision: 17 }),
       );
       dispatchEvent(submit.id, EVENT_CODE.click, "");
     });
     reconcileControlledInputValues();
     expect(draft()).toBe("");
-    expect(values).toEqual([""]);
+    expect(attributes).toEqual([
+      ["value", ""],
+      ["ack", "17"],
+    ]);
   } finally {
     dispose();
     writer.setAttribute = original;
+    writer.acknowledgeTextValue = originalAck;
+    writer.flush();
+  }
+});
+
+test("native input revisions are acknowledged without making an input controlled", () => {
+  const input = createElement("input");
+  let observedPayload: unknown;
+  setProp(
+    input,
+    "onInput",
+    (event: { payload: unknown }) => {
+      observedPayload = event.payload;
+    },
+    undefined,
+  );
+  const originalAck = writer.acknowledgeTextValue.bind(writer);
+  const attributes: Array<[string, string]> = [];
+  writer.acknowledgeTextValue = (id, revision) => {
+    if (id === input.id) attributes.push(["ack", String(revision)]);
+    originalAck(id, revision);
+  };
+  try {
+    dispatchEvent(
+      input.id,
+      EVENT_CODE.input,
+      JSON.stringify({ value: "native", nativeRevision: 18 }),
+    );
+    reconcileControlledInputValues();
+    expect(observedPayload).toEqual({ value: "native" });
+    expect(attributes).toEqual([["ack", "18"]]);
+  } finally {
+    writer.acknowledgeTextValue = originalAck;
     writer.flush();
   }
 });

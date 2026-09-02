@@ -26,6 +26,12 @@ pub struct GpuiTextControl {
     pub disabled: bool,
     pub readonly: bool,
     pub submit_on_enter: bool,
+    /// Revision of the last value explicitly authored by JavaScript.
+    pub authored_value_revision: u64,
+    /// Revision of the latest edit accepted by the native text control.
+    pub native_edit_revision: u32,
+    /// Latest native edit revision observed by JavaScript in a host frame.
+    pub native_ack_revision: u32,
     pub style: GpuiTextControlStyle,
 }
 
@@ -194,6 +200,10 @@ pub struct GpuiProjection {
     boundary_keys: std::rc::Rc<std::collections::BTreeSet<NodeKey>>,
     boundary_revisions: std::collections::BTreeMap<NodeKey, crate::ProjectionBoundaryRevision>,
     pending_boundary_changes: std::collections::BTreeMap<NodeKey, DirtyKind>,
+    text_value_revisions: std::collections::BTreeMap<NodeKey, u64>,
+    native_text_revisions: std::collections::BTreeMap<NodeKey, u32>,
+    native_text_acks: std::collections::BTreeMap<NodeKey, u32>,
+    next_text_value_revision: u64,
     #[cfg(test)]
     style_recomputation_count: usize,
 }
@@ -368,6 +378,10 @@ impl GpuiProjection {
                 crate::ProjectionBoundaryRevision::default(),
             )]),
             pending_boundary_changes: std::collections::BTreeMap::new(),
+            text_value_revisions: std::collections::BTreeMap::new(),
+            native_text_revisions: std::collections::BTreeMap::new(),
+            native_text_acks: std::collections::BTreeMap::new(),
+            next_text_value_revision: 0,
             #[cfg(test)]
             style_recomputation_count: 0,
         }
@@ -454,12 +468,23 @@ impl GpuiProjection {
                 }
                 Op::SetAttribute { id, name, value } => {
                     if let Some(name) = atoms.resolve(*name) {
+                        if name == "value" {
+                            self.tree
+                                .update_attribute(*id, name.into(), (*value).into())?;
+                            self.record_authored_text_value(*id);
+                            continue;
+                        }
                         self.tree
                             .update_attribute(*id, name.into(), (*value).into())?;
                     }
                 }
                 Op::RemoveAttribute { id, name } => {
                     if let Some(name) = atoms.resolve(*name) {
+                        if name == "value" {
+                            self.tree.remove_attribute(*id, name)?;
+                            self.record_authored_text_value(*id);
+                            continue;
+                        }
                         self.tree.remove_attribute(*id, name)?;
                     }
                 }
@@ -556,7 +581,16 @@ impl GpuiProjection {
                         self.protocol_gaps.remove(&key);
                         self.scroll_handles.remove(&key);
                         self.uniform_list_handles.remove(&key);
+                        self.text_value_revisions.remove(&key);
+                        self.native_text_revisions.remove(&key);
+                        self.native_text_acks.remove(&key);
                     }
+                }
+                Op::AcknowledgeTextValue { id, revision } => {
+                    self.tree
+                        .node(*id)
+                        .ok_or(ProjectionError::MissingNode(*id))?;
+                    self.native_text_acks.insert(*id, *revision);
                 }
                 Op::SetGraphicSource { id, kind, source } => match *kind {
                     GRAPHIC_SOURCE_SVG => {
@@ -901,7 +935,31 @@ impl GpuiProjection {
         name: &str,
         value: &str,
     ) -> Result<(), ProjectionError> {
-        self.tree.update_attribute(key, name.into(), value.into())
+        self.tree.update_attribute(key, name.into(), value.into())?;
+        if name == "value" {
+            self.record_authored_text_value(key);
+        }
+        Ok(())
+    }
+
+    /// Apply a native editor mutation without presenting it as a new
+    /// JavaScript-authored controlled value.
+    pub fn update_native_text_value(
+        &mut self,
+        key: NodeKey,
+        value: &str,
+        revision: u32,
+    ) -> Result<(), ProjectionError> {
+        self.tree
+            .update_attribute(key, "value".into(), value.into())?;
+        self.native_text_revisions.insert(key, revision);
+        Ok(())
+    }
+
+    fn record_authored_text_value(&mut self, key: NodeKey) {
+        self.next_text_value_revision = self.next_text_value_revision.wrapping_add(1).max(1);
+        self.text_value_revisions
+            .insert(key, self.next_text_value_revision);
     }
 
     pub fn native_widgets(&self, mut accepts: impl FnMut(&str) -> bool) -> Vec<GpuiNativeWidget> {
@@ -976,6 +1034,17 @@ impl GpuiProjection {
                 readonly: node.attributes.contains_key("readonly")
                     || node.attributes.contains_key("readOnly"),
                 submit_on_enter: node.attributes.contains_key("submitOnEnter"),
+                authored_value_revision: self
+                    .text_value_revisions
+                    .get(&key)
+                    .copied()
+                    .unwrap_or_default(),
+                native_edit_revision: self
+                    .native_text_revisions
+                    .get(&key)
+                    .copied()
+                    .unwrap_or_default(),
+                native_ack_revision: self.native_text_acks.get(&key).copied().unwrap_or_default(),
                 style: GpuiTextControlStyle {
                     foreground,
                     muted_foreground: theme_color("muted").unwrap_or(foreground),
@@ -3299,6 +3368,9 @@ mod tests {
                     disabled: false,
                     readonly: false,
                     submit_on_enter: false,
+                    authored_value_revision: 1,
+                    native_edit_revision: 0,
+                    native_ack_revision: 0,
                     style: GpuiTextControlStyle::default(),
                 },
                 GpuiTextControl {
@@ -3310,6 +3382,9 @@ mod tests {
                     disabled: true,
                     readonly: false,
                     submit_on_enter: true,
+                    authored_value_revision: 0,
+                    native_edit_revision: 0,
+                    native_ack_revision: 0,
                     style: GpuiTextControlStyle::default(),
                 },
                 GpuiTextControl {
@@ -3321,15 +3396,68 @@ mod tests {
                     disabled: false,
                     readonly: false,
                     submit_on_enter: false,
+                    authored_value_revision: 2,
+                    native_edit_revision: 0,
+                    native_ack_revision: 0,
                     style: GpuiTextControlStyle::default(),
                 },
             ]
         );
 
         projection
+            .update_native_text_value(key(2), "typed natively", 7)
+            .unwrap();
+        projection
             .apply_ops(
                 &Frame {
                     seq: 2,
+                    ops: vec![Op::AcknowledgeTextValue {
+                        id: key(2),
+                        revision: 7,
+                    }],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        let input = projection
+            .text_controls()
+            .into_iter()
+            .find(|control| control.key == key(2))
+            .unwrap();
+        assert_eq!(input.value, "typed natively");
+        assert_eq!(input.authored_value_revision, 1);
+        assert_eq!(input.native_edit_revision, 7);
+        assert_eq!(input.native_ack_revision, 7);
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 3,
+                    ops: vec![Op::SetAttribute {
+                        id: key(2),
+                        name: value,
+                        value: "normalized by JavaScript",
+                    }],
+                },
+                &atoms,
+                |_| None,
+            )
+            .unwrap();
+        let input = projection
+            .text_controls()
+            .into_iter()
+            .find(|control| control.key == key(2))
+            .unwrap();
+        assert_eq!(input.value, "normalized by JavaScript");
+        assert!(input.authored_value_revision > 1);
+        assert_eq!(input.native_edit_revision, 7);
+        assert_eq!(input.native_ack_revision, 7);
+
+        projection
+            .apply_ops(
+                &Frame {
+                    seq: 4,
                     ops: vec![Op::RemoveChild {
                         parent: NodeKey::ROOT,
                         child: key(2),

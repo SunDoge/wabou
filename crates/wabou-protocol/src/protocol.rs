@@ -222,6 +222,10 @@ pub enum Op<'a> {
         id: NodeKey,
         enabled: bool,
     },
+    AcknowledgeTextValue {
+        id: NodeKey,
+        revision: u32,
+    },
 }
 
 #[derive(Debug)]
@@ -693,6 +697,11 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
                 enabled: enabled != 0,
             }
         }
+        op::ACKNOWLEDGE_TEXT_VALUE => {
+            let id = r.node_key()?;
+            let revision = r.u32()?;
+            Op::AcknowledgeTextValue { id, revision }
+        }
         other => return Err(DecodeError::BadOp { opcode: other }),
     })
 }
@@ -842,7 +851,7 @@ mod tests {
     fn decodes_typed_text_selection_and_commands() {
         let mut bytes = Vec::new();
         push_u32(&mut bytes, 1);
-        push_u32(&mut bytes, 2);
+        push_u32(&mut bytes, 3);
         bytes.push(op::SET_TEXT_SELECTION);
         push_node(&mut bytes, 42);
         push_u32(&mut bytes, 2);
@@ -850,6 +859,9 @@ mod tests {
         bytes.push(op::TEXT_COMMAND);
         push_node(&mut bytes, 42);
         bytes.push(3);
+        bytes.push(op::ACKNOWLEDGE_TEXT_VALUE);
+        push_node(&mut bytes, 42);
+        push_u32(&mut bytes, 19);
 
         let frame = decode_frame(&bytes).unwrap();
         assert!(matches!(
@@ -863,6 +875,10 @@ mod tests {
                 Op::TextCommand {
                     id: NodeKey { lo: 42, hi: 1 },
                     command: 3,
+                },
+                Op::AcknowledgeTextValue {
+                    id: NodeKey { lo: 42, hi: 1 },
+                    revision: 19,
                 }
             ]
         ));

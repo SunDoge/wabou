@@ -463,7 +463,10 @@ const interactionByNode = new WeakMap<
   { focusOrder: number | null; blocked: boolean; contained: boolean }
 >();
 const controlledValueByNode = new WeakMap<Handle, string>();
-const nativeValueByNode = new Map<Handle, string>();
+const nativeInputByNode = new Map<
+  Handle,
+  { value: string; revision: number }
+>();
 
 function emitInteractionPolicy(writer: Writer, node: Handle): void {
   const state = interactionByNode.get(node) ?? {
@@ -1249,8 +1252,18 @@ export function dispatchEvent(
 
   if (eventCode === EVENT_CODE.input && typeof data.value === "string") {
     const target = derefHandle(solidId);
-    if (target && controlledValueByNode.has(target)) {
-      nativeValueByNode.set(target, data.value);
+    const nativeRevision = data.nativeRevision;
+    delete data.nativeRevision;
+    if (
+      target &&
+      typeof nativeRevision === "number" &&
+      Number.isSafeInteger(nativeRevision) &&
+      nativeRevision > 0
+    ) {
+      nativeInputByNode.set(target, {
+        value: data.value,
+        revision: nativeRevision,
+      });
     }
   }
 
@@ -1297,21 +1310,28 @@ export function dispatchEvent(
 }
 
 /**
- * Reassert controlled native-editor values after one atomic host event frame.
+ * Settle native-editor revisions after one atomic host event frame and reassert
+ * controlled values when JavaScript rejected or normalized the native edit.
  *
  * Input and submit can arrive in the same frame. Solid then legitimately
  * coalesces `"" -> "typed" -> ""` and emits no property effect, while the
  * native widget has already accepted `"typed"`. This reconciliation closes
- * that split-brain without making uncontrolled editors JS-owned.
+ * that split-brain without making uncontrolled editors JS-owned. The internal
+ * acknowledgement lets Rust distinguish this settlement from a later
+ * JavaScript-authored value update.
  */
 export function reconcileControlledInputValues(): void {
-  for (const [node, nativeValue] of nativeValueByNode) {
+  for (const [node, nativeInput] of nativeInputByNode) {
     const controlledValue = controlledValueByNode.get(node);
-    if (controlledValue !== undefined && controlledValue !== nativeValue) {
+    if (
+      controlledValue !== undefined &&
+      controlledValue !== nativeInput.value
+    ) {
       writer.setAttribute(node.id, "value", controlledValue);
     }
+    writer.acknowledgeTextValue(node.id, nativeInput.revision);
   }
-  nativeValueByNode.clear();
+  nativeInputByNode.clear();
 }
 
 function derefHandle(id: NodeKey): Handle | undefined {

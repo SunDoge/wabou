@@ -260,6 +260,7 @@ describe("Writer limits", () => {
     const writer = new Writer();
     writer.setTextSelection(k(42), 2, 7);
     writer.textCommand(k(42), 3);
+    writer.acknowledgeTextValue(k(42), 19);
     const frame = writer.flush()!;
     const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
 
@@ -267,7 +268,9 @@ describe("Writer limits", () => {
     expect(view.getUint32(17, true)).toBe(2);
     expect(view.getUint32(21, true)).toBe(7);
     expect(frame[25]).toBe(OP.TextCommand);
-    expect(frame.at(-1)).toBe(3);
+    expect(frame[34]).toBe(3);
+    expect(frame[35]).toBe(OP.AcknowledgeTextValue);
+    expect(view.getUint32(44, true)).toBe(19);
   });
 
   test("encodes graphic sources without attribute names or JSON", () => {
