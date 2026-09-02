@@ -1,17 +1,18 @@
 use std::{
     path::PathBuf,
     sync::{Arc, RwLock},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use rustic_backend::BackendOptions;
 use rustic_core::{
-    BackupOptions, ConfigOptions, Credentials, KeyOptions, LsOptions, PathList, Repository,
-    RepositoryOptions, SnapshotOptions,
+    BackupOptions, ConfigOptions, Credentials, KeyOptions, LocalDestination, LsOptions, PathList,
+    Repository, RepositoryOptions, RestoreOptions, SnapshotOptions,
 };
 use serde::{Deserialize, Serialize};
 use wabou::{CapabilityContract, HostMethod, NativeCapability, rquickjs};
 
-pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 2);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 3);
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
@@ -23,6 +24,12 @@ const RUN_BACKUP: HostMethod<ProfileIdRequest, BackupResult> = HostMethod::new("
 const LIST_SNAPSHOTS: HostMethod<ProfileIdRequest, Vec<SnapshotEntry>> =
     HostMethod::new("listSnapshots");
 const LIST_FILES: HostMethod<ListFilesRequest, Vec<FileEntry>> = HostMethod::new("listFiles");
+const SEARCH_FILES: HostMethod<SearchFilesRequest, Vec<FileEntry>> = HostMethod::new("searchFiles");
+const PREVIEW_RESTORE: HostMethod<RestorePathRequest, RestorePlanSummary> =
+    HostMethod::new("previewRestore");
+const RESTORE_PATH: HostMethod<RestorePathRequest, RestoreResult> = HostMethod::new("restorePath");
+const PREVIEW_PATH: HostMethod<PreviewPathRequest, RestoreResult> = HostMethod::new("previewPath");
+const OPEN_PATH: HostMethod<OpenPathRequest, ()> = HostMethod::new("openPath");
 
 #[derive(Clone, Default)]
 pub struct RusticService {
@@ -80,6 +87,39 @@ pub struct ListFilesRequest {
     pub path: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchFilesRequest {
+    pub profile_id: String,
+    pub snapshot_id: String,
+    pub query: String,
+    #[serde(default = "default_search_limit")]
+    pub limit: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestorePathRequest {
+    pub profile_id: String,
+    pub snapshot_id: String,
+    pub path: String,
+    pub destination: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewPathRequest {
+    pub profile_id: String,
+    pub snapshot_id: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenPathRequest {
+    pub path: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeStatus {
@@ -112,6 +152,25 @@ pub struct FileEntry {
 #[serde(rename_all = "camelCase")]
 pub struct BackupResult {
     pub snapshot: SnapshotEntry,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RestorePlanSummary {
+    pub restore_size: u64,
+    pub matched_size: u64,
+    pub files_to_restore: u64,
+    pub files_to_modify: u64,
+    pub files_unchanged: u64,
+    pub directories_to_restore: u64,
+    pub directories_to_modify: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreResult {
+    pub destination: String,
+    pub plan: RestorePlanSummary,
 }
 
 impl RusticService {
@@ -268,22 +327,7 @@ impl RusticService {
                 } else {
                     PathBuf::from(&request.path).join(relative_path)
                 };
-                Ok(FileEntry {
-                    name: node.name().to_string_lossy().into_owned(),
-                    path: path.to_string_lossy().into_owned(),
-                    kind: if node.is_dir() {
-                        "directory"
-                    } else if node.is_file() {
-                        "file"
-                    } else if node.is_symlink() {
-                        "symlink"
-                    } else {
-                        "special"
-                    }
-                    .to_string(),
-                    size: node.meta.size,
-                    modified: node.meta.mtime.map(|time| time.to_string()),
-                })
+                Ok(file_entry(path, &node))
             })
             .collect::<Result<Vec<_>, String>>()?;
         files.sort_unstable_by(|left, right| {
@@ -291,6 +335,212 @@ impl RusticService {
                 .cmp(&(right.kind != "directory", right.name.to_lowercase()))
         });
         Ok(files)
+    }
+
+    fn search_files(&self, request: SearchFilesRequest) -> Result<Vec<FileEntry>, String> {
+        let query = request.query.trim().to_lowercase();
+        if query.is_empty() {
+            return Ok(Vec::new());
+        }
+        let (path, password, _) = self.profile_config(&request.profile_id)?;
+        let repo = open_repository(&path, &password)?
+            .to_indexed_ids()
+            .map_err(display_error)?;
+        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
+        let snapshot = snapshots
+            .iter()
+            .find(|snapshot| snapshot.id.to_string() == request.snapshot_id)
+            .ok_or_else(|| format!("snapshot {} was not found", request.snapshot_id))?;
+        let root = repo
+            .node_from_snapshot_and_path(snapshot, "")
+            .map_err(display_error)?;
+        let limit = request.limit.clamp(1, 500);
+        let mut matches = Vec::new();
+        for entry in repo
+            .ls(&root, &LsOptions::default().recursive(true))
+            .map_err(display_error)?
+        {
+            let (relative_path, node) = entry.map_err(display_error)?;
+            if relative_path
+                .to_string_lossy()
+                .to_lowercase()
+                .contains(&query)
+            {
+                matches.push(file_entry(relative_path, &node));
+                if matches.len() == limit {
+                    break;
+                }
+            }
+        }
+        Ok(matches)
+    }
+
+    fn preview_restore(&self, request: RestorePathRequest) -> Result<RestorePlanSummary, String> {
+        let (path, password, _) = self.profile_config(&request.profile_id)?;
+        validate_restore_request(&request)?;
+        let repo = open_repository(&path, &password)?
+            .to_indexed()
+            .map_err(display_error)?;
+        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
+        let snapshot = snapshots
+            .iter()
+            .find(|snapshot| snapshot.id.to_string() == request.snapshot_id)
+            .ok_or_else(|| format!("snapshot {} was not found", request.snapshot_id))?;
+        let node = repo
+            .node_from_snapshot_and_path(snapshot, &request.path)
+            .map_err(display_error)?;
+        let destination = restore_destination(PathBuf::from(&request.destination).as_path(), &node);
+        let destination = LocalDestination::new(&destination.to_string_lossy(), false, false)
+            .map_err(display_error)?;
+        let options = RestoreOptions::default();
+        let plan = repo
+            .prepare_restore(
+                &options,
+                repo.ls(&node, &LsOptions::default().recursive(true))
+                    .map_err(display_error)?,
+                &destination,
+                true,
+            )
+            .map_err(display_error)?;
+        Ok(restore_plan_summary(&plan))
+    }
+
+    fn restore_path(&self, request: RestorePathRequest) -> Result<RestoreResult, String> {
+        validate_restore_request(&request)?;
+        self.restore_to(
+            &request.profile_id,
+            &request.snapshot_id,
+            &request.path,
+            PathBuf::from(request.destination.trim()),
+        )
+    }
+
+    fn preview_path(&self, request: PreviewPathRequest) -> Result<RestoreResult, String> {
+        if request.path.trim().is_empty() {
+            return Err("select a file or folder to preview".to_string());
+        }
+        let sequence = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(display_error)?
+            .as_nanos();
+        let destination = std::env::temp_dir()
+            .join("wabou-rustic-preview")
+            .join(format!("{}-{sequence}", std::process::id()));
+        self.restore_to(
+            &request.profile_id,
+            &request.snapshot_id,
+            &request.path,
+            destination,
+        )
+    }
+
+    fn restore_to(
+        &self,
+        profile_id: &str,
+        snapshot_id: &str,
+        path_in_snapshot: &str,
+        destination_root: PathBuf,
+    ) -> Result<RestoreResult, String> {
+        let (path, password, _) = self.profile_config(profile_id)?;
+        let repo = open_repository(&path, &password)?
+            .to_indexed()
+            .map_err(display_error)?;
+        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
+        let snapshot = snapshots
+            .iter()
+            .find(|snapshot| snapshot.id.to_string() == snapshot_id)
+            .ok_or_else(|| format!("snapshot {snapshot_id} was not found"))?;
+        let node = repo
+            .node_from_snapshot_and_path(snapshot, path_in_snapshot)
+            .map_err(display_error)?;
+        let destination_path = restore_destination(&destination_root, &node);
+        let destination = LocalDestination::new(&destination_path.to_string_lossy(), true, false)
+            .map_err(display_error)?;
+        let options = RestoreOptions::default();
+        let plan = repo
+            .prepare_restore(
+                &options,
+                repo.ls(&node, &LsOptions::default().recursive(true))
+                    .map_err(display_error)?,
+                &destination,
+                false,
+            )
+            .map_err(display_error)?;
+        let summary = restore_plan_summary(&plan);
+        repo.restore(
+            plan,
+            &options,
+            repo.ls(&node, &LsOptions::default().recursive(true))
+                .map_err(display_error)?,
+            &destination,
+        )
+        .map_err(display_error)?;
+        let restored_item = if node.is_dir() {
+            destination_path
+        } else {
+            destination_path.join(node.name())
+        };
+        Ok(RestoreResult {
+            destination: restored_item.to_string_lossy().into_owned(),
+            plan: summary,
+        })
+    }
+}
+
+fn default_search_limit() -> usize {
+    200
+}
+
+fn file_entry(path: PathBuf, node: &rustic_core::repofile::Node) -> FileEntry {
+    FileEntry {
+        name: node.name().to_string_lossy().into_owned(),
+        path: path.to_string_lossy().into_owned(),
+        kind: if node.is_dir() {
+            "directory"
+        } else if node.is_file() {
+            "file"
+        } else if node.is_symlink() {
+            "symlink"
+        } else {
+            "special"
+        }
+        .to_string(),
+        size: node.meta.size,
+        modified: node.meta.mtime.map(|time| time.to_string()),
+    }
+}
+
+fn validate_restore_request(request: &RestorePathRequest) -> Result<(), String> {
+    if request.path.trim().is_empty() {
+        return Err("select a file or folder to extract".to_string());
+    }
+    let destination = PathBuf::from(request.destination.trim());
+    if !destination.is_absolute() {
+        return Err("restore destination must be an absolute path".to_string());
+    }
+    Ok(())
+}
+
+fn restore_destination(
+    destination: &std::path::Path,
+    node: &rustic_core::repofile::Node,
+) -> PathBuf {
+    if node.is_dir() {
+        destination.join(node.name())
+    } else {
+        destination.to_path_buf()
+    }
+}
+
+fn restore_plan_summary(plan: &rustic_core::RestorePlan) -> RestorePlanSummary {
+    RestorePlanSummary {
+        restore_size: plan.restore_size,
+        matched_size: plan.matched_size,
+        files_to_restore: plan.stats.files.restore,
+        files_to_modify: plan.stats.files.modify,
+        files_unchanged: plan.stats.files.unchanged + plan.stats.files.verified,
+        directories_to_restore: plan.stats.dirs.restore,
+        directories_to_modify: plan.stats.dirs.modify,
     }
 }
 
@@ -437,13 +687,61 @@ pub fn mount(capability: NativeCapability<'_>, service: RusticService) -> rquick
         }
     })?;
 
+    let files = service.clone();
     capability.method(LIST_FILES, move |request| {
-        let service = service.clone();
+        let service = files.clone();
         async move {
             tokio::task::spawn_blocking(move || service.list_files(request))
                 .await
                 .map_err(|error| format!("file listing task failed: {error}"))?
         }
+    })?;
+
+    let search = service.clone();
+    capability.method(SEARCH_FILES, move |request| {
+        let service = search.clone();
+        async move {
+            tokio::task::spawn_blocking(move || service.search_files(request))
+                .await
+                .map_err(|error| format!("file search task failed: {error}"))?
+        }
+    })?;
+
+    let preview_restore = service.clone();
+    capability.method(PREVIEW_RESTORE, move |request| {
+        let service = preview_restore.clone();
+        async move {
+            tokio::task::spawn_blocking(move || service.preview_restore(request))
+                .await
+                .map_err(|error| format!("restore preview task failed: {error}"))?
+        }
+    })?;
+
+    let restore = service.clone();
+    capability.method(RESTORE_PATH, move |request| {
+        let service = restore.clone();
+        async move {
+            tokio::task::spawn_blocking(move || service.restore_path(request))
+                .await
+                .map_err(|error| format!("restore task failed: {error}"))?
+        }
+    })?;
+
+    capability.method(PREVIEW_PATH, move |request| {
+        let service = service.clone();
+        async move {
+            tokio::task::spawn_blocking(move || service.preview_path(request))
+                .await
+                .map_err(|error| format!("file preview task failed: {error}"))?
+        }
+    })?;
+
+    capability.method(OPEN_PATH, move |request: OpenPathRequest| async move {
+        let path = PathBuf::from(request.path);
+        if !path.exists() {
+            return Err("path does not exist".to_string());
+        }
+        open::that_detached(path).map_err(display_error)
     })
 }
 
@@ -539,5 +837,66 @@ mod tests {
         assert!(names.iter().any(|name| name == "chapter"));
         assert!(names.iter().any(|name| name == "notes.md"));
         assert!(names.iter().any(|name| name == "settings.toml"));
+
+        let matches = service
+            .search_files(SearchFilesRequest {
+                profile_id: "photos".to_string(),
+                snapshot_id: backup.snapshot.id.clone(),
+                query: "SETTINGS".to_string(),
+                limit: 20,
+            })
+            .expect("search snapshot");
+        let settings = matches
+            .iter()
+            .find(|entry| entry.name == "settings.toml")
+            .expect("settings search result");
+
+        let restore_root = root.path().join("restored");
+        let restore_request = RestorePathRequest {
+            profile_id: "photos".to_string(),
+            snapshot_id: backup.snapshot.id.clone(),
+            path: settings.path.clone(),
+            destination: restore_root.to_string_lossy().into_owned(),
+        };
+        let plan = service
+            .preview_restore(restore_request.clone())
+            .expect("preview restore");
+        assert!(plan.files_to_restore >= 1);
+        let restored = service.restore_path(restore_request).expect("restore file");
+        assert_eq!(
+            restored.destination,
+            restore_root.join("settings.toml").to_string_lossy()
+        );
+        assert_eq!(
+            fs::read_to_string(restore_root.join("settings.toml")).expect("restored settings"),
+            "theme = 'light'"
+        );
+
+        let preview = service
+            .preview_path(PreviewPathRequest {
+                profile_id: "photos".to_string(),
+                snapshot_id: backup.snapshot.id,
+                path: settings.path.clone(),
+            })
+            .expect("restore temporary preview");
+        let preview_path = PathBuf::from(&preview.destination);
+        assert!(preview_path.starts_with(std::env::temp_dir().join("wabou-rustic-preview")));
+        assert_eq!(
+            fs::read_to_string(&preview_path).expect("preview settings"),
+            "theme = 'light'"
+        );
+    }
+
+    #[test]
+    fn restore_rejects_relative_destinations_before_opening_the_repository() {
+        let error = RusticService::default()
+            .restore_path(RestorePathRequest {
+                profile_id: "missing".to_string(),
+                snapshot_id: "missing".to_string(),
+                path: "file.txt".to_string(),
+                destination: "relative".to_string(),
+            })
+            .expect_err("relative restore path");
+        assert_eq!(error, "restore destination must be an absolute path");
     }
 }

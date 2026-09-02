@@ -4,6 +4,8 @@ import { Button, Text } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test, vi } from "vitest";
 import type { ProfileStore } from "../../apps/rustic-gui/ui/profile-store";
+import { FileDetails } from "../../apps/rustic-gui/ui/file-details";
+import { formatModified } from "../../apps/rustic-gui/ui/snapshots";
 import {
   RusticSessionProvider,
   useRusticSession,
@@ -17,6 +19,99 @@ const dialog: Dialog = {
   pickDirectory: async () => null,
   message: async () => "ok",
 };
+
+test("snapshot timestamps stay compact in the table", () => {
+  expect(formatModified("2026-09-02T04:18:35.321355Z")).toBe(
+    "2026-09-02 04:18",
+  );
+  expect(formatModified(undefined)).toBe("—");
+});
+
+test("file details preview and extract through the native rustic capability", async () => {
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 3,
+      previewPath: async () => ({
+        destination: "/tmp/wabou-rustic-preview/42",
+        plan: {
+          restoreSize: 18,
+          matchedSize: 0,
+          filesToRestore: 1,
+          filesToModify: 0,
+          filesUnchanged: 0,
+          directoriesToRestore: 0,
+          directoriesToModify: 0,
+        },
+      }),
+      previewRestore: async () => ({
+        restoreSize: 18,
+        matchedSize: 0,
+        filesToRestore: 1,
+        filesToModify: 0,
+        filesUnchanged: 0,
+        directoriesToRestore: 0,
+        directoriesToModify: 0,
+      }),
+      restorePath: async () => ({
+        destination: "/tmp/export/settings.toml",
+        plan: {
+          restoreSize: 18,
+          matchedSize: 0,
+          filesToRestore: 1,
+          filesToModify: 0,
+          filesUnchanged: 0,
+          directoriesToRestore: 0,
+          directoriesToModify: 0,
+        },
+      }),
+      openPath: async () => {},
+    },
+  });
+  const screen = renderComponent(
+    () => (
+      <FileDetails
+        profileId="profile"
+        snapshotId="snapshot"
+        entry={{
+          name: "settings.toml",
+          path: "home/me/settings.toml",
+          kind: "file",
+          size: 18,
+          modified: "2026-09-02T04:18:35Z",
+        }}
+      />
+    ),
+    { host: fixture.host, platform: { dialog } },
+  );
+
+  screen.getByRole("button", { name: "Preview temporary copy" }).click();
+  await screen.waitFor(() => {
+    expect(screen.roots[0]?.text).toContain("/tmp/wabou-rustic-preview/42");
+  });
+
+  screen.getByRole("button", { name: "Extract…" }).click();
+  screen
+    .getByRole("textbox", { name: "Extraction destination" })
+    .input("/tmp/export");
+  screen.getByRole("button", { name: "Review extraction" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("button", { name: "Extract" })).toBeDefined();
+  });
+  screen.getByRole("button", { name: "Extract" }).click();
+  await screen.waitFor(() => {
+    expect(fixture.callsTo("rustic.restorePath")).toHaveLength(1);
+  });
+
+  expect(fixture.callsTo("rustic.previewPath")).toHaveLength(1);
+  expect(fixture.callsTo("rustic.openPath")).toHaveLength(1);
+  expect(fixture.callsTo("rustic.previewRestore")).toHaveLength(1);
+  expect(fixture.callsTo("rustic.restorePath")[0]?.args[0]).toEqual({
+    profileId: "profile",
+    snapshotId: "snapshot",
+    path: "home/me/settings.toml",
+    destination: "/tmp/export",
+  });
+});
 
 test("backup sources add normalized unique paths and remove existing paths", () => {
   const changes = vi.fn<(sources: string[]) => void>();
@@ -84,7 +179,7 @@ test("rustic session hydrates durable profiles and exposes their locked state", 
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 2,
+      __wabouCapabilityVersion: 3,
       status: async () => ({
         unlockedProfileIds: [],
       }),
@@ -118,7 +213,7 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 2,
+      __wabouCapabilityVersion: 3,
       status: async () => ({ unlockedProfileIds: [] }),
       createProfile: async (request: { id: string }) => ({
         unlockedProfileIds: [request.id],

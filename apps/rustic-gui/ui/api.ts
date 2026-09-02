@@ -34,6 +34,21 @@ export interface FileEntry {
   modified?: string;
 }
 
+export interface RestorePlanSummary {
+  restoreSize: number;
+  matchedSize: number;
+  filesToRestore: number;
+  filesToModify: number;
+  filesUnchanged: number;
+  directoriesToRestore: number;
+  directoriesToModify: number;
+}
+
+export interface RestoreResult {
+  destination: string;
+  plan: RestorePlanSummary;
+}
+
 interface RusticCapability extends NativeCapability {
   status(): RuntimeStatus | PromiseLike<RuntimeStatus>;
   createProfile(request: {
@@ -68,6 +83,30 @@ interface RusticCapability extends NativeCapability {
     snapshotId: string;
     path: string;
   }): FileEntry[] | PromiseLike<FileEntry[]>;
+  searchFiles(request: {
+    profileId: string;
+    snapshotId: string;
+    query: string;
+    limit?: number;
+  }): FileEntry[] | PromiseLike<FileEntry[]>;
+  previewRestore(request: {
+    profileId: string;
+    snapshotId: string;
+    path: string;
+    destination: string;
+  }): RestorePlanSummary | PromiseLike<RestorePlanSummary>;
+  restorePath(request: {
+    profileId: string;
+    snapshotId: string;
+    path: string;
+    destination: string;
+  }): RestoreResult | PromiseLike<RestoreResult>;
+  previewPath(request: {
+    profileId: string;
+    snapshotId: string;
+    path: string;
+  }): RestoreResult | PromiseLike<RestoreResult>;
+  openPath(request: { path: string }): void | PromiseLike<void>;
 }
 
 interface RusticHost extends Host {
@@ -77,6 +116,6 @@ interface RusticHost extends Host {
 export function useRusticApi(): RusticCapability {
   return bindCapability(useHost<RusticHost>().rustic, {
     name: "rustic",
-    version: 2,
+    version: 3,
   });
 }

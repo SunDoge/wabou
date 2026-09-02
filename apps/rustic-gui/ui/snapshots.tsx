@@ -3,6 +3,9 @@ import {
   Button,
   ContentState,
   Icon,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
   PageHeader,
   ProjectionBoundary,
   ScrollArea,
@@ -20,9 +23,12 @@ import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
 import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
+import search from "lucide-static/icons/search.svg?raw";
+import x from "lucide-static/icons/x.svg?raw";
 import { createEffect, createSignal, For, Show } from "solid-js";
 import { type FileEntry, type SnapshotEntry, useRusticApi } from "./api";
 import { useRusticSession } from "./session";
+import { FileDetails } from "./file-details";
 import { BackupSourcesPanel } from "./workspace-components";
 
 function formatBytes(bytes: number): string {
@@ -36,6 +42,12 @@ function shortId(id: string): string {
   return id.slice(0, 8);
 }
 
+export function formatModified(value?: string): string {
+  if (!value) return "—";
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  return match ? `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}` : value;
+}
+
 export function SnapshotsPage() {
   const api = useRusticApi();
   const session = useRusticSession();
@@ -43,6 +55,11 @@ export function SnapshotsPage() {
   const [snapshots, setSnapshots] = createSignal<SnapshotEntry[]>([]);
   const [selected, setSelected] = createSignal<SnapshotEntry>();
   const [files, setFiles] = createSignal<FileEntry[]>([]);
+  const [selectedEntry, setSelectedEntry] = createSignal<FileEntry>();
+  const [searchQuery, setSearchQuery] = createSignal("");
+  const [searchResults, setSearchResults] = createSignal<FileEntry[]>([]);
+  const [searchActive, setSearchActive] = createSignal(false);
+  const [searching, setSearching] = createSignal(false);
   const [currentPath, setCurrentPath] = createSignal("");
   const [loading, setLoading] = createSignal(true);
   const [backingUp, setBackingUp] = createSignal(false);
@@ -80,9 +97,44 @@ export function SnapshotsPage() {
       });
       setCurrentPath(path);
       setFiles(next);
+      setSelectedEntry(undefined);
+      setSearchActive(false);
+      setSearchResults([]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
+  }
+
+  async function runSearch() {
+    const profile = session.activeProfile();
+    const snapshot = selected();
+    const query = searchQuery().trim();
+    if (!profile || !snapshot || !query || searching()) return;
+    setSearching(true);
+    setError(undefined);
+    try {
+      setSearchResults(
+        await api.searchFiles({
+          profileId: profile.id,
+          snapshotId: snapshot.id,
+          query,
+          limit: 200,
+        }),
+      );
+      setSearchActive(true);
+      setSelectedEntry(undefined);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  function clearSearch() {
+    setSearchQuery("");
+    setSearchResults([]);
+    setSearchActive(false);
+    setSelectedEntry(undefined);
   }
 
   async function selectSnapshot(profileId: string, snapshot: SnapshotEntry) {
@@ -137,6 +189,9 @@ export function SnapshotsPage() {
       void loadSnapshots(profileId, true);
     },
   );
+
+  const visibleFiles = () =>
+    searchActive() ? searchResults() : files();
 
   return (
     <View class="w-full h-full min-w-0 min-h-0 flex flex-col">
@@ -244,86 +299,139 @@ export function SnapshotsPage() {
           >
             {(snapshot) => (
               <>
-                <View class="h-14 flex-none px-4 flex flex-row items-center gap-3 border-b border-subtle">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    disabled={!currentPath()}
-                    aria-label="Open parent folder"
-                    onClick={() =>
-                      void loadFiles(
-                        session.activeProfile()?.id ?? "",
-                        snapshot(),
-                        parentPath(currentPath()),
-                      )
-                    }
-                  >
-                    <Icon source={chevronLeft} size={15} />
-                  </Button>
-                  <View class="min-w-0 flex-1 flex flex-col">
-                    <Text class="font-semibold">
-                      Snapshot {shortId(snapshot().id)}
-                    </Text>
-                    <Text class="truncate text-xs text-muted">
-                      /{currentPath() || ""}
-                    </Text>
+                <View class="flex-none px-4 py-3 flex flex-col gap-3 border-b border-subtle">
+                  <View class="flex flex-row items-center gap-3">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      disabled={!currentPath() || searchActive()}
+                      aria-label="Open parent folder"
+                      onClick={() =>
+                        void loadFiles(
+                          session.activeProfile()?.id ?? "",
+                          snapshot(),
+                          parentPath(currentPath()),
+                        )
+                      }
+                    >
+                      <Icon source={chevronLeft} size={15} />
+                    </Button>
+                    <View class="min-w-0 flex-1 flex flex-col">
+                      <Text class="font-semibold">
+                        Snapshot {shortId(snapshot().id)}
+                      </Text>
+                      <Text class="truncate text-xs text-muted">
+                        {searchActive()
+                          ? `Search results for “${searchQuery()}”`
+                          : `/${currentPath() || ""}`}
+                      </Text>
+                    </View>
+                    <Badge variant="secondary">{visibleFiles().length} items</Badge>
                   </View>
-                  <Badge variant="secondary">{files().length} items</Badge>
+                  <View class="flex flex-row items-center gap-2">
+                    <InputGroup class="min-w-0 flex-1">
+                      <InputGroupAddon align="inline-start" class="px-2.5">
+                        <Icon source={search} size={14} class="text-muted" />
+                      </InputGroupAddon>
+                      <InputGroupInput
+                        aria-label="Search snapshot"
+                        placeholder="Search this snapshot…"
+                        value={searchQuery()}
+                        onInput={(event) => setSearchQuery(event.currentTarget.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void runSearch();
+                          }
+                        }}
+                      />
+                    </InputGroup>
+                    <Button
+                      variant="outline"
+                      disabled={!searchQuery().trim() || searching()}
+                      loading={searching()}
+                      loadingLabel="Searching…"
+                      onClick={() => void runSearch()}
+                    >
+                      Search
+                    </Button>
+                    <Show when={searchActive()}>
+                      <Button size="icon" variant="ghost" aria-label="Clear search" onClick={clearSearch}>
+                        <Icon source={x} size={14} />
+                      </Button>
+                    </Show>
+                  </View>
                 </View>
-                <ScrollArea class="min-h-0 flex-1" contentClass="min-w-full">
-                  <Table>
-                    <TableHeader>
-                      <TableRow class="bg-surface-muted">
-                        <TableHead class="min-w-64 flex-1">Name</TableHead>
-                        <TableHead class="w-28 flex-none">Size</TableHead>
-                        <TableHead class="w-48 flex-none">Modified</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <For each={files()}>
-                        {(entry) => (
-                          <TableRow
-                            class={
-                              entry.kind === "directory"
-                                ? "cursor-pointer"
-                                : undefined
-                            }
-                            onClick={() =>
-                              entry.kind === "directory"
-                                ? void loadFiles(
-                                    session.activeProfile()?.id ?? "",
-                                    snapshot(),
-                                    entry.path,
-                                  )
-                                : undefined
-                            }
-                          >
-                            <TableCell class="min-w-64 flex-1 gap-2">
-                              <Icon
-                                source={
-                                  entry.kind === "directory" ? folder : file
-                                }
-                                size={15}
-                                class="flex-none text-muted"
-                              />
-                              <Text class="min-w-0 flex-1 truncate">
-                                {entry.name}
-                              </Text>
-                            </TableCell>
-                            <TableCell class="w-28 flex-none text-muted">
-                              {entry.kind === "directory"
-                                ? "—"
-                                : formatBytes(entry.size)}
-                            </TableCell>
-                            <TableCell class="w-48 flex-none text-muted">
-                              {entry.modified ?? "—"}
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </For>
-                    </TableBody>
-                  </Table>
-                </ScrollArea>
+                <View class="min-w-0 min-h-0 flex-1 flex flex-row">
+                  <ScrollArea class="min-w-0 min-h-0 flex-1" contentClass="min-w-full">
+                    <Table>
+                      <TableHeader>
+                        <TableRow class="bg-surface-muted">
+                          <TableHead class="min-w-64 flex-1">Name</TableHead>
+                          <TableHead class="w-24 flex-none">Size</TableHead>
+                          <TableHead class="w-36 flex-none">Modified</TableHead>
+                          <TableHead class="w-20 flex-none" />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <For each={visibleFiles()}>
+                          {(entry) => (
+                            <TableRow
+                              selected={selectedEntry()?.path === entry.path}
+                              class="cursor-pointer"
+                              onClick={() => setSelectedEntry(entry)}
+                            >
+                              <TableCell class="min-w-64 flex-1 gap-2">
+                                <Icon
+                                  source={entry.kind === "directory" ? folder : file}
+                                  size={15}
+                                  class="flex-none text-muted"
+                                />
+                                <View class="min-w-0 flex-1 flex flex-col gap-0.5">
+                                  <Text class="w-full truncate">{entry.name}</Text>
+                                  <Show when={searchActive()}>
+                                    <Text class="w-full truncate text-xs text-muted">
+                                      {entry.path}
+                                    </Text>
+                                  </Show>
+                                </View>
+                              </TableCell>
+                              <TableCell class="w-24 flex-none text-muted">
+                                {entry.kind === "directory" ? "—" : formatBytes(entry.size)}
+                              </TableCell>
+                              <TableCell class="w-36 flex-none text-muted">
+                                {formatModified(entry.modified)}
+                              </TableCell>
+                              <TableCell class="w-20 flex-none justify-end">
+                                <Show when={entry.kind === "directory"}>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void loadFiles(
+                                        session.activeProfile()?.id ?? "",
+                                        snapshot(),
+                                        entry.path,
+                                      );
+                                    }}
+                                  >
+                                    Open
+                                  </Button>
+                                </Show>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </For>
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                  <FileDetails
+                    profileId={session.activeProfile()?.id ?? ""}
+                    snapshotId={snapshot().id}
+                    entry={selectedEntry()}
+                  />
+                </View>
               </>
             )}
           </Show>
