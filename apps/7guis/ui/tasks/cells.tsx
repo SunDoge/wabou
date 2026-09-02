@@ -1,12 +1,16 @@
 import type { Handle } from "@wabou/ui";
 import {
+  Field,
+  FieldError,
   Input,
+  mergeClasses,
   Text,
   translate2d,
   View,
 } from "@wabou/ui";
 import { Button as PrimitiveButton } from "@wabou/ui/primitives";
-import { createMemo, createSignal, For as ForValue } from "solid-js";
+import { createMemo, createSignal, For as ForValue, Show } from "solid-js";
+import * as v from "valibot";
 import { TaskPage } from "../shared";
 import {
   cellAddress,
@@ -14,6 +18,7 @@ import {
   evaluateCell,
   formatCellValue,
 } from "./formula";
+import { cellInputSchema, firstValidationError } from "./validation";
 
 const ROWS = 100;
 const COLUMNS = 26;
@@ -73,6 +78,10 @@ export function CellsTask() {
     ),
   );
   const raw = () => cells()[active()] ?? "";
+  const inputResult = createMemo(() =>
+    v.safeParse(cellInputSchema(cells(), active()), raw()),
+  );
+  const inputError = () => firstValidationError(inputResult());
   const update = (value: string) =>
     setCells((current) => {
       const next = { ...current };
@@ -114,24 +123,30 @@ export function CellsTask() {
       summary="A 100 × 26 spreadsheet uses two-dimensional virtualization and a small dependency-aware formula evaluator."
     >
       <View class="flex flex-col gap-3">
-        <View class="flex items-center gap-2">
+        <View class="flex items-start gap-2">
           <Text class="w-16 flex-none font-mono text-sm font-semibold text-accent">
             {active()}
           </Text>
-          <Input
-            aria-label="Cell formula"
-            class="flex-1 font-mono"
-            value={raw()}
-            onInput={(event) => update(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (
-                ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(
-                  event.key,
+          <Field class="flex-1" invalid={inputError() !== undefined}>
+            <Input
+              aria-label="Cell formula"
+              aria-invalid={inputError() !== undefined}
+              class="font-mono"
+              value={raw()}
+              onInput={(event) => update(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (
+                  ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(
+                    event.key,
+                  )
                 )
-              )
-                return;
-            }}
-          />
+                  return;
+              }}
+            />
+            <Show when={inputError()}>
+              {(error) => <FieldError>{error()}</FieldError>}
+            </Show>
+          </Field>
           <Text class="w-40 flex-none truncate text-right font-mono text-sm text-muted">
             {formatCellValue(evaluateCell(cells(), active()))}
           </Text>
@@ -220,22 +235,24 @@ export function CellsTask() {
                         role="gridcell"
                         aria-label={`Cell ${cell.address}`}
                         aria-selected={selected()}
-                        class="absolute px-2 justify-start border-r border-b text-xs font-mono"
-                        style={(state) => ({
+                        class={(state) =>
+                          mergeClasses(
+                            "absolute px-2 justify-start border-r border-b text-xs font-mono",
+                            selected()
+                              ? "border-accent bg-selected text-primary"
+                              : state.hovered
+                                ? "border-subtle bg-control-hover text-primary"
+                                : "border-subtle bg-input text-secondary",
+                            displayed().startsWith("#") &&
+                              "text-danger-primary",
+                          )
+                        }
+                        style={{
                           left: `${cell.column * CELL_WIDTH}px`,
                           top: `${cell.row * CELL_HEIGHT}px`,
                           width: `${CELL_WIDTH}px`,
                           height: `${CELL_HEIGHT}px`,
-                          "border-color": selected() ? "#0ea5e9" : "#253144",
-                          "background-color": selected()
-                            ? "#15395d"
-                            : state.hovered
-                              ? "#121f2f"
-                              : "#0a1019",
-                          color: displayed().startsWith("#")
-                            ? "#fca5a5"
-                            : "#c4cfdd",
-                        })}
+                        }}
                         onClick={() => setActive(cell.address)}
                         onKeyDown={(event) => {
                           if (
