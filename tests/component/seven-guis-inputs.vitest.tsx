@@ -1,8 +1,26 @@
 import { renderComponent } from "@wabou/test/component";
+import { View } from "@wabou/ui";
+import { ShellHeader } from "../../apps/7guis/ui/app";
 import { CellsTask } from "../../apps/7guis/ui/tasks/cells";
 import { CrudTask } from "../../apps/7guis/ui/tasks/crud";
 import { TemperatureTask } from "../../apps/7guis/ui/tasks/temperature";
 import { expect, test } from "vitest";
+
+test("7GUIs shell headers share one separator baseline", () => {
+  const screen = renderComponent(() => (
+    <View>
+      <ShellHeader role="group" aria-label="Sidebar header" />
+      <ShellHeader role="group" aria-label="Content header" />
+    </View>
+  ));
+  const sidebar = screen.getByRole("group", { name: "Sidebar header" });
+  const content = screen.getByRole("group", { name: "Content header" });
+
+  expect(sidebar.className).toContain("h-16");
+  expect(content.className).toContain("h-16");
+  expect(sidebar.className).toContain("border-b");
+  expect(content.className).toContain("border-b");
+});
 
 test("temperature reports invalid numeric input without corrupting its peer", () => {
   const screen = renderComponent(TemperatureTask);
