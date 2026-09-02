@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { defaultHost } from "../renderer/host";
 import { createRoot } from "solid-js";
-import { createKvSignal, openKv, type Kv, type KvEntry } from "./kv";
+import { defaultHost } from "../renderer/host";
+import { createKvSignal, type Kv, type KvEntry, openKv } from "./kv";
 
 function installKv(
   overrides: Partial<{
@@ -15,7 +15,7 @@ function installKv(
   const host = defaultHost as unknown as Record<string, unknown>;
   const previous = host.kv;
   host.kv = {
-    __wabouCapabilityVersion: 1,
+    __wabouCapabilityVersion: 2,
     get: async () => null,
     set: async () => ({ versionstamp: "1" }),
     delete: async () => ({ versionstamp: "1" }),
@@ -69,7 +69,9 @@ describe("SQLite KV facade", () => {
       }),
     });
     try {
-      const entry = await openKv(["projects", "one"]).get([new Uint8Array([1, 2, 3])]);
+      const entry = await openKv(["projects", "one"]).get([
+        new Uint8Array([1, 2, 3]),
+      ]);
       expect(entry?.key).toEqual([new Uint8Array([1, 2, 3])]);
       expect(entry?.value).toEqual({ ready: true });
       expect(entry?.versionstamp).toBe("9");
@@ -92,6 +94,7 @@ describe("SQLite KV facade", () => {
         .atomic()
         .check({ key: ["one"], versionstamp: "3" })
         .set(["one"], { text: "next" }, { expireIn: 5000 })
+        .mergePatch(["one"], { text: null, ready: true })
         .delete(["old"])
         .commit();
       expect(result).toEqual({ committed: false });
@@ -116,11 +119,54 @@ describe("SQLite KV facade", () => {
             expireIn: 5000,
           },
           {
+            type: "mergePatch",
+            key: [
+              { type: "string", value: "drafts" },
+              { type: "string", value: "one" },
+            ],
+            patch: { text: null, ready: true },
+          },
+          {
             type: "delete",
             key: [
               { type: "string", value: "drafts" },
               { type: "string", value: "old" },
             ],
+          },
+        ],
+      });
+    } finally {
+      restore();
+    }
+  });
+
+  test("sends merge patches as one unconditional atomic mutation", async () => {
+    let request: unknown;
+    const restore = installKv({
+      atomic: async (next) => {
+        request = next;
+        return { committed: true, versionstamp: "8" };
+      },
+    });
+    try {
+      const version = await openKv(["profiles"]).mergePatch(["one"], {
+        settings: { compression: 7 },
+        obsolete: null,
+      });
+      expect(version).toBe("8");
+      expect(request).toEqual({
+        checks: [],
+        mutations: [
+          {
+            type: "mergePatch",
+            key: [
+              { type: "string", value: "profiles" },
+              { type: "string", value: "one" },
+            ],
+            patch: {
+              settings: { compression: 7 },
+              obsolete: null,
+            },
           },
         ],
       });
@@ -152,6 +198,9 @@ describe("SQLite KV facade", () => {
       set: async (_key, value) => {
         writes.push(value);
         return "2";
+      },
+      mergePatch: async () => {
+        throw new Error("not used");
       },
       delete: async () => "3",
       list: async function* () {},

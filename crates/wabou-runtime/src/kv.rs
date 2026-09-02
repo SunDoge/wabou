@@ -10,7 +10,7 @@ use wabou_database::{KvCheck, KvKey, KvKeyPart, KvListOptions, KvMutation, KvSto
 
 use crate::{JsRuntime, NativeCapability};
 
-pub(crate) const CONTRACT: CapabilityContract = CapabilityContract::new("kv", 1);
+pub(crate) const CONTRACT: CapabilityContract = CapabilityContract::new("kv", 2);
 
 type LazyStore = Arc<tokio::sync::OnceCell<Arc<KvStore>>>;
 
@@ -70,6 +70,10 @@ enum MutationRequest {
         value: serde_json::Value,
         #[serde(default)]
         expire_in: Option<u64>,
+    },
+    MergePatch {
+        key: Vec<WireKeyPart>,
+        patch: serde_json::Value,
     },
     Delete {
         key: Vec<WireKeyPart>,
@@ -294,6 +298,10 @@ fn decode_mutation(request: MutationRequest) -> Result<KvMutation, String> {
             value,
             expires_at: expiry_from_duration(expire_in)?,
         }),
+        MutationRequest::MergePatch { key, patch } => Ok(KvMutation::MergePatch {
+            key: decode_key(key)?,
+            patch,
+        }),
         MutationRequest::Delete { key } => Ok(KvMutation::Delete {
             key: decode_key(key)?,
         }),
@@ -381,7 +389,15 @@ mod tests {
                         checks: [{ key, versionstamp: first.versionstamp }],
                         mutations: [{ type: "set", key, value: { title: "Second" } }],
                       }).then(commit => ({ entry, commit })))
-                      .then(({ entry, commit }) => ({ entry, commit }));
+                      .then(({ entry, commit }) => __wabou_capabilities.kv.atomic({
+                        checks: [{ key, versionstamp: commit.versionstamp }],
+                        mutations: [{
+                          type: "mergePatch",
+                          key,
+                          patch: { title: "Patched", ready: true },
+                        }],
+                      }).then(patchCommit => __wabou_capabilities.kv.get({ key })
+                        .then(patched => ({ entry, commit, patchCommit, patched }))));
                     })()
                     "#,
                 std::time::Duration::from_secs(2),
@@ -392,5 +408,8 @@ mod tests {
         assert_eq!(result["entry"]["versionstamp"], "1");
         assert_eq!(result["commit"]["committed"], true);
         assert_eq!(result["commit"]["versionstamp"], "2");
+        assert_eq!(result["patchCommit"]["versionstamp"], "3");
+        assert_eq!(result["patched"]["value"]["title"], "Patched");
+        assert_eq!(result["patched"]["value"]["ready"], true);
     }
 }

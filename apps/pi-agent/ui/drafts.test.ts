@@ -18,6 +18,9 @@ function memoryKv(initial: ReadonlyMap<string, KvValue> = new Map()) {
       values.set(keyId(key), value);
       return String(++version);
     },
+    async mergePatch() {
+      throw new Error("not used");
+    },
     async delete(key) {
       values.delete(keyId(key));
       return String(++version);
