@@ -25,6 +25,10 @@ export interface SnapshotEntry {
   filesNew: number;
   filesChanged: number;
   parentId?: string;
+  label: string;
+  description?: string;
+  tags: string[];
+  deleteProtected: boolean;
 }
 
 export interface FileEntry {
@@ -126,6 +130,14 @@ interface RusticCapability extends NativeCapability {
     path: string;
     includeMetadata?: boolean;
   }): SnapshotDiff | PromiseLike<SnapshotDiff>;
+  updateSnapshot(request: {
+    profileId: string;
+    snapshotId: string;
+    label: string;
+    description: string;
+    tags: string[];
+    deleteProtected: boolean;
+  }): SnapshotEntry | PromiseLike<SnapshotEntry>;
   previewRestore(request: {
     profileId: string;
     snapshotId: string;
@@ -153,6 +165,6 @@ interface RusticHost extends Host {
 export function useRusticApi(): RusticCapability {
   return bindCapability(useHost<RusticHost>().rustic, {
     name: "rustic",
-    version: 4,
+    version: 5,
   });
 }

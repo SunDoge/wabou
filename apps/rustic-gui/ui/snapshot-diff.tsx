@@ -2,15 +2,16 @@ import {
   Badge,
   Checkbox,
   ContentState,
+  createTanStackDataTable,
   Icon,
   ScrollArea,
   Select,
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
+  type TanStackDataTableColumn,
   Text,
   View,
 } from "@wabou/ui";
@@ -25,6 +26,7 @@ import type {
 } from "./api";
 import { useRusticApi } from "./api";
 import { formatSnapshotTime } from "./snapshot-details";
+import { SortableTableHead } from "./sortable-table-head";
 
 function formatBytes(bytes?: number): string {
   if (bytes === undefined) return "—";
@@ -56,42 +58,18 @@ const changePresentation: Record<
   typeChanged: { label: "Type changed", variant: "outline" },
 };
 
-function SnapshotDiffRow(props: { entry: SnapshotDiffEntry }) {
-  const presentation = () => changePresentation[props.entry.change];
-  return (
-    <TableRow aria-label={props.entry.path}>
-      <TableCell class="min-w-64 flex-1 gap-2">
-        <Icon
-          source={props.entry.kind === "directory" ? folder : file}
-          size={15}
-          class="flex-none text-muted"
-        />
-        <View class="min-w-0 flex-1 flex flex-col gap-0.5">
-          <Text class="w-full truncate">{props.entry.name}</Text>
-          <Text class="w-full truncate text-xs text-muted">
-            {props.entry.path}
-          </Text>
-        </View>
-      </TableCell>
-      <TableCell class="w-28 flex-none">
-        <Badge variant={presentation().variant} weight="normal">
-          {presentation().label}
-        </Badge>
-      </TableCell>
-      <TableCell class="w-28 flex-none text-muted">
-        {formatBytes(props.entry.previousSize)}
-      </TableCell>
-      <TableCell class="w-28 flex-none text-muted">
-        {formatBytes(props.entry.currentSize)}
-      </TableCell>
-      <TableCell class="w-36 flex-none text-muted">
-        {formatModified(
-          props.entry.currentModified ?? props.entry.previousModified,
-        )}
-      </TableCell>
-    </TableRow>
-  );
-}
+const diffColumns: TanStackDataTableColumn<SnapshotDiffEntry>[] = [
+  { id: "path", accessorKey: "path", header: "Path" },
+  { id: "change", accessorKey: "change", header: "Change" },
+  { id: "previousSize", accessorKey: "previousSize", header: "Before" },
+  { id: "currentSize", accessorKey: "currentSize", header: "After" },
+  {
+    id: "modified",
+    header: "Modified",
+    accessorFn: (entry) =>
+      entry.currentModified ?? entry.previousModified ?? "",
+  },
+];
 
 export function SnapshotDiffPanel(props: {
   profileId: string;
@@ -171,6 +149,23 @@ export function SnapshotDiffPanel(props: {
   const baseSnapshot = () =>
     props.snapshots.find((snapshot) => snapshot.id === baseSnapshotId());
   const totalChanges = () => result()?.entries.length ?? 0;
+  const diffTable = createTanStackDataTable<SnapshotDiffEntry>({
+    data: () => result()?.entries ?? [],
+    columns: diffColumns,
+    getRowId: (entry) => entry.path,
+    initialSorting: [{ id: "path", desc: false }],
+  });
+  const sortDirection = (columnId: string) => {
+    const sorting = diffTable.sorting().find(({ id }) => id === columnId);
+    return sorting ? (sorting.desc ? "desc" : "asc") : undefined;
+  };
+
+  const columnClass = (columnId: string) =>
+    columnId === "path"
+      ? "min-w-64 flex-1"
+      : columnId === "modified"
+        ? "w-36 flex-none"
+        : "w-28 flex-none";
 
   return (
     <View class="min-w-0 min-h-0 flex-1 flex flex-col">
@@ -269,19 +264,72 @@ export function SnapshotDiffPanel(props: {
                 class="min-w-0 min-h-0 flex-1"
                 contentClass="min-w-full"
               >
-                <Table>
+                <Table aria-label="Snapshot changes">
                   <TableHeader>
                     <TableRow class="bg-surface-muted">
-                      <TableHead class="min-w-64 flex-1">Path</TableHead>
-                      <TableHead class="w-28 flex-none">Change</TableHead>
-                      <TableHead class="w-28 flex-none">Before</TableHead>
-                      <TableHead class="w-28 flex-none">After</TableHead>
-                      <TableHead class="w-36 flex-none">Modified</TableHead>
+                      <For each={diffColumns}>
+                        {(column) => {
+                          const id = String(column.id);
+                          return (
+                            <SortableTableHead
+                              label={String(column.header)}
+                              class={columnClass(id)}
+                              direction={() => sortDirection(id)}
+                              onToggle={() =>
+                                diffTable.table.getColumn(id)?.toggleSorting()
+                              }
+                            />
+                          );
+                        }}
+                      </For>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <For each={result()?.entries ?? []}>
-                      {(entry) => <SnapshotDiffRow entry={entry} />}
+                    <For each={diffTable.rows()}>
+                      {(row) => {
+                        const entry = row.original;
+                        const presentation = changePresentation[entry.change];
+                        return (
+                          <TableRow aria-label={entry.path}>
+                            <TableCell class="min-w-64 flex-1 gap-2">
+                              <Icon
+                                source={
+                                  entry.kind === "directory" ? folder : file
+                                }
+                                size={15}
+                                class="flex-none text-muted"
+                              />
+                              <View class="min-w-0 flex-1 flex flex-col gap-0.5">
+                                <Text class="w-full truncate">
+                                  {entry.name}
+                                </Text>
+                                <Text class="w-full truncate text-xs text-muted">
+                                  {entry.path}
+                                </Text>
+                              </View>
+                            </TableCell>
+                            <TableCell class="w-28 flex-none">
+                              <Badge
+                                variant={presentation.variant}
+                                weight="normal"
+                              >
+                                {presentation.label}
+                              </Badge>
+                            </TableCell>
+                            <TableCell class="w-28 flex-none text-muted">
+                              {formatBytes(entry.previousSize)}
+                            </TableCell>
+                            <TableCell class="w-28 flex-none text-muted">
+                              {formatBytes(entry.currentSize)}
+                            </TableCell>
+                            <TableCell class="w-36 flex-none text-muted">
+                              {formatModified(
+                                entry.currentModified ?? entry.previousModified,
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }}
                     </For>
                   </TableBody>
                 </Table>

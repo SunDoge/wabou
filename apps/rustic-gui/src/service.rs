@@ -9,11 +9,12 @@ use rustic_backend::BackendOptions;
 use rustic_core::{
     BackupOptions, ConfigOptions, Credentials, KeyOptions, LocalDestination, LsOptions, PathList,
     Repository, RepositoryOptions, RestoreOptions, SnapshotOptions,
+    repofile::{DeleteOption, StringList},
 };
 use serde::{Deserialize, Serialize};
 use wabou::{CapabilityContract, HostMethod, NativeCapability, rquickjs};
 
-pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 4);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 5);
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
@@ -28,6 +29,8 @@ const LIST_FILES: HostMethod<ListFilesRequest, Vec<FileEntry>> = HostMethod::new
 const SEARCH_FILES: HostMethod<SearchFilesRequest, Vec<FileEntry>> = HostMethod::new("searchFiles");
 const DIFF_SNAPSHOTS: HostMethod<DiffSnapshotsRequest, SnapshotDiff> =
     HostMethod::new("diffSnapshots");
+const UPDATE_SNAPSHOT: HostMethod<UpdateSnapshotRequest, SnapshotEntry> =
+    HostMethod::new("updateSnapshot");
 const PREVIEW_RESTORE: HostMethod<RestorePathRequest, RestorePlanSummary> =
     HostMethod::new("previewRestore");
 const RESTORE_PATH: HostMethod<RestorePathRequest, RestoreResult> = HostMethod::new("restorePath");
@@ -114,6 +117,21 @@ pub struct DiffSnapshotsRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct UpdateSnapshotRequest {
+    pub profile_id: String,
+    pub snapshot_id: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub delete_protected: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RestorePathRequest {
     pub profile_id: String,
     pub snapshot_id: String,
@@ -152,6 +170,10 @@ pub struct SnapshotEntry {
     pub files_new: u64,
     pub files_changed: u64,
     pub parent_id: Option<String>,
+    pub label: String,
+    pub description: Option<String>,
+    pub tags: Vec<String>,
+    pub delete_protected: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -497,6 +519,44 @@ impl RusticService {
         Ok(result)
     }
 
+    fn update_snapshot(&self, request: UpdateSnapshotRequest) -> Result<SnapshotEntry, String> {
+        let (path, password, _) = self.profile_config(&request.profile_id)?;
+        let repo = open_repository(&path, &password)?;
+        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
+        let previous_ids: BTreeSet<_> = snapshots.iter().map(|snapshot| snapshot.id).collect();
+        let mut snapshot = snapshots
+            .into_iter()
+            .find(|snapshot| snapshot.id.to_string() == request.snapshot_id)
+            .ok_or_else(|| format!("snapshot {} was not found", request.snapshot_id))?;
+        let old_id = snapshot.id;
+        snapshot.label = request.label.trim().to_string();
+        snapshot.description = match request.description.trim() {
+            "" => None,
+            description => Some(description.to_string()),
+        };
+        let mut tags = StringList::default();
+        for tag in request.tags {
+            let tag = tag.trim();
+            if !tag.is_empty() {
+                tags.add(tag.to_string());
+            }
+        }
+        snapshot.tags = tags;
+        snapshot.delete = if request.delete_protected {
+            DeleteOption::Never
+        } else {
+            DeleteOption::NotSet
+        };
+        repo.save_snapshots(vec![snapshot]).map_err(display_error)?;
+        repo.delete_snapshots(&[old_id]).map_err(display_error)?;
+        repo.get_all_snapshots()
+            .map_err(display_error)?
+            .iter()
+            .find(|snapshot| !previous_ids.contains(&snapshot.id))
+            .map(snapshot_entry)
+            .ok_or_else(|| "updated snapshot could not be reloaded".to_string())
+    }
+
     fn preview_restore(&self, request: RestorePathRequest) -> Result<RestorePlanSummary, String> {
         let (path, password, _) = self.profile_config(&request.profile_id)?;
         validate_restore_request(&request)?;
@@ -739,6 +799,10 @@ fn snapshot_entry(snapshot: &rustic_core::repofile::SnapshotFile) -> SnapshotEnt
         files_new: summary.map_or(0, |summary| summary.files_new),
         files_changed: summary.map_or(0, |summary| summary.files_changed),
         parent_id: snapshot.parent.map(|id| id.to_string()),
+        label: snapshot.label.clone(),
+        description: snapshot.description.clone(),
+        tags: snapshot.tags.iter().cloned().collect(),
+        delete_protected: !matches!(&snapshot.delete, DeleteOption::NotSet),
     }
 }
 
@@ -870,6 +934,16 @@ pub fn mount(capability: NativeCapability<'_>, service: RusticService) -> rquick
             tokio::task::spawn_blocking(move || service.diff_snapshots(request))
                 .await
                 .map_err(|error| format!("snapshot diff task failed: {error}"))?
+        }
+    })?;
+
+    let update_snapshot = service.clone();
+    capability.method(UPDATE_SNAPSHOT, move |request| {
+        let service = update_snapshot.clone();
+        async move {
+            tokio::task::spawn_blocking(move || service.update_snapshot(request))
+                .await
+                .map_err(|error| format!("snapshot update task failed: {error}"))?
         }
     })?;
 
@@ -1060,11 +1134,12 @@ mod tests {
                 profile_id: "photos".to_string(),
             })
             .expect("backup changed source");
+        let updated_snapshot_id = next_backup.snapshot.id.clone();
         let diff = service
             .diff_snapshots(DiffSnapshotsRequest {
                 profile_id: "photos".to_string(),
                 base_snapshot_id: backup.snapshot.id,
-                snapshot_id: next_backup.snapshot.id,
+                snapshot_id: updated_snapshot_id.clone(),
                 path: String::new(),
                 include_metadata: false,
             })
@@ -1087,6 +1162,54 @@ mod tests {
         assert_eq!(diff.summary.modified, 1);
         assert_eq!(diff.summary.removed, 1);
         assert_eq!(diff.summary.added, 1);
+
+        let updated = service
+            .update_snapshot(UpdateSnapshotRequest {
+                profile_id: "photos".to_string(),
+                snapshot_id: updated_snapshot_id.clone(),
+                label: "After cleanup".to_string(),
+                description: "Removed stale notes".to_string(),
+                tags: vec!["release".to_string(), "docs".to_string()],
+                delete_protected: true,
+            })
+            .expect("update snapshot metadata");
+        assert_ne!(updated.id, updated_snapshot_id);
+        assert_eq!(updated.label, "After cleanup");
+        assert_eq!(updated.description.as_deref(), Some("Removed stale notes"));
+        assert_eq!(updated.tags, ["docs", "release"]);
+        assert!(updated.delete_protected);
+        let updated_again = service
+            .update_snapshot(UpdateSnapshotRequest {
+                profile_id: "photos".to_string(),
+                snapshot_id: updated.id.clone(),
+                label: "Final archive".to_string(),
+                description: String::new(),
+                tags: vec!["archive".to_string()],
+                delete_protected: false,
+            })
+            .expect("update snapshot metadata again");
+        assert_ne!(updated_again.id, updated.id);
+        assert_eq!(updated_again.label, "Final archive");
+        assert_eq!(updated_again.description, None);
+        assert_eq!(updated_again.tags, ["archive"]);
+        assert!(!updated_again.delete_protected);
+        let snapshots = service
+            .list_snapshots(ProfileIdRequest {
+                profile_id: "photos".to_string(),
+            })
+            .expect("reload updated snapshots");
+        assert_eq!(snapshots.len(), 2);
+        assert!(
+            snapshots
+                .iter()
+                .any(|snapshot| snapshot.id == updated_again.id)
+        );
+        assert!(!snapshots.iter().any(|snapshot| snapshot.id == updated.id));
+        assert!(
+            !snapshots
+                .iter()
+                .any(|snapshot| snapshot.id == updated_snapshot_id)
+        );
     }
 
     #[test]

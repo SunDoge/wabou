@@ -45,6 +45,10 @@ test("snapshot summaries stay compact while details preserve full metadata", () 
     paths: ["/data/photos", "/data/documents"],
     filesNew: 42,
     filesChanged: 7,
+    label: "Nightly",
+    description: "Before migration",
+    tags: ["archive", "photos"],
+    deleteProtected: true,
   };
 
   expect(formatSnapshotTime(snapshot.time)).toBe("2026-09-02 04:18");
@@ -59,6 +63,49 @@ test("snapshot summaries stay compact while details preserve full metadata", () 
   expect(details.text).toContain(snapshot.id);
 });
 
+test("snapshot details edit label, tags, description, and deletion protection", async () => {
+  const save = vi.fn(async () => {});
+  const snapshot = {
+    id: "snapshot-editable",
+    time: "2026-09-02T04:18:35Z",
+    hostname: "workstation",
+    paths: ["/data/photos"],
+    filesNew: 12,
+    filesChanged: 3,
+    label: "Nightly",
+    description: "Before cleanup",
+    tags: ["photos"],
+    deleteProtected: false,
+  };
+  const screen = renderComponent(() => (
+    <SnapshotDetails snapshot={snapshot} onSave={save} />
+  ));
+
+  screen.getByRole("button", { name: "Details" }).click();
+  screen
+    .getByRole("textbox", { name: "Snapshot label" })
+    .input("Before migration");
+  screen
+    .getByRole("textbox", { name: "Snapshot tags" })
+    .input("archive, photos, archive");
+  screen
+    .getByRole("textbox", { name: "Snapshot description" })
+    .input("Verified before migration");
+  screen
+    .getByRole("checkbox", { name: "Protect this snapshot from deletion" })
+    .click();
+  screen.getByRole("button", { name: "Save changes" }).click();
+
+  await screen.waitFor(() => {
+    expect(save).toHaveBeenCalledWith({
+      label: "Before migration",
+      description: "Verified before migration",
+      tags: ["archive", "photos"],
+      deleteProtected: true,
+    });
+  });
+});
+
 test("snapshot changes compare against the recorded parent and can include metadata", async () => {
   const current = {
     id: "current-snapshot",
@@ -68,6 +115,10 @@ test("snapshot changes compare against the recorded parent and can include metad
     paths: ["/data/photos"],
     filesNew: 1,
     filesChanged: 1,
+    label: "",
+    description: undefined,
+    tags: [],
+    deleteProtected: false,
   };
   const parent = {
     ...current,
@@ -77,9 +128,16 @@ test("snapshot changes compare against the recorded parent and can include metad
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 4,
+      __wabouCapabilityVersion: 5,
       diffSnapshots: async (request: { includeMetadata?: boolean }) => ({
         entries: [
+          {
+            name: "z-last.txt",
+            path: "docs/z-last.txt",
+            kind: "file" as const,
+            change: "added" as const,
+            currentSize: 18,
+          },
           {
             name: request.includeMetadata ? "mode.txt" : "new.txt",
             path: request.includeMetadata ? "docs/mode.txt" : "docs/new.txt",
@@ -122,6 +180,21 @@ test("snapshot changes compare against the recorded parent and can include metad
     path: "",
   });
 
+  expect(
+    screen
+      .getAllByRole("row")
+      .map((row) => row.name)
+      .filter((name) => name.startsWith("docs/")),
+  ).toEqual(["docs/new.txt", "docs/z-last.txt"]);
+  screen.getByRole("columnheader", { name: "Sort by Path" }).click();
+  screen.flush();
+  expect(
+    screen
+      .getAllByRole("row")
+      .map((row) => row.name)
+      .filter((name) => name.startsWith("docs/")),
+  ).toEqual(["docs/z-last.txt", "docs/new.txt"]);
+
   screen.getByRole("checkbox", { name: "Metadata changes" }).click();
   await screen.waitFor(() => {
     expect(screen.getByRole("row", { name: "docs/mode.txt" })).toBeDefined();
@@ -152,7 +225,7 @@ test("snapshot file tree loads child directories only when expanded", async () =
   const selected = vi.fn();
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 4,
+      __wabouCapabilityVersion: 5,
       listFiles: async (request: { path: string }) =>
         request.path === "docs"
           ? [
@@ -214,7 +287,7 @@ test("snapshot file tree loads child directories only when expanded", async () =
 test("file details preview and extract through the native rustic capability", async () => {
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 4,
+      __wabouCapabilityVersion: 5,
       previewPath: async () => ({
         destination: "/tmp/wabou-rustic-preview/42",
         plan: {
@@ -419,7 +492,7 @@ test("rustic session hydrates durable profiles and exposes their locked state", 
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 4,
+      __wabouCapabilityVersion: 5,
       status: async () => ({
         unlockedProfileIds: [],
       }),
@@ -453,7 +526,7 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 4,
+      __wabouCapabilityVersion: 5,
       status: async () => ({ unlockedProfileIds: [] }),
       createProfile: async (request: { id: string }) => ({
         unlockedProfileIds: [request.id],
