@@ -3,18 +3,23 @@ import { createTestHost, renderComponent } from "@wabou/test/component";
 import { Button, Text } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test, vi } from "vitest";
-import type { ProfileStore } from "../../apps/rustic-gui/ui/profile-store";
 import { FileDetails } from "../../apps/rustic-gui/ui/file-details";
-import { SnapshotFileTree } from "../../apps/rustic-gui/ui/snapshot-tree";
-import {
-  formatModified,
-  SnapshotFileRow,
-} from "../../apps/rustic-gui/ui/snapshots";
+import type { ProfileStore } from "../../apps/rustic-gui/ui/profile-store";
 import {
   RusticSessionProvider,
   useRusticSession,
 } from "../../apps/rustic-gui/ui/session";
 import { RusticSidebar } from "../../apps/rustic-gui/ui/shell";
+import { createSnapshotBrowserCache } from "../../apps/rustic-gui/ui/snapshot-browser-cache";
+import {
+  formatSnapshotTime,
+  SnapshotDetails,
+} from "../../apps/rustic-gui/ui/snapshot-details";
+import { SnapshotFileTree } from "../../apps/rustic-gui/ui/snapshot-tree";
+import {
+  formatModified,
+  SnapshotFileRow,
+} from "../../apps/rustic-gui/ui/snapshots";
 import { BackupSourcesPanel } from "../../apps/rustic-gui/ui/workspace-components";
 
 const dialog: Dialog = {
@@ -29,6 +34,47 @@ test("snapshot timestamps stay compact in the table", () => {
     "2026-09-02 04:18",
   );
   expect(formatModified(undefined)).toBe("—");
+});
+
+test("snapshot summaries stay compact while details preserve full metadata", () => {
+  const snapshot = {
+    id: "f21dc6d86a8b42b4aaf81ff39aa15c8f",
+    time: "2026-09-02T04:18:35.321355Z",
+    hostname: "workstation",
+    paths: ["/data/photos", "/data/documents"],
+    filesNew: 42,
+    filesChanged: 7,
+  };
+
+  expect(formatSnapshotTime(snapshot.time)).toBe("2026-09-02 04:18");
+  const screen = renderComponent(() => <SnapshotDetails snapshot={snapshot} />);
+  screen.getByRole("button", { name: "Details" }).click();
+  screen.flush();
+
+  const details = screen.getByRole("dialog", { name: "Snapshot details" });
+  expect(details.text).toContain(snapshot.time);
+  expect(details.text).toContain("workstation");
+  expect(details.text).toContain("/data/photos");
+  expect(details.text).toContain(snapshot.id);
+});
+
+test("snapshot browser cache restores each snapshot path independently", () => {
+  const cache = createSnapshotBrowserCache();
+  const docs = [
+    { name: "guide.md", path: "docs/guide.md", kind: "file" as const, size: 8 },
+  ];
+
+  cache.remember("snapshot-a", "docs", docs);
+  cache.remember("snapshot-b", "photos", []);
+
+  expect(cache.lastPath("snapshot-a")).toBe("docs");
+  expect(cache.entries("snapshot-a", "docs")).toEqual(docs);
+  expect(cache.lastPath("snapshot-b")).toBe("photos");
+  expect(cache.lastPath("snapshot-c")).toBe("");
+
+  cache.clear();
+  expect(cache.entries("snapshot-a", "docs")).toBeUndefined();
+  expect(cache.lastPath("snapshot-a")).toBe("");
 });
 
 test("snapshot file tree loads child directories only when expanded", async () => {
@@ -89,7 +135,9 @@ test("snapshot file tree loads child directories only when expanded", async () =
     snapshotId: "snapshot",
     path: "docs",
   });
-  expect(selected).toHaveBeenCalledWith(expect.objectContaining({ path: "docs" }));
+  expect(selected).toHaveBeenCalledWith(
+    expect.objectContaining({ path: "docs" }),
+  );
 });
 
 test("file details preview and extract through the native rustic capability", async () => {
@@ -268,7 +316,9 @@ test("list rows give directory double click priority over single selection", asy
   row.click();
   expect(select).not.toHaveBeenCalled();
   await screen.advanceTime(410);
-  expect(select).toHaveBeenCalledWith(expect.objectContaining({ path: "docs" }));
+  expect(select).toHaveBeenCalledWith(
+    expect.objectContaining({ path: "docs" }),
+  );
   expect(open).not.toHaveBeenCalled();
 
   select.mockClear();
