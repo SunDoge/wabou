@@ -45,6 +45,11 @@ test("opens, highlights, selects, and restores trigger focus", async () => {
   expect(() =>
     screen.getByRole("option", { name: "Unavailable" }).click(),
   ).toThrow("cannot click disabled component option");
+  const unavailable = screen.getByRole("option", { name: "Unavailable" });
+  expect(unavailable.className).toContain("bg-surface-muted");
+  expect(unavailable.className).toContain("text-muted");
+  expect(unavailable.className).toContain("cursor-not-allowed");
+  expect(unavailable.className).toContain("opacity-60");
 
   rust.click();
   expect(screen.getByRole("status").text).toBe("rust");

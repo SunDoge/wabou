@@ -19,6 +19,7 @@ import {
 } from "./command-state";
 import { Input } from "./input";
 import { moveMenuHighlight } from "./menu-state";
+import { pickerOptionClass } from "./select-semantics";
 
 export interface CommandItem extends CommandStateItem {
   description?: string;
@@ -121,12 +122,12 @@ export function CommandList(props: CommandListProps): JSX.Element {
                 aria-disabled={item().disabled}
                 class={mergeClasses(
                   "min-h-8 px-2 py-1 flex flex-row items-center gap-2 rounded-md",
-                  props.highlighted === item().id
-                    ? "bg-control-hover text-primary"
-                    : "bg-transparent text-secondary",
+                  pickerOptionClass(
+                    item().disabled ?? false,
+                    props.highlighted === item().id,
+                  ),
                   props.itemClass,
                 )}
-                style={{ opacity: item().disabled ? 0.45 : 1 }}
                 onPointerMove={() =>
                   !item().disabled && props.onHighlightChange?.(item().id)
                 }

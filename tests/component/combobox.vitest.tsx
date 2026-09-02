@@ -47,3 +47,17 @@ test("dismisses search with Escape", () => {
   screen.getByRole("textbox", { name: "Technology search" }).press("Escape");
   expect(screen.queryByRole("listbox")).toBeNull();
 });
+
+test("visually distinguishes unavailable options", () => {
+  const screen = renderComponent(() => (
+    <Combobox aria-label="Technology" options={options} />
+  ));
+  screen.getByRole("combobox", { name: "Technology" }).click();
+
+  const disabled = screen.getByRole("option", { name: "Disabled" });
+  expect(disabled.disabled).toBe(true);
+  expect(disabled.className).toContain("bg-surface-muted");
+  expect(disabled.className).toContain("text-muted");
+  expect(disabled.className).toContain("cursor-not-allowed");
+  expect(disabled.className).toContain("opacity-60");
+});

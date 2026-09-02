@@ -707,7 +707,7 @@ export function ComboboxPage() {
             {
               id: "future",
               value: "future",
-              label: "Future option",
+              label: "Future option — unavailable",
               disabled: true,
             },
           ]}
@@ -1581,7 +1581,12 @@ export function SelectPage() {
               { value: "solid", label: "SolidJS" },
               { value: "react", label: "React" },
               { value: "vue", label: "Vue" },
-              { value: "svelte", label: "Svelte", disabled: true },
+              { value: "svelte", label: "Svelte" },
+              {
+                value: "planned",
+                label: "Planned framework — unavailable",
+                disabled: true,
+              },
             ]}
           />
           <Text class="text-xs text-muted">Selected: {framework() ?? "—"}</Text>
