@@ -1,0 +1,20 @@
+{
+  "name": "@wabou/rustic-gui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --host 127.0.0.1 --port 5188 --strictPort"
+  },
+  "dependencies": {
+    "@wabou/ui": "workspace:*",
+    "lucide-static": "1.31.0",
+    "solid-js": "2.0.0-rc.2"
+  },
+  "devDependencies": {
+    "@wabou/test": "workspace:*",
+    "@wabou/vite": "workspace:*",
+    "vite": "^6.0.0"
+  }
+}
