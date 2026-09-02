@@ -889,6 +889,13 @@ impl Applier {
                 self.frame.projections.semantics_dirty = true;
                 self.drop_node(*id);
             }
+            Op::SetTextSelection { .. }
+            | Op::TextCommand { .. }
+            | Op::SetProjectionBoundary { .. } => {
+                // These operations are implemented by the GPUI runtime. The
+                // retired renderer keeps decoding them so mixed workspaces
+                // remain buildable, but intentionally has no equivalent state.
+            }
         }
         self.project_structure_if_unbatched();
     }

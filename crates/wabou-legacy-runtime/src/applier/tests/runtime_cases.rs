@@ -338,7 +338,10 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
             assert_eq!(options.initial_inner_size, (640, 480));
             assert!(!options.resizable);
             assert!(!options.decorations);
-            assert!(options.transparent);
+            assert_eq!(
+                options.background,
+                gpui_shell::WindowBackground::Transparent
+            );
             request
         }
         None => panic!("missing create-window effect"),
