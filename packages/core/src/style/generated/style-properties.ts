@@ -36,6 +36,16 @@ export const INLINE_STYLE_CONTRACT = {
     number: false,
     typed: [5],
   },
+  "border-bottom-left-radius": {
+    string: true,
+    number: true,
+    typed: [1],
+  },
+  "border-bottom-right-radius": {
+    string: true,
+    number: true,
+    typed: [1],
+  },
   "border-bottom-width": {
     string: true,
     number: true,
@@ -57,6 +67,16 @@ export const INLINE_STYLE_CONTRACT = {
     typed: [1],
   },
   "border-right-width": {
+    string: true,
+    number: true,
+    typed: [1],
+  },
+  "border-top-left-radius": {
+    string: true,
+    number: true,
+    typed: [1],
+  },
+  "border-top-right-radius": {
     string: true,
     number: true,
     typed: [1],
