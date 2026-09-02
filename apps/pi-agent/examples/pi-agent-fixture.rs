@@ -495,6 +495,11 @@ fn handle(request: &Value, state: &mut FixtureState) -> io::Result<()> {
 
 fn main() -> io::Result<()> {
     let mut state = FixtureState::from_args()?;
+    if let Ok(delay_ms) = std::env::var("WABOU_FAKE_PI_STARTUP_DELAY_MS")
+        && let Ok(delay_ms) = delay_ms.parse::<u64>()
+    {
+        thread::sleep(Duration::from_millis(delay_ms));
+    }
     for line in io::stdin().lock().lines() {
         let line = line?;
         if line.trim().is_empty() {

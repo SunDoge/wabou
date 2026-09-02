@@ -51,6 +51,8 @@ async function deterministic(): Promise<void> {
       resolve(artifacts, "deterministic"),
       "--env",
       `WABOU_PI_BIN=${fixture}`,
+      "--env",
+      "WABOU_FAKE_PI_STARTUP_DELAY_MS=100",
     ],
     env,
   );
@@ -120,32 +122,16 @@ async function real(): Promise<void> {
   }
   const env = { ...process.env };
   delete env.WABOU_PI_BIN;
-  const output = resolve(artifacts, "screenshots/real-pi.png");
-  const snapshot = resolve(artifacts, "semantics/real-pi.json");
-  await mkdir(dirname(output), { recursive: true });
-  await mkdir(dirname(snapshot), { recursive: true });
   await run(
     [
       "cargo",
-      "run",
+      "test",
       "-p",
-      "wabou-cli",
+      "pi-agent-wabou",
+      "real_pi_",
       "--",
-      "render",
-      app,
-      "--with-host",
-      "--scenario",
-      "apps/pi-agent/captures/real-pi.behavior.ts",
-      "--out",
-      output,
-      "--snapshot",
-      snapshot,
-      "--width",
-      "1440",
-      "--height",
-      "900",
-      "--wait-ms",
-      "500",
+      "--ignored",
+      "--nocapture",
     ],
     env,
   );

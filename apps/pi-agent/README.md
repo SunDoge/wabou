@@ -1,8 +1,8 @@
 # Pi Agent · Wabou
 
 A native desktop client for the Pi coding agent. Wabou's QuickJS runtime owns the
-Solid UI; each configured agent owns an independent Bun-based Pi process, session,
-workspace, provider and proxy environment. They communicate through Pi's
+Solid UI; each configured agent owns an independent Pi process, session, workspace,
+provider and proxy environment. They communicate through Pi's
 LF-delimited JSONL RPC protocol.
 
 ## Run from the workspace
@@ -14,21 +14,24 @@ bun install
 bun run wabou dev apps/pi-agent
 ```
 
-The app uses `bun x` to resolve a pinned Pi release. Set `WABOU_PI_BIN` to use an
-existing Pi executable instead.
+The application runtime uses mise to install and select a pinned standalone Pi
+release in mise's isolated tool directory. A packaged build can bundle mise and set
+`WABOU_MISE_BIN` to its path; it does not need to modify the user's npm prefix or
+guess interactive-shell tool paths. Set `WABOU_PI_BIN` only to inject an existing Pi
+executable or the deterministic test fixture.
 
 Global defaults live on the Settings route and can be overridden per agent before it
 starts. Provider and model can be supplied at process startup or changed through
 Pi's `set_model` RPC command.
 
-Proxy settings are available before Bun or Pi starts. An explicit proxy is exported as
-`HTTP_PROXY`, `HTTPS_PROXY`, and `ALL_PROXY` (plus lowercase aliases) to both Bun's
-`bun x` npm package resolution and Pi's provider requests. Leaving it empty inherits
+Proxy settings are available before mise installs/starts Pi. An explicit proxy is exported as
+`HTTP_PROXY`, `HTTPS_PROXY`, and `ALL_PROXY` (plus lowercase aliases) to mise and
+Pi's provider requests. Leaving it empty inherits
 the desktop process environment; `NO_PROXY` is separately configurable.
 
-The first preview expects Bun to be installed. Windows distribution can use the same
-process boundary with a bundled Bun/Pi sidecar, so the UI and RPC protocol do
-not need to change. A future experiment may move compatible agent code into Wabou's
+Repository development still uses Bun for Vite and package scripts. Distributed
+builds can use the same process boundary with bundled mise, so the UI and RPC
+protocol do not need to change. A future experiment may move compatible agent code into Wabou's
 QuickJS runtime; that is deliberately not required by this application today.
 
 The interface defaults to English for public demos and uses compiled Paraglide
@@ -69,7 +72,9 @@ bun run test:app:pi-agent:native
 
 The native smoke test requires a usable desktop session. Real provider testing is
 deliberately excluded from CI and the default gate because it uses credentials,
-network access, and provider credits. Run it only with explicit consent:
+network access, and provider credits. The explicit real probe concurrently starts the
+same agent to enforce the single-child contract, then submits a short RPC turn and
+requires streamed text plus `agent_settled`:
 
 ```bash
 WABOU_RUN_REAL_PI=1 bun run test:app:pi-agent:real

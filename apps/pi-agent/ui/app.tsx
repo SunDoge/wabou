@@ -57,6 +57,7 @@ import { i18n, m } from "./i18n";
 import { createOwnedOverlay } from "./owned-overlay";
 import { createPersistedRecord } from "./persisted-record";
 import { ScopedHandleRegistry } from "./scoped-handle-registry";
+import { createSingleFlight, sessionRouteKey } from "./runtime-start";
 import { SessionForkDialog } from "./session-fork";
 import { createSessionNavigation } from "./session-navigation";
 import { SessionTitle } from "./session-title";
@@ -436,41 +437,44 @@ export function App() {
       turnCheckpoints.synchronize(cwd, sessionId, items),
   );
 
-  const start = async (
+  const launchOnce = createSingleFlight<string, boolean>();
+  const start = (
     agent: AgentWorkspace = active(),
     sessionId?: string,
   ): Promise<boolean> => {
-    try {
-      const status = await api.start({
-        agentId: agent.id,
-        cwd: agent.cwd,
-        proxy: defaults.value().proxy.trim() || undefined,
-        noProxy: defaults.value().noProxy.trim() || undefined,
-        provider:
-          agent.provider.trim() ||
-          defaults.value().provider.trim() ||
-          undefined,
-        model: agent.model.trim() || defaults.value().model.trim() || undefined,
-        sessionId,
-        subagentsEnabled: defaults.value().subagentsEnabled,
-      });
-      updateAgent(agent.id, (current) => ({
-        ...current,
-        cwd: status.cwd ?? current.cwd,
-        state: { ...current.state, connection: "ready", error: undefined },
-      }));
-      return true;
-    } catch (error) {
-      updateAgent(agent.id, (current) => ({
-        ...current,
-        state: {
-          ...current.state,
-          connection: "failed",
-          error: String(error),
-        },
-      }));
-      return false;
-    }
+    const options = {
+      agentId: agent.id,
+      cwd: agent.cwd,
+      proxy: defaults.value().proxy.trim() || undefined,
+      noProxy: defaults.value().noProxy.trim() || undefined,
+      provider:
+        agent.provider.trim() || defaults.value().provider.trim() || undefined,
+      model: agent.model.trim() || defaults.value().model.trim() || undefined,
+      sessionId,
+      subagentsEnabled: defaults.value().subagentsEnabled,
+    };
+    const key = JSON.stringify(options);
+    return launchOnce(key, async () => {
+      try {
+        const status = await api.start(options);
+        updateAgent(agent.id, (current) => ({
+          ...current,
+          cwd: status.cwd ?? current.cwd,
+          state: { ...current.state, connection: "ready", error: undefined },
+        }));
+        return true;
+      } catch (error) {
+        updateAgent(agent.id, (current) => ({
+          ...current,
+          state: {
+            ...current.state,
+            connection: "failed",
+            error: String(error),
+          },
+        }));
+        return false;
+      }
+    });
   };
 
   const submit = async () => {
@@ -670,34 +674,35 @@ export function App() {
       to: `/agents/${target.agentId}/sessions/${target.sessionId}`,
     });
   };
-  let openingSession = "";
+  // Keep the dependency of this effect to one stable scalar. Returning a fresh
+  // `{ session, agent }` object here caused every agent status/event update to
+  // launch the same session again while Pi was still reporting its identity.
   createEffect(
     () => {
       const { agentId, sessionId } = params();
+      return sessionRouteKey(
+        agentId,
+        sessionId,
+        agents().map((agent) => agent.id),
+        sessions(),
+      );
+    },
+    (key) => {
+      if (!key) return;
+      const [agentId, sessionId] = key.split("\0");
       const session = sessions().find(
         (candidate) =>
           candidate.agentId === agentId && candidate.sessionId === sessionId,
       );
       const agent = agents().find((candidate) => candidate.id === agentId);
-      return session && agent ? { session, agent } : undefined;
-    },
-    (target) => {
-      if (!target) return;
-      const key = `${target.agent.id}\0${target.session.sessionId}`;
-      if (
-        openingSession === key ||
-        target.agent.state.sessionId === target.session.sessionId
-      )
+      if (!session || !agent || agent.state.sessionId === session.sessionId)
         return;
-      openingSession = key;
       const next = {
-        ...target.agent,
-        cwd: target.session.cwd || target.agent.cwd,
+        ...agent,
+        cwd: session.cwd || agent.cwd,
       };
-      updateAgent(target.agent.id, () => next);
-      void start(next, target.session.sessionId).finally(() => {
-        openingSession = "";
-      });
+      updateAgent(agent.id, () => next);
+      void start(next, session.sessionId);
     },
   );
 

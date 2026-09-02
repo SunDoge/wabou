@@ -20,7 +20,7 @@ use wabou::{
 
 pub const CAPABILITY: CapabilityContract = CapabilityContract::new("piAgent", 1);
 const EVENT_TOPIC: &str = "pi.event";
-const PI_PACKAGE: &str = "@earendil-works/pi-coding-agent@0.84.3";
+const PI_TOOL: &str = "aqua:earendil-works/pi@0.84.3";
 
 const GET_STATUS: JsonMethod<AgentRequest, PiStatus> = JsonMethod::new("getStatus");
 const START: JsonMethod<StartRequest, PiStatus> = JsonMethod::new("start");
@@ -86,6 +86,7 @@ const DEFAULT_WORKSPACE: JsonMethod<AgentRequest, String> = JsonMethod::new("def
 #[derive(Clone)]
 pub struct PiService {
     state: Arc<Mutex<HashMap<String, PiProcess>>>,
+    lifecycle: Arc<Mutex<()>>,
     events_tx: flume::Sender<Value>,
     events_rx: flume::Receiver<Value>,
     sessions: Arc<Mutex<SessionCatalog>>,
@@ -174,6 +175,18 @@ struct PiProcess {
     stdin: Option<Arc<Mutex<ChildStdin>>>,
     cwd: Option<PathBuf>,
     last_error: Option<String>,
+    launch: PiLaunchSpec,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PiLaunchSpec {
+    cwd: PathBuf,
+    session_file: Option<PathBuf>,
+    proxy: Option<String>,
+    no_proxy: Option<String>,
+    provider: Option<String>,
+    model: Option<String>,
+    subagents_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -185,7 +198,7 @@ pub struct PiStatus {
     error: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct StartRequest {
     agent_id: String,
@@ -918,6 +931,7 @@ impl PiService {
         let sessions = load_session_catalog();
         Self {
             state: Arc::new(Mutex::new(HashMap::new())),
+            lifecycle: Arc::new(Mutex::new(())),
             events_tx,
             events_rx,
             sessions: Arc::new(Mutex::new(sessions)),
@@ -942,7 +956,7 @@ impl PiService {
             cwd: process
                 .and_then(|process| process.cwd.as_ref())
                 .map(|path| path.display().to_string()),
-            runtime: "bun",
+            runtime: "mise",
             error: process.and_then(|process| process.last_error.clone()),
         })
     }
@@ -964,7 +978,6 @@ impl PiService {
             .filter(|session_id| !session_id.trim().is_empty())
             .map(|session_id| self.resolve_session_file(&request.agent_id, session_id))
             .transpose()?;
-        self.stop(&request.agent_id)?;
         let cwd = request
             .cwd
             .as_deref()
@@ -980,6 +993,28 @@ impl PiService {
                 format!("could not create workspace {}: {error}", cwd.display())
             })?;
         }
+        let launch = PiLaunchSpec {
+            cwd: cwd.clone(),
+            session_file: session_file.clone(),
+            proxy: normalized_option(request.proxy.as_deref()),
+            no_proxy: normalized_option(request.no_proxy.as_deref()),
+            provider: normalized_option(request.provider.as_deref()),
+            model: normalized_option(request.model.as_deref()),
+            subagents_enabled: request.subagents_enabled,
+        };
+        // Starting a child is deliberately serialized. Native capability calls may
+        // overlap, and the process does not enter `state` until all of its pipes and
+        // reader threads are ready. Without this gate, identical concurrent calls all
+        // observe an empty map and spawn their own Pi runtime.
+        let _lifecycle = self
+            .lifecycle
+            .lock()
+            .map_err(|_| "Pi lifecycle lock poisoned".to_owned())?;
+        if self.running_launch_matches(&request.agent_id, &launch)? {
+            return self.status(&request.agent_id);
+        }
+        self.stop_process(&request.agent_id)?;
+
         let mut command = pi_command()?;
         configure_pi_command(&mut command, &request);
         if let Some(session_file) = session_file {
@@ -1092,6 +1127,7 @@ impl PiService {
                 stdin: Some(stdin),
                 cwd: Some(cwd),
                 last_error: None,
+                launch,
             },
         );
         drop(state);
@@ -1120,6 +1156,14 @@ impl PiService {
     }
 
     fn stop(&self, agent_id: &str) -> Result<(), String> {
+        let _lifecycle = self
+            .lifecycle
+            .lock()
+            .map_err(|_| "Pi lifecycle lock poisoned".to_owned())?;
+        self.stop_process(agent_id)
+    }
+
+    fn stop_process(&self, agent_id: &str) -> Result<(), String> {
         let process = self
             .state
             .lock()
@@ -1130,6 +1174,25 @@ impl PiService {
             let _ = child.wait();
         }
         Ok(())
+    }
+
+    fn running_launch_matches(
+        &self,
+        agent_id: &str,
+        launch: &PiLaunchSpec,
+    ) -> Result<bool, String> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| "Pi process lock poisoned".to_owned())?;
+        let Some(process) = state.get_mut(agent_id) else {
+            return Ok(false);
+        };
+        let running = process
+            .child
+            .as_mut()
+            .is_some_and(|child| child.try_wait().ok().flatten().is_none());
+        Ok(running && process.launch == *launch)
     }
 
     fn sessions(&self, agent_id: &str) -> Result<Vec<PiSession>, String> {
@@ -1252,18 +1315,19 @@ fn pi_command() -> Result<Command, String> {
         return Ok(command);
     }
 
-    let requested_bun = env::var_os("WABOU_BUN_BIN").unwrap_or_else(|| OsString::from("bun"));
-    let bun = resolve_runtime_executable(&requested_bun, &search_path, &current_dir).map_err(
+    let requested_mise = env::var_os("WABOU_MISE_BIN").unwrap_or_else(|| OsString::from("mise"));
+    let mise = resolve_runtime_executable(&requested_mise, &search_path, &current_dir).map_err(
         |error| {
             format!(
-                "could not locate Bun ({error}). Install Bun, set WABOU_BUN_BIN to its executable, or set WABOU_PI_BIN to an installed Pi executable"
+                "could not locate mise ({error}). Bundle mise or set WABOU_MISE_BIN; Pi is installed into mise's isolated tool directory on first use"
             )
         },
     )?;
-    let mut command = Command::new(bun);
-    command.args(["x", "--package", PI_PACKAGE, "pi", "--mode", "rpc"]);
-    // Desktop launchers do not inherit the user's interactive shell PATH.
-    // Pass the same enriched path to Pi so its tools resolve consistently too.
+    let mut command = Command::new(mise);
+    command.args(["--quiet", "exec", PI_TOOL, "--", "pi", "--mode", "rpc"]);
+    // `mise exec` installs and selects the pinned Pi tool without touching the
+    // user's npm prefix. This outer PATH only has to locate mise and ordinary
+    // operating-system tools.
     command.env("PATH", search_path);
     Ok(command)
 }
@@ -1278,52 +1342,37 @@ fn resolve_runtime_executable(
 
 fn runtime_search_path() -> OsString {
     let inherited = env::var_os("PATH");
-    let bun_install = env::var_os("BUN_INSTALL");
-    let mise_data = env::var_os("MISE_DATA_DIR");
     let base = directories::BaseDirs::new();
     runtime_search_path_from(
         inherited.as_deref(),
-        bun_install.as_deref(),
-        mise_data.as_deref(),
         base.as_ref().map(directories::BaseDirs::home_dir),
     )
 }
 
-fn runtime_search_path_from(
-    inherited: Option<&OsStr>,
-    bun_install: Option<&OsStr>,
-    mise_data: Option<&OsStr>,
-    home: Option<&Path>,
-) -> OsString {
+fn runtime_search_path_from(inherited: Option<&OsStr>, home: Option<&Path>) -> OsString {
     let mut search_directories = inherited
         .map(env::split_paths)
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
-    if let Some(install) = bun_install {
-        search_directories.push(PathBuf::from(install).join("bin"));
-    }
-    if let Some(data) = mise_data {
-        search_directories.push(PathBuf::from(data).join("shims"));
-    }
     if let Some(home) = home {
-        search_directories.extend([
-            home.join(".bun/bin"),
-            home.join(".cargo/bin"),
-            home.join(".local/bin"),
-            home.join(".local/share/mise/shims"),
-            home.join(".asdf/shims"),
-            home.join(".proto/shims"),
-        ]);
+        search_directories.push(home.join(".local/bin"));
     }
     #[cfg(unix)]
     search_directories.extend([
         PathBuf::from("/opt/homebrew/bin"),
         PathBuf::from("/usr/local/bin"),
     ]);
-    let mut seen = BTreeSet::new();
+    let mut seen = std::collections::BTreeSet::new();
     search_directories.retain(|directory| seen.insert(directory.clone()));
     env::join_paths(&search_directories).unwrap_or_else(|_| inherited.unwrap_or_default().into())
+}
+
+fn normalized_option(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
 }
 
 fn follow_up_request(event: &Value) -> Option<Value> {
@@ -2116,25 +2165,115 @@ mod tests {
     fn status_is_stopped_before_start() {
         let status = PiService::new().status("default").expect("status");
         assert!(!status.running);
-        assert_eq!(status.runtime, "bun");
+        assert_eq!(status.runtime, "mise");
     }
 
     #[test]
-    fn runtime_search_path_includes_gui_launcher_fallbacks() {
+    #[ignore = "requires mise and the real Pi tool"]
+    fn concurrent_real_pi_starts_share_one_child() {
+        let service = PiService::new();
+        let request = StartRequest {
+            agent_id: "real-single-flight".to_owned(),
+            cwd: Some(env::current_dir().expect("cwd").display().to_string()),
+            proxy: None,
+            no_proxy: None,
+            provider: None,
+            model: None,
+            session_id: None,
+            subagents_enabled: false,
+        };
+        let barrier = Arc::new(std::sync::Barrier::new(3));
+        let workers = (0..2)
+            .map(|_| {
+                let service = service.clone();
+                let request = request.clone();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    service.start(request)
+                })
+            })
+            .collect::<Vec<_>>();
+        barrier.wait();
+        for worker in workers {
+            assert!(worker.join().expect("start worker").expect("start").running);
+        }
+        let state = service.state.lock().expect("Pi state");
+        assert_eq!(state.len(), 1);
+        assert!(state["real-single-flight"].child.is_some());
+        drop(state);
+        service.stop("real-single-flight").expect("stop Pi");
+    }
+
+    #[test]
+    #[ignore = "requires mise, the real Pi tool, network access, and provider consent"]
+    fn real_pi_rpc_turn_streams_and_settles() {
+        let service = PiService::new();
+        let agent_id = "real-rpc-turn";
+        service
+            .start(StartRequest {
+                agent_id: agent_id.to_owned(),
+                cwd: Some(env::current_dir().expect("cwd").display().to_string()),
+                proxy: None,
+                no_proxy: None,
+                provider: None,
+                model: None,
+                session_id: None,
+                subagents_enabled: false,
+            })
+            .expect("start real Pi");
+        service
+            .send(
+                agent_id,
+                json!({
+                    "id":"wabou-real-rpc-probe",
+                    "type":"prompt",
+                    "message":"Reply with exactly: real Pi works.",
+                    "images":[],
+                }),
+            )
+            .expect("prompt real Pi");
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        let mut output = String::new();
+        let mut settled = false;
+        while let Some(remaining) = deadline.checked_duration_since(std::time::Instant::now()) {
+            let event = service
+                .events_rx
+                .recv_timeout(remaining)
+                .expect("real Pi turn event");
+            if event.get("agentId").and_then(Value::as_str) != Some(agent_id) {
+                continue;
+            }
+            if let Some(delta) = event
+                .get("assistantMessageEvent")
+                .filter(|event| event.get("type").and_then(Value::as_str) == Some("text_delta"))
+                .and_then(|event| event.get("delta"))
+                .and_then(Value::as_str)
+            {
+                output.push_str(delta);
+            }
+            if event.get("type").and_then(Value::as_str) == Some("agent_settled") {
+                settled = true;
+                break;
+            }
+        }
+        service.stop(agent_id).expect("stop Pi");
+        assert!(settled, "real Pi turn did not settle");
+        assert_eq!(output, "real Pi works.");
+    }
+
+    #[test]
+    fn runtime_search_path_locates_mise_without_guessing_tool_installations() {
         let inherited = env::join_paths([PathBuf::from("/usr/bin")]).expect("inherited path");
-        let search_path = runtime_search_path_from(
-            Some(&inherited),
-            Some(OsStr::new("/runtime/bun")),
-            Some(OsStr::new("/runtime/mise")),
-            Some(Path::new("/home/wabou")),
-        );
+        let search_path =
+            runtime_search_path_from(Some(&inherited), Some(Path::new("/home/wabou")));
         let entries = env::split_paths(&search_path).collect::<Vec<_>>();
 
         assert!(entries.contains(&PathBuf::from("/usr/bin")));
-        assert!(entries.contains(&PathBuf::from("/runtime/bun/bin")));
-        assert!(entries.contains(&PathBuf::from("/runtime/mise/shims")));
-        assert!(entries.contains(&PathBuf::from("/home/wabou/.bun/bin")));
-        assert!(entries.contains(&PathBuf::from("/home/wabou/.local/share/mise/shims")));
+        assert!(entries.contains(&PathBuf::from("/home/wabou/.local/bin")));
+        assert!(!entries.contains(&PathBuf::from("/home/wabou/.bun/bin")));
+        assert!(!entries.contains(&PathBuf::from("/home/wabou/.asdf/shims")));
     }
 
     #[test]
