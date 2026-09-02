@@ -33,7 +33,7 @@ use teletypewriter::{WinsizeBuilder, create_pty_with_spawn};
 use vello::kurbo::{Affine, Rect, Stroke};
 use vello::peniko::{Color, Fill};
 #[cfg(test)]
-use wabou_runtime::event;
+use wabou_protocol::event;
 #[cfg(test)]
 use wabou_shell::{
     Widget, WidgetEventResult, WidgetNodeEvent, WidgetStyle,
