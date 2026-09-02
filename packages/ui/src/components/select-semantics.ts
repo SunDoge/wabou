@@ -32,3 +32,14 @@ export function selectControlsId(
 ): string | undefined {
   return open ? listboxId : undefined;
 }
+
+/** Shared visual contract for selectable and explicitly unavailable options. */
+export function pickerOptionClass(
+  disabled: boolean,
+  highlighted: boolean,
+): string {
+  if (disabled)
+    return "bg-surface-muted text-muted cursor-not-allowed opacity-60";
+  if (highlighted) return "bg-control-hover text-primary cursor-pointer";
+  return "bg-transparent text-secondary cursor-pointer";
+}

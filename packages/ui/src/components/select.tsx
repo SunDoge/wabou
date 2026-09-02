@@ -20,6 +20,7 @@ import {
 import type { PopupMotionProps } from "./popover";
 import {
   type PickerTriggerVariant,
+  pickerOptionClass,
   pickerTriggerClass,
   selectControlsId,
 } from "./select-semantics";
@@ -243,19 +244,20 @@ export function Select(props: SelectProps): JSX.Element {
                   aria-disabled={option().disabled}
                   class={mergeClasses(
                     "w-full h-8 flex-none px-2.5 flex items-center justify-between gap-2 rounded-md text-sm leading-normal",
-                    highlighted()
-                      ? "bg-control-hover text-primary"
-                      : "bg-transparent text-secondary",
+                    pickerOptionClass(
+                      option().disabled ?? false,
+                      highlighted(),
+                    ),
                   )}
-                  style={{ opacity: option().disabled ? 0.45 : 1 }}
                   // A floating listbox can be positioned underneath a
                   // stationary pointer, and its leaf hit target can change
                   // between the option and its text. Keep hover selection in
                   // sync with pointer routing instead of relying on a single
                   // enter boundary event.
-                  onPointerMove={() =>
-                    interaction.send({ type: "HIGHLIGHT", id: option().value })
-                  }
+                  onPointerMove={() => {
+                    if (option().disabled) return;
+                    interaction.send({ type: "HIGHLIGHT", id: option().value });
+                  }}
                   onClick={() =>
                     interaction.send({ type: "SELECT", id: option().value })
                   }
