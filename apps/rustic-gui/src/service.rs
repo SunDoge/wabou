@@ -468,7 +468,7 @@ mod tests {
     }
 
     #[test]
-    fn local_repository_vertical_slice() {
+    fn local_repository_multiple_source_vertical_slice() {
         let root = std::env::var_os("WABOU_RUSTIC_TEST_ROOT").map_or_else(
             || tempfile::tempdir().expect("test root"),
             |parent| {
@@ -479,10 +479,16 @@ mod tests {
             },
         );
         let repository = root.path().join("repository");
-        let source = root.path().join("source");
-        fs::create_dir_all(source.join("chapter")).expect("source directories");
-        fs::write(source.join("cover.txt"), "cover").expect("root file");
-        fs::write(source.join("chapter/page.txt"), "page").expect("nested file");
+        let photos = root.path().join("photos");
+        let documents = root.path().join("documents");
+        let configs = root.path().join("configs");
+        fs::create_dir_all(photos.join("chapter")).expect("photo directories");
+        fs::create_dir_all(&documents).expect("document directory");
+        fs::create_dir_all(configs.join("app")).expect("config directories");
+        fs::write(photos.join("cover.txt"), "cover").expect("photo file");
+        fs::write(photos.join("chapter/page.txt"), "page").expect("nested photo file");
+        fs::write(documents.join("notes.md"), "backup notes").expect("document file");
+        fs::write(configs.join("app/settings.toml"), "theme = 'light'").expect("config file");
 
         let service = RusticService::default();
         service
@@ -497,7 +503,11 @@ mod tests {
         service
             .set_sources(SetSourcesRequest {
                 profile_id: "photos".to_string(),
-                sources: vec![source.to_string_lossy().into_owned()],
+                sources: vec![
+                    photos.to_string_lossy().into_owned(),
+                    documents.to_string_lossy().into_owned(),
+                    configs.to_string_lossy().into_owned(),
+                ],
             })
             .expect("set source");
         let profile = ProfileIdRequest {
@@ -527,5 +537,7 @@ mod tests {
         }
         assert!(names.iter().any(|name| name == "cover.txt"));
         assert!(names.iter().any(|name| name == "chapter"));
+        assert!(names.iter().any(|name| name == "notes.md"));
+        assert!(names.iter().any(|name| name == "settings.toml"));
     }
 }
