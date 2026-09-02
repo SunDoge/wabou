@@ -572,11 +572,9 @@ pub(crate) fn start_hmr_client(
                             }
                         }
                     }
-                    ViteMessage::CssUpdate { accepted_path } => {
-                        reload.send(ReloadMsg::CssUpdate {
-                            path: accepted_path,
-                        })
-                    }
+                    ViteMessage::CssUpdate { accepted_path } => reload.send(ReloadMsg::CssUpdate {
+                        path: accepted_path,
+                    }),
                     ViteMessage::FullReload => reload.send(ReloadMsg::FullReload),
                     ViteMessage::Error { diagnostic } => {
                         reload.send(ReloadMsg::Error { diagnostic })

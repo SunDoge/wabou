@@ -1283,9 +1283,7 @@ export function renderComponent(
       ...(node.focusOrder !== null ? { focusOrder: node.focusOrder } : {}),
       ...(node.interactionBlocked ? { interactionBlocked: true as const } : {}),
       ...(node.focusContained ? { focusContained: true as const } : {}),
-      ...(node.projectionBoundary
-        ? { projectionBoundary: true as const }
-        : {}),
+      ...(node.projectionBoundary ? { projectionBoundary: true as const } : {}),
       ...(node.overlayPlane !== "content"
         ? { overlayPlane: node.overlayPlane }
         : {}),
