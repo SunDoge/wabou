@@ -1,14 +1,18 @@
 //! GPUI-native implementation of deterministic layout and pixel capture.
 
-use std::{fs, path::{Path, PathBuf}, sync::Arc};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use clap::ArgMatches;
 use serde::{Deserialize, Serialize};
 use wabou_runtime::GpuiHeadlessScreenshot;
 
-use super::{Result, ensure, frontend};
 use super::config::{BuildProfile, bundle_path};
 use super::project::App;
+use super::{Result, ensure, frontend};
 
 #[path = "gpui_layout.rs"]
 mod gpui_layout;
@@ -112,15 +116,18 @@ pub(super) fn actions(
     text: Option<String>,
     keys: Vec<String>,
 ) -> Vec<RenderAction> {
-    let mut actions = clicks
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|values| RenderAction::Click([values[0], values[1]]))
-        .chain(wheels.as_chunks::<4>().0.iter().map(|values| {
-            RenderAction::Wheel([values[0], values[1], values[2], values[3]])
-        }))
-        .collect::<Vec<_>>();
+    let mut actions =
+        clicks
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|values| RenderAction::Click([values[0], values[1]]))
+            .chain(
+                wheels.as_chunks::<4>().0.iter().map(|values| {
+                    RenderAction::Wheel([values[0], values[1], values[2], values[3]])
+                }),
+            )
+            .collect::<Vec<_>>();
     actions.extend(text.map(RenderAction::Text));
     actions.extend(keys.into_iter().map(RenderAction::Key));
     actions
@@ -138,7 +145,9 @@ pub(super) fn actions_from_matches(matches: &ArgMatches) -> Option<Vec<RenderAct
         let positions = indices.collect::<Vec<_>>();
         let values = values.copied().collect::<Vec<_>>();
         for (positions, values) in positions
-            .as_chunks::<2>().0.iter()
+            .as_chunks::<2>()
+            .0
+            .iter()
             .zip(values.as_chunks::<2>().0.iter())
         {
             indexed.push((positions[0], RenderAction::Click([values[0], values[1]])));
@@ -150,16 +159,21 @@ pub(super) fn actions_from_matches(matches: &ArgMatches) -> Option<Vec<RenderAct
         let positions = indices.collect::<Vec<_>>();
         let values = values.copied().collect::<Vec<_>>();
         for (positions, values) in positions
-            .as_chunks::<4>().0.iter()
+            .as_chunks::<4>()
+            .0
+            .iter()
             .zip(values.as_chunks::<4>().0.iter())
         {
-            indexed.push((positions[0], RenderAction::Wheel([
-                values[0], values[1], values[2], values[3],
-            ])));
+            indexed.push((
+                positions[0],
+                RenderAction::Wheel([values[0], values[1], values[2], values[3]]),
+            ));
         }
     }
     if let (Some(index), Some(value)) = (
-        render.indices_of("text").and_then(|mut values| values.next()),
+        render
+            .indices_of("text")
+            .and_then(|mut values| values.next()),
         render.get_one::<String>("text"),
     ) {
         indexed.push((index, RenderAction::Text(value.clone())));
@@ -167,9 +181,11 @@ pub(super) fn actions_from_matches(matches: &ArgMatches) -> Option<Vec<RenderAct
     if let (Some(indices), Some(values)) =
         (render.indices_of("key"), render.get_many::<String>("key"))
     {
-        indexed.extend(indices.zip(values).map(|(index, value)| {
-            (index, RenderAction::Key(value.clone()))
-        }));
+        indexed.extend(
+            indices
+                .zip(values)
+                .map(|(index, value)| (index, RenderAction::Key(value.clone()))),
+        );
     }
     indexed.sort_by_key(|(index, _)| *index);
     Some(indexed.into_iter().map(|(_, action)| action).collect())
@@ -284,7 +300,8 @@ pub(super) fn prepare_frontend(
             return Err(format!(
                 "--skip-build requires an existing debug bundle at {}; rerun without --skip-build",
                 bundle.display()
-            ).into());
+            )
+            .into());
         }
         return Ok(());
     }
