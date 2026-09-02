@@ -24,6 +24,8 @@ export interface RenderAppLayoutOptions {
   readonly app: string;
   readonly out: string;
   readonly batch?: string;
+  /** Mount one named application layout fixture before evaluating a probe. */
+  readonly fixture?: string;
   readonly width?: number;
   readonly height?: number;
   readonly scaleFactor?: number;
@@ -32,6 +34,8 @@ export interface RenderAppLayoutOptions {
   readonly mode?: string;
   readonly skipBuild?: boolean;
   readonly waitMs?: number;
+  /** JavaScript evaluated after the initial GPUI projection checkpoint. */
+  readonly probe?: string;
   /** Boot the application's Rust host so custom capabilities are available. */
   readonly withHost?: boolean;
   /** Executable and any fixed prefix arguments. Defaults to `["wabou"]`. */
@@ -55,6 +59,7 @@ export function layoutCommandArgs(
   if (options.withHost && options.batch !== undefined)
     throw new Error("host-backed layout does not support batch fixtures");
   if (options.batch !== undefined) args.push("--batch", options.batch);
+  if (options.fixture !== undefined) args.push("--fixture", options.fixture);
   if (options.width !== undefined) args.push("--width", String(options.width));
   if (options.height !== undefined)
     args.push("--height", String(options.height));
@@ -66,7 +71,71 @@ export function layoutCommandArgs(
   if (options.skipBuild) args.push("--skip-build");
   if (options.waitMs !== undefined)
     args.push("--wait-ms", String(options.waitMs));
+  if (options.probe !== undefined) args.push("--probe", options.probe);
   return args;
+}
+
+export interface ProjectionBoundaryProbeDelta {
+  readonly root: { readonly lo: number; readonly hi: number };
+  readonly label?: string;
+  readonly structureDelta: number;
+  readonly layoutDelta: number;
+  readonly paintDelta: number;
+  readonly materializationDelta: number;
+  readonly ownedNodes: number;
+}
+
+export function projectionBoundaryProbe(
+  report: ProjectionProbeReport,
+  label: string,
+): ProjectionBoundaryProbeDelta {
+  const boundary = report.boundaries.find((candidate) => candidate.label === label);
+  if (!boundary)
+    throw new Error(
+      `no projection boundary found with aria-label=${JSON.stringify(label)}`,
+    );
+  return boundary;
+}
+
+export interface ProjectionProbeReport {
+  readonly protocolRevisionDelta: number;
+  readonly boundaries: readonly ProjectionBoundaryProbeDelta[];
+}
+
+export async function probeAppProjection(
+  options: RenderAppLayoutOptions & { readonly probe: string },
+): Promise<ProjectionProbeReport> {
+  await runLayoutCommand(options);
+  const value = JSON.parse(await readFile(options.out, "utf8")) as {
+    projectionProbe?: unknown;
+  };
+  const probe = value.projectionProbe as
+    | {
+        protocolRevisionDelta?: unknown;
+        boundaries?: unknown;
+      }
+    | undefined;
+  if (
+    !probe ||
+    !Number.isInteger(probe.protocolRevisionDelta) ||
+    !Array.isArray(probe.boundaries)
+  )
+    throw new Error("invalid Wabou projection probe report");
+  const boundaries = probe.boundaries.map((entry, index) => {
+    if (
+      typeof entry !== "object" ||
+      entry === null ||
+      !("root" in entry) ||
+      typeof (entry as { root?: unknown }).root !== "object" ||
+      (entry as { root?: unknown }).root === null
+    )
+      throw new Error(`invalid projection boundary probe at index ${index}`);
+    return entry as ProjectionBoundaryProbeDelta;
+  });
+  return {
+    protocolRevisionDelta: probe.protocolRevisionDelta as number,
+    boundaries,
+  };
 }
 
 /** Return the first Solid runtime diagnostic that makes a layout run invalid. */

@@ -42,6 +42,7 @@ pub(super) struct RenderOptions {
     pub(super) samples: usize,
     pub(super) actions: Vec<RenderAction>,
     pub(super) layout_only: bool,
+    pub(super) projection_probe: Option<String>,
     pub(super) cargo_features: Vec<String>,
 }
 

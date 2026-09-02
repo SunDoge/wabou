@@ -1,5 +1,12 @@
 import { defineLayoutFixtures } from "@wabou/test/layout/fixtures";
-import { Button, DirectoryPicker, Icon, Text, View } from "@wabou/ui";
+import {
+  Button,
+  DirectoryPicker,
+  Icon,
+  ProjectionBoundary,
+  Text,
+  View,
+} from "@wabou/ui";
 import { createEffect, createSignal, onCleanup } from "solid-js";
 import { initialAgentState } from "../../pi-agent/ui/agent-state";
 import { ModelControls } from "../../pi-agent/ui/model-controls";
@@ -33,6 +40,36 @@ function EffectFixture() {
     },
   );
   return <Text aria-label="effect status">{status()}</Text>;
+}
+
+declare global {
+  var __wabou_projection_probe_set_left:
+    | ((value: string) => void)
+    | undefined;
+}
+
+function ProjectionBoundaryProbeFixture() {
+  const [left, setLeft] = createSignal("left-before");
+  globalThis.__wabou_projection_probe_set_left = setLeft;
+  onCleanup(() => {
+    delete globalThis.__wabou_projection_probe_set_left;
+  });
+  return (
+    <View class="w-full h-full flex flex-row gap-4 p-4 bg-canvas">
+      <ProjectionBoundary
+        aria-label="Mutable projection boundary"
+        class="w-48 h-24 p-3 bg-surface"
+      >
+        <Text>{left()}</Text>
+      </ProjectionBoundary>
+      <ProjectionBoundary
+        aria-label="Stable projection boundary"
+        class="w-48 h-24 p-3 bg-surface"
+      >
+        <Text>stable sibling</Text>
+      </ProjectionBoundary>
+    </View>
+  );
 }
 
 const fixtureAgents = [
@@ -126,6 +163,7 @@ defineLayoutFixtures({
     render: () => <TrackedFixture name="wide" width="320px" />,
   },
   "effect/synchronous": () => <EffectFixture />,
+  "runtime/projection-boundary": () => <ProjectionBoundaryProbeFixture />,
   "primitive/Icon": {
     width: 120,
     height: 80,

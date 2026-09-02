@@ -633,6 +633,35 @@ impl GpuiRuntimeView {
     }
 
     #[cfg(feature = "headless")]
+    pub(crate) fn projection_checkpoint(
+        &self,
+        cx: &wabou_shell::gpui::App,
+    ) -> crate::gpui_headless::GpuiProjectionCheckpoint {
+        let snapshot = self.controller.projection_render_snapshot();
+        let revisions = self.controller.projection_boundary_revisions();
+        let boundaries = revisions
+            .iter()
+            .filter_map(|(root, revision)| {
+                let entity = if *root == wabou_shell::NodeKey::ROOT {
+                    self.projection_boundary.as_ref()
+                } else {
+                    self.projection_subtrees.get(root)
+                }?;
+                Some(crate::gpui_headless::GpuiProjectionBoundaryCheckpoint {
+                    root: *root,
+                    revision: *revision,
+                    materializations: entity.read(cx).materialization_count(),
+                    owned_nodes: snapshot.projection_boundary_node_count(*root),
+                })
+            })
+            .collect();
+        crate::gpui_headless::GpuiProjectionCheckpoint {
+            protocol_revision: self.controller.protocol_revision(),
+            boundaries,
+        }
+    }
+
+    #[cfg(feature = "headless")]
     pub(crate) fn eval_script_diagnostic(&mut self, source: &str) -> Result<(), String> {
         self.controller.eval_script_diagnostic(source)?;
         // Headless fixture setup runs outside a GPUI render turn. Mark the
@@ -1656,6 +1685,7 @@ mod tests {
         let platform = gpui_platform::current_platform(true);
         let mut cx = HeadlessAppContext::new(platform.text_system());
         let boundary_key = NodeKey::new(100, 1);
+        let sibling_key = NodeKey::new(101, 1);
         let handle = cx
             .open_window(size(px(800.0), px(600.0)), |window, app| {
                 let mut controller = test_controller();
@@ -1677,6 +1707,18 @@ mod tests {
                             },
                             Op::SetProjectionBoundary {
                                 id: boundary_key,
+                                enabled: true,
+                            },
+                            Op::CreateText {
+                                id: sibling_key,
+                                text: "stable sibling",
+                            },
+                            Op::AppendChild {
+                                parent: NodeKey::ROOT,
+                                child: sibling_key,
+                            },
+                            Op::SetProjectionBoundary {
+                                id: sibling_key,
                                 enabled: true,
                             },
                         ],
@@ -1705,13 +1747,17 @@ mod tests {
         .expect("draw initial retained boundaries");
 
         let root = handle.root(&mut cx).expect("GPUI runtime root entity");
-        let (root_boundary, child_boundary) = cx.read_entity(&root, |view, _| {
+        let (root_boundary, child_boundary, sibling_boundary) = cx.read_entity(&root, |view, _| {
             (
                 view.projection_boundary.clone().expect("root boundary"),
                 view.projection_subtrees
                     .get(&boundary_key)
                     .cloned()
                     .expect("child boundary"),
+                view.projection_subtrees
+                    .get(&sibling_key)
+                    .cloned()
+                    .expect("sibling boundary"),
             )
         });
         let root_revision_before =
@@ -1720,6 +1766,9 @@ mod tests {
             .read_entity(&child_boundary, |boundary, _| {
                 (boundary.materialization_count(), boundary.revision())
             });
+        let sibling_before = cx.read_entity(&sibling_boundary, |boundary, _| {
+            boundary.materialization_count()
+        });
 
         cx.update_entity(&root, |_, view_cx| view_cx.notify());
         cx.run_until_parked();
@@ -1776,6 +1825,13 @@ mod tests {
                 boundary.materialization_count()
             }) > child_before,
             "the owning child boundary must rematerialize"
+        );
+        assert_eq!(
+            cx.read_entity(&sibling_boundary, |boundary, _| {
+                boundary.materialization_count()
+            }),
+            sibling_before,
+            "a local child mutation must not materialize a sibling boundary"
         );
     }
 

@@ -76,6 +76,13 @@ logs. If a warning only appears during application startup, exercise the real en
 with `renderAppLayout` from `@wabou/test/layout/node`; the captured diagnostic stack
 is source-mapped by the runtime.
 
+For fine-grained Solid-to-GPUI invalidation, use `probeAppProjection` from
+`@wabou/test/layout/node` against a named fixture. It uses the real QuickJS and
+GPUI headless path and draws without `Window::refresh`, preserving GPUI cached
+View behavior. Assert boundary revision and materialization deltas with
+`projectionBoundaryProbe`; do not infer boundary isolation from FPS or from an
+ordinary forced-refresh layout fixture.
+
 Use `waitMs` only for an authored timer, promise, or finite animation. Never add a
 sleep merely to make a flaky assertion pass. Use `page.waitForIdle()` in native
 behavior tests to cross completed JS/native frame boundaries; it intentionally does

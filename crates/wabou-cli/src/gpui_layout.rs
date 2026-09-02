@@ -48,7 +48,13 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     }
     settle_wait(&mut harness, options.wait_ms)?;
     super::replay_actions(&mut harness, &options.actions)?;
-    write_snapshot(&options.out, &harness.snapshot()?, options.color_scheme)
+    let projection_probe = run_projection_probe(&mut harness, options.projection_probe.as_deref())?;
+    write_snapshot_with_probe(
+        &options.out,
+        &harness.snapshot()?,
+        options.color_scheme,
+        projection_probe.as_ref(),
+    )
 }
 
 fn run_selected_fixture(
@@ -66,7 +72,32 @@ fn run_selected_fixture(
     mount_fixture(&mut harness, &fixture.id)?;
     settle_wait(&mut harness, fixture.wait_ms.unwrap_or(options.wait_ms))?;
     super::replay_actions(&mut harness, &options.actions)?;
-    write_snapshot(&options.out, &harness.snapshot()?, options.color_scheme)
+    let projection_probe = run_projection_probe(&mut harness, options.projection_probe.as_deref())?;
+    write_snapshot_with_probe(
+        &options.out,
+        &harness.snapshot()?,
+        options.color_scheme,
+        projection_probe.as_ref(),
+    )
+}
+
+fn run_projection_probe(
+    harness: &mut GpuiHeadlessHarness,
+    script: Option<&str>,
+) -> Result<
+    Option<(
+        wabou_runtime::GpuiProjectionCheckpoint,
+        wabou_runtime::GpuiProjectionCheckpoint,
+    )>,
+> {
+    let Some(script) = script else {
+        return Ok(None);
+    };
+    let before = harness.projection_checkpoint()?;
+    harness.eval_script(script)?;
+    harness.settle_incremental(2)?;
+    let after = harness.projection_checkpoint()?;
+    Ok(Some((before, after)))
 }
 
 fn run_batch(
@@ -200,6 +231,18 @@ pub(super) fn write_snapshot(
     output: &GpuiHeadlessOutput,
     color_scheme: HeadlessColorScheme,
 ) -> Result<()> {
+    write_snapshot_with_probe(path, output, color_scheme, None)
+}
+
+fn write_snapshot_with_probe(
+    path: &Path,
+    output: &GpuiHeadlessOutput,
+    color_scheme: HeadlessColorScheme,
+    probe: Option<&(
+        wabou_runtime::GpuiProjectionCheckpoint,
+        wabou_runtime::GpuiProjectionCheckpoint,
+    )>,
+) -> Result<()> {
     if let Some(parent) = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -208,7 +251,7 @@ pub(super) fn write_snapshot(
     }
     fs::write(
         path,
-        serde_json::to_vec_pretty(&snapshot_value(output, color_scheme)?)?,
+        serde_json::to_vec_pretty(&snapshot_value_with_probe(output, color_scheme, probe)?)?,
     )?;
     println!("[wabou] wrote GPUI layout snapshot {}", path.display());
     Ok(())
@@ -218,8 +261,19 @@ fn snapshot_value(
     output: &GpuiHeadlessOutput,
     _color_scheme: HeadlessColorScheme,
 ) -> Result<serde_json::Value> {
+    snapshot_value_with_probe(output, _color_scheme, None)
+}
+
+fn snapshot_value_with_probe(
+    output: &GpuiHeadlessOutput,
+    _color_scheme: HeadlessColorScheme,
+    probe: Option<&(
+        wabou_runtime::GpuiProjectionCheckpoint,
+        wabou_runtime::GpuiProjectionCheckpoint,
+    )>,
+) -> Result<serde_json::Value> {
     let nodes = output.layout.iter().map(node_value).collect::<Vec<_>>();
-    Ok(json!({
+    let mut value = json!({
         "status": {
             "viewportWidth": output.viewport_width,
             "viewportHeight": output.viewport_height,
@@ -227,7 +281,66 @@ fn snapshot_value(
             "nodeCount": nodes.len(),
         },
         "nodes": nodes,
-    }))
+    });
+    if let Some((before, after)) = probe {
+        value["projectionProbe"] = projection_probe_value(output, before, after);
+    }
+    Ok(value)
+}
+
+fn projection_probe_value(
+    output: &GpuiHeadlessOutput,
+    before: &wabou_runtime::GpuiProjectionCheckpoint,
+    after: &wabou_runtime::GpuiProjectionCheckpoint,
+) -> serde_json::Value {
+    let label = |root| {
+        output
+            .layout
+            .iter()
+            .find(|node| node.key == root)
+            .and_then(|node| node.attributes.get("aria-label"))
+            .map(AsRef::<str>::as_ref)
+    };
+    let boundary = |checkpoint: &wabou_runtime::GpuiProjectionBoundaryCheckpoint| {
+        json!({
+            "root": { "lo": checkpoint.root.lo, "hi": checkpoint.root.hi },
+            "revision": {
+                "structure": checkpoint.revision.structure,
+                "layout": checkpoint.revision.layout,
+                "paint": checkpoint.revision.paint,
+            },
+            "materializations": checkpoint.materializations,
+            "ownedNodes": checkpoint.owned_nodes,
+        })
+    };
+    let boundaries = after
+        .boundaries
+        .iter()
+        .map(|current| {
+            let previous = before.boundaries.iter().find(|candidate| candidate.root == current.root);
+            json!({
+                "root": { "lo": current.root.lo, "hi": current.root.hi },
+                "label": label(current.root),
+                "structureDelta": current.revision.structure.saturating_sub(previous.map_or(0, |value| value.revision.structure)),
+                "layoutDelta": current.revision.layout.saturating_sub(previous.map_or(0, |value| value.revision.layout)),
+                "paintDelta": current.revision.paint.saturating_sub(previous.map_or(0, |value| value.revision.paint)),
+                "materializationDelta": current.materializations.saturating_sub(previous.map_or(0, |value| value.materializations)),
+                "ownedNodes": current.owned_nodes,
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "before": {
+            "protocolRevision": before.protocol_revision,
+            "boundaries": before.boundaries.iter().map(boundary).collect::<Vec<_>>(),
+        },
+        "after": {
+            "protocolRevision": after.protocol_revision,
+            "boundaries": after.boundaries.iter().map(boundary).collect::<Vec<_>>(),
+        },
+        "protocolRevisionDelta": after.protocol_revision.saturating_sub(before.protocol_revision),
+        "boundaries": boundaries,
+    })
 }
 
 fn node_value(node: &GpuiLayoutNode) -> serde_json::Value {
