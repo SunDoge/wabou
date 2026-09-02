@@ -28,7 +28,7 @@ import list from "lucide-static/icons/list.svg?raw";
 import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import { createEffect, createSignal, For, Show } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import { type FileEntry, type SnapshotEntry, useRusticApi } from "./api";
 import { useRusticSession } from "./session";
 import { FileDetails } from "./file-details";
@@ -60,14 +60,34 @@ export function SnapshotFileRow(props: {
   onOpenDirectory: (entry: FileEntry) => void;
 }) {
   const entry = () => props.entry;
+  let pendingSingleClick: ReturnType<typeof setTimeout> | undefined;
+  const cancelPendingSingleClick = () => {
+    if (pendingSingleClick === undefined) return;
+    clearTimeout(pendingSingleClick);
+    pendingSingleClick = undefined;
+  };
+  const select = () => {
+    if (entry().kind !== "directory") {
+      props.onSelect(entry());
+      return;
+    }
+    cancelPendingSingleClick();
+    pendingSingleClick = setTimeout(() => {
+      pendingSingleClick = undefined;
+      props.onSelect(entry());
+    }, 410);
+  };
+  onCleanup(cancelPendingSingleClick);
   return (
     <TableRow
       aria-label={entry().name}
       selected={props.selected}
       class="cursor-pointer"
-      onClick={() => props.onSelect(entry())}
+      onClick={select}
       onDblClick={() => {
-        if (entry().kind === "directory") props.onOpenDirectory(entry());
+        if (entry().kind !== "directory") return;
+        cancelPendingSingleClick();
+        props.onOpenDirectory(entry());
       }}
     >
       <TableCell class="min-w-64 flex-1 gap-2">
