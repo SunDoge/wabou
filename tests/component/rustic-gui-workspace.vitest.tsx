@@ -1,13 +1,14 @@
 import type { Dialog } from "@wabou/core";
-import { Text } from "@wabou/ui";
 import { createTestHost, renderComponent } from "@wabou/test/component";
+import { Text } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test, vi } from "vitest";
-import { BackupSourcesPanel } from "../../apps/rustic-gui/ui/workspace-components";
 import {
   RusticSessionProvider,
   useRusticSession,
 } from "../../apps/rustic-gui/ui/session";
+import { RusticSidebar } from "../../apps/rustic-gui/ui/shell";
+import { BackupSourcesPanel } from "../../apps/rustic-gui/ui/workspace-components";
 
 const dialog: Dialog = {
   open: async () => null,
@@ -94,4 +95,23 @@ test("rustic session boots its Solid 2 effect and publishes host status", async 
     expect(screen.getByRole("status").text).toBe("/data/repository");
   });
   expect(fixture.callsTo("rustic.status")).toHaveLength(1);
+});
+
+test("rustic sidebar exposes stable navigation and repository status", () => {
+  const navigate = vi.fn<(to: "/" | "/snapshots") => void>();
+  const screen = renderComponent(() => (
+    <RusticSidebar
+      active="/snapshots"
+      connected
+      repositoryPath="/data/backups/rustic"
+      onNavigate={navigate}
+    />
+  ));
+
+  expect(screen.getByRole("button", { name: "Snapshots" }).selected).toBe(true);
+  expect(screen.getByRole("status", { name: "Repository open" })).toBeTruthy();
+  expect(screen.roots[0]?.text).toContain("/data/backups/rustic");
+
+  screen.getByRole("button", { name: "Repository" }).click();
+  expect(navigate).toHaveBeenCalledWith("/");
 });

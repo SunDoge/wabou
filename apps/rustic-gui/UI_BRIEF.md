@@ -5,6 +5,8 @@
 - Information order: repository status, backup sources, snapshots, selected snapshot contents.
 - Density and viewport: balanced file-workspace density; 1240×780 normal viewport and 900×620 minimum viewport.
 - Visual thesis: a calm native file workspace with a pale canvas, crisp white working surfaces, compact rows, and blue reserved for selection and progress. Avoid dashboard card grids.
+- Shell hierarchy: a persistent 224px application sidebar owns the brand, Repository/Snapshots navigation, and repository connection status. Route content owns its page header and is the only top-level scrolling region.
+- Narrow behavior: keep the application sidebar fixed at the minimum viewport; truncate the repository path instead of compressing navigation labels. The snapshot/file split remains a secondary workbench inside the Snapshots route.
 - Signature interaction: selecting a snapshot immediately opens a breadcrumb-driven, lazy file browser beside the timeline.
 - Reference delta: use Wabou's retained native controls, PageViewport, DirectoryPicker, Table, and explicit scroll boundaries; do not inherit browser DOM behavior.
 - Shared contracts: ComponentsProvider, ColorThemeProvider, PageHeader, Button, DirectoryPicker, Input, Table, ContentState, ScrollArea, and ProjectionBoundary.
