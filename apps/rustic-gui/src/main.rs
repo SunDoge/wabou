@@ -8,6 +8,7 @@ fn main() -> Result<(), Whatever> {
     let service = service::RusticService::default();
     HostBuilder::new()
         .app_directories("dev", "Wabou", "Rustic GUI")
+        .kv()
         .persist_window_size("main")
         .window(
             WindowOptions::new()
