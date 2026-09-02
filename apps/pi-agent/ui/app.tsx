@@ -1,4 +1,3 @@
-import { openKv } from "@wabou/ui";
 import {
   type CommandItem,
   createAsyncQuery,
@@ -11,6 +10,7 @@ import {
   MessageScrollerButton,
   MessageScrollerContent,
   MessageScrollerViewport,
+  openKv,
   Toaster,
   useDialog,
   useLocation,
@@ -56,8 +56,8 @@ import { subscribeExtensionUi } from "./extension-ui-subscription";
 import { i18n, m } from "./i18n";
 import { createOwnedOverlay } from "./owned-overlay";
 import { createPersistedRecord } from "./persisted-record";
+import { activeRuntimeRouteKey, createSingleFlight } from "./runtime-start";
 import { ScopedHandleRegistry } from "./scoped-handle-registry";
-import { createSingleFlight, sessionRouteKey } from "./runtime-start";
 import { SessionForkDialog } from "./session-fork";
 import { createSessionNavigation } from "./session-navigation";
 import { SessionTitle } from "./session-title";
@@ -674,15 +674,19 @@ export function App() {
       to: `/agents/${target.agentId}/sessions/${target.sessionId}`,
     });
   };
-  // Keep the dependency of this effect to one stable scalar. Returning a fresh
-  // `{ session, agent }` object here caused every agent status/event update to
-  // launch the same session again while Pi was still reporting its identity.
+  // Start the active project's long-lived Pi sidecar as soon as persisted
+  // launch settings and workspace state are ready. Historical routes select an
+  // exact session; ordinary project routes let Pi continue its latest session.
+  // Keep the dependency to one stable scalar so status/event updates cannot
+  // relaunch the same process while Pi is reporting its identity.
   createEffect(
     () => {
-      const { agentId, sessionId } = params();
-      return sessionRouteKey(
+      const agentId = activeId();
+      if (!agentId || defaults.loading() || workspacePending(agentId))
+        return "";
+      return activeRuntimeRouteKey(
         agentId,
-        sessionId,
+        params().sessionId,
         agents().map((agent) => agent.id),
         sessions(),
       );
@@ -695,14 +699,13 @@ export function App() {
           candidate.agentId === agentId && candidate.sessionId === sessionId,
       );
       const agent = agents().find((candidate) => candidate.id === agentId);
-      if (!session || !agent || agent.state.sessionId === session.sessionId)
-        return;
+      if (!agent || (sessionId && !session)) return;
       const next = {
         ...agent,
-        cwd: session.cwd || agent.cwd,
+        cwd: session?.cwd || agent.cwd,
       };
-      updateAgent(agent.id, () => next);
-      void start(next, session.sessionId);
+      if (next.cwd !== agent.cwd) updateAgent(agent.id, () => next);
+      void start(next, session?.sessionId);
     },
   );
 
