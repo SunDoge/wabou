@@ -163,6 +163,7 @@ impl GpuiTextControlState {
                     }
                     state.set_disabled(descriptor.disabled, cx);
                     state.set_readonly(descriptor.readonly, cx);
+                    state.set_submit_on_enter(descriptor.submit_on_enter, cx);
                     state.set_editor_style(InputEditorStyle {
                         foreground: descriptor.style.foreground,
                         muted_foreground: descriptor.style.muted_foreground,

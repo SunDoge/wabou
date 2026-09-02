@@ -197,10 +197,6 @@ export function ConversationComposer(props: ConversationComposerProps) {
     if (autocompleteOpen()) {
       if (autocompleteNavigation.handleKeyDown(event)) return;
     }
-    if (event.key === "Enter" && (event.mods & 1) === 0) {
-      event.preventDefault();
-      submit();
-    }
   };
 
   return (
@@ -243,6 +239,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
               aria-expanded={popoverTrigger["aria-expanded"]}
               aria-activedescendant={highlighted()}
               value={props.draft}
+              submitOnEnter
               widgetConfig={{
                 selection: controlledSelection(),
               }}
@@ -266,6 +263,9 @@ export function ConversationComposer(props: ConversationComposerProps) {
               }}
               onFocus={() => setComposerActive(true)}
               onKeyDown={handleComposerKey}
+              onSubmit={(event) => {
+                if (!event.shift && !autocompleteOpen()) submit();
+              }}
             />
           )}
         >

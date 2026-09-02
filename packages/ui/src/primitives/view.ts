@@ -124,6 +124,11 @@ export interface TextInputProps extends Omit<PrimitiveProps, "children"> {
   placeholder?: string;
   disabled?: boolean;
   readOnly?: boolean;
+  /**
+   * For multiline editors, submit on plain Enter while keeping Shift+Enter as
+   * a native newline edit.
+   */
+  submitOnEnter?: boolean;
   onInput?: (event: { currentTarget: { value: string } }) => void;
 }
 
@@ -144,6 +149,8 @@ export interface EditorProps extends Omit<PrimitiveProps, "children"> {
   language?: string;
   disabled?: boolean;
   readOnly?: boolean;
+  /** Submit on plain Enter while keeping Shift+Enter as a native newline edit. */
+  submitOnEnter?: boolean;
   "aria-label": string;
   onInput?: (event: { currentTarget: { value: string } }) => void;
 }

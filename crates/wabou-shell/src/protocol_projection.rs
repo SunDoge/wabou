@@ -25,6 +25,7 @@ pub struct GpuiTextControl {
     pub placeholder: String,
     pub disabled: bool,
     pub readonly: bool,
+    pub submit_on_enter: bool,
     pub style: GpuiTextControlStyle,
 }
 
@@ -974,6 +975,7 @@ impl GpuiProjection {
                 disabled: node.attributes.contains_key("disabled"),
                 readonly: node.attributes.contains_key("readonly")
                     || node.attributes.contains_key("readOnly"),
+                submit_on_enter: node.attributes.contains_key("submitOnEnter"),
                 style: GpuiTextControlStyle {
                     foreground,
                     muted_foreground: theme_color("muted").unwrap_or(foreground),
@@ -3217,6 +3219,7 @@ mod tests {
         let value = atoms.intern("value");
         let placeholder = atoms.intern("placeholder");
         let disabled = atoms.intern("disabled");
+        let submit_on_enter = atoms.intern("submitOnEnter");
         let language = atoms.intern("language");
         projection
             .apply_ops(
@@ -3248,6 +3251,11 @@ mod tests {
                         Op::SetAttribute {
                             id: key(3),
                             name: disabled,
+                            value: "",
+                        },
+                        Op::SetAttribute {
+                            id: key(3),
+                            name: submit_on_enter,
                             value: "",
                         },
                         Op::AppendChild {
@@ -3290,6 +3298,7 @@ mod tests {
                     placeholder: "Search".into(),
                     disabled: false,
                     readonly: false,
+                    submit_on_enter: false,
                     style: GpuiTextControlStyle::default(),
                 },
                 GpuiTextControl {
@@ -3300,6 +3309,7 @@ mod tests {
                     placeholder: String::new(),
                     disabled: true,
                     readonly: false,
+                    submit_on_enter: true,
                     style: GpuiTextControlStyle::default(),
                 },
                 GpuiTextControl {
@@ -3310,6 +3320,7 @@ mod tests {
                     placeholder: String::new(),
                     disabled: false,
                     readonly: false,
+                    submit_on_enter: false,
                     style: GpuiTextControlStyle::default(),
                 },
             ]
