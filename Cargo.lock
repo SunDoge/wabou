@@ -8495,6 +8495,7 @@ dependencies = [
  "tracing-subscriber",
  "wabou",
  "wabou-terminal",
+ "which",
 ]
 
 [[package]]

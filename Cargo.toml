@@ -115,6 +115,7 @@ url = "2.5.8"
 uuid = "1"
 vello = "0.10.0"
 winit = "=0.31.0-beta.2"
+which = "6.0.3"
 zeroize = "1.9.0"
 
 [profile.dev]
