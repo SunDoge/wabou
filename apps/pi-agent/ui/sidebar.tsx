@@ -246,18 +246,17 @@ export function Sidebar(props: SidebarProps) {
         </Text>
       </SidebarHeader>
 
-      <Show when={props.canCreateSession}>
-        <View class="flex-none bg-surface-muted px-2 pt-2">
-          <SidebarMenuButton
-            class="h-9"
-            aria-label={i18n.message(m.new_thread, {})}
-            onClick={props.newSession}
-          >
-            <Icon source={messageSquare} size={16} />
-            {i18n.message(m.new_thread, {})}
-          </SidebarMenuButton>
-        </View>
-      </Show>
+      <View class="flex-none bg-surface-muted px-2 pt-2">
+        <SidebarMenuButton
+          class="h-9"
+          aria-label={i18n.message(m.new_thread, {})}
+          disabled={!props.canCreateSession}
+          onClick={props.newSession}
+        >
+          <Icon source={messageSquare} size={16} />
+          {i18n.message(m.new_thread, {})}
+        </SidebarMenuButton>
+      </View>
 
       <Show when={props.sessions.length > 0}>
         <SidebarSearch

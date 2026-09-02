@@ -76,6 +76,35 @@ test("refreshes relative session labels at their next visible boundary", () => {
   vi.useRealTimers();
 });
 
+test("keeps the new-thread control mounted across connection changes", () => {
+  const [canCreateSession, setCanCreateSession] = createSignal(false);
+  const agent = createAgentWorkspace(1);
+  const screen = renderComponent(() => (
+    <Sidebar
+      agents={[agent]}
+      sessions={[]}
+      activeId={agent.id}
+      select={() => {}}
+      selectSession={() => {}}
+      add={() => {}}
+      newSession={() => {}}
+      canCreateSession={canCreateSession()}
+      openSettings={() => {}}
+    />
+  ));
+
+  const before = screen.getByRole("button", { name: "New thread" });
+  expect(before.disabled).toBe(true);
+  const identity = before.identity;
+
+  setCanCreateSession(true);
+  screen.flush();
+
+  const after = screen.getByRole("button", { name: "New thread" });
+  expect(after.disabled).toBe(false);
+  expect(after.identity).toEqual(identity);
+});
+
 test("sorts retained sessions newest-first with a deterministic tie break", () => {
   const sessions = [
     { sessionId: "b", updatedAt: 20 },
