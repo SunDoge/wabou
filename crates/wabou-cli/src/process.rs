@@ -14,6 +14,22 @@ use process_wrap::std::{ChildWrapper, CommandWrap};
 
 use super::{Result, ensure};
 
+pub(super) fn ensure_host_exit(status: ExitStatus) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+
+        // SIGTERM/SIGINT are cooperative shutdown requests from a terminal or
+        // process supervisor. Preserve genuine crashes (including SIGKILL).
+        const SIGINT: i32 = 2;
+        const SIGTERM: i32 = 15;
+        if matches!(status.signal(), Some(SIGTERM) | Some(SIGINT)) {
+            return Ok(());
+        }
+    }
+    ensure(status, "Rust host")
+}
+
 pub(super) struct ManagedChild {
     pub(super) child: Box<dyn ChildWrapper>,
 }
@@ -196,7 +212,7 @@ pub(super) fn supervise(
             break Ok(());
         }
         if let Some(status) = host.child.try_wait()? {
-            break ensure(status, "Rust host");
+            break ensure_host_exit(status);
         }
         if let Some(status) = vite.child.try_wait()? {
             break ensure(status, "Vite dev server");
@@ -219,7 +235,7 @@ pub(super) fn supervise(
 
 #[cfg(test)]
 mod tests {
-    use super::behavior_runtime_diagnostic;
+    use super::{behavior_runtime_diagnostic, ensure_host_exit};
 
     #[test]
     fn behavior_diagnostics_reject_reactivity_and_runtime_style_failures() {
@@ -233,5 +249,25 @@ mod tests {
         assert!(!behavior_runtime_diagnostic(
             "WARN rfd: zenity is not installed"
         ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn host_sigterm_is_a_clean_supervisor_shutdown() {
+        let status = std::process::Command::new("sh")
+            .args(["-c", "kill -TERM $$"])
+            .status()
+            .unwrap();
+        ensure_host_exit(status).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn host_sigkill_remains_an_error() {
+        let status = std::process::Command::new("sh")
+            .args(["-c", "kill -KILL $$"])
+            .status()
+            .unwrap();
+        assert!(ensure_host_exit(status).is_err());
     }
 }
