@@ -44,13 +44,16 @@ export function filterIgnoredClasses(
   );
 }
 
+/** A build-time sRGB color accepted by the Wabou theme compiler. */
+export type WabouThemeColor = `#${string}`;
+
 export interface WabouColorThemeOptions {
   default: string;
   themes: Record<
     string,
     {
       appearance: "light" | "dark";
-      colors: Record<string, string>;
+      colors: Record<string, WabouThemeColor>;
     }
   >;
 }
@@ -88,6 +91,12 @@ function parseThemeColor(value: string, theme: string, token: string): number {
   const hex = match[1];
   const parsed = Number.parseInt(hex, 16);
   return hex.length === 6 ? ((parsed << 8) | 0xff) >>> 0 : parsed >>> 0;
+}
+
+/** Validate a generated or shared theme color at its declaration site. */
+export function color(value: string): WabouThemeColor {
+  parseThemeColor(value, "color", "value");
+  return value as WabouThemeColor;
 }
 
 function colorChannels(rgba: number): [number, number, number, number] {
@@ -249,6 +258,17 @@ export function compileColorThemes(
     };
   }
   return { default: options.default, themes };
+}
+
+/**
+ * Define and eagerly validate a color theme while preserving its concrete
+ * theme names and semantic token keys for editor completion.
+ */
+export function defineWabouTheme<const T extends WabouColorThemeOptions>(
+  theme: T,
+): T {
+  compileColorThemes(theme);
+  return theme;
 }
 
 function semanticColorDeclaration(

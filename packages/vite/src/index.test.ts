@@ -3,8 +3,10 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
 import {
+  color,
   defaultWabouColorThemes,
   defineWabouConfig,
+  defineWabouTheme,
   hasWabouWorkspaceSources,
   wabouPlugins,
 } from "./index";
@@ -87,6 +89,39 @@ describe("@wabou/vite", () => {
     }
     expect(auditColorThemeContrast(compiled!)).toEqual([]);
     expect(defaultWabouColorThemes.themes.light.colors.canvas).toBe("#ffffff");
+  });
+
+  test("defines and validates typed application themes eagerly", () => {
+    const accent = color("#2563eb");
+    const theme = defineWabouTheme({
+      default: "light",
+      themes: {
+        light: {
+          appearance: "light",
+          colors: { canvas: "#ffffff", accent },
+        },
+        dark: {
+          appearance: "dark",
+          colors: { canvas: "#121418", accent: "#4c8dff" },
+        },
+      },
+    });
+
+    expect(theme.themes.light.colors.accent).toBe("#2563eb");
+    expect(() => color("rgb(1 2 3)")).toThrow(
+      "expected #RRGGBB or #RRGGBBAA",
+    );
+    expect(() =>
+      defineWabouTheme({
+        default: "missing",
+        themes: {
+          light: {
+            appearance: "light",
+            colors: { canvas: "#ffffff" },
+          },
+        },
+      }),
+    ).toThrow("does not exist");
   });
 
   test("defines conventional entry and bundle output", async () => {
