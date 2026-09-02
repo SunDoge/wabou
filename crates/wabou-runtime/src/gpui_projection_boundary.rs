@@ -1,5 +1,6 @@
 //! Cached GPUI view boundary for a committed Solid projection.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::BTreeMap, rc::Rc};
 
 use wabou_shell::gpui::{AnyElement, AnyEntity, Context, Render, Window};
@@ -12,6 +13,12 @@ use wabou_shell::{
 
 /// Rebuilds one native child element from retained GPUI state.
 pub(crate) type NativeElementBuilder = Rc<dyn Fn() -> AnyElement>;
+
+static PROJECTION_MATERIALIZE_NS: AtomicU64 = AtomicU64::new(0);
+
+pub(crate) fn take_projection_materialize_ms() -> f64 {
+    PROJECTION_MATERIALIZE_NS.swap(0, Ordering::Relaxed) as f64 / 1_000_000.0
+}
 
 /// One explicit invalidation boundary between Solid's retained tree and GPUI.
 ///
@@ -138,6 +145,7 @@ impl Render for GpuiProjectionBoundary {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl wabou_shell::gpui::IntoElement {
+        let materialize_started = std::time::Instant::now();
         self.materialization_count = self.materialization_count.wrapping_add(1);
         #[cfg(any(debug_assertions, feature = "profiling"))]
         {
@@ -222,7 +230,8 @@ impl Render for GpuiProjectionBoundary {
         let subtree: ProjectedSubtreeElementFactory =
             Rc::new(move |key| retained_subtrees.borrow_mut().remove(&key));
 
-        self.snapshot
+        let element = self
+            .snapshot
             .interactive_element(
                 self.root,
                 self.input.clone(),
@@ -233,7 +242,15 @@ impl Render for GpuiProjectionBoundary {
                 self.text_selections.clone(),
             )
             .expect("the projection boundary root remains retained")
-            .into_projection_boundary_content()
+            .into_projection_boundary_content();
+        PROJECTION_MATERIALIZE_NS.fetch_add(
+            materialize_started
+                .elapsed()
+                .as_nanos()
+                .min(u128::from(u64::MAX)) as u64,
+            Ordering::Relaxed,
+        );
+        element
     }
 }
 
