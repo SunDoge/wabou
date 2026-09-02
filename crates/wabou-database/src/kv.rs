@@ -104,6 +104,15 @@ pub enum KvMutation {
         /// Optional absolute expiry time.
         expires_at: Option<i64>,
     },
+    /// Apply an RFC 7396 JSON Merge Patch while preserving the entry expiry.
+    ///
+    /// Missing or expired entries are treated as an empty JSON object.
+    MergePatch {
+        /// Destination key.
+        key: KvKey,
+        /// JSON Merge Patch document.
+        patch: serde_json::Value,
+    },
     /// Remove a key if it exists.
     Delete {
         /// Key to remove.
@@ -168,6 +177,18 @@ impl KvStore {
         Ok(result.versionstamp.expect("unconditional commit succeeds"))
     }
 
+    /// Apply an RFC 7396 JSON Merge Patch and return the new revision.
+    ///
+    /// The update is performed inside SQLite without reading and rewriting the
+    /// complete document through Rust. Missing or expired entries use `{}` as
+    /// their initial document.
+    pub async fn merge_patch(&self, key: KvKey, patch: serde_json::Value) -> Result<Versionstamp> {
+        let result = self
+            .atomic(&[], &[KvMutation::MergePatch { key, patch }])
+            .await?;
+        Ok(result.versionstamp.expect("unconditional commit succeeds"))
+    }
+
     /// List unexpired entries whose keys begin with `options.prefix`.
     pub async fn list(&self, options: &KvListOptions) -> Result<Vec<KvEntry>> {
         if options.limit == 0 {
@@ -228,7 +249,9 @@ impl KvStore {
         }
         for mutation in mutations {
             match mutation {
-                KvMutation::Set { key, .. } | KvMutation::Delete { key } => {
+                KvMutation::Set { key, .. }
+                | KvMutation::MergePatch { key, .. }
+                | KvMutation::Delete { key } => {
                     encode_key(key)?;
                 }
             }
@@ -281,6 +304,27 @@ impl KvStore {
                                     versionstamp_to_i64(versionstamp)?,
                                     *expires_at,
                                 ),
+                            )?;
+                        }
+                        KvMutation::MergePatch { key, patch } => {
+                            let encoded = encode_key(key)?;
+                            let key_json = serde_json::to_string(key).map_err(json_error)?;
+                            let patch_json = serde_json::to_string(patch).map_err(json_error)?;
+                            let revision = versionstamp_to_i64(versionstamp)?;
+                            transaction.execute(
+                                "DELETE FROM kv_entries \
+                                 WHERE key = ?1 AND expires_at IS NOT NULL AND expires_at <= ?2",
+                                (&encoded, now),
+                            )?;
+                            transaction.execute(
+                                "INSERT INTO kv_entries \
+                                 (key, key_json, value_json, versionstamp, expires_at) \
+                                 VALUES (?1, ?2, json_patch('{}', ?3), ?4, NULL) \
+                                 ON CONFLICT(key) DO UPDATE SET \
+                                 key_json = excluded.key_json, \
+                                 value_json = json_patch(kv_entries.value_json, ?3), \
+                                 versionstamp = excluded.versionstamp",
+                                (encoded, key_json, patch_json, revision),
                             )?;
                         }
                         KvMutation::Delete { key } => {
@@ -557,6 +601,65 @@ mod tests {
         assert_eq!(
             store.get(&record).await.unwrap().unwrap().value,
             json!("second")
+        );
+    }
+
+    #[tokio::test]
+    async fn merge_patches_documents_inside_atomic_commits() {
+        let store = KvStore::open(":memory:").await.unwrap();
+        let record = key(&["profiles", "one"]);
+        let expiry = now_millis() + 60_000;
+        let first = store
+            .set(
+                record.clone(),
+                json!({
+                    "name": "Photos",
+                    "settings": { "compression": 3, "verify": true },
+                    "obsolete": true
+                }),
+                Some(expiry),
+            )
+            .await
+            .unwrap();
+
+        let commit = store
+            .atomic(
+                &[KvCheck {
+                    key: record.clone(),
+                    versionstamp: Some(first),
+                }],
+                &[KvMutation::MergePatch {
+                    key: record.clone(),
+                    patch: json!({
+                        "settings": { "compression": 7 },
+                        "obsolete": null
+                    }),
+                }],
+            )
+            .await
+            .unwrap();
+        assert!(commit.committed);
+        let entry = store.get(&record).await.unwrap().unwrap();
+        assert_eq!(
+            entry.value,
+            json!({
+                "name": "Photos",
+                "settings": { "compression": 7, "verify": true }
+            })
+        );
+        assert_eq!(entry.expires_at, Some(expiry));
+
+        let missing = key(&["profiles", "two"]);
+        store
+            .merge_patch(
+                missing.clone(),
+                json!({ "name": "Documents", "ignored": null }),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            store.get(&missing).await.unwrap().unwrap().value,
+            json!({ "name": "Documents" })
         );
     }
 

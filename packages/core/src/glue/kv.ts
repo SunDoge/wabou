@@ -82,6 +82,11 @@ interface NativeKvCapability extends NativeCapability {
           value: KvValue;
           expireIn?: number;
         }
+      | {
+          type: "mergePatch";
+          key: WireKeyPart[];
+          patch: KvValue;
+        }
       | { type: "delete"; key: WireKeyPart[] }
     )[];
   }): Promise<{ committed: boolean; versionstamp: string | null }>;
@@ -102,6 +107,11 @@ export class KvAtomicOperation {
         key: WireKeyPart[];
         value: KvValue;
         expireIn?: number;
+      }
+    | {
+        type: "mergePatch";
+        key: WireKeyPart[];
+        patch: KvValue;
       }
     | { type: "delete"; key: WireKeyPart[] }
   )[] = [];
@@ -125,6 +135,16 @@ export class KvAtomicOperation {
       key: encodeKey(scopedKey(this.#prefix, key)),
       value,
       ...encodeExpiry(options),
+    });
+    return this;
+  }
+
+  /** Apply an RFC 7396 JSON Merge Patch inside this transaction. */
+  mergePatch(key: KvKey, patch: KvValue): this {
+    this.#mutations.push({
+      type: "mergePatch",
+      key: encodeKey(scopedKey(this.#prefix, key)),
+      patch,
     });
     return this;
   }
@@ -159,6 +179,11 @@ export interface Kv {
     value: KvValue,
     options?: KvSetOptions,
   ): Promise<KvVersionstamp>;
+  /**
+   * Apply an RFC 7396 JSON Merge Patch without transferring the current
+   * document through JavaScript. Object fields set to `null` are removed.
+   */
+  mergePatch(key: KvKey, patch: KvValue): Promise<KvVersionstamp>;
   delete(key: KvKey): Promise<KvVersionstamp>;
   list<T extends KvValue = KvValue>(
     options?: KvListOptions,
@@ -276,7 +301,7 @@ export function createKvSignal<T extends KvValue>(options: {
 export function openKv(prefix: KvKey = []): Kv {
   const native = bindCapability(useHost<KvHost>().kv, {
     name: "kv",
-    version: 1,
+    version: 2,
   });
   const namespace = [...prefix];
   for (const part of namespace) encodePart(part);
@@ -294,6 +319,21 @@ export function openKv(prefix: KvKey = []): Kv {
         value,
         ...encodeExpiry(options),
       });
+      return result.versionstamp;
+    },
+    async mergePatch(key, patch) {
+      const result = await native.atomic({
+        checks: [],
+        mutations: [
+          {
+            type: "mergePatch",
+            key: encodeKey(scopedKey(namespace, key)),
+            patch,
+          },
+        ],
+      });
+      if (result.versionstamp === null)
+        throw new Error("unconditional KV merge patch did not commit");
       return result.versionstamp;
     },
     async delete(key) {

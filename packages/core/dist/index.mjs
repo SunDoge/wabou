@@ -1745,6 +1745,15 @@ var KvAtomicOperation = class {
 		});
 		return this;
 	}
+	/** Apply an RFC 7396 JSON Merge Patch inside this transaction. */
+	mergePatch(key, patch) {
+		this.#mutations.push({
+			type: "mergePatch",
+			key: encodeKey(scopedKey(this.#prefix, key)),
+			patch
+		});
+		return this;
+	}
 	delete(key) {
 		this.#mutations.push({
 			type: "delete",
@@ -1843,7 +1852,7 @@ function createKvSignal(options) {
 function openKv(prefix = []) {
 	const native = bindCapability(useHost().kv, {
 		name: "kv",
-		version: 1
+		version: 2
 	});
 	const namespace = [...prefix];
 	for (const part of namespace) encodePart(part);
@@ -1858,6 +1867,18 @@ function openKv(prefix = []) {
 				value,
 				...encodeExpiry(options)
 			})).versionstamp;
+		},
+		async mergePatch(key, patch) {
+			const result = await native.atomic({
+				checks: [],
+				mutations: [{
+					type: "mergePatch",
+					key: encodeKey(scopedKey(namespace, key)),
+					patch
+				}]
+			});
+			if (result.versionstamp === null) throw new Error("unconditional KV merge patch did not commit");
+			return result.versionstamp;
 		},
 		async delete(key) {
 			return (await native.delete({ key: encodeKey(scopedKey(namespace, key)) })).versionstamp;

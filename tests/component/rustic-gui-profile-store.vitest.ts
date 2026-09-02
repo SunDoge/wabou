@@ -21,6 +21,9 @@ function memoryKv(): { kv: Kv; values: Map<string, KvValue> } {
       revision += 1;
       return String(revision);
     },
+    async mergePatch() {
+      throw new Error("not used");
+    },
     async delete(key) {
       values.delete(keyOf(key));
       revision += 1;

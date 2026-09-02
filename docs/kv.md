@@ -70,6 +70,36 @@ All checks run inside the same SQLite transaction as all mutations. A `null`
 versionstamp checks that a key is absent; expired records also count as absent.
 Multiple `set` operations in one atomic commit share one versionstamp.
 
+## JSON Merge Patch
+
+For small document changes, `mergePatch` applies an
+[RFC 7396 JSON Merge Patch](https://datatracker.ietf.org/doc/html/rfc7396)
+inside SQLite. The current document does not cross the JavaScript/native
+boundary, and the update receives the same versionstamp semantics as `set`:
+
+```ts
+await kv.mergePatch(["profile", profileId], {
+  settings: { compression: 7 },
+  obsoleteField: null,
+});
+```
+
+Nested objects are merged recursively and object fields set to `null` are
+removed. Arrays and other non-object values replace their target. Missing or
+expired keys start from an empty object; an existing expiration is preserved.
+Use `atomic().check(...).mergePatch(...)` when the patch must only apply to a
+known document revision:
+
+```ts
+await kv
+  .atomic()
+  .check(current)
+  .mergePatch(current.key, { status: "archived" })
+  .commit();
+```
+
+This is JSON Merge Patch, not the operation-array format from RFC 6902.
+
 `versionstamp` is data revision metadata, not application schema versioning.
 The KV table schema is migrated internally by Wabou. Domain migrations should
 use explicit application keys (for example `["meta", "schemaVersion"]`) and an

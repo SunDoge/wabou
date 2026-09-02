@@ -630,6 +630,10 @@ interface NativeKvCapability extends NativeCapability {
       value: KvValue;
       expireIn?: number;
     } | {
+      type: "mergePatch";
+      key: WireKeyPart[];
+      patch: KvValue;
+    } | {
       type: "delete";
       key: WireKeyPart[];
     })[];
@@ -644,6 +648,8 @@ declare class KvAtomicOperation {
   constructor(prefix: KvKey, native: NativeKvCapability);
   check(check: KvCheck | Pick<KvEntry, "key" | "versionstamp">): this;
   set(key: KvKey, value: KvValue, options?: KvSetOptions): this;
+  /** Apply an RFC 7396 JSON Merge Patch inside this transaction. */
+  mergePatch(key: KvKey, patch: KvValue): this;
   delete(key: KvKey): this;
   commit(): Promise<KvCommitResult>;
 }
@@ -651,6 +657,11 @@ declare class KvAtomicOperation {
 interface Kv {
   get<T extends KvValue = KvValue>(key: KvKey): Promise<KvEntry<T> | null>;
   set(key: KvKey, value: KvValue, options?: KvSetOptions): Promise<KvVersionstamp>;
+  /**
+   * Apply an RFC 7396 JSON Merge Patch without transferring the current
+   * document through JavaScript. Object fields set to `null` are removed.
+   */
+  mergePatch(key: KvKey, patch: KvValue): Promise<KvVersionstamp>;
   delete(key: KvKey): Promise<KvVersionstamp>;
   list<T extends KvValue = KvValue>(options?: KvListOptions): AsyncIterable<KvEntry<T>>;
   atomic(): KvAtomicOperation;
