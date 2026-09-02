@@ -1,5 +1,6 @@
 import {
   Alert,
+  AlertActions,
   AlertDescription,
   AlertDialog,
   AlertDialogAction,
@@ -269,15 +270,16 @@ export function SettingsPage(props: {
                     {i18n.message(m.settings_load_failed, {})}
                   </AlertTitle>
                   <AlertDescription>{String(error())}</AlertDescription>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    class="self-start"
-                    aria-label={i18n.message(m.retry, {})}
-                    onClick={() => void props.reloadApp?.()}
-                  >
-                    {i18n.message(m.retry, {})}
-                  </Button>
+                  <AlertActions aria-label={i18n.message(m.retry, {})}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label={i18n.message(m.retry, {})}
+                      onClick={() => void props.reloadApp?.()}
+                    >
+                      {i18n.message(m.retry, {})}
+                    </Button>
+                  </AlertActions>
                 </Alert>
               )}
             </Show>
@@ -291,15 +293,16 @@ export function SettingsPage(props: {
                     {i18n.message(m.settings_save_failed, {})}
                   </AlertTitle>
                   <AlertDescription>{String(error())}</AlertDescription>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    class="self-start"
-                    aria-label={i18n.message(m.retry, {})}
-                    onClick={props.retryAppSave}
-                  >
-                    {i18n.message(m.retry, {})}
-                  </Button>
+                  <AlertActions aria-label={i18n.message(m.retry, {})}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label={i18n.message(m.retry, {})}
+                      onClick={props.retryAppSave}
+                    >
+                      {i18n.message(m.retry, {})}
+                    </Button>
+                  </AlertActions>
                 </Alert>
               )}
             </Show>
