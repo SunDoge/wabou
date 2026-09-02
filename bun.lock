@@ -134,6 +134,20 @@
         "vite": "^6.0.0",
       },
     },
+    "apps/rustic-gui": {
+      "name": "@wabou/rustic-gui",
+      "version": "0.0.0",
+      "dependencies": {
+        "@wabou/ui": "workspace:*",
+        "lucide-static": "1.31.0",
+        "solid-js": "2.0.0-rc.2",
+      },
+      "devDependencies": {
+        "@wabou/test": "workspace:*",
+        "@wabou/vite": "workspace:*",
+        "vite": "^6.0.0",
+      },
+    },
     "apps/stress": {
       "name": "@wabou/stress",
       "version": "0.0.0",
@@ -743,6 +757,8 @@
     "@wabou/motrix": ["@wabou/motrix@workspace:apps/motrix"],
 
     "@wabou/pi-agent": ["@wabou/pi-agent@workspace:apps/pi-agent"],
+
+    "@wabou/rustic-gui": ["@wabou/rustic-gui@workspace:apps/rustic-gui"],
 
     "@wabou/stress": ["@wabou/stress@workspace:apps/stress"],
 

@@ -1,0 +1,7 @@
+[package]
+product-name = "Rustic GUI"
+identifier = "dev.wabou.rustic-gui"
+description = "A native desktop interface for rustic backups."
+authors = ["SunDoge"]
+license-file = "../../LICENSE"
+formats = ["appimage"]

@@ -1,0 +1,20 @@
+[package]
+name = "rustic-gui"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "rustic-gui"
+path = "src/main.rs"
+
+[dependencies]
+rustic_backend = { version = "0.7.0", default-features = false }
+rustic_core = "0.13.0"
+serde = { workspace = true, features = ["derive"] }
+snafu = { workspace = true }
+tokio = { workspace = true, features = ["rt", "sync"] }
+wabou = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
