@@ -1,4 +1,4 @@
-import { defineWabouConfig } from "@wabou/vite";
+import { defineWabouConfig, defineWabouTheme } from "@wabou/vite";
 
 export default defineWabouConfig({
   outDir: "../../dist/7guis/resources",
@@ -6,7 +6,7 @@ export default defineWabouConfig({
     locales: ["en"],
     timeZones: "golden",
   },
-  theme: {
+  theme: defineWabouTheme({
     default: "dark",
     themes: {
       dark: {
@@ -28,7 +28,7 @@ export default defineWabouConfig({
           accent: "#0ea5e9",
           "accent-hover": "#0284c7",
           "accent-pressed": "#0369a1",
-          "on-accent": "#ffffff",
+          "on-accent": "#082f49",
           danger: "#ef4444",
           "danger-hover": "#dc2626",
           "danger-pressed": "#b91c1c",
@@ -52,12 +52,12 @@ export default defineWabouConfig({
           selected: "#e0f2fe",
           primary: "#111827",
           secondary: "#334155",
-          muted: "#64748b",
+          muted: "#637289",
           subtle: "#dce3ec",
           strong: "#c2ccd9",
-          accent: "#0284c7",
-          "accent-hover": "#0369a1",
-          "accent-pressed": "#075985",
+          accent: "#0369a1",
+          "accent-hover": "#075985",
+          "accent-pressed": "#0c4a6e",
           "on-accent": "#ffffff",
           danger: "#dc2626",
           "danger-hover": "#b91c1c",
@@ -70,5 +70,5 @@ export default defineWabouConfig({
         },
       },
     },
-  },
+  }),
 });

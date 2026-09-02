@@ -17,6 +17,13 @@ import {
   wabouStylePlugin,
 } from "./style-compiler";
 
+export {
+  color,
+  defineWabouTheme,
+  type WabouColorThemeOptions,
+  type WabouThemeColor,
+} from "./style-compiler";
+
 export interface WabouViteOptions {
   /** Application root. Defaults to Vite's current working directory. */
   root?: string;
