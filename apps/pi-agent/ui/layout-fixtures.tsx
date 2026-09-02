@@ -18,7 +18,7 @@ import {
   WorkbenchHeader,
   WorkbenchMain,
 } from "@wabou/ui";
-import { createComponent, For } from "solid-js";
+import { createComponent, For as ForValue } from "solid-js";
 import { AgentActivityStatus } from "./agent-activity";
 import { type AgentItem, initialAgentState } from "./agent-state";
 import type { PiSkill } from "./api";
@@ -443,13 +443,13 @@ defineLayoutFixtures(
             <MessageScroller>
               <MessageScrollerViewport>
                 <MessageScrollerContent class="max-w-lg mx-auto px-5 py-4">
-                  <For each={longConversation}>
+                  <ForValue each={longConversation}>
                     {(item) => (
                       <MessageScrollerItem anchor={item.id}>
                         <ConversationItem item={item} animate={false} />
                       </MessageScrollerItem>
                     )}
-                  </For>
+                  </ForValue>
                 </MessageScrollerContent>
               </MessageScrollerViewport>
               <ConversationNavigator items={longConversation} />
