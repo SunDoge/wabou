@@ -11922,6 +11922,7 @@ dependencies = [
 name = "timestow"
 version = "0.1.0"
 dependencies = [
+ "open",
  "rustic_backend",
  "rustic_core",
  "serde",
@@ -13059,15 +13060,6 @@ dependencies = [
  "wabou-protocol",
  "wabou-runtime",
  "wabou-shell-api",
-]
-
-[[package]]
-name = "wabou-legacy-tray"
-version = "0.1.0-alpha.3"
-dependencies = [
- "gtk",
- "tray-icon",
- "wabou-legacy-shell",
 ]
 
 [[package]]
