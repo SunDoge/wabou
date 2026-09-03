@@ -275,6 +275,7 @@ pub struct ProjectedElement {
     scrollbar_style: Option<crate::tree::ProjectedScrollbarStyle>,
     boundary_root: bool,
     native_transition: Option<NativeTransition>,
+    native_spring: Option<NativeSpring>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -292,6 +293,21 @@ struct NativeTransition {
     from_opacity: f32,
     #[serde(default = "one")]
     to_opacity: f32,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct NativeSpring {
+    response: f32,
+    #[serde(default = "one")]
+    damping: f32,
+    #[serde(default = "default_spring_epsilon")]
+    epsilon: f32,
+    target_transform: [f32; 6],
+}
+
+const fn default_spring_epsilon() -> f32 {
+    0.01
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize)]
@@ -326,6 +342,22 @@ fn parse_native_transition(node: &ProjectedNode) -> Option<NativeTransition> {
         && transition.from_opacity.is_finite()
         && transition.to_opacity.is_finite())
     .then_some(transition)
+}
+
+fn parse_native_spring(node: &ProjectedNode) -> Option<NativeSpring> {
+    let value = node.attributes.get("__wabou_native_spring")?;
+    let spring: NativeSpring = serde_json::from_str(value).ok()?;
+    (spring.response.is_finite()
+        && spring.response >= 0.0
+        && spring.damping.is_finite()
+        && spring.damping > 0.0
+        && spring.epsilon.is_finite()
+        && spring.epsilon > 0.0
+        && spring
+            .target_transform
+            .iter()
+            .all(|value| value.is_finite()))
+    .then_some(spring)
 }
 
 #[derive(Clone)]
@@ -672,10 +704,10 @@ impl ProjectedElement {
                 .ok_or(ProjectionError::MissingNode(*child))?
                 .draw_priority();
             if priority == 0 {
-                children.push(projected.into_native_transition_element());
+                children.push(projected.into_native_motion_element());
             } else {
                 children.push(
-                    gpui::deferred(projected.into_native_transition_element())
+                    gpui::deferred(projected.into_native_motion_element())
                         .with_priority(priority)
                         .into_any_element(),
                 );
@@ -702,6 +734,7 @@ impl ProjectedElement {
                 || node.focus_order.is_some()
                 || has_pointer_listener(node));
         let native_transition = parse_native_transition(node);
+        let native_spring = parse_native_spring(node);
         Ok(Self {
             key,
             style: node.style.clone(),
@@ -732,10 +765,19 @@ impl ProjectedElement {
             scrollbar_style: node.scrollbar_style,
             boundary_root: false,
             native_transition,
+            native_spring,
         })
     }
 
-    fn into_native_transition_element(self) -> AnyElement {
+    fn into_native_motion_element(self) -> AnyElement {
+        if let Some(spring) = self.native_spring {
+            return NativeSpringElement {
+                id: format!("wabou-spring-{}-{}", self.key.hi, self.key.lo).into(),
+                element: Some(self),
+                spring,
+            }
+            .into_any_element();
+        }
         let Some(transition) = self.native_transition else {
             return self.into_any_element();
         };
@@ -872,6 +914,86 @@ impl ProjectedElement {
                     .thumb_active(|value| value.bg(active))
             });
         Some(div().absolute().inset_0().child(bar).into_any_element())
+    }
+}
+
+struct NativeSpringElement {
+    id: ElementId,
+    element: Option<ProjectedElement>,
+    spring: NativeSpring,
+}
+
+impl IntoElement for NativeSpringElement {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
+}
+
+impl Element for NativeSpringElement {
+    type RequestLayoutState = AnyElement;
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<ElementId> {
+        Some(self.id.clone())
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _global_id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, Self::RequestLayoutState) {
+        const CHANNELS: [&str; 6] = ["a", "b", "c", "d", "x", "y"];
+        let policy =
+            gpui_base::Spring::new(std::time::Duration::from_secs_f32(self.spring.response))
+                .with_damping(self.spring.damping)
+                .with_epsilon(self.spring.epsilon)
+                .with_travel(self.spring.response > 0.0);
+        let mut element = self.element.take().expect("native spring is laid out once");
+        for (index, channel) in CHANNELS.into_iter().enumerate() {
+            element.transform[index] = gpui_base::spring(
+                (self.id.clone(), channel),
+                self.spring.target_transform[index],
+                policy,
+                window,
+                cx,
+            );
+        }
+        let mut element = element.into_any_element();
+        let layout = element.request_layout(window, cx);
+        (layout, element)
+    }
+
+    fn prepaint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        _bounds: Bounds<Pixels>,
+        element: &mut Self::RequestLayoutState,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Self::PrepaintState {
+        element.prepaint(window, cx);
+    }
+
+    fn paint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        _bounds: Bounds<Pixels>,
+        element: &mut Self::RequestLayoutState,
+        _prepaint: &mut Self::PrepaintState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        element.paint(window, cx);
     }
 }
 
@@ -1866,6 +1988,71 @@ mod tests {
         )
         .unwrap();
         assert!(element.native_transition.is_none());
+    }
+
+    #[test]
+    fn native_spring_is_parsed_as_a_persistent_gpui_motion_target() {
+        let key = NodeKey::new(173, 4);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        tree.update_attribute(
+            key,
+            "__wabou_native_spring".into(),
+            r#"{"response":0.16,"damping":1,"epsilon":0.02,"targetTransform":[1,0,0,1,16,0]}"#
+                .into(),
+        )
+        .unwrap();
+
+        let element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            key,
+            ProjectedElementContext::default(),
+            false,
+        )
+        .unwrap();
+        let spring = element.native_spring.expect("valid spring is projected");
+        assert_eq!(spring.response, 0.16);
+        assert_eq!(spring.damping, 1.0);
+        assert_eq!(spring.epsilon, 0.02);
+        assert_eq!(spring.target_transform[4], 16.0);
+    }
+
+    #[test]
+    fn malformed_native_spring_is_ignored_without_poisoning_projection() {
+        let key = NodeKey::new(174, 4);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        tree.update_attribute(
+            key,
+            "__wabou_native_spring".into(),
+            r#"{"response":-1,"targetTransform":[1,0,0,1,16,0]}"#.into(),
+        )
+        .unwrap();
+
+        let element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            key,
+            ProjectedElementContext::default(),
+            false,
+        )
+        .unwrap();
+        assert!(element.native_spring.is_none());
     }
 
     #[test]
