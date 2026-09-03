@@ -1,5 +1,5 @@
 import { defineConfig, type UserConfig } from "tsdown";
-import solid from "vite-plugin-solid";
+import solid from "@solidjs/vite-plugin";
 
 const stageName = process.env.WABOU_PACKAGE_STAGE_NAME;
 
