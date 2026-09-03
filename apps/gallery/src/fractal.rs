@@ -1,31 +1,130 @@
 //! Gallery-only Julia set rendered as an application-defined GPUI widget.
 
-use std::{
-    collections::HashMap,
-    io::Cursor,
-    sync::{Arc, Mutex},
-};
+use std::{io::Cursor, sync::Arc, time::Duration};
 
-use wabou::{NativeWidgetContext, gpui};
+use wabou::gpui::AppContext as _;
+use wabou::{NativeWidgetContext, NativeWidgetMount, gpui};
 
 const RENDER_SIZE: u32 = 480;
 const MAX_ITER: u32 = 160;
 const VIEW: f64 = 1.5;
+const MIN_FRAME_INTERVAL: Duration = Duration::from_millis(50);
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct FractalParameters {
+    cx: f64,
+    cy: f64,
+}
+
+/// Retained GPUI state keeps expensive image generation out of the parent
+/// projection's render pass. Rapid Solid updates replace `requested`; after
+/// the current frame completes, only the newest request is rendered.
+struct FractalWidget {
+    image: Arc<gpui::Image>,
+    schedule: FractalRenderSchedule,
+}
+
+#[derive(Debug)]
+struct FractalRenderSchedule {
+    requested: FractalParameters,
+    rendered: Option<FractalParameters>,
+    rendering: bool,
+}
+
+impl FractalRenderSchedule {
+    fn new(parameters: FractalParameters) -> Self {
+        Self {
+            requested: parameters,
+            rendered: None,
+            rendering: false,
+        }
+    }
+
+    fn request(&mut self, parameters: FractalParameters) -> Option<FractalParameters> {
+        self.requested = parameters;
+        self.start_latest()
+    }
+
+    fn complete(&mut self, parameters: FractalParameters) {
+        self.rendered = Some(parameters);
+    }
+
+    fn resume(&mut self) -> Option<FractalParameters> {
+        self.rendering = false;
+        self.start_latest()
+    }
+
+    fn start_latest(&mut self) -> Option<FractalParameters> {
+        if self.rendering || self.rendered == Some(self.requested) {
+            return None;
+        }
+        self.rendering = true;
+        Some(self.requested)
+    }
+}
+
+impl FractalWidget {
+    fn new(parameters: FractalParameters) -> Self {
+        Self {
+            image: Arc::new(encode_rgba_image(1, 1, vec![10, 10, 20, 255])),
+            schedule: FractalRenderSchedule::new(parameters),
+        }
+    }
+
+    fn synchronize(&mut self, parameters: FractalParameters, cx: &mut gpui::Context<Self>) {
+        if let Some(parameters) = self.schedule.request(parameters) {
+            self.render_parameters(parameters, cx);
+        }
+    }
+
+    fn render_parameters(&mut self, parameters: FractalParameters, cx: &mut gpui::Context<Self>) {
+        cx.spawn(async move |widget, cx| {
+            let image = cx
+                .background_spawn(async move {
+                    Arc::new(encode_gpui_image(parameters.cx, parameters.cy))
+                })
+                .await;
+            let _ = widget.update(cx, |widget, cx| {
+                widget.image = image;
+                widget.schedule.complete(parameters);
+                cx.notify();
+            });
+            cx.background_executor().timer(MIN_FRAME_INTERVAL).await;
+            let _ = widget.update(cx, |widget, cx| {
+                if let Some(parameters) = widget.schedule.resume() {
+                    widget.render_parameters(parameters, cx);
+                }
+            });
+        })
+        .detach();
+    }
+}
+
+impl gpui::Render for FractalWidget {
+    fn render(
+        &mut self,
+        _window: &mut gpui::Window,
+        _cx: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        use gpui::Styled as _;
+
+        gpui::img(self.image.clone()).size_full()
+    }
+}
 
 /// Creates the GPUI-native Julia widget factory used by the default shell.
 ///
-/// The cache is owned by the application registration rather than a transient
-/// GPUI element. Attribute changes select a deterministic image while ordinary
-/// frame rebuilds reuse the already encoded source.
+/// Image generation is retained by the widget entity. Attribute changes never
+/// perform the Julia calculation inside GPUI's render pass, and animation
+/// updates are coalesced while the latest image is generated in the background.
 pub fn gpui_factory()
--> impl for<'a> Fn(NativeWidgetContext<'a>, &mut gpui::Window, &mut gpui::App) -> gpui::AnyElement
+-> impl for<'a> Fn(NativeWidgetContext<'a>, &mut gpui::Window, &mut gpui::App) -> NativeWidgetMount
 + Send
 + Sync
 + 'static {
-    use gpui::{IntoElement as _, Styled as _};
+    use gpui::IntoElement as _;
 
-    let images = Arc::new(Mutex::new(HashMap::<(u64, u64), Arc<gpui::Image>>::new()));
-    move |context, _window, _cx| {
+    move |context, _window, app| {
         let cx = context
             .attribute("cx")
             .and_then(|value| value.parse::<f64>().ok())
@@ -34,16 +133,16 @@ pub fn gpui_factory()
             .attribute("cy")
             .and_then(|value| value.parse::<f64>().ok())
             .unwrap_or(0.0);
-        let cache_key = (cx.to_bits(), cy.to_bits());
-        let image = {
-            let mut images = images.lock().expect("Julia image cache lock");
-            images
-                .entry(cache_key)
-                .or_insert_with(|| Arc::new(encode_gpui_image(cx, cy)))
-                .clone()
-        };
+        let parameters = FractalParameters { cx, cy };
+        let retained = context.entity::<FractalWidget>();
+        let entity = retained
+            .clone()
+            .unwrap_or_else(|| app.new(|_| FractalWidget::new(parameters)));
+        entity.update(app, |widget, widget_cx| {
+            widget.synchronize(parameters, widget_cx);
+        });
 
-        gpui::img(image).size_full().into_any_element()
+        NativeWidgetMount::entity(entity.clone(), entity.into_any_element())
     }
 }
 
@@ -64,10 +163,14 @@ fn render_rgba(cx: f64, cy: f64) -> Vec<u8> {
 }
 
 fn encode_gpui_image(cx: f64, cy: f64) -> gpui::Image {
+    encode_rgba_image(RENDER_SIZE, RENDER_SIZE, render_rgba(cx, cy))
+}
+
+fn encode_rgba_image(width: u32, height: u32, rgba: Vec<u8>) -> gpui::Image {
     let mut png = Vec::new();
     image::DynamicImage::ImageRgba8(
-        image::RgbaImage::from_raw(RENDER_SIZE, RENDER_SIZE, render_rgba(cx, cy))
-            .expect("Julia renderer emits a complete RGBA image"),
+        image::RgbaImage::from_raw(width, height, rgba)
+            .expect("image renderer emits complete RGBA data"),
     )
     .write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
     .expect("encoding an in-memory Julia image cannot fail");
@@ -129,5 +232,38 @@ fn hue_to_rgb(p: f64, q: f64, mut t: f64) -> f64 {
         p + (q - p) * (2.0 / 3.0 - t) * 6.0
     } else {
         p
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fractal_image_is_a_non_empty_png() {
+        let image = encode_gpui_image(0.7885, 0.0);
+        assert_eq!(image.format, gpui::ImageFormat::Png);
+        assert!(image.bytes.starts_with(b"\x89PNG\r\n\x1a\n"));
+    }
+
+    #[test]
+    fn rapid_requests_are_coalesced_to_the_latest_parameters() {
+        let initial = FractalParameters {
+            cx: 0.7885,
+            cy: 0.0,
+        };
+        let intermediate = FractalParameters { cx: 0.5, cy: 0.4 };
+        let latest = FractalParameters { cx: -0.2, cy: 0.7 };
+        let mut schedule = FractalRenderSchedule::new(initial);
+
+        assert_eq!(schedule.request(initial), Some(initial));
+        assert_eq!(schedule.request(intermediate), None);
+        assert_eq!(schedule.request(latest), None);
+        assert_eq!(schedule.requested, latest);
+        schedule.complete(initial);
+        assert_eq!(schedule.resume(), Some(latest));
+        schedule.complete(latest);
+        assert_eq!(schedule.resume(), None);
+        assert_eq!(schedule.rendered, Some(latest));
     }
 }

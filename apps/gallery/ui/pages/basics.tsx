@@ -862,6 +862,8 @@ function PlatformPage() {
       <Preview title="Rust custom widget">
         <View class="flex flex-col items-center gap-4 p-4">
           <fractal
+            role="img"
+            aria-label="Animated Julia fractal"
             class="w-64 h-64 overflow-hidden rounded-xl"
             cx={cx()}
             cy={cy()}
