@@ -38,4 +38,6 @@ jobs:
         uses: cocogitto/cocogitto-action@v4
         with:
           command: check
-          args: --from-latest-tag
+          # Cocogitto excludes prereleases from `--from-latest-tag`; alpha.2
+          # is the explicit conventional-history baseline for this repository.
+          args: v0.1.0-alpha.2..HEAD
