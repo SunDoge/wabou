@@ -20,6 +20,11 @@ use wabou_host_api::DebugOverlayPaintStats;
 use wabou_host_api::FrameStats;
 pub use wabou_host_api::NodeKey;
 
+#[cfg(unix)]
+use std::os::unix::net::{UnixListener as LocalListener, UnixStream as LocalStream};
+#[cfg(windows)]
+use uds_windows::{UnixListener as LocalListener, UnixStream as LocalStream};
+
 mod validation;
 pub use validation::{DebugValidationIssue, DebugValidationReport};
 
@@ -666,9 +671,9 @@ pub struct ServerHandle {
 impl Drop for ServerHandle {
     fn drop(&mut self) {
         self.running.store(false, Ordering::Release);
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         {
-            let _ = std::os::unix::net::UnixStream::connect(&self.path);
+            let _ = LocalStream::connect(&self.path);
         }
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
@@ -1102,13 +1107,15 @@ pub fn discover_socket() -> Result<PathBuf, String> {
         .collect();
     candidates.sort_by_key(|(modified, _)| *modified);
     while let Some((_, path)) = candidates.pop() {
-        #[cfg(unix)]
-        if std::os::unix::net::UnixStream::connect(&path).is_ok() {
+        #[cfg(any(unix, windows))]
+        if LocalStream::connect(&path).is_ok() {
             return Ok(path);
         }
         #[cfg(unix)]
         let _ = fs::remove_file(path);
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        continue;
+        #[cfg(not(any(unix, windows)))]
         return Ok(path);
     }
     Err(format!(
@@ -1117,12 +1124,10 @@ pub fn discover_socket() -> Result<PathBuf, String> {
     ))
 }
 
-#[cfg(unix)]
 fn execute_capture(state: &SharedDebugState, command: &DebugCommand) -> Result<Value, String> {
     execute_capture_with_timeout(state, command, std::time::Duration::from_secs(10))
 }
 
-#[cfg(unix)]
 fn execute_capture_with_timeout(
     state: &SharedDebugState,
     command: &DebugCommand,
@@ -1179,7 +1184,6 @@ fn execute_capture_with_timeout(
     }
 }
 
-#[cfg(unix)]
 fn execute_request(state: &SharedDebugState, request: Request) -> Response {
     let outcome = if matches!(
         &request.command,
@@ -1206,8 +1210,8 @@ fn execute_request(state: &SharedDebugState, request: Request) -> Response {
     }
 }
 
-#[cfg(unix)]
-fn serve_stream(state: &SharedDebugState, mut stream: std::os::unix::net::UnixStream) {
+#[cfg(any(unix, windows))]
+fn serve_stream(state: &SharedDebugState, mut stream: LocalStream) {
     let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(1)));
     let Ok(reader_stream) = stream.try_clone() else {
         return;
@@ -1243,7 +1247,6 @@ fn serve_stream(state: &SharedDebugState, mut stream: std::os::unix::net::UnixSt
 pub fn serve(state: SharedDebugState, path: PathBuf) -> std::io::Result<ServerHandle> {
     use std::os::unix::fs::FileTypeExt;
     use std::os::unix::fs::PermissionsExt;
-    use std::os::unix::net::{UnixListener, UnixStream};
 
     if path.exists() {
         if !fs::symlink_metadata(&path)?.file_type().is_socket() {
@@ -1252,7 +1255,7 @@ pub fn serve(state: SharedDebugState, path: PathBuf) -> std::io::Result<ServerHa
                 format!("refusing to replace non-socket {}", path.display()),
             ));
         }
-        if UnixStream::connect(&path).is_ok() {
+        if LocalStream::connect(&path).is_ok() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::AddrInUse,
                 format!("DevTools socket is already live: {}", path.display()),
@@ -1260,7 +1263,7 @@ pub fn serve(state: SharedDebugState, path: PathBuf) -> std::io::Result<ServerHa
         }
         fs::remove_file(&path)?;
     }
-    let listener = UnixListener::bind(&path)?;
+    let listener = LocalListener::bind(&path)?;
     fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
     let running = Arc::new(AtomicBool::new(true));
     let thread_running = running.clone();
@@ -1284,20 +1287,53 @@ pub fn serve(state: SharedDebugState, path: PathBuf) -> std::io::Result<ServerHa
     })
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+/// Starts the local DevTools server using Windows AF_UNIX sockets.
+pub fn serve(state: SharedDebugState, path: PathBuf) -> std::io::Result<ServerHandle> {
+    if path.exists() {
+        let detail = if LocalStream::connect(&path).is_ok() {
+            format!("DevTools socket is already live: {}", path.display())
+        } else {
+            format!("refusing to replace existing path {}", path.display())
+        };
+        return Err(std::io::Error::new(std::io::ErrorKind::AddrInUse, detail));
+    }
+    let listener = LocalListener::bind(&path)?;
+    let running = Arc::new(AtomicBool::new(true));
+    let thread_running = running.clone();
+    let thread_path = path.clone();
+    let handle = thread::Builder::new()
+        .name("wabou-devtools".into())
+        .spawn(move || {
+            for stream in listener.incoming() {
+                if !thread_running.load(Ordering::Acquire) {
+                    break;
+                }
+                let Ok(stream) = stream else { continue };
+                serve_stream(&state, stream);
+            }
+            let _ = fs::remove_file(thread_path);
+        })?;
+    Ok(ServerHandle {
+        running,
+        path,
+        thread: Some(handle),
+    })
+}
+
+#[cfg(not(any(unix, windows)))]
 /// Reports that the DevTools transport is not implemented on this platform.
 pub fn serve(_state: SharedDebugState, _path: PathBuf) -> std::io::Result<ServerHandle> {
     Err(std::io::Error::new(
         std::io::ErrorKind::Unsupported,
-        "named pipes are not implemented yet",
+        "local sockets are not implemented on this platform",
     ))
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 /// Sends one DevTools request to `path` and waits for its response.
 pub fn call(path: &Path, request: &Request) -> Result<Response, String> {
-    use std::os::unix::net::UnixStream;
-    let mut stream = UnixStream::connect(path).map_err(|e| e.to_string())?;
+    let mut stream = LocalStream::connect(path).map_err(|e| e.to_string())?;
     serde_json::to_writer(&mut stream, request).map_err(|e| e.to_string())?;
     stream.write_all(b"\n").map_err(|e| e.to_string())?;
     let mut line = String::new();
@@ -1307,10 +1343,10 @@ pub fn call(path: &Path, request: &Request) -> Result<Response, String> {
     serde_json::from_str(&line).map_err(|e| e.to_string())
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 /// Reports that the DevTools transport is not implemented on this platform.
 pub fn call(_path: &Path, _request: &Request) -> Result<Response, String> {
-    Err("named pipes are not implemented yet".into())
+    Err("local sockets are not implemented on this platform".into())
 }
 
 /// Encodes at most `max` bytes as lowercase hexadecimal text.

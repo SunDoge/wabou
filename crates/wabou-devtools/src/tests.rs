@@ -521,9 +521,9 @@ fn server_refuses_to_replace_a_regular_file() {
     fs::remove_file(path).unwrap();
 }
 
-#[cfg(unix)]
 #[test]
-fn unix_socket_round_trip_uses_versioned_status() {
+#[cfg(any(unix, windows))]
+fn local_socket_round_trip_uses_versioned_status() {
     let state = DebugState::shared();
     state.write().unwrap().publish(DebugSnapshot {
         status: DebugStatus {
@@ -545,6 +545,7 @@ fn unix_socket_round_trip_uses_versioned_status() {
     let _server = serve(state.clone(), path.clone()).unwrap();
     let response = call(&path, &request(1, "status", empty_params())).unwrap();
     assert_eq!(response.result.unwrap()["revision"], 9);
+    #[cfg(unix)]
     assert_eq!(
         fs::metadata(&path).unwrap().permissions().mode() & 0o777,
         0o600

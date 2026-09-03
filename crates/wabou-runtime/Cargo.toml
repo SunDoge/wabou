@@ -65,6 +65,9 @@ tungstenite = {
 # vite feature only
 ureq = { version = "3.3", optional = true }
 
+[target.'cfg(windows)'.dependencies]
+stacker = { workspace = true }
+
 [features]
 default = []
 devtools = ["dep:wabou-devtools"]

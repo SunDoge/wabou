@@ -51,7 +51,12 @@ use process::{
     ManagedChild, configure_test_backend, ensure_host_exit, supervise, wait_for_behavior_host,
     wait_for_vite,
 };
-use project::{App, ensure_workspace_package_exports, find_app_root, find_workspace, load_app};
+#[cfg(test)]
+use project::missing_workspace_package_exports;
+use project::{
+    App, ensure_javascript_dependencies, ensure_workspace_package_exports, find_app_root,
+    find_workspace, load_app,
+};
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -645,6 +650,7 @@ fn check(
     skip_behavior: bool,
     cargo_features: &[String],
 ) -> Result<()> {
+    ensure_javascript_dependencies(workspace, app)?;
     ensure_workspace_package_exports(workspace)?;
 
     let tsconfig = app
@@ -1141,6 +1147,7 @@ struct DevOptions<'a> {
 }
 
 fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
+    ensure_javascript_dependencies(workspace, &app)?;
     ensure_workspace_package_exports(workspace)?;
     let port_text = options.port.to_string();
     let mut vite_command = Command::new("bun");
@@ -2351,8 +2358,10 @@ out-dir = "dist/resources"
 
         let error = ensure_workspace_package_exports(root.path()).unwrap_err();
         let message = error.to_string();
-        assert!(message.contains("packages/vite/dist/index.mjs"));
-        assert!(!message.contains("packages/vite/dist/index.d.mts"));
+        assert_eq!(
+            missing_workspace_package_exports(root.path()).unwrap(),
+            vec![package.join("dist/index.mjs")]
+        );
         assert!(message.contains("bun run packages:build"));
 
         fs::create_dir_all(package.join("dist")).unwrap();
@@ -2377,11 +2386,9 @@ out-dir = "dist/resources"
         )
         .unwrap();
 
-        let error = ensure_workspace_package_exports(root.path()).unwrap_err();
-        assert!(
-            error
-                .to_string()
-                .contains("vendor/wabou/packages/vite/dist/index.mjs")
+        assert_eq!(
+            missing_workspace_package_exports(root.path()).unwrap(),
+            vec![package.join("dist/index.mjs")]
         );
     }
 

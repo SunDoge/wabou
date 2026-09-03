@@ -6,7 +6,7 @@ use fs4::fs_std::FileExt as _;
 
 use super::Result;
 use super::config::{BuildProfile, profile_resource_dir};
-use super::project::{App, ensure_workspace_package_exports};
+use super::project::{App, ensure_javascript_dependencies, ensure_workspace_package_exports};
 
 fn vite_build_command(app: &App, args: &[&str]) -> Command {
     let mut command = Command::new("bun");
@@ -37,6 +37,7 @@ pub(super) fn build_unlocked(
     profile: BuildProfile,
     source_map: bool,
 ) -> Result<ExitStatus> {
+    ensure_javascript_dependencies(workspace, app)?;
     ensure_workspace_package_exports(workspace)?;
     let mut command = vite_build_command(app, args);
     command
@@ -87,6 +88,7 @@ pub(super) fn build_test_script(
     entry: &Path,
     output: &Path,
 ) -> Result<ExitStatus> {
+    ensure_javascript_dependencies(workspace, app)?;
     ensure_workspace_package_exports(workspace)?;
     let output_dir = output
         .parent()
