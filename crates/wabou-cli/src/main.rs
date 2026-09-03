@@ -51,6 +51,8 @@ use process::{
     ManagedChild, configure_test_backend, ensure_host_exit, supervise, wait_for_behavior_host,
     wait_for_vite,
 };
+#[cfg(test)]
+use project::missing_workspace_package_exports;
 use project::{
     App, ensure_javascript_dependencies, ensure_workspace_package_exports, find_app_root,
     find_workspace, load_app,
@@ -2356,8 +2358,10 @@ out-dir = "dist/resources"
 
         let error = ensure_workspace_package_exports(root.path()).unwrap_err();
         let message = error.to_string();
-        assert!(message.contains("packages/vite/dist/index.mjs"));
-        assert!(!message.contains("packages/vite/dist/index.d.mts"));
+        assert_eq!(
+            missing_workspace_package_exports(root.path()).unwrap(),
+            vec![package.join("dist/index.mjs")]
+        );
         assert!(message.contains("bun run packages:build"));
 
         fs::create_dir_all(package.join("dist")).unwrap();
@@ -2382,11 +2386,9 @@ out-dir = "dist/resources"
         )
         .unwrap();
 
-        let error = ensure_workspace_package_exports(root.path()).unwrap_err();
-        assert!(
-            error
-                .to_string()
-                .contains("vendor/wabou/packages/vite/dist/index.mjs")
+        assert_eq!(
+            missing_workspace_package_exports(root.path()).unwrap(),
+            vec![package.join("dist/index.mjs")]
         );
     }
 

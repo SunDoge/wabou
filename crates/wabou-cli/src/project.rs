@@ -135,9 +135,8 @@ fn collect_dist_exports(value: &Value, output: &mut Vec<String>) {
     }
 }
 
-/// Catch interrupted workspace package builds before Vite turns a missing
-/// tracked entrypoint into an opaque `externalize-deps` resolution failure.
-pub(super) fn ensure_workspace_package_exports(workspace: &Path) -> Result<()> {
+/// Return the missing generated entrypoints as structured paths.
+pub(super) fn missing_workspace_package_exports(workspace: &Path) -> Result<Vec<PathBuf>> {
     let mut missing = Vec::new();
     for packages in [
         workspace.join("packages"),
@@ -180,8 +179,16 @@ pub(super) fn ensure_workspace_package_exports(workspace: &Path) -> Result<()> {
             );
         }
     }
+    missing.sort();
+    missing.dedup();
+    Ok(missing)
+}
+
+/// Catch interrupted workspace package builds before Vite turns a missing
+/// tracked entrypoint into an opaque `externalize-deps` resolution failure.
+pub(super) fn ensure_workspace_package_exports(workspace: &Path) -> Result<()> {
+    let missing = missing_workspace_package_exports(workspace)?;
     if !missing.is_empty() {
-        missing.sort();
         let paths = missing
             .iter()
             .map(|path| {
