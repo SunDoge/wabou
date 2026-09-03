@@ -156,6 +156,8 @@ export interface WabouElementProps {
   projectionBoundary?: boolean;
   /** A finite transition sampled by the native renderer without per-frame JS traffic. */
   nativeTransition?: WabouNativeTransition;
+  /** Positions this element from a retained node or viewport point in GPUI. */
+  floatingPosition?: WabouFloatingPosition;
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
   "aria-modal"?: boolean | "true" | "false";
@@ -221,6 +223,33 @@ export interface WabouNativeTransition {
   toTransform?: Affine2D;
   fromOpacity?: number;
   toOpacity?: number;
+}
+
+export type WabouFloatingPlacement =
+  | "top"
+  | "top-start"
+  | "top-end"
+  | "bottom"
+  | "bottom-start"
+  | "bottom-end"
+  | "left"
+  | "left-start"
+  | "left-end"
+  | "right"
+  | "right-start"
+  | "right-end";
+
+export type WabouFloatingAnchor =
+  | { kind: "node"; id: NodeKey }
+  | { kind: "point"; x: number; y: number };
+
+/** Native popup positioning contract; all distances are logical pixels. */
+export interface WabouFloatingPosition {
+  anchor: WabouFloatingAnchor;
+  placement?: WabouFloatingPlacement;
+  offset?: number;
+  /** Minimum distance from the native window viewport. */
+  margin?: number;
 }
 
 export interface WabouControlProps extends WabouElementProps {
@@ -663,6 +692,21 @@ function applyProperty(
     writer.setAttribute(
       node.id,
       "__wabou_native_transition",
+      stringifyWidgetConfig(value),
+    );
+    return;
+  }
+  if (name === "floatingPosition") {
+    if (value == null || value === false) {
+      writer.removeAttribute(node.id, "__wabou_floating_position");
+      return;
+    }
+    if (!isStructuredConfigValue(value)) {
+      throw new TypeError("floatingPosition must be a plain object");
+    }
+    writer.setAttribute(
+      node.id,
+      "__wabou_floating_position",
       stringifyWidgetConfig(value),
     );
     return;

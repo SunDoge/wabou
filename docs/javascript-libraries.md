@@ -18,7 +18,6 @@ untested until the same checks pass again.
 | `web-streams-polyfill` | 4.3.0 | Supported | The WHATWG reference-implementation-based ponyfill supplies readable, writable, transform, BYOB, controller, reader, writer, and queuing-strategy constructors. `@wabou/core` installs missing constructors without replacing native implementations. Transform pipelines, async iteration, and writable piping are verified in both TypeScript and embedded QuickJS. |
 | `@stardazed/streams-text-encoding` | 1.0.2 | Supported | Supplies `TextEncoderStream` and `TextDecoderStream` on top of Wabou's WHATWG streams. Split UTF-8 byte sequences and split UTF-16 surrogate pairs are covered in TypeScript, and decoding is exercised in embedded QuickJS. |
 | `lucide-static` | 1.31.0 | Supported | Wabou components consume framework-independent SVG strings and send them through the cached native SVG path. This avoids DOM assumptions and keeps icon selection tree-shakeable. |
-| `@floating-ui/core` | 1.8.0 | Supported through a Wabou adapter | Wabou primitives supply native layout rectangles to its platform-independent middleware. `offset`, `flip`, `shift`, `size`, `arrow` and `autoPlacement` are tested. Do not use `@floating-ui/dom`. |
 | `whatwg-url` | 17.1.0 | Runtime implementation detail | Wabou bundles it into the core prelude to provide `URL` and `URLSearchParams`. Applications should use those globals rather than depending on this package directly. |
 
 ## Conditional or rejected libraries

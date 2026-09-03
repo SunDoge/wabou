@@ -275,6 +275,7 @@ pub struct ProjectedElement {
     scrollbar_style: Option<crate::tree::ProjectedScrollbarStyle>,
     boundary_root: bool,
     native_transition: Option<NativeTransition>,
+    floating_position: Option<NativeFloatingPosition>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -326,6 +327,92 @@ fn parse_native_transition(node: &ProjectedNode) -> Option<NativeTransition> {
         && transition.from_opacity.is_finite()
         && transition.to_opacity.is_finite())
     .then_some(transition)
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct NativeFloatingPosition {
+    anchor: NativeFloatingAnchor,
+    #[serde(default)]
+    placement: NativeFloatingPlacement,
+    #[serde(default = "default_floating_offset")]
+    offset: f32,
+    #[serde(default = "default_floating_margin")]
+    margin: f32,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+enum NativeFloatingAnchor {
+    Node { id: NativeNodeKey },
+    Point { x: f32, y: f32 },
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+enum NativeFloatingPlacement {
+    Top,
+    TopStart,
+    TopEnd,
+    Bottom,
+    #[default]
+    BottomStart,
+    BottomEnd,
+    Left,
+    LeftStart,
+    LeftEnd,
+    Right,
+    RightStart,
+    RightEnd,
+}
+
+impl NativeFloatingPlacement {
+    fn gpui(self) -> (gpui_base::Placement, gpui_base::Align) {
+        use gpui_base::{Align, Placement};
+        match self {
+            Self::Top => (Placement::Top, Align::Center),
+            Self::TopStart => (Placement::Top, Align::Start),
+            Self::TopEnd => (Placement::Top, Align::End),
+            Self::Bottom => (Placement::Bottom, Align::Center),
+            Self::BottomStart => (Placement::Bottom, Align::Start),
+            Self::BottomEnd => (Placement::Bottom, Align::End),
+            Self::Left => (Placement::Left, Align::Center),
+            Self::LeftStart => (Placement::Left, Align::Start),
+            Self::LeftEnd => (Placement::Left, Align::End),
+            Self::Right => (Placement::Right, Align::Center),
+            Self::RightStart => (Placement::Right, Align::Start),
+            Self::RightEnd => (Placement::Right, Align::End),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct NativeNodeKey {
+    lo: u32,
+    hi: u32,
+}
+
+const fn default_floating_offset() -> f32 {
+    6.0
+}
+
+const fn default_floating_margin() -> f32 {
+    8.0
+}
+
+fn parse_floating_position(node: &ProjectedNode) -> Option<NativeFloatingPosition> {
+    let value = node.attributes.get("__wabou_floating_position")?;
+    let position: NativeFloatingPosition = serde_json::from_str(value).ok()?;
+    let valid_anchor = match position.anchor {
+        NativeFloatingAnchor::Node { id } => id.lo != 0 && id.hi != 0,
+        NativeFloatingAnchor::Point { x, y } => x.is_finite() && y.is_finite(),
+    };
+    (valid_anchor
+        && position.offset.is_finite()
+        && position.margin.is_finite()
+        && position.margin >= 0.0)
+        .then_some(position)
 }
 
 #[derive(Clone)]
@@ -672,10 +759,10 @@ impl ProjectedElement {
                 .ok_or(ProjectionError::MissingNode(*child))?
                 .draw_priority();
             if priority == 0 {
-                children.push(projected.into_native_transition_element());
+                children.push(projected.into_native_wrappers());
             } else {
                 children.push(
-                    gpui::deferred(projected.into_native_transition_element())
+                    gpui::deferred(projected.into_native_wrappers())
                         .with_priority(priority)
                         .into_any_element(),
                 );
@@ -702,6 +789,7 @@ impl ProjectedElement {
                 || node.focus_order.is_some()
                 || has_pointer_listener(node));
         let native_transition = parse_native_transition(node);
+        let floating_position = parse_floating_position(node);
         Ok(Self {
             key,
             style: node.style.clone(),
@@ -732,21 +820,37 @@ impl ProjectedElement {
             scrollbar_style: node.scrollbar_style,
             boundary_root: false,
             native_transition,
+            floating_position,
         })
     }
 
-    fn into_native_transition_element(self) -> AnyElement {
-        let Some(transition) = self.native_transition else {
-            return self.into_any_element();
+    fn into_native_wrappers(self) -> AnyElement {
+        let key = self.key;
+        let input = self.lifecycle_input.clone();
+        let transition = self.native_transition;
+        let floating_position = self.floating_position;
+        let layout_bounds = self.layout_bounds.clone();
+        let mut element = if let Some(transition) = transition {
+            NativeTransitionElement {
+                id: format!("wabou-transition-{}-{}", key.hi, key.lo).into(),
+                target: key,
+                input,
+                element: Some(self),
+                transition,
+            }
+            .into_any_element()
+        } else {
+            self.into_any_element()
         };
-        NativeTransitionElement {
-            id: format!("wabou-transition-{}-{}", self.key.hi, self.key.lo).into(),
-            target: self.key,
-            input: self.lifecycle_input.clone(),
-            element: Some(self),
-            transition,
+        if let (Some(position), Some(layout_bounds)) = (floating_position, layout_bounds) {
+            element = NativeFloatingElement {
+                position,
+                layout_bounds,
+                element: Some(element),
+            }
+            .into_any_element();
         }
-        .into_any_element()
+        element
     }
 
     fn apply_transition_progress(&mut self, transition: NativeTransition, progress: f32) {
@@ -1015,6 +1119,113 @@ fn sample_transition(transition: NativeTransition, progress: f32) -> ([f32; 6], 
     let opacity =
         transition.from_opacity + (transition.to_opacity - transition.from_opacity) * progress;
     (transform, opacity.clamp(0.0, 1.0))
+}
+
+struct NativeFloatingElement {
+    position: NativeFloatingPosition,
+    layout_bounds: ProjectedLayoutBounds,
+    element: Option<AnyElement>,
+}
+
+struct NativeFloatingLayoutState {
+    element: AnyElement,
+    visible: bool,
+}
+
+impl IntoElement for NativeFloatingElement {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
+}
+
+impl Element for NativeFloatingElement {
+    type RequestLayoutState = NativeFloatingLayoutState;
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _global_id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, Self::RequestLayoutState) {
+        let (anchor_bounds, visible) = match self.position.anchor {
+            NativeFloatingAnchor::Node { id } => {
+                let target = NodeKey::new(id.lo, id.hi);
+                match self.layout_bounds.borrow().get(&target).copied() {
+                    Some(bounds) => (bounds, true),
+                    None => {
+                        // The trigger normally has completed a frame before its
+                        // popup mounts. A replacement/HMR frame can temporarily
+                        // violate that ordering; measure now and retry without
+                        // painting a panel at a misleading viewport corner.
+                        window.request_animation_frame();
+                        (Bounds::default(), false)
+                    }
+                }
+            }
+            NativeFloatingAnchor::Point { x, y } => (
+                Bounds::new(
+                    gpui::point(gpui::px(x), gpui::px(y)),
+                    gpui::size(Pixels::ZERO, Pixels::ZERO),
+                ),
+                true,
+            ),
+        };
+        let (placement, align) = self.position.placement.gpui();
+        let child = self
+            .element
+            .take()
+            .expect("native floating element is laid out once");
+        let mut element = gpui_base::Positioner::side(anchor_bounds)
+            .placement(placement)
+            .align(align)
+            .offset(gpui::px(self.position.offset))
+            .margin(gpui::px(self.position.margin))
+            .child(child)
+            .into_any_element();
+        let layout = element.request_layout(window, cx);
+        (layout, NativeFloatingLayoutState { element, visible })
+    }
+
+    fn prepaint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        _bounds: Bounds<Pixels>,
+        state: &mut Self::RequestLayoutState,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Self::PrepaintState {
+        if state.visible {
+            state.element.prepaint(window, cx);
+        }
+    }
+
+    fn paint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        _bounds: Bounds<Pixels>,
+        state: &mut Self::RequestLayoutState,
+        _prepaint: &mut Self::PrepaintState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        if state.visible {
+            state.element.paint(window, cx);
+        }
+    }
 }
 
 pub(crate) fn projected_text(
@@ -1866,6 +2077,80 @@ mod tests {
         )
         .unwrap();
         assert!(element.native_transition.is_none());
+    }
+
+    #[test]
+    fn native_floating_position_preserves_anchor_generation_and_alignment() {
+        let key = NodeKey::new(173, 4);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        tree.update_attribute(
+            key,
+            "__wabou_floating_position".into(),
+            r#"{"anchor":{"kind":"node","id":{"lo":19,"hi":7}},"placement":"right-end","offset":9,"margin":12}"#.into(),
+        )
+        .unwrap();
+
+        let element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            key,
+            ProjectedElementContext::default(),
+            false,
+        )
+        .unwrap();
+        let position = element
+            .floating_position
+            .expect("valid native floating position is projected");
+        assert_eq!(
+            position.anchor,
+            NativeFloatingAnchor::Node {
+                id: NativeNodeKey { lo: 19, hi: 7 }
+            }
+        );
+        assert_eq!(
+            position.placement.gpui(),
+            (gpui_base::Placement::Right, gpui_base::Align::End)
+        );
+        assert_eq!(position.offset, 9.0);
+        assert_eq!(position.margin, 12.0);
+    }
+
+    #[test]
+    fn malformed_native_floating_position_is_ignored() {
+        let key = NodeKey::new(174, 4);
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            Style::default(),
+            None,
+            crate::ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        tree.update_attribute(
+            key,
+            "__wabou_floating_position".into(),
+            r#"{"anchor":{"kind":"point","x":null,"y":4}}"#.into(),
+        )
+        .unwrap();
+
+        let element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            key,
+            ProjectedElementContext::default(),
+            false,
+        )
+        .unwrap();
+        assert!(element.floating_position.is_none());
     }
 
     #[test]

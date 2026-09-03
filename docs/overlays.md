@@ -16,8 +16,9 @@ and accessibility. A modal restricts focus and semantic actions to the last
 painted modal subtree; background scrollbars and pointer targets are blocked by
 the modal backdrop.
 
-`Popover` supplies anchor measurement, Floating UI collision handling, outside
-click dismissal, Escape dismissal, and trigger focus restoration. `Modal`
+`Popover` delegates anchor measurement and collision-aware placement to the
+native GPUI positioner. It also supplies outside click dismissal, Escape
+dismissal, and trigger focus restoration. `Modal`
 supplies backdrop and Escape dismissal, initial focus, focus restoration, and
 host-enforced modal isolation. Keep open state in Solid; the host owns only the
 derived stacking, hit-test, and semantic projections.

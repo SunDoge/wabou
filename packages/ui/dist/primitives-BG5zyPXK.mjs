@@ -5,8 +5,6 @@ import { animateValue, interpolate } from "motion-dom";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, untrack, useContext } from "solid-js";
 import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, memo, mergeProps, observeGlobalPointerEvent, spread, useHost as useHost$1 } from "@wabou/core/renderer";
 import { match } from "ts-pattern";
-import { arrow, autoPlacement, computePosition, flip, offset, shift, size } from "@floating-ui/core";
-import { formatNodeKey } from "@wabou/core/protocol";
 //#region src/animation/config.tsx
 const DEFAULT_MOTION_CONFIG = Object.freeze({ reducedMotion: () => useWindow().reducedMotion() });
 const MotionConfigContext = createContext(DEFAULT_MOTION_CONFIG);
@@ -1988,78 +1986,31 @@ function NotificationRegion(props) {
 }
 //#endregion
 //#region src/primitives/positioner.ts
-/**
-* Position two Wabou layout targets with Floating UI's renderer-independent
-* geometry engine. Measurement remains host-owned and is supplied explicitly;
-* no DOM-compatible Handle methods are required.
-*/
-function computeFloatingPosition(reference, floating, options) {
-	const isRTL = options.platform.isRTL;
-	return computePosition(reference, floating, {
-		platform: {
-			async getElementRects({ reference, floating }) {
-				const [referenceRect, floatingRect] = await Promise.all([options.platform.getRect(reference), options.platform.getRect(floating)]);
-				return {
-					reference: referenceRect,
-					floating: {
-						x: 0,
-						y: 0,
-						width: floatingRect.width,
-						height: floatingRect.height
-					}
-				};
-			},
-			getDimensions: (target) => options.platform.getRect(target),
-			getClippingRect: ({ element }) => options.platform.getClippingRect(element),
-			isElement: () => true,
-			isRTL: isRTL ? (target) => isRTL(target) : void 0
+/** Build the explicit native positioning contract for a retained trigger. */
+function floatingFromNode(anchor, options = {}) {
+	return {
+		anchor: {
+			kind: "node",
+			id: anchor.id
 		},
 		placement: options.placement,
-		strategy: options.strategy,
-		middleware: options.middleware
-	});
-}
-var LayoutTargetUnavailableError = class extends Error {
-	name = "LayoutTargetUnavailableError";
-};
-/** Position two native handles from a single coherent Host layout snapshot. */
-function computeHostFloatingPosition(reference, floating, host, options = {}) {
-	const snapshot = host.layout.snapshot([reference, floating]);
-	const nodes = new Map(snapshot.nodes.map((node) => [formatNodeKey(node.id), node]));
-	const id = (target) => "id" in target ? target.id : target;
-	const rect = (target) => {
-		const targetId = id(target);
-		const node = nodes.get(formatNodeKey(targetId));
-		if (!node) throw new LayoutTargetUnavailableError(`Layout target ${targetId.lo}v${targetId.hi} is not present in completed revision ${snapshot.revision}`);
-		return node;
+		offset: options.offset,
+		margin: options.margin
 	};
-	return computeFloatingPosition(reference, floating, {
-		...options,
-		platform: {
-			getRect: (target) => rect(target).rect,
-			getClippingRect: (target) => rect(target).clip
-		}
-	});
 }
-/** Position a native floating handle from an explicit viewport coordinate. */
-function computeHostPointFloatingPosition(point, floating, host, options = {}) {
+/** Build the explicit native positioning contract for a viewport point. */
+function floatingFromPoint(point, options = {}) {
 	if (![point.x, point.y].every(Number.isFinite)) throw new RangeError("floating point anchor must be finite");
-	const snapshot = host.layout.snapshot([floating]);
-	const targetId = "id" in floating ? floating.id : floating;
-	const node = snapshot.nodes.find((candidate) => formatNodeKey(candidate.id) === formatNodeKey(targetId));
-	if (!node) throw new LayoutTargetUnavailableError(`Layout target ${targetId.lo}v${targetId.hi} is not present in completed revision ${snapshot.revision}`);
-	return computeFloatingPosition(point, floating, {
-		...options,
-		platform: {
-			getRect: (target) => target === point ? {
-				x: point.x,
-				y: point.y,
-				width: 0,
-				height: 0
-			} : node.rect,
-			getClippingRect: () => snapshot.viewport
-		}
-	});
+	return {
+		anchor: {
+			kind: "point",
+			x: point.x,
+			y: point.y
+		},
+		placement: options.placement,
+		offset: options.offset,
+		margin: options.margin
+	};
 }
 //#endregion
 //#region src/primitives/popover.tsx
@@ -2077,16 +2028,10 @@ function popoverNativeTransition(options) {
 }
 /** A root-layer floating panel positioned from native layout snapshots. */
 function Popover(props) {
-	const host = useHost$1();
 	const inheritedPlane = useOverlayPlane();
 	const reducedMotion = useReducedMotion();
 	const plane = () => props.plane ?? inheritedPlane;
 	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(untrack(() => props.defaultOpen ?? false));
-	const [position, setPosition] = createSignal({
-		x: 0,
-		y: 0
-	});
-	const [positioned, setPositioned] = createSignal(false);
 	const open = () => props.open ?? uncontrolledOpen();
 	const motion = untrack(() => props.motion);
 	const duration = motion === false ? 0 : motion?.duration ?? .14;
@@ -2094,13 +2039,10 @@ function Popover(props) {
 	const [transitionGeneration, setTransitionGeneration] = createSignal(0);
 	let anchor;
 	let content;
-	let frame = 0;
-	let positionRequest = 0;
 	let suppressPointerClick = false;
-	let observer;
 	const motionFromScale = () => motion === false ? 1 : motion?.fromScale ?? .98;
 	const nativeTransition = () => {
-		if (motion === false || reducedMotion() || !positioned()) return void 0;
+		if (motion === false || reducedMotion()) return void 0;
 		return popoverNativeTransition({
 			generation: transitionGeneration(),
 			duration,
@@ -2137,82 +2079,25 @@ function Popover(props) {
 			stopPropagation() {}
 		});
 	});
-	const updatePosition = async () => {
+	const floatingPosition = () => {
+		const options = {
+			placement: props.placement ?? "bottom-start",
+			offset: props.offset ?? 6,
+			margin: 8
+		};
 		const point = props.anchorPoint?.();
-		const reference = anchor;
-		if (!open() || !point && !reference || !content) return;
-		const request = ++positionRequest;
-		try {
-			const options = {
-				placement: props.placement ?? "bottom-start",
-				middleware: [
-					offset(props.offset ?? 6),
-					flip(),
-					shift({ padding: 8 })
-				]
-			};
-			let result;
-			if (point) result = await computeHostPointFloatingPosition(point, content, host, options);
-			else {
-				if (!reference) return;
-				result = await computeHostFloatingPosition(reference, content, host, options);
-			}
-			if (!open() || request !== positionRequest) return;
-			setPosition({
-				x: result.x,
-				y: result.y
-			});
-			setPositioned(true);
-		} catch (error) {
-			if (error instanceof LayoutTargetUnavailableError && open() && request === positionRequest) {
-				schedulePosition();
-				return;
-			}
-			throw error;
-		}
+		if (point) return floatingFromPoint(point, options);
+		return anchor ? floatingFromNode(anchor, options) : void 0;
 	};
-	const schedulePosition = () => {
-		cancelAnimationFrame(frame);
-		frame = requestAnimationFrame(() => void updatePosition());
-	};
-	const observe = (node) => {
-		observer?.observe(node);
-		schedulePosition();
-	};
-	createEffect(open, (isOpen) => {
-		if (!isOpen) {
-			positionRequest++;
-			observer?.disconnect();
-			observer = void 0;
-			return;
-		}
-		observer = new ResizeObserver(schedulePosition);
-		if (anchor) observer.observe(anchor);
-		frame = requestAnimationFrame(() => void updatePosition());
-	});
-	createEffect(() => [
-		open(),
-		positioned(),
-		reducedMotion()
-	], ([isOpen, isPositioned, prefersReducedMotion]) => {
-		if (isOpen && !isPositioned) return;
-		if (!isOpen && !isPositioned) {
-			presence.finishExit();
-			return;
-		}
+	createEffect(() => [open(), reducedMotion()], ([isOpen, prefersReducedMotion]) => {
 		setTransitionGeneration((value) => value + 1);
 		if (motion === false || prefersReducedMotion || duration <= 0) {
 			if (isOpen) presence.finishEnter();
 			else presence.finishExit();
 		}
 	});
-	createEffect(presence.phase, (phase) => {
-		if (phase === "unmounted") setPositioned(false);
-	});
 	onCleanup(() => {
 		stopObservingPointer();
-		cancelAnimationFrame(frame);
-		observer?.disconnect();
 	});
 	const handleEscape = (event) => layer.onEscape(event);
 	const popup = () => {
@@ -2222,7 +2107,6 @@ function Popover(props) {
 	const triggerProps = {
 		ref: (node) => {
 			anchor = node;
-			if (open()) observe(node);
 		},
 		onPointerDown: (event) => {
 			if (!props.openOnPointerDown || open() || event.button !== void 0 && event.button !== 0) return;
@@ -2258,9 +2142,6 @@ function Popover(props) {
 				get plane() {
 					return plane();
 				},
-				ref: (node) => {
-					observe(node);
-				},
 				role: "presentation",
 				get style() {
 					return {
@@ -2279,12 +2160,10 @@ function Popover(props) {
 					})() ? void 0 : layer.onOutside;
 				},
 				onKeyDown: handleEscape,
-				onWheel: schedulePosition,
 				get children() {
 					return createComponent$1(View, {
 						ref: (node) => {
 							content = node;
-							observe(node);
 						},
 						get role() {
 							return props.contentRole ?? "dialog";
@@ -2304,6 +2183,9 @@ function Popover(props) {
 						get nativeTransition() {
 							return nativeTransition();
 						},
+						get floatingPosition() {
+							return floatingPosition();
+						},
 						get interactionBlocked() {
 							return !open() || props.contentInteractionBlocked;
 						},
@@ -2313,8 +2195,6 @@ function Popover(props) {
 						get style() {
 							return {
 								position: "absolute",
-								left: positioned() ? `${position().x}px` : "-100000px",
-								top: positioned() ? `${position().y}px` : "-100000px",
 								...props.contentStyle,
 								opacity: open() ? 1 : 0
 							};
@@ -2675,10 +2555,6 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	TextArea: () => TextArea,
 	TextInput: () => TextInput,
 	View: () => View,
-	arrow: () => arrow,
-	autoPlacement: () => autoPlacement,
-	computeFloatingPosition: () => computeFloatingPosition,
-	computeHostFloatingPosition: () => computeHostFloatingPosition,
 	createActive: () => createActive,
 	createAnimationFrame: () => createAnimationFrame,
 	createButton: () => createButton,
@@ -2701,16 +2577,14 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	createShortcuts: () => createShortcuts,
 	createTabs: () => createTabs,
 	createTransitionPresence: () => createTransitionPresence,
-	flip: () => flip,
-	offset: () => offset,
+	floatingFromNode: () => floatingFromNode,
+	floatingFromPoint: () => floatingFromPoint,
 	releaseImageResource: () => releaseImageResource,
 	rotate2d: () => rotate2d$1,
-	shift: () => shift,
-	size: () => size,
 	translate2d: () => translate2d$1,
 	useOverlayPlane: () => useOverlayPlane
 });
 //#endregion
-export { RichText as $, isSelected as A, createContainerMatch as B, OverlayPlaneProvider as C, createTransition as Ct, Column as D, useReducedMotion as Dt, Center as E, useMotionConfig as Et, createNetworkImageResource as F, Editor as G, Button as H, createOwnedImageResource as I, NativeWidget as J, Icon as K, releaseImageResource as L, FORM_ERROR as M, createFormDraft as N, Row as O, createFileImageResource as P, ProjectionBoundary as Q, CollapsiblePresence as R, Modal as S, createSweep as St, useOverlayPlane as T, MotionConfigProvider as Tt, Link as U, createMeasuredSize as V, createButton as W, Path as X, PasswordInput as Y, PathBuilder as Z, createNotifications as _, createKeyframeAnimation as _t, createScrollReset as a, View as at, Ripple as b, createPulse as bt, arrow as c, createActive as ct, computeHostFloatingPosition as d, createFocus as dt, RichTextSpan as et, flip as f, createFocusWithin as ft, NotificationRegion as g, createInterpolation as gt, size as h, animateKeyframes as ht, createShortcuts as i, TextInput as it, toggleSelection as j, createKeyedSelection as k, autoPlacement as l, createPress as lt, shift as m, animate as mt, createTransitionPresence as n, Text as nt, ScrollArea as o, rotate2d$1 as ot, offset as p, createAnimationFrame as pt, Image as q, createTabs as r, TextArea as rt, Popover as s, translate2d$1 as st, primitives_exports as t, Svg as tt, computeFloatingPosition as u, createHover as ut, createRetainedItems as v, createLoop as vt, createOverlayLayer as w, normalizeSweepGeometry as wt, Spin as x, createRotation as xt, Pulse as y, createNativeLoopAnimation as yt, createPresence as z };
+export { View as $, createOwnedImageResource as A, Icon as B, createKeyedSelection as C, createFormDraft as D, FORM_ERROR as E, createMeasuredSize as F, PathBuilder as G, NativeWidget as H, Button as I, RichTextSpan as J, ProjectionBoundary as K, Link as L, CollapsiblePresence as M, createPresence as N, createFileImageResource as O, createContainerMatch as P, TextInput as Q, createButton as R, Row as S, toggleSelection as T, PasswordInput as U, Image as V, Path as W, Text as X, Svg as Y, TextArea as Z, OverlayPlaneProvider as _, createTransition as _t, createScrollReset as a, createFocus as at, Center as b, useMotionConfig as bt, floatingFromNode as c, animate as ct, createNotifications as d, createKeyframeAnimation as dt, rotate2d$1 as et, createRetainedItems as f, createLoop as ft, Modal as g, createSweep as gt, Spin as h, createRotation as ht, createShortcuts as i, createHover as it, releaseImageResource as j, createNetworkImageResource as k, floatingFromPoint as l, animateKeyframes as lt, Ripple as m, createPulse as mt, createTransitionPresence as n, createActive as nt, ScrollArea as o, createFocusWithin as ot, Pulse as p, createNativeLoopAnimation as pt, RichText as q, createTabs as r, createPress as rt, Popover as s, createAnimationFrame as st, primitives_exports as t, translate2d$1 as tt, NotificationRegion as u, createInterpolation as ut, createOverlayLayer as v, normalizeSweepGeometry as vt, isSelected as w, Column as x, useReducedMotion as xt, useOverlayPlane as y, MotionConfigProvider as yt, Editor as z };
 
-//# sourceMappingURL=primitives-BsBk5rN4.mjs.map
+//# sourceMappingURL=primitives-BG5zyPXK.mjs.map

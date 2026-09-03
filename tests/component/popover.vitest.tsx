@@ -20,6 +20,7 @@ test("opens a styled dialog surface and dismisses with Escape", () => {
   const screen = renderComponent(() => (
     <Popover
       aria-label="Formatting options"
+      motion={false}
       trigger={(trigger) => <Button {...trigger}>Format</Button>}
     >
       <PopoverHeader>
@@ -71,7 +72,7 @@ test("supports application-owned open state", () => {
   expect(screen.getByRole("status", { name: "Closed" }).text).toBe("Closed");
 });
 
-test("positions on the first frame after opening", async () => {
+test("authors native positioning without a layout-snapshot round trip", () => {
   const fixture = createTestHost();
   const screen = renderComponent(
     () => (
@@ -86,10 +87,17 @@ test("positions on the first frame after opening", async () => {
   );
 
   screen.getByRole("button", { name: "Actions" }).click();
+  const trigger = screen.getByRole("button", { name: "Actions" });
+  const popover = screen.getByRole("dialog", { name: "Fast actions" });
+  expect(
+    JSON.parse(popover.attribute("__wabou_floating_position") ?? "null"),
+  ).toEqual({
+    anchor: { kind: "node", id: trigger.identity },
+    placement: "bottom-start",
+    offset: 6,
+    margin: 8,
+  });
   expect(fixture.callsTo("layout.snapshot")).toHaveLength(0);
-  await screen.advanceTime(32);
-  screen.flush();
-  expect(fixture.callsTo("layout.snapshot")).toHaveLength(1);
 });
 
 test("compiles popup enter and exit intent into finite GPUI transitions", () => {
@@ -132,6 +140,7 @@ test("passthrough outside dismissal preserves the underlying gesture", () => {
     <>
       <Popover
         aria-label="Quick actions"
+        motion={false}
         outsidePointerStrategy="passthrough"
         trigger={(trigger) => <Button {...trigger}>Actions</Button>}
       >

@@ -74,6 +74,7 @@ import {
   OnboardingHeader,
   OnboardingHeading,
   OnboardingTitle,
+  Popover,
   Progress,
   ProgressCircle,
   PromptSuggestion,
@@ -1145,6 +1146,31 @@ export function TooltipLayoutFixture() {
       <View class="max-w-xs rounded-lg border border-subtle bg-surface px-2 py-1.5">
         <TooltipContent shortcut="Ctrl K">Open command palette</TooltipContent>
       </View>
+    </View>
+  );
+}
+
+export function PopoverPlacementLayoutFixture() {
+  return (
+    <View class="relative w-full h-full bg-canvas">
+      <Popover
+        aria-label="Native positioned popup"
+        defaultOpen
+        motion={false}
+        placement="bottom-end"
+        trigger={(trigger) => (
+          <Button
+            {...trigger}
+            aria-label="Bottom edge trigger"
+            class="absolute right-2 bottom-2"
+          >
+            Open
+          </Button>
+        )}
+        contentClass="w-40 h-20 bg-surface border border-subtle"
+      >
+        <Text>Native popup content</Text>
+      </Popover>
     </View>
   );
 }

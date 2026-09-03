@@ -107,22 +107,11 @@ export {
   type PopoverTriggerProps,
 } from "./popover";
 export {
-  arrow,
-  autoPlacement,
-  type ComputeFloatingPositionOptions,
-  type ComputeHostFloatingPositionOptions,
-  type ComputePositionReturn,
-  computeFloatingPosition,
-  computeHostFloatingPosition,
-  flip,
-  type LayoutRect,
-  type Middleware,
-  offset,
+  type FloatingPositionOptions,
+  floatingFromNode,
+  floatingFromPoint,
   type Placement,
-  type PositionPlatform,
-  type Strategy,
-  shift,
-  size,
+  type PointAnchor,
 } from "./positioner";
 export {
   createPresence,

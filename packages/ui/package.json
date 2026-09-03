@@ -45,7 +45,6 @@
     "build": "bun run ../../scripts/build-packages.ts ui"
   },
   "dependencies": {
-    "@floating-ui/core": "^1.8.0",
     "@internationalized/date": "^3.12.3",
     "@internationalized/number": "^3.5.3",
     "@tanstack/history": "1.162.1",
