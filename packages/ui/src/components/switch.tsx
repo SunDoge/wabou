@@ -10,6 +10,7 @@ import {
   View,
 } from "../primitives";
 import { Label } from "./label";
+import { componentsDisabledInteractiveClass } from "./theme";
 
 export interface SwitchProps {
   checked?: boolean;
@@ -25,6 +26,7 @@ export interface SwitchProps {
 }
 
 function switchColors(checked: boolean, state: ButtonState): string {
+  if (state.disabled) return checked ? "bg-accent" : "bg-control";
   return match({ checked, pressed: state.pressed, hovered: state.hovered })
     .with({ checked: true, pressed: true }, () => "bg-accent-pressed")
     .with({ checked: true, hovered: true }, () => "bg-accent-hover")
@@ -98,10 +100,12 @@ export function Switch(props: SwitchProps): JSX.Element {
         disabled={props.disabled}
         aria-label={props["aria-label"] ?? props.label}
         aria-checked={checked()}
-        class={switchControlClass}
-        style={(state) => ({
-          opacity: state.disabled ? 0.45 : 1,
-        })}
+        class={(state) =>
+          mergeClasses(
+            switchControlClass(state),
+            componentsDisabledInteractiveClass(state.disabled),
+          )
+        }
         onClick={toggle}
         renderContent={(buttonState) => (
           <View

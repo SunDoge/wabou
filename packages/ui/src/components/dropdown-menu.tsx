@@ -15,6 +15,7 @@ import type { Placement, PointAnchor } from "../primitives/positioner";
 import { type MenuStateItem, moveMenuHighlight } from "./menu-state";
 import type { PopupMotionProps } from "./popover";
 import {
+  componentsDisabledItemClass,
   componentsElevation,
   componentsSurfaceClass,
   useComponentsTheme,
@@ -221,12 +222,12 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
                 aria-checked={item().checked}
                 class={mergeClasses(
                   "w-full min-h-8 flex-none px-2 py-1.5 flex flex-row items-center gap-2 rounded-md",
-                  highlighted() === item().id
+                  highlighted() === item().id && !item().disabled
                     ? "bg-control-hover"
                     : "bg-transparent",
                   item().destructive ? "text-danger-primary" : "text-primary",
+                  componentsDisabledItemClass(item().disabled ?? false),
                 )}
-                style={{ opacity: item().disabled ? 0.45 : 1 }}
                 onPointerMove={() =>
                   !item().disabled && setHighlighted(item().id)
                 }

@@ -61,3 +61,19 @@ test("visually distinguishes unavailable options", () => {
   expect(disabled.className).toContain("cursor-not-allowed");
   expect(disabled.className).toContain("opacity-60");
 });
+
+test("uses neutral disabled chrome instead of an actionable picker surface", () => {
+  const screen = renderComponent(() => (
+    <Combobox aria-label="Disabled technology" options={options} disabled />
+  ));
+  const trigger = screen.getByRole("combobox", {
+    name: "Disabled technology",
+    disabled: true,
+  });
+
+  expect(trigger.className).toContain("bg-surface-muted");
+  expect(trigger.className).toContain("border-subtle");
+  expect(trigger.className).toContain("text-muted");
+  expect(trigger.className).toContain("cursor-not-allowed");
+  expect(trigger.className).toContain("opacity-60");
+});

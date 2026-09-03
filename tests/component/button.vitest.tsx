@@ -126,5 +126,10 @@ test("distinguishes an inert loading action from a visually disabled action", ()
     disabled: true,
   });
   expect(loading.style("opacity")).toBe("1");
-  expect(disabled.style("opacity")).toBe("0.45");
+  expect(loading.className).not.toContain("bg-surface-muted");
+  expect(disabled.className).toContain("bg-surface-muted");
+  expect(disabled.className).toContain("border-subtle");
+  expect(disabled.className).toContain("text-muted");
+  expect(disabled.className).toContain("cursor-not-allowed");
+  expect(disabled.className).toContain("opacity-60");
 });

@@ -42,8 +42,8 @@ test("retargets the same spring instead of replacing the motion primitive", () =
     enabledThumb?.attribute("__wabou_native_spring") ?? "null",
   );
   control.click();
-  const disabledThumb = screen.getByRole("switch", { name: "Sync" })
-    .children[0]?.children[0];
+  const disabledThumb = screen.getByRole("switch", { name: "Sync" }).children[0]
+    ?.children[0];
   const disabled = JSON.parse(
     disabledThumb?.attribute("__wabou_native_spring") ?? "null",
   );
@@ -153,6 +153,8 @@ test("disabled switch labels cannot activate the control", () => {
   const control = screen.getByRole("switch", { name: "Enable subagents" });
   const label = screen.getByRole("label", { name: "Enable subagents" });
 
+  expect(control.className).toContain("cursor-not-allowed");
+  expect(control.className).toContain("opacity-60");
   expect(() => label.click()).toThrow("cannot click disabled");
   expect(control.checked).toBe(false);
   expect(control.focused).toBe(false);

@@ -125,6 +125,21 @@ test("records the complete authored InputGroup contract without a native host", 
   `);
 });
 
+test("uses the shared disabled control surface", () => {
+  const screen = renderComponent(() => (
+    <InputGroup aria-label="Unavailable URL" disabled>
+      <InputGroupInput aria-label="Unavailable hostname" disabled />
+    </InputGroup>
+  ));
+  const group = screen.getByRole("group", { name: "Unavailable URL" });
+
+  expect(group.className).toContain("bg-surface-muted");
+  expect(group.className).toContain("border-subtle");
+  expect(group.className).toContain("text-muted");
+  expect(group.className).toContain("cursor-not-allowed");
+  expect(group.className).toContain("opacity-60");
+});
+
 test("focuses the registered native editor through an addon", () => {
   const screen = renderComponent(() => (
     <InputGroup aria-label="Project URL">

@@ -29,6 +29,11 @@ test("listbox navigates enabled options and activates the highlighted value", ()
   expect(feature.selected).toBe(true);
   expect(feature.className).toContain("rounded-md");
   expect(feature.className).toContain("min-h-8");
+  const disabled = screen.getByRole("option", { name: "Release branch" });
+  expect(disabled.className).toContain("bg-surface-muted");
+  expect(disabled.className).toContain("text-muted");
+  expect(disabled.className).toContain("cursor-not-allowed");
+  expect(disabled.className).toContain("opacity-60");
 });
 
 test("listbox supports pointer selection and explicit dismissal", () => {

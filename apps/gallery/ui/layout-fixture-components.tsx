@@ -24,6 +24,7 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  Combobox,
   ComponentsProvider,
   ContentState,
   createToasts,
@@ -761,6 +762,61 @@ export function ControlBaselineLayoutFixture() {
           Delete
         </Button>
       </ButtonGroup>
+    </View>
+  );
+}
+
+export function DisabledControlsLayoutFixture() {
+  const options = [
+    { id: "stable", value: "stable", label: "Stable" },
+    { id: "locked", value: "locked", label: "Locked", disabled: true },
+  ];
+  return (
+    <View class="w-full h-full min-w-0 p-6 flex flex-col items-start gap-5 bg-canvas">
+      <TypographyH3 role="heading" aria-label="Disabled controls heading">
+        Disabled controls
+      </TypographyH3>
+      <View class="w-full min-w-0 flex flex-row items-center gap-3">
+        <Button aria-label="Available destructive action" variant="destructive">
+          Delete
+        </Button>
+        <Button
+          aria-label="Disabled destructive action"
+          variant="destructive"
+          disabled
+        >
+          Delete
+        </Button>
+      </View>
+      <View class="w-full min-w-0 flex flex-row items-center gap-3">
+        <Input class="w-56" aria-label="Available input" value="Editable" />
+        <Input
+          class="w-56"
+          aria-label="Disabled input"
+          value="Unavailable"
+          disabled
+        />
+      </View>
+      <View class="w-full min-w-0 flex flex-row items-center gap-3">
+        <Select
+          class="w-56"
+          aria-label="Disabled select"
+          options={options}
+          defaultValue="stable"
+          disabled
+        />
+        <Combobox
+          class="w-56"
+          aria-label="Disabled combobox"
+          options={options}
+          defaultValue="stable"
+          disabled
+        />
+      </View>
+      <View class="w-full min-w-0 flex flex-row items-center gap-6">
+        <Checkbox label="Disabled checkbox" defaultChecked disabled />
+        <Switch label="Disabled switch" defaultChecked disabled />
+      </View>
     </View>
   );
 }

@@ -2,6 +2,7 @@ import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { match } from "ts-pattern";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
+import { componentsDisabledInteractiveClass } from "./theme";
 
 export type ItemVariant = "default" | "outline" | "muted";
 export type ItemSize = "default" | "sm";
@@ -63,9 +64,10 @@ export function Item(props: ItemProps): JSX.Element {
         mergeClasses(
           props.selected && "border-strong bg-selected",
           props.class,
+          componentsDisabledInteractiveClass(props.disabled ?? false),
         ),
       )}
-      style={{ ...props.style, opacity: props.disabled ? 0.45 : undefined }}
+      style={props.style}
     >
       {props.children}
     </View>

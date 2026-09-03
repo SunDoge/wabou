@@ -14,6 +14,7 @@ import {
   ContentStateLayoutFixture,
   ControlBaselineLayoutFixture,
   DarkSurfaceLayoutFixture,
+  DisabledControlsLayoutFixture,
   DialogLayoutFixture,
   DropdownMenuLayoutFixture,
   EditorLayoutFixture,
@@ -138,6 +139,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 520,
         height: 380,
         render: ControlBaselineLayoutFixture,
+      },
+      "component/DisabledControls": {
+        width: 560,
+        height: 330,
+        render: DisabledControlsLayoutFixture,
       },
       "component/SelectionControls": {
         width: 420,

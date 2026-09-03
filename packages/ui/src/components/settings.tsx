@@ -1,6 +1,7 @@
 import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
+import { componentsDisabledInteractiveClass } from "./theme";
 
 export type SettingsItemOrientation = "horizontal" | "vertical";
 
@@ -49,8 +50,9 @@ export function SettingsItem(props: SettingsItemProps): JSX.Element {
           ? "flex-row items-start justify-between gap-6"
           : "flex-col items-stretch gap-3",
         props.class,
+        componentsDisabledInteractiveClass(props.disabled ?? false),
       )}
-      style={{ ...props.style, opacity: props.disabled ? 0.45 : undefined }}
+      style={props.style}
     >
       <View
         class={mergeClasses(

@@ -11,7 +11,10 @@ import {
   createButtonGroupContext,
   useButtonGroupItem,
 } from "./button-group-context";
-import { componentsControlContentSize } from "./theme";
+import {
+  componentsControlContentSize,
+  componentsDisabledInteractiveClass,
+} from "./theme";
 
 export interface ButtonGroupProps extends Omit<ViewProps, "class"> {
   orientation?: ButtonGroupOrientation;
@@ -78,9 +81,10 @@ export function ButtonGroupText(props: TextProps): JSX.Element {
       class={mergeClasses(
         "flex-none flex items-center whitespace-nowrap font-medium text-secondary bg-control",
         componentsControlContentSize(size()),
-        groupItem?.disabled() && "opacity-50",
+        groupItem?.disabled() && "bg-surface-muted text-muted",
         groupItem && buttonGroupItemCorners(groupItem),
         props.class,
+        componentsDisabledInteractiveClass(groupItem?.disabled() ?? false),
       )}
     >
       {props.children}

@@ -22,7 +22,10 @@ import {
   createControllableState,
   createRovingFocus,
 } from "../primitives/interactions";
-import { componentsControlSize } from "./theme";
+import {
+  componentsControlSize,
+  componentsDisabledInteractiveClass,
+} from "./theme";
 
 export type SelectionControlSize = "sm" | "default" | "lg";
 
@@ -129,14 +132,12 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
       class={(buttonState) =>
         mergeClasses(
           selectionControlClass(!!props.label, size()),
-          buttonState.hovered && "bg-control-hover",
+          !buttonState.disabled && buttonState.hovered && "bg-control-hover",
           buttonState.focusVisible && "border-focus",
           props.class,
+          componentsDisabledInteractiveClass(buttonState.disabled),
         )
       }
-      style={(buttonState) => ({
-        opacity: buttonState.disabled ? 0.45 : 1,
-      })}
       onClick={toggle}
     >
       <Center
@@ -301,14 +302,14 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
             : selectionControlClass(!!props.label, size()),
           group.appearance() === "segment" && checked()
             ? "bg-selected text-primary shadow-xs"
-            : buttonState.hovered && "bg-control-hover",
+            : !buttonState.disabled &&
+                buttonState.hovered &&
+                "bg-control-hover",
           buttonState.focusVisible && "border-focus",
           props.class,
+          componentsDisabledInteractiveClass(buttonState.disabled),
         )
       }
-      style={(buttonState) => ({
-        opacity: buttonState.disabled ? 0.45 : 1,
-      })}
       onClick={() => group.select(props.value)}
       onFocus={() => group.activate(props.value)}
       onKeyDown={(event) => {
@@ -382,7 +383,10 @@ export function Toggle(props: ToggleProps): JSX.Element {
       .with("lg", () => `${componentsControlSize("lg")} min-w-10`)
       .exhaustive();
   const colors = (state: ButtonState) =>
-    match({ selected: pressed(), hovered: state.hovered })
+    match({
+      selected: pressed(),
+      hovered: !state.disabled && state.hovered,
+    })
       .with({ selected: true }, () => "bg-selected border-accent text-primary")
       .with({ hovered: true }, () => "bg-control-hover text-primary")
       .otherwise(() => "bg-transparent text-secondary");
@@ -404,9 +408,9 @@ export function Toggle(props: ToggleProps): JSX.Element {
             .exhaustive(),
           state.focusVisible && "border-focus",
           props.class,
+          componentsDisabledInteractiveClass(state.disabled),
         )
       }
-      style={(state) => ({ opacity: state.disabled ? 0.45 : 1 })}
       onClick={toggle}
     >
       {props.children}
@@ -595,7 +599,7 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
           match({
             selected: selected(),
             accent: props.variant === "accent",
-            hovered: state.hovered,
+            hovered: !state.disabled && state.hovered,
           })
             .with(
               { selected: true, accent: true },
@@ -610,9 +614,9 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
             "border-strong",
           state.focusVisible && "border-focus",
           props.class,
+          componentsDisabledInteractiveClass(state.disabled),
         )
       }
-      style={(state) => ({ opacity: state.disabled ? 0.45 : 1 })}
       onFocus={() => group.activate(props.value)}
       onClick={() => group.toggle(props.value)}
       onKeyDown={(event) => {

@@ -63,7 +63,8 @@ test("settings items own orientation, control placement and disabled state", () 
   expect(proxy.orientation).toBe("vertical");
   expect(proxy.disabled).toBe(true);
   expect(proxy.interactionBlocked).toBe(true);
-  expect(proxy.style("opacity")).toBe("0.45");
+  expect(proxy.className).toContain("cursor-not-allowed");
+  expect(proxy.className).toContain("opacity-60");
   expect(screen.getByRole("textbox", { name: "Proxy URL" }).disabled).toBe(
     true,
   );

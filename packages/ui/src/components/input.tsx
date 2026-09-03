@@ -8,7 +8,12 @@ import {
   TextInput as PrimitiveTextInput,
   type TextInputProps as PrimitiveTextInputProps,
 } from "../primitives";
-import { componentsControlContentSize, componentsControlSize } from "./theme";
+import {
+  componentsControlContentSize,
+  componentsControlSize,
+  componentsDisabledContentClass,
+  componentsDisabledControlClass,
+} from "./theme";
 
 export interface InputProps extends PrimitiveTextInputProps {
   class?: string;
@@ -48,8 +53,10 @@ export function Input(props: InputProps): JSX.Element {
             "border border-subtle shadow-xs",
             props.surfaceClass ?? "bg-input",
           ),
-        props.disabled && "opacity-50",
         props.class,
+        (props.chrome ?? "default") === "default"
+          ? componentsDisabledControlClass(props.disabled ?? false)
+          : componentsDisabledContentClass(props.disabled ?? false),
       )}
     />
   );
@@ -68,8 +75,8 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
         "w-full flex items-center py-2 border shadow-xs",
         componentsControlSize("default"),
         "border-subtle bg-input text-primary",
-        props.disabled && "opacity-50",
         props.class,
+        componentsDisabledControlClass(props.disabled ?? false),
       )}
     />
   );
@@ -100,8 +107,10 @@ export function TextArea(props: TextAreaProps): JSX.Element {
             "rounded-md border border-subtle shadow-xs",
             props.surfaceClass ?? "bg-input",
           ),
-        props.disabled && "opacity-50",
         props.class,
+        (props.chrome ?? "default") === "default"
+          ? componentsDisabledControlClass(props.disabled ?? false)
+          : componentsDisabledContentClass(props.disabled ?? false),
       )}
     />
   );

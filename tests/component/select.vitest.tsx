@@ -83,6 +83,23 @@ test("navigates with the keyboard while skipping disabled options", async () => 
   expect(screen.queryByRole("listbox")).toBeNull();
 });
 
+test("uses neutral disabled chrome instead of an actionable picker surface", () => {
+  const screen = renderComponent(() => (
+    <Select aria-label="Disabled technology" options={options} disabled />
+  ));
+  const trigger = screen.getByRole("combobox", {
+    name: "Disabled technology",
+    disabled: true,
+  });
+
+  expect(trigger.className).toContain("bg-surface-muted");
+  expect(trigger.className).toContain("border-subtle");
+  expect(trigger.className).toContain("text-muted");
+  expect(trigger.className).toContain("cursor-not-allowed");
+  expect(trigger.className).toContain("opacity-60");
+  expect(() => trigger.click()).toThrow("cannot click disabled component");
+});
+
 test("keeps controlled open state owned by the application", () => {
   const App = () => {
     const [open, setOpen] = createSignal(false);

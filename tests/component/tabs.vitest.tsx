@@ -53,6 +53,9 @@ test("selects tabs and publishes only the active panel", () => {
   expect(overview.selected).toBe(true);
   expect(overview.focusOrder).toBe(0);
   expect(settings.focusOrder).toBe(-1);
+  const disabled = screen.getByRole("tab", { name: "Activity" });
+  expect(disabled.className).toContain("cursor-not-allowed");
+  expect(disabled.className).toContain("opacity-60");
   const panel = screen.getByRole("tabpanel");
   expect(panel.text).toBe("Overview panel");
   expect(panel.className).toContain("w-full");

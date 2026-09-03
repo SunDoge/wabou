@@ -16,6 +16,7 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
+import { componentsDisabledInteractiveClass } from "./theme";
 
 export function normalizeOtpValue(
   value: string,
@@ -91,8 +92,8 @@ export function InputOTP(props: InputOTPProps): JSX.Element {
         aria-label={props["aria-label"]}
         class={mergeClasses(
           "relative inline-flex flex-none items-center gap-2",
-          props.disabled && "opacity-50",
           props.class,
+          componentsDisabledInteractiveClass(props.disabled ?? false),
         )}
       >
         {props.children}

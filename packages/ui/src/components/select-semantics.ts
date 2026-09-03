@@ -1,5 +1,9 @@
 import { mergeClasses } from "@wabou/core/style";
 import type { ButtonState } from "../primitives";
+import {
+  componentsDisabledControlClass,
+  componentsDisabledItemClass,
+} from "./theme";
 
 export type PickerTriggerVariant = "default" | "ghost";
 
@@ -7,6 +11,11 @@ export function pickerTriggerClass(
   variant: PickerTriggerVariant,
   state: ButtonState,
 ): string {
+  if (state.disabled)
+    return mergeClasses(
+      variant === "default" ? "shadow-none" : "bg-transparent shadow-none",
+      componentsDisabledControlClass(true),
+    );
   const focus = state.focused ? "border-focus" : "border-transparent";
   if (variant === "default") {
     return mergeClasses(
@@ -38,8 +47,7 @@ export function pickerOptionClass(
   disabled: boolean,
   highlighted: boolean,
 ): string {
-  if (disabled)
-    return "bg-surface-muted text-muted cursor-not-allowed opacity-60";
+  if (disabled) return componentsDisabledItemClass(true);
   if (highlighted) return "bg-control-hover text-primary cursor-pointer";
   return "bg-transparent text-secondary cursor-pointer";
 }

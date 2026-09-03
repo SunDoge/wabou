@@ -12,7 +12,11 @@ import {
   useButtonGroupItem,
 } from "./button-group-context";
 import { Spinner } from "./display";
-import { componentsControlContentSize, componentsControlSize } from "./theme";
+import {
+  componentsControlContentSize,
+  componentsControlSize,
+  componentsDisabledControlClass,
+} from "./theme";
 
 export type ButtonVariant =
   | "default"
@@ -34,7 +38,12 @@ export interface ButtonProps
   loadingLabel?: string;
 }
 
-function buttonColors(variant: ButtonVariant, state: ButtonState): string {
+function buttonColors(
+  variant: ButtonVariant,
+  state: ButtonState,
+  visuallyDisabled = false,
+): string {
+  if (visuallyDisabled) return "bg-surface-muted border-subtle text-muted";
   const focus = state.focusVisible ? "border-focus" : "";
   // A selected button is a persistent active control. Match gpui-component's
   // state ordering: selected owns the active palette and hover must not wash
@@ -149,11 +158,12 @@ export function Button(props: ButtonProps): JSX.Element {
       class={(state) =>
         mergeClasses(
           "inline-flex flex-none overflow-hidden whitespace-nowrap items-center justify-center border font-medium",
-          buttonColors(variant(), state),
+          buttonColors(variant(), state, visuallyDisabled()),
           buttonSize(size(), groupItem !== undefined),
           groupItem && buttonGroupItemCorners(groupItem),
           groupItem && "border-transparent",
           local.class,
+          componentsDisabledControlClass(visuallyDisabled()),
         )
       }
       style={(state) =>
@@ -161,7 +171,7 @@ export function Button(props: ButtonProps): JSX.Element {
           "border-width": 1,
           // Loading is inert but remains visually prominent; only an actual
           // disabled policy fades the control.
-          opacity: visuallyDisabled() ? 0.45 : 1,
+          ...(visuallyDisabled() ? {} : { opacity: 1 }),
           ...(typeof local.style === "function"
             ? local.style(state)
             : local.style),

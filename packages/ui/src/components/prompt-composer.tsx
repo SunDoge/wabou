@@ -3,6 +3,7 @@ import { children, type JSX, omit, Show } from "solid-js";
 import { createFocusWithin, View, type ViewProps } from "../primitives";
 import { Button, type ButtonProps } from "./button";
 import { TextArea, type TextAreaProps } from "./input";
+import { componentsDisabledControlClass } from "./theme";
 
 export interface PromptComposerProps extends Omit<ViewProps, "class"> {
   class?: string;
@@ -71,8 +72,8 @@ export function promptComposerClass(
   return mergeClasses(
     "w-full min-w-0 rounded-xl border shadow-xs px-3 pt-2 pb-2 flex flex-col gap-2",
     invalid ? "border-danger" : focused ? "border-focus" : "border-subtle",
-    disabled && "opacity-50",
     className,
+    componentsDisabledControlClass(disabled),
   );
 }
 

@@ -20,6 +20,7 @@ import {
 import { Button, type ButtonProps } from "./button";
 import { Input, type InputProps } from "./input";
 import { Label, type LabelProps } from "./label";
+import { componentsDisabledControlClass } from "./theme";
 export type FieldOrientation = "vertical" | "horizontal";
 
 interface FieldContextValue {
@@ -398,8 +399,8 @@ export function InputGroup(props: InputGroupProps) {
           ),
           props.surfaceClass ??
             (props.variant === "quiet" ? "bg-transparent" : "bg-input"),
-          props.disabled && "opacity-50",
           props.class,
+          componentsDisabledControlClass(props.disabled ?? false),
         )}
       >
         {props.children}

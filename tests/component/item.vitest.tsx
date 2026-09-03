@@ -47,6 +47,7 @@ test("a disabled item authors a blocked and visibly subdued subtree", () => {
 
   const item = screen.getByRole("listitem", { name: "Unavailable project" });
   expect(item.interactionBlocked).toBe(true);
-  expect(item.style("opacity")).toBe("0.45");
+  expect(item.className).toContain("cursor-not-allowed");
+  expect(item.className).toContain("opacity-60");
   expect(screen.getByRole("button", { name: "Open" })).toBeTruthy();
 });

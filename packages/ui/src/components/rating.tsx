@@ -15,6 +15,7 @@ import {
   normalizeRatingMax,
   ratingLabel,
 } from "./rating-state";
+import { componentsDisabledInteractiveClass } from "./theme";
 
 export {
   clampRatingValue,
@@ -101,8 +102,11 @@ export function Rating(props: RatingProps): JSX.Element {
       aria-label={props.label}
       aria-disabled={disabled() || undefined}
       aria-orientation="horizontal"
-      class={mergeClasses("flex flex-col items-start gap-1.5", props.class)}
-      style={{ opacity: disabled() ? 0.45 : 1 }}
+      class={mergeClasses(
+        "flex flex-col items-start gap-1.5",
+        props.class,
+        componentsDisabledInteractiveClass(disabled()),
+      )}
     >
       <View class="flex flex-row items-center gap-0.5">
         <ForValue each={items()}>

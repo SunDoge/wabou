@@ -109,6 +109,8 @@ test("supports controlled values and rejects disabled interaction", () => {
   const disabled = screen.getByRole("slider", { name: "Unavailable" });
   expect(disabled.disabled).toBe(true);
   expect(disabled.focusOrder).toBe(-1);
+  expect(disabled.className).toContain("cursor-not-allowed");
+  expect(disabled.className).toContain("opacity-60");
   expect(() => disabled.press("End")).toThrow(
     'cannot press disabled component slider "Unavailable"',
   );

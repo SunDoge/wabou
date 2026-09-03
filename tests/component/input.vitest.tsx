@@ -140,6 +140,10 @@ test("blocks authored disabled and read-only editors", () => {
   });
 
   expect(disabled.readOnly).toBe(false);
+  expect(disabled.className).toContain("bg-surface-muted");
+  expect(disabled.className).toContain("text-muted");
+  expect(disabled.className).toContain("cursor-not-allowed");
+  expect(disabled.className).toContain("opacity-60");
   expect(readOnly.value).toBe("stable");
   expect(() => disabled.input("change")).toThrow(
     'cannot input into disabled component textbox "Disabled"',

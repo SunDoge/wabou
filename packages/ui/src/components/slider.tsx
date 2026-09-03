@@ -2,6 +2,7 @@ import { mergeClasses } from "@wabou/core/style";
 import { createSignal, type JSX } from "solid-js";
 import { NativeWidget } from "../primitives";
 import { decimalPlaces, finiteOr, normalizeRange } from "./range";
+import { componentsDisabledInteractiveClass } from "./theme";
 
 interface SliderKeyEvent {
   key: string;
@@ -80,8 +81,9 @@ export function Slider(props: SliderProps): JSX.Element {
         orientation() === "vertical"
           ? "w-7 h-[120px] select-none"
           : "w-full h-7 select-none",
-        props.disabled ? "cursor-not-allowed" : "cursor-pointer",
+        props.disabled ? "" : "cursor-pointer",
         props.class,
+        componentsDisabledInteractiveClass(props.disabled ?? false),
       )}
       config={{
         min: min(),

@@ -2299,6 +2299,8 @@ declare const componentsThemeContract: Readonly<{
   containerRadius: 8;
   containerPadding: 20;
   sectionGap: 16;
+  /** Disabled controls remain readable while losing active-surface emphasis. */
+  disabledOpacity: 0.6;
 }>;
 declare function componentsControlSize(size: ComponentsControlSize): string;
 /**

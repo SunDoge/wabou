@@ -572,6 +572,55 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   });
 };
 
+const assertDisabledControlsLayout = (snapshot: LayoutSnapshot) => {
+  const framedControls = [
+    getLayoutNode(snapshot, {
+      role: "button",
+      name: "Disabled destructive action",
+    }),
+    getLayoutNode(snapshot, { role: "textbox", name: "Disabled input" }),
+    getLayoutNode(snapshot, { role: "combobox", name: "Disabled select" }),
+    getLayoutNode(snapshot, {
+      role: "combobox",
+      name: "Disabled combobox",
+    }),
+  ];
+  for (const control of framedControls) {
+    for (const expected of [
+      "bg-surface-muted",
+      "border-subtle",
+      "text-muted",
+      "cursor-not-allowed",
+      "opacity-60",
+    ]) {
+      if (!control.classes.includes(expected))
+        throw new Error(`${control.tag} lacks disabled ${expected}`);
+    }
+    if (Math.abs((control.computed.opacity ?? 1) - 0.6) > 0.001)
+      throw new Error(`${control.tag} did not project disabled opacity`);
+  }
+
+  for (const [role, name] of [
+    ["checkbox", "Disabled checkbox"],
+    ["switch", "Disabled switch"],
+  ] as const) {
+    const control = getLayoutNode(snapshot, { role, name });
+    if (!control.classes.includes("cursor-not-allowed"))
+      throw new Error(`${name} retained an actionable pointer affordance`);
+    if (Math.abs((control.computed.opacity ?? 1) - 0.6) > 0.001)
+      throw new Error(`${name} did not project disabled opacity`);
+  }
+
+  const available = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Available destructive action",
+  });
+  if (!available.classes.includes("bg-danger"))
+    throw new Error("available destructive action lost its active palette");
+  if (available.classes.includes("bg-surface-muted"))
+    throw new Error("available destructive action looked disabled");
+};
+
 const assertSettingsItemLayout = (snapshot: LayoutSnapshot) => {
   const updates = getLayoutNode(snapshot, {
     role: "group",
@@ -610,7 +659,7 @@ const assertSettingsItemLayout = (snapshot: LayoutSnapshot) => {
   if (
     managed.computed.opacity === null ||
     managed.computed.opacity === undefined ||
-    Math.abs(managed.computed.opacity - 0.45) > 0.001
+    Math.abs(managed.computed.opacity - 0.6) > 0.001
   )
     throw new Error("disabled settings item did not expose reduced emphasis");
 };
@@ -1419,6 +1468,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/DropdownMenu": { assert: assertDropdownMenuLayout },
   "component/Item": { assert: assertItemLayout },
   "component/ControlBaseline": { assert: assertControlBaselineLayout },
+  "component/DisabledControls": { assert: assertDisabledControlsLayout },
   "component/SettingsItem": { assert: assertSettingsItemLayout },
   "component/GroupBox": { assert: assertGroupBoxLayout },
   "component/SelectionControls": { assert: assertSelectionControlsLayout },

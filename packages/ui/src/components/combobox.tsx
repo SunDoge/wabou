@@ -12,6 +12,7 @@ import {
 } from "./select-semantics";
 import {
   componentsControlSize,
+  componentsDisabledControlClass,
   componentsElevation,
   componentsSurfaceClass,
   useComponentsTheme,
@@ -110,9 +111,9 @@ export function Combobox(props: ComboboxProps): JSX.Element {
               componentsControlSize("default"),
               pickerTriggerClass(props.triggerVariant ?? "default", state),
               props.class,
+              componentsDisabledControlClass(state.disabled),
             )
           }
-          style={(state) => ({ opacity: state.disabled ? 0.45 : 1 })}
           onClick={popover.onClick}
           onKeyDown={popover.onKeyDown}
         >

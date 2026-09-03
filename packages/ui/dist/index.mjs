@@ -413,8 +413,32 @@ const componentsThemeContract = Object.freeze({
 	controlRadius: 6,
 	containerRadius: 8,
 	containerPadding: 20,
-	sectionGap: 16
+	sectionGap: 16,
+	/** Disabled controls remain readable while losing active-surface emphasis. */
+	disabledOpacity: .6
 });
+/**
+* Shared disabled chrome for framed controls.
+*
+* Opacity alone leaves primary and destructive controls looking actionable,
+* especially on light surfaces. Disabled controls therefore move onto the
+* neutral surface palette as well as losing emphasis and pointer affordance.
+*/
+function componentsDisabledControlClass(disabled) {
+	return disabled ? "cursor-not-allowed border-subtle bg-surface-muted text-muted opacity-60" : "";
+}
+/** Disabled treatment for controls whose checked/selected color must remain visible. */
+function componentsDisabledInteractiveClass(disabled) {
+	return disabled ? "cursor-not-allowed opacity-60" : "";
+}
+/** Disabled content nested inside a surface that already owns the opacity. */
+function componentsDisabledContentClass(disabled) {
+	return disabled ? "cursor-not-allowed text-muted" : "";
+}
+/** Shared unavailable-row treatment for listboxes, menus, and command surfaces. */
+function componentsDisabledItemClass(disabled) {
+	return disabled ? "cursor-not-allowed bg-surface-muted text-muted opacity-60" : "";
+}
 function componentsControlContentSize(size) {
 	switch (size) {
 		case "sm": return "h-7 px-2 gap-1 text-xs";
@@ -509,7 +533,8 @@ function useComponentsTheme() {
 }
 //#endregion
 //#region src/components/button.tsx
-function buttonColors(variant, state) {
+function buttonColors(variant, state, visuallyDisabled = false) {
+	if (visuallyDisabled) return "bg-surface-muted border-subtle text-muted";
 	const focus = state.focusVisible ? "border-focus" : "";
 	const active = state.pressed || state.selected;
 	const passiveBorder = (value) => match(value).with("outline", () => "border-strong").with(P.union("default", "secondary", "ghost", "destructive"), () => "border-transparent").exhaustive();
@@ -559,10 +584,10 @@ function Button(props) {
 			return local.loading ?? false;
 		},
 		unstyled: true,
-		class: (state) => mergeClasses("inline-flex flex-none overflow-hidden whitespace-nowrap items-center justify-center border font-medium", buttonColors(variant(), state), buttonSize(size(), groupItem !== void 0), groupItem && buttonGroupItemCorners(groupItem), groupItem && "border-transparent", local.class),
+		class: (state) => mergeClasses("inline-flex flex-none overflow-hidden whitespace-nowrap items-center justify-center border font-medium", buttonColors(variant(), state, visuallyDisabled()), buttonSize(size(), groupItem !== void 0), groupItem && buttonGroupItemCorners(groupItem), groupItem && "border-transparent", local.class, componentsDisabledControlClass(visuallyDisabled())),
 		style: (state) => ({
 			"border-width": 1,
-			opacity: visuallyDisabled() ? .45 : 1,
+			...visuallyDisabled() ? {} : { opacity: 1 },
 			...typeof local.style === "function" ? local.style(state) : local.style
 		}),
 		get children() {
@@ -1127,7 +1152,7 @@ function ButtonGroupText(props) {
 	const size = () => groupItem?.size() ?? "default";
 	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return mergeClasses("flex-none flex items-center whitespace-nowrap font-medium text-secondary bg-control", componentsControlContentSize(size()), groupItem?.disabled() && "opacity-50", groupItem && buttonGroupItemCorners(groupItem), props.class);
+			return mergeClasses("flex-none flex items-center whitespace-nowrap font-medium text-secondary bg-control", componentsControlContentSize(size()), groupItem?.disabled() && "bg-surface-muted text-muted", groupItem && buttonGroupItemCorners(groupItem), props.class, componentsDisabledInteractiveClass(groupItem?.disabled() ?? false));
 		},
 		get children() {
 			return props.children;
@@ -2079,14 +2104,14 @@ function Input(props) {
 			return (props.chrome ?? "default") === "default" ? "surface native-editor" : "native-editor";
 		},
 		get ["class"]() {
-			return mergeClasses("w-full flex items-center py-2 text-primary", (props.chrome ?? "default") === "default" ? componentsControlSize("default") : componentsControlContentSize("default"), (props.chrome ?? "default") === "default" && mergeClasses("border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
+			return mergeClasses("w-full flex items-center py-2 text-primary", (props.chrome ?? "default") === "default" ? componentsControlSize("default") : componentsControlContentSize("default"), (props.chrome ?? "default") === "default" && mergeClasses("border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.class, (props.chrome ?? "default") === "default" ? componentsDisabledControlClass(props.disabled ?? false) : componentsDisabledContentClass(props.disabled ?? false));
 		}
 	}));
 }
 /** A native secret input whose value never crosses into JavaScript. */
 function PasswordInput(props) {
 	return createComponent$1(PasswordInput$1, mergeProps(props, { get ["class"]() {
-		return mergeClasses("w-full flex items-center py-2 border shadow-xs", componentsControlSize("default"), "border-subtle bg-input text-primary", props.disabled && "opacity-50", props.class);
+		return mergeClasses("w-full flex items-center py-2 border shadow-xs", componentsControlSize("default"), "border-subtle bg-input text-primary", props.class, componentsDisabledControlClass(props.disabled ?? false));
 	} }));
 }
 function TextArea(props) {
@@ -2096,13 +2121,14 @@ function TextArea(props) {
 			return (props.chrome ?? "default") === "default" ? "surface native-editor" : "native-editor";
 		},
 		get ["class"]() {
-			return mergeClasses("h-24 w-full px-2.5 py-2 text-sm leading-normal text-primary", (props.chrome ?? "default") === "default" && mergeClasses("rounded-md border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
+			return mergeClasses("h-24 w-full px-2.5 py-2 text-sm leading-normal text-primary", (props.chrome ?? "default") === "default" && mergeClasses("rounded-md border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.class, (props.chrome ?? "default") === "default" ? componentsDisabledControlClass(props.disabled ?? false) : componentsDisabledContentClass(props.disabled ?? false));
 		}
 	}));
 }
 //#endregion
 //#region src/components/select-semantics.ts
 function pickerTriggerClass(variant, state) {
+	if (state.disabled) return mergeClasses(variant === "default" ? "shadow-none" : "bg-transparent shadow-none", componentsDisabledControlClass(true));
 	const focus = state.focused ? "border-focus" : "border-transparent";
 	if (variant === "default") return mergeClasses("bg-input shadow-xs", state.focused ? "border-focus" : "border-subtle");
 	return mergeClasses(state.pressed ? "bg-control-pressed" : state.hovered ? "bg-control-hover" : "bg-transparent", "shadow-none", focus);
@@ -2113,7 +2139,7 @@ function selectControlsId(listboxId, open) {
 }
 /** Shared visual contract for selectable and explicitly unavailable options. */
 function pickerOptionClass(disabled, highlighted) {
-	if (disabled) return "bg-surface-muted text-muted cursor-not-allowed opacity-60";
+	if (disabled) return componentsDisabledItemClass(true);
 	if (highlighted) return "bg-control-hover text-primary cursor-pointer";
 	return "bg-transparent text-secondary cursor-pointer";
 }
@@ -2477,8 +2503,7 @@ function Combobox(props) {
 				trigger = node;
 				popover.ref(node);
 			},
-			class: (state) => mergeClasses("w-72 overflow-hidden justify-between border", componentsControlSize("default"), pickerTriggerClass(props.triggerVariant ?? "default", state), props.class),
-			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
+			class: (state) => mergeClasses("w-72 overflow-hidden justify-between border", componentsControlSize("default"), pickerTriggerClass(props.triggerVariant ?? "default", state), props.class, componentsDisabledControlClass(state.disabled)),
 			get onClick() {
 				return popover.onClick;
 			},
@@ -2828,10 +2853,7 @@ function DropdownMenu(props) {
 								return item().checked;
 							},
 							get ["class"]() {
-								return mergeClasses("w-full min-h-8 flex-none px-2 py-1.5 flex flex-row items-center gap-2 rounded-md", highlighted() === item().id ? "bg-control-hover" : "bg-transparent", item().destructive ? "text-danger-primary" : "text-primary");
-							},
-							get style() {
-								return { opacity: item().disabled ? .45 : 1 };
+								return mergeClasses("w-full min-h-8 flex-none px-2 py-1.5 flex flex-row items-center gap-2 rounded-md", highlighted() === item().id && !item().disabled ? "bg-control-hover" : "bg-transparent", item().destructive ? "text-danger-primary" : "text-primary", componentsDisabledItemClass(item().disabled ?? false));
 							},
 							onPointerMove: () => !item().disabled && setHighlighted(item().id),
 							onClick: () => select(item().id),
@@ -3449,10 +3471,7 @@ function Calendar(props) {
 									get disabled() {
 										return disabled();
 									},
-									class: (state) => mergeClasses("w-8 h-8 rounded-md items-center justify-center text-sm", selected() ? "bg-accent text-on-accent" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-primary", outside() && "text-muted"),
-									get style() {
-										return { opacity: disabled() ? .35 : 1 };
-									},
+									class: (state) => mergeClasses("w-8 h-8 rounded-md items-center justify-center text-sm", selected() ? "bg-accent text-on-accent" : !state.disabled && state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-primary", outside() && "text-muted", componentsDisabledInteractiveClass(state.disabled)),
 									onClick: () => select(date()),
 									onKeyDown: (event) => handleKeyDown(event, date()),
 									get children() {
@@ -4081,7 +4100,7 @@ function Label(props) {
 			return props.disabled;
 		},
 		get ["class"]() {
-			return mergeClasses("min-w-0 text-sm font-medium text-primary", props.disabled ? "opacity-50" : "cursor-pointer", props.class);
+			return mergeClasses("min-w-0 text-sm font-medium text-primary", props.disabled ? "" : "cursor-pointer", props.class, componentsDisabledInteractiveClass(props.disabled ?? false));
 		},
 		onClick: (event) => {
 			props.onClick?.(event);
@@ -4404,7 +4423,7 @@ function InputGroup(props) {
 				},
 				"data-wabou-owns": "surface focus-ring",
 				get ["class"]() {
-					return mergeClasses(inputGroupClass(props.orientation ?? "horizontal", focus.focusWithin(), props.invalid ?? false, props.variant ?? "default"), props.surfaceClass ?? (props.variant === "quiet" ? "bg-transparent" : "bg-input"), props.disabled && "opacity-50", props.class);
+					return mergeClasses(inputGroupClass(props.orientation ?? "horizontal", focus.focusWithin(), props.invalid ?? false, props.variant ?? "default"), props.surfaceClass ?? (props.variant === "quiet" ? "bg-transparent" : "bg-input"), props.class, componentsDisabledControlClass(props.disabled ?? false));
 				},
 				get children() {
 					return props.children;
@@ -4839,7 +4858,7 @@ function DropZone(props) {
 			return props.disabled ? "true" : void 0;
 		},
 		get ["class"]() {
-			return mergeClasses("w-full min-w-0 min-h-36 px-6 py-5 flex flex-col items-center justify-center gap-3 rounded-xl border-2 text-center", isActive ? "border-accent bg-selected" : "border-strong bg-input", props.disabled && "opacity-50", props.class);
+			return mergeClasses("w-full min-w-0 min-h-36 px-6 py-5 flex flex-col items-center justify-center gap-3 rounded-xl border-2 text-center", isActive ? "border-accent bg-selected" : "border-strong bg-input", props.class, componentsDisabledControlClass(props.disabled ?? false));
 		},
 		get children() {
 			return [
@@ -5869,7 +5888,7 @@ function InputOTP(props) {
 					return props["aria-label"];
 				},
 				get ["class"]() {
-					return mergeClasses("relative inline-flex flex-none items-center gap-2", props.disabled && "opacity-50", props.class);
+					return mergeClasses("relative inline-flex flex-none items-center gap-2", props.class, componentsDisabledInteractiveClass(props.disabled ?? false));
 				},
 				get children() {
 					return [memo(() => {
@@ -5991,13 +6010,10 @@ function Item(props) {
 			return props.disabled || props.interactionBlocked;
 		},
 		get ["class"]() {
-			return itemClass(props.variant, props.size, mergeClasses(props.selected && "border-strong bg-selected", props.class));
+			return itemClass(props.variant, props.size, mergeClasses(props.selected && "border-strong bg-selected", props.class, componentsDisabledInteractiveClass(props.disabled ?? false)));
 		},
 		get style() {
-			return {
-				...props.style,
-				opacity: props.disabled ? .45 : void 0
-			};
+			return props.style;
 		},
 		get children() {
 			return props.children;
@@ -6414,13 +6430,10 @@ function Listbox(props) {
 									return option().disabled;
 								},
 								get ["class"]() {
-									return mergeClasses("w-full min-h-8 px-2 py-1 flex-none flex flex-row items-center gap-2 rounded-md", active() ? "bg-control-hover text-primary" : "bg-transparent text-secondary", props.itemClass);
+									return mergeClasses("w-full min-h-8 px-2 py-1 flex-none flex flex-row items-center gap-2 rounded-md", active() && !option().disabled ? "bg-control-hover text-primary" : "bg-transparent text-secondary", props.itemClass, componentsDisabledItemClass(option().disabled ?? false));
 								},
 								get style() {
-									return {
-										height: itemHeight(),
-										opacity: option().disabled ? .45 : 1
-									};
+									return { height: itemHeight() };
 								},
 								onPointerMove: () => !option().disabled && setHighlighted(option().value),
 								onClick: () => select(option().value),
@@ -9473,7 +9486,7 @@ function PromptComposerAction(props) {
 	}));
 }
 function promptComposerClass(focused, invalid, disabled, className) {
-	return mergeClasses("w-full min-w-0 rounded-xl border shadow-xs px-3 pt-2 pb-2 flex flex-col gap-2", invalid ? "border-danger" : focused ? "border-focus" : "border-subtle", disabled && "opacity-50", className);
+	return mergeClasses("w-full min-w-0 rounded-xl border shadow-xs px-3 pt-2 pb-2 flex flex-col gap-2", invalid ? "border-danger" : focused ? "border-focus" : "border-subtle", className, componentsDisabledControlClass(disabled));
 }
 /** Shared compound surface for prompts, attachments, controls and status. */
 function PromptComposer(props) {
@@ -9832,10 +9845,7 @@ function Rating(props) {
 		},
 		"aria-orientation": "horizontal",
 		get ["class"]() {
-			return mergeClasses("flex flex-col items-start gap-1.5", props.class);
-		},
-		get style() {
-			return { opacity: disabled() ? .45 : 1 };
+			return mergeClasses("flex flex-col items-start gap-1.5", props.class, componentsDisabledInteractiveClass(disabled()));
 		},
 		get children() {
 			return createComponent$1(View, {
@@ -10354,8 +10364,7 @@ function Select(props) {
 				props.ref?.(node);
 				popover.ref(node);
 			},
-			class: (state) => mergeClasses("w-72 overflow-hidden justify-between border", componentsControlSize("default"), pickerTriggerClass(props.triggerVariant ?? "default", state), props.class),
-			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
+			class: (state) => mergeClasses("w-72 overflow-hidden justify-between border", componentsControlSize("default"), pickerTriggerClass(props.triggerVariant ?? "default", state), props.class, componentsDisabledControlClass(state.disabled)),
 			get onClick() {
 				return popover.onClick;
 			},
@@ -10550,8 +10559,7 @@ function Checkbox(props) {
 		get selected() {
 			return checked();
 		},
-		class: (buttonState) => mergeClasses(selectionControlClass(!!props.label, size()), buttonState.hovered && "bg-control-hover", buttonState.focusVisible && "border-focus", props.class),
-		style: (buttonState) => ({ opacity: buttonState.disabled ? .45 : 1 }),
+		class: (buttonState) => mergeClasses(selectionControlClass(!!props.label, size()), !buttonState.disabled && buttonState.hovered && "bg-control-hover", buttonState.focusVisible && "border-focus", props.class, componentsDisabledInteractiveClass(buttonState.disabled)),
 		onClick: toggle,
 		get children() {
 			return [createComponent$1(Center, {
@@ -10670,8 +10678,7 @@ function RadioGroupItem(props) {
 			unregister?.();
 			unregister = group.register(props.value, node, disabled);
 		},
-		class: (buttonState) => mergeClasses(group.appearance() === "segment" ? segmentSize() : selectionControlClass(!!props.label, size()), group.appearance() === "segment" && checked() ? "bg-selected text-primary shadow-xs" : buttonState.hovered && "bg-control-hover", buttonState.focusVisible && "border-focus", props.class),
-		style: (buttonState) => ({ opacity: buttonState.disabled ? .45 : 1 }),
+		class: (buttonState) => mergeClasses(group.appearance() === "segment" ? segmentSize() : selectionControlClass(!!props.label, size()), group.appearance() === "segment" && checked() ? "bg-selected text-primary shadow-xs" : !buttonState.disabled && buttonState.hovered && "bg-control-hover", buttonState.focusVisible && "border-focus", props.class, componentsDisabledInteractiveClass(buttonState.disabled)),
 		onClick: () => group.select(props.value),
 		onFocus: () => group.activate(props.value),
 		onKeyDown: (event) => {
@@ -10723,7 +10730,7 @@ function Toggle(props) {
 	const size = () => match(props.size ?? "default").with("sm", () => `${componentsControlSize("sm")} min-w-7`).with("default", () => `${componentsControlSize("default")} min-w-8`).with("lg", () => `${componentsControlSize("lg")} min-w-10`).exhaustive();
 	const colors = (state) => match({
 		selected: pressed(),
-		hovered: state.hovered
+		hovered: !state.disabled && state.hovered
 	}).with({ selected: true }, () => "bg-selected border-accent text-primary").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-secondary");
 	return createComponent$1(Button$1, {
 		unstyled: true,
@@ -10739,8 +10746,7 @@ function Toggle(props) {
 		get ["aria-pressed"]() {
 			return pressed();
 		},
-		class: (state) => mergeClasses("items-center justify-center border font-medium", size(), colors(state), match(props.variant ?? "default").with("outline", () => "border-strong").with("default", () => "border-transparent").exhaustive(), state.focusVisible && "border-focus", props.class),
-		style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
+		class: (state) => mergeClasses("items-center justify-center border font-medium", size(), colors(state), match(props.variant ?? "default").with("outline", () => "border-strong").with("default", () => "border-transparent").exhaustive(), state.focusVisible && "border-focus", props.class, componentsDisabledInteractiveClass(state.disabled)),
 		onClick: toggle,
 		get children() {
 			return props.children;
@@ -10853,12 +10859,11 @@ function ToggleGroupItem(props) {
 		class: (state) => mergeClasses("h-7 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium", match(props.size ?? group.size()).with("sm", () => componentsControlSize("sm")).with("default", () => componentsControlSize("default")).with("lg", () => componentsControlSize("lg")).exhaustive(), match({
 			selected: selected(),
 			accent: props.variant === "accent",
-			hovered: state.hovered
+			hovered: !state.disabled && state.hovered
 		}).with({
 			selected: true,
 			accent: true
-		}, () => "bg-accent text-on-accent").with({ selected: true }, () => "bg-selected text-primary").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-muted"), group.segmented() && "rounded-none border-transparent", !group.segmented() && (props.variant ?? group.variant()) === "outline" && "border-strong", state.focusVisible && "border-focus", props.class),
-		style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
+		}, () => "bg-accent text-on-accent").with({ selected: true }, () => "bg-selected text-primary").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-muted"), group.segmented() && "rounded-none border-transparent", !group.segmented() && (props.variant ?? group.variant()) === "outline" && "border-strong", state.focusVisible && "border-focus", props.class, componentsDisabledInteractiveClass(state.disabled)),
 		onFocus: () => group.activate(props.value),
 		onClick: () => group.toggle(props.value),
 		onKeyDown: (event) => {
@@ -10896,13 +10901,10 @@ function SettingsItem(props) {
 			return props.disabled || props.interactionBlocked;
 		},
 		get ["class"]() {
-			return mergeClasses("w-full min-w-0 flex", orientation() === "horizontal" ? "flex-row items-start justify-between gap-6" : "flex-col items-stretch gap-3", props.class);
+			return mergeClasses("w-full min-w-0 flex", orientation() === "horizontal" ? "flex-row items-start justify-between gap-6" : "flex-col items-stretch gap-3", props.class, componentsDisabledInteractiveClass(props.disabled ?? false));
 		},
 		get style() {
-			return {
-				...props.style,
-				opacity: props.disabled ? .45 : void 0
-			};
+			return props.style;
 		},
 		get children() {
 			return [createComponent$1(View, {
@@ -11499,7 +11501,7 @@ function Slider(props) {
 			return props.disabled ? -1 : 0;
 		},
 		get ["class"]() {
-			return mergeClasses(orientation() === "vertical" ? "w-7 h-[120px] select-none" : "w-full h-7 select-none", props.disabled ? "cursor-not-allowed" : "cursor-pointer", props.class);
+			return mergeClasses(orientation() === "vertical" ? "w-7 h-[120px] select-none" : "w-full h-7 select-none", props.disabled ? "" : "cursor-pointer", props.class, componentsDisabledInteractiveClass(props.disabled ?? false));
 		},
 		get config() {
 			return {
@@ -11797,6 +11799,7 @@ function Stepper(props) {
 //#endregion
 //#region src/components/switch.tsx
 function switchColors(checked, state) {
+	if (state.disabled) return checked ? "bg-accent" : "bg-control";
 	return match({
 		checked,
 		pressed: state.pressed,
@@ -11865,8 +11868,7 @@ function Switch(props) {
 				get ["aria-checked"]() {
 					return checked();
 				},
-				class: switchControlClass,
-				style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
+				class: (state) => mergeClasses(switchControlClass(state), componentsDisabledInteractiveClass(state.disabled)),
 				onClick: toggle,
 				renderContent: (buttonState) => createComponent$1(View, {
 					"aria-hidden": "true",
@@ -12068,9 +12070,8 @@ function TabsTrigger(props) {
 		},
 		class: (state) => props.unstyled ? typeof props.class === "function" ? props.class(state) : props.class ?? "" : mergeClasses("h-7 px-3 flex-none whitespace-nowrap items-center justify-center rounded-md border border-transparent text-sm font-medium", match({
 			selected: selected(),
-			hovered: state.hovered
-		}).with({ selected: true }, () => "bg-surface text-primary shadow-xs").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-muted"), state.focusVisible && "border-focus", typeof props.class === "function" ? props.class(state) : props.class),
-		style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
+			hovered: !state.disabled && state.hovered
+		}).with({ selected: true }, () => "bg-surface text-primary shadow-xs").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-muted"), state.focusVisible && "border-focus", typeof props.class === "function" ? props.class(state) : props.class, componentsDisabledInteractiveClass(state.disabled)),
 		onClick: () => context.select(props.value),
 		onFocus: () => context.activate(props.value),
 		onKeyDown: (event) => {

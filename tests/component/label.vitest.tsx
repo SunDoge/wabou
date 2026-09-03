@@ -35,7 +35,10 @@ test("does not activate a disabled label or override a prevented click", () => {
     </>
   ));
 
-  expect(screen.getByRole("label", { name: "Disabled" }).disabled).toBe(true);
+  const disabled = screen.getByRole("label", { name: "Disabled" });
+  expect(disabled.disabled).toBe(true);
+  expect(disabled.className).toContain("cursor-not-allowed");
+  expect(disabled.className).toContain("opacity-60");
   screen.getByRole("label", { name: "Prevented" }).click();
   expect(screen.getByRole("textbox", { name: "Target" }).focused).toBe(false);
 });

@@ -34,6 +34,11 @@ test("opens, skips disabled actions, and selects with the keyboard", () => {
   expect(screen.getByRole("menuitem", { name: "Open" }).className).toContain(
     "rounded-md",
   );
+  const disabled = screen.getByRole("menuitem", { name: "Rename" });
+  expect(disabled.className).toContain("bg-surface-muted");
+  expect(disabled.className).toContain("text-muted");
+  expect(disabled.className).toContain("cursor-not-allowed");
+  expect(disabled.className).toContain("opacity-60");
 
   menu.press("ArrowDown");
   expect(screen.getByRole("menuitem", { name: "Delete" }).className).toContain(

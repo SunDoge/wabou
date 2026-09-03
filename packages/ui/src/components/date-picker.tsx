@@ -29,6 +29,7 @@ import {
 import type { PopupMotionProps } from "./popover";
 import {
   componentsControlSize,
+  componentsDisabledInteractiveClass,
   componentsElevation,
   componentsSurfaceClass,
   useComponentsTheme,
@@ -281,13 +282,13 @@ export function Calendar(props: CalendarProps): JSX.Element {
                     "w-8 h-8 rounded-md items-center justify-center text-sm",
                     selected()
                       ? "bg-accent text-on-accent"
-                      : state.hovered
+                      : !state.disabled && state.hovered
                         ? "bg-control-hover text-primary"
                         : "bg-transparent text-primary",
                     outside() && "text-muted",
+                    componentsDisabledInteractiveClass(state.disabled),
                   )
                 }
-                style={{ opacity: disabled() ? 0.35 : 1 }}
                 onClick={() => select(date())}
                 onKeyDown={(event) => handleKeyDown(event, date())}
               >

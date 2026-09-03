@@ -22,6 +22,7 @@ import {
   createRovingFocus,
 } from "../primitives/interactions";
 import { Button } from "./button";
+import { componentsDisabledInteractiveClass } from "./theme";
 
 const orientationClass = (
   orientation: "horizontal" | "vertical",
@@ -252,7 +253,10 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
             : (props.class ?? "")
           : mergeClasses(
               "h-7 px-3 flex-none whitespace-nowrap items-center justify-center rounded-md border border-transparent text-sm font-medium",
-              match({ selected: selected(), hovered: state.hovered })
+              match({
+                selected: selected(),
+                hovered: !state.disabled && state.hovered,
+              })
                 .with(
                   { selected: true },
                   () => "bg-surface text-primary shadow-xs",
@@ -263,9 +267,9 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
               typeof props.class === "function"
                 ? props.class(state)
                 : props.class,
+              componentsDisabledInteractiveClass(state.disabled),
             )
       }
-      style={(state) => ({ opacity: state.disabled ? 0.45 : 1 })}
       onClick={() => context.select(props.value)}
       onFocus={() => context.activate(props.value)}
       onKeyDown={(event) => {

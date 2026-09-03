@@ -11,6 +11,7 @@ import { match } from "ts-pattern";
 import { Icon, ScrollArea, Text, View } from "../primitives";
 import { moveMenuHighlight } from "./menu-state";
 import { createControllableState } from "./state";
+import { componentsDisabledItemClass } from "./theme";
 
 export interface ListboxOption {
   value: string;
@@ -160,14 +161,14 @@ export function Listbox(props: ListboxProps): JSX.Element {
                   aria-disabled={option().disabled}
                   class={mergeClasses(
                     "w-full min-h-8 px-2 py-1 flex-none flex flex-row items-center gap-2 rounded-md",
-                    active()
+                    active() && !option().disabled
                       ? "bg-control-hover text-primary"
                       : "bg-transparent text-secondary",
                     props.itemClass,
+                    componentsDisabledItemClass(option().disabled ?? false),
                   )}
                   style={{
                     height: itemHeight(),
-                    opacity: option().disabled ? 0.45 : 1,
                   }}
                   onPointerMove={() =>
                     !option().disabled && setHighlighted(option().value)

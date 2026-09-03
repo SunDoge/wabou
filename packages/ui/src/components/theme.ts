@@ -36,7 +36,39 @@ export const componentsThemeContract = Object.freeze({
   containerRadius: 8,
   containerPadding: 20,
   sectionGap: 16,
+  /** Disabled controls remain readable while losing active-surface emphasis. */
+  disabledOpacity: 0.6,
 });
+
+/**
+ * Shared disabled chrome for framed controls.
+ *
+ * Opacity alone leaves primary and destructive controls looking actionable,
+ * especially on light surfaces. Disabled controls therefore move onto the
+ * neutral surface palette as well as losing emphasis and pointer affordance.
+ */
+export function componentsDisabledControlClass(disabled: boolean): string {
+  return disabled
+    ? "cursor-not-allowed border-subtle bg-surface-muted text-muted opacity-60"
+    : "";
+}
+
+/** Disabled treatment for controls whose checked/selected color must remain visible. */
+export function componentsDisabledInteractiveClass(disabled: boolean): string {
+  return disabled ? "cursor-not-allowed opacity-60" : "";
+}
+
+/** Disabled content nested inside a surface that already owns the opacity. */
+export function componentsDisabledContentClass(disabled: boolean): string {
+  return disabled ? "cursor-not-allowed text-muted" : "";
+}
+
+/** Shared unavailable-row treatment for listboxes, menus, and command surfaces. */
+export function componentsDisabledItemClass(disabled: boolean): string {
+  return disabled
+    ? "cursor-not-allowed bg-surface-muted text-muted opacity-60"
+    : "";
+}
 
 export function componentsControlContentSize(
   size: ComponentsControlSize,
