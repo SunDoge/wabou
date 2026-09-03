@@ -1214,7 +1214,7 @@ fn key_event(
 ) -> ProjectedKeyEvent {
     ProjectedKeyEvent {
         phase,
-        key: keystroke.key.clone(),
+        key: crate::canonical_key_name(&keystroke.key).into_owned(),
         key_char: keystroke.key_char.clone(),
         repeat,
         shift: keystroke.modifiers.shift,
@@ -3150,6 +3150,22 @@ mod tests {
         assert_eq!(event.key_char.as_deref(), Some("A"));
         assert!(event.repeat);
         assert!(event.shift);
+    }
+
+    #[test]
+    fn key_projection_exposes_canonical_special_key_names() {
+        let event = key_event(
+            ProjectedKeyPhase::Down,
+            &Keystroke {
+                modifiers: Modifiers::default(),
+                key: "delete".into(),
+                key_char: None,
+            },
+            false,
+        );
+
+        assert_eq!(event.key, "Delete");
+        assert_eq!(event.key_char, None);
     }
 
     struct InputHarness {

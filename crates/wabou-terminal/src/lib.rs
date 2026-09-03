@@ -1,7 +1,9 @@
 use std::{ops::Range, sync::Arc};
 
 use gpui::{AppContext as _, IntoElement as _, ParentElement as _, Styled as _};
-use wabou_shell::{NativeWidgetContext, NativeWidgetInput, NativeWidgetMount, gpui};
+use wabou_shell::{
+    NativeWidgetContext, NativeWidgetInput, NativeWidgetMount, canonical_key_name, gpui,
+};
 use wabou_shell_api::{KeyEvent, KeyLocation, KeyPhase, Modifiers, UiEvent, WakeCallback};
 
 use wabou_terminal_core::{TerminalColor, TerminalInputResult, TerminalWidget};
@@ -71,15 +73,16 @@ impl GpuiTerminal {
         modifiers.set(Modifiers::CONTROL, source.control);
         modifiers.set(Modifiers::ALT, source.alt);
         modifiers.set(Modifiers::META, source.platform);
+        let key_without_modifiers = canonical_key_name(&event.keystroke.key).into_owned();
         KeyEvent {
             phase: KeyPhase::Down,
             key: event
                 .keystroke
                 .key_char
                 .clone()
-                .unwrap_or_else(|| event.keystroke.key.clone()),
-            key_without_modifiers: event.keystroke.key.clone(),
-            code: event.keystroke.key.clone(),
+                .unwrap_or_else(|| key_without_modifiers.clone()),
+            code: key_without_modifiers.clone(),
+            key_without_modifiers,
             text: event.keystroke.key_char.clone(),
             text_with_all_modifiers: event.keystroke.key_char.clone(),
             location: KeyLocation::Standard,
@@ -408,6 +411,24 @@ mod tests {
             PLATFORM_MONOSPACE_FONT
         );
         assert_eq!(terminal_font_family("Hack"), "Hack");
+    }
+
+    #[test]
+    fn gpui_delete_key_reaches_the_terminal_with_its_canonical_name() {
+        let event = GpuiTerminal::key_event(&gpui::KeyDownEvent {
+            keystroke: gpui::Keystroke {
+                modifiers: gpui::Modifiers::default(),
+                key: "delete".into(),
+                key_char: None,
+            },
+            is_held: false,
+            prefer_character_input: false,
+        });
+
+        assert_eq!(event.key, "Delete");
+        assert_eq!(event.key_without_modifiers, "Delete");
+        assert_eq!(event.code, "Delete");
+        assert_eq!(event.text, None);
     }
 
     impl gpui::Render for Harness {

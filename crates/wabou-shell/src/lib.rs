@@ -25,7 +25,7 @@ pub use input::{
     ProjectedImeEvent, ProjectedInputEvent, ProjectedInputHandler, ProjectedInputSink,
     ProjectedKeyEvent, ProjectedKeyPhase, ProjectedPointerButton, ProjectedPointerEvent,
     ProjectedPointerPhase, ProjectedScrollEvent, ProjectedTextInputState, ProjectedWheelEvent,
-    ProjectedWheelPhase,
+    ProjectedWheelPhase, canonical_key_name,
 };
 pub use native_widget::{
     NativeWidgetContext, NativeWidgetEventSink, NativeWidgetFactory, NativeWidgetInput,

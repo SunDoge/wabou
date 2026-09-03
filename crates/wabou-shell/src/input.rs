@@ -1,10 +1,41 @@
 //! Typed input emitted by GPUI hit targets toward the Wabou runtime.
 
-use std::{ops::Range, rc::Rc};
+use std::{borrow::Cow, ops::Range, rc::Rc};
 
 use gpui::{App, Bounds, InputHandler, Pixels, Point, UTF16Selection, Window, point, px, size};
 
 use crate::NodeKey;
+
+/// Translate GPUI's lowercase key identities into Wabou's public key names.
+///
+/// Wabou exposes the same logical names to JavaScript and native widgets so a
+/// key does not change identity depending on which side handles it.
+pub fn canonical_key_name(key: &str) -> Cow<'_, str> {
+    match key {
+        "backspace" => Cow::Borrowed("Backspace"),
+        "delete" => Cow::Borrowed("Delete"),
+        "left" => Cow::Borrowed("ArrowLeft"),
+        "right" => Cow::Borrowed("ArrowRight"),
+        "up" => Cow::Borrowed("ArrowUp"),
+        "down" => Cow::Borrowed("ArrowDown"),
+        "pageup" => Cow::Borrowed("PageUp"),
+        "pagedown" => Cow::Borrowed("PageDown"),
+        "insert" => Cow::Borrowed("Insert"),
+        "home" => Cow::Borrowed("Home"),
+        "end" => Cow::Borrowed("End"),
+        "escape" => Cow::Borrowed("Escape"),
+        "enter" => Cow::Borrowed("Enter"),
+        "tab" => Cow::Borrowed("Tab"),
+        "space" => Cow::Borrowed(" "),
+        key if function_key_number(key).is_some() => Cow::Owned(key.to_ascii_uppercase()),
+        _ => Cow::Borrowed(key),
+    }
+}
+
+fn function_key_number(key: &str) -> Option<u8> {
+    let number = key.strip_prefix('f')?.parse::<u8>().ok()?;
+    (1..=35).contains(&number).then_some(number)
+}
 
 /// Pointer phase delivered by a projected GPUI element.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -359,7 +390,32 @@ pub type ProjectedInputSink = Rc<dyn Fn(ProjectedInputEvent, &mut App)>;
 
 #[cfg(test)]
 mod tests {
-    use super::utf16_to_byte;
+    use super::{canonical_key_name, utf16_to_byte};
+
+    #[test]
+    fn gpui_key_names_are_normalized_at_the_shell_boundary() {
+        for (gpui, wabou) in [
+            ("delete", "Delete"),
+            ("backspace", "Backspace"),
+            ("left", "ArrowLeft"),
+            ("right", "ArrowRight"),
+            ("up", "ArrowUp"),
+            ("down", "ArrowDown"),
+            ("pageup", "PageUp"),
+            ("pagedown", "PageDown"),
+            ("insert", "Insert"),
+            ("home", "Home"),
+            ("end", "End"),
+            ("escape", "Escape"),
+            ("enter", "Enter"),
+            ("tab", "Tab"),
+            ("space", " "),
+            ("f12", "F12"),
+            ("a", "a"),
+        ] {
+            assert_eq!(canonical_key_name(gpui), wabou, "GPUI key {gpui}");
+        }
+    }
 
     #[test]
     fn utf16_offsets_map_to_stable_utf8_composition_cursor_boundaries() {
