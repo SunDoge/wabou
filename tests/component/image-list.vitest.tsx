@@ -15,7 +15,7 @@ const pages: readonly Page[] = Array.from({ length: 100 }, (_, index) => ({
   title: `Page ${index + 1}`,
 }));
 
-test("virtualizes image rows and exposes deterministic selection", () => {
+test("delegates row virtualization to GPUI and exposes deterministic selection", () => {
   const Harness = () => {
     const [selected, setSelected] = createSignal<number>();
     return (
@@ -36,8 +36,9 @@ test("virtualizes image rows and exposes deterministic selection", () => {
   const screen = renderComponent(Harness);
   expect(screen.getByRole("listbox", { name: "Manga pages" })).toBeTruthy();
   const mounted = screen.getAllByRole("option");
-  expect(mounted.length).toBeGreaterThan(0);
-  expect(mounted.length).toBeLessThan(pages.length);
+  // Solid retains the keyed logical rows. The native VirtualList decides
+  // which of these rows are materialized by GPUI for the current viewport.
+  expect(mounted).toHaveLength(pages.length);
 
   const first = screen.getByRole("option", { name: "Page 1" });
   expect(first.style("background-color")).toBeNull();

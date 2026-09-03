@@ -434,7 +434,26 @@ function renderComponent(render, options = {}) {
 		restore();
 		throw error;
 	}
-	const textOf = (node) => node.tag === "#text" ? node.text : node.children.map(textOf).join("");
+	const textOf = (node) => {
+		const text = [];
+		const pending = [node];
+		const visited = /* @__PURE__ */ new Set();
+		while (pending.length > 0) {
+			const current = pending.pop();
+			if (!current) continue;
+			if (visited.has(current)) throw new Error(`component protocol tree contains a cycle at node ${key(current.id)}`);
+			visited.add(current);
+			if (current.tag === "#text") {
+				text.push(current.text);
+				continue;
+			}
+			for (let index = current.children.length - 1; index >= 0; index -= 1) {
+				const child = current.children[index];
+				if (child) pending.push(child);
+			}
+		}
+		return text.join("");
+	};
 	const roleOf = (node) => node.attributes.get("role") ?? implicitRole(node.tag);
 	const nameOf = (node) => node.attributes.get("aria-label") ?? textOf(node).trim();
 	const booleanState = (node, name) => {
@@ -472,22 +491,36 @@ function renderComponent(render, options = {}) {
 	};
 	const all = () => {
 		const result = [];
-		const visit = (node) => {
+		const pending = [...roots].reverse();
+		const visited = /* @__PURE__ */ new Set();
+		while (pending.length > 0) {
+			const node = pending.pop();
+			if (!node) continue;
+			if (visited.has(node)) throw new Error(`component protocol tree contains a cycle at node ${key(node.id)}`);
+			visited.add(node);
 			result.push(node);
-			node.children.forEach(visit);
-		};
-		roots.forEach(visit);
+			for (let index = node.children.length - 1; index >= 0; index -= 1) {
+				const child = node.children[index];
+				if (child) pending.push(child);
+			}
+		}
 		return result;
 	};
 	const descendantsOf = (root) => {
 		const result = [];
-		const visit = (node) => {
-			node.children.forEach((child) => {
-				result.push(child);
-				visit(child);
-			});
-		};
-		visit(root);
+		const pending = [...root.children].reverse();
+		const visited = /* @__PURE__ */ new Set([root]);
+		while (pending.length > 0) {
+			const node = pending.pop();
+			if (!node) continue;
+			if (visited.has(node)) throw new Error(`component protocol tree contains a cycle at node ${key(node.id)}`);
+			visited.add(node);
+			result.push(node);
+			for (let index = node.children.length - 1; index >= 0; index -= 1) {
+				const child = node.children[index];
+				if (child) pending.push(child);
+			}
+		}
 		return result;
 	};
 	const scopeNodes = (root) => {
@@ -584,16 +617,13 @@ function renderComponent(render, options = {}) {
 		});
 	};
 	function locator(node) {
-		return {
+		const result = {
 			...queries(node),
 			get identity() {
 				return {
 					lo: node.id.lo,
 					hi: node.id.hi
 				};
-			},
-			get parent() {
-				return node.parent ? locator(node.parent) : null;
 			},
 			get tag() {
 				return node.tag;
@@ -613,9 +643,6 @@ function renderComponent(render, options = {}) {
 			style: (name) => node.styles.get(name) ?? null,
 			get widgetConfig() {
 				return node.widgetConfig;
-			},
-			get children() {
-				return node.children.map(locator);
 			},
 			snapshot: () => snapshotNode(node),
 			closestByRole: (role, options = {}) => {
@@ -740,6 +767,14 @@ function renderComponent(render, options = {}) {
 				const encoded = typeof payload === "string" ? payload : JSON.stringify(payload);
 				commitEvent(node, EVENT_CODE[type], encoded);
 			},
+			finishNativeTransition: () => {
+				ensureAttached(node, "finish the native transition of");
+				const encoded = node.attributes.get("__wabou_native_transition");
+				if (!encoded) throw new Error(`component ${roleOf(node) ?? node.tag} "${nameOf(node)}" has no native transition`);
+				const transition = JSON.parse(encoded);
+				if (!Number.isSafeInteger(transition.generation)) throw new Error(`component native transition has an invalid generation: ${encoded}`);
+				commitEvent(node, EVENT_CODE.transitionend, JSON.stringify({ generation: transition.generation }));
+			},
 			focus: () => {
 				ensureEnabled(node, "focus");
 				focusAuthoredNode(node);
@@ -763,6 +798,17 @@ function renderComponent(render, options = {}) {
 				flushUpdates();
 			}
 		};
+		Object.defineProperties(result, {
+			parent: {
+				enumerable: false,
+				get: () => node.parent ? locator(node.parent) : null
+			},
+			children: {
+				enumerable: false,
+				get: () => node.children.map(locator)
+			}
+		});
+		return result;
 	}
 	let disposed = false;
 	const snapshotNode = (node) => {

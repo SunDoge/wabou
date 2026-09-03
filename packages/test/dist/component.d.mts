@@ -127,6 +127,8 @@ interface ComponentLocator extends ComponentQueries {
   input(value: string): void;
   /** Dispatch a typed host event for custom-widget/component contracts. */
   emit(type: EventType, payload?: unknown): void;
+  /** Complete the native transition currently authored by this node. */
+  finishNativeTransition(): void;
   /** Dispatch native focus/focusin, blurring the previously focused locator. */
   focus(): void;
   /** Dispatch native blur/focusout when this locator owns focus. */

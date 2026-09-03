@@ -187,6 +187,8 @@ export interface ComponentLocator extends ComponentQueries {
   input(value: string): void;
   /** Dispatch a typed host event for custom-widget/component contracts. */
   emit(type: EventType, payload?: unknown): void;
+  /** Complete the native transition currently authored by this node. */
+  finishNativeTransition(): void;
   /** Dispatch native focus/focusin, blurring the previously focused locator. */
   focus(): void;
   /** Dispatch native blur/focusout when this locator owns focus. */
@@ -795,8 +797,30 @@ export function renderComponent(
     throw error;
   }
 
-  const textOf = (node: AuthoredNode): string =>
-    node.tag === "#text" ? node.text : node.children.map(textOf).join("");
+  const textOf = (node: AuthoredNode): string => {
+    const text: string[] = [];
+    const pending = [node];
+    const visited = new Set<AuthoredNode>();
+    while (pending.length > 0) {
+      const current = pending.pop();
+      if (!current) continue;
+      if (visited.has(current)) {
+        throw new Error(
+          `component protocol tree contains a cycle at node ${key(current.id)}`,
+        );
+      }
+      visited.add(current);
+      if (current.tag === "#text") {
+        text.push(current.text);
+        continue;
+      }
+      for (let index = current.children.length - 1; index >= 0; index -= 1) {
+        const child = current.children[index];
+        if (child) pending.push(child);
+      }
+    }
+    return text.join("");
+  };
   const roleOf = (node: AuthoredNode): string | null =>
     node.attributes.get("role") ?? implicitRole(node.tag);
   const nameOf = (node: AuthoredNode): string =>
@@ -854,22 +878,44 @@ export function renderComponent(
   };
   const all = (): AuthoredNode[] => {
     const result: AuthoredNode[] = [];
-    const visit = (node: AuthoredNode) => {
+    const pending = [...roots].reverse();
+    const visited = new Set<AuthoredNode>();
+    while (pending.length > 0) {
+      const node = pending.pop();
+      if (!node) continue;
+      if (visited.has(node)) {
+        throw new Error(
+          `component protocol tree contains a cycle at node ${key(node.id)}`,
+        );
+      }
+      visited.add(node);
       result.push(node);
-      node.children.forEach(visit);
-    };
-    roots.forEach(visit);
+      for (let index = node.children.length - 1; index >= 0; index -= 1) {
+        const child = node.children[index];
+        if (child) pending.push(child);
+      }
+    }
     return result;
   };
   const descendantsOf = (root: AuthoredNode): AuthoredNode[] => {
     const result: AuthoredNode[] = [];
-    const visit = (node: AuthoredNode) => {
-      node.children.forEach((child) => {
-        result.push(child);
-        visit(child);
-      });
-    };
-    visit(root);
+    const pending = [...root.children].reverse();
+    const visited = new Set<AuthoredNode>([root]);
+    while (pending.length > 0) {
+      const node = pending.pop();
+      if (!node) continue;
+      if (visited.has(node)) {
+        throw new Error(
+          `component protocol tree contains a cycle at node ${key(node.id)}`,
+        );
+      }
+      visited.add(node);
+      result.push(node);
+      for (let index = node.children.length - 1; index >= 0; index -= 1) {
+        const child = node.children[index];
+        if (child) pending.push(child);
+      }
+    }
     return result;
   };
   const scopeNodes = (root: AuthoredNode | null): AuthoredNode[] => {
@@ -1065,13 +1111,10 @@ export function renderComponent(
     });
   };
   function locator(node: AuthoredNode): ComponentLocator {
-    return {
+    const result: Omit<ComponentLocator, "parent" | "children"> = {
       ...queries(node),
       get identity() {
         return { lo: node.id.lo, hi: node.id.hi };
-      },
-      get parent() {
-        return node.parent ? locator(node.parent) : null;
       },
       get tag() {
         return node.tag;
@@ -1091,9 +1134,6 @@ export function renderComponent(
       style: (name) => node.styles.get(name) ?? null,
       get widgetConfig() {
         return node.widgetConfig;
-      },
-      get children() {
-        return node.children.map(locator);
       },
       snapshot: () => snapshotNode(node),
       closestByRole: (role, options = {}) => {
@@ -1223,6 +1263,26 @@ export function renderComponent(
           typeof payload === "string" ? payload : JSON.stringify(payload);
         commitEvent(node, EVENT_CODE[type], encoded);
       },
+      finishNativeTransition: () => {
+        ensureAttached(node, "finish the native transition of");
+        const encoded = node.attributes.get("__wabou_native_transition");
+        if (!encoded) {
+          throw new Error(
+            `component ${roleOf(node) ?? node.tag} "${nameOf(node)}" has no native transition`,
+          );
+        }
+        const transition = JSON.parse(encoded) as { generation?: unknown };
+        if (!Number.isSafeInteger(transition.generation)) {
+          throw new Error(
+            `component native transition has an invalid generation: ${encoded}`,
+          );
+        }
+        commitEvent(
+          node,
+          EVENT_CODE.transitionend,
+          JSON.stringify({ generation: transition.generation }),
+        );
+      },
       focus: () => {
         ensureEnabled(node, "focus");
         focusAuthoredNode(node);
@@ -1255,6 +1315,20 @@ export function renderComponent(
         flushUpdates();
       },
     };
+    // Parent and children intentionally stay non-enumerable. Assertion
+    // formatters enumerate received objects and would otherwise recurse over
+    // this bidirectional graph instead of showing the failed expectation.
+    Object.defineProperties(result, {
+      parent: {
+        enumerable: false,
+        get: () => (node.parent ? locator(node.parent) : null),
+      },
+      children: {
+        enumerable: false,
+        get: () => node.children.map(locator),
+      },
+    });
+    return result as ComponentLocator;
   }
 
   let disposed = false;
