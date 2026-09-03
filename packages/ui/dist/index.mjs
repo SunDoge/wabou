@@ -1386,8 +1386,8 @@ function createDisclosure(options = {}) {
 //#region src/primitives/interactions/roving-focus.ts
 function createRovingFocus(options = {}) {
 	const items = [];
-	const [activeId, setActiveId] = createSignal();
-	const [registryVersion, setRegistryVersion] = createSignal(0);
+	const [activeId, setActiveId] = createSignal(void 0, { ownedWrite: true });
+	const [registryVersion, setRegistryVersion] = createSignal(0, { ownedWrite: true });
 	const enabled = () => items.filter((item) => !item.disabled?.());
 	const currentTabStop = () => {
 		registryVersion();
@@ -4488,7 +4488,7 @@ function DirectoryPicker(props) {
 	const nativeDialog = useDialog();
 	const local = props;
 	const selection = createAsyncAction(() => nativeDialog.pickDirectory(directoryPickerOptions(local.value, local.dialogOptions)));
-	const inputProps = omit(props, "value", "onValueChange", "dialogOptions", "browseLabel", "pendingLabel", "browseAriaLabel", "class", "inputClass", "buttonClass", "onBrowseError");
+	const inputProps = omit(props, "value", "onValueChange", "dialogOptions", "browseLabel", "pendingLabel", "browseAriaLabel", "class", "inputClass", "buttonClass", "onBrowseError", "onBrowseSelect");
 	async function browse() {
 		if (inputProps.disabled) return;
 		const result = await selection.run();
@@ -4497,7 +4497,10 @@ function DirectoryPicker(props) {
 			else throw result.error;
 			return;
 		}
-		if (result.value !== null) local.onValueChange(result.value);
+		if (result.value !== null) {
+			local.onValueChange(result.value);
+			local.onBrowseSelect?.(result.value);
+		}
 	}
 	return createComponent$1(InputGroup, {
 		get disabled() {
@@ -12672,7 +12675,10 @@ function createTreeModel(nodes) {
 		});
 	};
 	visit(nodes, null);
-	const isBranch = (id) => (byId.get(id)?.children?.length ?? 0) > 0;
+	const isBranch = (id) => {
+		const node = byId.get(id);
+		return Boolean(node?.hasChildren || node?.children?.length);
+	};
 	return {
 		get: (id) => byId.get(id),
 		parent: (id) => parents.get(id),
@@ -12705,16 +12711,16 @@ function validateExpandedIds(model, ids) {
 }
 /** A single-select tree with explicit data, expansion, and native focus routing. */
 function TreeView(props) {
-	const initialModel = createTreeModel(props.items);
+	const initialModel = createTreeModel(untrack(() => props.items));
 	const model = createMemo(() => createTreeModel(props.items));
 	const expandedState = createControllableState({
 		value: () => props.expandedIds === void 0 ? void 0 : validateExpandedIds(model(), props.expandedIds),
-		defaultValue: validateExpandedIds(initialModel, props.defaultExpandedIds ?? []),
+		defaultValue: validateExpandedIds(initialModel, untrack(() => props.defaultExpandedIds) ?? []),
 		onChange: props.onExpandedChange
 	});
 	const selectedState = createControllableState({
 		value: () => props.selectedId,
-		defaultValue: props.defaultSelectedId ?? null,
+		defaultValue: untrack(() => props.defaultSelectedId) ?? null,
 		onChange: props.onSelectedChange
 	});
 	const [activeId, setActiveId] = createSignal(void 0, { ownedWrite: true });
@@ -13110,7 +13116,7 @@ function createTanStackDataTable(options) {
 	const [globalFilter, setGlobalFilter] = createSignal(options.initialGlobalFilter ?? "");
 	const [rowSelection, setRowSelection] = createSignal(options.initialRowSelection ?? {});
 	const table = createTable({
-		data: [...access(options.data)],
+		data: [...untrack(() => access(options.data))],
 		columns: [...options.columns],
 		state: {},
 		onStateChange: () => {},
