@@ -2,7 +2,7 @@ import {
   type Handle,
   observeGlobalPointerEvent,
   Portal,
-  useHost,
+  type WabouFloatingPosition,
   type WabouNativeTransition,
 } from "@wabou/core/renderer";
 import { type Shadow, scale2d } from "@wabou/core/style";
@@ -22,14 +22,10 @@ import {
   useOverlayPlane,
 } from "./overlay-layer";
 import {
-  computeHostFloatingPosition,
-  computeHostPointFloatingPosition,
-  flip,
-  LayoutTargetUnavailableError,
-  offset,
+  floatingFromNode,
+  floatingFromPoint,
   type Placement,
   type PointAnchor,
-  shift,
 } from "./positioner";
 import { createPresence } from "./presence";
 import { View, type ViewProps, type WabouStyle } from "./view";
@@ -136,15 +132,12 @@ export type PopoverProps = PopoverBaseProps &
 
 /** A root-layer floating panel positioned from native layout snapshots. */
 export function Popover(props: PopoverProps): JSX.Element {
-  const host = useHost();
   const inheritedPlane = useOverlayPlane();
   const reducedMotion = useReducedMotion();
   const plane = () => props.plane ?? inheritedPlane;
   const [uncontrolledOpen, setUncontrolledOpen] = createSignal(
     untrack(() => props.defaultOpen ?? false),
   );
-  const [position, setPosition] = createSignal({ x: 0, y: 0 });
-  const [positioned, setPositioned] = createSignal(false);
   const open = () => props.open ?? uncontrolledOpen();
   const motion = untrack(() => props.motion);
   const duration = motion === false ? 0 : (motion?.duration ?? 0.14);
@@ -152,15 +145,12 @@ export function Popover(props: PopoverProps): JSX.Element {
   const [transitionGeneration, setTransitionGeneration] = createSignal(0);
   let anchor: Handle | undefined;
   let content: Handle | undefined;
-  let frame = 0;
-  let positionRequest = 0;
   let suppressPointerClick = false;
-  let observer: ResizeObserver | undefined;
   const motionFromScale = () =>
     motion === false ? 1 : (motion?.fromScale ?? 0.98);
 
   const nativeTransition = (): WabouNativeTransition | undefined => {
-    if (motion === false || reducedMotion() || !positioned()) return undefined;
+    if (motion === false || reducedMotion()) return undefined;
     return popoverNativeTransition({
       generation: transitionGeneration(),
       duration,
@@ -205,85 +195,20 @@ export function Popover(props: PopoverProps): JSX.Element {
       return;
     layer.onOutside({ preventDefault() {}, stopPropagation() {} });
   });
-
-  const updatePosition = async () => {
+  const floatingPosition = (): WabouFloatingPosition | undefined => {
+    const options = {
+      placement: props.placement ?? "bottom-start",
+      offset: props.offset ?? 6,
+      margin: 8,
+    } as const;
     const point = props.anchorPoint?.();
-    const reference = anchor;
-    if (!open() || (!point && !reference) || !content) return;
-    const request = ++positionRequest;
-    try {
-      const options = {
-        placement: props.placement ?? "bottom-start",
-        middleware: [offset(props.offset ?? 6), flip(), shift({ padding: 8 })],
-      };
-      let result: Awaited<ReturnType<typeof computeHostFloatingPosition>>;
-      if (point) {
-        result = await computeHostPointFloatingPosition(
-          point,
-          content,
-          host,
-          options,
-        );
-      } else {
-        if (!reference) return;
-        result = await computeHostFloatingPosition(
-          reference,
-          content,
-          host,
-          options,
-        );
-      }
-      if (!open() || request !== positionRequest) return;
-      setPosition({ x: result.x, y: result.y });
-      setPositioned(true);
-    } catch (error) {
-      // Portal mutations and native layout complete on separate frames. A
-      // missing target is not a usable zero-sized rect; keep the panel outside
-      // the viewport and retry after the host has published the next snapshot.
-      if (
-        error instanceof LayoutTargetUnavailableError &&
-        open() &&
-        request === positionRequest
-      ) {
-        schedulePosition();
-        return;
-      }
-      throw error;
-    }
+    if (point) return floatingFromPoint(point, options);
+    return anchor ? floatingFromNode(anchor, options) : undefined;
   };
 
-  const schedulePosition = () => {
-    cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => void updatePosition());
-  };
-
-  const observe = (node: Handle) => {
-    observer?.observe(node as never);
-    schedulePosition();
-  };
-
-  createEffect(open, (isOpen) => {
-    if (!isOpen) {
-      positionRequest++;
-      observer?.disconnect();
-      observer = undefined;
-      return;
-    }
-    observer = new ResizeObserver(schedulePosition);
-    if (anchor) observer.observe(anchor as never);
-    // Portal mutations flush with the opening event, so the next native frame
-    // can normally position the panel immediately. If its completed layout is
-    // not published yet, updatePosition schedules the existing bounded retry.
-    frame = requestAnimationFrame(() => void updatePosition());
-  });
   createEffect(
-    () => [open(), positioned(), reducedMotion()] as const,
-    ([isOpen, isPositioned, prefersReducedMotion]) => {
-      if (isOpen && !isPositioned) return;
-      if (!isOpen && !isPositioned) {
-        presence.finishExit();
-        return;
-      }
+    () => [open(), reducedMotion()] as const,
+    ([isOpen, prefersReducedMotion]) => {
       setTransitionGeneration((value) => value + 1);
       if (motion === false || prefersReducedMotion || duration <= 0) {
         if (isOpen) presence.finishEnter();
@@ -291,14 +216,9 @@ export function Popover(props: PopoverProps): JSX.Element {
       }
     },
   );
-  createEffect(presence.phase, (phase) => {
-    if (phase === "unmounted") setPositioned(false);
-  });
 
   onCleanup(() => {
     stopObservingPointer();
-    cancelAnimationFrame(frame);
-    observer?.disconnect();
   });
 
   const handleEscape = (event: {
@@ -320,7 +240,6 @@ export function Popover(props: PopoverProps): JSX.Element {
   const triggerProps: PopoverTriggerProps = {
     ref: (node) => {
       anchor = node;
-      if (open()) observe(node);
     },
     onPointerDown: (event) => {
       if (
@@ -363,9 +282,6 @@ export function Popover(props: PopoverProps): JSX.Element {
       <Show when={presence.mounted()}>
         <Portal
           plane={plane()}
-          ref={(node: Handle) => {
-            observe(node);
-          }}
           role="presentation"
           style={{
             position: "absolute",
@@ -385,12 +301,10 @@ export function Popover(props: PopoverProps): JSX.Element {
               : layer.onOutside
           }
           onKeyDown={handleEscape}
-          onWheel={schedulePosition}
         >
           <View
             ref={(node) => {
               content = node;
-              observe(node);
             }}
             role={props.contentRole ?? "dialog"}
             aria-label={props["aria-label"]}
@@ -398,16 +312,11 @@ export function Popover(props: PopoverProps): JSX.Element {
             shadows={props.contentShadows}
             transform={scale2d(open() ? 1 : motionFromScale())}
             nativeTransition={nativeTransition()}
+            floatingPosition={floatingPosition()}
             interactionBlocked={!open() || props.contentInteractionBlocked}
             aria-hidden={open() ? undefined : "true"}
             style={{
               position: "absolute",
-              // The panel must participate in layout before Floating UI can
-              // measure it. Keep that measurement pass outside the viewport:
-              // Keep the measurement pass outside the viewport so it is also
-              // absent from hit testing while the position is unresolved.
-              left: positioned() ? `${position().x}px` : "-100000px",
-              top: positioned() ? `${position().y}px` : "-100000px",
               ...props.contentStyle,
               opacity: open() ? 1 : 0,
             }}

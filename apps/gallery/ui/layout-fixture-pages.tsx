@@ -40,6 +40,7 @@ import {
   PiModelControlsLayoutFixture,
   PiSessionBehaviorLayoutFixture,
   PiTranscriptSearchLayoutFixture,
+  PopoverPlacementLayoutFixture,
   PromptSuggestionLayoutFixture,
   QRCodeLayoutFixture,
   ReasoningLayoutFixture,
@@ -252,6 +253,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 420,
         height: 220,
         render: TooltipLayoutFixture,
+      },
+      "component/PopoverPlacement": {
+        width: 420,
+        height: 220,
+        render: PopoverPlacementLayoutFixture,
       },
       "component/ToggleGroup": {
         width: 400,

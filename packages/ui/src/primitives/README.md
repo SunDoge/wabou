@@ -252,15 +252,11 @@ const shortcuts = createShortcuts({
 `Primary` accepts Control or Meta. Available modifier names are `Primary`,
 `Control`/`Ctrl`, `Meta`/`Cmd`, `Alt`/`Option`, and `Shift`.
 
-Floating overlays use `computeFloatingPosition`, backed by
-`@floating-ui/core`. Applications provide Wabou layout and clipping rectangles;
-the adapter does not emulate DOM elements or perform synchronous host queries.
-The standard `offset`, `flip`, `shift`, `size`, `arrow`, and `autoPlacement`
-middleware are exported alongside it.
-
-`computeHostFloatingPosition(reference, floating, host, options)` is the normal
-Wabou entry point. It batches both handles into one `host.layout.snapshot()` so
-all middleware uses rectangles from the same completed layout revision.
+Floating overlays use GPUI's native positioner. The JavaScript layer sends a
+stable node handle or pointer coordinate together with placement, offset, and
+window-margin preferences. GPUI performs measurement, collision flipping, and
+viewport clamping in the same native layout pass, without a JavaScript layout
+snapshot or animation-frame round trip.
 
 `Popover` composes that positioner with a native root-layer `Portal`. Portals
 default to the host's `floating` overlay plane, so they render above content

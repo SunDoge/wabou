@@ -9938,6 +9938,17 @@
       writer.setAttribute(node.id, "__wabou_native_spring", stringifyWidgetConfig(value));
       return;
     }
+    if (name === "floatingPosition") {
+      if (value == null || value === false) {
+        writer.removeAttribute(node.id, "__wabou_floating_position");
+        return;
+      }
+      if (!isStructuredConfigValue(value)) {
+        throw new TypeError("floatingPosition must be a plain object");
+      }
+      writer.setAttribute(node.id, "__wabou_floating_position", stringifyWidgetConfig(value));
+      return;
+    }
     if (name === "textBehavior") {
       const behavior = value && typeof value === "object" ? value : { flags: value, maxLines: 0 };
       const flags = behavior.flags == null || behavior.flags === false ? 0 : Number(behavior.flags);

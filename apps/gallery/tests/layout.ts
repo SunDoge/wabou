@@ -898,6 +898,24 @@ const assertTooltipLayout = (snapshot: LayoutSnapshot) => {
     throw new Error("tooltip shortcut did not follow its description");
 };
 
+const assertPopoverPlacementLayout = (snapshot: LayoutSnapshot) => {
+  const trigger = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Bottom edge trigger",
+  });
+  const popup = getLayoutNode(snapshot, {
+    role: "dialog",
+    name: "Native positioned popup",
+  });
+  if (layoutRectBottom(popup.rect) > trigger.rect.y - 5)
+    throw new Error("bottom-edge popup did not flip above its trigger");
+  if (popup.rect.x < 8 || layoutRectRight(popup.rect) > 420 - 8) {
+    throw new Error(
+      `native popup did not retain its viewport margin: ${JSON.stringify(popup.rect)}`,
+    );
+  }
+};
+
 const assertToggleGroupLayout = (snapshot: LayoutSnapshot) => {
   const group = getLayoutNode(snapshot, {
     role: "group",
@@ -1416,6 +1434,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/Badge": { assert: assertBadgeLayout },
   "component/Field": { assert: assertFieldLayout },
   "component/Tooltip": { assert: assertTooltipLayout },
+  "component/PopoverPlacement": { assert: assertPopoverPlacementLayout },
   "component/ToggleGroup": { assert: assertToggleGroupLayout },
   "component/Onboarding": { assert: assertOnboardingLayout },
   "component/Dialog": { assert: assertDialogLayout },

@@ -310,6 +310,8 @@ interface WabouElementProps {
   nativeTransition?: WabouNativeTransition;
   /** Persistent GPUI spring targeting the authored transform. */
   nativeSpring?: WabouNativeSpring;
+  /** Positions this element from a retained node or viewport point in GPUI. */
+  floatingPosition?: WabouFloatingPosition;
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
   "aria-modal"?: boolean | "true" | "false";
@@ -380,6 +382,23 @@ interface WabouNativeSpring {
   damping?: number;
   epsilon?: number;
   targetTransform: Affine2D;
+}
+type WabouFloatingPlacement = "top" | "top-start" | "top-end" | "bottom" | "bottom-start" | "bottom-end" | "left" | "left-start" | "left-end" | "right" | "right-start" | "right-end";
+type WabouFloatingAnchor = {
+  kind: "node";
+  id: NodeKey$1;
+} | {
+  kind: "point";
+  x: number;
+  y: number;
+};
+/** Native popup positioning contract; all distances are logical pixels. */
+interface WabouFloatingPosition {
+  anchor: WabouFloatingAnchor;
+  placement?: WabouFloatingPlacement;
+  offset?: number;
+  /** Minimum distance from the native window viewport. */
+  margin?: number;
 }
 interface WabouControlProps extends WabouElementProps {
   disabled?: boolean;
@@ -609,5 +628,5 @@ declare function dispatchEvent(solidId: NodeKey$1, eventCode: number, payloadStr
  */
 declare function reconcileControlledInputValues(): void;
 //#endregion
-export { observeGlobalPointerEvent as $, WabouTextCommitEvent as A, JSX$1 as At, createTextNode as B, VectorPathPaint as Bt, WabouPointerEvent as C, DebugOverlayPaintStats as Ct, WabouSubmitEvent as D, LayoutScrollMetrics as Dt, WabouSemanticRole as E, LayoutRect as Et, WabouWheelEvent as F, PathFillRule as Ft, getRequestEvent as G, dispatchEvent as H, acquireOverlayRoot as I, PathLineCap as It, isDirectEvent as J, insert as K, applyRef as L, PathLineJoin as Lt, WabouTransitionEvent as M, jsxDEV as Mt, WabouValueChangeEvent as N, jsxs as Nt, WabouSvgProps as O, LayoutSnapshot as Ot, WabouVectorPathProps as P, PathBuilder as Pt, mount as Q, createComponent$1 as R, PathPoint as Rt, WabouNodeEvent as S, useHost as St, WabouScrollEvent as T, LayoutNodeMetrics as Tt, effect as U, delegateEvents as V, isVectorPath as Vt, getMountRoot as W, memo as X, isServer as Y, mergeProps as Z, WabouKeyEvent as _, Host as _t, WabouBuiltinIntrinsicElements as a, render as at, WabouNativeTag as b, LayoutTarget as bt, WabouEventTarget as c, setTransform2D as ct, WabouGlobalPointerListener as d, VirtualList as dt, reconcileControlledInputValues as et, WabouImageProps as f, VirtualListProps as ft, WabouInputProps as g, DebugOverlayOptions as gt, WabouInputEvent as h, BuiltinHost as ht, NativeScrollbarStyle as i, removeNode as it, WabouTextSelectionChangeEvent as j, jsx as jt, WabouSvgShapeProps as k, Fragment as kt, WabouExposedSemanticRole as l, spread as lt, WabouImePreeditEvent as m, PortalProps as mt, DynamicProps as n, registerRoot as nt, WabouControlProps as o, runSweep as ot, WabouImeDeleteSurroundingEvent as p, Portal as pt, insertNode as q, Handle as r, releaseOverlayRoot as rt, WabouElementProps as s, setProp as st, Dynamic as t, ref as tt, WabouGlobalPointerEventType as u, writer as ut, WabouNativeElements as v, HostProvider as vt, WabouPositionedEvent as w, FrameStats as wt, WabouNativeTransition as x, defaultHost as xt, WabouNativeSpring as y, HostProviderProps as yt, createElement as z, VectorPath as zt };
-//# sourceMappingURL=index-D69S1sbk.d.mts.map
+export { memo as $, WabouSubmitEvent as A, LayoutScrollMetrics as At, applyRef as B, PathLineJoin as Bt, WabouNativeTag as C, LayoutTarget as Ct, WabouPositionedEvent as D, FrameStats as Dt, WabouPointerEvent as E, DebugOverlayPaintStats as Et, WabouTransitionEvent as F, jsxDEV as Ft, dispatchEvent as G, createElement as H, VectorPath as Ht, WabouValueChangeEvent as I, jsxs as It, getRequestEvent as J, effect as K, WabouVectorPathProps as L, PathBuilder as Lt, WabouSvgShapeProps as M, Fragment as Mt, WabouTextCommitEvent as N, JSX$1 as Nt, WabouScrollEvent as O, LayoutNodeMetrics as Ot, WabouTextSelectionChangeEvent as P, jsx as Pt, isServer as Q, WabouWheelEvent as R, PathFillRule as Rt, WabouNativeSpring as S, HostProviderProps as St, WabouNodeEvent as T, useHost as Tt, createTextNode as U, VectorPathPaint as Ut, createComponent$1 as V, PathPoint as Vt, delegateEvents as W, isVectorPath as Wt, insertNode as X, insert as Y, isDirectEvent as Z, WabouImePreeditEvent as _, PortalProps as _t, WabouBuiltinIntrinsicElements as a, registerRoot as at, WabouKeyEvent as b, Host as bt, WabouEventTarget as c, render as ct, WabouFloatingPlacement as d, setTransform2D as dt, mergeProps as et, WabouFloatingPosition as f, spread as ft, WabouImeDeleteSurroundingEvent as g, Portal as gt, WabouImageProps as h, VirtualListProps as ht, NativeScrollbarStyle as i, ref as it, WabouSvgProps as j, LayoutSnapshot as jt, WabouSemanticRole as k, LayoutRect as kt, WabouExposedSemanticRole as l, runSweep as lt, WabouGlobalPointerListener as m, VirtualList as mt, DynamicProps as n, observeGlobalPointerEvent as nt, WabouControlProps as o, releaseOverlayRoot as ot, WabouGlobalPointerEventType as p, writer as pt, getMountRoot as q, Handle as r, reconcileControlledInputValues as rt, WabouElementProps as s, removeNode as st, Dynamic as t, mount as tt, WabouFloatingAnchor as u, setProp as ut, WabouInputEvent as v, BuiltinHost as vt, WabouNativeTransition as w, defaultHost as wt, WabouNativeElements as x, HostProvider as xt, WabouInputProps as y, DebugOverlayOptions as yt, acquireOverlayRoot as z, PathLineCap as zt };
+//# sourceMappingURL=index-DV4yLfOK.d.mts.map
