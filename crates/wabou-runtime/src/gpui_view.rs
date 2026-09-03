@@ -987,6 +987,13 @@ impl GpuiRuntimeView {
         }
 
         let Some(handle) = self.window_host.resolve(target) else {
+            if closes {
+                // Native close notifications and JavaScript actions can race.
+                // Treat Close as an idempotent terminal command so a queued or
+                // repeated close never turns successful teardown into a stale-
+                // handle error. Other commands still diagnose invalid handles.
+                return EffectResult::Unit;
+            }
             return EffectResult::Error {
                 code: EffectErrorCode::InvalidRequest,
                 message: format!("window `{target}` is not live"),
@@ -2517,6 +2524,40 @@ mod tests {
         assert!(
             window_host.resolve(second_key).is_none(),
             "closing a target must retire its Wabou window identity"
+        );
+        let repeated = cx
+            .update_window(first.into(), |_, window, app| {
+                first_root.update(app, |view, view_cx| {
+                    view.execute_window_command(second_key, WindowCommand::Close, window, view_cx)
+                })
+            })
+            .expect("repeat close from the live source window");
+        assert_eq!(
+            repeated,
+            EffectResult::Unit,
+            "closing an already closed native window must be idempotent"
+        );
+        let stale_mutation = cx
+            .update_window(first.into(), |_, window, app| {
+                first_root.update(app, |view, view_cx| {
+                    view.execute_window_command(
+                        second_key,
+                        WindowCommand::SetTitle("stale".into()),
+                        window,
+                        view_cx,
+                    )
+                })
+            })
+            .expect("stale mutation from the live source window");
+        assert!(
+            matches!(
+                stale_mutation,
+                EffectResult::Error {
+                    code: EffectErrorCode::InvalidRequest,
+                    ..
+                }
+            ),
+            "non-terminal commands must still reject stale window handles"
         );
         cx.run_until_parked();
         assert!(
