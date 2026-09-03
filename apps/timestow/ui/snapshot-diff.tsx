@@ -17,7 +17,13 @@ import {
 } from "@wabou/ui";
 import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
-import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For as ForValue,
+  Show,
+} from "solid-js";
 import type {
   SnapshotDiff,
   SnapshotDiffChange,
@@ -267,7 +273,7 @@ export function SnapshotDiffPanel(props: {
                 <Table aria-label="Snapshot changes">
                   <TableHeader>
                     <TableRow class="bg-surface-muted">
-                      <For each={diffColumns}>
+                      <ForValue each={diffColumns}>
                         {(column) => {
                           const id = String(column.id);
                           return (
@@ -281,11 +287,11 @@ export function SnapshotDiffPanel(props: {
                             />
                           );
                         }}
-                      </For>
+                      </ForValue>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <For each={diffTable.rows()}>
+                    <ForValue each={diffTable.rows()}>
                       {(row) => {
                         const entry = row.original;
                         const presentation = changePresentation[entry.change];
@@ -330,7 +336,7 @@ export function SnapshotDiffPanel(props: {
                           </TableRow>
                         );
                       }}
-                    </For>
+                    </ForValue>
                   </TableBody>
                 </Table>
               </ScrollArea>

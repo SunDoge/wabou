@@ -22,7 +22,7 @@ import {
 import archive from "lucide-static/icons/archive.svg?raw";
 import database from "lucide-static/icons/database.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
-import { For, type JSX, Show } from "solid-js";
+import { For as ForValue, type JSX, Show } from "solid-js";
 import type { BackupProfile } from "./api";
 import { useTimestowSession } from "./session";
 
@@ -60,7 +60,7 @@ export function TimestowSidebar(props: TimestowSidebarProps) {
                 </Text>
               }
             >
-              <For each={props.profiles}>
+              <ForValue each={props.profiles}>
                 {(profile) => (
                   <SidebarMenuButton
                     value={profile.id}
@@ -83,7 +83,7 @@ export function TimestowSidebar(props: TimestowSidebarProps) {
                     </SidebarMenuSuffix>
                   </SidebarMenuButton>
                 )}
-              </For>
+              </ForValue>
             </Show>
           </SidebarMenu>
         </SidebarGroup>

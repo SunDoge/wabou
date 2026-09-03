@@ -15,7 +15,7 @@ import {
   View,
 } from "@wabou/ui";
 import info from "lucide-static/icons/info.svg?raw";
-import { createEffect, createSignal, For, Show } from "solid-js";
+import { createEffect, createSignal, For as ForValue, Show } from "solid-js";
 import type { SnapshotEntry } from "./api";
 
 export function formatSnapshotTime(value: string): string {
@@ -160,13 +160,13 @@ export function SnapshotDetails(props: {
               class="max-h-48 rounded-lg border border-subtle"
               contentClass="flex flex-col gap-1.5 p-3"
             >
-              <For each={props.snapshot.paths}>
+              <ForValue each={props.snapshot.paths}>
                 {(path) => (
                   <Text class="whitespace-normal text-sm text-secondary">
                     {path}
                   </Text>
                 )}
-              </For>
+              </ForValue>
             </DialogScrollBody>
           </View>
           <View class="flex flex-col gap-1">
