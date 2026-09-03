@@ -13,7 +13,7 @@ import {
 } from "../primitives";
 
 export interface ImageListProps<T> {
-  /** Reactive backing collection. Only visible rows mount their Image nodes. */
+  /** Reactive backing collection. GPUI materializes only visible native rows. */
   items: () => readonly T[];
   getItemKey: (item: T, index: number) => string | number;
   getResource?: (item: T, index: number) => ImageResourceHandle;

@@ -16,6 +16,7 @@ test("Pi Agent renames the current session from its header", async () => {
 
   screen.getByRole("button", { name: "Rename session" }).click();
   await screen.advanceTime(16);
+  const dialog = screen.getByRole("dialog", { name: "Rename session" });
   const name = screen.getByRole("textbox", { name: "Session name" });
   expect(name.focused).toBe(true);
   name.input("Readable title");
@@ -27,7 +28,7 @@ test("Pi Agent renames the current session from its header", async () => {
   await Promise.resolve();
   await Promise.resolve();
   expect(renamed).toBe("Readable title");
-  await screen.advanceTime(200);
+  dialog.finishNativeTransition();
   expect(screen.queryByRole("dialog", { name: "Rename session" })).toBeNull();
 });
 
@@ -44,6 +45,7 @@ test("Pi Agent keeps rename failures visible and retryable", async () => {
   ));
 
   screen.getByRole("button", { name: "Rename session" }).click();
+  const dialog = screen.getByRole("dialog", { name: "Rename session" });
   screen.getByRole("textbox", { name: "Session name" }).input("New title");
   screen.getByRole("button", { name: "Save" }).click();
   await screen.waitFor(() =>
@@ -53,8 +55,8 @@ test("Pi Agent keeps rename failures visible and retryable", async () => {
   );
   expect(screen.getByRole("dialog", { name: "Rename session" })).toBeDefined();
   screen.getByRole("button", { name: "Save" }).click();
-  await screen.waitFor(() =>
-    expect(screen.queryByRole("dialog", { name: "Rename session" })).toBeNull(),
-  );
+  await screen.waitFor(() => expect(attempt).toBe(2));
+  dialog.finishNativeTransition();
+  expect(screen.queryByRole("dialog", { name: "Rename session" })).toBeNull();
   expect(attempt).toBe(2);
 });

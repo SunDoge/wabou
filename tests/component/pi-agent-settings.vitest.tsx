@@ -112,6 +112,7 @@ test("Pi Agent settings separate project overrides from global network configura
   dialog.getByRole("button", { name: "Delete Build project?" }).click();
   await settleAsyncAction();
   expect(deleted()).toBe(1);
+  dialog.finishNativeTransition();
   expect(
     screen.queryByRole("alertdialog", { name: "Delete project" }),
   ).toBeNull();
@@ -125,6 +126,7 @@ test("Pi Agent keeps project deletion failures visible and retryable", async () 
   });
 
   screen.getByRole("button", { name: "Delete project" }).click();
+  const dialog = screen.getByRole("alertdialog", { name: "Delete project" });
   screen.getByRole("button", { name: "Delete Project 1?" }).click();
   await settleAsyncAction();
   expect(
@@ -137,6 +139,7 @@ test("Pi Agent keeps project deletion failures visible and retryable", async () 
   await settleAsyncAction();
   expect(deleted()).toBe(1);
   expect(attempt).toBe(2);
+  dialog.finishNativeTransition();
   expect(
     screen.queryByRole("alertdialog", { name: "Delete project" }),
   ).toBeNull();
