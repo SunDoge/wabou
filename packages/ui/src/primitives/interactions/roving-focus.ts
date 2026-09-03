@@ -19,8 +19,15 @@ export interface RovingFocusOptions {
 
 export function createRovingFocus(options: RovingFocusOptions = {}) {
   const items: RovingFocusItem[] = [];
-  const [activeId, setActiveId] = createSignal<string>();
-  const [registryVersion, setRegistryVersion] = createSignal(0);
+  // Registration is tied to rendered item ownership. Solid disposes those
+  // items from an owned scope, so cleanup intentionally updates the shared
+  // roving-focus registry rather than authored component state.
+  const [activeId, setActiveId] = createSignal<string | undefined>(undefined, {
+    ownedWrite: true,
+  });
+  const [registryVersion, setRegistryVersion] = createSignal(0, {
+    ownedWrite: true,
+  });
   const enabled = () => items.filter((item) => !item.disabled?.());
   const currentTabStop = () => {
     registryVersion();
