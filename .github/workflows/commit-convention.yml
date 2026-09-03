@@ -32,7 +32,17 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
-      - name: Validate merged commit with Cocogitto
+      - name: Validate pushed commit title
         run: |
-          git log -1 --pretty=%B |
-            docker run --rm -i ghcr.io/cocogitto/cog:7.0.0 verify --file -
+          if [ "$(git show -s --format=%P HEAD | wc -w)" -gt 1 ]; then
+            echo "Skipping Git merge commit $(git rev-parse --short HEAD)"
+            exit 0
+          fi
+
+          subject=$(git log -1 --pretty=%s)
+          pattern='^(feat|fix|refactor|perf|test|docs|build|ci|chore|revert)(\([a-z0-9][a-z0-9._/-]*\))?!?: .+'
+          if ! printf '%s\n' "$subject" | grep -Eq "$pattern"; then
+            echo "Invalid commit title: $subject"
+            echo "Expected: <type>(<optional-scope>): <description>"
+            exit 1
+          fi
