@@ -96,6 +96,7 @@ export function LiveChart(props: {
   });
   return (
     <View
+      projectionBoundary
       ref={measured.ref}
       role="img"
       aria-label={`${props.color === "upload" ? "Upload" : "Download"} throughput chart`}

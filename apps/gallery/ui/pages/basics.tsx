@@ -1,5 +1,6 @@
 import {
   Alert,
+  AlertActions,
   AlertDescription,
   AlertTitle,
   type AnimationControls,
@@ -14,11 +15,12 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
-  ConfigEditor,
   createHover,
   createWindow,
   currentWindowOptions,
+  Editor,
   Fps,
+  GroupBox,
   Icon,
   Input,
   Kbd,
@@ -26,6 +28,7 @@ import {
   MotionConfigProvider,
   NumberField,
   Progress,
+  ProgressCircle,
   ProgressFill,
   ProgressLabel,
   ProgressRoot,
@@ -38,6 +41,7 @@ import {
   ScrollArea,
   SearchField,
   Separator,
+  SettingsItem,
   Skeleton,
   Slider,
   Spinner,
@@ -60,7 +64,7 @@ import {
 } from "@wabou/ui";
 import info from "lucide-static/icons/info.svg?raw";
 import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
-import { createSignal, For, onCleanup } from "solid-js";
+import { createSignal, For as ForValue, onCleanup } from "solid-js";
 import "virtual:wabou-stylesheet";
 
 import { Preview } from "../preview";
@@ -127,27 +131,45 @@ function BadgePage() {
 
 function CardPage() {
   return (
-    <Preview title="Example">
-      <Card class="w-72">
-        <CardHeader>
-          <CardTitle>Create project</CardTitle>
-          <CardAction>
-            <Badge variant="secondary">Draft</Badge>
-          </CardAction>
-          <CardDescription maxLines={2}>
-            Deploy a new Wabou application from a reusable project template with
-            predictable native text truncation.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Input placeholder="Project name" />
-        </CardContent>
-        <CardFooter>
-          <Button>Create project</Button>
-          <Button variant="ghost">Cancel</Button>
-        </CardFooter>
-      </Card>
-    </Preview>
+    <View class="flex flex-col gap-5">
+      <Preview title="Card">
+        <Card class="w-72">
+          <CardHeader>
+            <CardTitle>Create project</CardTitle>
+            <CardAction>
+              <Badge variant="secondary">Draft</Badge>
+            </CardAction>
+            <CardDescription maxLines={2}>
+              Deploy a new Wabou application from a reusable project template
+              with predictable native text truncation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Input placeholder="Project name" />
+          </CardContent>
+          <CardFooter>
+            <Button>Create project</Button>
+            <Button variant="ghost">Cancel</Button>
+          </CardFooter>
+        </Card>
+      </Preview>
+      <Preview title="Group box">
+        <GroupBox
+          class="w-96"
+          title="Network access"
+          description="Controls shared by related background services."
+          variant="outline"
+        >
+          <SettingsItem title="Use system proxy">
+            <Switch aria-label="Use system proxy" defaultChecked />
+          </SettingsItem>
+          <Separator />
+          <SettingsItem title="Allow metered connections">
+            <Switch aria-label="Allow metered connections" />
+          </SettingsItem>
+        </GroupBox>
+      </Preview>
+    </View>
   );
 }
 
@@ -197,10 +219,12 @@ function InputPage() {
           </Text>
         </View>
       </Preview>
-      <Preview title="Configuration editor">
+      <Preview title="Editor">
         <View class="w-full flex flex-col gap-2">
-          <ConfigEditor
+          <Editor
             aria-label="JSON configuration"
+            language="json"
+            class="min-h-48 w-full rounded-lg border border-strong bg-input text-primary"
             value={config()}
             onInput={(event) => {
               setConfig(event.currentTarget.value);
@@ -244,29 +268,24 @@ function SwitchPage() {
     <Preview title="Settings">
       <Card class="w-96">
         <CardContent>
-          <View class="flex items-center justify-between gap-4">
-            <View class="flex flex-col gap-1">
-              <ThemeText
-                dark="text-sm font-medium text-slate-100"
-                light="text-sm font-medium text-slate-900"
-              >
-                Desktop notifications
-              </ThemeText>
-              <ThemeText
-                dark="text-xs text-slate-400"
-                light="text-xs text-slate-500"
-              >
-                Notify when a background task finishes.
-              </ThemeText>
-            </View>
+          <SettingsItem
+            title="Desktop notifications"
+            description="Notify when a background task finishes."
+          >
             <Switch
               checked={enabled()}
               aria-label="Desktop notifications"
               onCheckedChange={setEnabled}
             />
-          </View>
+          </SettingsItem>
           <Separator />
-          <Switch disabled label="Experimental renderer" />
+          <SettingsItem
+            title="Experimental renderer"
+            description="Try rendering features that are still under evaluation."
+            disabled
+          >
+            <Switch disabled aria-label="Experimental renderer" />
+          </SettingsItem>
         </CardContent>
       </Card>
     </Preview>
@@ -578,6 +597,14 @@ function ProgressPage() {
           </ProgressRoot>
         </View>
       </Preview>
+      <Preview title="Circular states">
+        <View class="flex items-center gap-5">
+          <ProgressCircle label="Queued" value={0} size="sm" />
+          <ProgressCircle label="Downloading" value={64} />
+          <ProgressCircle label="Complete" value={100} size="lg" />
+          <ProgressCircle label="Connecting" indeterminate />
+        </View>
+      </Preview>
     </View>
   );
 }
@@ -587,7 +614,7 @@ function FpsPage() {
     <View class="flex flex-col gap-5">
       <Preview title="Live host frame rate">
         <View class="flex items-center gap-3 p-4">
-          <Fps />
+          <Fps live />
           <ThemeText
             dark="text-sm text-slate-400"
             light="text-sm text-slate-600"
@@ -642,6 +669,21 @@ function SliderPage() {
             defaultValue={15}
           />
           <Slider label="Unavailable range" defaultValue={60} disabled />
+        </View>
+      </Preview>
+      <Preview title="Orientation and fill direction">
+        <View class="h-40 flex items-center gap-8 p-4">
+          <Slider
+            orientation="vertical"
+            label="Vertical volume"
+            defaultValue={65}
+          />
+          <Slider
+            orientation="vertical"
+            reversed
+            label="Remaining time"
+            defaultValue={35}
+          />
         </View>
       </Preview>
       <PropertyRow name="keyboard" value="arrows | page up/down | home | end" />
@@ -772,7 +814,9 @@ function ScrollAreaPage() {
               activeColor: 0x0284c7ff,
             }}
           >
-            <For each={Array.from({ length: 16 }, (_, index) => index + 1)}>
+            <ForValue
+              each={Array.from({ length: 16 }, (_, index) => index + 1)}
+            >
               {(index) => (
                 <View
                   class={
@@ -792,7 +836,7 @@ function ScrollAreaPage() {
                   </Text>
                 </View>
               )}
-            </For>
+            </ForValue>
           </ScrollArea>
         </View>
       </Preview>
@@ -871,12 +915,28 @@ function PlatformPage() {
                   minWidth: 640,
                   minHeight: 400,
                   decorations: false,
-                  transparent: true,
+                  background: "transparent",
                   windowLevel: "alwaysOnTop",
                 });
               }}
             >
               Open transparent window
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                void createWindow({
+                  title: "Wabou blurred window",
+                  width: 900,
+                  height: 600,
+                  minWidth: 640,
+                  minHeight: 400,
+                  decorations: false,
+                  background: "blurred",
+                });
+              }}
+            >
+              Open blurred window
             </Button>
           </View>
         </View>
@@ -887,7 +947,11 @@ function PlatformPage() {
 
 function ChildWindowPage() {
   const window = useWindow();
-  if (currentWindowOptions().transparent) return <TransparentWindowPage />;
+  if (
+    currentWindowOptions().background === "transparent" ||
+    currentWindowOptions().background === "blurred"
+  )
+    return <TransparentWindowPage />;
   return (
     <View class="w-full h-full flex flex-col bg-slate-900 text-white">
       <TitleBar class="border-slate-700 bg-slate-950">
@@ -1019,6 +1083,14 @@ function AlertPage() {
           >
             The native bundle could not be linked. Review the linker output and
             retry the build.
+            <AlertActions aria-label="Build recovery actions">
+              <Button size="sm" variant="outline">
+                Retry build
+              </Button>
+              <Button size="sm" variant="ghost">
+                Open output
+              </Button>
+            </AlertActions>
           </Alert>
         </View>
       </Preview>

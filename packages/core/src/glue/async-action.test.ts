@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { createRoot, flush } from "solid-js";
 import {
   AsyncActionConflictError,
+  type AsyncActionResult,
   createAsyncAction,
   createKeyedAsyncAction,
 } from "./async-action";
@@ -37,6 +38,22 @@ test("concurrent calls join one async action", async () => {
   expect(action.pending()).toBe(false);
   expect(action.pendingArgs()).toBeUndefined();
   expect(action.error()).toBeUndefined();
+});
+
+test("starts immediately while preserving a re-entrant single flight", async () => {
+  let nested: Promise<AsyncActionResult<number>> | undefined;
+  let calls = 0;
+  let action!: ReturnType<typeof createAsyncAction<[number], number>>;
+  action = createAsyncAction((value: number) => {
+    calls += 1;
+    nested = action.run(value);
+    return value * 2;
+  });
+
+  const outer = action.run(3);
+  expect(calls).toBe(1);
+  expect(nested).toBe(outer);
+  expect(await outer).toEqual({ ok: true, value: 6 });
 });
 
 test("concurrent calls do not silently discard different arguments", async () => {
@@ -123,6 +140,27 @@ test("keyed actions join equal keys while unrelated keys run concurrently", asyn
   expect(action.pending("b")).toBe(true);
   requests.get("b")?.resolve(20);
   expect(await other).toEqual({ ok: true, value: 22 });
+});
+
+test("keyed actions start immediately and publish their flight before re-entry", async () => {
+  let nested: Promise<AsyncActionResult<number>> | undefined;
+  let calls = 0;
+  let action!: ReturnType<
+    typeof createKeyedAsyncAction<string, [string, number], number>
+  >;
+  action = createKeyedAsyncAction(
+    (key: string, _value: number) => key,
+    (key: string, value: number) => {
+      calls += 1;
+      nested = action.run(key, value);
+      return value * 2;
+    },
+  );
+
+  const outer = action.run("project", 4);
+  expect(calls).toBe(1);
+  expect(nested).toBe(outer);
+  expect(await outer).toEqual({ ok: true, value: 8 });
 });
 
 test("keyed action errors and disposal are isolated per key", async () => {

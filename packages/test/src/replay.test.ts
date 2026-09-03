@@ -99,9 +99,15 @@ test("replay preserves the logical window for every action", async () => {
   };
   const actions: TestAction[] = [
     {
+      action: "writeTextFile",
+      relativePath: "downloads/example.torrent",
+      contents: "fixture",
+      path: "/old-fixtures/downloads/example.torrent",
+    },
+    {
       action: "respondToEffect",
       operation: "dialogPickDirectory",
-      result: ["/tmp/downloads"],
+      result: ["/old-fixtures/downloads/example.torrent"],
     },
     {
       action: "resizeWindow",
@@ -113,7 +119,7 @@ test("replay preserves the logical window for every action", async () => {
       action: "fileDrop",
       windowId: key(9),
       phase: "dropped",
-      paths: ["/tmp/example.torrent"],
+      paths: ["/old-fixtures/downloads/example.torrent"],
     },
     {
       action: "clickByRole",
@@ -165,6 +171,12 @@ test("replay preserves the logical window for every action", async () => {
     actions,
     page,
     window,
+    {
+      writeText: (relativePath, contents) => {
+        record("writeText", relativePath, contents);
+        return `/new-fixtures/${relativePath}`;
+      },
+    },
     async (target, action) => {
       await target.snapshot();
       record("assertWait", action.wait);
@@ -174,9 +186,19 @@ test("replay preserves the logical window for every action", async () => {
   );
 
   expect(observed).toEqual([
-    ["effect", "dialogPickDirectory", ["/tmp/downloads"]],
+    ["writeText", "downloads/example.torrent", "fixture"],
+    [
+      "effect",
+      "dialogPickDirectory",
+      ["/new-fixtures/downloads/example.torrent"],
+    ],
     ["8v1", "resize", 900, 600],
-    ["9v1", "fileDrop", "dropped", ["/tmp/example.torrent"]],
+    [
+      "9v1",
+      "fileDrop",
+      "dropped",
+      ["/new-fixtures/downloads/example.torrent"],
+    ],
     [
       "2v3",
       ["dialog:Settings"],

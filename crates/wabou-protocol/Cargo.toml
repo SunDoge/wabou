@@ -1,0 +1,15 @@
+[package]
+name = "wabou-protocol"
+version.workspace = true
+edition = "2024"
+description = "Backend-neutral binary UI protocol shared by Wabou runtimes."
+publish = false
+license.workspace = true
+
+[dependencies]
+lasso = "0.7.3"
+snafu.workspace = true
+wabou-host-api.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

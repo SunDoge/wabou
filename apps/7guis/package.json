@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@wabou/ui": "workspace:*",
-    "solid-js": "2.0.0-rc.2"
+    "solid-js": "2.0.0-rc.2",
+    "valibot": "^1.4.2"
   },
   "devDependencies": {
     "@wabou/test": "workspace:*",

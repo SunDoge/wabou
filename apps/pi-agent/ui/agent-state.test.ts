@@ -2,11 +2,19 @@ import { describe, expect, test } from "vitest";
 import {
   appendUserMessage,
   initialAgentState,
+  reconcileProcessConnection,
   reducePiEvent,
   reducePiEvents,
 } from "./agent-state";
 
 describe("Pi agent event projection", () => {
+  test("does not let a stale process status erase active response state", () => {
+    expect(reconcileProcessConnection("running", true)).toBe("running");
+    expect(reconcileProcessConnection("failed", true)).toBe("failed");
+    expect(reconcileProcessConnection("stopped", true)).toBe("ready");
+    expect(reconcileProcessConnection("running", false)).toBe("stopped");
+  });
+
   test("streams an assistant message without duplicating it", () => {
     let state = appendUserMessage(initialAgentState, "user-1", "hello");
     state = reducePiEvent(state, { type: "agent_start" });
@@ -71,6 +79,83 @@ describe("Pi agent event projection", () => {
       kind: "tool",
       state: "success",
       output: "/tmp",
+    });
+  });
+
+  test("does not let stale bootstrap history erase a live tool turn", () => {
+    let state = reducePiEvent(initialAgentState, {
+      type: "tool_execution_start",
+      toolCallId: "call-live",
+      toolName: "read",
+      args: { path: "README.md" },
+    });
+    state = reducePiEvent(state, {
+      type: "response",
+      id: "wabou-bootstrap-state-messages",
+      command: "get_messages",
+      success: true,
+      data: {
+        messages: [
+          { role: "user", content: [{ type: "text", text: "Inspect" }] },
+        ],
+      },
+    });
+
+    expect(state.items).toHaveLength(1);
+    expect(state.items[0]).toMatchObject({ id: "call-live", kind: "tool" });
+  });
+
+  test("projects the Rust event clock into the completed tool turn", () => {
+    let state = reducePiEvent(initialAgentState, {
+      type: "agent_start",
+      receivedAtMs: 1_000,
+    });
+    state = reducePiEvent(state, {
+      type: "tool_execution_start",
+      toolCallId: "call-timed",
+      toolName: "read",
+      args: { path: "README.md" },
+    });
+    state = reducePiEvent(state, {
+      type: "tool_execution_end",
+      toolCallId: "call-timed",
+      result: { content: [{ type: "text", text: "ok" }] },
+    });
+    state = reducePiEvent(state, {
+      type: "agent_settled",
+      receivedAtMs: 13_200,
+    });
+
+    expect(state.items[0]).toMatchObject({
+      kind: "tool",
+      turnDurationMs: 12_200,
+    });
+    expect(state.turnStartedAtMs).toBeUndefined();
+    expect(state.turnStartItemIndex).toBeUndefined();
+  });
+
+  test("places tool work before the retained assistant answer", () => {
+    let state = reducePiEvent(initialAgentState, {
+      type: "message_start",
+      message: { role: "assistant", content: [] },
+    });
+    const assistantId = state.activeAssistantId;
+    state = reducePiEvent(state, {
+      type: "tool_execution_start",
+      toolCallId: "read-1",
+      toolName: "read",
+      args: { path: "README.md" },
+    });
+    state = reducePiEvent(state, {
+      type: "message_update",
+      assistantMessageEvent: { type: "text_delta", delta: "Finished." },
+    });
+
+    expect(state.items.map((item) => item.kind)).toEqual(["tool", "assistant"]);
+    expect(state.items[1]).toMatchObject({
+      id: assistantId,
+      kind: "assistant",
+      text: "Finished.",
     });
   });
 
@@ -238,6 +323,58 @@ describe("Pi agent event projection", () => {
       kind: "notice",
       tone: "error",
       text: "broken status extension",
+    });
+  });
+
+  test("rolls back a rejected prompt without stopping a healthy agent", () => {
+    const ready = reducePiEvent(initialAgentState, { type: "process_start" });
+    const optimistic = appendUserMessage(
+      ready,
+      "user-pending",
+      "Retry this request",
+    );
+    const failed = reducePiEvent(optimistic, {
+      type: "request_error",
+      userMessageId: "user-pending",
+      message: "provider unavailable",
+    });
+
+    expect(failed.connection).toBe("ready");
+    expect(failed.items).not.toContainEqual(
+      expect.objectContaining({ id: "user-pending" }),
+    );
+    expect(failed.items.at(-1)).toMatchObject({
+      kind: "notice",
+      tone: "error",
+      text: "provider unavailable",
+      recovery: "retry_prompt",
+    });
+
+    const retried = reducePiEvent(failed, { type: "agent_start" });
+    expect(retried.connection).toBe("running");
+    expect(retried.error).toBeUndefined();
+  });
+
+  test("projects an asynchronous prompt rejection onto its optimistic message", () => {
+    const ready = reducePiEvent(initialAgentState, { type: "process_start" });
+    const optimistic = appendUserMessage(ready, "user-async", "Rejected later");
+    const failed = reducePiEvent(optimistic, {
+      id: "wabou-request:user-async",
+      type: "response",
+      command: "prompt",
+      success: false,
+      error: "provider unavailable",
+    });
+
+    expect(failed.connection).toBe("ready");
+    expect(failed.items).not.toContainEqual(
+      expect.objectContaining({ id: "user-async" }),
+    );
+    expect(failed.items.at(-1)).toMatchObject({
+      kind: "notice",
+      tone: "error",
+      text: "provider unavailable",
+      recovery: "retry_prompt",
     });
   });
 

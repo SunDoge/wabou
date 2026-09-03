@@ -1,3 +1,4 @@
+mod checkpoint;
 mod service;
 
 use snafu::{ResultExt, Whatever};
@@ -17,14 +18,20 @@ fn main() -> Result<(), Whatever> {
     let events = service.clone();
     HostBuilder::new()
         .app_directories("dev", "Wabou", "Pi Agent")
+        .kv()
         .persist_window_size("main")
         .window(
             WindowOptions::new()
                 .title("Pi Agent · Wabou")
                 .initial_inner_size(1180, 780)
-                .min_inner_size(820, 560),
+                // The fixed 240px sidebar leaves 940px for the conversation
+                // toolbar and composer. Keep the native window above that
+                // measured application-shell boundary instead of allowing
+                // flex children to be compressed into one another.
+                .min_inner_size(1180, 680),
         )
-        .json_capability(service::CAPABILITY, move |host| {
+        .native_entity_widget("terminal", wabou_terminal::gpui_terminal_factory())
+        .capability(service::CAPABILITY, move |host| {
             service::mount(host, capability.clone())
         })
         .host_message_producer(move |context| service::stream_events(context, events.clone()))

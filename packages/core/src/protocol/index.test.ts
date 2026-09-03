@@ -21,6 +21,16 @@ const textBehaviorV1 = JSON.parse(
   ),
 ) as { name: string; bytes: number[] };
 
+const projectionBoundaryV1 = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../../fixtures/protocol/set-projection-boundary-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+) as { name: string; bytes: number[] };
+
 describe("Writer limits", () => {
   test("rejects strings that cannot be represented by the wire format", () => {
     const writer = new Writer();
@@ -117,7 +127,7 @@ describe("Writer limits", () => {
     expect(view.getFloat32(22, true)).toBe(12.5);
   });
 
-  test("encodes ordered Vello shadow layers as fixed binary records", () => {
+  test("encodes ordered native shadow layers as fixed binary records", () => {
     const writer = new Writer();
     writer.setShadows(k(7), [
       {
@@ -144,15 +154,18 @@ describe("Writer limits", () => {
     expect(view.getFloat32(39, true)).toBe(8);
   });
 
-  test("encodes imperative focus as a node-only operation", () => {
+  test("encodes imperative focus and blur as node-only operations", () => {
     const writer = new Writer();
     writer.focusNode(k(42));
+    writer.blurNode(k(42));
     const frame = writer.flush()!;
     const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
 
-    expect(frame.byteLength).toBe(17);
+    expect(frame.byteLength).toBe(26);
     expect(frame[8]).toBe(0x13);
     expect(view.getUint32(9, true)).toBe(42);
+    expect(frame[17]).toBe(0x25);
+    expect(view.getUint32(18, true)).toBe(42);
   });
 
   test("encodes absolute and relative native scroll operations", () => {
@@ -198,6 +211,17 @@ describe("Writer limits", () => {
     expect(() => writer.setTextBehavior(k(42), 0x07)).not.toThrow();
   });
 
+  test("preserves the projection boundary v1 golden frame", () => {
+    const writer = new Writer();
+    writer.setProjectionBoundary(k(42), true);
+    const frame = writer.flush()!;
+
+    expect(projectionBoundaryV1.name).toBe("set-projection-boundary-v1");
+    expect(Array.from(frame)).toEqual(projectionBoundaryV1.bytes);
+    expect(frame[8]).toBe(OP.SetProjectionBoundary);
+    expect(frame[17]).toBe(1);
+  });
+
   test("encodes text line limits without changing the text behavior ABI", () => {
     const writer = new Writer();
     writer.setTextMaxLines(k(42), 2);
@@ -230,6 +254,23 @@ describe("Writer limits", () => {
     expect(() => writer.setInteractionPolicy(k(1), 0x08, 0)).toThrow(
       RangeError,
     );
+  });
+
+  test("encodes native text selection and commands without JSON", () => {
+    const writer = new Writer();
+    writer.setTextSelection(k(42), 2, 7);
+    writer.textCommand(k(42), 3);
+    writer.acknowledgeTextValue(k(42), 19);
+    const frame = writer.flush()!;
+    const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+
+    expect(frame[8]).toBe(OP.SetTextSelection);
+    expect(view.getUint32(17, true)).toBe(2);
+    expect(view.getUint32(21, true)).toBe(7);
+    expect(frame[25]).toBe(OP.TextCommand);
+    expect(frame[34]).toBe(3);
+    expect(frame[35]).toBe(OP.AcknowledgeTextValue);
+    expect(view.getUint32(44, true)).toBe(19);
   });
 
   test("encodes graphic sources without attribute names or JSON", () => {

@@ -14,6 +14,7 @@ import {
 } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
+import { popoverNativeTransition } from "../../packages/ui/src/primitives/popover";
 
 test("opens a styled dialog surface and dismisses with Escape", () => {
   const screen = renderComponent(() => (
@@ -86,8 +87,43 @@ test("positions on the first frame after opening", async () => {
 
   screen.getByRole("button", { name: "Actions" }).click();
   expect(fixture.callsTo("layout.snapshot")).toHaveLength(0);
-  await screen.advanceTime(16);
+  await screen.advanceTime(32);
+  screen.flush();
   expect(fixture.callsTo("layout.snapshot")).toHaveLength(1);
+});
+
+test("compiles popup enter and exit intent into finite GPUI transitions", () => {
+  expect(
+    popoverNativeTransition({
+      generation: 3,
+      duration: 0.2,
+      ease: "easeOut",
+      fromScale: 0.96,
+      entering: true,
+    }),
+  ).toMatchObject({
+    generation: 3,
+    duration: 0.2,
+    easing: "easeOut",
+    fromTransform: [0.96, 0, 0, 0.96, 0, 0],
+    toTransform: [1, 0, 0, 1, 0, 0],
+    fromOpacity: 0,
+    toOpacity: 1,
+  });
+  expect(
+    popoverNativeTransition({
+      generation: 4,
+      duration: 0.2,
+      fromScale: 0.96,
+      entering: false,
+    }),
+  ).toMatchObject({
+    generation: 4,
+    fromTransform: [1, 0, 0, 1, 0, 0],
+    toTransform: [0.96, 0, 0, 0.96, 0, 0],
+    fromOpacity: 1,
+    toOpacity: 0,
+  });
 });
 
 test("passthrough outside dismissal preserves the underlying gesture", () => {

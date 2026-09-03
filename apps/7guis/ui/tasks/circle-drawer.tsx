@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from "@wabou/ui";
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For as ForValue, Show } from "solid-js";
 import { type LocalPointerEvent, TaskPage } from "../shared";
 
 interface Circle {
@@ -115,7 +115,7 @@ export function CircleDrawerTask() {
           class="w-full h-96 relative overflow-hidden rounded-xl border border-strong bg-surface-muted"
           onClick={add}
         >
-          <For each={circles()}>
+          <ForValue each={circles()}>
             {(circle) => (
               <View
                 role="button"
@@ -143,7 +143,7 @@ export function CircleDrawerTask() {
                 }}
               />
             )}
-          </For>
+          </ForValue>
           <Show when={circles().length === 0}>
             <Text class="absolute left-0 top-0 w-full h-full flex items-center justify-center text-sm text-muted">
               Click anywhere to create a circle

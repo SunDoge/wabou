@@ -1,7 +1,7 @@
 import {
   createComponent,
   createContext,
-  For,
+  For as ForValue,
   type JSX,
   useContext,
 } from "solid-js";
@@ -58,7 +58,7 @@ export function ChartLegend(props: { class?: string }): JSX.Element {
         props.class,
       )}
     >
-      <For each={Object.values(config)}>
+      <ForValue each={Object.values(config)}>
         {(series) => (
           <View class="flex flex-row items-center gap-2">
             <View
@@ -71,7 +71,7 @@ export function ChartLegend(props: { class?: string }): JSX.Element {
             <Text class="text-sm text-secondary">{series.label}</Text>
           </View>
         )}
-      </For>
+      </ForValue>
     </View>
   );
 }

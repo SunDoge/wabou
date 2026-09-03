@@ -62,7 +62,10 @@ ${schema.operations.map((operation) => `/// ${operation.description}\npub const 
 `;
 
 const tsPath = resolve(ROOT, "packages/core/src/generated/effect-abi.ts");
-const rustPath = resolve(ROOT, "crates/wabou-shell/src/generated/effect_abi.rs");
+const rustPath = resolve(
+  ROOT,
+  "crates/wabou-shell-api/src/generated/effect_abi.rs",
+);
 await writeGenerated(tsPath, typescript);
 await writeGenerated(rustPath, rust);
 await run([Bun.which("bun") ?? "bun", "x", "biome", "format", "--write", tsPath], "format generated Effect ABI TypeScript");

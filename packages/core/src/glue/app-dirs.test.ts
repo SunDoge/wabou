@@ -14,10 +14,10 @@ Object.assign(globalThis, {
   },
 });
 
-const { appDirs, resolveAppDirectories } = await import("./app-dirs");
+const { appDirs } = await import("./app-dirs");
 
 test("app directories resolve once and expose named roots", async () => {
-  const all = resolveAppDirectories();
+  const all = appDirs.resolve();
   const localData = appDirs.localData();
 
   expect(submissions).toEqual([[4, 1, "null"]]);

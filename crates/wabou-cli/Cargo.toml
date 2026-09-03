@@ -11,7 +11,6 @@ name = "wabou"
 path = "src/main.rs"
 
 [dependencies]
-anyrender.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
 ctrlc = "3.5"
 fs4 = "0.13.1"
@@ -22,7 +21,5 @@ serde_json = { workspace = true }
 tempfile = "3"
 toml = "0.9"
 wabou-devtools = { workspace = true }
-wabou-runtime = { workspace = true, features = ["devtools"] }
-wabou-shell = { workspace = true }
-wabou-widgets = { workspace = true }
-vello = { workspace = true }
+wabou-runtime = { workspace = true, features = ["devtools", "headless"] }
+wabou-shell.workspace = true

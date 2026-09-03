@@ -222,7 +222,7 @@ test("renders reactive GFM as native semantic components", () => {
   expect(screen.getByRole("group", { name: "Code block" }).text).toContain(
     "const ready = true",
   );
-  expect(screen.getByRole("button", { name: "Copy code" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Copy code" }).text).toBe("");
 
   setSource("A streamed **answer**.");
   screen.flush();
@@ -232,7 +232,7 @@ test("renders reactive GFM as native semantic components", () => {
   expect(screen.queryByRole("group", { name: "Code block" })).toBeNull();
 });
 
-test("renders compact conversation Markdown including GFM tables", () => {
+test("renders readable conversation Markdown including GFM tables", () => {
   const screen = renderComponent(() => (
     <Markdown
       variant="conversation"
@@ -244,10 +244,34 @@ test("renders compact conversation Markdown including GFM tables", () => {
   ));
 
   const response = screen.getByRole("region", { name: "Compact response" });
-  expect(response.className).toContain("gap-3");
+  expect(response.className).toContain("w-full");
+  expect(response.className).toContain("gap-2.5");
+  expect(JSON.stringify(response.snapshot())).toContain(
+    "text-base leading-relaxed text-primary",
+  );
+  expect(JSON.stringify(response.snapshot())).toContain(
+    "text-lg font-semibold tracking-tight",
+  );
   expect(response.text).toContain("FileState");
   expect(response.text).toContain("api.tsUpdated");
   expect(response.snapshot()).toMatchObject({ role: "region" });
+});
+
+test("keeps prompt Markdown readable inside a message bubble", () => {
+  const screen = renderComponent(() => (
+    <Markdown
+      variant="prompt"
+      aria-label="User prompt"
+      source={"# Request\n\n- inspect `src/main.rs`\n- run **tests**"}
+    />
+  ));
+
+  const prompt = screen.getByRole("region", { name: "User prompt" });
+  expect(prompt.className).not.toContain("w-full");
+  expect(prompt.className).toContain("gap-2");
+  expect(JSON.stringify(prompt.snapshot())).toContain("text-sm");
+  expect(prompt.text).toContain("inspect src/main.rs");
+  expect(prompt.text).not.toContain("**");
 });
 
 test("repairs incomplete inline Markdown only while streaming", () => {

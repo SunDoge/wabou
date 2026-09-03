@@ -67,12 +67,12 @@ export const rgba = (
 ): TypedStyleValue<typeof StyleValueKind.Color> =>
   typed(StyleValueKind.Color, finite(value, "rgba") >>> 0);
 
-/** One Vello blurred-rounded-rectangle shadow layer. */
+/** One native blurred-rounded-rectangle shadow layer. */
 export interface Shadow {
   readonly offsetX: number;
   readonly offsetY: number;
   readonly spread: number;
-  /** Gaussian standard deviation passed directly to Vello. */
+  /** Gaussian standard deviation used by the native renderer. */
   readonly stdDev: number;
   /** Packed sRGBA in `0xRRGGBBAA` order. */
   readonly color: number;
@@ -89,7 +89,7 @@ export interface ShadowOptions {
   radius?: number;
 }
 
-/** Construct and validate a Vello-native shadow layer. */
+/** Construct and validate a native retained shadow layer. */
 export function shadow(options: ShadowOptions): Shadow {
   const result: Shadow = {
     offsetX: options.offsetX ?? 0,
@@ -165,7 +165,7 @@ export function assertInlineStyleValue(property: string, value: unknown): void {
   throw new TypeError(`invalid inline style value for ${property}`);
 }
 
-/** A 2D affine matrix in CSS/Vello `[a, b, c, d, e, f]` order. */
+/** A 2D affine matrix in `[a, b, c, d, e, f]` order. */
 export type Affine2D = readonly [
   number,
   number,
@@ -211,8 +211,7 @@ const dynamicConflictRules = [...UTILITY_CONFLICT_DATA.dynamicRules].sort(
 );
 const dynamicConflictCache = new Map<string, readonly string[] | null>();
 const arbitraryNumber = /^\[-?(?:\d+(?:\.\d*)?|\.\d+)\]$/;
-const arbitraryLength =
-  /^\[-?(?:\d+(?:\.\d*)?|\.\d+)(?:px|rem|%)\]$/;
+const arbitraryLength = /^\[-?(?:\d+(?:\.\d*)?|\.\d+)(?:px|rem|%)\]$/;
 const barePercent = /^-?(?:\d+(?:\.\d*)?|\.\d+)%$/;
 const fraction = /^\d+\/[1-9]\d*$/;
 
@@ -239,7 +238,8 @@ function dynamicTokenMatches(
       );
     case "color":
       return (
-        (colorTokens.has(colorAndOpacity[0] ?? "") &&
+        ((colorTokens.has(colorAndOpacity[0] ?? "") ||
+          /^[a-z][a-z0-9-]*$/.test(colorAndOpacity[0] ?? "")) &&
           (colorAndOpacity.length === 1 ||
             /^(?:100|\d{1,2})$/.test(colorAndOpacity[1] ?? ""))) ||
         /^\[#[0-9a-fA-F]{3,8}\](?:\/\d+)?$/.test(token)
@@ -253,7 +253,9 @@ function dynamicTokenMatches(
     case "number":
     case "scale":
     case "rotate":
-      return arbitraryNumber.test(token) || /^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(token);
+      return (
+        arbitraryNumber.test(token) || /^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(token)
+      );
     case "ratio":
       return /^\[(?:\d+(?:\.\d*)?|\.\d+)(?:\/(?:\d+(?:\.\d*)?|\.\d+))?\]$/.test(
         token,

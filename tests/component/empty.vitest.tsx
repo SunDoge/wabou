@@ -29,7 +29,13 @@ test("composes the complete shadcn empty-state anatomy", () => {
 
   const empty = screen.getByRole("status", { name: "No projects" });
   expect(empty.className).toContain("flex-1");
+  expect(empty.className).toContain("rounded-xl");
   expect(screen.getByRole("heading", { name: "Nothing here" })).toBeTruthy();
+  expect(
+    screen.getByRole("label", {
+      name: "Create a project to get started.",
+    }).className,
+  ).toContain("min-h-10");
   expect(screen.getByRole("img", { name: "Folder" }).className).toContain(
     "w-10",
   );

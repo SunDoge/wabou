@@ -13,7 +13,7 @@ import {
 } from "../primitives";
 
 export interface ImageListProps<T> {
-  /** Reactive backing collection. Only visible rows mount their Image nodes. */
+  /** Reactive backing collection. GPUI materializes only visible native rows. */
   items: () => readonly T[];
   getItemKey: (item: T, index: number) => string | number;
   getResource?: (item: T, index: number) => ImageResourceHandle;
@@ -23,7 +23,6 @@ export interface ImageListProps<T> {
   thumbnailWidth?: number;
   thumbnailHeight?: number;
   viewportHeight?: number;
-  overscan?: number;
   selectedKey?: string | number;
   onSelectionChange?: (item: T, index: number) => void;
   onResourceReady?: (
@@ -61,7 +60,6 @@ export function ImageList<T>(props: ImageListProps<T>): JSX.Element {
     getLabel: props.getLabel,
     getDescription: props.getDescription,
     viewportHeight: props.viewportHeight,
-    overscan: props.overscan,
     onSelectionChange: props.onSelectionChange,
     onResourceReady: props.onResourceReady,
     onResourceError: props.onResourceError,
@@ -95,7 +93,6 @@ export function ImageList<T>(props: ImageListProps<T>): JSX.Element {
         items={config.items}
         itemHeight={itemHeight}
         viewportHeight={config.viewportHeight}
-        overscan={config.overscan}
         getItemKey={config.getItemKey}
         role="listbox"
         accessibilityLabel={config.accessibilityLabel ?? "Images"}

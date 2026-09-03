@@ -1,4 +1,4 @@
-import type { WabouElementProps } from "@wabou/core";
+import type { WabouElementProps } from "@wabou/ui";
 import "@wabou/core/registry";
 
 declare module "@wabou/core/registry" {

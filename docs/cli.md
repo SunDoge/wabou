@@ -61,12 +61,20 @@ bun run wabou doctor
 bun run wabou dev apps/gallery
 bun run wabou dev apps/hackernews --devtools
 bun run wabou dev apps/gallery --rust-hot-reload
+bun run wabou clean apps/gallery
 ```
 
 `doctor` checks the required Rust and Bun tools, platform build dependencies,
 the selected application, and generated workspace package artifacts. It exits
 with a nonzero status when a required check fails, so it is also suitable for
 setup scripts and CI diagnostics.
+
+`wabou clean [APP]` removes the selected application's debug/release frontend
+bundles, its Vite dependency cache, and Wabou's frontend lock/cache directory.
+It does not touch Cargo's `target/` or installed dependencies. In the Wabou
+source workspace, pass `--packages` to additionally remove every local
+`packages/*/dist` directory; rebuild those package artifacts with
+`bun run packages:build` before the next application build.
 
 Development starts Vite and compiles the Rust host with the `wabou/vite` and
 `wabou/devtools` facade features. QuickJS imports the live Vite graph and
@@ -96,8 +104,8 @@ async fn read_workspace(
     workspace.read(request).await
 }
 
-HostBuilder::new().json_capability(WORKSPACE, move |capability| {
-    capability.hot_method_with(READ, workspace.clone(), read_workspace)
+HostBuilder::new().capability(WORKSPACE, move |capability| {
+    capability.json_hot_method_with(READ, workspace.clone(), read_workspace)
 });
 ```
 
@@ -120,16 +128,16 @@ are optional shortcuts such as `"build": "wabou build"`. Build customization
 belongs in `vite.config.ts`, where it applies consistently to development,
 tests, rendering, and packaging.
 
-When running directly from the Wabou source workspace, the CLI checks the
-runtime entrypoints declared by every `packages/*/package.json` before starting
-Vite. Package builds are scheduled by Turbo according to workspace
-dependencies, cached independently, and promoted into each `dist/` directory
-atomically. The preflight lists missing files and asks for
-`bun run packages:build`; unchanged packages are restored from the Turbo cache.
-Source-to-artifact drift is checked deterministically by `bun run gen:check` in
-CI rather than guessed by the runtime CLI;
-standalone applications and published packages do not incur this workspace-only
-check.
+When running directly from the Wabou source workspace, `@wabou/vite`
+automatically enables the packages' `wabou-source` export condition. HMR,
+captures, and application builds therefore see package source edits without a
+manual package rebuild. Turbo still builds publishable package artifacts
+according to workspace dependencies, caches them independently, and promotes
+them into each `dist/` directory atomically. Run `bun run packages:build` when
+validating package consumers or preparing a release. Source-to-artifact drift
+is checked deterministically by `bun run gen:check` in CI; standalone
+applications and published packages continue to resolve compiled `dist`
+artifacts.
 
 ## Application verification
 
@@ -149,6 +157,25 @@ bindings, and behavior tests are skipped; failures are never rewritten
 automatically. For a pass without native behavior scenarios, use
 `--skip-behavior`; compile and unit checks still run.
 
+Render any named component layout fixture without adding an application-level
+screenshot scenario:
+
+```bash
+bun run wabou render apps/pi-agent \
+  --fixture conversation/complete-turn \
+  --out target/complete-turn.png \
+  --snapshot target/complete-turn.json
+```
+
+The command selects the application's `layout-test` bundle and reuses the
+fixture's declared viewport, device scale, and settling time. The PNG and
+DevTools snapshot therefore describe the same frame used by layout contracts.
+Use this for focused visual review after component behavior and geometry tests
+pass; it is not a replacement for those deterministic assertions. Pixel
+capture is available only on GPUI platforms that expose a headless renderer.
+There is deliberately no fallback to the retired Winit/Vello renderer; use
+`wabou layout` when only structured geometry is required.
+
 ## Run and package
 
 ```bash
@@ -163,8 +190,8 @@ Commands that compile the application host accept Cargo-style feature
 forwarding. Values may be comma-separated or supplied more than once:
 
 ```bash
-bun run wabou run apps/gallery --features renderer-skia
-bun run wabou test apps/gallery --features diagnostics,renderer-skia
+bun run wabou run apps/gallery --features diagnostics
+bun run wabou test apps/gallery --features diagnostics
 ```
 
 `--features` is forwarded to the application package for `check`, `dev`,
@@ -182,6 +209,18 @@ bun run wabou run apps/stress --release \
 
 See the [performance profiling guide](performance.md) for trace contents and
 privacy guarantees.
+
+For immediate native frame feedback, show the GPUI performance HUD without
+putting a reactive FPS component in the application tree:
+
+```bash
+bun run wabou dev apps/gallery --hud
+bun run wabou run apps/gallery --hud
+```
+
+The HUD reports FPS, JavaScript time, projection time, frame time, projected
+node count, viewport size, and projection revision. `WABOU_PERFORMANCE_HUD=1`
+remains available for direct host launches.
 
 `run` builds the UI and supplies its path to the Rust host through
 `WABOU_BUNDLE_PATH`; changing the bundle never recompiles Rust.
@@ -336,7 +375,7 @@ Applications that do not generate Rust-owned TypeScript capabilities leave the
 feature disabled and do not compile Specta or the TypeScript exporter.
 
 ```rust
-use wabou::{Capability, JsonCapabilityContract, JsonMethod, Type, specta};
+use wabou::{Capability, CapabilityContract, JsonMethod, Type, specta};
 
 #[derive(serde::Deserialize, Type)]
 struct RenameRequest {
@@ -345,7 +384,7 @@ struct RenameRequest {
 
 const RENAME: JsonMethod<RenameRequest, bool> = JsonMethod::new("rename");
 const STATUS: JsonMethod<(), WorkspaceStatus> = JsonMethod::no_request("status");
-const WORKSPACE: JsonCapabilityContract = JsonCapabilityContract::new("workspace", 1);
+const WORKSPACE: CapabilityContract = CapabilityContract::new("workspace", 1);
 
 let capability = Capability::new(WORKSPACE)
     .method(RENAME)
@@ -369,8 +408,8 @@ adapter. It owns JSON decoding, native Promise creation and the standard result
 envelope, so application code does not repeat the wire protocol:
 
 ```rust
-HostBuilder::new().json_capability(WORKSPACE, |capability| {
-    capability.method(RENAME, rename)
+HostBuilder::new().capability(WORKSPACE, |capability| {
+    capability.json_method(RENAME, rename)
 });
 ```
 

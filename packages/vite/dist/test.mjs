@@ -1,7 +1,7 @@
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import solid from "@solidjs/vite-plugin";
 import { mergeConfig } from "vite";
-import solid from "vite-plugin-solid";
 //#region src/test.ts
 /** Configure Vitest to compile Wabou TSX through Solid's universal renderer. */
 function defineWabouTestConfig(options = {}) {

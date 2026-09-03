@@ -9,6 +9,7 @@ import { animateValue, interpolate } from "motion-dom";
 import {
   type Accessor,
   createEffect,
+  createMemo,
   createSignal,
   onCleanup,
   untrack,
@@ -180,6 +181,48 @@ type MaybeAccessor<T> = T | Accessor<T>;
 
 const read = <T>(value: MaybeAccessor<T> | undefined, fallback: T): T =>
   typeof value === "function" ? (value as Accessor<T>)() : (value ?? fallback);
+
+/**
+ * Backend-neutral repeating timeline executed by a retained native widget.
+ *
+ * JS owns animation intent and lifecycle; the native backend samples this
+ * descriptor locally without receiving one protocol mutation per frame.
+ */
+export interface NativeLoopAnimation {
+  readonly kind: "loop";
+  /** Duration of one iteration in seconds. */
+  readonly duration: number;
+  readonly speed: number;
+  readonly paused: boolean;
+  readonly reducedMotion: boolean;
+}
+
+export interface NativeLoopAnimationOptions {
+  duration?: MaybeAccessor<number>;
+  speed?: MaybeAccessor<number>;
+  paused?: MaybeAccessor<boolean>;
+  reducedMotion?: MaybeAccessor<boolean>;
+}
+
+function positiveFinite(value: number, fallback: number): number {
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+/**
+ * Compile reactive Solid animation policy into a stable native timeline DTO.
+ * This accessor changes only when authored policy changes, never per frame.
+ */
+export function createNativeLoopAnimation(
+  options: NativeLoopAnimationOptions = {},
+): Accessor<NativeLoopAnimation> {
+  return createMemo(() => ({
+    kind: "loop" as const,
+    duration: positiveFinite(read(options.duration, 1), 1),
+    speed: positiveFinite(read(options.speed, 1), 1),
+    paused: read(options.paused, false),
+    reducedMotion: read(options.reducedMotion, false),
+  }));
+}
 
 export interface KeyframeAnimationOptions<V extends AnimationValue>
   extends AnimationOptions<V> {

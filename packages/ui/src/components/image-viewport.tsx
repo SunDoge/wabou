@@ -4,7 +4,7 @@ import {
   createContext,
   createMemo,
   createSignal,
-  For,
+  For as ForValue,
   type JSX,
   omit,
   useContext,
@@ -191,6 +191,7 @@ export function ImageViewport(props: ImageViewportProps): JSX.Element {
     <ImageViewportContext value={{ transform }}>
       <View
         {...rest}
+        projectionBoundary
         ref={measured.ref}
         role={props.role ?? "group"}
         class={mergeClasses(
@@ -477,7 +478,7 @@ export function AnnotationLayer(props: AnnotationLayerProps): JSX.Element {
       onPointerUp={finish}
       onPointerCancel={() => setInteraction()}
     >
-      <For each={props.regions}>
+      <ForValue each={props.regions}>
         {(region) => (
           <View
             role="button"
@@ -497,16 +498,21 @@ export function AnnotationLayer(props: AnnotationLayerProps): JSX.Element {
             <View
               role="button"
               aria-label={`Resize ${region.label ?? region.id}`}
-              class="absolute w-3 h-3 rounded-sm border border-on-accent bg-accent cursor-pointer"
-              style={{ right: "0px", bottom: "0px" }}
+              class="absolute w-7 h-7 flex items-center justify-center bg-transparent cursor-pointer"
+              style={{ right: "-8px", bottom: "-8px" }}
               onPointerDown={(event) => beginRegion("resize", region, event)}
               onPointerMove={updateDrag}
               onPointerUp={finish}
               onPointerCancel={() => setInteraction()}
-            />
+            >
+              <View
+                aria-hidden="true"
+                class="w-3 h-3 rounded-sm border border-on-accent bg-accent pointer-events-none"
+              />
+            </View>
           </View>
         )}
-      </For>
+      </ForValue>
       {draft() && (
         <View
           aria-hidden="true"
@@ -552,13 +558,13 @@ export function ImageOverlayLayer<T extends ImageOverlayItem>(
       {...rest}
       class={mergeClasses("absolute inset-0 pointer-events-none", props.class)}
     >
-      <For each={props.items}>
+      <ForValue each={props.items}>
         {(item, index) => (
           <View class="absolute overflow-hidden" style={styleFor(item)}>
             {props.children(item, index)}
           </View>
         )}
-      </For>
+      </ForValue>
     </View>
   );
 }

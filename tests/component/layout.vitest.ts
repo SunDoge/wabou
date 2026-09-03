@@ -130,6 +130,28 @@ test("finds text collisions across different component subtrees", () => {
   ).toThrow("[text-overlap]");
 });
 
+test("ignores text geometry hidden above a native scroll clip", () => {
+  const snapshot: LayoutSnapshot = {
+    ...fixture(),
+    nodes: [
+      node(1, "text", [0, 0, 100, 20], { text: "Fixed header" }),
+      node(2, "text", [0, 10, 100, 30], {
+        text: "Scrolled transcript",
+        clip: {
+          chain: [
+            {
+              coordinateSpace: "layout-window-logical",
+              rect: { x: 0, y: 21, width: 100, height: 79 },
+            },
+          ],
+        },
+      }),
+    ],
+  };
+
+  expect(textCollisionDiagnostics(snapshot)).toEqual([]);
+});
+
 test("ignores one-pixel flex rounding but supports strict collision checks", () => {
   const snapshot = fixture();
   snapshot.nodes[1].rect = { x: 0, y: 0, width: 51, height: 20 };
@@ -185,6 +207,33 @@ test("builds a single-process fixture batch invocation", () => {
     "--mode",
     "layout-test",
     "--skip-build",
+  ]);
+});
+
+test("builds a host-backed layout invocation for application capabilities", () => {
+  expect(
+    layoutCommandArgs({
+      app: "apps/pi-agent",
+      out: "/tmp/layout.json",
+      width: 1200,
+      height: 800,
+      withHost: true,
+      waitMs: 100,
+    }),
+  ).toEqual([
+    "render",
+    "apps/pi-agent",
+    "--out",
+    "/tmp/layout.json.png",
+    "--snapshot",
+    "/tmp/layout.json",
+    "--with-host",
+    "--width",
+    "1200",
+    "--height",
+    "800",
+    "--wait-ms",
+    "100",
   ]);
 });
 

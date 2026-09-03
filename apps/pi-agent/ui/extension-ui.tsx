@@ -1,4 +1,6 @@
+import type { Handle } from "@wabou/ui";
 import {
+  Alert,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -7,16 +9,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   Button,
+  createAsyncAction,
   Dialog,
   DialogDescription,
   DialogFooter,
   DialogTitle,
   Input,
+  Listbox,
   Text,
   TextArea,
   View,
 } from "@wabou/ui";
-import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  For as ForValue,
+  onCleanup,
+  Show,
+} from "solid-js";
 import { match } from "ts-pattern";
 import { i18n, m } from "./i18n";
 
@@ -206,16 +216,16 @@ export function ExtensionUiChrome(props: {
           aria-label="Extension status"
           class="w-full min-w-0 flex flex-col gap-1 px-1"
         >
-          <For each={props.statuses}>
+          <ForValue each={props.statuses}>
             {(status) => (
               <Text class="w-full min-w-0 text-xs text-muted whitespace-normal">
                 {status.text}
               </Text>
             )}
-          </For>
+          </ForValue>
         </View>
       </Show>
-      <For each={widgets()}>
+      <ForValue each={widgets()}>
         {(widget) => (
           <View
             role="region"
@@ -227,7 +237,7 @@ export function ExtensionUiChrome(props: {
             </Text>
           </View>
         )}
-      </For>
+      </ForValue>
     </>
   );
 }
@@ -275,30 +285,43 @@ export type ExtensionUiAnswer =
 
 export function ExtensionUiDialog(props: {
   request?: ExtensionUiDialogRequest;
-  respond(answer: ExtensionUiAnswer): void;
+  respond(answer: ExtensionUiAnswer): void | Promise<void>;
 }) {
   const [value, setValue] = createSignal("");
+  const response = createAsyncAction((answer: ExtensionUiAnswer) =>
+    props.respond(answer),
+  );
+  let initialControl: Handle | undefined;
   let answered = false;
-  const respond = (answer: ExtensionUiAnswer) => {
-    if (answered) return;
-    answered = true;
-    props.respond(answer);
+  let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearResponseTimeout = () => {
+    if (timeoutTimer === undefined) return;
+    clearTimeout(timeoutTimer);
+    timeoutTimer = undefined;
   };
+  const respond = async (answer: ExtensionUiAnswer) => {
+    if (answered || response.pending()) return;
+    clearResponseTimeout();
+    const result = await response.run(answer);
+    if (result.ok) answered = true;
+  };
+  onCleanup(clearResponseTimeout);
   createEffect(
     () => props.request,
     (request) => {
+      clearResponseTimeout();
       answered = false;
+      response.reset();
       setValue(request?.prefill ?? "");
       const timeout = request?.timeout;
       if (timeout === undefined) return;
-      const timer = setTimeout(
-        () => respond({ cancelled: true }),
+      timeoutTimer = setTimeout(
+        () => void respond({ cancelled: true }),
         Math.max(0, timeout - 25),
       );
-      onCleanup(() => clearTimeout(timer));
     },
   );
-  const cancel = () => respond({ cancelled: true });
+  const cancel = () => void respond({ cancelled: true });
   const request = () => props.request;
 
   return (
@@ -318,14 +341,30 @@ export function ExtensionUiDialog(props: {
                     {dialog.message}
                   </AlertDialogDescription>
                 </Show>
+                <Show when={response.error()}>
+                  {(error) => (
+                    <Alert
+                      variant="destructive"
+                      title={i18n.message(m.extension_response_failed, {})}
+                      class="p-3"
+                    >
+                      {String(error())}
+                    </Alert>
+                  )}
+                </Show>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel
-                  onClick={() => respond({ confirmed: false })}
+                  disabled={response.pending()}
+                  onClick={() => void respond({ confirmed: false })}
                 >
                   {i18n.message(m.no, {})}
                 </AlertDialogCancel>
-                <AlertDialogAction onClick={() => respond({ confirmed: true })}>
+                <AlertDialogAction
+                  disabled={response.pending()}
+                  loading={response.pending()}
+                  onClick={() => void respond({ confirmed: true })}
+                >
                   {i18n.message(m.yes, {})}
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -335,56 +374,85 @@ export function ExtensionUiDialog(props: {
             <Dialog
               aria-label={dialog.title}
               open
+              initialFocus={() => initialControl}
               onOpenChange={(open) => !open && cancel()}
             >
               <DialogTitle>{dialog.title}</DialogTitle>
               <Show when={dialog.message}>
                 <DialogDescription>{dialog.message}</DialogDescription>
               </Show>
+              <Show when={response.error()}>
+                {(error) => (
+                  <Alert
+                    variant="destructive"
+                    title={i18n.message(m.extension_response_failed, {})}
+                    class="p-3"
+                  >
+                    {String(error())}
+                  </Alert>
+                )}
+              </Show>
               <Show when={dialog.method === "select"}>
-                <View role="listbox" aria-label={dialog.title} class="gap-1">
-                  <For each={dialog.options ?? []}>
-                    {(option) => (
-                      <Button
-                        variant="ghost"
-                        class="w-full justify-start"
-                        role="option"
-                        aria-label={option}
-                        onClick={() => respond({ value: option })}
-                      >
-                        {option}
-                      </Button>
-                    )}
-                  </For>
-                </View>
+                <Listbox
+                  ref={(node) => {
+                    initialControl = node;
+                  }}
+                  aria-label={dialog.title}
+                  options={(dialog.options ?? []).map((label, index) => ({
+                    value: String(index),
+                    label,
+                    disabled: response.pending(),
+                  }))}
+                  onAction={(index) => {
+                    const option = dialog.options?.[Number(index)];
+                    if (option !== undefined) void respond({ value: option });
+                  }}
+                  onDismiss={cancel}
+                />
               </Show>
               <Show when={dialog.method === "input"}>
                 <Input
+                  ref={(node) => {
+                    initialControl = node;
+                  }}
                   aria-label={dialog.title}
                   value={value()}
+                  disabled={response.pending()}
                   placeholder={dialog.placeholder}
                   onInput={(event) => setValue(event.currentTarget.value)}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter") return;
                     event.preventDefault();
-                    respond({ value: value() });
+                    void respond({ value: value() });
                   }}
                 />
               </Show>
               <Show when={dialog.method === "editor"}>
                 <TextArea
+                  ref={(node) => {
+                    initialControl = node;
+                  }}
                   aria-label={dialog.title}
                   class="h-48"
                   value={value()}
+                  disabled={response.pending()}
                   onInput={(event) => setValue(event.currentTarget.value)}
                 />
               </Show>
               <DialogFooter>
-                <Button variant="outline" onClick={cancel}>
+                <Button
+                  variant="outline"
+                  disabled={response.pending()}
+                  onClick={cancel}
+                >
                   {i18n.message(m.cancel, {})}
                 </Button>
                 <Show when={dialog.method !== "select"}>
-                  <Button onClick={() => respond({ value: value() })}>
+                  <Button
+                    disabled={response.pending()}
+                    loading={response.pending()}
+                    onClick={() => void respond({ value: value() })}
+                  >
                     {i18n.message(m.submit, {})}
                   </Button>
                 </Show>

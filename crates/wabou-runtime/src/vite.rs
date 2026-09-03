@@ -3,8 +3,7 @@
 //! Ported from blitz-js's `vite.rs` (host-agnostic). In dev mode the rquickjs
 //! runtime gets a module [`Loader`] + [`Resolver`] that fetch ESM from the
 //! Vite dev server; the HMR client connects to Vite's WebSocket, prefetches
-//! updated module sources, and forwards them to the [`crate::Applier`] via a
-//! [`crate::ReloadHandle`].
+//! updated module sources, and forwards them to the GPUI controller.
 
 use std::collections::HashMap;
 use std::sync::{
@@ -149,6 +148,36 @@ impl ViteState {
         promise.finish()
     }
 
+    /// Re-evaluate a Vite module whose update is itself the complete effect.
+    /// Unlike component HMR, this does not require an accept boundary. Wabou's
+    /// generated Style IR module uses this path to install the new stylesheet
+    /// without remounting the Solid application.
+    pub(crate) fn apply_side_effect_update<'js>(
+        &self,
+        ctx: &rquickjs::Ctx<'js>,
+        accepted_path: &str,
+        timestamp: u64,
+        source: String,
+    ) -> rquickjs::Result<()> {
+        let mut update_url = self
+            .origin
+            .join(accepted_path)
+            .map_err(|_| rquickjs::Error::Unknown)?;
+        update_url
+            .query_pairs_mut()
+            .append_pair("t", &timestamp.to_string());
+        let update_url = update_url.to_string();
+        self.cache.insert(update_url.clone(), source);
+        let update_literal =
+            serde_json::to_string(&update_url).map_err(|_| rquickjs::Error::Unknown)?;
+        Module::evaluate(
+            ctx.clone(),
+            "wabou-runtime:vite-side-effect-update",
+            format!("import {update_literal};"),
+        )?
+        .finish()
+    }
+
     /// Re-import the app entry after a full reload. Uses a cache-busting query
     /// so the loader does not reuse a stale entry module record.
     pub(crate) fn boot_full_reload<'js>(
@@ -159,12 +188,14 @@ impl ViteState {
         use rquickjs::CatchResultExt;
         use std::time::{SystemTime, UNIX_EPOCH};
 
-        // Drop hot records so the next graph builds fresh import.meta.hot state.
-        if let Ok(clear) = ctx
+        // Build a fresh hot graph, but retain a reversible snapshot until the
+        // entry has evaluated. A transient Vite transform error must not poison
+        // the last-good graph used by the next save.
+        if let Ok(begin) = ctx
             .globals()
-            .get::<_, Function>("__wabou_hmr_clear_records")
+            .get::<_, Function>("__wabou_hmr_begin_full_reload")
         {
-            let _: () = clear.call(())?;
+            let _: () = begin.call(())?;
         }
 
         self.cache.clear();
@@ -195,10 +226,23 @@ impl ViteState {
         .and_then(|promise| promise.finish::<()>());
         match result.catch(ctx) {
             Ok(()) => {
+                if let Ok(commit) = ctx
+                    .globals()
+                    .get::<_, Function>("__wabou_hmr_commit_full_reload")
+                {
+                    let _: () = commit.call(())?;
+                }
                 tracing::info!(entry = %busted, "vite full reload: entry re-imported");
                 Ok(())
             }
             Err(caught) => {
+                if let Ok(rollback) = ctx
+                    .globals()
+                    .get::<_, Function>("__wabou_hmr_rollback_full_reload")
+                    && let Err(error) = rollback.call::<_, ()>(())
+                {
+                    tracing::error!(?error, "failed to restore last-good HMR records");
+                }
                 tracing::error!(entry = %busted, error = %caught, "vite full reload failed");
                 Err(caught.throw(ctx))
             }
@@ -305,9 +349,11 @@ impl Loader for ViteLoader {
 // notification, and forwards them to the Applier via ReloadHandle.
 // ---------------------------------------------------------------------------
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use tungstenite::client::IntoClientRequest;
+
+use crate::reload::ReloadMsg;
 
 #[derive(Debug, Snafu)]
 /// Failure while connecting to or loading updates from a Vite development server.
@@ -361,8 +407,35 @@ enum VitePayload {
         updates: Vec<ViteUpdate>,
     },
     FullReload,
+    Error {
+        err: ViteDiagnostic,
+    },
     #[serde(other)]
     Other,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct ViteDiagnostic {
+    message: String,
+    stack: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    frame: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    plugin: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    loc: Option<ViteDiagnosticLocation>,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct ViteDiagnosticLocation {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    file: Option<String>,
+    line: u32,
+    column: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -394,13 +467,16 @@ enum ViteMessage {
         accepted_path: String,
     },
     FullReload,
+    Error {
+        diagnostic: String,
+    },
 }
 
 /// Start a Vite HMR client on a background thread. Connects to the Vite dev
 /// server's WebSocket, fetches updated module/stylesheet sources via blocking
 /// HTTP, and forwards them to the Applier through `reload`. CSS notifications
 /// carry only their path because Wabou styles are delivered as Style IR.
-pub struct HmrClient {
+pub(crate) struct HmrClient {
     stop: Arc<AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
 }
@@ -418,9 +494,9 @@ impl Drop for HmrClient {
 ///
 /// The returned handle owns the background client; dropping it requests
 /// shutdown and joins the client thread.
-pub fn start_hmr_client(
+pub(crate) fn start_hmr_client(
     server_url: &str,
-    reload: crate::ReloadHandle,
+    reload: crate::reload::ReloadHandle,
 ) -> std::result::Result<HmrClient, ViteError> {
     let mut websocket_url = url::Url::parse(server_url).context(InvalidUrlSnafu)?;
     websocket_url
@@ -484,7 +560,7 @@ pub fn start_hmr_client(
                     } => {
                         tracing::debug!(%path, %accepted_path, timestamp, "received Vite HMR update");
                         match fetch_module(&client, &server_url, &accepted_path, timestamp) {
-                            Ok(source) => reload.send(crate::ReloadMsg::HmrUpdate {
+                            Ok(source) => reload.send(ReloadMsg::HmrUpdate {
                                 path,
                                 accepted_path,
                                 timestamp,
@@ -496,12 +572,13 @@ pub fn start_hmr_client(
                             }
                         }
                     }
-                    ViteMessage::CssUpdate { accepted_path } => {
-                        reload.send(crate::ReloadMsg::CssUpdate {
-                            path: accepted_path,
-                        })
+                    ViteMessage::CssUpdate { accepted_path } => reload.send(ReloadMsg::CssUpdate {
+                        path: accepted_path,
+                    }),
+                    ViteMessage::FullReload => reload.send(ReloadMsg::FullReload),
+                    ViteMessage::Error { diagnostic } => {
+                        reload.send(ReloadMsg::Error { diagnostic })
                     }
-                    ViteMessage::FullReload => reload.send(crate::ReloadMsg::FullReload),
                 };
                 if result.is_err() {
                     tracing::warn!("Vite HMR receiver disconnected");
@@ -546,11 +623,6 @@ fn fetch_module(
     response.body_mut().read_to_string().context(HttpSnafu)
 }
 
-/// Read the Vite dev server URL from the `VITE_URL` environment variable.
-pub fn vite_url_from_env() -> Option<String> {
-    std::env::var("VITE_URL").ok().filter(|s| !s.is_empty())
-}
-
 fn messages(payload: VitePayload) -> Vec<ViteMessage> {
     match payload {
         VitePayload::Update { updates } => updates
@@ -587,6 +659,10 @@ fn messages(payload: VitePayload) -> Vec<ViteMessage> {
             })
             .collect(),
         VitePayload::FullReload => vec![ViteMessage::FullReload],
+        VitePayload::Error { err } => vec![ViteMessage::Error {
+            diagnostic: serde_json::to_string(&err)
+                .expect("Vite diagnostic contains only serializable fields"),
+        }],
         VitePayload::Other => Vec::new(),
     }
 }
@@ -642,6 +718,27 @@ mod tests {
     }
 
     #[test]
+    fn side_effect_update_reexecutes_without_a_hot_accept_boundary() {
+        let runtime = rquickjs::AsyncRuntime::new().unwrap();
+        let context =
+            futures_lite::future::block_on(rquickjs::AsyncContext::full(&runtime)).unwrap();
+        let vite = ViteState::new(Url::parse("http://127.0.0.1:5173/").unwrap());
+        vite.install_loader(&runtime).unwrap();
+
+        futures_lite::future::block_on(context.with(|ctx| {
+            vite.apply_side_effect_update(
+                &ctx,
+                "/@id/__x00__virtual:wabou-stylesheet",
+                42,
+                "globalThis.__styleRevision = 42; export default 42;".into(),
+            )?;
+            assert_eq!(ctx.eval::<i32, _>("globalThis.__styleRevision")?, 42);
+            Ok::<_, rquickjs::Error>(())
+        }))
+        .unwrap();
+    }
+
+    #[test]
     fn vite_http_transport_never_inherits_an_environment_proxy() {
         assert!(vite_http_agent().config().proxy().is_none());
     }
@@ -689,5 +786,33 @@ mod tests {
                 accepted_path: "/@id/__x00__virtual:uno.css".to_owned(),
             }]
         );
+    }
+
+    #[test]
+    fn forwards_vite_errors_without_losing_source_context() {
+        let payload = serde_json::from_str(
+            r#"{
+                "type":"error",
+                "err":{
+                    "message":"Expected `,` but found identifier",
+                    "stack":"Error: transform failed",
+                    "id":"/src/sidebar.tsx",
+                    "frame":"10 | <Button broken prop />",
+                    "plugin":"solid",
+                    "loc":{"file":"/src/sidebar.tsx","line":10,"column":18}
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let forwarded = messages(payload);
+        let [ViteMessage::Error { diagnostic }] = forwarded.as_slice() else {
+            panic!("expected one Vite error message");
+        };
+        let decoded: serde_json::Value = serde_json::from_str(diagnostic).unwrap();
+        assert_eq!(decoded["message"], "Expected `,` but found identifier");
+        assert_eq!(decoded["plugin"], "solid");
+        assert_eq!(decoded["loc"]["line"], 10);
+        assert_eq!(decoded["frame"], "10 | <Button broken prop />");
     }
 }

@@ -59,6 +59,8 @@ export interface TerminalProps {
   fontFamily?: string;
   fontSize?: string;
   lineHeight?: string;
+  /** Override application-requested cursor blinking. Omit to honor the PTY. */
+  cursorBlink?: boolean;
   /** Selection fill; accepts Wabou's color syntax. */
   selectionBackground?: string;
   /** Optional selected-text color. Omit it to preserve ANSI foreground colors. */
@@ -82,6 +84,8 @@ export interface TerminalProps {
 export function Terminal(props: TerminalProps): JSX.Element {
   return (
     <terminal
+      projectionBoundary
+      role="textbox"
       class={props.class}
       style={props.style}
       ref={props.ref}
@@ -93,6 +97,9 @@ export function Terminal(props: TerminalProps): JSX.Element {
       font-family={props.fontFamily}
       font-size={props.fontSize}
       line-height={props.lineHeight}
+      cursor-blink={
+        props.cursorBlink === undefined ? undefined : String(props.cursorBlink)
+      }
       selection-background={props.selectionBackground}
       selection-foreground={props.selectionForeground}
       inherit-theme={props.inheritTheme ? "true" : undefined}
@@ -121,6 +128,7 @@ declare module "@wabou/core/registry" {
       "font-family"?: string;
       "font-size"?: string;
       "line-height"?: string;
+      "cursor-blink"?: string;
       "selection-background"?: string;
       "selection-foreground"?: string;
       "inherit-theme"?: string;

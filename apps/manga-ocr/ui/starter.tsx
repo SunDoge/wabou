@@ -20,7 +20,7 @@ import clock from "lucide-static/icons/clock-3.svg?raw";
 import fileImage from "lucide-static/icons/file-image.svg?raw";
 import folderOpen from "lucide-static/icons/folder-open.svg?raw";
 import images from "lucide-static/icons/images.svg?raw";
-import { For, Show } from "solid-js";
+import { For as ForValue, Show } from "solid-js";
 import { useMangaSession } from "./session";
 
 export function Starter() {
@@ -110,7 +110,7 @@ export function Starter() {
             }
           >
             <View class="grid grid-cols-2 gap-3">
-              <For each={session.recentEntries()}>
+              <ForValue each={session.recentEntries()}>
                 {(entry) => (
                   <Button
                     variant="outline"
@@ -137,7 +137,7 @@ export function Starter() {
                     </View>
                   </Button>
                 )}
-              </For>
+              </ForValue>
             </View>
           </Show>
         </View>

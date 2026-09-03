@@ -1,10 +1,10 @@
 import type { Handle } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import check from "lucide-static/icons/check.svg?raw";
 import minus from "lucide-static/icons/minus.svg?raw";
 import {
   createComponent,
   createContext,
-  createSignal,
   type JSX,
   onCleanup,
   useContext,
@@ -22,15 +22,66 @@ import {
   createControllableState,
   createRovingFocus,
 } from "../primitives/interactions";
-import { mergeClasses } from "@wabou/core/style";
+import { componentsControlSize } from "./theme";
 
-const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
+export type SelectionControlSize = "sm" | "default" | "lg";
+
+export function selectionGeometry(size: SelectionControlSize) {
+  return match(size)
+    .with("sm", () => ({
+      controlWithLabel:
+        "min-h-7 px-1 items-start gap-2 rounded-md border border-transparent",
+      controlWithoutLabel:
+        "w-9 h-7 p-0 items-center justify-center gap-0 rounded-md border border-transparent",
+      indicator: "w-3.5 h-3.5",
+      label: "text-xs",
+      iconSize: 10,
+      radioDot: "w-1.5 h-1.5",
+    }))
+    .with("default", () => ({
+      controlWithLabel:
+        "min-h-7 px-1 items-start gap-2 rounded-md border border-transparent",
+      controlWithoutLabel:
+        "w-10 h-7 p-0 items-center justify-center gap-0 rounded-md border border-transparent",
+      indicator: "w-4 h-4",
+      label: "text-sm",
+      iconSize: 12,
+      radioDot: "w-2 h-2",
+    }))
+    .with("lg", () => ({
+      controlWithLabel:
+        "min-h-10 px-1 items-start gap-2 rounded-md border border-transparent",
+      controlWithoutLabel:
+        "w-10 h-10 p-0 items-center justify-center gap-0 rounded-md border border-transparent",
+      indicator: "w-[18px] h-[18px]",
+      label: "text-base",
+      iconSize: 14,
+      radioDot: "w-2.5 h-2.5",
+    }))
+    .exhaustive();
+}
+
+function selectionControlClass(
+  hasLabel: boolean,
+  size: SelectionControlSize,
+): string {
+  const geometry = selectionGeometry(size);
+  return hasLabel ? geometry.controlWithLabel : geometry.controlWithoutLabel;
+}
+
+function selectionLabelClass(size: SelectionControlSize): string {
+  return mergeClasses(
+    "min-w-0 flex-1 whitespace-normal text-left",
+    selectionGeometry(size).label,
+  );
+}
 
 export interface CheckboxProps {
   checked?: boolean;
   defaultChecked?: boolean;
   indeterminate?: boolean;
   disabled?: boolean;
+  size?: SelectionControlSize;
   label?: string;
   "aria-label"?: string;
   class?: string;
@@ -38,6 +89,7 @@ export interface CheckboxProps {
 }
 
 export function Checkbox(props: CheckboxProps): JSX.Element {
+  const size = () => props.size ?? "default";
   const state = createControllableState({
     value: () => props.checked,
     defaultValue: props.defaultChecked ?? false,
@@ -76,7 +128,7 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
       selected={checked()}
       class={(buttonState) =>
         mergeClasses(
-          "min-h-7 px-1 items-center gap-2 rounded-md border border-transparent",
+          selectionControlClass(!!props.label, size()),
           buttonState.hovered && "bg-control-hover",
           buttonState.focusVisible && "border-focus",
           props.class,
@@ -90,7 +142,8 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
       <Center
         aria-hidden="true"
         class={mergeClasses(
-          SELECTION_INDICATOR_CLASS,
+          selectionGeometry(size()).indicator,
+          "flex-none border",
           "rounded text-xs font-bold",
           boxColors(),
         )}
@@ -98,12 +151,16 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
         {indicator() && (
           <Icon
             source={indicator() as string}
-            size={14}
+            size={selectionGeometry(size()).iconSize}
             class="text-on-accent"
           />
         )}
       </Center>
-      {props.label && <Text class="text-sm text-secondary">{props.label}</Text>}
+      {props.label && (
+        <Text class={mergeClasses(selectionLabelClass(size()), "text-primary")}>
+          {props.label}
+        </Text>
+      )}
     </HeadlessButton>
   );
 }
@@ -112,7 +169,11 @@ interface RadioContextValue {
   value: () => string | undefined;
   select(value: string): void;
   disabled: () => boolean;
+  appearance: () => "radio" | "segment";
+  size: () => SelectionControlSize;
   register(value: string, node: Handle, disabled: () => boolean): () => void;
+  activate(value: string): void;
+  isTabStop(value: string): boolean;
   move(value: string, key: string): boolean;
 }
 
@@ -122,6 +183,10 @@ export interface RadioGroupProps {
   value?: string;
   defaultValue?: string;
   disabled?: boolean;
+  orientation?: "horizontal" | "vertical";
+  appearance?: "radio" | "segment";
+  size?: SelectionControlSize;
+  loop?: boolean;
   "aria-label"?: string;
   class?: string;
   children?: JSX.Element;
@@ -140,7 +205,9 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
     state.set(next);
   };
   const roving = createRovingFocus({
-    orientation: () => "vertical",
+    orientation: () => props.orientation ?? "vertical",
+    loop: props.loop,
+    preferred: (id) => value() === id,
     onMove: select,
   });
   return createComponent(RadioContext, {
@@ -148,8 +215,14 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
       value,
       select,
       disabled: () => props.disabled ?? false,
+      appearance: () => props.appearance ?? "radio",
+      size: () => props.size ?? "default",
       register: (id, target, disabled) =>
         roving.register({ id, target, disabled }),
+      activate: (id) => {
+        roving.activate(id);
+      },
+      isTabStop: roving.isTabStop,
       move: roving.move,
     },
     get children() {
@@ -157,7 +230,14 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
         <View
           role="radiogroup"
           aria-label={props["aria-label"]}
-          class={mergeClasses("flex flex-col gap-3", props.class)}
+          class={mergeClasses(
+            "flex",
+            props.orientation === "horizontal" ? "flex-row" : "flex-col",
+            props.appearance === "segment"
+              ? "items-center gap-0.5 rounded-md border border-subtle bg-control p-0.5"
+              : "gap-3",
+            props.class,
+          )}
         >
           {props.children}
         </View>
@@ -169,7 +249,9 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
 export interface RadioGroupItemProps {
   value: string;
   label?: string;
+  "aria-label"?: string;
   disabled?: boolean;
+  size?: SelectionControlSize;
   class?: string;
 }
 
@@ -178,6 +260,25 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
   if (!group) throw new Error("RadioGroupItem must be used inside RadioGroup");
   const checked = () => group.value() === props.value;
   const disabled = () => group.disabled() || (props.disabled ?? false);
+  const size = () => props.size ?? group.size();
+  const segmentSize = () =>
+    match(size())
+      .with(
+        "sm",
+        () =>
+          "h-7 min-w-0 flex-1 px-2 items-center justify-center rounded-sm border border-transparent text-xs font-medium",
+      )
+      .with(
+        "default",
+        () =>
+          "h-8 min-w-0 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
+      )
+      .with(
+        "lg",
+        () =>
+          "h-10 min-w-0 flex-1 px-4 items-center justify-center rounded-sm border border-transparent text-base font-medium",
+      )
+      .exhaustive();
   let unregister: (() => void) | undefined;
   onCleanup(() => unregister?.());
   return (
@@ -186,16 +287,21 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
       role="radio"
       disabled={disabled()}
       selected={checked()}
-      aria-label={props.label}
+      aria-label={props["aria-label"] ?? props.label}
       aria-checked={checked()}
+      focusOrder={group.isTabStop(props.value) ? 0 : -1}
       ref={(node) => {
         unregister?.();
         unregister = group.register(props.value, node, disabled);
       }}
       class={(buttonState) =>
         mergeClasses(
-          "min-h-7 px-1 items-center gap-2 rounded-md border border-transparent",
-          buttonState.hovered && "bg-control-hover",
+          group.appearance() === "segment"
+            ? segmentSize()
+            : selectionControlClass(!!props.label, size()),
+          group.appearance() === "segment" && checked()
+            ? "bg-selected text-primary shadow-xs"
+            : buttonState.hovered && "bg-control-hover",
           buttonState.focusVisible && "border-focus",
           props.class,
         )
@@ -204,24 +310,44 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
         opacity: buttonState.disabled ? 0.45 : 1,
       })}
       onClick={() => group.select(props.value)}
+      onFocus={() => group.activate(props.value)}
       onKeyDown={(event) => {
         if (group.move(props.value, event.key)) event.preventDefault();
       }}
     >
-      <Center
-        aria-hidden="true"
-        class={mergeClasses(
-          SELECTION_INDICATOR_CLASS,
-          "rounded-full bg-input",
-          match(checked())
-            .with(true, () => "border-accent")
-            .with(false, () => "border-strong")
-            .exhaustive(),
-        )}
-      >
-        {checked() && <View class="w-2.5 h-2.5 rounded-full bg-accent" />}
-      </Center>
-      {props.label && <Text class="text-sm text-secondary">{props.label}</Text>}
+      {group.appearance() === "radio" && (
+        <Center
+          aria-hidden="true"
+          class={mergeClasses(
+            selectionGeometry(size()).indicator,
+            "flex-none border",
+            "rounded-full bg-input",
+            match(checked())
+              .with(true, () => "border-accent")
+              .with(false, () => "border-strong")
+              .exhaustive(),
+          )}
+        >
+          {checked() && (
+            <View
+              class={mergeClasses(
+                selectionGeometry(size()).radioDot,
+                "rounded-full bg-accent",
+              )}
+            />
+          )}
+        </Center>
+      )}
+      {props.label && (
+        <Text
+          class={mergeClasses(
+            selectionLabelClass(size()),
+            checked() ? "text-primary" : "text-secondary",
+          )}
+        >
+          {props.label}
+        </Text>
+      )}
     </HeadlessButton>
   );
 }
@@ -251,9 +377,9 @@ export function Toggle(props: ToggleProps): JSX.Element {
   };
   const size = () =>
     match(props.size ?? "default")
-      .with("sm", () => "h-6 min-w-6 px-2 text-xs")
-      .with("default", () => "h-8 min-w-8 px-2.5 text-sm")
-      .with("lg", () => "h-10 min-w-10 px-3 text-sm")
+      .with("sm", () => `${componentsControlSize("sm")} min-w-7`)
+      .with("default", () => `${componentsControlSize("default")} min-w-8`)
+      .with("lg", () => `${componentsControlSize("lg")} min-w-10`)
       .exhaustive();
   const colors = (state: ButtonState) =>
     match({ selected: pressed(), hovered: state.hovered })
@@ -269,7 +395,7 @@ export function Toggle(props: ToggleProps): JSX.Element {
       aria-pressed={pressed()}
       class={(state) =>
         mergeClasses(
-          "items-center justify-center rounded-md border font-medium",
+          "items-center justify-center border font-medium",
           size(),
           colors(state),
           match(props.variant ?? "default")
@@ -298,6 +424,7 @@ interface ToggleGroupContextValue {
   move(value: string, key: string): boolean;
   variant: () => "default" | "outline";
   size: () => "sm" | "default" | "lg";
+  segmented: () => boolean;
 }
 
 const ToggleGroupContext = createContext<ToggleGroupContextValue>();
@@ -308,6 +435,8 @@ interface ToggleGroupBaseProps {
   variant?: "default" | "outline";
   size?: "sm" | "default" | "lg";
   spacing?: 0 | 1 | 2;
+  /** Join items into one clipped control surface owned by the group. */
+  segmented?: boolean;
   loop?: boolean;
   class?: string;
   children?: JSX.Element;
@@ -343,14 +472,6 @@ export function nextToggleGroupValue(
 
 /** Shadcn-style single-value toggle group with native roving focus. */
 export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
-  const entries: Array<{ value: string; disabled: () => boolean }> = [];
-  const [activeValue, setActiveValue] = createSignal<string | undefined>(
-    undefined,
-    { ownedWrite: true },
-  );
-  const [registryVersion, setRegistryVersion] = createSignal(0, {
-    ownedWrite: true,
-  });
   const type = () => props.type ?? "single";
   const state = createControllableState<string | readonly string[]>({
     value: () => props.value,
@@ -365,12 +486,15 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
     },
   });
   const activateFromKeyboard = (value: string) => {
-    setActiveValue(value);
     if (type() === "single" && state.value() !== value) state.set(value);
   };
   const roving = createRovingFocus({
     orientation: () => "horizontal",
     loop: props.loop,
+    preferred: (id) => {
+      const current = state.value();
+      return Array.isArray(current) ? current.includes(id) : current === id;
+    },
     onMove: activateFromKeyboard,
   });
   const context: ToggleGroupContextValue = {
@@ -384,35 +508,20 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
     toggle: (value) =>
       state.set(nextToggleGroupValue(state.value(), value, type())),
     register(value, node, disabled) {
-      const entry = { value, disabled };
-      entries.push(entry);
-      const unregisterRoving = roving.register({
+      return roving.register({
         id: value,
         target: node,
         disabled,
       });
-      setRegistryVersion((version) => version + 1);
-      return () => {
-        unregisterRoving();
-        const index = entries.indexOf(entry);
-        if (index >= 0) entries.splice(index, 1);
-        setRegistryVersion((version) => version + 1);
-      };
     },
-    activate: setActiveValue,
-    isTabStop(value) {
-      registryVersion();
-      const enabled = entries.filter((entry) => !entry.disabled());
-      const active = activeValue();
-      const current = enabled.some((entry) => entry.value === active)
-        ? active
-        : (enabled.find((entry) => context.selected(entry.value))?.value ??
-          enabled[0]?.value);
-      return value === current;
+    activate(value) {
+      roving.activate(value);
     },
+    isTabStop: roving.isTabStop,
     move: roving.move,
     variant: () => props.variant ?? "default",
     size: () => props.size ?? "default",
+    segmented: () => props.segmented ?? false,
   };
   return createComponent(ToggleGroupContext, {
     value: context,
@@ -421,13 +530,20 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
         <View
           role="group"
           aria-label={props["aria-label"]}
+          aria-orientation="horizontal"
+          aria-disabled={props.disabled}
           class={mergeClasses(
-            "flex flex-row items-center rounded-md bg-transparent",
-            match(props.spacing ?? 0)
-              .with(0, () => "gap-0")
-              .with(1, () => "gap-1")
-              .with(2, () => "gap-2")
-              .exhaustive(),
+            "flex flex-row items-stretch rounded-md",
+            props.segmented
+              ? "gap-0 overflow-hidden border border-strong bg-surface"
+              : mergeClasses(
+                  "bg-transparent",
+                  match(props.spacing ?? 0)
+                    .with(0, () => "gap-0")
+                    .with(1, () => "gap-1")
+                    .with(2, () => "gap-2")
+                    .exhaustive(),
+                ),
             props.class,
           )}
         >
@@ -440,6 +556,7 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
 
 export interface ToggleGroupItemProps {
   value: string;
+  "aria-label"?: string;
   disabled?: boolean;
   variant?: "default" | "outline" | "accent";
   size?: "sm" | "default" | "lg";
@@ -460,6 +577,7 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
       unstyled
       disabled={disabled()}
       selected={selected()}
+      aria-label={props["aria-label"]}
       aria-pressed={selected()}
       focusOrder={group.isTabStop(props.value) ? 0 : -1}
       ref={(node) => {
@@ -470,9 +588,9 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
         mergeClasses(
           "h-7 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
           match(props.size ?? group.size())
-            .with("sm", () => "h-6 px-2 text-xs")
-            .with("default", () => "h-8 px-3 text-sm")
-            .with("lg", () => "h-10 px-4 text-sm")
+            .with("sm", () => componentsControlSize("sm"))
+            .with("default", () => componentsControlSize("default"))
+            .with("lg", () => componentsControlSize("lg"))
             .exhaustive(),
           match({
             selected: selected(),
@@ -486,7 +604,10 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
             .with({ selected: true }, () => "bg-selected text-primary")
             .with({ hovered: true }, () => "bg-control-hover text-primary")
             .otherwise(() => "bg-transparent text-muted"),
-          (props.variant ?? group.variant()) === "outline" && "border-strong",
+          group.segmented() && "rounded-none border-transparent",
+          !group.segmented() &&
+            (props.variant ?? group.variant()) === "outline" &&
+            "border-strong",
           state.focusVisible && "border-focus",
           props.class,
         )

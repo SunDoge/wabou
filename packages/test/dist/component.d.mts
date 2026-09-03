@@ -1,4 +1,5 @@
 import { BuiltinHost, Host } from "@wabou/core/renderer";
+import { EventType } from "@wabou/core/protocol";
 import { PlatformServices } from "@wabou/core";
 import { JSX } from "solid-js";
 //#region src/component.d.ts
@@ -16,6 +17,7 @@ interface ComponentRoleListOptions {
   selected?: boolean;
   expanded?: boolean;
   pressed?: boolean | "mixed";
+  busy?: boolean;
   current?: boolean | string;
   orientation?: "horizontal" | "vertical";
   focused?: boolean;
@@ -41,11 +43,17 @@ interface ComponentSnapshotNode {
   readonly focusOrder?: number;
   readonly interactionBlocked?: true;
   readonly focusContained?: true;
+  readonly projectionBoundary?: true;
   readonly overlayPlane?: Exclude<ComponentOverlayPlane, "content">;
   readonly transform?: readonly [number, number, number, number, number, number];
   readonly children?: readonly ComponentSnapshotNode[];
 }
 interface ComponentLocator extends ComponentQueries {
+  /** Exact retained-node identity. Changes prove that the component remounted. */
+  readonly identity: Readonly<{
+    lo: number;
+    hi: number;
+  }>;
   /** Direct authored parent, or null at the component render root. */
   readonly parent: ComponentLocator | null;
   readonly tag: string;
@@ -55,6 +63,8 @@ interface ComponentLocator extends ComponentQueries {
   readonly className: string;
   /** Last authored string or typed value emitted for an inline style property. */
   style(name: string): ComponentStyleValue | null;
+  /** Last structured configuration authored for a native widget. */
+  readonly widgetConfig: unknown;
   /** Direct authored children for visual protocol assertions. Prefer role queries for behavior. */
   readonly children: readonly ComponentLocator[];
   /** Stable authored protocol tree without transient NodeKeys. */
@@ -73,6 +83,8 @@ interface ComponentLocator extends ComponentQueries {
   readonly expanded: boolean | null;
   /** Toggle-button state authored through `aria-pressed`. */
   readonly pressed: boolean | "mixed" | null;
+  /** Pending state authored through `aria-busy`. */
+  readonly busy: boolean;
   /** Current item state authored through `aria-current`. */
   readonly current: boolean | string | null;
   /** Component axis authored through `aria-orientation`. */
@@ -99,6 +111,8 @@ interface ComponentLocator extends ComponentQueries {
   readonly focusContained: boolean;
   /** Native stacking plane authored for this node. */
   readonly overlayPlane: ComponentOverlayPlane;
+  /** Whether this node owns an explicit retained GPUI projection boundary. */
+  readonly projectionBoundary: boolean;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;
   /** Dispatch an uncaptured native pointer move with no pressed buttons. */
@@ -111,6 +125,10 @@ interface ComponentLocator extends ComponentQueries {
   contextMenu(position?: ComponentPointerPosition): void;
   press(key: string, options?: ComponentKeyOptions): void;
   input(value: string): void;
+  /** Dispatch a typed host event for custom-widget/component contracts. */
+  emit(type: EventType, payload?: unknown): void;
+  /** Complete the native transition currently authored by this node. */
+  finishNativeTransition(): void;
   /** Dispatch native focus/focusin, blurring the previously focused locator. */
   focus(): void;
   /** Dispatch native blur/focusout when this locator owns focus. */

@@ -10,7 +10,7 @@ import {
   DirectionProvider,
   DropZone,
   InlineEdit,
-  NativeSelect,
+  Select,
   PropertyList,
   PropertyRow,
   ShortcutRecorder,
@@ -65,17 +65,18 @@ export function DropZonePage() {
   );
 }
 
-export function NativeSelectPage() {
+export function ImmediateSelectPage() {
   return (
     <Card class="max-w-lg">
       <CardHeader>
-        <CardTitle>Native select</CardTitle>
+        <CardTitle>Immediate select</CardTitle>
       </CardHeader>
       <CardContent class="flex flex-col gap-3">
-        <NativeSelect
+        <Select
           aria-label="Preferred runtime"
           class="w-full"
           defaultValue="quickjs"
+          motion={false}
           options={[
             { value: "quickjs", label: "QuickJS" },
             { value: "v8", label: "V8" },
@@ -238,7 +239,7 @@ export function PropertyListPage() {
         name="runtime"
         value="QuickJS with typed native capabilities"
       />
-      <PropertyRow name="renderer" value="AnyRender retained scene" />
+      <PropertyRow name="renderer" value="GPUI retained projection" />
       <PropertyRow name="layout" value="Taffy logical pixels" />
     </PropertyList>
   );
@@ -276,6 +277,14 @@ export function TypographyPage() {
         Components own typography, wrapping, and spacing while applications
         remain free to compose the final hierarchy.
       </TypographyP>
+      <View class="flex flex-col gap-1 rounded-lg border border-subtle bg-surface px-4 py-3">
+        <Text class="font-medium">Native text selection</Text>
+        <Text class="text-sm text-muted">
+          Drag across this paragraph, then use the platform copy shortcut. Text
+          selection and highlighting are retained by GPUI rather than simulated
+          in JavaScript.
+        </Text>
+      </View>
       <TypographyBlockquote>
         Make invalid UI states visible to tests before pixels are rendered.
       </TypographyBlockquote>

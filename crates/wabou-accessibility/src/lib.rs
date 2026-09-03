@@ -1,4 +1,4 @@
-//! Renderer-independent accessibility semantics and platform publication.
+//! Renderer-independent accessibility semantics.
 //!
 //! This crate intentionally proves a small end-to-end contract: publish basic
 //! roles, labels, bounds, focus, and common interaction states, then route
@@ -8,10 +8,8 @@
 #![warn(missing_docs)]
 
 mod model;
-mod xplat;
 
 pub use model::{
     SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
     SemanticStates, SemanticToggleState,
 };
-pub use xplat::AccessibilityState;

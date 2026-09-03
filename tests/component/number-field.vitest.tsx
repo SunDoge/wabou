@@ -20,7 +20,13 @@ test("steps decimal values without floating-point drift", () => {
     { host: defaultHost() },
   );
 
-  screen.getByRole("button", { name: "Increase Opacity" }).click();
+  const decrement = screen.getByRole("button", { name: "Decrease Opacity" });
+  const increment = screen.getByRole("button", { name: "Increase Opacity" });
+  expect(decrement.className).toContain("w-7");
+  expect(decrement.className).toContain("h-7");
+  expect(increment.className).toContain("w-7");
+  expect(increment.className).toContain("h-7");
+  increment.click();
   expect(changes).toEqual([0.3]);
   expect(screen.getByRole("spinbutton", { name: "Opacity" }).numericValue).toBe(
     0.3,

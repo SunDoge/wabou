@@ -14,6 +14,14 @@ interface LayoutComputedStyle {
   readonly overflowX?: string | null;
   readonly overflowY?: string | null;
   readonly overlayPlane?: string;
+  /** Resolved text size in logical pixels, suitable for typography contracts. */
+  readonly fontSize?: number | null;
+  /** Resolved numeric text weight, after theme and font fallback resolution. */
+  readonly fontWeight?: number | null;
+  /** Resolved foreground and painted background used by visual contracts. */
+  readonly textColor?: string | null;
+  readonly background?: string | null;
+  readonly opacity?: number | null;
 }
 interface LayoutSemanticProjection {
   readonly role: string;
@@ -23,6 +31,14 @@ interface LayoutTextMetrics {
   readonly source: "node" | "widget";
   readonly lineBox: LayoutRect;
   readonly baseline: number;
+}
+interface LayoutClip {
+  readonly coordinateSpace: string;
+  readonly rect: LayoutRect;
+}
+interface LayoutClipInfo {
+  readonly chain: readonly LayoutClip[];
+  readonly effective?: LayoutClip | null;
 }
 interface LayoutSnapshotNode {
   readonly id: LayoutNodeKey;
@@ -36,6 +52,8 @@ interface LayoutSnapshotNode {
   readonly contentRect: LayoutRect;
   readonly styleDiagnostics: readonly string[];
   readonly semantic?: LayoutSemanticProjection | null;
+  /** Resolved native clipping published by DevTools. */
+  readonly clip?: LayoutClipInfo;
   readonly computed: LayoutComputedStyle;
 }
 interface LayoutSnapshot {
@@ -55,7 +73,7 @@ interface LayoutQuery {
   readonly className?: string;
 }
 interface LayoutDiagnostic {
-  readonly code: "flow-sibling-overlap" | "style-diagnostic" | "text-overlap" | "visible-overflow";
+  readonly code: "flow-sibling-overlap" | "interactive-target-too-small" | "low-text-contrast" | "style-diagnostic" | "text-overlap" | "visible-overflow";
   readonly message: string;
   readonly node: LayoutSnapshotNode;
   readonly related?: LayoutSnapshotNode;
@@ -66,7 +84,21 @@ interface LayoutDiagnosticOptions {
   /** Restrict checks to descendants of this node, including itself. */
   readonly within?: LayoutSnapshotNode;
 }
+interface LayoutVisualDiagnosticOptions extends LayoutDiagnosticOptions {
+  /** WCAG-style contrast ratio used as a visual legibility floor. */
+  readonly minimumTextContrast?: number;
+  /** Minimum logical size of button-like controls. */
+  readonly minimumInteractiveTarget?: number;
+}
 interface LayoutRectAssertionOptions {
+  readonly tolerance?: number;
+  readonly label?: string;
+}
+interface LayoutTextStyleAssertionOptions {
+  /** Exact resolved logical font size expected by the component contract. */
+  readonly fontSize?: number;
+  /** Exact resolved numeric font weight expected by the component contract. */
+  readonly fontWeight?: number;
   readonly tolerance?: number;
   readonly label?: string;
 }
@@ -74,8 +106,16 @@ declare const layoutRectRight: (rect: LayoutRect) => number;
 declare const layoutRectBottom: (rect: LayoutRect) => number;
 /** Assert that a completed native layout rect stays inside another rect. */
 declare function assertLayoutRectContains(outer: LayoutRect, inner: LayoutRect, options?: LayoutRectAssertionOptions): void;
+/**
+ * Assert typography after class resolution, Style IR application and native
+ * layout. This deliberately checks the completed layout node instead of source
+ * class names, so token and font-resolution regressions are visible to tests.
+ */
+declare function assertLayoutTextStyle(node: LayoutSnapshotNode, options: LayoutTextStyleAssertionOptions): void;
 /** Validate the Rust snapshot boundary before layout assertions consume it. */
 declare function parseLayoutSnapshot(value: unknown): LayoutSnapshot;
+/** Return the visual contrast ratio for two opaque hexadecimal colors. */
+declare function layoutColorContrast(foreground: string, background: string): number | undefined;
 declare function layoutRole(node: LayoutSnapshotNode): string;
 declare function layoutName(node: LayoutSnapshotNode): string;
 declare function queryLayoutNodes(snapshot: LayoutSnapshot, query: LayoutQuery): readonly LayoutSnapshotNode[];
@@ -92,7 +132,13 @@ declare function siblingCollisionDiagnostics(snapshot: LayoutSnapshot, options?:
  */
 declare function textCollisionDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
 declare function styleDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
+/**
+ * Opt-in visual legibility checks over the resolved native scene contract.
+ * These intentionally consume computed colors and geometry rather than source
+ * class names, so theme changes and component composition are covered too.
+ */
+declare function visualQualityDiagnostics(snapshot: LayoutSnapshot, options?: LayoutVisualDiagnosticOptions): readonly LayoutDiagnostic[];
 declare function assertNoLayoutDiagnostics(diagnostics: readonly LayoutDiagnostic[]): void;
 //#endregion
-export { LayoutComputedStyle, LayoutDiagnostic, LayoutDiagnosticOptions, LayoutNodeKey, LayoutQuery, LayoutRect, LayoutRectAssertionOptions, LayoutSemanticProjection, LayoutSnapshot, LayoutSnapshotNode, LayoutTextMetrics, assertLayoutRectContains, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics };
+export { LayoutClip, LayoutClipInfo, LayoutComputedStyle, LayoutDiagnostic, LayoutDiagnosticOptions, LayoutNodeKey, LayoutQuery, LayoutRect, LayoutRectAssertionOptions, LayoutSemanticProjection, LayoutSnapshot, LayoutSnapshotNode, LayoutTextMetrics, LayoutTextStyleAssertionOptions, LayoutVisualDiagnosticOptions, assertLayoutRectContains, assertLayoutTextStyle, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutColorContrast, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics, visualQualityDiagnostics };
 //# sourceMappingURL=layout.d.mts.map

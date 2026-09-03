@@ -1,6 +1,6 @@
 //! Test-only bridge between QuickJS scenarios and the native event loop.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{
     Arc, Mutex,
@@ -10,20 +10,46 @@ use std::sync::{
 use rquickjs::{Function, prelude::Async};
 use serde::Deserialize;
 use tokio::sync::oneshot;
-use wabou_shell::window_lifecycle::{WindowCapabilities, WindowLifecycle, WindowPresence};
+#[cfg(test)]
 use wabou_shell::{
-    ExtensionContext, FileDropEvent, FileDropPhase, ImeEvent, KeyEvent, KeyLocation, KeyPhase,
-    ShellExtension, WakeCallback, WheelEvent,
+    FileDropEvent, Point, PointerButton, PointerEvent, PointerPhase, SemanticRole,
+    SemanticSnapshot, WheelEvent,
 };
 use wabou_shell::{
-    FrameSource, Modifiers, Point, PointerButton, PointerEvent, PointerPhase, SemanticRole,
-    SemanticSnapshot, UiEvent,
+    ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, NodeKey, UiEvent, WakeCallback,
+    WindowCapabilities, WindowIntent, WindowLifecycle, WindowPresence,
 };
 
 const CAPABILITY: &str = "test";
 const MAX_FIXTURE_BYTES: usize = 16 * 1024 * 1024;
 static NEXT_FIXTURE_DIRECTORY: AtomicU64 = AtomicU64::new(1);
 type WindowKey = wabou_shell::WindowResourceKey;
+
+#[cfg(test)]
+trait SemanticTestSource {
+    fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>>;
+    fn handle_event(&mut self, event: UiEvent);
+    fn handle_semantic_action(&mut self, action: wabou_shell::SemanticAction) -> bool;
+}
+
+#[derive(Clone, Copy, Debug)]
+enum FileDropPhase {
+    Entered,
+    Moved,
+    Left,
+    Dropped,
+}
+
+impl From<FileDropPhase> for wabou_shell::FileDropPhase {
+    fn from(value: FileDropPhase) -> Self {
+        match value {
+            FileDropPhase::Entered => Self::Entered,
+            FileDropPhase::Moved => Self::Moved,
+            FileDropPhase::Left => Self::Left,
+            FileDropPhase::Dropped => Self::Dropped,
+        }
+    }
+}
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -108,6 +134,13 @@ enum TestActionResult {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub(crate) enum GpuiWindowTestCommand {
+    Hide { mutable_visibility: bool },
+    Show,
+    Resize { width: u32, height: u32 },
+}
+
+#[derive(Clone, Copy, Debug)]
 struct WindowSnapshot {
     lifecycle: WindowLifecycle,
     viewport: Option<(u32, u32)>,
@@ -172,8 +205,13 @@ struct TestState {
     windows: HashMap<WindowKey, WindowSnapshot>,
     wake: Option<WakeCallback>,
     report: Option<String>,
+    gpui_snapshots: HashMap<WindowKey, Arc<[wabou_shell::GpuiLayoutNode]>>,
+    gpui_select_all: HashSet<(WindowKey, wabou_host_api::NodeKey)>,
+    #[cfg(test)]
     semantic_snapshots: HashMap<WindowKey, Arc<SemanticSnapshot>>,
+    #[cfg(test)]
     headless_viewports: HashMap<WindowKey, (u32, u32)>,
+    #[cfg(test)]
     headless: bool,
 }
 
@@ -199,6 +237,32 @@ impl TestController {
         }
     }
 
+    pub(crate) fn connect_gpui_window(&self, window_key: WindowKey, wake: WakeCallback) {
+        if let Ok(mut state) = self.state.lock() {
+            state.wake = Some(wake);
+            state.windows.insert(
+                window_key,
+                WindowSnapshot {
+                    lifecycle: WindowLifecycle::visible(),
+                    viewport: None,
+                },
+            );
+        }
+    }
+
+    pub(crate) fn record_gpui_viewport(&self, window_key: WindowKey, width: u32, height: u32) {
+        if let Ok(mut state) = self.state.lock() {
+            state
+                .windows
+                .entry(window_key)
+                .or_insert(WindowSnapshot {
+                    lifecycle: WindowLifecycle::visible(),
+                    viewport: None,
+                })
+                .viewport = Some((width, height));
+        }
+    }
+
     fn request(&self, kind: TestActionKind) -> oneshot::Receiver<TestActionResult> {
         let (completion, receiver) = oneshot::channel();
         let wake = {
@@ -210,6 +274,7 @@ impl TestController {
                 return receiver;
             }
             let action = TestAction { kind, completion };
+            #[cfg(test)]
             if state.headless {
                 if action_requires_source_poll(&action.kind) {
                     state.actions.push_back(action);
@@ -219,6 +284,8 @@ impl TestController {
             } else {
                 state.actions.push_back(action);
             }
+            #[cfg(not(test))]
+            state.actions.push_back(action);
             state.wake.clone()
         };
         if let Some(wake) = wake {
@@ -593,11 +660,11 @@ impl TestController {
 
     fn window_viewport_json(&self, window_key: WindowKey) -> String {
         let viewport = self.state.lock().ok().and_then(|state| {
-            state
-                .headless_viewports
-                .get(&window_key)
-                .copied()
-                .or_else(|| state.windows.get(&window_key)?.viewport)
+            #[cfg(test)]
+            if let Some(viewport) = state.headless_viewports.get(&window_key) {
+                return Some(*viewport);
+            }
+            state.windows.get(&window_key)?.viewport
         });
         viewport.map_or_else(
             || "null".into(),
@@ -609,6 +676,12 @@ impl TestController {
         self.state.lock().ok()?.report.take()
     }
 
+    #[cfg(feature = "headless")]
+    pub(crate) fn has_report(&self) -> bool {
+        self.state.lock().is_ok_and(|state| state.report.is_some())
+    }
+
+    #[cfg(test)]
     pub(crate) fn initialize_headless(
         &self,
         window_keys: impl IntoIterator<Item = WindowKey>,
@@ -630,6 +703,7 @@ impl TestController {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn headless_viewport(&self, window_key: WindowKey) -> Option<(u32, u32)> {
         self.state
             .lock()
@@ -639,7 +713,8 @@ impl TestController {
             .copied()
     }
 
-    pub(crate) fn poll_headless_source(&self, window_key: WindowKey, source: &mut dyn FrameSource) {
+    #[cfg(test)]
+    fn poll_headless_source(&self, window_key: WindowKey, source: &mut dyn SemanticTestSource) {
         let snapshot = source.semantic_snapshot();
         if let Some(snapshot) = snapshot.as_ref() {
             self.record_semantic_snapshot(window_key, snapshot.clone());
@@ -683,7 +758,7 @@ impl TestController {
             (TestActionKind::WaitForIdle(_), _) => true,
             (TestActionKind::FileDrop { phase, paths, .. }, _) => {
                 source.handle_event(UiEvent::FileDrop(FileDropEvent {
-                    phase: *phase,
+                    phase: (*phase).into(),
                     paths: paths.clone(),
                     position: None,
                 }));
@@ -728,19 +803,7 @@ impl TestController {
         let _ = action.completion.send(result);
     }
 
-    pub(crate) fn has_report(&self) -> bool {
-        self.state.lock().is_ok_and(|state| state.report.is_some())
-    }
-
-    pub(crate) fn report_passed(&self) -> Option<bool> {
-        let state = self.state.lock().ok()?;
-        let report = state.report.as_deref()?;
-        serde_json::from_str::<serde_json::Value>(report)
-            .ok()?
-            .get("passed")?
-            .as_bool()
-    }
-
+    #[cfg(test)]
     fn record_semantic_snapshot(&self, window_key: WindowKey, snapshot: Arc<SemanticSnapshot>) {
         if let Ok(mut state) = self.state.lock() {
             state.semantic_snapshots.insert(window_key, snapshot);
@@ -748,10 +811,25 @@ impl TestController {
     }
 
     pub(crate) fn semantic_artifact(&self) -> serde_json::Value {
+        #[cfg(test)]
+        if let Ok(state) = self.state.lock()
+            && state.gpui_snapshots.is_empty()
+            && !state.semantic_snapshots.is_empty()
+        {
+            let mut windows = state.semantic_snapshots.iter().collect::<Vec<_>>();
+            windows.sort_unstable_by_key(|(window_key, _)| window_key.as_ffi());
+            return serde_json::json!({
+                "version": 1,
+                "windows": windows
+                    .into_iter()
+                    .map(|(window_key, snapshot)| semantic_snapshot_json(*window_key, snapshot))
+                    .collect::<Vec<_>>(),
+            });
+        }
         let snapshots = self
             .state
             .lock()
-            .map(|state| state.semantic_snapshots.clone())
+            .map(|state| state.gpui_snapshots.clone())
             .unwrap_or_default();
         let mut windows = snapshots.into_iter().collect::<Vec<_>>();
         windows.sort_unstable_by_key(|(window_key, _)| window_key.as_ffi());
@@ -759,9 +837,674 @@ impl TestController {
             "version": 1,
             "windows": windows
                 .into_iter()
-                .map(|(window_key, snapshot)| semantic_snapshot_json(window_key, &snapshot))
+                .map(|(window_key, nodes)| gpui_snapshot_json(window_key, &nodes))
                 .collect::<Vec<_>>(),
         })
+    }
+
+    pub(crate) fn poll_gpui_source(
+        &self,
+        window_key: WindowKey,
+        nodes: &[wabou_shell::GpuiLayoutNode],
+        controller: &mut crate::gpui_controller::GpuiController,
+        mut dispatch_native_input: impl FnMut(NodeKey, UiEvent) -> bool,
+    ) -> bool {
+        if nodes.is_empty() {
+            return false;
+        }
+        if let Ok(mut state) = self.state.lock() {
+            state.gpui_snapshots.insert(window_key, Arc::from(nodes));
+        }
+        let action = self.state.lock().ok().and_then(|mut state| {
+            let index = state.actions.iter().position(|action| {
+                matches!(action_window_key(&action.kind), Some(target) if target == window_key)
+                    && action_requires_source_poll(&action.kind)
+            })?;
+            state.actions.remove(index)
+        });
+        let Some(action) = action else {
+            return false;
+        };
+        let mut mutation = false;
+        let result = match &action.kind {
+            TestActionKind::WaitForIdle(_) => TestActionResult::Handled(true),
+            TestActionKind::ClickByRole {
+                role,
+                label,
+                index,
+                scope,
+                ..
+            } => {
+                mutation = true;
+                TestActionResult::Handled(
+                    gpui_locator(nodes, role, label, *index, scope, false)
+                        .is_some_and(|node| click_gpui_target(controller, node)),
+                )
+            }
+            TestActionKind::InputByRole {
+                role,
+                label,
+                input,
+                index,
+                scope,
+                ..
+            } => {
+                mutation = true;
+                let handled = gpui_locator(
+                    nodes,
+                    role,
+                    label,
+                    *index,
+                    scope,
+                    input_allows_disabled_target(input),
+                )
+                .is_some_and(|node| {
+                    let mut native_handled = false;
+                    for event in native_input_events(input) {
+                        // Deliver every phase even if an earlier one handled
+                        // the input; key-up and composition-end are stateful.
+                        native_handled = dispatch_native_input(node.key, event) || native_handled;
+                    }
+                    if native_handled {
+                        return true;
+                    }
+                    let select_all = matches!(
+                        input,
+                        TestInput::Key { key, modifiers }
+                            if key.eq_ignore_ascii_case("a") && modifiers & (2 | 8) != 0
+                    );
+                    if select_all {
+                        controller.set_text_focus(node.key, true);
+                        if let Ok(mut state) = self.state.lock() {
+                            state.gpui_select_all.insert((window_key, node.key));
+                        }
+                        true
+                    } else {
+                        let selected_all = self.state.lock().is_ok_and(|mut state| {
+                            state.gpui_select_all.remove(&(window_key, node.key))
+                        });
+                        if selected_all {
+                            match input {
+                                TestInput::Text { text }
+                                | TestInput::Ime { text }
+                                | TestInput::Paste { text } => {
+                                    controller.commit_text_value(node.key, text)
+                                }
+                                TestInput::Key { key, .. }
+                                    if key.eq_ignore_ascii_case("Backspace")
+                                        || key.eq_ignore_ascii_case("Delete") =>
+                                {
+                                    controller.commit_text_value(node.key, "")
+                                }
+                                _ => input_gpui_target(controller, node, input),
+                            }
+                        } else {
+                            input_gpui_target(controller, node, input)
+                        }
+                    }
+                });
+                TestActionResult::Handled(handled)
+            }
+            TestActionKind::QueryByRole {
+                role,
+                label,
+                index,
+                scope,
+                ..
+            } => TestActionResult::Query(gpui_locator_query_json(
+                nodes,
+                role,
+                label,
+                *index,
+                scope,
+                controller.focused_target(),
+            )),
+            TestActionKind::FileDrop { phase, paths, .. } => {
+                mutation = true;
+                TestActionResult::Handled(controller.dispatch_file_drop(
+                    wabou_shell::FileDropEvent {
+                        phase: (*phase).into(),
+                        paths: paths.clone(),
+                        position: None,
+                    },
+                ))
+            }
+            _ => TestActionResult::Handled(false),
+        };
+        if mutation {
+            let _ = controller.settle_synchronous_action();
+        }
+        let _ = action.completion.send(result);
+        true
+    }
+
+    pub(crate) fn poll_gpui_window_action(
+        &self,
+        window_key: WindowKey,
+        mut execute: impl FnMut(GpuiWindowTestCommand) -> bool,
+    ) -> bool {
+        let action = self.state.lock().ok().and_then(|mut state| {
+            let index = state.actions.iter().position(|action| {
+                matches!(
+                    &action.kind,
+                    TestActionKind::NativeClose { window_key: target, .. }
+                        | TestActionKind::ShowWindow(target)
+                        | TestActionKind::ResizeWindow { window_key: target, .. }
+                        if *target == window_key
+                )
+            })?;
+            state.actions.remove(index)
+        });
+        let Some(action) = action else {
+            return false;
+        };
+        let command = match action.kind {
+            TestActionKind::NativeClose {
+                mutable_visibility, ..
+            } => GpuiWindowTestCommand::Hide { mutable_visibility },
+            TestActionKind::ShowWindow(_) => GpuiWindowTestCommand::Show,
+            TestActionKind::ResizeWindow { width, height, .. } => {
+                GpuiWindowTestCommand::Resize { width, height }
+            }
+            _ => unreachable!("GPUI window action filter and mapping stay aligned"),
+        };
+        let handled = execute(command);
+        if handled && let Ok(mut state) = self.state.lock() {
+            let snapshot = state.windows.entry(window_key).or_insert(WindowSnapshot {
+                lifecycle: WindowLifecycle::visible(),
+                viewport: None,
+            });
+            match command {
+                GpuiWindowTestCommand::Hide { mutable_visibility } => {
+                    let _ = snapshot.lifecycle.transition(
+                        WindowIntent::Hide,
+                        WindowCapabilities { mutable_visibility },
+                    );
+                }
+                GpuiWindowTestCommand::Show => {
+                    let _ = snapshot
+                        .lifecycle
+                        .transition(WindowIntent::Show, WindowCapabilities::default());
+                }
+                GpuiWindowTestCommand::Resize { width, height } => {
+                    snapshot.viewport = Some((width, height));
+                }
+            }
+        }
+        let _ = action.completion.send(TestActionResult::Handled(handled));
+        true
+    }
+}
+
+fn gpui_node_role(node: &wabou_shell::GpuiLayoutNode) -> Option<&str> {
+    node.attributes.get("role").map(AsRef::as_ref).or_else(|| {
+        let wabou_shell::ProjectedNodeKind::Element(tag) = &node.kind else {
+            return None;
+        };
+        match tag.as_ref() {
+            "button" => Some("button"),
+            "textarea" => Some("textbox"),
+            "input" => match node.attributes.get("type").map(AsRef::as_ref) {
+                Some("checkbox") => Some("checkbox"),
+                Some("radio") => Some("radio"),
+                _ => Some("textbox"),
+            },
+            "select" => Some("combobox"),
+            _ => None,
+        }
+    })
+}
+
+fn gpui_node_label<'a>(
+    nodes: &'a [wabou_shell::GpuiLayoutNode],
+    node: &'a wabou_shell::GpuiLayoutNode,
+) -> Option<String> {
+    if let Some(label) = node.attributes.get("aria-label") {
+        return normalize_accessible_name(label);
+    }
+    gpui_node_text_content(nodes, node)
+}
+
+fn normalize_accessible_name(value: &str) -> Option<String> {
+    let normalized = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!normalized.is_empty()).then_some(normalized)
+}
+
+fn gpui_node_text_content(
+    nodes: &[wabou_shell::GpuiLayoutNode],
+    node: &wabou_shell::GpuiLayoutNode,
+) -> Option<String> {
+    if let Some(text) = &node.text {
+        return normalize_accessible_name(text);
+    }
+    let mut text = String::new();
+    let mut pending = vec![node.key];
+    while let Some(parent) = pending.pop() {
+        for child in nodes
+            .iter()
+            .filter(|candidate| candidate.parent == Some(parent))
+            .filter(|candidate| gpui_is_effectively_attached(nodes, candidate))
+            .filter(|candidate| !gpui_is_aria_hidden(nodes, candidate))
+        {
+            if let Some(value) = &child.text {
+                text.push_str(value);
+            }
+            pending.push(child.key);
+        }
+    }
+    normalize_accessible_name(&text)
+}
+
+fn gpui_descends_from(
+    nodes: &[wabou_shell::GpuiLayoutNode],
+    mut key: wabou_host_api::NodeKey,
+    ancestor: wabou_host_api::NodeKey,
+) -> bool {
+    while let Some(node) = nodes.iter().find(|node| node.key == key) {
+        let Some(parent) = node.parent else {
+            return false;
+        };
+        if parent == ancestor {
+            return true;
+        }
+        key = parent;
+    }
+    false
+}
+
+fn gpui_is_effectively_attached(
+    nodes: &[wabou_shell::GpuiLayoutNode],
+    node: &wabou_shell::GpuiLayoutNode,
+) -> bool {
+    if !node.attached {
+        return false;
+    }
+    let mut parent = node.parent;
+    while let Some(key) = parent {
+        let Some(ancestor) = nodes.iter().find(|candidate| candidate.key == key) else {
+            return false;
+        };
+        if !ancestor.attached {
+            return false;
+        }
+        parent = ancestor.parent;
+    }
+    true
+}
+
+fn gpui_is_aria_hidden(
+    nodes: &[wabou_shell::GpuiLayoutNode],
+    node: &wabou_shell::GpuiLayoutNode,
+) -> bool {
+    let mut current = Some(node);
+    while let Some(candidate) = current {
+        if candidate
+            .attributes
+            .get("aria-hidden")
+            .is_some_and(|value| value.as_ref() == "true")
+        {
+            return true;
+        }
+        current = candidate
+            .parent
+            .and_then(|parent| nodes.iter().find(|ancestor| ancestor.key == parent));
+    }
+    false
+}
+
+fn gpui_modal_root(nodes: &[wabou_shell::GpuiLayoutNode]) -> Option<wabou_host_api::NodeKey> {
+    nodes
+        .iter()
+        .filter(|node| gpui_is_effectively_attached(nodes, node))
+        .filter(|node| !gpui_is_aria_hidden(nodes, node))
+        .filter(|node| {
+            matches!(gpui_node_role(node), Some("dialog" | "alertdialog"))
+                && node
+                    .attributes
+                    .get("aria-modal")
+                    .is_some_and(|value| value.as_ref() == "true")
+        })
+        .max_by_key(|node| (node.overlay_plane, node.z_index))
+        .map(|node| node.key)
+}
+
+fn gpui_node_is_exposed(
+    nodes: &[wabou_shell::GpuiLayoutNode],
+    node: &wabou_shell::GpuiLayoutNode,
+) -> bool {
+    if !gpui_is_effectively_attached(nodes, node) || gpui_is_aria_hidden(nodes, node) {
+        return false;
+    }
+    gpui_modal_root(nodes)
+        .is_none_or(|modal| node.key == modal || gpui_descends_from(nodes, node.key, modal))
+}
+
+fn gpui_bool_attribute(node: &wabou_shell::GpuiLayoutNode, name: &str) -> Option<bool> {
+    node.attributes
+        .get(name)
+        .and_then(|value| match value.as_ref() {
+            "true" => Some(true),
+            "false" => Some(false),
+            _ => None,
+        })
+}
+
+fn gpui_node_is_disabled(node: &wabou_shell::GpuiLayoutNode) -> bool {
+    node.attributes.contains_key("disabled")
+        || gpui_bool_attribute(node, "aria-disabled") == Some(true)
+}
+
+fn gpui_scope_owner(
+    nodes: &[wabou_shell::GpuiLayoutNode],
+    scope: &[TestLocatorSelector],
+) -> Option<Option<wabou_host_api::NodeKey>> {
+    let mut owner = None;
+    for selector in scope {
+        let matches = nodes
+            .iter()
+            .filter(|node| gpui_node_is_exposed(nodes, node))
+            .filter(|node| owner.is_none_or(|owner| gpui_descends_from(nodes, node.key, owner)))
+            .filter(|node| gpui_node_role(node) == Some(selector.role.as_str()))
+            .filter(|node| gpui_node_label(nodes, node).as_deref() == Some(selector.name.as_str()))
+            .collect::<Vec<_>>();
+        owner = selector
+            .index
+            .and_then(|index| matches.get(index).copied())
+            .or_else(|| (matches.len() == 1).then(|| matches[0]))
+            .map(|node| node.key);
+        owner?;
+    }
+    Some(owner)
+}
+
+fn gpui_locator<'a>(
+    nodes: &'a [wabou_shell::GpuiLayoutNode],
+    role: &str,
+    label: &str,
+    index: Option<usize>,
+    scope: &[TestLocatorSelector],
+    allow_disabled: bool,
+) -> Option<&'a wabou_shell::GpuiLayoutNode> {
+    let owner = gpui_scope_owner(nodes, scope)?;
+    let mut matches = nodes
+        .iter()
+        .filter(|node| gpui_node_is_exposed(nodes, node))
+        .filter(|node| owner.is_none_or(|owner| gpui_descends_from(nodes, node.key, owner)))
+        .filter(|node| gpui_node_role(node) == Some(role))
+        .filter(|node| gpui_node_label(nodes, node).as_deref() == Some(label))
+        .filter(|node| allow_disabled || !gpui_node_is_disabled(node));
+    match index {
+        Some(index) => matches.nth(index),
+        None => {
+            let node = matches.next()?;
+            matches.next().is_none().then_some(node)
+        }
+    }
+}
+
+fn gpui_locator_query_json(
+    nodes: &[wabou_shell::GpuiLayoutNode],
+    role: &str,
+    label: &str,
+    index: Option<usize>,
+    scope: &[TestLocatorSelector],
+    focused: Option<wabou_host_api::NodeKey>,
+) -> Option<String> {
+    let owner = gpui_scope_owner(nodes, scope)?;
+    let matches = nodes
+        .iter()
+        .filter(|node| gpui_node_is_exposed(nodes, node))
+        .filter(|node| owner.is_none_or(|owner| gpui_descends_from(nodes, node.key, owner)))
+        .filter(|node| gpui_node_role(node) == Some(role))
+        .filter(|node| gpui_node_label(nodes, node).as_deref() == Some(label))
+        .collect::<Vec<_>>();
+    let selected = match index {
+        Some(index) => matches.get(index).copied(),
+        None => matches.first().copied(),
+    }?;
+    let bool_attribute = |name: &str| gpui_bool_attribute(selected, name);
+    let toggle_attribute = |name: &str| match selected.attributes.get(name).map(AsRef::as_ref) {
+        Some("true") => serde_json::Value::Bool(true),
+        Some("false") => serde_json::Value::Bool(false),
+        Some("mixed") => serde_json::Value::String("mixed".into()),
+        _ => serde_json::Value::Null,
+    };
+    let number_attribute = |name: &str| {
+        selected
+            .attributes
+            .get(name)
+            .and_then(|value| value.parse::<f64>().ok())
+    };
+    Some(
+        serde_json::json!({
+            "matchCount": matches.len(),
+            "snapshot": {
+                "name": gpui_node_label(nodes, selected),
+                "text": gpui_node_text_content(nodes, selected),
+                "value": selected
+                    .attributes
+                    .get("aria-valuetext")
+                    .or_else(|| selected.attributes.get("value"))
+                    .map(|value| value.to_string())
+                    .or_else(|| gpui_node_text_content(nodes, selected)),
+                "numericValue": number_attribute("aria-valuenow"),
+                "minNumericValue": number_attribute("aria-valuemin"),
+                "maxNumericValue": number_attribute("aria-valuemax"),
+                "bounds": {
+                    "x": f32::from(selected.bounds.origin.x),
+                    "y": f32::from(selected.bounds.origin.y),
+                    "width": f32::from(selected.bounds.size.width),
+                    "height": f32::from(selected.bounds.size.height),
+                },
+                "disabled": gpui_node_is_disabled(selected),
+                "checked": toggle_attribute("aria-checked"),
+                "pressed": toggle_attribute("aria-pressed"),
+                "selected": bool_attribute("aria-selected"),
+                "current": selected.attributes.get("aria-current").and_then(|value| {
+                    (value.as_ref() != "false").then(|| value.to_string())
+                }),
+                "expanded": bool_attribute("aria-expanded"),
+                "focused": focused == Some(selected.key),
+            }
+        })
+        .to_string(),
+    )
+}
+
+fn gpui_snapshot_json(
+    window_key: WindowKey,
+    nodes: &[wabou_shell::GpuiLayoutNode],
+) -> serde_json::Value {
+    serde_json::json!({
+        "windowId": window_key,
+        "nodes": nodes.iter().map(|node| serde_json::json!({
+            "id": node.key,
+            "parentId": node.parent,
+            "attached": node.attached,
+            "exposed": gpui_node_is_exposed(nodes, node),
+            "role": gpui_node_role(node),
+            "name": gpui_node_label(nodes, node),
+            "hasValue": node.attributes.contains_key("value"),
+            "bounds": {
+                "x": f32::from(node.bounds.origin.x),
+                "y": f32::from(node.bounds.origin.y),
+                "width": f32::from(node.bounds.size.width),
+                "height": f32::from(node.bounds.size.height),
+            },
+            "disabled": node.attributes.contains_key("disabled"),
+        })).collect::<Vec<_>>(),
+    })
+}
+
+fn gpui_pointer_event(
+    node: &wabou_shell::GpuiLayoutNode,
+    phase: wabou_shell::ProjectedPointerPhase,
+) -> wabou_shell::ProjectedPointerEvent {
+    let width = f32::from(node.bounds.size.width);
+    let height = f32::from(node.bounds.size.height);
+    wabou_shell::ProjectedPointerEvent {
+        target: node.key,
+        phase,
+        x: f32::from(node.bounds.origin.x) + width * 0.5,
+        y: f32::from(node.bounds.origin.y) + height * 0.5,
+        local_x: width * 0.5,
+        local_y: height * 0.5,
+        button: Some(wabou_shell::ProjectedPointerButton::Primary),
+        shift: false,
+        control: false,
+        alt: false,
+        platform: false,
+    }
+}
+
+fn click_gpui_target(
+    controller: &mut crate::gpui_controller::GpuiController,
+    node: &wabou_shell::GpuiLayoutNode,
+) -> bool {
+    let down = controller.handle_projected_pointer(gpui_pointer_event(
+        node,
+        wabou_shell::ProjectedPointerPhase::Down,
+    ));
+    let up = controller.handle_projected_pointer(gpui_pointer_event(
+        node,
+        wabou_shell::ProjectedPointerPhase::Up,
+    ));
+    if down.handled || up.handled {
+        return true;
+    }
+    // Retained GPUI text controls own their native pointer listener and focus
+    // handle, neither of which exists in the deterministic projection-only
+    // driver. Preserve the public click-to-focus contract at the same typed
+    // boundary used by headless text, paste, and IME input.
+    if gpui_node_role(node) == Some("textbox") {
+        controller.set_text_focus(node.key, true);
+        return true;
+    }
+    false
+}
+
+fn gpui_drag_events(
+    node: &wabou_shell::GpuiLayoutNode,
+    delta_x: f64,
+    delta_y: f64,
+) -> [wabou_shell::ProjectedPointerEvent; 3] {
+    let down = gpui_pointer_event(node, wabou_shell::ProjectedPointerPhase::Down);
+    let mut moved = gpui_pointer_event(node, wabou_shell::ProjectedPointerPhase::Move);
+    moved.x += delta_x as f32;
+    moved.y += delta_y as f32;
+    moved.local_x += delta_x as f32;
+    moved.local_y += delta_y as f32;
+    let mut up = moved;
+    up.phase = wabou_shell::ProjectedPointerPhase::Up;
+    [down, moved, up]
+}
+
+fn input_gpui_target(
+    controller: &mut crate::gpui_controller::GpuiController,
+    node: &wabou_shell::GpuiLayoutNode,
+    input: &TestInput,
+) -> bool {
+    match input {
+        TestInput::Probe => true,
+        TestInput::Text { text } | TestInput::Ime { text } => {
+            controller.set_text_focus(node.key, true);
+            // The real GPUI editor applies the IME/key edit to its retained
+            // InputState and then reports the complete value through
+            // ProjectedInputEvent::TextChange. The headless driver has no
+            // InputState entity, so reproduce that public boundary directly
+            // instead of emitting the lower-level `imecommit` notification.
+            let mut value = controller.text_input_state().text.unwrap_or_default();
+            value.push_str(text);
+            controller.commit_text_value(node.key, &value)
+        }
+        TestInput::Paste { text } => {
+            controller.set_text_focus(node.key, true);
+            controller.dispatch_paste(text.clone()).handled
+        }
+        TestInput::Key { key, modifiers } => {
+            controller.set_text_focus(node.key, true);
+            controller
+                .handle_projected_key(wabou_shell::ProjectedKeyEvent {
+                    phase: wabou_shell::ProjectedKeyPhase::Down,
+                    key: key.clone(),
+                    key_char: (key.chars().count() == 1).then(|| key.clone()),
+                    repeat: false,
+                    shift: modifiers & 1 != 0,
+                    control: modifiers & 2 != 0,
+                    alt: modifiers & 4 != 0,
+                    platform: modifiers & 8 != 0,
+                })
+                .handled
+        }
+        TestInput::Wheel { delta_x, delta_y } => {
+            let _ = controller.handle_projected_wheel(wabou_shell::ProjectedWheelEvent {
+                target: node.key,
+                x: f32::from(node.bounds.origin.x),
+                y: f32::from(node.bounds.origin.y),
+                local_x: 0.0,
+                local_y: 0.0,
+                delta_x: *delta_x as f32,
+                delta_y: *delta_y as f32,
+                precise: true,
+                phase: wabou_shell::ProjectedWheelPhase::Changed,
+                shift: false,
+                control: false,
+                alt: false,
+                platform: false,
+            });
+            let _ = controller.apply_projection_wheel(node.key, *delta_x as f32, *delta_y as f32);
+            // A wheel action was delivered even when the nearest scroll range is
+            // already at its boundary. Test action success describes delivery,
+            // not whether the offset happened to change.
+            true
+        }
+        TestInput::Drag { delta_x, delta_y } => {
+            let mut handled = false;
+            for event in gpui_drag_events(node, *delta_x, *delta_y) {
+                // A drag is a sequence, so dispatch move/up even when down was
+                // handled instead of using Iterator::any's short circuit.
+                handled = controller.handle_projected_pointer(event).handled || handled;
+            }
+            handled
+        }
+    }
+}
+
+/// Convert inputs which do not require synthetic layout geometry into the
+/// backend-neutral native widget event contract. Pointer and wheel input stay
+/// on the projected hit-testing path because their coordinates come from the
+/// laid-out GPUI node.
+fn native_input_events(input: &TestInput) -> Vec<UiEvent> {
+    match input {
+        TestInput::Key { key, modifiers } => [KeyPhase::Down, KeyPhase::Up]
+            .into_iter()
+            .map(|phase| {
+                UiEvent::Key(KeyEvent {
+                    phase,
+                    key: key.clone(),
+                    key_without_modifiers: key.clone(),
+                    code: key.clone(),
+                    text: None,
+                    text_with_all_modifiers: None,
+                    location: KeyLocation::Standard,
+                    modifiers: Modifiers::from_bits_truncate(*modifiers),
+                    repeat: false,
+                    synthetic: false,
+                })
+            })
+            .collect(),
+        TestInput::Text { text } => vec![UiEvent::TextInput(text.clone())],
+        TestInput::Paste { text } => vec![UiEvent::Paste(text.clone())],
+        TestInput::Ime { text } => vec![
+            UiEvent::Ime(ImeEvent::Enabled),
+            UiEvent::Ime(ImeEvent::Preedit {
+                text: text.clone(),
+                cursor: Some((text.len(), text.len())),
+            }),
+            UiEvent::Ime(ImeEvent::Commit(text.clone())),
+            UiEvent::Ime(ImeEvent::Disabled),
+        ],
+        TestInput::Probe | TestInput::Drag { .. } | TestInput::Wheel { .. } => Vec::new(),
     }
 }
 
@@ -773,6 +1516,7 @@ fn cancelled_result(kind: &TestActionKind) -> TestActionResult {
     }
 }
 
+#[cfg(test)]
 fn semantic_toggle_json(state: Option<wabou_shell::SemanticToggleState>) -> serde_json::Value {
     match state.map(wabou_shell::SemanticToggleState::as_str) {
         Some("false") => serde_json::Value::Bool(false),
@@ -783,6 +1527,7 @@ fn semantic_toggle_json(state: Option<wabou_shell::SemanticToggleState>) -> serd
     }
 }
 
+#[cfg(test)]
 fn locator_snapshot_json(node: &wabou_shell::SemanticNode, focused: bool) -> String {
     let current = node
         .states
@@ -811,6 +1556,7 @@ fn locator_snapshot_json(node: &wabou_shell::SemanticNode, focused: bool) -> Str
     .to_string()
 }
 
+#[cfg(test)]
 fn locator_query_json(
     snapshot: &SemanticSnapshot,
     role: &str,
@@ -847,6 +1593,7 @@ fn locator_query_json(
     )
 }
 
+#[cfg(test)]
 fn scoped_candidates<'a>(
     snapshot: &'a SemanticSnapshot,
     scope: &[TestLocatorSelector],
@@ -868,6 +1615,7 @@ fn scoped_candidates<'a>(
     Some(candidates)
 }
 
+#[cfg(test)]
 fn semantic_descendants(
     snapshot: &SemanticSnapshot,
     owner: u64,
@@ -898,6 +1646,7 @@ fn semantic_descendants(
         .collect()
 }
 
+#[cfg(test)]
 fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) -> serde_json::Value {
     serde_json::json!({
         "windowId": window_key,
@@ -936,6 +1685,7 @@ fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) ->
     })
 }
 
+#[cfg(test)]
 fn apply_headless_action(state: &mut TestState, action: TestAction) {
     let handled = match action.kind {
         TestActionKind::NativeClose {
@@ -943,17 +1693,16 @@ fn apply_headless_action(state: &mut TestState, action: TestAction) {
             mutable_visibility,
         } => state.windows.get_mut(&window_key).is_some_and(|snapshot| {
             snapshot.lifecycle.transition(
-                wabou_shell::window_lifecycle::WindowIntent::Hide,
+                WindowIntent::Hide,
                 WindowCapabilities { mutable_visibility },
             );
             true
         }),
         TestActionKind::ShowWindow(window_key) => {
             state.windows.get_mut(&window_key).is_some_and(|snapshot| {
-                snapshot.lifecycle.transition(
-                    wabou_shell::window_lifecycle::WindowIntent::Show,
-                    WindowCapabilities::default(),
-                );
+                snapshot
+                    .lifecycle
+                    .transition(WindowIntent::Show, WindowCapabilities::default());
                 true
             })
         }
@@ -1005,6 +1754,7 @@ fn action_window_key(kind: &TestActionKind) -> Option<WindowKey> {
     }
 }
 
+#[cfg(test)]
 fn action_ready(kind: &TestActionKind, snapshot: Option<&SemanticSnapshot>) -> bool {
     match (kind, snapshot) {
         (TestActionKind::WaitForIdle(_), _) => true,
@@ -1014,8 +1764,9 @@ fn action_ready(kind: &TestActionKind, snapshot: Option<&SemanticSnapshot>) -> b
     }
 }
 
+#[cfg(test)]
 fn click_semantic_target(
-    source: &mut dyn FrameSource,
+    source: &mut dyn SemanticTestSource,
     snapshot: &SemanticSnapshot,
     role: &str,
     label: &str,
@@ -1048,8 +1799,9 @@ fn click_semantic_target(
     true
 }
 
+#[cfg(test)]
 fn input_semantic_target(
-    source: &mut dyn FrameSource,
+    source: &mut dyn SemanticTestSource,
     snapshot: &SemanticSnapshot,
     role: &str,
     label: &str,
@@ -1072,8 +1824,9 @@ fn input_allows_disabled_target(input: &TestInput) -> bool {
     matches!(input, TestInput::Probe | TestInput::Wheel { .. })
 }
 
+#[cfg(test)]
 fn dispatch_test_input(
-    source: &mut dyn FrameSource,
+    source: &mut dyn SemanticTestSource,
     node: &wabou_shell::SemanticNode,
     input: &TestInput,
 ) -> bool {
@@ -1094,6 +1847,7 @@ fn dispatch_test_input(
     true
 }
 
+#[cfg(test)]
 fn semantic_target<'a>(
     snapshot: &'a SemanticSnapshot,
     role: &str,
@@ -1105,6 +1859,7 @@ fn semantic_target<'a>(
     (!node.disabled).then_some(node)
 }
 
+#[cfg(test)]
 fn semantic_query_target<'a>(
     snapshot: &'a SemanticSnapshot,
     role: &str,
@@ -1125,197 +1880,7 @@ fn semantic_query_target<'a>(
     }
 }
 
-pub(crate) struct TestDriver {
-    controller: TestController,
-    last_window_key: Option<WindowKey>,
-    failure_screenshot_captured: bool,
-}
-
-impl TestDriver {
-    pub(crate) fn new(controller: TestController) -> Self {
-        Self {
-            controller,
-            last_window_key: None,
-            failure_screenshot_captured: false,
-        }
-    }
-
-    fn snapshot(&self, window_key: WindowKey, context: &ExtensionContext<'_>) {
-        let Some(lifecycle) = context.window_lifecycle(window_key) else {
-            return;
-        };
-        let viewport = context
-            .window_metrics(window_key)
-            .map(|metrics| (metrics.logical_width, metrics.logical_height));
-        if let Ok(mut state) = self.controller.state.lock() {
-            state.windows.insert(
-                window_key,
-                WindowSnapshot {
-                    lifecycle,
-                    viewport,
-                },
-            );
-        }
-    }
-}
-
-impl ShellExtension for TestDriver {
-    fn requires_semantics(&self) -> bool {
-        true
-    }
-
-    fn initialize(&mut self, wake: WakeCallback) -> Result<(), String> {
-        self.controller
-            .state
-            .lock()
-            .map_err(|_| "test controller mutex poisoned".to_string())?
-            .wake = Some(wake);
-        Ok(())
-    }
-
-    fn poll(&mut self, context: &mut ExtensionContext<'_>) {
-        loop {
-            let action = self
-                .controller
-                .state
-                .lock()
-                .ok()
-                .and_then(|mut state| state.actions.pop_front());
-            let Some(action) = action else {
-                break;
-            };
-            if let Some(window_key) = action_window_key(&action.kind) {
-                self.last_window_key = Some(window_key);
-                self.snapshot(window_key, context);
-            }
-            if let Some(window_key) = action_window_key(&action.kind)
-                && let Some(snapshot) = context.semantic_snapshot(window_key)
-            {
-                self.controller
-                    .record_semantic_snapshot(window_key, snapshot);
-            }
-            let result = match action.kind {
-                TestActionKind::WaitForIdle(_) => TestActionResult::Handled(true),
-                TestActionKind::NativeClose {
-                    window_key,
-                    mutable_visibility,
-                } => {
-                    let handled = context.hide_window_with_capabilities(
-                        window_key,
-                        Some(WindowCapabilities { mutable_visibility }),
-                    );
-                    self.snapshot(window_key, context);
-                    TestActionResult::Handled(handled)
-                }
-                TestActionKind::ShowWindow(window_key) => {
-                    let handled = context.show_window(window_key);
-                    self.snapshot(window_key, context);
-                    TestActionResult::Handled(handled)
-                }
-                TestActionKind::ResizeWindow {
-                    window_key,
-                    width,
-                    height,
-                } => TestActionResult::Handled(context.resize_window(window_key, width, height)),
-                TestActionKind::FileDrop {
-                    window_key,
-                    phase,
-                    paths,
-                } => TestActionResult::Handled(context.dispatch_event(
-                    window_key,
-                    UiEvent::FileDrop(FileDropEvent {
-                        phase,
-                        paths,
-                        position: None,
-                    }),
-                )),
-                TestActionKind::ClickByRole {
-                    window_key,
-                    role,
-                    label,
-                    index,
-                    scope,
-                } => {
-                    let node = context.semantic_snapshot(window_key).and_then(|snapshot| {
-                        semantic_target(&snapshot, &role, &label, index, &scope).cloned()
-                    });
-                    TestActionResult::Handled(node.is_some_and(|node| {
-                        click_events(&node)
-                            .into_iter()
-                            .all(|event| context.dispatch_event(window_key, event))
-                    }))
-                }
-                TestActionKind::InputByRole {
-                    window_key,
-                    role,
-                    label,
-                    input,
-                    index,
-                    scope,
-                } => {
-                    let node = context.semantic_snapshot(window_key).and_then(|snapshot| {
-                        semantic_query_target(&snapshot, &role, &label, index, &scope).cloned()
-                    });
-                    let Some(node) = node else {
-                        let _ = action.completion.send(TestActionResult::Handled(false));
-                        continue;
-                    };
-                    if node.disabled && !input_allows_disabled_target(&input) {
-                        let _ = action.completion.send(TestActionResult::Handled(false));
-                        continue;
-                    }
-                    match &input {
-                        TestInput::Key { .. }
-                        | TestInput::Text { .. }
-                        | TestInput::Paste { .. }
-                        | TestInput::Ime { .. } => {
-                            context.focus_semantic_node(window_key, node.id);
-                        }
-                        _ => {}
-                    }
-                    let events = test_input_events(&node, &input);
-                    TestActionResult::Handled(
-                        events
-                            .into_iter()
-                            .all(|event| context.dispatch_event(window_key, event)),
-                    )
-                }
-                TestActionKind::QueryByRole {
-                    window_key,
-                    role,
-                    label,
-                    index,
-                    scope,
-                } => TestActionResult::Query(context.semantic_snapshot(window_key).and_then(
-                    |snapshot| locator_query_json(&snapshot, &role, &label, index, &scope),
-                )),
-            };
-            let _ = action.completion.send(result);
-        }
-        if self.controller.has_report() {
-            if !self.failure_screenshot_captured
-                && self.controller.report_passed() == Some(false)
-                && std::env::var("WABOU_TEST_FAILURE_SCREENSHOT").is_ok_and(|value| value != "0")
-                && let (Some(window_key), Some(directory)) = (
-                    self.last_window_key,
-                    std::env::var_os("WABOU_TEST_ARTIFACT_DIR").map(std::path::PathBuf::from),
-                )
-            {
-                self.failure_screenshot_captured = true;
-                if let Err(error) = std::fs::create_dir_all(&directory)
-                    .map_err(|error| format!("cannot create failure artifact directory: {error}"))
-                    .and_then(|()| {
-                        context.render_screenshot(window_key, &directory.join("failure.png"))
-                    })
-                {
-                    tracing::warn!(%error, "could not capture native behavior-test failure");
-                }
-            }
-            context.exit();
-        }
-    }
-}
-
+#[cfg(test)]
 fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec<UiEvent> {
     let center = Point {
         x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),
@@ -1387,40 +1952,70 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
             position: center,
             delta_x: *delta_x,
             delta_y: *delta_y,
+            delta_mode: wabou_shell::WheelDeltaMode::Pixel,
             phase: wabou_shell::GesturePhase::Changed,
             modifiers: Modifiers::default(),
         })],
     }
 }
 
-fn click_events(node: &wabou_shell::SemanticNode) -> [UiEvent; 2] {
-    let position = Point {
-        x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),
-        y: f64::from((node.bounds[1] + node.bounds[3]) * 0.5),
-    };
-    [
-        UiEvent::Pointer(PointerEvent {
-            phase: PointerPhase::Down,
-            position,
-            button: Some(PointerButton::Primary),
-            buttons: 1,
-            modifiers: Modifiers::default(),
-            properties: wabou_shell::PointerProperties::default(),
-        }),
-        UiEvent::Pointer(PointerEvent {
-            phase: PointerPhase::Up,
-            position,
-            button: Some(PointerButton::Primary),
-            buttons: 0,
-            modifiers: Modifiers::default(),
-            properties: wabou_shell::PointerProperties::default(),
-        }),
-    ]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn gpui_node(
+        key: wabou_host_api::NodeKey,
+        parent: Option<wabou_host_api::NodeKey>,
+        tag: &str,
+        label: &str,
+    ) -> wabou_shell::GpuiLayoutNode {
+        wabou_shell::GpuiLayoutNode {
+            key,
+            kind: wabou_shell::ProjectedNodeKind::Element(tag.into()),
+            parent,
+            attached: true,
+            attributes: [("aria-label".into(), label.into())].into(),
+            text: None,
+            bounds: wabou_shell::gpui::Bounds {
+                origin: wabou_shell::gpui::point(
+                    wabou_shell::gpui::px(10.0),
+                    wabou_shell::gpui::px(20.0),
+                ),
+                size: wabou_shell::gpui::size(
+                    wabou_shell::gpui::px(100.0),
+                    wabou_shell::gpui::px(40.0),
+                ),
+            },
+            content_bounds: wabou_shell::gpui::Bounds {
+                origin: wabou_shell::gpui::point(
+                    wabou_shell::gpui::px(10.0),
+                    wabou_shell::gpui::px(20.0),
+                ),
+                size: wabou_shell::gpui::size(
+                    wabou_shell::gpui::px(100.0),
+                    wabou_shell::gpui::px(40.0),
+                ),
+            },
+            text_metrics: None,
+            classes: Vec::new(),
+            style_diagnostics: Vec::new(),
+            listeners: Vec::new(),
+            focus_order: None,
+            pointer_events: true,
+            z_index: 0,
+            overlay_plane: 0,
+            widget: None,
+            computed: wabou_shell::GpuiComputedStyle {
+                position: "Relative".into(),
+                overflow_x: "Visible".into(),
+                overflow_y: "Visible".into(),
+                font_size: None,
+                font_weight: None,
+                text_color: None,
+                opacity: 1.0,
+            },
+        }
+    }
 
     fn key(lo: u32) -> WindowKey {
         WindowKey::from_parts(lo, 1).unwrap()
@@ -1428,22 +2023,15 @@ mod tests {
 
     struct SemanticSource(Arc<SemanticSnapshot>);
 
-    impl FrameSource for SemanticSource {
-        fn build_frame(
-            &mut self,
-            _tcx: &mut wabou_shell::TextContext,
-            _width: u32,
-            _height: u32,
-        ) -> Vec<wabou_shell::layout::PlacedNode> {
-            Vec::new()
-        }
-
+    impl SemanticTestSource for SemanticSource {
         fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>> {
             Some(self.0.clone())
         }
 
-        fn base_color(&self) -> vello::peniko::Color {
-            vello::peniko::Color::BLACK
+        fn handle_event(&mut self, _event: UiEvent) {}
+
+        fn handle_semantic_action(&mut self, _action: wabou_shell::SemanticAction) -> bool {
+            false
         }
     }
 
@@ -1530,6 +2118,416 @@ mod tests {
     }
 
     #[test]
+    fn gpui_locator_uses_explicit_roles_labels_scopes_and_real_bounds() {
+        let group = gpui_node(wabou_host_api::NodeKey::new(10, 1), None, "view", "Toolbar");
+        let mut group = group;
+        group.attributes.insert("role".into(), "group".into());
+        let button = gpui_node(
+            wabou_host_api::NodeKey::new(11, 1),
+            Some(group.key),
+            "button",
+            "Save",
+        );
+        let outside = gpui_node(wabou_host_api::NodeKey::new(12, 1), None, "button", "Save");
+        let scope = [TestLocatorSelector {
+            role: "group".into(),
+            name: "Toolbar".into(),
+            index: None,
+        }];
+        let nodes = vec![group, button, outside];
+        let found = gpui_locator(&nodes, "button", "Save", None, &scope, false)
+            .expect("scoped GPUI locator");
+        assert_eq!(found.key, wabou_host_api::NodeKey::new(11, 1));
+        let snapshot = gpui_locator_query_json(&nodes, "button", "Save", None, &scope, None)
+            .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
+            .expect("GPUI locator snapshot");
+        assert_eq!(snapshot["matchCount"], 1);
+        assert_eq!(
+            snapshot["snapshot"]["bounds"],
+            serde_json::json!({ "x": 10.0, "y": 20.0, "width": 100.0, "height": 40.0 })
+        );
+    }
+
+    #[test]
+    fn gpui_locator_snapshot_exposes_descendant_text_after_reactive_updates() {
+        let mut status = gpui_node(
+            wabou_host_api::NodeKey::new(20, 1),
+            None,
+            "view",
+            "Counter value",
+        );
+        status.attributes.insert("role".into(), "status".into());
+        let mut text = gpui_node(
+            wabou_host_api::NodeKey::new(21, 1),
+            Some(status.key),
+            "text",
+            "",
+        );
+        text.attributes.remove("aria-label");
+        text.text = Some("1".into());
+        let snapshot =
+            gpui_locator_query_json(&[status, text], "status", "Counter value", None, &[], None)
+                .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
+                .expect("GPUI status snapshot");
+        assert_eq!(snapshot["snapshot"]["text"], "1");
+        assert_eq!(snapshot["snapshot"]["value"], "1");
+    }
+
+    #[test]
+    fn gpui_locator_query_counts_repeated_semantics_without_requiring_uniqueness() {
+        let nodes = [
+            gpui_node(
+                wabou_host_api::NodeKey::new(27, 1),
+                None,
+                "view",
+                "Repeated error",
+            ),
+            gpui_node(
+                wabou_host_api::NodeKey::new(28, 1),
+                None,
+                "view",
+                "Repeated error",
+            ),
+        ]
+        .map(|mut node| {
+            node.attributes.insert("role".into(), "label".into());
+            node
+        });
+
+        assert!(
+            gpui_locator(&nodes, "label", "Repeated error", None, &[], true).is_none(),
+            "an action target remains intentionally ambiguous"
+        );
+        let query = gpui_locator_query_json(&nodes, "label", "Repeated error", None, &[], None)
+            .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
+            .expect("a repeated locator still has a query snapshot");
+        assert_eq!(query["matchCount"], 2);
+        assert_eq!(query["snapshot"]["name"], "Repeated error");
+    }
+
+    #[test]
+    fn gpui_accessible_names_ignore_detached_aggregate_text_sources() {
+        let option_key = wabou_host_api::NodeKey::new(22, 1);
+        let text_key = wabou_host_api::NodeKey::new(23, 1);
+        let mut option = gpui_node(option_key, None, "view", "");
+        option.attributes.clear();
+        option.attributes.insert("role".into(), "option".into());
+        let mut aggregate = gpui_node(text_key, Some(option_key), "text", "");
+        aggregate.attributes.clear();
+        aggregate.text = Some("All queued messages".into());
+        let mut source = gpui_node(
+            wabou_host_api::NodeKey::new(24, 1),
+            Some(text_key),
+            "#text",
+            "",
+        );
+        source.attributes.clear();
+        source.text = Some("All queued messages".into());
+        source.attached = false;
+
+        let nodes = [option, aggregate, source];
+        let found = gpui_locator(&nodes, "option", "All queued messages", None, &[], false)
+            .expect("detached source text must not duplicate the option name");
+        assert_eq!(found.key, option_key);
+    }
+
+    #[test]
+    fn gpui_accessible_names_collapse_authored_whitespace() {
+        let key = wabou_host_api::NodeKey::new(25, 1);
+        let mut button = gpui_node(key, None, "button", "");
+        button.attributes.clear();
+        let mut text = gpui_node(wabou_host_api::NodeKey::new(26, 1), Some(key), "text", "");
+        text.attributes.clear();
+        text.text = Some("  Stop\n".into());
+
+        let nodes = [button, text];
+        assert!(gpui_locator(&nodes, "button", "Stop", None, &[], false).is_some());
+    }
+
+    #[test]
+    fn gpui_locator_snapshot_exposes_authored_semantic_state() {
+        let key = wabou_host_api::NodeKey::new(24, 1);
+        let mut control = gpui_node(key, None, "button", "Disclosure");
+        control.attributes.extend([
+            ("role".into(), "button".into()),
+            ("aria-expanded".into(), "true".into()),
+            ("aria-pressed".into(), "mixed".into()),
+            ("aria-selected".into(), "false".into()),
+            ("aria-current".into(), "page".into()),
+            ("aria-valuetext".into(), "64 percent".into()),
+            ("aria-valuenow".into(), "64".into()),
+            ("aria-valuemin".into(), "0".into()),
+            ("aria-valuemax".into(), "100".into()),
+            ("aria-disabled".into(), "true".into()),
+        ]);
+        let snapshot =
+            gpui_locator_query_json(&[control], "button", "Disclosure", None, &[], Some(key))
+                .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
+                .expect("GPUI semantic state snapshot");
+        let state = &snapshot["snapshot"];
+        assert_eq!(state["value"], "64 percent");
+        assert_eq!(state["numericValue"], 64.0);
+        assert_eq!(state["minNumericValue"], 0.0);
+        assert_eq!(state["maxNumericValue"], 100.0);
+        assert_eq!(state["disabled"], true);
+        assert_eq!(state["pressed"], "mixed");
+        assert_eq!(state["selected"], false);
+        assert_eq!(state["current"], "page");
+        assert_eq!(state["expanded"], true);
+        assert_eq!(state["focused"], true);
+    }
+
+    #[test]
+    fn gpui_locators_exclude_detached_subtrees_and_background_behind_a_modal() {
+        let detached_root_key = wabou_host_api::NodeKey::new(30, 1);
+        let detached_root = gpui_node(detached_root_key, None, "view", "Detached root");
+        let mut detached_root = detached_root;
+        detached_root.attached = false;
+        let mut stale = gpui_node(
+            wabou_host_api::NodeKey::new(31, 1),
+            Some(detached_root_key),
+            "button",
+            "Stale action",
+        );
+        stale.attributes.insert("role".into(), "button".into());
+
+        let mut background = gpui_node(
+            wabou_host_api::NodeKey::new(32, 1),
+            None,
+            "button",
+            "Background",
+        );
+        background.attributes.insert("role".into(), "button".into());
+
+        let modal_key = wabou_host_api::NodeKey::new(33, 1);
+        let mut modal = gpui_node(modal_key, None, "view", "Settings");
+        modal.attributes.extend([
+            ("role".into(), "dialog".into()),
+            ("aria-modal".into(), "true".into()),
+        ]);
+        modal.overlay_plane = 2;
+        let mut foreground = gpui_node(
+            wabou_host_api::NodeKey::new(34, 1),
+            Some(modal_key),
+            "button",
+            "Confirm",
+        );
+        foreground.attributes.insert("role".into(), "button".into());
+
+        let nodes = vec![detached_root, stale, background, modal, foreground];
+        assert!(gpui_locator(&nodes, "button", "Stale action", None, &[], true).is_none());
+        assert!(gpui_locator(&nodes, "button", "Background", None, &[], true).is_none());
+        assert!(gpui_locator(&nodes, "button", "Confirm", None, &[], true).is_some());
+    }
+
+    #[test]
+    fn gpui_test_driver_clicks_the_projected_protocol_target() {
+        use crate::runtime_session::RuntimeSession;
+        use wabou_protocol::Op;
+
+        let js = crate::JsRuntime::new().expect("runtime");
+        js.eval_script(
+            "globalThis.__wabou_dispatch_host_frame = () => ({ needsTick: false, preventedEventIds: new Uint32Array() })",
+        )
+        .expect("host event fixture");
+        let atoms = js.atom_pool_handle();
+        let (button, aria_label) = {
+            let mut atoms = atoms.borrow_mut();
+            (atoms.intern("button"), atoms.intern("aria-label"))
+        };
+        let target = wabou_host_api::NodeKey::new(31, 2);
+        let mut runtime = crate::gpui_controller::GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        runtime
+            .apply_frame(&wabou_protocol::Frame {
+                seq: 1,
+                ops: vec![
+                    Op::CreateElement {
+                        id: target,
+                        tag: button,
+                    },
+                    Op::SetAttribute {
+                        id: target,
+                        name: aria_label,
+                        value: "Save",
+                    },
+                    Op::AddEventListener {
+                        id: target,
+                        event_type: wabou_protocol::event::CLICK,
+                    },
+                    Op::AppendChild {
+                        parent: wabou_host_api::NodeKey::ROOT,
+                        child: target,
+                    },
+                ],
+            })
+            .expect("project button");
+        let driver = TestController::default();
+        let mut completion = driver.request(TestActionKind::ClickByRole {
+            window_key: wabou_shell::initial_window_resource_key(0),
+            role: "button".into(),
+            label: "Save".into(),
+            index: None,
+            scope: Vec::new(),
+        });
+        assert!(driver.poll_gpui_source(
+            wabou_shell::initial_window_resource_key(0),
+            &[gpui_node(target, None, "button", "Save")],
+            &mut runtime,
+            |_, _| false,
+        ));
+        let result = completion.try_recv();
+        assert!(
+            matches!(result, Ok(TestActionResult::Handled(true))),
+            "unexpected click result: {result:?}"
+        );
+    }
+
+    #[test]
+    fn gpui_test_driver_focuses_native_textbox_without_projected_pointer_listener() {
+        use crate::runtime_session::RuntimeSession;
+        use wabou_protocol::Op;
+
+        let js = crate::JsRuntime::new().expect("runtime");
+        js.eval_script(
+            "globalThis.__wabou_dispatch_host_frame = () => ({ needsTick: false, preventedEventIds: new Uint32Array() })",
+        )
+        .expect("host event fixture");
+        let atoms = js.atom_pool_handle();
+        let (input, aria_label) = {
+            let mut atoms = atoms.borrow_mut();
+            (atoms.intern("input"), atoms.intern("aria-label"))
+        };
+        let target = wabou_host_api::NodeKey::new(32, 2);
+        let mut runtime = crate::gpui_controller::GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        runtime
+            .apply_frame(&wabou_protocol::Frame {
+                seq: 1,
+                ops: vec![
+                    Op::CreateElement {
+                        id: target,
+                        tag: input,
+                    },
+                    Op::SetAttribute {
+                        id: target,
+                        name: aria_label,
+                        value: "Project name",
+                    },
+                    Op::AppendChild {
+                        parent: wabou_host_api::NodeKey::ROOT,
+                        child: target,
+                    },
+                ],
+            })
+            .expect("project textbox");
+        let driver = TestController::default();
+        let mut completion = driver.request(TestActionKind::ClickByRole {
+            window_key: wabou_shell::initial_window_resource_key(0),
+            role: "textbox".into(),
+            label: "Project name".into(),
+            index: None,
+            scope: Vec::new(),
+        });
+        assert!(driver.poll_gpui_source(
+            wabou_shell::initial_window_resource_key(0),
+            &[gpui_node(target, None, "input", "Project name")],
+            &mut runtime,
+            |_, _| false,
+        ));
+        let result = completion.try_recv();
+        assert!(
+            matches!(result, Ok(TestActionResult::Handled(true))),
+            "unexpected textbox click result: {result:?}"
+        );
+        assert_eq!(runtime.focused_target(), Some(target));
+    }
+
+    #[test]
+    fn gpui_test_driver_routes_text_through_native_widget_input_before_fallback() {
+        use crate::runtime_session::RuntimeSession;
+
+        let js = crate::JsRuntime::new().expect("runtime");
+        let mut runtime = crate::gpui_controller::GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        let target = wabou_host_api::NodeKey::new(41, 3);
+        let driver = TestController::default();
+        let mut completion = driver.request(TestActionKind::InputByRole {
+            window_key: wabou_shell::initial_window_resource_key(0),
+            role: "textbox".into(),
+            label: "Terminal 1".into(),
+            input: TestInput::Text { text: "pwd".into() },
+            index: None,
+            scope: Vec::new(),
+        });
+        let mut received = Vec::new();
+
+        assert!(driver.poll_gpui_source(
+            wabou_shell::initial_window_resource_key(0),
+            &[gpui_node(target, None, "input", "Terminal 1")],
+            &mut runtime,
+            |key, event| {
+                assert_eq!(key, target);
+                received.push(event);
+                true
+            },
+        ));
+        assert!(matches!(
+            completion.try_recv(),
+            Ok(TestActionResult::Handled(true))
+        ));
+        assert!(matches!(received.as_slice(), [UiEvent::TextInput(text)] if text == "pwd"));
+        assert_eq!(
+            runtime.focused_target(),
+            None,
+            "native input must not mutate the fallback text controller"
+        );
+    }
+
+    #[test]
+    fn gpui_test_driver_dispatches_file_drop_to_the_formal_runtime() {
+        use crate::runtime_session::RuntimeSession;
+
+        let js = crate::JsRuntime::new().expect("runtime");
+        js.eval_script(
+            "globalThis.__wabou_dispatch_host_frame = () => ({ needsTick: false, preventedEventIds: new Uint32Array() })",
+        )
+        .expect("host event fixture");
+        let mut runtime = crate::gpui_controller::GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        let driver = TestController::default();
+        let mut completion = driver.request(TestActionKind::FileDrop {
+            window_key: wabou_shell::initial_window_resource_key(0),
+            phase: FileDropPhase::Dropped,
+            paths: vec!["/tmp/example.torrent".into()],
+        });
+
+        assert!(driver.poll_gpui_source(
+            wabou_shell::initial_window_resource_key(0),
+            &[gpui_node(
+                wabou_host_api::NodeKey::ROOT,
+                None,
+                "view",
+                "Root",
+            )],
+            &mut runtime,
+            |_, _| false,
+        ));
+        assert!(matches!(
+            completion.try_recv(),
+            Ok(TestActionResult::Handled(true))
+        ));
+    }
+
+    #[test]
     fn drag_is_a_captured_pointer_sequence_from_semantic_center() {
         let events = test_input_events(
             &node(),
@@ -1562,6 +2560,41 @@ mod tests {
             (PointerPhase::Move, 85.0, 35.0, 1)
         );
         assert_eq!((up.phase, up.buttons), (PointerPhase::Up, 0));
+    }
+
+    #[test]
+    fn gpui_drag_uses_the_requested_delta_in_native_logical_coordinates() {
+        let events = gpui_drag_events(
+            &gpui_node(wabou_host_api::NodeKey::new(3, 1), None, "view", "Drag"),
+            25.0,
+            -5.0,
+        );
+        assert_eq!(
+            events.map(|event| (event.phase, event.x, event.y, event.local_x, event.local_y)),
+            [
+                (
+                    wabou_shell::ProjectedPointerPhase::Down,
+                    60.0,
+                    40.0,
+                    50.0,
+                    20.0
+                ),
+                (
+                    wabou_shell::ProjectedPointerPhase::Move,
+                    85.0,
+                    35.0,
+                    75.0,
+                    15.0
+                ),
+                (
+                    wabou_shell::ProjectedPointerPhase::Up,
+                    85.0,
+                    35.0,
+                    75.0,
+                    15.0
+                ),
+            ]
+        );
     }
 
     #[test]
@@ -1853,6 +2886,70 @@ mod tests {
         assert_eq!(
             controller.window_viewport_json(key(1)),
             r#"{"x":0,"y":0,"width":900,"height":600}"#
+        );
+    }
+
+    #[test]
+    fn gpui_window_actions_update_the_shared_test_snapshot() {
+        let controller = TestController::default();
+        let window_key = key(1);
+        controller.connect_gpui_window(window_key, Arc::new(|| {}));
+        controller.record_gpui_viewport(window_key, 1_180, 780);
+        assert_eq!(
+            controller.window_viewport_json(window_key),
+            r#"{"x":0,"y":0,"width":1180,"height":780}"#
+        );
+
+        let resize = controller.request(TestActionKind::ResizeWindow {
+            window_key,
+            width: 900,
+            height: 600,
+        });
+        assert!(
+            controller.poll_gpui_window_action(window_key, |command| matches!(
+                command,
+                GpuiWindowTestCommand::Resize {
+                    width: 900,
+                    height: 600
+                }
+            ))
+        );
+        assert!(matches!(
+            resize.blocking_recv(),
+            Ok(TestActionResult::Handled(true))
+        ));
+        assert_eq!(
+            controller.window_viewport_json(window_key),
+            r#"{"x":0,"y":0,"width":900,"height":600}"#
+        );
+
+        let hide = controller.request(TestActionKind::NativeClose {
+            window_key,
+            mutable_visibility: true,
+        });
+        assert!(
+            controller.poll_gpui_window_action(window_key, |command| matches!(
+                command,
+                GpuiWindowTestCommand::Hide {
+                    mutable_visibility: true
+                }
+            ))
+        );
+        assert!(matches!(
+            hide.blocking_recv(),
+            Ok(TestActionResult::Handled(true))
+        ));
+        assert_eq!(
+            controller
+                .state
+                .lock()
+                .unwrap()
+                .windows
+                .get(&window_key)
+                .unwrap()
+                .lifecycle
+                .presence(),
+            WindowPresence::Hidden
         );
     }
 

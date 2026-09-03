@@ -13,6 +13,136 @@ remain separate CI steps. Expensive all-target checks, replay variants,
 standalone scaffold builds, captures, HiDPI renders, and performance sampling
 belong to local pre-release verification rather than every pushed commit.
 
+## Solid-to-GPUI architecture contracts
+
+The GPUI backend has two non-negotiable retained-runtime contracts. Test them
+below component and pixel layers so visual success cannot hide duplicated trees
+or excessive native rebuilding.
+
+### Fine-grained projection
+
+A Solid write must produce one completed protocol frame, merge repeated writes
+to the same node, and advance only the nearest explicit GPUI projection
+boundary. The contract is split into deterministic layers:
+
+1. renderer tests execute real Solid and assert the exact mutation frame
+   emitted by a signal;
+2. `wabou-shell` tests feed that operation into the retained projection and
+   assert dirty-kind coalescing plus independent boundary revision clocks;
+3. headless GPUI tests assert that an unrelated root notification or an
+   animation-only frame does not rematerialize cached projection boundaries.
+
+Do not replace these assertions with FPS thresholds. Timing is machine-specific;
+mutation count, changed boundary identity, and materialization count are the
+stable architecture contracts.
+
+For an application-level regression, use the incremental projection probe. It
+boots the real QuickJS bundle in GPUI headless, records a checkpoint, evaluates
+one JavaScript write, then draws without `Window::refresh` so GPUI's view cache
+remains observable:
+
+```bash
+wabou layout apps/gallery --fixture runtime/projection-boundary \
+  --probe 'globalThis.__wabou_projection_probe_set_left?.("left-after")' \
+  --out /tmp/projection.json
+```
+
+TypeScript tests can call `probeAppProjection` and locate a named boundary with
+`projectionBoundaryProbe`. Give boundaries under test an `aria-label`; assert
+that the changed boundary advances while an unrelated sibling has zero
+revision and materialization deltas. Ordinary layout fixtures continue to use
+the forced-refresh settle path because they test final geometry, not caching.
+
+### HMR lifecycle
+
+HMR must preserve one logical application tree at all times:
+
+1. a normal Solid Refresh replaces the component while retaining parent state
+   and parent mount identity;
+2. entry-module and generated Style IR updates are classified as side-effect
+   updates instead of being forced through a component accept boundary;
+3. a remount emits retirement and replacement operations in the same host
+   frame, leaving the previous root detached;
+4. dropping a generation clears native hover, press, click, and focus state;
+5. a native smoke cycle may additionally assert baseline node count → changed
+   route node count → baseline node count and run `wabou inspect validate`.
+
+The first four checks belong in the normal test suite and require no Vite
+server or screenshot. Keep the fifth as a focused integration check for changes
+to the Vite client, module loader, or native reload pump.
+
+## Authored captures and themes
+
+Use authored captures only when component behavior and layout contracts already
+pass but paint, typography, elevation, or theme contrast still needs visual
+evidence. `wabou render` accepts an explicit system color scheme so a headless
+run does not silently validate only the light theme:
+
+```bash
+bun run wabou render apps/gallery \
+  --scenario apps/gallery/captures/alert.ts \
+  --color-scheme dark \
+  --out /tmp/gallery-dark.png \
+  --snapshot /tmp/gallery-dark.json
+```
+
+Application capture suites can set the same contract in
+`captures/config.json`. The default is `light`; use per-scenario overrides when
+the same suite deliberately covers both schemes:
+
+```json
+{
+  "defaults": {
+    "width": 1200,
+    "height": 850,
+    "scaleFactor": 1,
+    "colorScheme": "light"
+  },
+  "overrides": {
+    "settings-dark.ts": {
+      "colorScheme": "dark"
+    }
+  }
+}
+```
+
+Capture discovery only treats `captures/**/*.behavior.ts` as scenarios. When
+an application needs a deterministic child process, local service, or other
+host dependency, add `captures/setup.ts` with a default async function that
+returns environment overrides:
+
+```ts
+export default async function prepareCaptures() {
+  // Build or start the deterministic fixture here.
+  return { MY_APP_FIXTURE: "/absolute/path/to/fixture" };
+}
+```
+
+The setup runs once per application before its first authored capture and is
+skipped by `--check-existing`. This keeps the generic capture command faithful
+to the application's real host boundary without silently contacting live
+services.
+
+`wabou layout` also accepts `--color-scheme light|dark` for theme-dependent
+layout fixtures. Prefer one structural fixture when geometry is theme-neutral;
+author both variants only when typography or token differences can change the
+layout.
+
+`defineLayoutFixtures` follows the native `WindowMetrics.colorScheme` by
+default and selects the matching `light` or `dark` compiled theme. Applications
+whose authored theme names differ can map them explicitly:
+
+```tsx
+defineLayoutFixtures(fixtures, {
+  colorTheme: (scheme) => (scheme === "dark" ? "midnight" : "daylight"),
+});
+```
+
+Pass `{ colorTheme: false }` only when the fixture wrapper deliberately owns a
+fixed `ColorThemeProvider`. Node-side tests can set `colorScheme` on
+`renderAppLayout` or `renderLayoutFixtures`; this is forwarded to the same
+native CLI contract rather than emulating theme resolution in the test runner.
+
 ## Component unit tests
 
 Component anatomy is governed by the
@@ -522,11 +652,12 @@ bun run wabou test /path/to/app/tests/window-lifecycle.behavior.ts \
   --app /path/to/app
 ```
 
-The deterministic backend uses the same Rust window lifecycle state machine as
-the winit executor, so Wayland and surface recreation can be tested without a
-compositor. It also uses an isolated temporary XDG data directory so persisted
-application state cannot make scenarios order-dependent. Pass `--native` for a
-real platform smoke test.
+The deterministic backend boots the same retained GPUI projection as a normal
+application in GPUI's headless application context. It exercises QuickJS,
+Solid flushes, the protocol, GPUI layout, and projected input without requiring
+a compositor. It also uses an isolated temporary XDG data directory so
+persisted application state cannot make scenarios order-dependent. Pass
+`--native` for a real platform-window smoke test.
 
 The deterministic backend models shell-owned window lifecycle transitions but
 does not initialize native `ShellExtension` resources. Tests that must activate
@@ -540,9 +671,11 @@ equivalent to the native integration it is meant to verify.
 
 Every run writes versioned `report.json` and `trace.json` artifacts beneath
 `target/wabou-test/<app>/artifacts` by default. Use `--artifacts <dir>` to
-select another destination. Deterministic tests do not initialize wgpu, which
-keeps them usable in display-less CI. Pass `--failure-screenshot` to opt into a
-GPU-rendered `failure.png` when a working wgpu backend is available.
+select another destination. The GPUI headless context can run without a display
+server. Pixel screenshots are platform-dependent: GPUI-CE currently exposes
+its headless pixel renderer on macOS Metal, while Linux wgpu runs still provide
+semantic and layout artifacts but report screenshot capture as unsupported.
+Pass `--failure-screenshot` to request `failure.png` where that renderer exists.
 At the start of a run, Wabou removes only its known report, trace, temporary
 JSON, and failure-screenshot outputs from that directory. This prevents a
 build or replay-validation failure from leaving a previous green report behind

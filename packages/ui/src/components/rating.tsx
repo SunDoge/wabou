@@ -1,7 +1,7 @@
 import type { Handle } from "@wabou/core/renderer";
 import { scale2d } from "@wabou/core/style";
 import star from "lucide-static/icons/star.svg?raw";
-import { createSignal, For, type JSX, onCleanup } from "solid-js";
+import { createSignal, For as ForValue, type JSX, onCleanup } from "solid-js";
 import { match, P } from "ts-pattern";
 import { createTransition, useReducedMotion } from "../animation";
 import { Button as HeadlessButton, Icon, View } from "../primitives";
@@ -105,7 +105,7 @@ export function Rating(props: RatingProps): JSX.Element {
       style={{ opacity: disabled() ? 0.45 : 1 }}
     >
       <View class="flex flex-row items-center gap-0.5">
-        <For each={items()}>
+        <ForValue each={items()}>
           {(item) => {
             const checked = () => value() === item;
             const highlighted = () => item <= shownValue();
@@ -177,7 +177,7 @@ export function Rating(props: RatingProps): JSX.Element {
               </HeadlessButton>
             );
           }}
-        </For>
+        </ForValue>
       </View>
     </View>
   );

@@ -1,0 +1,49 @@
+[package]
+name = "wabou-legacy-shell"
+version.workspace = true
+edition = "2024"
+
+license.workspace = true
+publish = false
+
+[lib]
+name = "wabou_legacy_shell"
+path = "src/lib.rs"
+
+[dependencies]
+anyrender.workspace = true
+anyrender-skia = { workspace = true, optional = true }
+anyrender-svg.workspace = true
+anyrender-vello.workspace = true
+arboard = { workspace = true }
+bitflags = { workspace = true }
+futures-util = "0.3"
+image = { workspace = true, features = ["ico", "jpeg", "png", "webp"] }
+lru = "0.18.1"
+notify-rust = { workspace = true }
+open = { workspace = true }
+parley = { workspace = true }
+raw-window-handle = "0.6"
+rfd = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+slotmap = { workspace = true }
+snafu = { workspace = true }
+swash = { workspace = true }
+taffy = { workspace = true, features = ["content_size", "parse"] }
+tracing = { workspace = true }
+unicode-segmentation = "1.12"
+url = { workspace = true }
+vello = { workspace = true }
+winit = { workspace = true }
+wabou-legacy-accessibility = { workspace = true }
+wabou-host-api = { workspace = true }
+wabou-shell-api = { workspace = true }
+wabou-style = { workspace = true }
+
+[features]
+profiling = []
+renderer-skia = ["dep:anyrender-skia"]
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,6 +1,5 @@
-// Virtual-list UI demo — 10,000 rows, only the viewport slice is materialised.
-// Scrolling recycles keyed Solid rows, and the host owns clipping, scrolling
-// and its native scrollbar. Pure SolidJS-as-DSL: no Rust list widget.
+// Virtual-list UI demo — 10,000 retained rows, with GPUI materializing only
+// the visible range for native layout, paint, scrolling and clipping.
 
 import "virtual:wabou-stylesheet";
 import { Button, createFps, mount, Text, View, VirtualList } from "@wabou/ui";
@@ -40,7 +39,6 @@ function App() {
           getItemKey={(_, index) => index}
           itemHeight={32}
           viewportHeight={540}
-          overscan={6}
           role="listbox"
           accessibilityLabel="Virtual rows"
         >

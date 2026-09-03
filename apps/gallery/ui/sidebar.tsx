@@ -13,7 +13,7 @@ import {
   Text,
   View,
 } from "@wabou/ui";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For as ForValue, Show } from "solid-js";
 
 export interface SidebarItem<Id extends string = string> {
   id: Id;
@@ -82,11 +82,11 @@ export function GallerySidebar<Id extends string>(
             Overview
           </SidebarMenuButton>
         </Show>
-        <For each={filtered()}>
+        <ForValue each={filtered()}>
           {(group) => (
             <SidebarGroup aria-label={group.label}>
               <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-              <For each={group.items}>
+              <ForValue each={group.items}>
                 {(item) => (
                   <SidebarMenuButton
                     aria-label={item.name}
@@ -96,10 +96,10 @@ export function GallerySidebar<Id extends string>(
                     {item.name}
                   </SidebarMenuButton>
                 )}
-              </For>
+              </ForValue>
             </SidebarGroup>
           )}
-        </For>
+        </ForValue>
         <Show when={visibleCount() === 0}>
           <SidebarEmpty
             title="No components found"

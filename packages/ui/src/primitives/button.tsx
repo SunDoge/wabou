@@ -1,5 +1,6 @@
 import type { Handle, WabouElementProps } from "@wabou/core/renderer";
 import { useHost } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import { type Accessor, type JSX, untrack } from "solid-js";
 import { createFocus } from "./focus";
 import { createHover } from "./hover";
@@ -19,6 +20,7 @@ const ACCENTS = {
 export interface ButtonProps
   extends Pick<
     WabouElementProps,
+    | "aria-busy"
     | "aria-checked"
     | "aria-controls"
     | "aria-current"
@@ -27,6 +29,7 @@ export interface ButtonProps
     | "aria-label"
     | "aria-pressed"
     | "aria-selected"
+    | "aria-valuetext"
     | "role"
     | "focusOrder"
     | "onBlur"
@@ -50,12 +53,12 @@ export interface ButtonProps
   classList?: WabouClassList | ((state: ButtonState) => WabouClassList);
   style?: WabouStyle | ((state: ButtonState) => WabouStyle);
   children?: JSX.Element;
+  /** Render an internal visual layer from normalized interaction state. */
+  renderContent?: (state: ButtonState) => JSX.Element;
   tone?: keyof typeof ACCENTS;
   variant?: "solid" | "ghost";
   /** Keep interaction behavior but do not inject the default visual geometry. */
   unstyled?: boolean;
-  /** Allow selecting the label text. Button labels are non-selectable by default. */
-  selectable?: boolean;
   selected?: boolean;
   disabled?: boolean;
   ref?: (node: Handle) => void;
@@ -209,12 +212,7 @@ export function Button(props: ButtonProps): JSX.Element {
     "align-items": "center",
     "flex-shrink": 0,
     "white-space": "nowrap",
-    "user-select": props.selectable ? "text" : "none",
     cursor: disabled() ? "not-allowed" : "pointer",
-    "outline-width": state().focusVisible ? "2px" : "0px",
-    "outline-offset": "2px",
-    "outline-color": "#38bdf8",
-    "outline-style": "solid",
   });
   const defaultStyle = (): WabouStyle => {
     // `unstyled` removes the opinionated skin, not the structural button
@@ -262,9 +260,12 @@ export function Button(props: ButtonProps): JSX.Element {
       aria-current={props["aria-current"]}
       aria-selected={props["aria-selected"]}
       aria-pressed={props["aria-pressed"]}
-      class={
-        typeof props.class === "function" ? props.class(state()) : props.class
-      }
+      aria-busy={props["aria-busy"]}
+      aria-valuetext={props["aria-valuetext"]}
+      class={mergeClasses(
+        "select-none",
+        typeof props.class === "function" ? props.class(state()) : props.class,
+      )}
       classList={
         typeof props.classList === "function"
           ? props.classList(state())
@@ -314,7 +315,7 @@ export function Button(props: ButtonProps): JSX.Element {
       onKeyUp={props.onKeyUp}
       onWheel={props.onWheel}
     >
-      {props.children}
+      {props.renderContent?.(state()) ?? props.children}
     </InternalButton>
   );
 }

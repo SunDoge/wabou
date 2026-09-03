@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
-import { createRoot, createSignal, flush, type JSX } from "solid-js";
+import {
+  createEffect,
+  createRenderEffect,
+  createRoot,
+  createSignal,
+  flush,
+  type JSX,
+} from "solid-js";
 import { GRAPHIC_DATA } from "../protocol";
 import { px, shadow } from "../style";
 import { PathBuilder } from "../vector-path";
@@ -13,6 +20,7 @@ import {
   mount,
   OP,
   observeGlobalPointerEvent,
+  reconcileControlledInputValues,
   runSweep,
   setProp,
   spread,
@@ -145,10 +153,7 @@ test("graphic sources use the typed resource protocol", () => {
     [GRAPHIC_SOURCE.Svg, "<svg/>"],
     [GRAPHIC_SOURCE.ResourceRaster, "7:3"],
   ]);
-  expect(cleared).toEqual([
-    GRAPHIC_SOURCE.Svg,
-    GRAPHIC_SOURCE.ResourceRaster,
-  ]);
+  expect(cleared).toEqual([GRAPHIC_SOURCE.Svg, GRAPHIC_SOURCE.ResourceRaster]);
 });
 
 test("non-drawing vector paths clear stale native geometry", () => {
@@ -187,6 +192,24 @@ test("mount manages the host root lifecycle", () => {
   writer.flush();
 });
 
+test("mount commits initial Solid effects before the first host frame", () => {
+  let effects = 0;
+  const dispose = mount(() => {
+    createEffect(
+      () => true,
+      () => {
+        effects++;
+      },
+    );
+    return createElement("main") as unknown as JSX.Element;
+  });
+
+  expect(effects).toBe(1);
+  writer.flush();
+  dispose();
+  writer.flush();
+});
+
 test("Solid 2 static createElement props are emitted immediately", () => {
   writer.flush();
   createElement("div", { class: "flex flex-row" });
@@ -206,6 +229,7 @@ test("ARIA booleans preserve explicit false instead of removing state", () => {
   try {
     setProp(option, "aria-selected", false, undefined);
     setProp(option, "aria-expanded", true, undefined);
+    setProp(option, "aria-busy", false, undefined);
   } finally {
     writer.setAttribute = setAttribute;
     writer.removeAttribute = removeAttribute;
@@ -213,6 +237,7 @@ test("ARIA booleans preserve explicit false instead of removing state", () => {
   expect(attributes).toEqual([
     ["aria-selected", "false"],
     ["aria-expanded", "true"],
+    ["aria-busy", "false"],
   ]);
   expect(removed).toEqual([]);
 });
@@ -364,6 +389,96 @@ test("native events expose their actual target and payload contract", () => {
   expect(observed?.propagationStopped).toBe(true);
 });
 
+test("controlled input reconciliation survives a batched input and submit", () => {
+  const input = createElement("input");
+  const submit = createElement("button");
+  const [draft, setDraft] = createSignal("");
+  let previous = "";
+  let dispose!: () => void;
+  createRoot((rootDispose) => {
+    dispose = rootDispose;
+    createRenderEffect(draft, (next) => {
+      setProp(input, "value", next, previous);
+      previous = next;
+    });
+  });
+  setProp(
+    input,
+    "onInput",
+    (event: { currentTarget: { value: string } }) =>
+      setDraft(event.currentTarget.value),
+    undefined,
+  );
+  setProp(submit, "onClick", () => setDraft(""), undefined);
+  flush();
+  writer.flush();
+
+  const original = writer.setAttribute.bind(writer);
+  const originalAck = writer.acknowledgeTextValue.bind(writer);
+  const attributes: Array<[string, string]> = [];
+  writer.setAttribute = (id, name, value) => {
+    if (id === input.id) attributes.push([name, value]);
+    original(id, name, value);
+  };
+  writer.acknowledgeTextValue = (id, revision) => {
+    if (id === input.id) attributes.push(["ack", String(revision)]);
+    originalAck(id, revision);
+  };
+  try {
+    flush(() => {
+      dispatchEvent(
+        input.id,
+        EVENT_CODE.input,
+        JSON.stringify({ value: "typed", nativeRevision: 17 }),
+      );
+      dispatchEvent(submit.id, EVENT_CODE.click, "");
+    });
+    reconcileControlledInputValues();
+    expect(draft()).toBe("");
+    expect(attributes).toEqual([
+      ["value", ""],
+      ["ack", "17"],
+    ]);
+  } finally {
+    dispose();
+    writer.setAttribute = original;
+    writer.acknowledgeTextValue = originalAck;
+    writer.flush();
+  }
+});
+
+test("native input revisions are acknowledged without making an input controlled", () => {
+  const input = createElement("input");
+  let observedPayload: unknown;
+  setProp(
+    input,
+    "onInput",
+    (event: { payload: unknown }) => {
+      observedPayload = event.payload;
+    },
+    undefined,
+  );
+  const originalAck = writer.acknowledgeTextValue.bind(writer);
+  const attributes: Array<[string, string]> = [];
+  writer.acknowledgeTextValue = (id, revision) => {
+    if (id === input.id) attributes.push(["ack", String(revision)]);
+    originalAck(id, revision);
+  };
+  try {
+    dispatchEvent(
+      input.id,
+      EVENT_CODE.input,
+      JSON.stringify({ value: "native", nativeRevision: 18 }),
+    );
+    reconcileControlledInputValues();
+    expect(observedPayload).toEqual({ value: "native" });
+    expect(attributes).toEqual([["ack", "18"]]);
+  } finally {
+    writer.acknowledgeTextValue = originalAck;
+    writer.flush();
+  }
+});
+
 test("direct-event checks distinguish a hit node from its bubbling parent", () => {
   const parent = createElement("view");
   const child = createElement("button");
@@ -505,7 +620,7 @@ test("typed inline style bypasses UTF-8 serialization", () => {
   expect(view.getFloat32(22, true)).toBe(24.5);
 });
 
-test("Vello shadows bypass string style serialization", () => {
+test("native shadows bypass string style serialization", () => {
   writer.flush();
   const viewNode = createElement("view");
   writer.flush();
@@ -577,5 +692,35 @@ test("spread tracks reactive class getters across a host flush", () => {
     if (!frame) throw new Error("reactive class update emitted no frame");
     expect(Array.from(frame)).toContain(OP.SetClassName);
     dispose();
+  });
+});
+
+test("spread tracks reactive semantic boolean getters across a host flush", () => {
+  createRoot((dispose) => {
+    writer.flush();
+    const node = createElement("button");
+    const [selected, setSelected] = createSignal(false, { ownedWrite: true });
+    const attributes: Array<[string, string]> = [];
+    const setAttribute = writer.setAttribute.bind(writer);
+    writer.setAttribute = (_id, name, value) => attributes.push([name, value]);
+    try {
+      spread(
+        node,
+        {
+          get "aria-selected"() {
+            return selected();
+          },
+        },
+        false,
+      );
+      flush();
+      expect(attributes.at(-1)).toEqual(["aria-selected", "false"]);
+
+      flush(() => setSelected(true));
+      expect(attributes.at(-1)).toEqual(["aria-selected", "true"]);
+    } finally {
+      writer.setAttribute = setAttribute;
+      dispose();
+    }
   });
 });

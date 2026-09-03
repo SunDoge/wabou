@@ -1,6 +1,6 @@
+import { mergeClasses } from "@wabou/core/style";
 import type { JSX } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 export interface PropertyListProps extends Omit<ViewProps, "class"> {
   class?: string;
@@ -12,7 +12,7 @@ export function PropertyList(props: PropertyListProps): JSX.Element {
       {...props}
       role="table"
       class={mergeClasses(
-        "w-full min-w-0 flex flex-col overflow-hidden rounded-lg border border-subtle bg-surface",
+        "w-full min-w-0 flex flex-col overflow-hidden rounded-xl border border-subtle bg-surface",
         props.class,
       )}
     >

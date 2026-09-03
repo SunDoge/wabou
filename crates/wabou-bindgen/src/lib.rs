@@ -67,14 +67,14 @@ impl JsonCapabilityErrorCode {
     }
 }
 
-/// Shared identity of one generated and runtime-installed JSON capability.
+/// Shared identity of one generated and runtime-installed capability.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct JsonCapabilityContract {
+pub struct CapabilityContract {
     name: &'static str,
     version: u32,
 }
 
-impl JsonCapabilityContract {
+impl CapabilityContract {
     /// Declare a capability namespace and its independently versioned ABI.
     pub const fn new(name: &'static str, version: u32) -> Self {
         Self { name, version }
@@ -313,7 +313,7 @@ pub struct Capability {
 #[cfg(feature = "generate")]
 impl Capability {
     /// Construct an empty capability from the runtime's shared contract.
-    pub fn new(contract: JsonCapabilityContract) -> Self {
+    pub fn new(contract: CapabilityContract) -> Self {
         let name = contract.name().to_owned();
         assert_identifier(&name, "capability");
         Self {
@@ -1199,7 +1199,7 @@ mod tests {
 
     fn fixture() -> Bindings {
         Bindings::new().capability(
-            Capability::new(JsonCapabilityContract::new("workspace", 1)).method(UPDATE_FILE),
+            Capability::new(CapabilityContract::new("workspace", 1)).method(UPDATE_FILE),
         )
     }
 
@@ -1246,7 +1246,7 @@ mod tests {
     #[test]
     fn empty_capabilities_still_render_the_runtime_contract_guard() {
         let output = Bindings::new()
-            .capability(Capability::new(JsonCapabilityContract::new("empty", 1)))
+            .capability(Capability::new(CapabilityContract::new("empty", 1)))
             .render();
 
         assert!(output.contains("function assertNativeCapability("));
@@ -1266,7 +1266,7 @@ mod tests {
     fn typed_contract_derives_method_and_wire_encoding() {
         let output = Bindings::new()
             .capability(
-                Capability::new(JsonCapabilityContract::new("workspace", 1)).method(UPDATE_FILE),
+                Capability::new(CapabilityContract::new("workspace", 1)).method(UPDATE_FILE),
             )
             .render();
         assert!(output.contains("export type FunctionRequest"));
@@ -1280,7 +1280,7 @@ mod tests {
     fn typed_methods_support_empty_requests_without_contract_only_functions() {
         let output = Bindings::new()
             .capability(
-                Capability::new(JsonCapabilityContract::new("workspace", 1))
+                Capability::new(CapabilityContract::new("workspace", 1))
                     .method(UPDATE_FILE)
                     .method(CURRENT_STATUS),
             )
@@ -1301,8 +1301,7 @@ mod tests {
     fn nullable_values_do_not_implicitly_change_method_arity() {
         let capability = Bindings::new()
             .capability(
-                Capability::new(JsonCapabilityContract::new("workspace", 1))
-                    .method(OPTIONAL_UPDATE),
+                Capability::new(CapabilityContract::new("workspace", 1)).method(OPTIONAL_UPDATE),
             )
             .render();
         assert!(capability.contains(
@@ -1375,7 +1374,7 @@ mod tests {
     fn response_bindings_follow_serde_shape_and_explicit_number_contracts() {
         const READ: JsonMethod<(), DirectionalResponse> = JsonMethod::no_request("read");
         let output = Bindings::new()
-            .capability(Capability::new(JsonCapabilityContract::new("metrics", 1)).method(READ))
+            .capability(Capability::new(CapabilityContract::new("metrics", 1)).method(READ))
             .render();
 
         assert!(output.contains("detail?: string | null"));
@@ -1392,7 +1391,7 @@ mod tests {
     fn request_bindings_export_only_the_deserialization_shape() {
         const WRITE: JsonMethod<DirectionalRequest, bool> = JsonMethod::new("write");
         let output = Bindings::new()
-            .capability(Capability::new(JsonCapabilityContract::new("metrics", 1)).method(WRITE))
+            .capability(Capability::new(CapabilityContract::new("metrics", 1)).method(WRITE))
             .render();
 
         assert!(output.contains("write(request: DirectionalRequest_Deserialize)"));
@@ -1409,9 +1408,7 @@ mod tests {
         const ROUND_TRIP: JsonMethod<BidirectionalPayload, BidirectionalPayload> =
             JsonMethod::new("roundTrip");
         let output = Bindings::new()
-            .capability(
-                Capability::new(JsonCapabilityContract::new("workspace", 1)).method(ROUND_TRIP),
-            )
+            .capability(Capability::new(CapabilityContract::new("workspace", 1)).method(ROUND_TRIP))
             .render();
 
         assert!(output.contains("BidirectionalPayload_Deserialize"));
@@ -1426,8 +1423,8 @@ mod tests {
         const BETA: JsonMethod<(), beta::Status> = JsonMethod::no_request("beta");
 
         let _ = Bindings::new()
-            .capability(Capability::new(JsonCapabilityContract::new("first", 1)).method(ALPHA))
-            .capability(Capability::new(JsonCapabilityContract::new("second", 1)).method(BETA))
+            .capability(Capability::new(CapabilityContract::new("first", 1)).method(ALPHA))
+            .capability(Capability::new(CapabilityContract::new("second", 1)).method(BETA))
             .render();
     }
 
@@ -1438,7 +1435,7 @@ mod tests {
 
         let _ = Bindings::new()
             .capability(
-                Capability::new(JsonCapabilityContract::new("workspace", 1)).method(STATUS_PAIR),
+                Capability::new(CapabilityContract::new("workspace", 1)).method(STATUS_PAIR),
             )
             .render();
     }

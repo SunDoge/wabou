@@ -24,7 +24,7 @@ import radioTower from "lucide-static/icons/radio-tower.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
 import square from "lucide-static/icons/square.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import { For, Show } from "solid-js";
+import { For as ForValue, Show } from "solid-js";
 
 const navigation = [
   ["/", "Dashboard", gauge],
@@ -42,7 +42,7 @@ interface ShellChromeProps {
 export function AppTitleBar(props: ShellChromeProps) {
   const window = useWindow();
   return (
-    <TitleBar class="px-2 bg-canvas">
+    <TitleBar class="px-2 bg-transparent">
       <View
         class="h-full flex-none px-2 flex items-center gap-2"
         style={{ width: px(props.sidebarWidth) }}
@@ -166,7 +166,7 @@ export function AppSidebar(props: ShellChromeProps) {
         </View>
       </Show>
       <SidebarContent contentClass="px-2 py-0 flex flex-col gap-1">
-        <For each={navigation}>
+        <ForValue each={navigation}>
           {([path, label, icon]) => (
             <NavigationButton
               path={path}
@@ -175,7 +175,7 @@ export function AppSidebar(props: ShellChromeProps) {
               expanded={props.sidebarOpen}
             />
           )}
-        </For>
+        </ForValue>
       </SidebarContent>
       <SidebarFooter class="p-2 flex flex-col gap-1 bg-transparent">
         <NavigationButton

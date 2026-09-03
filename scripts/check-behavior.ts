@@ -36,15 +36,40 @@ async function main(): Promise<void> {
     console.log(
       `[behavior] testing ${relative(root, resolve(root, application))}`,
     );
-    const child = Bun.spawn(
-      ["cargo", "run", "-p", "wabou-cli", "--", "test", application],
-      {
-        cwd: root,
-        stdin: "inherit",
-        stdout: "inherit",
-        stderr: "inherit",
-      },
-    );
+    const command = [
+      "cargo",
+      "run",
+      "-p",
+      "wabou-cli",
+      "--",
+      "test",
+      application,
+    ];
+    if (application === "apps/pi-agent") {
+      const fixture = Bun.spawnSync(
+        [
+          "cargo",
+          "build",
+          "-p",
+          "pi-agent-wabou",
+          "--example",
+          "pi-agent-fixture",
+        ],
+        { cwd: root, stdout: "inherit", stderr: "inherit" },
+      );
+      if (fixture.exitCode !== 0) process.exit(fixture.exitCode);
+      const executable = resolve(
+        root,
+        `target/debug/examples/pi-agent-fixture${process.platform === "win32" ? ".exe" : ""}`,
+      );
+      command.push("--env", `WABOU_PI_BIN=${executable}`);
+    }
+    const child = Bun.spawn(command, {
+      cwd: root,
+      stdin: "inherit",
+      stdout: "inherit",
+      stderr: "inherit",
+    });
     const exitCode = await child.exited;
     if (exitCode !== 0) process.exit(exitCode);
   }

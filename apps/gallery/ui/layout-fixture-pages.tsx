@@ -5,16 +5,32 @@ import {
 import { ComponentsProvider, View } from "@wabou/ui";
 import { type Component, createComponent } from "solid-js";
 import {
+  ActivityStatusLayoutFixture,
   AdaptiveSplitPaneLayoutFixture,
-  CodeEditorLayoutFixture,
+  AlertLayoutFixture,
+  BadgeLayoutFixture,
+  CardSurfaceLayoutFixture,
+  CompactSurfaceLayoutFixture,
+  ContentStateLayoutFixture,
+  ControlBaselineLayoutFixture,
+  DarkSurfaceLayoutFixture,
   DialogLayoutFixture,
+  DropdownMenuLayoutFixture,
+  EditorLayoutFixture,
+  EmptyLayoutFixture,
+  FieldLayoutFixture,
+  GroupBoxLayoutFixture,
   IconFrameLayoutFixture,
   ImageListLayoutFixture,
   ImageViewportLayoutFixture,
   InputGroupLayoutFixture,
+  ItemLayoutFixture,
+  LabeledSeparatorLayoutFixture,
+  ListboxLayoutFixture,
   MarkdownConversationLayoutFixture,
   MarkdownInlineLayoutFixture,
   MessageLayoutFixture,
+  OnboardingLayoutFixture,
   PiAgentHeaderLayoutFixture,
   PiComposerContextLayoutFixture,
   PiComposerDeliveryLayoutFixture,
@@ -24,10 +40,24 @@ import {
   PiModelControlsLayoutFixture,
   PiSessionBehaviorLayoutFixture,
   PiTranscriptSearchLayoutFixture,
+  PromptSuggestionLayoutFixture,
   QRCodeLayoutFixture,
+  ReasoningLayoutFixture,
+  ResourceBoundaryLayoutFixture,
   ScrollAreaLayoutFixture,
+  SelectionControlsLayoutFixture,
   SelectLayoutFixture,
+  SettingsItemLayoutFixture,
+  SheetLayoutFixture,
   SidebarLayoutFixture,
+  SliderLayoutFixture,
+  SpinnerLayoutFixture,
+  TabsLayoutFixture,
+  ToastLayoutFixture,
+  ToggleGroupLayoutFixture,
+  ToolLayoutFixture,
+  TooltipLayoutFixture,
+  VerticalTabsLayoutFixture,
 } from "./layout-fixture-components";
 import * as animation from "./pages/animation";
 import * as basics from "./pages/basics";
@@ -63,10 +93,10 @@ function pageFixtures(
       ]),
   );
   return defineComponentFixtures(fixtures, {
-    wrap: (content) => (
+    wrap: (render) => (
       <ComponentsProvider theme="light">
         <View class="w-full h-full min-h-0 p-6 overflow-x-hidden overflow-y-auto">
-          {content}
+          {render()}
         </View>
       </ComponentsProvider>
     ),
@@ -92,10 +122,141 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         waitMs: 20,
         render: SelectLayoutFixture,
       },
+      "component/DropdownMenu": {
+        width: 420,
+        height: 300,
+        waitMs: 20,
+        render: DropdownMenuLayoutFixture,
+      },
+      "component/Item": {
+        width: 520,
+        height: 220,
+        render: ItemLayoutFixture,
+      },
+      "component/ControlBaseline": {
+        width: 520,
+        height: 380,
+        render: ControlBaselineLayoutFixture,
+      },
+      "component/SelectionControls": {
+        width: 420,
+        height: 360,
+        render: SelectionControlsLayoutFixture,
+      },
+      "component/SettingsItem": {
+        width: 460,
+        height: 330,
+        render: SettingsItemLayoutFixture,
+      },
+      "component/GroupBox": {
+        width: 480,
+        height: 390,
+        render: GroupBoxLayoutFixture,
+      },
+      "component/Tabs": {
+        width: 560,
+        height: 280,
+        render: TabsLayoutFixture,
+      },
+      "component/VerticalTabs": {
+        width: 560,
+        height: 280,
+        render: VerticalTabsLayoutFixture,
+      },
+      "component/Alert": {
+        width: 420,
+        height: 240,
+        render: AlertLayoutFixture,
+      },
+      "component/Toast": {
+        width: 480,
+        height: 240,
+        render: ToastLayoutFixture,
+      },
+      "component/CardSurface": {
+        width: 480,
+        height: 440,
+        render: CardSurfaceLayoutFixture,
+      },
+      "component/DarkSurface": {
+        width: 420,
+        height: 340,
+        render: DarkSurfaceLayoutFixture,
+      },
+      "component/CompactSurface": {
+        width: 300,
+        height: 360,
+        render: CompactSurfaceLayoutFixture,
+      },
+      "component/Listbox": {
+        width: 420,
+        height: 240,
+        render: ListboxLayoutFixture,
+      },
+      "component/Spinner": {
+        width: 240,
+        height: 120,
+        render: SpinnerLayoutFixture,
+      },
+      "component/ActivityStatus": {
+        width: 280,
+        height: 72,
+        render: ActivityStatusLayoutFixture,
+      },
+      "component/ContentState": {
+        width: 320,
+        height: 240,
+        render: ContentStateLayoutFixture,
+      },
+      "component/ResourceBoundary": {
+        width: 320,
+        height: 240,
+        render: ResourceBoundaryLayoutFixture,
+      },
+      "component/Onboarding": {
+        width: 360,
+        height: 420,
+        render: OnboardingLayoutFixture,
+      },
+      "component/Slider": {
+        width: 480,
+        height: 120,
+        render: SliderLayoutFixture,
+      },
       "component/Dialog": {
         width: 640,
         height: 480,
         render: DialogLayoutFixture,
+      },
+      "component/Sheet": {
+        width: 720,
+        height: 480,
+        render: SheetLayoutFixture,
+      },
+      "component/Empty": {
+        width: 320,
+        height: 420,
+        render: EmptyLayoutFixture,
+      },
+      "component/Badge": {
+        width: 360,
+        height: 120,
+        render: BadgeLayoutFixture,
+      },
+      "component/Field": {
+        width: 520,
+        height: 220,
+        render: FieldLayoutFixture,
+      },
+      "component/Tooltip": {
+        width: 420,
+        height: 220,
+        render: TooltipLayoutFixture,
+      },
+      "component/ToggleGroup": {
+        width: 400,
+        height: 140,
+        render: ToggleGroupLayoutFixture,
       },
       "component/AdaptiveSplitPane": {
         width: 720,
@@ -127,6 +288,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         height: 120,
         render: MarkdownInlineLayoutFixture,
       },
+      "component/LabeledSeparator": {
+        width: 560,
+        height: 96,
+        render: LabeledSeparatorLayoutFixture,
+      },
       "component/MarkdownConversation": {
         width: 720,
         height: 520,
@@ -134,12 +300,27 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
       },
       "component/PiConversation": {
         width: 720,
-        height: 480,
+        height: 520,
         render: PiConversationLayoutFixture,
         waitMs: 220,
       },
+      "component/Tool": {
+        width: 360,
+        height: 420,
+        render: ToolLayoutFixture,
+      },
+      "component/Reasoning": {
+        width: 600,
+        height: 240,
+        render: ReasoningLayoutFixture,
+      },
+      "component/PromptSuggestion": {
+        width: 420,
+        height: 260,
+        render: PromptSuggestionLayoutFixture,
+      },
       "component/PiAgentHeader": {
-        width: 720,
+        width: 1080,
         height: 56,
         render: PiAgentHeaderLayoutFixture,
       },
@@ -178,10 +359,10 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         height: 180,
         render: PiTranscriptSearchLayoutFixture,
       },
-      "component/CodeEditor": {
+      "component/Editor": {
         width: 520,
         height: 320,
-        render: CodeEditorLayoutFixture,
+        render: EditorLayoutFixture,
       },
       "component/Message": {
         width: 360,
@@ -195,8 +376,8 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
       },
     },
     {
-      wrap: (content) => (
-        <ComponentsProvider theme="light">{content}</ComponentsProvider>
+      wrap: (render) => (
+        <ComponentsProvider theme="light">{render()}</ComponentsProvider>
       ),
     },
   ),

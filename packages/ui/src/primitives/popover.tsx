@@ -3,8 +3,9 @@ import {
   observeGlobalPointerEvent,
   Portal,
   useHost,
+  type WabouNativeTransition,
 } from "@wabou/core/renderer";
-import { number, type Shadow, scale2d } from "@wabou/core/style";
+import { type Shadow, scale2d } from "@wabou/core/style";
 import {
   createEffect,
   createSignal,
@@ -30,7 +31,7 @@ import {
   type PointAnchor,
   shift,
 } from "./positioner";
-import { createTransitionPresence } from "./transition-presence";
+import { createPresence } from "./presence";
 import { View, type ViewProps, type WabouStyle } from "./view";
 
 export interface PopoverTriggerProps {
@@ -93,6 +94,30 @@ export interface PopoverMotionOptions {
   fromScale?: number;
 }
 
+export function popoverNativeTransition(options: {
+  generation: number;
+  duration: number;
+  ease?: Easing;
+  fromScale: number;
+  entering: boolean;
+}): WabouNativeTransition {
+  const easing =
+    options.ease === "linear" ||
+    options.ease === "easeInOut" ||
+    options.ease === "easeOut"
+      ? options.ease
+      : "easeOut";
+  return {
+    generation: options.generation,
+    duration: options.duration,
+    easing,
+    fromTransform: scale2d(options.entering ? options.fromScale : 1),
+    toTransform: scale2d(options.entering ? 1 : options.fromScale),
+    fromOpacity: options.entering ? 0 : 1,
+    toOpacity: options.entering ? 1 : 0,
+  };
+}
+
 export type PopoverProps = PopoverBaseProps &
   (
     | {
@@ -122,12 +147,9 @@ export function Popover(props: PopoverProps): JSX.Element {
   const [positioned, setPositioned] = createSignal(false);
   const open = () => props.open ?? uncontrolledOpen();
   const motion = untrack(() => props.motion);
-  const presence = createTransitionPresence(open, {
-    ready: positioned,
-    duration: motion === false ? 0 : (motion?.duration ?? 0.14),
-    ease: motion === false ? "linear" : (motion?.ease ?? "easeOut"),
-    reducedMotion: () => motion === false || reducedMotion(),
-  });
+  const duration = motion === false ? 0 : (motion?.duration ?? 0.14);
+  const presence = createPresence(open);
+  const [transitionGeneration, setTransitionGeneration] = createSignal(0);
   let anchor: Handle | undefined;
   let content: Handle | undefined;
   let frame = 0;
@@ -136,6 +158,17 @@ export function Popover(props: PopoverProps): JSX.Element {
   let observer: ResizeObserver | undefined;
   const motionFromScale = () =>
     motion === false ? 1 : (motion?.fromScale ?? 0.98);
+
+  const nativeTransition = (): WabouNativeTransition | undefined => {
+    if (motion === false || reducedMotion() || !positioned()) return undefined;
+    return popoverNativeTransition({
+      generation: transitionGeneration(),
+      duration,
+      ease: motion?.ease,
+      fromScale: motionFromScale(),
+      entering: open(),
+    });
+  };
 
   const contains = (root: Handle | undefined, target: Handle | undefined) => {
     if (!root || !target) return false;
@@ -243,6 +276,21 @@ export function Popover(props: PopoverProps): JSX.Element {
     // not published yet, updatePosition schedules the existing bounded retry.
     frame = requestAnimationFrame(() => void updatePosition());
   });
+  createEffect(
+    () => [open(), positioned(), reducedMotion()] as const,
+    ([isOpen, isPositioned, prefersReducedMotion]) => {
+      if (isOpen && !isPositioned) return;
+      if (!isOpen && !isPositioned) {
+        presence.finishExit();
+        return;
+      }
+      setTransitionGeneration((value) => value + 1);
+      if (motion === false || prefersReducedMotion || duration <= 0) {
+        if (isOpen) presence.finishEnter();
+        else presence.finishExit();
+      }
+    },
+  );
   createEffect(presence.phase, (phase) => {
     if (phase === "unmounted") setPositioned(false);
   });
@@ -348,9 +396,8 @@ export function Popover(props: PopoverProps): JSX.Element {
             aria-label={props["aria-label"]}
             class={props.contentClass}
             shadows={props.contentShadows}
-            transform={scale2d(
-              motionFromScale() + presence.progress() * (1 - motionFromScale()),
-            )}
+            transform={scale2d(open() ? 1 : motionFromScale())}
+            nativeTransition={nativeTransition()}
             interactionBlocked={!open() || props.contentInteractionBlocked}
             aria-hidden={open() ? undefined : "true"}
             style={{
@@ -362,7 +409,7 @@ export function Popover(props: PopoverProps): JSX.Element {
               left: positioned() ? `${position().x}px` : "-100000px",
               top: positioned() ? `${position().y}px` : "-100000px",
               ...props.contentStyle,
-              opacity: number(presence.progress()),
+              opacity: open() ? 1 : 0,
             }}
             onClick={(event: { stopPropagation(): void }) =>
               event.stopPropagation()
@@ -372,6 +419,11 @@ export function Popover(props: PopoverProps): JSX.Element {
             onFocusIn={props.onContentFocusIn}
             onFocusOut={props.onContentFocusOut}
             onKeyDown={handleEscape}
+            onTransitionEnd={(event) => {
+              if (event.generation !== transitionGeneration()) return;
+              if (open()) presence.finishEnter();
+              else presence.finishExit();
+            }}
           >
             {props.children}
           </View>

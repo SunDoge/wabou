@@ -57,9 +57,9 @@ fn main() -> Result<(), Whatever> {
                 .min_inner_size(960, 600),
         )
         .devtools(false)
-        .json_capability(CAPABILITY, move |capability| {
+        .capability(CAPABILITY, move |capability| {
             let connect_target = target.clone();
-            capability.method(method::CONNECT, move |connection: ConnectRequest| {
+            capability.json_method(method::CONNECT, move |connection: ConnectRequest| {
                 let target = connect_target.clone();
                 async move {
                     let path = PathBuf::from(connection.path);
@@ -87,11 +87,11 @@ fn main() -> Result<(), Whatever> {
             })?;
 
             let status_target = target.clone();
-            capability.method(method::STATUS, move |(): ()| {
+            capability.json_method(method::STATUS, move |(): ()| {
                 rpc::<DebugStatus>(status_target.clone(), "status", empty_params())
             })?;
             let query_target = target.clone();
-            capability.method(method::QUERY_NODES, move |request: QueryNodesRequest| {
+            capability.json_method(method::QUERY_NODES, move |request: QueryNodesRequest| {
                 rpc::<Vec<DebugNode>>(
                     query_target.clone(),
                     "queryNodes",
@@ -99,7 +99,7 @@ fn main() -> Result<(), Whatever> {
                 )
             })?;
             let inspect_target = target.clone();
-            capability.method(method::INSPECT_NODE, move |request: InspectNodeRequest| {
+            capability.json_method(method::INSPECT_NODE, move |request: InspectNodeRequest| {
                 rpc::<DebugNode>(
                     inspect_target.clone(),
                     "inspectNode",
@@ -107,7 +107,7 @@ fn main() -> Result<(), Whatever> {
                 )
             })?;
             let inspect_point_target = target.clone();
-            capability.method(
+            capability.json_method(
                 method::INSPECT_AT_POINT,
                 move |request: InspectPointRequest| {
                     rpc::<DebugPointInspection>(
@@ -118,7 +118,7 @@ fn main() -> Result<(), Whatever> {
                 },
             )?;
             let frames_target = target.clone();
-            capability.method(
+            capability.json_method(
                 method::RECENT_FRAMES,
                 move |request: RecentFramesRequest| {
                     rpc::<Vec<DebugFrame>>(
@@ -129,7 +129,7 @@ fn main() -> Result<(), Whatever> {
                 },
             )?;
             let validation_target = target.clone();
-            capability.method(method::VALIDATE_SNAPSHOT, move |(): ()| {
+            capability.json_method(method::VALIDATE_SNAPSHOT, move |(): ()| {
                 rpc::<DebugValidationReport>(
                     validation_target.clone(),
                     "validateSnapshot",
@@ -138,7 +138,7 @@ fn main() -> Result<(), Whatever> {
             })?;
             let screenshot_target = target.clone();
             let overlay_target = target.clone();
-            capability.method(method::SET_OVERLAY, move |request: SetOverlayRequest| {
+            capability.json_method(method::SET_OVERLAY, move |request: SetOverlayRequest| {
                 rpc::<DebugOverlay>(
                     overlay_target.clone(),
                     "setOverlay",
@@ -150,7 +150,7 @@ fn main() -> Result<(), Whatever> {
                     }),
                 )
             })?;
-            capability.method(method::CAPTURE_SCREENSHOT, move |(): ()| {
+            capability.json_method(method::CAPTURE_SCREENSHOT, move |(): ()| {
                 rpc::<PathResult>(
                     screenshot_target.clone(),
                     "captureScreenshot",
@@ -158,7 +158,7 @@ fn main() -> Result<(), Whatever> {
                 )
             })?;
             let capture_case_target = target.clone();
-            capability.method(method::CAPTURE_CASE, move |request: CaptureCaseRequest| {
+            capability.json_method(method::CAPTURE_CASE, move |request: CaptureCaseRequest| {
                 rpc::<DebugCaptureCase>(
                     capture_case_target.clone(),
                     "captureCase",

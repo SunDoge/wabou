@@ -54,9 +54,9 @@ pub(crate) struct LayoutMetricsSnapshot {
     pub nodes: HashMap<NodeKey, LayoutMetric>,
 }
 
-use crate::atom::AtomPool;
 use crate::host_frame::{HostEvent, encode_host_frame};
 use crate::style_ir::{ColorThemes, StylesheetUpdate};
+use wabou_protocol::AtomPool;
 use wabou_shell::FrameStats;
 
 const CORE_PRELUDE: &str = include_str!("gen/core-prelude.js");
@@ -105,13 +105,14 @@ struct RuntimeWake {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct HostFrameDisposition {
-    pub prevented_event_ids: Vec<u32>,
-    pub needs_tick: bool,
+pub(crate) struct HostFrameDisposition {
+    pub(crate) prevented_event_ids: Vec<u32>,
+    pub(crate) needs_tick: bool,
+    pub(crate) protocol_frame: Vec<u8>,
 }
 
 impl HostFrameDisposition {
-    pub fn is_prevented(&self, event_id: u32) -> bool {
+    pub(crate) fn is_prevented(&self, event_id: u32) -> bool {
         self.prevented_event_ids.contains(&event_id)
     }
 }
@@ -234,7 +235,7 @@ impl JsRuntime {
         Self::new_with_clock_and_options(Arc::new(crate::clock::SystemClock::new()), options)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "headless"))]
     pub(crate) fn new_with_clock(clock: Arc<dyn crate::clock::Clock>) -> JsResult<Self> {
         Self::new_with_clock_and_options(clock, JsRuntimeOptions::default())
     }
@@ -390,10 +391,9 @@ impl JsRuntime {
 
             self.register_intl_host_fns(ctx.clone(), &globals)?;
 
-            // Read a raw font file (TTF/OTF) and queue
-            // it for the Applier to register into the text FontContext on the
-            // next frame. Call once at boot before first paint. Returns false
-            // (and warns) if the file can't be read.
+            // Read a raw font file (TTF/OTF) and queue it for the GPUI text
+            // system on the next frame. Call once at boot before first paint.
+            // Returns false (and warns) if the file can't be read.
             let pf = self.pending_fonts.clone();
             globals.set(
                 "__wabou_load_font",
@@ -754,7 +754,7 @@ impl JsRuntime {
 
     /// Register the rquickjs-native async `__wabou_fetch(url, initJson)`. rquickjs
     /// owns the Rust Future -> JavaScript Promise conversion; the shell only
-    /// supplies a waker that reconnects its scheduler to winit.
+    /// supplies a waker that reconnects its scheduler to the native event loop.
     fn register_fetch(&self) -> JsResult<()> {
         let client = reqwest::Client::builder()
             .no_proxy()
@@ -792,17 +792,18 @@ impl JsRuntime {
         })
     }
 
-    pub(crate) fn resize_targets_handle(&self) -> ResizeTargets {
-        self.resize_targets.clone()
-    }
-
     pub(crate) fn set_wake_callback(&self, callback: wabou_shell::WakeCallback) {
         if let Ok(mut wake) = self.runtime_wake.callback.lock() {
-            *wake = Some(callback);
+            *wake = Some(callback.clone());
         }
+        // Bundle evaluation can enqueue QuickJS scheduler work before the
+        // native view installs its wake channel. That internal queue does not
+        // necessarily touch `RuntimeWake::pending`, so installing the callback
+        // is itself an edge: schedule one coalesced initial pump unconditionally.
+        callback();
     }
 
-    /// Poll rquickjs's scheduler once with a waker backed by winit. Pending
+    /// Poll rquickjs's scheduler once with a waker backed by the native host. Pending
     /// network IO parks naturally; Tokio calls this waker when it can progress.
     /// Ready jobs are time-sliced so a burst of fetch completions cannot drain
     /// an entire Promise/Solid update graph inside one window callback. Returns
@@ -820,10 +821,12 @@ impl JsRuntime {
             let mut next = Box::pin(self.rt.execute_pending_job());
             match Pin::new(&mut next).poll(&mut task_context) {
                 Poll::Ready(Ok(true)) => progressed = true,
-                Poll::Ready(Ok(false)) | Poll::Pending => return progressed,
+                Poll::Ready(Ok(false)) | Poll::Pending => {
+                    return progressed || self.runtime_wake.pending.load(Ordering::Acquire);
+                }
                 Poll::Ready(Err(error)) => {
                     tracing::warn!(?error, "async JavaScript job failed");
-                    return progressed;
+                    return progressed || self.runtime_wake.pending.load(Ordering::Acquire);
                 }
             }
             if std::time::Instant::now() >= deadline {
@@ -845,10 +848,6 @@ impl JsRuntime {
 
     pub(crate) fn take_async_wake(&self) -> bool {
         self.runtime_wake.pending.swap(false, Ordering::AcqRel)
-    }
-
-    pub(crate) fn has_async_wake(&self) -> bool {
-        self.runtime_wake.pending.load(Ordering::Acquire)
     }
 
     /// A handle to the pending-stylesheet cell; the Applier drains it in
@@ -879,6 +878,10 @@ impl JsRuntime {
 
     pub(crate) fn layout_metrics_handle(&self) -> Rc<RefCell<LayoutMetricsSnapshot>> {
         self.layout_metrics.clone()
+    }
+
+    pub(crate) fn resize_targets_handle(&self) -> ResizeTargets {
+        self.resize_targets.clone()
     }
 
     pub(crate) fn atom_pool_handle(&self) -> Rc<RefCell<AtomPool>> {
@@ -1107,15 +1110,11 @@ impl JsRuntime {
     /// Returns the frame bytes (empty if nothing changed this tick) and whether
     /// more rAF callbacks remain queued (so the host can keep redrawing).
     pub fn tick(&mut self) -> JsResult<(Vec<u8>, bool)> {
-        self.out.borrow_mut().clear();
         let frame_time = self.clock.now_ms();
         let has_raf = self.with(|ctx| -> JsResult<bool> {
             let tick: Function = ctx.globals().get("__wabou_tick")?;
             tick.call::<(f64,), bool>((frame_time,))
         })?;
-        // Promise continuations share the same fixed/time budget as fetch and
-        // timers. Never drain an unbounded microtask graph in one UI callback.
-        self.poll_async_runtime();
         let bytes = std::mem::take(&mut *self.out.borrow_mut());
         Ok((bytes, has_raf))
     }
@@ -1135,7 +1134,10 @@ impl JsRuntime {
     /// Deliver unsolicited Host facts through the single versioned binary
     /// entry point. Guest-initiated mounted functions return through their own
     /// value/Promise and never use this path.
-    pub fn dispatch_host_frame(&mut self, events: &[HostEvent]) -> JsResult<HostFrameDisposition> {
+    pub(crate) fn dispatch_host_frame(
+        &mut self,
+        events: &[HostEvent],
+    ) -> JsResult<HostFrameDisposition> {
         if events.is_empty() {
             return Ok(HostFrameDisposition::default());
         }
@@ -1168,9 +1170,15 @@ impl JsRuntime {
                 .ok()
                 .map(|values| AsRef::<[u32]>::as_ref(&values).to_vec())
                 .unwrap_or_default();
+            let protocol_frame = result
+                .get::<_, TypedArray<u8>>("protocolFrame")
+                .ok()
+                .map(|values| AsRef::<[u8]>::as_ref(&values).to_vec())
+                .unwrap_or_default();
             Ok(HostFrameDisposition {
                 prevented_event_ids,
                 needs_tick,
+                protocol_frame,
             })
         })
     }
@@ -1263,6 +1271,19 @@ impl JsRuntime {
         self.with(|ctx| vite.apply_hmr(&ctx, path, accepted_path, timestamp, source))
     }
 
+    /// Apply an HMR module whose evaluation is the whole update, such as the
+    /// generated Wabou Style IR module.
+    #[cfg(feature = "vite")]
+    pub fn apply_vite_side_effect_update(
+        &mut self,
+        accepted_path: &str,
+        timestamp: u64,
+        source: String,
+    ) -> JsResult<()> {
+        let vite = self.vite.as_ref().expect("vite runtime");
+        self.with(|ctx| vite.apply_side_effect_update(&ctx, accepted_path, timestamp, source))
+    }
+
     /// In-process full reload: clear the Vite module cache and re-import `entry`
     /// with a cache-busting query. Call after the applier has reset its tree.
     #[cfg(feature = "vite")]
@@ -1333,4 +1354,5 @@ fn digest_bytes(algorithm: u8, bytes: &[u8]) -> JsResult<Vec<u8>> {
 }
 
 #[cfg(test)]
+#[path = "jsrt/tests.rs"]
 mod tests;

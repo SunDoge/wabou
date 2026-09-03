@@ -2,12 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
 import {
   assertSupportedWabouCandidates,
-  compileWabouUtilities,
+  auditColorThemeContrast,
   compileColorThemes,
+  compileWabouUtilities,
   extractUtilitySource,
-  findWorkspacePackages,
   filterIgnoredClasses,
+  findWorkspacePackages,
   matchesClassPattern,
+  wabouStylePlugin,
 } from "./vite";
 
 describe("utility source extraction", () => {
@@ -29,6 +31,28 @@ describe("utility source extraction", () => {
     expect(() =>
       assertSupportedWabouCandidates(["hover:bg-slate-900"]),
     ).toThrow("use Solid classList or typed style");
+  });
+
+  test("accepts explicit native text-selection policies", () => {
+    expect(() =>
+      assertSupportedWabouCandidates([
+        "select-none",
+        "select-text",
+        "select-all",
+      ]),
+    ).not.toThrow();
+  });
+
+  test("accepts directional radii implemented by the GPUI host", () => {
+    expect(() =>
+      assertSupportedWabouCandidates([
+        "rounded-l-lg",
+        "rounded-r-lg",
+        "rounded-r-none",
+        "rounded-t-lg",
+        "rounded-b-lg",
+      ]),
+    ).not.toThrow();
   });
 
   test("compiles utilities directly to typed Style IR without CSS", () => {
@@ -123,6 +147,70 @@ describe("utility source extraction", () => {
     ).toThrow("missing: primary");
   });
 
+  test("reports semantic text tokens that wash out against app surfaces", () => {
+    const themes = compileColorThemes({
+      default: "light",
+      themes: {
+        light: {
+          appearance: "light",
+          colors: {
+            canvas: "#f7f7f8",
+            surface: "#ffffff",
+            primary: "#242424",
+            secondary: "#666666",
+            muted: "#929292",
+          },
+        },
+      },
+    });
+
+    expect(auditColorThemeContrast(themes)).toEqual([
+      expect.objectContaining({
+        theme: "light",
+        foreground: "muted",
+        background: "canvas",
+        minimum: 4.5,
+      }),
+      expect.objectContaining({
+        theme: "light",
+        foreground: "muted",
+        background: "surface",
+        minimum: 4.5,
+      }),
+    ]);
+    expect(auditColorThemeContrast(themes)[0]?.ratio).toBeCloseTo(2.91, 2);
+    expect(auditColorThemeContrast(themes)[0]?.suggestedColor).toBe("#717171");
+  });
+
+  test("can reject low-contrast application themes during configuration", async () => {
+    const plugin = wabouStylePlugin({
+      root: "/app",
+      themeContrast: "error",
+      colorThemes: {
+        default: "light",
+        themes: {
+          light: {
+            appearance: "light",
+            colors: {
+              canvas: "#f7f7f8",
+              surface: "#ffffff",
+              primary: "#242424",
+              muted: "#929292",
+            },
+          },
+        },
+      },
+    });
+
+    const configure = plugin.configResolved;
+    expect(typeof configure).toBe("function");
+    await expect(
+      (configure as (config: unknown) => Promise<void>)({}),
+    ).rejects.toThrow(
+      "light.muted has 2.91:1 contrast on canvas; expected at least 4.5:1; try #717171",
+    );
+  });
+
   test("only exposes explicit JSX class props to UnoCSS", () => {
     const source = `
       <View role="tab" title="flex hidden" class="flex items-center" />
@@ -144,6 +232,15 @@ describe("utility source extraction", () => {
 
   test("ignores comparison constants inside class expressions", () => {
     const source = `<View class={variant() === "outline" ? "border" : "border-0"} />`;
+    const extracted = extractUtilitySource(source);
+    expect(extracted).not.toContain("outline");
+    expect(extracted).toContain("border");
+    expect(extracted).toContain("border-0");
+  });
+
+  test("ignores ts-pattern selectors inside class expressions", () => {
+    const source =
+      '<View class={() => match(variant()).with("outline", () => "border").otherwise(() => "border-0")} />';
     const extracted = extractUtilitySource(source);
     expect(extracted).not.toContain("outline");
     expect(extracted).toContain("border");

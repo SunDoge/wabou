@@ -1,15 +1,24 @@
-import { createSignal, type JSX } from "solid-js";
-import { createSweep, useReducedMotion } from "../animation";
-import { createMeasuredSize, Spin, Svg, Text, View } from "../primitives";
 import { mergeClasses } from "@wabou/core/style";
+import { createSignal, type JSX, omit } from "solid-js";
+import {
+  createNativeLoopAnimation,
+  createSweep,
+  useReducedMotion,
+} from "../animation";
+import {
+  createMeasuredSize,
+  NativeWidget,
+  Text,
+  type TextProps,
+  View,
+  type ViewProps,
+} from "../primitives";
 
 export interface SkeletonProps {
   class?: string;
   /** Disable the shimmer while preserving the stable loading placeholder. */
   animated?: boolean;
 }
-
-const SPINNER_SOURCE = `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"/><path d="M 12 3 A 9 9 0 0 1 21 12" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>`;
 
 export function Skeleton(props: SkeletonProps): JSX.Element {
   const reducedMotion = useReducedMotion();
@@ -44,41 +53,60 @@ export function Skeleton(props: SkeletonProps): JSX.Element {
 export function Spinner(props: {
   label?: string;
   class?: string;
+  /** Hide spinner semantics when a parent status already announces progress. */
+  decorative?: boolean;
+  /** Duration of one revolution in seconds. */
+  duration?: number;
+  /** Playback-rate multiplier. */
+  speed?: number;
+  paused?: boolean;
 }): JSX.Element {
+  const reducedMotion = useReducedMotion();
+  const animation = createNativeLoopAnimation({
+    duration: () => props.duration ?? 0.9,
+    speed: () => props.speed ?? 1,
+    paused: () => props.paused ?? false,
+    reducedMotion,
+  });
   return (
-    <Spin
-      role="status"
-      aria-label={props.label ?? "Loading"}
+    <NativeWidget
+      tag="spinner"
+      role={props.decorative ? undefined : "status"}
+      aria-hidden={props.decorative ? true : undefined}
+      aria-label={props.decorative ? undefined : (props.label ?? "Loading")}
       class={mergeClasses("w-4 h-4 flex-none text-accent", props.class)}
-      duration={0.9}
-    >
-      <Svg aria-hidden="true" class="w-full h-full" source={SPINNER_SOURCE} />
-    </Spin>
+      config={{ animation: animation() }}
+    />
   );
 }
 
-export function Kbd(props: {
-  class?: string;
-  children?: JSX.Element;
-}): JSX.Element {
+export type KbdProps = TextProps;
+
+export function Kbd(props: KbdProps): JSX.Element {
+  const forwarded = omit(props, "class", "style", "children");
   return (
     <Text
+      {...forwarded}
       class={mergeClasses(
         "h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted",
         props.class,
       )}
+      style={{ "line-height": 1, ...props.style }}
     >
       {props.children}
     </Text>
   );
 }
 
-export function KbdGroup(props: {
-  class?: string;
-  children?: JSX.Element;
-}): JSX.Element {
+export type KbdGroupProps = ViewProps;
+
+export function KbdGroup(props: KbdGroupProps): JSX.Element {
+  const forwarded = omit(props, "class", "children");
   return (
-    <View class={mergeClasses("inline-flex items-center gap-1", props.class)}>
+    <View
+      {...forwarded}
+      class={mergeClasses("inline-flex items-center gap-1", props.class)}
+    >
       {props.children}
     </View>
   );

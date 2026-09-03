@@ -46,6 +46,23 @@ describe("ResponsiveGrid", () => {
     expect(responsiveGridRemainderCount(1, 4)).toBe(3);
     expect(responsiveGridRemainderCount(0, 4)).toBe(0);
   });
+
+  test("can avoid a single orphaned cell in the final row", () => {
+    const columns = (width: number, itemCount: number) =>
+      responsiveGridColumnCount({
+        width,
+        minColumnWidth: 176,
+        gap: 8,
+        maxColumns: 3,
+        itemCount,
+        balanceLastRow: true,
+      });
+
+    expect(columns(432, 3)).toBe(1);
+    expect(columns(560, 4)).toBe(2);
+    expect(columns(720, 3)).toBe(3);
+    expect(columns(432, 4)).toBe(2);
+  });
 });
 
 describe("Empty", () => {

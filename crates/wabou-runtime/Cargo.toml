@@ -10,20 +10,16 @@ name = "wabou_runtime"
 path = "src/lib.rs"
 
 [dependencies]
-anyrender.workspace = true
+anyhow = { workspace = true }
 arc-swap = { workspace = true }
-bitflags = { workspace = true }
-bon = { workspace = true }
 dioxus-devtools = { workspace = true, optional = true }
-foyer = "0.22.3"
 flume = { workspace = true }
+futures-channel = { workspace = true }
 futures-lite = "2"
 getrandom = { workspace = true }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
 jiff = { workspace = true }
-lasso = "0.7.3"
 open = { workspace = true }
-parley = { workspace = true }
 reqwest = {
   version = "0.13",
   default-features = false,
@@ -43,21 +39,22 @@ snafu = { workspace = true }
 slotmap = { workspace = true }
 sourcemap = "9.2.2"
 sys-locale = { workspace = true }
-taffy = { workspace = true, features = ["content_size", "parse"] }
 tempfile = "3"
-tokio = { workspace = true, features = ["fs", "rt-multi-thread", "sync", "time"] }
+tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 tracing = { workspace = true }
 tracing-chrome = { version = "0.7.2", optional = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 url = { workspace = true }
-vello = { workspace = true }
 wabou-bindgen = { workspace = true }
+wabou-database = { workspace = true }
 wabou-devtools = { workspace = true, optional = true }
 wabou-host-api = { workspace = true }
-wabou-shell = { workspace = true }
+wabou-protocol = { workspace = true }
+wabou-shell.workspace = true
+gpui-base = { workspace = true }
+gpui-platform = { workspace = true, optional = true, features = ["test-support"] }
 wabou-style = { workspace = true }
-wabou-widgets = { workspace = true }
 
 tungstenite = {
   version = "0.28",
@@ -71,12 +68,17 @@ ureq = { version = "3.3", optional = true }
 [features]
 default = []
 devtools = ["dep:wabou-devtools"]
-profiling = ["dep:tracing-chrome", "wabou-shell/profiling"]
-renderer-skia = ["wabou-shell/renderer-skia"]
+profiling = ["dep:tracing-chrome"]
 rust-hot-reload = ["dep:dioxus-devtools"]
+# Deterministic GPUI layout and interaction harness used by `wabou layout`
+# and component fixtures. Pixel capture is available only on GPUI platforms
+# that provide a headless renderer.
+headless = ["dep:gpui-platform"]
 # Live vite dev-server integration (module fetching + HMR). Step 2.
 vite = ["dep:tungstenite", "dep:ureq"]
 
 [dev-dependencies]
+gpui-platform.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
 image = { workspace = true, features = ["png"] }
 wabou-devtools = { workspace = true }

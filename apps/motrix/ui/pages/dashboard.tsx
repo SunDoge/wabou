@@ -13,7 +13,7 @@ import {
   View,
 } from "@wabou/ui";
 import sliders from "lucide-static/icons/sliders-horizontal.svg?raw";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For as ForValue, Show } from "solid-js";
 import { match, P } from "ts-pattern";
 import { LiveChart } from "../components/live-chart";
 import { StatCard } from "../components/stat-card";
@@ -416,10 +416,10 @@ export function DashboardPage() {
                   <Text class="text-xs text-muted">Fri</Text>
                 </View>
                 <View class="flex flex-row gap-1">
-                  <For each={activityWeeks()}>
+                  <ForValue each={activityWeeks()}>
                     {(week) => (
                       <View class="flex flex-col gap-1">
-                        <For each={week}>
+                        <ForValue each={week}>
                           {(value) => (
                             <View
                               class={
@@ -433,10 +433,10 @@ export function DashboardPage() {
                               )}
                             />
                           )}
-                        </For>
+                        </ForValue>
                       </View>
                     )}
-                  </For>
+                  </ForValue>
                 </View>
               </View>
             </View>

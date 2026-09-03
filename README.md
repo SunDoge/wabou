@@ -35,7 +35,7 @@ Wabou explores a narrower combination:
 - SolidJS signals and JSX for application state and composition;
 - QuickJS as a small, embeddable JavaScript runtime;
 - a compact binary protocol instead of a DOM or JSON bridge;
-- retained layout with Taffy and GPU rendering with Vello;
+- a retained projection into GPUI-CE for layout, text, painting, and input;
 - Rust for windows, input, text, native widgets, and platform integration;
 - Vite HMR and an inspector for a short development loop.
 
@@ -152,7 +152,7 @@ Solid signals + JSX
 Solid universal renderer
         │ compact binary operations
         ▼
-QuickJS ───────────────► Rust host ──► Taffy layout ──► Vello / native widgets
+QuickJS ───────────────► Rust host ──► retained GPUI-CE elements
    ▲                         │
    └──── input, timers, and host events ───────────────┘
 ```
@@ -245,6 +245,7 @@ JavaScript package work. These are the primary workspace entry points:
 | `bun run test` | Run Bun unit tests, Vitest component tests, and the HMR test. |
 | `bun run verify` | Run the complete JavaScript, Rust, behavior, and capture verification used before release. |
 | `bun run verify:ci:rust` | Run the bounded Rust merge gate used by GitHub Actions. Local release validation should use `verify`. |
+| `bun run verify:agent` | Run Pi Agent's deterministic behavior suite and host-backed visual capture. |
 
 Most contributors should not need to invoke the internal `gen:*` or
 `packages:*` tasks directly. Turbo follows workspace dependencies, builds
@@ -291,6 +292,7 @@ Read more about [styling](docs/style.md), [windows](docs/windows.md),
 [behavior testing](docs/testing.md),
 [performance profiling](docs/performance.md),
 [cross-compilation](docs/cross-compilation.md),
+[SQLite KV persistence](docs/kv.md),
 [JavaScript packages](docs/packages.md),
 [native widgets](docs/native-widgets.md),
 [host-to-JavaScript communication](docs/host-to-js.md), and

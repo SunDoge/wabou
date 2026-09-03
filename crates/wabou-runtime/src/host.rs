@@ -6,7 +6,7 @@
 //!
 //! ```ignore
 //! use serde::{Deserialize, Serialize};
-//! use wabou_bindgen::{JsonCapabilityContract, JsonMethod};
+//! use wabou_bindgen::{CapabilityContract, JsonMethod};
 //! use wabou_runtime::{HostBuilder, Widget};
 //!
 //! #[derive(Deserialize)]
@@ -19,12 +19,12 @@
 //!     contents: String,
 //! }
 //!
-//! const WORKSPACE: JsonCapabilityContract = JsonCapabilityContract::new("workspace", 1);
+//! const WORKSPACE: CapabilityContract = CapabilityContract::new("workspace", 1);
 //!
 //! HostBuilder::new()
 //!     .widget("chart", || Box::new(MyChart::new()))
-//!     .json_capability(WORKSPACE, |capability| {
-//!         capability.method(JsonMethod::new("readFile"), |request: ReadFileRequest| async move {
+//!     .capability(WORKSPACE, |capability| {
+//!         capability.json_method(JsonMethod::new("readFile"), |request: ReadFileRequest| async move {
 //!             let contents = std::fs::read_to_string(request.path)
 //!                 .map_err(|error| error.to_string())?;
 //!             Ok::<_, String>(ReadFileResponse { contents })
@@ -41,32 +41,72 @@ use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use vello::peniko::Color;
-
-use wabou_bindgen::JsonCapabilityContract;
+use wabou_bindgen::CapabilityContract;
 use wabou_bindgen::JsonMethod;
 
-use crate::applier::Applier;
-use crate::asset_cache::ResourceCache;
+use crate::WindowOptions;
 use crate::bundle;
-use crate::headless_test::run_headless_test;
-use crate::json_capability::JsonCapability;
 use crate::jsrt::JsRuntime;
+use crate::kv::mount_kv_capability;
 use crate::native_capability::NativeCapability;
 use crate::test_report::finish_test_report;
 use crate::{HostMessageContext, HostMessageRouter};
-use crate::{ShellExtension, WindowOptions, run_windows_with_factory_and_extensions, style};
-use wabou_shell::{Widget, WidgetFactory};
-use wabou_widgets::{SecretStore, builtin_factories, password_input_factory};
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;
-const IMAGE_RESOURCES: JsonCapabilityContract = JsonCapabilityContract::new("imageResources", 1);
+const IMAGE_RESOURCES: CapabilityContract = CapabilityContract::new("imageResources", 1);
 const CREATE_FILE_IMAGE: JsonMethod<CreateFileImageRequest, ImageResourceDescriptor> =
     JsonMethod::new("createFile");
 const CREATE_NETWORK_IMAGE: JsonMethod<CreateNetworkImageRequest, ImageResourceDescriptor> =
     JsonMethod::new("createNetwork");
 const RELEASE_IMAGE: JsonMethod<crate::ImageResourceHandle, bool> = JsonMethod::new("release");
+
+/// Application-wide glyph rasterization preference.
+///
+/// GPUI still protects unsupported combinations. In particular, transparent
+/// and blurred windows use grayscale masks, and a platform without subpixel
+/// support cannot be forced into subpixel rendering.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum TextRenderingMode {
+    /// Follow GPUI's platform recommendation.
+    #[default]
+    PlatformDefault,
+    /// Prefer LCD-style subpixel glyph masks when the window and platform allow it.
+    Subpixel,
+    /// Always use grayscale glyph masks.
+    Grayscale,
+}
+
+impl TextRenderingMode {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::PlatformDefault => "platform-default",
+            Self::Subpixel => "subpixel",
+            Self::Grayscale => "grayscale",
+        }
+    }
+
+    const fn gpui(self) -> wabou_shell::gpui::TextRenderingMode {
+        match self {
+            Self::PlatformDefault => wabou_shell::gpui::TextRenderingMode::PlatformDefault,
+            Self::Subpixel => wabou_shell::gpui::TextRenderingMode::Subpixel,
+            Self::Grayscale => wabou_shell::gpui::TextRenderingMode::Grayscale,
+        }
+    }
+}
+
+fn resolved_text_rendering_policy(
+    mode: TextRenderingMode,
+    background: wabou_shell::WindowBackground,
+) -> &'static str {
+    if background != wabou_shell::WindowBackground::Opaque {
+        return "grayscale-non-opaque-window";
+    }
+    if mode == TextRenderingMode::Grayscale || cfg!(target_os = "macos") {
+        return "grayscale";
+    }
+    "subpixel-if-supported"
+}
 
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -462,24 +502,6 @@ impl Drop for HostServicesGuard {
     }
 }
 
-struct ResourceCacheShutdownGuard {
-    cache: Arc<ResourceCache>,
-}
-
-impl ResourceCacheShutdownGuard {
-    fn new(cache: Arc<ResourceCache>) -> Self {
-        Self { cache }
-    }
-}
-
-impl Drop for ResourceCacheShutdownGuard {
-    fn drop(&mut self) {
-        if let Err(error) = self.cache.shutdown() {
-            tracing::warn!(%error, "failed to gracefully close persistent asset cache");
-        }
-    }
-}
-
 #[cfg(feature = "profiling")]
 fn init_tracing() -> Option<tracing_chrome::FlushGuard> {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
@@ -550,22 +572,20 @@ struct RuntimeSourceConfig {
     js_runtime_options: crate::JsRuntimeOptions,
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
-    widget_factories: HashMap<String, WidgetFactory>,
-    base_color: Color,
+    native_widget_factories: HashMap<String, wabou_shell::NativeWidgetFactory>,
     #[cfg(feature = "devtools")]
     debug_state: Option<wabou_devtools::SharedDebugState>,
     effect_trace: Option<crate::effect_trace::EffectTrace>,
     app_directories: Option<wabou_shell::AppDirectories>,
-    asset_cache: Arc<ResourceCache>,
     image_resources: crate::ImageResourceStore,
 }
 
 impl RuntimeSourceConfig {
-    fn create(
+    fn create_gpui(
         &self,
         window_key: wabou_shell::WindowResourceKey,
         window_options: &WindowOptions,
-    ) -> crate::Result<Applier> {
+    ) -> crate::Result<crate::gpui_controller::GpuiController> {
         #[cfg(feature = "vite")]
         let js = match &self.source {
             ApplicationSource::Vite { url, .. } => {
@@ -603,56 +623,50 @@ impl RuntimeSourceConfig {
         .context(crate::error::JavaScriptSnafu {
             operation: "install native window creation options",
         })?;
-        let mut applier = Applier::from_runtime_with_factories_and_window(
-            js,
-            self.widget_factories.clone(),
-            if window_options.transparent {
-                Color::TRANSPARENT
-            } else {
-                self.base_color
-            },
-            window_key,
+
+        let mut controller = crate::gpui_controller::GpuiController::new(
+            crate::runtime_session::RuntimeSession::new(js, window_key),
         );
-        install_host_message_producers(&self.host_message_producers, window_key, &applier);
-        applier.set_asset_cache(self.asset_cache.clone());
-        applier.set_image_resource_store(self.image_resources.clone());
+        install_gpui_host_message_producers(&self.host_message_producers, window_key, &controller);
+        controller.set_image_resources(self.image_resources.clone());
         if let Some(directories) = &self.app_directories {
-            applier.set_app_directories(directories.clone());
+            controller.set_app_directories(directories.clone());
         }
         if let Some(trace) = &self.effect_trace {
-            applier.set_effect_trace(trace.clone());
+            controller.set_effect_trace(trace.clone());
         }
         #[cfg(feature = "devtools")]
         if let Some(state) = &self.debug_state {
-            // Install diagnostics before the guest boots so application-owned
-            // debug controls can configure the first rendered frame.
-            applier.set_debug_state(state.clone());
+            controller.set_debug_state(state.clone());
         }
         match &self.source {
-            ApplicationSource::Bundle { code, source_map } => applier
+            ApplicationSource::Bundle { code, source_map } => controller
                 .boot_with_source_map(code, source_map.as_deref())
                 .context(crate::error::JavaScriptSnafu {
                     operation: "boot JavaScript bundle",
                 })?,
             #[cfg(feature = "vite")]
             ApplicationSource::Vite { entry, .. } => {
-                applier
+                controller
                     .boot_vite(entry)
                     .context(crate::error::JavaScriptSnafu {
                         operation: "boot Vite entry module",
                     })?
             }
         }
-        Ok(applier)
+        Ok(controller)
     }
 
     #[cfg(feature = "vite")]
-    fn start_hmr(&self, applier: &mut Applier) -> crate::Result<Option<crate::HmrClient>> {
+    fn start_gpui_hmr(
+        &self,
+        controller: &mut crate::gpui_controller::GpuiController,
+    ) -> crate::Result<Option<crate::vite::HmrClient>> {
         let ApplicationSource::Vite { url, entry } = &self.source else {
             return Ok(None);
         };
-        applier.set_vite_entry(entry.as_ref());
-        crate::start_hmr_client(url, applier.reload_handle())
+        controller.set_vite_entry(entry.as_ref());
+        crate::vite::start_hmr_client(url, controller.reload_handle())
             .map(Some)
             .context(crate::error::ViteSnafu)
     }
@@ -660,20 +674,21 @@ impl RuntimeSourceConfig {
 
 /// Application-facing builder for windows, widgets, capabilities, and tooling.
 pub struct HostBuilder {
-    base_color: Color,
     window: WindowOptions,
     additional_windows: Vec<WindowOptions>,
-    widget_factories: HashMap<String, WidgetFactory>,
+    native_widget_factories: HashMap<String, wabou_shell::NativeWidgetFactory>,
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
     services: Vec<(Arc<dyn HostService>, bool)>,
     devtools: bool,
-    extensions: Vec<Box<dyn ShellExtension>>,
+    application_extensions: Vec<Box<dyn wabou_shell::ApplicationExtension>>,
     effect_trace: Option<EffectTraceConfig>,
     app_directory_config: Option<wabou_shell::AppDirectoryConfig>,
     persisted_window_size: Option<String>,
+    kv_enabled: bool,
     image_resources: crate::ImageResourceStore,
     js_runtime_options: crate::JsRuntimeOptions,
+    text_rendering_mode: TextRenderingMode,
 }
 
 impl Default for HostBuilder {
@@ -693,26 +708,26 @@ impl HostBuilder {
     /// Create a builder using an image registry also owned by application Rust code.
     pub fn with_image_resources(image_resources: crate::ImageResourceStore) -> Self {
         let builder = Self {
-            base_color: style::parse_color("#0f172a")
-                .unwrap_or_else(|| Color::from_rgb8(0x0f, 0x17, 0x2a)),
             window: WindowOptions::default(),
             additional_windows: Vec::new(),
-            widget_factories: builtin_factories(),
+            native_widget_factories: crate::gpui_widgets::builtin_native_widgets(),
             capabilities: Vec::new(),
             host_message_producers: Vec::new(),
             services: Vec::new(),
             devtools: cfg!(all(debug_assertions, feature = "devtools")),
-            extensions: Vec::new(),
+            application_extensions: Vec::new(),
             effect_trace: None,
             app_directory_config: None,
             persisted_window_size: None,
+            kv_enabled: false,
             image_resources: image_resources.clone(),
             js_runtime_options: crate::JsRuntimeOptions::default(),
+            text_rendering_mode: TextRenderingMode::default(),
         };
         let mounted = image_resources.clone();
-        builder.json_capability(IMAGE_RESOURCES, move |capability| {
+        builder.capability(IMAGE_RESOURCES, move |capability| {
             let files = mounted.clone();
-            capability.method(CREATE_FILE_IMAGE, move |request: CreateFileImageRequest| {
+            capability.json_method(CREATE_FILE_IMAGE, move |request: CreateFileImageRequest| {
                 let resources = files.clone();
                 async move {
                     let loader = resources.clone();
@@ -732,7 +747,7 @@ impl HostBuilder {
                 }
             })?;
             let network = mounted.clone();
-            capability.method(
+            capability.json_method(
                 CREATE_NETWORK_IMAGE,
                 move |request: CreateNetworkImageRequest| {
                     let resources = network.clone();
@@ -751,29 +766,55 @@ impl HostBuilder {
                 },
             )?;
             let release = mounted.clone();
-            capability.method(RELEASE_IMAGE, move |handle: crate::ImageResourceHandle| {
+            capability.json_method(RELEASE_IMAGE, move |handle: crate::ImageResourceHandle| {
                 let resources = release.clone();
                 async move { Ok::<_, String>(resources.remove(handle)) }
             })
         })
     }
 
-    /// Register or override a widget factory for `tag`. When the SolidJS app
-    /// creates an element with this tag (`<chart />`), the factory is called
-    /// to produce a fresh `Box<dyn Widget>`.
-    pub fn widget(
+    /// Register an application-defined GPUI element for an explicit Solid tag.
+    ///
+    /// This is the native-widget path used by the GPUI shell. The factory is
+    /// evaluated while materializing a frame; stable state should live in a
+    /// GPUI entity or application cache keyed by `context.key()`.
+    pub fn native_widget(
         mut self,
         tag: impl Into<String>,
-        factory: impl Fn() -> Box<dyn Widget> + 'static,
+        factory: impl for<'a> Fn(
+            wabou_shell::NativeWidgetContext<'a>,
+            &mut wabou_shell::gpui::Window,
+            &mut wabou_shell::gpui::App,
+        ) -> wabou_shell::gpui::AnyElement
+        + Send
+        + Sync
+        + 'static,
     ) -> Self {
-        self.widget_factories.insert(tag.into(), Arc::new(factory));
+        self.native_widget_factories.insert(
+            tag.into(),
+            Arc::new(move |context, window, cx| {
+                wabou_shell::NativeWidgetMount::stateless(factory(context, window, cx))
+            }),
+        );
         self
     }
 
-    /// Register the framework password widget backed by a Rust-only secret store.
-    pub fn password_inputs(mut self, secrets: SecretStore) -> Self {
-        self.widget_factories
-            .insert("password-input".into(), password_input_factory(secrets));
+    /// Register a GPUI native widget that may retain a typed entity for the
+    /// lifetime of its generational Solid node.
+    pub fn native_entity_widget(
+        mut self,
+        tag: impl Into<String>,
+        factory: impl for<'a> Fn(
+            wabou_shell::NativeWidgetContext<'a>,
+            &mut wabou_shell::gpui::Window,
+            &mut wabou_shell::gpui::App,
+        ) -> wabou_shell::NativeWidgetMount
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        self.native_widget_factories
+            .insert(tag.into(), Arc::new(factory));
         self
     }
 
@@ -794,25 +835,11 @@ impl HostBuilder {
         self
     }
 
-    /// Mount structured async methods without exposing QuickJS transport
-    /// details to application code.
-    pub fn json_capability<F>(self, contract: JsonCapabilityContract, mount: F) -> Self
-    where
-        F: for<'js> Fn(JsonCapability<'js>) -> rquickjs::Result<()>
-            + rquickjs::markers::ParallelSend
-            + Send
-            + Sync
-            + 'static,
-    {
-        self.mount_capability(contract.name(), move |ctx, object| {
-            object.set("__wabouCapabilityVersion", contract.version())?;
-            mount(JsonCapability { ctx, object })
-        })
-    }
-
-    /// Mount typed asynchronous methods that exchange structured QuickJS
-    /// values directly without JSON text encoding.
-    pub fn native_capability<F>(self, contract: JsonCapabilityContract, mount: F) -> Self
+    /// Mount one versioned capability namespace.
+    ///
+    /// Methods use direct structured QuickJS values by default and may opt
+    /// into JSON coding through [`NativeCapability::json_method`].
+    pub fn capability<F>(self, contract: CapabilityContract, mount: F) -> Self
     where
         F: for<'js> Fn(NativeCapability<'js>) -> rquickjs::Result<()>
             + rquickjs::markers::ParallelSend
@@ -880,15 +907,18 @@ impl HostBuilder {
         self
     }
 
-    /// Set the viewport clear color behind the retained root.
-    pub fn base_color(mut self, color: Color) -> Self {
-        self.base_color = color;
-        self
-    }
-
     /// Configure the maximum native stack available to each QuickJS runtime.
     pub fn quickjs_stack_size(mut self, bytes: usize) -> Self {
         self.js_runtime_options = self.js_runtime_options.max_stack_size(bytes);
+        self
+    }
+
+    /// Select the application-wide glyph rasterization preference.
+    ///
+    /// The default delegates to GPUI. Subpixel rendering only takes effect for
+    /// opaque windows on platforms and GPUs that support it.
+    pub fn text_rendering_mode(mut self, mode: TextRenderingMode) -> Self {
+        self.text_rendering_mode = mode;
         self
     }
 
@@ -930,6 +960,15 @@ impl HostBuilder {
         self
     }
 
+    /// Enable the built-in SQLite-backed `kv` capability.
+    ///
+    /// The store is opened lazily at `storage/kv/default.sqlite3` and requires
+    /// [`Self::app_directories`] to provide a stable application identity.
+    pub fn kv(mut self) -> Self {
+        self.kv_enabled = true;
+        self
+    }
+
     /// Enable or disable the local, read-only DevTools socket. It defaults to
     /// enabled in debug builds and is absent from release builds unless opted in.
     pub fn devtools(mut self, enabled: bool) -> Self {
@@ -937,9 +976,15 @@ impl HostBuilder {
         self
     }
 
-    /// Install a native integration that shares Wabou's platform event loop.
-    pub fn extension(mut self, extension: impl ShellExtension + 'static) -> Self {
-        self.extensions.push(Box::new(extension));
+    /// Install a GPUI-native application lifecycle extension.
+    ///
+    /// Implementations receive GPUI window handles after startup and live for
+    /// the complete GPUI application lifetime.
+    pub fn application_extension(
+        mut self,
+        extension: impl wabou_shell::ApplicationExtension,
+    ) -> Self {
+        self.application_extensions.push(Box::new(extension));
         self
     }
 
@@ -969,17 +1014,12 @@ impl HostBuilder {
         self
     }
 
-    /// Build the JsRuntime + Applier + run the winit event loop.
+    /// Build the JavaScript runtime and run it in the GPUI application shell.
     pub fn run(self) -> crate::Result<()> {
-        let outcome = self.run_once()?;
-        if outcome == crate::RunOutcome::Relaunch && std::env::var_os("WABOU_TEST_SCRIPT").is_none()
-        {
-            relaunch_current_process()?;
-        }
-        Ok(())
+        self.run_once()
     }
 
-    fn run_once(mut self) -> crate::Result<crate::RunOutcome> {
+    fn run_once(mut self) -> crate::Result<()> {
         #[cfg(feature = "rust-hot-reload")]
         dioxus_devtools::connect_subsecond();
 
@@ -1035,12 +1075,6 @@ impl HostBuilder {
             let capability_controller = controller.clone();
             self.capabilities
                 .push(Arc::new(move |js| capability_controller.mount(js)));
-            if !headless_test {
-                self.extensions
-                    .push(Box::new(crate::test_driver::TestDriver::new(
-                        controller.clone(),
-                    )));
-            }
         }
         let app_directories = self
             .app_directory_config
@@ -1054,25 +1088,41 @@ impl HostBuilder {
                 })
             })
             .transpose()?;
+        if self.kv_enabled {
+            let directories = app_directories
+                .as_ref()
+                .ok_or(crate::Error::MissingArgument {
+                    argument: "HostBuilder::app_directories before HostBuilder::kv",
+                })?;
+            let path = directories
+                .storage_namespace("kv")
+                .expect("framework KV namespace is valid")
+                .join("default.sqlite3");
+            let state = Arc::new(tokio::sync::OnceCell::new());
+            self.capabilities.push(Arc::new(move |js| {
+                mount_kv_capability(js, state.clone(), path.clone())
+            }));
+        }
         let service_context = HostServiceContext {
             app_directories: app_directories.clone(),
             behavior_test: test_controller.is_some(),
             headless: headless_test,
         };
         let services = start_host_services(&self.services, &service_context)?;
+        let mut gpui_window_size_persistence = None;
         if let Some(key) = &self.persisted_window_size {
             if let Some(directories) = &app_directories {
                 let path = directories
                     .local_data_dir
                     .join("window-state")
                     .join(format!("{key}.json"));
-                let persistence = wabou_shell::WindowSizePersistence::restore(
+                let (persistence, restored) = wabou_shell::WindowSizePersistence::restore(
                     path,
-                    wabou_shell::initial_window_resource_key(0),
-                    &mut self.window,
+                    self.window.initial_inner_size,
+                    self.window.min_inner_size,
                 );
-                // Observe close before a tray extension consumes the request.
-                self.extensions.insert(0, Box::new(persistence));
+                self.window.initial_inner_size = restored;
+                gpui_window_size_persistence = Some(persistence);
             } else {
                 tracing::warn!(
                     key,
@@ -1083,19 +1133,6 @@ impl HostBuilder {
         let windows = std::iter::once(self.window.clone())
             .chain(self.additional_windows.iter().cloned())
             .collect::<Vec<_>>();
-        let asset_cache = Arc::new(if let Some(directories) = &app_directories {
-            ResourceCache::with_disk(&directories.cache_dir).unwrap_or_else(|error| {
-                tracing::warn!(%error, "failed to enable persistent asset cache");
-                ResourceCache::memory_only()
-            })
-        } else {
-            ResourceCache::memory_only()
-        });
-        // Declared immediately after the cache so it runs on successful exit
-        // and on every later `?` path, before the cache-owned runtime is dropped.
-        let _asset_cache_shutdown = ResourceCacheShutdownGuard::new(asset_cache.clone());
-        self.image_resources.set_cache(asset_cache.clone());
-
         #[cfg(feature = "devtools")]
         let devtools_server = {
             let mut server = None;
@@ -1141,99 +1178,212 @@ impl HostBuilder {
             js_runtime_options: self.js_runtime_options,
             capabilities: self.capabilities.clone(),
             host_message_producers: self.host_message_producers.clone(),
-            widget_factories: self.widget_factories.clone(),
-            base_color: self.base_color,
+            native_widget_factories: self.native_widget_factories.clone(),
             #[cfg(feature = "devtools")]
             debug_state: devtools_server.1.clone(),
             effect_trace: effect_trace.clone(),
             app_directories: app_directories.clone(),
-            asset_cache: asset_cache.clone(),
             image_resources: self.image_resources.clone(),
         };
         #[cfg(feature = "vite")]
-        let mut hmr_clients = Vec::new();
-        let mut sources = Vec::with_capacity(windows.len());
+        let hmr_clients = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let controller_sources = runtime_sources.clone();
+        let text_rendering_mode = self.text_rendering_mode;
+        #[cfg(feature = "vite")]
+        let controller_hmr_clients = hmr_clients.clone();
+        let controller_factory = std::rc::Rc::new(
+            move |window_key: wabou_shell::WindowResourceKey,
+                  options: &WindowOptions|
+                  -> Result<crate::gpui_controller::GpuiController, String> {
+                #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
+                let mut controller = controller_sources
+                    .create_gpui(window_key, options)
+                    .map_err(|error| error.to_string())?;
+                controller.set_text_rendering_diagnostics(
+                    text_rendering_mode.as_str(),
+                    resolved_text_rendering_policy(text_rendering_mode, options.background),
+                );
+                #[cfg(feature = "vite")]
+                if let Some(client) = controller_sources
+                    .start_gpui_hmr(&mut controller)
+                    .map_err(|error| error.to_string())?
+                {
+                    controller_hmr_clients.borrow_mut().push(client);
+                }
+                Ok(controller)
+            },
+        );
+        let gpui_windows = crate::gpui_windows::GpuiApplicationWindows::new(
+            controller_factory,
+            runtime_sources.native_widget_factories.clone(),
+            test_controller.clone(),
+        );
+        let mut gpui_sources = Vec::with_capacity(windows.len());
         for (index, options) in windows.into_iter().enumerate() {
-            let window_key = wabou_shell::initial_window_resource_key(index);
-            #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
-            let mut applier = runtime_sources.create(window_key, &options)?;
+            crate::gpui_windows::validate_gpui_window_options(&options).map_err(|error| {
+                crate::Error::GpuiShell {
+                    message: error.to_string(),
+                }
+            })?;
+            let window_key = gpui_windows.reserve();
+            debug_assert_eq!(window_key, wabou_shell::initial_window_resource_key(index));
+            let controller = gpui_windows
+                .create_controller(window_key, &options)
+                .map_err(|message| crate::Error::GpuiShell { message })?;
             if index == 0
                 && let Some(script) = &test_script
             {
-                applier
-                    .eval_script(script)
-                    .context(crate::error::JavaScriptSnafu {
-                        operation: "evaluate test scenario",
+                controller
+                    .eval_script_diagnostic(script)
+                    .map_err(|message| crate::Error::GpuiShell {
+                        message: format!("failed to evaluate GPUI test scenario: {message}"),
                     })?;
             }
-            #[cfg(feature = "vite")]
-            if let Some(client) = runtime_sources.start_hmr(&mut applier)? {
-                hmr_clients.push(client);
-            }
-            sources.push((Box::new(applier) as Box<dyn crate::FrameSource>, options));
-        }
-
-        if headless_test && let Some(controller) = &test_controller {
-            run_headless_test(
+            gpui_sources.push((
+                window_key,
                 controller,
-                &mut sources,
-                self.base_color,
-                #[cfg(feature = "devtools")]
-                devtools_server.1.as_ref(),
-            )?;
-            services.finish()?;
-            return Ok(crate::RunOutcome::Exit);
+                options,
+                (index == 0)
+                    .then(|| gpui_window_size_persistence.take())
+                    .flatten(),
+            ));
         }
-
-        #[cfg(feature = "vite")]
-        let child_hmr_clients = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-        #[cfg(feature = "vite")]
-        let child_hmr_store = child_hmr_clients.clone();
-        let child_sources = runtime_sources.clone();
-        #[allow(clippy::arc_with_non_send_sync)] // winit invokes this only on its event thread.
-        let factory: crate::FrameSourceFactory = Arc::new(move |window_key, options| {
-            #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
-            let mut applier = child_sources
-                .create(window_key, options)
-                .map_err(|error| error.to_string())?;
-            #[cfg(feature = "vite")]
-            if let Some(client) = child_sources
-                .start_hmr(&mut applier)
-                .map_err(|error| error.to_string())?
-            {
-                child_hmr_store.lock().unwrap().push(client);
+        #[cfg(feature = "headless")]
+        if headless_test {
+            if !self.application_extensions.is_empty() {
+                tracing::debug!(
+                    count = self.application_extensions.len(),
+                    "native application extensions are intentionally omitted from a headless GPUI behavior run"
+                );
             }
-            Ok(Box::new(applier))
-        });
-
-        let run_result =
-            run_windows_with_factory_and_extensions(sources, Some(factory), self.extensions)
-                .context(crate::error::ShellSnafu);
-        let trace_result =
+            let headless_windows = gpui_sources
+                .into_iter()
+                .map(|(key, controller, options, _)| (key, controller, options))
+                .collect();
+            let mut harness = crate::gpui_headless::GpuiHeadlessHarness::boot_application(
+                headless_windows,
+                gpui_windows,
+            )?;
+            let controller = test_controller
+                .clone()
+                .expect("headless behavior tests always install a controller");
+            // The scenario runtime derives its suite budget from every
+            // registered test and caps that budget at 300 seconds. Keep this
+            // native watchdog just beyond the same hard cap; a fixed ten
+            // seconds terminated healthy multi-test scenarios before they
+            // could publish their structured report.
+            let deadline = Instant::now() + Duration::from_secs(305);
+            while !controller.has_report() && Instant::now() < deadline {
+                harness.settle(1)?;
+                std::thread::sleep(Duration::from_millis(1));
+            }
             if recording_effects && let (Some(trace), Some(path)) = (&effect_trace, trace_path) {
                 trace
                     .write(&path)
-                    .map_err(|message| crate::Error::EffectTrace { message })
-            } else {
-                Ok(())
-            };
-        let outcome = run_result?;
-        trace_result?;
+                    .map_err(|message| crate::Error::EffectTrace { message })?;
+            }
+            finish_test_report(controller)?;
+            #[cfg(feature = "vite")]
+            hmr_clients.borrow_mut().clear();
+            #[cfg(feature = "devtools")]
+            drop(devtools_server);
+            services.finish()?;
+            return Ok(());
+        }
+        #[cfg(not(feature = "headless"))]
+        if headless_test {
+            return Err(crate::Error::GpuiShell {
+                message: "headless behavior tests require the `wabou-runtime/headless` feature"
+                    .into(),
+            });
+        }
+        run_gpui_windows(
+            gpui_sources,
+            gpui_windows,
+            self.application_extensions,
+            self.text_rendering_mode,
+        )?;
+        if recording_effects && let (Some(trace), Some(path)) = (&effect_trace, trace_path) {
+            trace
+                .write(&path)
+                .map_err(|message| crate::Error::EffectTrace { message })?;
+        }
         if let Some(controller) = test_controller {
             finish_test_report(controller)?;
         }
         #[cfg(feature = "vite")]
-        drop(hmr_clients);
-        #[cfg(feature = "vite")]
-        drop(child_hmr_clients);
+        hmr_clients.borrow_mut().clear();
         #[cfg(feature = "devtools")]
         drop(devtools_server);
         services.finish()?;
-        Ok(outcome)
+        Ok(())
     }
 }
 
-fn relaunch_current_process() -> crate::Result<()> {
+fn run_gpui_windows(
+    windows: Vec<(
+        wabou_shell::WindowResourceKey,
+        crate::gpui_controller::GpuiController,
+        WindowOptions,
+        Option<wabou_shell::WindowSizePersistence>,
+    )>,
+    gpui_windows: std::rc::Rc<crate::gpui_windows::GpuiApplicationWindows>,
+    mut application_extensions: Vec<Box<dyn wabou_shell::ApplicationExtension>>,
+    text_rendering_mode: TextRenderingMode,
+) -> crate::Result<()> {
+    let startup_error = Arc::new(std::sync::Mutex::new(None));
+    let reported_error = startup_error.clone();
+    let native_close_subscription = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let retained_close_subscription = native_close_subscription.clone();
+    let app_gpui_windows = gpui_windows.clone();
+    wabou_shell::application().run(move |cx| {
+        cx.set_text_rendering_mode(text_rendering_mode.gpui());
+        gpui_base::init(cx);
+        gpui_base::Theme::global_mut(cx).scrollbar = gpui_base::ScrollbarTheme::new().with_motion(
+            gpui_base::ScrollbarMotion::default()
+                .with_idle(std::time::Duration::from_millis(500))
+                .with_exit(std::time::Duration::from_millis(200)),
+        );
+        *retained_close_subscription.borrow_mut() =
+            Some(app_gpui_windows.observe_native_closes(cx));
+        let mut opened_windows = Vec::new();
+        for (window_key, controller, options, persistence) in windows {
+            match app_gpui_windows.open_controller(window_key, controller, options, persistence, cx)
+            {
+                Ok(window) => {
+                    opened_windows.push(window);
+                }
+                Err(error) => {
+                    *reported_error.lock().expect("GPUI startup error lock") =
+                        Some(error.to_string());
+                    cx.quit();
+                    return;
+                }
+            }
+        }
+        if let Err(message) = wabou_shell::install_application_extensions(
+            std::mem::take(&mut application_extensions),
+            &opened_windows,
+            cx,
+        ) {
+            *reported_error.lock().expect("GPUI startup error lock") = Some(message);
+            cx.quit();
+            return;
+        }
+        cx.activate(true);
+    });
+    drop(native_close_subscription);
+    match startup_error
+        .lock()
+        .expect("GPUI startup error lock")
+        .take()
+    {
+        Some(message) => Err(crate::Error::GpuiShell { message }),
+        None => Ok(()),
+    }
+}
+
+pub(crate) fn relaunch_current_process() -> crate::Result<()> {
     let executable = std::env::current_exe().map_err(|error| crate::Error::HostService {
         name: "application relaunch",
         message: format!("cannot resolve current executable: {error}"),
@@ -1247,26 +1397,26 @@ fn relaunch_current_process() -> crate::Result<()> {
     Ok(())
 }
 
-fn install_host_message_producers(
+fn install_gpui_host_message_producers(
     producers: &[HostMessageProducer],
     window_key: wabou_shell::WindowResourceKey,
-    applier: &Applier,
+    controller: &crate::gpui_controller::GpuiController,
 ) {
     for producer in producers {
-        producer(applier.host_message_context(window_key));
+        producer(controller.host_message_context(window_key));
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        HostBuilder, HostService, HostServiceContext, HostServiceHandle, HostServicesGuard,
-        JsonCapabilityContract, install_host_message_producers, managed_host_service,
-        start_host_services,
+        CapabilityContract, HostBuilder, HostService, HostServiceContext, HostServiceHandle,
+        HostServicesGuard, TextRenderingMode, install_gpui_host_message_producers,
+        managed_host_service, resolved_text_rendering_policy, start_host_services,
     };
     use crate::host_message::{HostMessagePayload, HostTaskTracker, host_message_channel};
     use crate::json_capability::{JsonCapability, invoke_json_method};
-    use crate::{Applier, HostMessageContext, JsRuntime};
+    use crate::{HostMessageContext, JsRuntime};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use wabou_bindgen::JsonMethod;
@@ -1277,6 +1427,32 @@ mod tests {
             behavior_test: false,
             headless: false,
         }
+    }
+
+    #[test]
+    fn text_rendering_defaults_to_gpui_platform_policy() {
+        assert_eq!(
+            HostBuilder::new().text_rendering_mode,
+            TextRenderingMode::PlatformDefault
+        );
+    }
+
+    #[test]
+    fn text_rendering_policy_records_forced_grayscale_conditions() {
+        assert_eq!(
+            resolved_text_rendering_policy(
+                TextRenderingMode::Subpixel,
+                wabou_shell::WindowBackground::Blurred,
+            ),
+            "grayscale-non-opaque-window"
+        );
+        assert_eq!(
+            resolved_text_rendering_policy(
+                TextRenderingMode::Grayscale,
+                wabou_shell::WindowBackground::Opaque,
+            ),
+            "grayscale"
+        );
     }
 
     #[derive(serde::Deserialize)]
@@ -1763,9 +1939,46 @@ mod tests {
     }
 
     #[test]
+    fn json_capability_can_be_awaited_through_an_extracted_method() {
+        let runtime = JsRuntime::new().expect("runtime");
+        runtime
+            .mount_capability("typed", |ctx, object| {
+                let capability = JsonCapability { ctx, object };
+                capability.method(JsonMethod::no_request("agents"), |(): ()| async move {
+                    Ok::<_, String>(vec!["agent-1"])
+                })
+            })
+            .expect("mount JSON capability");
+        runtime
+            .with(|ctx| {
+                ctx.eval::<(), _>(
+                    r#"
+                    globalThis.capabilityResult = undefined;
+                    async function load() {
+                      const capability = __wabou_capabilities.typed;
+                      const method = capability.agents;
+                      const raw = await method.call(capability);
+                      globalThis.capabilityResult = JSON.parse(raw).value[0];
+                    }
+                    void load();
+                    "#,
+                )
+            })
+            .expect("invoke extracted JSON method");
+        while runtime.poll_async_runtime() {}
+        assert_eq!(
+            runtime
+                .with(|ctx| ctx.eval::<Option<String>, _>("globalThis.capabilityResult"))
+                .expect("read JSON capability result")
+                .as_deref(),
+            Some("agent-1")
+        );
+    }
+
+    #[test]
     fn json_capability_publishes_the_shared_abi_version() {
-        const CONTRACT: JsonCapabilityContract = JsonCapabilityContract::new("versioned", 7);
-        let host = HostBuilder::new().json_capability(CONTRACT, |_capability| Ok(()));
+        const CONTRACT: CapabilityContract = CapabilityContract::new("versioned", 7);
+        let host = HostBuilder::new().capability(CONTRACT, |_capability| Ok(()));
         let runtime = JsRuntime::new().expect("runtime");
 
         for install in host.capabilities {
@@ -1886,12 +2099,14 @@ mod tests {
             });
         });
         let runtime = JsRuntime::new().unwrap();
-        let applier =
-            Applier::from_runtime(runtime, vello::peniko::Color::from_rgb8(0x00, 0x00, 0x00));
-        install_host_message_producers(
+        let window_key = wabou_shell::WindowResourceKey::from_parts(3, 1).unwrap();
+        let controller = crate::gpui_controller::GpuiController::new(
+            crate::runtime_session::RuntimeSession::new(runtime, window_key),
+        );
+        install_gpui_host_message_producers(
             &builder.host_message_producers,
-            wabou_shell::WindowResourceKey::from_parts(3, 1).unwrap(),
-            &applier,
+            window_key,
+            &controller,
         );
         started_rx
             .recv_timeout(std::time::Duration::from_secs(1))
@@ -1900,7 +2115,7 @@ mod tests {
         assert_eq!(context.window_key().into_parts(), (3, 1));
         assert!(!context.is_cancelled());
 
-        drop(applier);
+        drop(controller);
 
         stopped_rx
             .recv_timeout(std::time::Duration::from_secs(1))

@@ -10,8 +10,6 @@ import {
   Image,
   Input,
   mount,
-  PrimitiveButton,
-  PrimitivePopover,
   ScrollArea,
   Sidebar,
   SidebarContent,
@@ -31,10 +29,14 @@ import {
   type WabouPointerEvent,
 } from "@wabou/ui";
 import {
+  Button as PrimitiveButton,
+  Popover as PrimitivePopover,
+} from "@wabou/ui/primitives";
+import {
   createEffect,
   createMemo,
   createSignal,
-  For,
+  For as ForValue,
   type JSX,
   onCleanup,
   onSettled,
@@ -407,7 +409,7 @@ function App() {
           onInput={(event) => setSocket(event.currentTarget.value)}
         />
         <Toolbar aria-label="Debug overlay layers" class="flex-none">
-          <For
+          <ForValue
             each={
               [
                 ["layout", "Bounds"],
@@ -424,7 +426,7 @@ function App() {
                 {label}
               </ToolbarToggle>
             )}
-          </For>
+          </ForValue>
         </Toolbar>
         <Button
           variant="secondary"
@@ -605,7 +607,7 @@ function App() {
                   <Badge variant="secondary">{frames().length}</Badge>
                 </View>
                 <ScrollArea class="flex-1 min-h-0" contentClass="px-2">
-                  <For each={frames()} keyed={false}>
+                  <ForValue each={frames()} keyed={false}>
                     {(frame) => (
                       <View class="h-8 flex-none flex items-center gap-3 border-b border-subtle text-xs font-mono">
                         <Text
@@ -628,7 +630,7 @@ function App() {
                         <Text class="text-muted">{frame().byteLen} bytes</Text>
                       </View>
                     )}
-                  </For>
+                  </ForValue>
                 </ScrollArea>
               </View>
             </Show>
@@ -696,13 +698,13 @@ function App() {
                       </Panel>
                       <Panel title="Classes">
                         <View class="flex flex-wrap gap-1">
-                          <For each={node().classes}>
+                          <ForValue each={node().classes}>
                             {(value) => (
-                              <Text class="px-2 py-1 rounded bg-control text-xs text-warning-primary">
+                              <Text class="px-2 py-1 rounded bg-control text-xs text-muted">
                                 .{value}
                               </Text>
                             )}
-                          </For>
+                          </ForValue>
                         </View>
                       </Panel>
                       <Panel title="Clip Coordinates">
@@ -713,14 +715,14 @@ function App() {
                             "—",
                           )}
                         />
-                        <For each={node().clip?.chain ?? []}>
+                        <ForValue each={node().clip?.chain ?? []}>
                           {(clip) => (
                             <Row
                               label={`${clip.kind} #${clip.nodeId}`}
                               value={clipLabel(clip)}
                             />
                           )}
-                        </For>
+                        </ForValue>
                         <Row
                           label="effective"
                           value={optionalClipLabel(
@@ -759,16 +761,16 @@ function App() {
                     <TabsContent value="styles" class="min-h-0">
                       <Show when={(node().styleDiagnostics?.length ?? 0) > 0}>
                         <Panel title="Style diagnostics">
-                          <For each={node().styleDiagnostics ?? []}>
+                          <ForValue each={node().styleDiagnostics ?? []}>
                             {(diagnostic) => (
                               <Row label="rejected" value={diagnostic} />
                             )}
-                          </For>
+                          </ForValue>
                         </Panel>
                       </Show>
                       <Show when={(node().styleCascade?.length ?? 0) > 0}>
                         <Panel title="Style cascade">
-                          <For each={node().styleCascade ?? []}>
+                          <ForValue each={node().styleCascade ?? []}>
                             {(entry) => (
                               <Row
                                 label={entry.property}
@@ -782,24 +784,24 @@ function App() {
                                 }
                               />
                             )}
-                          </For>
+                          </ForValue>
                         </Panel>
                       </Show>
                       <Panel title="Computed">
-                        <For each={Object.entries(node().computed)}>
+                        <ForValue each={Object.entries(node().computed)}>
                           {([name, value]) => (
                             <Row label={name} value={String(value ?? "—")} />
                           )}
-                        </For>
+                        </ForValue>
                       </Panel>
                     </TabsContent>
                     <TabsContent value="semantics" class="min-h-0">
                       <Panel title="Attributes">
-                        <For each={node().attrs}>
+                        <ForValue each={node().attrs}>
                           {([name, value]) => (
                             <Row label={name} value={value} />
                           )}
-                        </For>
+                        </ForValue>
                       </Panel>
                       <Panel title="Events">
                         <Row
@@ -943,7 +945,7 @@ function ValidationPanel(props: {
             }
           >
             <View class="flex flex-col">
-              <For each={report().issues}>
+              <ForValue each={report().issues}>
                 {(issue) => (
                   <PrimitiveButton
                     unstyled
@@ -975,7 +977,7 @@ function ValidationPanel(props: {
                     </View>
                   </PrimitiveButton>
                 )}
-              </For>
+              </ForValue>
             </View>
           </Show>
         )}

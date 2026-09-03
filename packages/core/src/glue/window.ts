@@ -20,10 +20,8 @@ export interface CreateWindowOptions {
   resizable?: boolean;
   /** Show native window-manager borders and title bar. */
   decorations?: boolean;
-  /** Preserve rendered alpha when the platform compositor supports it. */
-  transparent?: boolean;
-  /** Select a renderer compiled into the Rust host. */
-  renderer?: "vello" | "skia";
+  /** Native compositor material visible through transparent app content. */
+  background?: "opaque" | "transparent" | "blurred" | "mica" | "micaAlt";
   /** Initial native stacking request. Wayland generally ignores non-normal levels. */
   windowLevel?: "alwaysOnBottom" | "normal" | "alwaysOnTop";
   /** Allow pointer input to pass through this native window where supported. */

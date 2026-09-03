@@ -83,6 +83,19 @@ async function pollUntil(read, matches, options = {}, beforeRead) {
 		await new Promise((resolve) => setTimeout(resolve, Math.min(interval, remaining, stabilityRemaining)));
 	}
 }
+/** Retry a host action until one projection accepts it.
+*
+* A semantic query and the following native action can observe adjacent UI
+* projections. Retrying only rejected actions closes that race without ever
+* repeating an action that the host has already handled.
+*/
+async function retryUntilHandled(action, options = {}) {
+	const wait = resolvePollOptions(options);
+	return (await pollUntil(action, Boolean, {
+		...wait,
+		stableFor: 0
+	})).matched;
+}
 //#endregion
 //#region src/replay.ts
 function locatorForAction(page, action) {
@@ -104,12 +117,20 @@ function locatorForAction(page, action) {
 	});
 }
 /** Execute a recorded trace against explicit page and window capabilities. */
-async function replayActions(actions, page, window, assertLocator, assertWindow) {
-	for (const action of actions) if (action.action === "respondToEffect") page.effects.respond(action.operation, action.result);
+async function replayActions(actions, page, window, files, assertLocator, assertWindow) {
+	const fixturePaths = /* @__PURE__ */ new Map();
+	const remapFixturePaths = (value) => {
+		if (typeof value === "string") return fixturePaths.get(value) ?? value;
+		if (Array.isArray(value)) return value.map(remapFixturePaths);
+		if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, remapFixturePaths(item)]));
+		return value;
+	};
+	for (const action of actions) if (action.action === "writeTextFile") fixturePaths.set(action.path, files.writeText(action.relativePath, action.contents));
+	else if (action.action === "respondToEffect") page.effects.respond(action.operation, remapFixturePaths(action.result));
 	else if (action.action === "nativeClose") await window.nativeClose(action.windowId, action.platform);
 	else if (action.action === "showWindow") await window.show(action.windowId);
 	else if (action.action === "resizeWindow") await window.resize(action.windowId, action.width, action.height);
-	else if (action.action === "fileDrop") await window.fileDrop(action.windowId, action.phase, action.paths);
+	else if (action.action === "fileDrop") await window.fileDrop(action.windowId, action.phase, action.paths.map((path) => fixturePaths.get(path) ?? path));
 	else if (action.action === "clickByRole") await locatorForAction(page, action).click(action.wait);
 	else if (action.action === "waitForByRole") await locatorForAction(page, action).waitFor(action.wait);
 	else if (action.action === "assertByRole") await assertLocator(locatorForAction(page, action), action);
@@ -135,7 +156,23 @@ async function replayActions(actions, page, window, assertLocator, assertWindow)
 //#region src/timeout.ts
 const MAX_TEST_TIMEOUT = 6e4;
 const DEFAULT_TEST_TIMEOUT = 5e3;
-const SUITE_TIMEOUT = 6e4;
+const MAX_SUITE_TIMEOUT = 3e5;
+const SUITE_TIMEOUT_OVERHEAD = 5e3;
+/**
+* Bound a complete scenario by the tests it actually registered.
+*
+* A fixed suite timeout makes a healthy, larger scenario fail merely because
+* it contains more independently bounded tests. The aggregate remains capped
+* so a broken runner cannot keep the native host alive indefinitely.
+*/
+function suiteTimeout(testTimeouts) {
+	let timeout = SUITE_TIMEOUT_OVERHEAD;
+	for (const test of testTimeouts) {
+		timeout += test;
+		if (timeout >= 3e5) return MAX_SUITE_TIMEOUT;
+	}
+	return timeout;
+}
 function testTimeout(value) {
 	const timeout = value ?? 5e3;
 	if (!Number.isFinite(timeout) || timeout <= 0 || timeout > 6e4) throw new RangeError(`test timeout must be a finite number between 1 and ${MAX_TEST_TIMEOUT}ms`);
@@ -292,8 +329,8 @@ function createPage(windowId, scope = []) {
 				if (!await capability().inputByRole(windowId.lo, windowId.hi, role, options.name, JSON.stringify(value), index ?? null, encodedScope)) return false;
 				return true;
 			};
-			const input = async (value) => {
-				if (!await sendInput(value)) throw new Error(`no enabled ${locatorLabel}`);
+			const input = async (value, wait) => {
+				if (!await retryUntilHandled(() => sendInput(value), wait)) throw new Error(`no enabled ${locatorLabel}`);
 			};
 			const probe = async () => {
 				return decodeLocatorQuery(await capability().queryByRole(windowId.lo, windowId.hi, role, options.name, index ?? null, encodedScope), description, index);
@@ -359,7 +396,7 @@ function createPage(windowId, scope = []) {
 						wait
 					});
 					await waitUntilActionable(wait);
-					if (!await capability().clickByRole(windowId.lo, windowId.hi, role, options.name, index ?? null, encodedScope)) throw new Error(`no enabled ${locatorLabel}`);
+					if (!await retryUntilHandled(() => capability().clickByRole(windowId.lo, windowId.hi, role, options.name, index ?? null, encodedScope), wait)) throw new Error(`no enabled ${locatorLabel}`);
 				},
 				async dragBy(deltaX, deltaY, assertionOptions) {
 					validateInputDeltas("drag", deltaX, deltaY);
@@ -383,7 +420,7 @@ function createPage(windowId, scope = []) {
 						type: "drag",
 						deltaX,
 						deltaY
-					});
+					}, wait);
 				},
 				async press(key, modifiers = {}, assertionOptions) {
 					validateKey(key);
@@ -408,7 +445,7 @@ function createPage(windowId, scope = []) {
 						type: "key",
 						key,
 						modifiers: bits
-					});
+					}, wait);
 				},
 				async type(text, assertionOptions) {
 					const wait = resolvePollOptions(assertionOptions);
@@ -429,7 +466,7 @@ function createPage(windowId, scope = []) {
 					await input({
 						type: "text",
 						text
-					});
+					}, wait);
 				},
 				async paste(text, assertionOptions) {
 					const wait = resolvePollOptions(assertionOptions);
@@ -450,7 +487,7 @@ function createPage(windowId, scope = []) {
 					await input({
 						type: "paste",
 						text
-					});
+					}, wait);
 				},
 				async ime(text, assertionOptions) {
 					const wait = resolvePollOptions(assertionOptions);
@@ -471,7 +508,7 @@ function createPage(windowId, scope = []) {
 					await input({
 						type: "ime",
 						text
-					});
+					}, wait);
 				},
 				async wheel(deltaY, deltaX = 0, assertionOptions) {
 					validateInputDeltas("wheel", deltaX, deltaY);
@@ -491,11 +528,11 @@ function createPage(windowId, scope = []) {
 						wait
 					});
 					await waitUntilPresent(wait);
-					if (!await sendInput({
+					if (!await retryUntilHandled(() => sendInput({
 						type: "wheel",
 						deltaX,
 						deltaY
-					})) throw new Error(`cannot wheel ${locatorLabel}`);
+					}), wait)) throw new Error(`cannot wheel ${locatorLabel}`);
 				},
 				async waitFor(assertionOptions = {}) {
 					const wait = resolvePollOptions(assertionOptions);
@@ -600,6 +637,12 @@ const context = {
 		const result = JSON.parse(capability().writeTextFile(relativePath, contents));
 		if (result.error) throw new Error(result.error);
 		if (!result.path) throw new Error("native test fixture omitted its path");
+		trace.push({
+			action: "writeTextFile",
+			relativePath,
+			contents,
+			path: result.path
+		});
 		return result.path;
 	} }
 };
@@ -724,7 +767,7 @@ async function assertLocatorEventually(target, assertion, options = {}) {
 /** Register a previously recorded action trace as a behavior test. */
 function replay(actions) {
 	test("replay action trace", async ({ window }) => {
-		await replayActions(actions, context.page, window, replayLocatorAssertion, replayWindowAssertion);
+		await replayActions(actions, context.page, window, context.files, replayLocatorAssertion, replayWindowAssertion);
 	}, { timeout: replayTimeout(actions) });
 }
 async function replayLocatorAssertion(locator, action) {
@@ -1024,53 +1067,60 @@ async function run() {
 		traceEnd: 0,
 		durationMs: 0
 	});
-	if (registrationErrors.length === 0 && tests.length > 0) try {
-		await withSuiteTimeout(SUITE_TIMEOUT, async () => {
-			for (const entry of tests) {
-				const traceStart = trace.length;
-				const startedAt = performance.now();
-				activeTest = {
-					name: entry.name,
-					traceStart,
-					startedAt
-				};
-				try {
-					await withTestTimeout(entry.name, entry.timeout, () => entry.body(context));
-					const pendingEffects = capability().takePendingEffectFixtures();
-					if (pendingEffects !== "") throw new Error(`native effect fixture was not consumed: ${pendingEffects}`);
-					results.push({
+	if (registrationErrors.length === 0 && tests.length > 0) {
+		const suiteTimeoutMs = suiteTimeout(tests.map((entry) => entry.timeout));
+		console.info(`[wabou-test] running ${tests.length} tests (suite budget ${suiteTimeoutMs}ms)`);
+		try {
+			await withSuiteTimeout(suiteTimeoutMs, async () => {
+				for (const entry of tests) {
+					const traceStart = trace.length;
+					const startedAt = performance.now();
+					activeTest = {
 						name: entry.name,
-						passed: true,
 						traceStart,
-						traceEnd: trace.length,
-						durationMs: performance.now() - startedAt
-					});
-				} catch (error) {
-					capability().takePendingEffectFixtures();
-					results.push({
-						name: entry.name,
-						passed: false,
-						error: error instanceof Error ? `${error.message}${error.stack ? `\n${error.stack}` : ""}` : String(error),
-						traceStart,
-						traceEnd: trace.length,
-						durationMs: performance.now() - startedAt
-					});
-					if (error instanceof TestTimeoutError) break;
-				} finally {
-					activeTest = void 0;
+						startedAt
+					};
+					console.info(`[wabou-test] → ${entry.name}`);
+					try {
+						await withTestTimeout(entry.name, entry.timeout, () => entry.body(context));
+						const pendingEffects = capability().takePendingEffectFixtures();
+						if (pendingEffects !== "") throw new Error(`native effect fixture was not consumed: ${pendingEffects}`);
+						results.push({
+							name: entry.name,
+							passed: true,
+							traceStart,
+							traceEnd: trace.length,
+							durationMs: performance.now() - startedAt
+						});
+						console.info(`[wabou-test] ✓ ${entry.name} (${Math.round(performance.now() - startedAt)}ms)`);
+					} catch (error) {
+						capability().takePendingEffectFixtures();
+						results.push({
+							name: entry.name,
+							passed: false,
+							error: error instanceof Error ? `${error.message}${error.stack ? `\n${error.stack}` : ""}` : String(error),
+							traceStart,
+							traceEnd: trace.length,
+							durationMs: performance.now() - startedAt
+						});
+						console.error(`[wabou-test] ✗ ${entry.name}: ${error instanceof Error ? error.message : String(error)}`);
+						if (error instanceof TestTimeoutError) break;
+					} finally {
+						activeTest = void 0;
+					}
 				}
-			}
-		}, () => activeTest?.name);
-	} catch (error) {
-		if (!(error instanceof SuiteTimeoutError)) throw error;
-		results.push({
-			name: activeTest?.name ?? "test suite",
-			passed: false,
-			error: `${error.message}${error.stack ? `\n${error.stack}` : ""}`,
-			traceStart: activeTest?.traceStart ?? trace.length,
-			traceEnd: trace.length,
-			durationMs: activeTest === void 0 ? SUITE_TIMEOUT : performance.now() - activeTest.startedAt
-		});
+			}, () => activeTest?.name);
+		} catch (error) {
+			if (!(error instanceof SuiteTimeoutError)) throw error;
+			results.push({
+				name: activeTest?.name ?? "test suite",
+				passed: false,
+				error: `${error.message}${error.stack ? `\n${error.stack}` : ""}`,
+				traceStart: activeTest?.traceStart ?? trace.length,
+				traceEnd: trace.length,
+				durationMs: activeTest === void 0 ? suiteTimeoutMs : performance.now() - activeTest.startedAt
+			});
+		}
 	}
 	const report = {
 		version: 1,

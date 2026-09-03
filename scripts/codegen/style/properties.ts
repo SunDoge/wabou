@@ -40,8 +40,6 @@ add(
     "display",
     "flex-direction",
     "justify-content",
-    "justify-items",
-    "justify-self",
     "align-items",
     "align-content",
     "align-self",
@@ -50,17 +48,13 @@ add(
     "overflow",
     "overflow-x",
     "overflow-y",
-    "box-sizing",
     "white-space",
     "text-overflow",
     "text-align",
     "pointer-events",
-    "user-select",
     "font-family",
     "cursor",
-    "outline-style",
-    "grid-auto-flow",
-    "contain",
+    "user-select",
   ],
   { string: true, number: false },
 );
@@ -103,16 +97,18 @@ add(
 add(
   [
     "border-radius",
+    "border-top-left-radius",
+    "border-top-right-radius",
+    "border-bottom-right-radius",
+    "border-bottom-left-radius",
     "border-width",
     "border-top-width",
     "border-right-width",
     "border-bottom-width",
     "border-left-width",
     "font-size",
-    "outline-width",
-    "outline-offset",
-    "transform-origin-x",
-    "transform-origin-y",
+    "filter-blur",
+    "backdrop-blur",
   ],
   { string: true, number: true, typed: [PX] },
 );
@@ -144,12 +140,16 @@ add(["font-style"], {
   string: true,
   number: false,
 });
+add(["text-decoration-line"], {
+  string: true,
+  number: false,
+});
 add(["letter-spacing"], {
   string: true,
   number: true,
   typed: [PX],
 });
-add(["background", "background-color", "color", "border-color", "outline-color"], {
+add(["background", "background-color", "color", "border-color"], {
   string: true,
   number: false,
   typed: [COLOR],
@@ -159,20 +159,12 @@ const missing = Object.keys(matrix.supported).filter(
   (property) =>
     !(property in contract) &&
     ![
-      "flex",
       "grid-template-columns",
       "grid-template-rows",
-      "grid-template-areas",
       "grid-template",
-      "transform",
       "box-shadow",
       "gap-x",
       "gap-y",
-      "transform-component",
-      "transform-translate-x",
-      "transform-translate-y",
-      "transform-scale",
-      "transform-rotate",
     ].includes(property),
 );
 if (missing.length) {

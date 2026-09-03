@@ -4,7 +4,6 @@ import { dispatchEvent, writer } from "@wabou/core/renderer";
 import { createRoot, createSignal, flush } from "solid-js";
 import { resolveButtonFocusOrder } from "./button";
 import {
-  CodeEditor,
   createButton,
   createFocus,
   createFocusWithin,
@@ -12,8 +11,10 @@ import {
   createPress,
   createShortcuts,
   createTabs,
+  Editor,
   Icon,
   Image,
+  NativeWidget,
   PasswordInput,
   RichText,
   Svg,
@@ -386,6 +387,7 @@ describe("host primitives", () => {
     };
     try {
       Text({});
+      Text({ maxLines: 1 });
       Text({ maxLines: 2 });
       RichText({});
       Svg({ source: "<svg/>" });
@@ -397,13 +399,16 @@ describe("host primitives", () => {
     }
     expect(semantics).toEqual([
       ["role", "label"],
-      ["textBehavior", "3"],
+      ["textBehavior", "1"],
       ["textMaxLines", "0"],
+      ["role", "label"],
+      ["textBehavior", "3"],
+      ["textMaxLines", "1"],
       ["role", "label"],
       ["textBehavior", "1"],
       ["textMaxLines", "2"],
       ["role", "label"],
-      ["textBehavior", "7"],
+      ["textBehavior", "5"],
       ["textMaxLines", "0"],
       ["role", "img"],
       ["role", "img"],
@@ -445,7 +450,7 @@ describe("host primitives", () => {
       TextInput({});
       TextArea({});
       PasswordInput({ secret: "test-secret", focusOrder: 4 });
-      CodeEditor({ "aria-label": "Config", disabled: true });
+      Editor({ "aria-label": "Config", disabled: true });
     } finally {
       writer.setAttribute = setAttribute;
       writer.setInteractionPolicy = setInteractionPolicy;
@@ -463,43 +468,123 @@ describe("host primitives", () => {
     expect(focusOrders).toEqual([0, 0, 4, -1]);
   });
 
-  test("feeds native selection and commits through CodeMirror syntax state", () =>
+  test("projects generic editor state and accepts native text commits", () =>
     createRoot((dispose) => {
-      const configs: string[] = [];
-      const setWidgetConfig = writer.setWidgetConfig.bind(writer);
-      writer.setWidgetConfig = (_id, json) => configs.push(json);
+      const attributes: Array<[string, string]> = [];
+      const values: string[] = [];
+      const setAttribute = writer.setAttribute.bind(writer);
+      writer.setAttribute = (_id, name, value) => {
+        if (name === "language" || name === "value") {
+          attributes.push([name, value]);
+        }
+      };
       try {
-        const editor = CodeEditor({
-          "aria-label": "Config",
+        const editor = Editor({
+          "aria-label": "Source",
           value: '{"enabled":true}',
           language: "json",
+          onInput: (event) => values.push(event.currentTarget.value),
         }) as unknown as import("@wabou/core/renderer").Handle;
-        flush();
-        dispatchEvent(editor.id, EVENT_CODE.textselectionchange, JSON.stringify({
-          anchor: 0,
-          head: '{"enabled":true}'.length,
-          text: '{"enabled":true}',
-          kind: "simple",
-        }));
-        dispatchEvent(editor.id, EVENT_CODE.imecommit, JSON.stringify({
-          data: '{"enabled":false,"port":9090}',
-          source: "keyboard",
-        }));
-        flush();
+        dispatchEvent(
+          editor.id,
+          EVENT_CODE.input,
+          JSON.stringify({ value: "next" }),
+        );
+      } finally {
+        writer.setAttribute = setAttribute;
+        dispose();
+      }
+
+      expect(attributes).toContainEqual(["value", '{"enabled":true}']);
+      expect(attributes).toContainEqual(["language", "json"]);
+      expect(values).toEqual(["next"]);
+    }));
+
+  test("projects typed native widget config and numeric changes", () =>
+    createRoot((dispose) => {
+      const configs: string[] = [];
+      const values: Array<number | string> = [];
+      const setWidgetConfig = writer.setWidgetConfig.bind(writer);
+      writer.setWidgetConfig = (_id, config) => configs.push(config);
+      try {
+        const meter = NativeWidget({
+          tag: "meter",
+          role: "slider",
+          config: { min: 0, max: 10, value: 4 },
+          onChange: (event) => values.push(event.value),
+          onInput: (event) => values.push(event.currentTarget.value),
+        }) as unknown as import("@wabou/core/renderer").Handle;
+        dispatchEvent(
+          meter.id,
+          EVENT_CODE.change,
+          JSON.stringify({ value: 7 }),
+        );
+        dispatchEvent(
+          meter.id,
+          EVENT_CODE.input,
+          JSON.stringify({ value: "native text" }),
+        );
       } finally {
         writer.setWidgetConfig = setWidgetConfig;
         dispose();
       }
 
-      const syntax = JSON.parse(configs.at(-1) ?? "null").syntax;
-      expect(syntax).toMatchObject({
-        language: "json",
-        offsetEncoding: "utf16",
-      });
-      expect(
-        syntax.ranges.map((range: { kind: string }) => range.kind),
-      ).toContain("number");
+      expect(configs).toEqual(['{"min":0,"max":10,"value":4}']);
+      expect(values).toEqual([7, "native text"]);
     }));
+
+  test("rejects an empty native widget tag", () => {
+    expect(() => NativeWidget({ tag: "", config: {} })).toThrow(TypeError);
+  });
+
+  test("batches native editor focus, selection, and history commands through its handle", () => {
+    const calls: Array<readonly [string, ...number[]]> = [];
+    const focusNode = writer.focusNode.bind(writer);
+    const blurNode = writer.blurNode.bind(writer);
+    const setTextSelection = writer.setTextSelection.bind(writer);
+    const textCommand = writer.textCommand.bind(writer);
+    writer.focusNode = () => {
+      calls.push(["focus"]);
+    };
+    writer.blurNode = () => {
+      calls.push(["blur"]);
+    };
+    writer.setTextSelection = (_id, anchor, head) => {
+      calls.push(["selection", anchor, head]);
+    };
+    writer.textCommand = (_id, command) => {
+      calls.push(["command", command]);
+    };
+    try {
+      let handle: import("@wabou/core/renderer").Handle | undefined;
+      Editor({
+        "aria-label": "Source",
+        ref: (node) => {
+          handle = node;
+        },
+      });
+      handle?.focus();
+      handle?.blur();
+      handle?.setTextSelection(2, 7);
+      handle?.selectAll();
+      handle?.undo();
+      handle?.redo();
+    } finally {
+      writer.focusNode = focusNode;
+      writer.blurNode = blurNode;
+      writer.setTextSelection = setTextSelection;
+      writer.textCommand = textCommand;
+    }
+
+    expect(calls).toEqual([
+      ["focus"],
+      ["blur"],
+      ["selection", 2, 7],
+      ["command", 1],
+      ["command", 2],
+      ["command", 3],
+    ]);
+  });
 
   test("create explicit view, text, image, and editor host nodes", () =>
     createRoot((dispose) => {
@@ -541,9 +626,11 @@ describe("host primitives", () => {
     const classes: Array<[string, string]> = [];
     const attributes: Array<[string, string]> = [];
     const style: Array<[string, string]> = [];
+    const typedStyle: Array<[string, number, number]> = [];
     const setAttribute = writer.setAttribute.bind(writer);
     const setClassName = writer.setClassName.bind(writer);
     const setStyle = writer.setStyle.bind(writer);
+    const setStyleValue = writer.setStyleValue.bind(writer);
     writer.setClassName = (_id, value) => {
       classes.push(["class", value]);
     };
@@ -554,6 +641,9 @@ describe("host primitives", () => {
     };
     writer.setStyle = (_id, name, value) => {
       style.push([name, value]);
+    };
+    writer.setStyleValue = (_id, name, kind, value) => {
+      typedStyle.push([name, kind, value]);
     };
     try {
       createRoot((dispose) => {
@@ -569,6 +659,7 @@ describe("host primitives", () => {
       writer.setAttribute = setAttribute;
       writer.setClassName = setClassName;
       writer.setStyle = setStyle;
+      writer.setStyleValue = setStyleValue;
     }
     expect(classes).toEqual([["class", "self-center shrink-0 text-accent"]]);
     expect(attributes).toEqual([
@@ -577,16 +668,18 @@ describe("host primitives", () => {
     ]);
     expect(style).toEqual(
       expect.arrayContaining([
-        ["display", "inline-flex"],
+        ["display", "flex"],
         ["align-items", "center"],
         ["justify-content", "center"],
         ["align-self", "center"],
         ["flex-shrink", "0"],
-        ["width", "14"],
-        ["height", "14"],
         ["line-height", "1"],
       ]),
     );
+    expect(typedStyle).toEqual([
+      ["width", 1, 14],
+      ["height", 1, 14],
+    ]);
   });
 
   test("Icon defaults to 1em when size is not provided", () => {
@@ -625,9 +718,16 @@ describe("host primitives", () => {
   test("Icon normalizes unitless string size to numeric px values", () => {
     const attributes: Array<[string, string]> = [];
     const setAttribute = writer.setAttribute.bind(writer);
+    const typedStyle: Array<[string, number, number]> = [];
+    const setStyleValue = writer.setStyleValue.bind(writer);
     writer.setAttribute = (_id, name, value) => {
       if (name === "width" || name === "height") {
         attributes.push([name, value]);
+      }
+    };
+    writer.setStyleValue = (_id, name, kind, value) => {
+      if (name === "width" || name === "height") {
+        typedStyle.push([name, kind, value]);
       }
     };
     try {
@@ -637,10 +737,15 @@ describe("host primitives", () => {
       });
     } finally {
       writer.setAttribute = setAttribute;
+      writer.setStyleValue = setStyleValue;
     }
     expect(attributes).toEqual([
       ["width", "17"],
       ["height", "17"],
+    ]);
+    expect(typedStyle).toEqual([
+      ["width", 1, 17],
+      ["height", 1, 17],
     ]);
   });
 
@@ -670,10 +775,17 @@ describe("host primitives", () => {
 
   test("Icon size updates when the prop changes", () => {
     const styles: Array<[string, string]> = [];
+    const typedStyles: Array<[string, number, number]> = [];
     const setStyle = writer.setStyle.bind(writer);
+    const setStyleValue = writer.setStyleValue.bind(writer);
     writer.setStyle = (_id, name, value) => {
       if (name === "width" || name === "height") {
         styles.push([name, value]);
+      }
+    };
+    writer.setStyleValue = (_id, name, kind, value) => {
+      if (name === "width" || name === "height") {
+        typedStyles.push([name, kind, value]);
       }
     };
     try {
@@ -686,13 +798,12 @@ describe("host primitives", () => {
           },
         });
         flush();
-        expect(styles).toEqual(
-          expect.arrayContaining([
-            ["width", "14"],
-            ["height", "14"],
-          ]),
-        );
+        expect(typedStyles).toEqual([
+          ["width", 1, 14],
+          ["height", 1, 14],
+        ]);
         styles.length = 0;
+        typedStyles.length = 0;
         setSize("1.5rem");
         flush();
         expect(styles).toEqual(
@@ -705,6 +816,7 @@ describe("host primitives", () => {
       });
     } finally {
       writer.setStyle = setStyle;
+      writer.setStyleValue = setStyleValue;
     }
   });
 

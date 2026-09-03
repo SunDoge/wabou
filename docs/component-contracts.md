@@ -100,12 +100,15 @@ assertInOverlayPlane(screen.getByRole("dialog"), "floating");
 
 These assertions inspect the authored protocol tree. They catch composition
 mistakes early, but they do not claim that layout or pixels are correct.
+`assertSingleSurfaceOwner` also rejects background, border, radius, shadow, and
+equivalent inline styles on descendants declaring `native-editor`; ownership
+metadata therefore cannot hide visual chrome on native content.
 
 ## Layout contract tests
 
-`wabou layout` evaluates the application through QuickJS, Style IR, real text
-measurement, and Taffy, then stops before AnyRender scene construction or GPU
-initialization:
+`wabou layout` evaluates the application through QuickJS and Style IR, then
+runs GPUI's real layout and prepaint pass in a hidden test window. It does not
+use the retired Winit/Vello implementation:
 
 ```bash
 wabou layout apps/gallery --out /tmp/gallery-layout.json \
@@ -169,14 +172,15 @@ defineLayoutFixtures({
     {
       width: 800,
       height: 600,
-      wrap: (content) => <View class="w-full p-6">{content}</View>,
+      wrap: (render) => <View class="w-full p-6">{render()}</View>,
     },
   ),
 });
 ```
 
 Select that entry from `defineWabouConfig` for a Vite mode, then run all cases
-through one release CLI and one QuickJS runtime:
+through one release CLI. Every fixture receives an isolated GPUI/QuickJS
+runtime so retained state cannot leak between cases:
 
 ```ts
 import { renderLayoutFixtures } from "@wabou/test/layout/node";
@@ -228,7 +232,7 @@ The Gallery regression command is the reference integration:
 # First run, after Rust changes, or before committing:
 bun run test:layout
 
-# Reuse the release CLI and compiled fixture bundle while editing TSX/styles:
+# Reuse the release CLI while rebuilding the small Vite fixture bundle:
 bun run test:layout:quick
 
 # Run only the affected fixture(s):
@@ -239,9 +243,12 @@ It compiles the fixture entry once and runs isolated high-risk components plus
 the existing component pages with the release CLI. On the current suite, the
 native evaluation of 85 fixtures is about 0.6 seconds after the bundle exists;
 the fixed QuickJS startup is paid once rather than once per component.
-`test:layout:quick` deliberately skips
-Vite and Rust builds, so use the full command after changing dependencies,
-generated package output, Rust, or the fixture registry itself.
+`test:layout:quick` deliberately skips Rust and package builds, but rebuilds the
+application fixture bundle so TSX and style edits cannot be tested against stale
+JavaScript. Pass `--skip-build` only when application and fixture sources are
+unchanged and an existing bundle is known to be current. Use the full command
+after changing dependencies, generated package output, Rust, or the fixture
+registry itself.
 
 The isolated reference fixtures cover `Sidebar`, `ScrollArea`, `Select`,
 `Dialog`, and `AdaptiveSplitPane`. They assert their component contracts using
@@ -256,10 +263,11 @@ Use the cheapest layer that can prove the property:
 
 1. Vitest component tests: state, events, roles and anatomy ownership.
 2. protocol/style tests: candidate resolution and computed declarations.
-3. TS layout contracts: QuickJS + Style IR + Taffy geometry, overflow and
-   collisions without a scene or GPU.
+3. TS layout contracts: QuickJS + Style IR + GPUI geometry, overflow and
+   collisions without a visible platform window.
 4. native layout fixtures: lower-level geometry, clipping and scroll ranges.
-5. headless captures: pixels, text containment and real native widgets.
+5. GPUI headless captures where the platform exposes a pixel renderer: pixels,
+   text containment and real native widgets.
 6. platform captures: backend-specific and HiDPI claims.
 
 Every reusable styled component should have a component test. Components that

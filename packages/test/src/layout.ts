@@ -15,6 +15,14 @@ export interface LayoutComputedStyle {
   readonly overflowX?: string | null;
   readonly overflowY?: string | null;
   readonly overlayPlane?: string;
+  /** Resolved text size in logical pixels, suitable for typography contracts. */
+  readonly fontSize?: number | null;
+  /** Resolved numeric text weight, after theme and font fallback resolution. */
+  readonly fontWeight?: number | null;
+  /** Resolved foreground and painted background used by visual contracts. */
+  readonly textColor?: string | null;
+  readonly background?: string | null;
+  readonly opacity?: number | null;
 }
 
 export interface LayoutSemanticProjection {
@@ -26,6 +34,16 @@ export interface LayoutTextMetrics {
   readonly source: "node" | "widget";
   readonly lineBox: LayoutRect;
   readonly baseline: number;
+}
+
+export interface LayoutClip {
+  readonly coordinateSpace: string;
+  readonly rect: LayoutRect;
+}
+
+export interface LayoutClipInfo {
+  readonly chain: readonly LayoutClip[];
+  readonly effective?: LayoutClip | null;
 }
 
 export interface LayoutSnapshotNode {
@@ -40,6 +58,8 @@ export interface LayoutSnapshotNode {
   readonly contentRect: LayoutRect;
   readonly styleDiagnostics: readonly string[];
   readonly semantic?: LayoutSemanticProjection | null;
+  /** Resolved native clipping published by DevTools. */
+  readonly clip?: LayoutClipInfo;
   readonly computed: LayoutComputedStyle;
 }
 
@@ -64,6 +84,8 @@ export interface LayoutQuery {
 export interface LayoutDiagnostic {
   readonly code:
     | "flow-sibling-overlap"
+    | "interactive-target-too-small"
+    | "low-text-contrast"
     | "style-diagnostic"
     | "text-overlap"
     | "visible-overflow";
@@ -79,7 +101,23 @@ export interface LayoutDiagnosticOptions {
   readonly within?: LayoutSnapshotNode;
 }
 
+export interface LayoutVisualDiagnosticOptions extends LayoutDiagnosticOptions {
+  /** WCAG-style contrast ratio used as a visual legibility floor. */
+  readonly minimumTextContrast?: number;
+  /** Minimum logical size of button-like controls. */
+  readonly minimumInteractiveTarget?: number;
+}
+
 export interface LayoutRectAssertionOptions {
+  readonly tolerance?: number;
+  readonly label?: string;
+}
+
+export interface LayoutTextStyleAssertionOptions {
+  /** Exact resolved logical font size expected by the component contract. */
+  readonly fontSize?: number;
+  /** Exact resolved numeric font weight expected by the component contract. */
+  readonly fontWeight?: number;
   readonly tolerance?: number;
   readonly label?: string;
 }
@@ -106,6 +144,34 @@ export function assertLayoutRectContains(
     throw new Error(
       `${options.label ?? "layout rect"} (${rectText(inner)}) is outside (${rectText(outer)})`,
     );
+  }
+}
+
+/**
+ * Assert typography after class resolution, Style IR application and native
+ * layout. This deliberately checks the completed layout node instead of source
+ * class names, so token and font-resolution regressions are visible to tests.
+ */
+export function assertLayoutTextStyle(
+  node: LayoutSnapshotNode,
+  options: LayoutTextStyleAssertionOptions,
+): void {
+  const tolerance = options.tolerance ?? 0.01;
+  const label = options.label ?? (layoutName(node) || node.text || "text node");
+  const checks = [
+    ["font size", node.computed.fontSize, options.fontSize],
+    ["font weight", node.computed.fontWeight, options.fontWeight],
+  ] as const;
+  for (const [property, actual, expected] of checks) {
+    if (expected === undefined) continue;
+    if (actual == null) {
+      throw new Error(`${label} omitted its resolved ${property}`);
+    }
+    if (Math.abs(actual - expected) > tolerance) {
+      throw new Error(
+        `${label} ${property}: expected ${expected}, received ${actual}`,
+      );
+    }
   }
 }
 
@@ -233,6 +299,41 @@ function attrs(node: LayoutSnapshotNode): Map<string, string> {
   return new Map(node.attrs);
 }
 
+function opaqueRgb(value: string | null | undefined): readonly number[] | null {
+  if (!value?.startsWith("#")) return null;
+  const hex = value.slice(1).toLowerCase();
+  if (hex.length === 3 || hex.length === 4) {
+    if (hex.length === 4 && hex[3] !== "f") return null;
+    return [...hex].map((part) => Number.parseInt(`${part}${part}`, 16));
+  }
+  if (hex.length === 8 && hex.slice(6) !== "ff") return null;
+  if (hex.length !== 6 && hex.length !== 8) return null;
+  return [0, 2, 4].map((offset) =>
+    Number.parseInt(hex.slice(offset, offset + 2), 16),
+  );
+}
+
+function relativeLuminance(rgb: readonly number[]): number {
+  const linear = rgb.map((channel) => {
+    const value = channel / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+/** Return the visual contrast ratio for two opaque hexadecimal colors. */
+export function layoutColorContrast(
+  foreground: string,
+  background: string,
+): number | undefined {
+  const foregroundRgb = opaqueRgb(foreground);
+  const backgroundRgb = opaqueRgb(background);
+  if (!foregroundRgb || !backgroundRgb) return undefined;
+  const first = relativeLuminance(foregroundRgb);
+  const second = relativeLuminance(backgroundRgb);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
 export function layoutRole(node: LayoutSnapshotNode): string {
   return node.semantic?.role ?? attrs(node).get("role") ?? "";
 }
@@ -267,11 +368,27 @@ function scopedNodes(
   return result;
 }
 
+function isAggregatedProtocolTextLeaf(
+  node: LayoutSnapshotNode,
+  nodes: ReadonlyMap<string, LayoutSnapshotNode>,
+): boolean {
+  const parent = node.parentId ? nodes.get(key(node.parentId)) : undefined;
+  return (
+    node.tag === "text" &&
+    node.rect.width === 0 &&
+    node.rect.height === 0 &&
+    !node.textMetrics &&
+    parent?.tag === "text"
+  );
+}
+
 export function queryLayoutNodes(
   snapshot: LayoutSnapshot,
   query: LayoutQuery,
 ): readonly LayoutSnapshotNode[] {
+  const nodes = new Map(snapshot.nodes.map((node) => [key(node.id), node]));
   return snapshot.nodes.filter((node) => {
+    if (isAggregatedProtocolTextLeaf(node, nodes)) return false;
     if (query.tag !== undefined && node.tag !== query.tag) return false;
     if (query.role !== undefined && layoutRole(node) !== query.role)
       return false;
@@ -369,7 +486,9 @@ function diagnosticNodeText(node: LayoutSnapshotNode): string {
   if (name) parts.push(`name=${JSON.stringify(compactText(name))}`);
   if (node.text) parts.push(`text=${JSON.stringify(compactText(node.text))}`);
   if (node.classes.length > 0)
-    parts.push(`class=${JSON.stringify(compactText(node.classes.join(" "), 120))}`);
+    parts.push(
+      `class=${JSON.stringify(compactText(node.classes.join(" "), 120))}`,
+    );
   parts.push(`rect=(${rectText(node.rect)})`);
   const overflowX = node.computed.overflowX ?? "Visible";
   const overflowY = node.computed.overflowY ?? "Visible";
@@ -403,6 +522,14 @@ export function visibleOverflowDiagnostics(
   const diagnostics: LayoutDiagnostic[] = [];
   for (const node of scopedNodes(snapshot, options.within)) {
     let parent = node.parentId ? nodes.get(key(node.parentId)) : undefined;
+    // GPUI shapes direct string children as one glyph run owned by the
+    // aggregate Text element. The protocol leaf remains inspectable for
+    // identity/debugging, but intentionally has no independent layout box.
+    // Treating its zero rect as painted geometry produces false overflow at
+    // the window origin for every correctly aggregated text row.
+    if (isAggregatedProtocolTextLeaf(node, nodes)) {
+      continue;
+    }
     while (parent) {
       if (
         (parent.computed.overflowX ?? "Visible") !== "Visible" ||
@@ -442,6 +569,45 @@ function overlaps(first: LayoutRect, second: LayoutRect, tolerance: number) {
     first.y + first.height > second.y + tolerance &&
     second.y + second.height > first.y + tolerance
   );
+}
+
+function intersectLayoutRects(
+  first: LayoutRect,
+  second: LayoutRect,
+): LayoutRect | undefined {
+  const x = Math.max(first.x, second.x);
+  const y = Math.max(first.y, second.y);
+  const right = Math.min(layoutRectRight(first), layoutRectRight(second));
+  const bottom = Math.min(layoutRectBottom(first), layoutRectBottom(second));
+  if (right <= x || bottom <= y) return undefined;
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+/** Visible border-box bounds after axis-aligned native clipping. */
+function visibleLayoutRect(node: LayoutSnapshotNode): LayoutRect | undefined {
+  const clip = node.clip;
+  if (!clip) return node.rect;
+  const effective = clip.effective;
+  if (
+    effective &&
+    (effective.coordinateSpace === "window-logical" ||
+      effective.coordinateSpace === "layout-window-logical")
+  ) {
+    return intersectLayoutRects(node.rect, effective.rect);
+  }
+  let visible: LayoutRect | undefined = node.rect;
+  for (const ancestor of clip.chain) {
+    if (
+      ancestor.coordinateSpace !== "window-logical" &&
+      ancestor.coordinateSpace !== "layout-window-logical"
+    )
+      continue;
+    visible = visible
+      ? intersectLayoutRects(visible, ancestor.rect)
+      : undefined;
+    if (!visible) return undefined;
+  }
+  return visible;
 }
 
 /** Opt-in collision check for normal-flow siblings. */
@@ -500,9 +666,13 @@ export function textCollisionDiagnostics(
   for (let index = 0; index < textNodes.length; index += 1) {
     for (const second of textNodes.slice(index + 1)) {
       const first = textNodes[index];
+      const firstVisible = visibleLayoutRect(first);
+      const secondVisible = visibleLayoutRect(second);
       if (
         first.computed.overlayPlane !== second.computed.overlayPlane ||
-        !overlaps(first.rect, second.rect, tolerance)
+        !firstVisible ||
+        !secondVisible ||
+        !overlaps(firstVisible, secondVisible, tolerance)
       )
         continue;
       diagnostics.push({
@@ -527,6 +697,76 @@ export function styleDiagnostics(
       message,
     })),
   );
+}
+
+/**
+ * Opt-in visual legibility checks over the resolved native scene contract.
+ * These intentionally consume computed colors and geometry rather than source
+ * class names, so theme changes and component composition are covered too.
+ */
+export function visualQualityDiagnostics(
+  snapshot: LayoutSnapshot,
+  options: LayoutVisualDiagnosticOptions = {},
+): readonly LayoutDiagnostic[] {
+  const minimumContrast = options.minimumTextContrast ?? 4.5;
+  const minimumTarget = options.minimumInteractiveTarget ?? 28;
+  const nodes = new Map(snapshot.nodes.map((node) => [key(node.id), node]));
+  const diagnostics: LayoutDiagnostic[] = [];
+  for (const node of scopedNodes(snapshot, options.within)) {
+    const nodeAttrs = attrs(node);
+    if (nodeAttrs.get("aria-hidden") === "true") continue;
+    if (node.tag === "text" && node.text?.trim()) {
+      const foreground = node.computed.textColor;
+      let background: string | null | undefined = node.computed.background;
+      let ancestor = node.parentId ? nodes.get(key(node.parentId)) : undefined;
+      while (!background && ancestor) {
+        background = ancestor.computed.background;
+        ancestor = ancestor.parentId
+          ? nodes.get(key(ancestor.parentId))
+          : undefined;
+      }
+      const contrast =
+        foreground && background
+          ? layoutColorContrast(foreground, background)
+          : undefined;
+      if (contrast !== undefined && contrast + 0.01 < minimumContrast) {
+        diagnostics.push({
+          code: "low-text-contrast",
+          node,
+          amount: contrast,
+          message: `${diagnosticNodeText(node)} has ${contrast.toFixed(2)}:1 text contrast (${foreground} on ${background}); expected at least ${minimumContrast.toFixed(2)}:1`,
+        });
+      }
+    }
+
+    const role = layoutRole(node);
+    const minimumWidth =
+      options.minimumInteractiveTarget === undefined && role === "switch"
+        ? 40
+        : minimumTarget;
+    const minimumHeight =
+      options.minimumInteractiveTarget === undefined && role === "switch"
+        ? 24
+        : minimumTarget;
+    if (
+      (role === "button" ||
+        role === "checkbox" ||
+        role === "combobox" ||
+        role === "radio" ||
+        role === "switch") &&
+      nodeAttrs.get("disabled") !== "true" &&
+      (node.rect.width + 0.01 < minimumWidth ||
+        node.rect.height + 0.01 < minimumHeight)
+    ) {
+      diagnostics.push({
+        code: "interactive-target-too-small",
+        node,
+        amount: Math.min(node.rect.width, node.rect.height),
+        message: `${diagnosticNodeText(node)} role=${role} is ${node.rect.width.toFixed(1)}x${node.rect.height.toFixed(1)}; expected at least ${minimumWidth.toFixed(1)}x${minimumHeight.toFixed(1)}px`,
+      });
+    }
+  }
+  return diagnostics;
 }
 
 export function assertNoLayoutDiagnostics(

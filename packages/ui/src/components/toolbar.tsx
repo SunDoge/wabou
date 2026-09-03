@@ -2,7 +2,6 @@ import type { Handle } from "@wabou/core/renderer";
 import {
   createComponent,
   createContext,
-  createSignal,
   createUniqueId,
   type JSX,
   omit,
@@ -19,11 +18,6 @@ import { Button, type ButtonProps } from "./button";
 import { mergeClasses } from "@wabou/core/style";
 
 export type ToolbarOrientation = "horizontal" | "vertical";
-
-interface ToolbarEntry {
-  id: string;
-  disabled: () => boolean;
-}
 
 interface ToolbarContextValue {
   orientation: () => ToolbarOrientation;
@@ -47,44 +41,19 @@ export interface ToolbarProps {
 
 /** A compact command surface with one native tab stop and arrow navigation. */
 export function Toolbar(props: ToolbarProps): JSX.Element {
-  const entries: ToolbarEntry[] = [];
-  const [activeId, setActiveId] = createSignal<string | undefined>(undefined, {
-    ownedWrite: true,
-  });
-  const [registryVersion, setRegistryVersion] = createSignal(0, {
-    ownedWrite: true,
-  });
   const orientation = () => props.orientation ?? "horizontal";
-  const enabled = () => entries.filter((entry) => !entry.disabled());
   const roving = createRovingFocus({
     orientation,
     loop: props.loop,
-    onMove: setActiveId,
   });
   const context: ToolbarContextValue = {
     orientation,
-    register(id, target, disabled) {
-      const entry = { id, disabled };
-      entries.push(entry);
-      const unregisterRoving = roving.register({ id, target, disabled });
-      setRegistryVersion((version) => version + 1);
-      return () => {
-        unregisterRoving();
-        const index = entries.indexOf(entry);
-        if (index >= 0) entries.splice(index, 1);
-        setRegistryVersion((version) => version + 1);
-      };
+    register: (id, target, disabled) =>
+      roving.register({ id, target, disabled }),
+    activate: (id) => {
+      roving.activate(id);
     },
-    activate: setActiveId,
-    isTabStop(id) {
-      registryVersion();
-      const candidates = enabled();
-      const active = activeId();
-      const current = candidates.some((entry) => entry.id === active)
-        ? active
-        : candidates[0]?.id;
-      return id === current;
-    },
+    isTabStop: roving.isTabStop,
     move: roving.move,
   };
   return createComponent(ToolbarContext, {
@@ -96,7 +65,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
           aria-label={props["aria-label"]}
           aria-orientation={orientation()}
           class={mergeClasses(
-            "flex-none flex items-center gap-1 rounded-md border border-subtle bg-control p-1",
+            "flex-none flex items-center gap-1 rounded-lg border border-subtle bg-control p-1",
             match(orientation())
               .with("horizontal", () => "flex-row")
               .with("vertical", () => "flex-col")

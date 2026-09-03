@@ -1,859 +1,480 @@
-//! A Wabou terminal widget backed by `rio-vt`.
-//!
-//! `rio-vt` owns terminal semantics (VT parsing, grid, cursor, scrollback and
-//! PTY events). This crate is the frontend adapter: it translates Wabou input
-//! to PTY bytes and pulls Rio's visible grid into a retained AnyRender scene.
+use std::{ops::Range, sync::Arc};
 
-use std::borrow::Cow;
-use std::collections::{HashMap, VecDeque};
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use gpui::{AppContext as _, IntoElement as _, ParentElement as _, Styled as _};
+use wabou_shell::{NativeWidgetContext, NativeWidgetInput, NativeWidgetMount, gpui};
+use wabou_shell_api::{KeyEvent, KeyLocation, KeyPhase, Modifiers, UiEvent, WakeCallback};
 
-use anyrender::{PaintScene, Scene};
-use rio_vt::ansi::CursorShape;
-use rio_vt::config::colors::term::{COUNT as TERMINAL_COLOR_COUNT, TermColors};
-use rio_vt::config::colors::{AnsiColor, ColorRgb, NamedColor};
-use rio_vt::crosswords::grid::Scroll;
-use rio_vt::crosswords::grid::row::Row;
-use rio_vt::crosswords::pos::{Column, CursorState, Line, Pos, Side};
-use rio_vt::crosswords::square::{ContentTag, Extras, Square, Wide};
-use rio_vt::crosswords::style::{Style, StyleFlags};
-use rio_vt::crosswords::{Crosswords, CrosswordsSize, Mode};
-use rio_vt::event::sync::FairMutex;
-use rio_vt::event::{EventListener, Msg, ProgressState, RioEvent, TerminalDamage, WindowId};
-use rio_vt::performer::Machine;
-use rio_vt::performer::handler::Processor;
-use rio_vt::selection::{Selection, SelectionRange, SelectionType};
-use rustc_hash::FxHashMap;
-use teletypewriter::{WinsizeBuilder, create_pty_with_spawn};
-use vello::kurbo::{Affine, Rect, Stroke};
-use vello::peniko::{Color, Fill};
-use wabou_runtime::{Widget, WidgetChanges, WidgetNodeEvent, WidgetStyle};
-use wabou_runtime::{WidgetEventResult, event};
-#[cfg(test)]
-use wabou_shell::style::Paint;
-use wabou_shell::text::{TextContext, layout_text_styled};
-use wabou_shell::{
-    HostAction, HostActionResult, ImeEvent, KeyPhase, Modifiers, PointerButton, PointerPhase,
-    UiEvent, WHEEL_LINE_DELTA, WakeCallback,
-};
+use wabou_terminal_core::{TerminalColor, TerminalInputResult, TerminalWidget};
 
-mod box_drawing;
-mod graphics;
-mod input_encoding;
-mod kitty_keyboard;
-mod process;
-mod rendering;
-mod selection;
-mod widget_impl;
+#[cfg(target_os = "macos")]
+const PLATFORM_MONOSPACE_FONT: &str = "Menlo";
+#[cfg(target_os = "windows")]
+const PLATFORM_MONOSPACE_FONT: &str = "Consolas";
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+const PLATFORM_MONOSPACE_FONT: &str = "DejaVu Sans Mono";
 
-use graphics::{KittyLayer, TerminalGraphics};
-use input_encoding::*;
-#[cfg(test)]
-use process::quote_windows_command_arg;
-use process::{
-    LaunchConfig, default_shell_command, pty_spawn_parts, spawn_child_reaper,
-    validate_launch_command,
-};
-use rendering::*;
-pub use widget_impl::terminal_widget;
-
-const DEFAULT_COLUMNS: usize = 80;
-const DEFAULT_ROWS: usize = 24;
-const DEFAULT_SCROLLBACK: usize = 10_000;
-const DEFAULT_FONT_SIZE: f32 = 14.0;
-const DEFAULT_LINE_HEIGHT: f32 = 18.0;
-const DEFAULT_CELL_WIDTH: f32 = 8.4;
-const DEFAULT_SELECTION_BACKGROUND: Color = Color::from_rgba8(59, 130, 246, 105);
-const SELECTION_DRAG_THRESHOLD: f64 = 4.0;
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum CursorVisual {
-    Filled(Rect),
-    Hollow(Rect),
-}
-
-type Terminal = Crosswords<TerminalListener>;
-type PtySend = Arc<dyn Fn(Msg) + Send + Sync>;
-type ClipboardFormatter = Arc<dyn Fn(&str) -> String + Send + Sync + 'static>;
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct TerminalSelectionSnapshot {
-    text: Option<String>,
-    kind: Option<&'static str>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct PendingHyperlink {
-    url: String,
-    origin: (f64, f64),
-    cancelled: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum WheelContext {
-    Scrollback,
-    Selection,
-    MouseReport,
-    AlternateScroll,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
-struct WheelLineAccumulator {
-    remainder: f64,
-    context: Option<WheelContext>,
-}
-
-impl WheelLineAccumulator {
-    fn push(&mut self, context: WheelContext, delta: f64) -> i32 {
-        if delta == 0.0 {
-            return 0;
-        }
-        if self.context != Some(context) {
-            self.context = Some(context);
-            self.remainder = 0.0;
-        }
-        // Do not make a direction reversal pay off an unrelated gesture's
-        // residual delta. This keeps a small counter-scroll responsive.
-        if self.remainder != 0.0 && self.remainder.signum() != delta.signum() {
-            self.remainder = 0.0;
-        }
-        self.remainder += delta;
-        let lines = (self.remainder / WHEEL_LINE_DELTA).trunc() as i32;
-        self.remainder -= f64::from(lines) * WHEEL_LINE_DELTA;
-        lines
+fn terminal_font_family(value: &str) -> &str {
+    match value.trim() {
+        "" | "monospace" | "ui-monospace" => PLATFORM_MONOSPACE_FONT,
+        _ => value,
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct TerminalSize {
-    columns: usize,
-    rows: usize,
-    pixel_width: u32,
-    pixel_height: u32,
-    cell_pixel_width: u32,
-    cell_pixel_height: u32,
+fn gpui_color(color: TerminalColor) -> gpui::Rgba {
+    let [r, g, b, a] = color.components();
+    gpui::rgba((u32::from(r) << 24) | (u32::from(g) << 16) | (u32::from(b) << 8) | u32::from(a))
 }
 
-impl TerminalSize {
-    fn from_viewport(
-        width: f32,
-        height: f32,
-        cell_width: f32,
-        line_height: f32,
-        device_scale: f64,
-    ) -> Self {
-        let columns = (width / cell_width).floor().max(1.0) as usize;
-        let rows = (height / line_height).floor().max(1.0) as usize;
-        let scale = device_scale.max(f64::EPSILON);
-        Self {
-            columns,
-            rows,
-            pixel_width: scaled_pixels(width, scale),
-            pixel_height: scaled_pixels(height, scale),
-            cell_pixel_width: scaled_pixels(cell_width, scale),
-            cell_pixel_height: scaled_pixels(line_height, scale),
-        }
-    }
+struct GpuiTerminal {
+    terminal: TerminalWidget,
+    focus: gpui::FocusHandle,
+    _wake_task: gpui::Task<()>,
+}
 
-    fn for_grid(columns: usize, rows: usize, cell_width: f32, line_height: f32) -> Self {
-        Self::from_viewport(
-            columns as f32 * cell_width,
-            rows as f32 * line_height,
-            cell_width,
-            line_height,
-            1.0,
-        )
-    }
-
-    fn crosswords(self) -> CrosswordsSize {
-        CrosswordsSize::new_with_dimensions(
-            self.columns,
-            self.rows,
-            self.pixel_width,
-            self.pixel_height,
-            self.cell_pixel_width,
-            self.cell_pixel_height,
-        )
-    }
-
-    fn winsize(self) -> WinsizeBuilder {
-        WinsizeBuilder {
-            rows: saturating_u16(self.rows),
-            cols: saturating_u16(self.columns),
-            width: saturating_u16(self.pixel_width as usize),
-            height: saturating_u16(self.pixel_height as usize),
-        }
+impl NativeWidgetInput for GpuiTerminal {
+    fn handle_native_input(
+        &mut self,
+        event: &UiEvent,
+        _window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) -> bool {
+        let result = self.terminal.dispatch_native_event(event);
+        self.apply_input_result(result, cx)
     }
 }
 
-fn scaled_pixels(value: f32, scale: f64) -> u32 {
-    (f64::from(value.max(0.0)) * scale)
-        .round()
-        .clamp(0.0, u32::MAX as f64) as u32
-}
-
-fn saturating_u16(value: usize) -> u16 {
-    value.min(u16::MAX as usize) as u16
-}
-
-fn terminal_primary_shortcut(modifiers: Modifiers) -> bool {
-    modifiers.primary_shortcut()
-}
-
-fn terminal_clipboard_shortcut(modifiers: Modifiers) -> bool {
-    terminal_primary_shortcut(modifiers) && (cfg!(target_os = "macos") || modifiers.shift())
-}
-
-#[derive(Clone, Default)]
-struct TerminalListener {
-    shared: Arc<ListenerShared>,
-}
-
-#[derive(Default)]
-struct ListenerShared {
-    dirty: AtomicBool,
-    wake: Mutex<Option<WakeCallback>>,
-    events: Mutex<Vec<RioEvent>>,
-}
-
-impl TerminalListener {
-    fn set_wake(&self, wake: WakeCallback) {
-        *self.shared.wake.lock().unwrap() = Some(wake);
-    }
-
-    fn wake(&self) {
-        self.shared.dirty.store(true, Ordering::Release);
-        if let Some(wake) = self.shared.wake.lock().unwrap().as_ref() {
-            wake();
-        }
-    }
-
-    fn take_dirty(&self) -> bool {
-        self.shared.dirty.swap(false, Ordering::AcqRel)
-    }
-
-    fn drain_events(&self) -> Vec<RioEvent> {
-        std::mem::take(&mut *self.shared.events.lock().unwrap())
-    }
-}
-
-impl EventListener for TerminalListener {
-    fn event(&self) -> (Option<RioEvent>, bool) {
-        (None, false)
-    }
-
-    fn send_event(&self, event: RioEvent, _window: WindowId) {
-        self.shared.events.lock().unwrap().push(event);
-        self.wake();
-    }
-
-    fn send_event_with_high_priority(&self, event: RioEvent, window: WindowId) {
-        self.send_event(event, window);
-    }
-
-    fn send_redraw(&self, _window: WindowId) {
-        self.wake();
-    }
-}
-
-/// Interactive terminal surface. Use [`TerminalWidget::spawn_default_shell`]
-/// for a real PTY, or [`TerminalWidget::headless`] to feed deterministic VT
-/// bytes in tests and previews.
-pub struct TerminalWidget {
-    terminal: Arc<FairMutex<Terminal>>,
-    visible_rows: Vec<Row<Square>>,
-    visible_styles: Vec<Style>,
-    visible_extras: FxHashMap<u16, Extras>,
-    listener: TerminalListener,
-    parser: Processor,
-    pty_send: Option<PtySend>,
-    #[cfg(unix)]
-    child_pid: Option<libc::pid_t>,
-    launch: Option<LaunchConfig>,
-    launch_started: bool,
-    exit_reported: bool,
-    launch_error: Option<String>,
-    pending_input: Vec<u8>,
-    pending_host_actions: VecDeque<HostAction>,
-    pending_node_events: VecDeque<WidgetNodeEvent>,
-    last_reported_selection: TerminalSelectionSnapshot,
-    last_reported_directory: Option<PathBuf>,
-    pending_clipboard_loads: HashMap<u64, ClipboardFormatter>,
-    next_clipboard_request_id: u64,
-    allow_clipboard_read: bool,
-    sync_window_title: bool,
-    size: TerminalSize,
-    font_size: f32,
-    line_height: f32,
-    cell_width: f32,
-    font_family: Arc<str>,
-    metrics_dirty: bool,
-    explicit_line_height: Option<f32>,
-    focused: bool,
-    cursor_on: bool,
-    next_cursor_blink: Option<Instant>,
-    spawn_error: Option<String>,
-    selecting: bool,
-    selection_pointer_origin: Option<(f64, f64)>,
-    selection_dragged: bool,
-    selection_background: Color,
-    selection_foreground: Option<Color>,
-    theme_foreground: Color,
-    theme_background: Color,
-    inherit_theme: bool,
-    selection_drag_point: Option<(f64, f64)>,
-    next_selection_scroll: Option<Instant>,
-    pending_hyperlink: Option<PendingHyperlink>,
-    remote_mouse_button: Option<PointerButton>,
-    wheel_lines: WheelLineAccumulator,
-    last_click: Option<(Instant, f32, f32, u8)>,
-    graphics: TerminalGraphics,
-}
-
-impl Drop for TerminalWidget {
-    fn drop(&mut self) {
-        self.shutdown_pty();
-    }
-}
-
-impl Default for TerminalWidget {
-    fn default() -> Self {
-        Self::headless(DEFAULT_COLUMNS, DEFAULT_ROWS)
-    }
-}
-
-impl TerminalWidget {
-    /// Construct a parser/grid without spawning a process.
-    pub fn headless(columns: usize, rows: usize) -> Self {
-        let columns = columns.max(1);
-        let rows = rows.max(1);
-        let size = TerminalSize::for_grid(columns, rows, DEFAULT_CELL_WIDTH, DEFAULT_LINE_HEIGHT);
-        let listener = TerminalListener::default();
-        let terminal = Crosswords::new(
-            size.crosswords(),
-            CursorShape::Block,
-            listener.clone(),
-            WindowId::from(0),
-            0,
-            DEFAULT_SCROLLBACK,
-        );
-        Self {
-            terminal: Arc::new(FairMutex::new(terminal)),
-            visible_rows: Vec::new(),
-            visible_styles: Vec::new(),
-            visible_extras: FxHashMap::default(),
-            listener,
-            parser: Processor::default(),
-            pty_send: None,
-            #[cfg(unix)]
-            child_pid: None,
-            launch: None,
-            launch_started: false,
-            exit_reported: false,
-            launch_error: None,
-            pending_input: Vec::new(),
-            pending_host_actions: VecDeque::new(),
-            pending_node_events: VecDeque::new(),
-            last_reported_selection: TerminalSelectionSnapshot::default(),
-            last_reported_directory: None,
-            pending_clipboard_loads: HashMap::new(),
-            next_clipboard_request_id: 1,
-            allow_clipboard_read: false,
-            sync_window_title: false,
-            size,
-            font_size: DEFAULT_FONT_SIZE,
-            line_height: DEFAULT_LINE_HEIGHT,
-            cell_width: DEFAULT_CELL_WIDTH,
-            font_family: Arc::from("monospace"),
-            metrics_dirty: true,
-            explicit_line_height: None,
-            focused: false,
-            cursor_on: true,
-            next_cursor_blink: None,
-            spawn_error: None,
-            selecting: false,
-            selection_pointer_origin: None,
-            selection_dragged: false,
-            selection_background: DEFAULT_SELECTION_BACKGROUND,
-            selection_foreground: None,
-            theme_foreground: named_color(NamedColor::Foreground, true),
-            theme_background: named_color(NamedColor::Background, false),
-            inherit_theme: false,
-            selection_drag_point: None,
-            next_selection_scroll: None,
-            pending_hyperlink: None,
-            remote_mouse_button: None,
-            wheel_lines: WheelLineAccumulator::default(),
-            last_click: None,
-            graphics: TerminalGraphics::default(),
-        }
-    }
-
-    /// Spawn the user's default shell in a Rio PTY reader thread.
-    pub fn spawn_default_shell() -> Self {
-        let mut widget = Self::default();
-        widget.launch = Some(LaunchConfig::default_shell());
-        widget.ensure_launched();
-        widget
-    }
-
-    /// Spawn a command attached to the terminal's PTY.
-    pub fn spawn(command: &str, args: Vec<String>, cwd: Option<String>) -> Self {
-        let mut widget = Self::default();
-        widget.launch = Some(LaunchConfig {
-            command: command.to_owned(),
-            args,
-            cwd,
-            login_shell: false,
-        });
-        widget.ensure_launched();
-        widget
-    }
-
-    fn lazy_default_shell() -> Self {
-        let mut widget = Self::default();
-        widget.launch = Some(LaunchConfig::default_shell());
-        widget
-    }
-
-    fn ensure_launched(&mut self) {
-        if self.launch_started || self.launch_error.is_some() {
-            return;
-        }
-        let Some(launch) = self.launch.clone() else {
-            return;
-        };
-        self.launch_started = true;
-        if let Err(error) = validate_launch_command(&launch.command) {
-            self.spawn_error = Some(error.to_string());
-            return;
-        }
-        let winsize = self.size.winsize();
-        let (command, args) = pty_spawn_parts(&launch);
-        match create_pty_with_spawn(
-            &command,
-            args,
-            &launch.cwd,
-            winsize.cols,
-            winsize.rows,
-            winsize.width,
-            winsize.height,
-        )
-        .and_then(|pty| {
-            #[cfg(unix)]
-            {
-                self.child_pid = Some(*pty.child.pid);
+impl GpuiTerminal {
+    fn apply_input_result(
+        &mut self,
+        result: TerminalInputResult,
+        cx: &mut gpui::Context<Self>,
+    ) -> bool {
+        match result {
+            TerminalInputResult::Clipboard(wabou_shell_api::ClipboardRequest::Write(text)) => {
+                cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+                true
             }
-            Machine::new(
-                self.terminal.clone(),
-                pty,
-                self.listener.clone(),
-                WindowId::from(0),
-                0,
-            )
-            .map_err(|error| std::io::Error::other(error.to_string()))
-        }) {
-            Ok(machine) => {
-                let channel = machine.channel();
-                self.pty_send = Some(Arc::new(move |message| {
-                    let _ = channel.send(message);
-                }));
-                machine.spawn();
+            TerminalInputResult::Clipboard(wabou_shell_api::ClipboardRequest::Read) => {
+                if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
+                    let _ = self.terminal.dispatch_native_event(&UiEvent::Paste(text));
+                }
+                true
             }
-            Err(error) => self.spawn_error = Some(error.to_string()),
+            result => result.is_handled(),
         }
     }
 
-    fn shutdown_pty(&mut self) {
-        if let Some(send) = self.pty_send.take() {
-            send(Msg::Shutdown);
+    fn key_event(event: &gpui::KeyDownEvent) -> KeyEvent {
+        let source = &event.keystroke.modifiers;
+        let mut modifiers = Modifiers::empty();
+        modifiers.set(Modifiers::SHIFT, source.shift);
+        modifiers.set(Modifiers::CONTROL, source.control);
+        modifiers.set(Modifiers::ALT, source.alt);
+        modifiers.set(Modifiers::META, source.platform);
+        KeyEvent {
+            phase: KeyPhase::Down,
+            key: event
+                .keystroke
+                .key_char
+                .clone()
+                .unwrap_or_else(|| event.keystroke.key.clone()),
+            key_without_modifiers: event.keystroke.key.clone(),
+            code: event.keystroke.key.clone(),
+            text: event.keystroke.key_char.clone(),
+            text_with_all_modifiers: event.keystroke.key_char.clone(),
+            location: KeyLocation::Standard,
+            modifiers,
+            repeat: event.is_held,
+            synthetic: false,
         }
-        #[cfg(unix)]
-        if let Some(pid) = self.child_pid.take() {
-            // The task starts waiting immediately. Rio owns the PTY until it
-            // handles Shutdown; dropping the PTY sends SIGHUP, after which
-            // this wait reaps the child instead of leaving a zombie behind.
-            if let Err(error) = spawn_child_reaper(pid) {
-                tracing::warn!(%error, pid, "failed to start PTY child reaper");
+    }
+
+    fn update_attributes(&mut self, context: &NativeWidgetContext<'_>) {
+        if !context.attributes_changed() {
+            return;
+        }
+        for (name, value) in context.attributes() {
+            if name == "font-family" {
+                self.terminal
+                    .apply_native_attribute(name, terminal_font_family(value));
+            } else {
+                self.terminal.apply_native_attribute(name, value);
             }
         }
     }
+}
 
-    fn report_exit_once(&mut self) {
-        if self.exit_reported {
-            return;
-        }
-        self.exit_reported = true;
-        self.pty_send = None;
-        self.next_cursor_blink = None;
-        self.pending_clipboard_loads.clear();
-        self.pending_node_events.push_back(WidgetNodeEvent::json(
-            event::TERMINALEXIT,
-            r#"{"reason":"exit"}"#,
-        ));
+impl gpui::Focusable for GpuiTerminal {
+    fn focus_handle(&self, _cx: &gpui::App) -> gpui::FocusHandle {
+        self.focus.clone()
+    }
+}
+
+impl gpui::EntityInputHandler for GpuiTerminal {
+    fn text_for_range(
+        &mut self,
+        _range_utf16: Range<usize>,
+        _actual_range: &mut Option<Range<usize>>,
+        _window: &mut gpui::Window,
+        _cx: &mut gpui::Context<Self>,
+    ) -> Option<String> {
+        Some(String::new())
     }
 
-    /// Feed raw PTY output into the VT parser (useful for tests/replay).
-    pub fn feed(&mut self, bytes: &[u8]) {
-        self.parser.advance(&mut *self.terminal.lock(), bytes);
-        self.listener.wake();
-    }
-
-    /// Input bytes captured by a headless terminal.
-    pub fn take_input(&mut self) -> Vec<u8> {
-        std::mem::take(&mut self.pending_input)
-    }
-
-    /// Plain text for a visible row, primarily for deterministic tests.
-    pub fn visible_line(&self, row: usize) -> String {
-        let terminal = self.terminal.lock();
-        let rows = terminal.visible_rows();
-        rows.get(row).map_or_else(String::new, |line| {
-            (0..terminal.columns())
-                .map(|column| line[Column(column)].c())
-                .collect()
+    fn selected_text_range(
+        &mut self,
+        _ignore_disabled_input: bool,
+        _window: &mut gpui::Window,
+        _cx: &mut gpui::Context<Self>,
+    ) -> Option<gpui::UTF16Selection> {
+        Some(gpui::UTF16Selection {
+            range: 0..0,
+            reversed: false,
         })
     }
 
-    /// Current grid selection as plain text.
-    pub fn selected_text(&self) -> Option<String> {
-        self.terminal.lock().selection_to_string()
+    fn marked_text_range(
+        &self,
+        _window: &mut gpui::Window,
+        _cx: &mut gpui::Context<Self>,
+    ) -> Option<Range<usize>> {
+        None
     }
 
-    fn report_pointer(&mut self, pointer: &wabou_shell::PointerEvent) -> bool {
-        if self.exit_reported || (pointer.modifiers.shift() && self.remote_mouse_button.is_none()) {
-            return false;
-        }
-        let mode = self.terminal.lock().mode();
-        if !mode.intersects(Mode::MOUSE_MODE) {
-            if matches!(pointer.phase, PointerPhase::Up | PointerPhase::Cancel) {
-                self.remote_mouse_button = None;
-            }
-            return false;
-        }
-        if pointer.phase == PointerPhase::Down {
-            self.last_click = None;
-        }
-        let motion = pointer.phase == PointerPhase::Move;
-        if motion
-            && !mode.contains(Mode::MOUSE_MOTION)
-            && !(mode.contains(Mode::MOUSE_DRAG) && pointer.buttons != 0)
-        {
-            return false;
-        }
-        let button = pointer.button.or(self.remote_mouse_button);
-        let base = if motion {
-            if pointer.buttons & 1 != 0 {
-                0
-            } else if pointer.buttons & 2 != 0 {
-                1
-            } else if pointer.buttons & 4 != 0 {
-                2
-            } else {
-                3
-            }
-        } else {
-            match button.unwrap_or(PointerButton::Primary) {
-                PointerButton::Primary => 0,
-                PointerButton::Auxiliary => 1,
-                PointerButton::Secondary => 2,
-                PointerButton::Other(_) => return false,
-            }
-        };
-        let modifiers = u8::from(pointer.modifiers.shift()) * 4
-            + u8::from(pointer.modifiers.alt()) * 8
-            + u8::from(pointer.modifiers.control()) * 16;
-        let code = base + modifiers + if motion { 32 } else { 0 };
-        let release = matches!(pointer.phase, PointerPhase::Up | PointerPhase::Cancel);
-        let (column, row) = self.mouse_grid_position(pointer.position.x, pointer.position.y);
-        let bytes = if mode.contains(Mode::SGR_MOUSE) {
-            format!(
-                "\x1b[<{code};{column};{row}{}",
-                if release { 'm' } else { 'M' }
-            )
-            .into_bytes()
-        } else {
-            normal_mouse_sequence(
-                if release { 3 + modifiers } else { code },
-                column,
-                row,
-                mode.contains(Mode::UTF8_MOUSE),
-            )
-            .unwrap_or_default()
-        };
-        if !bytes.is_empty() {
-            self.send_bytes(bytes);
-        }
-        match pointer.phase {
-            PointerPhase::Down => self.remote_mouse_button = button,
-            PointerPhase::Up | PointerPhase::Cancel => self.remote_mouse_button = None,
-            PointerPhase::Enter | PointerPhase::Move | PointerPhase::Leave => {}
-        }
-        true
-    }
+    fn unmark_text(&mut self, _window: &mut gpui::Window, _cx: &mut gpui::Context<Self>) {}
 
-    fn report_wheel(&mut self, wheel: &wabou_shell::WheelEvent, lines: i32) -> bool {
-        if self.exit_reported || wheel.modifiers.shift() {
-            return false;
-        }
-        let mode = self.terminal.lock().mode();
-        if !mode.intersects(Mode::MOUSE_MODE) {
-            return false;
-        }
-        let modifiers =
-            u8::from(wheel.modifiers.alt()) * 8 + u8::from(wheel.modifiers.control()) * 16;
-        if lines == 0 {
-            return true;
-        }
-        let code = (if lines < 0 { 64 } else { 65 }) + modifiers;
-        let (column, row) = self.mouse_grid_position(wheel.position.x, wheel.position.y);
-        let bytes = if mode.contains(Mode::SGR_MOUSE) {
-            format!("\x1b[<{code};{column};{row}M").into_bytes()
-        } else {
-            normal_mouse_sequence(code, column, row, mode.contains(Mode::UTF8_MOUSE))
-                .unwrap_or_default()
-        };
-        if !bytes.is_empty() {
-            self.send_bytes(bytes.repeat(lines.unsigned_abs() as usize));
-        }
-        true
-    }
-
-    fn report_alternate_scroll(&mut self, lines: i32) -> bool {
-        if self.exit_reported {
-            return false;
-        }
-        let mode = self.terminal.lock().mode();
-        if !mode.contains(Mode::ALT_SCREEN) || !mode.contains(Mode::ALTERNATE_SCROLL) {
-            return false;
-        }
-        if lines == 0 {
-            return true;
-        }
-        let sequence: &[u8] = if lines < 0 { b"\x1b[A" } else { b"\x1b[B" };
-        self.send_bytes(sequence.repeat(lines.unsigned_abs() as usize));
-        true
-    }
-
-    fn wheel_context(&self, wheel: &wabou_shell::WheelEvent) -> WheelContext {
-        if self.selecting {
-            return WheelContext::Selection;
-        }
-        if self.exit_reported {
-            return WheelContext::Scrollback;
-        }
-        let mode = self.terminal.lock().mode();
-        if !wheel.modifiers.shift() && mode.intersects(Mode::MOUSE_MODE) {
-            WheelContext::MouseReport
-        } else if mode.contains(Mode::ALT_SCREEN) && mode.contains(Mode::ALTERNATE_SCROLL) {
-            WheelContext::AlternateScroll
-        } else {
-            WheelContext::Scrollback
+    fn replace_text_in_range(
+        &mut self,
+        _range_utf16: Option<Range<usize>>,
+        new_text: &str,
+        _window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        if !new_text.is_empty() {
+            let _ = self
+                .terminal
+                .dispatch_native_event(&UiEvent::TextInput(new_text.into()));
+            cx.notify();
         }
     }
 
-    fn send_bytes(&mut self, bytes: Vec<u8>) {
-        if self.exit_reported {
-            return;
-        }
-        if let Some(send) = &self.pty_send {
-            send(Msg::Input(Cow::Owned(bytes)));
-        } else {
-            self.pending_input.extend(bytes);
-        }
+    fn replace_and_mark_text_in_range(
+        &mut self,
+        range_utf16: Option<Range<usize>>,
+        new_text: &str,
+        _new_selected_range_utf16: Option<Range<usize>>,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.replace_text_in_range(range_utf16, new_text, window, cx);
     }
 
-    fn begin_terminal_input(&mut self) {
-        self.last_click = None;
-        let mut terminal = self.terminal.lock();
-        terminal.selection = None;
-        terminal.scroll_display(Scroll::Bottom);
-        drop(terminal);
-        self.sync_selection_change();
+    fn bounds_for_range(
+        &mut self,
+        _range_utf16: Range<usize>,
+        bounds: gpui::Bounds<gpui::Pixels>,
+        _window: &mut gpui::Window,
+        _cx: &mut gpui::Context<Self>,
+    ) -> Option<gpui::Bounds<gpui::Pixels>> {
+        Some(bounds)
     }
 
-    fn resize(&mut self, width: f32, height: f32, device_scale: f64) {
-        let size = TerminalSize::from_viewport(
-            width,
-            height,
-            self.cell_width,
-            self.line_height,
-            device_scale,
-        );
-        if size == self.size {
-            return;
-        }
-        self.size = size;
-        self.terminal.lock().resize(size.crosswords());
-        self.sync_selection_change();
-        if let Some(send) = &self.pty_send {
-            send(Msg::Resize(size.winsize()));
-        }
+    fn character_index_for_point(
+        &mut self,
+        _point: gpui::Point<gpui::Pixels>,
+        _window: &mut gpui::Window,
+        _cx: &mut gpui::Context<Self>,
+    ) -> Option<usize> {
+        Some(0)
     }
+}
 
-    fn update_font_metrics(&mut self, tcx: &mut TextContext) {
-        if !self.metrics_dirty {
-            return;
-        }
-        let layout = layout_text_styled(
-            tcx,
-            Arc::from("0"),
-            self.font_size,
-            400.0,
-            None,
-            Default::default(),
-            [255, 255, 255, 255],
-            Arc::from([]),
-            Some(&self.font_family),
-            None,
-        );
-        let advance = layout.width();
-        if advance.is_finite() && advance > 0.0 {
-            self.cell_width = advance;
-        }
-        self.line_height = self.explicit_line_height.map_or_else(
-            || (layout.height() * 1.1).max(self.font_size),
-            |line_height| line_height.max(self.font_size),
-        );
-        self.metrics_dirty = false;
-    }
+impl gpui::Render for GpuiTerminal {
+    fn render(
+        &mut self,
+        _window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        use gpui::{InteractiveElement as _, ParentElement as _, Styled as _};
 
-    fn handle_rio_events(&mut self) -> bool {
-        let mut changed = self.listener.take_dirty();
-        for event in self.listener.drain_events() {
-            changed |= self.handle_rio_event(event);
-        }
-        if changed {
-            self.terminal.lock().damage_event_in_flight = false;
-        }
-        self.sync_current_directory();
-        self.sync_selection_change();
-        changed
-    }
-
-    fn handle_rio_event(&mut self, event: RioEvent) -> bool {
-        match event {
-            RioEvent::PtyWrite(_, text) => self.send_bytes(text.into_bytes()),
-            RioEvent::TextAreaSizeRequest(_, formatter) => {
-                let reply = formatter(self.size.winsize());
-                self.send_bytes(reply.into_bytes());
-            }
-            RioEvent::TerminalDamaged(_) | RioEvent::Render | RioEvent::RenderRoute(_) => {
-                return true;
-            }
-            RioEvent::UpdateGraphics { queues, .. } => {
-                self.graphics.apply_updates(queues);
-                return true;
-            }
-            RioEvent::Title(title) => {
-                self.report_terminal_title(Some(title), None);
-            }
-            RioEvent::TitleWithSubtitle(title, subtitle) => {
-                self.report_terminal_title(Some(title), Some(subtitle));
-            }
-            RioEvent::ResetTitle => {
-                self.report_terminal_title(None, None);
-            }
-            RioEvent::ClipboardStore(_, text) => self
-                .pending_host_actions
-                .push_back(HostAction::SetClipboard(text)),
-            RioEvent::ClipboardLoad(_, _, formatter) => {
-                if self.allow_clipboard_read {
-                    let request_id = self.next_clipboard_request_id;
-                    self.next_clipboard_request_id =
-                        self.next_clipboard_request_id.wrapping_add(1).max(1);
-                    self.pending_clipboard_loads.insert(request_id, formatter);
-                    self.pending_host_actions
-                        .push_back(HostAction::ReadClipboard { request_id });
-                } else {
-                    self.send_bytes(formatter("").into_bytes());
+        let entity = cx.entity();
+        let focus = self.focus.clone();
+        gpui::div()
+            .id(("wabou-terminal", entity.entity_id()))
+            .relative()
+            .size_full()
+            .overflow_hidden()
+            .bg(gpui::transparent_black())
+            .text_size(gpui::px(self.terminal.font_size()))
+            .line_height(gpui::px(self.terminal.line_height()))
+            .track_focus(&self.focus)
+            .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                window.focus(&focus, cx);
+                cx.stop_propagation();
+            })
+            .on_key_down({
+                let entity = entity.clone();
+                move |event, _, cx| {
+                    let key = Self::key_event(event);
+                    let has_text = key.text.as_ref().is_some_and(|text| !text.is_empty());
+                    if !has_text
+                        || key.modifiers.control()
+                        || key.modifiers.alt()
+                        || key.modifiers.meta()
+                    {
+                        entity.update(cx, |state, cx| {
+                            let result = state.terminal.dispatch_native_event(&UiEvent::Key(key));
+                            if state.apply_input_result(result, cx) {
+                                cx.notify();
+                            }
+                        });
+                        cx.stop_propagation();
+                    }
                 }
-            }
-            RioEvent::ColorRequest(_, index, formatter) => {
-                let colors = self.terminal.lock().colors;
-                self.send_bytes(
-                    formatter(terminal_color(
-                        index,
-                        &colors,
-                        self.theme_foreground,
-                        self.theme_background,
-                    ))
-                    .into_bytes(),
-                );
-            }
-            RioEvent::CursorBlinkingChange | RioEvent::CursorBlinkingChangeOnRoute(_) => {
-                self.cursor_on = true;
-                let blinking = self.terminal.lock().blinking_cursor;
-                self.next_cursor_blink =
-                    (self.focused && blinking).then(|| Instant::now() + Duration::from_millis(500));
-                return true;
-            }
-            RioEvent::Bell => {
-                self.pending_host_actions
-                    .push_back(HostAction::RequestAttention);
-                self.pending_node_events
-                    .push_back(WidgetNodeEvent::json(event::TERMINALBELL, "{}"));
-            }
-            RioEvent::CloseTerminal(_) | RioEvent::Exit | RioEvent::Quit => {
-                self.report_exit_once();
-            }
-            RioEvent::ProgressReport(report) => {
-                let state = match report.state {
-                    ProgressState::Remove => "remove",
-                    ProgressState::Set => "set",
-                    ProgressState::Error => "error",
-                    ProgressState::Indeterminate => "indeterminate",
-                    ProgressState::Pause => "pause",
-                };
-                self.pending_node_events.push_back(WidgetNodeEvent::json(
-                    event::TERMINALPROGRESS,
-                    serde_json::json!({ "state": state, "progress": report.progress }).to_string(),
-                ));
-            }
-            RioEvent::DesktopNotification { title, body } => {
-                self.pending_node_events.push_back(WidgetNodeEvent::json(
-                    event::TERMINALNOTIFICATION,
-                    serde_json::json!({ "title": title, "body": body }).to_string(),
-                ))
-            }
-            _ => {}
-        }
-        false
+            })
+            .child(
+                gpui::canvas(
+                    {
+                        let entity = entity.clone();
+                        move |bounds, window, cx| {
+                            entity.update(cx, |state, _cx| {
+                                let style = gpui::TextStyle {
+                                    color: gpui::rgb_to_hsla(gpui::rgb(0xe5e7eb)),
+                                    font_family: state.terminal.font_family().to_owned().into(),
+                                    ..Default::default()
+                                };
+                                let font_size = gpui::px(state.terminal.font_size());
+                                let sample: gpui::SharedString = "0".into();
+                                let sample_run = style.to_run(sample.len());
+                                let sample = window.text_system().shape_line(
+                                    sample,
+                                    font_size,
+                                    &[sample_run],
+                                    None,
+                                );
+                                state.terminal.set_font_metrics(
+                                    sample.width().into(),
+                                    state.terminal.line_height(),
+                                );
+                                let frame = state.terminal.snapshot_frame(
+                                    bounds.size.width.into(),
+                                    bounds.size.height.into(),
+                                    window.scale_factor() as f64,
+                                );
+                                let font_size = gpui::px(frame.font_size);
+                                let mut shaped = Vec::new();
+                                for (row, terminal_row) in frame.rows.into_iter().enumerate() {
+                                    for cell in terminal_row.cells {
+                                        let text: gpui::SharedString = cell.text.into();
+                                        let mut style = gpui::TextStyle {
+                                            color: gpui::rgb_to_hsla(gpui_color(cell.foreground)),
+                                            font_family: frame.font_family.to_string().into(),
+                                            ..Default::default()
+                                        };
+                                        style.font_weight = if cell.bold {
+                                            gpui::FontWeight::BOLD
+                                        } else {
+                                            gpui::FontWeight::NORMAL
+                                        };
+                                        style.font_style = if cell.italic {
+                                            gpui::FontStyle::Italic
+                                        } else {
+                                            gpui::FontStyle::Normal
+                                        };
+                                        let run = style.to_run(text.len());
+                                        let line = window.text_system().shape_line(
+                                            text,
+                                            font_size,
+                                            &[run],
+                                            None,
+                                        );
+                                        shaped.push((row, cell.column, cell.background, line));
+                                    }
+                                }
+                                (
+                                    shaped,
+                                    frame.background,
+                                    frame.cell_width,
+                                    frame.line_height,
+                                )
+                            })
+                        }
+                    },
+                    {
+                        let entity = entity.clone();
+                        let focus = self.focus.clone();
+                        move |bounds,
+                              (cells, frame_background, cell_width, line_height),
+                              window,
+                              cx| {
+                            window.handle_input(
+                                &focus,
+                                gpui::ElementInputHandler::new(bounds, entity),
+                                cx,
+                            );
+                            window.paint_quad(gpui::fill(bounds, gpui_color(frame_background)));
+                            let cell_width = gpui::px(cell_width);
+                            let line_height = gpui::px(line_height);
+                            for (row, column, cell_background, line) in cells {
+                                let cell_bounds = gpui::Bounds {
+                                    origin: gpui::point(
+                                        bounds.left() + cell_width * column as f32,
+                                        bounds.top() + line_height * row as f32,
+                                    ),
+                                    size: gpui::size(cell_width, line_height),
+                                };
+                                if cell_background != frame_background {
+                                    window.paint_quad(gpui::fill(
+                                        cell_bounds,
+                                        gpui_color(cell_background),
+                                    ));
+                                }
+                                let origin = gpui::point(cell_bounds.left(), cell_bounds.top());
+                                let _ = line.paint(
+                                    origin,
+                                    line_height,
+                                    gpui::TextAlign::Left,
+                                    None,
+                                    window,
+                                    cx,
+                                );
+                            }
+                        }
+                    },
+                )
+                .size_full(),
+            )
     }
+}
 
-    fn report_terminal_title(&mut self, title: Option<String>, subtitle: Option<String>) {
-        if self.sync_window_title {
-            self.pending_host_actions
-                .push_back(HostAction::SetWindowTitle(title.clone()));
-        }
-        self.pending_node_events.push_back(WidgetNodeEvent::json(
-            event::TERMINALTITLECHANGE,
-            serde_json::json!({ "title": title, "subtitle": subtitle }).to_string(),
-        ));
-    }
-
-    fn sync_current_directory(&mut self) {
-        let directory = self.terminal.lock().current_directory.clone();
-        if directory.is_none() || directory == self.last_reported_directory {
-            return;
-        }
-        self.last_reported_directory = directory.clone();
-        let encoded_path = directory
-            .expect("checked as some")
-            .to_string_lossy()
-            .into_owned();
-        let path = percent_encoding::percent_decode_str(&encoded_path)
-            .decode_utf8_lossy()
-            .into_owned();
-        self.pending_node_events.push_back(WidgetNodeEvent::json(
-            event::TERMINALCWDCHANGE,
-            serde_json::json!({ "path": path }).to_string(),
-        ));
+/// Factory for the GPUI-native terminal widget.
+pub fn gpui_terminal_factory()
+-> impl for<'a> Fn(NativeWidgetContext<'a>, &mut gpui::Window, &mut gpui::App) -> NativeWidgetMount
++ Send
++ Sync
++ 'static {
+    move |context, _window, cx| {
+        let entity = context.entity::<GpuiTerminal>().unwrap_or_else(|| {
+            let (sender, receiver) = flume::bounded::<()>(1);
+            cx.new(|entity_cx: &mut gpui::Context<GpuiTerminal>| {
+                let mut terminal = TerminalWidget::lazy_default_shell();
+                terminal.apply_native_attribute("font-family", PLATFORM_MONOSPACE_FONT);
+                let wake: WakeCallback = Arc::new(move || {
+                    let _ = sender.try_send(());
+                });
+                terminal.install_native_wake(wake);
+                let task = entity_cx.spawn(async move |view, cx| {
+                    while receiver.recv_async().await.is_ok() {
+                        if view
+                            .update(cx, |view, cx| {
+                                let _ = view.terminal.poll_native_events();
+                                cx.notify();
+                            })
+                            .is_err()
+                        {
+                            break;
+                        }
+                    }
+                });
+                GpuiTerminal {
+                    terminal,
+                    focus: entity_cx.focus_handle(),
+                    _wake_task: task,
+                }
+            })
+        });
+        entity.update(cx, |state, _| state.update_attributes(&context));
+        NativeWidgetMount::interactive_entity(
+            entity.clone(),
+            gpui::div().size_full().child(entity).into_any_element(),
+        )
     }
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+    use gpui::TestAppContext;
+
+    struct Harness;
+
+    #[test]
+    fn generic_monospace_alias_uses_a_platform_font() {
+        assert_eq!(terminal_font_family("monospace"), PLATFORM_MONOSPACE_FONT);
+        assert_eq!(
+            terminal_font_family("ui-monospace"),
+            PLATFORM_MONOSPACE_FONT
+        );
+        assert_eq!(terminal_font_family("Hack"), "Hack");
+    }
+
+    impl gpui::Render for Harness {
+        fn render(
+            &mut self,
+            _window: &mut gpui::Window,
+            _cx: &mut gpui::Context<Self>,
+        ) -> impl gpui::IntoElement {
+            gpui::div()
+        }
+    }
+
+    #[gpui::test]
+    fn factory_reuses_the_entity_retained_for_the_same_node(cx: &mut TestAppContext) {
+        let factory = gpui_terminal_factory();
+        let (_view, _cx) = cx.add_window_view(move |window, cx| {
+            let mut attributes = BTreeMap::new();
+            attributes.insert("font-family".into(), "monospace".into());
+            let input = std::rc::Rc::new(|_, _: &mut gpui::App| {});
+            let first = factory(
+                NativeWidgetContext::new(
+                    wabou_host_api::NodeKey::new(9, 2),
+                    &attributes,
+                    None,
+                    None,
+                    input.clone(),
+                ),
+                window,
+                cx,
+            );
+            let (_, retained, native_input) = first.into_parts();
+            let retained = retained.expect("terminal factory retains state");
+            assert!(
+                native_input.is_some(),
+                "terminal factory retains an input path"
+            );
+            let terminal = retained
+                .clone()
+                .downcast::<GpuiTerminal>()
+                .expect("terminal entity type");
+            assert_eq!(
+                terminal.read(cx).terminal.font_family(),
+                PLATFORM_MONOSPACE_FONT,
+                "the native terminal must shape text with a real platform monospace family"
+            );
+            let first_id = retained.entity_id();
+            let second = factory(
+                NativeWidgetContext::new(
+                    wabou_host_api::NodeKey::new(9, 2),
+                    &attributes,
+                    None,
+                    Some(&retained),
+                    input,
+                ),
+                window,
+                cx,
+            );
+            let (_, retained, native_input) = second.into_parts();
+            assert!(
+                native_input.is_some(),
+                "reused terminal retains an input path"
+            );
+            assert_eq!(
+                retained.expect("reused terminal state").entity_id(),
+                first_id
+            );
+            Harness
+        });
+    }
+}

@@ -1,5 +1,5 @@
 // Emoji stress UI — N emojis bouncing around the viewport. Stresses the text /
-// glyph path (parley + vello — the real bottleneck) AND the animation path
+// glyph/layout path and the animation path
 // (per-frame transforms for every emoji → op protocol + apply + native paint).
 // The selectable rAF and Motion drivers exercise the same render path, making
 // animation scheduler overhead directly comparable. Bounce bounds come from
@@ -10,7 +10,6 @@ import "virtual:wabou-stylesheet";
 import {
   type AnimationControls,
   animate,
-  PrimitiveButton as Button,
   createFps,
   type Handle,
   mount,
@@ -20,7 +19,8 @@ import {
   useHost,
   View,
 } from "@wabou/ui";
-import { createEffect, createSignal, For, Show } from "solid-js";
+import { Button } from "@wabou/ui/primitives";
+import { createEffect, createSignal, For as ForValue, Show } from "solid-js";
 
 const PRESETS = [100, 1_000, 5_000, 10_000, 25_000];
 const JS_WORK = [0, 50_000, 500_000, 5_000_000];
@@ -39,7 +39,7 @@ const CHARS = [
   "🎈",
 ];
 const SIZE = 28;
-const HEADER_H = 68;
+const HEADER_H = 132;
 let _jsSink = 0;
 
 type Stats = {
@@ -116,6 +116,7 @@ function App() {
   let movingBodies = bodies();
   const handles: Array<Handle | undefined> = [];
   const fps = createFps();
+  let lastStatsSample = -Infinity;
 
   // Re-seed only when N changes (not every frame).
   createEffect(n, (count) => {
@@ -143,11 +144,15 @@ function App() {
       for (let i = 0; i < iters; i++) acc += Math.sin(i);
       _jsSink = acc;
     }
-    try {
-      setStats(host.diagnostics.frameStats());
-      setStatsError(null);
-    } catch (error) {
-      setStatsError(error instanceof Error ? error.message : String(error));
+    const now = performance.now();
+    if (now - lastStatsSample >= 500) {
+      lastStatsSample = now;
+      try {
+        setStats(host.diagnostics.frameStats());
+        setStatsError(null);
+      } catch (error) {
+        setStatsError(error instanceof Error ? error.message : String(error));
+      }
     }
   };
   createEffect(driver, (activeDriver) => {
@@ -174,10 +179,69 @@ function App() {
   });
 
   return (
-    <View class="w-full h-full flex flex-col bg-slate-950 text-slate-100">
-      <View class="flex-none p-2 flex items-center gap-2 border-b border-slate-700">
-        <Text class="text-sm font-semibold mr-1">emoji stress</Text>
-        <For each={PRESETS}>
+    <View class="w-full h-full flex flex-col bg-canvas text-primary">
+      <View class="h-9 flex-none px-3 flex items-center gap-3 border-b border-subtle bg-surface">
+        <Text class="text-sm font-semibold text-primary">Emoji stress</Text>
+        <Text class="text-xs text-muted">
+          GPUI retained projection · per-node transform updates
+        </Text>
+      </View>
+
+      <View
+        projectionBoundary
+        class="h-14 flex-none min-w-0 flex overflow-x-auto overflow-y-hidden border-b border-subtle bg-surface-muted"
+      >
+        <View class="w-28 flex-none px-3 justify-center border-r border-subtle">
+          <Text class="text-[10px] text-muted">FPS</Text>
+          <Text class="text-base font-mono font-semibold text-accent">
+            {fps().toString()}
+          </Text>
+        </View>
+        <View class="w-24 flex-none px-3 justify-center border-r border-subtle">
+          <Text class="text-[10px] text-muted">NODES</Text>
+          <Text class="text-sm font-mono text-primary">
+            {n().toLocaleString()}
+          </Text>
+        </View>
+        <View class="w-24 flex-none px-3 justify-center border-r border-subtle">
+          <Text class="text-[10px] text-muted">DRIVER</Text>
+          <Text class="text-sm font-mono text-primary">{driver()}</Text>
+        </View>
+        <Show
+          when={stats()}
+          fallback={
+            <View class="min-w-0 flex-1 px-3 justify-center">
+              <Text class={statsError() ? "text-danger-primary" : "text-muted"}>
+                {statsError() ?? "Waiting for the first completed frame"}
+              </Text>
+            </View>
+          }
+        >
+          {(current) => (
+            <>
+              <View class="w-24 flex-none px-3 justify-center border-r border-subtle">
+                <Text class="text-[10px] text-muted">JS TICK</Text>
+                <Text class="text-sm font-mono text-primary">{`${fmt(current().js_tick_ms)} ms`}</Text>
+              </View>
+              <View class="w-24 flex-none px-3 justify-center border-r border-subtle">
+                <Text class="text-[10px] text-muted">BUILD</Text>
+                <Text class="text-sm font-mono text-primary">{`${fmt(current().build_frame_ms)} ms`}</Text>
+              </View>
+              <View class="w-24 flex-none px-3 justify-center border-r border-subtle">
+                <Text class="text-[10px] text-muted">SCENE</Text>
+                <Text class="text-sm font-mono text-primary">{`${fmt(current().scene_ms)} ms`}</Text>
+              </View>
+              <View class="w-24 flex-none px-3 justify-center">
+                <Text class="text-[10px] text-muted">PRESENT</Text>
+                <Text class="text-sm font-mono text-primary">{`${fmt(current().present_ms)} ms`}</Text>
+              </View>
+            </>
+          )}
+        </Show>
+      </View>
+
+      <View class="h-10 flex-none min-w-0 overflow-x-auto overflow-y-hidden px-2 flex items-center gap-2 border-b border-subtle bg-surface">
+        <ForValue each={PRESETS}>
           {(p) => (
             <Button
               class="px-2 py-1 text-xs rounded border border-slate-600"
@@ -189,10 +253,10 @@ function App() {
               {p.toLocaleString()}
             </Button>
           )}
-        </For>
-        <Text class="ml-1 text-xs text-slate-500">emojis</Text>
-        <Text class="mx-2 text-slate-600">|</Text>
-        <For each={JS_WORK}>
+        </ForValue>
+        <Text class="ml-1 text-xs text-muted">emojis</Text>
+        <Text class="mx-2 text-muted">|</Text>
+        <ForValue each={JS_WORK}>
           {(w) => (
             <Button
               class="px-2 py-1 text-xs rounded border border-slate-600"
@@ -203,9 +267,9 @@ function App() {
               {w === 0 ? "0" : w.toLocaleString()}
             </Button>
           )}
-        </For>
-        <Text class="ml-1 text-xs text-slate-500">js iters</Text>
-        <Text class="mx-2 text-slate-600">|</Text>
+        </ForValue>
+        <Text class="ml-1 text-xs text-muted">js iters</Text>
+        <Text class="mx-2 text-muted">|</Text>
         <Button
           class="px-2 py-1 text-xs rounded border border-slate-600"
           tone="sky"
@@ -222,37 +286,14 @@ function App() {
         >
           Motion
         </Button>
-        <Text class="ml-auto text-xs font-mono text-slate-400">
-          {n().toLocaleString()}n · {driver()} · {fps()} fps
-        </Text>
       </View>
 
-      <View class="flex-none px-2 py-1 border-b border-slate-800 bg-slate-900 text-xs font-mono text-slate-300">
-        <Show
-          when={stats()}
-          fallback={
-            <Text class={statsError() ? "text-red-400" : "text-slate-500"}>
-              {statsError()
-                ? `frameStats error: ${statsError()}`
-                : "frameStats: waiting for first completed frame"}
-            </Text>
-          }
-        >
-          {(current) => (
-            <Text>
-              js {fmt(current().js_tick_ms)}ms · build{" "}
-              {fmt(current().build_frame_ms)}ms
-              {" · "}scene {fmt(current().scene_ms)}ms · present{" "}
-              {fmt(current().present_ms)}ms · nodes{" "}
-              {current().node_count.toLocaleString()}
-              {" · "}viewport {current().viewport_w}×{current().viewport_h}
-            </Text>
-          )}
-        </Show>
-      </View>
-
-      <View class="flex-1 min-h-0 overflow-hidden relative">
-        <For each={bodies()} keyed={false}>
+      <View
+        projectionBoundary
+        aria-label="Emoji animation surface"
+        class="flex-1 min-h-0 overflow-hidden relative"
+      >
+        <ForValue each={bodies()} keyed={false}>
           {(body, index) => (
             <View
               class="text-[28px] pointer-events-none"
@@ -269,7 +310,7 @@ function App() {
               {body().char}
             </View>
           )}
-        </For>
+        </ForValue>
       </View>
     </View>
   );

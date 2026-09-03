@@ -313,12 +313,156 @@
         }
       }
     ],
+    "backdrop-blur": [
+      {
+        "property": "backdrop-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      }
+    ],
+    "backdrop-blur-lg": [
+      {
+        "property": "backdrop-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 16.0
+          }
+        }
+      }
+    ],
+    "backdrop-blur-md": [
+      {
+        "property": "backdrop-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 12.0
+          }
+        }
+      }
+    ],
+    "backdrop-blur-none": [
+      {
+        "property": "backdrop-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 0.0
+          }
+        }
+      }
+    ],
+    "backdrop-blur-sm": [
+      {
+        "property": "backdrop-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 4.0
+          }
+        }
+      }
+    ],
+    "backdrop-blur-xl": [
+      {
+        "property": "backdrop-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 24.0
+          }
+        }
+      }
+    ],
     "block": [
       {
         "property": "display",
         "value": {
           "type": "keyword",
           "value": "block"
+        }
+      }
+    ],
+    "blur": [
+      {
+        "property": "filter-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      }
+    ],
+    "blur-lg": [
+      {
+        "property": "filter-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 16.0
+          }
+        }
+      }
+    ],
+    "blur-md": [
+      {
+        "property": "filter-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 12.0
+          }
+        }
+      }
+    ],
+    "blur-none": [
+      {
+        "property": "filter-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 0.0
+          }
+        }
+      }
+    ],
+    "blur-sm": [
+      {
+        "property": "filter-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 4.0
+          }
+        }
+      }
+    ],
+    "blur-xl": [
+      {
+        "property": "filter-blur",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 24.0
+          }
         }
       }
     ],
@@ -1300,15 +1444,6 @@
         "value": {
           "type": "keyword",
           "value": "text"
-        }
-      }
-    ],
-    "cursor-wait": [
-      {
-        "property": "cursor",
-        "value": {
-          "type": "keyword",
-          "value": "wait"
         }
       }
     ],
@@ -2302,6 +2437,15 @@
         }
       }
     ],
+    "line-through": [
+      {
+        "property": "text-decoration-line",
+        "value": {
+          "type": "keyword",
+          "value": "line-through"
+        }
+      }
+    ],
     "max-w-2xl": [
       {
         "property": "max-width",
@@ -2431,6 +2575,15 @@
             "unit": "px",
             "value": 320.0
           }
+        }
+      }
+    ],
+    "no-underline": [
+      {
+        "property": "text-decoration-line",
+        "value": {
+          "type": "keyword",
+          "value": "none"
         }
       }
     ],
@@ -2873,6 +3026,28 @@
         }
       }
     ],
+    "rounded-b-lg": [
+      {
+        "property": "border-bottom-left-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      },
+      {
+        "property": "border-bottom-right-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      }
+    ],
     "rounded-full": [
       {
         "property": "border-radius",
@@ -2881,6 +3056,28 @@
           "value": {
             "unit": "px",
             "value": 9999.0
+          }
+        }
+      }
+    ],
+    "rounded-l-lg": [
+      {
+        "property": "border-top-left-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      },
+      {
+        "property": "border-bottom-left-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
           }
         }
       }
@@ -2921,6 +3118,50 @@
         }
       }
     ],
+    "rounded-r-lg": [
+      {
+        "property": "border-top-right-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      },
+      {
+        "property": "border-bottom-right-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      }
+    ],
+    "rounded-r-none": [
+      {
+        "property": "border-top-right-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 0.0
+          }
+        }
+      },
+      {
+        "property": "border-bottom-right-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 0.0
+          }
+        }
+      }
+    ],
     "rounded-sm": [
       {
         "property": "border-radius",
@@ -2929,6 +3170,28 @@
           "value": {
             "unit": "px",
             "value": 2.0
+          }
+        }
+      }
+    ],
+    "rounded-t-lg": [
+      {
+        "property": "border-top-left-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
+          }
+        }
+      },
+      {
+        "property": "border-top-right-radius",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 8.0
           }
         }
       }
@@ -4727,6 +4990,15 @@
         "value": {
           "type": "keyword",
           "value": "ellipsis"
+        }
+      }
+    ],
+    "underline": [
+      {
+        "property": "text-decoration-line",
+        "value": {
+          "type": "keyword",
+          "value": "underline"
         }
       }
     ],

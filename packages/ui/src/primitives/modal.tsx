@@ -1,5 +1,14 @@
-import { type Handle, Portal } from "@wabou/core/renderer";
-import { type Affine2D, number, type Shadow } from "@wabou/core/style";
+import {
+  type Handle,
+  Portal,
+  type WabouNativeTransition,
+} from "@wabou/core/renderer";
+import {
+  type Affine2D,
+  mergeClasses,
+  rgba,
+  type Shadow,
+} from "@wabou/core/style";
 import {
   createComponent,
   createEffect,
@@ -11,7 +20,7 @@ import {
 } from "solid-js";
 import { type Easing, useReducedMotion } from "../animation";
 import { createOverlayLayer, OverlayPlaneProvider } from "./overlay-layer";
-import { createTransitionPresence } from "./transition-presence";
+import { createPresence } from "./presence";
 import type { WabouStyle } from "./view";
 import { View } from "./view";
 
@@ -45,12 +54,47 @@ export interface ModalControls {
 export interface ModalMotionOptions {
   duration?: number;
   ease?: Easing;
+  /** Enter-only timing override. Falls back to `duration`. */
+  enterDuration?: number;
+  /** Exit-only timing override. Falls back to `duration`. */
+  exitDuration?: number;
+  /** Enter-only easing override. Falls back to `ease`. */
+  enterEase?: Easing;
+  /** Exit-only easing override. Falls back to `ease`. */
+  exitEase?: Easing;
   /** Initial content scale around its center. Defaults to 1. */
   fromScale?: number;
   /** Initial horizontal offset in logical pixels. Defaults to 0. */
   fromX?: number;
   /** Initial vertical offset in logical pixels. Defaults to 0. */
   fromY?: number;
+}
+
+export interface ModalVisualState {
+  /** The modal currently owns focus, pointer input, and the native scrim. */
+  active: boolean;
+  /** Keep authored backdrop visuals mounted while a fade-out completes. */
+  retainBackdropVisuals: boolean;
+  /** A closing edge panel remains mounted, but must expose the application immediately. */
+  transparentBackdrop: boolean;
+}
+
+/**
+ * Derive every modal-plane policy from the committed controlled state.
+ *
+ * Presence only controls how long the subtree remains mounted. It must never
+ * prolong focus containment, hit testing, blur, or an opaque scrim after the
+ * owner has committed `open=false`.
+ */
+export function modalVisualState(
+  open: boolean,
+  backdropFade: boolean | undefined,
+): ModalVisualState {
+  return {
+    active: open,
+    retainBackdropVisuals: open || backdropFade !== false,
+    transparentBackdrop: !open && backdropFade === false,
+  };
 }
 
 export function modalMotionTransform(
@@ -86,8 +130,12 @@ export interface ModalProps {
   contentRole?: "dialog" | "alertdialog";
   backdropClass?: string;
   backdropStyle?: WabouStyle;
+  /** Keep the backdrop visible while the content exits. Edge panels disable this. */
+  backdropFade?: boolean;
   contentClass?: string;
   contentStyle?: WabouStyle;
+  /** Fade the content with the backdrop. Edge panels disable this and slide as solid surfaces. */
+  contentFade?: boolean;
   /** Composes component-specific movement with the modal presence transform. */
   contentTransform?: (base: Affine2D, presenceProgress: number) => Affine2D;
   contentShadows?: readonly Shadow[] | null;
@@ -114,11 +162,13 @@ export function Modal(props: ModalProps): JSX.Element {
   const motion = untrack(() => props.motion);
   const motionOptions = motion === false ? undefined : motion;
   const motionEnabled = motionOptions !== undefined;
-  const presence = createTransitionPresence(open, {
-    duration: motionOptions?.duration ?? (motionEnabled ? 0.16 : 0),
-    ease: motionOptions?.ease ?? (motionEnabled ? "easeOut" : "linear"),
-    reducedMotion: () => !motionEnabled || reducedMotion(),
-  });
+  const transitionDuration = (entering: boolean) =>
+    (entering ? motionOptions?.enterDuration : motionOptions?.exitDuration) ??
+    motionOptions?.duration ??
+    (motionEnabled ? 0.16 : 0);
+  const presence = createPresence(open);
+  const visualState = () => modalVisualState(open(), props.backdropFade);
+  const [transitionGeneration, setTransitionGeneration] = createSignal(0);
   let trigger: Handle | undefined;
   let focusFrame = 0;
   let wasOpenForInitialFocus = false;
@@ -143,22 +193,62 @@ export function Modal(props: ModalProps): JSX.Element {
   });
   const handleEscape = (event: ModalKeyEvent) => layer.onEscape(event);
 
-  createEffect(open, (isOpen) => {
-    if (isOpen && !wasOpenForInitialFocus && props.initialFocus) {
-      cancelAnimationFrame(focusFrame);
-      focusFrame = requestAnimationFrame(() => {
+  createEffect(
+    () => [open(), reducedMotion()] as const,
+    ([isOpen, prefersReducedMotion]) => {
+      setTransitionGeneration((value) => value + 1);
+      if (
+        !motionEnabled ||
+        prefersReducedMotion ||
+        transitionDuration(isOpen) <= 0
+      ) {
+        if (isOpen) presence.finishEnter();
+        else presence.finishExit();
+      }
+      if (isOpen && !wasOpenForInitialFocus && props.initialFocus) {
+        cancelAnimationFrame(focusFrame);
+        focusFrame = requestAnimationFrame(() => {
+          focusFrame = 0;
+          props.initialFocus?.()?.focus();
+        });
+      } else if (!isOpen) {
+        if (focusFrame) cancelAnimationFrame(focusFrame);
         focusFrame = 0;
-        props.initialFocus?.()?.focus();
-      });
-    } else if (!isOpen) {
-      if (focusFrame) cancelAnimationFrame(focusFrame);
-      focusFrame = 0;
-    }
-    wasOpenForInitialFocus = isOpen;
-  });
+      }
+      wasOpenForInitialFocus = isOpen;
+    },
+  );
   onCleanup(() => {
     if (focusFrame) cancelAnimationFrame(focusFrame);
   });
+
+  const nativeTransition = (
+    entering: boolean,
+    fromTransform: Affine2D,
+    toTransform: Affine2D,
+    fromOpacity: number,
+    toOpacity: number,
+  ): WabouNativeTransition | undefined => {
+    if (!motionEnabled || reducedMotion()) return undefined;
+    const authoredEase =
+      (entering ? motionOptions?.enterEase : motionOptions?.exitEase) ??
+      motionOptions?.ease;
+    const easing =
+      authoredEase === "linear" ||
+      authoredEase === "easeInOut" ||
+      authoredEase === "easeOut"
+        ? authoredEase
+        : "easeInOut";
+    return {
+      generation: transitionGeneration(),
+      duration: transitionDuration(entering),
+      easing,
+      fromTransform,
+      toTransform,
+      fromOpacity,
+      toOpacity,
+    };
+  };
 
   const triggerProps: ModalTriggerProps = {
     ref: (node) => {
@@ -190,15 +280,20 @@ export function Modal(props: ModalProps): JSX.Element {
           role: "presentation",
           "aria-modal": "true",
           get focusContained() {
-            return open();
+            return visualState().active;
           },
           get interactionBlocked() {
-            return !open();
+            return !visualState().active;
           },
           get class() {
-            return props.backdropClass;
+            const visual = visualState();
+            return mergeClasses(
+              visual.active && "backdrop-blur-sm",
+              visual.retainBackdropVisuals && props.backdropClass,
+            );
           },
           get style() {
+            const visual = visualState();
             return {
               position: "absolute",
               left: 0,
@@ -209,12 +304,28 @@ export function Modal(props: ModalProps): JSX.Element {
               "align-items": "center",
               "justify-content": "center",
               ...props.backdropStyle,
-              opacity: number(presence.progress()),
-              "pointer-events": open() ? "auto" : "none",
+              // An edge panel may remain mounted for its slide-out transition,
+              // but its modal scrim must stop affecting the application at the
+              // moment the logical open state changes.
+              ...(visual.transparentBackdrop
+                ? { "background-color": rgba(0x00000000) }
+                : undefined),
+              "pointer-events": visual.active ? "auto" : "none",
               // Portal containers share one native plane. Make open order
               // explicit so nested overlays paint above their owning modal.
               "z-index": layer.zIndex(),
             };
+          },
+          get nativeTransition() {
+            if (props.backdropFade === false) return undefined;
+            const entering = open();
+            return nativeTransition(
+              entering,
+              [1, 0, 0, 1, 0, 0],
+              [1, 0, 0, 1, 0, 0],
+              entering ? 0 : 1,
+              entering ? 1 : 0,
+            );
           },
           onClick: layer.onOutside,
           onKeyDown: handleEscape,
@@ -240,15 +351,36 @@ export function Modal(props: ModalProps): JSX.Element {
                 return props.contentShadows;
               },
               get transform() {
-                const progress = presence.progress();
-                const base = modalMotionTransform(motionOptions, progress);
-                return props.contentTransform?.(base, progress) ?? base;
+                const base = modalMotionTransform(
+                  motionOptions,
+                  open() ? 1 : 0,
+                );
+                return props.contentTransform?.(base, open() ? 1 : 0) ?? base;
+              },
+              get nativeTransition() {
+                const entering = open();
+                const fromProgress = entering ? 0 : 1;
+                const toProgress = entering ? 1 : 0;
+                const from = modalMotionTransform(motionOptions, fromProgress);
+                const to = modalMotionTransform(motionOptions, toProgress);
+                return nativeTransition(
+                  entering,
+                  props.contentTransform?.(from, fromProgress) ?? from,
+                  props.contentTransform?.(to, toProgress) ?? to,
+                  props.contentFade === false ? 1 : fromProgress,
+                  props.contentFade === false ? 1 : toProgress,
+                );
+              },
+              onTransitionEnd: (event) => {
+                if (event.generation !== transitionGeneration()) return;
+                if (open()) presence.finishEnter();
+                else presence.finishExit();
               },
               get interactionBlocked() {
-                return !open();
+                return !visualState().active;
               },
               get "aria-hidden"() {
-                return open() ? undefined : "true";
+                return visualState().active ? undefined : "true";
               },
               onClick: (event: ModalEvent) => event.stopPropagation(),
               get children() {

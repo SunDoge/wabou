@@ -1,3 +1,4 @@
+import { mergeClasses } from "@wabou/core/style";
 import checkCircle from "lucide-static/icons/circle-check.svg?raw";
 import info from "lucide-static/icons/info.svg?raw";
 import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
@@ -16,7 +17,11 @@ import {
   View,
 } from "../primitives";
 import { Button } from "./button";
-import { mergeClasses } from "@wabou/core/style";
+import {
+  componentsElevation,
+  componentsSurfaceClass,
+  useComponentsTheme,
+} from "./theme";
 
 export type ToastVariant = "default" | "success" | "warning" | "destructive";
 
@@ -73,9 +78,16 @@ function ToastContent(props: {
   input: ToastInput;
   dismiss(): void;
 }): JSX.Element {
+  const theme = useComponentsTheme();
   const style = () => treatment(props.input.variant ?? "default");
   return (
-    <View class="w-full min-w-0 flex items-start gap-3 rounded-lg border border-subtle bg-surface p-3 shadow-md">
+    <View
+      class={mergeClasses(
+        "w-full min-w-0 flex items-start gap-3 px-4 py-3.5",
+        componentsSurfaceClass("floating"),
+      )}
+      shadows={componentsElevation(theme(), "floating")}
+    >
       <Icon
         source={style().icon}
         class={mergeClasses("flex-none mt-0.5", style().color)}
@@ -95,6 +107,7 @@ function ToastContent(props: {
             <Button
               size="sm"
               variant="outline"
+              aria-label={props.input.action.label}
               onClick={() => {
                 props.input.action?.onAction();
                 if (props.input.action?.dismiss !== false) props.dismiss();
@@ -160,16 +173,9 @@ export function Toaster(props: ToasterProps): JSX.Element {
       notifications={props.toasts.notifications}
       placement={props.placement ?? "bottom-end"}
       class={props.class}
-      itemClass={mergeClasses("w-96 max-w-full", props.itemClass)}
-      motion={
-        props.motion === undefined
-          ? {
-              fromY: (props.placement ?? "bottom-end").startsWith("bottom")
-                ? 12
-                : -12,
-            }
-          : props.motion
-      }
+      stackClass="w-96 max-w-full"
+      itemClass={mergeClasses("w-full max-w-full", props.itemClass)}
+      motion={props.motion ?? false}
     />
   );
 }

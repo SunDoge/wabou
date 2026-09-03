@@ -3,12 +3,12 @@
 import {
   Button,
   Icon,
-  PrimitiveLink as Link,
   Text,
   useParams,
   useRouter,
   View,
 } from "@wabou/ui";
+import { Link } from "@wabou/ui/primitives";
 import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
 import bookmark from "lucide-static/icons/bookmark.svg?raw";
 import externalLink from "lucide-static/icons/external-link.svg?raw";

@@ -1,5 +1,5 @@
-import { Portal } from "@wabou/core/renderer";
-import { number, translate2d } from "@wabou/core/style";
+import { Portal, type WabouNativeTransition } from "@wabou/core/renderer";
+import { translate2d } from "@wabou/core/style";
 import {
   type Accessor,
   createComponent,
@@ -11,9 +11,9 @@ import {
   untrack,
 } from "solid-js";
 import { type Easing, useReducedMotion } from "../animation";
+import { createPresence } from "./presence";
 import { createRetainedItems, type RetainedItem } from "./retained-items";
-import { createTransitionPresence } from "./transition-presence";
-import { View, type WabouStyle } from "./view";
+import { createInternalPrimitive, View, type WabouStyle } from "./view";
 
 export type NotificationPriority = "polite" | "assertive";
 export type NotificationDismissReason =
@@ -191,6 +191,8 @@ export interface NotificationRegionProps {
   placement?: NotificationPlacement;
   class?: string;
   style?: WabouStyle;
+  /** Width and presentation of the native GPUI-base stack container. */
+  stackClass?: string;
   itemClass?: string;
   itemStyle?: WabouStyle;
   /** Headless regions are static unless motion is explicitly requested. */
@@ -206,6 +208,33 @@ export interface NotificationMotionOptions {
   fromY?: number;
 }
 
+export function notificationNativeTransition(options: {
+  generation: number;
+  duration: number;
+  ease?: Easing;
+  fromX?: number;
+  fromY?: number;
+  entering: boolean;
+}): WabouNativeTransition {
+  const offset = translate2d(options.fromX ?? 0, options.fromY ?? 0);
+  const resting = translate2d(0, 0);
+  const easing =
+    options.ease === "linear" ||
+    options.ease === "easeInOut" ||
+    options.ease === "easeOut"
+      ? options.ease
+      : "easeOut";
+  return {
+    generation: options.generation,
+    duration: options.duration,
+    easing,
+    fromTransform: options.entering ? offset : resting,
+    toTransform: options.entering ? resting : offset,
+    fromOpacity: options.entering ? 0 : 1,
+    toOpacity: options.entering ? 1 : 0,
+  };
+}
+
 const alignment = (placement: NotificationPlacement) => ({
   "align-items": placement.endsWith("start")
     ? "flex-start"
@@ -218,8 +247,17 @@ const alignment = (placement: NotificationPlacement) => ({
 const renderNotificationPortal = (
   props: NotificationRegionProps,
   children: JSX.Element,
-) =>
-  createComponent(Portal, {
+) => {
+  const stack = createInternalPrimitive("toast-stack", {
+    get placement() {
+      return props.placement ?? "top-end";
+    },
+    get class() {
+      return props.stackClass ?? "w-96 max-w-full";
+    },
+    children,
+  });
+  return createComponent(Portal, {
     plane: "floating",
     role: "presentation",
     get class() {
@@ -241,8 +279,9 @@ const renderNotificationPortal = (
         ...props.style,
       };
     },
-    children,
+    children: stack,
   });
+};
 
 /** Render a non-blocking stack on the native floating overlay plane. */
 export function NotificationRegion(
@@ -292,21 +331,32 @@ export function NotificationRegion(
   const renderAnimatedItem = (
     retainedItem: RetainedItem<NotificationItem, number>,
   ) => {
-    const item = retainedItem.value();
     const logicallyPresent = retainedItem.present;
-    const presence = createTransitionPresence(logicallyPresent, {
-      initialProgress: 0,
-      duration: motion.duration ?? 0.18,
-      ease: motion.ease ?? "easeOut",
-      reducedMotion,
-    });
-    createEffect(presence.phase, (phase) => {
-      if (phase === "unmounted") retained.release(item.id);
-    });
-    const remaining = () => 1 - presence.progress();
+    const presence = createPresence(logicallyPresent);
+    const duration = motion.duration ?? 0.18;
+    const [transitionGeneration, setTransitionGeneration] = createSignal(0);
+    createEffect(
+      () => [logicallyPresent(), reducedMotion()] as const,
+      ([isPresent, prefersReducedMotion]) => {
+        setTransitionGeneration((generation) => generation + 1);
+        if (prefersReducedMotion || duration <= 0) {
+          if (isPresent) presence.finishEnter();
+          else {
+            presence.finishExit();
+            retained.release(retainedItem.key);
+          }
+        }
+      },
+    );
     return createComponent(View, {
-      role: item.priority === "assertive" ? "alert" : "status",
-      "aria-label": item["aria-label"],
+      get role() {
+        return retainedItem.value().priority === "assertive"
+          ? "alert"
+          : "status";
+      },
+      get "aria-label"() {
+        return retainedItem.value()["aria-label"];
+      },
       get "aria-hidden"() {
         return logicallyPresent() ? undefined : "true";
       },
@@ -315,9 +365,20 @@ export function NotificationRegion(
       },
       get transform() {
         return translate2d(
-          (motion.fromX ?? 0) * remaining(),
-          (motion.fromY ?? 0) * remaining(),
+          logicallyPresent() ? 0 : (motion.fromX ?? 0),
+          logicallyPresent() ? 0 : (motion.fromY ?? 0),
         );
+      },
+      get nativeTransition() {
+        if (reducedMotion() || duration <= 0) return undefined;
+        return notificationNativeTransition({
+          generation: transitionGeneration(),
+          duration,
+          ease: motion.ease,
+          fromX: motion.fromX,
+          fromY: motion.fromY,
+          entering: logicallyPresent(),
+        });
       },
       get class() {
         return `pointer-events-auto ${props.itemClass ?? ""}`;
@@ -325,14 +386,23 @@ export function NotificationRegion(
       get style() {
         return {
           ...props.itemStyle,
-          opacity: number(presence.progress()),
+          opacity: logicallyPresent() ? 1 : 0,
         };
       },
-      onPointerEnter: () => props.notifications.pause(item.id),
-      onPointerLeave: () => props.notifications.resume(item.id),
-      onFocusIn: () => props.notifications.pause(item.id),
-      onFocusOut: () => props.notifications.resume(item.id),
+      onTransitionEnd: (event) => {
+        if (event.generation !== transitionGeneration()) return;
+        if (logicallyPresent()) presence.finishEnter();
+        else {
+          presence.finishExit();
+          retained.release(retainedItem.key);
+        }
+      },
+      onPointerEnter: () => props.notifications.pause(retainedItem.key),
+      onPointerLeave: () => props.notifications.resume(retainedItem.key),
+      onFocusIn: () => props.notifications.pause(retainedItem.key),
+      onFocusOut: () => props.notifications.resume(retainedItem.key),
       get children() {
+        const item = retainedItem.value();
         return item.content({
           dismiss: () => props.notifications.dismiss(item.id, "dismiss"),
         });

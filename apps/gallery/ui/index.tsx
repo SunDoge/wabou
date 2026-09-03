@@ -13,7 +13,7 @@ import {
   Fps,
   type Handle,
   mount,
-  PrimitiveButton,
+  ProjectionBoundary,
   RouterProvider,
   Separator,
   Text,
@@ -23,6 +23,7 @@ import {
   useWindow,
   View,
 } from "@wabou/ui";
+import { Button as PrimitiveButton } from "@wabou/ui/primitives";
 import { createSignal, Match, Show, Switch as ShowCase } from "solid-js";
 import "virtual:wabou-stylesheet";
 
@@ -47,6 +48,7 @@ type ComponentId =
   | "toggle"
   | "tabs"
   | "progress"
+  | "prompt-suggestion"
   | "slider"
   | "rating"
   | "fps"
@@ -89,6 +91,8 @@ type ComponentId =
   | "item"
   | "attachment"
   | "message"
+  | "reasoning"
+  | "tool"
   | "message-scroller"
   | "button-group"
   | "toolbar"
@@ -135,7 +139,7 @@ const groups: Array<{
       { id: "input-otp", name: "Input OTP" },
       { id: "number-field", name: "Number field" },
       { id: "select", name: "Select" },
-      { id: "native-select", name: "Native select" },
+      { id: "native-select", name: "Immediate select" },
       { id: "combobox", name: "Combobox" },
       { id: "date-picker", name: "Date picker" },
       { id: "checkbox", name: "Checkbox" },
@@ -160,6 +164,9 @@ const groups: Array<{
       { id: "item", name: "Item" },
       { id: "attachment", name: "Attachment" },
       { id: "message", name: "Message" },
+      { id: "prompt-suggestion", name: "Prompt suggestion" },
+      { id: "reasoning", name: "Reasoning" },
+      { id: "tool", name: "Tool" },
       { id: "message-scroller", name: "Message scroller" },
       { id: "chart", name: "Chart experiment" },
       { id: "markdown", name: "Markdown" },
@@ -236,6 +243,8 @@ const descriptions: Record<ComponentId, string> = {
   toggle: "A two-state button for formatting, filters and compact toolbars.",
   tabs: "Organizes related panels with keyboard-operable native tab semantics.",
   progress: "Shows completion for a task or a long-running operation.",
+  "prompt-suggestion":
+    "Offers container-responsive starter actions without owning their prompt payloads.",
   slider:
     "Selects a numeric value with pointer dragging and keyboard controls.",
   rating:
@@ -300,6 +309,9 @@ const descriptions: Record<ComponentId, string> = {
     "Displays native file and transfer state using reusable media, content and action slots.",
   message:
     "Composes aligned avatars, metadata, bubbles, reactions and timeline markers.",
+  reasoning:
+    "Discloses model reasoning and streaming progress without owning provider data.",
+  tool: "Presents automation parameters, results and status in an explicit disclosure.",
   "message-scroller":
     "Follows appended messages until the user explicitly scrolls away from the end.",
   "button-group":
@@ -360,12 +372,12 @@ import { DataTablePage } from "./pages/data-table";
 import { ColorsPage, LayoutStylesPage, ShadowsPage } from "./pages/foundations";
 import { I18nPage } from "./pages/i18n";
 import { ImageViewportPage } from "./pages/image-viewport";
-import { MenubarPage } from "./pages/menubar";
 import { MarkdownPage } from "./pages/markdown";
+import { MenubarPage } from "./pages/menubar";
 import { OverviewPage } from "./pages/overview";
 import {
   DirectionPage,
-  NativeSelectPage,
+  ImmediateSelectPage,
   TypographyPage,
 } from "./pages/shadcn";
 import { ToolbarPage } from "./pages/toolbar";
@@ -396,10 +408,13 @@ import {
   NavigationMenuPage,
   PaginationPage,
   PopoverPage,
+  PromptSuggestionPage,
+  ReasoningPage,
   ResizablePage,
   SelectPage,
   SheetPage,
   ToastPage,
+  ToolPage,
   TooltipPage,
 } from "./pages/widgets";
 
@@ -408,7 +423,7 @@ function App() {
   const compact = createWindowMatch({ maxWidth: 1099 }, window);
   const windowId = currentWindow().id;
   if (windowId.lo !== 1 || windowId.hi !== 1) return <ChildWindowPage />;
-  const [theme, setTheme] = createSignal<GalleryTheme>("dark");
+  const [theme, setTheme] = createSignal<GalleryTheme>("light");
   const dark = () => theme() !== "light";
   const themeLabel = () =>
     `${theme().slice(0, 1).toUpperCase()}${theme().slice(1)}`;
@@ -494,7 +509,6 @@ function App() {
                 </Text>
               </View>
               <View class="flex items-center gap-2">
-                <Fps />
                 <Button size="sm" variant="ghost" onClick={cycleTheme}>
                   {`Theme: ${themeLabel()}`}
                 </Button>
@@ -504,7 +518,9 @@ function App() {
                 </Show>
               </View>
             </View>
-            <View
+            <ProjectionBoundary
+              role="region"
+              aria-label="Gallery route content"
               ref={(node) => (contentViewport = node)}
               class="flex-1 min-w-0 min-h-0 overflow-x-hidden overflow-y-auto"
             >
@@ -697,6 +713,15 @@ function App() {
                   <Match when={selected() === "message"}>
                     <MessagePage />
                   </Match>
+                  <Match when={selected() === "prompt-suggestion"}>
+                    <PromptSuggestionPage />
+                  </Match>
+                  <Match when={selected() === "reasoning"}>
+                    <ReasoningPage />
+                  </Match>
+                  <Match when={selected() === "tool"}>
+                    <ToolPage />
+                  </Match>
                   <Match when={selected() === "message-scroller"}>
                     <MessageScrollerPage />
                   </Match>
@@ -713,7 +738,7 @@ function App() {
                     <SelectPage />
                   </Match>
                   <Match when={selected() === "native-select"}>
-                    <NativeSelectPage />
+                    <ImmediateSelectPage />
                   </Match>
                   <Match when={selected() === "combobox"}>
                     <ComboboxPage />
@@ -747,7 +772,7 @@ function App() {
                   </Match>
                 </ShowCase>
               </View>
-            </View>
+            </ProjectionBoundary>
           </View>
         </View>
       </ComponentsProvider>

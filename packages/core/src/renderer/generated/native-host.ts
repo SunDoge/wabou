@@ -29,9 +29,12 @@ type FrameStats = {
 	build_frame_ms: number,
 	/**  QuickJS animation-frame callback time in milliseconds. */
 	js_tick_ms: number,
-	/**  Backend-neutral AnyRender scene construction time in milliseconds. */
+	/**  Native retained-projection assembly time in milliseconds. */
 	scene_ms: number,
-	/**  Surface rendering and presentation time in milliseconds. */
+	/**
+	 *  Surface rendering and presentation time in milliseconds, or zero when
+	 *  the active native toolkit does not expose a reliable completion time.
+	 */
 	present_ms: number,
 	/**  Number of retained nodes in the frame. */
 	node_count: number,

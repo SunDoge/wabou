@@ -131,6 +131,11 @@ import {
   PopoverFooter,
   PopoverHeader,
   PopoverTitle,
+  PromptSuggestion,
+  PromptSuggestions,
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
@@ -143,10 +148,16 @@ import {
   Spinner,
   Text,
   Toaster,
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
   Tooltip,
   View,
 } from "@wabou/ui";
 import file from "lucide-static/icons/file.svg?raw";
+import folder from "lucide-static/icons/folder.svg?raw";
 import rocket from "lucide-static/icons/rocket.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
@@ -564,6 +575,7 @@ export function PaginationPage() {
 
 export function DropdownMenuPage() {
   const [action, setAction] = createSignal("No action selected");
+  const [showHidden, setShowHidden] = createSignal(false);
   return (
     <Preview title="Keyboard and pointer actions">
       <View class="flex flex-col items-start gap-4">
@@ -575,8 +587,16 @@ export function DropdownMenuPage() {
               id: "open",
               label: "Open project",
               description: "Open in the current window",
+              icon: folder,
+              shortcut: "Ctrl O",
             },
             { id: "rename", label: "Rename project" },
+            {
+              id: "hidden",
+              label: "Show hidden files",
+              checked: showHidden(),
+              onSelect: () => setShowHidden((value) => !value),
+            },
             { id: "archive", label: "Archive project", disabled: true },
             {
               id: "delete",
@@ -687,7 +707,7 @@ export function ComboboxPage() {
             {
               id: "future",
               value: "future",
-              label: "Future option",
+              label: "Future option — unavailable",
               disabled: true,
             },
           ]}
@@ -717,8 +737,8 @@ export function AccordionPage() {
             </AccordionTrigger>
             <AccordionContent role="region" aria-label="Native rendering">
               <Text class="w-full whitespace-normal text-sm text-muted">
-                No. Solid produces a native scene graph rendered by Rust through
-                a selectable AnyRender backend.
+                No. Solid produces a retained native tree projected into GPUI by
+                Rust.
               </Text>
             </AccordionContent>
           </AccordionItem>
@@ -959,6 +979,107 @@ export function MessagePage() {
             </MessageContent>
           </Message>
         </MessageGroup>
+      </Preview>
+    </View>
+  );
+}
+
+export function ToolPage() {
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Tool invocation">
+        <Tool
+          class="w-full max-w-[640px]"
+          defaultOpen
+          role="group"
+          aria-label="Read source tool call"
+        >
+          <ToolHeader
+            title="read"
+            summary="crates/wabou-runtime/src/host.rs"
+            status="success"
+          />
+          <ToolContent role="region" aria-label="Read source details">
+            <ToolInput
+              code={'{"path":"crates/wabou-runtime/src/host.rs"}'}
+              language="json"
+            />
+            <ToolOutput code="Loaded 240 lines" language="text" />
+          </ToolContent>
+        </Tool>
+      </Preview>
+      <Preview title="Automation states">
+        <View class="w-full max-w-[640px] flex flex-col gap-3">
+          <Tool role="group" aria-label="Running command tool call">
+            <ToolHeader
+              title="bash"
+              summary="cargo test -p wabou-runtime"
+              status="running"
+            />
+          </Tool>
+          <Tool role="group" aria-label="Failed edit tool call">
+            <ToolHeader title="edit" summary="src/runtime.rs" status="failed" />
+          </Tool>
+        </View>
+      </Preview>
+    </View>
+  );
+}
+
+export function ReasoningPage() {
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Model reasoning">
+        <View class="w-full max-w-[640px] flex flex-col gap-3">
+          <Reasoning
+            defaultOpen
+            reducedMotion
+            role="group"
+            aria-label="Completed reasoning"
+          >
+            <ReasoningTrigger />
+            <ReasoningContent role="region" aria-label="Completed details">
+              <Text class="whitespace-normal text-sm text-secondary">
+                I checked the active route, preserved the selected session and
+                verified the layout before applying the change.
+              </Text>
+            </ReasoningContent>
+          </Reasoning>
+          <Reasoning role="group" aria-label="Streaming reasoning">
+            <ReasoningTrigger streaming />
+            <ReasoningContent role="region" aria-label="Streaming details">
+              <Text class="whitespace-normal text-sm text-secondary">
+                Inspecting the retained tree and current selection.
+              </Text>
+            </ReasoningContent>
+          </Reasoning>
+        </View>
+      </Preview>
+    </View>
+  );
+}
+
+export function PromptSuggestionPage() {
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Starter prompts">
+        <PromptSuggestions class="max-w-[720px]">
+          <PromptSuggestion
+            icon={rocket}
+            title="Build the next feature"
+            description="Turn an idea into a concrete implementation path."
+          />
+          <PromptSuggestion
+            icon={search}
+            title="Review current changes"
+            description="Find the highest-risk issue and a useful next step."
+          />
+          <PromptSuggestion
+            icon={triangleAlert}
+            title="Fix a failing check"
+            description="Discover validation commands and resolve one failure."
+          />
+        </PromptSuggestions>
       </Preview>
     </View>
   );
@@ -1460,7 +1581,12 @@ export function SelectPage() {
               { value: "solid", label: "SolidJS" },
               { value: "react", label: "React" },
               { value: "vue", label: "Vue" },
-              { value: "svelte", label: "Svelte", disabled: true },
+              { value: "svelte", label: "Svelte" },
+              {
+                value: "planned",
+                label: "Planned framework — unavailable",
+                disabled: true,
+              },
             ]}
           />
           <Text class="text-xs text-muted">Selected: {framework() ?? "—"}</Text>

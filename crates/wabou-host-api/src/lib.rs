@@ -132,7 +132,7 @@ mod resource_key_tests {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[cfg_attr(any(feature = "bindings", feature = "specta"), derive(specta::Type))]
 /// Full-width generational identity for one retained node.
 pub struct NodeKey {
@@ -199,7 +199,7 @@ impl std::fmt::Display for NodeKey {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[cfg_attr(any(feature = "bindings", feature = "specta"), derive(specta::Type))]
 /// Timing and scene-size metrics for the most recently presented frame.
 pub struct FrameStats {
@@ -209,14 +209,18 @@ pub struct FrameStats {
     /// QuickJS animation-frame callback time in milliseconds.
     #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub js_tick_ms: f64,
-    /// Backend-neutral AnyRender scene construction time in milliseconds.
+    /// Native retained-projection assembly time in milliseconds.
     #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub scene_ms: f64,
-    /// Surface rendering and presentation time in milliseconds.
+    /// Surface rendering and presentation time in milliseconds, or zero when
+    /// the active native toolkit does not expose a reliable completion time.
     #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub present_ms: f64,
     /// Number of retained nodes in the frame.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(
+        any(feature = "bindings", feature = "specta"),
+        specta(type = specta_typescript::Number)
+    )]
     pub node_count: usize,
     /// Logical viewport width.
     pub viewport_w: u32,

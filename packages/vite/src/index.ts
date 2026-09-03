@@ -1,10 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  type WabouColorThemeOptions,
-  wabouStylePlugin,
-} from "./style-compiler";
+import solid from "@solidjs/vite-plugin";
 import MagicString from "magic-string";
 import { parse } from "smol-toml";
 import {
@@ -15,7 +12,17 @@ import {
   type UserConfig,
   type UserConfigExport,
 } from "vite";
-import solid from "vite-plugin-solid";
+import {
+  type WabouColorThemeOptions,
+  wabouStylePlugin,
+} from "./style-compiler";
+
+export {
+  color,
+  defineWabouTheme,
+  type WabouColorThemeOptions,
+  type WabouThemeColor,
+} from "./style-compiler";
 
 export interface WabouViteOptions {
   /** Application root. Defaults to Vite's current working directory. */
@@ -28,8 +35,12 @@ export interface WabouViteOptions {
   globalName?: string;
   /** Additional Vite configuration merged over Wabou defaults. */
   vite?: UserConfig;
+  /** Resolve Wabou workspace packages from source. Auto-detected in this repository. */
+  workspaceSource?: boolean;
   /** Named semantic color palettes compiled into Wabou Style IR. */
   theme?: WabouColorThemeOptions;
+  /** Treat insufficient semantic text contrast as a warning or build error. */
+  themeContrast?: "warn" | "error";
   /** Ignore third-party metadata classes. Supports `*` globs. */
   ignoreClasses?: string[];
   /** ECMA-402 locale and time-zone data included in the application bundle. */
@@ -50,28 +61,28 @@ export interface WabouIntlOptions {
  * token contract explicitly.
  */
 export const defaultWabouColorThemes: WabouColorThemeOptions = {
-  default: "dark",
+  default: "light",
   themes: {
     dark: {
       appearance: "dark",
       colors: {
-        canvas: "#111113",
-        surface: "#1b1b1f",
-        "surface-muted": "#18181b",
-        input: "#18181b",
-        control: "#212225",
-        "control-hover": "#2b2d31",
-        "control-pressed": "#34363b",
-        selected: "#27384d",
-        primary: "#eeeeef",
-        secondary: "#b4b4bb",
-        muted: "#8b8d98",
-        subtle: "#303136",
-        strong: "#484950",
-        accent: "#0090ff",
-        "accent-hover": "#3b9eff",
-        "accent-pressed": "#0588f0",
-        "on-accent": "#ffffff",
+        canvas: "#121418",
+        surface: "#1a1d22",
+        "surface-muted": "#16191e",
+        input: "#20242a",
+        control: "#24282f",
+        "control-hover": "#2d323a",
+        "control-pressed": "#363c45",
+        selected: "#233754",
+        primary: "#f2f4f7",
+        secondary: "#bac0c9",
+        muted: "#8e97a4",
+        subtle: "#30353d",
+        strong: "#464d58",
+        accent: "#4c8dff",
+        "accent-hover": "#6aa1ff",
+        "accent-pressed": "#397ce8",
+        "on-accent": "#121418",
         danger: "#ef4444",
         "danger-hover": "#dc2626",
         "danger-pressed": "#b91c1c",
@@ -79,28 +90,28 @@ export const defaultWabouColorThemes: WabouColorThemeOptions = {
         "danger-primary": "#fecaca",
         "success-surface": "#064e3b",
         "success-primary": "#a7f3d0",
-        focus: "#5eb1ef",
+        focus: "#74a8ff",
       },
     },
     light: {
       appearance: "light",
       colors: {
-        canvas: "#fcfcfd",
+        canvas: "#ffffff",
         surface: "#ffffff",
-        "surface-muted": "#f9f9fb",
+        "surface-muted": "#f0f2f5",
         input: "#ffffff",
-        control: "#f0f0f3",
-        "control-hover": "#e8e8ec",
-        "control-pressed": "#e0e1e6",
-        selected: "#e1f0ff",
-        primary: "#1c2024",
-        secondary: "#60646c",
-        muted: "#8b8d98",
-        subtle: "#d9d9e0",
-        strong: "#b9bbc3",
-        accent: "#0090ff",
-        "accent-hover": "#0588f0",
-        "accent-pressed": "#0d74ce",
+        control: "#f1f3f6",
+        "control-hover": "#e8ebef",
+        "control-pressed": "#dde2e8",
+        selected: "#e6efff",
+        primary: "#171a1f",
+        secondary: "#535b66",
+        muted: "#606a77",
+        subtle: "#dfe3e8",
+        strong: "#c5cbd3",
+        accent: "#2563eb",
+        "accent-hover": "#1d4ed8",
+        "accent-pressed": "#1e40af",
         "on-accent": "#ffffff",
         danger: "#dc2626",
         "danger-hover": "#b91c1c",
@@ -109,7 +120,7 @@ export const defaultWabouColorThemes: WabouColorThemeOptions = {
         "danger-primary": "#991b1b",
         "success-surface": "#ecfdf5",
         "success-primary": "#047857",
-        focus: "#0d74ce",
+        focus: "#3b82f6",
       },
     },
   },
@@ -118,6 +129,26 @@ export const defaultWabouColorThemes: WabouColorThemeOptions = {
 export type WabouViteOptionsExport =
   | WabouViteOptions
   | ((environment: ConfigEnv) => WabouViteOptions);
+
+function wabouWorkspaceRoot(start: string): string | undefined {
+  let directory = resolve(start);
+  for (;;) {
+    if (
+      existsSync(resolve(directory, "packages/ui/src/index.ts")) &&
+      existsSync(resolve(directory, "packages/core/src/index.ts"))
+    ) {
+      return directory;
+    }
+    const parent = resolve(directory, "..");
+    if (parent === directory) return;
+    directory = parent;
+  }
+}
+
+/** Detect a Wabou source workspace while allowing applications to live below it. */
+export function hasWabouWorkspaceSources(start: string): boolean {
+  return wabouWorkspaceRoot(start) !== undefined;
+}
 
 function configureDependencyOptimizer(): Plugin {
   return {
@@ -144,6 +175,7 @@ export function wabouPlugins(
   ignoreClasses?: string[],
   intl?: WabouIntlOptions,
   entry = "ui/index.tsx",
+  themeContrast: "warn" | "error" = "warn",
 ): Plugin[] {
   return [
     wabouIntlPlugin(root, entry, intl ?? manifestIntl(root)),
@@ -151,6 +183,7 @@ export function wabouPlugins(
       root,
       colorThemes: theme ?? defaultWabouColorThemes,
       ignoreClasses,
+      themeContrast,
     }),
     ...solid({
       solid: { generate: "universal", moduleName: "@wabou/core/renderer" },
@@ -189,7 +222,13 @@ function resolveWabouConfig(
       : sourceMap === "false"
         ? false
         : (manifestSourceMap(root) ?? debug);
-  const renderer = fileURLToPath(import.meta.resolve("@wabou/core/renderer"));
+  const workspaceRoot = wabouWorkspaceRoot(root);
+  const workspaceSource =
+    options.workspaceSource ?? workspaceRoot !== undefined;
+  const renderer =
+    workspaceSource && workspaceRoot
+      ? resolve(workspaceRoot, "packages/core/src/renderer.ts")
+      : fileURLToPath(import.meta.resolve("@wabou/core/renderer"));
   const defaults: UserConfig = {
     define: {
       "process.env.NODE_ENV": JSON.stringify(
@@ -203,12 +242,14 @@ function resolveWabouConfig(
       options.ignoreClasses,
       options.intl,
       options.entry ?? "ui/index.tsx",
+      options.themeContrast,
     ),
     resolve: {
       // Published Wabou packages and application source must share one Solid
       // reactive graph. Package-manager store paths otherwise allow Vite to
       // bundle duplicate runtimes that cannot observe each other's signals.
       dedupe: ["solid-js"],
+      conditions: workspaceSource ? ["wabou-source"] : undefined,
       alias: {
         "@wabou/core/renderer": renderer,
         "solid-js/web": renderer,

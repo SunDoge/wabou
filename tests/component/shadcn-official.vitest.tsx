@@ -9,7 +9,7 @@ import {
   DirectionalRow,
   DirectionalText,
   DirectionProvider,
-  NativeSelect,
+  Select,
   StatCard,
   Stepper,
   Text,
@@ -53,11 +53,12 @@ test("projects explicit logical direction into native layout classes", () => {
   expect(byText(screen, "First").parent?.className).toContain("text-right");
 });
 
-test("keeps NativeSelect immediate and data driven", () => {
+test("allows Select motion to be disabled explicitly", () => {
   const screen = renderComponent(() => (
-    <NativeSelect
+    <Select
       aria-label="Runtime"
       defaultValue="quickjs"
+      motion={false}
       options={[
         { value: "quickjs", label: "QuickJS" },
         { value: "v8", label: "V8" },
@@ -182,10 +183,12 @@ test("renders a copyable code block and uses the clipboard capability", async ()
     </PlatformProvider>
   ));
   expect(screen.getByRole("group", { name: "Code block" })).not.toBeNull();
-  screen.getByRole("button", { name: "Copy" }).click();
-  await screen.waitFor(() => byText(screen, "Copied"));
+  expect(byText(screen, "tsx").parent?.className).toContain("text-secondary");
+  const copy = screen.getByRole("button", { name: "Copy" });
+  expect(copy.text).toBe("");
+  copy.click();
+  await screen.waitFor(() => expect(copy.text).toBe(""));
   expect(writes).toEqual(["const ready = true"]);
-  expect(byText(screen, "Copied")).not.toBeNull();
 });
 
 test("renders timeline status and metadata", () => {

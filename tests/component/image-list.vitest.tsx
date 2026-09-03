@@ -15,7 +15,7 @@ const pages: readonly Page[] = Array.from({ length: 100 }, (_, index) => ({
   title: `Page ${index + 1}`,
 }));
 
-test("virtualizes image rows and exposes deterministic selection", () => {
+test("delegates row virtualization to GPUI and exposes deterministic selection", () => {
   const Harness = () => {
     const [selected, setSelected] = createSignal<number>();
     return (
@@ -36,8 +36,9 @@ test("virtualizes image rows and exposes deterministic selection", () => {
   const screen = renderComponent(Harness);
   expect(screen.getByRole("listbox", { name: "Manga pages" })).toBeTruthy();
   const mounted = screen.getAllByRole("option");
-  expect(mounted.length).toBeGreaterThan(0);
-  expect(mounted.length).toBeLessThan(pages.length);
+  // Solid retains the keyed logical rows. The native VirtualList decides
+  // which of these rows are materialized by GPUI for the current viewport.
+  expect(mounted).toHaveLength(pages.length);
 
   const first = screen.getByRole("option", { name: "Page 1" });
   expect(first.style("background-color")).toBeNull();
@@ -61,4 +62,29 @@ test("rejects non-positive row and thumbnail geometry", () => {
       itemHeight: 0,
     }),
   ).toThrow(RangeError);
+});
+
+test("keeps keyed image rows mounted across immutable data refreshes", () => {
+  const [items, setItems] = createSignal<readonly Page[]>([
+    { id: 1, path: "/old.png", title: "Old title" },
+  ]);
+  const screen = renderComponent(() => (
+    <ImageList
+      items={items}
+      getItemKey={(page) => page.id}
+      renderThumbnail={() => <View class="w-full h-full bg-control" />}
+      getLabel={(page) => page.title}
+      itemHeight={80}
+      viewportHeight={160}
+      accessibilityLabel="Stable images"
+    />
+  ));
+  const identity = screen.getByRole("option", { name: "Old title" }).identity;
+
+  setItems([{ id: 1, path: "/new.png", title: "New title" }]);
+  screen.flush();
+
+  expect(screen.getByRole("option", { name: "New title" }).identity).toEqual(
+    identity,
+  );
 });

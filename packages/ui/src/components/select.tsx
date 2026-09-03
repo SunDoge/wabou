@@ -1,5 +1,10 @@
 import type { Handle } from "@wabou/core/renderer";
 import type { Shadow } from "@wabou/core/style";
+import { mergeClasses } from "@wabou/core/style";
+import check from "lucide-static/icons/check.svg?raw";
+import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
+import { createUniqueId, For as ForValue, type JSX } from "solid-js";
+import { match } from "ts-pattern";
 import {
   Button as HeadlessButton,
   Icon,
@@ -12,16 +17,22 @@ import {
   createSelectInteraction,
   type SelectCommand,
 } from "../primitives/interactions";
-import check from "lucide-static/icons/check.svg?raw";
-import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
-import { createUniqueId, For, type JSX } from "solid-js";
-import { match } from "ts-pattern";
-import { mergeClasses } from "@wabou/core/style";
 import type { PopupMotionProps } from "./popover";
-import { selectControlsId } from "./select-semantics";
-import { componentsElevation, useComponentsTheme } from "./theme";
+import {
+  type PickerTriggerVariant,
+  pickerOptionClass,
+  pickerTriggerClass,
+  selectControlsId,
+} from "./select-semantics";
+import {
+  componentsControlSize,
+  componentsElevation,
+  useComponentsTheme,
+} from "./theme";
 
-const ITEM_HEIGHT = 40;
+// A medium native option is 32px tall with a 4px inter-item gap. Keeping the
+// scroll pitch equal to rendered geometry avoids keyboard navigation drift.
+const ITEM_HEIGHT = 36;
 const VISIBLE_ITEMS = 6;
 
 export interface SelectOption {
@@ -37,9 +48,12 @@ export interface SelectProps extends PopupMotionProps {
   open?: boolean;
   defaultOpen?: boolean;
   disabled?: boolean;
+  /** Receives the native trigger handle for explicit label/focus composition. */
+  ref?: (node: Handle) => void;
   placeholder?: string;
   "aria-label": string;
   class?: string;
+  triggerVariant?: PickerTriggerVariant;
   contentClass?: string;
   contentShadows?: readonly Shadow[] | null;
   onValueChange?: (value: string) => void;
@@ -99,7 +113,11 @@ export function Select(props: SelectProps): JSX.Element {
   });
   const selected = () =>
     props.options.find((option) => option.value === interaction.value());
-  const handleKeyDown = (event: { key: string; preventDefault(): void }) => {
+  const handleKeyDown = (event: {
+    key: string;
+    preventDefault(): void;
+    stopPropagation?(): void;
+  }) => {
     const handled = match(event.key)
       .with("ArrowDown", () => interaction.send({ type: "ARROW_DOWN" }))
       .with("ArrowUp", () => interaction.send({ type: "ARROW_UP" }))
@@ -113,7 +131,10 @@ export function Select(props: SelectProps): JSX.Element {
       )
       .with("Escape", () => interaction.send({ type: "CLOSE" }))
       .otherwise((key) => interaction.typeahead(key));
-    if (handled) event.preventDefault();
+    if (handled) {
+      event.preventDefault();
+      if (event.key === "Escape") event.stopPropagation?.();
+    }
   };
 
   return (
@@ -147,14 +168,17 @@ export function Select(props: SelectProps): JSX.Element {
           aria-haspopup="listbox"
           aria-expanded={interaction.open()}
           aria-controls={selectControlsId(`${id}-listbox`, interaction.open())}
+          aria-valuetext={selected()?.label}
           ref={(node) => {
             trigger = node;
+            props.ref?.(node);
             popover.ref(node);
           }}
           class={(state) =>
             mergeClasses(
-              "w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs",
-              state.focused ? "border-focus" : "border-subtle",
+              "w-72 overflow-hidden justify-between border",
+              componentsControlSize("default"),
+              pickerTriggerClass(props.triggerVariant ?? "default", state),
               props.class,
             )
           }
@@ -204,10 +228,10 @@ export function Select(props: SelectProps): JSX.Element {
               : undefined
           }
           focusOrder={0}
-          class="min-w-0 flex flex-col gap-1"
+          class="select-none min-w-0 flex flex-col gap-1"
           onKeyDown={handleKeyDown}
         >
-          <For each={props.options} keyed={false}>
+          <ForValue each={props.options} keyed={false}>
             {(option) => {
               const selected = () => interaction.value() === option().value;
               const highlighted = () =>
@@ -219,25 +243,26 @@ export function Select(props: SelectProps): JSX.Element {
                   aria-selected={selected()}
                   aria-disabled={option().disabled}
                   class={mergeClasses(
-                    "w-full h-8 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm",
-                    highlighted()
-                      ? "bg-control-hover text-primary"
-                      : "bg-transparent text-secondary",
+                    "w-full h-8 flex-none px-2.5 flex items-center justify-between gap-2 rounded-md text-sm leading-normal",
+                    pickerOptionClass(
+                      option().disabled ?? false,
+                      highlighted(),
+                    ),
                   )}
-                  style={{ opacity: option().disabled ? 0.45 : 1 }}
                   // A floating listbox can be positioned underneath a
                   // stationary pointer, and its leaf hit target can change
                   // between the option and its text. Keep hover selection in
                   // sync with pointer routing instead of relying on a single
                   // enter boundary event.
-                  onPointerMove={() =>
-                    interaction.send({ type: "HIGHLIGHT", id: option().value })
-                  }
+                  onPointerMove={() => {
+                    if (option().disabled) return;
+                    interaction.send({ type: "HIGHLIGHT", id: option().value });
+                  }}
                   onClick={() =>
                     interaction.send({ type: "SELECT", id: option().value })
                   }
                 >
-                  <Text class="min-w-0 flex-1 text-sm whitespace-nowrap text-ellipsis">
+                  <Text class="min-w-0 flex-1 text-sm truncate">
                     {option().label}
                   </Text>
                   <View aria-hidden="true" class="w-4 h-4 flex-none">
@@ -248,7 +273,7 @@ export function Select(props: SelectProps): JSX.Element {
                 </View>
               );
             }}
-          </For>
+          </ForValue>
         </View>
       </ScrollArea>
     </Popover>

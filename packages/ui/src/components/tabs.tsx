@@ -1,4 +1,6 @@
 import type { Handle } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
+import x from "lucide-static/icons/x.svg?raw";
 import {
   createComponent,
   createContext,
@@ -11,6 +13,7 @@ import { match } from "ts-pattern";
 import {
   type ButtonState,
   Button as HeadlessButton,
+  Icon,
   Text,
   View,
 } from "../primitives";
@@ -18,7 +21,7 @@ import {
   createControllableState,
   createRovingFocus,
 } from "../primitives/interactions";
-import { mergeClasses } from "@wabou/core/style";
+import { Button } from "./button";
 
 const orientationClass = (
   orientation: "horizontal" | "vertical",
@@ -35,6 +38,8 @@ interface TabsContextValue {
   orientation: () => "horizontal" | "vertical";
   select(value: string): void;
   register(value: string, node: Handle, disabled: () => boolean): () => void;
+  activate(value: string): void;
+  isTabStop(value: string): boolean;
   move(value: string, key: string): boolean;
 }
 
@@ -61,6 +66,7 @@ export function Tabs(props: TabsProps): JSX.Element {
   };
   const roving = createRovingFocus({
     orientation: () => props.orientation ?? "horizontal",
+    preferred: (id) => value() === id,
     onMove: select,
   });
   const context: TabsContextValue = {
@@ -69,9 +75,13 @@ export function Tabs(props: TabsProps): JSX.Element {
     select,
     register: (next, node, disabled) => {
       const unregister = roving.register({ id: next, target: node, disabled });
-      if (value() === undefined) select(next);
+      if (value() === undefined && !disabled()) select(next);
       return unregister;
     },
+    activate: (next) => {
+      roving.activate(next);
+    },
+    isTabStop: roving.isTabStop,
     move: roving.move,
   };
   return createComponent(TabsContext, {
@@ -80,7 +90,7 @@ export function Tabs(props: TabsProps): JSX.Element {
       return (
         <View
           class={mergeClasses(
-            "flex gap-3",
+            "min-w-0 flex gap-3",
             orientationClass(context.orientation(), "flex-col", "flex-row"),
             props.class,
           )}
@@ -111,10 +121,14 @@ export function TabsList(props: {
         props.unstyled
           ? props.class
           : mergeClasses(
-              "flex-none flex items-center gap-1",
-              orientationClass(context.orientation(), "flex-row", "flex-col"),
+              "min-w-0 max-w-full flex-none flex items-center gap-1",
+              orientationClass(
+                context.orientation(),
+                "flex-row overflow-x-scroll",
+                "flex-col overflow-y-scroll",
+              ),
               match(props.variant ?? "default")
-                .with("default", () => "p-0.5 rounded-md bg-control")
+                .with("default", () => "p-0.5 rounded-lg bg-control")
                 .with("line", () => "bg-transparent")
                 .exhaustive(),
               props.class,
@@ -136,6 +150,78 @@ export interface TabsTriggerProps {
   children?: JSX.Element;
 }
 
+export interface TabsItemState {
+  selected: boolean;
+}
+
+export interface TabsItemProps {
+  value: string;
+  disabled?: boolean;
+  closeLabel?: string;
+  onClose?: () => void;
+  class?: string | ((state: TabsItemState) => string);
+  triggerClass?: string | ((state: ButtonState) => string);
+  children?: JSX.Element;
+}
+
+/**
+ * Bounded, optionally closeable tab chrome. The tab trigger and close action
+ * remain sibling hit targets so closing a tab never selects it first.
+ */
+export function TabsItem(props: TabsItemProps): JSX.Element {
+  const context = useContext(TabsContext);
+  if (!context) throw new Error("TabsItem must be used inside Tabs");
+  const selected = () => context.value() === props.value;
+  const itemClass = () =>
+    typeof props.class === "function"
+      ? props.class({ selected: selected() })
+      : props.class;
+  return (
+    <View
+      class={mergeClasses(
+        "h-8 min-w-24 max-w-56 flex flex-row items-center overflow-hidden rounded-md border border-transparent",
+        selected()
+          ? "bg-surface text-primary shadow-xs"
+          : "bg-transparent text-muted",
+        itemClass(),
+      )}
+    >
+      <TabsTrigger
+        unstyled
+        value={props.value}
+        disabled={props.disabled}
+        class={(state) =>
+          mergeClasses(
+            "h-full min-w-0 flex-1 px-2 flex flex-row items-center gap-2",
+            !selected() && state.hovered && "bg-control-hover text-primary",
+            state.focusVisible && "border border-focus",
+            typeof props.triggerClass === "function"
+              ? props.triggerClass(state)
+              : props.triggerClass,
+          )
+        }
+      >
+        {props.children}
+      </TabsTrigger>
+      {props.onClose ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={props.closeLabel ?? `Close ${props.value}`}
+          class="w-6 h-6 flex-none text-muted"
+          style={{ padding: 0 }}
+          onClick={(event) => {
+            event.stopPropagation();
+            props.onClose?.();
+          }}
+        >
+          <Icon source={x} size={12} />
+        </Button>
+      ) : null}
+    </View>
+  );
+}
+
 export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
   const context = useContext(TabsContext);
   if (!context) throw new Error("TabsTrigger must be used inside Tabs");
@@ -150,6 +236,7 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
       disabled={props.disabled}
       selected={selected()}
       aria-selected={selected()}
+      focusOrder={context.isTabStop(props.value) ? 0 : -1}
       ref={(node) => {
         unregister?.();
         unregister = context.register(
@@ -164,7 +251,7 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
             ? props.class(state)
             : (props.class ?? "")
           : mergeClasses(
-              "h-7 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
+              "h-7 px-3 flex-none whitespace-nowrap items-center justify-center rounded-md border border-transparent text-sm font-medium",
               match({ selected: selected(), hovered: state.hovered })
                 .with(
                   { selected: true },
@@ -180,25 +267,42 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
       }
       style={(state) => ({ opacity: state.disabled ? 0.45 : 1 })}
       onClick={() => context.select(props.value)}
+      onFocus={() => context.activate(props.value)}
       onKeyDown={(event) => {
         if (context.move(props.value, event.key)) event.preventDefault();
       }}
     >
-      <Text class="text-sm font-medium">{props.children}</Text>
+      {props.unstyled ? (
+        props.children
+      ) : (
+        <Text class="text-sm font-medium">{props.children}</Text>
+      )}
     </HeadlessButton>
   );
 }
 
 export function TabsContent(props: {
   value: string;
+  /** Keep stateful/native content mounted while hiding inactive panels. */
+  keepMounted?: boolean;
   class?: string;
   children?: JSX.Element;
 }): JSX.Element {
   const context = useContext(TabsContext);
   if (!context) throw new Error("TabsContent must be used inside Tabs");
+  const selected = () => context.value() === props.value;
   return (
-    <Show when={context.value() === props.value}>
-      <View role="tabpanel" class={mergeClasses("flex-1", props.class)}>
+    <Show when={props.keepMounted || selected()}>
+      <View
+        role="tabpanel"
+        aria-hidden={!selected()}
+        class={mergeClasses(
+          "min-w-0 flex flex-col",
+          orientationClass(context.orientation(), "w-full flex-none", "flex-1"),
+          props.class,
+        )}
+        style={{ display: selected() ? "flex" : "none" }}
+      >
         {props.children}
       </View>
     </Show>

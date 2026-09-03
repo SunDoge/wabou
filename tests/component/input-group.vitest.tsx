@@ -9,6 +9,7 @@ import {
   InputGroupButton,
   InputGroupInput,
   InputGroupText,
+  InputGroupTextArea,
   Text,
 } from "@wabou/ui";
 import { expect, test } from "vitest";
@@ -27,6 +28,10 @@ test("records the complete authored InputGroup contract without a native host", 
 
   expect(assertSingleSurfaceOwner(group).name).toBe("Project URL");
   expect(assertFocusOwnerCount(group, 2)).toHaveLength(2);
+  expect(group.className).toContain("rounded-lg");
+  expect(
+    screen.getByRole("textbox", { name: "Hostname" }).className,
+  ).not.toContain("rounded");
   expect(screen.snapshot()).toMatchInlineSnapshot(`
     [
       {
@@ -74,7 +79,7 @@ test("records the complete authored InputGroup contract without a native host", 
               "placeholder": "example.com",
               "role": "textbox",
             },
-            "className": "w-full px-3 text-sm text-primary h-full flex-1 min-w-0",
+            "className": "w-full flex items-center py-2 text-primary px-2.5 gap-2 text-sm h-full flex-1 min-w-0",
             "focusOrder": 0,
             "name": "Hostname",
             "role": "textbox",
@@ -82,6 +87,7 @@ test("records the complete authored InputGroup contract without a native host", 
           },
           {
             "attributes": {
+              "aria-busy": "false",
               "aria-disabled": "false",
               "role": "button",
             },
@@ -92,7 +98,7 @@ test("records the complete authored InputGroup contract without a native host", 
                 "text": "Copy",
               },
             ],
-            "className": "inline-flex flex-none whitespace-nowrap items-center justify-center gap-2 rounded-md border font-medium bg-transparent text-secondary border-transparent h-6 px-2 text-xs mx-1",
+            "className": "select-none inline-flex flex-none overflow-hidden whitespace-nowrap items-center justify-center border font-medium bg-transparent text-secondary border-transparent h-7 px-2 gap-1 text-xs rounded-md mx-1",
             "focusOrder": 0,
             "name": "Copy",
             "role": "button",
@@ -103,18 +109,13 @@ test("records the complete authored InputGroup contract without a native host", 
               "display": "flex",
               "flex-shrink": "0",
               "opacity": "1",
-              "outline-color": "#38bdf8",
-              "outline-offset": "2px",
-              "outline-style": "solid",
-              "outline-width": "0px",
-              "user-select": "none",
               "white-space": "nowrap",
             },
             "tag": "button",
             "text": "Copy",
           },
         ],
-        "className": "relative w-full min-w-0 flex rounded-md border shadow-xs h-8 flex-row items-center border-strong bg-input",
+        "className": "relative w-full min-w-0 flex rounded-lg border shadow-xs h-8 flex-row items-center border-strong bg-input",
         "name": "Project URL",
         "role": "group",
         "tag": "view",
@@ -140,4 +141,38 @@ test("focuses the registered native editor through an addon", () => {
   expect(
     screen.getByRole("group", { name: "Project URL" }).className,
   ).toContain("border-focus");
+});
+
+test("quiet groups reveal their boundary only while focused", () => {
+  const screen = renderComponent(() => (
+    <InputGroup aria-label="Navigation search" variant="quiet">
+      <InputGroupInput aria-label="Search projects" />
+    </InputGroup>
+  ));
+  const group = screen.getByRole("group", { name: "Navigation search" });
+  const input = screen.getByRole("textbox", { name: "Search projects" });
+
+  expect(group.className).toContain("bg-transparent");
+  expect(group.className).toContain("border-transparent");
+  expect(group.className).toContain("shadow-none");
+  input.focus();
+  expect(group.className).toContain("border-focus");
+  expect(group.className).not.toContain("border-transparent");
+});
+
+test("keeps multiline input chrome on the compound surface", () => {
+  const screen = renderComponent(() => (
+    <InputGroup aria-label="Comment" orientation="vertical">
+      <InputGroupTextArea aria-label="Comment body" />
+    </InputGroup>
+  ));
+  const group = screen.getByRole("group", { name: "Comment" });
+  const editor = screen.getByRole("textbox", { name: "Comment body" });
+
+  expect(assertSingleSurfaceOwner(group)).toEqual(group);
+  expect(editor.attribute("data-wabou-owns")).toBe("native-editor");
+  expect(editor.className).not.toContain("rounded");
+  expect(editor.className).not.toContain("border");
+  expect(editor.className).not.toContain("shadow");
+  expect(editor.className).not.toContain("bg-");
 });

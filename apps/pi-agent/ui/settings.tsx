@@ -1,4 +1,7 @@
 import {
+  Alert,
+  AlertActions,
+  AlertDescription,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -6,282 +9,435 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertTitle,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  createAsyncAction,
+  createContainerMatch,
   DirectoryPicker,
-  Field,
   FieldDescription,
-  FieldLabel,
   Input,
+  LabeledField,
   PageHeader,
   PageViewport,
+  RadioGroup,
+  RadioGroupItem,
+  Separator,
+  SettingsGroup,
+  SettingsSection,
+  Switch,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   Text,
   View,
 } from "@wabou/ui";
+import { Show } from "solid-js";
 import type { AgentQueueMode, AgentViewState } from "./agent-state";
 import { i18n, m } from "./i18n";
 import { SessionBehaviorSettings } from "./session-behavior-settings";
 import type { AgentWorkspace } from "./workspace";
 
-export interface AgentDefaults {
+export interface AppSettings {
+  locale: "en" | "zh";
   proxy: string;
   noProxy: string;
   provider: string;
   model: string;
+  subagentsEnabled: boolean;
 }
 
 export function SettingsPage(props: {
-  value: AgentDefaults;
-  update: (patch: Partial<AgentDefaults>) => void;
-  agent: AgentWorkspace;
+  app: AppSettings;
+  appLoadError?: unknown;
+  appSaveError?: unknown;
+  updateApp: (patch: Partial<AppSettings>) => void;
+  reloadApp?: () => unknown | PromiseLike<unknown>;
+  retryAppSave?: () => void;
+  project: AgentWorkspace;
   state: AgentViewState;
-  updateAgent: (patch: Partial<AgentWorkspace>) => void;
+  canDeleteProject: boolean;
+  updateProject: (patch: Partial<AgentWorkspace>) => void;
   close: () => void;
-  deleteAgent: () => void;
-  setAutoCompaction: (enabled: boolean) => void;
-  setSteeringMode: (mode: AgentQueueMode) => void;
-  setFollowUpMode: (mode: AgentQueueMode) => void;
+  deleteProject: () => void | Promise<void>;
+  setAutoCompaction: (enabled: boolean) => void | Promise<void>;
+  setSteeringMode: (mode: AgentQueueMode) => void | Promise<void>;
+  setFollowUpMode: (mode: AgentQueueMode) => void | Promise<void>;
+  defaultSection?: "project" | "application";
 }) {
+  const compact = createContainerMatch({ maxWidth: 640 });
+  const deleteAction = createAsyncAction(() => props.deleteProject());
+  const setLocale = (locale: AppSettings["locale"]) => {
+    i18n.set(locale);
+    props.updateApp({ locale });
+  };
   return (
     <PageViewport class="bg-canvas" contentClass="p-8">
-      <View class="w-full max-w-3xl mx-auto flex flex-col gap-6 pb-8">
+      <View
+        ref={compact.ref}
+        class="w-full max-w-5xl mx-auto flex flex-col gap-6 pb-8"
+      >
         <PageHeader
           title={i18n.message(m.settings, {})}
           description={i18n.message(m.settings_intro, {})}
+          stacked={compact.matches()}
           actions={
             <Button variant="outline" onClick={props.close}>
               {i18n.message(m.back_to_agents, {})}
             </Button>
           }
         />
+        <Tabs
+          defaultValue={props.defaultSection ?? "project"}
+          class="w-full gap-6"
+        >
+          <TabsList aria-label={i18n.message(m.settings, {})}>
+            <TabsTrigger value="project">
+              {i18n.message(m.project_settings, {})}
+            </TabsTrigger>
+            <TabsTrigger value="application">
+              {i18n.message(m.application_settings, {})}
+            </TabsTrigger>
+          </TabsList>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {i18n.message(m.current_agent, { name: props.agent.name })}
-            </CardTitle>
-            <CardDescription>
-              {i18n.message(m.current_agent_detail, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Field>
-              <FieldLabel>{i18n.message(m.agent_name, {})}</FieldLabel>
-              <Input
-                aria-label={i18n.message(m.agent_name, {})}
-                value={props.agent.name}
-                onInput={(event) =>
-                  props.updateAgent({ name: event.currentTarget.value })
-                }
-              />
-            </Field>
-            <Field>
-              <FieldLabel>{i18n.message(m.workspace, {})}</FieldLabel>
-              <DirectoryPicker
-                value={props.agent.cwd}
-                onValueChange={(cwd) => props.updateAgent({ cwd })}
-                placeholder={i18n.message(m.choose_repository, {})}
-                browseLabel={i18n.message(m.browse, {})}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>{i18n.message(m.provider, {})}</FieldLabel>
-              <Input
-                value={props.agent.provider}
-                onInput={(event) =>
-                  props.updateAgent({ provider: event.currentTarget.value })
-                }
-                placeholder={i18n.message(m.provider_placeholder, {})}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>{i18n.message(m.model, {})}</FieldLabel>
-              <Input
-                value={props.agent.model}
-                onInput={(event) =>
-                  props.updateAgent({ model: event.currentTarget.value })
-                }
-                placeholder={i18n.message(m.model_optional, {})}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>{i18n.message(m.proxy_url, {})}</FieldLabel>
-              <Input
-                value={props.agent.proxy}
-                onInput={(event) =>
-                  props.updateAgent({ proxy: event.currentTarget.value })
-                }
-                placeholder={i18n.message(m.proxy_placeholder, {})}
-              />
-            </Field>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{i18n.message(m.session_behavior, {})}</CardTitle>
-            <CardDescription>
-              {i18n.message(m.session_behavior_detail, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SessionBehaviorSettings
-              state={props.state}
-              setAutoCompaction={props.setAutoCompaction}
-              setSteeringMode={props.setSteeringMode}
-              setFollowUpMode={props.setFollowUpMode}
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{i18n.message(m.language, {})}</CardTitle>
-            <CardDescription>
-              {i18n.message(m.language_detail, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent class="flex-row">
-            <Button
-              variant={i18n.locale() === "en" ? "default" : "outline"}
-              onClick={() => i18n.set("en")}
+          <TabsContent value="project" class="min-w-0 flex flex-col gap-7">
+            <SettingsSection
+              title={i18n.message(m.workspace, {})}
+              description={i18n.message(m.current_agent_detail, {})}
+              stacked={compact.matches()}
             >
-              {i18n.message(m.english, {})}
-            </Button>
-            <Button
-              variant={i18n.locale() === "zh" ? "default" : "outline"}
-              onClick={() => i18n.set("zh")}
+              <View class="min-w-0 flex flex-col gap-4">
+                <LabeledField
+                  label={i18n.message(m.agent_name, {})}
+                  renderControl={(ref) => (
+                    <Input
+                      ref={ref}
+                      aria-label={i18n.message(m.agent_name, {})}
+                      value={props.project.name}
+                      onInput={(event) =>
+                        props.updateProject({ name: event.currentTarget.value })
+                      }
+                    />
+                  )}
+                />
+                <LabeledField
+                  label={i18n.message(m.workspace, {})}
+                  renderControl={(ref) => (
+                    <DirectoryPicker
+                      ref={ref}
+                      aria-label={i18n.message(m.workspace, {})}
+                      value={props.project.cwd}
+                      onValueChange={(cwd) => props.updateProject({ cwd })}
+                      placeholder={i18n.message(m.choose_repository, {})}
+                      browseLabel={i18n.message(m.browse, {})}
+                    />
+                  )}
+                />
+                <LabeledField
+                  label={i18n.message(m.provider, {})}
+                  renderControl={(ref) => (
+                    <Input
+                      ref={ref}
+                      aria-label={i18n.message(m.provider, {})}
+                      value={props.project.provider}
+                      onInput={(event) =>
+                        props.updateProject({
+                          provider: event.currentTarget.value,
+                        })
+                      }
+                      placeholder={i18n.message(m.provider_placeholder, {})}
+                    />
+                  )}
+                />
+                <LabeledField
+                  label={i18n.message(m.model, {})}
+                  renderControl={(ref) => (
+                    <Input
+                      ref={ref}
+                      aria-label={i18n.message(m.model, {})}
+                      value={props.project.model}
+                      onInput={(event) =>
+                        props.updateProject({
+                          model: event.currentTarget.value,
+                        })
+                      }
+                      placeholder={i18n.message(m.model_optional, {})}
+                    />
+                  )}
+                />
+              </View>
+              <Separator />
+              <SettingsGroup
+                title={i18n.message(m.session_behavior, {})}
+                description={i18n.message(m.session_behavior_detail, {})}
+              >
+                <SessionBehaviorSettings
+                  state={props.state}
+                  setAutoCompaction={props.setAutoCompaction}
+                  setSteeringMode={props.setSteeringMode}
+                  setFollowUpMode={props.setFollowUpMode}
+                />
+              </SettingsGroup>
+            </SettingsSection>
+
+            <SettingsSection
+              title={i18n.message(m.danger_zone, {})}
+              description={i18n.message(m.delete_agent_detail, {})}
+              stacked={compact.matches()}
+              contentClass="border-danger"
             >
-              {i18n.message(m.chinese, {})}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{i18n.message(m.default_provider, {})}</CardTitle>
-            <CardDescription>
-              {i18n.message(m.provider_detail, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Field>
-              <FieldLabel>{i18n.message(m.provider, {})}</FieldLabel>
-              <Input
-                aria-label="Default provider"
-                value={props.value.provider}
-                placeholder={i18n.message(m.provider_placeholder, {})}
-                onInput={(event) =>
-                  props.update({ provider: event.currentTarget.value })
-                }
-              />
-            </Field>
-            <Field>
-              <FieldLabel>{i18n.message(m.model, {})}</FieldLabel>
-              <Input
-                aria-label="Default model"
-                value={props.value.model}
-                placeholder={i18n.message(m.model_optional, {})}
-                onInput={(event) =>
-                  props.update({ model: event.currentTarget.value })
-                }
-              />
-            </Field>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{i18n.message(m.default_proxy, {})}</CardTitle>
-            <CardDescription>
-              {i18n.message(m.proxy_detail, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Field>
-              <FieldLabel>{i18n.message(m.proxy_url, {})}</FieldLabel>
-              <Input
-                aria-label="Default proxy URL"
-                value={props.value.proxy}
-                placeholder="http://127.0.0.1:7890"
-                onInput={(event) =>
-                  props.update({ proxy: event.currentTarget.value })
-                }
-              />
-            </Field>
-            <Field>
-              <FieldLabel>{i18n.message(m.proxy_bypass, {})}</FieldLabel>
-              <Input
-                aria-label="Default proxy bypass list"
-                value={props.value.noProxy}
-                onInput={(event) =>
-                  props.update({ noProxy: event.currentTarget.value })
-                }
-              />
-              <FieldDescription>127.0.0.1, localhost</FieldDescription>
-            </Field>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{i18n.message(m.runtime, {})}</CardTitle>
-            <CardDescription>
-              {i18n.message(m.runtime_kind, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Text class="text-sm text-muted whitespace-normal">
-              {i18n.message(m.runtime_detail, {})}
-            </Text>
-          </CardContent>
-        </Card>
-
-        <Card class="border-danger">
-          <CardHeader>
-            <CardTitle>{i18n.message(m.danger_zone, {})}</CardTitle>
-            <CardDescription>
-              {i18n.message(m.delete_agent_detail, {})}
-            </CardDescription>
-          </CardHeader>
-          <CardContent class="items-start">
-            <AlertDialog
-              aria-label={i18n.message(m.delete_agent, {})}
-              trigger={(trigger) => (
-                <Button variant="destructive" {...trigger}>
-                  {i18n.message(m.delete_agent, {})}
-                </Button>
-              )}
-            >
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  {i18n.message(m.delete_agent_confirm, {
-                    name: props.agent.name,
-                  })}
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  {i18n.message(m.delete_agent_files_safe, {})}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>
-                  {i18n.message(m.cancel, {})}
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  onClick={props.deleteAgent}
+              <View class="min-w-0 flex flex-row items-center justify-between gap-4">
+                <Text class="min-w-0 flex-1 text-sm text-secondary whitespace-normal">
+                  {props.canDeleteProject
+                    ? i18n.message(m.delete_agent_files_safe, {})
+                    : i18n.message(m.delete_last_project_disabled, {})}
+                </Text>
+                <AlertDialog
+                  aria-label={i18n.message(m.delete_agent, {})}
+                  onOpenChange={(open) => {
+                    if (open) deleteAction.reset();
+                  }}
+                  trigger={(trigger) => (
+                    <Button
+                      variant="destructive"
+                      {...trigger}
+                      disabled={!props.canDeleteProject}
+                    >
+                      {i18n.message(m.delete_agent, {})}
+                    </Button>
+                  )}
                 >
-                  {i18n.message(m.delete_agent, {})}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialog>
-          </CardContent>
-        </Card>
+                  {(dialog) => (
+                    <>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          {i18n.message(m.delete_agent_confirm, {
+                            name: props.project.name,
+                          })}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {i18n.message(m.delete_agent_files_safe, {})}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <Show when={deleteAction.error()}>
+                        {(error) => (
+                          <Alert
+                            variant="destructive"
+                            title={i18n.message(m.delete_agent_failed, {})}
+                            class="p-3"
+                          >
+                            {String(error())}
+                          </Alert>
+                        )}
+                      </Show>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={deleteAction.pending()}>
+                          {i18n.message(m.cancel, {})}
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          variant="destructive"
+                          aria-label={i18n.message(m.delete_agent_confirm, {
+                            name: props.project.name,
+                          })}
+                          disabled={
+                            !props.canDeleteProject || deleteAction.pending()
+                          }
+                          loading={deleteAction.pending()}
+                          loadingLabel={i18n.message(m.deleting, {})}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            void deleteProject(dialog.close);
+                          }}
+                        >
+                          {i18n.message(m.delete_agent, {})}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </>
+                  )}
+                </AlertDialog>
+              </View>
+            </SettingsSection>
+          </TabsContent>
+
+          <TabsContent value="application" class="min-w-0 flex flex-col gap-7">
+            <Show when={props.appLoadError}>
+              {(error) => (
+                <Alert
+                  variant="destructive"
+                  aria-label={i18n.message(m.settings_load_failed, {})}
+                >
+                  <AlertTitle>
+                    {i18n.message(m.settings_load_failed, {})}
+                  </AlertTitle>
+                  <AlertDescription>{String(error())}</AlertDescription>
+                  <AlertActions aria-label={i18n.message(m.retry, {})}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label={i18n.message(m.retry, {})}
+                      onClick={() => void props.reloadApp?.()}
+                    >
+                      {i18n.message(m.retry, {})}
+                    </Button>
+                  </AlertActions>
+                </Alert>
+              )}
+            </Show>
+            <Show when={props.appSaveError}>
+              {(error) => (
+                <Alert
+                  variant="destructive"
+                  aria-label={i18n.message(m.settings_save_failed, {})}
+                >
+                  <AlertTitle>
+                    {i18n.message(m.settings_save_failed, {})}
+                  </AlertTitle>
+                  <AlertDescription>{String(error())}</AlertDescription>
+                  <AlertActions aria-label={i18n.message(m.retry, {})}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label={i18n.message(m.retry, {})}
+                      onClick={props.retryAppSave}
+                    >
+                      {i18n.message(m.retry, {})}
+                    </Button>
+                  </AlertActions>
+                </Alert>
+              )}
+            </Show>
+            <SettingsSection
+              title={i18n.message(m.application_settings, {})}
+              description={i18n.message(m.application_settings_detail, {})}
+              stacked={compact.matches()}
+            >
+              <SettingsGroup
+                title={i18n.message(m.language, {})}
+                description={i18n.message(m.language_detail, {})}
+              >
+                <RadioGroup
+                  appearance="segment"
+                  orientation="horizontal"
+                  value={props.app.locale}
+                  aria-label={i18n.message(m.language, {})}
+                  class="w-full max-w-sm"
+                  onValueChange={(value) =>
+                    setLocale(value as AppSettings["locale"])
+                  }
+                >
+                  <RadioGroupItem
+                    value="en"
+                    label={i18n.message(m.english, {})}
+                  />
+                  <RadioGroupItem
+                    value="zh"
+                    label={i18n.message(m.chinese, {})}
+                  />
+                </RadioGroup>
+              </SettingsGroup>
+              <Separator />
+              <SettingsGroup
+                title={i18n.message(m.subagents, {})}
+                description={i18n.message(m.subagents_detail, {})}
+              >
+                <Switch
+                  label={i18n.message(m.enable_subagents, {})}
+                  checked={props.app.subagentsEnabled}
+                  onCheckedChange={(subagentsEnabled) =>
+                    props.updateApp({ subagentsEnabled })
+                  }
+                />
+                <FieldDescription class="text-secondary">
+                  {i18n.message(m.enable_subagents_detail, {})}
+                </FieldDescription>
+              </SettingsGroup>
+              <Separator />
+              <SettingsGroup
+                title={i18n.message(m.default_provider, {})}
+                description={i18n.message(m.provider_detail, {})}
+              >
+                <LabeledField
+                  label={i18n.message(m.provider, {})}
+                  renderControl={(ref) => (
+                    <Input
+                      ref={ref}
+                      aria-label="Default provider"
+                      value={props.app.provider}
+                      placeholder={i18n.message(m.provider_placeholder, {})}
+                      onInput={(event) =>
+                        props.updateApp({ provider: event.currentTarget.value })
+                      }
+                    />
+                  )}
+                />
+                <LabeledField
+                  label={i18n.message(m.model, {})}
+                  renderControl={(ref) => (
+                    <Input
+                      ref={ref}
+                      aria-label="Default model"
+                      value={props.app.model}
+                      placeholder={i18n.message(m.model_optional, {})}
+                      onInput={(event) =>
+                        props.updateApp({ model: event.currentTarget.value })
+                      }
+                    />
+                  )}
+                />
+              </SettingsGroup>
+              <Separator />
+              <SettingsGroup
+                title={i18n.message(m.default_proxy, {})}
+                description={i18n.message(m.proxy_detail, {})}
+              >
+                <LabeledField
+                  label={i18n.message(m.proxy_url, {})}
+                  renderControl={(ref) => (
+                    <Input
+                      ref={ref}
+                      aria-label="Default proxy URL"
+                      value={props.app.proxy}
+                      placeholder="http://127.0.0.1:7890"
+                      onInput={(event) =>
+                        props.updateApp({ proxy: event.currentTarget.value })
+                      }
+                    />
+                  )}
+                />
+                <LabeledField
+                  label={i18n.message(m.proxy_bypass, {})}
+                  description="127.0.0.1, localhost"
+                  renderControl={(ref) => (
+                    <Input
+                      ref={ref}
+                      aria-label="Default proxy bypass list"
+                      value={props.app.noProxy}
+                      onInput={(event) =>
+                        props.updateApp({ noProxy: event.currentTarget.value })
+                      }
+                    />
+                  )}
+                />
+              </SettingsGroup>
+              <Separator />
+              <SettingsGroup
+                title={i18n.message(m.runtime, {})}
+                description={i18n.message(m.runtime_kind, {})}
+              >
+                <Text class="text-sm text-secondary whitespace-normal">
+                  {i18n.message(m.runtime_detail, {})}
+                </Text>
+              </SettingsGroup>
+            </SettingsSection>
+          </TabsContent>
+        </Tabs>
       </View>
     </PageViewport>
   );
+
+  async function deleteProject(close: () => void) {
+    if (!props.canDeleteProject) return;
+    const result = await deleteAction.run();
+    if (result.ok) close();
+  }
 }

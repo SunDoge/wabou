@@ -63,6 +63,11 @@ export const OP = {
   SetGraphicData: 0x20,
   ClearGraphicData: 0x21,
   SetTextMaxLines: 0x22,
+  SetTextSelection: 0x23,
+  TextCommand: 0x24,
+  BlurNode: 0x25,
+  SetProjectionBoundary: 0x26,
+  AcknowledgeTextValue: 0x27,
 } as const;
 
 export type OpCode = (typeof OP)[keyof typeof OP];
@@ -138,6 +143,7 @@ export const EVENT_CODE = {
   imedeletesurrounding: 36,
   imedisabled: 37,
   windowcloserequested: 38,
+  transitionend: 39,
 } as const;
 
 export type EventType = keyof typeof EVENT_CODE;
@@ -416,6 +422,11 @@ export class Writer {
     this.key(id);
     this.u32(maxLines);
   }
+  setProjectionBoundary(id: NodeKey, enabled: boolean): void {
+    this.emit(OP.SetProjectionBoundary);
+    this.key(id);
+    this.u8(enabled ? 1 : 0);
+  }
   setInteractionPolicy(id: NodeKey, flags: number, focusOrder: number): void {
     if (
       !Number.isInteger(flags) ||
@@ -599,6 +610,10 @@ export class Writer {
     this.emit(OP.FocusNode);
     this.key(id);
   }
+  blurNode(id: NodeKey): void {
+    this.emit(OP.BlurNode);
+    this.key(id);
+  }
   scrollTo(id: NodeKey, x: number, y: number): void {
     this.emit(OP.ScrollTo);
     this.key(id);
@@ -610,6 +625,22 @@ export class Writer {
     this.key(id);
     this.f32(x);
     this.f32(y);
+  }
+  setTextSelection(id: NodeKey, anchor: number, head: number): void {
+    this.emit(OP.SetTextSelection);
+    this.key(id);
+    this.u32(anchor);
+    this.u32(head);
+  }
+  textCommand(id: NodeKey, command: number): void {
+    this.emit(OP.TextCommand);
+    this.key(id);
+    this.u8(command);
+  }
+  acknowledgeTextValue(id: NodeKey, revision: number): void {
+    this.emit(OP.AcknowledgeTextValue);
+    this.key(id);
+    this.u32(revision);
   }
 
   /** Drain the buffer into a frame, or null if no ops were emitted this tick. */

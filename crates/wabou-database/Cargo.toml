@@ -5,9 +5,11 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
-tokio = { workspace = true, features = ["sync"] }
-turso = { version = "0.8.0-pre.3", default-features = false }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+rusqlite = { version = "0.38", features = ["bundled"] }
+tokio = { workspace = true, features = ["rt"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-uuid = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }

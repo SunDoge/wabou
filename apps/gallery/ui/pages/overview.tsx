@@ -4,7 +4,6 @@ import {
   Card,
   CardContent,
   createWindowMatch,
-  Fps,
   Icon,
   Kbd,
   Path,
@@ -27,7 +26,13 @@ import layers from "lucide-static/icons/layers-3.svg?raw";
 import palette from "lucide-static/icons/palette.svg?raw";
 import scan from "lucide-static/icons/scan-line.svg?raw";
 import sparkles from "lucide-static/icons/sparkles.svg?raw";
-import { createMemo, createSignal, For, type JSX, onCleanup } from "solid-js";
+import {
+  createMemo,
+  createSignal,
+  For as ForValue,
+  type JSX,
+  onCleanup,
+} from "solid-js";
 import {
   appendFrameSample,
   frameDuration,
@@ -210,8 +215,12 @@ export function OverviewPage(props: {
               <View class="flex flex-row gap-3">
                 <Metric
                   icon={activity}
-                  label="Frame rate"
-                  value={<Fps label="" />}
+                  label="JS tick"
+                  value={
+                    frameStats()
+                      ? `${frameStats()!.js_tick_ms.toFixed(2)} ms`
+                      : "--"
+                  }
                 />
                 <Metric
                   icon={boxes}
@@ -246,7 +255,7 @@ export function OverviewPage(props: {
               </View>
               <View class="flex flex-col gap-3">
                 <LiveFrameChart samples={frameSamples()} />
-                <For each={currentFrameStages()}>
+                <ForValue each={currentFrameStages()}>
                   {(stage) => (
                     <View class="flex items-center gap-3">
                       <Text class="w-12 flex-none text-xs text-muted">
@@ -263,7 +272,7 @@ export function OverviewPage(props: {
                       </Text>
                     </View>
                   )}
-                </For>
+                </ForValue>
               </View>
               <View class="flex items-center justify-between pt-3 border-t border-subtle">
                 <Text class="text-xs text-muted">Viewport</Text>
@@ -294,7 +303,7 @@ export function OverviewPage(props: {
             </View>
             <SplitPane class="min-h-64">
               <SplitPaneAside class="w-64 p-3 flex flex-col gap-1 border-r border-subtle">
-                <For each={treeNodes}>
+                <ForValue each={treeNodes}>
                   {(node, index) => (
                     <Button
                       variant="ghost"
@@ -315,7 +324,7 @@ export function OverviewPage(props: {
                       {node.name}
                     </Button>
                   )}
-                </For>
+                </ForValue>
               </SplitPaneAside>
               <SplitPaneMain class="p-5 flex flex-col gap-4">
                 <View class="flex items-start justify-between gap-4">
@@ -387,7 +396,7 @@ export function OverviewPage(props: {
               />
             </View>
             <View class="flex flex-col gap-3">
-              <Capability icon={layers} text="Retained AnyRender scene" />
+              <Capability icon={layers} text="Retained GPUI projection" />
               <Capability icon={cpu} text="Rust native widgets" />
               <Capability icon={boxes} text="Explicit overlay planes" />
             </View>

@@ -72,3 +72,21 @@ export async function pollUntil<T>(
     );
   }
 }
+
+/** Retry a host action until one projection accepts it.
+ *
+ * A semantic query and the following native action can observe adjacent UI
+ * projections. Retrying only rejected actions closes that race without ever
+ * repeating an action that the host has already handled.
+ */
+export async function retryUntilHandled(
+  action: () => boolean | Promise<boolean>,
+  options: PollOptions = {},
+): Promise<boolean> {
+  const wait = resolvePollOptions(options);
+  const result = await pollUntil(action, Boolean, {
+    ...wait,
+    stableFor: 0,
+  });
+  return result.matched;
+}

@@ -1,6 +1,6 @@
 import { renderComponent } from "@wabou/test/component";
 import { Button, createRetainedItems, Text, View } from "@wabou/ui";
-import { createSignal, For } from "solid-js";
+import { createSignal, For as ForValue } from "solid-js";
 import { expect, test } from "vitest";
 
 test("retains removed keys until release and keeps active values current", () => {
@@ -25,13 +25,13 @@ test("retains removed keys until release and keeps active values current", () =>
         >
           Reconcile
         </Button>
-        <For each={retained.entries()}>
+        <ForValue each={retained.entries()}>
           {(entry) => (
             <Text role="status" aria-label={entry.key}>
               {`${entry.present() ? "present" : "exiting"}:${entry.value().label}`}
             </Text>
           )}
-        </For>
+        </ForValue>
       </View>
     );
   });

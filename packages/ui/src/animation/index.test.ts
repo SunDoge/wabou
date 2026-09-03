@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createRoot, createSignal, flush } from "solid-js";
 import {
   createLoop,
+  createNativeLoopAnimation,
   createInterpolation,
   createKeyframeAnimation,
   createPulse,
@@ -12,6 +13,27 @@ import {
 } from "./index";
 
 describe("Solid animation primitives", () => {
+  test("compiles native loop policy without creating a frame-driven signal", () =>
+    createRoot((dispose) => {
+      const [speed, setSpeed] = createSignal(2);
+      const animation = createNativeLoopAnimation({
+        duration: Number.NaN,
+        speed,
+        paused: true,
+      });
+      expect(animation()).toEqual({
+        kind: "loop",
+        duration: 1,
+        speed: 2,
+        paused: true,
+        reducedMotion: false,
+      });
+      setSpeed(-1);
+      flush();
+      expect(animation().speed).toBe(1);
+      dispose();
+    }));
+
   test("can start a transition independently from its current target", () =>
     createRoot((dispose) => {
       const transition = createTransition(() => 1, {

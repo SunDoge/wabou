@@ -49,6 +49,12 @@ pub(super) fn prepare_artifact_dir(directory: &Path) -> Result<()> {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "action", rename_all_fields = "camelCase", deny_unknown_fields)]
 enum ReplayAction {
+    #[serde(rename = "writeTextFile")]
+    WriteTextFile {
+        relative_path: String,
+        contents: String,
+        path: String,
+    },
     #[serde(rename = "respondToEffect")]
     RespondToEffect {
         operation: ReplayEffectOperation,
@@ -75,6 +81,8 @@ enum ReplayAction {
         #[serde(default)]
         index: Option<u64>,
         #[serde(default)]
+        scope: Vec<ReplayLocatorReference>,
+        #[serde(default)]
         wait: Option<ReplayWait>,
     },
     #[serde(rename = "inputByRole")]
@@ -84,6 +92,8 @@ enum ReplayAction {
         label: String,
         #[serde(default)]
         index: Option<u64>,
+        #[serde(default)]
+        scope: Vec<ReplayLocatorReference>,
         input: ReplayInput,
         #[serde(default)]
         wait: Option<ReplayWait>,
@@ -95,6 +105,8 @@ enum ReplayAction {
         label: String,
         #[serde(default)]
         index: Option<u64>,
+        #[serde(default)]
+        scope: Vec<ReplayLocatorReference>,
         wait: ReplayWait,
     },
     #[serde(rename = "assertByRole")]
@@ -104,6 +116,8 @@ enum ReplayAction {
         label: String,
         #[serde(default)]
         index: Option<u64>,
+        #[serde(default)]
+        scope: Vec<ReplayLocatorReference>,
         assertion: ReplayLocatorAssertion,
         wait: ReplayWait,
     },
@@ -143,41 +157,15 @@ enum ReplayPlatform {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum ReplayRole {
-    Button,
-    Group,
-    Textbox,
-    Link,
-    Dialog,
-    Alert,
-    Status,
-    Checkbox,
-    Radio,
-    Switch,
-    Combobox,
-    Listbox,
-    Option,
-    Menu,
-    Menuitem,
-    Tree,
-    Treeitem,
-    Table,
-    Row,
-    Cell,
-    Columnheader,
-    Rowheader,
-    Slider,
-    Progressbar,
-    Heading,
-    Label,
-    Img,
-    Radiogroup,
-    Tablist,
-    Tab,
-    Tabpanel,
-    Grid,
-    Gridcell,
+#[serde(transparent)]
+struct ReplayRole(String);
+
+impl ReplayRole {
+    fn validate(&self) -> std::result::Result<(), String> {
+        wabou_shell::SemanticRole::from_name(&self.0)
+            .map(|_| ())
+            .ok_or_else(|| format!("unknown exposed semantic role {:?}", self.0))
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -368,12 +356,34 @@ fn validate_index(index: Option<u64>) -> std::result::Result<(), String> {
     Ok(())
 }
 
+fn validate_scope(scope: &[ReplayLocatorReference]) -> std::result::Result<(), String> {
+    for selector in scope {
+        selector.role.validate()?;
+        validate_index(selector.index)?;
+    }
+    Ok(())
+}
+
 impl ReplayAction {
     fn validate(&self) -> std::result::Result<(), String> {
         if let Self::RespondToEffect { operation, result } = self {
             return operation.validate(result);
         }
         let (window_id, wait) = match self {
+            Self::WriteTextFile {
+                relative_path,
+                contents,
+                path,
+            } => {
+                if relative_path.is_empty() {
+                    return Err("fixture relativePath must not be empty".into());
+                }
+                if path.is_empty() {
+                    return Err("fixture path must not be empty".into());
+                }
+                let _ = contents;
+                return Ok(());
+            }
             Self::RespondToEffect { .. } => unreachable!(),
             Self::NativeClose {
                 window_id,
@@ -403,10 +413,13 @@ impl ReplayAction {
                 role,
                 label,
                 index,
+                scope,
                 wait,
             } => {
-                let _ = (role, label);
+                role.validate()?;
+                let _ = label;
                 validate_index(*index)?;
+                validate_scope(scope)?;
                 (*window_id, wait.as_ref())
             }
             Self::InputByRole {
@@ -414,11 +427,14 @@ impl ReplayAction {
                 role,
                 label,
                 index,
+                scope,
                 input,
                 wait,
             } => {
-                let _ = (role, label);
+                role.validate()?;
+                let _ = label;
                 validate_index(*index)?;
+                validate_scope(scope)?;
                 input.validate()?;
                 (*window_id, wait.as_ref())
             }
@@ -427,10 +443,13 @@ impl ReplayAction {
                 role,
                 label,
                 index,
+                scope,
                 wait,
             } => {
-                let _ = (role, label);
+                role.validate()?;
+                let _ = label;
                 validate_index(*index)?;
+                validate_scope(scope)?;
                 (*window_id, Some(wait))
             }
             Self::AssertByRole {
@@ -438,11 +457,14 @@ impl ReplayAction {
                 role,
                 label,
                 index,
+                scope,
                 assertion,
                 wait,
             } => {
-                let _ = (role, label);
+                role.validate()?;
+                let _ = label;
                 validate_index(*index)?;
+                validate_scope(scope)?;
                 if index.is_some() && matches!(assertion, ReplayLocatorAssertion::Count { .. }) {
                     return Err("count assertion requires an unindexed locator".into());
                 }
@@ -629,7 +651,8 @@ impl ReplayLocatorAssertion {
                 }
             }
             Self::NotOverlap { other, tolerance } => {
-                let _ = (&other.role, &other.name);
+                other.role.validate()?;
+                let _ = &other.name;
                 validate_index(other.index)?;
                 if !tolerance.is_finite() || *tolerance < 0.0 {
                     return Err(
@@ -642,7 +665,8 @@ impl ReplayLocatorAssertion {
                 fields,
                 tolerance,
             } => {
-                let _ = (&other.role, &other.name);
+                other.role.validate()?;
+                let _ = &other.name;
                 validate_index(other.index)?;
                 if fields.is_empty() {
                     return Err("matching bounds fields cannot be empty".into());

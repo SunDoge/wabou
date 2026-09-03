@@ -1,70 +1,65 @@
-//! Durable native window geometry with an intentionally small state schema.
+//! Backend-independent persistence for a window's normal logical size.
 
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{ExtensionContext, ShellExtension, WindowOptions, WindowResourceKey};
-
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 struct SavedWindowSize {
     width: u32,
     height: u32,
 }
 
-/// Restore and persist the normal logical size of one native window.
+/// Restores and records the normal logical size of one native window.
 ///
-/// Maximized dimensions are deliberately ignored: restoring those as the
-/// normal size makes the next unmaximize operation surprising.
+/// The GPUI shell feeds authoritative resize/maximize observations into this
+/// object. Persistence remains independent from application state so restoring
+/// a window never depends on booting the JavaScript runtime first.
 pub struct WindowSizePersistence {
     path: PathBuf,
-    window_key: WindowResourceKey,
     last_normal_size: Option<SavedWindowSize>,
 }
 
 impl WindowSizePersistence {
-    /// Restore a valid saved size into `options` and create its persistence hook.
+    /// Load a valid saved size and clamp it to the current minimum.
+    #[must_use]
     pub fn restore(
         path: impl Into<PathBuf>,
-        window_key: WindowResourceKey,
-        options: &mut WindowOptions,
-    ) -> Self {
+        initial_size: (u32, u32),
+        minimum_size: Option<(u32, u32)>,
+    ) -> (Self, (u32, u32)) {
         let path = path.into();
         let saved = std::fs::read(&path)
             .ok()
             .and_then(|bytes| serde_json::from_slice::<SavedWindowSize>(&bytes).ok())
             .filter(valid_size);
-        if let Some(saved) = saved {
-            let min = options.min_inner_size.unwrap_or((1, 1));
-            options.initial_inner_size = (saved.width.max(min.0), saved.height.max(min.1));
-        }
-        let restored = saved.map(|_| SavedWindowSize {
-            width: options.initial_inner_size.0,
-            height: options.initial_inner_size.1,
+        let minimum = minimum_size.unwrap_or((1, 1));
+        let restored = saved.map_or(initial_size, |saved| {
+            (saved.width.max(minimum.0), saved.height.max(minimum.1))
         });
-        Self {
-            path,
-            window_key,
-            last_normal_size: restored,
+        let last_normal_size = saved.map(|_| SavedWindowSize {
+            width: restored.0,
+            height: restored.1,
+        });
+        (
+            Self {
+                path,
+                last_normal_size,
+            },
+            restored,
+        )
+    }
+
+    /// Record an authoritative logical viewport size when it is a normal window.
+    pub fn observe(&mut self, width: u32, height: u32, maximized: bool) {
+        let size = SavedWindowSize { width, height };
+        if !maximized && valid_size(&size) {
+            self.last_normal_size = Some(size);
         }
     }
 
-    fn observe(&mut self, context: &mut ExtensionContext<'_>) {
-        let Some(metrics) = context.window_metrics(self.window_key) else {
-            return;
-        };
-        if !metrics.maximized {
-            let size = SavedWindowSize {
-                width: metrics.logical_width,
-                height: metrics.logical_height,
-            };
-            if valid_size(&size) {
-                self.last_normal_size = Some(size);
-            }
-        }
-    }
-
-    fn save(&self) {
+    /// Atomically persist the last observed normal size, if any.
+    pub fn save(&self) {
         let Some(size) = self.last_normal_size else {
             return;
         };
@@ -85,39 +80,8 @@ impl WindowSizePersistence {
     }
 }
 
-impl ShellExtension for WindowSizePersistence {
-    fn initialize(&mut self, _wake: crate::WakeCallback) -> Result<(), String> {
-        Ok(())
-    }
-
-    fn poll(&mut self, context: &mut ExtensionContext<'_>) {
-        self.observe(context);
-    }
-
-    fn window_metrics_changed(
-        &mut self,
-        window_key: WindowResourceKey,
-        context: &mut ExtensionContext<'_>,
-    ) {
-        if window_key == self.window_key {
-            self.observe(context);
-        }
-    }
-
-    fn close_requested(
-        &mut self,
-        window_key: WindowResourceKey,
-        context: &mut ExtensionContext<'_>,
-    ) -> bool {
-        if window_key == self.window_key {
-            self.observe(context);
-            self.save();
-        }
-        false
-    }
-
-    fn shutdown(&mut self, context: &mut ExtensionContext<'_>) {
-        self.observe(context);
+impl Drop for WindowSizePersistence {
+    fn drop(&mut self) {
         self.save();
     }
 }
@@ -142,30 +106,20 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("window.json");
         std::fs::write(&path, br#"{"width":640,"height":480}"#).unwrap();
-        let mut options = WindowOptions::new().min_inner_size(900, 600);
 
-        let _state = WindowSizePersistence::restore(
-            &path,
-            crate::initial_window_resource_key(0),
-            &mut options,
-        );
+        let (_state, restored) =
+            WindowSizePersistence::restore(&path, (1280, 840), Some((900, 600)));
 
-        assert_eq!(options.initial_inner_size, (900, 600));
+        assert_eq!(restored, (900, 600));
     }
 
     #[test]
-    fn saved_size_replaces_the_previous_file() {
+    fn maximized_observations_do_not_replace_the_normal_size() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("state/window.json");
-        let state = WindowSizePersistence {
-            path: path.clone(),
-            window_key: crate::initial_window_resource_key(0),
-            last_normal_size: Some(SavedWindowSize {
-                width: 1280,
-                height: 840,
-            }),
-        };
-
+        let (mut state, _) = WindowSizePersistence::restore(&path, (1280, 840), None);
+        state.observe(1280, 840, false);
+        state.observe(1920, 1080, true);
         state.save();
 
         let saved: SavedWindowSize = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();

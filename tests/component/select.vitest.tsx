@@ -37,15 +37,24 @@ test("opens, highlights, selects, and restores trigger focus", async () => {
   );
 
   const rust = screen.getByRole("option", { name: "Rust" });
+  expect(
+    screen.getByRole("listbox", { name: "Technology" }).className,
+  ).toContain("select-none");
   rust.movePointer();
   expect(rust.className).toContain("bg-control-hover");
   expect(() =>
     screen.getByRole("option", { name: "Unavailable" }).click(),
   ).toThrow("cannot click disabled component option");
+  const unavailable = screen.getByRole("option", { name: "Unavailable" });
+  expect(unavailable.className).toContain("bg-surface-muted");
+  expect(unavailable.className).toContain("text-muted");
+  expect(unavailable.className).toContain("cursor-not-allowed");
+  expect(unavailable.className).toContain("opacity-60");
 
   rust.click();
   expect(screen.getByRole("status").text).toBe("rust");
   expect(trigger.text).toContain("Rust");
+  expect(trigger.valueText).toBe("Rust");
   expect(trigger.expanded).toBe(false);
   expect(screen.queryByRole("listbox")).toBeNull();
   await screen.advanceTime(16);
@@ -100,6 +109,78 @@ test("keeps controlled open state owned by the application", () => {
   expect(trigger.expanded).toBe(false);
 });
 
+test("does not move focus when a controlled owner rejects an open request", async () => {
+  const requests: boolean[] = [];
+  const screen = renderComponent(
+    () => (
+      <Select
+        aria-label="Controlled closed technology"
+        options={options}
+        open={false}
+        onOpenChange={(open) => requests.push(open)}
+      />
+    ),
+    { clock: "fake" },
+  );
+  const trigger = screen.getByRole("combobox", {
+    name: "Controlled closed technology",
+  });
+  trigger.focus();
+  trigger.press("ArrowDown");
+  await screen.advanceTime(16);
+
+  expect(requests).toEqual([true]);
+  expect(trigger.expanded).toBe(false);
+  expect(trigger.focused).toBe(true);
+  expect(screen.queryByRole("listbox")).toBeNull();
+});
+
+test("keeps popup focus when a controlled owner rejects dismissal", async () => {
+  const requests: boolean[] = [];
+  const screen = renderComponent(
+    () => (
+      <Select
+        aria-label="Controlled open technology"
+        options={options}
+        open
+        onOpenChange={(open) => requests.push(open)}
+      />
+    ),
+    { clock: "fake" },
+  );
+  await screen.advanceTime(16);
+  const trigger = screen.getByRole("combobox", {
+    name: "Controlled open technology",
+  });
+  const listbox = screen.getByRole("listbox", {
+    name: "Controlled open technology",
+  });
+  expect(listbox.focused).toBe(true);
+
+  listbox.press("Escape");
+  await screen.advanceTime(16);
+
+  expect(requests).toEqual([false]);
+  expect(trigger.expanded).toBe(true);
+  expect(listbox.focused).toBe(true);
+  expect(trigger.focused).toBe(false);
+});
+
+test("opens at the first enabled option when the controlled value is stale", async () => {
+  const screen = renderComponent(
+    () => (
+      <Select aria-label="Stale technology" options={options} value="removed" />
+    ),
+    { clock: "fake" },
+  );
+  screen.getByRole("combobox", { name: "Stale technology" }).press("ArrowDown");
+  await screen.advanceTime(16);
+
+  expect(screen.getByRole("option", { name: "SolidJS" }).className).toContain(
+    "bg-control-hover",
+  );
+});
+
 test("opens on pointer down without waiting for the pressed state to release", () => {
   const screen = renderComponent(() => (
     <Select aria-label="Technology" options={options} defaultValue="solid" />
@@ -119,11 +200,7 @@ test("opens on pointer down without waiting for the pressed state to release", (
 
 test("opens without implicit motion by default", () => {
   const screen = renderComponent(() => (
-    <Select
-      aria-label="Technology"
-      options={options}
-      defaultValue="solid"
-    />
+    <Select aria-label="Technology" options={options} defaultValue="solid" />
   ));
 
   screen.getByRole("combobox", { name: "Technology" }).click();
@@ -145,5 +222,6 @@ test("supports explicit popup motion", () => {
 
   screen.getByRole("combobox").click();
   const panel = screen.getByRole("listbox").closestByRole("presentation");
-  expect(panel?.transform?.[0]).toBeLessThan(1);
+  expect(panel?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+  expect(panel?.attribute("__wabou_native_transition")).toBeNull();
 });

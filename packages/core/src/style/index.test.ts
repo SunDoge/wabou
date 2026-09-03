@@ -62,9 +62,7 @@ describe("typed style", () => {
   });
 
   test("merges utility conflicts by their Style IR properties", () => {
-    expect(utilityConflictProperties("text-[18px]")).toEqual([
-      "font-size",
-    ]);
+    expect(utilityConflictProperties("text-[18px]")).toEqual(["font-size"]);
     expect(utilityConflictProperties("border-[3px]")).toEqual([
       "border-top-width",
       "border-right-width",
@@ -89,6 +87,10 @@ describe("typed style", () => {
     expect(mergeClasses("translate-x-2", "translate-x-4")).toBe(
       "translate-x-4",
     );
+    expect(mergeClasses("bg-surface", "bg-canvas")).toBe("bg-canvas");
+    expect(mergeClasses("text-secondary", "text-brand/80")).toBe(
+      "text-brand/80",
+    );
   });
 
   test("preserves conditional and unknown third-party classes", () => {
@@ -99,7 +101,7 @@ describe("typed style", () => {
     expect(mergeClasses("p-auto", "p-2")).toBe("p-auto p-2");
   });
 
-  test("constructs Vello-native shadows in stdDev units", () => {
+  test("constructs native retained shadows in stdDev units", () => {
     expect(
       shadow({ stdDev: 6, spread: -2, offsetY: 8, color: 0x11223344 }),
     ).toEqual({

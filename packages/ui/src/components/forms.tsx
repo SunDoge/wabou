@@ -1,5 +1,13 @@
 import type { Handle } from "@wabou/core/renderer";
-import { createContext, For, type JSX, omit, Show, useContext } from "solid-js";
+import { mergeClasses } from "@wabou/core/style";
+import {
+  createContext,
+  For as ForValue,
+  type JSX,
+  omit,
+  Show,
+  useContext,
+} from "solid-js";
 import { match } from "ts-pattern";
 import {
   createFocusWithin,
@@ -10,10 +18,22 @@ import {
   type ViewProps,
 } from "../primitives";
 import { Button, type ButtonProps } from "./button";
-import { mergeClasses } from "@wabou/core/style";
 import { Input, type InputProps } from "./input";
 import { Label, type LabelProps } from "./label";
 export type FieldOrientation = "vertical" | "horizontal";
+
+interface FieldContextValue {
+  orientation(): FieldOrientation;
+  invalid(): boolean;
+  required(): boolean;
+}
+
+const FieldContext = createContext<FieldContextValue>({
+  orientation: () => "vertical",
+  invalid: () => false,
+  required: () => false,
+});
+
 export function fieldClass(
   orientation: FieldOrientation = "vertical",
   invalid = false,
@@ -35,15 +55,30 @@ export function Field(props: {
   children?: JSX.Element;
   orientation?: FieldOrientation;
   invalid?: boolean;
+  required?: boolean;
   class?: string;
 }) {
+  const context: FieldContextValue = {
+    orientation: () => props.orientation ?? "vertical",
+    invalid: () => props.invalid ?? false,
+    required: () => props.required ?? false,
+  };
   return (
-    <View
-      role="group"
-      class={fieldClass(props.orientation, props.invalid ?? false, props.class)}
-    >
-      {props.children}
-    </View>
+    <FieldContext value={context}>
+      <View
+        role="group"
+        aria-orientation={context.orientation()}
+        aria-invalid={context.invalid()}
+        aria-required={context.required()}
+        class={fieldClass(
+          context.orientation(),
+          context.invalid(),
+          props.class,
+        )}
+      >
+        {props.children}
+      </View>
+    </FieldContext>
   );
 }
 
@@ -78,7 +113,7 @@ export function FieldLegend(props: {
 }
 export function FieldGroup(props: { children?: JSX.Element; class?: string }) {
   return (
-    <View class={mergeClasses("flex flex-col gap-5", props.class)}>
+    <View class={mergeClasses("flex flex-col gap-4", props.class)}>
       {props.children}
     </View>
   );
@@ -86,7 +121,77 @@ export function FieldGroup(props: { children?: JSX.Element; class?: string }) {
 export interface FieldLabelProps extends LabelProps {}
 
 export function FieldLabel(props: FieldLabelProps) {
-  return <Label {...props} />;
+  const field = useContext(FieldContext);
+  const forwarded = omit(props, "class", "children");
+  return (
+    <View
+      class={mergeClasses(
+        "min-w-0 flex flex-row items-center gap-1",
+        field.orientation() === "horizontal" ? "w-36 flex-none" : "w-full",
+      )}
+    >
+      <Label
+        {...forwarded}
+        class={mergeClasses(
+          "min-w-0 flex-1",
+          field.invalid() && "text-danger-primary",
+          props.class,
+        )}
+      >
+        {props.children}
+      </Label>
+      <Show when={field.required()}>
+        <Text aria-hidden="true" class="flex-none text-sm text-danger-primary">
+          *
+        </Text>
+      </Show>
+    </View>
+  );
+}
+
+export interface LabeledFieldProps {
+  label: JSX.Element;
+  description?: JSX.Element;
+  invalid?: boolean;
+  required?: boolean;
+  disabled?: boolean;
+  errors?: ReadonlyArray<FieldErrorLike | undefined>;
+  class?: string;
+  controlRef?: (node: Handle) => void;
+  /** Render the native control and attach the supplied ref to its focus owner. */
+  renderControl: (ref: (node: Handle) => void) => JSX.Element;
+}
+
+/**
+ * A complete native field whose visible label always focuses its control.
+ * This avoids repeating ad-hoc Handle plumbing in every settings surface.
+ */
+export function LabeledField(props: LabeledFieldProps) {
+  let control: Handle | undefined;
+  const errors = () => uniqueFieldErrors(props.errors);
+  return (
+    <Field
+      invalid={props.invalid ?? errors().length > 0}
+      required={props.required}
+      class={props.class}
+    >
+      <FieldLabel disabled={props.disabled} control={() => control}>
+        {props.label}
+      </FieldLabel>
+      {props.renderControl((node) => {
+        control = node;
+        props.controlRef?.(node);
+      })}
+      <Show
+        when={props.description !== undefined && props.description !== null}
+      >
+        <FieldDescription>{props.description}</FieldDescription>
+      </Show>
+      <Show when={errors().length > 0}>
+        <FieldError errors={props.errors} />
+      </Show>
+    </Field>
+  );
 }
 
 export function FieldTitle(props: { children?: JSX.Element; class?: string }) {
@@ -167,13 +272,13 @@ export function FieldError(props: {
       <Show
         when={props.children !== undefined && props.children !== null}
         fallback={
-          <For each={messages()}>
+          <ForValue each={messages()}>
             {(message) => (
               <Text class="w-full min-w-0 whitespace-normal text-xs text-danger-primary">
                 {message}
               </Text>
             )}
-          </For>
+          </ForValue>
         }
       >
         <Text class="w-full min-w-0 whitespace-normal text-xs text-danger-primary">
@@ -204,6 +309,7 @@ export function FieldSeparator(props: {
   );
 }
 export type InputGroupOrientation = "horizontal" | "vertical";
+export type InputGroupVariant = "default" | "quiet";
 export type InputGroupAddonAlign =
   | "inline-start"
   | "inline-end"
@@ -225,19 +331,28 @@ export function inputGroupClass(
   orientation: InputGroupOrientation,
   focused: boolean,
   invalid: boolean,
+  variant: InputGroupVariant = "default",
 ): string {
   return mergeClasses(
-    "relative w-full min-w-0 flex rounded-md border shadow-xs",
+    "relative w-full min-w-0 flex rounded-lg border",
+    variant === "default" ? "shadow-xs" : "shadow-none",
     orientation === "horizontal"
       ? "h-8 flex-row items-center"
       : "h-auto flex-col items-stretch",
-    invalid ? "border-danger" : focused ? "border-focus" : "border-strong",
+    invalid
+      ? "border-danger"
+      : focused
+        ? "border-focus"
+        : variant === "quiet"
+          ? "border-transparent"
+          : "border-strong",
   );
 }
 
 export interface InputGroupProps extends Omit<ViewProps, "children"> {
   children?: JSX.Element;
   orientation?: InputGroupOrientation;
+  variant?: InputGroupVariant;
   invalid?: boolean;
   disabled?: boolean;
   /** Background utility owned by the compound control. Defaults to `bg-input`. */
@@ -259,6 +374,7 @@ export function InputGroup(props: InputGroupProps) {
     props,
     "children",
     "orientation",
+    "variant",
     "invalid",
     "disabled",
     "surfaceClass",
@@ -278,8 +394,10 @@ export function InputGroup(props: InputGroupProps) {
             props.orientation ?? "horizontal",
             focus.focusWithin(),
             props.invalid ?? false,
+            props.variant ?? "default",
           ),
-          props.surfaceClass ?? "bg-input",
+          props.surfaceClass ??
+            (props.variant === "quiet" ? "bg-transparent" : "bg-input"),
           props.disabled && "opacity-50",
           props.class,
         )}
@@ -376,8 +494,9 @@ export function InputGroupTextArea(
         group?.registerControl(node);
         props.ref?.(node);
       }}
+      data-wabou-owns="native-editor"
       class={mergeClasses(
-        "w-full h-24 px-3 py-2 border-transparent bg-transparent text-sm",
+        "w-full h-24 px-3 py-2 text-sm text-primary",
         props.class,
       )}
     />

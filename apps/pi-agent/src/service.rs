@@ -1,6 +1,7 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     env,
+    ffi::{OsStr, OsString},
     io::{BufRead as _, BufReader, Write as _},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
@@ -8,15 +9,18 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use gix::bstr::ByteSlice as _;
 use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use wabou::{
-    HostMessage, HostMessageContext, JsonCapability, JsonCapabilityContract, JsonMethod, rquickjs,
+    AppDirectories, AppDirectoryConfig, CapabilityContract, HostMessage, HostMessageContext,
+    HostMethod, JsonMethod, NativeCapability, rquickjs,
 };
 
-pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("piAgent", 1);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("piAgent", 1);
 const EVENT_TOPIC: &str = "pi.event";
+const PI_TOOL: &str = "aqua:earendil-works/pi@0.84.3";
 
 const GET_STATUS: JsonMethod<AgentRequest, PiStatus> = JsonMethod::new("getStatus");
 const START: JsonMethod<StartRequest, PiStatus> = JsonMethod::new("start");
@@ -36,7 +40,7 @@ const SET_AUTO_COMPACTION: JsonMethod<ToggleRequest, ()> = JsonMethod::new("setA
 const SET_STEERING_MODE: JsonMethod<QueueModeRequest, ()> = JsonMethod::new("setSteeringMode");
 const SET_FOLLOW_UP_MODE: JsonMethod<QueueModeRequest, ()> = JsonMethod::new("setFollowUpMode");
 const LIST_SESSIONS: JsonMethod<AgentRequest, Vec<PiSession>> = JsonMethod::new("listSessions");
-const GET_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getMessages");
+const GET_MESSAGES: JsonMethod<SnapshotRequest, ()> = JsonMethod::new("getMessages");
 const GET_SESSION_STATS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getSessionStats");
 const GET_COMMANDS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getCommands");
 const GET_FORK_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getForkMessages");
@@ -44,18 +48,45 @@ const FORK: JsonMethod<ForkRequest, ()> = JsonMethod::new("fork");
 const CLONE_SESSION: JsonMethod<AgentRequest, ()> = JsonMethod::new("cloneSession");
 const COMPACT_SESSION: JsonMethod<AgentRequest, ()> = JsonMethod::new("compactSession");
 const EXPORT_SESSION: JsonMethod<ExportSessionRequest, ()> = JsonMethod::new("exportSession");
-const LIST_WORKSPACE_FILES: JsonMethod<WorkspaceFilesRequest, Vec<String>> =
-    JsonMethod::new("listWorkspaceFiles");
+const LIST_WORKSPACE_FILES: HostMethod<WorkspaceFilesRequest, Vec<String>> =
+    HostMethod::new("listWorkspaceFiles");
+const WORKSPACE_INFO: HostMethod<WorkspaceFilesRequest, WorkspaceInfo> =
+    HostMethod::new("workspaceInfo");
+const READ_WORKSPACE_FILE: HostMethod<ReadWorkspaceFileRequest, WorkspaceFilePreview> =
+    HostMethod::new("readWorkspaceFile");
+const WORKSPACE_CHANGES: HostMethod<WorkspaceFilesRequest, WorkspaceChanges> =
+    HostMethod::new("workspaceChanges");
+const CAPTURE_CHECKPOINT: HostMethod<
+    crate::checkpoint::CaptureCheckpointRequest,
+    crate::checkpoint::WorktreeCheckpoint,
+> = HostMethod::new("captureCheckpoint");
+const RESTORE_CHECKPOINT: HostMethod<
+    crate::checkpoint::RestoreCheckpointRequest,
+    crate::checkpoint::WorktreeRestore,
+> = HostMethod::new("restoreCheckpoint");
+const RETAIN_CHECKPOINT: HostMethod<
+    crate::checkpoint::RetainCheckpointRequest,
+    crate::checkpoint::WorktreeCheckpoint,
+> = HostMethod::new("retainCheckpoint");
+const FIND_CHECKPOINT: HostMethod<
+    crate::checkpoint::FindCheckpointRequest,
+    Option<crate::checkpoint::WorktreeCheckpoint>,
+> = HostMethod::new("findCheckpoint");
+const LIST_SKILLS: HostMethod<WorkspaceFilesRequest, Vec<SkillEntry>> =
+    HostMethod::new("listSkills");
 const RESPOND_EXTENSION_UI: JsonMethod<ExtensionUiResponseRequest, ()> =
     JsonMethod::new("respondExtensionUi");
-const LIST_AGENTS: JsonMethod<(), Vec<AgentProfile>> = JsonMethod::no_request("listAgents");
+const LIST_AGENTS: HostMethod<(), Vec<AgentProfile>> = HostMethod::no_request("listAgents");
 const SAVE_AGENTS: JsonMethod<Vec<AgentProfile>, ()> = JsonMethod::new("saveAgents");
+const GET_APP_SETTINGS: JsonMethod<(), AppSettings> = JsonMethod::no_request("getAppSettings");
+const SAVE_APP_SETTINGS: JsonMethod<AppSettings, ()> = JsonMethod::new("saveAppSettings");
 const DELETE_AGENT: JsonMethod<AgentRequest, ()> = JsonMethod::new("deleteAgent");
 const DEFAULT_WORKSPACE: JsonMethod<AgentRequest, String> = JsonMethod::new("defaultWorkspace");
 
 #[derive(Clone)]
 pub struct PiService {
     state: Arc<Mutex<HashMap<String, PiProcess>>>,
+    lifecycle: Arc<Mutex<()>>,
     events_tx: flume::Sender<Value>,
     events_rx: flume::Receiver<Value>,
     sessions: Arc<Mutex<SessionCatalog>>,
@@ -68,16 +99,62 @@ struct SessionCatalog {
     sessions: Vec<PiSession>,
     #[serde(default)]
     agents: Vec<AgentProfile>,
+    #[serde(default)]
+    settings: AppSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
+struct AppSettings {
+    #[serde(default)]
+    locale: AppLocale,
+    #[serde(default)]
+    proxy: String,
+    #[serde(default = "default_no_proxy")]
+    no_proxy: String,
+    #[serde(default)]
+    provider: String,
+    #[serde(default)]
+    model: String,
+    #[serde(default = "default_enabled")]
+    subagents_enabled: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum AppLocale {
+    #[default]
+    En,
+    Zh,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            locale: AppLocale::En,
+            proxy: String::new(),
+            no_proxy: default_no_proxy(),
+            provider: String::new(),
+            model: String::new(),
+            subagents_enabled: true,
+        }
+    }
+}
+
+fn default_no_proxy() -> String {
+    "127.0.0.1,localhost".to_owned()
+}
+
+const fn default_enabled() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 struct AgentProfile {
     id: String,
     name: String,
     cwd: String,
-    proxy: String,
-    no_proxy: String,
     provider: String,
     model: String,
 }
@@ -98,6 +175,18 @@ struct PiProcess {
     stdin: Option<Arc<Mutex<ChildStdin>>>,
     cwd: Option<PathBuf>,
     last_error: Option<String>,
+    launch: PiLaunchSpec,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PiLaunchSpec {
+    cwd: PathBuf,
+    session_file: Option<PathBuf>,
+    proxy: Option<String>,
+    no_proxy: Option<String>,
+    provider: Option<String>,
+    model: Option<String>,
+    subagents_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -109,7 +198,7 @@ pub struct PiStatus {
     error: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct StartRequest {
     agent_id: String,
@@ -119,12 +208,15 @@ struct StartRequest {
     provider: Option<String>,
     model: Option<String>,
     session_id: Option<String>,
+    #[serde(default)]
+    subagents_enabled: bool,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PromptRequest {
     agent_id: String,
+    request_id: String,
     message: String,
     #[serde(default)]
     image_paths: Vec<PathBuf>,
@@ -214,6 +306,54 @@ fn list_workspace_files(root: &std::path::Path) -> Result<Vec<String>, String> {
     Ok(files)
 }
 
+fn read_workspace_file(root: &Path, relative: &Path) -> Result<WorkspaceFilePreview, String> {
+    if relative.is_absolute()
+        || relative.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
+    {
+        return Err(format!(
+            "file path must stay inside the workspace: {}",
+            relative.display()
+        ));
+    }
+    let root = root
+        .canonicalize()
+        .map_err(|error| format!("could not open workspace {}: {error}", root.display()))?;
+    let path = root
+        .join(relative)
+        .canonicalize()
+        .map_err(|error| format!("could not open {}: {error}", relative.display()))?;
+    if !path.starts_with(&root) {
+        return Err(format!(
+            "file path leaves the workspace: {}",
+            relative.display()
+        ));
+    }
+    let metadata = path
+        .metadata()
+        .map_err(|error| format!("could not inspect {}: {error}", relative.display()))?;
+    if !metadata.is_file() || metadata.len() > MAX_CONTEXT_FILE_BYTES {
+        return Err(format!(
+            "preview requires a regular text file under 512 KiB: {}",
+            relative.display()
+        ));
+    }
+    let bytes = std::fs::read(&path)
+        .map_err(|error| format!("could not read {}: {error}", relative.display()))?;
+    let text = String::from_utf8(bytes)
+        .map_err(|_| format!("file is not UTF-8 text: {}", relative.display()))?;
+    Ok(WorkspaceFilePreview {
+        path: relative.display().to_string(),
+        text,
+    })
+}
+
 async fn append_workspace_context(
     message: &str,
     root: &std::path::Path,
@@ -298,6 +438,13 @@ struct AgentRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SnapshotRequest {
+    agent_id: String,
+    request_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SetModelRequest {
     agent_id: String,
     provider: String,
@@ -373,6 +520,381 @@ struct WorkspaceFilesRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReadWorkspaceFileRequest {
+    cwd: PathBuf,
+    path: PathBuf,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceFilePreview {
+    path: String,
+    text: String,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceChanges {
+    files: Vec<WorkspaceFileChange>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct SkillEntry {
+    id: String,
+    name: String,
+    description: String,
+    scope: &'static str,
+    source: &'static str,
+    path: String,
+    content: String,
+}
+
+#[derive(Clone)]
+struct SkillRoot {
+    path: PathBuf,
+    scope: &'static str,
+    source: &'static str,
+}
+
+const MAX_SKILLS: usize = 200;
+const MAX_SKILL_BYTES: u64 = 256 * 1024;
+
+fn skill_metadata(contents: &str, fallback: &str) -> (String, String) {
+    let mut name = fallback.to_owned();
+    let mut description = String::new();
+    let Some(frontmatter) = contents.strip_prefix("---\n") else {
+        return (name, description);
+    };
+    let Some((frontmatter, _)) = frontmatter.split_once("\n---") else {
+        return (name, description);
+    };
+    for line in frontmatter.lines() {
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        let value = value.trim().trim_matches(['\'', '"']);
+        match key.trim() {
+            "name" if !value.is_empty() => name = value.to_owned(),
+            "description" if !value.is_empty() => description = value.to_owned(),
+            _ => {}
+        }
+    }
+    (name, description)
+}
+
+fn scan_skill_roots(roots: &[SkillRoot]) -> Result<Vec<SkillEntry>, String> {
+    let mut skills = Vec::new();
+    let mut seen = BTreeSet::new();
+    for root in roots {
+        let entries = match std::fs::read_dir(&root.path) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(format!(
+                    "could not read skill directory {}: {error}",
+                    root.path.display()
+                ));
+            }
+        };
+        for entry in entries.flatten() {
+            if skills.len() >= MAX_SKILLS {
+                break;
+            }
+            let directory = entry.path();
+            let skill_file = directory.join("SKILL.md");
+            let Ok(metadata) = skill_file.metadata() else {
+                continue;
+            };
+            if !metadata.is_file() || metadata.len() > MAX_SKILL_BYTES {
+                continue;
+            }
+            let canonical = directory
+                .canonicalize()
+                .unwrap_or_else(|_| directory.clone());
+            if !seen.insert((root.scope, canonical.clone())) {
+                continue;
+            }
+            let contents = std::fs::read_to_string(&skill_file).map_err(|error| {
+                format!("could not read skill {}: {error}", skill_file.display())
+            })?;
+            let fallback = directory
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("skill");
+            let (name, description) = skill_metadata(&contents, fallback);
+            skills.push(SkillEntry {
+                id: format!("{}:{}", root.scope, canonical.display()),
+                name,
+                description,
+                scope: root.scope,
+                source: root.source,
+                path: directory.display().to_string(),
+                content: contents,
+            });
+        }
+    }
+    skills.sort_by(|left, right| {
+        (left.scope != "project", left.name.to_ascii_lowercase())
+            .cmp(&(right.scope != "project", right.name.to_ascii_lowercase()))
+    });
+    Ok(skills)
+}
+
+fn list_skills(cwd: &Path) -> Result<Vec<SkillEntry>, String> {
+    let mut roots = vec![
+        SkillRoot {
+            path: cwd.join(".pi/skills"),
+            scope: "project",
+            source: "pi",
+        },
+        SkillRoot {
+            path: cwd.join(".agents/skills"),
+            scope: "project",
+            source: "shared",
+        },
+    ];
+    if let Some(base) = directories::BaseDirs::new() {
+        roots.extend([
+            SkillRoot {
+                path: base.home_dir().join(".pi/agent/skills"),
+                scope: "user",
+                source: "pi",
+            },
+            SkillRoot {
+                path: base.home_dir().join(".agents/skills"),
+                scope: "user",
+                source: "shared",
+            },
+        ]);
+    }
+    scan_skill_roots(&roots)
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceFileChange {
+    path: String,
+    status: &'static str,
+    additions: usize,
+    deletions: usize,
+    patch: String,
+}
+
+const MAX_DIFF_FILES: usize = 100;
+const MAX_DIFF_FILE_BYTES: usize = 256 * 1024;
+const MAX_DIFF_TOTAL_BYTES: usize = 2 * 1024 * 1024;
+
+fn truncate_utf8(mut value: String, max_bytes: usize) -> String {
+    if value.len() <= max_bytes {
+        return value;
+    }
+    let mut end = max_bytes;
+    while !value.is_char_boundary(end) {
+        end -= 1;
+    }
+    value.truncate(end);
+    value.push_str("\n… diff truncated …\n");
+    value
+}
+
+pub(crate) fn repository_changed_paths(
+    repository: &gix::Repository,
+) -> Result<BTreeSet<PathBuf>, String> {
+    let platform = repository
+        .status(gix::progress::Discard)
+        .map_err(|error| format!("could not inspect repository status: {error}"))?
+        .untracked_files(gix::status::UntrackedFiles::Files);
+    let changes = platform
+        .into_iter(Vec::<gix::bstr::BString>::new())
+        .map_err(|error| format!("could not prepare repository status: {error}"))?;
+    let mut paths = BTreeSet::new();
+    for change in changes {
+        let change =
+            change.map_err(|error| format!("could not read repository status: {error}"))?;
+        let path = change
+            .location()
+            .to_str()
+            .map_err(|_| "repository contains a changed path that is not UTF-8".to_owned())?;
+        paths.insert(PathBuf::from(path));
+    }
+    Ok(paths)
+}
+
+fn head_file(repository: &gix::Repository, path: &Path) -> Result<Option<Vec<u8>>, String> {
+    let Ok(tree_id) = repository.head_tree_id() else {
+        return Ok(None);
+    };
+    let tree = repository
+        .find_tree(tree_id)
+        .map_err(|error| format!("could not read HEAD tree: {error}"))?;
+    let Some(entry) = tree
+        .lookup_entry_by_path(path)
+        .map_err(|error| format!("could not find {} in HEAD: {error}", path.display()))?
+    else {
+        return Ok(None);
+    };
+    if !entry.mode().is_blob() {
+        return Ok(None);
+    }
+    let object = entry
+        .object()
+        .map_err(|error| format!("could not read {} from HEAD: {error}", path.display()))?;
+    let blob = object
+        .try_into_blob()
+        .map_err(|error| format!("{} in HEAD is not a blob: {error}", path.display()))?;
+    Ok(Some(blob.data.clone()))
+}
+
+fn worktree_file(root: &Path, path: &Path) -> Result<Option<Vec<u8>>, String> {
+    let absolute = root.join(path);
+    if absolute.is_dir() {
+        return Ok(None);
+    }
+    match std::fs::read(absolute) {
+        Ok(data) => Ok(Some(data)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(format!("could not read {}: {error}", path.display())),
+    }
+}
+
+fn diff_file(path: &Path, old: Option<Vec<u8>>, new: Option<Vec<u8>>) -> WorkspaceFileChange {
+    let status = match (&old, &new) {
+        (None, Some(_)) => "added",
+        (Some(_), None) => "deleted",
+        _ => "modified",
+    };
+    let path = path.to_string_lossy().replace('\\', "/");
+    let binary = old
+        .as_deref()
+        .into_iter()
+        .chain(new.as_deref())
+        .any(|data| std::str::from_utf8(data).is_err());
+    let (additions, deletions, patch) = if binary {
+        (0, 0, format!("Binary file {path} changed\n"))
+    } else {
+        let old = old
+            .as_deref()
+            .and_then(|data| std::str::from_utf8(data).ok())
+            .unwrap_or_default();
+        let new = new
+            .as_deref()
+            .and_then(|data| std::str::from_utf8(data).ok())
+            .unwrap_or_default();
+        let diff = similar::TextDiff::from_lines(old, new);
+        let additions = diff
+            .iter_all_changes()
+            .filter(|change| change.tag() == similar::ChangeTag::Insert)
+            .count();
+        let deletions = diff
+            .iter_all_changes()
+            .filter(|change| change.tag() == similar::ChangeTag::Delete)
+            .count();
+        let old_name = if status == "added" {
+            "/dev/null".to_owned()
+        } else {
+            format!("a/{path}")
+        };
+        let new_name = if status == "deleted" {
+            "/dev/null".to_owned()
+        } else {
+            format!("b/{path}")
+        };
+        let body = diff
+            .unified_diff()
+            .context_radius(3)
+            .header(&old_name, &new_name)
+            .to_string();
+        (
+            additions,
+            deletions,
+            format!("diff --git a/{path} b/{path}\n{body}"),
+        )
+    };
+    WorkspaceFileChange {
+        path,
+        status,
+        additions,
+        deletions,
+        patch: truncate_utf8(patch, MAX_DIFF_FILE_BYTES),
+    }
+}
+
+fn workspace_changes(cwd: &Path) -> Result<WorkspaceChanges, String> {
+    let cwd = cwd
+        .canonicalize()
+        .map_err(|error| format!("could not open workspace {}: {error}", cwd.display()))?;
+    let repository = gix::open(&cwd)
+        .map_err(|error| format!("{} is not a Git repository: {error}", cwd.display()))?;
+    let mut files = Vec::new();
+    let mut total_patch_bytes = 0;
+    for path in repository_changed_paths(&repository)? {
+        if files.len() >= MAX_DIFF_FILES || total_patch_bytes >= MAX_DIFF_TOTAL_BYTES {
+            break;
+        }
+        let old = head_file(&repository, &path)?;
+        let new = worktree_file(&cwd, &path)?;
+        if old.is_none() && new.is_none() {
+            continue;
+        }
+        let change = diff_file(&path, old, new);
+        total_patch_bytes += change.patch.len();
+        files.push(change);
+    }
+    Ok(WorkspaceChanges { files })
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceInfo {
+    repository: bool,
+    branch: Option<String>,
+    changed_files: usize,
+}
+
+fn workspace_info(cwd: &Path) -> WorkspaceInfo {
+    let Ok(repository) = gix::open(cwd) else {
+        return WorkspaceInfo {
+            repository: false,
+            branch: None,
+            changed_files: 0,
+        };
+    };
+    let branch = repository
+        .head()
+        .ok()
+        .and_then(|head| head.referent_name().map(|name| name.shorten().to_string()));
+    let changed_files = repository_changed_paths(&repository).map_or(0, |paths| paths.len());
+    WorkspaceInfo {
+        repository: true,
+        branch,
+        changed_files,
+    }
+}
+
+#[cfg(test)]
+fn parse_git_status(status: &str) -> WorkspaceInfo {
+    let mut lines = status.lines();
+    let branch = lines.next().and_then(|line| {
+        line.strip_prefix("## ")
+            .and_then(|value| {
+                value
+                    .split_once("...")
+                    .map_or(Some(value), |(name, _)| Some(name))
+            })
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    });
+    WorkspaceInfo {
+        repository: true,
+        branch,
+        changed_files: lines.filter(|line| !line.trim().is_empty()).count(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ExtensionUiResponseRequest {
     agent_id: String,
     id: String,
@@ -409,6 +931,7 @@ impl PiService {
         let sessions = load_session_catalog();
         Self {
             state: Arc::new(Mutex::new(HashMap::new())),
+            lifecycle: Arc::new(Mutex::new(())),
             events_tx,
             events_rx,
             sessions: Arc::new(Mutex::new(sessions)),
@@ -433,7 +956,7 @@ impl PiService {
             cwd: process
                 .and_then(|process| process.cwd.as_ref())
                 .map(|path| path.display().to_string()),
-            runtime: "bun",
+            runtime: "mise",
             error: process.and_then(|process| process.last_error.clone()),
         })
     }
@@ -455,10 +978,11 @@ impl PiService {
             .filter(|session_id| !session_id.trim().is_empty())
             .map(|session_id| self.resolve_session_file(&request.agent_id, session_id))
             .transpose()?;
-        self.stop(&request.agent_id)?;
         let cwd = request
             .cwd
-            .filter(|value| !value.trim().is_empty())
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
             .map(PathBuf::from)
             .unwrap_or(env::current_dir().map_err(|error| error.to_string())?);
         if cwd.exists() && !cwd.is_dir() {
@@ -469,32 +993,30 @@ impl PiService {
                 format!("could not create workspace {}: {error}", cwd.display())
             })?;
         }
-        let explicit_pi = env::var_os("WABOU_PI_BIN");
-        let mut command = match explicit_pi {
-            Some(executable) => {
-                let mut command = Command::new(executable);
-                command.args(["--mode", "rpc"]);
-                command
-            }
-            None => {
-                let mut command = Command::new("bun");
-                command.args([
-                    "x",
-                    "--package",
-                    "@earendil-works/pi-coding-agent@0.84.3",
-                    "pi",
-                    "--mode",
-                    "rpc",
-                ]);
-                command
-            }
+        let launch = PiLaunchSpec {
+            cwd: cwd.clone(),
+            session_file: session_file.clone(),
+            proxy: normalized_option(request.proxy.as_deref()),
+            no_proxy: normalized_option(request.no_proxy.as_deref()),
+            provider: normalized_option(request.provider.as_deref()),
+            model: normalized_option(request.model.as_deref()),
+            subagents_enabled: request.subagents_enabled,
         };
-        if let Some(provider) = request.provider.filter(|value| !value.trim().is_empty()) {
-            command.args(["--provider", provider.trim()]);
+        // Starting a child is deliberately serialized. Native capability calls may
+        // overlap, and the process does not enter `state` until all of its pipes and
+        // reader threads are ready. Without this gate, identical concurrent calls all
+        // observe an empty map and spawn their own Pi runtime.
+        let _lifecycle = self
+            .lifecycle
+            .lock()
+            .map_err(|_| "Pi lifecycle lock poisoned".to_owned())?;
+        if self.running_launch_matches(&request.agent_id, &launch)? {
+            return self.status(&request.agent_id);
         }
-        if let Some(model) = request.model.filter(|value| !value.trim().is_empty()) {
-            command.args(["--model", model.trim()]);
-        }
+        self.stop_process(&request.agent_id)?;
+
+        let mut command = pi_command()?;
+        configure_pi_command(&mut command, &request);
         if let Some(session_file) = session_file {
             command.arg("--session").arg(session_file);
         } else {
@@ -505,29 +1027,21 @@ impl PiService {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        if let Some(proxy) = request.proxy.filter(|value| !value.trim().is_empty()) {
-            for name in [
-                "HTTP_PROXY",
-                "HTTPS_PROXY",
-                "ALL_PROXY",
-                "http_proxy",
-                "https_proxy",
-                "all_proxy",
-            ] {
-                command.env(name, &proxy);
-            }
-        }
-        if let Some(no_proxy) = request.no_proxy.filter(|value| !value.trim().is_empty()) {
-            command.env("NO_PROXY", &no_proxy).env("no_proxy", no_proxy);
-        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt as _;
             command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
         }
-        let mut child = command.spawn().map_err(|error| {
-            format!("could not start Pi through Bun. Install Bun or set WABOU_PI_BIN: {error}")
-        })?;
+        let program = command.get_program().to_string_lossy().into_owned();
+        tracing::info!(
+            agent_id = %request.agent_id,
+            cwd = %cwd.display(),
+            runtime = %program,
+            "starting Pi RPC runtime"
+        );
+        let mut child = command
+            .spawn()
+            .map_err(|error| format!("could not start Pi with `{program}`: {error}"))?;
         let stdin = Arc::new(Mutex::new(
             child.stdin.take().ok_or("Pi stdin was not piped")?,
         ));
@@ -536,6 +1050,7 @@ impl PiService {
 
         let stdout_events = self.events_tx.clone();
         let sessions = self.sessions.clone();
+        let settled_state_stdin = stdin.clone();
         let session_cwd = cwd.display().to_string();
         let stdout_agent_id = request.agent_id.clone();
         std::thread::Builder::new()
@@ -545,8 +1060,23 @@ impl PiService {
                     match line {
                         Ok(line) if !line.is_empty() => match serde_json::from_str(&line) {
                             Ok(event) => {
+                                let follow_up = follow_up_request(&event);
                                 remember_session(&sessions, &stdout_agent_id, &session_cwd, &event);
                                 let _ = stdout_events.send(tag_event(&stdout_agent_id, event));
+                                if let Some(request) = follow_up
+                                    && let Err(error) =
+                                        write_rpc_request(&settled_state_stdin, &request)
+                                {
+                                    let _ = stdout_events.send(tag_event(
+                                        &stdout_agent_id,
+                                        json!({
+                                            "type":"bridge_error",
+                                            "message":format!(
+                                                "could not refresh Pi state after the turn settled: {error}"
+                                            )
+                                        }),
+                                    ));
+                                }
                             }
                             Err(error) => {
                                 let _ = stdout_events.send(tag_event(
@@ -597,6 +1127,7 @@ impl PiService {
                 stdin: Some(stdin),
                 cwd: Some(cwd),
                 last_error: None,
+                launch,
             },
         );
         drop(state);
@@ -621,13 +1152,18 @@ impl PiService {
             .get(agent_id)
             .and_then(|process| process.stdin.clone())
             .ok_or_else(|| format!("Pi agent `{agent_id}` is not running"))?;
-        let mut stdin = stdin.lock().map_err(|_| "Pi stdin lock poisoned")?;
-        serde_json::to_writer(&mut *stdin, &value).map_err(|error| error.to_string())?;
-        stdin.write_all(b"\n").map_err(|error| error.to_string())?;
-        stdin.flush().map_err(|error| error.to_string())
+        write_rpc_request(&stdin, &value)
     }
 
     fn stop(&self, agent_id: &str) -> Result<(), String> {
+        let _lifecycle = self
+            .lifecycle
+            .lock()
+            .map_err(|_| "Pi lifecycle lock poisoned".to_owned())?;
+        self.stop_process(agent_id)
+    }
+
+    fn stop_process(&self, agent_id: &str) -> Result<(), String> {
         let process = self
             .state
             .lock()
@@ -640,12 +1176,43 @@ impl PiService {
         Ok(())
     }
 
+    fn running_launch_matches(
+        &self,
+        agent_id: &str,
+        launch: &PiLaunchSpec,
+    ) -> Result<bool, String> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| "Pi process lock poisoned".to_owned())?;
+        let Some(process) = state.get_mut(agent_id) else {
+            return Ok(false);
+        };
+        let running = process
+            .child
+            .as_mut()
+            .is_some_and(|child| child.try_wait().ok().flatten().is_none());
+        Ok(running && process.launch == *launch)
+    }
+
     fn sessions(&self, agent_id: &str) -> Result<Vec<PiSession>, String> {
         let mut catalog = self
             .sessions
             .lock()
             .map_err(|_| "Pi session catalog lock poisoned".to_owned())?;
-        if prune_missing_sessions(&mut catalog) {
+        let mut changed = prune_missing_sessions(&mut catalog);
+        for session in &mut catalog.sessions {
+            if session
+                .name
+                .as_deref()
+                .is_none_or(|name| name.trim().is_empty())
+                && let Some(name) = session_title_from_file(Path::new(&session.session_file))
+            {
+                session.name = Some(name);
+                changed = true;
+            }
+        }
+        if changed {
             persist_catalog(&catalog)?;
         }
         let mut sessions = catalog
@@ -671,10 +1238,21 @@ impl PiService {
     }
 
     fn agents(&self) -> Result<Vec<AgentProfile>, String> {
-        self.sessions
+        let mut catalog = self
+            .sessions
             .lock()
-            .map(|catalog| catalog.agents.clone())
-            .map_err(|_| "Pi session catalog lock poisoned".to_owned())
+            .map_err(|_| "Pi session catalog lock poisoned".to_owned())?;
+        if catalog.agents.is_empty() {
+            catalog.agents.push(AgentProfile {
+                id: "agent-1".to_owned(),
+                name: "Project 1".to_owned(),
+                cwd: default_workspace("agent-1")?,
+                provider: String::new(),
+                model: String::new(),
+            });
+            persist_catalog(&catalog)?;
+        }
+        Ok(catalog.agents.clone())
     }
 
     fn save_agents(&self, agents: Vec<AgentProfile>) -> Result<(), String> {
@@ -684,6 +1262,22 @@ impl PiService {
             .lock()
             .map_err(|_| "Pi session catalog lock poisoned".to_owned())?;
         catalog.agents = agents;
+        persist_catalog(&catalog)
+    }
+
+    fn app_settings(&self) -> Result<AppSettings, String> {
+        self.sessions
+            .lock()
+            .map(|catalog| catalog.settings.clone())
+            .map_err(|_| "Pi session catalog lock poisoned".to_owned())
+    }
+
+    fn save_app_settings(&self, settings: AppSettings) -> Result<(), String> {
+        let mut catalog = self
+            .sessions
+            .lock()
+            .map_err(|_| "Pi session catalog lock poisoned".to_owned())?;
+        catalog.settings = settings;
         persist_catalog(&catalog)
     }
 
@@ -699,6 +1293,141 @@ impl PiService {
             .sessions
             .retain(|session| session.agent_id != agent_id);
         persist_catalog(&catalog)
+    }
+}
+
+fn write_rpc_request(stdin: &Arc<Mutex<ChildStdin>>, value: &Value) -> Result<(), String> {
+    let mut stdin = stdin.lock().map_err(|_| "Pi stdin lock poisoned")?;
+    serde_json::to_writer(&mut *stdin, value).map_err(|error| error.to_string())?;
+    stdin.write_all(b"\n").map_err(|error| error.to_string())?;
+    stdin.flush().map_err(|error| error.to_string())
+}
+
+fn pi_command() -> Result<Command, String> {
+    let search_path = runtime_search_path();
+    let current_dir = env::current_dir().map_err(|error| error.to_string())?;
+    if let Some(executable) = env::var_os("WABOU_PI_BIN") {
+        let executable = resolve_runtime_executable(&executable, &search_path, &current_dir)
+            .map_err(|error| format!("WABOU_PI_BIN is not executable: {error}"))?;
+        let mut command = Command::new(executable);
+        command.args(["--mode", "rpc"]);
+        command.env("PATH", &search_path);
+        return Ok(command);
+    }
+
+    let requested_mise = env::var_os("WABOU_MISE_BIN").unwrap_or_else(|| OsString::from("mise"));
+    let mise = resolve_runtime_executable(&requested_mise, &search_path, &current_dir).map_err(
+        |error| {
+            format!(
+                "could not locate mise ({error}). Bundle mise or set WABOU_MISE_BIN; Pi is installed into mise's isolated tool directory on first use"
+            )
+        },
+    )?;
+    let mut command = Command::new(mise);
+    command.args(["--quiet", "exec", PI_TOOL, "--", "pi", "--mode", "rpc"]);
+    // `mise exec` installs and selects the pinned Pi tool without touching the
+    // user's npm prefix. This outer PATH only has to locate mise and ordinary
+    // operating-system tools.
+    command.env("PATH", search_path);
+    Ok(command)
+}
+
+fn resolve_runtime_executable(
+    executable: &OsStr,
+    search_path: &OsStr,
+    current_dir: &Path,
+) -> Result<PathBuf, which::Error> {
+    which::which_in(executable, Some(search_path), current_dir)
+}
+
+fn runtime_search_path() -> OsString {
+    let inherited = env::var_os("PATH");
+    let base = directories::BaseDirs::new();
+    runtime_search_path_from(
+        inherited.as_deref(),
+        base.as_ref().map(directories::BaseDirs::home_dir),
+    )
+}
+
+fn runtime_search_path_from(inherited: Option<&OsStr>, home: Option<&Path>) -> OsString {
+    let mut search_directories = inherited
+        .map(env::split_paths)
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    if let Some(home) = home {
+        search_directories.push(home.join(".local/bin"));
+    }
+    #[cfg(unix)]
+    search_directories.extend([
+        PathBuf::from("/opt/homebrew/bin"),
+        PathBuf::from("/usr/local/bin"),
+    ]);
+    let mut seen = std::collections::BTreeSet::new();
+    search_directories.retain(|directory| seen.insert(directory.clone()));
+    env::join_paths(&search_directories).unwrap_or_else(|_| inherited.unwrap_or_default().into())
+}
+
+fn normalized_option(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+}
+
+fn follow_up_request(event: &Value) -> Option<Value> {
+    (event.get("type").and_then(Value::as_str) == Some("agent_settled")).then(|| {
+        json!({
+            "id": "wabou-settled-state",
+            "type": "get_state"
+        })
+    })
+}
+
+fn configure_pi_command(command: &mut Command, request: &StartRequest) {
+    if request.subagents_enabled {
+        command.args(["--extension", "npm:pi-subagents@0.58.0"]);
+    }
+    if let Some(provider) = request
+        .provider
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        command.args(["--provider", provider]);
+    }
+    if let Some(model) = request
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        command.args(["--model", model]);
+    }
+    if let Some(proxy) = request
+        .proxy
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        for name in [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        ] {
+            command.env(name, proxy);
+        }
+    }
+    if let Some(no_proxy) = request
+        .no_proxy
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        command.env("NO_PROXY", no_proxy).env("no_proxy", no_proxy);
     }
 }
 
@@ -720,8 +1449,8 @@ fn validate_agent_profiles(agents: &[AgentProfile]) -> Result<(), String> {
 }
 
 fn session_catalog_path() -> Option<PathBuf> {
-    directories::ProjectDirs::from("dev", "Wabou", "Pi Agent")
-        .map(|dirs| dirs.data_local_dir().join("sessions.json"))
+    AppDirectories::resolve(&AppDirectoryConfig::new("dev", "Wabou", "Pi Agent"), ".")
+        .map(|dirs| dirs.local_data_dir.join("sessions.json"))
 }
 
 fn load_session_catalog() -> SessionCatalog {
@@ -783,6 +1512,13 @@ fn remember_session(
     ) else {
         return;
     };
+    let name = data
+        .get("sessionName")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
+        .or_else(|| session_title_from_file(Path::new(session_file)));
     let updated_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |duration| duration.as_secs());
@@ -793,23 +1529,69 @@ fn remember_session(
         agent_id: agent_id.to_owned(),
         session_id: session_id.to_owned(),
         session_file: session_file.to_owned(),
-        name: data
-            .get("sessionName")
-            .and_then(Value::as_str)
-            .map(str::to_owned),
+        name,
         cwd: cwd.to_owned(),
         updated_at,
     };
-    if let Some(existing) = catalog
-        .sessions
-        .iter_mut()
-        .find(|existing| existing.session_id == session_id)
-    {
+    upsert_session(&mut catalog, entry);
+    let _ = persist_catalog(&catalog);
+}
+
+fn session_title_from_file(path: &Path) -> Option<String> {
+    let file = std::fs::File::open(path).ok()?;
+    for line in BufReader::new(file).lines().take(256) {
+        let Ok(line) = line else { continue };
+        let Ok(entry) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
+        let Some(message) = entry.get("message") else {
+            continue;
+        };
+        if message.get("role").and_then(Value::as_str) != Some("user") {
+            continue;
+        }
+        let Some(content) = message.get("content") else {
+            continue;
+        };
+        let text = match content {
+            Value::String(text) => text.clone(),
+            Value::Array(parts) => parts
+                .iter()
+                .filter(|part| part.get("type").and_then(Value::as_str) == Some("text"))
+                .filter_map(|part| part.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join(" "),
+            _ => continue,
+        };
+        if let Some(title) = compact_session_title(&text) {
+            return Some(title);
+        }
+    }
+    None
+}
+
+fn compact_session_title(text: &str) -> Option<String> {
+    const MAX_CHARS: usize = 64;
+    let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        return None;
+    }
+    let mut chars = normalized.chars();
+    let mut title = chars.by_ref().take(MAX_CHARS).collect::<String>();
+    if chars.next().is_some() {
+        title.push('…');
+    }
+    Some(title)
+}
+
+fn upsert_session(catalog: &mut SessionCatalog, entry: PiSession) {
+    if let Some(existing) = catalog.sessions.iter_mut().find(|existing| {
+        existing.agent_id == entry.agent_id && existing.session_id == entry.session_id
+    }) {
         *existing = entry;
     } else {
         catalog.sessions.push(entry);
     }
-    let _ = persist_catalog(&catalog);
 }
 
 fn validate_agent_id(agent_id: &str) -> Result<(), String> {
@@ -825,20 +1607,44 @@ fn validate_agent_id(agent_id: &str) -> Result<(), String> {
 
 fn default_workspace(agent_id: &str) -> Result<String, String> {
     validate_agent_id(agent_id)?;
-    let user = directories::UserDirs::new()
-        .ok_or_else(|| "could not resolve the user home directory".to_owned())?;
-    let root = user
-        .document_dir()
-        .unwrap_or_else(|| user.home_dir())
-        .join("pi-agent");
-    Ok(root.join(agent_id).display().to_string())
+    let root = if std::env::var_os("WABOU_TEST_APP_DATA_ROOT").is_some() {
+        AppDirectories::resolve(&AppDirectoryConfig::new("dev", "Wabou", "Pi Agent"), ".")
+            .ok_or_else(|| "could not resolve isolated Pi Agent data directory".to_owned())?
+            .data_dir
+            .join("workspaces")
+    } else {
+        let user = directories::UserDirs::new()
+            .ok_or_else(|| "could not resolve the user home directory".to_owned())?;
+        user.document_dir()
+            .unwrap_or_else(|| user.home_dir())
+            .join("pi-agent")
+    };
+    let workspace = root.join(agent_id);
+    std::fs::create_dir_all(&workspace).map_err(|error| {
+        format!(
+            "could not create default workspace {}: {error}",
+            workspace.display()
+        )
+    })?;
+    Ok(workspace.display().to_string())
 }
 
 fn tag_event(agent_id: &str, mut event: Value) -> Value {
+    let received_at_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_millis() as u64);
+    tag_event_at(agent_id, &mut event, received_at_ms);
+    event
+}
+
+fn tag_event_at(agent_id: &str, event: &mut Value, received_at_ms: u64) {
     if let Some(object) = event.as_object_mut() {
         object.insert("agentId".to_owned(), Value::String(agent_id.to_owned()));
+        object.insert(
+            "receivedAtMs".to_owned(),
+            Value::Number(received_at_ms.into()),
+        );
     }
-    event
 }
 
 impl Drop for PiProcess {
@@ -850,7 +1656,97 @@ impl Drop for PiProcess {
     }
 }
 
-pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Result<()> {
+pub fn mount(capability: NativeCapability<'_>, service: PiService) -> rquickjs::Result<()> {
+    capability.method(
+        FIND_CHECKPOINT,
+        move |request: crate::checkpoint::FindCheckpointRequest| async move {
+            tokio::task::spawn_blocking(move || {
+                crate::checkpoint::find_for_entry(
+                    &request.cwd,
+                    &request.session_id,
+                    &request.entry_id,
+                )
+            })
+            .await
+            .map_err(|error| format!("checkpoint lookup task failed: {error}"))?
+        },
+    )?;
+    capability.method(
+        RETAIN_CHECKPOINT,
+        move |request: crate::checkpoint::RetainCheckpointRequest| async move {
+            tokio::task::spawn_blocking(move || {
+                crate::checkpoint::retain_for_entry(
+                    &request.cwd,
+                    &request.commit_id,
+                    &request.session_id,
+                    &request.entry_id,
+                )
+            })
+            .await
+            .map_err(|error| format!("checkpoint retention task failed: {error}"))?
+        },
+    )?;
+    capability.method(
+        RESTORE_CHECKPOINT,
+        move |request: crate::checkpoint::RestoreCheckpointRequest| async move {
+            tokio::task::spawn_blocking(move || {
+                crate::checkpoint::restore_worktree(
+                    &request.cwd,
+                    &request.commit_id,
+                    &request.namespace,
+                    u64::from(request.sequence),
+                )
+            })
+            .await
+            .map_err(|error| format!("checkpoint restore task failed: {error}"))?
+        },
+    )?;
+    capability.method(
+        CAPTURE_CHECKPOINT,
+        move |request: crate::checkpoint::CaptureCheckpointRequest| async move {
+            tokio::task::spawn_blocking(move || {
+                crate::checkpoint::capture_worktree(
+                    &request.cwd,
+                    &request.namespace,
+                    u64::from(request.sequence),
+                )
+            })
+            .await
+            .map_err(|error| format!("checkpoint capture task failed: {error}"))?
+        },
+    )?;
+    capability.method(
+        LIST_SKILLS,
+        move |request: WorkspaceFilesRequest| async move {
+            tokio::task::spawn_blocking(move || list_skills(&request.cwd))
+                .await
+                .map_err(|error| format!("skill scan task failed: {error}"))?
+        },
+    )?;
+    capability.method(
+        WORKSPACE_INFO,
+        move |request: WorkspaceFilesRequest| async move {
+            tokio::task::spawn_blocking(move || workspace_info(&request.cwd))
+                .await
+                .map_err(|error| format!("workspace status task failed: {error}"))
+        },
+    )?;
+    capability.method(
+        READ_WORKSPACE_FILE,
+        move |request: ReadWorkspaceFileRequest| async move {
+            tokio::task::spawn_blocking(move || read_workspace_file(&request.cwd, &request.path))
+                .await
+                .map_err(|error| format!("workspace file task failed: {error}"))?
+        },
+    )?;
+    capability.method(
+        WORKSPACE_CHANGES,
+        move |request: WorkspaceFilesRequest| async move {
+            tokio::task::spawn_blocking(move || workspace_changes(&request.cwd))
+                .await
+                .map_err(|error| format!("workspace changes task failed: {error}"))?
+        },
+    )?;
     capability.method(
         LIST_WORKSPACE_FILES,
         move |request: WorkspaceFilesRequest| async move {
@@ -860,7 +1756,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         },
     )?;
     let extension_ui = service.clone();
-    capability.method(
+    capability.json_method(
         RESPOND_EXTENSION_UI,
         move |request: ExtensionUiResponseRequest| {
             let service = extension_ui.clone();
@@ -870,46 +1766,58 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
             }
         },
     )?;
-    capability.method(DEFAULT_WORKSPACE, |request: AgentRequest| async move {
+    capability.json_method(DEFAULT_WORKSPACE, |request: AgentRequest| async move {
         default_workspace(&request.agent_id)
     })?;
     let list_agents = service.clone();
-    capability.method(LIST_AGENTS, move |(): ()| {
-        let service = list_agents.clone();
-        async move { service.agents() }
-    })?;
+    capability.sync_method(LIST_AGENTS, move |(): ()| list_agents.agents())?;
     let save_agents = service.clone();
-    capability.method(SAVE_AGENTS, move |agents: Vec<AgentProfile>| {
+    capability.json_method(SAVE_AGENTS, move |agents: Vec<AgentProfile>| {
         let service = save_agents.clone();
         async move { service.save_agents(agents) }
     })?;
+    let get_app_settings = service.clone();
+    capability.json_method(GET_APP_SETTINGS, move |(): ()| {
+        let service = get_app_settings.clone();
+        async move { service.app_settings() }
+    })?;
+    let save_app_settings = service.clone();
+    capability.json_method(SAVE_APP_SETTINGS, move |settings: AppSettings| {
+        let service = save_app_settings.clone();
+        async move { service.save_app_settings(settings) }
+    })?;
     let delete_agent = service.clone();
-    capability.method(DELETE_AGENT, move |request: AgentRequest| {
+    capability.json_method(DELETE_AGENT, move |request: AgentRequest| {
         let service = delete_agent.clone();
         async move { service.delete_agent(&request.agent_id) }
     })?;
     let status = service.clone();
-    capability.method(GET_STATUS, move |request: AgentRequest| {
+    capability.json_method(GET_STATUS, move |request: AgentRequest| {
         let service = status.clone();
         async move { service.status(&request.agent_id) }
     })?;
     let start = service.clone();
-    capability.method(START, move |request: StartRequest| {
+    capability.json_method(START, move |request: StartRequest| {
         let service = start.clone();
         async move { service.start(request) }
     })?;
     let list_sessions = service.clone();
-    capability.method(LIST_SESSIONS, move |request: AgentRequest| {
+    capability.json_method(LIST_SESSIONS, move |request: AgentRequest| {
         let service = list_sessions.clone();
         async move { service.sessions(&request.agent_id) }
     })?;
     let get_messages = service.clone();
-    capability.method(GET_MESSAGES, move |request: AgentRequest| {
+    capability.json_method(GET_MESSAGES, move |request: SnapshotRequest| {
         let service = get_messages.clone();
-        async move { service.send(&request.agent_id, json!({"type":"get_messages"})) }
+        async move {
+            service.send(
+                &request.agent_id,
+                json!({"id":request.request_id,"type":"get_messages"}),
+            )
+        }
     })?;
     let get_session_stats = service.clone();
-    capability.method(GET_SESSION_STATS, move |request: AgentRequest| {
+    capability.json_method(GET_SESSION_STATS, move |request: AgentRequest| {
         let service = get_session_stats.clone();
         async move {
             service.send(
@@ -919,7 +1827,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let get_commands = service.clone();
-    capability.method(GET_COMMANDS, move |request: AgentRequest| {
+    capability.json_method(GET_COMMANDS, move |request: AgentRequest| {
         let service = get_commands.clone();
         async move {
             service.send(
@@ -929,7 +1837,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let get_fork_messages = service.clone();
-    capability.method(GET_FORK_MESSAGES, move |request: AgentRequest| {
+    capability.json_method(GET_FORK_MESSAGES, move |request: AgentRequest| {
         let service = get_fork_messages.clone();
         async move {
             service.send(
@@ -939,7 +1847,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let fork = service.clone();
-    capability.method(FORK, move |request: ForkRequest| {
+    capability.json_method(FORK, move |request: ForkRequest| {
         let service = fork.clone();
         async move {
             service.send(
@@ -949,7 +1857,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let clone_session = service.clone();
-    capability.method(CLONE_SESSION, move |request: AgentRequest| {
+    capability.json_method(CLONE_SESSION, move |request: AgentRequest| {
         let service = clone_session.clone();
         async move {
             service.send(
@@ -963,7 +1871,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let compact_session = service.clone();
-    capability.method(COMPACT_SESSION, move |request: AgentRequest| {
+    capability.json_method(COMPACT_SESSION, move |request: AgentRequest| {
         let service = compact_session.clone();
         async move {
             service.send(
@@ -973,7 +1881,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let export_session = service.clone();
-    capability.method(EXPORT_SESSION, move |request: ExportSessionRequest| {
+    capability.json_method(EXPORT_SESSION, move |request: ExportSessionRequest| {
         let service = export_session.clone();
         async move {
             let output_path = request.output_path.trim();
@@ -987,7 +1895,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let prompt = service.clone();
-    capability.method(PROMPT, move |request: PromptRequest| {
+    capability.json_method(PROMPT, move |request: PromptRequest| {
         let service = prompt.clone();
         async move {
             let message = request.message.trim().to_owned();
@@ -1001,6 +1909,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
             service.send(
                 &request.agent_id,
                 json!({
+                    "id":format!("wabou-request:{}", request.request_id),
                     "type":"prompt",
                     "message":message,
                     "images":images,
@@ -1009,7 +1918,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let steer = service.clone();
-    capability.method(STEER, move |request: PromptRequest| {
+    capability.json_method(STEER, move |request: PromptRequest| {
         let service = steer.clone();
         async move {
             let message = request.message.trim().to_owned();
@@ -1023,6 +1932,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
             service.send(
                 &request.agent_id,
                 json!({
+                    "id":format!("wabou-request:{}", request.request_id),
                     "type":"steer",
                     "message":message,
                     "images":images,
@@ -1031,7 +1941,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let follow_up = service.clone();
-    capability.method(FOLLOW_UP, move |request: PromptRequest| {
+    capability.json_method(FOLLOW_UP, move |request: PromptRequest| {
         let service = follow_up.clone();
         async move {
             let message = request.message.trim().to_owned();
@@ -1045,6 +1955,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
             service.send(
                 &request.agent_id,
                 json!({
+                    "id":format!("wabou-request:{}", request.request_id),
                     "type":"follow_up",
                     "message":message,
                     "images":images,
@@ -1053,17 +1964,17 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let abort = service.clone();
-    capability.method(ABORT, move |request: AgentRequest| {
+    capability.json_method(ABORT, move |request: AgentRequest| {
         let service = abort.clone();
         async move { service.send(&request.agent_id, json!({"type":"abort"})) }
     })?;
     let stop = service.clone();
-    capability.method(STOP, move |request: AgentRequest| {
+    capability.json_method(STOP, move |request: AgentRequest| {
         let service = stop.clone();
         async move { service.stop(&request.agent_id) }
     })?;
     let new_session = service.clone();
-    capability.method(NEW_SESSION, move |request: AgentRequest| {
+    capability.json_method(NEW_SESSION, move |request: AgentRequest| {
         let service = new_session.clone();
         async move {
             service.send(&request.agent_id, json!({"type":"new_session"}))?;
@@ -1074,7 +1985,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let rename_session = service.clone();
-    capability.method(RENAME_SESSION, move |request: RenameSessionRequest| {
+    capability.json_method(RENAME_SESSION, move |request: RenameSessionRequest| {
         let service = rename_session.clone();
         async move {
             let name = request.name.trim();
@@ -1092,17 +2003,17 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let cycle_model = service.clone();
-    capability.method(CYCLE_MODEL, move |request: AgentRequest| {
+    capability.json_method(CYCLE_MODEL, move |request: AgentRequest| {
         let service = cycle_model.clone();
         async move { service.send(&request.agent_id, json!({"type":"cycle_model"})) }
     })?;
     let cycle_thinking = service.clone();
-    capability.method(CYCLE_THINKING, move |request: AgentRequest| {
+    capability.json_method(CYCLE_THINKING, move |request: AgentRequest| {
         let service = cycle_thinking.clone();
         async move { service.send(&request.agent_id, json!({"type":"cycle_thinking_level"})) }
     })?;
     let model_options = service.clone();
-    capability.method(GET_MODEL_OPTIONS, move |request: AgentRequest| {
+    capability.json_method(GET_MODEL_OPTIONS, move |request: AgentRequest| {
         let service = model_options.clone();
         async move {
             service.send(
@@ -1116,7 +2027,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let set_thinking = service.clone();
-    capability.method(SET_THINKING, move |request: SetThinkingRequest| {
+    capability.json_method(SET_THINKING, move |request: SetThinkingRequest| {
         let service = set_thinking.clone();
         async move {
             validate_thinking_level(&request.level)?;
@@ -1131,7 +2042,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let auto_compaction = service.clone();
-    capability.method(SET_AUTO_COMPACTION, move |request: ToggleRequest| {
+    capability.json_method(SET_AUTO_COMPACTION, move |request: ToggleRequest| {
         let service = auto_compaction.clone();
         async move {
             service.send(
@@ -1145,7 +2056,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let steering_mode = service.clone();
-    capability.method(SET_STEERING_MODE, move |request: QueueModeRequest| {
+    capability.json_method(SET_STEERING_MODE, move |request: QueueModeRequest| {
         let service = steering_mode.clone();
         async move {
             validate_queue_mode(&request.mode)?;
@@ -1160,7 +2071,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         }
     })?;
     let follow_up_mode = service.clone();
-    capability.method(SET_FOLLOW_UP_MODE, move |request: QueueModeRequest| {
+    capability.json_method(SET_FOLLOW_UP_MODE, move |request: QueueModeRequest| {
         let service = follow_up_mode.clone();
         async move {
             validate_queue_mode(&request.mode)?;
@@ -1174,7 +2085,7 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
             )
         }
     })?;
-    capability.method(SET_MODEL, move |request: SetModelRequest| {
+    capability.json_method(SET_MODEL, move |request: SetModelRequest| {
         let service = service.clone();
         async move {
             service.send(
@@ -1254,7 +2165,115 @@ mod tests {
     fn status_is_stopped_before_start() {
         let status = PiService::new().status("default").expect("status");
         assert!(!status.running);
-        assert_eq!(status.runtime, "bun");
+        assert_eq!(status.runtime, "mise");
+    }
+
+    #[test]
+    #[ignore = "requires mise and the real Pi tool"]
+    fn concurrent_real_pi_starts_share_one_child() {
+        let service = PiService::new();
+        let request = StartRequest {
+            agent_id: "real-single-flight".to_owned(),
+            cwd: Some(env::current_dir().expect("cwd").display().to_string()),
+            proxy: None,
+            no_proxy: None,
+            provider: None,
+            model: None,
+            session_id: None,
+            subagents_enabled: false,
+        };
+        let barrier = Arc::new(std::sync::Barrier::new(3));
+        let workers = (0..2)
+            .map(|_| {
+                let service = service.clone();
+                let request = request.clone();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    service.start(request)
+                })
+            })
+            .collect::<Vec<_>>();
+        barrier.wait();
+        for worker in workers {
+            assert!(worker.join().expect("start worker").expect("start").running);
+        }
+        let state = service.state.lock().expect("Pi state");
+        assert_eq!(state.len(), 1);
+        assert!(state["real-single-flight"].child.is_some());
+        drop(state);
+        service.stop("real-single-flight").expect("stop Pi");
+    }
+
+    #[test]
+    #[ignore = "requires mise, the real Pi tool, network access, and provider consent"]
+    fn real_pi_rpc_turn_streams_and_settles() {
+        let service = PiService::new();
+        let agent_id = "real-rpc-turn";
+        service
+            .start(StartRequest {
+                agent_id: agent_id.to_owned(),
+                cwd: Some(env::current_dir().expect("cwd").display().to_string()),
+                proxy: None,
+                no_proxy: None,
+                provider: None,
+                model: None,
+                session_id: None,
+                subagents_enabled: false,
+            })
+            .expect("start real Pi");
+        service
+            .send(
+                agent_id,
+                json!({
+                    "id":"wabou-real-rpc-probe",
+                    "type":"prompt",
+                    "message":"Reply with exactly: real Pi works.",
+                    "images":[],
+                }),
+            )
+            .expect("prompt real Pi");
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        let mut output = String::new();
+        let mut settled = false;
+        while let Some(remaining) = deadline.checked_duration_since(std::time::Instant::now()) {
+            let event = service
+                .events_rx
+                .recv_timeout(remaining)
+                .expect("real Pi turn event");
+            if event.get("agentId").and_then(Value::as_str) != Some(agent_id) {
+                continue;
+            }
+            if let Some(delta) = event
+                .get("assistantMessageEvent")
+                .filter(|event| event.get("type").and_then(Value::as_str) == Some("text_delta"))
+                .and_then(|event| event.get("delta"))
+                .and_then(Value::as_str)
+            {
+                output.push_str(delta);
+            }
+            if event.get("type").and_then(Value::as_str) == Some("agent_settled") {
+                settled = true;
+                break;
+            }
+        }
+        service.stop(agent_id).expect("stop Pi");
+        assert!(settled, "real Pi turn did not settle");
+        assert_eq!(output, "real Pi works.");
+    }
+
+    #[test]
+    fn runtime_search_path_locates_mise_without_guessing_tool_installations() {
+        let inherited = env::join_paths([PathBuf::from("/usr/bin")]).expect("inherited path");
+        let search_path =
+            runtime_search_path_from(Some(&inherited), Some(Path::new("/home/wabou")));
+        let entries = env::split_paths(&search_path).collect::<Vec<_>>();
+
+        assert!(entries.contains(&PathBuf::from("/usr/bin")));
+        assert!(entries.contains(&PathBuf::from("/home/wabou/.local/bin")));
+        assert!(!entries.contains(&PathBuf::from("/home/wabou/.bun/bin")));
+        assert!(!entries.contains(&PathBuf::from("/home/wabou/.asdf/shims")));
     }
 
     #[test]
@@ -1279,6 +2298,7 @@ mod tests {
     fn prompt_request_uses_the_javascript_camel_case_contract() {
         let request: PromptRequest = serde_json::from_value(json!({
             "agentId": "agent-1",
+            "requestId": "user-1",
             "message": "inspect these files",
             "imagePaths": ["page.png"],
             "contextPaths": ["src/main.rs"]
@@ -1286,8 +2306,135 @@ mod tests {
         .expect("camel-case prompt request");
 
         assert_eq!(request.agent_id, "agent-1");
+        assert_eq!(request.request_id, "user-1");
         assert_eq!(request.image_paths, vec![PathBuf::from("page.png")]);
         assert_eq!(request.context_paths, vec![PathBuf::from("src/main.rs")]);
+    }
+
+    #[test]
+    fn snapshot_request_carries_a_camel_case_freshness_id() {
+        let request: SnapshotRequest = serde_json::from_value(json!({
+            "agentId": "agent-1",
+            "requestId": "wabou-bootstrap-state-messages"
+        }))
+        .expect("camel-case snapshot request");
+
+        assert_eq!(request.agent_id, "agent-1");
+        assert_eq!(request.request_id, "wabou-bootstrap-state-messages");
+    }
+
+    #[test]
+    fn skill_catalog_reads_pi_and_shared_roots_with_project_precedence() {
+        let root = test_directory("skills");
+        let project = root.join("project");
+        let user = root.join("user");
+        let project_skill = project.join("review");
+        let user_skill = user.join("deploy");
+        std::fs::create_dir_all(&project_skill).expect("project skill directory");
+        std::fs::create_dir_all(&user_skill).expect("user skill directory");
+        std::fs::write(
+            project_skill.join("SKILL.md"),
+            "---\nname: review\ndescription: Review the current change\n---\n# Review",
+        )
+        .expect("project skill");
+        std::fs::write(user_skill.join("SKILL.md"), "# Deploy safely").expect("user skill");
+        std::fs::create_dir_all(project.join("not-a-skill")).expect("plain directory");
+
+        let skills = scan_skill_roots(&[
+            SkillRoot {
+                path: project,
+                scope: "project",
+                source: "pi",
+            },
+            SkillRoot {
+                path: user,
+                scope: "user",
+                source: "shared",
+            },
+        ])
+        .expect("skill catalog");
+
+        assert_eq!(skills.len(), 2);
+        assert_eq!(skills[0].name, "review");
+        assert_eq!(skills[0].description, "Review the current change");
+        assert_eq!(skills[0].scope, "project");
+        assert_eq!(skills[1].name, "deploy");
+        assert_eq!(skills[1].scope, "user");
+        assert_eq!(skills[1].source, "shared");
+        std::fs::remove_dir_all(root).expect("remove skill fixture");
+    }
+
+    #[test]
+    fn pi_command_receives_runtime_configuration() {
+        let mut request = StartRequest {
+            agent_id: "agent-1".to_owned(),
+            cwd: None,
+            proxy: Some("  http://127.0.0.1:7890  ".to_owned()),
+            no_proxy: Some(" localhost,127.0.0.1 ".to_owned()),
+            provider: Some(" openai ".to_owned()),
+            model: Some(" gpt-5 ".to_owned()),
+            session_id: None,
+            subagents_enabled: true,
+        };
+        let mut command = Command::new("pi");
+        configure_pi_command(&mut command, &request);
+
+        let args = command
+            .get_args()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            args,
+            [
+                "--extension",
+                "npm:pi-subagents@0.58.0",
+                "--provider",
+                "openai",
+                "--model",
+                "gpt-5"
+            ]
+        );
+
+        let environment = command
+            .get_envs()
+            .map(|(name, value)| {
+                (
+                    name.to_string_lossy().into_owned(),
+                    value
+                        .expect("configured environment value")
+                        .to_string_lossy()
+                        .into_owned(),
+                )
+            })
+            .collect::<std::collections::HashMap<_, _>>();
+        for name in [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        ] {
+            assert_eq!(
+                environment.get(name).map(String::as_str),
+                Some("http://127.0.0.1:7890")
+            );
+        }
+        for name in ["NO_PROXY", "no_proxy"] {
+            assert_eq!(
+                environment.get(name).map(String::as_str),
+                Some("localhost,127.0.0.1")
+            );
+        }
+
+        request.subagents_enabled = false;
+        let mut command = Command::new("pi");
+        configure_pi_command(&mut command, &request);
+        let args = command
+            .get_args()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(args, ["--provider", "openai", "--model", "gpt-5"]);
     }
 
     #[test]
@@ -1304,10 +2451,22 @@ mod tests {
 
     #[test]
     fn tags_events_with_their_agent_identity() {
+        let mut event = json!({"type":"agent_start"});
+        tag_event_at("agent-2", &mut event, 42);
+        assert_eq!(event["agentId"], "agent-2");
+        assert_eq!(event["receivedAtMs"], 42);
+    }
+
+    #[test]
+    fn settled_turns_request_fresh_session_identity() {
         assert_eq!(
-            tag_event("agent-2", json!({"type":"agent_start"}))["agentId"],
-            "agent-2"
+            follow_up_request(&json!({"type":"agent_settled"})),
+            Some(json!({
+                "id": "wabou-settled-state",
+                "type": "get_state"
+            }))
         );
+        assert_eq!(follow_up_request(&json!({"type":"agent_end"})), None);
     }
 
     #[test]
@@ -1355,6 +2514,50 @@ mod tests {
         let catalog: SessionCatalog =
             serde_json::from_str(r#"{"sessions":[]}"#).expect("legacy catalog");
         assert!(catalog.agents.is_empty());
+        assert_eq!(catalog.settings, AppSettings::default());
+    }
+
+    #[test]
+    fn legacy_project_proxy_fields_are_ignored_in_favor_of_app_settings() {
+        let catalog: SessionCatalog = serde_json::from_str(
+            r#"{
+                "sessions": [],
+                "agents": [{
+                    "id": "agent-1",
+                    "name": "Agent 1",
+                    "cwd": "",
+                    "proxy": "http://old-project-proxy:7890",
+                    "noProxy": "localhost",
+                    "provider": "",
+                    "model": ""
+                }],
+                "settings": {
+                    "proxy": "http://global-proxy:7890",
+                    "noProxy": "localhost",
+                    "provider": "openai",
+                    "model": "gpt-5",
+                    "subagentsEnabled": true
+                }
+            }"#,
+        )
+        .expect("legacy project fields remain readable");
+        assert_eq!(catalog.settings.proxy, "http://global-proxy:7890");
+        assert_eq!(catalog.settings.locale, AppLocale::En);
+        assert!(catalog.settings.subagents_enabled);
+        assert_eq!(catalog.agents.len(), 1);
+    }
+
+    #[test]
+    fn application_locale_round_trips_and_legacy_catalogs_default_to_english() {
+        let legacy: SessionCatalog =
+            serde_json::from_str(r#"{"settings":{}}"#).expect("legacy catalog");
+        assert_eq!(legacy.settings.locale, AppLocale::En);
+
+        let mut catalog = SessionCatalog::default();
+        catalog.settings.locale = AppLocale::Zh;
+        let encoded = serde_json::to_string(&catalog).expect("encode catalog");
+        let decoded: SessionCatalog = serde_json::from_str(&encoded).expect("decode catalog");
+        assert_eq!(decoded.settings.locale, AppLocale::Zh);
     }
 
     #[test]
@@ -1363,8 +2566,6 @@ mod tests {
             id: "agent-1".to_owned(),
             name: "Agent 1".to_owned(),
             cwd: String::new(),
-            proxy: String::new(),
-            no_proxy: String::new(),
             provider: String::new(),
             model: String::new(),
         };
@@ -1393,6 +2594,96 @@ mod tests {
     }
 
     #[test]
+    fn git_status_summary_keeps_branch_and_change_count() {
+        assert_eq!(
+            parse_git_status(
+                "## feat/ui...origin/feat/ui [ahead 2]\n M src/main.rs\n?? notes.md\n"
+            ),
+            WorkspaceInfo {
+                repository: true,
+                branch: Some("feat/ui".to_owned()),
+                changed_files: 2,
+            }
+        );
+        assert_eq!(
+            parse_git_status("## main\n"),
+            WorkspaceInfo {
+                repository: true,
+                branch: Some("main".to_owned()),
+                changed_files: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn workspace_file_preview_is_text_only_and_cannot_escape_the_workspace() {
+        let directory = test_directory("workspace-preview");
+        std::fs::create_dir_all(directory.join("src")).expect("fixture directory");
+        std::fs::write(directory.join("src/main.rs"), "fn main() {}\n").expect("text fixture");
+
+        assert_eq!(
+            read_workspace_file(&directory, Path::new("src/main.rs")).expect("workspace file"),
+            WorkspaceFilePreview {
+                path: "src/main.rs".to_owned(),
+                text: "fn main() {}\n".to_owned(),
+            }
+        );
+        assert!(read_workspace_file(&directory, Path::new("../outside.txt")).is_err());
+        std::fs::write(directory.join("binary"), [0xff, 0xfe]).expect("binary fixture");
+        assert!(read_workspace_file(&directory, Path::new("binary")).is_err());
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn workspace_changes_returns_bounded_structured_patches() {
+        let directory = test_directory("workspace-changes");
+        std::fs::create_dir_all(&directory).expect("fixture directory");
+        let git = |args: &[&str]| {
+            let status = Command::new("git")
+                .args(args)
+                .current_dir(&directory)
+                .status()
+                .expect("git fixture command");
+            assert!(status.success());
+        };
+        git(&["init", "--quiet"]);
+        git(&["config", "user.email", "wabou@example.invalid"]);
+        git(&["config", "user.name", "Wabou Test"]);
+        std::fs::write(directory.join("example.txt"), "before\n").expect("initial file");
+        git(&["add", "example.txt"]);
+        git(&["commit", "--quiet", "-m", "fixture"]);
+        std::fs::write(directory.join("example.txt"), "before\nafter\n").expect("changed file");
+        std::fs::write(directory.join("new.txt"), "new file\n").expect("untracked file");
+
+        let changes = workspace_changes(&directory).expect("workspace changes");
+        assert_eq!(changes.files.len(), 2);
+        assert_eq!(changes.files[0].path, "example.txt");
+        assert_eq!(changes.files[0].status, "modified");
+        assert_eq!(changes.files[0].additions, 1);
+        assert_eq!(changes.files[0].deletions, 0);
+        assert!(changes.files[0].patch.contains("+after"));
+        assert_eq!(changes.files[1].path, "new.txt");
+        assert_eq!(changes.files[1].status, "added");
+        assert!(changes.files[1].patch.contains("+new file"));
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn binary_workspace_changes_are_not_misreported_as_text_deletions() {
+        let change = diff_file(
+            Path::new("asset.bin"),
+            Some(vec![0, 0xff]),
+            Some(vec![0, 0xfe]),
+        );
+        assert_eq!(change.status, "modified");
+        assert_eq!(change.additions, 0);
+        assert_eq!(change.deletions, 0);
+        assert_eq!(change.patch, "Binary file asset.bin changed\n");
+    }
+
+    #[test]
     fn missing_session_files_are_removed_from_the_catalog() {
         let directory = test_directory("session-catalog");
         std::fs::create_dir_all(&directory).expect("fixture directory");
@@ -1412,6 +2703,7 @@ mod tests {
                 session("missing", &directory.join("missing.jsonl")),
             ],
             agents: Vec::new(),
+            settings: AppSettings::default(),
         };
 
         assert!(prune_missing_sessions(&mut catalog));
@@ -1423,6 +2715,68 @@ mod tests {
         );
         assert!(!prune_missing_sessions(&mut catalog));
         let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn derives_a_unicode_safe_title_from_the_first_user_message() {
+        let directory = test_directory("session-title");
+        std::fs::create_dir_all(&directory).expect("fixture directory");
+        let session = directory.join("session.jsonl");
+        std::fs::write(
+            &session,
+            concat!(
+                "{\"type\":\"session\",\"id\":\"session\"}\n",
+                "{\"type\":\"message\",\"message\":{\"role\":\"assistant\",\"content\":[]}}\n",
+                "{\"type\":\"message\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"  日本語の   OCR\\n結果を確認する  \"}]}}\n"
+            ),
+        )
+        .expect("session fixture");
+
+        assert_eq!(
+            session_title_from_file(&session).as_deref(),
+            Some("日本語の OCR 結果を確認する")
+        );
+        let long = "界".repeat(80);
+        let title = compact_session_title(&long).expect("long title");
+        assert_eq!(title.chars().count(), 65);
+        assert!(title.ends_with('…'));
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn session_identity_is_scoped_to_its_agent() {
+        let session = |agent_id: &str, name: &str| PiSession {
+            agent_id: agent_id.to_owned(),
+            session_id: "shared-session-id".to_owned(),
+            session_file: format!("/{agent_id}/session.jsonl"),
+            name: Some(name.to_owned()),
+            cwd: format!("/{agent_id}"),
+            updated_at: 1,
+        };
+        let mut catalog = SessionCatalog::default();
+
+        upsert_session(&mut catalog, session("agent-1", "First"));
+        upsert_session(&mut catalog, session("agent-2", "Second"));
+        upsert_session(&mut catalog, session("agent-1", "Renamed"));
+
+        assert_eq!(catalog.sessions.len(), 2);
+        assert_eq!(
+            catalog
+                .sessions
+                .iter()
+                .find(|entry| entry.agent_id == "agent-1")
+                .and_then(|entry| entry.name.as_deref()),
+            Some("Renamed")
+        );
+        assert_eq!(
+            catalog
+                .sessions
+                .iter()
+                .find(|entry| entry.agent_id == "agent-2")
+                .and_then(|entry| entry.name.as_deref()),
+            Some("Second")
+        );
     }
 
     #[tokio::test]

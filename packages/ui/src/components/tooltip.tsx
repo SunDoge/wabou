@@ -1,9 +1,11 @@
 import type { Handle } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import { createSignal, type JSX, onCleanup } from "solid-js";
 import type { Placement } from "../primitives";
-import { Popover, Text } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
+import { Popover, Text, View } from "../primitives";
+import { Kbd } from "./display";
 import type { PopupMotionProps } from "./popover";
+import { componentsElevation, useComponentsTheme } from "./theme";
 import { createTooltipDelayController } from "./tooltip-state";
 
 export interface TooltipTriggerProps {
@@ -31,12 +33,45 @@ export interface TooltipProps extends PopupMotionProps {
   offset?: number;
   contentClass?: string;
   disabled?: boolean;
+  /** Optional keyboard shortcut presented as a native keycap. */
+  shortcut?: string;
+}
+
+export interface TooltipContentProps {
+  children?: JSX.Element;
+  shortcut?: string;
+  id?: string;
+  class?: string;
+}
+
+/** Visual content shared by managed and explicitly composed tooltips. */
+export function TooltipContent(props: TooltipContentProps): JSX.Element {
+  return (
+    <View
+      class={mergeClasses(
+        "min-w-0 flex flex-row items-center gap-3",
+        props.class,
+      )}
+    >
+      <Text
+        id={props.id}
+        role="tooltip"
+        class="min-w-0 flex-1 whitespace-normal text-xs text-primary"
+      >
+        {props.children}
+      </Text>
+      {props.shortcut === undefined ? null : (
+        <Kbd aria-label={`${props.shortcut} shortcut`}>{props.shortcut}</Kbd>
+      )}
+    </View>
+  );
 }
 
 let tooltipId = 0;
 
 /** A delayed, non-interactive label for pointer and keyboard focus targets. */
 export function Tooltip(props: TooltipProps): JSX.Element {
+  const theme = useComponentsTheme();
   const id = `wabou-tooltip-${++tooltipId}`;
   const [uncontrolledOpen, setUncontrolledOpen] = createSignal(
     props.defaultOpen ?? false,
@@ -67,9 +102,10 @@ export function Tooltip(props: TooltipProps): JSX.Element {
       closeOnEscape
       restoreFocus={false}
       contentClass={mergeClasses(
-        "max-w-xs rounded-md border border-subtle bg-surface px-2 py-1 shadow-md",
+        "max-w-xs rounded-lg border border-subtle bg-surface px-2 py-1.5",
         props.contentClass,
       )}
+      contentShadows={componentsElevation(theme(), "floating")}
       motion={props.motion}
       trigger={(popover) =>
         props.trigger({
@@ -84,13 +120,9 @@ export function Tooltip(props: TooltipProps): JSX.Element {
         })
       }
     >
-      <Text
-        id={id}
-        role="tooltip"
-        class="whitespace-normal text-xs text-primary"
-      >
+      <TooltipContent id={id} shortcut={props.shortcut}>
         {props.children}
-      </Text>
+      </TooltipContent>
     </Popover>
   );
 }

@@ -51,6 +51,8 @@ interface TerminalProps {
   fontFamily?: string;
   fontSize?: string;
   lineHeight?: string;
+  /** Override application-requested cursor blinking. Omit to honor the PTY. */
+  cursorBlink?: boolean;
   /** Selection fill; accepts Wabou's color syntax. */
   selectionBackground?: string;
   /** Optional selected-text color. Omit it to preserve ANSI foreground colors. */
@@ -83,6 +85,7 @@ declare module "@wabou/core/registry" {
       "font-family"?: string;
       "font-size"?: string;
       "line-height"?: string;
+      "cursor-blink"?: string;
       "selection-background"?: string;
       "selection-foreground"?: string;
       "inherit-theme"?: string;

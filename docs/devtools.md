@@ -77,6 +77,13 @@ trying to reproduce it with a separate class-merging heuristic.
 application data. Set `WABOU_DEVTOOLS_RAW_FRAMES=1` to opt in; previews are
 then capped at 4 KiB per trace record.
 
+`status` also reports the most recently presented frame's `jsTickMs`,
+`buildFrameMs`, `sceneMs`, and `presentMs` when the native renderer has
+completed a frame. This makes silent platform regressions observable even when
+the retained tree is valid and JavaScript throws no exception. The first
+published snapshot may have `frameStats: null`; query again after interacting
+with the application.
+
 `validate` checks the latest retained snapshot before pixel diagnosis. It
 reports stable issue codes for duplicate or dangling node identities, parent
 cycles, invalid border/content/clip geometry, non-finite transforms, stale
@@ -95,6 +102,9 @@ are named explicitly in the response.
 recent protocol frames, and optional point inspection when that same rendered
 frame completes. It writes `screenshot.png`, `manifest.json`, `tree.json`, and,
 when a point hits a node, `selected-node.json` into the output directory.
+The frozen status in both JSON files includes device scale, text backend,
+outline fallback, and the most recent frame timings, so a macOS capture can be
+compared with Linux without relying on an error log.
 
 Screenshots are rendered only on request into atomically reserved mode `0600`
 PNG files inside a private mode `0700` runtime directory. The latest 16

@@ -42,6 +42,10 @@ test("edits a controlled path and commits a native directory selection", async (
   });
   const input = screen.getByRole("textbox", { name: "Download directory" });
   const browse = screen.getByRole("button", { name: "Choose directory" });
+  const group = input.closestByRole("group");
+  expect(group?.attribute("data-wabou-owns")).toBe("surface focus-ring");
+  expect(group?.className).toContain("h-8");
+  expect(browse.closestByRole("group")?.identity).toEqual(group?.identity);
 
   input.input("/tmp/manual");
   expect(screen.getByRole("status").text).toBe("/tmp/manual");

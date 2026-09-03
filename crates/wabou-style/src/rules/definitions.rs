@@ -404,7 +404,6 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("cursor-text", vec![keyword("cursor", "text")]),
         ("cursor-crosshair", vec![keyword("cursor", "crosshair")]),
         ("cursor-move", vec![keyword("cursor", "move")]),
-        ("cursor-wait", vec![keyword("cursor", "wait")]),
         ("cursor-not-allowed", vec![keyword("cursor", "not-allowed")]),
         ("cursor-ew-resize", vec![keyword("cursor", "ew-resize")]),
         ("cursor-ns-resize", vec![keyword("cursor", "ns-resize")]),
@@ -661,6 +660,41 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
             vec![length("border-radius", Length::Px { value: 8.0 })],
         ),
         (
+            "rounded-l-lg",
+            vec![
+                length("border-top-left-radius", Length::Px { value: 8.0 }),
+                length("border-bottom-left-radius", Length::Px { value: 8.0 }),
+            ],
+        ),
+        (
+            "rounded-r-lg",
+            vec![
+                length("border-top-right-radius", Length::Px { value: 8.0 }),
+                length("border-bottom-right-radius", Length::Px { value: 8.0 }),
+            ],
+        ),
+        (
+            "rounded-r-none",
+            vec![
+                length("border-top-right-radius", Length::Px { value: 0.0 }),
+                length("border-bottom-right-radius", Length::Px { value: 0.0 }),
+            ],
+        ),
+        (
+            "rounded-t-lg",
+            vec![
+                length("border-top-left-radius", Length::Px { value: 8.0 }),
+                length("border-top-right-radius", Length::Px { value: 8.0 }),
+            ],
+        ),
+        (
+            "rounded-b-lg",
+            vec![
+                length("border-bottom-left-radius", Length::Px { value: 8.0 }),
+                length("border-bottom-right-radius", Length::Px { value: 8.0 }),
+            ],
+        ),
+        (
             "rounded-xl",
             vec![length("border-radius", Length::Px { value: 12.0 })],
         ),
@@ -720,6 +754,18 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("font-extrabold", vec![number("font-weight", 800.0)]),
         ("italic", vec![keyword("font-style", "italic")]),
         ("not-italic", vec![keyword("font-style", "normal")]),
+        (
+            "underline",
+            vec![keyword("text-decoration-line", "underline")],
+        ),
+        (
+            "line-through",
+            vec![keyword("text-decoration-line", "line-through")],
+        ),
+        (
+            "no-underline",
+            vec![keyword("text-decoration-line", "none")],
+        ),
         (
             "text-xs",
             vec![
@@ -863,6 +909,54 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("select-none", vec![keyword("user-select", "none")]),
         ("select-text", vec![keyword("user-select", "text")]),
         ("select-all", vec![keyword("user-select", "all")]),
+        (
+            "blur-none",
+            vec![length("filter-blur", Length::Px { value: 0.0 })],
+        ),
+        (
+            "blur-sm",
+            vec![length("filter-blur", Length::Px { value: 4.0 })],
+        ),
+        (
+            "blur",
+            vec![length("filter-blur", Length::Px { value: 8.0 })],
+        ),
+        (
+            "blur-md",
+            vec![length("filter-blur", Length::Px { value: 12.0 })],
+        ),
+        (
+            "blur-lg",
+            vec![length("filter-blur", Length::Px { value: 16.0 })],
+        ),
+        (
+            "blur-xl",
+            vec![length("filter-blur", Length::Px { value: 24.0 })],
+        ),
+        (
+            "backdrop-blur-none",
+            vec![length("backdrop-blur", Length::Px { value: 0.0 })],
+        ),
+        (
+            "backdrop-blur-sm",
+            vec![length("backdrop-blur", Length::Px { value: 4.0 })],
+        ),
+        (
+            "backdrop-blur",
+            vec![length("backdrop-blur", Length::Px { value: 8.0 })],
+        ),
+        (
+            "backdrop-blur-md",
+            vec![length("backdrop-blur", Length::Px { value: 12.0 })],
+        ),
+        (
+            "backdrop-blur-lg",
+            vec![length("backdrop-blur", Length::Px { value: 16.0 })],
+        ),
+        (
+            "backdrop-blur-xl",
+            vec![length("backdrop-blur", Length::Px { value: 24.0 })],
+        ),
         ("shadow-none", vec![shadows(vec![])]),
         (
             "shadow-xs",

@@ -8,10 +8,14 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
+  SidebarMenu,
   SidebarMenuButton,
+  SidebarMenuIcon,
+  SidebarMenuLabel,
+  SidebarMenuSuffix,
   SidebarSearch,
 } from "@wabou/ui";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For as ForValue, Show } from "solid-js";
 import { expect, test } from "vitest";
 
 const groups = [
@@ -48,6 +52,57 @@ test("filters items by group, label, or application keywords", () => {
   );
 });
 
+test("controls one selected sidebar destination while leaving actions neutral", () => {
+  const [value, setValue] = createSignal("files");
+  const screen = renderComponent(() => (
+    <SidebarMenu
+      aria-label="Destinations"
+      value={value()}
+      onValueChange={setValue}
+    >
+      <SidebarMenuButton value="files" aria-label="Files">
+        <SidebarMenuIcon aria-label="Files icon" />
+        <SidebarMenuLabel role="label" aria-label="Files label">
+          Files
+        </SidebarMenuLabel>
+        <SidebarMenuSuffix aria-label="Files status" />
+      </SidebarMenuButton>
+      <SidebarMenuButton value="search" aria-label="Search" />
+      <SidebarMenuButton aria-label="Create file" />
+    </SidebarMenu>
+  ));
+
+  const files = screen.getByRole("button", { name: "Files" });
+  const search = screen.getByRole("button", { name: "Search" });
+  const create = screen.getByRole("button", { name: "Create file" });
+  expect(files.selected).toBe(true);
+  expect(search.selected).toBe(false);
+  expect(create.selected).toBe(false);
+  expect(files.className).toContain("border-transparent");
+  expect(files.className).toContain("bg-selected");
+  expect(files.className).toContain("font-medium");
+  expect(files.className).toContain("rounded-md");
+  expect(screen.getByRole("img", { name: "Files icon" }).className).toContain(
+    "w-4",
+  );
+  expect(
+    screen.getByRole("label", { name: "Files label" }).className,
+  ).toContain("truncate");
+  expect(
+    screen.getByRole("group", { name: "Files status" }).className,
+  ).toContain("flex-none");
+  expect(files.className).not.toContain("shadow-xs");
+  expect(search.className).toContain("border-transparent");
+
+  search.click();
+  screen.flush();
+  expect(files.selected).toBe(false);
+  expect(search.selected).toBe(true);
+  expect(create.selected).toBe(false);
+  expect(files.className).toContain("border-transparent");
+  expect(search.className).toContain("bg-selected");
+});
+
 test("composes fixed chrome, searchable content, navigation and empty state", () => {
   let selected = "files";
   const Example = () => {
@@ -64,11 +119,11 @@ test("composes fixed chrome, searchable content, navigation and empty state", ()
           onValueChange={setQuery}
         />
         <SidebarContent>
-          <For each={filtered()}>
+          <ForValue each={filtered()}>
             {(group) => (
               <SidebarGroup aria-label={group.label}>
                 <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-                <For each={group.items}>
+                <ForValue each={group.items}>
                   {(item) => (
                     <SidebarMenuButton
                       aria-label={item.label}
@@ -78,10 +133,10 @@ test("composes fixed chrome, searchable content, navigation and empty state", ()
                       {item.label}
                     </SidebarMenuButton>
                   )}
-                </For>
+                </ForValue>
               </SidebarGroup>
             )}
-          </For>
+          </ForValue>
           <Show when={filtered().length === 0}>
             <SidebarEmpty title="Nothing here" />
           </Show>
@@ -103,6 +158,9 @@ test("composes fixed chrome, searchable content, navigation and empty state", ()
   search.input("missing");
   expect(screen.getByRole("status", { name: "Nothing here" })).not.toBeNull();
   search.press("Escape");
-  screen.getByRole("button", { name: "Search" }).click();
+  const searchButton = screen.getByRole("button", { name: "Search" });
+  expect(searchButton.className).toContain("rounded-md");
+  expect(searchButton.className).toContain("gap-2");
+  searchButton.click();
   expect(selected).toBe("search");
 });

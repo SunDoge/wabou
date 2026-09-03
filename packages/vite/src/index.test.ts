@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import type { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
-import { compileColorThemes } from "./style-compiler";
 import {
+  color,
   defaultWabouColorThemes,
   defineWabouConfig,
+  defineWabouTheme,
+  hasWabouWorkspaceSources,
   wabouPlugins,
 } from "./index";
+import { auditColorThemeContrast, compileColorThemes } from "./style-compiler";
 
 describe("@wabou/vite", () => {
   const buildEnvironment = [
@@ -51,7 +55,7 @@ describe("@wabou/vite", () => {
 
   test("ships the semantic color contract required by official UI components", () => {
     const compiled = compileColorThemes(defaultWabouColorThemes);
-    expect(compiled?.default).toBe("dark");
+    expect(compiled?.default).toBe("light");
     for (const theme of Object.values(compiled?.themes ?? {})) {
       expect(Object.keys(theme.colors).sort()).toEqual(
         [
@@ -83,6 +87,41 @@ describe("@wabou/vite", () => {
         ].sort(),
       );
     }
+    expect(auditColorThemeContrast(compiled!)).toEqual([]);
+    expect(defaultWabouColorThemes.themes.light.colors.canvas).toBe("#ffffff");
+  });
+
+  test("defines and validates typed application themes eagerly", () => {
+    const accent = color("#2563eb");
+    const theme = defineWabouTheme({
+      default: "light",
+      themes: {
+        light: {
+          appearance: "light",
+          colors: { canvas: "#ffffff", accent },
+        },
+        dark: {
+          appearance: "dark",
+          colors: { canvas: "#121418", accent: "#4c8dff" },
+        },
+      },
+    });
+
+    expect(theme.themes.light.colors.accent).toBe("#2563eb");
+    expect(() => color("rgb(1 2 3)")).toThrow(
+      "expected #RRGGBB or #RRGGBBAA",
+    );
+    expect(() =>
+      defineWabouTheme({
+        default: "missing",
+        themes: {
+          light: {
+            appearance: "light",
+            colors: { canvas: "#ffffff" },
+          },
+        },
+      }),
+    ).toThrow("does not exist");
   });
 
   test("defines conventional entry and bundle output", async () => {
@@ -105,8 +144,10 @@ describe("@wabou/vite", () => {
     expect(renderer).toBeString();
     expect(aliases["solid-js/web"]).toBe(renderer);
     expect(renderer).toMatch(/core\/(?:src|dist)\/renderer(?:\.ts|\.mjs)$/);
+    expect(renderer).toContain("/packages/core/src/renderer.ts");
     expect(existsSync(renderer)).toBe(true);
     expect(config.resolve?.dedupe).toEqual(["solid-js"]);
+    expect(config.resolve?.conditions).toContain("wabou-source");
     expect(config.optimizeDeps).toMatchObject({
       noDiscovery: true,
       include: ["@tanstack/router-core"],
@@ -114,6 +155,23 @@ describe("@wabou/vite", () => {
     expect(config.define?.["process.env.NODE_ENV"]).toBe(
       JSON.stringify(process.env.NODE_ENV ?? "production"),
     );
+  });
+
+  test("only enables workspace source resolution when source packages exist", async () => {
+    expect(hasWabouWorkspaceSources(resolve(import.meta.dir, "../../.."))).toBe(
+      true,
+    );
+    expect(hasWabouWorkspaceSources("/definitely-not-a-wabou-workspace")).toBe(
+      false,
+    );
+
+    const config = await resolveConfig(
+      defineWabouConfig({
+        root: "/definitely-not-a-wabou-workspace",
+        outDir: "/tmp/wabou-test-output",
+      }),
+    );
+    expect(config.resolve?.conditions).toBeUndefined();
   });
 
   test("uses the build context supplied by the Wabou CLI", async () => {

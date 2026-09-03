@@ -1,1077 +1,1154 @@
-//! Style IR types, the single [`apply_ir`] application backend, and the
-//! runtime string→`IrValue` parser [`parse_ir_value`] used for inline styles.
+use gpui::{
+    AbsoluteLength, AlignContent, AlignItems, BoxShadow, CursorStyle, DefiniteLength, Display,
+    Filter, FlexDirection, FlexWrap, FontStyle, FontWeight, GridPlacement, GridTemplate,
+    GridTemplateMinSize, Hsla, Length, Overflow, Position, StrikethroughStyle, Style, TextAlign,
+    TextOverflow, UnderlineStyle, Visibility, WhiteSpace,
+};
+use wabou_style::{Color, Declaration, Length as IrLength, Value};
 
-#![warn(missing_docs)]
-
-use std::collections::HashMap;
-use std::str::FromStr;
-use std::sync::Arc;
-
-use taffy::prelude::*;
-use taffy::style::{GridTemplateArea, GridTemplateAreas, GridTemplateRepetition};
-use vello::peniko::Color;
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
-/// Resolved horizontal alignment for shaped text.
-pub enum TextAlign {
-    #[default]
-    /// Start edge determined by writing direction.
-    Start,
-    /// Center each line in its available width.
-    Center,
-    /// End edge determined by writing direction.
-    End,
-    /// Expand inter-word spacing to fill each eligible line.
-    Justify,
+/// A deterministic reason why a Style IR declaration was not projected.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum StyleDiagnostic {
+    /// This migration stage does not implement the otherwise valid property.
+    UnsupportedProperty(String),
+    /// The value does not match the property's required closed vocabulary.
+    InvalidValue { property: String },
 }
 
-#[derive(Debug, Clone, serde::Deserialize, PartialEq)]
-#[serde(tag = "unit", rename_all = "kebab-case")]
-/// Length representation accepted by the runtime Style IR.
-pub enum IrLength {
-    /// Logical-pixel length.
-    Px {
-        /// Logical-pixel magnitude.
-        value: f32,
-    },
-    /// Parent-relative ratio in Taffy's `0.0..=1.0` representation.
-    Percent {
-        /// Parent-relative ratio.
-        value: f32,
-    },
-    /// Automatic value resolved by layout.
-    Auto,
+/// Accumulates ordered Style IR declarations into one GPUI style.
+///
+/// This is the production layout bridge. GPUI remains responsible for creating
+/// its internal Taffy nodes; Wabou never owns or persists GPUI `LayoutId`s.
+#[derive(Clone, Debug, Default)]
+pub struct StyleProjection {
+    style: Style,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, PartialEq)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-/// Color representation accepted by the runtime Style IR.
-pub enum IrColor {
-    /// Packed RGBA channels in network byte order (`0xRRGGBBAA`).
-    Literal {
-        /// Packed channel value.
-        rgba: u32,
-    },
-    /// Theme token resolved before paint application.
-    Token {
-        /// Theme color name.
-        name: String,
-    },
-}
-
-#[derive(Debug, Clone, serde::Deserialize, PartialEq)]
-#[serde(tag = "type", rename_all = "kebab-case")]
-/// Typed value transported from the style compiler to the Rust backend.
-pub enum IrValue {
-    /// Property-specific closed-vocabulary keyword.
-    Keyword {
-        /// Canonical keyword spelling.
-        value: String,
-    },
-    /// Boolean value.
-    Boolean {
-        /// Boolean payload.
-        value: bool,
-    },
-    /// Finite unitless number.
-    Number {
-        /// Numeric payload.
-        value: f32,
-    },
-    /// Typed layout length.
-    Length {
-        /// Length payload.
-        value: IrLength,
-    },
-    /// Typed color.
-    Color {
-        /// Color payload.
-        value: IrColor,
-    },
-    /// Ordered composite value.
-    List {
-        /// Child values.
-        values: Vec<IrValue>,
-    },
-    /// Named composite value.
-    Record {
-        /// Child values keyed by schema field name.
-        fields: HashMap<String, IrValue>,
-    },
-}
-
-impl IrValue {
-    fn keyword(&self) -> Option<&str> {
-        match self {
-            Self::Keyword { value } => Some(value),
-            _ => None,
-        }
+impl StyleProjection {
+    /// Continue projecting declarations over an already resolved GPUI style.
+    #[must_use]
+    pub fn from_style(style: Style) -> Self {
+        Self { style }
     }
 
-    fn number(&self) -> Option<f32> {
-        match self {
-            Self::Number { value } => Some(*value),
-            _ => None,
-        }
+    #[must_use]
+    pub fn style(&self) -> &Style {
+        &self.style
     }
 
-    fn length(&self) -> Option<&IrLength> {
-        match self {
-            Self::Length { value } => Some(value),
-            _ => None,
+    #[must_use]
+    pub fn into_style(self) -> Style {
+        self.style
+    }
+
+    pub fn apply(&mut self, declaration: &Declaration) -> Result<(), StyleDiagnostic> {
+        let property = declaration.property.as_str();
+        let value = &declaration.value;
+        match property {
+            "display" => self.style.display = display(value).ok_or_else(|| invalid(property))?,
+            "position" => {
+                self.style.position = position(value).ok_or_else(|| invalid(property))?;
+            }
+            "width" => self.style.size.width = length(value).ok_or_else(|| invalid(property))?,
+            "height" => self.style.size.height = length(value).ok_or_else(|| invalid(property))?,
+            "min-width" => {
+                self.style.min_size.width = length(value).ok_or_else(|| invalid(property))?;
+            }
+            "min-height" => {
+                self.style.min_size.height = length(value).ok_or_else(|| invalid(property))?;
+            }
+            "max-width" => {
+                self.style.max_size.width = length(value).ok_or_else(|| invalid(property))?;
+            }
+            "max-height" => {
+                self.style.max_size.height = length(value).ok_or_else(|| invalid(property))?;
+            }
+            "aspect-ratio" => {
+                self.style.aspect_ratio = Some(
+                    number(value)
+                        .filter(|ratio| *ratio > 0.0)
+                        .ok_or_else(|| invalid(property))?,
+                );
+            }
+            "top" => self.style.inset.top = length(value).ok_or_else(|| invalid(property))?,
+            "right" => self.style.inset.right = length(value).ok_or_else(|| invalid(property))?,
+            "bottom" => self.style.inset.bottom = length(value).ok_or_else(|| invalid(property))?,
+            "left" => self.style.inset.left = length(value).ok_or_else(|| invalid(property))?,
+            "margin" => {
+                if let Some((top, right, bottom, left)) = length_edges(value) {
+                    self.style.margin.top = top;
+                    self.style.margin.right = right;
+                    self.style.margin.bottom = bottom;
+                    self.style.margin.left = left;
+                } else {
+                    let margin = length(value).ok_or_else(|| invalid(property))?;
+                    self.style.margin.top = margin;
+                    self.style.margin.right = margin;
+                    self.style.margin.bottom = margin;
+                    self.style.margin.left = margin;
+                }
+            }
+            "margin-top" => {
+                self.style.margin.top = length(value).ok_or_else(|| invalid(property))?;
+            }
+            "margin-right" | "margin-inline-end" => {
+                self.style.margin.right = length(value).ok_or_else(|| invalid(property))?;
+            }
+            "margin-bottom" => {
+                self.style.margin.bottom = length(value).ok_or_else(|| invalid(property))?;
+            }
+            "margin-left" | "margin-inline-start" => {
+                self.style.margin.left = length(value).ok_or_else(|| invalid(property))?;
+            }
+            "padding" => {
+                if let Some((top, right, bottom, left)) = definite_edges(value) {
+                    self.style.padding.top = top;
+                    self.style.padding.right = right;
+                    self.style.padding.bottom = bottom;
+                    self.style.padding.left = left;
+                } else {
+                    let padding = definite_length(value).ok_or_else(|| invalid(property))?;
+                    self.style.padding.top = padding;
+                    self.style.padding.right = padding;
+                    self.style.padding.bottom = padding;
+                    self.style.padding.left = padding;
+                }
+            }
+            "padding-top" => {
+                self.style.padding.top = definite_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "padding-right" => {
+                self.style.padding.right =
+                    definite_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "padding-bottom" => {
+                self.style.padding.bottom =
+                    definite_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "padding-left" => {
+                self.style.padding.left =
+                    definite_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "gap" => {
+                if let Some((column, row)) = axis_lengths(value) {
+                    self.style.gap.width = column;
+                    self.style.gap.height = row;
+                } else {
+                    let gap = definite_length(value).ok_or_else(|| invalid(property))?;
+                    self.style.gap.width = gap;
+                    self.style.gap.height = gap;
+                }
+            }
+            "column-gap" | "gap-x" => {
+                self.style.gap.width = definite_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "row-gap" | "gap-y" => {
+                self.style.gap.height = definite_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "overflow" => {
+                if let Some((x, y)) = axis_overflow(value) {
+                    self.style.overflow.x = x;
+                    self.style.overflow.y = y;
+                } else {
+                    let overflow = overflow(value).ok_or_else(|| invalid(property))?;
+                    self.style.overflow.x = overflow;
+                    self.style.overflow.y = overflow;
+                }
+            }
+            "overflow-x" => {
+                self.style.overflow.x = overflow(value).ok_or_else(|| invalid(property))?;
+            }
+            "overflow-y" => {
+                self.style.overflow.y = overflow(value).ok_or_else(|| invalid(property))?;
+            }
+            "flex-direction" => {
+                self.style.flex_direction =
+                    flex_direction(value).ok_or_else(|| invalid(property))?;
+            }
+            "flex-wrap" => {
+                self.style.flex_wrap = flex_wrap(value).ok_or_else(|| invalid(property))?;
+            }
+            "flex-grow" => {
+                self.style.flex_grow = number(value).ok_or_else(|| invalid(property))?;
+            }
+            "flex-shrink" => {
+                self.style.flex_shrink = number(value).ok_or_else(|| invalid(property))?;
+            }
+            "flex-basis" => {
+                self.style.flex_basis = length(value).ok_or_else(|| invalid(property))?;
+            }
+            "align-items" => {
+                self.style.align_items = Some(align_items(value).ok_or_else(|| invalid(property))?);
+            }
+            "align-self" => {
+                self.style.align_self = match keyword(value) {
+                    Some("auto") => None,
+                    _ => Some(align_items(value).ok_or_else(|| invalid(property))?),
+                };
+            }
+            "align-content" => {
+                self.style.align_content =
+                    Some(align_content(value).ok_or_else(|| invalid(property))?);
+            }
+            "justify-content" => {
+                self.style.justify_content =
+                    Some(align_content(value).ok_or_else(|| invalid(property))?);
+            }
+            "grid-template-columns" => {
+                self.style.grid_cols = Some(grid_template(value).ok_or_else(|| invalid(property))?);
+            }
+            "grid-template-rows" => {
+                self.style.grid_rows = Some(grid_template(value).ok_or_else(|| invalid(property))?);
+            }
+            "grid-column-start" => {
+                self.style
+                    .grid_location
+                    .get_or_insert_default()
+                    .column
+                    .start = grid_placement(value).ok_or_else(|| invalid(property))?;
+            }
+            "grid-column-end" => {
+                self.style.grid_location.get_or_insert_default().column.end =
+                    grid_placement(value).ok_or_else(|| invalid(property))?;
+            }
+            "grid-row-start" => {
+                self.style.grid_location.get_or_insert_default().row.start =
+                    grid_placement(value).ok_or_else(|| invalid(property))?;
+            }
+            "grid-row-end" => {
+                self.style.grid_location.get_or_insert_default().row.end =
+                    grid_placement(value).ok_or_else(|| invalid(property))?;
+            }
+            "background" | "background-color" => {
+                self.style.background = Some(color(value).ok_or_else(|| invalid(property))?.into());
+            }
+            "color" => {
+                self.style.text.color = Some(color(value).ok_or_else(|| invalid(property))?);
+            }
+            "border-color" => {
+                self.style.border_color = Some(color(value).ok_or_else(|| invalid(property))?);
+            }
+            "border-width" => {
+                if let Some((top, right, bottom, left)) = absolute_edges(value) {
+                    self.style.border_widths.top = top;
+                    self.style.border_widths.right = right;
+                    self.style.border_widths.bottom = bottom;
+                    self.style.border_widths.left = left;
+                } else {
+                    let width = absolute_length(value).ok_or_else(|| invalid(property))?;
+                    self.style.border_widths.top = width;
+                    self.style.border_widths.right = width;
+                    self.style.border_widths.bottom = width;
+                    self.style.border_widths.left = width;
+                }
+            }
+            "border-top-width" => {
+                self.style.border_widths.top =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "border-right-width" => {
+                self.style.border_widths.right =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "border-bottom-width" => {
+                self.style.border_widths.bottom =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "border-left-width" => {
+                self.style.border_widths.left =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "border-radius" => {
+                let radius = absolute_length(value).ok_or_else(|| invalid(property))?;
+                self.style.corner_radii.top_left = radius;
+                self.style.corner_radii.top_right = radius;
+                self.style.corner_radii.bottom_right = radius;
+                self.style.corner_radii.bottom_left = radius;
+            }
+            "border-top-left-radius" => {
+                self.style.corner_radii.top_left =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "border-top-right-radius" => {
+                self.style.corner_radii.top_right =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "border-bottom-right-radius" => {
+                self.style.corner_radii.bottom_right =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "border-bottom-left-radius" => {
+                self.style.corner_radii.bottom_left =
+                    absolute_length(value).ok_or_else(|| invalid(property))?;
+            }
+            "font-size" => {
+                self.style.text.font_size =
+                    Some(absolute_length(value).ok_or_else(|| invalid(property))?);
+            }
+            "font-family" => {
+                self.style.text.font_family =
+                    Some(font_family(value).ok_or_else(|| invalid(property))?.into());
+            }
+            "font-weight" => {
+                let weight = match keyword(value) {
+                    Some("normal") => Some(400.0),
+                    Some("bold") => Some(700.0),
+                    _ => number(value),
+                }
+                .filter(|weight| (1.0..=1000.0).contains(weight))
+                .ok_or_else(|| invalid(property))?;
+                self.style.text.font_weight = Some(FontWeight(weight));
+            }
+            "font-style" => {
+                self.style.text.font_style = Some(match keyword(value) {
+                    Some("normal") => FontStyle::Normal,
+                    Some("italic") => FontStyle::Italic,
+                    Some("oblique") => FontStyle::Oblique,
+                    _ => return Err(invalid(property)),
+                });
+            }
+            "text-decoration-line" => match keyword(value) {
+                Some("none") => {
+                    self.style.text.underline = None;
+                    self.style.text.strikethrough = None;
+                }
+                Some("underline") => {
+                    self.style.text.underline = Some(UnderlineStyle {
+                        thickness: gpui::px(1.0),
+                        ..Default::default()
+                    });
+                    self.style.text.strikethrough = None;
+                }
+                Some("line-through") => {
+                    self.style.text.underline = None;
+                    self.style.text.strikethrough = Some(StrikethroughStyle {
+                        thickness: gpui::px(1.0),
+                        ..Default::default()
+                    });
+                }
+                _ => return Err(invalid(property)),
+            },
+            "letter-spacing" => {
+                self.style.text.letter_spacing = Some(match value {
+                    Value::Keyword { value } if value == "normal" => gpui::px(0.0),
+                    _ => pixels(value).ok_or_else(|| invalid(property))?,
+                });
+            }
+            "line-height" => {
+                self.style.text.line_height = Some(match value {
+                    Value::Number { value } if value.is_finite() && *value >= 0.0 => {
+                        DefiniteLength::Fraction(*value)
+                    }
+                    _ => definite_length(value).ok_or_else(|| invalid(property))?,
+                });
+            }
+            "white-space" => {
+                self.style.text.white_space = Some(match keyword(value) {
+                    Some("normal") => WhiteSpace::Normal,
+                    Some("nowrap" | "pre") => WhiteSpace::Nowrap,
+                    _ => return Err(invalid(property)),
+                });
+            }
+            "text-overflow" => {
+                self.style.text.text_overflow = match keyword(value) {
+                    Some("clip") => None,
+                    Some("ellipsis") => Some(TextOverflow::Truncate("…".into())),
+                    _ => return Err(invalid(property)),
+                };
+            }
+            "text-align" => {
+                self.style.text.text_align = Some(match keyword(value) {
+                    Some("left" | "start") => TextAlign::Left,
+                    Some("center") => TextAlign::Center,
+                    Some("right" | "end") => TextAlign::Right,
+                    _ => return Err(invalid(property)),
+                });
+            }
+            "opacity" => {
+                self.style.opacity = Some(
+                    number(value)
+                        .filter(|opacity| (0.0..=1.0).contains(opacity))
+                        .ok_or_else(|| invalid(property))?,
+                );
+            }
+            "visibility" => {
+                self.style.visibility = match keyword(value) {
+                    Some("visible") => Visibility::Visible,
+                    Some("hidden") => Visibility::Hidden,
+                    _ => return Err(invalid(property)),
+                };
+            }
+            "cursor" => {
+                self.style.mouse_cursor = Some(cursor(value).ok_or_else(|| invalid(property))?);
+            }
+            "box-shadow" => {
+                self.style.box_shadow = box_shadows(value).ok_or_else(|| invalid(property))?;
+            }
+            "filter-blur" => {
+                let radius = pixels(value)
+                    .filter(|radius| *radius >= gpui::px(0.0))
+                    .ok_or_else(|| invalid(property))?;
+                self.style.filter = if radius == gpui::px(0.0) {
+                    Vec::new()
+                } else {
+                    vec![Filter::Blur(radius)]
+                };
+            }
+            "backdrop-blur" => {
+                let radius = pixels(value)
+                    .filter(|radius| *radius >= gpui::px(0.0))
+                    .ok_or_else(|| invalid(property))?;
+                self.style.backdrop_filter = if radius == gpui::px(0.0) {
+                    Vec::new()
+                } else {
+                    vec![Filter::Blur(radius)]
+                };
+            }
+            _ => return Err(StyleDiagnostic::UnsupportedProperty(property.to_owned())),
         }
+        Ok(())
     }
 }
 
-fn field<'a>(value: &'a IrValue, name: &str) -> Option<&'a IrValue> {
-    let IrValue::Record { fields } = value else {
+fn invalid(property: &str) -> StyleDiagnostic {
+    StyleDiagnostic::InvalidValue {
+        property: property.to_owned(),
+    }
+}
+
+fn keyword(value: &Value) -> Option<&str> {
+    let Value::Keyword { value } = value else {
+        return None;
+    };
+    Some(value)
+}
+
+fn number(value: &Value) -> Option<f32> {
+    let Value::Number { value } = value else {
+        return None;
+    };
+    value.is_finite().then_some(*value)
+}
+
+fn font_family(value: &Value) -> Option<&str> {
+    match keyword(value)? {
+        "sans-serif" => Some(".SystemUIFont"),
+        "monospace" => Some(".SystemUIFontMonospaced"),
+        family if !family.is_empty() => Some(family),
+        _ => None,
+    }
+}
+
+fn pixels(value: &Value) -> Option<gpui::Pixels> {
+    match ir_length(value)? {
+        IrLength::Px { value } if value.is_finite() => Some(gpui::px(*value)),
+        _ => None,
+    }
+}
+
+fn cursor(value: &Value) -> Option<CursorStyle> {
+    match keyword(value)? {
+        "auto" | "default" => Some(CursorStyle::Arrow),
+        "pointer" => Some(CursorStyle::PointingHand),
+        "text" => Some(CursorStyle::IBeam),
+        "crosshair" => Some(CursorStyle::Crosshair),
+        "move" => Some(CursorStyle::OpenHand),
+        "not-allowed" => Some(CursorStyle::OperationNotAllowed),
+        "ew-resize" | "col-resize" => Some(CursorStyle::ResizeLeftRight),
+        "ns-resize" | "row-resize" => Some(CursorStyle::ResizeUpDown),
+        _ => None,
+    }
+}
+
+fn box_shadows(value: &Value) -> Option<Vec<BoxShadow>> {
+    let Value::List { values } = value else {
+        return None;
+    };
+    values.iter().map(box_shadow).collect()
+}
+
+fn box_shadow(value: &Value) -> Option<BoxShadow> {
+    let offset_x = pixels(field(value, "x")?)?;
+    let offset_y = pixels(field(value, "y")?)?;
+    let blur_radius = pixels(field(value, "stdDev")?)?;
+    let spread_radius = pixels(field(value, "spread")?)?;
+    let color = color(field(value, "color")?)?;
+    Some(
+        BoxShadow::new(offset_x, offset_y, color)
+            .blur_radius(blur_radius)
+            .spread_radius(spread_radius),
+    )
+}
+
+fn ir_length(value: &Value) -> Option<&IrLength> {
+    let Value::Length { value } = value else {
+        return None;
+    };
+    Some(value)
+}
+
+fn field<'a>(value: &'a Value, name: &str) -> Option<&'a Value> {
+    let Value::Record { fields } = value else {
         return None;
     };
     fields.get(name)
 }
 
-fn track_breadth(
-    value: &IrValue,
-    maximum: bool,
-) -> Option<(MinTrackSizingFunction, MaxTrackSizingFunction)> {
-    let kind = field(value, "kind")?.keyword()?;
-    let pair = match kind {
-        "length" => {
-            let lp = ir_lp(field(value, "value")?)?;
-            (
-                MinTrackSizingFunction::from(lp),
-                MaxTrackSizingFunction::from(lp),
-            )
-        }
-        "flex" if maximum => (
-            MinTrackSizingFunction::AUTO,
-            MaxTrackSizingFunction::fr(field(value, "value")?.number()?),
-        ),
-        "auto" => (MinTrackSizingFunction::AUTO, MaxTrackSizingFunction::AUTO),
-        "min-content" => (
-            MinTrackSizingFunction::MIN_CONTENT,
-            MaxTrackSizingFunction::MIN_CONTENT,
-        ),
-        "max-content" => (
-            MinTrackSizingFunction::MAX_CONTENT,
-            MaxTrackSizingFunction::MAX_CONTENT,
-        ),
-        _ => return None,
-    };
-    Some(pair)
-}
-
-fn track_size(value: &IrValue) -> Option<TrackSizingFunction> {
-    match field(value, "kind")?.keyword()? {
-        "breadth" => {
-            let (min, max) = track_breadth(field(value, "value")?, true)?;
-            Some(TrackSizingFunction { min, max })
-        }
-        "minmax" => {
-            let (min, _) = track_breadth(field(value, "min")?, false)?;
-            let (_, max) = track_breadth(field(value, "max")?, true)?;
-            Some(TrackSizingFunction { min, max })
-        }
-        "fit-content" => Some(TrackSizingFunction::fit_content(ir_lp(field(
-            value, "value",
-        )?)?)),
-        _ => None,
-    }
-}
-
-fn grid_template(value: &IrValue) -> Option<Vec<GridTemplateComponent<String>>> {
-    let IrValue::List { values } = value else {
-        return None;
-    };
-    values
-        .iter()
-        .map(|item| match field(item, "kind")?.keyword()? {
-            "single" => Some(GridTemplateComponent::Single(track_size(field(
-                item, "value",
-            )?)?)),
-            "repeat" => {
-                let count = match field(item, "count")? {
-                    IrValue::Number { value } => RepetitionCount::Count(*value as u16),
-                    v if v.keyword() == Some("auto-fill") => RepetitionCount::AutoFill,
-                    v if v.keyword() == Some("auto-fit") => RepetitionCount::AutoFit,
-                    _ => return None,
-                };
-                let IrValue::List { values } = field(item, "values")? else {
-                    return None;
-                };
-                let tracks = values.iter().map(track_size).collect::<Option<Vec<_>>>()?;
-                Some(GridTemplateComponent::Repeat(GridTemplateRepetition {
-                    count,
-                    tracks,
-                    line_names: vec![],
-                }))
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-fn grid_template_areas(value: &IrValue) -> Option<GridTemplateAreas<String>> {
-    let columns = field(value, "columns")?.number()? as usize;
-    let IrValue::List { values } = field(value, "cells")? else {
-        return None;
-    };
-    if columns == 0 {
-        return Some(GridTemplateAreas {
-            areas: Vec::new(),
-            row_count: 0,
-            column_count: 0,
-        });
-    }
-    if values.len() % columns != 0 {
-        return None;
-    }
-    let mut bounds: HashMap<&str, (usize, usize, usize, usize)> = HashMap::new();
-    for (index, cell) in values.iter().enumerate() {
-        let name = cell.keyword()?;
-        if name == "." {
-            continue;
-        }
-        let row = index / columns;
-        let column = index % columns;
-        bounds
-            .entry(name)
-            .and_modify(|b| {
-                b.0 = b.0.min(row);
-                b.1 = b.1.max(row);
-                b.2 = b.2.min(column);
-                b.3 = b.3.max(column);
-            })
-            .or_insert((row, row, column, column));
-    }
-    Some(GridTemplateAreas {
-        areas: bounds
-            .into_iter()
-            .map(|(name, (r0, r1, c0, c1))| GridTemplateArea {
-                name: name.to_owned(),
-                row_start: r0 as u16 + 1,
-                row_end: r1 as u16 + 2,
-                column_start: c0 as u16 + 1,
-                column_end: c1 as u16 + 2,
-            })
-            .collect(),
-        row_count: (values.len() / columns).try_into().ok()?,
-        column_count: columns.try_into().ok()?,
-    })
-}
-
-fn ir_lp(value: &IrValue) -> Option<taffy::LengthPercentage> {
-    // A unitless number is only valid as a length when it's `0` (CSS), but
-    // accepting any number as px is harmless and lets inline `top: 0` etc.
-    // work without forcing a unit.
-    if let IrValue::Number { value } = value {
-        return Some(taffy::LengthPercentage::length(*value));
-    }
-    match value.length()? {
-        IrLength::Px { value } => Some(taffy::LengthPercentage::length(*value)),
-        IrLength::Percent { value } => Some(taffy::LengthPercentage::percent(*value)),
-        IrLength::Auto => None,
-    }
-}
-
-fn ir_lpa(value: &IrValue) -> Option<taffy::LengthPercentageAuto> {
-    if let IrValue::Number { value } = value {
-        return Some(taffy::LengthPercentageAuto::length(*value));
-    }
-    match value.length()? {
-        IrLength::Px { value } => Some(taffy::LengthPercentageAuto::length(*value)),
-        IrLength::Percent { value } => Some(taffy::LengthPercentageAuto::percent(*value)),
-        IrLength::Auto => Some(taffy::LengthPercentageAuto::AUTO),
-    }
-}
-
-fn ir_dim(value: &IrValue) -> Option<taffy::Dimension> {
-    if let IrValue::Number { value } = value {
-        return Some(taffy::Dimension::length(*value));
-    }
-    match value.length()? {
-        IrLength::Px { value } => Some(taffy::Dimension::length(*value)),
-        IrLength::Percent { value } => Some(taffy::Dimension::percent(*value)),
-        IrLength::Auto => Some(taffy::Dimension::AUTO),
-    }
-}
-
-fn ir_color(value: &IrValue) -> Option<Color> {
-    let IrValue::Color { value } = value else {
-        return None;
-    };
-    let IrColor::Literal { rgba } = value else {
-        return None;
-    };
-    Some(Color::from_rgba8(
-        (rgba >> 24) as u8,
-        (rgba >> 16) as u8,
-        (rgba >> 8) as u8,
-        *rgba as u8,
+fn length_edges(value: &Value) -> Option<(Length, Length, Length, Length)> {
+    Some((
+        length(field(value, "top")?)?,
+        length(field(value, "right")?)?,
+        length(field(value, "bottom")?)?,
+        length(field(value, "left")?)?,
     ))
 }
 
-/// Parse a CSS length string into a Style IR length: `Npx` → `Px`,
-/// `Nrem`/`Nem` → `Px` at the 16px root font size, `N%` → `Percent`.
-/// Anything else returns `None`.
-///
-/// `rem` is matched before `em` because `1rem` also ends with `em`. Both
-/// units use the root size; parent-relative `em` is not resolved here
-/// (`apply_ir` does not receive inherited `font-size`).
-fn parse_ir_length(value: &str) -> Option<IrLength> {
-    let v = value.trim();
-    if let Some(r) = v.strip_suffix("rem") {
-        return r
-            .trim()
-            .parse::<f32>()
-            .ok()
-            .map(|n| IrLength::Px { value: n * 16.0 });
-    }
-    if let Some(em) = v.strip_suffix("em") {
-        return em
-            .trim()
-            .parse::<f32>()
-            .ok()
-            .map(|n| IrLength::Px { value: n * 16.0 });
-    }
-    if let Some(p) = v.strip_suffix("px") {
-        return p
-            .trim()
-            .parse::<f32>()
-            .ok()
-            .map(|n| IrLength::Px { value: n });
-    }
-    if let Some(p) = v.strip_suffix('%') {
-        return p
-            .trim()
-            .parse::<f32>()
-            .ok()
-            // Taffy stores percentages as a 0..1 ratio, while inline CSS
-            // strings use the authored 0..100 representation.
-            .map(|n| IrLength::Percent { value: n / 100.0 });
-    }
-    None
+fn definite_edges(
+    value: &Value,
+) -> Option<(
+    DefiniteLength,
+    DefiniteLength,
+    DefiniteLength,
+    DefiniteLength,
+)> {
+    Some((
+        definite_length(field(value, "top")?)?,
+        definite_length(field(value, "right")?)?,
+        definite_length(field(value, "bottom")?)?,
+        definite_length(field(value, "left")?)?,
+    ))
 }
 
-/// Parse a runtime CSS string value (from an inline `style={{...}}`) into a
-/// typed [`IrValue`] so inline styles share the single [`apply_ir`] backend
-/// with class rules — no property awareness, no shorthand expansion. Tries
-/// color → length → number, then falls back to a keyword.
-pub fn parse_ir_value(value: &str) -> IrValue {
-    if let Some(c) = parse_color(value) {
-        let rgba8 = c.to_rgba8();
-        let rgba = ((rgba8.r as u32) << 24)
-            | ((rgba8.g as u32) << 16)
-            | ((rgba8.b as u32) << 8)
-            | (rgba8.a as u32);
-        return IrValue::Color {
-            value: IrColor::Literal { rgba },
-        };
+fn absolute_edges(
+    value: &Value,
+) -> Option<(
+    AbsoluteLength,
+    AbsoluteLength,
+    AbsoluteLength,
+    AbsoluteLength,
+)> {
+    Some((
+        absolute_length(field(value, "top")?)?,
+        absolute_length(field(value, "right")?)?,
+        absolute_length(field(value, "bottom")?)?,
+        absolute_length(field(value, "left")?)?,
+    ))
+}
+
+fn axis_lengths(value: &Value) -> Option<(DefiniteLength, DefiniteLength)> {
+    Some((
+        definite_length(field(value, "column")?)?,
+        definite_length(field(value, "row")?)?,
+    ))
+}
+
+fn axis_overflow(value: &Value) -> Option<(Overflow, Overflow)> {
+    Some((overflow(field(value, "x")?)?, overflow(field(value, "y")?)?))
+}
+
+fn definite_length(value: &Value) -> Option<DefiniteLength> {
+    if let Some(value) = number(value).filter(|value| value.is_finite()) {
+        return Some(gpui::px(value).into());
     }
-    if let Some(length) = parse_ir_length(value) {
-        return IrValue::Length { value: length };
-    }
-    if let Ok(number) = value.trim().parse::<f32>() {
-        return IrValue::Number { value: number };
-    }
-    IrValue::Keyword {
-        value: value.trim().to_string(),
+    match ir_length(value)? {
+        IrLength::Px { value } if value.is_finite() => Some(gpui::px(*value).into()),
+        IrLength::Percent { value } if value.is_finite() => Some(DefiniteLength::Fraction(*value)),
+        IrLength::Px { .. } | IrLength::Percent { .. } | IrLength::Auto => None,
     }
 }
 
-fn font_family_stack(value: &IrValue) -> Option<Arc<str>> {
-    let authored: Vec<&str> = match value {
-        IrValue::Keyword { value } => value.split(',').map(str::trim).collect(),
-        IrValue::List { values } => values.iter().filter_map(IrValue::keyword).collect(),
-        _ => return None,
-    };
-    let mut normalized = Vec::with_capacity(authored.len());
-    for raw in authored {
-        let raw = raw
-            .strip_prefix(['\'', '"'])
-            .and_then(|value| value.strip_suffix(['\'', '"']))
-            .unwrap_or(raw)
-            .trim();
-        if raw.is_empty() {
-            continue;
-        }
-        let family = match raw.to_ascii_lowercase().as_str() {
-            "ui-monospace" => "monospace".to_string(),
-            "ui-sans-serif" | "system-ui" | "-apple-system" | "blinkmacsystemfont" => {
-                "sans-serif".to_string()
-            }
-            "ui-serif" => "serif".to_string(),
-            "ui-rounded" => "sans-serif".to_string(),
-            "serif" | "sans-serif" | "monospace" | "cursive" | "fantasy" => {
-                raw.to_ascii_lowercase()
-            }
-            _ => format!("\"{}\"", raw.replace('\\', "\\\\").replace('"', "\\\"")),
-        };
-        if normalized.last() != Some(&family) {
-            normalized.push(family);
-        }
+fn absolute_length(value: &Value) -> Option<AbsoluteLength> {
+    if let Some(value) = number(value).filter(|value| value.is_finite()) {
+        return Some(gpui::px(value).into());
     }
-    (!normalized.is_empty()).then(|| Arc::from(normalized.join(", ")))
+    match ir_length(value)? {
+        IrLength::Px { value } if value.is_finite() => Some(gpui::px(*value).into()),
+        IrLength::Px { .. } | IrLength::Percent { .. } | IrLength::Auto => None,
+    }
 }
 
-fn apply_transform_ir(paint: &mut DeclaredPaint, property: &str, value: &IrValue) -> Option<bool> {
-    let values = match property {
-        "transform"
-        | "transform-translate-x"
-        | "transform-translate-y"
-        | "transform-scale"
-        | "transform-rotate"
-        | "transform-component" => match value {
-            IrValue::List { values } => values,
-            _ => return Some(false),
-        },
-        _ => return None,
-    };
-    match property {
-        "transform" => {
-            paint.transform = values.iter().filter_map(PaintTransform::from_ir).collect();
-        }
-        "transform-translate-x" | "transform-translate-y" => {
-            let Some(PaintTransform::Translate(x, y)) =
-                values.iter().find_map(PaintTransform::from_ir)
-            else {
-                return Some(true);
-            };
-            if let Some(PaintTransform::Translate(current_x, current_y)) = paint
-                .transform
-                .iter_mut()
-                .find(|item| matches!(item, PaintTransform::Translate(_, _)))
-            {
-                if property == "transform-translate-x" {
-                    *current_x = x;
-                } else {
-                    *current_y = y;
-                }
-            } else {
-                paint.transform.push(PaintTransform::Translate(x, y));
-            }
-        }
-        "transform-scale" => {
-            let Some(component @ PaintTransform::Scale(_, _)) =
-                values.iter().find_map(PaintTransform::from_ir)
-            else {
-                return Some(true);
-            };
-            if let Some(current @ PaintTransform::Scale(_, _)) = paint
-                .transform
-                .iter_mut()
-                .find(|item| matches!(item, PaintTransform::Scale(_, _)))
-            {
-                *current = component;
-            } else {
-                paint.transform.push(component);
-            }
-        }
-        "transform-rotate" => {
-            let Some(component @ PaintTransform::Rotate(_)) =
-                values.iter().find_map(PaintTransform::from_ir)
-            else {
-                return Some(true);
-            };
-            if let Some(current @ PaintTransform::Rotate(_)) = paint
-                .transform
-                .iter_mut()
-                .find(|item| matches!(item, PaintTransform::Rotate(_)))
-            {
-                *current = component;
-            } else {
-                paint.transform.push(component);
-            }
-        }
-        "transform-component" => paint
-            .transform
-            .extend(values.iter().filter_map(PaintTransform::from_ir)),
-        _ => unreachable!("transform properties were filtered above"),
-    }
-    Some(true)
-}
-
-fn apply_paint_ir(paint: &mut DeclaredPaint, property: &str, value: &IrValue) -> Option<bool> {
-    if let Some(applied) = apply_transform_ir(paint, property, value) {
-        return Some(applied);
-    }
-    match property {
-        "border-radius" => {
-            if let Some(IrLength::Px { value }) = value.length() {
-                paint.border_radius = *value;
-            }
-        }
-        "transform-origin-x" | "transform-origin-y" => {
-            if let Some(length) = value.length() {
-                let index = usize::from(property.ends_with('y'));
-                paint.transform_origin[index] = length.clone();
-            }
-        }
-        "background-color" | "background" => {
-            paint.background = ir_color(value).or(paint.background)
-        }
-        "color" => paint.text_color = ir_color(value).or(paint.text_color),
-        "font-size" => {
-            if let Some(IrLength::Px { value }) = value.length() {
-                paint.font_size = Some(*value);
-            }
-        }
-        "font-family" => {
-            if let Some(stack) = font_family_stack(value) {
-                paint.font_family = Some(stack);
-            }
-        }
-        "font-weight" => {
-            let weight = match value.keyword() {
-                Some("normal") => Some(400.0),
-                Some("bold") => Some(700.0),
-                _ => value.number(),
-            };
-            paint.font_weight = weight.or(paint.font_weight);
-        }
-        "font-style" => match value.keyword() {
-            Some("italic") | Some("oblique") => paint.font_italic = Some(true),
-            Some("normal") => paint.font_italic = Some(false),
-            _ => {}
-        },
-        "letter-spacing" => match value {
-            IrValue::Length {
-                value: IrLength::Px { value },
-            } if value.is_finite() => paint.letter_spacing = Some(*value),
-            IrValue::Keyword { value } if value == "normal" => paint.letter_spacing = Some(0.0),
-            _ => {}
-        },
-        "line-height" => match value {
-            IrValue::Number { value } => paint.line_height = Some((*value, true)),
-            IrValue::Length {
-                value: IrLength::Px { value },
-            } => paint.line_height = Some((*value, false)),
-            _ => {}
-        },
-        "white-space" => {
-            paint.wrap_text = Some(!matches!(value.keyword(), Some("nowrap" | "pre")));
-        }
-        "text-overflow" => paint.text_ellipsis = value.keyword() == Some("ellipsis"),
-        "text-align" => {
-            paint.text_align = Some(match value.keyword() {
-                Some("center") => TextAlign::Center,
-                Some("right" | "end") => TextAlign::End,
-                Some("justify") => TextAlign::Justify,
-                _ => TextAlign::Start,
-            });
-        }
-        "opacity" => paint.opacity = value.number().unwrap_or(paint.opacity).clamp(0.0, 1.0),
-        "z-index" => {
-            // Sibling-relative paint order; `auto` and non-numbers sort as 0.
-            paint.z_index = match value {
-                IrValue::Number { value } => *value as i32,
-                _ => 0,
-            };
-        }
-        "pointer-events" => paint.pointer_events = value.keyword() != Some("none"),
-        "cursor" => {
-            paint.cursor = Some(match value.keyword()? {
-                "pointer" => CursorStyle::Pointer,
-                "text" => CursorStyle::Text,
-                "crosshair" => CursorStyle::Crosshair,
-                "move" => CursorStyle::Move,
-                "wait" => CursorStyle::Wait,
-                "not-allowed" => CursorStyle::NotAllowed,
-                "ew-resize" | "col-resize" => CursorStyle::EwResize,
-                "ns-resize" | "row-resize" => CursorStyle::NsResize,
-                "auto" | "default" => CursorStyle::Default,
-                _ => return None,
-            });
-        }
-        "outline-width" => {
-            if let Some(IrLength::Px { value }) = value.length() {
-                paint.outline_width = (*value).max(0.0);
-            }
-        }
-        "outline-offset" => {
-            if let Some(IrLength::Px { value }) = value.length() {
-                paint.outline_offset = *value;
-            }
-        }
-        "outline-color" => paint.outline_color = ir_color(value).or(paint.outline_color),
-        "outline-style" => match value.keyword() {
-            Some("none") => paint.outline_width = 0.0,
-            Some("solid") => {}
-            _ => {}
-        },
-        "box-shadow" => {
-            if let IrValue::List { values } = value {
-                paint.shadows = values.iter().filter_map(Shadow::from_ir).collect();
-            }
-        }
-        "user-select" => match value.keyword() {
-            Some("none") => {
-                paint.text_selectable = Some(false);
-                paint.text_select_all = Some(false);
-            }
-            Some("all") => {
-                paint.text_selectable = Some(true);
-                paint.text_select_all = Some(true);
-            }
-            Some("auto") | Some("text") => {
-                paint.text_selectable = Some(true);
-                paint.text_select_all = Some(false);
-            }
-            _ => {}
-        },
-        _ => return None,
-    }
-    Some(true)
-}
-
-fn apply_sizing_ir(style: &mut taffy::Style, property: &str, value: &IrValue) -> Option<bool> {
-    match property {
-        "width" => style.size.width = ir_dim(value).unwrap_or(style.size.width),
-        "height" => style.size.height = ir_dim(value).unwrap_or(style.size.height),
-        "min-width" => style.min_size.width = ir_lpa(value).unwrap_or(style.min_size.width),
-        "min-height" => style.min_size.height = ir_lpa(value).unwrap_or(style.min_size.height),
-        "max-width" => style.max_size.width = ir_lpa(value).unwrap_or(style.max_size.width),
-        "max-height" => style.max_size.height = ir_lpa(value).unwrap_or(style.max_size.height),
-        "aspect-ratio" => style.aspect_ratio = value.number().or(style.aspect_ratio),
-        "position" => {
-            // Taffy has no distinct static/fixed/sticky positioning model.
-            style.position = if value.keyword() == Some("absolute") {
-                taffy::Position::Absolute
-            } else {
-                taffy::Position::Relative
-            };
-        }
-        "top" => {
-            if let Some(inset) = ir_lpa(value) {
-                style.inset.top = inset;
-            }
-        }
-        "right" => {
-            if let Some(inset) = ir_lpa(value) {
-                style.inset.right = inset;
-            }
-        }
-        "bottom" => {
-            if let Some(inset) = ir_lpa(value) {
-                style.inset.bottom = inset;
-            }
-        }
-        "left" => {
-            if let Some(inset) = ir_lpa(value) {
-                style.inset.left = inset;
-            }
-        }
-        "box-sizing" => {
-            style.box_sizing = if value.keyword() == Some("content-box") {
-                taffy::BoxSizing::ContentBox
-            } else {
-                taffy::BoxSizing::BorderBox
-            };
-        }
-        _ => return None,
-    }
-    Some(true)
-}
-
-fn apply_gap_padding_ir(style: &mut taffy::Style, property: &str, value: &IrValue) -> Option<bool> {
-    match property {
-        "gap" => {
-            if let IrValue::Record { fields } = value {
-                if let Some(column) = fields.get("column").and_then(ir_lp) {
-                    style.gap.width = column;
-                }
-                if let Some(row) = fields.get("row").and_then(ir_lp) {
-                    style.gap.height = row;
-                }
-            } else if let Some(gap) = ir_lp(value) {
-                style.gap.width = gap;
-                style.gap.height = gap;
-            }
-        }
-        "row-gap" | "gap-y" => {
-            if let Some(gap) = ir_lp(value) {
-                style.gap.height = gap;
-            }
-        }
-        "column-gap" | "gap-x" => {
-            if let Some(gap) = ir_lp(value) {
-                style.gap.width = gap;
-            }
-        }
-        "padding-top" => {
-            if let Some(padding) = ir_lp(value) {
-                style.padding.top = padding;
-            }
-        }
-        "padding-right" => {
-            if let Some(padding) = ir_lp(value) {
-                style.padding.right = padding;
-            }
-        }
-        "padding-bottom" => {
-            if let Some(padding) = ir_lp(value) {
-                style.padding.bottom = padding;
-            }
-        }
-        "padding-left" => {
-            if let Some(padding) = ir_lp(value) {
-                style.padding.left = padding;
-            }
-        }
-        "padding" => {
-            if let IrValue::Record { fields } = value {
-                if let Some(padding) = fields.get("top").and_then(ir_lp) {
-                    style.padding.top = padding;
-                }
-                if let Some(padding) = fields.get("right").and_then(ir_lp) {
-                    style.padding.right = padding;
-                }
-                if let Some(padding) = fields.get("bottom").and_then(ir_lp) {
-                    style.padding.bottom = padding;
-                }
-                if let Some(padding) = fields.get("left").and_then(ir_lp) {
-                    style.padding.left = padding;
-                }
-            } else if let Some(padding) = ir_lp(value) {
-                style.padding = taffy::Rect {
-                    top: padding,
-                    right: padding,
-                    bottom: padding,
-                    left: padding,
-                };
-            }
-        }
-        _ => return None,
-    }
-    Some(true)
-}
-
-fn apply_margin_ir(style: &mut taffy::Style, property: &str, value: &IrValue) -> Option<bool> {
-    match property {
-        "margin-top" => {
-            if let Some(margin) = ir_lpa(value) {
-                style.margin.top = margin;
-            }
-        }
-        "margin-right" | "margin-inline-end" => {
-            if let Some(margin) = ir_lpa(value) {
-                style.margin.right = margin;
-            }
-        }
-        "margin-bottom" => {
-            if let Some(margin) = ir_lpa(value) {
-                style.margin.bottom = margin;
-            }
-        }
-        "margin-left" | "margin-inline-start" => {
-            if let Some(margin) = ir_lpa(value) {
-                style.margin.left = margin;
-            }
-        }
-        "margin" => {
-            if let IrValue::Record { fields } = value {
-                if let Some(margin) = fields.get("top").and_then(ir_lpa) {
-                    style.margin.top = margin;
-                }
-                if let Some(margin) = fields.get("right").and_then(ir_lpa) {
-                    style.margin.right = margin;
-                }
-                if let Some(margin) = fields.get("bottom").and_then(ir_lpa) {
-                    style.margin.bottom = margin;
-                }
-                if let Some(margin) = fields.get("left").and_then(ir_lpa) {
-                    style.margin.left = margin;
-                }
-            } else if let Some(margin) = ir_lpa(value) {
-                style.margin = taffy::Rect {
-                    top: margin,
-                    right: margin,
-                    bottom: margin,
-                    left: margin,
-                };
-            }
-        }
-        _ => return None,
-    }
-    Some(true)
-}
-
-fn apply_overflow_border_ir(
-    style: &mut taffy::Style,
-    paint: &mut DeclaredPaint,
-    property: &str,
-    value: &IrValue,
-) -> Option<bool> {
-    match property {
-        "overflow" => {
-            if let IrValue::Record { fields } = value {
-                if let Some(overflow) = fields.get("x").and_then(ir_overflow) {
-                    style.overflow.x = overflow;
-                }
-                if let Some(overflow) = fields.get("y").and_then(ir_overflow) {
-                    style.overflow.y = overflow;
-                }
-            } else if let Some(overflow) = ir_overflow(value) {
-                style.overflow.x = overflow;
-                style.overflow.y = overflow;
-            }
-        }
-        "overflow-x" => {
-            if let Some(overflow) = ir_overflow(value) {
-                style.overflow.x = overflow;
-            }
-        }
-        "overflow-y" => {
-            if let Some(overflow) = ir_overflow(value) {
-                style.overflow.y = overflow;
-            }
-        }
-        "border-width" => {
-            if let IrValue::Record { fields } = value {
-                let mut max_width = 0.0f32;
-                for (side, target) in [
-                    ("top", &mut style.border.top),
-                    ("right", &mut style.border.right),
-                    ("bottom", &mut style.border.bottom),
-                    ("left", &mut style.border.left),
-                ] {
-                    if let Some(IrLength::Px { value }) = fields.get(side).and_then(IrValue::length)
-                    {
-                        *target = taffy::LengthPercentage::length(*value);
-                        max_width = max_width.max(*value);
-                    }
-                }
-                paint.border = Some((
-                    max_width,
-                    paint.border.map_or(Color::BLACK, |(_, color)| color),
-                ));
-            } else if let Some(IrLength::Px { value }) = value.length() {
-                style.border = rect_lp_uniform(*value);
-                paint.border = Some((
-                    *value,
-                    paint.border.map_or(Color::BLACK, |(_, color)| color),
-                ));
-            }
-        }
-        "border-color" => {
-            if let Some(color) = ir_color(value) {
-                paint.border = Some((paint.border.map_or(1.0, |(width, _)| width), color));
-            }
-        }
-        "border-top-width" | "border-right-width" | "border-bottom-width" | "border-left-width" => {
-            if let Some(IrLength::Px { value }) = value.length() {
-                let width = taffy::LengthPercentage::length(*value);
-                match property {
-                    "border-top-width" => style.border.top = width,
-                    "border-right-width" => style.border.right = width,
-                    "border-bottom-width" => style.border.bottom = width,
-                    "border-left-width" => style.border.left = width,
-                    _ => unreachable!(),
-                }
-                paint.border = Some((
-                    *value,
-                    paint.border.map_or(Color::BLACK, |(_, color)| color),
-                ));
-            }
-        }
-        _ => return None,
-    }
-    Some(true)
-}
-
-fn ir_grid_placement(value: &IrValue) -> Option<taffy::GridPlacement> {
-    if value.keyword() == Some("auto") {
-        return Some(taffy::GridPlacement::Auto);
-    }
-    let IrValue::Record { fields } = value else {
+fn color(value: &Value) -> Option<Hsla> {
+    let Value::Color {
+        value: Color::Literal { rgba },
+    } = value
+    else {
         return None;
     };
-    let kind = fields.get("kind")?.keyword()?;
-    let value = fields.get("value")?.number()?;
-    if !value.is_finite() || value.fract() != 0.0 {
+    Some(gpui::rgb_to_hsla(gpui::rgba(*rgba)))
+}
+
+fn length(value: &Value) -> Option<Length> {
+    if keyword(value) == Some("auto") {
+        return Some(Length::Auto);
+    }
+    if matches!(value, Value::Number { .. }) {
+        return definite_length(value).map(Length::Definite);
+    }
+    match ir_length(value)? {
+        IrLength::Auto => Some(Length::Auto),
+        _ => definite_length(value).map(Length::Definite),
+    }
+}
+
+fn display(value: &Value) -> Option<Display> {
+    match keyword(value)? {
+        "block" | "flow-root" => Some(Display::Block),
+        "flex" => Some(Display::Flex),
+        "grid" => Some(Display::Grid),
+        "none" => Some(Display::None),
+        _ => None,
+    }
+}
+
+fn position(value: &Value) -> Option<Position> {
+    match keyword(value)? {
+        "relative" | "static" => Some(Position::Relative),
+        "absolute" | "fixed" => Some(Position::Absolute),
+        _ => None,
+    }
+}
+
+fn overflow(value: &Value) -> Option<Overflow> {
+    match keyword(value)? {
+        "visible" => Some(Overflow::Visible),
+        "clip" => Some(Overflow::Clip),
+        "hidden" => Some(Overflow::Hidden),
+        "scroll" | "auto" => Some(Overflow::Scroll),
+        _ => None,
+    }
+}
+
+fn flex_direction(value: &Value) -> Option<FlexDirection> {
+    match keyword(value)? {
+        "row" => Some(FlexDirection::Row),
+        "column" => Some(FlexDirection::Column),
+        "row-reverse" => Some(FlexDirection::RowReverse),
+        "column-reverse" => Some(FlexDirection::ColumnReverse),
+        _ => None,
+    }
+}
+
+fn flex_wrap(value: &Value) -> Option<FlexWrap> {
+    match keyword(value)? {
+        "nowrap" => Some(FlexWrap::NoWrap),
+        "wrap" => Some(FlexWrap::Wrap),
+        "wrap-reverse" => Some(FlexWrap::WrapReverse),
+        _ => None,
+    }
+}
+
+fn align_items(value: &Value) -> Option<AlignItems> {
+    match keyword(value)? {
+        "start" => Some(AlignItems::Start),
+        "end" => Some(AlignItems::End),
+        "flex-start" => Some(AlignItems::FlexStart),
+        "flex-end" => Some(AlignItems::FlexEnd),
+        "center" => Some(AlignItems::Center),
+        "baseline" => Some(AlignItems::Baseline),
+        "stretch" => Some(AlignItems::Stretch),
+        _ => None,
+    }
+}
+
+fn align_content(value: &Value) -> Option<AlignContent> {
+    match keyword(value)? {
+        "start" => Some(AlignContent::Start),
+        "end" => Some(AlignContent::End),
+        "flex-start" => Some(AlignContent::FlexStart),
+        "flex-end" => Some(AlignContent::FlexEnd),
+        "center" => Some(AlignContent::Center),
+        "stretch" => Some(AlignContent::Stretch),
+        "space-between" => Some(AlignContent::SpaceBetween),
+        "space-evenly" => Some(AlignContent::SpaceEvenly),
+        "space-around" => Some(AlignContent::SpaceAround),
+        _ => None,
+    }
+}
+
+/// GPUI intentionally exposes the useful Wabou subset of grid templates:
+/// `repeat(n, minmax(0, 1fr))`. Keep this parser closed rather than pretending
+/// that GPUI implements arbitrary CSS grid syntax.
+fn grid_template(value: &Value) -> Option<GridTemplate> {
+    let Value::List { values } = value else {
+        return None;
+    };
+    let [repeat] = values.as_slice() else {
+        return None;
+    };
+    if keyword(field(repeat, "kind")?) != Some("repeat") {
+        return None;
+    }
+    let count = number(field(repeat, "count")?)?;
+    if count.fract() != 0.0 || !(1.0..=u16::MAX as f32).contains(&count) {
+        return None;
+    }
+    let Value::List { values: tracks } = field(repeat, "values")? else {
+        return None;
+    };
+    let [track] = tracks.as_slice() else {
+        return None;
+    };
+    if keyword(field(track, "kind")?) != Some("breadth") {
+        return None;
+    }
+    let breadth = field(track, "value")?;
+    if keyword(field(breadth, "kind")?) != Some("flex") || number(field(breadth, "value")?)? != 1.0
+    {
+        return None;
+    }
+    Some(GridTemplate {
+        repeat: count as u16,
+        min_size: GridTemplateMinSize::Zero,
+    })
+}
+
+fn grid_placement(value: &Value) -> Option<GridPlacement> {
+    let kind = keyword(field(value, "kind")?)?;
+    let value = number(field(value, "value")?)?;
+    if value.fract() != 0.0 {
         return None;
     }
     match kind {
-        "line" if (i16::MIN as f32..=i16::MAX as f32).contains(&value) && value != 0.0 => {
-            Some(taffy::style_helpers::line(value as i16))
+        "line" if (i16::MIN as f32..=i16::MAX as f32).contains(&value) => {
+            Some(GridPlacement::Line(value as i16))
         }
         "span" if (1.0..=u16::MAX as f32).contains(&value) => {
-            Some(taffy::GridPlacement::Span(value as u16))
+            Some(GridPlacement::Span(value as u16))
         }
         _ => None,
     }
 }
-
-/// Apply an already parsed Style IR declaration into cascaded layout +
-/// [`DeclaredPaint`]. This path performs no CSS parsing or unit normalization
-/// at runtime, and never writes computed/inherited values — those are produced
-/// later by resolving [`DeclaredPaint`] against the parent.
-///
-/// # Support contract
-///
-/// Property coverage is the CSS support matrix
-/// (`packages/vite/src/style-compiler/css-support-matrix.json`):
-/// - **supported** — applied here
-/// - anything else — returns `false` (compiler must not emit these)
-///
-/// A host test walks that matrix so compiler allowlists and this match cannot
-/// drift silently.
-pub fn apply_ir(
-    style: &mut taffy::Style,
-    paint: &mut DeclaredPaint,
-    property: &str,
-    value: &IrValue,
-) -> bool {
-    if let Some(applied) = apply_paint_ir(paint, property, value) {
-        return applied;
-    }
-    if let Some(applied) = apply_sizing_ir(style, property, value) {
-        return applied;
-    }
-    if let Some(applied) = apply_gap_padding_ir(style, property, value) {
-        return applied;
-    }
-    if let Some(applied) = apply_margin_ir(style, property, value) {
-        return applied;
-    }
-    if let Some(applied) = apply_overflow_border_ir(style, paint, property, value) {
-        return applied;
-    }
-    match property {
-        "display" => {
-            let keyword = value.keyword().or_else(|| match value {
-                IrValue::Record { fields } => fields.get("inside")?.keyword(),
-                _ => None,
-            });
-            style.display = match keyword {
-                Some("flex") => taffy::Display::Flex,
-                Some("grid") => taffy::Display::Grid,
-                Some("none") => taffy::Display::None,
-                Some("flow-root") => taffy::Display::FlowRoot,
-                _ => taffy::Display::Block,
-            };
-        }
-        "flex-direction" => {
-            style.flex_direction = match value.keyword() {
-                Some("column") => taffy::FlexDirection::Column,
-                Some("column-reverse") => taffy::FlexDirection::ColumnReverse,
-                Some("row-reverse") => taffy::FlexDirection::RowReverse,
-                _ => taffy::FlexDirection::Row,
-            }
-        }
-        "justify-content" => style.justify_content = value.keyword().and_then(|v| v.parse().ok()),
-        "align-items" => style.align_items = value.keyword().and_then(|v| v.parse().ok()),
-        "align-content" => style.align_content = value.keyword().and_then(|v| v.parse().ok()),
-        "align-self" => style.align_self = value.keyword().and_then(|v| v.parse().ok()),
-        "justify-items" => style.justify_items = value.keyword().and_then(|v| v.parse().ok()),
-        "justify-self" => {
-            style.justify_self = match value.keyword() {
-                Some("auto") => None,
-                value => value.and_then(|value| value.parse().ok()),
-            }
-        }
-        "flex-grow" => style.flex_grow = value.number().unwrap_or(style.flex_grow),
-        "flex-shrink" => style.flex_shrink = value.number().unwrap_or(style.flex_shrink),
-        "flex-basis" => style.flex_basis = ir_dim(value).unwrap_or(style.flex_basis),
-        "flex" => {
-            if let IrValue::Record { fields } = value {
-                if let Some(v) = fields.get("grow").and_then(IrValue::number) {
-                    style.flex_grow = v;
-                }
-                if let Some(v) = fields.get("shrink").and_then(IrValue::number) {
-                    style.flex_shrink = v;
-                }
-                if let Some(v) = fields.get("basis").and_then(ir_dim) {
-                    style.flex_basis = v;
-                }
-            }
-        }
-        "grid-template-columns" => {
-            if let Some(v) = grid_template(value) {
-                style.grid_template_columns = v;
-            }
-        }
-        "grid-template-rows" => {
-            if let Some(v) = grid_template(value) {
-                style.grid_template_rows = v;
-            }
-        }
-        "grid-template-areas" => {
-            if let Some(v) = grid_template_areas(value) {
-                style.grid_template_areas = Some(v);
-            }
-        }
-        "grid-template" => {
-            if let IrValue::Record { fields } = value {
-                if let Some(v) = fields.get("columns").and_then(grid_template) {
-                    style.grid_template_columns = v;
-                }
-                if let Some(v) = fields.get("rows").and_then(grid_template) {
-                    style.grid_template_rows = v;
-                }
-                if let Some(v) = fields.get("areas").and_then(grid_template_areas) {
-                    style.grid_template_areas = Some(v);
-                }
-            }
-        }
-        "grid-auto-flow" => {
-            style.grid_auto_flow = match value.keyword() {
-                Some("column") => taffy::GridAutoFlow::Column,
-                Some("row-dense") => taffy::GridAutoFlow::RowDense,
-                Some("column-dense") => taffy::GridAutoFlow::ColumnDense,
-                _ => taffy::GridAutoFlow::Row,
-            }
-        }
-        "grid-column-start" => {
-            if let Some(placement) = ir_grid_placement(value) {
-                style.grid_column.start = placement;
-            }
-        }
-        "grid-column-end" => {
-            if let Some(placement) = ir_grid_placement(value) {
-                style.grid_column.end = placement;
-            }
-        }
-        "grid-row-start" => {
-            if let Some(placement) = ir_grid_placement(value) {
-                style.grid_row.start = placement;
-            }
-        }
-        "grid-row-end" => {
-            if let Some(placement) = ir_grid_placement(value) {
-                style.grid_row.end = placement;
-            }
-        }
-        "contain" => {
-            style.contain = match value.keyword() {
-                Some("layout") => taffy::Contain::LAYOUT,
-                Some("paint") => taffy::Contain::PAINT,
-                Some("content") => taffy::Contain::CONTENT,
-                _ => taffy::Contain::NONE,
-            }
-        }
-        "flex-wrap" => {
-            style.flex_wrap = value
-                .keyword()
-                .and_then(|v| taffy::FlexWrap::from_str(v).ok())
-                .unwrap_or(style.flex_wrap);
-        }
-        _ => return false,
-    }
-    true
-}
-
-fn ir_overflow(value: &IrValue) -> Option<taffy::Overflow> {
-    match value.keyword()? {
-        "visible" => Some(taffy::Overflow::Visible),
-        "hidden" | "clip" => Some(taffy::Overflow::Hidden),
-        "scroll" | "auto" => Some(taffy::Overflow::Scroll),
-        _ => None,
-    }
-}
-
-mod paint;
-pub use paint::*;
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+
+    fn declaration(property: &str, value: Value) -> Declaration {
+        Declaration {
+            property: property.to_owned(),
+            value,
+        }
+    }
+
+    fn length_value(value: IrLength) -> Value {
+        Value::Length { value }
+    }
+
+    fn keyword_value(value: &str) -> Value {
+        Value::Keyword {
+            value: value.to_owned(),
+        }
+    }
+
+    fn color_value(rgba: u32) -> Value {
+        Value::Color {
+            value: Color::Literal { rgba },
+        }
+    }
+
+    fn record(entries: &[(&str, Value)]) -> Value {
+        Value::Record {
+            fields: entries
+                .iter()
+                .cloned()
+                .map(|(key, value)| (key.to_owned(), value))
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn projects_core_layout_without_creating_a_second_taffy_tree() {
+        let mut projection = StyleProjection::default();
+        for declaration in [
+            declaration("display", keyword_value("flex")),
+            declaration("flex-direction", keyword_value("column")),
+            declaration("width", length_value(IrLength::Percent { value: 0.75 })),
+            declaration("min-height", length_value(IrLength::Px { value: 120.0 })),
+            declaration("gap", length_value(IrLength::Px { value: 8.0 })),
+            declaration("overflow-y", keyword_value("auto")),
+            declaration("align-items", keyword_value("center")),
+        ] {
+            projection.apply(&declaration).unwrap();
+        }
+
+        let style = projection.style();
+        assert_eq!(style.display, Display::Flex);
+        assert_eq!(style.flex_direction, FlexDirection::Column);
+        assert_eq!(
+            style.size.width,
+            Length::Definite(DefiniteLength::Fraction(0.75))
+        );
+        assert_eq!(
+            style.min_size.height,
+            Length::Definite(gpui::px(120.0).into())
+        );
+        assert_eq!(style.gap.width, gpui::px(8.0).into());
+        assert_eq!(style.gap.height, gpui::px(8.0).into());
+        assert_eq!(style.overflow.y, Overflow::Scroll);
+        assert_eq!(style.align_items, Some(AlignItems::Center));
+    }
+
+    #[test]
+    fn numeric_layout_lengths_are_logical_pixels() {
+        let mut projection = StyleProjection::default();
+        for declaration in [
+            declaration("left", Value::Number { value: 0.0 }),
+            declaration("top", Value::Number { value: -12.0 }),
+            declaration("width", Value::Number { value: 240.0 }),
+        ] {
+            projection.apply(&declaration).unwrap();
+        }
+
+        let style = projection.style();
+        assert_eq!(style.inset.left, Length::Definite(gpui::px(0.0).into()));
+        assert_eq!(style.inset.top, Length::Definite(gpui::px(-12.0).into()));
+        assert_eq!(style.size.width, Length::Definite(gpui::px(240.0).into()));
+    }
+
+    #[test]
+    fn projects_the_explicit_gpui_grid_subset() {
+        let track = record(&[
+            ("kind", keyword_value("breadth")),
+            (
+                "value",
+                record(&[
+                    ("kind", keyword_value("flex")),
+                    ("value", Value::Number { value: 1.0 }),
+                ]),
+            ),
+        ]);
+        let template = Value::List {
+            values: vec![record(&[
+                ("kind", keyword_value("repeat")),
+                ("count", Value::Number { value: 3.0 }),
+                (
+                    "values",
+                    Value::List {
+                        values: vec![track],
+                    },
+                ),
+            ])],
+        };
+        let mut projection = StyleProjection::default();
+        projection
+            .apply(&declaration("grid-template-columns", template))
+            .unwrap();
+        projection
+            .apply(&declaration(
+                "grid-column-start",
+                record(&[
+                    ("kind", keyword_value("span")),
+                    ("value", Value::Number { value: 2.0 }),
+                ]),
+            ))
+            .unwrap();
+        projection
+            .apply(&declaration(
+                "grid-row-end",
+                record(&[
+                    ("kind", keyword_value("line")),
+                    ("value", Value::Number { value: 4.0 }),
+                ]),
+            ))
+            .unwrap();
+
+        assert_eq!(
+            projection.style().grid_cols,
+            Some(GridTemplate {
+                repeat: 3,
+                min_size: GridTemplateMinSize::Zero,
+            })
+        );
+        let location = projection.style().grid_location.as_ref().unwrap();
+        assert_eq!(location.column.start, GridPlacement::Span(2));
+        assert_eq!(location.row.end, GridPlacement::Line(4));
+    }
+
+    #[test]
+    fn default_projection_preserves_wabou_block_layout_semantics() {
+        assert_eq!(StyleProjection::default().style().display, Display::Block);
+    }
+
+    #[test]
+    fn projects_composite_spacing_and_overflow_axes() {
+        let mut projection = StyleProjection::default();
+
+        projection
+            .apply(&declaration(
+                "gap",
+                record(&[
+                    ("column", length_value(IrLength::Px { value: 6.0 })),
+                    ("row", length_value(IrLength::Px { value: 10.0 })),
+                ]),
+            ))
+            .unwrap();
+        projection
+            .apply(&declaration(
+                "overflow",
+                record(&[("x", keyword_value("hidden")), ("y", keyword_value("auto"))]),
+            ))
+            .unwrap();
+
+        assert_eq!(projection.style().gap.width, gpui::px(6.0).into());
+        assert_eq!(projection.style().gap.height, gpui::px(10.0).into());
+        assert_eq!(projection.style().overflow.x, Overflow::Hidden);
+        assert_eq!(projection.style().overflow.y, Overflow::Scroll);
+    }
+
+    #[test]
+    fn projects_common_visual_and_text_styles_into_gpui() {
+        let mut projection = StyleProjection::default();
+        for declaration in [
+            declaration("background-color", color_value(0x112233ff)),
+            declaration("color", color_value(0xf0e0d0ff)),
+            declaration("border-color", color_value(0x445566cc)),
+            declaration("border-width", length_value(IrLength::Px { value: 2.0 })),
+            declaration("border-radius", length_value(IrLength::Px { value: 12.0 })),
+            declaration("font-size", length_value(IrLength::Px { value: 18.0 })),
+            declaration("font-weight", Value::Number { value: 600.0 }),
+            declaration("line-height", Value::Number { value: 1.5 }),
+        ] {
+            projection.apply(&declaration).unwrap();
+        }
+
+        let style = projection.style();
+        assert_eq!(
+            style.background.as_ref().and_then(gpui::Fill::color),
+            Some(color(&color_value(0x112233ff)).unwrap().into())
+        );
+        assert_eq!(
+            style.text.color,
+            Some(color(&color_value(0xf0e0d0ff)).unwrap())
+        );
+        assert_eq!(
+            style.border_color,
+            Some(color(&color_value(0x445566cc)).unwrap())
+        );
+        assert_eq!(style.border_widths.top, gpui::px(2.0).into());
+        assert_eq!(style.border_widths.right, gpui::px(2.0).into());
+        assert_eq!(style.corner_radii.top_left, gpui::px(12.0).into());
+        assert_eq!(style.corner_radii.bottom_right, gpui::px(12.0).into());
+        assert_eq!(style.text.font_size, Some(gpui::px(18.0).into()));
+        assert_eq!(style.text.font_weight, Some(FontWeight(600.0)));
+        assert_eq!(style.text.line_height, Some(DefiniteLength::Fraction(1.5)));
+    }
+
+    #[test]
+    fn projects_independent_corner_radii_into_gpui() {
+        let mut projection = StyleProjection::default();
+        for (property, radius) in [
+            ("border-top-left-radius", 8.0),
+            ("border-top-right-radius", 7.0),
+            ("border-bottom-right-radius", 6.0),
+            ("border-bottom-left-radius", 5.0),
+        ] {
+            projection
+                .apply(&declaration(
+                    property,
+                    length_value(IrLength::Px { value: radius }),
+                ))
+                .unwrap();
+        }
+
+        let radii = projection.style().corner_radii;
+        assert_eq!(radii.top_left, gpui::px(8.0).into());
+        assert_eq!(radii.top_right, gpui::px(7.0).into());
+        assert_eq!(radii.bottom_right, gpui::px(6.0).into());
+        assert_eq!(radii.bottom_left, gpui::px(5.0).into());
+    }
+
+    #[test]
+    fn accepts_authored_numeric_borders_and_keyword_auto_flex_basis() {
+        let mut projection = StyleProjection::default();
+        projection
+            .apply(&declaration("border-width", Value::Number { value: 1.0 }))
+            .unwrap();
+        projection
+            .apply(&declaration("flex-basis", keyword_value("auto")))
+            .unwrap();
+
+        assert_eq!(projection.style().border_widths.top, gpui::px(1.0).into());
+        assert_eq!(projection.style().border_widths.right, gpui::px(1.0).into());
+        assert_eq!(projection.style().flex_basis, Length::Auto);
+    }
+
+    #[test]
+    fn projects_high_frequency_text_and_interaction_styles() {
+        let mut projection = StyleProjection::default();
+        for declaration in [
+            declaration("aspect-ratio", Value::Number { value: 16.0 / 9.0 }),
+            declaration("opacity", Value::Number { value: 0.6 }),
+            declaration("font-family", keyword_value("monospace")),
+            declaration("font-style", keyword_value("italic")),
+            declaration("text-decoration-line", keyword_value("underline")),
+            declaration("letter-spacing", length_value(IrLength::Px { value: 0.5 })),
+            declaration("white-space", keyword_value("nowrap")),
+            declaration("text-overflow", keyword_value("ellipsis")),
+            declaration("text-align", keyword_value("center")),
+            declaration("cursor", keyword_value("pointer")),
+            declaration("visibility", keyword_value("hidden")),
+        ] {
+            projection.apply(&declaration).unwrap();
+        }
+
+        let style = projection.style();
+        assert_eq!(style.aspect_ratio, Some(16.0 / 9.0));
+        assert_eq!(style.opacity, Some(0.6));
+        assert_eq!(
+            style.text.font_family.as_deref(),
+            Some(".SystemUIFontMonospaced")
+        );
+        assert_eq!(style.text.font_style, Some(FontStyle::Italic));
+        assert_eq!(
+            style.text.underline,
+            Some(UnderlineStyle {
+                thickness: gpui::px(1.0),
+                ..Default::default()
+            })
+        );
+        assert_eq!(style.text.strikethrough, None);
+        assert_eq!(style.text.letter_spacing, Some(gpui::px(0.5)));
+        assert_eq!(style.text.white_space, Some(WhiteSpace::Nowrap));
+        assert_eq!(
+            style.text.text_overflow,
+            Some(TextOverflow::Truncate("…".into()))
+        );
+        assert_eq!(style.text.text_align, Some(TextAlign::Center));
+        assert_eq!(style.mouse_cursor, Some(CursorStyle::PointingHand));
+        assert_eq!(style.visibility, Visibility::Hidden);
+    }
+
+    #[test]
+    fn projects_all_authored_box_shadows_in_order() {
+        let mut projection = StyleProjection::default();
+        projection
+            .apply(&declaration(
+                "box-shadow",
+                Value::List {
+                    values: vec![
+                        record(&[
+                            ("x", length_value(IrLength::Px { value: 1.0 })),
+                            ("y", length_value(IrLength::Px { value: 2.0 })),
+                            ("stdDev", length_value(IrLength::Px { value: 8.0 })),
+                            ("spread", length_value(IrLength::Px { value: 0.0 })),
+                            ("color", color_value(0x00000080)),
+                        ]),
+                        record(&[
+                            ("x", length_value(IrLength::Px { value: 0.0 })),
+                            ("y", length_value(IrLength::Px { value: 1.0 })),
+                            ("stdDev", length_value(IrLength::Px { value: 2.0 })),
+                            ("spread", length_value(IrLength::Px { value: 1.0 })),
+                            ("color", color_value(0x11223344)),
+                        ]),
+                    ],
+                },
+            ))
+            .unwrap();
+
+        let shadows = &projection.style().box_shadow;
+        assert_eq!(shadows.len(), 2);
+        assert_eq!(shadows[0].offset, gpui::point(gpui::px(1.0), gpui::px(2.0)));
+        assert_eq!(shadows[0].blur_radius, gpui::px(8.0));
+        assert_eq!(shadows[1].spread_radius, gpui::px(1.0));
+    }
+
+    #[test]
+    fn projects_content_and_backdrop_blur_independently() {
+        let mut projection = StyleProjection::default();
+        projection
+            .apply(&declaration(
+                "filter-blur",
+                length_value(IrLength::Px { value: 4.0 }),
+            ))
+            .unwrap();
+        projection
+            .apply(&declaration(
+                "backdrop-blur",
+                length_value(IrLength::Px { value: 12.0 }),
+            ))
+            .unwrap();
+
+        assert_eq!(projection.style().filter, vec![Filter::Blur(gpui::px(4.0))]);
+        assert_eq!(
+            projection.style().backdrop_filter,
+            vec![Filter::Blur(gpui::px(12.0))]
+        );
+    }
+
+    #[test]
+    fn zero_blur_removes_filter_layers() {
+        let mut projection = StyleProjection::default();
+        projection
+            .apply(&declaration(
+                "filter-blur",
+                length_value(IrLength::Px { value: 8.0 }),
+            ))
+            .unwrap();
+        projection
+            .apply(&declaration(
+                "backdrop-blur",
+                length_value(IrLength::Px { value: 8.0 }),
+            ))
+            .unwrap();
+        projection
+            .apply(&declaration(
+                "filter-blur",
+                length_value(IrLength::Px { value: 0.0 }),
+            ))
+            .unwrap();
+        projection
+            .apply(&declaration(
+                "backdrop-blur",
+                length_value(IrLength::Px { value: 0.0 }),
+            ))
+            .unwrap();
+
+        assert!(projection.style().filter.is_empty());
+        assert!(projection.style().backdrop_filter.is_empty());
+    }
+
+    #[test]
+    fn unsupported_and_invalid_values_are_never_silently_ignored() {
+        let mut projection = StyleProjection::default();
+        assert_eq!(
+            projection.apply(&declaration("backdrop-filter", keyword_value("blur"))),
+            Err(StyleDiagnostic::UnsupportedProperty(
+                "backdrop-filter".to_owned()
+            ))
+        );
+        assert_eq!(
+            projection.apply(&declaration("display", keyword_value("table"))),
+            Err(StyleDiagnostic::InvalidValue {
+                property: "display".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn auto_is_rejected_where_gpui_requires_a_definite_length() {
+        let mut projection = StyleProjection::default();
+        assert_eq!(
+            projection.apply(&declaration("padding", length_value(IrLength::Auto))),
+            Err(StyleDiagnostic::InvalidValue {
+                property: "padding".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn bounded_visual_values_are_rejected_instead_of_clamped_silently() {
+        let mut projection = StyleProjection::default();
+        for (property, value) in [
+            ("opacity", Value::Number { value: 1.1 }),
+            ("aspect-ratio", Value::Number { value: 0.0 }),
+            ("backdrop-blur", length_value(IrLength::Px { value: -1.0 })),
+        ] {
+            assert_eq!(
+                projection.apply(&declaration(property, value)),
+                Err(StyleDiagnostic::InvalidValue {
+                    property: property.to_owned(),
+                })
+            );
+        }
+    }
+}

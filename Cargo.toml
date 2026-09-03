@@ -1,7 +1,36 @@
 [workspace]
 resolver = "3"
 members = ["apps/*", "crates/*"]
+default-members = [
+  "apps/7guis",
+  "apps/devtools",
+  "apps/gallery",
+  "apps/hackernews",
+  "apps/manga-ocr",
+  "apps/motrix",
+  "apps/pi-agent",
+  "apps/stress",
+  "apps/terminal",
+  "apps/timestow",
+  "apps/vlist",
+  "crates/wabou",
+  "crates/wabou-accessibility",
+  "crates/wabou-bindgen",
+  "crates/wabou-cli",
+  "crates/wabou-database",
+  "crates/wabou-devtools",
+  "crates/wabou-host-api",
+  "crates/wabou-protocol",
+  "crates/wabou-runtime",
+  "crates/wabou-shell",
+  "crates/wabou-shell-api",
+  "crates/wabou-style",
+  "crates/wabou-terminal",
+  "crates/wabou-terminal-core",
+  "crates/wabou-tray",
+]
 exclude = [
+  "templates/basic",
   "vendor/bitwarden-sdk",
 ]
 
@@ -10,22 +39,35 @@ version = "0.1.0-alpha.3"
 license = "Apache-2.0"
 
 [workspace.dependencies]
+anyhow = "1"
 anyrender = "0.13.0"
 anyrender-skia = { package = "anyrender_skia", version = "0.11.0" }
 anyrender-svg = { package = "anyrender_svg", version = "0.14.0", default-features = false }
 anyrender-vello = { package = "anyrender_vello", version = "0.14.0" }
+gpui = { package = "gpui-ce", version = "0.2.2" }
+gpui-base = { package = "gpui_ce_components_base", version = "0.2.0" }
+gpui-platform = { package = "gpui_ce_platform", version = "0.1.0", features = ["wayland", "x11"] }
 wabou = { path = "crates/wabou" }
 wabou-accessibility = { path = "crates/wabou-accessibility" }
+wabou-legacy-accessibility = { path = "crates/wabou-legacy-accessibility" }
+wabou-legacy-runtime = { path = "crates/wabou-legacy-runtime" }
 wabou-bindgen = { path = "crates/wabou-bindgen", default-features = false }
 wabou-database = { path = "crates/wabou-database" }
 wabou-devtools = { path = "crates/wabou-devtools", default-features = false }
 wabou-host-api = { path = "crates/wabou-host-api" }
+wabou-protocol = { path = "crates/wabou-protocol" }
 wabou-runtime = { path = "crates/wabou-runtime" }
+wabou-shell-api = { path = "crates/wabou-shell-api" }
+# Retired Winit/AnyRender implementation, retained only as a migration oracle.
+# Application and platform work belongs in the GPUI-CE `wabou-shell`.
+wabou-legacy-shell = { path = "crates/wabou-legacy-shell" }
 wabou-shell = { path = "crates/wabou-shell" }
 wabou-style = { path = "crates/wabou-style" }
+wabou-terminal-core = { path = "crates/wabou-terminal-core" }
 wabou-terminal = { path = "crates/wabou-terminal" }
 wabou-tray = { path = "crates/wabou-tray" }
-wabou-widgets = { path = "crates/wabou-widgets" }
+wabou-legacy-tray = { path = "crates/wabou-legacy-tray" }
+wabou-legacy-widgets = { path = "crates/wabou-legacy-widgets" }
 
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
 arc-swap = "1.9.2"
@@ -37,7 +79,10 @@ directories = "6.0.0"
 dioxus-devtools = { version = "0.7.10", default-features = false }
 getrandom = "0.4.3"
 flume = "0.12.0"
+futures-channel = "0.3"
+gix = { version = "0.87.1", default-features = false, features = ["sha1", "status"] }
 image = { version = "0.25", default-features = false }
+lyon_tessellation = "1"
 ignore = "0.4.25"
 oar-ocr = "0.9.2"
 jiff = "0.2.35"
@@ -53,6 +98,7 @@ serde_json = "1"
 sha1 = "0.10.6"
 sha2 = "0.10.9"
 snafu = "0.9.2"
+similar = "3.2.0"
 slotmap = "1.1.1"
 # Specta 2 is still pre-stable and its RC API is allowed to change. Keep the
 # schema generator and derive macro on the version this workspace validates.
@@ -70,6 +116,7 @@ url = "2.5.8"
 uuid = "1"
 vello = "0.10.0"
 winit = "=0.31.0-beta.2"
+which = "6.0.3"
 zeroize = "1.9.0"
 
 [profile.dev]

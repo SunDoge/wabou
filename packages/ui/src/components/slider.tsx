@@ -1,13 +1,7 @@
-import { createMeasuredSize, View } from "../primitives";
-import { createSignal, type JSX } from "solid-js";
 import { mergeClasses } from "@wabou/core/style";
+import { createSignal, type JSX } from "solid-js";
+import { NativeWidget } from "../primitives";
 import { decimalPlaces, finiteOr, normalizeRange } from "./range";
-
-interface SliderPointerEvent {
-  offsetX: number;
-  buttons: number;
-  preventDefault(): void;
-}
 
 interface SliderKeyEvent {
   key: string;
@@ -21,6 +15,10 @@ export interface SliderProps {
   max?: number;
   step?: number;
   disabled?: boolean;
+  /** Direction of the track and pointer interaction. */
+  orientation?: "horizontal" | "vertical";
+  /** Fill from the thumb toward the maximum end without changing values. */
+  reversed?: boolean;
   label: string;
   valueText?: (value: number) => string;
   onValueChange?: (value: number) => void;
@@ -28,6 +26,7 @@ export interface SliderProps {
 }
 
 export function Slider(props: SliderProps): JSX.Element {
+  const orientation = () => props.orientation ?? "horizontal";
   const range = () => normalizeRange(props.min, props.max, props.step);
   const min = () => range().min;
   const max = () => range().max;
@@ -42,11 +41,6 @@ export function Slider(props: SliderProps): JSX.Element {
   };
   const [local, setLocal] = createSignal(snap(props.defaultValue ?? min()));
   const value = () => snap(props.value ?? local());
-  const ratio = () =>
-    max() === min() ? 0 : (value() - min()) / (max() - min());
-  const measured = createMeasuredSize();
-  const [dragging, setDragging] = createSignal(false);
-  const [focused, setFocused] = createSignal(false);
 
   const update = (next: number) => {
     if (props.disabled) return;
@@ -54,15 +48,6 @@ export function Slider(props: SliderProps): JSX.Element {
     const changed = normalized !== value();
     if (props.value === undefined) setLocal(normalized);
     if (changed) props.onValueChange?.(normalized);
-  };
-  const updateFromPointer = (event: SliderPointerEvent) => {
-    const width = measured.width();
-    if (width <= 0) return;
-    event.preventDefault();
-    update(
-      min() +
-        (Math.max(0, Math.min(width, event.offsetX)) / width) * (max() - min()),
-    );
   };
   const changeBy = (amount: number) => update(value() + amount);
   const onKeyDown = (event: SliderKeyEvent) => {
@@ -80,61 +65,35 @@ export function Slider(props: SliderProps): JSX.Element {
   };
 
   return (
-    <View
-      ref={measured.ref}
+    <NativeWidget
+      tag="slider"
       role="slider"
       aria-label={props.label}
       aria-valuemin={min()}
       aria-valuemax={max()}
       aria-valuenow={value()}
       aria-valuetext={props.valueText?.(value()) ?? String(value())}
-      aria-disabled={props.disabled}
+      aria-disabled={props.disabled ?? false}
+      aria-orientation={orientation()}
       focusOrder={props.disabled ? -1 : 0}
       class={mergeClasses(
-        "h-7 relative flex items-center",
+        orientation() === "vertical"
+          ? "w-7 h-[120px] select-none"
+          : "w-full h-7 select-none",
         props.disabled ? "cursor-not-allowed" : "cursor-pointer",
         props.class,
       )}
-      onFocus={() => setFocused(true)}
-      onBlur={() => {
-        setFocused(false);
-        setDragging(false);
+      config={{
+        min: min(),
+        max: max(),
+        step: step(),
+        value: value(),
+        disabled: props.disabled ?? false,
+        orientation: orientation(),
+        reversed: props.reversed ?? false,
       }}
-      onPointerDown={(event: SliderPointerEvent) => {
-        setDragging(true);
-        updateFromPointer(event);
-      }}
-      onPointerMove={(event: SliderPointerEvent) => {
-        if (dragging() && event.buttons !== 0) updateFromPointer(event);
-      }}
-      onPointerUp={(event: SliderPointerEvent) => {
-        if (dragging()) updateFromPointer(event);
-        setDragging(false);
-      }}
-      onPointerCancel={() => setDragging(false)}
+      onChange={(event) => update(event.value)}
       onKeyDown={onKeyDown}
-      style={{ opacity: props.disabled ? 0.45 : 1 }}
-    >
-      <View
-        aria-hidden="true"
-        class="w-full h-1.5 overflow-hidden rounded-full border border-subtle bg-control"
-      >
-        <View
-          class="h-full rounded-full bg-accent"
-          style={{ width: `${ratio() * 100}%` }}
-        />
-      </View>
-      <View
-        aria-hidden="true"
-        class={mergeClasses(
-          "w-4 h-4 absolute rounded-full border bg-surface shadow-xs",
-          focused() || dragging() ? "border-focus" : "border-strong",
-        )}
-        style={{
-          left: `${ratio() * Math.max(0, measured.width() - 16)}px`,
-          top: "6px",
-        }}
-      />
-    </View>
+    />
   );
 }

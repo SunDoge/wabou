@@ -13,15 +13,107 @@ Application (Solid state and explicit UI intent)
                        |
        generated, versioned Wabou operations
                        |
-  Rust runtime (layout, input, resources, semantics)
+     Rust runtime (protocol and native services)
                        |
-       AnyRender scene and platform-specific shell
+          retained GPUI-CE element projection
 ```
 
-Wabou records each frame into AnyRender's backend-neutral scene contract. The
-default backend is Vello; applications may compile the optional Skia backend
-without changing component, layout, text, SVG, image, or native-widget code.
-Backend-specific surface setup remains private to `wabou-shell`.
+Wabou applies each completed Solid flush to a retained GPUI-CE tree. GPUI owns
+layout, text, painting, native input, and platform windows; Wabou owns the
+versioned operation protocol, explicit application semantics, resource handles,
+and the projection into GPUI elements. There is no renderer feature switch and
+no lowest-common-denominator backend interface. The retired Winit/Vello system
+is isolated in unpublished `wabou-legacy-*` crates as a migration oracle.
+
+## Sources of truth
+
+Wabou has one source of truth for each kind of state; no test backend or native
+widget may maintain a competing model:
+
+- Solid signals and owners are the source of truth for application state and
+  authored component structure.
+- `packages/core/src/protocol/index.ts` is the source of truth for the binary
+  wire format. Generated Rust constants and golden frames prove that both sides
+  implement it; they do not define a second schema.
+- The committed Rust projection tree is the source of truth for the latest
+  authored native tree. A partially decoded frame is never observable.
+- GPUI layout, focus, hit testing, text editing, IME, and retained widget
+  entities are the source of truth for native interaction state.
+- Completed GPUI semantic, layout, and paint snapshots are the source of truth
+  for behavior tests and DevTools. Protocol nodes, inferred rectangles, or a
+  JavaScript-only mock cannot overwrite native results.
+
+Component tests may isolate JavaScript composition and declared behavior, but
+must not pretend to prove native geometry or input. Native behavior tests boot
+the production QuickJS → protocol → projection → GPUI path. A widget-specific
+test adapter is acceptable only when it delegates to the same retained widget
+input contract used by the real window.
+
+## GPUI-oriented protocol evolution
+
+The opcode stream describes retained UI intent, not GPUI builder calls. Basic
+node creation, attachment, text, style, listener, and imperative command
+operations remain backend-neutral and should not be rewritten as calls such as
+`div().flex().child()`. The projection layer classifies their effect into
+structure, layout, text, paint, interaction, and semantic invalidation.
+
+Add an opcode only when Solid must express stable information that the current
+retained model cannot represent. Explicit projection-boundary ownership is the
+primary planned addition because it lets GPUI stop invalidation at stable route,
+scroll, overlay, native-widget, animation, and diagnostic regions. It must be a
+new immutable opcode and component contract; it must not be inferred from tag
+names, CSS classes, or transient Solid component boundaries.
+
+GPUI-only execution details stay behind the projection boundary. Element IDs,
+layout IDs, focus handles, tasks, and entities never cross the wire. This keeps
+the JavaScript API predictable while still allowing the Rust implementation to
+use GPUI's retained state and invalidation model directly.
+
+## Fine-grained retained projection
+
+Choosing Solid is an architectural commitment to preserve fine-grained
+invalidation all the way to native paint. Reducing JavaScript-to-Rust mutations
+is not sufficient if every small mutation still causes one root GPUI view to
+walk and materialize the complete projected tree.
+
+The target invalidation path is:
+
+```text
+Solid owner/signal
+      |
+batched mutation for exact NodeKeys
+      |
+nearest explicit projection boundary
+      |
+affected GPUI entity and native layout/paint only
+```
+
+Projection boundaries are explicit retained runtime units, not inferred Solid
+component boundaries. Stable application regions such as route content,
+scrollable viewports, overlays, native widgets, animation surfaces, and
+diagnostic HUDs are the initial boundary set. This avoids coupling correctness
+to compiler output and avoids creating one GPUI entity for every leaf node.
+
+Each boundary tracks three independent revisions:
+
+- `structure_revision`: children, ordering, native-widget identity, or another
+  change that requires reconstructing the boundary's GPUI element description;
+- `layout_revision`: size or layout-affecting style changed, so GPUI layout must
+  run for the boundary even when its structure is stable;
+- `paint_revision`: color, opacity, transform, or other paint-only state changed
+  without invalidating structure or layout.
+
+Dirty propagation stops at the nearest boundary whenever the parent contract is
+unchanged. The application root is notified only for root structure, window
+metrics, global theme, or another genuinely root-owned transition. Animation
+clocks, performance telemetry, and overlay paint must live in independent GPUI
+entities so they cannot turn an otherwise static application into a full-tree
+render loop.
+
+Until this path is implemented, a retained protocol tree must not be described
+as proof of fine-grained native rendering. Performance work is accepted only
+when measurements distinguish protocol mutations, projected element
+materialization, native layout, and paint invalidation.
 
 ## Ownership
 
@@ -35,11 +127,11 @@ semantic intent, and routing. A primitive must author capabilities such as
 focus participation explicitly. Rust does not infer application behavior from
 HTML conventions, tag names, `href`, or CSS classes.
 
-Rust owns validation and execution: the retained node tree, layout, clipping,
-hit testing, focus routing, accessibility projection, resources, painting,
-window lifecycle, and operating-system integration. Native widgets may provide
-intrinsic size, painting, input, and semantic data through their typed widget
-contract; they do not create hidden JavaScript state.
+Rust owns validation and execution: the retained node projection, resources,
+window lifecycle, and operating-system integration. GPUI executes layout,
+clipping, hit testing, focus routing, text and painting. Native widgets are
+application-defined GPUI elements with optional retained GPUI entities; they do
+not create hidden JavaScript state.
 
 Some inference remains local to a subsystem rather than crossing this
 boundary. Examples include accessibility deriving a label from explicit text
@@ -77,11 +169,19 @@ so this graph cannot grow back accidentally.
 
 Rust crates may remain narrower when they isolate a large dependency family,
 an optional extension, a platform/tooling target, or a dependency direction
-that prevents cycles. For example, `wabou-shell` owns the widget contract,
-`wabou-widgets` implements it without depending on the runtime, and
-`wabou-host-api` is shared by runtime and binding generation. A new crate must
-demonstrate one of those compile or dependency boundaries; ordinary subsystem
-ownership belongs in a module. Applications still see the `wabou` facade.
+that prevents cycles. For example, `wabou-shell` owns the GPUI projection and
+native-widget mounting contract, while `wabou-host-api` is shared by runtime and
+binding generation. `wabou-legacy-*` crates are excluded from this production
+graph. A new crate must demonstrate one of those compile or dependency
+boundaries; ordinary subsystem ownership belongs in a module. Applications
+still see the `wabou` facade.
+
+Repository verification follows the same boundary. Ordinary `verify:rust` and
+CI commands operate on Cargo's formal `default-members`, so they do not compile
+Winit, Vello, or AnyRender through the migration oracle. Use
+`bun run verify:legacy` explicitly when changing or comparing the retired
+implementation. The architecture check rejects any dependency from a
+non-legacy workspace member back into that graph.
 
 ## Cross-language contract
 
@@ -92,8 +192,7 @@ resource-lifetime rules live in [the runtime boundary contract](runtime-contract
 | --- | --- |
 | frame protocol | high-frequency, batched mutation and host-event data |
 | native intrinsics | private synchronous runtime and engine primitives |
-| native capability | direct typed application request/response APIs |
-| JSON capability | low-frequency application request/response APIs |
+| capability | typed application request/response APIs; JSON is an optional method codec |
 
 Long-running application producers publish through the host event frame; they
 do not invent another callback ABI. Native effects are not an application
@@ -104,13 +203,14 @@ and generated Rust/TypeScript views; handwritten parallel enums or registration
 lists are drift bugs.
 
 The runtime and default `wabou` facade consume lightweight `JsonMethod` and
-`HostMethod` contracts. Specta and the TypeScript exporter remain behind
-`wabou-bindgen`'s `generate` and the facade's `bindings` features, so executing
-an application does not inherently depend on code-generation machinery.
-Applications may mount direct structured-value methods through
-`HostBuilder::native_capability`; JSON remains the default for low-frequency
-control operations, while native capabilities serve measured hot calls and
-stable typed object operations.
+`HostMethod` contracts. Both are methods in one versioned capability namespace:
+`HostMethod` exchanges structured QuickJS values directly, while `JsonMethod`
+opts into JSON text for dynamic or externally sourced payloads. Specta and the
+TypeScript exporter remain behind `wabou-bindgen`'s `generate` and the facade's
+`bindings` features, so executing an application does not inherently depend on
+code-generation machinery. Applications mount the namespace through
+`HostBuilder::capability`; JSON is a codec choice, not a second capability
+system.
 
 The protocol transports explicit facts. For example, JS sends focusability and
 focus order as an interaction policy. Rust validates and applies that policy;
@@ -163,3 +263,5 @@ When adding a feature:
 5. Is visual or platform behavior verified at the layer where it can fail?
 6. Does cross-language work follow the frame/intrinsic/capability selection
    rule, with Rust-owned resources using typed generational handles?
+7. Does a local Solid update stop at the nearest projection boundary, or does
+   it unnecessarily notify and materialize the application root?

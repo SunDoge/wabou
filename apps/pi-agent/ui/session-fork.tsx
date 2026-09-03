@@ -11,6 +11,7 @@ import { i18n, m } from "./i18n";
 
 export function SessionForkDialog(props: {
   open: boolean;
+  checkpoint: "checking" | "available" | "unavailable";
   cancel(): void;
   confirm(): void;
 }) {
@@ -23,12 +24,22 @@ export function SessionForkDialog(props: {
       <AlertDialogHeader>
         <AlertDialogTitle>{i18n.message(m.fork_session, {})}</AlertDialogTitle>
         <AlertDialogDescription>
-          {i18n.message(m.fork_session_detail, {})}
+          {i18n.message(
+            props.checkpoint === "checking"
+              ? m.fork_session_checking
+              : props.checkpoint === "available"
+                ? m.fork_session_with_checkpoint
+                : m.fork_session_without_checkpoint,
+            {},
+          )}
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
         <AlertDialogCancel>{i18n.message(m.cancel, {})}</AlertDialogCancel>
-        <AlertDialogAction onClick={props.confirm}>
+        <AlertDialogAction
+          aria-label={i18n.message(m.fork, {})}
+          onClick={props.confirm}
+        >
           {i18n.message(m.fork, {})}
         </AlertDialogAction>
       </AlertDialogFooter>

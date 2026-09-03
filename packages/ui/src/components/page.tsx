@@ -1,5 +1,6 @@
 import type { Handle } from "@wabou/core/renderer";
-import { type JSX, Show } from "solid-js";
+import { mergeClasses } from "@wabou/core/style";
+import { type JSX, omit, Show } from "solid-js";
 import {
   createScrollReset,
   ScrollArea,
@@ -7,20 +8,19 @@ import {
   Text,
   View,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 export const pageViewportClass = (className?: string) =>
   mergeClasses("min-w-0 min-h-0 flex-1", className);
 
 export const pageViewportContentClass = (className?: string) =>
-  mergeClasses("w-full h-full", className);
+  mergeClasses("w-full", className);
 
 export interface PageViewportProps
   extends Omit<ScrollAreaProps, "class" | "contentClass" | "ref"> {
   children?: JSX.Element;
   /** Classes applied to the bounded scrolling viewport. */
   class?: string;
-  /** Classes applied to the full-height page content wrapper. */
+  /** Classes applied to the intrinsic-height page content wrapper. */
   contentClass?: string;
   /** Reset the page to its origin whenever this identity changes. */
   resetKey?: unknown;
@@ -36,12 +36,24 @@ export interface PageViewportProps
  */
 export function PageViewport(props: PageViewportProps): JSX.Element {
   let viewport: Handle | undefined;
+  const forwarded = omit(
+    props,
+    "children",
+    "class",
+    "contentClass",
+    "resetKey",
+    "ref",
+    "style",
+    "scrollbar",
+    "onScroll",
+  );
   createScrollReset({
     target: () => viewport,
     key: () => props.resetKey,
   });
   return (
     <ScrollArea
+      {...forwarded}
       class={pageViewportClass(props.class)}
       contentClass={pageViewportContentClass(props.contentClass)}
       style={props.style}
@@ -59,9 +71,18 @@ export function PageViewport(props: PageViewportProps): JSX.Element {
 
 export const pageHeaderClass = (className?: string, stacked = false) =>
   mergeClasses(
-    "min-w-0 min-h-14 flex-none flex justify-between gap-4",
+    "min-w-0 min-h-12 flex-none flex justify-between gap-4",
     stacked ? "flex-col items-stretch" : "flex-row items-center",
     className,
+  );
+
+export const pageHeaderTitleClass = () =>
+  "whitespace-nowrap text-2xl font-semibold text-primary";
+
+export const pageHeaderDescriptionClass = (stacked = false) =>
+  mergeClasses(
+    "text-sm text-secondary",
+    stacked ? "whitespace-normal" : "truncate",
   );
 
 export interface PageHeaderProps {
@@ -82,12 +103,14 @@ export function PageHeader(props: PageHeaderProps): JSX.Element {
     <View class={pageHeaderClass(props.class, props.stacked)}>
       <View class="min-w-0 flex-1 flex flex-row items-center gap-3">
         <View class="min-w-0 flex flex-col gap-1">
-          <Text role="heading" class="whitespace-nowrap text-4xl font-bold">
+          <Text role="heading" class={pageHeaderTitleClass()}>
             {props.title}
           </Text>
           <Show when={props.description}>
             {(description) => (
-              <Text class="truncate text-sm text-muted">{description()}</Text>
+              <Text class={pageHeaderDescriptionClass(props.stacked)}>
+                {description()}
+              </Text>
             )}
           </Show>
         </View>

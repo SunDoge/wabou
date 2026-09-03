@@ -15,6 +15,7 @@ import {
   type ModalControls,
   type ModalTriggerProps,
   modalMotionTransform,
+  modalVisualState,
 } from "./modal";
 import { useOverlayPlane } from "./overlay-layer";
 import { View } from "./view";
@@ -192,6 +193,24 @@ test("Modal motion composes scale and logical-pixel translation", () => {
   expect(
     modalMotionTransform({ fromScale: 0.9, fromX: 32, fromY: -16 }, 1),
   ).toEqual([1, 0, 0, 1, 0, 0]);
+});
+
+test("Modal visual policy follows committed open state instead of exit presence", () => {
+  expect(modalVisualState(true, false)).toEqual({
+    active: true,
+    retainBackdropVisuals: true,
+    transparentBackdrop: false,
+  });
+  expect(modalVisualState(false, false)).toEqual({
+    active: false,
+    retainBackdropVisuals: false,
+    transparentBackdrop: true,
+  });
+  expect(modalVisualState(false, true)).toEqual({
+    active: false,
+    retainBackdropVisuals: true,
+    transparentBackdrop: false,
+  });
 });
 
 test("Modal content makes nested overlays inherit the modal plane", () => {

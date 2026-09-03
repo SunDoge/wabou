@@ -1,3 +1,4 @@
+import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { match } from "ts-pattern";
 import {
@@ -7,7 +8,6 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 export type EmptyVariant = "surface" | "plain";
 export type EmptyMediaVariant = "default" | "icon";
@@ -25,7 +25,7 @@ export function emptyClass(
   return mergeClasses(
     "w-full min-w-0 flex-1 p-8 items-center justify-center gap-6 text-center",
     variant === "surface"
-      ? "min-h-64 rounded-lg border border-subtle bg-surface shadow-xs"
+      ? "min-h-64 rounded-xl border border-subtle bg-surface shadow-xs"
       : "min-h-0 bg-transparent",
     className,
   );
@@ -101,8 +101,9 @@ export function EmptyDescription(props: TextProps): JSX.Element {
   return (
     <Text
       {...props}
+      maxLines={props.maxLines ?? 2}
       class={mergeClasses(
-        "w-full min-w-0 whitespace-normal text-center text-sm text-muted",
+        "w-full min-h-10 min-w-0 whitespace-normal text-center text-sm text-muted",
         props.class,
       )}
     >

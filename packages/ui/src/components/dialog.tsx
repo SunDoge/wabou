@@ -1,4 +1,5 @@
 import { rgba } from "@wabou/core";
+import { mergeClasses } from "@wabou/core/style";
 import type { JSX } from "solid-js";
 import {
   Modal,
@@ -8,8 +9,11 @@ import {
   View,
 } from "../primitives";
 import { ScrollArea, type ScrollAreaProps } from "../primitives/scroll-area";
-import { mergeClasses } from "@wabou/core/style";
-import { componentsElevation, useComponentsTheme } from "./theme";
+import {
+  componentsElevation,
+  componentsSurfaceClass,
+  useComponentsTheme,
+} from "./theme";
 
 export interface DialogProps extends Omit<ModalProps, "contentClass"> {
   contentClass?: string;
@@ -27,7 +31,8 @@ export function Dialog(props: DialogProps): JSX.Element {
         ...props.backdropStyle,
       }}
       contentClass={mergeClasses(
-        "w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-lg border border-subtle bg-surface p-5",
+        "w-[480px] max-w-full min-w-0 flex flex-col gap-4 p-5",
+        componentsSurfaceClass("modal"),
         props.contentClass,
       )}
       contentShadows={

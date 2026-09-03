@@ -1,5 +1,9 @@
 import { PlatformProvider, type PlatformServices } from "@wabou/core";
-import { INTERACTION_POLICY, type NodeKey } from "@wabou/core/protocol";
+import {
+  type EventType,
+  INTERACTION_POLICY,
+  type NodeKey,
+} from "@wabou/core/protocol";
 import {
   type BuiltinHost,
   dispatchEvent,
@@ -22,9 +26,11 @@ interface AuthoredNode {
   focusOrder: number | null;
   interactionBlocked: boolean;
   focusContained: boolean;
+  projectionBoundary: boolean;
   overlayPlane: ComponentOverlayPlane;
   className: string;
   readonly styles: Map<string, ComponentStyleValue>;
+  widgetConfig: unknown;
   transform: readonly [number, number, number, number, number, number] | null;
   text: string;
 }
@@ -46,6 +52,7 @@ export interface ComponentRoleListOptions {
   selected?: boolean;
   expanded?: boolean;
   pressed?: boolean | "mixed";
+  busy?: boolean;
   current?: boolean | string;
   orientation?: "horizontal" | "vertical";
   focused?: boolean;
@@ -86,6 +93,7 @@ export interface ComponentSnapshotNode {
   readonly focusOrder?: number;
   readonly interactionBlocked?: true;
   readonly focusContained?: true;
+  readonly projectionBoundary?: true;
   readonly overlayPlane?: Exclude<ComponentOverlayPlane, "content">;
   readonly transform?: readonly [
     number,
@@ -99,6 +107,8 @@ export interface ComponentSnapshotNode {
 }
 
 export interface ComponentLocator extends ComponentQueries {
+  /** Exact retained-node identity. Changes prove that the component remounted. */
+  readonly identity: Readonly<{ lo: number; hi: number }>;
   /** Direct authored parent, or null at the component render root. */
   readonly parent: ComponentLocator | null;
   readonly tag: string;
@@ -108,6 +118,8 @@ export interface ComponentLocator extends ComponentQueries {
   readonly className: string;
   /** Last authored string or typed value emitted for an inline style property. */
   style(name: string): ComponentStyleValue | null;
+  /** Last structured configuration authored for a native widget. */
+  readonly widgetConfig: unknown;
   /** Direct authored children for visual protocol assertions. Prefer role queries for behavior. */
   readonly children: readonly ComponentLocator[];
   /** Stable authored protocol tree without transient NodeKeys. */
@@ -129,6 +141,8 @@ export interface ComponentLocator extends ComponentQueries {
   readonly expanded: boolean | null;
   /** Toggle-button state authored through `aria-pressed`. */
   readonly pressed: boolean | "mixed" | null;
+  /** Pending state authored through `aria-busy`. */
+  readonly busy: boolean;
   /** Current item state authored through `aria-current`. */
   readonly current: boolean | string | null;
   /** Component axis authored through `aria-orientation`. */
@@ -157,6 +171,8 @@ export interface ComponentLocator extends ComponentQueries {
   readonly focusContained: boolean;
   /** Native stacking plane authored for this node. */
   readonly overlayPlane: ComponentOverlayPlane;
+  /** Whether this node owns an explicit retained GPUI projection boundary. */
+  readonly projectionBoundary: boolean;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;
   /** Dispatch an uncaptured native pointer move with no pressed buttons. */
@@ -169,6 +185,10 @@ export interface ComponentLocator extends ComponentQueries {
   contextMenu(position?: ComponentPointerPosition): void;
   press(key: string, options?: ComponentKeyOptions): void;
   input(value: string): void;
+  /** Dispatch a typed host event for custom-widget/component contracts. */
+  emit(type: EventType, payload?: unknown): void;
+  /** Complete the native transition currently authored by this node. */
+  finishNativeTransition(): void;
   /** Dispatch native focus/focusin, blurring the previously focused locator. */
   focus(): void;
   /** Dispatch native blur/focusout when this locator owns focus. */
@@ -284,13 +304,42 @@ function ownsComponentResponsibility(
 export function assertSingleSurfaceOwner(
   root: ComponentLocator,
 ): ComponentLocator {
-  const owners = componentDescendants(root).filter((locator) =>
+  const descendants = componentDescendants(root);
+  const owners = descendants.filter((locator) =>
     ownsComponentResponsibility(locator, "surface"),
   );
   if (owners.length !== 1) {
     throw new Error(
       `${locatorDescription(root)} must have exactly one visible surface owner; found ${owners.length}: ${owners.map(locatorDescription).join(", ") || "none"}`,
     );
+  }
+  const forbiddenClass = /^(?:bg|border|rounded|shadow)(?:-|$)/u;
+  const forbiddenStyles = [
+    "background",
+    "background-color",
+    "border",
+    "border-width",
+    "border-radius",
+    "box-shadow",
+  ] as const;
+  for (const content of descendants) {
+    if (
+      content === owners[0] ||
+      !ownsComponentResponsibility(content, "native-editor")
+    ) {
+      continue;
+    }
+    const classes = content.className
+      .split(/\s+/u)
+      .filter((candidate) => forbiddenClass.test(candidate));
+    const styles = forbiddenStyles.filter(
+      (property) => content.style(property) !== null,
+    );
+    if (classes.length > 0 || styles.length > 0) {
+      throw new Error(
+        `${locatorDescription(content)} is native content inside ${locatorDescription(owners[0])} and must not author visual chrome; found ${[...classes, ...styles].join(", ")}`,
+      );
+    }
   }
   return owners[0];
 }
@@ -527,8 +576,11 @@ export function renderComponent(
     setStyleValue: writer.setStyleValue,
     removeStyle: writer.removeStyle,
     setTransform2D: writer.setTransform2D,
+    setWidgetConfig: writer.setWidgetConfig,
+    removeWidgetConfig: writer.removeWidgetConfig,
     setInteractionPolicy: writer.setInteractionPolicy,
     setOverlayPlane: writer.setOverlayPlane,
+    setProjectionBoundary: writer.setProjectionBoundary,
     dropNode: writer.dropNode,
     focusNode: writer.focusNode,
   };
@@ -543,9 +595,11 @@ export function renderComponent(
       focusOrder: null,
       interactionBlocked: false,
       focusContained: false,
+      projectionBoundary: false,
       overlayPlane: "content",
       className: "",
       styles: new Map(),
+      widgetConfig: null,
       transform: null,
       text,
     });
@@ -637,6 +691,16 @@ export function renderComponent(
     if (node) node.transform = [...value];
     originals.setTransform2D.call(writer, id, value);
   };
+  writer.setWidgetConfig = (id, json) => {
+    const node = nodes.get(key(id));
+    if (node) node.widgetConfig = JSON.parse(json);
+    originals.setWidgetConfig.call(writer, id, json);
+  };
+  writer.removeWidgetConfig = (id) => {
+    const node = nodes.get(key(id));
+    if (node) node.widgetConfig = null;
+    originals.removeWidgetConfig.call(writer, id);
+  };
   writer.setInteractionPolicy = (id, flags, focusOrder) => {
     const node = nodes.get(key(id));
     if (node) {
@@ -654,6 +718,11 @@ export function renderComponent(
         plane === 2 ? "modal" : plane === 1 ? "floating" : "content";
     }
     originals.setOverlayPlane.call(writer, id, plane);
+  };
+  writer.setProjectionBoundary = (id, enabled) => {
+    const node = nodes.get(key(id));
+    if (node) node.projectionBoundary = enabled;
+    originals.setProjectionBoundary.call(writer, id, enabled);
   };
   writer.dropNode = (id) => {
     const node = nodes.get(key(id));
@@ -728,8 +797,30 @@ export function renderComponent(
     throw error;
   }
 
-  const textOf = (node: AuthoredNode): string =>
-    node.tag === "#text" ? node.text : node.children.map(textOf).join("");
+  const textOf = (node: AuthoredNode): string => {
+    const text: string[] = [];
+    const pending = [node];
+    const visited = new Set<AuthoredNode>();
+    while (pending.length > 0) {
+      const current = pending.pop();
+      if (!current) continue;
+      if (visited.has(current)) {
+        throw new Error(
+          `component protocol tree contains a cycle at node ${key(current.id)}`,
+        );
+      }
+      visited.add(current);
+      if (current.tag === "#text") {
+        text.push(current.text);
+        continue;
+      }
+      for (let index = current.children.length - 1; index >= 0; index -= 1) {
+        const child = current.children[index];
+        if (child) pending.push(child);
+      }
+    }
+    return text.join("");
+  };
   const roleOf = (node: AuthoredNode): string | null =>
     node.attributes.get("role") ?? implicitRole(node.tag);
   const nameOf = (node: AuthoredNode): string =>
@@ -787,22 +878,44 @@ export function renderComponent(
   };
   const all = (): AuthoredNode[] => {
     const result: AuthoredNode[] = [];
-    const visit = (node: AuthoredNode) => {
+    const pending = [...roots].reverse();
+    const visited = new Set<AuthoredNode>();
+    while (pending.length > 0) {
+      const node = pending.pop();
+      if (!node) continue;
+      if (visited.has(node)) {
+        throw new Error(
+          `component protocol tree contains a cycle at node ${key(node.id)}`,
+        );
+      }
+      visited.add(node);
       result.push(node);
-      node.children.forEach(visit);
-    };
-    roots.forEach(visit);
+      for (let index = node.children.length - 1; index >= 0; index -= 1) {
+        const child = node.children[index];
+        if (child) pending.push(child);
+      }
+    }
     return result;
   };
   const descendantsOf = (root: AuthoredNode): AuthoredNode[] => {
     const result: AuthoredNode[] = [];
-    const visit = (node: AuthoredNode) => {
-      node.children.forEach((child) => {
-        result.push(child);
-        visit(child);
-      });
-    };
-    visit(root);
+    const pending = [...root.children].reverse();
+    const visited = new Set<AuthoredNode>([root]);
+    while (pending.length > 0) {
+      const node = pending.pop();
+      if (!node) continue;
+      if (visited.has(node)) {
+        throw new Error(
+          `component protocol tree contains a cycle at node ${key(node.id)}`,
+        );
+      }
+      visited.add(node);
+      result.push(node);
+      for (let index = node.children.length - 1; index >= 0; index -= 1) {
+        const child = node.children[index];
+        if (child) pending.push(child);
+      }
+    }
     return result;
   };
   const scopeNodes = (root: AuthoredNode | null): AuthoredNode[] => {
@@ -840,6 +953,8 @@ export function renderComponent(
       booleanState(node, "aria-expanded") === options.expanded) &&
     (options.pressed === undefined ||
       toggleState(node, "aria-pressed") === options.pressed) &&
+    (options.busy === undefined ||
+      booleanState(node, "aria-busy") === options.busy) &&
     (options.current === undefined || currentState(node) === options.current) &&
     (options.orientation === undefined ||
       orientationState(node) === options.orientation) &&
@@ -919,19 +1034,21 @@ export function renderComponent(
     flushUpdates();
   };
   let focusedNode: AuthoredNode | null = null;
-  const blurFocusedNode = () => {
+  const blurFocusedNode = (flush = true) => {
     if (!focusedNode) return;
     const previous = focusedNode;
     focusedNode = null;
-    commitEvent(previous, EVENT_CODE.blur);
-    commitEvent(previous, EVENT_CODE.focusout);
+    dispatchEvent(previous.id, EVENT_CODE.blur, "");
+    dispatchEvent(previous.id, EVENT_CODE.focusout, "");
+    if (flush) flushUpdates();
   };
-  const focusAuthoredNode = (node: AuthoredNode) => {
+  const focusAuthoredNode = (node: AuthoredNode, flush = true) => {
     if (focusedNode === node) return;
-    blurFocusedNode();
+    blurFocusedNode(false);
     focusedNode = node;
-    commitEvent(node, EVENT_CODE.focus);
-    commitEvent(node, EVENT_CODE.focusin);
+    dispatchEvent(node.id, EVENT_CODE.focus, "");
+    dispatchEvent(node.id, EVENT_CODE.focusin, "");
+    if (flush) flushUpdates();
   };
   // Roving-focus components call Handle.focus(), which writes the same native
   // focus operation used by the real host. Reflect it back into component
@@ -939,7 +1056,10 @@ export function renderComponent(
   writer.focusNode = (id) => {
     originals.focusNode.call(writer, id);
     const node = nodes.get(key(id));
-    if (node) focusAuthoredNode(node);
+    // Handle.focus() can be called from an overlay/effect while Solid is
+    // already draining. Those writes belong to that continuation; recursively
+    // flushing here only warns and cannot make them more synchronous.
+    if (node) focusAuthoredNode(node, false);
   };
   const ensureAttached = (node: AuthoredNode, action: string) => {
     if (all().includes(node)) return;
@@ -991,10 +1111,10 @@ export function renderComponent(
     });
   };
   function locator(node: AuthoredNode): ComponentLocator {
-    return {
+    const result: Omit<ComponentLocator, "parent" | "children"> = {
       ...queries(node),
-      get parent() {
-        return node.parent ? locator(node.parent) : null;
+      get identity() {
+        return { lo: node.id.lo, hi: node.id.hi };
       },
       get tag() {
         return node.tag;
@@ -1012,8 +1132,8 @@ export function renderComponent(
         return node.className;
       },
       style: (name) => node.styles.get(name) ?? null,
-      get children() {
-        return node.children.map(locator);
+      get widgetConfig() {
+        return node.widgetConfig;
       },
       snapshot: () => snapshotNode(node),
       closestByRole: (role, options = {}) => {
@@ -1042,6 +1162,9 @@ export function renderComponent(
       },
       get pressed() {
         return toggleState(node, "aria-pressed");
+      },
+      get busy() {
+        return booleanState(node, "aria-busy") === true;
       },
       get current() {
         return currentState(node);
@@ -1081,6 +1204,9 @@ export function renderComponent(
       },
       get overlayPlane() {
         return node.overlayPlane;
+      },
+      get projectionBoundary() {
+        return node.projectionBoundary;
       },
       attribute: (name) => node.attributes.get(name) ?? null,
       pointerDown: (position = {}) => {
@@ -1131,6 +1257,32 @@ export function renderComponent(
         focusAuthoredNode(node);
         commitEvent(node, EVENT_CODE.input, JSON.stringify({ value }));
       },
+      emit: (type, payload = "") => {
+        ensureAttached(node, `dispatch ${type} to`);
+        const encoded =
+          typeof payload === "string" ? payload : JSON.stringify(payload);
+        commitEvent(node, EVENT_CODE[type], encoded);
+      },
+      finishNativeTransition: () => {
+        ensureAttached(node, "finish the native transition of");
+        const encoded = node.attributes.get("__wabou_native_transition");
+        if (!encoded) {
+          throw new Error(
+            `component ${roleOf(node) ?? node.tag} "${nameOf(node)}" has no native transition`,
+          );
+        }
+        const transition = JSON.parse(encoded) as { generation?: unknown };
+        if (!Number.isSafeInteger(transition.generation)) {
+          throw new Error(
+            `component native transition has an invalid generation: ${encoded}`,
+          );
+        }
+        commitEvent(
+          node,
+          EVENT_CODE.transitionend,
+          JSON.stringify({ generation: transition.generation }),
+        );
+      },
       focus: () => {
         ensureEnabled(node, "focus");
         focusAuthoredNode(node);
@@ -1163,6 +1315,20 @@ export function renderComponent(
         flushUpdates();
       },
     };
+    // Parent and children intentionally stay non-enumerable. Assertion
+    // formatters enumerate received objects and would otherwise recurse over
+    // this bidirectional graph instead of showing the failed expectation.
+    Object.defineProperties(result, {
+      parent: {
+        enumerable: false,
+        get: () => (node.parent ? locator(node.parent) : null),
+      },
+      children: {
+        enumerable: false,
+        get: () => node.children.map(locator),
+      },
+    });
+    return result as ComponentLocator;
   }
 
   let disposed = false;
@@ -1191,6 +1357,7 @@ export function renderComponent(
       ...(node.focusOrder !== null ? { focusOrder: node.focusOrder } : {}),
       ...(node.interactionBlocked ? { interactionBlocked: true as const } : {}),
       ...(node.focusContained ? { focusContained: true as const } : {}),
+      ...(node.projectionBoundary ? { projectionBoundary: true as const } : {}),
       ...(node.overlayPlane !== "content"
         ? { overlayPlane: node.overlayPlane }
         : {}),

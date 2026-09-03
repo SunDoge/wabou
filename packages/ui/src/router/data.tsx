@@ -11,6 +11,7 @@ import {
   type RouterWritableStore,
   type TrailingSlashOption,
 } from "@tanstack/router-core";
+import type { Kv, KvKey, KvValue } from "@wabou/core";
 import {
   type Accessor,
   type Component,
@@ -41,7 +42,7 @@ function createMutableStore<T>(initial: T): RouterWritableStore<T> {
     set(next: T | ((previous: T) => T)) {
       const value =
         typeof next === "function"
-          ? (next as (previous: T) => T)(read())
+          ? (next as (previous: T) => T)(untrack(read))
           : next;
       write(() => value);
     },
@@ -61,6 +62,54 @@ const solidStores: GetStoreConfig = () => ({
 export type WabouDataRouter<TRouteTree extends AnyRoute = AnyRoute> =
   RouterCore<TRouteTree, TrailingSlashOption, boolean, RouterHistory>;
 
+export interface RouterPersistenceOptions {
+  /** Application-scoped KV handle. The host must opt in with `HostBuilder::kv()`. */
+  kv: Kv;
+  /** Explicit hierarchical identity for this router. */
+  key: KvKey;
+  /** Ignore locations written by another schema version. Defaults to 1. */
+  version?: number;
+}
+
+interface PersistedRouterLocation {
+  version: number;
+  href: string;
+}
+
+const routerPersistence = new WeakMap<AnyRouter, RouterPersistenceOptions>();
+
+function isPersistedRouterLocation(
+  value: KvValue,
+): value is PersistedRouterLocation & KvValue {
+  if (value === null || Array.isArray(value) || typeof value !== "object")
+    return false;
+  const record = value as { readonly [key: string]: KvValue };
+  return (
+    typeof record.version === "number" &&
+    Number.isSafeInteger(record.version) &&
+    typeof record.href === "string" &&
+    record.href.startsWith("/")
+  );
+}
+
+export type WabouRouterConstructorOptions<
+  TRouteTree extends AnyRoute,
+  TTrailingSlash extends TrailingSlashOption,
+  TStructuralSharing extends boolean,
+  THistory extends RouterHistory,
+  // biome-ignore lint/suspicious/noExplicitAny: mirrors Router Core's serialized-data constraint
+  TDehydrated extends Record<string, any>,
+> = RouterConstructorOptions<
+  TRouteTree,
+  TTrailingSlash,
+  TStructuralSharing,
+  THistory,
+  TDehydrated
+> & {
+  /** Optionally restore and save the last committed native location. */
+  persistence?: RouterPersistenceOptions;
+};
+
 /** Create a TanStack Router Core instance adapted to Solid 2 and native history. */
 export function createDataRouter<
   TRouteTree extends AnyRoute,
@@ -70,7 +119,7 @@ export function createDataRouter<
   // biome-ignore lint/suspicious/noExplicitAny: mirrors Router Core's serialized-data constraint
   TDehydrated extends Record<string, any> = Record<string, any>,
 >(
-  options: RouterConstructorOptions<
+  options: WabouRouterConstructorOptions<
     TRouteTree,
     TTrailingSlash,
     TStructuralSharing,
@@ -84,13 +133,14 @@ export function createDataRouter<
   THistory,
   TDehydrated
 > {
+  const { persistence, ...routerOptions } = options;
   const history =
-    options.history ?? createMemoryHistory({ initialEntries: ["/"] });
+    routerOptions.history ?? createMemoryHistory({ initialEntries: ["/"] });
   const router = new RouterCore(
     {
       isServer: false,
       origin: "wabou://app",
-      ...options,
+      ...routerOptions,
       history,
     } as RouterConstructorOptions<
       TRouteTree,
@@ -105,6 +155,7 @@ export function createDataRouter<
     flush(commit);
     return true;
   };
+  if (persistence) routerPersistence.set(router, persistence);
   return router;
 }
 
@@ -236,8 +287,41 @@ export function RouterProvider(props: RouterProviderProps): JSX.Element {
   const router = untrack(() => props.router);
   let disposed = false;
   let loadScheduled = false;
+  let initialized = false;
+  let pendingHref: string | undefined;
+  let writer: Promise<void> | undefined;
+  const persistence = routerPersistence.get(router);
+  const persistenceVersion = persistence?.version ?? 1;
+
+  const persistLocation = (href: string) => {
+    if (!persistence) return;
+    pendingHref = href;
+    if (writer) return;
+    writer = Promise.resolve()
+      .then(async () => {
+        while (!disposed && pendingHref !== undefined) {
+          const next = pendingHref;
+          pendingHref = undefined;
+          await persistence.kv.set(persistence.key, {
+            version: persistenceVersion,
+            href: next,
+          });
+        }
+      })
+      .catch((error) => {
+        console.warn(
+          `[wabou-router] could not persist location: ${String(error)}`,
+        );
+      })
+      .finally(() => {
+        writer = undefined;
+        if (!disposed && pendingHref !== undefined)
+          persistLocation(pendingHref);
+      });
+  };
+
   const scheduleLoad = () => {
-    if (disposed || loadScheduled) return;
+    if (disposed || !initialized || loadScheduled) return;
     loadScheduled = true;
     // Router Core reads and publishes its external store during load(). Run it
     // after component construction so Solid does not mistake those reads for
@@ -252,12 +336,37 @@ export function RouterProvider(props: RouterProviderProps): JSX.Element {
         console.error(`[wabou-router] route load failed: ${String(error)}`);
       });
   };
-  const unsubscribe = router.history.subscribe(scheduleLoad);
+  const unsubscribe = router.history.subscribe(() => {
+    if (!initialized) return;
+    scheduleLoad();
+    persistLocation(router.history.location.href);
+  });
   onCleanup(() => {
     disposed = true;
     unsubscribe();
   });
-  scheduleLoad();
+  void Promise.resolve()
+    .then(async () => {
+      if (persistence) {
+        const entry = await persistence.kv.get(persistence.key);
+        if (
+          entry &&
+          isPersistedRouterLocation(entry.value) &&
+          entry.value.version === persistenceVersion
+        ) {
+          router.history.replace(entry.value.href);
+        }
+      }
+    })
+    .catch((error) => {
+      console.warn(
+        `[wabou-router] could not restore persisted location: ${String(error)}`,
+      );
+    })
+    .finally(() => {
+      initialized = true;
+      scheduleLoad();
+    });
   return createComponent(DataRouterContext, {
     value: router,
     get children() {

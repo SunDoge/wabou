@@ -18,7 +18,6 @@ import {
   Icon,
   Input,
   PageHeader,
-  PrimitiveButton,
   ResponsiveGrid,
   ResponsiveGridRemainder,
   Switch,
@@ -30,6 +29,7 @@ import {
   useResponsiveGrid,
   View,
 } from "@wabou/ui";
+import { Button as PrimitiveButton } from "@wabou/ui/primitives";
 import boxes from "lucide-static/icons/boxes.svg?raw";
 import download from "lucide-static/icons/download.svg?raw";
 import gauge from "lucide-static/icons/gauge.svg?raw";
@@ -41,7 +41,7 @@ import radio from "lucide-static/icons/radio-tower.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
 import sliders from "lucide-static/icons/sliders-horizontal.svg?raw";
 import sun from "lucide-static/icons/sun.svg?raw";
-import { createEffect, createSignal, For, type JSX, Show } from "solid-js";
+import { createEffect, createSignal, For as ForValue, type JSX, Show } from "solid-js";
 import type { MotrixConfig, MotrixSpeedProfile } from "../downloads";
 import { useDownloads } from "../downloads";
 
@@ -392,7 +392,7 @@ function SettingsForm() {
               aria-label="Settings sections"
               class="grid grid-cols-4 gap-2"
             >
-              <For each={settingsItems}>
+              <ForValue each={settingsItems}>
                 {([id, name, detail, icon]) => (
                   <TabsTrigger
                     unstyled
@@ -419,7 +419,7 @@ function SettingsForm() {
                     </View>
                   </TabsTrigger>
                 )}
-              </For>
+              </ForValue>
             </TabsList>
           </Tabs>
 
@@ -633,7 +633,7 @@ function SettingsForm() {
                     </Text>
                     <Text class="text-xs font-semibold text-muted">Upload</Text>
                     <Text class="text-xs font-semibold text-muted">Action</Text>
-                    <For each={speedProfiles()}>
+                    <ForValue each={speedProfiles()}>
                       {(profile, index) => (
                         <>
                           <Input
@@ -688,7 +688,7 @@ function SettingsForm() {
                           </Button>
                         </>
                       )}
-                    </For>
+                    </ForValue>
                   </View>
                 </View>
                 <Text class="text-xs text-muted">
@@ -792,7 +792,7 @@ function SettingsForm() {
                 </View>
                 <Show when={natEnabled()}>
                   <View class="grid grid-cols-4 gap-2">
-                    <For
+                    <ForValue
                       each={
                         [
                           ["auto", "Automatic"],
@@ -813,7 +813,7 @@ function SettingsForm() {
                           {label}
                         </Button>
                       )}
-                    </For>
+                    </ForValue>
                   </View>
                   <View
                     role="status"
@@ -1005,7 +1005,7 @@ function SettingsOverview(props: {
       initialColumns={props.compact ? 2 : 3}
       class="flex-none overflow-hidden rounded-2xl bg-subtle shadow-sm"
     >
-      <For each={settingsItems}>
+      <ForValue each={settingsItems}>
         {([id, name, detail, icon]) => (
           <SettingsOverviewItem
             id={id}
@@ -1015,7 +1015,7 @@ function SettingsOverview(props: {
             onSelect={props.onSelect}
           />
         )}
-      </For>
+      </ForValue>
       <ResponsiveGridRemainder
         itemCount={settingsItems.length}
         class="bg-surface"

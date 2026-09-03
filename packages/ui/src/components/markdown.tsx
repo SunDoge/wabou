@@ -1,7 +1,7 @@
 import { mergeClasses } from "@wabou/core/style";
 import {
   createMemo,
-  For,
+  For as ForValue,
   type JSX,
   Match,
   Switch as SolidSwitch,
@@ -17,13 +17,13 @@ import {
 } from "./markdown-model";
 import { Separator } from "./separator";
 
-export type MarkdownVariant = "document" | "conversation";
+export type MarkdownVariant = "document" | "conversation" | "prompt";
 
 function runClass(run: MarkdownRun): string | undefined {
   return mergeClasses(
     run.style.strong && "font-semibold text-primary",
     run.style.emphasis && "italic text-primary",
-    run.style.code && "font-mono text-sm font-normal text-primary",
+    run.style.code && "font-mono font-normal text-primary",
     run.style.deleted && "text-muted",
     run.style.href && "font-medium text-accent",
   );
@@ -40,16 +40,18 @@ function InlineMarkdown(props: {
       class={mergeClasses(
         "min-w-0 whitespace-normal",
         props.variant === "conversation"
-          ? "text-sm leading-relaxed text-primary"
-          : "text-base leading-relaxed text-secondary",
+          ? "text-base leading-relaxed text-primary"
+          : props.variant === "prompt"
+            ? "text-sm leading-relaxed text-primary"
+            : "text-base leading-relaxed text-secondary",
         props.class,
       )}
     >
-      <For each={props.runs}>
+      <ForValue each={props.runs}>
         {(run) => (
           <MarkdownSpan run={run} reveal={props.animateRun?.(run) ?? false} />
         )}
-      </For>
+      </ForValue>
     </RichText>
   );
 }
@@ -81,6 +83,11 @@ function Heading(props: {
   animateRun?: (run: MarkdownRun) => boolean;
 }): JSX.Element {
   const className = createMemo(() => {
+    if (props.variant === "prompt") {
+      return props.block.depth === 1
+        ? "text-base font-semibold tracking-tight text-primary whitespace-normal"
+        : "text-sm font-semibold text-primary whitespace-normal";
+    }
     if (props.variant === "conversation") {
       switch (props.block.depth) {
         case 1:
@@ -120,7 +127,7 @@ function MarkdownBlocks(props: {
   animateRun?: (run: MarkdownRun) => boolean;
 }): JSX.Element {
   return (
-    <For each={props.blocks} keyed={false}>
+    <ForValue each={props.blocks} keyed={false}>
       {(block) => (
         <MarkdownBlock
           block={block()}
@@ -128,7 +135,7 @@ function MarkdownBlocks(props: {
           animateRun={props.animateRun}
         />
       )}
-    </For>
+    </ForValue>
   );
 }
 
@@ -140,15 +147,21 @@ function MarkdownList(props: {
   return (
     <View
       class={
-        props.variant === "conversation"
+        props.variant === "conversation" || props.variant === "prompt"
           ? "flex flex-col gap-1.5"
           : "flex flex-col gap-2"
       }
     >
-      <For each={props.block.items}>
+      <ForValue each={props.block.items}>
         {(item, index) => (
           <View class="min-w-0 flex flex-row items-start gap-2">
-            <Text aria-hidden="true" class="flex-none text-secondary">
+            <Text
+              aria-hidden="true"
+              class={mergeClasses(
+                "flex-none leading-relaxed text-secondary",
+                props.variant === "prompt" ? "text-sm" : "text-base",
+              )}
+            >
               {typeof item.checked === "boolean"
                 ? item.checked
                   ? "[x]"
@@ -166,7 +179,7 @@ function MarkdownList(props: {
             </View>
           </View>
         )}
-      </For>
+      </ForValue>
     </View>
   );
 }
@@ -179,7 +192,7 @@ function MarkdownTable(props: {
   const rows = () => [props.block.header, ...props.block.rows];
   return (
     <View class="min-w-0 overflow-hidden rounded-lg border border-subtle">
-      <For each={rows()}>
+      <ForValue each={rows()}>
         {(row, rowIndex) => (
           <View
             class={mergeClasses(
@@ -187,11 +200,12 @@ function MarkdownTable(props: {
               rowIndex() === 0 ? "bg-control" : "bg-surface",
             )}
           >
-            <For each={row}>
+            <ForValue each={row}>
               {(runs, columnIndex) => (
                 <View
                   class={mergeClasses(
-                    "min-w-0 flex-1 px-3 py-2",
+                    "min-w-0 flex-1",
+                    props.variant === "document" ? "px-3 py-2" : "px-2 py-1.5",
                     columnIndex() + 1 < row.length && "border-r border-subtle",
                   )}
                 >
@@ -208,10 +222,10 @@ function MarkdownTable(props: {
                   />
                 </View>
               )}
-            </For>
+            </ForValue>
           </View>
         )}
-      </For>
+      </ForValue>
     </View>
   );
 }
@@ -301,7 +315,7 @@ function MarkdownBlock(props: {
       </Match>
       <Match when={literal()}>
         {(block) => (
-          <Text class="text-sm text-muted whitespace-normal">
+          <Text class="text-base text-muted whitespace-normal leading-relaxed">
             {block().text}
           </Text>
         )}
@@ -314,7 +328,7 @@ export interface MarkdownProps {
   source: string;
   /** Repair an incomplete Markdown tail while text is still arriving. */
   streaming?: boolean;
-  /** Document typography by default; conversation keeps agent replies compact. */
+  /** Document typography by default; conversation and prompt stay message-sized. */
   variant?: MarkdownVariant;
   class?: string;
   "aria-label"?: string;
@@ -382,7 +396,12 @@ export function Markdown(props: MarkdownProps): JSX.Element {
       aria-label={props["aria-label"] ?? "Markdown"}
       class={mergeClasses(
         "min-w-0 flex flex-col",
-        variant() === "conversation" ? "gap-3" : "gap-4",
+        variant() === "conversation" && "w-full",
+        variant() === "document"
+          ? "gap-4"
+          : variant() === "prompt"
+            ? "gap-2"
+            : "gap-2.5",
         props.class,
       )}
     >

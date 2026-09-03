@@ -9,6 +9,7 @@ import {
   interactionContractDiagnostics,
   parseCaptureArguments,
   pngDimensions,
+  prepareCaptureEnvironment,
   rejectedStyleDiagnostics,
   selectCaptureCases,
   semanticRelationshipDiagnostics,
@@ -32,9 +33,12 @@ async function fixture(): Promise<string> {
   await mkdir(join(root, "apps", "demo", "captures", "nested"), {
     recursive: true,
   });
-  await writeFile(join(root, "apps", "demo", "captures", "wide.ts"), "");
   await writeFile(
-    join(root, "apps", "demo", "captures", "nested", "compact.ts"),
+    join(root, "apps", "demo", "captures", "wide.behavior.ts"),
+    "",
+  );
+  await writeFile(
+    join(root, "apps", "demo", "captures", "nested", "compact.behavior.ts"),
     "",
   );
   return root;
@@ -80,7 +84,7 @@ describe("authored capture discovery", () => {
     const captures = await discoverCaptureCases(root);
     expect(selectCaptureCases(captures, [])).toBe(captures);
     expect(
-      selectCaptureCases(captures, ["apps/demo/captures/wide.ts"]),
+      selectCaptureCases(captures, ["apps/demo/captures/wide.behavior.ts"]),
     ).toEqual([captures[1]]);
     expect(() =>
       selectCaptureCases(captures, ["apps/demo/captures/missing.ts"]),
@@ -94,10 +98,11 @@ describe("authored capture discovery", () => {
       JSON.stringify({
         defaults: { width: 1200, height: 800, waitMs: 100 },
         overrides: {
-          "nested/compact.ts": {
+          "nested/compact.behavior.ts": {
             width: 700,
             height: 500,
             scaleFactor: 2,
+            colorScheme: "dark",
             checkTextContainment: false,
           },
         },
@@ -107,12 +112,13 @@ describe("authored capture discovery", () => {
     expect(await discoverCaptureCases(root)).toEqual([
       {
         application: "apps/demo",
-        scenario: "apps/demo/captures/nested/compact.ts",
-        output: "target/wabou-captures/demo/nested/compact.png",
-        snapshot: "target/wabou-captures/demo/nested/compact.json",
+        scenario: "apps/demo/captures/nested/compact.behavior.ts",
+        output: "target/wabou-captures/demo/nested/compact.behavior.png",
+        snapshot: "target/wabou-captures/demo/nested/compact.behavior.json",
         width: 700,
         height: 500,
         scaleFactor: 2,
+        colorScheme: "dark",
         waitMs: 100,
         checkTextContainment: false,
         checkStyleDiagnostics: true,
@@ -123,12 +129,13 @@ describe("authored capture discovery", () => {
       },
       {
         application: "apps/demo",
-        scenario: "apps/demo/captures/wide.ts",
-        output: "target/wabou-captures/demo/wide.png",
-        snapshot: "target/wabou-captures/demo/wide.json",
+        scenario: "apps/demo/captures/wide.behavior.ts",
+        output: "target/wabou-captures/demo/wide.behavior.png",
+        snapshot: "target/wabou-captures/demo/wide.behavior.json",
         width: 1200,
         height: 800,
         scaleFactor: 1,
+        colorScheme: "light",
         waitMs: 100,
         checkTextContainment: true,
         checkStyleDiagnostics: true,
@@ -150,6 +157,32 @@ describe("authored capture discovery", () => {
     await expect(discoverCaptureCases(root)).rejects.toThrow("removed.ts");
   });
 
+  test("rejects unsupported capture color schemes", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "apps", "demo", "captures", "config.json"),
+      JSON.stringify({ defaults: { colorScheme: "system" } }),
+    );
+
+    await expect(discoverCaptureCases(root)).rejects.toThrow(
+      "defaults.colorScheme must be light or dark",
+    );
+  });
+
+  test("loads application capture setup without discovering it as a scenario", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "apps", "demo", "captures", "setup.ts"),
+      'export default async () => ({ WABOU_CAPTURE_FIXTURE: "ready" });\n',
+    );
+
+    expect(await discoverCaptureCases(root)).toHaveLength(2);
+    expect(
+      (await prepareCaptureEnvironment("apps/demo", root))
+        .WABOU_CAPTURE_FIXTURE,
+    ).toBe("ready");
+  });
+
   test("only later captures reuse the already built application bundle", () => {
     const capture = {
       application: "apps/demo",
@@ -159,6 +192,7 @@ describe("authored capture discovery", () => {
       width: 800,
       height: 600,
       scaleFactor: 1,
+      colorScheme: "light" as const,
       waitMs: 250,
       checkTextContainment: true,
       checkStyleDiagnostics: true,
@@ -168,9 +202,14 @@ describe("authored capture discovery", () => {
       checkInteractionContracts: true,
     };
 
-    expect(captureCommand(capture, false)).not.toContain("--skip-build");
+    const command = captureCommand(capture, false);
+    expect(command).not.toContain("--skip-build");
     expect(captureCommand(capture, true)).toContain("--skip-build");
-    expect(captureCommand(capture, false)).toContain(capture.snapshot);
+    expect(command).toContain(capture.snapshot);
+    expect(command.slice(command.indexOf("--color-scheme"), -2)).toEqual([
+      "--color-scheme",
+      "light",
+    ]);
   });
 
   test("validates that a snapshot describes the requested final frame", () => {
@@ -182,6 +221,7 @@ describe("authored capture discovery", () => {
       width: 800,
       height: 600,
       scaleFactor: 2,
+      colorScheme: "light" as const,
       waitMs: 250,
       checkTextContainment: true,
       checkStyleDiagnostics: true,
@@ -622,6 +662,7 @@ describe("authored capture discovery", () => {
       width: 100,
       height: 100,
       scaleFactor: 1,
+      colorScheme: "light" as const,
       waitMs: 0,
       checkTextContainment: true,
       checkStyleDiagnostics: true,

@@ -1,108 +1,77 @@
-//! Gallery-only Julia set widget used to demonstrate the external widget API.
+//! Gallery-only Julia set rendered as an application-defined GPUI widget.
 
-use std::sync::Arc;
-
-use anyrender::PaintScene;
-
-use wabou::widget_api::{
-    PaintContext, UiEvent, Widget, WidgetChanges, WidgetEventResult,
-    vello::{
-        kurbo::Affine,
-        peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat},
-    },
+use std::{
+    collections::HashMap,
+    io::Cursor,
+    sync::{Arc, Mutex},
 };
+
+use wabou::{NativeWidgetContext, gpui};
 
 const RENDER_SIZE: u32 = 480;
 const MAX_ITER: u32 = 160;
 const VIEW: f64 = 1.5;
 
-/// Interactive Julia set rendered by an application-defined native widget.
-pub struct JuliaWidget {
-    cx: f64,
-    cy: f64,
-    cached: Option<(f64, f64)>,
-    image: Option<ImageBrush>,
-}
+/// Creates the GPUI-native Julia widget factory used by the default shell.
+///
+/// The cache is owned by the application registration rather than a transient
+/// GPUI element. Attribute changes select a deterministic image while ordinary
+/// frame rebuilds reuse the already encoded source.
+pub fn gpui_factory()
+-> impl for<'a> Fn(NativeWidgetContext<'a>, &mut gpui::Window, &mut gpui::App) -> gpui::AnyElement
++ Send
++ Sync
++ 'static {
+    use gpui::{IntoElement as _, Styled as _};
 
-impl Default for JuliaWidget {
-    fn default() -> Self {
-        Self::new()
+    let images = Arc::new(Mutex::new(HashMap::<(u64, u64), Arc<gpui::Image>>::new()));
+    move |context, _window, _cx| {
+        let cx = context
+            .attribute("cx")
+            .and_then(|value| value.parse::<f64>().ok())
+            .unwrap_or(0.7885);
+        let cy = context
+            .attribute("cy")
+            .and_then(|value| value.parse::<f64>().ok())
+            .unwrap_or(0.0);
+        let cache_key = (cx.to_bits(), cy.to_bits());
+        let image = {
+            let mut images = images.lock().expect("Julia image cache lock");
+            images
+                .entry(cache_key)
+                .or_insert_with(|| Arc::new(encode_gpui_image(cx, cy)))
+                .clone()
+        };
+
+        gpui::img(image).size_full().into_any_element()
     }
 }
 
-impl JuliaWidget {
-    /// Creates the widget with its initial Julia-set parameters.
-    pub fn new() -> Self {
-        Self {
-            cx: 0.7885,
-            cy: 0.0,
-            cached: None,
-            image: None,
+fn render_rgba(cx: f64, cy: f64) -> Vec<u8> {
+    let mut rgba = vec![0u8; (RENDER_SIZE * RENDER_SIZE * 4) as usize];
+    let scale = 2.0 * VIEW / RENDER_SIZE as f64;
+    for y in 0..RENDER_SIZE {
+        let zy = (y as f64 - RENDER_SIZE as f64 / 2.0) * scale;
+        for x in 0..RENDER_SIZE {
+            let zx = (x as f64 - RENDER_SIZE as f64 / 2.0) * scale;
+            let (escaped_radius, iterations) = julia_iter(zx, zy, cx, cy);
+            let (r, g, b) = paint(escaped_radius, iterations);
+            let offset = ((y * RENDER_SIZE + x) * 4) as usize;
+            rgba[offset..offset + 4].copy_from_slice(&[r, g, b, 255]);
         }
     }
-
-    fn render(&self) -> Vec<u8> {
-        let mut rgba = vec![0u8; (RENDER_SIZE * RENDER_SIZE * 4) as usize];
-        let scale = 2.0 * VIEW / RENDER_SIZE as f64;
-        for y in 0..RENDER_SIZE {
-            let zy = (y as f64 - RENDER_SIZE as f64 / 2.0) * scale;
-            for x in 0..RENDER_SIZE {
-                let zx = (x as f64 - RENDER_SIZE as f64 / 2.0) * scale;
-                let (escaped_radius, iterations) = julia_iter(zx, zy, self.cx, self.cy);
-                let (r, g, b) = paint(escaped_radius, iterations);
-                let offset = ((y * RENDER_SIZE + x) * 4) as usize;
-                rgba[offset..offset + 4].copy_from_slice(&[r, g, b, 255]);
-            }
-        }
-        rgba
-    }
+    rgba
 }
 
-impl Widget for JuliaWidget {
-    fn paint(&mut self, paint: &mut PaintContext<'_>) {
-        let key = (self.cx, self.cy);
-        if self.cached != Some(key) {
-            let data = ImageData {
-                data: Blob::new(Arc::new(self.render().into_boxed_slice())),
-                format: ImageFormat::Rgba8,
-                alpha_type: ImageAlphaType::Alpha,
-                width: RENDER_SIZE,
-                height: RENDER_SIZE,
-            };
-            self.image = Some(ImageBrush::new(data));
-            self.cached = Some(key);
-        }
-
-        if let Some(brush) = &self.image {
-            let [width, height] = paint.size();
-            paint.scene_mut().draw_image(
-                brush.into(),
-                Affine::scale_non_uniform(
-                    width as f64 / RENDER_SIZE as f64,
-                    height as f64 / RENDER_SIZE as f64,
-                ),
-            );
-        }
-    }
-
-    fn attribute_changed(&mut self, name: &str, value: &str) -> WidgetChanges {
-        if let Ok(value) = value.trim().parse::<f64>() {
-            match name {
-                "cx" => self.cx = value,
-                "cy" => self.cy = value,
-                _ => {}
-            }
-        }
-        WidgetChanges::REDRAW
-    }
-
-    fn handle_event(&mut self, _event: &UiEvent) -> WidgetEventResult {
-        WidgetEventResult::IGNORED
-    }
-
-    fn intrinsic_size(&self) -> Option<[f32; 2]> {
-        Some([384.0, 384.0])
-    }
+fn encode_gpui_image(cx: f64, cy: f64) -> gpui::Image {
+    let mut png = Vec::new();
+    image::DynamicImage::ImageRgba8(
+        image::RgbaImage::from_raw(RENDER_SIZE, RENDER_SIZE, render_rgba(cx, cy))
+            .expect("Julia renderer emits a complete RGBA image"),
+    )
+    .write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
+    .expect("encoding an in-memory Julia image cannot fail");
+    gpui::Image::from_bytes(gpui::ImageFormat::Png, png)
 }
 
 fn julia_iter(zx: f64, zy: f64, cx: f64, cy: f64) -> (f64, u32) {

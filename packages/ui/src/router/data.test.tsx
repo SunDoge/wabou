@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { createMemoryHistory } from "@tanstack/history";
+import type { Kv, KvValue } from "@wabou/core";
 import { isServer, mount } from "@wabou/core/renderer";
 import {
   createComponent,
@@ -8,6 +9,7 @@ import {
   createRoot,
   flush,
   type JSX,
+  onCleanup,
   useContext,
 } from "solid-js";
 import {
@@ -119,6 +121,152 @@ test.skipIf(isServer)(
   },
 );
 
+test.skipIf(isServer)(
+  "keys route lifetime by route id while params and loader data stay reactive",
+  async () => {
+    let rootMounts = 0;
+    let projectMounts = 0;
+    let projectCleanups = 0;
+    let settingsMounts = 0;
+    let navigate: ReturnType<typeof useNavigate> | undefined;
+    const seen: string[] = [];
+
+    function Root(props: { children?: JSX.Element }) {
+      rootMounts++;
+      return props.children;
+    }
+    function Project() {
+      projectMounts++;
+      onCleanup(() => projectCleanups++);
+      const params = useParams<{ projectId: string }>();
+      const data = useLoaderData<{ revision: string }>();
+      navigate = useNavigate();
+      createEffect(
+        () => `${params().projectId}:${data()?.revision}`,
+        (value) => {
+          seen.push(value);
+        },
+      );
+      return null;
+    }
+    function Settings() {
+      settingsMounts++;
+      navigate = useNavigate();
+      return null;
+    }
+
+    const root = new BaseRootRoute({ component: Root });
+    const project = new BaseRoute({
+      getParentRoute: () => root,
+      path: "projects/$projectId",
+      validateSearch: (search: Record<string, unknown>) => ({
+        revision: String(search.revision ?? "initial"),
+      }),
+      loaderDeps: ({ search }) => ({ revision: search.revision }),
+      loader: ({ deps }) => ({ revision: deps.revision }),
+      component: Project,
+    });
+    const settings = new BaseRoute({
+      getParentRoute: () => root,
+      path: "settings",
+      component: Settings,
+    });
+    const router = createDataRouter({
+      routeTree: root.addChildren([project, settings]),
+      history: createMemoryHistory({
+        initialEntries: ["/projects/alpha?revision=1"],
+      }),
+      context: {},
+      defaultPendingMs: 0,
+    });
+
+    const dispose = mount(() => createComponent(RouterProvider, { router }));
+    await settle();
+    expect(seen).toContain("alpha:1");
+    expect(projectMounts).toBe(1);
+
+    await navigate?.({
+      to: "/projects/$projectId",
+      params: { projectId: "beta" },
+      search: { revision: "2" },
+    });
+    await settle();
+    expect(seen).toContain("beta:2");
+    expect(projectMounts).toBe(1);
+    expect(projectCleanups).toBe(0);
+
+    await navigate?.({ to: "/settings" });
+    await settle();
+    expect(projectCleanups).toBe(1);
+    expect(settingsMounts).toBe(1);
+
+    await navigate?.({
+      to: "/projects/$projectId",
+      params: { projectId: "gamma" },
+      search: { revision: "3" },
+    });
+    await settle();
+    expect(seen).toContain("gamma:3");
+    expect(projectMounts).toBe(2);
+    expect(rootMounts).toBe(1);
+    dispose();
+  },
+);
+
+test.skipIf(isServer)(
+  "commits only the latest route when navigations overlap",
+  async () => {
+    let releaseSlow: (() => void) | undefined;
+    let navigate: ReturnType<typeof useNavigate> | undefined;
+    const mounted: string[] = [];
+
+    function Root(props: { children?: JSX.Element }) {
+      navigate = useNavigate();
+      return props.children;
+    }
+    const root = new BaseRootRoute({ component: Root });
+    const slow = new BaseRoute({
+      getParentRoute: () => root,
+      path: "slow",
+      loader: () =>
+        new Promise<string>((resolve) => {
+          releaseSlow = () => resolve("slow");
+        }),
+      component: () => {
+        mounted.push("slow");
+        return null;
+      },
+    });
+    const fast = new BaseRoute({
+      getParentRoute: () => root,
+      path: "fast",
+      component: () => {
+        mounted.push("fast");
+        return null;
+      },
+    });
+    const router = createDataRouter({
+      routeTree: root.addChildren([slow, fast]),
+      history: createMemoryHistory({ initialEntries: ["/fast"] }),
+      context: {},
+      defaultPendingMs: 0,
+    });
+    const dispose = mount(() => createComponent(RouterProvider, { router }));
+    await settle();
+
+    const slowNavigation = navigate?.({ to: "/slow" });
+    await Promise.resolve();
+    await navigate?.({ to: "/fast" });
+    releaseSlow?.();
+    await slowNavigation;
+    await settle();
+
+    expect(router.state.location.pathname).toBe("/fast");
+    expect(mounted.at(-1)).toBe("fast");
+    dispose();
+  },
+);
+
 test("data-router hooks reject calls outside RouterProvider", () => {
   expect(() => useRouter()).toThrow(
     "Wabou data-router hooks must be used inside <RouterProvider>",
@@ -136,6 +284,74 @@ test("router-owned stores can publish while a Solid owner is current", async () 
   await createRoot(() => router.load());
   expect(router.state.status).toBe("idle");
 });
+
+test.skipIf(isServer)(
+  "restores and persists the last location through application KV",
+  async () => {
+    const values = new Map<string, KvValue>([
+      ["router/main", { version: 2, href: "/settings?tab=theme" }],
+    ]);
+    const writes: KvValue[] = [];
+    const kv = {
+      async get(key: readonly (string | number | boolean | Uint8Array)[]) {
+        const value = values.get(key.join("/"));
+        return value === undefined ? null : { key, value, versionstamp: "1" };
+      },
+      async set(
+        key: readonly (string | number | boolean | Uint8Array)[],
+        value: KvValue,
+      ) {
+        values.set(key.join("/"), value);
+        writes.push(value);
+        return String(writes.length + 1);
+      },
+    } as Kv;
+
+    let navigate: ReturnType<typeof useNavigate> | undefined;
+    const seen: string[] = [];
+    const root = new BaseRootRoute({
+      component: (props: { children?: JSX.Element }) => {
+        navigate = useNavigate();
+        return props.children;
+      },
+    });
+    const home = new BaseRoute({
+      getParentRoute: () => root,
+      path: "/",
+      component: () => null,
+    });
+    const settings = new BaseRoute({
+      getParentRoute: () => root,
+      path: "settings",
+      component: () => {
+        const location = useLocation();
+        createEffect(
+          () => location().href,
+          (href) => {
+            seen.push(href);
+          },
+        );
+        return null;
+      },
+    });
+    const router = createDataRouter({
+      routeTree: root.addChildren([home, settings]),
+      history: createMemoryHistory({ initialEntries: ["/"] }),
+      context: {},
+      persistence: { kv, key: ["router", "main"], version: 2 },
+    });
+
+    const dispose = mount(() => createComponent(RouterProvider, { router }));
+    await settle();
+    expect(seen).toContain("/settings?tab=theme");
+    expect(writes).toHaveLength(0);
+
+    await navigate?.({ to: "/" });
+    await settle();
+    expect(writes.at(-1)).toEqual({ version: 2, href: "/" });
+    dispose();
+  },
+);
 
 test.skipIf(isServer)(
   "context from the root route reaches nested route components",

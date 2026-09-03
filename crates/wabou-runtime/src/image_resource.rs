@@ -6,41 +6,46 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use slotmap::{DefaultKey, Key, KeyData, SlotMap};
+
+use crate::resource::{ResourceKey, ResourceRegistry};
 
 const MAX_SOURCE_PIXELS: u64 = 100 * 1024 * 1024;
-const MAX_DRAWABLE_DIMENSION: u32 = 4096;
+const MAX_NETWORK_RESOURCE_BYTES: usize = 32 * 1024 * 1024;
+const MAX_CONCURRENT_NETWORK_LOADS: usize = 8;
 
 /// Full-width generational identity for one decoded image resource.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum ImageResourceFamily {}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ImageResourceHandle {
-    /// Slot index in the host resource table.
-    pub lo: u32,
-    /// Slot generation. Stale handles never address a replacement resource.
-    pub hi: u32,
-}
+#[serde(transparent)]
+/// Validated generational identity for one decoded image resource.
+pub struct ImageResourceHandle(ResourceKey<ImageResourceFamily>);
 
 impl ImageResourceHandle {
-    fn from_key(key: DefaultKey) -> Self {
-        let ffi = key.data().as_ffi();
-        Self {
-            lo: ffi as u32,
-            hi: (ffi >> 32) as u32,
+    /// Construct a validated handle from its complete wire representation.
+    pub const fn from_parts(lo: u32, hi: u32) -> Option<Self> {
+        match ResourceKey::from_parts(lo, hi) {
+            Some(key) => Some(Self(key)),
+            None => None,
         }
     }
 
-    fn key(self) -> DefaultKey {
-        DefaultKey::from(KeyData::from_ffi(
-            u64::from(self.lo) | (u64::from(self.hi) << 32),
-        ))
+    /// Slot index in the host resource table.
+    pub const fn lo(self) -> u32 {
+        self.0.lo()
+    }
+
+    /// Slot generation. Stale handles never address a replacement resource.
+    pub const fn hi(self) -> u32 {
+        self.0.hi()
     }
 }
 
-/// One immutable source image plus a bounded renderer-ready derivative.
+/// One immutable source image plus its GPUI image representation.
 pub struct ImageResource {
     source: Arc<image::DynamicImage>,
-    drawable: Arc<wabou_shell::image::RasterImage>,
+    gpui: Arc<wabou_shell::gpui::Image>,
 }
 
 impl ImageResource {
@@ -48,6 +53,9 @@ impl ImageResource {
         let reader = image::ImageReader::new(std::io::Cursor::new(bytes))
             .with_guessed_format()
             .map_err(|error| error.to_string())?;
+        let format = reader
+            .format()
+            .ok_or_else(|| "image format could not be determined".to_owned())?;
         let (width, height) = reader
             .into_dimensions()
             .map_err(|error| error.to_string())?;
@@ -55,20 +63,12 @@ impl ImageResource {
             return Err("image dimensions exceed the source resource limit".into());
         }
         let source = Arc::new(image::load_from_memory(bytes).map_err(|error| error.to_string())?);
-        let drawable_rgba = if width > MAX_DRAWABLE_DIMENSION || height > MAX_DRAWABLE_DIMENSION {
-            source
-                .resize(
-                    MAX_DRAWABLE_DIMENSION,
-                    MAX_DRAWABLE_DIMENSION,
-                    image::imageops::FilterType::Triangle,
-                )
-                .into_rgba8()
-        } else {
-            source.to_rgba8()
-        };
         Ok(Self {
             source,
-            drawable: Arc::new(wabou_shell::image::RasterImage::from_rgba(drawable_rgba)),
+            gpui: Arc::new(wabou_shell::gpui::Image::from_bytes(
+                gpui_image_format(format)?,
+                bytes.to_vec(),
+            )),
         })
     }
 
@@ -82,34 +82,67 @@ impl ImageResource {
         self.source.to_rgb8()
     }
 
-    pub(crate) fn drawable(&self) -> Arc<wabou_shell::image::RasterImage> {
-        self.drawable.clone()
+    /// Lazily decoded and cached by GPUI when an image element first paints.
+    pub(crate) fn gpui_image(&self) -> Arc<wabou_shell::gpui::Image> {
+        self.gpui.clone()
     }
+
+    #[cfg(test)]
+    pub(crate) fn to_rgba8(&self) -> image::RgbaImage {
+        self.source.to_rgba8()
+    }
+}
+
+fn gpui_image_format(format: image::ImageFormat) -> Result<wabou_shell::gpui::ImageFormat, String> {
+    use wabou_shell::gpui::ImageFormat as Gpui;
+    Ok(match format {
+        image::ImageFormat::Png => Gpui::Png,
+        image::ImageFormat::Jpeg => Gpui::Jpeg,
+        image::ImageFormat::WebP => Gpui::Webp,
+        image::ImageFormat::Gif => Gpui::Gif,
+        image::ImageFormat::Bmp => Gpui::Bmp,
+        image::ImageFormat::Tiff => Gpui::Tiff,
+        image::ImageFormat::Ico => Gpui::Ico,
+        image::ImageFormat::Pnm => Gpui::Pnm,
+        other => return Err(format!("image format {other:?} is not supported by GPUI")),
+    })
 }
 
 #[derive(Default)]
 struct StoreInner {
-    images: SlotMap<DefaultKey, Arc<ImageResource>>,
-    cache: Option<Arc<crate::asset_cache::ResourceCache>>,
+    images: ResourceRegistry<ImageResourceFamily, Arc<ImageResource>>,
 }
 
 /// Process-wide decoded image registry. Clones address the same resources.
-#[derive(Clone, Default)]
-pub struct ImageResourceStore(Arc<Mutex<StoreInner>>);
+#[derive(Clone)]
+pub struct ImageResourceStore {
+    inner: Arc<Mutex<StoreInner>>,
+    http: reqwest::Client,
+    network_slots: Arc<tokio::sync::Semaphore>,
+}
 
-impl ImageResourceStore {
-    pub(crate) fn set_cache(&self, cache: Arc<crate::asset_cache::ResourceCache>) {
-        if let Ok(mut inner) = self.0.lock() {
-            inner.cache = Some(cache);
+impl Default for ImageResourceStore {
+    fn default() -> Self {
+        let http = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .timeout(std::time::Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+        Self {
+            inner: Arc::new(Mutex::new(StoreInner::default())),
+            http,
+            network_slots: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_NETWORK_LOADS)),
         }
     }
+}
 
+impl ImageResourceStore {
     /// Decode bytes into a new resource. Creation never deduplicates identity.
     pub fn create(&self, bytes: &[u8]) -> Result<ImageResourceHandle, String> {
         let resource = Arc::new(ImageResource::decode(bytes)?);
-        let mut inner = self.0.lock().map_err(|_| "image store lock poisoned")?;
-        let stored = inner.images.insert(resource);
-        Ok(ImageResourceHandle::from_key(stored))
+        let mut inner = self.inner.lock().map_err(|_| "image store lock poisoned")?;
+        Ok(ImageResourceHandle(inner.images.insert(resource)))
     }
 
     /// Read a file and decode it into a new resource.
@@ -118,35 +151,60 @@ impl ImageResourceStore {
         self.create(&bytes)
     }
 
-    /// Fetch through Wabou's bounded raw-resource cache and create a new identity.
+    /// Fetch once and create a new explicit resource identity.
+    ///
+    /// Display-only URL images use GPUI's asset and image caches. This path is
+    /// for native consumers such as OCR which need stable access to source pixels.
     pub async fn create_network(&self, url: &str) -> Result<ImageResourceHandle, String> {
         let url = url::Url::parse(url).map_err(|error| error.to_string())?;
         if !matches!(url.scheme(), "http" | "https") {
             return Err("network image URL must use HTTP(S)".into());
         }
-        let cache = self
-            .0
-            .lock()
-            .map_err(|_| "image store lock poisoned")?
-            .cache
-            .clone()
-            .ok_or_else(|| "image resource cache is not initialized".to_owned())?;
-        let bytes = cache.network_image_bytes(url).await?;
+        let _permit = self
+            .network_slots
+            .acquire()
+            .await
+            .map_err(|_| "network image loader is shutting down".to_owned())?;
+        let mut response = self
+            .http
+            .get(url)
+            .send()
+            .await
+            .map_err(|error| error.to_string())?
+            .error_for_status()
+            .map_err(|error| error.to_string())?;
+        if response
+            .content_length()
+            .is_some_and(|size| size > MAX_NETWORK_RESOURCE_BYTES as u64)
+        {
+            return Err("image response exceeds 32 MiB".into());
+        }
+        let mut bytes = Vec::with_capacity(
+            response
+                .content_length()
+                .unwrap_or_default()
+                .min(MAX_NETWORK_RESOURCE_BYTES as u64) as usize,
+        );
+        while let Some(chunk) = response.chunk().await.map_err(|error| error.to_string())? {
+            if bytes.len() + chunk.len() > MAX_NETWORK_RESOURCE_BYTES {
+                return Err("image response exceeds 32 MiB".into());
+            }
+            bytes.extend_from_slice(&chunk);
+        }
         self.create(&bytes)
     }
 
     /// Resolve a live handle. A stale generation returns `None`.
     pub fn get(&self, handle: ImageResourceHandle) -> Option<Arc<ImageResource>> {
-        self.0.lock().ok()?.images.get(handle.key()).cloned()
+        self.inner.lock().ok()?.images.get(handle.0).cloned()
     }
 
     /// Explicitly release a resource and invalidate every copy of its handle.
     pub fn remove(&self, handle: ImageResourceHandle) -> bool {
-        let Ok(mut inner) = self.0.lock() else {
+        let Ok(mut inner) = self.inner.lock() else {
             return false;
         };
-        let key = handle.key();
-        if inner.images.remove(key).is_none() {
+        if inner.images.remove(handle.0).is_none() {
             return false;
         }
         true
@@ -167,16 +225,16 @@ mod tests {
             .unwrap();
         let resource = Arc::new(ImageResource::decode(&png).unwrap());
         let first = {
-            let mut inner = store.0.lock().unwrap();
-            ImageResourceHandle::from_key(inner.images.insert(resource.clone()))
+            let mut inner = store.inner.lock().unwrap();
+            ImageResourceHandle(inner.images.insert(resource.clone()))
         };
         assert!(store.remove(first));
         let second = {
-            let mut inner = store.0.lock().unwrap();
-            ImageResourceHandle::from_key(inner.images.insert(resource))
+            let mut inner = store.inner.lock().unwrap();
+            ImageResourceHandle(inner.images.insert(resource))
         };
-        assert_eq!(first.lo, second.lo);
-        assert_ne!(first.hi, second.hi);
+        assert_eq!(first.lo(), second.lo());
+        assert_ne!(first.hi(), second.hi());
         assert!(store.get(first).is_none());
         assert_eq!(store.get(second).unwrap().dimensions(), (1, 1));
     }
@@ -210,6 +268,6 @@ mod tests {
         let handle = store.create(&png).unwrap();
         let resource = store.get(handle).unwrap();
         assert_eq!(resource.dimensions(), (4_100, 1));
-        assert_eq!(resource.drawable().size(), [4_096.0, 1.0]);
+        assert_eq!(resource.to_rgba8().dimensions(), (4_100, 1));
     }
 }

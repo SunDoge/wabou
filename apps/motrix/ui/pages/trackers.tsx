@@ -21,7 +21,7 @@ import network from "lucide-static/icons/network.svg?raw";
 import radioTower from "lucide-static/icons/radio-tower.svg?raw";
 import route from "lucide-static/icons/route.svg?raw";
 import users from "lucide-static/icons/users.svg?raw";
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, For as ForValue, Show } from "solid-js";
 import type { DownloadTask } from "../downloads";
 import { useDownloads } from "../downloads";
 
@@ -176,7 +176,7 @@ export function TrackersPage() {
             }
           >
             <ScrollArea class="h-full min-h-0" contentClass="flex flex-col">
-              <For each={endpoints()}>
+              <ForValue each={endpoints()}>
                 {(endpoint) => (
                   <View class="min-h-16 flex-none px-5 py-3 flex items-center gap-3 border-t border-subtle">
                     <View class="w-9 h-9 flex-none rounded-lg bg-control flex items-center justify-center">
@@ -196,7 +196,7 @@ export function TrackersPage() {
                     </Badge>
                   </View>
                 )}
-              </For>
+              </ForValue>
             </ScrollArea>
           </Show>
         </CardContent>

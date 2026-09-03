@@ -12,7 +12,7 @@ import {
   Text,
   View,
 } from "@wabou/ui";
-import { createSignal, For } from "solid-js";
+import { createSignal, For as ForValue } from "solid-js";
 import "virtual:wabou-stylesheet";
 
 export function MangaPageMock() {
@@ -158,7 +158,7 @@ export function ImageViewportPage() {
             <CardTitle>OCR regions</CardTitle>
           </CardHeader>
           <CardContent class="gap-2">
-            <For each={regions()}>
+            <ForValue each={regions()}>
               {(region, index) => (
                 <Button
                   size="sm"
@@ -169,7 +169,7 @@ export function ImageViewportPage() {
                   {`${index() + 1}. ${region.label ?? region.id}`}
                 </Button>
               )}
-            </For>
+            </ForValue>
           </CardContent>
         </Card>
       </View>

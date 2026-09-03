@@ -42,6 +42,7 @@ test("keeps the card open while the pointer travels into its content", async () 
   await screen.advanceTime(300);
   const card = screen.getByRole("dialog", { name: "Project preview" });
   expect(card.text).toBe("Native Solid applications");
+  expect(card.className).toContain("rounded-lg");
 
   trigger.unhover();
   card.hover();
@@ -51,7 +52,7 @@ test("keeps the card open while the pointer travels into its content", async () 
   card.unhover();
   await screen.advanceTime(200);
   expect(screen.getByRole("dialog").interactionBlocked).toBe(true);
-  await screen.advanceTime(160);
+  card.finishNativeTransition();
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
@@ -61,9 +62,8 @@ test("opens immediately for keyboard focus and closes with Escape", () => {
 
   trigger.focus();
   expect(trigger.expanded).toBe(true);
-  expect(
-    screen.getByRole("dialog", { name: "Project preview" }),
-  ).not.toBeNull();
+  const card = screen.getByRole("dialog", { name: "Project preview" });
+  expect(card).not.toBeNull();
 
   trigger.press("Escape");
   expect(trigger.expanded).toBe(false);

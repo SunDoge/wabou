@@ -23,8 +23,8 @@ lower layer remains suspect:
    Taffy geometry, overflow, clipping, collision, scroll ranges, and responsive
    layout. Run fixtures in one release CLI batch.
 4. **Native behavior tests** only for native hit testing, keyboard/IME, clipboard,
-   native widgets, multiple windows, tray, resize, drag/drop, or completed semantic
-   frames.
+   native widgets, multiple windows, tray, resize, drag/drop, child-process/service
+   boundaries, or completed semantic frames.
 5. **Headless pixel capture** only when geometry and semantics are correct but paint
    is wrong: glyph rasterization, shadows, rounded clips, image decoding, native
    widget paint, Vello scene composition, or transparency.
@@ -55,19 +55,33 @@ For real layout, add or reuse a fixture in
 collision checks over full-tree snapshots.
 
 ```bash
-# Reuse the current release CLI and fixture bundle while editing TSX/styles.
+# Reuse the current release CLI and rebuild the Vite fixture bundle.
 bun run test:layout:quick widgets/Button widgets/Card
+# Restrict the quick loop to one application when unrelated fixtures are dirty.
+bun run test:layout:quick --app pi-agent shell/sidebar
 
 # Rebuild packages, release CLI, and fixture bundle after Rust, dependency,
 # generated-output, or fixture-registry changes, and before committing.
 bun run test:layout
 ```
 
+The quick command rebuilds the selected application's Vite fixture bundle by
+default, preventing TSX and style edits from being checked against stale
+JavaScript. Add `--skip-build` only when those sources are unchanged and the
+existing bundle is known to be current.
+
 The layout runner enables Solid development diagnostics. Treat
 `[STRICT_READ_UNTRACKED]` and `[REACTIVITY_HALTED]` as test failures, not ignorable
 logs. If a warning only appears during application startup, exercise the real entry
 with `renderAppLayout` from `@wabou/test/layout/node`; the captured diagnostic stack
 is source-mapped by the runtime.
+
+For fine-grained Solid-to-GPUI invalidation, use `probeAppProjection` from
+`@wabou/test/layout/node` against a named fixture. It uses the real QuickJS and
+GPUI headless path and draws without `Window::refresh`, preserving GPUI cached
+View behavior. Assert boundary revision and materialization deltas with
+`projectionBoundaryProbe`; do not infer boundary isolation from FPS or from an
+ordinary forced-refresh layout fixture.
 
 Use `waitMs` only for an authored timer, promise, or finite animation. Never add a
 sleep merely to make a flaky assertion pass. Use `page.waitForIdle()` in native
@@ -82,6 +96,12 @@ After changing a shared component, require:
 - a behavior test only for a genuinely native interaction;
 - a pixel capture only for a paint-specific regression.
 
+When an application provides a deterministic service/process fixture, use it for
+behavior tests instead of a live network service. Read the application's README or
+verification script for the required environment injection. This preserves the real
+Solid → capability → Rust service → child process → host-message path without making
+the test depend on credentials or remote output.
+
 ## Start with state
 
 Run:
@@ -93,7 +113,12 @@ git rev-parse --short HEAD
 
 Preserve unrelated changes. Record whether the user runs `dev`, `run`, or a packaged binary.
 
-Restart the native process after Rust changes. Vite/Solid HMR updates JS and Style IR only; it does not reload `wabou-shell`, `wabou-quick`, Vello scene code, or Rust widgets.
+Restart the native process after Rust changes. Vite/Solid HMR updates JS and Style IR only; it does not reload `wabou-shell`, `wabou-runtime`, Vello scene code, or Rust widgets.
+
+If a failure indicates stale frontend bundles or Vite caches, use `wabou clean
+[APP]` before rebuilding instead of manually deleting broad directories. Add
+`--packages` only when local package `dist` artifacts are themselves stale; the
+command intentionally does not replace `cargo clean` or dependency installation.
 
 ## Isolate the failing layer
 
@@ -236,6 +261,8 @@ platforms. Platform-specific outline behavior belongs in the single
   routing is in question.
 - Native input/window/tray bug: focused behavior scenario with semantic and state
   assertions.
+- Rust service, child-process, or host-message integration: deterministic application
+  fixture plus a focused behavior scenario.
 - Scene/backend bug: offscreen pixel test or a minimal platform reproduction.
 - Resize/maximize bug: dispatch real `WindowMetrics` transitions; do not test only the initial size.
 
@@ -253,6 +280,17 @@ bun run test:layout
 bun x tsc --noEmit
 git diff --check
 ```
+
+For a behavior run, select an explicit artifact directory while diagnosing:
+
+```bash
+bun run wabou test /path/to/app --artifacts /tmp/wabou-app-test
+```
+
+Do not infer success from the process exit alone. Read `report.json`, confirm the
+intended named tests ran, and use their `traceStart`/`traceEnd` ranges with
+`trace.json` when isolating a failure. A green deterministic behavior report proves
+the exercised semantic/native state machine, not GPU pixels or platform integration.
 
 Do not run every command mechanically; select commands that prove the changed layer.
 Run the full layout command before committing layout-affecting shared components.

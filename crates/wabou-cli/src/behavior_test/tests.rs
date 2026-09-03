@@ -29,6 +29,44 @@ fn report_reconstructs_shared_state_through_selected_test() {
 }
 
 #[test]
+fn replay_accepts_recorded_locator_scopes() {
+    let trace = json!([{
+        "action": "assertByRole",
+        "windowId": { "lo": 1, "hi": 1 },
+        "role": "button",
+        "label": "Save",
+        "scope": [
+            { "role": "dialog", "name": "Settings" },
+            { "role": "group", "name": "Account", "index": 1 }
+        ],
+        "assertion": { "type": "disabled", "expected": false },
+        "wait": { "timeout": 1000, "interval": 16, "stableFor": 0 }
+    }]);
+
+    assert_eq!(
+        replay_actions_from_value(&json!({ "version": 1, "actions": trace.clone() }), None)
+            .unwrap(),
+        trace
+    );
+}
+
+#[test]
+fn replay_accepts_portable_text_fixtures() {
+    let trace = json!([{
+        "action": "writeTextFile",
+        "relativePath": "exports/session.html",
+        "contents": "",
+        "path": "/tmp/old-run/exports/session.html"
+    }]);
+
+    assert_eq!(
+        replay_actions_from_value(&json!({ "version": 1, "actions": trace.clone() }), None)
+            .unwrap(),
+        trace
+    );
+}
+
+#[test]
 fn input_validation_reports_actionable_errors() {
     let trace = json!([{ "action": "showWindow", "windowId": 1 }]);
     assert_eq!(
@@ -476,6 +514,51 @@ fn replay_artifacts_use_a_separate_default_directory() {
         default_artifact_dir(test_dir, true),
         test_dir.join("replay-artifacts")
     );
+}
+
+#[test]
+fn replay_validation_tracks_every_exposed_semantic_role() {
+    let actions = wabou_shell::SemanticRole::ALL
+        .iter()
+        .copied()
+        .filter(|role| *role != wabou_shell::SemanticRole::Generic)
+        .map(|role| {
+            json!({
+                "action": "waitForByRole",
+                "windowId": 1,
+                "role": role.as_str(),
+                "label": "fixture",
+                "wait": { "timeout": 1000, "interval": 16 }
+            })
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        replay_actions_from_value(&json!({ "version": 1, "actions": actions.clone() }), None)
+            .unwrap(),
+        serde_json::Value::Array(actions)
+    );
+}
+
+#[test]
+fn replay_validation_rejects_internal_or_unknown_semantic_roles() {
+    for role in ["generic", "presentation", "invented"] {
+        let error = replay_actions_from_value(
+            &json!({
+                "version": 1,
+                "actions": [{
+                    "action": "waitForByRole",
+                    "windowId": 1,
+                    "role": role,
+                    "label": "fixture",
+                    "wait": { "timeout": 1000, "interval": 16 }
+                }]
+            }),
+            None,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("unknown exposed semantic role"));
+    }
 }
 
 #[test]

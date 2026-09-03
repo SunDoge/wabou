@@ -8,24 +8,35 @@ import { mergeClasses } from "@wabou/core/style";
 import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
 import {
   createContext,
+  createEffect,
   createSignal,
+  For as ForValue,
   type JSX,
   omit,
   onCleanup,
   Show,
+  untrack,
   useContext,
 } from "solid-js";
 import {
   createMeasuredSize,
   Icon,
   rotate2d,
+  Text,
   translate2d,
   View,
   type ViewProps,
 } from "../primitives";
 import { Button, type ButtonProps } from "./button";
+import { Toolbar, ToolbarButton } from "./toolbar";
+import { Tooltip } from "./tooltip";
 
 export type MessageScrollDirection = "start" | "end";
+
+export interface MessageScrollIntoViewOptions {
+  margin?: number;
+  align?: "nearest" | "start";
+}
 
 export function messageScrollRange(
   contentHeight: number,
@@ -61,21 +72,35 @@ export function messageScrollRevealDelta(
   return 0;
 }
 
+/** Vertical delta that places a target at the viewport's reading start. */
+export function messageScrollStartDelta(
+  viewport: LayoutRect,
+  target: LayoutRect,
+  margin = 12,
+): number {
+  return target.y - (viewport.y + Math.max(0, margin));
+}
+
 export interface MessageScrollerControls {
   followingEnd(): boolean;
   canScrollStart(): boolean;
   canScrollEnd(): boolean;
+  activeAnchor(): string | undefined;
   scrollTo(direction: MessageScrollDirection): void;
-  scrollIntoView(target: Handle, options?: { margin?: number }): void;
+  scrollIntoView(target: Handle, options?: MessageScrollIntoViewOptions): void;
+  scrollToAnchor(anchor: string, options?: MessageScrollIntoViewOptions): void;
 }
 
 interface MessageScrollerContextValue extends MessageScrollerControls {
   setViewport(node: Handle): void;
   setContent(node: Handle): void;
   handleScroll(event: WabouScrollEvent): void;
+  registerAnchor(anchor: string, node: Handle): void;
+  unregisterAnchor(anchor: string, node: Handle): void;
 }
 
-const MessageScrollerContext = createContext<MessageScrollerContextValue>();
+const MessageScrollerContext =
+  createContext<MessageScrollerContextValue | null>(null);
 
 function requireMessageScroller(): MessageScrollerContextValue {
   const context = useContext(MessageScrollerContext);
@@ -98,6 +123,32 @@ export interface MessageScrollerProps extends ViewProps {
   endThreshold?: number;
 }
 
+export interface MessageAnchorRect {
+  id: string;
+  rect: LayoutRect;
+}
+
+/** Pick the last conversation anchor that has crossed the reading line. */
+export function activeMessageAnchor(
+  viewport: LayoutRect,
+  anchors: readonly MessageAnchorRect[],
+  offset = 64,
+): string | undefined {
+  if (anchors.length === 0) return undefined;
+  const line = viewport.y + Math.min(Math.max(0, offset), viewport.height / 3);
+  const ordered = [...anchors].sort((first, second) =>
+    first.rect.y === second.rect.y
+      ? first.rect.x - second.rect.x
+      : first.rect.y - second.rect.y,
+  );
+  let active = ordered[0]?.id;
+  for (const anchor of ordered) {
+    if (anchor.rect.y > line) break;
+    active = anchor.id;
+  }
+  return active;
+}
+
 export function MessageScroller(props: MessageScrollerProps): JSX.Element {
   const host = useHost();
   const forwarded = omit(
@@ -108,22 +159,122 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
     "children",
   );
   const [scrollY, setScrollY] = createSignal(0);
-  const [followingEnd, setFollowingEnd] = createSignal(props.followEnd ?? true);
+  const [followingEnd, setFollowingEnd] = createSignal(
+    untrack(() => props.followEnd ?? true),
+  );
+  const [activeAnchor, setActiveAnchor] = createSignal<string>();
   const threshold = () => Math.max(0, props.endThreshold ?? 24);
   let viewport: Handle | undefined;
-  let frame: number | undefined;
+  let endFrame: number | undefined;
+  let anchorFrame: number | undefined;
+  const anchors = new Map<string, Handle>();
+  let measuredAnchors: MessageAnchorRect[] = [];
+  const newestAnchor = () => [...anchors.keys()].at(-1);
 
-  const scheduleEnd = () => {
-    if (!followingEnd() || !viewport) return;
-    if (frame !== undefined) cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => {
-      frame = undefined;
+  const updateActiveFromScroll = (position = scrollY()) => {
+    if (
+      followingEnd() &&
+      isMessageScrollNearEnd(
+        position,
+        contentSize.height(),
+        viewportSize.height(),
+        threshold(),
+      )
+    ) {
+      const last = measuredAnchors.reduce<MessageAnchorRect | undefined>(
+        (current, anchor) =>
+          !current || anchor.rect.y > current.rect.y ? anchor : current,
+        undefined,
+      );
+      setActiveAnchor(last?.id ?? newestAnchor());
+      return;
+    }
+    setActiveAnchor(
+      activeMessageAnchor(
+        {
+          x: 0,
+          y: position,
+          width: viewportSize.width(),
+          height: viewportSize.height(),
+        },
+        measuredAnchors,
+      ),
+    );
+  };
+
+  const measureAnchors = () => {
+    if (!viewport || anchors.size === 0) {
+      measuredAnchors = [];
+      setActiveAnchor(followingEnd() ? newestAnchor() : undefined);
+      return;
+    }
+    const targets = [...anchors.entries()];
+    const snapshot = host.layout.snapshot([
+      viewport,
+      ...targets.map(([, node]) => node),
+    ]);
+    const nodeByKey = new Map(
+      snapshot.nodes.map((node) => [`${node.id.lo}:${node.id.hi}`, node]),
+    );
+    const viewportMetrics = nodeByKey.get(
+      `${viewport.id.lo}:${viewport.id.hi}`,
+    );
+    if (!viewportMetrics) return;
+    measuredAnchors = targets.flatMap(([id, node]) => {
+      const metrics = nodeByKey.get(`${node.id.lo}:${node.id.hi}`);
+      return metrics
+        ? [
+            {
+              id,
+              rect: {
+                x: metrics.rect.x - viewportMetrics.rect.x,
+                y: metrics.rect.y - viewportMetrics.rect.y + scrollY(),
+                width: metrics.rect.width,
+                height: metrics.rect.height,
+              },
+            },
+          ]
+        : [];
+    });
+    updateActiveFromScroll();
+  };
+
+  const scheduleAnchorMeasure = () => {
+    if (anchorFrame !== undefined) cancelAnimationFrame(anchorFrame);
+    anchorFrame = requestAnimationFrame(() => {
+      anchorFrame = undefined;
+      measureAnchors();
+    });
+  };
+
+  const scheduleEnd = (force = false) => {
+    if ((!force && !followingEnd()) || !viewport) return;
+    if (endFrame !== undefined) cancelAnimationFrame(endFrame);
+    endFrame = requestAnimationFrame(() => {
+      endFrame = undefined;
       viewport?.scrollTo({ top: Number.MAX_SAFE_INTEGER });
     });
   };
 
-  const viewportSize = createMeasuredSize({ onChange: scheduleEnd });
-  const contentSize = createMeasuredSize({ onChange: scheduleEnd });
+  const geometryChanged = () => {
+    scheduleEnd();
+    scheduleAnchorMeasure();
+  };
+  createEffect(
+    () => props.followEnd,
+    (next, previous) => {
+      if (next === undefined || next === previous) return;
+      setFollowingEnd(next);
+      if (next) {
+        scheduleEnd(true);
+      } else if (endFrame !== undefined) {
+        cancelAnimationFrame(endFrame);
+        endFrame = undefined;
+      }
+    },
+  );
+  const viewportSize = createMeasuredSize({ onChange: geometryChanged });
+  const contentSize = createMeasuredSize({ onChange: geometryChanged });
   const range = () =>
     messageScrollRange(contentSize.height(), viewportSize.height());
   const nearEnd = () =>
@@ -138,6 +289,7 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
     followingEnd,
     canScrollStart: () => scrollY() > threshold(),
     canScrollEnd: () => range() > 0 && !nearEnd(),
+    activeAnchor,
     scrollTo: (direction) => {
       setFollowingEnd(direction === "end");
       viewport?.scrollTo({
@@ -155,21 +307,36 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
         (node) => node.id.lo === target.id.lo && node.id.hi === target.id.hi,
       );
       if (!viewportMetrics || !targetMetrics) return;
-      const delta = messageScrollRevealDelta(
-        viewportMetrics.rect,
-        targetMetrics.rect,
-        options?.margin,
-      );
+      const delta =
+        options?.align === "start"
+          ? messageScrollStartDelta(
+              viewportMetrics.rect,
+              targetMetrics.rect,
+              options.margin,
+            )
+          : messageScrollRevealDelta(
+              viewportMetrics.rect,
+              targetMetrics.rect,
+              options?.margin,
+            );
       if (delta === 0) return;
       setFollowingEnd(false);
       viewport.scrollBy({ top: delta });
+    },
+    scrollToAnchor: (anchor, options) => {
+      const target = anchors.get(anchor);
+      if (target) context.scrollIntoView(target, options);
     },
     setViewport: (node) => {
       viewport = node;
       viewportSize.ref(node);
       scheduleEnd();
+      scheduleAnchorMeasure();
     },
-    setContent: (node) => contentSize.ref(node),
+    setContent: (node) => {
+      contentSize.ref(node);
+      scheduleAnchorMeasure();
+    },
     handleScroll: (event) => {
       const next = Math.max(0, event.scrollY ?? 0);
       setScrollY(next);
@@ -181,11 +348,29 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
           threshold(),
         ),
       );
+      updateActiveFromScroll(next);
+    },
+    registerAnchor: (anchor, node) => {
+      anchors.set(anchor, node);
+      // Following the end semantically means the newest registered turn is
+      // current. Publish that immediately; native layout measurement can
+      // refine the result later, but must not leave aria-current unset while
+      // the new frame is still being measured.
+      if (followingEnd()) setActiveAnchor(anchor);
+      scheduleAnchorMeasure();
+    },
+    unregisterAnchor: (anchor, node) => {
+      const current = anchors.get(anchor);
+      if (current?.id.lo === node.id.lo && current.id.hi === node.id.hi) {
+        anchors.delete(anchor);
+        scheduleAnchorMeasure();
+      }
     },
   };
 
   onCleanup(() => {
-    if (frame !== undefined) cancelAnimationFrame(frame);
+    if (endFrame !== undefined) cancelAnimationFrame(endFrame);
+    if (anchorFrame !== undefined) cancelAnimationFrame(anchorFrame);
   });
 
   return (
@@ -253,10 +438,50 @@ export function MessageScrollerContent(props: ViewProps): JSX.Element {
   );
 }
 
-export function MessageScrollerItem(props: ViewProps): JSX.Element {
+export interface MessageScrollerItemProps extends ViewProps {
+  /** Stable semantic id used by conversation navigation. */
+  anchor?: string;
+}
+
+export function MessageScrollerItem(
+  props: MessageScrollerItemProps,
+): JSX.Element {
+  const context = useContext(MessageScrollerContext);
+  const forwarded = omit(props, "anchor", "class", "children", "ref");
+  let node: Handle | undefined;
+  let registered: string | undefined;
+
+  createEffect(
+    () => props.anchor,
+    (next) => {
+      if (node && registered && registered !== next) {
+        context?.unregisterAnchor(registered, node);
+        registered = undefined;
+      }
+      if (node && next && next !== registered) {
+        context?.registerAnchor(next, node);
+        registered = next;
+      }
+    },
+  );
+
+  onCleanup(() => {
+    if (node && registered) context?.unregisterAnchor(registered, node);
+  });
+
   return (
     <View
-      {...props}
+      {...forwarded}
+      ref={(handle) => {
+        node = handle;
+        const anchor = props.anchor;
+        if (anchor) {
+          context?.registerAnchor(anchor, handle);
+          registered = anchor;
+        }
+        props.ref?.(handle);
+      }}
+      data-message-anchor={props.anchor}
       class={mergeClasses("w-full min-w-0 flex-none", props.class)}
     >
       {props.children}
@@ -306,6 +531,95 @@ export function MessageScrollerButton(
           />
         )}
       </Button>
+    </Show>
+  );
+}
+
+export interface MessageScrollerNavigatorItem {
+  id: string;
+  label: string;
+}
+
+export interface MessageScrollerNavigatorProps {
+  items: readonly MessageScrollerNavigatorItem[];
+  "aria-label": string;
+  itemAriaLabel(item: MessageScrollerNavigatorItem, index: number): string;
+  minItems?: number;
+  class?: string;
+  railClass?: string;
+}
+
+/** Compact anchor rail for navigating long retained conversations. */
+export function MessageScrollerNavigator(
+  props: MessageScrollerNavigatorProps,
+): JSX.Element {
+  const context = requireMessageScroller();
+  const currentAnchor = () =>
+    context.followingEnd()
+      ? props.items.at(-1)?.id
+      : context.activeAnchor();
+  const reveal = (id: string) => {
+    context.scrollToAnchor(id, { margin: 24, align: "start" });
+  };
+
+  return (
+    <Show when={props.items.length >= (props.minItems ?? 2)}>
+      <View
+        class={mergeClasses(
+          "absolute z-20 right-2 top-4 bottom-14 w-8 flex flex-col items-center justify-center pointer-events-none",
+          props.class,
+        )}
+      >
+        <Toolbar
+          aria-label={props["aria-label"]}
+          orientation="vertical"
+          class={mergeClasses(
+            "max-h-full p-0 py-1 gap-0 rounded-full bg-surface shadow-xs overflow-y-auto pointer-events-auto",
+            props.railClass,
+          )}
+        >
+          <ForValue each={props.items} keyed={false}>
+            {(item, index) => (
+              <Tooltip
+                placement="left"
+                openDelay={240}
+                contentClass="max-w-sm"
+                trigger={(tooltip) => (
+                  <ToolbarButton
+                    ref={tooltip.ref}
+                    variant="ghost"
+                    size="icon"
+                    class="w-7 h-7 p-0 rounded-full"
+                    aria-label={props.itemAriaLabel(item(), index)}
+                    aria-current={
+                      currentAnchor() === item().id ? "step" : undefined
+                    }
+                    onPointerEnter={tooltip.onPointerEnter}
+                    onPointerLeave={tooltip.onPointerLeave}
+                    onFocus={tooltip.onFocus}
+                    onBlur={tooltip.onBlur}
+                    onKeyDown={tooltip.onKeyDown}
+                    onClick={() => reveal(item().id)}
+                  >
+                    <View
+                      aria-hidden="true"
+                      class={
+                        currentAnchor() === item().id
+                          ? "w-4 h-1 rounded-full bg-accent"
+                          : "w-3 h-1 rounded-full bg-subtle"
+                      }
+                    />
+                  </ToolbarButton>
+                )}
+              >
+                <Text class="text-xs text-primary whitespace-normal">
+                  {item().label}
+                </Text>
+              </Tooltip>
+            )}
+          </ForValue>
+        </Toolbar>
+      </View>
     </Show>
   );
 }

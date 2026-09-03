@@ -1,5 +1,5 @@
 import type { Row } from "@tanstack/table-core";
-import { For, type JSX, Show } from "solid-js";
+import { For as ForValue, type JSX, Show } from "solid-js";
 import type { TanStackDataTable } from "../integrations";
 import { Button as PrimitiveButton, Text, View } from "../primitives";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "./table";
@@ -21,10 +21,10 @@ export function DataTable<TData>(props: DataTableProps<TData>): JSX.Element {
   return (
     <Table aria-label={props["aria-label"]}>
       <TableHeader>
-        <For each={props.model.table.getHeaderGroups()}>
+        <ForValue each={props.model.table.getHeaderGroups()}>
           {(headerGroup) => (
             <TableRow class="h-11 border-strong bg-control">
-              <For each={headerGroup.headers}>
+              <ForValue each={headerGroup.headers}>
                 {(header) => {
                   const sortable = () => header.column.getCanSort();
                   const direction = () =>
@@ -59,16 +59,16 @@ export function DataTable<TData>(props: DataTableProps<TData>): JSX.Element {
                     </PrimitiveButton>
                   );
                 }}
-              </For>
+              </ForValue>
             </TableRow>
           )}
-        </For>
+        </ForValue>
       </TableHeader>
       <TableBody>
-        <For each={props.model.rows()}>
+        <ForValue each={props.model.rows()}>
           {(row) => {
             const cells = () => (
-              <For each={row.getVisibleCells()}>
+              <ForValue each={row.getVisibleCells()}>
                 {(cell) => (
                   <TableCell class="px-4">
                     {props.renderCell?.({
@@ -82,7 +82,7 @@ export function DataTable<TData>(props: DataTableProps<TData>): JSX.Element {
                     )}
                   </TableCell>
                 )}
-              </For>
+              </ForValue>
             );
             return (
               <Show
@@ -109,7 +109,7 @@ export function DataTable<TData>(props: DataTableProps<TData>): JSX.Element {
               </Show>
             );
           }}
-        </For>
+        </ForValue>
         <Show when={props.model.rows().length === 0}>
           <View class="h-24 flex items-center justify-center">
             <Text class="text-sm text-muted">

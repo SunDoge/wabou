@@ -14,15 +14,15 @@ use serde_json::Value;
 
 mod artifact;
 mod behavior_test;
+mod clean;
 mod config;
 mod devtools;
 mod doctor;
 mod frontend;
-mod headless_render;
+mod gpui_render;
 mod packaging;
 mod process;
 mod project;
-mod render_metrics;
 mod scaffold;
 
 use artifact::{
@@ -41,12 +41,15 @@ use config::{
 };
 use devtools::InspectCommand;
 use frontend::{build as build_frontend, build_test_script};
-use headless_render::{
-    RenderOptions, actions_from_matches as render_actions_from_matches,
-    legacy_actions as legacy_render_actions, run as render,
+use gpui_render::{
+    HeadlessColorScheme, RenderOptions, actions as fallback_render_actions,
+    actions_from_matches as render_actions_from_matches, run as render,
 };
+#[cfg(test)]
+use process::wait_for_managed_child;
 use process::{
-    ManagedChild, configure_test_backend, supervise, wait_for_managed_child, wait_for_vite,
+    ManagedChild, configure_test_backend, ensure_host_exit, supervise, wait_for_behavior_host,
+    wait_for_vite,
 };
 use project::{App, ensure_workspace_package_exports, find_app_root, find_workspace, load_app};
 
@@ -99,6 +102,14 @@ enum Commands {
         #[command(flatten)]
         cargo_features: CargoFeatures,
     },
+    /// Remove generated JavaScript bundles and frontend caches.
+    Clean {
+        #[arg(value_name = "APP")]
+        app: Option<PathBuf>,
+        /// Also remove dist directories for local packages/* workspaces.
+        #[arg(long)]
+        packages: bool,
+    },
     /// Start Vite, the Rust host, and live HMR.
     Dev {
         #[arg(value_name = "APP")]
@@ -107,6 +118,9 @@ enum Commands {
         port: u16,
         #[arg(long)]
         devtools: bool,
+        /// Show the native GPUI performance HUD.
+        #[arg(long)]
+        hud: bool,
         /// Hot-patch explicitly registered Rust capability functions without restarting the host.
         #[arg(long)]
         rust_hot_reload: bool,
@@ -153,6 +167,9 @@ enum Commands {
         /// Write an opt-in performance trace for Perfetto/Chrome tracing.
         #[arg(long, value_name = "JSON")]
         profile_trace: Option<PathBuf>,
+        /// Show the native GPUI performance HUD.
+        #[arg(long)]
+        hud: bool,
         #[command(flatten)]
         cargo_features: CargoFeatures,
     },
@@ -183,6 +200,9 @@ enum Commands {
         /// Use the real platform event loop instead of the deterministic backend.
         #[arg(long)]
         native: bool,
+        /// Environment variable passed explicitly to the application host.
+        #[arg(long = "env", value_name = "KEY=VALUE")]
+        host_env: Vec<String>,
         #[command(flatten)]
         cargo_features: CargoFeatures,
     },
@@ -207,9 +227,19 @@ enum Commands {
         /// Device scale used for widget encoding and physical PNG dimensions.
         #[arg(long, default_value_t = 1.0)]
         scale_factor: f64,
+        /// System color scheme exposed to the application during capture.
+        #[arg(long, value_enum, default_value = "light")]
+        color_scheme: HeadlessColorScheme,
         /// Vite mode used to select an application-owned render fixture.
         #[arg(long)]
         mode: Option<String>,
+        /// Render one named application layout fixture.
+        #[arg(
+            long,
+            value_name = "ID",
+            conflicts_with_all = ["mode", "with_host", "width", "height", "scale_factor"]
+        )]
+        fixture: Option<String>,
         /// Reuse an existing debug frontend bundle instead of invoking Vite.
         #[arg(long)]
         skip_build: bool,
@@ -258,16 +288,19 @@ enum Commands {
         #[command(flatten)]
         cargo_features: CargoFeatures,
     },
-    /// Evaluate JavaScript, Style IR and Taffy without creating a scene or GPU renderer.
+    /// Evaluate JavaScript and Style IR through GPUI's real layout pass.
     Layout {
         #[arg(value_name = "APP")]
         app: Option<PathBuf>,
         /// Write the structured retained layout snapshot.
         #[arg(long, value_name = "JSON")]
         out: PathBuf,
-        /// Render every fixture described by a batch manifest in one QuickJS runtime.
+        /// Render every fixture described by a batch manifest in an isolated GPUI runtime.
         #[arg(long, value_name = "JSON")]
         batch: Option<PathBuf>,
+        /// Mount one application-owned layout fixture before probing.
+        #[arg(long, value_name = "ID", conflicts_with = "batch")]
+        fixture: Option<String>,
         #[arg(long, default_value_t = 1440)]
         width: u32,
         #[arg(long, default_value_t = 900)]
@@ -278,6 +311,9 @@ enum Commands {
         /// Logical device scale used by text and native-widget measurement.
         #[arg(long, default_value_t = 1.0)]
         scale_factor: f64,
+        /// System color scheme exposed to layout fixtures.
+        #[arg(long, value_enum, default_value = "light")]
+        color_scheme: HeadlessColorScheme,
         /// Vite mode used to select an application-owned fixture.
         #[arg(long)]
         mode: Option<String>,
@@ -287,6 +323,10 @@ enum Commands {
         /// Keep driving layout frames so finite reactive work can settle.
         #[arg(long, default_value_t = 0)]
         wait_ms: u64,
+        /// Evaluate JavaScript after the initial checkpoint and report the
+        /// resulting per-boundary GPUI invalidation/materialization delta.
+        #[arg(long, value_name = "JAVASCRIPT", conflicts_with = "batch")]
+        probe: Option<String>,
     },
     /// Open the native Wabou inspector.
     Devtools,
@@ -325,6 +365,7 @@ struct TestOptions {
     mode: Option<String>,
     failure_screenshot: bool,
     native: bool,
+    host_env: Vec<String>,
     cargo_features: Vec<String>,
 }
 
@@ -374,10 +415,15 @@ fn main() -> Result<()> {
             let (workspace, app) = resolve_app(app.as_deref())?;
             check(&workspace, &app, skip_behavior, &cargo_features.values)
         }
+        Commands::Clean { app, packages } => {
+            let (workspace, app) = resolve_app(app.as_deref())?;
+            clean::run(&workspace, &app, packages).map(|_| ())
+        }
         Commands::Dev {
             app,
             port,
             devtools,
+            hud,
             rust_hot_reload,
             mode,
             cargo_features,
@@ -386,11 +432,14 @@ fn main() -> Result<()> {
             dev(
                 &workspace,
                 app,
-                port,
-                devtools,
-                rust_hot_reload,
-                mode.as_deref(),
-                &cargo_features.values,
+                DevOptions {
+                    port,
+                    open_devtools: devtools,
+                    hud,
+                    rust_hot_reload,
+                    mode: mode.as_deref(),
+                    cargo_features: &cargo_features.values,
+                },
             )
         }
         Commands::Build {
@@ -428,6 +477,7 @@ fn main() -> Result<()> {
             release,
             source_map,
             profile_trace,
+            hud,
             cargo_features,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
@@ -438,6 +488,7 @@ fn main() -> Result<()> {
                 release,
                 source_map,
                 profile_trace.as_deref(),
+                hud,
                 &cargo_features.values,
             )
         }
@@ -450,6 +501,7 @@ fn main() -> Result<()> {
             mode,
             failure_screenshot,
             native,
+            host_env,
             cargo_features,
         } => {
             let target = scenario.map(|path| cwd.join(path));
@@ -463,6 +515,7 @@ fn main() -> Result<()> {
                 mode,
                 failure_screenshot,
                 native,
+                host_env,
                 cargo_features: cargo_features.values,
             };
             test_scenario(&workspace, &app, &options)
@@ -483,7 +536,9 @@ fn main() -> Result<()> {
             height,
             window_id,
             scale_factor,
+            color_scheme,
             mode,
+            fixture,
             skip_build,
             with_host,
             scenario,
@@ -508,7 +563,9 @@ fn main() -> Result<()> {
                     height,
                     window_id,
                     scale_factor,
+                    color_scheme,
                     mode,
+                    fixture,
                     skip_build,
                     with_host,
                     scenario,
@@ -517,8 +574,9 @@ fn main() -> Result<()> {
                     snapshot,
                     samples,
                     actions: render_actions
-                        .unwrap_or_else(|| legacy_render_actions(click, wheel, text, key)),
+                        .unwrap_or_else(|| fallback_render_actions(click, wheel, text, key)),
                     layout_only: false,
+                    projection_probe: None,
                     cargo_features: cargo_features.values,
                 },
             )
@@ -527,13 +585,16 @@ fn main() -> Result<()> {
             app,
             out,
             batch,
+            fixture,
             width,
             height,
             window_id,
             scale_factor,
+            color_scheme,
             mode,
             skip_build,
             wait_ms,
+            probe,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
             render(
@@ -546,7 +607,9 @@ fn main() -> Result<()> {
                     height,
                     window_id,
                     scale_factor,
+                    color_scheme,
                     mode,
+                    fixture,
                     skip_build,
                     with_host: false,
                     scenario: None,
@@ -556,6 +619,7 @@ fn main() -> Result<()> {
                     samples: 0,
                     actions: Vec::new(),
                     layout_only: true,
+                    projection_probe: probe,
                     cargo_features: Vec::new(),
                 },
             )
@@ -646,6 +710,7 @@ fn check(
                 mode: None,
                 failure_screenshot: false,
                 native: false,
+                host_env: Vec::new(),
                 cargo_features: cargo_features.to_vec(),
             },
         )?;
@@ -744,6 +809,7 @@ fn run(
     release: bool,
     source_map_override: Option<bool>,
     profile_trace: Option<&Path>,
+    hud: bool,
     cargo_features: &[String],
 ) -> Result<()> {
     let profile = BuildProfile::from_release(release);
@@ -771,11 +837,18 @@ fn run(
             .env("WABOU_PROFILE_TRACE", path);
     }
     cargo.env("WABOU_BUNDLE_PATH", bundle_path(workspace, app, profile)?);
-    ensure(cargo.status()?, "Rust host")
+    if hud {
+        cargo.env("WABOU_PERFORMANCE_HUD", "1");
+    }
+    ensure_host_exit(cargo.status()?)
 }
 
 fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<()> {
-    const HOST_TIMEOUT: Duration = Duration::from_secs(70);
+    // The JavaScript runner derives a bounded suite budget from its registered
+    // tests (currently capped at five minutes). Keep this watchdog outside that
+    // budget so it remains a final process-level fallback instead of killing a
+    // healthy large scenario before it can write a diagnostic report.
+    const HOST_TIMEOUT: Duration = Duration::from_secs(310);
     let test_dir = workspace.join("target/wabou-test").join(&app.name);
     fs::create_dir_all(&test_dir)?;
     let artifact_dir = options
@@ -834,6 +907,9 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     // instead of silently replacing it with the no-op ABI fallback.
     let mut cargo_features = options.cargo_features.clone();
     cargo_features.push(app_framework_feature(workspace, app, "devtools")?);
+    if !options.native {
+        cargo_features.push(app_framework_feature(workspace, app, "headless")?);
+    }
     let executable = build_behavior_host(workspace, &manifest, &binary, &cargo_features)?;
     let mut host = Command::new(executable);
     host.current_dir(workspace)
@@ -850,13 +926,22 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
         .env("XDG_DATA_HOME", test_data.path().join("xdg-data"))
         .env("XDG_CACHE_HOME", test_data.path().join("xdg-cache"));
     configure_test_backend(&mut host, options.native);
+    for assignment in &options.host_env {
+        let (name, value) = assignment
+            .split_once('=')
+            .ok_or_else(|| format!("invalid --env value {assignment:?}; expected KEY=VALUE"))?;
+        if name.is_empty() || name.contains('=') || name.contains('\0') || value.contains('\0') {
+            return Err(format!("invalid --env value {assignment:?}; expected KEY=VALUE").into());
+        }
+        host.env(name, value);
+    }
     if options.failure_screenshot {
         host.env("WABOU_TEST_FAILURE_SCREENSHOT", "1");
     }
     let stopped = Arc::new(AtomicBool::new(false));
     let signal = stopped.clone();
     ctrlc::set_handler(move || signal.store(true, Ordering::Release))?;
-    let status = wait_for_managed_child(host, HOST_TIMEOUT, &stopped)?;
+    let status = wait_for_behavior_host(host, HOST_TIMEOUT, &stopped)?;
     ensure(status, "Wabou behavior test")
 }
 
@@ -1046,17 +1131,18 @@ fn run_bindings_target(
     ensure(cargo.status()?, "Wabou bindings generator")
 }
 
-fn dev(
-    workspace: &Path,
-    app: App,
+struct DevOptions<'a> {
     port: u16,
     open_devtools: bool,
+    hud: bool,
     rust_hot_reload: bool,
-    mode: Option<&str>,
-    cargo_features: &[String],
-) -> Result<()> {
+    mode: Option<&'a str>,
+    cargo_features: &'a [String],
+}
+
+fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
     ensure_workspace_package_exports(workspace)?;
-    let port_text = port.to_string();
+    let port_text = options.port.to_string();
     let mut vite_command = Command::new("bun");
     vite_command
         .current_dir(&app.frontend)
@@ -1070,16 +1156,16 @@ fn dev(
             "--strictPort",
         ])
         .stdin(Stdio::null());
-    if let Some(mode) = mode {
+    if let Some(mode) = options.mode {
         vite_command.args(["--mode", mode]);
     }
     let mut vite = ManagedChild::spawn(vite_command)?;
-    let url = format!("http://127.0.0.1:{port}");
+    let url = format!("http://127.0.0.1:{}", options.port);
     wait_for_vite(&url, vite.child.as_mut())?;
 
     let binary = app_binary(workspace, &app)?;
     let mut dev_features = app_dev_features(workspace, &app)?;
-    let mut host_command = if rust_hot_reload {
+    let mut host_command = if options.rust_hot_reload {
         ensure_dx_hot_patch_available()?;
         let package = app_package(workspace, &app)?;
         let hot_reload_feature = app_framework_feature(workspace, &app, "rust-hot-reload")?;
@@ -1119,17 +1205,20 @@ fn dev(
     host_command
         .env("WABOU_VITE_URL", &url)
         .env("WABOU_VITE_ENTRY", &app.entry);
-    apply_cargo_features(&mut host_command, cargo_features);
+    if options.hud {
+        host_command.env("WABOU_PERFORMANCE_HUD", "1");
+    }
+    apply_cargo_features(&mut host_command, options.cargo_features);
     let mut host = ManagedChild::spawn(host_command)?;
 
-    let mut inspector = if open_devtools {
+    let mut inspector = if options.open_devtools {
         let command = devtools::command(workspace)?;
         Some(ManagedChild::spawn(command)?)
     } else {
         None
     };
 
-    if rust_hot_reload {
+    if options.rust_hot_reload {
         println!(
             "[wabou] Vite and Rust capability hot reload ready at {url}; press Ctrl-C to stop"
         );
@@ -1199,7 +1288,7 @@ mod tests {
     use std::thread;
     use std::time::Instant;
 
-    use crate::headless_render::RenderAction;
+    use crate::gpui_render::RenderAction;
 
     use super::*;
 
@@ -1226,6 +1315,41 @@ mod tests {
         };
         assert_eq!(app.as_deref(), Some(Path::new("apps/gallery")));
         assert!(skip_behavior);
+    }
+
+    #[test]
+    fn parses_clean_scope() {
+        let Cli {
+            command: Commands::Clean { app, packages },
+        } = Cli::try_parse_from(["wabou", "clean", "apps/gallery", "--packages"]).unwrap()
+        else {
+            panic!("expected clean command");
+        };
+        assert_eq!(app.as_deref(), Some(Path::new("apps/gallery")));
+        assert!(packages);
+    }
+
+    #[test]
+    fn parses_explicit_behavior_host_environment() {
+        let Cli {
+            command: Commands::Test { host_env, .. },
+        } = Cli::try_parse_from([
+            "wabou",
+            "test",
+            "apps/pi-agent",
+            "--env",
+            "WABOU_PI_BIN=/tmp/fake-pi",
+            "--env",
+            "PI_TEST_MODE=deterministic",
+        ])
+        .unwrap()
+        else {
+            panic!("expected test command");
+        };
+        assert_eq!(
+            host_env,
+            ["WABOU_PI_BIN=/tmp/fake-pi", "PI_TEST_MODE=deterministic"]
+        );
     }
 
     #[test]
@@ -1346,7 +1470,9 @@ mod tests {
                 Commands::Render {
                     window_id,
                     scale_factor,
+                    color_scheme,
                     mode,
+                    fixture,
                     skip_build,
                     with_host,
                     scenario,
@@ -1362,7 +1488,9 @@ mod tests {
         };
         assert_eq!(window_id, 1);
         assert_eq!(scale_factor, 1.0);
+        assert_eq!(color_scheme, HeadlessColorScheme::Light);
         assert_eq!(mode, None);
+        assert_eq!(fixture, None);
         assert!(!skip_build);
         assert!(!with_host);
         assert_eq!(scenario, None);
@@ -1376,7 +1504,9 @@ mod tests {
                 Commands::Render {
                     window_id,
                     scale_factor,
+                    color_scheme,
                     mode,
+                    fixture,
                     skip_build,
                     with_host,
                     scenario,
@@ -1395,6 +1525,8 @@ mod tests {
             "7",
             "--scale-factor",
             "2",
+            "--color-scheme",
+            "dark",
             "--mode",
             "ui-test",
             "--skip-build",
@@ -1425,7 +1557,9 @@ mod tests {
         };
         assert_eq!(window_id, 7);
         assert_eq!(scale_factor, 2.0);
+        assert_eq!(color_scheme, HeadlessColorScheme::Dark);
         assert_eq!(mode.as_deref(), Some("ui-test"));
+        assert_eq!(fixture, None);
         assert!(skip_build);
         assert!(with_host);
         assert_eq!(scenario, Some(PathBuf::from("captures/downloads.ts")));
@@ -1433,6 +1567,41 @@ mod tests {
         assert_eq!(click, [10.0, 20.0, 30.0, 40.0]);
         assert_eq!(wheel, [100.0, 200.0, 0.0, 360.0]);
         assert_eq!(key, ["Enter", "Escape"]);
+    }
+
+    #[test]
+    fn render_accepts_a_named_layout_fixture_and_rejects_viewport_overrides() {
+        let Cli {
+            command: Commands::Render { fixture, .. },
+        } = Cli::try_parse_from([
+            "wabou",
+            "render",
+            "apps/pi-agent",
+            "--out",
+            "fixture.png",
+            "--fixture",
+            "conversation/complete-turn",
+        ])
+        .unwrap()
+        else {
+            panic!("expected render command");
+        };
+        assert_eq!(fixture.as_deref(), Some("conversation/complete-turn"));
+
+        assert!(
+            Cli::try_parse_from([
+                "wabou",
+                "render",
+                "apps/pi-agent",
+                "--out",
+                "fixture.png",
+                "--fixture",
+                "conversation/complete-turn",
+                "--width",
+                "800",
+            ])
+            .is_err()
+        );
     }
 
     #[test]
@@ -1523,6 +1692,26 @@ mod tests {
         };
         assert_eq!(batch, Some(PathBuf::from("fixtures.json")));
         assert_eq!(mode.as_deref(), Some("layout-test"));
+    }
+
+    #[test]
+    fn layout_accepts_one_incremental_projection_probe() {
+        let Cli {
+            command: Commands::Layout { probe, .. },
+        } = Cli::try_parse_from([
+            "wabou",
+            "layout",
+            "apps/gallery",
+            "--out",
+            "layout.json",
+            "--probe",
+            "globalThis.__fixture_set_count(2)",
+        ])
+        .unwrap()
+        else {
+            panic!("expected layout command");
+        };
+        assert_eq!(probe.as_deref(), Some("globalThis.__fixture_set_count(2)"));
     }
 
     #[test]
@@ -2027,6 +2216,24 @@ out-dir = "dist/resources"
         };
         assert!(release);
         assert_eq!(profile_trace.as_deref(), Some(Path::new("trace.json")));
+    }
+
+    #[test]
+    fn parses_native_performance_hud_for_dev_and_run() {
+        let Cli {
+            command: Commands::Dev { hud: dev_hud, .. },
+        } = Cli::try_parse_from(["wabou", "dev", "--hud"]).unwrap()
+        else {
+            panic!("expected dev command");
+        };
+        let Cli {
+            command: Commands::Run { hud: run_hud, .. },
+        } = Cli::try_parse_from(["wabou", "run", "--hud"]).unwrap()
+        else {
+            panic!("expected run command");
+        };
+        assert!(dev_hud);
+        assert!(run_hud);
     }
 
     #[test]

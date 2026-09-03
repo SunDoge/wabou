@@ -32,13 +32,18 @@ type WabouGlobal = typeof globalThis & {
     acceptedPath: string,
     timestamp: number,
   ) => Promise<boolean>;
-  /** Clear all hot records (called by the host before an in-process full reload). */
-  __wabou_hmr_clear_records?: () => void;
+  /** Start a reversible hot-record replacement for an in-process full reload. */
+  __wabou_hmr_begin_full_reload?: () => void;
+  /** Keep the records registered by the successfully imported graph. */
+  __wabou_hmr_commit_full_reload?: () => void;
+  /** Restore the last-good records after a failed entry import. */
+  __wabou_hmr_rollback_full_reload?: () => void;
 };
 
 const wabouGlobal = globalThis as WabouGlobal;
 const existingRecords = wabouGlobal.__wabou_hmr_records;
 const records = existingRecords ?? new Map<string, HotRecord>();
+let fullReloadSnapshot: Map<string, HotRecord> | null = null;
 if (!existingRecords) {
   wabouGlobal.__wabou_hmr_records = records;
 }
@@ -108,13 +113,6 @@ wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
   }
 
   const previous = record.current;
-  for (const dispose of previous.disposed) {
-    try {
-      dispose(record.data);
-    } catch (error) {
-      console.error(`[wabou-hmr] dispose failed for ${path}`, error);
-    }
-  }
   record.loading = true;
   record.next = null;
 
@@ -127,6 +125,16 @@ wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
         `[wabou-hmr] update for ${path} was invalidated/declined; host will full-reload`,
       );
       return false;
+    }
+    // Loading can still fail because a transformed module imports another
+    // module that Vite has not made ready yet. Keep the current module's
+    // effects/resources alive until its replacement is known to be usable.
+    for (const dispose of previous.disposed) {
+      try {
+        dispose(record.data);
+      } catch (error) {
+        console.error(`[wabou-hmr] dispose failed for ${path}`, error);
+      }
     }
     record.current = next;
     for (const accept of previous.accepted) {
@@ -153,7 +161,29 @@ wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
   }
 };
 
-/** Drop all hot records (used before an in-process full reload of the entry). */
-wabouGlobal.__wabou_hmr_clear_records = () => {
+/**
+ * Replace hot records transactionally during an entry reload. Vite can report
+ * a reload while a saved file still fails to transform; retaining the previous
+ * records lets the next valid save use HMR instead of leaving the runtime in a
+ * permanently degraded state.
+ */
+export function beginFullReload(): void {
+  if (fullReloadSnapshot) return;
+  fullReloadSnapshot = new Map(records);
   records.clear();
-};
+}
+
+export function commitFullReload(): void {
+  fullReloadSnapshot = null;
+}
+
+export function rollbackFullReload(): void {
+  if (!fullReloadSnapshot) return;
+  records.clear();
+  for (const [path, record] of fullReloadSnapshot) records.set(path, record);
+  fullReloadSnapshot = null;
+}
+
+wabouGlobal.__wabou_hmr_begin_full_reload = beginFullReload;
+wabouGlobal.__wabou_hmr_commit_full_reload = commitFullReload;
+wabouGlobal.__wabou_hmr_rollback_full_reload = rollbackFullReload;

@@ -23,8 +23,8 @@ contract is not implied by `flex-grow`.
 ## Wabou utilities
 
 `wabou-style` is the semantic source of truth. Its Winnow parsers accept a
-Tailwind-compatible subset and produce typed declarations for Taffy, Parley,
-Vello, and Wabou interaction state. Arbitrary syntax is typed rather than
+Tailwind-compatible subset and produce typed declarations for GPUI layout,
+text, paint, and Wabou interaction state. Arbitrary syntax is typed rather than
 arbitrary CSS: `p-[13px]` is valid, while `p-[var(--space)]` and unsupported
 `calc()` expressions are build errors.
 
@@ -84,7 +84,7 @@ import { defineWabouConfig } from "@wabou/vite";
 
 export default defineWabouConfig({
   theme: {
-    default: "dark",
+    default: "light",
     themes: {
       dark: {
         appearance: "dark",
@@ -97,6 +97,28 @@ export default defineWabouConfig({
     },
   },
 });
+```
+
+When `theme` is omitted, `@wabou/vite` supplies Wabou's modern desktop
+palette. Light is the default application appearance; a matching dark palette
+uses the same semantic token names. The default `@wabou/ui` geometry is tuned
+for pointer-and-keyboard desktop applications rather than touch-first pages:
+standard controls are 32px high, compact controls are 28px high, controls use
+an 8px radius, container and floating surfaces use a 12px radius, and ordinary
+container content uses a 20px inset. Applications can replace colors without
+having to restyle every component.
+
+`ComponentsProvider` tells components which elevation treatment to use. Keep
+it next to `ColorThemeProvider` so light and dark shadows change together:
+
+```tsx
+import { ColorThemeProvider, ComponentsProvider } from "@wabou/ui";
+
+<ColorThemeProvider theme={settings.theme}>
+  <ComponentsProvider theme={settings.theme === "dark" ? "dark" : "light"}>
+    <App />
+  </ComponentsProvider>
+</ColorThemeProvider>;
 ```
 
 Every named palette must define the same tokens. Those tokens become ordinary
@@ -181,8 +203,7 @@ Plain string styles remain available as a compatibility path.
 ## Native shadows
 
 Shadows use an explicit primitive prop rather than CSS `box-shadow` syntax.
-Each layer maps to one AnyRender box-shadow command, and layers paint in
-array order:
+Each layer maps to one retained GPUI shadow, and layers paint in array order:
 
 ```tsx
 import { shadow } from "@wabou/ui";

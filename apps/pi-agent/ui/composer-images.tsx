@@ -14,7 +14,7 @@ import {
 import image from "lucide-static/icons/image.svg?raw";
 import paperclip from "lucide-static/icons/paperclip.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import { For, Show } from "solid-js";
+import { For as ForValue, Show } from "solid-js";
 import { i18n, m } from "./i18n";
 
 export function imageFileName(path: string): string {
@@ -33,7 +33,7 @@ export function ComposerImages(props: ComposerImagesProps) {
         role="group"
         aria-label={i18n.message(m.attached_images, {})}
       >
-        <For each={props.paths}>
+        <ForValue each={props.paths}>
           {(path) => (
             <Attachment size="sm" class="max-w-64">
               <AttachmentMedia>
@@ -60,7 +60,7 @@ export function ComposerImages(props: ComposerImagesProps) {
               </AttachmentActions>
             </Attachment>
           )}
-        </For>
+        </ForValue>
       </AttachmentGroup>
     </Show>
   );

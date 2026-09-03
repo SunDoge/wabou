@@ -42,8 +42,8 @@ filtered right panel is materially different: Skia blends the three circles
 into a continuous field while both Vello backends preserve hard circle edges.
 Skia versus Vello Classic has normalized RMSE 0.0277.
 
-This proved that AnyRender was useful as a Wabou backend contract and comparison
-harness, but not as feature parity by itself. Wabou now records its canonical frame
-as an `anyrender::Scene`, uses Vello by default, and offers Skia behind the optional
-`renderer-skia` feature. Unsupported effects may still degrade silently, so an
-explicit capability matrix and deterministic fallback policy remain future work.
+This proved that AnyRender is useful as a comparison harness, but not as a
+credible interchangeable application-backend contract. Production Wabou now
+targets GPUI-CE. The experiment and explicitly named `wabou-legacy-*`
+crates remain available as migration oracles; they are not selected by an app
+feature.

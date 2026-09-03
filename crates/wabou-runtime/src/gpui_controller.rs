@@ -1,0 +1,2430 @@
+//! GPUI-owned retained state for one JavaScript runtime.
+
+use crate::reload::{HmrBatch, HmrDrainResult};
+use crate::{
+    ImageResourceHandle, ImageResourceStore,
+    host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, NumericEventData, ResizeObservation},
+    jsrt::{HostFrameDisposition, LayoutMetric, LayoutMetricsSnapshot},
+    runtime_session::RuntimeSession,
+};
+use wabou_protocol::{Frame, decode_frame};
+use wabou_shell::{GpuiProjection, ProjectionError};
+use wabou_style::stylesheet::{StyleSheet, StylesheetUpdate};
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct GpuiFrameTiming {
+    pub(crate) js_tick_ms: f64,
+    pub(crate) projection_ms: f64,
+    #[cfg(feature = "profiling")]
+    pub(crate) invalidation: wabou_shell::ProjectionInvalidationStats,
+}
+
+/// Renderer-side state consumed exclusively by the GPUI application runtime.
+///
+/// This controller intentionally does not know about the retired renderer or
+/// its document model. GPUI owns layout, text, painting, widgets, and input;
+/// this type only connects the JavaScript runtime to that retained projection.
+pub struct GpuiController {
+    pub(crate) runtime: RuntimeSession,
+    projection: GpuiProjection,
+    image_resources: ImageResourceStore,
+    next_host_event_id: u32,
+    next_native_text_revision: u32,
+    hovered_target: Option<wabou_host_api::NodeKey>,
+    pressed_targets: std::collections::BTreeMap<u8, wabou_host_api::NodeKey>,
+    pointer_buttons: u32,
+    last_primary_click: Option<(std::time::Instant, wabou_host_api::NodeKey, f32, f32)>,
+    focused_target: Option<wabou_host_api::NodeKey>,
+    last_window_metrics: Option<wabou_shell::WindowMetrics>,
+    published_layout_revision: Option<(u64, u32, u32)>,
+    text_rendering_mode: &'static str,
+    text_rendering_policy: &'static str,
+    #[cfg(feature = "devtools")]
+    debug_state: Option<wabou_devtools::SharedDebugState>,
+    #[cfg(feature = "devtools")]
+    published_debug_revision: Option<u64>,
+}
+
+fn completed_layout_metrics(
+    projected: &[wabou_shell::GpuiLayoutNode],
+    viewport: wabou_host_api::LayoutRect,
+) -> std::collections::HashMap<wabou_host_api::NodeKey, LayoutMetric> {
+    let by_key = projected
+        .iter()
+        .map(|node| (node.key, node))
+        .collect::<std::collections::HashMap<_, _>>();
+    projected
+        .iter()
+        .filter(|node| node.attached)
+        .map(|node| {
+            let bounds = node.bounds;
+            let rect = wabou_host_api::LayoutRect {
+                x: f32::from(bounds.origin.x),
+                y: f32::from(bounds.origin.y),
+                width: f32::from(bounds.size.width).max(0.0),
+                height: f32::from(bounds.size.height).max(0.0),
+            };
+            let mut clip = viewport;
+            let mut parent = node.parent;
+            while let Some(parent_key) = parent {
+                let Some(ancestor) = by_key.get(&parent_key) else {
+                    break;
+                };
+                let ancestor_bounds = ancestor.bounds;
+                let ancestor_rect = wabou_host_api::LayoutRect {
+                    x: f32::from(ancestor_bounds.origin.x),
+                    y: f32::from(ancestor_bounds.origin.y),
+                    width: f32::from(ancestor_bounds.size.width).max(0.0),
+                    height: f32::from(ancestor_bounds.size.height).max(0.0),
+                };
+                if ancestor.computed.overflow_x != "Visible" {
+                    let left = clip.x.max(ancestor_rect.x);
+                    let right = (clip.x + clip.width)
+                        .min(ancestor_rect.x + ancestor_rect.width)
+                        .max(left);
+                    clip.x = left;
+                    clip.width = right - left;
+                }
+                if ancestor.computed.overflow_y != "Visible" {
+                    let top = clip.y.max(ancestor_rect.y);
+                    let bottom = (clip.y + clip.height)
+                        .min(ancestor_rect.y + ancestor_rect.height)
+                        .max(top);
+                    clip.y = top;
+                    clip.height = bottom - top;
+                }
+                parent = ancestor.parent;
+            }
+            (
+                node.key,
+                LayoutMetric {
+                    rect,
+                    clip,
+                    scroll: wabou_host_api::LayoutScrollMetrics::default(),
+                },
+            )
+        })
+        .collect()
+}
+
+impl GpuiController {
+    pub(crate) fn new(runtime: RuntimeSession) -> Self {
+        Self {
+            runtime,
+            projection: GpuiProjection::new(),
+            image_resources: ImageResourceStore::default(),
+            next_host_event_id: 0,
+            next_native_text_revision: 0,
+            hovered_target: None,
+            pressed_targets: std::collections::BTreeMap::new(),
+            pointer_buttons: 0,
+            last_primary_click: None,
+            focused_target: None,
+            last_window_metrics: None,
+            published_layout_revision: None,
+            text_rendering_mode: "platform-default",
+            text_rendering_policy: "platform-default",
+            #[cfg(feature = "devtools")]
+            debug_state: None,
+            #[cfg(feature = "devtools")]
+            published_debug_revision: None,
+        }
+    }
+    pub(crate) fn set_image_resources(&mut self, resources: ImageResourceStore) {
+        self.image_resources = resources;
+    }
+
+    pub(crate) fn set_text_rendering_diagnostics(
+        &mut self,
+        mode: &'static str,
+        policy: &'static str,
+    ) {
+        self.text_rendering_mode = mode;
+        self.text_rendering_policy = policy;
+    }
+
+    pub(crate) fn apply_frame(&mut self, frame: &Frame<'_>) -> Result<(), ProjectionError> {
+        let atoms = self.runtime.atoms.borrow();
+        self.projection.apply_ops(frame, &atoms, |source| {
+            let (lo, hi) = source.split_once(':')?;
+            let handle = ImageResourceHandle::from_parts(lo.parse().ok()?, hi.parse().ok()?)?;
+            self.image_resources
+                .get(handle)
+                .map(|resource| resource.gpui_image())
+        })?;
+        drop(atoms);
+        self.retain_live_interaction_targets();
+        Ok(())
+    }
+
+    /// Retained input state must never outlive the projected node generation
+    /// that established it. Whole-tree remounts (including entry-module HMR)
+    /// can retire a hovered, pressed, or focused node without another platform
+    /// pointer/focus event arriving to clear it.
+    fn retain_live_interaction_targets(&mut self) {
+        let is_live = |target| self.projection.contains(target);
+        if self.hovered_target.is_some_and(|target| !is_live(target)) {
+            self.hovered_target = None;
+        }
+        self.pressed_targets.retain(|_, target| is_live(*target));
+        if self
+            .last_primary_click
+            .is_some_and(|(_, target, _, _)| !is_live(target))
+        {
+            self.last_primary_click = None;
+        }
+        if self.focused_target.is_some_and(|target| !is_live(target)) {
+            self.focused_target = None;
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn projection(&self) -> &GpuiProjection {
+        &self.projection
+    }
+
+    #[cfg(test)]
+    pub(crate) fn finish_projection_frame(&mut self) -> bool {
+        self.projection.finish_frame_profiled().changed()
+    }
+
+    pub(crate) fn take_projection_commands(&mut self) -> Vec<wabou_shell::GpuiCommand> {
+        self.projection.take_commands()
+    }
+
+    pub(crate) fn apply_projection_scroll(&mut self, command: wabou_shell::GpuiCommand) -> bool {
+        self.projection
+            .apply_scroll_command(command)
+            .is_some_and(|event| self.handle_projected_scroll(event).handled)
+    }
+
+    pub(crate) fn apply_projection_wheel(
+        &mut self,
+        target: wabou_host_api::NodeKey,
+        delta_x: f32,
+        delta_y: f32,
+    ) -> bool {
+        self.projection
+            .apply_wheel_delta(target, delta_x, delta_y)
+            .is_some_and(|event| {
+                self.handle_projected_scroll(event);
+                true
+            })
+    }
+
+    pub(crate) fn take_stylesheet_update(&mut self) -> Option<StylesheetUpdate> {
+        self.runtime.pending_css.as_ref()?.borrow_mut().take()
+    }
+
+    pub(crate) fn install_stylesheet(&mut self, sheet: StyleSheet) -> Result<(), String> {
+        tracing::debug!(
+            target: "stylesheet",
+            rules = sheet.rules.len(),
+            themes = sheet
+                .color_themes
+                .as_ref()
+                .map_or(0, |themes| themes.themes.len()),
+            "installing GPUI stylesheet"
+        );
+        self.projection.set_stylesheet(sheet)
+    }
+
+    pub(crate) fn take_color_theme(&mut self) -> Option<String> {
+        self.runtime
+            .pending_color_theme
+            .as_ref()?
+            .borrow_mut()
+            .take()
+    }
+
+    pub(crate) fn select_color_theme(&mut self, name: &str) -> Result<bool, String> {
+        self.projection.set_color_theme(name)
+    }
+
+    pub(crate) fn take_color_palette(&mut self) -> Option<Vec<u32>> {
+        self.runtime
+            .pending_color_palette
+            .as_ref()?
+            .borrow_mut()
+            .take()
+    }
+
+    pub(crate) fn take_pending_fonts(&mut self) -> Vec<Vec<u8>> {
+        self.runtime
+            .pending_fonts
+            .as_ref()
+            .map(|fonts| std::mem::take(&mut *fonts.borrow_mut()))
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn prepare_js_tick(&mut self) {
+        self.runtime.js.take_async_wake();
+        self.runtime.js.poll_async_runtime();
+    }
+
+    pub(crate) fn tick_js(&mut self) -> rquickjs::Result<Vec<u8>> {
+        let (bytes, has_raf) = self.runtime.js.tick()?;
+        self.runtime.has_raf = has_raf;
+        Ok(bytes)
+    }
+
+    pub(crate) fn fail_js_tick(&mut self) {
+        self.runtime.has_raf = false;
+    }
+
+    pub(crate) fn finish_js_tick(&mut self) -> bool {
+        self.runtime.js.poll_async_runtime()
+    }
+
+    pub(crate) fn install_runtime_wake(&mut self, wake: wabou_shell::WakeCallback) {
+        self.runtime.js.set_wake_callback(wake.clone());
+        self.runtime.host_message_inbox.set_wake(wake.clone());
+        self.runtime.reload.set_wake(wake.clone());
+        self.runtime.effect_bridge.set_wake_callback(wake.clone());
+        self.runtime.wake_callback = Some(wake);
+    }
+
+    pub(crate) fn poll_runtime_session(&mut self) -> bool {
+        let was_woken = self.runtime.js.take_async_wake();
+        let js_progressed = self.runtime.js.poll_async_runtime();
+        was_woken
+            || js_progressed
+            || self.runtime.host_message_inbox.has_pending()
+            || self.runtime.reload.is_pending()
+    }
+
+    pub(crate) fn poll_runtime(&mut self) -> bool {
+        let progressed = self.poll_runtime_session();
+        if self.runtime.host_message_inbox.has_pending() {
+            self.drain_application_messages();
+            return true;
+        }
+        progressed
+    }
+
+    pub(crate) fn take_runtime_effect(&mut self) -> Option<wabou_shell::EffectRequest> {
+        self.runtime.effect_bridge.take(&self.runtime.js)
+    }
+
+    pub(crate) fn complete_runtime_effect(&mut self, completion: wabou_shell::EffectCompletion) {
+        self.runtime
+            .effect_bridge
+            .complete(&self.runtime.js, completion);
+    }
+
+    pub(crate) fn record_protocol_frame(&mut self) {
+        self.runtime.protocol_revision = self.runtime.protocol_revision.wrapping_add(1);
+    }
+
+    pub(crate) fn dispatch_host_frame_raw(
+        &mut self,
+        events: &[HostEvent],
+    ) -> rquickjs::Result<HostFrameDisposition> {
+        self.runtime.js.dispatch_host_frame(events)
+    }
+
+    /// Deliver one atomic Host→JS event batch and stage any Solid writes
+    /// returned by that synchronous dispatch.
+    ///
+    /// The projection is deliberately not finished here. Input dispatch runs
+    /// before GPUI's next render; finishing the projection in the event stack
+    /// would consume its invalidation before `advance_frame_profiled` can use
+    /// it to rebuild the affected projection boundary.
+    pub(crate) fn dispatch_host_frame(
+        &mut self,
+        events: &[HostEvent],
+    ) -> rquickjs::Result<HostFrameDisposition> {
+        let mut disposition = self.dispatch_host_frame_raw(events)?;
+        if !disposition.protocol_frame.is_empty() {
+            let frame =
+                decode_frame(&disposition.protocol_frame).map_err(|_| rquickjs::Error::Unknown)?;
+            self.record_protocol_frame();
+            self.apply_frame(&frame)
+                .map_err(|_| rquickjs::Error::Unknown)?;
+            disposition.needs_tick = true;
+        }
+        if disposition.needs_tick
+            && let Some(wake) = self.runtime.wake_callback.as_ref()
+        {
+            // Host callbacks can synchronously enqueue Solid work without
+            // touching QuickJS's async-job waker. Keep the follow-up explicit:
+            // the bounded native wake channel coalesces repeated events and
+            // guarantees that deferred mutations are committed on a fresh
+            // GPUI update instead of waiting for unrelated input.
+            wake();
+        }
+        Ok(disposition)
+    }
+
+    /// Publish a window-level native file-drag transition through the shared
+    /// host-to-JavaScript application-message frame.
+    pub(crate) fn dispatch_file_drop(&mut self, event: wabou_shell::FileDropEvent) -> bool {
+        let phase = match event.phase {
+            wabou_shell::FileDropPhase::Entered => "entered",
+            wabou_shell::FileDropPhase::Moved => "moved",
+            wabou_shell::FileDropPhase::Left => "left",
+            wabou_shell::FileDropPhase::Dropped => "dropped",
+        };
+        let payload = serde_json::json!({
+            "phase": phase,
+            "paths": event.paths.into_iter()
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            "position": event.position.map(|position| serde_json::json!({
+                "x": position.x,
+                "y": position.y,
+            })),
+        });
+        self.dispatch_host_frame(&[HostEvent::Application(crate::HostMessage::str(
+            "wabou:file-drop",
+            payload.to_string(),
+        ))])
+        .is_ok()
+    }
+
+    /// Publish an authoritative GPUI window snapshot when its observable state
+    /// changed since the previous completed frame.
+    pub(crate) fn update_window_metrics(&mut self, metrics: wabou_shell::WindowMetrics) -> bool {
+        if self.last_window_metrics == Some(metrics) {
+            return false;
+        }
+        let payload = serde_json::json!({
+            "windowId": metrics.window_key,
+            "logicalWidth": metrics.logical_width,
+            "logicalHeight": metrics.logical_height,
+            "physicalWidth": metrics.physical_width,
+            "physicalHeight": metrics.physical_height,
+            "scaleFactor": metrics.scale_factor,
+            "maximized": metrics.maximized,
+            "focused": metrics.focused,
+            "outerX": metrics.outer_x,
+            "outerY": metrics.outer_y,
+            "occluded": metrics.occluded,
+            "colorScheme": metrics.color_scheme.map(|scheme| match scheme {
+                wabou_shell::ColorScheme::Light => "light",
+                wabou_shell::ColorScheme::Dark => "dark",
+            }),
+            "reducedMotion": metrics.reduced_motion,
+        });
+        let published = self
+            .dispatch_host_frame(&[HostEvent::Application(crate::HostMessage::str(
+                "wabou:window-metrics",
+                payload.to_string(),
+            ))])
+            .is_ok();
+        if published {
+            self.last_window_metrics = Some(metrics);
+        }
+        published
+    }
+
+    pub fn dispatch_node_json(
+        &mut self,
+        target: wabou_host_api::NodeKey,
+        event_code: u8,
+        payload: String,
+        cancellable: bool,
+    ) -> rquickjs::Result<(bool, bool)> {
+        if !self.projection.has_listener_in_chain(target, event_code) {
+            return Ok((false, false));
+        }
+        let event_id = self.next_event_id(cancellable);
+        let disposition = self.dispatch_host_frame(&[HostEvent::Node(HostNodeEvent {
+            target,
+            event_code,
+            event_id,
+            cancellable,
+            payload: NodeEventPayload::Json(payload),
+        })])?;
+        Ok((true, disposition.is_prevented(event_id)))
+    }
+
+    pub fn dispatch_node_numeric(
+        &mut self,
+        target: wabou_host_api::NodeKey,
+        event_code: u8,
+        values: [f64; wabou_protocol::event_data::LEN],
+        value_count: usize,
+        cancellable: bool,
+    ) -> rquickjs::Result<(bool, bool)> {
+        if !self.projection.has_listener_in_chain(target, event_code) {
+            return Ok((false, false));
+        }
+        let event_id = self.next_event_id(cancellable);
+        let disposition = self.dispatch_host_frame(&[HostEvent::Node(HostNodeEvent {
+            target,
+            event_code,
+            event_id,
+            cancellable,
+            payload: NodeEventPayload::Numeric(NumericEventData::prefix(values, value_count)),
+        })])?;
+        Ok((true, disposition.is_prevented(event_id)))
+    }
+
+    fn next_event_id(&mut self, cancellable: bool) -> u32 {
+        if !cancellable {
+            return 0;
+        }
+        self.next_host_event_id = self.next_host_event_id.wrapping_add(1).max(1);
+        self.next_host_event_id
+    }
+
+    pub fn handle_projected_pointer(
+        &mut self,
+        input: wabou_shell::ProjectedPointerEvent,
+    ) -> wabou_shell::EventResponse {
+        use wabou_protocol::{event, event_data};
+        use wabou_shell::{ProjectedPointerButton as Button, ProjectedPointerPhase as Phase};
+
+        let button = input.button.map_or(0, |button| match button {
+            Button::Primary => 0,
+            Button::Auxiliary => 1,
+            Button::Secondary => 2,
+            Button::Other => 3,
+        });
+        let button_mask = input.button.map_or(0, |button| match button {
+            Button::Primary => 1,
+            Button::Secondary => 2,
+            Button::Auxiliary => 4,
+            Button::Other => 8,
+        });
+        if input.phase == Phase::Down
+            && input.button == Some(Button::Primary)
+            && self.projection.is_focusable(input.target)
+        {
+            self.set_text_focus(input.target, true);
+        }
+
+        match input.phase {
+            Phase::Down => self.pointer_buttons |= button_mask,
+            Phase::Up => self.pointer_buttons &= !button_mask,
+            Phase::Move => {}
+        }
+
+        let mut data = [0.0; event_data::LEN];
+        data[event_data::CLIENT_X as usize] = f64::from(input.x);
+        data[event_data::CLIENT_Y as usize] = f64::from(input.y);
+        data[event_data::OFFSET_X as usize] = f64::from(input.local_x);
+        data[event_data::OFFSET_Y as usize] = f64::from(input.local_y);
+        data[event_data::BUTTON as usize] = f64::from(button);
+        data[event_data::BUTTONS as usize] = f64::from(self.pointer_buttons);
+        let mut modifiers = wabou_shell::Modifiers::empty();
+        modifiers.set(wabou_shell::Modifiers::SHIFT, input.shift);
+        modifiers.set(wabou_shell::Modifiers::CONTROL, input.control);
+        modifiers.set(wabou_shell::Modifiers::ALT, input.alt);
+        modifiers.set(wabou_shell::Modifiers::META, input.platform);
+        data[event_data::MODS as usize] = f64::from(modifiers.bits());
+        data[event_data::POINTER_ID_LO as usize] = 1.0;
+        data[event_data::POINTER_TYPE as usize] = 0.0;
+        data[event_data::PRIMARY as usize] = 1.0;
+        for slot in [
+            event_data::PRESSURE,
+            event_data::TANGENTIAL_PRESSURE,
+            event_data::TILT_X,
+            event_data::TILT_Y,
+            event_data::TWIST,
+        ] {
+            data[slot as usize] = f64::NAN;
+        }
+
+        let mut handled = false;
+        if self.hovered_target != Some(input.target) {
+            if let Some(previous) = self.hovered_target.take() {
+                handled |= self
+                    .dispatch_node_numeric(
+                        previous,
+                        event::POINTEROUT,
+                        data,
+                        event_data::TWIST as usize + 1,
+                        false,
+                    )
+                    .map(|value| value.0)
+                    .unwrap_or(false);
+                handled |= self
+                    .dispatch_node_numeric(
+                        previous,
+                        event::POINTERLEAVE,
+                        data,
+                        event_data::TWIST as usize + 1,
+                        false,
+                    )
+                    .map(|value| value.0)
+                    .unwrap_or(false);
+            }
+            self.hovered_target = Some(input.target);
+            handled |= self
+                .dispatch_node_numeric(
+                    input.target,
+                    event::POINTEROVER,
+                    data,
+                    event_data::TWIST as usize + 1,
+                    false,
+                )
+                .map(|value| value.0)
+                .unwrap_or(false);
+            handled |= self
+                .dispatch_node_numeric(
+                    input.target,
+                    event::POINTERENTER,
+                    data,
+                    event_data::TWIST as usize + 1,
+                    false,
+                )
+                .map(|value| value.0)
+                .unwrap_or(false);
+        }
+
+        match input.phase {
+            Phase::Move => {
+                handled |= self
+                    .dispatch_node_numeric(
+                        input.target,
+                        event::POINTERMOVE,
+                        data,
+                        event_data::TWIST as usize + 1,
+                        false,
+                    )
+                    .map(|value| value.0)
+                    .unwrap_or(false);
+            }
+            Phase::Down => {
+                self.pressed_targets.insert(button, input.target);
+                handled |= self
+                    .dispatch_node_numeric(
+                        input.target,
+                        event::POINTERDOWN,
+                        data,
+                        event_data::TWIST as usize + 1,
+                        false,
+                    )
+                    .map(|value| value.0)
+                    .unwrap_or(false);
+            }
+            Phase::Up => {
+                let pressed = self.pressed_targets.remove(&button);
+                let release_target = pressed.unwrap_or(input.target);
+                handled |= self
+                    .dispatch_node_numeric(
+                        release_target,
+                        event::POINTERUP,
+                        data,
+                        event_data::TWIST as usize + 1,
+                        false,
+                    )
+                    .map(|value| value.0)
+                    .unwrap_or(false);
+                if pressed == Some(input.target) {
+                    let activation = if button == 2 {
+                        Some(event::CONTEXTMENU)
+                    } else if button == 0 {
+                        Some(event::CLICK)
+                    } else {
+                        None
+                    };
+                    if let Some(code) = activation {
+                        handled |= self
+                            .dispatch_node_numeric(
+                                input.target,
+                                code,
+                                data,
+                                event_data::TWIST as usize + 1,
+                                true,
+                            )
+                            .map(|value| value.0)
+                            .unwrap_or(false);
+                    }
+                    if button == 0 {
+                        let now = std::time::Instant::now();
+                        let double = self.last_primary_click.is_some_and(|(then, target, x, y)| {
+                            target == input.target
+                                && now.duration_since(then) <= std::time::Duration::from_millis(400)
+                                && (input.x - x).abs() <= 4.0
+                                && (input.y - y).abs() <= 4.0
+                        });
+                        if double {
+                            handled |= self
+                                .dispatch_node_numeric(
+                                    input.target,
+                                    event::DBLCLICK,
+                                    data,
+                                    event_data::TWIST as usize + 1,
+                                    true,
+                                )
+                                .map(|value| value.0)
+                                .unwrap_or(false);
+                            self.last_primary_click = None;
+                        } else {
+                            self.last_primary_click = Some((now, input.target, input.x, input.y));
+                        }
+                    }
+                }
+            }
+        }
+        wabou_shell::EventResponse {
+            handled,
+            request_redraw: handled,
+            ..wabou_shell::EventResponse::default()
+        }
+    }
+
+    pub fn handle_projected_wheel(
+        &mut self,
+        input: wabou_shell::ProjectedWheelEvent,
+    ) -> wabou_shell::EventResponse {
+        use wabou_protocol::{event, event_data};
+
+        let mut modifiers = wabou_shell::Modifiers::empty();
+        modifiers.set(wabou_shell::Modifiers::SHIFT, input.shift);
+        modifiers.set(wabou_shell::Modifiers::CONTROL, input.control);
+        modifiers.set(wabou_shell::Modifiers::ALT, input.alt);
+        modifiers.set(wabou_shell::Modifiers::META, input.platform);
+        let scale = if input.precise {
+            1.0
+        } else {
+            wabou_shell::WHEEL_LINE_DELTA
+        };
+        let mut data = [0.0; event_data::LEN];
+        data[event_data::CLIENT_X as usize] = f64::from(input.x);
+        data[event_data::CLIENT_Y as usize] = f64::from(input.y);
+        data[event_data::OFFSET_X as usize] = f64::from(input.local_x);
+        data[event_data::OFFSET_Y as usize] = f64::from(input.local_y);
+        data[event_data::MODS as usize] = f64::from(modifiers.bits());
+        data[event_data::DELTA_X as usize] = -f64::from(input.delta_x) * scale;
+        data[event_data::DELTA_Y as usize] = -f64::from(input.delta_y) * scale;
+        data[event_data::PHASE as usize] = match input.phase {
+            wabou_shell::ProjectedWheelPhase::Started => 0.0,
+            wabou_shell::ProjectedWheelPhase::Changed => 1.0,
+            wabou_shell::ProjectedWheelPhase::Ended => 2.0,
+            wabou_shell::ProjectedWheelPhase::Cancelled => 3.0,
+        };
+        let handled = self
+            .dispatch_node_numeric(
+                input.target,
+                event::WHEEL,
+                data,
+                event_data::PHASE as usize + 1,
+                true,
+            )
+            .map(|value| value.0)
+            .unwrap_or(false);
+        wabou_shell::EventResponse {
+            handled,
+            request_redraw: handled,
+            ..wabou_shell::EventResponse::default()
+        }
+    }
+
+    pub fn handle_projected_scroll(
+        &mut self,
+        input: wabou_shell::ProjectedScrollEvent,
+    ) -> wabou_shell::EventResponse {
+        use wabou_protocol::{event, event_data};
+
+        let mut data = [0.0; event_data::LEN];
+        data[event_data::SCROLL_X as usize] = f64::from(input.x);
+        data[event_data::SCROLL_Y as usize] = f64::from(input.y);
+        let handled = self
+            .dispatch_node_numeric(
+                input.target,
+                event::SCROLL,
+                data,
+                event_data::SCROLL_Y as usize + 1,
+                false,
+            )
+            .map(|value| value.0)
+            .unwrap_or(false);
+        wabou_shell::EventResponse {
+            handled,
+            request_redraw: true,
+            ..wabou_shell::EventResponse::default()
+        }
+    }
+
+    pub(crate) fn text_controls(&self) -> Vec<wabou_shell::GpuiTextControl> {
+        self.projection.text_controls()
+    }
+
+    pub(crate) fn active_theme_snapshot(&self) -> Option<wabou_shell::GpuiThemeSnapshot> {
+        self.projection.active_theme_snapshot()
+    }
+
+    pub(crate) fn native_widgets(
+        &self,
+        accepts: impl FnMut(&str) -> bool,
+    ) -> Vec<wabou_shell::GpuiNativeWidget> {
+        self.projection.native_widgets(accepts)
+    }
+
+    pub(crate) fn projection_render_snapshot(&self) -> wabou_shell::GpuiProjectionRenderSnapshot {
+        self.projection.render_snapshot()
+    }
+
+    #[cfg(feature = "headless")]
+    pub(crate) fn projection_boundary_revisions(
+        &self,
+    ) -> std::collections::BTreeMap<wabou_shell::NodeKey, wabou_shell::ProjectionBoundaryRevision>
+    {
+        self.projection.projection_boundary_revisions().clone()
+    }
+
+    pub(crate) fn take_projection_boundary_changes(
+        &mut self,
+    ) -> std::collections::BTreeMap<wabou_shell::NodeKey, wabou_shell::DirtyKind> {
+        self.projection.take_boundary_changes()
+    }
+
+    pub(crate) fn projection_boundary_revision(
+        &self,
+        key: wabou_shell::NodeKey,
+    ) -> wabou_shell::ProjectionBoundaryRevision {
+        self.projection
+            .projection_boundary_revision(key)
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn projection_revision(&self) -> u64 {
+        self.projection.revision()
+    }
+
+    pub(crate) fn selectable_texts(&self) -> Vec<wabou_shell::GpuiSelectableText> {
+        self.projection.selectable_texts()
+    }
+
+    pub(crate) fn layout_snapshot(&self) -> Vec<wabou_shell::GpuiLayoutNode> {
+        self.projection.layout_snapshot()
+    }
+
+    pub(crate) fn completed_layout_needs_publish(&self) -> bool {
+        let metrics = self.last_window_metrics.unwrap_or_default();
+        self.published_layout_revision
+            != Some((
+                self.projection.revision(),
+                metrics.logical_width,
+                metrics.logical_height,
+            ))
+            // Protocol revisions do not capture layout-only changes caused by
+            // an ancestor, window constraints, or GPUI text measurement.
+            // Active ResizeObservers therefore require comparing completed
+            // geometry on every rendered frame; unchanged sizes are filtered
+            // below before dispatching an event.
+            || !self
+                .runtime
+                .js
+                .resize_targets_handle()
+                .borrow()
+                .is_empty()
+    }
+
+    pub(crate) fn has_window_metrics(&self) -> bool {
+        self.last_window_metrics.is_some()
+    }
+
+    /// Publish GPUI's completed prepaint geometry to the synchronous JS layout API.
+    ///
+    /// Both live and headless windows call this at the start of the following
+    /// render. Calling it before a completed prepaint would expose a
+    /// structurally current but geometrically stale snapshot to floating UI
+    /// and drag logic. The return value reports synchronous Solid projection
+    /// writes caused by ResizeObserver delivery.
+    pub(crate) fn publish_completed_layout(&mut self) -> bool {
+        let revision_before_dispatch = self.projection.revision();
+        let window = self.last_window_metrics.unwrap_or_default();
+        let revision = self.projection.revision();
+        let viewport = wabou_host_api::LayoutRect {
+            x: 0.0,
+            y: 0.0,
+            width: window.logical_width as f32,
+            height: window.logical_height as f32,
+        };
+        let projected = self.projection.layout_snapshot();
+        let nodes = completed_layout_metrics(&projected, viewport);
+        let layout = self.runtime.js.layout_metrics_handle();
+        *layout.borrow_mut() = LayoutMetricsSnapshot {
+            revision,
+            viewport,
+            nodes,
+        };
+
+        let resize_targets = self.runtime.js.resize_targets_handle();
+        let mut resize_events = Vec::new();
+        {
+            let layout = layout.borrow();
+            let mut targets = resize_targets.borrow_mut();
+            for (target, last_size) in targets.iter_mut() {
+                let Some(metric) = layout.nodes.get(target) else {
+                    continue;
+                };
+                let size = (metric.rect.width, metric.rect.height);
+                if *last_size == Some(size) {
+                    continue;
+                }
+                tracing::trace!(
+                    target: "wabou::layout",
+                    ?target,
+                    width = size.0,
+                    height = size.1,
+                    "publishing completed ResizeObserver geometry"
+                );
+                *last_size = Some(size);
+                resize_events.push(HostEvent::Resize(ResizeObservation {
+                    target: *target,
+                    width: size.0,
+                    height: size.1,
+                }));
+            }
+        }
+        if !resize_events.is_empty() {
+            let _ = self.dispatch_host_frame(&resize_events);
+        }
+        self.published_layout_revision =
+            Some((revision, window.logical_width, window.logical_height));
+        self.projection.revision() != revision_before_dispatch
+    }
+
+    pub(crate) fn focused_target(&self) -> Option<wabou_host_api::NodeKey> {
+        self.focused_target
+    }
+
+    #[cfg(test)]
+    pub(crate) fn contains(&self, target: wabou_host_api::NodeKey) -> bool {
+        self.projection.contains(target)
+    }
+
+    pub(crate) fn text_input_state(&self) -> wabou_shell::ProjectedTextInputState {
+        let Some(target) = self.focused_target else {
+            return wabou_shell::ProjectedTextInputState::default();
+        };
+        let Some(control) = self
+            .projection
+            .text_controls()
+            .into_iter()
+            .find(|control| control.key == target)
+        else {
+            return wabou_shell::ProjectedTextInputState::default();
+        };
+        wabou_shell::ProjectedTextInputState {
+            accepts_text: !control.disabled && !control.readonly,
+            text: Some(control.value),
+            selection: None,
+            selection_reversed: false,
+            cursor_bounds: None,
+        }
+    }
+
+    pub(crate) fn commit_text_value(
+        &mut self,
+        target: wabou_host_api::NodeKey,
+        value: &str,
+    ) -> bool {
+        self.next_native_text_revision = self.next_native_text_revision.wrapping_add(1).max(1);
+        let native_revision = self.next_native_text_revision;
+        if self
+            .projection
+            .update_native_text_value(target, value, native_revision)
+            .is_err()
+        {
+            return false;
+        }
+        let payload = serde_json::json!({
+            "value": value,
+            "nativeRevision": native_revision,
+        })
+        .to_string();
+        self.dispatch_node_json(target, wabou_protocol::event::INPUT, payload, false)
+            .map(|result| result.0)
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn set_text_focus(
+        &mut self,
+        target: wabou_host_api::NodeKey,
+        focused: bool,
+    ) -> bool {
+        let next = if focused { Some(target) } else { None };
+        if (!focused && self.focused_target != Some(target)) || self.focused_target == next {
+            return false;
+        }
+        let previous = std::mem::replace(&mut self.focused_target, next);
+        let mut changed = previous != next;
+        if let Some(previous) = previous {
+            changed |= self
+                .dispatch_node_json(previous, wabou_protocol::event::BLUR, "{}".into(), false)
+                .map(|result| result.0)
+                .unwrap_or(false);
+            changed |= self
+                .dispatch_node_json(
+                    previous,
+                    wabou_protocol::event::FOCUSOUT,
+                    "{}".into(),
+                    false,
+                )
+                .map(|result| result.0)
+                .unwrap_or(false);
+        }
+        if let Some(next) = next {
+            changed |= self
+                .dispatch_node_json(next, wabou_protocol::event::FOCUS, "{}".into(), false)
+                .map(|result| result.0)
+                .unwrap_or(false);
+            changed |= self
+                .dispatch_node_json(next, wabou_protocol::event::FOCUSIN, "{}".into(), false)
+                .map(|result| result.0)
+                .unwrap_or(false);
+        }
+        changed
+    }
+
+    pub(crate) fn handle_input(
+        &mut self,
+        event: wabou_shell::ProjectedInputEvent,
+    ) -> wabou_shell::EventResponse {
+        match event {
+            wabou_shell::ProjectedInputEvent::TransitionEnd { target, generation } => {
+                let payload = serde_json::json!({ "generation": generation }).to_string();
+                let changed = self
+                    .dispatch_node_json(
+                        target,
+                        wabou_protocol::event::TRANSITIONEND,
+                        payload,
+                        false,
+                    )
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                wabou_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..wabou_shell::EventResponse::default()
+                }
+            }
+            wabou_shell::ProjectedInputEvent::Activate { target } => {
+                let handled = self
+                    .dispatch_node_json(target, wabou_protocol::event::CLICK, "{}".into(), true)
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                wabou_shell::EventResponse {
+                    handled,
+                    request_redraw: handled,
+                    ..wabou_shell::EventResponse::default()
+                }
+            }
+            wabou_shell::ProjectedInputEvent::ValueChange { target, value } => {
+                let focused = self.set_text_focus(target, true);
+                let payload = serde_json::json!({ "value": value }).to_string();
+                let changed = self
+                    .dispatch_node_json(target, wabou_protocol::event::CHANGE, payload, false)
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                let handled = focused || changed;
+                wabou_shell::EventResponse {
+                    handled,
+                    request_redraw: handled,
+                    ..wabou_shell::EventResponse::default()
+                }
+            }
+            wabou_shell::ProjectedInputEvent::TextChange { target, value } => {
+                let changed = self.commit_text_value(target, &value);
+                wabou_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..wabou_shell::EventResponse::default()
+                }
+            }
+            wabou_shell::ProjectedInputEvent::FocusChange { target, focused } => {
+                let changed = self.set_text_focus(target, focused);
+                wabou_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..wabou_shell::EventResponse::default()
+                }
+            }
+            wabou_shell::ProjectedInputEvent::TextSelectionChange {
+                target,
+                anchor,
+                head,
+            } => {
+                let payload = serde_json::json!({
+                    "anchor": anchor,
+                    "head": head,
+                    "text": null,
+                    "kind": "simple",
+                })
+                .to_string();
+                let changed = self
+                    .dispatch_node_json(
+                        target,
+                        wabou_protocol::event::TEXTSELECTIONCHANGE,
+                        payload,
+                        false,
+                    )
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                wabou_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..wabou_shell::EventResponse::default()
+                }
+            }
+            wabou_shell::ProjectedInputEvent::Submit {
+                target,
+                secondary,
+                shift,
+            } => {
+                let payload = serde_json::json!({
+                    "secondary": secondary,
+                    "shift": shift,
+                })
+                .to_string();
+                let changed = self
+                    .dispatch_node_json(target, wabou_protocol::event::SUBMIT, payload, true)
+                    .map(|result| result.0)
+                    .unwrap_or(false);
+                wabou_shell::EventResponse {
+                    handled: changed,
+                    request_redraw: changed,
+                    ..wabou_shell::EventResponse::default()
+                }
+            }
+            wabou_shell::ProjectedInputEvent::Pointer(event) => {
+                self.handle_projected_pointer(event)
+            }
+            wabou_shell::ProjectedInputEvent::Wheel(event) => self.handle_projected_wheel(event),
+            wabou_shell::ProjectedInputEvent::Scroll(event) => self.handle_projected_scroll(event),
+            wabou_shell::ProjectedInputEvent::Key(event) => self.handle_projected_key(event),
+            wabou_shell::ProjectedInputEvent::Ime(event) => self.handle_projected_ime(event),
+        }
+    }
+
+    pub fn handle_projected_key(
+        &mut self,
+        input: wabou_shell::ProjectedKeyEvent,
+    ) -> wabou_shell::EventResponse {
+        let Some(target) = self.focused_target else {
+            return wabou_shell::EventResponse::default();
+        };
+        let mut modifiers = wabou_shell::Modifiers::empty();
+        modifiers.set(wabou_shell::Modifiers::SHIFT, input.shift);
+        modifiers.set(wabou_shell::Modifiers::CONTROL, input.control);
+        modifiers.set(wabou_shell::Modifiers::ALT, input.alt);
+        modifiers.set(wabou_shell::Modifiers::META, input.platform);
+        let payload = serde_json::json!({
+            "key": input.key_char.as_deref().unwrap_or(&input.key),
+            "keyWithoutModifiers": input.key,
+            "code": input.key,
+            "location": 0,
+            "mods": modifiers.bits(),
+            "primary": modifiers.primary_shortcut(),
+            "repeat": input.repeat,
+            "synthetic": false,
+        })
+        .to_string();
+        let (event_code, cancellable) = match input.phase {
+            wabou_shell::ProjectedKeyPhase::Down => (wabou_protocol::event::KEYDOWN, true),
+            wabou_shell::ProjectedKeyPhase::Up => (wabou_protocol::event::KEYUP, false),
+        };
+        let (mut handled, prevented) = self
+            .dispatch_node_json(target, event_code, payload, cancellable)
+            .unwrap_or((false, false));
+        let accepts_text = self.text_input_state().accepts_text;
+        if input.phase == wabou_shell::ProjectedKeyPhase::Down
+            && !prevented
+            && !accepts_text
+            && !input.control
+            && !input.platform
+            && let Some(text) = input
+                .key_char
+                .filter(|text| text.chars().any(|character| !character.is_control()))
+        {
+            handled |= self.dispatch_text_commit(target, text, "keyboard");
+        }
+        wabou_shell::EventResponse {
+            handled,
+            request_redraw: handled,
+            consume_key_text: prevented,
+            text_input: Some(accepts_text),
+            clipboard: None,
+        }
+    }
+
+    pub fn handle_projected_ime(
+        &mut self,
+        input: wabou_shell::ProjectedImeEvent,
+    ) -> wabou_shell::EventResponse {
+        let Some(target) = self.focused_target else {
+            return wabou_shell::EventResponse::default();
+        };
+        let handled = match input {
+            wabou_shell::ProjectedImeEvent::Commit(text) => {
+                self.dispatch_text_commit(target, text, "ime")
+            }
+            wabou_shell::ProjectedImeEvent::Preedit { text, cursor } => {
+                let (cursor_start, cursor_end) = cursor
+                    .map(|(start, end)| (Some(start), Some(end)))
+                    .unwrap_or((None, None));
+                self.dispatch_node_json(
+                    target,
+                    wabou_protocol::event::IMEPREEDIT,
+                    serde_json::json!({
+                        "data": text,
+                        "cursorStart": cursor_start,
+                        "cursorEnd": cursor_end,
+                    })
+                    .to_string(),
+                    false,
+                )
+                .map(|result| result.0)
+                .unwrap_or(false)
+            }
+        };
+        wabou_shell::EventResponse {
+            handled,
+            request_redraw: handled,
+            text_input: Some(self.text_input_state().accepts_text),
+            ..wabou_shell::EventResponse::default()
+        }
+    }
+
+    pub fn dispatch_paste(&mut self, text: String) -> wabou_shell::EventResponse {
+        let Some(target) = self.focused_target else {
+            return wabou_shell::EventResponse::default();
+        };
+        let handled = self.dispatch_text_commit(target, text, "paste");
+        wabou_shell::EventResponse {
+            handled,
+            request_redraw: handled,
+            ..wabou_shell::EventResponse::default()
+        }
+    }
+
+    fn dispatch_text_commit(
+        &mut self,
+        target: wabou_host_api::NodeKey,
+        text: String,
+        source: &str,
+    ) -> bool {
+        self.dispatch_node_json(
+            target,
+            wabou_protocol::event::IMECOMMIT,
+            serde_json::json!({ "data": text, "source": source }).to_string(),
+            false,
+        )
+        .map(|result| result.0)
+        .unwrap_or(false)
+    }
+
+    pub(crate) fn drain_hmr(&mut self) -> HmrDrainResult {
+        let Some(batch) = self.runtime.reload.drain() else {
+            return HmrDrainResult::Idle;
+        };
+        self.apply_hmr_batch(batch)
+    }
+
+    fn apply_hmr_batch(&mut self, batch: HmrBatch) -> HmrDrainResult {
+        if let Some(diagnostic) = batch.error {
+            tracing::error!(target: "hmr", diagnostic = %diagnostic, "Vite update failed; keeping last-good UI");
+            self.dispatch_application_message(crate::host_message::HostMessage::str(
+                "wabou:dev-server-error",
+                diagnostic.clone(),
+            ));
+            return HmrDrainResult::Error { diagnostic };
+        }
+        for path in &batch.css_paths {
+            tracing::warn!(
+                target: "hmr",
+                %path,
+                "ignoring native Vite css-update; layout styles use virtual:wabou-stylesheet"
+            );
+        }
+        if batch.full_reload {
+            let reason = batch
+                .full_reload_reason
+                .unwrap_or_else(|| "vite full-reload".into());
+            self.perform_full_reload(&reason);
+            return HmrDrainResult::FullReload { reason };
+        }
+
+        #[cfg(feature = "vite")]
+        let mut applied = 0usize;
+        #[cfg(feature = "vite")]
+        let vite_entry = self.runtime.reload.vite_entry().map(str::to_owned);
+        #[cfg(not(feature = "vite"))]
+        let applied = batch.js_updates.len();
+        for update in batch.js_updates {
+            #[cfg(feature = "vite")]
+            let side_effect_update = is_wabou_side_effect_update(
+                &update.path,
+                &update.accepted_path,
+                vite_entry.as_deref(),
+            );
+            #[cfg(feature = "vite")]
+            tracing::debug!(
+                target: "hmr",
+                path = %update.path,
+                accepted_path = %update.accepted_path,
+                ?vite_entry,
+                side_effect_update,
+                "classified Vite update"
+            );
+            #[cfg(feature = "vite")]
+            if side_effect_update {
+                match self.runtime.js.apply_vite_side_effect_update(
+                    &update.accepted_path,
+                    update.timestamp,
+                    update.source,
+                ) {
+                    Ok(()) => {
+                        applied += 1;
+                        continue;
+                    }
+                    Err(error) => {
+                        let reason =
+                            format!("side-effect HMR failed for {}: {error:?}", update.path);
+                        self.perform_full_reload(&reason);
+                        return HmrDrainResult::FullReload { reason };
+                    }
+                }
+            }
+            #[cfg(feature = "vite")]
+            match self.runtime.js.apply_hmr_update(
+                &update.path,
+                &update.accepted_path,
+                update.timestamp,
+                update.source,
+            ) {
+                Ok(true) => applied += 1,
+                Ok(false) => {
+                    let reason = format!("module declined or missing hot context: {}", update.path);
+                    self.perform_full_reload(&reason);
+                    return HmrDrainResult::FullReload { reason };
+                }
+                Err(error) => {
+                    let reason = format!("apply_hmr failed for {}: {error:?}", update.path);
+                    self.perform_full_reload(&reason);
+                    return HmrDrainResult::FullReload { reason };
+                }
+            }
+            #[cfg(not(feature = "vite"))]
+            let _ = update;
+        }
+        if applied > 0 || !batch.css_paths.is_empty() {
+            self.dispatch_dev_server_ready();
+            HmrDrainResult::Applied {
+                js_updates: applied,
+            }
+        } else {
+            HmrDrainResult::Idle
+        }
+    }
+
+    fn perform_full_reload(&mut self, reason: &str) {
+        tracing::warn!(target: "hmr", %reason, "performing in-process GPUI full reload");
+        #[cfg(feature = "vite")]
+        if let Some(entry) = self.runtime.reload.vite_entry().map(str::to_owned) {
+            match self.runtime.js.reboot_vite_entry(&entry) {
+                Ok(()) => {
+                    self.runtime.has_raf = true;
+                    self.dispatch_dev_server_ready();
+                }
+                Err(error) => tracing::error!(
+                    target: "hmr",
+                    %entry,
+                    ?error,
+                    "full reload re-import failed; keeping last-good GPUI tree"
+                ),
+            }
+            return;
+        }
+        tracing::error!(target: "hmr", %reason, "full reload requested without a Vite entry");
+    }
+
+    fn dispatch_dev_server_ready(&mut self) {
+        self.dispatch_application_message(crate::host_message::HostMessage::str(
+            "wabou:dev-server-ready",
+            "{}",
+        ));
+    }
+
+    fn dispatch_application_message(&mut self, message: crate::host_message::HostMessage) {
+        if let Err(error) = self.dispatch_host_frame(&[HostEvent::Application(message)]) {
+            tracing::error!(target: "bridge", ?error, "failed to dispatch application message");
+        }
+    }
+
+    fn drain_application_messages(&mut self) {
+        let messages = self.runtime.host_message_inbox.drain_batch();
+        if messages.is_empty() {
+            return;
+        }
+        let events = messages
+            .into_iter()
+            .map(HostEvent::Application)
+            .collect::<Vec<_>>();
+        if let Err(error) = self.dispatch_host_frame(&events) {
+            tracing::error!(target: "host_message", ?error, "failed to dispatch application messages");
+        }
+    }
+
+    fn drain_projection_updates(&mut self) {
+        if let Some(update) = self.take_stylesheet_update() {
+            match update {
+                StylesheetUpdate::Ir(sheet) => {
+                    for diagnostic in &sheet.diagnostics {
+                        tracing::warn!(target: "stylesheet", %diagnostic);
+                    }
+                    if let Err(error) = self.install_stylesheet(sheet) {
+                        tracing::error!(target: "stylesheet", %error, "failed to install GPUI stylesheet");
+                    }
+                }
+            }
+        }
+        if let Some(name) = self.take_color_theme()
+            && let Err(error) = self.select_color_theme(&name)
+        {
+            tracing::warn!(target: "stylesheet", %name, %error, "failed to select GPUI color theme");
+        }
+        if let Some(colors) = self.take_color_palette()
+            && let Err(error) = self.projection.set_ordered_color_palette(colors)
+        {
+            tracing::warn!(target: "stylesheet", %error, "failed to install GPUI color palette");
+        }
+    }
+
+    /// Advance one complete Solid flush and publish its retained GPUI tree.
+    #[cfg(test)]
+    pub fn advance_frame(&mut self) -> bool {
+        self.advance_frame_profiled().0
+    }
+
+    pub(crate) fn advance_frame_profiled(&mut self) -> (bool, bool, GpuiFrameTiming) {
+        self.prepare_js_tick();
+        let _ = self.drain_hmr();
+        self.drain_application_messages();
+        self.drain_projection_updates();
+        let js_started = std::time::Instant::now();
+        let bytes = match self.tick_js() {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                let timing = GpuiFrameTiming {
+                    js_tick_ms: js_started.elapsed().as_secs_f64() * 1_000.0,
+                    projection_ms: 0.0,
+                    #[cfg(feature = "profiling")]
+                    invalidation: wabou_shell::ProjectionInvalidationStats::default(),
+                };
+                self.fail_js_tick();
+                tracing::error!(target: "bridge", ?error, "GPUI JavaScript tick failed");
+                return (false, false, timing);
+            }
+        };
+        let js_tick_ms = js_started.elapsed().as_secs_f64() * 1_000.0;
+        let projection_started = std::time::Instant::now();
+        if !bytes.is_empty() {
+            match decode_frame(&bytes) {
+                Ok(frame) => {
+                    self.record_protocol_frame();
+                    if let Err(error) = self.apply_frame(&frame) {
+                        tracing::error!(target: "bridge", ?error, "failed to project GPUI protocol frame");
+                    }
+                }
+                Err(error) => {
+                    tracing::error!(target: "bridge", %error, "failed to decode GPUI protocol frame")
+                }
+            }
+        }
+        // Promise continuations may mutate Solid after this turn's writer was
+        // serialized. Report that progress so the GPUI root schedules one more
+        // turn instead of stranding the mutations until unrelated input.
+        let needs_followup = self.finish_js_tick();
+        self.drain_projection_updates();
+        let invalidation = self.projection.finish_frame_profiled();
+        let changed = invalidation.changed();
+        tracing::trace!(
+            target: "wabou::perf",
+            protocol_bytes = bytes.len(),
+            needs_followup,
+            changed,
+            revision = invalidation.revision,
+            dirty_nodes = invalidation.dirty_nodes,
+            "advanced GPUI runtime frame"
+        );
+        (
+            changed,
+            needs_followup,
+            GpuiFrameTiming {
+                js_tick_ms,
+                projection_ms: projection_started.elapsed().as_secs_f64() * 1_000.0,
+                #[cfg(feature = "profiling")]
+                invalidation,
+            },
+        )
+    }
+
+    /// Advance all immediately-ready JavaScript work within one bounded GPUI
+    /// UI turn. Pending IO still parks on the runtime wake task; ready Promise
+    /// continuations must not require an unrelated platform frame before their
+    /// Solid mutations reach the native projection.
+    pub(crate) fn advance_ready_work_profiled(
+        &mut self,
+        max_turns: usize,
+    ) -> (bool, bool, GpuiFrameTiming) {
+        let mut changed = false;
+        let mut needs_followup = false;
+        let mut aggregate = GpuiFrameTiming::default();
+        for _ in 0..max_turns.max(1) {
+            let (turn_changed, turn_followup, timing) = self.advance_frame_profiled();
+            changed |= turn_changed;
+            needs_followup = turn_followup;
+            aggregate.js_tick_ms += timing.js_tick_ms;
+            aggregate.projection_ms += timing.projection_ms;
+            #[cfg(feature = "profiling")]
+            if timing.invalidation.changed() {
+                aggregate.invalidation = timing.invalidation;
+            }
+            if !turn_followup {
+                break;
+            }
+        }
+        (changed, needs_followup, aggregate)
+    }
+
+    /// Cross the synchronous host-event boundary before a behavior action is
+    /// reported complete.
+    ///
+    /// Solid 2 may use the first runtime turn to schedule its flush and emit
+    /// the retained mutation batch on the following turn. Requiring two turns
+    /// and then stopping at the first stable projection keeps actions
+    /// deterministic without waiting for authored, potentially infinite,
+    /// animation frames.
+    pub(crate) fn settle_synchronous_action(&mut self) -> bool {
+        let mut changed = false;
+        for turn in 0..4 {
+            let (turn_changed, needs_followup, _) = self.advance_frame_profiled();
+            changed |= turn_changed;
+            if turn > 0 && !turn_changed && !needs_followup {
+                break;
+            }
+        }
+        changed
+    }
+
+    pub(crate) fn publish_frame_stats(
+        &mut self,
+        timing: GpuiFrameTiming,
+        build_frame_ms: f64,
+        viewport: (u32, u32),
+    ) {
+        let Some(frame_stats) = &self.runtime.frame_stats else {
+            return;
+        };
+        let node_count = self.projection.node_count();
+        let mut frame_stats = frame_stats.borrow_mut();
+        if let Some(stats) = frame_stats.as_mut() {
+            stats.update_gpui(
+                build_frame_ms,
+                timing.js_tick_ms,
+                timing.projection_ms,
+                node_count,
+                viewport,
+            );
+        } else {
+            *frame_stats = Some(wabou_shell::FrameStats {
+                build_frame_ms,
+                js_tick_ms: timing.js_tick_ms,
+                scene_ms: timing.projection_ms,
+                present_ms: 0.0,
+                node_count,
+                viewport_w: viewport.0,
+                viewport_h: viewport.1,
+            });
+        }
+    }
+
+    pub(crate) fn frame_stats(&self) -> Option<wabou_shell::FrameStats> {
+        self.runtime
+            .frame_stats
+            .as_ref()
+            .and_then(|stats| *stats.borrow())
+    }
+
+    pub(crate) fn has_animation(&self) -> bool {
+        self.runtime.has_raf
+    }
+
+    /// Monotonically increasing count of non-empty JS-to-host frames.
+    #[cfg(any(feature = "headless", test))]
+    pub fn protocol_revision(&self) -> u64 {
+        self.runtime.protocol_revision
+    }
+
+    /// Boot the application after host bridges have been installed.
+    #[cfg(test)]
+    pub fn boot(&mut self, source: &str) -> rquickjs::Result<()> {
+        self.runtime.js.boot(source)
+    }
+
+    pub(crate) fn boot_with_source_map(
+        &mut self,
+        source: &str,
+        source_map: Option<&[u8]>,
+    ) -> rquickjs::Result<()> {
+        self.runtime.js.boot_with_source_map(source, source_map)
+    }
+
+    /// Evaluate a test script and preserve mapped guest diagnostics.
+    pub fn eval_script_diagnostic(&self, source: &str) -> Result<(), String> {
+        self.runtime.js.eval_script_diagnostic(source)
+    }
+
+    /// Evaluate an expression and return its string value.
+    #[cfg(any(feature = "headless", test))]
+    pub fn eval_string(&self, source: &str) -> rquickjs::Result<String> {
+        self.runtime.js.eval_string(source)
+    }
+
+    #[cfg(feature = "vite")]
+    /// Boot an application entry module through Vite.
+    pub fn boot_vite(&mut self, entry: &str) -> rquickjs::Result<()> {
+        self.runtime.js.boot_vite(entry)
+    }
+
+    #[cfg(feature = "vite")]
+    pub(crate) fn reload_handle(&mut self) -> crate::reload::ReloadHandle {
+        self.runtime.reload.handle()
+    }
+
+    #[cfg(feature = "vite")]
+    pub fn set_vite_entry(&mut self, entry: impl Into<String>) {
+        self.runtime.reload.set_vite_entry(entry);
+    }
+
+    pub(crate) fn set_effect_trace(&mut self, trace: crate::effect_trace::EffectTrace) {
+        self.runtime.effect_bridge.set_trace(trace);
+    }
+
+    /// Publish application-private directories to native effects.
+    pub fn set_app_directories(&mut self, directories: wabou_shell::AppDirectories) {
+        self.runtime.effect_bridge.set_app_directories(directories);
+    }
+
+    #[cfg(feature = "devtools")]
+    pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
+        self.runtime.js.set_debug_state(state.clone());
+        self.debug_state = Some(state);
+    }
+
+    #[cfg(feature = "devtools")]
+    pub(crate) fn debug_snapshot_needs_publish(&self) -> bool {
+        self.debug_state.is_some()
+            && self.published_debug_revision != Some(self.projection.revision())
+    }
+
+    #[cfg(feature = "devtools")]
+    pub(crate) fn publish_debug_snapshot(&mut self) {
+        self.publish_debug_snapshot_with_revision(true);
+    }
+
+    #[cfg(feature = "devtools")]
+    pub(crate) fn publish_provisional_debug_snapshot(&mut self) {
+        self.publish_debug_snapshot_with_revision(false);
+    }
+
+    #[cfg(feature = "devtools")]
+    fn publish_debug_snapshot_with_revision(&mut self, completed_layout: bool) {
+        let Some(state) = self.debug_state.clone() else {
+            return;
+        };
+        let metrics = self.last_window_metrics.unwrap_or_default();
+        let revision = self.projection.revision();
+        let nodes = self
+            .projection
+            .layout_snapshot()
+            .into_iter()
+            .filter(|node| node.attached)
+            .map(|node| gpui_debug_node(node, metrics.scale_factor))
+            .collect::<Vec<_>>();
+        let frame_stats = self
+            .runtime
+            .frame_stats
+            .as_ref()
+            .and_then(|stats| *stats.borrow())
+            .map(|stats| wabou_host_api::FrameStats {
+                build_frame_ms: stats.build_frame_ms,
+                js_tick_ms: stats.js_tick_ms,
+                scene_ms: stats.scene_ms,
+                present_ms: stats.present_ms,
+                node_count: stats.node_count,
+                viewport_w: stats.viewport_w,
+                viewport_h: stats.viewport_h,
+            });
+        let snapshot = wabou_devtools::DebugSnapshot {
+            status: wabou_devtools::DebugStatus {
+                protocol_version: wabou_devtools::PROTOCOL_VERSION,
+                pid: std::process::id(),
+                revision,
+                viewport_width: metrics.logical_width,
+                viewport_height: metrics.logical_height,
+                device_scale: metrics.scale_factor,
+                node_count: nodes.len(),
+                text_backend: "gpui".into(),
+                text_outline_fallback: "gpui-text-system".into(),
+                text_rendering_mode: self.text_rendering_mode.into(),
+                text_rendering_policy: self.text_rendering_policy.into(),
+                frame_stats,
+                focused_node: self.focused_target,
+                hovered_node: self.hovered_target,
+                ..Default::default()
+            },
+            nodes,
+        };
+        if let Ok(mut state) = state.write() {
+            state.publish(snapshot);
+            if completed_layout {
+                self.published_debug_revision = Some(revision);
+            }
+        }
+    }
+
+    /// Cloneable producer handle for application Rust-to-JavaScript messages.
+    pub fn host_message_handle(&self) -> crate::HostMessageHandle {
+        self.runtime.host_message_handle.clone()
+    }
+
+    pub(crate) fn host_message_context(
+        &self,
+        window_key: wabou_shell::WindowResourceKey,
+    ) -> crate::HostMessageContext {
+        crate::HostMessageContext::new(
+            window_key,
+            self.host_message_handle(),
+            self.runtime.host_message_cancellation.clone(),
+            self.runtime.js.tokio_handle(),
+            self.runtime.host_tasks.clone(),
+        )
+    }
+}
+
+#[cfg(feature = "vite")]
+fn is_wabou_side_effect_update(path: &str, accepted_path: &str, vite_entry: Option<&str>) -> bool {
+    if [path, accepted_path]
+        .into_iter()
+        .any(|path| path.contains("virtual:wabou-stylesheet"))
+    {
+        return true;
+    }
+    let Some(vite_entry) = vite_entry else {
+        return false;
+    };
+    let vite_entry = vite_entry.trim_start_matches('/');
+    [path, accepted_path].into_iter().any(|path| {
+        path.split_once('?')
+            .map_or(path, |(path, _)| path)
+            .trim_start_matches('/')
+            == vite_entry
+    })
+}
+
+#[cfg(feature = "devtools")]
+fn gpui_debug_node(
+    node: wabou_shell::GpuiLayoutNode,
+    device_scale: f64,
+) -> wabou_devtools::DebugNode {
+    let x = f32::from(node.bounds.origin.x);
+    let y = f32::from(node.bounds.origin.y);
+    let width = f32::from(node.bounds.size.width).max(0.0);
+    let height = f32::from(node.bounds.size.height).max(0.0);
+    let rect = wabou_devtools::Rect {
+        x,
+        y,
+        width,
+        height,
+    };
+    let content_rect = wabou_devtools::Rect {
+        x: f32::from(node.content_bounds.origin.x),
+        y: f32::from(node.content_bounds.origin.y),
+        width: f32::from(node.content_bounds.size.width).max(0.0),
+        height: f32::from(node.content_bounds.size.height).max(0.0),
+    };
+    let tag = match &node.kind {
+        wabou_shell::ProjectedNodeKind::Root => "root".to_owned(),
+        wabou_shell::ProjectedNodeKind::Element(tag) => tag.to_string(),
+        wabou_shell::ProjectedNodeKind::Text => "text".to_owned(),
+    };
+    let overlay_plane = match node.overlay_plane {
+        1 => "Floating",
+        2 => "Modal",
+        _ => "Content",
+    };
+    wabou_devtools::DebugNode {
+        id: node.key,
+        parent_id: node.parent,
+        tag,
+        text: node.text.map(|text| text.to_string()),
+        text_metrics: node
+            .text_metrics
+            .map(|metrics| wabou_devtools::DebugTextMetrics {
+                source: metrics.source.to_owned(),
+                line_box: wabou_devtools::Rect {
+                    x: f32::from(metrics.line_box.origin.x),
+                    y: f32::from(metrics.line_box.origin.y),
+                    width: f32::from(metrics.line_box.size.width).max(0.0),
+                    height: f32::from(metrics.line_box.size.height).max(0.0),
+                },
+                baseline: metrics.baseline,
+            }),
+        classes: node.classes,
+        matched_rules: Vec::new(),
+        style_diagnostics: node.style_diagnostics,
+        style_cascade: Vec::new(),
+        attrs: node
+            .attributes
+            .into_iter()
+            .map(|(name, value)| (name.to_string(), value.to_string()))
+            .collect(),
+        rect: rect.clone(),
+        content_rect,
+        listeners: node.listeners,
+        focusable: node.focus_order.is_some(),
+        focus_order: node.focus_order,
+        semantic: None,
+        widget: node.widget,
+        clip: wabou_devtools::DebugClipInfo {
+            device_scale,
+            ..Default::default()
+        },
+        computed: wabou_devtools::DebugComputedStyle {
+            position: Some(node.computed.position),
+            overflow_x: Some(node.computed.overflow_x),
+            overflow_y: Some(node.computed.overflow_y),
+            font_size: node.computed.font_size.unwrap_or(16.0),
+            font_weight: node.computed.font_weight.unwrap_or(400.0),
+            opacity: node.computed.opacity,
+            pointer_events: node.pointer_events,
+            z_index: node.z_index.min(i32::MAX as usize) as i32,
+            overlay_plane: overlay_plane.into(),
+            text_color: node
+                .computed
+                .text_color
+                .map_or_else(String::new, |color| format!("{color:?}")),
+            ..Default::default()
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(feature = "vite")]
+    #[test]
+    fn entry_and_generated_style_ir_modules_use_side_effect_hmr() {
+        assert!(is_wabou_side_effect_update(
+            "/@id/__x00__virtual:wabou-stylesheet",
+            "/@id/__x00__virtual:wabou-stylesheet",
+            Some("ui/index.tsx"),
+        ));
+        assert!(is_wabou_side_effect_update(
+            "/ui/index.tsx",
+            "/ui/index.tsx?t=42",
+            Some("ui/index.tsx"),
+        ));
+        assert!(!is_wabou_side_effect_update(
+            "/ui/pages/colors.tsx",
+            "/ui/pages/colors.tsx",
+            Some("ui/index.tsx"),
+        ));
+    }
+    use crate::JsRuntime;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    use wabou_protocol::Op;
+
+    #[test]
+    fn dropping_a_node_retires_all_native_interaction_state() {
+        let js = JsRuntime::new().expect("runtime");
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        let tag = controller.runtime.atoms.borrow_mut().intern("button");
+        let target = wabou_host_api::NodeKey::new(2, 1);
+        controller
+            .apply_frame(&Frame {
+                seq: 1,
+                ops: vec![Op::CreateElement { id: target, tag }],
+            })
+            .expect("create target");
+        controller.hovered_target = Some(target);
+        controller.pressed_targets.insert(0, target);
+        controller.last_primary_click = Some((std::time::Instant::now(), target, 0.0, 0.0));
+        controller.focused_target = Some(target);
+
+        controller
+            .apply_frame(&Frame {
+                seq: 2,
+                ops: vec![Op::DropNode { id: target }],
+            })
+            .expect("drop target");
+
+        assert_eq!(controller.hovered_target, None);
+        assert!(controller.pressed_targets.is_empty());
+        assert_eq!(controller.last_primary_click, None);
+        assert_eq!(controller.focused_target, None);
+    }
+    use wabou_shell::NodeKey;
+
+    #[test]
+    fn reports_async_progress_that_occurs_after_the_protocol_flush() {
+        let js = JsRuntime::new().expect("runtime");
+        let mut controller = GpuiController::new(crate::runtime_session::RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        controller
+            .boot(include_str!("gen/test-runtime.js"))
+            .expect("boot generated Solid runtime fixture");
+        assert!(controller.advance_frame());
+        controller
+            .eval_script_diagnostic(
+                r#"
+                globalThis.__wabou_async_turn_done = false;
+                requestAnimationFrame(() => {
+                  Promise.resolve().then(() => {
+                    globalThis.__wabou_async_turn_done = true;
+                  });
+                });
+                "#,
+            )
+            .expect("schedule post-flush promise continuation");
+
+        let (_, needs_followup, _) = controller.advance_frame_profiled();
+        assert!(
+            needs_followup,
+            "post-flush Promise progress needs another native turn"
+        );
+        assert_eq!(
+            controller
+                .eval_string("String(globalThis.__wabou_async_turn_done)")
+                .expect("read async marker"),
+            "true"
+        );
+    }
+
+    #[test]
+    fn bounded_ready_work_pump_settles_post_flush_promises() {
+        let js = JsRuntime::new().expect("runtime");
+        let mut controller = GpuiController::new(crate::runtime_session::RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        controller
+            .boot(include_str!("gen/test-runtime.js"))
+            .expect("boot generated Solid runtime fixture");
+        assert!(controller.advance_frame());
+        controller
+            .eval_script_diagnostic(
+                r#"
+                globalThis.__wabou_ready_turn_done = false;
+                requestAnimationFrame(() => {
+                  Promise.resolve().then(() => {
+                    globalThis.__wabou_ready_turn_done = true;
+                  });
+                });
+                "#,
+            )
+            .expect("schedule post-flush promise continuation");
+
+        let (_, needs_followup, _) = controller.advance_ready_work_profiled(8);
+        assert!(
+            !needs_followup,
+            "ready Promise work must settle within the bounded UI turn"
+        );
+        assert_eq!(
+            controller
+                .eval_string("String(globalThis.__wabou_ready_turn_done)")
+                .expect("read async marker"),
+            "true"
+        );
+    }
+
+    #[test]
+    fn host_frames_that_need_a_tick_schedule_a_fresh_runtime_turn() {
+        let js = JsRuntime::new().expect("runtime");
+        js.eval_script(
+            r#"
+            globalThis.__wabou_dispatch_host_frame = () => ({
+              needsTick: true,
+              preventedEventIds: new Uint32Array(),
+            });
+            "#,
+        )
+        .expect("install host-frame probe");
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        let wakes = Arc::new(AtomicUsize::new(0));
+        let observed = wakes.clone();
+        controller.install_runtime_wake(Arc::new(move || {
+            observed.fetch_add(1, Ordering::Relaxed);
+        }));
+        // Installing the callback intentionally schedules the initial pump.
+        wakes.store(0, Ordering::Relaxed);
+
+        let disposition = controller
+            .dispatch_host_frame(&[HostEvent::Application(crate::HostMessage::str(
+                "layout", "changed",
+            ))])
+            .expect("dispatch host frame");
+
+        assert!(disposition.needs_tick);
+        assert_eq!(wakes.load(Ordering::Relaxed), 1);
+    }
+
+    fn install_application_message_probe(js: &JsRuntime) {
+        js.eval_script(
+            r#"
+            globalThis.__host_got = [];
+            globalThis.__wabou_dispatch_host_frame = (u8) => {
+              const view = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+              const decoder = new TextDecoder();
+              let offset = 32;
+              const count = view.getUint32(24, true);
+              for (let index = 0; index < count; index++) {
+                const start = offset;
+                const kind = view.getUint8(offset);
+                const length = view.getUint32(offset + 4, true);
+                offset += 8;
+                if (kind === 3) {
+                  const topicLength = view.getUint16(offset, true);
+                  offset += 2;
+                  const topic = decoder.decode(u8.subarray(offset, offset + topicLength));
+                  offset += topicLength;
+                  const valueKind = u8[offset++];
+                  let payload = null;
+                  if (valueKind === 4) {
+                    const payloadLength = view.getUint16(offset, true);
+                    offset += 2;
+                    payload = decoder.decode(u8.subarray(offset, offset + payloadLength));
+                  }
+                  globalThis.__host_got.push({ topic, payload });
+                }
+                offset = start + length;
+              }
+              return { needsTick: false, preventedEventIds: new Uint32Array() };
+            };
+            "#,
+        )
+        .expect("install application-message probe");
+    }
+
+    #[test]
+    fn pending_application_fonts_are_drained_once_for_gpui() {
+        let js = JsRuntime::new().expect("runtime");
+        js.pending_fonts_handle()
+            .borrow_mut()
+            .extend([vec![1, 2, 3], vec![4, 5]]);
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+
+        assert_eq!(controller.take_pending_fonts(), [vec![1, 2, 3], vec![4, 5]]);
+        assert!(controller.take_pending_fonts().is_empty());
+    }
+
+    #[test]
+    fn native_file_drop_reaches_javascript_through_gpui_controller() {
+        let js = JsRuntime::new().expect("runtime");
+        install_application_message_probe(&js);
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+
+        assert!(controller.dispatch_file_drop(wabou_shell::FileDropEvent {
+            phase: wabou_shell::FileDropPhase::Dropped,
+            paths: vec!["/tmp/one.yaml".into(), "/tmp/two.torrent".into()],
+            position: Some(wabou_shell::Point { x: 24.5, y: 31.0 }),
+        }));
+
+        let payload = controller
+            .eval_string(
+                "globalThis.__host_got.find((value) => value.topic === 'wabou:file-drop').payload",
+            )
+            .expect("read file-drop payload");
+        let payload: serde_json::Value = serde_json::from_str(&payload).expect("file-drop json");
+        assert_eq!(payload["phase"], "dropped");
+        assert_eq!(payload["paths"][0], "/tmp/one.yaml");
+        assert_eq!(payload["paths"][1], "/tmp/two.torrent");
+        assert_eq!(payload["position"]["x"], 24.5);
+        assert_eq!(payload["position"]["y"], 31.0);
+    }
+
+    #[test]
+    fn gpui_window_metrics_reach_javascript_once_per_distinct_snapshot() {
+        let js = JsRuntime::new().expect("runtime");
+        install_application_message_probe(&js);
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        let metrics = wabou_shell::WindowMetrics {
+            window_key: wabou_shell::initial_window_resource_key(0),
+            logical_width: 800,
+            logical_height: 600,
+            physical_width: 1600,
+            physical_height: 1200,
+            scale_factor: 2.0,
+            maximized: true,
+            focused: true,
+            outer_x: Some(120),
+            outer_y: Some(80),
+            occluded: false,
+            color_scheme: Some(wabou_shell::ColorScheme::Dark),
+            reduced_motion: true,
+        };
+
+        assert!(controller.update_window_metrics(metrics));
+        assert!(!controller.update_window_metrics(metrics));
+
+        let messages = controller
+            .eval_string(
+                "JSON.stringify(globalThis.__host_got.filter((value) => value.topic === 'wabou:window-metrics'))",
+            )
+            .expect("read window-metrics messages");
+        let messages: serde_json::Value = serde_json::from_str(&messages).expect("message json");
+        assert_eq!(messages.as_array().map(Vec::len), Some(1));
+        let payload: serde_json::Value =
+            serde_json::from_str(messages[0]["payload"].as_str().expect("payload string"))
+                .expect("window-metrics payload");
+        assert_eq!(payload["windowId"], serde_json::json!({ "lo": 1, "hi": 1 }));
+        assert_eq!(payload["logicalWidth"], 800);
+        assert_eq!(payload["physicalWidth"], 1600);
+        assert_eq!(payload["scaleFactor"], 2.0);
+        assert_eq!(payload["focused"], true);
+        assert_eq!(payload["colorScheme"], "dark");
+        assert_eq!(payload["reducedMotion"], true);
+    }
+
+    #[cfg(feature = "devtools")]
+    #[test]
+    fn gpui_controller_publishes_window_state_before_native_layout() {
+        let js = JsRuntime::new().expect("runtime");
+        install_application_message_probe(&js);
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        controller.set_text_rendering_diagnostics("grayscale", "grayscale");
+        let debug_state = wabou_devtools::DebugState::shared();
+        controller.set_debug_state(debug_state.clone());
+        controller.update_window_metrics(wabou_shell::WindowMetrics {
+            window_key: wabou_shell::initial_window_resource_key(0),
+            logical_width: 900,
+            logical_height: 640,
+            physical_width: 1800,
+            physical_height: 1280,
+            scale_factor: 2.0,
+            focused: true,
+            ..Default::default()
+        });
+
+        assert!(controller.debug_snapshot_needs_publish());
+        controller.publish_debug_snapshot();
+        assert!(!controller.debug_snapshot_needs_publish());
+
+        let state = debug_state.read().expect("debug state");
+        let snapshot = state.snapshot();
+        assert_eq!(snapshot.status.pid, std::process::id());
+        assert_eq!(snapshot.status.viewport_width, 900);
+        assert_eq!(snapshot.status.viewport_height, 640);
+        assert_eq!(snapshot.status.device_scale, 2.0);
+        assert_eq!(snapshot.status.text_rendering_mode, "grayscale");
+        assert_eq!(snapshot.status.text_rendering_policy, "grayscale");
+        assert_eq!(snapshot.status.text_backend, "gpui");
+        assert_eq!(controller.projection.node_count(), 1);
+        // The root is retained, but DevTools geometry is only published after
+        // GPUI has completed prepaint. Before that point it must not expose a
+        // synthetic 0x0 node as if it had participated in native layout.
+        assert_eq!(snapshot.status.node_count, 0);
+        assert!(snapshot.nodes.is_empty());
+    }
+
+    #[test]
+    fn projected_listener_dispatches_and_preserves_cancellation() {
+        let js = JsRuntime::new().expect("runtime");
+        js.eval_script(
+            r#"
+            globalThis.receivedCodes = [];
+            globalThis.__wabou_dispatch_host_frame = (bytes) => {
+              const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+              const record = 40;
+              const code = view.getUint8(record + 8);
+              const eventId = view.getUint32(record + 12, true);
+              globalThis.receivedCodes.push(code);
+              return {
+                needsTick: false,
+                preventedEventIds: new Uint32Array([eventId]),
+              };
+            };
+            "#,
+        )
+        .expect("install host-frame hook");
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        let button = controller.runtime.atoms.borrow_mut().intern("button");
+        let target = NodeKey::new(2, 1);
+        controller
+            .apply_frame(&Frame {
+                seq: 1,
+                ops: vec![
+                    Op::CreateElement {
+                        id: target,
+                        tag: button,
+                    },
+                    Op::AddEventListener {
+                        id: target,
+                        event_type: wabou_protocol::event::CLICK,
+                    },
+                ],
+            })
+            .expect("project listener");
+
+        assert_eq!(
+            controller
+                .dispatch_node_json(target, wabou_protocol::event::CLICK, "{}".into(), true,)
+                .expect("dispatch click"),
+            (true, true)
+        );
+        assert_eq!(
+            controller
+                .eval_string("JSON.stringify(globalThis.receivedCodes)")
+                .expect("read event trace"),
+            format!("[{}]", wabou_protocol::event::CLICK)
+        );
+    }
+
+    #[test]
+    fn synchronous_event_mutations_invalidate_the_next_gpui_frame() {
+        let js = JsRuntime::new().expect("runtime");
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        controller
+            .boot(include_str!("gen/test-runtime.js"))
+            .expect("boot generated Solid runtime fixture");
+
+        let target = NodeKey::new(2, 1);
+        controller
+            .apply_frame(&Frame {
+                seq: 1,
+                ops: vec![
+                    Op::CreateText {
+                        id: target,
+                        text: "0",
+                    },
+                    Op::AppendChild {
+                        parent: NodeKey::ROOT,
+                        child: target,
+                    },
+                    Op::AddEventListener {
+                        id: target,
+                        event_type: wabou_protocol::event::CLICK,
+                    },
+                ],
+            })
+            .expect("project interactive text");
+        assert!(controller.advance_frame(), "initial tree must commit");
+
+        // seq=2, one SET_TEXT operation for target 2:1 and inline string "1".
+        let protocol_frame = [
+            2,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            wabou_protocol::op::SET_TEXT,
+            2,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            b'1',
+        ];
+        let bytes = protocol_frame
+            .iter()
+            .map(u8::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        controller
+            .eval_script_diagnostic(&format!(
+                r#"
+                globalThis.__wabou_dispatch_host_frame = () => ({{
+                  needsTick: false,
+                  preventedEventIds: new Uint32Array(),
+                  protocolFrame: new Uint8Array([{bytes}]),
+                }});
+                "#
+            ))
+            .expect("install synchronous event mutation");
+
+        assert_eq!(
+            controller
+                .dispatch_node_json(target, wabou_protocol::event::CLICK, "{}".into(), true)
+                .expect("dispatch click"),
+            (true, false)
+        );
+        assert!(
+            controller.advance_frame(),
+            "the next GPUI frame must observe the event mutation"
+        );
+    }
+
+    #[test]
+    fn event_without_projected_listener_does_not_cross_into_javascript() {
+        let js = JsRuntime::new().expect("runtime");
+        js.eval_script(
+            "globalThis.__wabou_dispatch_host_frame = () => { throw new Error('unexpected'); };",
+        )
+        .expect("install rejecting hook");
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        assert_eq!(
+            controller
+                .dispatch_node_json(
+                    NodeKey::new(2, 1),
+                    wabou_protocol::event::CLICK,
+                    "{}".into(),
+                    true,
+                )
+                .expect("ignore absent listener"),
+            (false, false)
+        );
+    }
+
+    #[test]
+    fn projected_pointer_sequence_uses_gpui_target_and_local_coordinates() {
+        let js = JsRuntime::new().expect("runtime");
+        js.eval_script(
+            r#"
+            globalThis.receivedEvents = [];
+            globalThis.__wabou_dispatch_host_frame = (bytes) => {
+              const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+              const record = 40;
+              const code = view.getUint8(record + 8);
+              const payloadKind = view.getUint8(record + 9);
+              const values = [];
+              if (payloadKind === 1) {
+                const count = view.getUint16(record + 10, true);
+                for (let index = 0; index < count; index++) {
+                  values.push(view.getFloat64(record + 16 + index * 8, true));
+                }
+              }
+              globalThis.receivedEvents.push([code, values]);
+              return { needsTick: false, preventedEventIds: new Uint32Array() };
+            };
+            "#,
+        )
+        .expect("install host-frame hook");
+        let mut controller = GpuiController::new(RuntimeSession::new(
+            js,
+            wabou_shell::initial_window_resource_key(0),
+        ));
+        let button = controller.runtime.atoms.borrow_mut().intern("button");
+        let target = NodeKey::new(7, 3);
+        let listeners = [
+            wabou_protocol::event::POINTEROVER,
+            wabou_protocol::event::POINTERENTER,
+            wabou_protocol::event::POINTERDOWN,
+            wabou_protocol::event::POINTERUP,
+            wabou_protocol::event::CLICK,
+        ];
+        let mut ops = vec![
+            Op::CreateElement {
+                id: target,
+                tag: button,
+            },
+            Op::AppendChild {
+                parent: NodeKey::ROOT,
+                child: target,
+            },
+            Op::SetInteractionPolicy {
+                id: target,
+                flags: wabou_protocol::INTERACTION_POLICY_FOCUSABLE,
+                focus_order: 0,
+            },
+        ];
+        ops.extend(listeners.map(|event_type| Op::AddEventListener {
+            id: target,
+            event_type,
+        }));
+        controller
+            .apply_frame(&Frame { seq: 1, ops })
+            .expect("project listeners");
+
+        let event = |phase| wabou_shell::ProjectedPointerEvent {
+            target,
+            phase,
+            x: 110.0,
+            y: 75.0,
+            local_x: 10.0,
+            local_y: 15.0,
+            button: Some(wabou_shell::ProjectedPointerButton::Primary),
+            shift: false,
+            control: false,
+            alt: false,
+            platform: false,
+        };
+        assert!(
+            controller
+                .handle_projected_pointer(event(wabou_shell::ProjectedPointerPhase::Down))
+                .handled
+        );
+        assert_eq!(controller.focused_target(), Some(target));
+        assert!(
+            controller
+                .handle_projected_pointer(event(wabou_shell::ProjectedPointerPhase::Up))
+                .handled
+        );
+
+        let trace = controller
+            .eval_string("JSON.stringify(globalThis.receivedEvents)")
+            .expect("read pointer trace");
+        let trace: serde_json::Value = serde_json::from_str(&trace).expect("parse pointer trace");
+        let events = trace.as_array().expect("event array");
+        assert_eq!(
+            events
+                .iter()
+                .map(|event| event[0].as_u64().unwrap() as u8)
+                .collect::<Vec<_>>(),
+            [
+                wabou_protocol::event::POINTEROVER,
+                wabou_protocol::event::POINTERENTER,
+                wabou_protocol::event::POINTERDOWN,
+                wabou_protocol::event::POINTERUP,
+                wabou_protocol::event::CLICK,
+            ]
+        );
+        assert_eq!(
+            events[2][1][wabou_protocol::event_data::OFFSET_X as usize],
+            10.0
+        );
+        assert_eq!(
+            events[2][1][wabou_protocol::event_data::OFFSET_Y as usize],
+            15.0
+        );
+    }
+}

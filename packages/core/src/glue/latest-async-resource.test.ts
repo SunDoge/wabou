@@ -12,6 +12,26 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+test("publishes a synchronous bootstrap load in the initiating flush", () => {
+  let resource!: ReturnType<
+    typeof createLatestAsyncResource<string, string>
+  >;
+  const committed: string[] = [];
+  createRoot((dispose) => {
+    resource = createLatestAsyncResource({
+      source: () => "bootstrap",
+      load: () => "ready",
+      onCommit: (value) => committed.push(value),
+    });
+    flush();
+    expect(resource.value()).toBe("ready");
+    expect(resource.status()).toBe("ready");
+    expect(resource.loading()).toBe(false);
+    expect(committed).toEqual(["ready"]);
+    dispose();
+  });
+});
+
 test("only the latest key can update the resource", async () => {
   const first = deferred<string>();
   const second = deferred<string>();
@@ -42,6 +62,36 @@ test("only the latest key can update the resource", async () => {
   expect(resource.value()).toBe("latest");
   expect(resource.loading()).toBe(false);
   dispose();
+});
+
+test("commits only the winning request before notifying dependents", async () => {
+  const first = deferred<string>();
+  const second = deferred<string>();
+  const committed: string[] = [];
+  let setKey!: (value: string) => void;
+  let resource!: ReturnType<typeof createLatestAsyncResource<string, string>>;
+
+  createRoot(() => {
+    const pair = createSignal("first");
+    setKey = pair[1];
+    resource = createLatestAsyncResource({
+      source: pair[0],
+      load: (key) => (key === "first" ? first.promise : second.promise),
+      onCommit: (value) => committed.push(value),
+    });
+    flush();
+    setKey("second");
+    flush();
+  });
+
+  first.resolve("stale");
+  await first.promise;
+  second.resolve("latest");
+  await second.promise;
+  await Promise.resolve();
+
+  expect(resource.value()).toBe("latest");
+  expect(committed).toEqual(["latest"]);
 });
 
 test("refresh replaces an in-flight request and exposes errors", async () => {

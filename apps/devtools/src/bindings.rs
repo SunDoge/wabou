@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
-use wabou::{Bindings, Capability, JsonCapabilityContract, JsonMethod, Type, specta};
+use wabou::{Bindings, Capability, CapabilityContract, JsonMethod, Type, specta};
 use wabou_devtools::{
     DebugCaptureCase, DebugFrame, DebugNode, DebugOverlay, DebugPointInspection, DebugStatus,
     DebugValidationReport, NodeKey,
 };
 
 /// Host capability containing the DevTools example endpoints.
-pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("devtools", 1);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("devtools", 1);
 
 /// Wire name of each DevTools endpoint.
 pub mod method {

@@ -1,8 +1,8 @@
 import { rgba } from "@wabou/core";
+import { mergeClasses } from "@wabou/core/style";
 import type { JSX } from "solid-js";
 import { match } from "ts-pattern";
 import { Modal, type ModalMotionOptions, type ModalProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import {
   DialogDescription,
   DialogFooter,
@@ -41,10 +41,54 @@ const geometry = (side: SheetSide) =>
 
 const sheetMotion = (side: SheetSide): ModalMotionOptions =>
   match(side)
-    .with("left", () => ({ duration: 0.18, fromX: -32 }))
-    .with("right", () => ({ duration: 0.18, fromX: 32 }))
-    .with("top", () => ({ duration: 0.18, fromY: -32 }))
-    .with("bottom", () => ({ duration: 0.18, fromY: 32 }))
+    .with(
+      "left",
+      () =>
+        ({
+          duration: 0.26,
+          enterDuration: 0.22,
+          exitDuration: 0.18,
+          enterEase: "easeOut",
+          exitEase: "linear",
+          fromX: -400,
+        }) as ModalMotionOptions,
+    )
+    .with(
+      "right",
+      () =>
+        ({
+          duration: 0.26,
+          enterDuration: 0.22,
+          exitDuration: 0.18,
+          enterEase: "easeOut",
+          exitEase: "linear",
+          fromX: 400,
+        }) as ModalMotionOptions,
+    )
+    .with(
+      "top",
+      () =>
+        ({
+          duration: 0.26,
+          enterDuration: 0.22,
+          exitDuration: 0.18,
+          enterEase: "easeOut",
+          exitEase: "linear",
+          fromY: -320,
+        }) as ModalMotionOptions,
+    )
+    .with(
+      "bottom",
+      () =>
+        ({
+          duration: 0.26,
+          enterDuration: 0.22,
+          exitDuration: 0.18,
+          enterEase: "easeOut",
+          exitEase: "linear",
+          fromY: 320,
+        }) as ModalMotionOptions,
+    )
     .exhaustive();
 
 /** A modal edge panel that shares native focus isolation with Dialog. */
@@ -55,6 +99,8 @@ export function Sheet(props: SheetProps): JSX.Element {
   return (
     <Modal
       {...props}
+      backdropFade={false}
+      contentFade={false}
       motion={props.motion === undefined ? sheetMotion(side()) : props.motion}
       backdropStyle={{
         "background-color": rgba(0x00000033),

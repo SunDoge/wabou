@@ -1,71 +1,75 @@
-//! wabou-shell: render a UI tree with winit + Taffy + Parley + AnyRender.
+//! GPUI-CE platform shell for Wabou.
 //!
-//! The shell is a reusable host: a [`source::FrameSource`] produces a flattened
-//! layout list each frame; [`shell::Shell`] owns the window and selected
-//! AnyRender backend. The `wabou-runtime` crate provides the SolidJS-driven
-//! (op-protocol) source.
+//! Solid owns application reactivity. This crate owns the native window and
+//! projects completed Solid flushes into GPUI. The projection boundary is
+//! deliberately frame-oriented: individual property writes never notify GPUI.
 
-#![warn(missing_docs)]
-
-pub use anyrender;
-pub use anyrender::PaintScene;
-pub use wabou_accessibility as accessibility;
-pub mod app;
-pub mod app_dirs;
-pub mod effect;
-#[path = "generated/effect_abi.rs"]
-mod effect_abi;
-pub mod error;
-pub mod headless;
-pub mod image;
-pub mod layout;
-pub mod renderer;
-mod renderer_backend;
-pub mod scene;
-pub mod scrollbar;
-pub mod shell;
-pub mod shortcut;
-pub mod source;
-pub mod style;
-pub mod svg;
-mod system;
-pub mod text;
-mod text_raster;
-pub mod widget;
-pub mod window_lifecycle;
+mod application_extension;
+mod element;
+mod input;
+mod native_widget;
+mod projection;
+mod protocol_projection;
+mod style;
+mod text_selection;
+mod tree;
+mod vector_path;
 mod window_state;
 
-pub use app::{
-    ExtensionContext, FrameSourceFactory, RunOutcome, ShellExtension, run_window,
-    run_window_with_options, run_window_with_size, run_windows, run_windows_with_factory,
-    run_windows_with_factory_and_extensions,
+pub use element::{
+    ProjectedElement, ProjectedNativeElementFactory, ProjectedPhaseTimings, ProjectedScrollHandle,
+    ProjectedSubtreeElementFactory, take_projected_phase_timings,
 };
-pub use app_dirs::{AppDirectories, AppDirectoryConfig};
-pub use effect::{
-    CapabilityId, ContextMenuItem, ContextMenuRequest, DialogFilter, EFFECT_ABI_VERSION,
-    EffectCompletion, EffectDispatch, EffectErrorCode, EffectExecutor, EffectId, EffectOp,
-    EffectPayload, EffectRequest, EffectResult, EffectScope, EffectTapeEntry, MenuPosition,
-    MessageDialogButtons, MessageDialogLevel, MessageDialogRequest, MethodId, NotificationRequest,
-    OpenDialogRequest, PickDirectoryRequest, RecordingEffectExecutor, ReplayEffectExecutor,
-    SaveDialogRequest, WindowResourceKey, initial_window_resource_key,
+pub use gpui;
+pub use input::{
+    ProjectedImeEvent, ProjectedInputEvent, ProjectedInputHandler, ProjectedInputSink,
+    ProjectedKeyEvent, ProjectedKeyPhase, ProjectedPointerButton, ProjectedPointerEvent,
+    ProjectedPointerPhase, ProjectedScrollEvent, ProjectedTextInputState, ProjectedWheelEvent,
+    ProjectedWheelPhase,
 };
-pub use error::{Error, Result};
-pub use shell::Shell;
-pub use shortcut::StandardShortcut;
-pub use source::{
-    AppLifecycleEvent, ClipboardRequest, ColorScheme, EventResponse, FileDropEvent, FileDropPhase,
-    FrameSource, FrameStats, GestureEvent, GesturePhase, HostAction, HostActionResult, ImeEvent,
-    KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent, PointerId,
-    PointerPhase, PointerProperties, PointerType, RendererBackend, ScreenshotRequest,
-    SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
-    SemanticStates, SemanticToggleState, UiEvent, WHEEL_LINE_DELTA, WakeCallback, WheelEvent,
-    WindowCommand, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
+pub use native_widget::{
+    NativeWidgetContext, NativeWidgetEventSink, NativeWidgetFactory, NativeWidgetInput,
+    NativeWidgetInputHandler, NativeWidgetMount,
 };
-pub use text::TextContext;
-pub use widget::{
-    MeasureContext, PaintContext, Widget, WidgetAccessibility, WidgetAvailableSpace, WidgetChanges,
-    WidgetEventResult, WidgetFactory, WidgetGeometry, WidgetHarness, WidgetNodeEvent, WidgetStyle,
-    WidgetTextSelection, WidgetTextSelectionKind, decode_widget_config,
+pub use projection::{
+    DirtyKind, FrameBatch, GpuiNodeKeyExt, NodeKey, PendingNode, ProjectionBoundaryRevision,
+    ProjectionInvalidationStats,
 };
+pub use protocol_projection::{
+    GpuiCommand, GpuiComputedStyle, GpuiLayoutNode, GpuiNativeWidget, GpuiProjection,
+    GpuiProjectionElementContext, GpuiProjectionRenderSnapshot, GpuiSelectableText,
+    GpuiTextCommand, GpuiTextControl, GpuiTextControlKind, GpuiTextControlStyle, GpuiThemeSnapshot,
+    project_ir,
+};
+pub use style::{StyleDiagnostic, StyleProjection};
+pub use text_selection::ProjectedTextSelection;
+pub use tree::{
+    ProjectedNode, ProjectedNodeKind, ProjectionError, ProjectionSnapshot, ProjectionTree,
+    TextSelectionPolicy,
+};
+pub use wabou_shell_api::event::*;
+pub use wabou_shell_api::{
+    AppDirectories, AppDirectoryConfig, CapabilityId, ContextMenuItem, ContextMenuRequest,
+    DialogFilter, EFFECT_ABI_VERSION, EffectCompletion, EffectDispatch, EffectErrorCode,
+    EffectExecutor, EffectId, EffectOp, EffectPayload, EffectRequest, EffectResult, EffectScope,
+    EffectTapeEntry, MenuPosition, MessageDialogButtons, MessageDialogLevel, MessageDialogRequest,
+    MethodId, NotificationRequest, OpenDialogRequest, PickDirectoryRequest,
+    RecordingEffectExecutor, ReplayEffectExecutor, RgbaColor, SaveDialogRequest, WindowBackground,
+    WindowCapabilities, WindowCommand, WindowCreateRequest, WindowEffect, WindowInputMode,
+    WindowIntent, WindowLevel, WindowLifecycle, WindowOptions, WindowPresence, WindowResourceKey,
+    initial_window_resource_key,
+};
+pub use wabou_shell_api::{app_dirs, effect, event, window, window_lifecycle};
 pub use window_state::WindowSizePersistence;
-pub use winit::raw_window_handle;
+
+/// Run a GPUI application using Wabou's selected platform implementation.
+///
+/// Keeping application construction here prevents downstream applications from
+/// depending directly on `gpui_ce_platform` and gives Wabou one place to install
+/// platform services.
+pub fn application() -> gpui::Application {
+    gpui_platform::application()
+}
+pub use application_extension::{
+    ApplicationExtension, ApplicationExtensionContext, install_application_extensions,
+};

@@ -41,6 +41,16 @@ test("validates identity and flattens only expanded branches", () => {
   ).toThrow("tree node id must be unique: same");
 });
 
+test("represents a lazy branch before its children are loaded", () => {
+  const model = createTreeModel([
+    { id: "remote", label: "Remote folder", hasChildren: true },
+  ]);
+  expect(model.isBranch("remote")).toBe(true);
+  expect(model.visible(["remote"]).map(({ node }) => node.id)).toEqual([
+    "remote",
+  ]);
+});
+
 test("expands, selects, and skips disabled items through native focus routing", () => {
   const screen = renderComponent(() => (
     <TreeView items={items} aria-label="Project files" />

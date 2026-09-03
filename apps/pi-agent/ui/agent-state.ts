@@ -1,6 +1,15 @@
 import { match, P } from "ts-pattern";
 
 export type AgentConnection = "stopped" | "ready" | "running" | "failed";
+
+/** Reconcile a process liveness snapshot without erasing newer RPC activity. */
+export function reconcileProcessConnection(
+  current: AgentConnection,
+  processRunning: boolean,
+): AgentConnection {
+  if (!processRunning) return "stopped";
+  return current === "running" || current === "failed" ? current : "ready";
+}
 export type AgentQueueMode = "all" | "one-at-a-time";
 export type AgentActivity =
   | { kind: "responding" }
@@ -37,8 +46,16 @@ export type AgentItem =
       state: "running" | "success" | "failed";
       input: string;
       output: string;
+      /** Total wall-clock time for the completed Pi turn owning this group. */
+      turnDurationMs?: number;
     }
-  | { id: string; kind: "notice"; text: string; tone?: "default" | "error" };
+  | {
+      id: string;
+      kind: "notice";
+      text: string;
+      tone?: "default" | "error";
+      recovery?: "retry_prompt";
+    };
 
 export interface AgentSessionStats {
   userMessages: number;
@@ -100,6 +117,8 @@ export interface AgentViewState {
   runtimeLogs: readonly string[];
   items: readonly AgentItem[];
   activeAssistantId?: string;
+  turnStartedAtMs?: number;
+  turnStartItemIndex?: number;
   error?: string;
   model?: string;
   modelId?: string;
@@ -329,6 +348,44 @@ const replaceItem = (
 ): readonly AgentItem[] =>
   items.map((item) => (item.id === id ? update(item) : item));
 
+const insertBeforeItem = (
+  items: readonly AgentItem[],
+  beforeId: string | undefined,
+  item: AgentItem,
+): readonly AgentItem[] => {
+  if (!beforeId) return [...items, item];
+  const index = items.findIndex((candidate) => candidate.id === beforeId);
+  if (index < 0) return [...items, item];
+  return [...items.slice(0, index), item, ...items.slice(index)];
+};
+
+function completeTurnItems(
+  state: AgentViewState,
+  settledAtMs: number | undefined,
+): readonly AgentItem[] {
+  const items = state.items.map((item) =>
+    item.kind === "user" && item.queued ? { ...item, queued: false } : item,
+  );
+  if (
+    settledAtMs === undefined ||
+    state.turnStartedAtMs === undefined ||
+    state.turnStartItemIndex === undefined
+  ) {
+    return items;
+  }
+  const turnStartIndex = state.turnStartItemIndex;
+  const lastToolIndex = items.findLastIndex(
+    (item, index) => index >= turnStartIndex && item.kind === "tool",
+  );
+  if (lastToolIndex < 0) return items;
+  const duration = Math.max(0, settledAtMs - state.turnStartedAtMs);
+  return items.map((item, index) =>
+    index === lastToolIndex && item.kind === "tool"
+      ? { ...item, turnDurationMs: duration }
+      : item,
+  );
+}
+
 export function appendUserMessage(
   state: AgentViewState,
   id: string,
@@ -382,7 +439,10 @@ export function reducePiEvent(
     .with("agent_start", () => ({
       ...state,
       connection: "running" as const,
+      error: undefined,
       activity: { kind: "responding" as const },
+      turnStartedAtMs: finiteNumber(event.receivedAtMs),
+      turnStartItemIndex: state.items.length,
     }))
     .with("queue_update", () => ({
       ...state,
@@ -447,6 +507,31 @@ export function reducePiEvent(
     .with("response", () => {
       if (event.success !== true) {
         const message = String(event.error ?? "Pi RPC command failed");
+        const requestId =
+          typeof event.id === "string"
+            ? event.id.match(/^wabou-request:(.+)$/)?.[1]
+            : undefined;
+        if (
+          requestId &&
+          (event.command === "prompt" ||
+            event.command === "steer" ||
+            event.command === "follow_up")
+        ) {
+          return {
+            ...state,
+            error: message,
+            items: [
+              ...state.items.filter((item) => item.id !== requestId),
+              {
+                id: `notice-${state.items.length + 1}`,
+                kind: "notice" as const,
+                text: message,
+                tone: "error" as const,
+                recovery: "retry_prompt" as const,
+              },
+            ],
+          };
+        }
         return { ...state, error: message };
       }
       if (event.command === "new_session") {
@@ -459,6 +544,14 @@ export function reducePiEvent(
       }
       const data = record(event.data);
       if (event.command === "get_messages") {
+        // Bootstrap history can return after the first live turn. Do not let
+        // that older snapshot erase richer tool and reasoning events.
+        if (
+          event.id === "wabou-bootstrap-state-messages" &&
+          state.items.length > 0
+        ) {
+          return state;
+        }
         return {
           ...state,
           items: restoredItems(data),
@@ -563,9 +656,9 @@ export function reducePiEvent(
       activity: undefined,
       queue: { steering: 0, followUp: 0 },
       activeAssistantId: undefined,
-      items: state.items.map((item) =>
-        item.kind === "user" && item.queued ? { ...item, queued: false } : item,
-      ),
+      turnStartedAtMs: undefined,
+      turnStartItemIndex: undefined,
+      items: completeTurnItems(state, finiteNumber(event.receivedAtMs)),
     }))
     .with("message_start", () => {
       const message = record(event.message);
@@ -616,17 +709,18 @@ export function reducePiEvent(
       const id = String(event.toolCallId ?? `tool-${state.items.length + 1}`);
       return {
         ...state,
-        items: [
-          ...state.items,
-          {
-            id,
-            kind: "tool" as const,
-            name: String(event.toolName ?? "tool"),
-            state: "running" as const,
-            input: JSON.stringify(event.args ?? {}, null, 2),
-            output: "",
-          },
-        ],
+        // Pi starts the assistant message before it emits tool events, then
+        // continues writing the final answer into that same message. Keep the
+        // retained message identity, but place work before the answer so the
+        // transcript reads reasoning → tools → response.
+        items: insertBeforeItem(state.items, state.activeAssistantId, {
+          id,
+          kind: "tool" as const,
+          name: String(event.toolName ?? "tool"),
+          state: "running" as const,
+          input: JSON.stringify(event.args ?? {}, null, 2),
+          output: "",
+        }),
       };
     })
     .with(P.union("tool_execution_update", "tool_execution_end"), () => {
@@ -666,6 +760,27 @@ export function reducePiEvent(
             kind: "notice" as const,
             text: message,
             tone: "error" as const,
+          },
+        ],
+      };
+    })
+    .with("request_error", () => {
+      const message = String(event.message ?? "Pi request failed");
+      const userMessageId =
+        typeof event.userMessageId === "string"
+          ? event.userMessageId
+          : undefined;
+      return {
+        ...state,
+        error: message,
+        items: [
+          ...state.items.filter((item) => item.id !== userMessageId),
+          {
+            id: `notice-${state.items.length + 1}`,
+            kind: "notice" as const,
+            text: message,
+            tone: "error" as const,
+            recovery: "retry_prompt" as const,
           },
         ],
       };

@@ -10,14 +10,15 @@ license.workspace = true
 
 [dependencies]
 wabou-bindgen = { workspace = true }
+wabou-database = { workspace = true }
 wabou-runtime = { workspace = true }
 wabou-tray = { workspace = true, optional = true }
 
 [features]
 bindings = ["wabou-bindgen/generate"]
 devtools = ["wabou-runtime/devtools"]
+headless = ["wabou-runtime/headless"]
 profiling = ["wabou-runtime/profiling"]
-renderer-skia = ["wabou-runtime/renderer-skia"]
 rust-hot-reload = ["wabou-runtime/rust-hot-reload"]
 tray = ["dep:wabou-tray"]
 vite = ["wabou-runtime/vite"]

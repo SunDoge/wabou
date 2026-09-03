@@ -1,4 +1,5 @@
 import type { Handle } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import {
   createComponent,
@@ -11,7 +12,6 @@ import {
 import { Icon, rotate2d, View, type ViewProps } from "../primitives";
 import { createControllableState } from "../primitives/interactions";
 import { Button, type ButtonProps } from "./button";
-import { mergeClasses } from "@wabou/core/style";
 import { Popover } from "./popover";
 
 interface NavigationEntry {
@@ -120,7 +120,7 @@ export function NavigationMenu(props: NavigationMenuProps): JSX.Element {
           placement="bottom-start"
           outsidePointerStrategy="passthrough"
           contentClass={mergeClasses(
-            "w-[520px] max-w-full min-w-0 overflow-hidden rounded-lg border border-subtle bg-surface p-2 shadow-md",
+            "w-[520px] max-w-full min-w-0 overflow-hidden p-2",
             props.viewportClass,
           )}
           trigger={(trigger) => (
@@ -189,7 +189,7 @@ export function navigationMenuTriggerClass(
   className?: string,
 ): string {
   return mergeClasses(
-    "h-9 px-3 inline-flex flex-none items-center justify-center gap-1 rounded-md border-transparent text-sm font-medium",
+    "h-8 px-3 inline-flex flex-none items-center justify-center gap-1 rounded-lg border-transparent text-sm font-medium",
     open ? "bg-selected text-primary" : "bg-transparent text-secondary",
     className,
   );
@@ -292,7 +292,7 @@ export function NavigationMenuLink(
       role="link"
       variant="ghost"
       class={mergeClasses(
-        "w-full h-auto min-w-0 flex flex-col items-start gap-1 rounded-md p-2 text-left",
+        "w-full h-auto min-w-0 flex flex-col items-start gap-1 rounded-lg p-2 text-left",
         props.active && "bg-selected",
         props.class,
       )}

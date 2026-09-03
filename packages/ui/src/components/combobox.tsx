@@ -1,12 +1,21 @@
 import type { Handle } from "@wabou/core/renderer";
 import type { Shadow } from "@wabou/core/style";
-import chevronsUpDown from "lucide-static/icons/chevrons-up-down.svg?raw";
+import { mergeClasses } from "@wabou/core/style";
+import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import { createSignal, type JSX } from "solid-js";
 import { Button as HeadlessButton, Icon, Popover, Text } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
-import type { PopupMotionProps } from "./popover";
 import { Command, type CommandItem } from "./command";
-import { componentsElevation, useComponentsTheme } from "./theme";
+import type { PopupMotionProps } from "./popover";
+import {
+  type PickerTriggerVariant,
+  pickerTriggerClass,
+} from "./select-semantics";
+import {
+  componentsControlSize,
+  componentsElevation,
+  componentsSurfaceClass,
+  useComponentsTheme,
+} from "./theme";
 
 export interface ComboboxOption extends CommandItem {
   value: string;
@@ -24,6 +33,7 @@ export interface ComboboxProps extends PopupMotionProps {
   searchPlaceholder?: string;
   emptyText?: string;
   class?: string;
+  triggerVariant?: PickerTriggerVariant;
   contentClass?: string;
   contentShadows?: readonly Shadow[] | null;
   onValueChange?: (value: string) => void;
@@ -71,7 +81,8 @@ export function Combobox(props: ComboboxProps): JSX.Element {
       onOpenChange={setOpen}
       placement="bottom-start"
       contentClass={mergeClasses(
-        "w-72 p-2 rounded-lg border border-subtle bg-surface",
+        "w-72 p-2",
+        componentsSurfaceClass("floating"),
         props.contentClass,
       )}
       contentShadows={
@@ -88,14 +99,16 @@ export function Combobox(props: ComboboxProps): JSX.Element {
           aria-label={props["aria-label"]}
           aria-haspopup="listbox"
           aria-expanded={open()}
+          aria-valuetext={selected()?.label}
           ref={(node) => {
             trigger = node;
             popover.ref(node);
           }}
           class={(state) =>
             mergeClasses(
-              "w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs",
-              state.focused ? "border-focus" : "border-subtle",
+              "w-72 overflow-hidden justify-between border",
+              componentsControlSize("default"),
+              pickerTriggerClass(props.triggerVariant ?? "default", state),
               props.class,
             )
           }
@@ -111,11 +124,7 @@ export function Combobox(props: ComboboxProps): JSX.Element {
           >
             {selected()?.label ?? props.placeholder ?? "Select an option"}
           </Text>
-          <Icon
-            source={chevronsUpDown}
-            class="flex-none text-muted"
-            size={16}
-          />
+          <Icon source={chevronDown} class="flex-none text-muted" size={16} />
         </HeadlessButton>
       )}
     >

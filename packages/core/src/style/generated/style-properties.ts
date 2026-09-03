@@ -21,6 +21,11 @@ export const INLINE_STYLE_CONTRACT = {
     number: true,
     typed: [3],
   },
+  "backdrop-blur": {
+    string: true,
+    number: true,
+    typed: [1],
+  },
   background: {
     string: true,
     number: false,
@@ -30,6 +35,16 @@ export const INLINE_STYLE_CONTRACT = {
     string: true,
     number: false,
     typed: [5],
+  },
+  "border-bottom-left-radius": {
+    string: true,
+    number: true,
+    typed: [1],
+  },
+  "border-bottom-right-radius": {
+    string: true,
+    number: true,
+    typed: [1],
   },
   "border-bottom-width": {
     string: true,
@@ -56,6 +71,16 @@ export const INLINE_STYLE_CONTRACT = {
     number: true,
     typed: [1],
   },
+  "border-top-left-radius": {
+    string: true,
+    number: true,
+    typed: [1],
+  },
+  "border-top-right-radius": {
+    string: true,
+    number: true,
+    typed: [1],
+  },
   "border-top-width": {
     string: true,
     number: true,
@@ -71,11 +96,6 @@ export const INLINE_STYLE_CONTRACT = {
     number: true,
     typed: [1, 2, 3, 6],
   },
-  "box-sizing": {
-    string: true,
-    number: false,
-    typed: [],
-  },
   color: {
     string: true,
     number: false,
@@ -86,11 +106,6 @@ export const INLINE_STYLE_CONTRACT = {
     number: true,
     typed: [1, 2, 3],
   },
-  contain: {
-    string: true,
-    number: false,
-    typed: [],
-  },
   cursor: {
     string: true,
     number: false,
@@ -100,6 +115,11 @@ export const INLINE_STYLE_CONTRACT = {
     string: true,
     number: false,
     typed: [],
+  },
+  "filter-blur": {
+    string: true,
+    number: true,
+    typed: [1],
   },
   "flex-basis": {
     string: true,
@@ -151,11 +171,6 @@ export const INLINE_STYLE_CONTRACT = {
     number: true,
     typed: [1, 2, 3],
   },
-  "grid-auto-flow": {
-    string: true,
-    number: false,
-    typed: [],
-  },
   "grid-column-end": {
     string: true,
     number: true,
@@ -182,16 +197,6 @@ export const INLINE_STYLE_CONTRACT = {
     typed: [1, 2, 3, 6],
   },
   "justify-content": {
-    string: true,
-    number: false,
-    typed: [],
-  },
-  "justify-items": {
-    string: true,
-    number: false,
-    typed: [],
-  },
-  "justify-self": {
     string: true,
     number: false,
     typed: [],
@@ -271,26 +276,6 @@ export const INLINE_STYLE_CONTRACT = {
     number: true,
     typed: [3],
   },
-  "outline-color": {
-    string: true,
-    number: false,
-    typed: [5],
-  },
-  "outline-offset": {
-    string: true,
-    number: true,
-    typed: [1],
-  },
-  "outline-style": {
-    string: true,
-    number: false,
-    typed: [],
-  },
-  "outline-width": {
-    string: true,
-    number: true,
-    typed: [1],
-  },
   overflow: {
     string: true,
     number: false,
@@ -356,6 +341,11 @@ export const INLINE_STYLE_CONTRACT = {
     number: false,
     typed: [],
   },
+  "text-decoration-line": {
+    string: true,
+    number: false,
+    typed: [],
+  },
   "text-overflow": {
     string: true,
     number: false,
@@ -365,16 +355,6 @@ export const INLINE_STYLE_CONTRACT = {
     string: true,
     number: true,
     typed: [1, 2, 3, 6],
-  },
-  "transform-origin-x": {
-    string: true,
-    number: true,
-    typed: [1],
-  },
-  "transform-origin-y": {
-    string: true,
-    number: true,
-    typed: [1],
   },
   "user-select": {
     string: true,

@@ -1,21 +1,24 @@
+import { mergeClasses } from "@wabou/core/style";
 import {
   type Accessor,
   createContext,
-  createSignal,
+  createMemo,
   type JSX,
   omit,
   Show,
   useContext,
 } from "solid-js";
-import { createSweep, useReducedMotion } from "../animation";
+import { createNativeLoopAnimation, useReducedMotion } from "../animation";
 import {
-  createMeasuredSize,
+  NativeWidget,
+  Svg,
   Text,
   type TextProps,
   View,
   type ViewProps,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
+import { Spinner } from "./display";
+import { progressCircleSource } from "./progress-circle-source";
 import { finiteOr } from "./range";
 
 export interface ProgressValueDetails {
@@ -38,6 +41,8 @@ export interface ProgressRootProps
   class?: string;
 }
 
+export type ProgressSize = "xs" | "sm" | "default" | "lg";
+
 interface ProgressContextValue {
   value: Accessor<number>;
   min: Accessor<number>;
@@ -46,8 +51,6 @@ interface ProgressContextValue {
   indeterminate: Accessor<boolean>;
   label: Accessor<string>;
   valueLabel: Accessor<string | undefined>;
-  trackWidth: Accessor<number>;
-  setTrackWidth(width: number): void;
 }
 
 const ProgressContext = createContext<ProgressContextValue>();
@@ -78,7 +81,6 @@ export function normalizeProgressValue(
 
 /** Semantic progress state with explicit, composable visual parts. */
 export function ProgressRoot(props: ProgressRootProps): JSX.Element {
-  const [trackWidth, setTrackWidth] = createSignal(0, { ownedWrite: true });
   const forwarded = omit(
     props,
     "value",
@@ -105,8 +107,6 @@ export function ProgressRoot(props: ProgressRootProps): JSX.Element {
       indeterminate()
         ? undefined
         : (props.getValueLabel?.(details()) ?? defaultValueLabel()),
-    trackWidth,
-    setTrackWidth,
   };
 
   return (
@@ -127,21 +127,28 @@ export function ProgressRoot(props: ProgressRootProps): JSX.Element {
   );
 }
 
-export function ProgressTrack(props: ViewProps): JSX.Element {
-  const context = useProgressContext();
-  const measured = createMeasuredSize({
-    onChange: ({ width }) => context.setTrackWidth(width),
-  });
+export interface ProgressTrackProps extends ViewProps {
+  size?: ProgressSize;
+}
+
+const progressTrackSize = (size: ProgressSize | undefined) =>
+  size === "xs"
+    ? "h-1"
+    : size === "sm"
+      ? "h-1.5"
+      : size === "lg"
+        ? "h-2.5"
+        : "h-2";
+
+export function ProgressTrack(props: ProgressTrackProps): JSX.Element {
+  const forwarded = omit(props, "size");
   return (
     <View
-      {...props}
-      ref={(node) => {
-        measured.ref(node);
-        props.ref?.(node);
-      }}
+      {...forwarded}
       aria-hidden="true"
       class={mergeClasses(
-        "w-full h-2 flex-none overflow-hidden rounded-full bg-control",
+        "w-full flex-none overflow-hidden rounded-full bg-control",
+        progressTrackSize(props.size),
         props.class,
       )}
     />
@@ -149,22 +156,18 @@ export function ProgressTrack(props: ViewProps): JSX.Element {
 }
 
 function IndeterminateProgressFill(props: ViewProps): JSX.Element {
-  const context = useProgressContext();
   const reducedMotion = useReducedMotion();
-  const sweep = createSweep({
-    extent: context.trackWidth,
-    itemRatio: 0.4,
+  const animation = createNativeLoopAnimation({
     duration: 1.35,
-    ease: "easeInOut",
     reducedMotion,
-    reducedValue: 0.5,
   });
   return (
-    <View
+    <NativeWidget
       {...props}
+      tag="progress-indeterminate"
       aria-hidden="true"
-      class={mergeClasses("w-2/5 h-full rounded-full bg-accent", props.class)}
-      transform={sweep.transform()}
+      class={mergeClasses("w-full h-full flex-none", props.class)}
+      config={{ animation: animation() }}
     />
   );
 }
@@ -179,7 +182,11 @@ export function ProgressFill(props: ViewProps): JSX.Element {
       <View
         {...props}
         aria-hidden="true"
-        class={mergeClasses("h-full rounded-full bg-accent", props.class)}
+        class={mergeClasses(
+          "h-full rounded-full bg-accent",
+          context.percent() < 100 && "rounded-r-none",
+          props.class,
+        )}
         style={{ width: `${context.percent()}%`, ...props.style }}
       />
     </Show>
@@ -217,16 +224,64 @@ export interface ProgressProps
   extends Omit<ProgressRootProps, "children" | "class"> {
   /** Classes applied to the visual track, preserving the original shorthand. */
   class?: string;
+  size?: ProgressSize;
 }
 
 /** Compact progress bar; use ProgressRoot and parts for custom composition. */
 export function Progress(props: ProgressProps): JSX.Element {
-  const forwarded = omit(props, "class");
+  const forwarded = omit(props, "class", "size");
   return (
     <ProgressRoot {...forwarded}>
-      <ProgressTrack class={props.class}>
+      <ProgressTrack class={props.class} size={props.size}>
         <ProgressFill />
       </ProgressTrack>
+    </ProgressRoot>
+  );
+}
+
+export interface ProgressCircleProps
+  extends Omit<ProgressRootProps, "children" | "class"> {
+  class?: string;
+  size?: ProgressSize;
+}
+
+const progressCircleSize = (size: ProgressSize | undefined) =>
+  size === "xs"
+    ? "w-3 h-3"
+    : size === "sm"
+      ? "w-4 h-4"
+      : size === "lg"
+        ? "w-6 h-6"
+        : "w-5 h-5";
+
+/** Compact circular progress indicator using the same semantic range contract. */
+export function ProgressCircle(props: ProgressCircleProps): JSX.Element {
+  const forwarded = omit(props, "class", "size");
+  const details = createMemo(() =>
+    normalizeProgressValue(props.value, props.minValue, props.maxValue),
+  );
+  const source = createMemo(() =>
+    progressCircleSource(props.indeterminate ? 30 : details().percent),
+  );
+  const graphic = () => (
+    <Svg
+      source={source()}
+      aria-hidden="true"
+      class="absolute inset-0 w-full h-full flex-none"
+    />
+  );
+  return (
+    <ProgressRoot
+      {...forwarded}
+      class={mergeClasses(
+        "relative flex-none items-center justify-center gap-0 text-accent",
+        progressCircleSize(props.size),
+        props.class,
+      )}
+    >
+      <Show when={props.indeterminate} fallback={graphic()}>
+        <Spinner decorative class="absolute inset-0 w-full h-full" />
+      </Show>
     </ProgressRoot>
   );
 }

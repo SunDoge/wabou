@@ -137,7 +137,7 @@ bridge exceptions do not leak through the generated client API.
 Likewise, values that cannot be serialized as JSON are rejected locally as
 `requestEncodingFailure` before the native method is invoked.
 
-Each generated namespace also uses one shared `JsonCapabilityContract` for its
+Each generated namespace also uses one shared `CapabilityContract` for its
 name and ABI version. The Rust host publishes that version on the mounted
 capability object, and generated clients validate it when constructed. Missing
 or stale native implementations fail deterministically with

@@ -2,16 +2,19 @@ import {
   type Accessor,
   createEffect,
   createSignal,
+  flush,
   getOwner,
   onCleanup,
 } from "solid-js";
 
 export interface LatestAsyncResourceOptions<K, T> {
   source: Accessor<K | undefined>;
-  load: (key: K, context: { signal: AbortSignal }) => Promise<T>;
+  load: (key: K, context: { signal: AbortSignal }) => T | PromiseLike<T>;
   initialValue?: T;
   retainPrevious?: boolean;
   autoLoad?: boolean;
+  /** Runs synchronously before a latest load or local mutation is published. */
+  onCommit?: (value: T) => void;
 }
 
 export type LatestAsyncResourceStatus = "idle" | "pending" | "ready" | "error";
@@ -66,21 +69,32 @@ export function createLatestAsyncResource<K, T>(
     setError(undefined);
     setStatus("pending");
     try {
-      const next = await options.load(key, { signal });
+      const loaded = options.load(key, { signal });
+      const next =
+        loaded !== null &&
+        (typeof loaded === "object" || typeof loaded === "function") &&
+        typeof (loaded as PromiseLike<T>).then === "function"
+          ? await loaded
+          : (loaded as T);
       if (disposed || request !== generation) return undefined;
-      setValueBox({ value: next });
-      setStatus("ready");
+      flush(() => {
+        options.onCommit?.(next);
+        setValueBox({ value: next });
+        setStatus("ready");
+      });
       return next;
     } catch (cause) {
       if (disposed || request !== generation || signal.aborted)
         return undefined;
-      setError(cause);
-      setStatus("error");
+      flush(() => {
+        setError(cause);
+        setStatus("error");
+      });
       return undefined;
     } finally {
       if (!disposed && request === generation) {
         controller = undefined;
-        setLoading(false);
+        flush(() => setLoading(false));
       }
     }
   };
@@ -103,6 +117,7 @@ export function createLatestAsyncResource<K, T>(
     generation++;
     controller?.abort();
     controller = undefined;
+    options.onCommit?.(next);
     setValueBox({ value: next });
     setError(undefined);
     setLoading(false);

@@ -35,7 +35,7 @@ export {
   TEXT_BEHAVIOR,
 } from "../protocol";
 
-import { createMemo, omit, untrack } from "solid-js";
+import { createMemo, flush, omit, untrack } from "solid-js";
 import type { HostCapabilities, WabouIntrinsicElements } from "../registry";
 import {
   type Affine2D,
@@ -64,6 +64,10 @@ import type { JSX } from "./jsx";
  */
 export interface WabouBuiltinIntrinsicElements {
   view: WabouElementProps;
+  /** GPUI-owned animated activity indicator. Prefer the `Spinner` component. */
+  spinner: WabouElementProps;
+  /** GPUI-backed uniform virtual list. Prefer the `VirtualList` component. */
+  "virtual-list": WabouElementProps;
   "vector-path": WabouVectorPathProps;
 }
 
@@ -87,7 +91,9 @@ export type WabouSemanticRole =
   | "img"
   | "label"
   | "link"
+  | "list"
   | "listbox"
+  | "listitem"
   | "menu"
   | "menubar"
   | "menuitem"
@@ -135,6 +141,8 @@ export interface WabouElementProps {
   style?: string | WabouStyle;
   children?: JSX.Element;
   ref?: Handle | ((node: Handle) => void);
+  /** Complete typed configuration snapshot for a native widget implementation. */
+  widgetConfig?: object | readonly unknown[];
   role?: WabouSemanticRole;
   /** Enables native focus; negative values skip sequential navigation. */
   focusOrder?: number;
@@ -144,6 +152,10 @@ export interface WabouElementProps {
   focusContained?: boolean;
   /** Places this subtree in a native overlay plane above ordinary content. */
   overlayPlane?: "content" | "floating" | "modal";
+  /** Retains this subtree behind an independently invalidated GPUI Entity. */
+  projectionBoundary?: boolean;
+  /** A finite transition sampled by the native renderer without per-frame JS traffic. */
+  nativeTransition?: WabouNativeTransition;
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
   "aria-modal"?: boolean | "true" | "false";
@@ -156,6 +168,7 @@ export interface WabouElementProps {
   "aria-current"?: boolean | "date" | "location" | "page" | "step" | "time";
   "aria-selected"?: boolean;
   "aria-pressed"?: boolean | "mixed";
+  "aria-busy"?: boolean;
   "aria-valuemin"?: number;
   "aria-valuemax"?: number;
   "aria-valuenow"?: number;
@@ -184,9 +197,30 @@ export interface WabouElementProps {
   onImeCommit?: EventHandler<WabouTextCommitEvent>;
   onImeDeleteSurrounding?: EventHandler<WabouImeDeleteSurroundingEvent>;
   onImeDisabled?: EventHandler<WabouNodeEvent>;
+  /** Text committed by a built-in or application-defined native editor. */
+  onInput?: EventHandler<WabouInputEvent>;
+  /** Numeric value committed by a retained native control. */
+  onChange?: EventHandler<WabouValueChangeEvent>;
   onTextSelectionChange?: EventHandler<WabouTextSelectionChangeEvent>;
+  onSubmit?: EventHandler<WabouSubmitEvent>;
   /** Preventing this event keeps the native window open. */
   onWindowCloseRequested?: EventHandler<WabouNodeEvent>;
+  onTransitionEnd?: EventHandler<WabouTransitionEvent>;
+}
+
+export interface WabouTransitionEvent extends WabouNodeEvent {
+  generation: number;
+}
+
+export interface WabouNativeTransition {
+  /** Changes whenever a transition should restart. */
+  generation: number;
+  duration: number;
+  easing?: "linear" | "easeInOut" | "easeOut";
+  fromTransform?: Affine2D;
+  toTransform?: Affine2D;
+  fromOpacity?: number;
+  toOpacity?: number;
 }
 
 export interface WabouControlProps extends WabouElementProps {
@@ -202,7 +236,6 @@ export interface WabouInputProps extends WabouControlProps {
   value?: string;
   placeholder?: string;
   readOnly?: boolean;
-  onInput?: EventHandler<WabouInputEvent>;
 }
 
 export interface WabouImageProps extends WabouElementProps {
@@ -329,6 +362,15 @@ export interface WabouInputEvent extends WabouNodeEvent {
   readonly currentTarget: WabouEventTarget & { value: string };
 }
 
+export interface WabouSubmitEvent extends WabouNodeEvent {
+  readonly secondary: boolean;
+  readonly shift: boolean;
+}
+
+export interface WabouValueChangeEvent extends WabouNodeEvent {
+  readonly value: number;
+}
+
 export interface WabouTextCommitEvent extends WabouNodeEvent {
   readonly data: string;
   readonly source: "keyboard" | "ime" | "paste";
@@ -384,13 +426,29 @@ export interface Handle {
   next: Handle | null;
   /** Request native keyboard focus for this node on the next bridge flush. */
   focus(): void;
+  /** Remove native keyboard focus when this node currently owns it. */
+  blur(): void;
   /** Set this overflow container's native scroll offset. */
   scrollTo(options: { left?: number; top?: number }): void;
   scrollTo(left: number, top: number): void;
   /** Adjust this overflow container's native scroll offset. */
   scrollBy(options: { left?: number; top?: number }): void;
   scrollBy(left: number, top: number): void;
+  /** Set a native editor selection using JavaScript UTF-16 offsets. */
+  setTextSelection(anchor: number, head?: number): void;
+  /** Select the complete value of a native text control. */
+  selectAll(): void;
+  /** Request native editor undo. */
+  undo(): void;
+  /** Request native editor redo. */
+  redo(): void;
 }
+
+const TEXT_COMMAND = {
+  SelectAll: 1,
+  Undo: 2,
+  Redo: 3,
+} as const;
 
 const nodeKeys = new NodeKeyAllocator();
 const listenersByNode = new NodeKeyTable<Map<number, (e: unknown) => void>>();
@@ -403,6 +461,11 @@ const classesByNode = new WeakMap<
 const interactionByNode = new WeakMap<
   Handle,
   { focusOrder: number | null; blocked: boolean; contained: boolean }
+>();
+const controlledValueByNode = new WeakMap<Handle, string>();
+const nativeInputByNode = new Map<
+  Handle,
+  { value: string; revision: number }
 >();
 
 function emitInteractionPolicy(writer: Writer, node: Handle): void {
@@ -471,7 +534,17 @@ export function runSweep(): void {
 
 function imperativeMethods(
   id: NodeKey,
-): Pick<Handle, "focus" | "scrollTo" | "scrollBy"> {
+): Pick<
+  Handle,
+  | "focus"
+  | "blur"
+  | "scrollTo"
+  | "scrollBy"
+  | "setTextSelection"
+  | "selectAll"
+  | "undo"
+  | "redo"
+> {
   const coordinates = (
     first: number | { left?: number; top?: number },
     second?: number,
@@ -495,8 +568,14 @@ function imperativeMethods(
   }) as Handle["scrollBy"];
   return {
     focus: () => writer.focusNode(id),
+    blur: () => writer.blurNode(id),
     scrollTo,
     scrollBy,
+    setTextSelection: (anchor, head = anchor) =>
+      writer.setTextSelection(id, anchor, head),
+    selectAll: () => writer.textCommand(id, TEXT_COMMAND.SelectAll),
+    undo: () => writer.textCommand(id, TEXT_COMMAND.Undo),
+    redo: () => writer.textCommand(id, TEXT_COMMAND.Redo),
   };
 }
 
@@ -559,10 +638,33 @@ function applyProperty(
   value: unknown,
   prev: unknown,
 ): void {
+  if (name === "value") {
+    if (value == null || value === false) controlledValueByNode.delete(node);
+    else controlledValueByNode.set(node, String(value));
+  }
   if (value === prev) return;
   if (name === "overlayPlane") {
     const plane = value === "modal" ? 2 : value === "floating" ? 1 : 0;
     writer.setOverlayPlane(node.id, plane);
+    return;
+  }
+  if (name === "projectionBoundary") {
+    writer.setProjectionBoundary(node.id, value === true);
+    return;
+  }
+  if (name === "nativeTransition") {
+    if (value == null || value === false) {
+      writer.removeAttribute(node.id, "__wabou_native_transition");
+      return;
+    }
+    if (!isStructuredConfigValue(value)) {
+      throw new TypeError("nativeTransition must be a plain object");
+    }
+    writer.setAttribute(
+      node.id,
+      "__wabou_native_transition",
+      stringifyWidgetConfig(value),
+    );
     return;
   }
   if (name === "textBehavior") {
@@ -646,16 +748,22 @@ function applyProperty(
     }
   }
   if (name === "resource") {
-    if (node.tag !== "img") throw new TypeError("resource is only supported by Image");
+    if (node.tag !== "img")
+      throw new TypeError("resource is only supported by Image");
     if (value == null || value === false) {
       writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.ResourceRaster);
       return;
     }
-    if (typeof value !== "object") throw new TypeError("Image requires an image resource handle");
+    if (typeof value !== "object")
+      throw new TypeError("Image requires an image resource handle");
     const handle = value as { lo?: unknown; hi?: unknown };
     if (!Number.isInteger(handle.lo) || !Number.isInteger(handle.hi))
       throw new TypeError("Image requires an image resource handle");
-    writer.setGraphicSource(node.id, GRAPHIC_SOURCE.ResourceRaster, `${handle.lo}:${handle.hi}`);
+    writer.setGraphicSource(
+      node.id,
+      GRAPHIC_SOURCE.ResourceRaster,
+      `${handle.lo}:${handle.hi}`,
+    );
     return;
   }
   if (name === "transform") {
@@ -953,24 +1061,40 @@ export function registerRoot(root: Handle): void {
   }
 }
 
-/** Dispose callback for the last `mount()` — used by in-process HMR full reload. */
-let activeMountDispose: (() => void) | null = null;
-let mountedRoot: Handle | null = null;
 type PublicOverlayPlane = "floating" | "modal";
-const overlayRoots = new Map<
-  PublicOverlayPlane,
-  { node: Handle; users: number }
->();
+interface RendererMountState {
+  activeMountDispose: (() => void) | null;
+  mountedRoot: Handle | null;
+  overlayRoots: Map<PublicOverlayPlane, { node: Handle; users: number }>;
+}
+
+type RendererGlobal = typeof globalThis & {
+  __wabou_renderer_mount_state?: RendererMountState;
+};
+
+// A cache-busted Vite graph can evaluate a second copy of this module inside
+// the same QuickJS runtime. Mount ownership therefore belongs to the runtime,
+// not to one ESM instance; otherwise both copies retain an application root.
+const rendererGlobal = globalThis as RendererGlobal;
+const mountState =
+  rendererGlobal.__wabou_renderer_mount_state ??
+  ({
+    activeMountDispose: null,
+    mountedRoot: null,
+    overlayRoots: new Map(),
+  } satisfies RendererMountState);
+rendererGlobal.__wabou_renderer_mount_state = mountState;
 
 /** Current native window root, used by renderer-level facilities like Portal. */
 export function getMountRoot(): Handle {
-  if (!mountedRoot) throw new Error("Portal must be rendered inside mount()");
-  return mountedRoot;
+  if (!mountState.mountedRoot)
+    throw new Error("Portal must be rendered inside mount()");
+  return mountState.mountedRoot;
 }
 
 /** Acquire the shared synthetic host root for one public overlay plane. */
 export function acquireOverlayRoot(plane: PublicOverlayPlane): Handle {
-  const existing = overlayRoots.get(plane);
+  const existing = mountState.overlayRoots.get(plane);
   if (existing) {
     existing.users++;
     return existing.node;
@@ -992,14 +1116,14 @@ export function acquireOverlayRoot(plane: PublicOverlayPlane): Handle {
     false,
   );
   insertNode(getMountRoot(), node, undefined);
-  overlayRoots.set(plane, { node, users: 1 });
+  mountState.overlayRoots.set(plane, { node, users: 1 });
   return node;
 }
 
 export function releaseOverlayRoot(plane: PublicOverlayPlane): void {
-  const entry = overlayRoots.get(plane);
+  const entry = mountState.overlayRoots.get(plane);
   if (!entry || --entry.users > 0) return;
-  overlayRoots.delete(plane);
+  mountState.overlayRoots.delete(plane);
   if (entry.node.parent) removeNode(entry.node.parent, entry.node);
 }
 
@@ -1007,13 +1131,13 @@ export function releaseOverlayRoot(plane: PublicOverlayPlane): void {
 export function mount(code: () => JSX.Element): () => void {
   // Full-reload re-imports the entry and calls mount again; tear down the
   // previous tree first so DropNode ops free host boxes and slot ids.
-  if (activeMountDispose) {
+  if (mountState.activeMountDispose) {
     try {
-      activeMountDispose();
+      mountState.activeMountDispose();
     } catch (error) {
       __wabou_log("error", `mount dispose before remount failed: ${error}`);
     }
-    activeMountDispose = null;
+    mountState.activeMountDispose = null;
   }
   const root: Handle = {
     id: ROOT_NODE_KEY,
@@ -1025,22 +1149,40 @@ export function mount(code: () => JSX.Element): () => void {
     next: null,
     ...imperativeMethods(ROOT_NODE_KEY),
   };
-  mountedRoot = root;
-  overlayRoots.clear();
+  mountState.mountedRoot = root;
+  mountState.overlayRoots.clear();
   registerRoot(root);
   const dispose = render(code, root);
-  activeMountDispose = () => {
+  // Solid 2 defers ordinary effects until an explicit transaction boundary.
+  // Commit the initial owner before Rust consumes the mount frame; otherwise
+  // startup effects (including capability-backed resource loads) can remain
+  // parked until the first unrelated native event.
+  flush();
+  let disposed = false;
+  const disposeMount = () => {
+    if (disposed) return;
+    disposed = true;
     dispose();
-    overlayRoots.clear();
-    if (mountedRoot === root) mountedRoot = null;
-    runSweep();
-    writer.flush();
-  };
-  return () => {
-    if (activeMountDispose) {
-      activeMountDispose();
-      activeMountDispose = null;
+    // Solid disposes reactive owners but the universal renderer does not
+    // implicitly detach the host container's retained children. Explicitly
+    // retire them so remounts emit RemoveChild + DropNode instead of leaving
+    // an unreachable native tree beside the replacement mount.
+    while (root.firstChild) removeNode(root, root.firstChild);
+    if (mountState.mountedRoot === root) {
+      mountState.overlayRoots.clear();
+      mountState.mountedRoot = null;
     }
+    if (mountState.activeMountDispose === disposeMount) {
+      mountState.activeMountDispose = null;
+    }
+    runSweep();
+    // Do not flush here: only the host-owned animation-frame boundary may
+    // consume writer bytes. Keeping retire + replacement ops together lets
+    // Rust apply a remount atomically instead of losing the retired subtree.
+  };
+  mountState.activeMountDispose = disposeMount;
+  return () => {
+    disposeMount();
   };
 }
 
@@ -1108,6 +1250,23 @@ export function dispatchEvent(
     }
   }
 
+  if (eventCode === EVENT_CODE.input && typeof data.value === "string") {
+    const target = derefHandle(solidId);
+    const nativeRevision = data.nativeRevision;
+    delete data.nativeRevision;
+    if (
+      target &&
+      typeof nativeRevision === "number" &&
+      Number.isSafeInteger(nativeRevision) &&
+      nativeRevision > 0
+    ) {
+      nativeInputByNode.set(target, {
+        value: data.value,
+        revision: nativeRevision,
+      });
+    }
+  }
+
   let stopped = false;
   let defaultPrevented = false;
   const ev = {
@@ -1148,6 +1307,31 @@ export function dispatchEvent(
 
   bubble(solidId, eventCode, ev);
   return defaultPrevented;
+}
+
+/**
+ * Settle native-editor revisions after one atomic host event frame and reassert
+ * controlled values when JavaScript rejected or normalized the native edit.
+ *
+ * Input and submit can arrive in the same frame. Solid then legitimately
+ * coalesces `"" -> "typed" -> ""` and emits no property effect, while the
+ * native widget has already accepted `"typed"`. This reconciliation closes
+ * that split-brain without making uncontrolled editors JS-owned. The internal
+ * acknowledgement lets Rust distinguish this settlement from a later
+ * JavaScript-authored value update.
+ */
+export function reconcileControlledInputValues(): void {
+  for (const [node, nativeInput] of nativeInputByNode) {
+    const controlledValue = controlledValueByNode.get(node);
+    if (
+      controlledValue !== undefined &&
+      controlledValue !== nativeInput.value
+    ) {
+      writer.setAttribute(node.id, "value", controlledValue);
+    }
+    writer.acknowledgeTextValue(node.id, nativeInput.revision);
+  }
+  nativeInputByNode.clear();
 }
 
 function derefHandle(id: NodeKey): Handle | undefined {
@@ -1213,8 +1397,8 @@ function eventName(code: number): string {
 
 export {
   type BuiltinHost,
-  type DebugOverlayPaintStats,
   type DebugOverlayOptions,
+  type DebugOverlayPaintStats,
   defaultHost,
   type FrameStats,
   type Host,

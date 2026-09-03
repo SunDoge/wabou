@@ -57,6 +57,10 @@ semantic_roles! {
     Region => "region",
     /// Navigational link.
     Link => "link",
+    /// Ordered or unordered collection of related items.
+    List => "list",
+    /// One item in a list.
+    ListItem => "listitem",
     /// Dialog surface.
     Dialog => "dialog",
     /// Modal alert that requires an explicit user response.

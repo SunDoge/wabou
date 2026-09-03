@@ -66,7 +66,7 @@ function rectangle(
 }
 
 /**
- * Convert consecutive dark modules into one retained Vello path. Horizontal
+ * Convert consecutive dark modules into one retained native path. Horizontal
  * runs keep the bridge traffic and native scene node count independent of the
  * number of QR modules.
  */

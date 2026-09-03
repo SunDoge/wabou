@@ -1,8 +1,9 @@
 import {
+  bindCapability,
   bindJsonCapability,
   type Host,
   hostMessages,
-  type NativeJsonCapability,
+  type NativeCapability,
   useHost,
 } from "@wabou/ui";
 
@@ -22,17 +23,68 @@ export interface PiSession {
   updatedAt: number;
 }
 
+export interface WorkspaceInfo {
+  repository: boolean;
+  branch?: string;
+  changedFiles: number;
+}
+
+export interface WorkspaceFilePreview {
+  path: string;
+  text: string;
+}
+
+export interface WorkspaceFileChange {
+  path: string;
+  status: "added" | "modified" | "deleted" | "renamed";
+  additions: number;
+  deletions: number;
+  patch: string;
+}
+
+export interface WorkspaceChanges {
+  files: readonly WorkspaceFileChange[];
+}
+
+export interface WorktreeCheckpoint {
+  commitId: string;
+  gitRef: string;
+  skippedPaths: string[];
+}
+
+export interface WorktreeRestore {
+  safetyCheckpoint: WorktreeCheckpoint;
+  changedPaths: string[];
+}
+
+export interface PiSkill {
+  id: string;
+  name: string;
+  description: string;
+  scope: "project" | "user";
+  source: "pi" | "shared";
+  path: string;
+  content: string;
+}
+
 export interface PersistedAgentProfile {
   id: string;
   name: string;
   cwd: string;
-  proxy: string;
-  noProxy: string;
   provider: string;
   model: string;
 }
 
-interface PiCapability extends NativeJsonCapability {
+export interface PersistedAppSettings {
+  locale: "en" | "zh";
+  proxy: string;
+  noProxy: string;
+  provider: string;
+  model: string;
+  subagentsEnabled: boolean;
+}
+
+interface PiCapability extends NativeCapability {
   __wabouCapabilityVersion: number;
   getStatus(request: string): string | PromiseLike<string>;
   start(request: string): string | PromiseLike<string>;
@@ -60,9 +112,47 @@ interface PiCapability extends NativeJsonCapability {
   cloneSession(request: string): string | PromiseLike<string>;
   compactSession(request: string): string | PromiseLike<string>;
   exportSession(request: string): string | PromiseLike<string>;
-  listWorkspaceFiles(request: string): string | PromiseLike<string>;
+  listWorkspaceFiles(request: {
+    cwd: string;
+  }): string[] | PromiseLike<string[]>;
+  workspaceInfo(request: {
+    cwd: string;
+  }): WorkspaceInfo | PromiseLike<WorkspaceInfo>;
+  readWorkspaceFile(request: {
+    cwd: string;
+    path: string;
+  }): WorkspaceFilePreview | PromiseLike<WorkspaceFilePreview>;
+  workspaceChanges(request: {
+    cwd: string;
+  }): WorkspaceChanges | PromiseLike<WorkspaceChanges>;
+  captureCheckpoint(request: {
+    cwd: string;
+    namespace: string;
+    sequence: number;
+  }): WorktreeCheckpoint | PromiseLike<WorktreeCheckpoint>;
+  restoreCheckpoint(request: {
+    cwd: string;
+    commitId: string;
+    namespace: string;
+    sequence: number;
+  }): WorktreeRestore | PromiseLike<WorktreeRestore>;
+  retainCheckpoint(request: {
+    cwd: string;
+    commitId: string;
+    sessionId: string;
+    entryId: string;
+  }): WorktreeCheckpoint | PromiseLike<WorktreeCheckpoint>;
+  findCheckpoint(request: {
+    cwd: string;
+    sessionId: string;
+    entryId: string;
+  }):
+    | WorktreeCheckpoint
+    | undefined
+    | PromiseLike<WorktreeCheckpoint | undefined>;
+  listSkills(request: { cwd: string }): PiSkill[] | PromiseLike<PiSkill[]>;
   respondExtensionUi(request: string): string | PromiseLike<string>;
-  listAgents(request?: string): string | PromiseLike<string>;
+  listAgents(request?: undefined): PersistedAgentProfile[];
   saveAgents(request: string): string | PromiseLike<string>;
   deleteAgent(request: string): string | PromiseLike<string>;
   defaultWorkspace(request: string): string | PromiseLike<string>;
@@ -74,14 +164,21 @@ interface PiHost extends Host {
 
 export function usePiApi() {
   const host = useHost<PiHost>();
-  const call = bindJsonCapability(host.piAgent, {
+  const capability = bindCapability(host.piAgent, {
+    name: "piAgent",
+    version: 1,
+  });
+  const call = bindJsonCapability(capability, {
     name: "piAgent",
     version: 1,
   });
   return {
-    listAgents: () => call<PersistedAgentProfile[]>("listAgents"),
+    listAgents: () => capability.listAgents(),
     saveAgents: (agents: readonly PersistedAgentProfile[]) =>
       call<void>("saveAgents", agents),
+    getAppSettings: () => call<PersistedAppSettings>("getAppSettings"),
+    saveAppSettings: (settings: PersistedAppSettings) =>
+      call<void>("saveAppSettings", settings),
     deleteAgent: (agentId: string) => call<void>("deleteAgent", { agentId }),
     defaultWorkspace: (agentId: string) =>
       call<string>("defaultWorkspace", { agentId }),
@@ -94,25 +191,50 @@ export function usePiApi() {
       provider?: string;
       model?: string;
       sessionId?: string;
+      subagentsEnabled?: boolean;
     }) => call<PiStatus>("start", options),
     prompt: (
       agentId: string,
+      requestId: string,
       message: string,
       imagePaths: readonly string[] = [],
       contextPaths: readonly string[] = [],
-    ) => call<void>("prompt", { agentId, message, imagePaths, contextPaths }),
+    ) =>
+      call<void>("prompt", {
+        agentId,
+        requestId,
+        message,
+        imagePaths,
+        contextPaths,
+      }),
     steer: (
       agentId: string,
+      requestId: string,
       message: string,
       imagePaths: readonly string[] = [],
       contextPaths: readonly string[] = [],
-    ) => call<void>("steer", { agentId, message, imagePaths, contextPaths }),
+    ) =>
+      call<void>("steer", {
+        agentId,
+        requestId,
+        message,
+        imagePaths,
+        contextPaths,
+      }),
     followUp: (
       agentId: string,
+      requestId: string,
       message: string,
       imagePaths: readonly string[] = [],
       contextPaths: readonly string[] = [],
-    ) => call<void>("followUp", { agentId, message, imagePaths, contextPaths }),
+    ) =>
+      call<void>("followUp", {
+        agentId,
+        requestId,
+        message,
+        imagePaths,
+        contextPaths,
+      }),
     abort: (agentId: string) => call<void>("abort", { agentId }),
     stop: (agentId: string) => call<void>("stop", { agentId }),
     newSession: (agentId: string) => call<void>("newSession", { agentId }),
@@ -120,7 +242,8 @@ export function usePiApi() {
       call<void>("renameSession", { agentId, name }),
     listSessions: (agentId: string) =>
       call<PiSession[]>("listSessions", { agentId }),
-    getMessages: (agentId: string) => call<void>("getMessages", { agentId }),
+    getMessages: (agentId: string, requestId: string) =>
+      call<void>("getMessages", { agentId, requestId }),
     getSessionStats: (agentId: string) =>
       call<void>("getSessionStats", { agentId }),
     getCommands: (agentId: string) => call<void>("getCommands", { agentId }),
@@ -133,8 +256,33 @@ export function usePiApi() {
       call<void>("compactSession", { agentId }),
     exportSession: (agentId: string, outputPath: string) =>
       call<void>("exportSession", { agentId, outputPath }),
-    listWorkspaceFiles: (cwd: string) =>
-      call<string[]>("listWorkspaceFiles", { cwd }),
+    listWorkspaceFiles: async (cwd: string) =>
+      capability.listWorkspaceFiles({ cwd }),
+    workspaceInfo: async (cwd: string) => capability.workspaceInfo({ cwd }),
+    readWorkspaceFile: async (cwd: string, path: string) =>
+      capability.readWorkspaceFile({ cwd, path }),
+    workspaceChanges: async (cwd: string) =>
+      capability.workspaceChanges({ cwd }),
+    captureCheckpoint: async (
+      cwd: string,
+      namespace: string,
+      sequence: number,
+    ) => capability.captureCheckpoint({ cwd, namespace, sequence }),
+    restoreCheckpoint: async (
+      cwd: string,
+      commitId: string,
+      namespace: string,
+      sequence: number,
+    ) => capability.restoreCheckpoint({ cwd, commitId, namespace, sequence }),
+    retainCheckpoint: async (
+      cwd: string,
+      commitId: string,
+      sessionId: string,
+      entryId: string,
+    ) => capability.retainCheckpoint({ cwd, commitId, sessionId, entryId }),
+    findCheckpoint: async (cwd: string, sessionId: string, entryId: string) =>
+      capability.findCheckpoint({ cwd, sessionId, entryId }),
+    listSkills: async (cwd: string) => capability.listSkills({ cwd }),
     respondExtensionUi: (
       agentId: string,
       response:

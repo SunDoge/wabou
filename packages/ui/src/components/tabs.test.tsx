@@ -51,7 +51,9 @@ test("unstyled tabs retain behavior without injecting the default skin", () => {
   }
 
   expect(classes).toContain("custom-list");
-  expect(classes).toContain("custom-trigger");
+  expect(
+    classes.some((value) => value.split(/\s+/).includes("custom-trigger")),
+  ).toBe(true);
   expect(classes.some((value) => value.includes("custom-trigger h-7"))).toBe(
     false,
   );

@@ -1,4 +1,5 @@
-import { createSignal, For, type JSX } from "solid-js";
+import { mergeClasses } from "@wabou/core/style";
+import { createSignal, For as ForValue, type JSX } from "solid-js";
 import { match } from "ts-pattern";
 import {
   type ButtonKeyEvent,
@@ -6,7 +7,6 @@ import {
   Text,
   View,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import { Kbd } from "./display";
 
 const MOD_SHIFT = 1;
@@ -91,7 +91,7 @@ export function ShortcutRecorder(props: ShortcutRecorderProps): JSX.Element {
         disabled={props.disabled}
         class={(state) =>
           mergeClasses(
-            "h-10 min-w-48 px-3 flex flex-row items-center gap-1 rounded-md border bg-input",
+            "h-10 min-w-48 px-3 flex flex-row items-center gap-1 rounded-lg border bg-input",
             recording() || state.focusVisible
               ? "border-focus"
               : "border-strong",
@@ -103,7 +103,7 @@ export function ShortcutRecorder(props: ShortcutRecorderProps): JSX.Element {
         {recording() ? (
           <Text class="text-sm text-muted">Press a shortcut…</Text>
         ) : parts().length > 0 ? (
-          <For each={parts()}>{(part) => <Kbd>{part}</Kbd>}</For>
+          <ForValue each={parts()}>{(part) => <Kbd>{part}</Kbd>}</ForValue>
         ) : (
           <Text class="text-sm text-muted">
             {props.placeholder ?? "Record shortcut"}

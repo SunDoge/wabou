@@ -1,12 +1,9 @@
-import { assertFocusOwnerCount, renderComponent } from "@wabou/test/component";
 import {
-  CodeEditor,
-  Input,
-  PasswordInput,
-  Text,
-  TextArea,
-  View,
-} from "@wabou/ui";
+  assertFocusOwnerCount,
+  assertSingleSurfaceOwner,
+  renderComponent,
+} from "@wabou/test/component";
+import { Editor, Input, PasswordInput, Text, TextArea, View } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 
@@ -36,6 +33,9 @@ test("updates controlled single-line and multiline editors", () => {
   const name = screen.getByRole("textbox", { name: "Name" });
   const notes = screen.getByRole("textbox", { name: "Notes" });
 
+  expect(name.className).toContain("h-8");
+  expect(name.className).toContain("rounded-md");
+
   name.input("Ada");
   expect(name.focused).toBe(true);
   expect(name.value).toBe("Ada");
@@ -48,11 +48,32 @@ test("updates controlled single-line and multiline editors", () => {
   );
 });
 
-test("updates a controlled CodeEditor through the component input contract", () => {
+test("reports the native textarea caret in JavaScript UTF-16 offsets", () => {
+  let caret = -1;
+  const screen = renderComponent(() => (
+    <TextArea
+      aria-label="Prompt"
+      value="a😀b"
+      onTextSelectionChange={(event) => {
+        caret = event.head ?? -1;
+      }}
+    />
+  ));
+
+  screen.getByRole("textbox", { name: "Prompt" }).emit("textselectionchange", {
+    anchor: 3,
+    head: 3,
+    text: null,
+    kind: "simple",
+  });
+  expect(caret).toBe(3);
+});
+
+test("updates a controlled Editor through the component input contract", () => {
   const App = () => {
     const [source, setSource] = createSignal("initial");
     return (
-      <CodeEditor
+      <Editor
         aria-label="Markdown source"
         value={source()}
         onInput={(event) => setSource(event.currentTarget.value)}
@@ -61,9 +82,45 @@ test("updates a controlled CodeEditor through the component input contract", () 
   };
   const screen = renderComponent(App);
   const editor = screen.getByRole("textbox", { name: "Markdown source" });
+  const identity = editor.identity;
 
   editor.input("updated");
   expect(editor.value).toBe("updated");
+  expect(
+    screen.getByRole("textbox", { name: "Markdown source" }).identity,
+  ).toEqual(identity);
+});
+
+test("exposes native Editor selection and submit events", () => {
+  let selection: [number | undefined, number | undefined] = [
+    undefined,
+    undefined,
+  ];
+  let submit: [boolean, boolean] | undefined;
+  const screen = renderComponent(() => (
+    <Editor
+      aria-label="Source"
+      value="a😀中"
+      onTextSelectionChange={(event) => {
+        selection = [event.anchor, event.head];
+      }}
+      onSubmit={(event) => {
+        submit = [event.secondary, event.shift];
+      }}
+    />
+  ));
+  const editor = screen.getByRole("textbox", { name: "Source" });
+
+  editor.emit("textselectionchange", {
+    anchor: 1,
+    head: 3,
+    text: "😀",
+    kind: "simple",
+  });
+  editor.emit("submit", { secondary: false, shift: true });
+
+  expect(selection).toEqual([1, 3]);
+  expect(submit).toEqual([false, true]);
 });
 
 test("blocks authored disabled and read-only editors", () => {
@@ -102,6 +159,27 @@ test("allows the input surface to be selected without conflicting backgrounds", 
   expect(input.className).toContain("bg-surface-raised");
   expect(input.className).not.toContain("bg-input");
   expect(input.attribute("surfaceClass")).toBeNull();
+});
+
+test("removes all visual chrome from nested native editors", () => {
+  const screen = renderComponent(() => (
+    <View data-wabou-owns="surface">
+      <Input aria-label="Inline name" chrome="none" />
+      <TextArea aria-label="Inline notes" chrome="none" />
+    </View>
+  ));
+  const root = screen.getByRole("textbox", { name: "Inline name" }).parent;
+  expect(root).not.toBeNull();
+  if (!root) throw new Error("nested editors require a surface parent");
+
+  expect(assertSingleSurfaceOwner(root)).toEqual(root);
+  for (const editor of screen.getAllByRole("textbox")) {
+    expect(editor.attribute("data-wabou-owns")).toBe("native-editor");
+    expect(editor.className).not.toContain("rounded");
+    expect(editor.className).not.toContain("border");
+    expect(editor.className).not.toContain("shadow");
+    expect(editor.className).not.toContain("bg-");
+  }
 });
 
 test("keeps password contents behind a Rust secret handle", () => {

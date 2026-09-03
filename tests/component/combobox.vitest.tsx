@@ -27,11 +27,15 @@ test("searches and selects a value", () => {
   const trigger = screen.getByRole("combobox", { name: "Technology" });
 
   trigger.click();
+  expect(
+    screen.getByRole("listbox").closestByRole("presentation")?.className,
+  ).toContain("rounded-lg");
   screen.getByRole("textbox", { name: "Technology search" }).input("native");
   screen.getByRole("option", { name: "Rust" }).click();
 
   expect(screen.getByRole("status").text).toBe("rust");
   expect(trigger.text).toContain("Rust");
+  expect(trigger.valueText).toBe("Rust");
   expect(screen.queryByRole("listbox")).toBeNull();
 });
 
@@ -42,4 +46,18 @@ test("dismisses search with Escape", () => {
   screen.getByRole("combobox", { name: "Technology" }).click();
   screen.getByRole("textbox", { name: "Technology search" }).press("Escape");
   expect(screen.queryByRole("listbox")).toBeNull();
+});
+
+test("visually distinguishes unavailable options", () => {
+  const screen = renderComponent(() => (
+    <Combobox aria-label="Technology" options={options} />
+  ));
+  screen.getByRole("combobox", { name: "Technology" }).click();
+
+  const disabled = screen.getByRole("option", { name: "Disabled" });
+  expect(disabled.disabled).toBe(true);
+  expect(disabled.className).toContain("bg-surface-muted");
+  expect(disabled.className).toContain("text-muted");
+  expect(disabled.className).toContain("cursor-not-allowed");
+  expect(disabled.className).toContain("opacity-60");
 });

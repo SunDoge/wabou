@@ -1,13 +1,14 @@
 import type { Handle } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
+import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import { createContext, type JSX, omit, onCleanup, useContext } from "solid-js";
-import { createTransition, useReducedMotion } from "../animation";
+import { type Easing, useReducedMotion } from "../animation";
 import {
   Button,
   type ButtonProps,
   CollapsiblePresence,
   Icon,
-  rotate2d,
   Text,
   View,
   type ViewProps,
@@ -19,24 +20,15 @@ import {
   isSelected,
   toggleSelection,
 } from "../primitives/interactions";
-import { mergeClasses } from "@wabou/core/style";
 
-function DisclosureIndicator(props: {
-  open: () => boolean;
-  reducedMotion: () => boolean;
-}) {
-  const rotation = createTransition(() => (props.open() ? Math.PI : 0), {
-    duration: 0.2,
-    ease: "easeOut",
-    reducedMotion: props.reducedMotion,
-  });
+function DisclosureIndicator(props: { open: () => boolean }) {
   return (
-    <View
-      class="w-4 h-4 flex-none"
-      transform={rotate2d(rotation.value())}
-      aria-hidden="true"
-    >
-      <Icon source={chevronDown} class="text-muted" size={16} />
+    <View class="w-4 h-4 flex-none" aria-hidden="true">
+      <Icon
+        source={props.open() ? chevronDown : chevronRight}
+        class="text-muted"
+        size={16}
+      />
     </View>
   );
 }
@@ -99,46 +91,56 @@ export function Collapsible(props: CollapsibleProps) {
 export interface CollapsibleTriggerProps
   extends Omit<ButtonProps, "children" | "class" | "unstyled"> {
   children?: JSX.Element;
+  /** Render the built-in trailing chevron. Disable when children provide one. */
+  indicator?: boolean;
   class?: string;
 }
 export function CollapsibleTrigger(props: CollapsibleTriggerProps) {
   const context = useCollapsible();
-  const rest = omit(props, "children", "class", "onClick");
+  const rest = omit(props, "children", "indicator", "class", "onClick");
   return (
     <Button
       {...rest}
       unstyled
       disabled={context.disabled() || props.disabled}
       aria-expanded={context.open()}
-      class="w-full"
+      class={mergeClasses(
+        "w-full min-h-7 flex items-center justify-between gap-3",
+        props.class,
+      )}
       onClick={(event) => {
         props.onClick?.(event);
         if (!event.defaultPrevented) context.toggle();
       }}
     >
-      <View
-        class={mergeClasses(
-          "w-full flex items-center justify-between gap-3",
-          props.class,
-        )}
-      >
-        {props.children}
-        <DisclosureIndicator
-          open={context.open}
-          reducedMotion={context.reducedMotion}
-        />
-      </View>
+      {props.children}
+      {props.indicator !== false && <DisclosureIndicator open={context.open} />}
     </Button>
   );
 }
-export type CollapsibleContentProps = ViewProps;
+export interface CollapsibleContentProps extends ViewProps {
+  duration?: number;
+  ease?: Easing;
+  animateInitial?: boolean;
+}
 export function CollapsibleContent(props: CollapsibleContentProps) {
   const context = useCollapsible();
-  const contentProps = omit(props, "children", "class", "style");
+  const contentProps = omit(
+    props,
+    "children",
+    "class",
+    "style",
+    "duration",
+    "ease",
+    "animateInitial",
+  );
   return (
     <CollapsiblePresence
       open={context.open()}
       reducedMotion={context.reducedMotion()}
+      duration={props.duration}
+      ease={props.ease}
+      animateInitial={props.animateInitial}
       contentClass={props.class}
       contentProps={contentProps}
       contentStyle={props.style}
@@ -279,7 +281,10 @@ export function AccordionTrigger(props: AccordionTriggerProps) {
       unstyled
       disabled={root.disabled() || item.disabled() || props.disabled}
       aria-expanded={open()}
-      class="w-full"
+      class={mergeClasses(
+        "w-full py-4 flex items-center justify-between gap-4",
+        props.class,
+      )}
       ref={(node) => {
         unregister?.();
         unregister = root.register(
@@ -300,17 +305,10 @@ export function AccordionTrigger(props: AccordionTriggerProps) {
         }
       }}
     >
-      <View
-        class={mergeClasses(
-          "w-full py-4 flex items-center justify-between gap-4",
-          props.class,
-        )}
-      >
-        <Text class="min-w-0 whitespace-normal text-sm font-medium text-primary">
-          {props.children}
-        </Text>
-        <DisclosureIndicator open={open} reducedMotion={root.reducedMotion} />
-      </View>
+      <Text class="min-w-0 flex-1 whitespace-normal text-sm font-medium text-primary">
+        {props.children}
+      </Text>
+      <DisclosureIndicator open={open} />
     </Button>
   );
 }

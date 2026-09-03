@@ -15,6 +15,41 @@ fn parses_explicit_font_style_utilities() {
 }
 
 #[test]
+fn parses_explicit_text_decoration_utilities() {
+    for (candidate, value) in [
+        ("underline", "underline"),
+        ("line-through", "line-through"),
+        ("no-underline", "none"),
+    ] {
+        let declaration = &parse_utility(candidate).unwrap().declarations[0];
+        assert_eq!(declaration.property, "text-decoration-line");
+        assert_eq!(
+            declaration.value,
+            Value::Keyword {
+                value: value.into()
+            }
+        );
+    }
+}
+
+#[test]
+fn blur_utilities_keep_content_and_backdrop_filters_distinct() {
+    for (candidate, property, radius) in [
+        ("blur-sm", "filter-blur", 4.0),
+        ("backdrop-blur-md", "backdrop-blur", 12.0),
+    ] {
+        let declaration = &parse_utility(candidate).unwrap().declarations[0];
+        assert_eq!(declaration.property, property);
+        assert_eq!(
+            declaration.value,
+            Value::Length {
+                value: Length::Px { value: radius }
+            }
+        );
+    }
+}
+
+#[test]
 fn interaction_feedback_utilities_are_explicit_style_ir() {
     let cursor = parse_utility("cursor-pointer").unwrap();
     assert_eq!(cursor.declarations[0].property, "cursor");
@@ -240,7 +275,7 @@ fn static_transform_utilities_emit_typed_nested_ir() {
 }
 
 #[test]
-fn vello_shadow_scale_uses_ordered_ambient_and_key_layers() {
+fn shadow_scale_uses_ordered_ambient_and_key_layers() {
     for candidate in ["shadow", "shadow-md", "shadow-lg", "shadow-xl"] {
         let parsed = parse_utility(candidate).unwrap();
         assert!(matches!(

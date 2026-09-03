@@ -1,14 +1,11 @@
 import { renderComponent } from "@wabou/test/component";
-import {
-  Button,
-  createToasts,
-  MotionConfigProvider,
-  Toaster,
-  View,
-} from "@wabou/ui";
+import { Button, createToasts, Toaster, View } from "@wabou/ui";
 import { expect, test } from "vitest";
 
-test("shows and dismisses a polite toast", () => {
+const transitionOf = (toast: { attribute(name: string): string | null }) =>
+  JSON.parse(toast.attribute("__wabou_native_transition") ?? "null");
+
+test("shows and synchronously dismisses a polite toast by default", () => {
   const screen = renderComponent(() => {
     const toasts = createToasts({ defaultDuration: 0 });
     return (
@@ -28,10 +25,12 @@ test("shows and dismisses a polite toast", () => {
   screen.getByRole("button", { name: "Save" }).click();
   const toast = screen.getByRole("status", { name: "Saved" });
   expect(toast.text).toContain("Changes are on disk.");
-  expect(toast.transform).toEqual([1, 0, 0, 1, 0, 12]);
+  expect(toast.children[0]?.className).toContain("rounded-lg");
+  expect(toast.children[0]?.className).toContain("border-subtle");
+  expect(toast.children[0]?.className).toContain("py-3.5");
+  expect(toast.attribute("__wabou_native_transition")).toBeNull();
   screen.getByRole("button", { name: "Dismiss Saved" }).click();
   expect(screen.queryByRole("status", { name: "Saved" })).toBeNull();
-  expect(toast.interactionBlocked).toBe(true);
 });
 
 test("destructive toasts are assertive and actions dismiss by default", () => {
@@ -55,7 +54,7 @@ test("destructive toasts are assertive and actions dismiss by default", () => {
   });
 
   screen.getByRole("button", { name: "Fail" }).click();
-  expect(screen.getByRole("alert", { name: "Download failed" })).not.toBeNull();
+  screen.getByRole("alert", { name: "Download failed" });
   screen.getByRole("button", { name: "Retry" }).click();
   expect(retried).toBe(1);
   expect(screen.queryByRole("alert")).toBeNull();
@@ -84,24 +83,33 @@ test("queue limits still use the primitive overflow policy", () => {
   });
 
   screen.getByRole("button", { name: "Queue" }).click();
+  // Both commands share one Solid transaction, so the overflowed item never
+  // enters the authored tree and therefore has no visual exit to retain.
   expect(screen.queryByRole("status", { name: "First" })).toBeNull();
   expect(screen.getByRole("status", { name: "Second" })).not.toBeNull();
   expect(dismissed).toEqual(["overflow"]);
 });
 
-test("reduced motion publishes the final toast transform immediately", () => {
+test("an explicit motion contract retains a toast until GPUI completes exit", () => {
   const screen = renderComponent(() => {
     const toasts = createToasts({ defaultDuration: 0 });
     return (
-      <MotionConfigProvider reducedMotion>
-        <Button onClick={() => toasts.success("Quietly saved")}>Save</Button>
-        <Toaster toasts={toasts} />
-      </MotionConfigProvider>
+      <View>
+        <Button onClick={() => toasts.success("Animated save")}>Save</Button>
+        <Toaster toasts={toasts} motion={{ fromY: 12 }} />
+      </View>
     );
   });
 
   screen.getByRole("button", { name: "Save" }).click();
+  const toast = screen.getByRole("status", { name: "Animated save" });
+  const entering = transitionOf(toast);
+  toast.emit("transitionend", { generation: entering.generation });
+  screen.getByRole("button", { name: "Dismiss Animated save" }).click();
   expect(
-    screen.getByRole("status", { name: "Quietly saved" }).transform,
-  ).toEqual([1, 0, 0, 1, 0, 0]);
+    screen.queryByRole("status", { name: "Animated save" }),
+  ).not.toBeNull();
+  const exiting = transitionOf(toast);
+  toast.emit("transitionend", { generation: exiting.generation });
+  expect(screen.queryByRole("status", { name: "Animated save" })).toBeNull();
 });

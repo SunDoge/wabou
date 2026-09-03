@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { type Host, HostProvider } from "@wabou/core";
+import { type Host, HostProvider } from "@wabou/ui";
 import { createComponent, createRoot } from "solid-js";
 import {
   type BindingsDemoClient,

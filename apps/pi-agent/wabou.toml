@@ -1,0 +1,11 @@
+[build]
+out-dir = "../../dist/pi-agent-wabou/resources"
+
+[package]
+product-name = "Pi Agent"
+identifier = "dev.wabou.pi-agent"
+description = "A native coding agent built with Wabou."
+authors = ["Wabou contributors"]
+license-file = "../../LICENSE"
+icons = ["icons/pi-agent@2x.png"]
+formats = ["app"]

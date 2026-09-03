@@ -55,6 +55,10 @@ const invalidDynamicComponent = <Dynamic component={NamedView} />;
 const unsupportedStyle = <view style={{ filter: "blur(4px)" }} />;
 // @ts-expect-error numeric native effects are a private framework ABI
 const privateEffectDispatcher = Wabou.dispatchEffect;
+// @ts-expect-error protocol writers are available only from @wabou/core/renderer
+const privateProtocolWriter = Wabou.writer;
+// @ts-expect-error generated opcodes are available only from explicit protocol/renderer subpaths
+const privateOpcodeTable = Wabou.OP;
 void [
   structuralHostNode,
   plainTextInput,
@@ -72,6 +76,8 @@ void [
   invalidDynamicComponent,
   unsupportedStyle,
   privateEffectDispatcher,
+  privateProtocolWriter,
+  privateOpcodeTable,
   localized,
 ];
 

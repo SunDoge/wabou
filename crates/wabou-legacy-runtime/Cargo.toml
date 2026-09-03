@@ -1,0 +1,55 @@
+[package]
+name = "wabou-legacy-runtime"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+publish = false
+
+[lib]
+name = "wabou_legacy_runtime"
+path = "src/lib.rs"
+
+[dependencies]
+anyrender.workspace = true
+arc-swap.workspace = true
+bitflags.workspace = true
+flume.workspace = true
+futures-lite = "2"
+getrandom.workspace = true
+gpui-shell = { package = "wabou-shell", path = "../wabou-shell" }
+image = { workspace = true, features = ["jpeg", "png", "webp"] }
+jiff.workspace = true
+legacy-shell = { package = "wabou-legacy-shell", path = "../wabou-legacy-shell" }
+parley.workspace = true
+open.workspace = true
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+rquickjs = { version = "0.12.1", features = ["full-async", "loader", "rust-alloc"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+slotmap.workspace = true
+snafu.workspace = true
+sourcemap = "9.2.2"
+sys-locale.workspace = true
+taffy = { workspace = true, features = ["content_size", "parse"] }
+tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tracing.workspace = true
+url.workspace = true
+vello.workspace = true
+wabou-devtools.workspace = true
+wabou-bindgen.workspace = true
+wabou-host-api.workspace = true
+wabou-legacy-widgets.workspace = true
+wabou-protocol.workspace = true
+wabou-style.workspace = true
+
+[features]
+default = []
+devtools = []
+profiling = []
+vite = []
+
+[dev-dependencies]
+proptest = "1"

@@ -1,5 +1,11 @@
 import { mergeClasses } from "@wabou/core/style";
-import { type JSX, omit } from "solid-js";
+import {
+  createComponent,
+  createContext,
+  type JSX,
+  omit,
+  useContext,
+} from "solid-js";
 import {
   Button as HeadlessButton,
   type ButtonProps as HeadlessButtonProps,
@@ -11,11 +17,25 @@ import {
   type ViewProps,
 } from "../primitives";
 import { SearchField, type SearchFieldProps } from "./search-field";
+import { createControllableState } from "./state";
 import {
   type ComponentsElevation,
   componentsElevation,
   useComponentsTheme,
 } from "./theme";
+import { workbenchHeaderClass } from "./workbench-style";
+
+interface SidebarMenuContextValue {
+  managed: boolean;
+  value(): string | undefined;
+  select(value: string): void;
+}
+
+const SidebarMenuContext = createContext<SidebarMenuContextValue>({
+  managed: false,
+  value: () => undefined,
+  select: () => {},
+});
 
 export interface SidebarSearchGroup<Item> {
   label: string;
@@ -74,21 +94,19 @@ export function Sidebar(props: SidebarProps): JSX.Element {
 }
 
 export function SidebarHeader(props: ViewProps): JSX.Element {
-  return (
-    <View
-      {...props}
-      class={mergeClasses(
-        "flex-none border-b border-subtle bg-surface",
-        props.class,
-      )}
-    />
-  );
+  return <View {...props} class={workbenchHeaderClass(props.class)} />;
 }
 
 export function SidebarSearch(props: SearchFieldProps): JSX.Element {
   const forwarded = omit(props, "class");
+  const quiet = () => props.variant === "quiet";
   return (
-    <View class="flex-none p-2 border-b border-subtle bg-surface">
+    <View
+      class={mergeClasses(
+        "flex-none p-2",
+        quiet() ? "bg-surface-muted" : "border-b border-subtle bg-surface",
+      )}
+    >
       <SearchField
         {...forwarded}
         placeholder={props.placeholder ?? "Search"}
@@ -108,7 +126,7 @@ export function SidebarContent(props: SidebarContentProps): JSX.Element {
     <ScrollArea
       {...props}
       class={mergeClasses("min-h-0 flex-1", props.class)}
-      contentClass={mergeClasses("px-2 py-3", props.contentClass)}
+      contentClass={mergeClasses("px-3 py-3", props.contentClass)}
     />
   );
 }
@@ -118,7 +136,7 @@ export function SidebarGroup(props: ViewProps): JSX.Element {
     <View
       {...props}
       role={props.role ?? "group"}
-      class={mergeClasses("flex-none flex flex-col gap-0.5 mb-4", props.class)}
+      class={mergeClasses("flex-none flex flex-col gap-2 mb-3", props.class)}
     />
   );
 }
@@ -128,40 +146,135 @@ export function SidebarGroupLabel(props: TextProps): JSX.Element {
     <Text
       {...props}
       class={mergeClasses(
-        "px-2 py-1 text-xs font-medium text-muted",
+        "h-8 px-2 flex-none flex items-center text-xs font-medium text-muted",
         props.class,
       )}
     />
   );
 }
 
+export interface SidebarMenuProps extends Omit<ViewProps, "class"> {
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string) => void;
+  class?: string;
+}
+
+/**
+ * Single-selection navigation scope for sidebar destinations.
+ * Buttons without a value remain actions and never become selected items.
+ */
+export function SidebarMenu(props: SidebarMenuProps): JSX.Element {
+  const state = createControllableState<string | undefined>({
+    value: () => props.value,
+    defaultValue: props.defaultValue,
+    onChange: (value) => value !== undefined && props.onValueChange?.(value),
+  });
+  const forwarded = omit(
+    props,
+    "value",
+    "defaultValue",
+    "onValueChange",
+    "class",
+    "children",
+  );
+  return createComponent(SidebarMenuContext, {
+    value: {
+      managed: true,
+      value: state.value,
+      select: (value) => state.set(value),
+    },
+    get children() {
+      return (
+        <View
+          {...forwarded}
+          role={props.role ?? "group"}
+          class={mergeClasses("min-w-0 flex flex-col gap-2", props.class)}
+        >
+          {props.children}
+        </View>
+      );
+    },
+  });
+}
+
 export interface SidebarMenuButtonProps
   extends Omit<HeadlessButtonProps, "class" | "unstyled"> {
+  /** Value controlled by the nearest SidebarMenu. Omit for action buttons. */
+  value?: string;
   class?: string;
 }
 
 /** Consistent navigation row; applications still own activation and routing. */
 export function SidebarMenuButton(props: SidebarMenuButtonProps): JSX.Element {
-  const forwarded = omit(props, "class");
+  const menu = useContext(SidebarMenuContext);
+  const forwarded = omit(props, "class", "value", "selected", "onClick");
+  const selected = () =>
+    props.value !== undefined && menu.managed
+      ? menu.value() === props.value
+      : (props.selected ?? false);
   return (
     <HeadlessButton
       {...forwarded}
       unstyled
-      aria-selected={props.selected}
+      selected={selected()}
+      aria-selected={selected()}
       class={(state) =>
         mergeClasses(
-          "w-full min-w-0 h-8 px-3 justify-start gap-2 rounded-md text-sm",
+          "w-full min-w-0 h-8 px-2 justify-start gap-2 rounded-md border border-transparent text-sm",
           state.pressed
             ? "bg-control-pressed text-primary"
-            : state.hovered
-              ? "bg-control-hover text-primary"
-              : state.selected
-                ? "bg-selected text-primary"
+            : state.selected
+              ? "bg-selected font-medium text-primary"
+              : state.hovered
+                ? "bg-control-hover text-primary"
                 : "bg-transparent text-secondary",
-          state.focusVisible && "border border-focus",
+          state.focusVisible && "border-focus",
           props.class,
         )
       }
+      onClick={(event) => {
+        if (props.value !== undefined && menu.managed) menu.select(props.value);
+        props.onClick?.(event);
+      }}
+    />
+  );
+}
+
+/** Fixed icon slot that keeps navigation labels on one shared baseline. */
+export function SidebarMenuIcon(props: ViewProps): JSX.Element {
+  return (
+    <View
+      {...props}
+      role={props.role ?? "img"}
+      class={mergeClasses(
+        "w-4 h-4 flex-none flex items-center justify-center",
+        props.class,
+      )}
+    />
+  );
+}
+
+/** Truncating label slot for rows that also contain icons or suffix actions. */
+export function SidebarMenuLabel(props: TextProps): JSX.Element {
+  return (
+    <Text
+      {...props}
+      class={mergeClasses("min-w-0 flex-1 truncate text-left", props.class)}
+    />
+  );
+}
+
+/** End-aligned metadata or action slot that never compresses the row label. */
+export function SidebarMenuSuffix(props: ViewProps): JSX.Element {
+  return (
+    <View
+      {...props}
+      role={props.role ?? "group"}
+      class={mergeClasses(
+        "min-w-0 flex-none flex items-center justify-end",
+        props.class,
+      )}
     />
   );
 }

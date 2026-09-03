@@ -7,30 +7,19 @@ import {
   spread,
   TEXT_BEHAVIOR,
   type WabouElementProps,
-  type WabouImeDeleteSurroundingEvent,
-  type WabouImePreeditEvent,
-  type WabouKeyEvent,
-  type WabouTextCommitEvent,
   type WabouTextSelectionChangeEvent,
 } from "@wabou/core/renderer";
-import type { Affine2D, Shadow, WabouStyle } from "@wabou/core/style";
+import {
+  type Affine2D,
+  px,
+  type Shadow,
+  type WabouStyle,
+} from "@wabou/core/style";
 
 export type { VectorPath, VectorPathPaint } from "@wabou/core";
 export { PathBuilder } from "@wabou/core";
 
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  type JSX,
-  omit,
-  untrack,
-} from "solid-js";
-
-import {
-  CodeEditorDocument,
-  type CodeEditorLanguage,
-} from "./code-editor-state";
+import { type JSX, omit, untrack } from "solid-js";
 
 export type { Affine2D, WabouStyle } from "@wabou/core/style";
 export { rotate2d, translate2d } from "@wabou/core/style";
@@ -135,6 +124,11 @@ export interface TextInputProps extends Omit<PrimitiveProps, "children"> {
   placeholder?: string;
   disabled?: boolean;
   readOnly?: boolean;
+  /**
+   * For multiline editors, submit on plain Enter while keeping Shift+Enter as
+   * a native newline edit.
+   */
+  submitOnEnter?: boolean;
   onInput?: (event: { currentTarget: { value: string } }) => void;
 }
 
@@ -149,14 +143,31 @@ export interface PasswordInputProps extends Omit<PrimitiveProps, "children"> {
   onKeyDown?: (event: { key: string; preventDefault(): void }) => void;
 }
 
-export interface CodeEditorProps extends Omit<PrimitiveProps, "children"> {
+export interface EditorProps extends Omit<PrimitiveProps, "children"> {
   value?: string;
-  /** Headless CodeMirror/Lezer language service. */
-  language?: CodeEditorLanguage;
+  /** Optional language identifier consumed by the native editor highlighter. */
+  language?: string;
   disabled?: boolean;
   readOnly?: boolean;
+  /** Submit on plain Enter while keeping Shift+Enter as a native newline edit. */
+  submitOnEnter?: boolean;
   "aria-label": string;
   onInput?: (event: { currentTarget: { value: string } }) => void;
+}
+
+export type NativeWidgetConfig = object | readonly unknown[];
+
+/**
+ * Public boundary for an application-defined retained native widget.
+ *
+ * `tag` selects the Rust factory, `config` is its complete immutable authored
+ * snapshot, and ordinary Wabou event props carry typed native events back to
+ * Solid. Stateful native ownership remains keyed by this node's `NodeKey`.
+ */
+export interface NativeWidgetProps<Config extends NativeWidgetConfig>
+  extends Omit<PrimitiveProps, "children" | "widgetConfig"> {
+  tag: string;
+  config?: Config;
 }
 
 type InternalPrimitiveTag =
@@ -169,7 +180,8 @@ type InternalPrimitiveTag =
   | "input"
   | "textarea"
   | "password-input"
-  | "code-editor"
+  | "editor"
+  | "toast-stack"
   | "vector-path";
 
 /** @internal Host tags are renderer details, not public JSX elements. */
@@ -192,7 +204,8 @@ function primitive(
     | "input"
     | "textarea"
     | "password-input"
-    | "code-editor"
+    | "editor"
+    | "toast-stack"
     | "vector-path",
   props: PrimitiveProps,
 ) {
@@ -200,8 +213,8 @@ function primitive(
 }
 
 function editorPrimitive(
-  tag: "input" | "textarea" | "password-input" | "code-editor",
-  props: TextInputProps | PasswordInputProps | CodeEditorProps,
+  tag: "input" | "textarea" | "password-input" | "editor",
+  props: TextInputProps | PasswordInputProps | EditorProps,
 ) {
   // Keyboard policy belongs to the JS primitive. The widget trait only says
   // whether a native implementation can receive focus once JS requests it.
@@ -239,6 +252,21 @@ export function View(props: ViewProps): JSX.Element {
   return primitive("view", props);
 }
 
+/**
+ * Stable retained region projected through its own GPUI Entity.
+ *
+ * Use this around independently changing route content, scroll viewports,
+ * overlays, native-widget regions, animation surfaces, or diagnostic HUDs.
+ * It does not create application state and has the same layout semantics as a
+ * View; it only limits native invalidation and materialization.
+ */
+export function ProjectionBoundary(props: ViewProps): JSX.Element {
+  const node = createElement("view");
+  spread(node, props, false);
+  spread(node, { projectionBoundary: true }, false);
+  return node as unknown as JSX.Element;
+}
+
 function resolvedTextBehavior(maxLines: number | undefined) {
   if (maxLines != null && (!Number.isInteger(maxLines) || maxLines < 1)) {
     throw new RangeError("Text maxLines must be a positive integer");
@@ -246,16 +274,17 @@ function resolvedTextBehavior(maxLines: number | undefined) {
   return {
     flags:
       TEXT_BEHAVIOR.AggregateDirectText |
-      (maxLines == null || maxLines === 1 ? TEXT_BEHAVIOR.SingleLine : 0),
+      (maxLines === 1 ? TEXT_BEHAVIOR.SingleLine : 0),
     maxLines: maxLines ?? 0,
   };
 }
 
 /**
- * A single measured text run.
+ * A measured text run that wraps within its available width by default.
  *
  * Static and reactive child text nodes are concatenated by the native host and
- * participate in the parent layout as one item.
+ * participate in the parent layout as one item. Use `maxLines={1}` or
+ * `whitespace-nowrap` when the text must remain on one line.
  */
 export function Text(props: TextProps): JSX.Element {
   // Validate the initial value before Solid owns the reactive spread. An
@@ -334,15 +363,24 @@ export function Icon(props: IconProps): JSX.Element {
       },
       get style(): WabouStyle {
         const iconSize = normalizeIconSize(props.size);
+        const layoutSize =
+          typeof iconSize === "number" ? px(iconSize) : iconSize;
         return {
-          display: "inline-flex",
+          // Wabou has no inline formatting context. An icon is an ordinary
+          // explicitly-sized flex item in every native backend.
+          display: "flex",
           "align-items": "center",
           "justify-content": "center",
           "align-self": "center",
-          width: iconSize,
-          height: iconSize,
+          width: layoutSize,
+          height: layoutSize,
           "flex-shrink": 0,
           "line-height": "1",
+          // Icon is visual content, never the interaction owner. Keeping it
+          // out of native hit testing makes an enclosing Button receive the
+          // complete pointer gesture directly; callers can opt back in with
+          // an explicit style when building a genuinely interactive graphic.
+          "pointer-events": "none",
           ...(props.style ?? {}),
         };
       },
@@ -407,120 +445,28 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
   return editorPrimitive("password-input", props);
 }
 
-/** CodeMirror-owned config/Markdown editor rendered by a native viewport. */
-export function CodeEditor(props: CodeEditorProps): JSX.Element {
-  const initialValue = untrack(() => props.value ?? "");
-  const initialLanguage = untrack(() => props.language);
-  const document = new CodeEditorDocument(initialValue, initialLanguage);
-  const [revision, setRevision] = createSignal(0);
-  const invalidate = () => setRevision((value) => value + 1);
-  const emitInput = () =>
-    props.onInput?.({ currentTarget: { value: document.value } });
-  createEffect(
-    () => props.value,
-    (controlledValue) => {
-      if (controlledValue !== undefined && controlledValue !== document.value) {
-        document.sync(controlledValue, props.language);
-        invalidate();
-      }
+/** General-purpose editor whose document and input lifecycle are owned by GPUI. */
+export function Editor(props: EditorProps): JSX.Element {
+  return editorPrimitive("editor", props);
+}
+
+/** Mount an explicitly registered Rust/GPUI widget without web-element semantics. */
+export function NativeWidget<Config extends NativeWidgetConfig = object>(
+  props: NativeWidgetProps<Config>,
+): JSX.Element {
+  const tag = untrack(() => props.tag.trim());
+  if (!tag) throw new TypeError("NativeWidget tag must not be empty");
+  const rest = omit(props, "tag", "config");
+  const node = createElement(tag);
+  spread(node, rest, false);
+  spread(
+    node,
+    {
+      get widgetConfig(): Config | undefined {
+        return props.config;
+      },
     },
+    false,
   );
-  const widgetConfig = createMemo(() => {
-    revision();
-    return document.config(props.language);
-  });
-  const nativeProps = omit(
-    props,
-    "language",
-    "onInput",
-    "onKeyDown",
-    "onImePreedit",
-    "onImeCommit",
-    "onImeDeleteSurrounding",
-    "onImeDisabled",
-    "onTextSelectionChange",
-  );
-  return editorPrimitive(
-    "code-editor",
-    mergeProps(nativeProps, {
-      get value() {
-        revision();
-        return document.value;
-      },
-      get widgetConfig() {
-        return widgetConfig();
-      },
-      onInput(event: { currentTarget: { value: string } }) {
-        if (props.disabled || props.readOnly) return;
-        document.sync(event.currentTarget.value, props.language);
-        invalidate();
-        emitInput();
-      },
-      onKeyDown(event: WabouKeyEvent) {
-        if (!props.disabled) {
-          const result = document.handleKey({
-            key: event.key,
-            shift: (event.mods & 1) !== 0,
-            primary: event.primary,
-            readOnly: props.readOnly,
-          });
-          if (result.handled) {
-            event.preventDefault();
-            invalidate();
-            if (result.changed && !props.readOnly) emitInput();
-          }
-        }
-        props.onKeyDown?.(event);
-      },
-      onImePreedit(event: WabouImePreeditEvent) {
-        if (!props.disabled && !props.readOnly) {
-          document.setComposition(
-            event.data,
-            event.cursorStart,
-            event.cursorEnd,
-          );
-          event.preventDefault();
-          invalidate();
-        }
-        props.onImePreedit?.(event);
-      },
-      onImeCommit(event: WabouTextCommitEvent) {
-        if (!props.disabled && !props.readOnly) {
-          const changed = document.commitText(event.data);
-          event.preventDefault();
-          invalidate();
-          if (changed) emitInput();
-        }
-        props.onImeCommit?.(event);
-      },
-      onImeDeleteSurrounding(event: WabouImeDeleteSurroundingEvent) {
-        if (!props.disabled && !props.readOnly) {
-          const changed = document.deleteSurrounding(
-            event.beforeBytes,
-            event.afterBytes,
-          );
-          event.preventDefault();
-          invalidate();
-          if (changed) emitInput();
-        }
-        props.onImeDeleteSurrounding?.(event);
-      },
-      onImeDisabled(
-        event: Parameters<NonNullable<PrimitiveProps["onImeDisabled"]>>[0],
-      ) {
-        if (document.setComposition("", null, null)) invalidate();
-        props.onImeDisabled?.(event);
-      },
-      onTextSelectionChange(event: TextSelectionChangeEvent) {
-        if (
-          event.anchor !== undefined &&
-          event.head !== undefined &&
-          document.setSelection(event.anchor, event.head)
-        ) {
-          invalidate();
-        }
-        props.onTextSelectionChange?.(event);
-      },
-    }) as CodeEditorProps,
-  );
+  return node as unknown as JSX.Element;
 }

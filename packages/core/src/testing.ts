@@ -8,3 +8,11 @@ export { dispatchResizeObservation } from "./glue/resize-observer";
 export function dispatchFileDropEvent(event: FileDropEvent): void {
   dispatchHostMessage("wabou:file-drop", JSON.stringify(event));
 }
+
+/** Publish an arbitrary application message in component tests. */
+export function dispatchHostMessageForTest(
+  topic: string,
+  payload: unknown,
+): void {
+  dispatchHostMessage(topic, payload);
+}

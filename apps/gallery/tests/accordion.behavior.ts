@@ -12,7 +12,7 @@ test("accordion expansion state and animated presence stay in sync", async ({
     name: "Does it support arbitrary browser CSS?",
   });
   const nativeContent = page.getByRole("label", {
-    name: "No. Solid produces a native scene graph rendered by Rust through a selectable AnyRender backend.",
+    name: "No. Solid produces a retained native tree projected into GPUI by Rust.",
   });
   const cssContent = page.getByRole("label", {
     name: "No. Utilities compile to explicit native style values with predictable semantics.",

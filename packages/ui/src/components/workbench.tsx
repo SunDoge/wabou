@@ -1,0 +1,148 @@
+import x from "lucide-static/icons/x.svg?raw";
+import { type JSX, omit } from "solid-js";
+import { Icon, Text, View, type ViewProps } from "../primitives";
+import { Button } from "./button";
+import { ContentState, type ContentStateProps } from "./content-state";
+import { Sidebar, type SidebarProps } from "./sidebar";
+import {
+  workbenchClass,
+  workbenchContentClass,
+  workbenchContentColumnClass,
+  workbenchFooterClass,
+  workbenchHeaderClass,
+  workbenchInspectorClass,
+  workbenchInspectorContentClass,
+  workbenchInspectorHeaderClass,
+  workbenchMainClass,
+  workbenchSidebarClass,
+} from "./workbench-style";
+
+export * from "./workbench-style";
+
+/** Full-window desktop application boundary with explicit shrink semantics. */
+export function Workbench(props: ViewProps): JSX.Element {
+  const forwarded = omit(props, "class");
+  return <View {...forwarded} class={workbenchClass(props.class)} />;
+}
+
+/** Fixed-width navigation rail paired with a {@link WorkbenchMain}. */
+export function WorkbenchSidebar(props: SidebarProps): JSX.Element {
+  const forwarded = omit(props, "class");
+  return <Sidebar {...forwarded} class={workbenchSidebarClass(props.class)} />;
+}
+
+/** The resizable application column beside the navigation rail. */
+export function WorkbenchMain(props: ViewProps): JSX.Element {
+  const forwarded = omit(props, "class");
+  return <View {...forwarded} class={workbenchMainClass(props.class)} />;
+}
+
+/** Shared 48px chrome row for both sidebar and content headers. */
+export function WorkbenchHeader(props: ViewProps): JSX.Element {
+  const forwarded = omit(props, "class");
+  return <View {...forwarded} class={workbenchHeaderClass(props.class)} />;
+}
+
+/** Bounded application content. Add a ScrollArea inside when scrolling is needed. */
+export function WorkbenchContent(props: ViewProps): JSX.Element {
+  const forwarded = omit(props, "class");
+  return <View {...forwarded} class={workbenchContentClass(props.class)} />;
+}
+
+/** A centered 896px desktop content column that still shrinks with its pane. */
+export function WorkbenchContentColumn(props: ViewProps): JSX.Element {
+  const forwarded = omit(props, "class");
+  return (
+    <View {...forwarded} class={workbenchContentColumnClass(props.class)} />
+  );
+}
+
+/** Fixed chrome below the workbench content, such as a composer or status bar. */
+export function WorkbenchFooter(props: ViewProps): JSX.Element {
+  const forwarded = omit(props, "class");
+  return <View {...forwarded} class={workbenchFooterClass(props.class)} />;
+}
+
+/** Fixed-width auxiliary pane for file previews, diffs and contextual tools. */
+export function WorkbenchInspector(props: ViewProps): JSX.Element {
+  const forwarded = omit(props, "class");
+  return <View {...forwarded} class={workbenchInspectorClass(props.class)} />;
+}
+
+/** Inspector title row with a stable height and bounded children. */
+export function WorkbenchInspectorHeader(props: ViewProps): JSX.Element {
+  const forwarded = omit(props, "class");
+  return (
+    <View {...forwarded} class={workbenchInspectorHeaderClass(props.class)} />
+  );
+}
+
+export interface WorkbenchInspectorTitlebarProps
+  extends Omit<ViewProps, "children"> {
+  title: string;
+  description?: string;
+  closeLabel?: string;
+  onClose?: () => void;
+  /** Lazily render an optional action before the standard close button. */
+  renderAction?: () => JSX.Element;
+}
+
+/**
+ * Consistent inspector chrome with a bounded title, optional description and
+ * correctly sized trailing actions.
+ */
+export function WorkbenchInspectorTitlebar(
+  props: WorkbenchInspectorTitlebarProps,
+): JSX.Element {
+  const forwarded = omit(
+    props,
+    "title",
+    "description",
+    "closeLabel",
+    "onClose",
+    "renderAction",
+    "class",
+  );
+  return (
+    <WorkbenchInspectorHeader {...forwarded} class={props.class}>
+      <View class="min-w-0 flex-1 flex flex-col">
+        <Text class="w-full min-w-0 truncate font-semibold">{props.title}</Text>
+        {props.description === undefined ? null : (
+          <Text class="w-full min-w-0 truncate text-xs text-muted">
+            {props.description}
+          </Text>
+        )}
+      </View>
+      <View class="flex-none flex flex-row items-center gap-1">
+        {props.renderAction?.()}
+        {props.onClose ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={props.closeLabel ?? "Close inspector"}
+            onClick={props.onClose}
+          >
+            <Icon source={x} size={15} />
+          </Button>
+        ) : null}
+      </View>
+    </WorkbenchInspectorHeader>
+  );
+}
+
+/** Flexible, clipped inspector body. Add a ScrollArea inside when needed. */
+export function WorkbenchInspectorContent(props: ViewProps): JSX.Element {
+  const forwarded = omit(props, "class");
+  return (
+    <View {...forwarded} class={workbenchInspectorContentClass(props.class)} />
+  );
+}
+
+export interface WorkbenchInspectorStateProps extends ContentStateProps {}
+
+/** Mutually exclusive centered state for a bounded inspector body. */
+export function WorkbenchInspectorState(
+  props: WorkbenchInspectorStateProps,
+): JSX.Element {
+  return <ContentState {...props} />;
+}

@@ -107,6 +107,20 @@ fn animation_frame_uses_the_injected_clock_timestamp() {
 }
 
 #[test]
+fn tick_preserves_a_protocol_frame_delivered_before_the_native_turn() {
+    const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
+    let mut runtime = JsRuntime::new().expect("runtime");
+    runtime.boot(CORE_FIXTURE).expect("boot fixture");
+    let _ = runtime.tick().expect("flush initial mount");
+    runtime
+        .with(|ctx| ctx.eval::<(), _>("__wabou_flush(new Uint8Array([87, 65, 66, 79, 85]));"))
+        .expect("deliver protocol bytes between native turns");
+
+    let (bytes, _) = runtime.tick().expect("consume pending protocol frame");
+    assert_eq!(bytes, b"WABOU");
+}
+
+#[test]
 fn javascript_and_rust_share_runtime_atom_ids() {
     let runtime = JsRuntime::new().expect("runtime");
     let ids = runtime
@@ -122,11 +136,11 @@ fn javascript_and_rust_share_runtime_atom_ids() {
     let atoms = runtime.atom_pool_handle();
     let atoms = atoms.borrow();
     assert_eq!(
-        atoms.resolve(crate::atom::Atom::from_raw(ids[0])),
+        atoms.resolve(wabou_protocol::Atom::from_raw(ids[0])),
         Some("width")
     );
     assert_eq!(
-        atoms.resolve(crate::atom::Atom::from_raw(ids[2])),
+        atoms.resolve(wabou_protocol::Atom::from_raw(ids[2])),
         Some("height")
     );
 }
@@ -449,6 +463,40 @@ fn sleep_uses_rquickjs_async_scheduler_and_wakes_host() {
 }
 
 #[test]
+fn installing_a_wake_callback_replays_work_queued_during_boot() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let runtime = JsRuntime::new().expect("runtime");
+    runtime
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                "globalThis.bootWorkDone = false; __wabou_sleep(1).then(() => globalThis.bootWorkDone = true);",
+            )
+        })
+        .expect("start boot work");
+    assert!(
+        runtime.poll_async_runtime(),
+        "boot work must enter the scheduler"
+    );
+    std::thread::sleep(std::time::Duration::from_millis(20));
+
+    let wake_count = Arc::new(AtomicUsize::new(0));
+    let callback_count = wake_count.clone();
+    runtime.set_wake_callback(Arc::new(move || {
+        callback_count.fetch_add(1, Ordering::Release);
+    }));
+
+    assert_eq!(wake_count.load(Ordering::Acquire), 1);
+    assert!(runtime.take_async_wake());
+    assert!(runtime.poll_async_runtime());
+    assert!(
+        runtime
+            .with(|ctx| ctx.eval::<bool, _>("globalThis.bootWorkDone"))
+            .expect("read boot work state")
+    );
+}
+
+#[test]
 fn promise_jobs_are_time_sliced() {
     let runtime = JsRuntime::new().expect("runtime");
     let wake_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -456,6 +504,11 @@ fn promise_jobs_are_time_sliced() {
     runtime.set_wake_callback(Arc::new(move || {
         wake_count_for_callback.fetch_add(1, Ordering::Relaxed);
     }));
+    assert_eq!(
+        wake_count.swap(0, Ordering::Relaxed),
+        1,
+        "installing a wake callback schedules the initial runtime pump",
+    );
     runtime
         .with(|ctx| {
             ctx.eval::<(), _>(

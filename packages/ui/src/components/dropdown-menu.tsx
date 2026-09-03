@@ -1,34 +1,52 @@
 import type { Handle } from "@wabou/core/renderer";
 import type { Shadow } from "@wabou/core/style";
-import { createEffect, createSignal, For, type JSX } from "solid-js";
+import { mergeClasses } from "@wabou/core/style";
+import check from "lucide-static/icons/check.svg?raw";
+import {
+  createEffect,
+  createSignal,
+  For as ForValue,
+  type JSX,
+} from "solid-js";
 import { match } from "ts-pattern";
-import { Popover, Text, View } from "../primitives";
+import { Icon, Popover, Text, View } from "../primitives";
 import { createTypeahead } from "../primitives/interactions";
 import type { Placement, PointAnchor } from "../primitives/positioner";
-import { mergeClasses } from "@wabou/core/style";
 import { type MenuStateItem, moveMenuHighlight } from "./menu-state";
 import type { PopupMotionProps } from "./popover";
-import { componentsElevation, useComponentsTheme } from "./theme";
+import {
+  componentsElevation,
+  componentsSurfaceClass,
+  useComponentsTheme,
+} from "./theme";
 
 export interface DropdownMenuItem extends MenuStateItem {
+  /** Optional decorative Lucide/static SVG shown in the shared leading slot. */
+  icon?: string;
+  /** Checked state. Defining this reserves the shared leading status slot. */
+  checked?: boolean;
   description?: string;
+  /** Human-readable platform shortcut, such as `Ctrl K` or `⌘ K`. */
+  shortcut?: string;
   destructive?: boolean;
   separatorBefore?: boolean;
   onSelect?: () => void;
 }
 
+export interface DropdownMenuTriggerProps {
+  ref(node: Handle): void;
+  onClick(event: { stopPropagation(): void }): void;
+  onKeyDown(event: {
+    key: string;
+    preventDefault(): void;
+    stopPropagation(): void;
+  }): void;
+  "aria-haspopup": "menu";
+  "aria-expanded": boolean;
+}
+
 export interface DropdownMenuProps extends PopupMotionProps {
-  trigger(props: {
-    ref(node: Handle): void;
-    onClick(event: { stopPropagation(): void }): void;
-    onKeyDown(event: {
-      key: string;
-      preventDefault(): void;
-      stopPropagation(): void;
-    }): void;
-    "aria-haspopup": "menu";
-    "aria-expanded": boolean;
-  }): JSX.Element;
+  trigger(props: DropdownMenuTriggerProps): JSX.Element;
   items: readonly DropdownMenuItem[];
   "aria-label": string;
   open?: boolean;
@@ -61,6 +79,10 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
   );
   const [highlighted, setHighlighted] = createSignal<string>();
   const open = () => props.open ?? uncontrolledOpen();
+  const hasLeadingSlot = () =>
+    props.items.some(
+      (item) => item.icon !== undefined || item.checked !== undefined,
+    );
   const typeahead = createTypeahead<MenuStateItem>();
   let trigger: Handle | undefined;
   let content: Handle | undefined;
@@ -137,7 +159,8 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
       outsidePointerStrategy={props.outsidePointerStrategy}
       anchorPoint={props.anchorPoint}
       contentClass={mergeClasses(
-        "w-56 p-1 flex flex-col gap-1 rounded-lg border border-subtle bg-surface",
+        "w-56 p-1 flex flex-col gap-0.5",
+        componentsSurfaceClass("floating"),
         props.contentClass,
       )}
       contentShadows={
@@ -179,10 +202,10 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
         role="menu"
         aria-label={props["aria-label"]}
         focusOrder={0}
-        class="min-w-0 flex flex-col gap-1"
+        class="min-w-0 flex flex-col gap-0.5"
         onKeyDown={handleMenuKey}
       >
-        <For each={props.items} keyed={false}>
+        <ForValue each={props.items} keyed={false}>
           {(item) => (
             <>
               {item().separatorBefore && (
@@ -195,8 +218,9 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
                 role="menuitem"
                 aria-label={item().label}
                 aria-disabled={item().disabled}
+                aria-checked={item().checked}
                 class={mergeClasses(
-                  "w-full min-h-8 flex-none px-2 py-1.5 flex flex-col justify-center rounded-md",
+                  "w-full min-h-8 flex-none px-2 py-1.5 flex flex-row items-center gap-2 rounded-md",
                   highlighted() === item().id
                     ? "bg-control-hover"
                     : "bg-transparent",
@@ -208,14 +232,38 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
                 }
                 onClick={() => select(item().id)}
               >
-                <Text class="text-sm">{item().label}</Text>
-                {item().description && (
-                  <Text class="text-xs text-muted">{item().description}</Text>
+                {hasLeadingSlot() && (
+                  <View
+                    role="presentation"
+                    class="w-4 h-4 flex-none flex items-center justify-center"
+                  >
+                    {item().checked ? (
+                      <Icon source={check} class="text-accent" size={14} />
+                    ) : item().icon ? (
+                      <Icon source={item().icon ?? ""} size={14} />
+                    ) : null}
+                  </View>
+                )}
+                <View class="min-w-0 flex-1 flex flex-col justify-center">
+                  <Text class="min-w-0 truncate text-sm">{item().label}</Text>
+                  {item().description && (
+                    <Text class="min-w-0 truncate text-xs text-muted">
+                      {item().description}
+                    </Text>
+                  )}
+                </View>
+                {item().shortcut && (
+                  <Text
+                    aria-hidden="true"
+                    class="flex-none rounded border border-subtle bg-surface px-1.5 py-0.5 text-xs text-muted"
+                  >
+                    {item().shortcut}
+                  </Text>
                 )}
               </View>
             </>
           )}
-        </For>
+        </ForValue>
       </View>
     </Popover>
   );

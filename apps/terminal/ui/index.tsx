@@ -10,6 +10,7 @@ import {
   createHover,
   createShortcuts,
   createTabs,
+  ForEntity,
   type Handle,
   Icon,
   mount,
@@ -20,7 +21,7 @@ import {
 import plus from "lucide-static/icons/plus.svg?raw";
 import squareTerminal from "lucide-static/icons/square-terminal.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import { createSignal, For } from "solid-js";
+import { createSignal } from "solid-js";
 
 interface ShellTab {
   id: number;
@@ -109,7 +110,7 @@ function App() {
             aria-label="Terminal sessions"
             class="h-10 flex-none min-w-0 items-end gap-1 px-3 border-b border-subtle bg-control"
           >
-            <For each={tabs.tabs()}>
+            <ForEntity each={tabs.tabs()} by={(tab) => tab.id}>
               {(tab) => {
                 const hover = createHover();
                 const press = createActive();
@@ -158,7 +159,7 @@ function App() {
                   </Row>
                 );
               }}
-            </For>
+            </ForEntity>
             <Button
               variant="ghost"
               size="icon"
@@ -171,7 +172,7 @@ function App() {
           </Row>
 
           <View class="min-h-0 flex-1 p-2 bg-canvas">
-            <For each={tabs.tabs()}>
+            <ForEntity each={tabs.tabs()} by={(tab) => tab.id}>
               {(tab) => (
                 <Terminal
                   ref={(node) => {
@@ -194,7 +195,7 @@ function App() {
                   onTerminalExit={() => tab.setTitle(`${tab.title()} · exited`)}
                 />
               )}
-            </For>
+            </ForEntity>
           </View>
         </Column>
       </ComponentsProvider>

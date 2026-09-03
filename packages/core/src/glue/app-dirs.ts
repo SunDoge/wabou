@@ -13,29 +13,20 @@ export interface AppDirectories {
 
 let resolved: Promise<AppDirectories> | undefined;
 
-/** Resolve all app-private roots once and reuse the same native result. */
-export function resolveAppDirectories(): Promise<AppDirectories> {
+function resolve(): Promise<AppDirectories> {
   return (resolved ??= dispatchEffect<AppDirectories>(
     effectOps.appDirsResolve,
   ));
 }
 
+/** Resolve app-private native roots, caching the host result for this runtime. */
 export const appDirs = Object.freeze({
-  resolve: resolveAppDirectories,
-  config: () => resolveAppDirectories().then((paths) => paths.configDir),
-  data: () => resolveAppDirectories().then((paths) => paths.dataDir),
-  localData: () => resolveAppDirectories().then((paths) => paths.localDataDir),
-  cache: () => resolveAppDirectories().then((paths) => paths.cacheDir),
-  log: () => resolveAppDirectories().then((paths) => paths.logDir),
-  resource: () => resolveAppDirectories().then((paths) => paths.resourceDir),
-  temp: () => resolveAppDirectories().then((paths) => paths.tempDir),
+  resolve,
+  config: () => resolve().then((paths) => paths.configDir),
+  data: () => resolve().then((paths) => paths.dataDir),
+  localData: () => resolve().then((paths) => paths.localDataDir),
+  cache: () => resolve().then((paths) => paths.cacheDir),
+  log: () => resolve().then((paths) => paths.logDir),
+  resource: () => resolve().then((paths) => paths.resourceDir),
+  temp: () => resolve().then((paths) => paths.tempDir),
 });
-
-// Tauri-compatible names ease migration while the grouped object keeps imports compact.
-export const appConfigDir = appDirs.config;
-export const appDataDir = appDirs.data;
-export const appLocalDataDir = appDirs.localData;
-export const appCacheDir = appDirs.cache;
-export const appLogDir = appDirs.log;
-export const resourceDir = appDirs.resource;
-export const tempDir = appDirs.temp;

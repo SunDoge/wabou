@@ -1,4 +1,5 @@
-import { type JSX, omit } from "solid-js";
+import { mergeClasses } from "@wabou/core/style";
+import { type JSX, omit, Show } from "solid-js";
 import { match, P } from "ts-pattern";
 import {
   type ButtonState,
@@ -6,8 +7,12 @@ import {
   type ButtonProps as HeadlessButtonProps,
   type WabouStyle,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
-import { useButtonGroupOrientation } from "./button-group-context";
+import {
+  buttonGroupItemCorners,
+  useButtonGroupItem,
+} from "./button-group-context";
+import { Spinner } from "./display";
+import { componentsControlContentSize, componentsControlSize } from "./theme";
 
 export type ButtonVariant =
   | "default"
@@ -23,10 +28,18 @@ export interface ButtonProps
   size?: ButtonSize;
   class?: string;
   style?: HeadlessButtonProps["style"];
+  /** Disable activation and replace the leading content with a native spinner. */
+  loading?: boolean;
+  /** Visible label used while loading. Defaults to the ordinary children. */
+  loadingLabel?: string;
 }
 
 function buttonColors(variant: ButtonVariant, state: ButtonState): string {
   const focus = state.focusVisible ? "border-focus" : "";
+  // A selected button is a persistent active control. Match gpui-component's
+  // state ordering: selected owns the active palette and hover must not wash
+  // it out while an associated page, menu or mode remains active.
+  const active = state.pressed || state.selected;
   const passiveBorder = (value: ButtonVariant) =>
     match(value)
       .with("outline", () => "border-strong")
@@ -36,7 +49,7 @@ function buttonColors(variant: ButtonVariant, state: ButtonState): string {
       )
       .exhaustive();
 
-  return match({ variant, pressed: state.pressed, hovered: state.hovered })
+  return match({ variant, pressed: active, hovered: state.hovered })
     .with({ variant: "default", pressed: true }, () =>
       mergeClasses(
         "bg-accent-pressed border-transparent text-on-accent",
@@ -94,43 +107,74 @@ function buttonColors(variant: ButtonVariant, state: ButtonState): string {
     .exhaustive();
 }
 
-function buttonSize(size: ButtonSize): string {
-  return match(size)
-    .with("sm", () => "h-6 px-2 text-xs")
-    .with("default", () => "h-8 px-3 text-sm")
-    .with("lg", () => "h-10 px-4 text-base")
-    .with("icon", () => "w-8 h-8 p-0 text-sm")
+function buttonSize(size: ButtonSize, grouped: boolean): string {
+  return grouped
+    ? componentsControlContentSize(size)
+    : componentsControlSize(size);
+}
+
+function buttonSpinnerColor(variant: ButtonVariant): string {
+  return match(variant)
+    .with("default", "destructive", () => "text-on-accent")
+    .with("secondary", () => "text-primary")
+    .with("outline", "ghost", () => "text-secondary")
     .exhaustive();
 }
 
 export function Button(props: ButtonProps): JSX.Element {
   const local = props;
-  const forwarded = omit(props, "variant", "size", "class", "style");
-  const variant = () => local.variant ?? "default";
-  const size = () => local.size ?? "default";
-  const groupOrientation = useButtonGroupOrientation();
+  const forwarded = omit(
+    props,
+    "variant",
+    "size",
+    "class",
+    "style",
+    "loading",
+    "loadingLabel",
+    "children",
+  );
+  const groupItem = useButtonGroupItem();
+  const variant = () => local.variant ?? groupItem?.variant() ?? "default";
+  const size = () => local.size ?? groupItem?.size() ?? "default";
+  const visuallyDisabled = () =>
+    local.disabled || groupItem?.disabled() || false;
+  const disabled = () =>
+    local.disabled || local.loading || groupItem?.disabled() || false;
   return (
     <HeadlessButton
       {...forwarded}
+      disabled={disabled()}
+      aria-busy={local.loading ?? false}
       unstyled
       class={(state) =>
         mergeClasses(
-          "inline-flex flex-none whitespace-nowrap items-center justify-center gap-2 rounded-md border font-medium",
+          "inline-flex flex-none overflow-hidden whitespace-nowrap items-center justify-center border font-medium",
           buttonColors(variant(), state),
-          buttonSize(size()),
-          groupOrientation && "rounded-none border-transparent",
+          buttonSize(size(), groupItem !== undefined),
+          groupItem && buttonGroupItemCorners(groupItem),
+          groupItem && "border-transparent",
           local.class,
         )
       }
       style={(state) =>
         ({
           "border-width": 1,
-          opacity: state.disabled ? 0.45 : 1,
+          // Loading is inert but remains visually prominent; only an actual
+          // disabled policy fades the control.
+          opacity: visuallyDisabled() ? 0.45 : 1,
           ...(typeof local.style === "function"
             ? local.style(state)
             : local.style),
         }) as WabouStyle
       }
-    />
+    >
+      <Show when={local.loading} fallback={local.children}>
+        <Spinner
+          label={local.loadingLabel ?? "Loading"}
+          class={buttonSpinnerColor(variant())}
+        />
+        {local.loadingLabel ?? local.children}
+      </Show>
+    </HeadlessButton>
   );
 }

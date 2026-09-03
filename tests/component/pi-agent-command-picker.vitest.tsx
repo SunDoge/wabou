@@ -33,3 +33,31 @@ test("discovers and inserts commands supplied by Pi", () => {
   expect(screen.getByRole("status").text).toBe("/skill:review ");
   expect(screen.queryByRole("listbox")).toBeNull();
 });
+
+test("enables the picker when Pi supplies commands after startup", () => {
+  let supplyCommands!: () => void;
+  const App = () => {
+    const [commands, setCommands] = createSignal<
+      Parameters<typeof CommandPicker>[0]["commands"]
+    >([]);
+    supplyCommands = () =>
+      setCommands([
+        {
+          name: "subagents",
+          description: "Administer isolated Pi subagents",
+          source: "extension",
+        },
+      ]);
+    return <CommandPicker commands={commands()} choose={() => undefined} />;
+  };
+  const screen = renderComponent(() => <App />);
+  const trigger = screen.getByRole("button", { name: "Commands" });
+
+  expect(trigger.disabled).toBe(true);
+  supplyCommands();
+  screen.flush();
+  const enabledTrigger = screen.getByRole("button", { name: "Commands" });
+  expect(enabledTrigger.disabled).toBe(false);
+  enabledTrigger.click();
+  expect(screen.getByRole("option", { name: "/subagents" })).not.toBeNull();
+});

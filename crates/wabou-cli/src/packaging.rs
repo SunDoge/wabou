@@ -11,6 +11,20 @@ use super::project::App;
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
+#[cfg(target_os = "macos")]
+fn macos_packager_config() -> Value {
+    let identity = std::env::var("APPLE_SIGNING_IDENTITY")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "-".to_owned());
+    json!({ "signingIdentity": identity })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn macos_packager_config() -> Value {
+    Value::Null
+}
+
 /// Translate Wabou's private package model at one narrow adapter boundary.
 /// The JSON is retained for diagnostics, but packaging uses the typed library
 /// API and never shells out to a separately installed cargo subcommand.
@@ -76,6 +90,7 @@ pub(super) fn package_built_application(
         "resources": [{ "src": resources, "target": "resources" }],
         "formats": formats.iter().map(|format| format.as_str()).collect::<Vec<_>>(),
         "outDir": bundles,
+        "macos": macos_packager_config(),
     });
     let outputs = run_backend(&generated, &packager_config)?;
     for output in outputs {
@@ -162,6 +177,8 @@ fn decode_config(bytes: &[u8]) -> Result<Config> {
 mod tests {
     use std::fs;
 
+    #[cfg(target_os = "macos")]
+    use super::macos_packager_config;
     use super::{copy_resource, decode_config};
 
     #[test]
@@ -198,5 +215,13 @@ mod tests {
             fs::read_to_string(destination.join("nested/fixture.txt")).unwrap(),
             "staged"
         );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_packages_always_receive_a_bundle_signing_identity() {
+        let config = macos_packager_config();
+        let identity = config["signingIdentity"].as_str().unwrap();
+        assert!(!identity.is_empty());
     }
 }

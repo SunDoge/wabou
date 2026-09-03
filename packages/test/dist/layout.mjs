@@ -6,6 +6,29 @@ function assertLayoutRectContains(outer, inner, options = {}) {
 	const tolerance = options.tolerance ?? 1;
 	if (inner.x < outer.x - tolerance || inner.y < outer.y - tolerance || layoutRectRight(inner) > layoutRectRight(outer) + tolerance || layoutRectBottom(inner) > layoutRectBottom(outer) + tolerance) throw new Error(`${options.label ?? "layout rect"} (${rectText(inner)}) is outside (${rectText(outer)})`);
 }
+/**
+* Assert typography after class resolution, Style IR application and native
+* layout. This deliberately checks the completed layout node instead of source
+* class names, so token and font-resolution regressions are visible to tests.
+*/
+function assertLayoutTextStyle(node, options) {
+	const tolerance = options.tolerance ?? .01;
+	const label = options.label ?? (layoutName(node) || node.text || "text node");
+	const checks = [[
+		"font size",
+		node.computed.fontSize,
+		options.fontSize
+	], [
+		"font weight",
+		node.computed.fontWeight,
+		options.fontWeight
+	]];
+	for (const [property, actual, expected] of checks) {
+		if (expected === void 0) continue;
+		if (actual == null) throw new Error(`${label} omitted its resolved ${property}`);
+		if (Math.abs(actual - expected) > tolerance) throw new Error(`${label} ${property}: expected ${expected}, received ${actual}`);
+	}
+}
 function record(value, path) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`invalid layout snapshot: ${path} must be an object`);
 	return value;
@@ -78,6 +101,37 @@ const key = (id) => `${id.lo}:${id.hi}`;
 function attrs(node) {
 	return new Map(node.attrs);
 }
+function opaqueRgb(value) {
+	if (!value?.startsWith("#")) return null;
+	const hex = value.slice(1).toLowerCase();
+	if (hex.length === 3 || hex.length === 4) {
+		if (hex.length === 4 && hex[3] !== "f") return null;
+		return [...hex].map((part) => Number.parseInt(`${part}${part}`, 16));
+	}
+	if (hex.length === 8 && hex.slice(6) !== "ff") return null;
+	if (hex.length !== 6 && hex.length !== 8) return null;
+	return [
+		0,
+		2,
+		4
+	].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+}
+function relativeLuminance(rgb) {
+	const linear = rgb.map((channel) => {
+		const value = channel / 255;
+		return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+	});
+	return .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2];
+}
+/** Return the visual contrast ratio for two opaque hexadecimal colors. */
+function layoutColorContrast(foreground, background) {
+	const foregroundRgb = opaqueRgb(foreground);
+	const backgroundRgb = opaqueRgb(background);
+	if (!foregroundRgb || !backgroundRgb) return void 0;
+	const first = relativeLuminance(foregroundRgb);
+	const second = relativeLuminance(backgroundRgb);
+	return (Math.max(first, second) + .05) / (Math.min(first, second) + .05);
+}
 function layoutRole(node) {
 	return node.semantic?.role ?? attrs(node).get("role") ?? "";
 }
@@ -105,8 +159,14 @@ function scopedNodes(snapshot, within) {
 	visit(within);
 	return result;
 }
+function isAggregatedProtocolTextLeaf(node, nodes) {
+	const parent = node.parentId ? nodes.get(key(node.parentId)) : void 0;
+	return node.tag === "text" && node.rect.width === 0 && node.rect.height === 0 && !node.textMetrics && parent?.tag === "text";
+}
 function queryLayoutNodes(snapshot, query) {
+	const nodes = new Map(snapshot.nodes.map((node) => [key(node.id), node]));
 	return snapshot.nodes.filter((node) => {
+		if (isAggregatedProtocolTextLeaf(node, nodes)) return false;
 		if (query.tag !== void 0 && node.tag !== query.tag) return false;
 		if (query.role !== void 0 && layoutRole(node) !== query.role) return false;
 		if (query.name !== void 0 && layoutName(node) !== query.name) return false;
@@ -188,6 +248,7 @@ function visibleOverflowDiagnostics(snapshot, options = {}) {
 	const diagnostics = [];
 	for (const node of scopedNodes(snapshot, options.within)) {
 		let parent = node.parentId ? nodes.get(key(node.parentId)) : void 0;
+		if (isAggregatedProtocolTextLeaf(node, nodes)) continue;
 		while (parent) {
 			if ((parent.computed.overflowX ?? "Visible") !== "Visible" || (parent.computed.overflowY ?? "Visible") !== "Visible") break;
 			const amount = overflowAmount(parent.rect, node.rect);
@@ -213,6 +274,33 @@ function visibleOverflowDiagnostics(snapshot, options = {}) {
 }
 function overlaps(first, second, tolerance) {
 	return first.width > 0 && first.height > 0 && second.width > 0 && second.height > 0 && first.x + first.width > second.x + tolerance && second.x + second.width > first.x + tolerance && first.y + first.height > second.y + tolerance && second.y + second.height > first.y + tolerance;
+}
+function intersectLayoutRects(first, second) {
+	const x = Math.max(first.x, second.x);
+	const y = Math.max(first.y, second.y);
+	const right = Math.min(layoutRectRight(first), layoutRectRight(second));
+	const bottom = Math.min(layoutRectBottom(first), layoutRectBottom(second));
+	if (right <= x || bottom <= y) return void 0;
+	return {
+		x,
+		y,
+		width: right - x,
+		height: bottom - y
+	};
+}
+/** Visible border-box bounds after axis-aligned native clipping. */
+function visibleLayoutRect(node) {
+	const clip = node.clip;
+	if (!clip) return node.rect;
+	const effective = clip.effective;
+	if (effective && (effective.coordinateSpace === "window-logical" || effective.coordinateSpace === "layout-window-logical")) return intersectLayoutRects(node.rect, effective.rect);
+	let visible = node.rect;
+	for (const ancestor of clip.chain) {
+		if (ancestor.coordinateSpace !== "window-logical" && ancestor.coordinateSpace !== "layout-window-logical") continue;
+		visible = visible ? intersectLayoutRects(visible, ancestor.rect) : void 0;
+		if (!visible) return void 0;
+	}
+	return visible;
 }
 /** Opt-in collision check for normal-flow siblings. */
 function siblingCollisionDiagnostics(snapshot, options = {}) {
@@ -246,7 +334,9 @@ function textCollisionDiagnostics(snapshot, options = {}) {
 	const diagnostics = [];
 	for (let index = 0; index < textNodes.length; index += 1) for (const second of textNodes.slice(index + 1)) {
 		const first = textNodes[index];
-		if (first.computed.overlayPlane !== second.computed.overlayPlane || !overlaps(first.rect, second.rect, tolerance)) continue;
+		const firstVisible = visibleLayoutRect(first);
+		const secondVisible = visibleLayoutRect(second);
+		if (first.computed.overlayPlane !== second.computed.overlayPlane || !firstVisible || !secondVisible || !overlaps(firstVisible, secondVisible, tolerance)) continue;
 		diagnostics.push({
 			code: "text-overlap",
 			node: second,
@@ -263,11 +353,52 @@ function styleDiagnostics(snapshot, options = {}) {
 		message
 	})));
 }
+/**
+* Opt-in visual legibility checks over the resolved native scene contract.
+* These intentionally consume computed colors and geometry rather than source
+* class names, so theme changes and component composition are covered too.
+*/
+function visualQualityDiagnostics(snapshot, options = {}) {
+	const minimumContrast = options.minimumTextContrast ?? 4.5;
+	const minimumTarget = options.minimumInteractiveTarget ?? 28;
+	const nodes = new Map(snapshot.nodes.map((node) => [key(node.id), node]));
+	const diagnostics = [];
+	for (const node of scopedNodes(snapshot, options.within)) {
+		const nodeAttrs = attrs(node);
+		if (nodeAttrs.get("aria-hidden") === "true") continue;
+		if (node.tag === "text" && node.text?.trim()) {
+			const foreground = node.computed.textColor;
+			let background = node.computed.background;
+			let ancestor = node.parentId ? nodes.get(key(node.parentId)) : void 0;
+			while (!background && ancestor) {
+				background = ancestor.computed.background;
+				ancestor = ancestor.parentId ? nodes.get(key(ancestor.parentId)) : void 0;
+			}
+			const contrast = foreground && background ? layoutColorContrast(foreground, background) : void 0;
+			if (contrast !== void 0 && contrast + .01 < minimumContrast) diagnostics.push({
+				code: "low-text-contrast",
+				node,
+				amount: contrast,
+				message: `${diagnosticNodeText(node)} has ${contrast.toFixed(2)}:1 text contrast (${foreground} on ${background}); expected at least ${minimumContrast.toFixed(2)}:1`
+			});
+		}
+		const role = layoutRole(node);
+		const minimumWidth = options.minimumInteractiveTarget === void 0 && role === "switch" ? 40 : minimumTarget;
+		const minimumHeight = options.minimumInteractiveTarget === void 0 && role === "switch" ? 24 : minimumTarget;
+		if ((role === "button" || role === "checkbox" || role === "combobox" || role === "radio" || role === "switch") && nodeAttrs.get("disabled") !== "true" && (node.rect.width + .01 < minimumWidth || node.rect.height + .01 < minimumHeight)) diagnostics.push({
+			code: "interactive-target-too-small",
+			node,
+			amount: Math.min(node.rect.width, node.rect.height),
+			message: `${diagnosticNodeText(node)} role=${role} is ${node.rect.width.toFixed(1)}x${node.rect.height.toFixed(1)}; expected at least ${minimumWidth.toFixed(1)}x${minimumHeight.toFixed(1)}px`
+		});
+	}
+	return diagnostics;
+}
 function assertNoLayoutDiagnostics(diagnostics) {
 	if (diagnostics.length === 0) return;
 	throw new Error(`layout diagnostics:\n${diagnostics.map((item) => `  - [${item.code}] ${item.message}`).join("\n")}`);
 }
 //#endregion
-export { assertLayoutRectContains, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics };
+export { assertLayoutRectContains, assertLayoutTextStyle, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutColorContrast, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics, visualQualityDiagnostics };
 
 //# sourceMappingURL=layout.mjs.map

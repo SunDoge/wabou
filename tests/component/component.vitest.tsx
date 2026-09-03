@@ -39,6 +39,57 @@ test("tests a reactive component through its authored role and name", () => {
   expect(screen.getByRole("status", { name: "Count 1" }).text).toBe("1");
 });
 
+test("keeps a forwarded Button disabled state reactive", async () => {
+  const App = () => {
+    const [available, setAvailable] = createSignal(false);
+    return (
+      <View>
+        <Button
+          aria-label="Run"
+          disabled={!available()}
+          onClick={() => setAvailable(false)}
+        />
+        <Button aria-label="Enable run" onClick={() => setAvailable(true)} />
+      </View>
+    );
+  };
+
+  const screen = renderComponent(App);
+  const run = screen.getByRole("button", { name: "Run" });
+  expect(run.disabled).toBe(true);
+
+  screen.getByRole("button", { name: "Enable run" }).click();
+  await screen.waitFor(() => expect(run.disabled).toBe(false));
+
+  run.click();
+  await screen.waitFor(() => expect(run.disabled).toBe(true));
+});
+
+test("activates a forwarded Button and publishes controlled pressed state", async () => {
+  const App = () => {
+    const [open, setOpen] = createSignal(false);
+    return (
+      <View>
+        <Button
+          aria-label="Toggle panel"
+          aria-pressed={open()}
+          onClick={() => setOpen((value) => !value)}
+        />
+        <Show when={open()}>
+          <View role="group" aria-label="Panel" />
+        </Show>
+      </View>
+    );
+  };
+
+  const screen = renderComponent(App);
+  const toggle = screen.getByRole("button", { name: "Toggle panel" });
+  expect(toggle.pressed).toBe(false);
+  toggle.click();
+  await screen.waitFor(() => expect(toggle.pressed).toBe(true));
+  expect(screen.getByRole("group", { name: "Panel" })).toBeDefined();
+});
+
 test("strict queries reject ambiguous components", () => {
   const screen = renderComponent(() => (
     <View>
@@ -95,12 +146,27 @@ test("reports duplicate surface and unexpected focus ownership", () => {
     name: "Broken compound control",
   });
 
-  expect(() => assertSingleSurfaceOwner(group)).toThrow(
-    "found 2",
-  );
-  expect(() => assertFocusOwnerCount(group, 0)).toThrow(
-    "found 1",
-  );
+  expect(() => assertSingleSurfaceOwner(group)).toThrow("found 2");
+  expect(() => assertFocusOwnerCount(group, 0)).toThrow("found 1");
+});
+
+test("rejects visual chrome authored by nested native content", () => {
+  const screen = renderComponent(() => (
+    <View role="group" aria-label="Compound editor" data-wabou-owns="surface">
+      <View
+        role="textbox"
+        aria-label="Native content"
+        data-wabou-owns="native-editor"
+        class="rounded-lg bg-input"
+      />
+    </View>
+  ));
+
+  expect(() =>
+    assertSingleSurfaceOwner(
+      screen.getByRole("group", { name: "Compound editor" }),
+    ),
+  ).toThrow("must not author visual chrome");
 });
 
 test("navigates authored parents and finds a stable semantic ancestor", () => {

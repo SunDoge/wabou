@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [dev, main, master]
@@ -29,6 +30,7 @@ jobs:
             libegl1-mesa-dev \
             libfontconfig1-dev \
             libgtk-3-dev \
+            libxkbcommon-x11-dev \
             mesa-vulkan-drivers \
             pkg-config
 
@@ -37,6 +39,10 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
+          # Keep warnings-as-errors scoped to the explicit Clippy command in
+          # verify:ci:rust. Applying -D warnings through RUSTFLAGS would also
+          # fail bindings, layout, packaging, and ordinary test compilation.
+          rustflags: ""
           cache: ${{ !env.ACT }}
 
       - name: Install Bun
@@ -67,66 +73,22 @@ jobs:
             fi
           done
 
-  native-contracts:
-    name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Bindings
-            kind: bindings
-            command: bun run bindings:check
-          - name: Native behavior
-            kind: behavior
-            command: bun run verify:behavior
-          - name: Component layout
-            kind: layout
-            command: bun run verify:layout
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
+      # Keep native contracts in this job so GPUI and the Rust workspace are
+      # compiled once per workflow instead of once for every contract suite.
+      - name: Verify generated bindings
+        run: bun run bindings:check
 
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes \
-            libegl1-mesa-dev \
-            libfontconfig1-dev \
-            libgtk-3-dev \
-            mesa-vulkan-drivers \
-            pkg-config
+      - name: Verify native behavior
+        run: bun run verify:behavior
 
-      - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-          components: rustfmt, clippy
-          cache: ${{ !env.ACT }}
-          # Matrix legs compile the same workspace and can restore one shared
-          # dependency/build cache on later workflow runs.
-          cache-shared-key: native-contracts
+      - name: Verify component layout
+        run: bun run verify:layout
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.0
-
-      - name: Install JavaScript dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build JavaScript packages
-        run: bun run packages:build
-
-      - name: Run ${{ matrix.name }} checks
-        run: ${{ matrix.command }}
-
-      - name: Upload behavior-test diagnostics
-        if: failure() && matrix.kind == 'behavior'
+      - name: Upload native-test diagnostics
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: behavior-test-diagnostics
+          name: native-test-diagnostics
           path: |
             target/wabou-test/*/artifacts/
             target/wabou-test/*/replay-artifacts/
@@ -135,6 +97,7 @@ jobs:
 
   linux-package:
     name: Linux package
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -148,6 +111,7 @@ jobs:
             libegl1-mesa-dev \
             libfontconfig1-dev \
             libgtk-3-dev \
+            libxkbcommon-x11-dev \
             mesa-vulkan-drivers \
             pkg-config
 
@@ -155,6 +119,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
+          rustflags: ""
           cache: ${{ !env.ACT }}
           cache-shared-key: linux-package
 

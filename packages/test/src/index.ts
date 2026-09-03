@@ -21,13 +21,14 @@ import {
 import {
   type PollOptions,
   pollUntil,
+  retryUntilHandled,
   type ResolvedPollOptions,
   resolvePollOptions,
 } from "./poll";
 import { replayActions } from "./replay";
 import {
   replayTimeout,
-  SUITE_TIMEOUT,
+  suiteTimeout,
   SuiteTimeoutError,
   TestTimeoutError,
   testTimeout,
@@ -366,6 +367,12 @@ export interface TestResult {
 
 export type TestAction =
   | {
+      action: "writeTextFile";
+      relativePath: string;
+      contents: string;
+      path: string;
+    }
+  | {
       action: "respondToEffect";
       operation: TestEffectOperation;
       result: TestEffectResponseMap[TestEffectOperation];
@@ -576,8 +583,11 @@ function createPage(
         }
         return true;
       };
-      const input = async (value: TestInput): Promise<void> => {
-        if (!(await sendInput(value))) {
+      const input = async (
+        value: TestInput,
+        wait: ResolvedPollOptions,
+      ): Promise<void> => {
+        if (!(await retryUntilHandled(() => sendInput(value), wait))) {
           throw new Error(`no enabled ${locatorLabel}`);
         }
       };
@@ -682,13 +692,17 @@ function createPage(
           });
           await waitUntilActionable(wait);
           if (
-            !(await capability().clickByRole(
-              windowId.lo,
-              windowId.hi,
-              role,
-              options.name,
-              index ?? null,
-              encodedScope,
+            !(await retryUntilHandled(
+              () =>
+                capability().clickByRole(
+                  windowId.lo,
+                  windowId.hi,
+                  role,
+                  options.name,
+                  index ?? null,
+                  encodedScope,
+                ),
+              wait,
             ))
           ) {
             throw new Error(`no enabled ${locatorLabel}`);
@@ -708,7 +722,7 @@ function createPage(
             wait,
           });
           await waitUntilActionable(wait);
-          await input({ type: "drag", deltaX, deltaY });
+          await input({ type: "drag", deltaX, deltaY }, wait);
         },
         async press(key, modifiers = {}, assertionOptions) {
           validateKey(key);
@@ -729,7 +743,7 @@ function createPage(
             wait,
           });
           await waitUntilActionable(wait);
-          await input({ type: "key", key, modifiers: bits });
+          await input({ type: "key", key, modifiers: bits }, wait);
         },
         async type(text, assertionOptions) {
           const wait = resolvePollOptions(assertionOptions);
@@ -744,7 +758,7 @@ function createPage(
             wait,
           });
           await waitUntilActionable(wait);
-          await input({ type: "text", text });
+          await input({ type: "text", text }, wait);
         },
         async paste(text, assertionOptions) {
           const wait = resolvePollOptions(assertionOptions);
@@ -759,7 +773,7 @@ function createPage(
             wait,
           });
           await waitUntilActionable(wait);
-          await input({ type: "paste", text });
+          await input({ type: "paste", text }, wait);
         },
         async ime(text, assertionOptions) {
           const wait = resolvePollOptions(assertionOptions);
@@ -774,7 +788,7 @@ function createPage(
             wait,
           });
           await waitUntilActionable(wait);
-          await input({ type: "ime", text });
+          await input({ type: "ime", text }, wait);
         },
         async wheel(deltaY, deltaX = 0, assertionOptions) {
           validateInputDeltas("wheel", deltaX, deltaY);
@@ -792,7 +806,12 @@ function createPage(
           // Wheel input is positional and may scroll an enabled ancestor even
           // when the semantic node under the pointer is disabled.
           await waitUntilPresent(wait);
-          if (!(await sendInput({ type: "wheel", deltaX, deltaY }))) {
+          if (
+            !(await retryUntilHandled(
+              () => sendInput({ type: "wheel", deltaX, deltaY }),
+              wait,
+            ))
+          ) {
             throw new Error(`cannot wheel ${locatorLabel}`);
           }
         },
@@ -945,6 +964,12 @@ const context: TestContext = {
       ) as { path?: string; error?: string };
       if (result.error) throw new Error(result.error);
       if (!result.path) throw new Error("native test fixture omitted its path");
+      trace.push({
+        action: "writeTextFile",
+        relativePath,
+        contents,
+        path: result.path,
+      });
       return result.path;
     },
   },
@@ -1207,6 +1232,7 @@ export function replay(actions: readonly TestAction[]): void {
         actions,
         context.page,
         window,
+        context.files,
         replayLocatorAssertion,
         replayWindowAssertion,
       );
@@ -1665,14 +1691,19 @@ async function run(): Promise<void> {
     });
   }
   if (registrationErrors.length === 0 && tests.length > 0) {
+    const suiteTimeoutMs = suiteTimeout(tests.map((entry) => entry.timeout));
+    console.info(
+      `[wabou-test] running ${tests.length} tests (suite budget ${suiteTimeoutMs}ms)`,
+    );
     try {
       await withSuiteTimeout(
-        SUITE_TIMEOUT,
+        suiteTimeoutMs,
         async () => {
           for (const entry of tests) {
             const traceStart = trace.length;
             const startedAt = performance.now();
             activeTest = { name: entry.name, traceStart, startedAt };
+            console.info(`[wabou-test] → ${entry.name}`);
             try {
               await withTestTimeout(entry.name, entry.timeout, () =>
                 entry.body(context),
@@ -1690,6 +1721,9 @@ async function run(): Promise<void> {
                 traceEnd: trace.length,
                 durationMs: performance.now() - startedAt,
               });
+              console.info(
+                `[wabou-test] ✓ ${entry.name} (${Math.round(performance.now() - startedAt)}ms)`,
+              );
             } catch (error) {
               capability().takePendingEffectFixtures();
               results.push({
@@ -1703,6 +1737,9 @@ async function run(): Promise<void> {
                 traceEnd: trace.length,
                 durationMs: performance.now() - startedAt,
               });
+              console.error(
+                `[wabou-test] ✗ ${entry.name}: ${error instanceof Error ? error.message : String(error)}`,
+              );
               if (error instanceof TestTimeoutError) break;
             } finally {
               activeTest = undefined;
@@ -1721,7 +1758,7 @@ async function run(): Promise<void> {
         traceEnd: trace.length,
         durationMs:
           activeTest === undefined
-            ? SUITE_TIMEOUT
+            ? suiteTimeoutMs
             : performance.now() - activeTest.startedAt,
       });
     }

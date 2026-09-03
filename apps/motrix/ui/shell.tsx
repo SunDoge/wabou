@@ -158,7 +158,8 @@ export function AppShell(props: { children?: JSX.Element }) {
       <ComponentsProvider theme={resolvedTheme()}>
         <WindowFrame
           {...shortcuts.bindings}
-          class="flex flex-col bg-canvas text-primary"
+          material="translucent"
+          class="flex flex-col text-primary"
         >
           <AppTitleBar
             sidebarOpen={sidebarOpen()}

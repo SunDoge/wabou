@@ -1,15 +1,12 @@
-import { Virtualizer, type VirtualizerOptions } from "@tanstack/virtual-core";
 import {
   type Accessor,
   createMemo,
-  createSignal,
-  For,
+  For as ForValue,
   type JSX,
-  onCleanup,
-  Show,
   untrack,
 } from "solid-js";
-import type { Handle, WabouSemanticRole } from "./index";
+import { mergeClasses } from "../style";
+import type { WabouSemanticRole } from "./index";
 
 export interface VirtualListProps<T> {
   /** Accessor for the full backing array. Only the visible slice renders. */
@@ -23,8 +20,6 @@ export interface VirtualListProps<T> {
   viewportHeight?: number;
   /** Classes applied to the native scroll viewport. */
   class?: string;
-  /** Extra rows rendered above/below the viewport. Defaults to 4. */
-  overscan?: number;
   /** Stable application identity. Required so refreshed objects do not remount rows. */
   getItemKey: (item: T, index: number) => string | number;
   /** Explicit semantic role for the viewport, such as `listbox`. */
@@ -33,11 +28,6 @@ export interface VirtualListProps<T> {
   accessibilityLabel?: string;
   /** Render a single row given its item and absolute index. */
   children: (item: Accessor<T>, index: Accessor<number>) => JSX.Element;
-}
-
-interface ScrollEvent {
-  scrollX?: number;
-  scrollY?: number;
 }
 
 export function createVirtualRow<T>(
@@ -97,10 +87,9 @@ export function createVirtualItemIdentity<T>(
 }
 
 /**
- * Windowed Solid list backed by TanStack Virtual's framework-neutral core.
- * Rust remains authoritative for scrolling, clipping, hit testing and the
- * native scrollbar; this adapter supplies viewport/offset observations instead
- * of relying on HTMLElement, ResizeObserver or getBoundingClientRect().
+ * Uniform list whose viewport, scroll state, visible range, layout and paint
+ * are owned by GPUI. Solid retains stable row subtrees so reactive updates keep
+ * their ordinary component semantics; GPUI materializes only visible rows.
  */
 export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
   const config = untrack(() => ({
@@ -109,178 +98,60 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     itemHeight: props.itemHeight,
     viewportHeight: props.viewportHeight,
     class: props.class,
-    overscan: props.overscan,
     getItemKey: props.getItemKey,
     role: props.role,
     accessibilityLabel: props.accessibilityLabel,
   }));
-  const surface = {} as Element;
-  let scrollHandle: Handle | undefined;
-  let publishOffset: ((offset: number, scrolling: boolean) => void) | undefined;
-  let publishRect:
-    | ((rect: { width: number; height: number }) => void)
-    | undefined;
-  let resizeObserver: ResizeObserver | undefined;
-  let scrollEndTimer: ReturnType<typeof setTimeout> | undefined;
-  let lastOffset = 0;
-  const [version, invalidate] = createSignal(0, { equals: false });
-  let currentMeasuredRect = {
-    width: 0,
-    height: 0,
-  };
-  const viewportHeight = () =>
-    config.viewportHeight ?? currentMeasuredRect.height;
-  let currentItemKeys = validateVirtualItemKeys(
-    untrack(config.items),
-    config.getItemKey,
-  );
   const itemKeys = createMemo(() => {
-    currentItemKeys = validateVirtualItemKeys(
-      config.items(),
-      config.getItemKey,
-    );
-    return currentItemKeys;
-  });
-
-  const options = (): VirtualizerOptions<Element, Element> => ({
-    count: currentItemKeys.length,
-    getItemKey: (index) => currentItemKeys[index] ?? index,
-    getScrollElement: () => (scrollHandle ? surface : null),
-    estimateSize: () => config.itemHeight,
-    overscan: config.overscan ?? 4,
-    initialRect: {
-      width: currentMeasuredRect.width,
-      height: viewportHeight(),
-    },
-    observeElementRect: (_instance, notify) => {
-      publishRect = notify;
-      notify({ width: currentMeasuredRect.width, height: viewportHeight() });
-      return () => {
-        publishRect = undefined;
-      };
-    },
-    observeElementOffset: (_instance, notify) => {
-      publishOffset = notify;
-      notify(0, false);
-      return () => {
-        publishOffset = undefined;
-      };
-    },
-    scrollToFn: (offset) => scrollHandle?.scrollTo({ top: offset }),
-    onChange: () => invalidate((value) => value + 1),
-  });
-
-  // TanStack reads its initial options synchronously. Later reactive updates
-  // are supplied by `virtualItems`; this bootstrap read must not pretend to be
-  // owned by the VirtualList component body.
-  const virtualizer = new Virtualizer(untrack(options));
-  const dispose = untrack(() => virtualizer._didMount());
-  onCleanup(() => {
-    if (scrollEndTimer !== undefined) clearTimeout(scrollEndTimer);
-    resizeObserver?.disconnect();
-    dispose();
-  });
-
-  const virtualItems = createMemo(() => {
-    version();
-    itemKeys();
-    virtualizer.setOptions(options());
-    virtualizer._willUpdate();
-    return virtualizer.getVirtualItems();
-  });
-  const totalSize = createMemo(() => {
-    virtualItems();
-    return virtualizer.getTotalSize();
+    return validateVirtualItemKeys(config.items(), config.getItemKey);
   });
 
   return (
-    <view
-      class={config.class}
+    <virtual-list
+      projectionBoundary
+      class={mergeClasses(
+        "w-full min-w-0 min-h-0 overflow-x-hidden overflow-y-auto",
+        config.class,
+      )}
       role={config.role}
       aria-label={config.accessibilityLabel}
-      ref={(node) => {
-        // Solid's published JSX types describe DOM nodes, while the universal
-        // renderer supplies Wabou handles at runtime. Keep that conversion at
-        // this renderer boundary instead of leaking DOM types into the core.
-        scrollHandle = node as unknown as Handle;
-        if (config.viewportHeight === undefined) {
-          resizeObserver?.disconnect();
-          resizeObserver = new ResizeObserver(([entry]) => {
-            if (!entry) return;
-            const rect = {
-              width: entry.contentRect.width,
-              height: entry.contentRect.height,
-            };
-            currentMeasuredRect = rect;
-            publishRect?.(rect);
-          });
-          resizeObserver.observe(node as never);
-        }
-        untrack(() => virtualizer._willUpdate());
-      }}
       style={{
-        overflow: "scroll",
-        position: "relative",
         ...(config.viewportHeight === undefined
           ? {}
           : { height: `${config.viewportHeight}px` }),
         width: "100%",
       }}
-      onScroll={(event) => {
-        // Native scroll payloads expose logical offsets directly rather than
-        // through HTMLElement.scrollTop/scrollLeft.
-        const nativeEvent = event as unknown as ScrollEvent;
-        lastOffset = nativeEvent.scrollY ?? 0;
-        publishOffset?.(lastOffset, true);
-        if (scrollEndTimer !== undefined) clearTimeout(scrollEndTimer);
-        scrollEndTimer = setTimeout(() => {
-          scrollEndTimer = undefined;
-          publishOffset?.(lastOffset, false);
-        }, 150);
-      }}
     >
-      <view
-        style={{
-          position: "relative",
-          height: `${totalSize()}px`,
-          width: "100%",
+      <ForValue each={config.items()} keyed={false}>
+        {(_value, index) => {
+          const rowIndex = () => index;
+          const item = createVirtualRow(config.items, rowIndex);
+          const identity = createVirtualItemIdentity(
+            config.items,
+            rowIndex,
+            (_item, currentIndex) => itemKeys()[currentIndex] ?? currentIndex,
+          );
+          return (
+            <view
+              style={{
+                height: `${config.itemHeight}px`,
+                "flex-shrink": 0,
+                width: "100%",
+              }}
+            >
+              {identity() &&
+                config.children(() => {
+                  const current = item();
+                  if (current === undefined)
+                    throw new Error(
+                      "VirtualList item disappeared while its row was mounted",
+                    );
+                  return current;
+                }, rowIndex)}
+            </view>
+          );
         }}
-      >
-        <For each={virtualItems()} keyed={false}>
-          {(virtualItem) => {
-            const index = () => virtualItem().index;
-            const item = createVirtualRow(config.items, index);
-            const identity = createVirtualItemIdentity(
-              config.items,
-              index,
-              (_item, currentIndex) => itemKeys()[currentIndex] ?? currentIndex,
-            );
-            return (
-              <view
-                style={{
-                  position: "absolute",
-                  top: `${virtualItem().start}px`,
-                  height: `${virtualItem().size}px`,
-                  width: "100%",
-                }}
-              >
-                <Show when={identity()} keyed>
-                  {(_identity) =>
-                    config.children(() => {
-                      const current = item();
-                      if (current === undefined)
-                        throw new Error(
-                          "VirtualList item disappeared while its row was mounted",
-                        );
-                      return current;
-                    }, index)
-                  }
-                </Show>
-              </view>
-            );
-          }}
-        </For>
-      </view>
-    </view>
+      </ForValue>
+    </virtual-list>
   );
 }

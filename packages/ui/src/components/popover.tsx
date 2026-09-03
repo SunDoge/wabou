@@ -1,13 +1,17 @@
+import { mergeClasses } from "@wabou/core/style";
 import type { JSX } from "solid-js";
 import {
   Popover as HeadlessPopover,
-  type PopoverMotionOptions,
   type PopoverProps as HeadlessPopoverProps,
+  type PopoverMotionOptions,
   Text,
   View,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
-import { componentsElevation, useComponentsTheme } from "./theme";
+import {
+  componentsElevation,
+  componentsSurfaceClass,
+  useComponentsTheme,
+} from "./theme";
 
 export type PopoverProps = HeadlessPopoverProps;
 
@@ -24,7 +28,8 @@ export function Popover(props: PopoverProps): JSX.Element {
     <HeadlessPopover
       {...props}
       contentClass={mergeClasses(
-        "min-w-48 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-lg border border-subtle bg-surface",
+        "min-w-48 max-w-sm min-h-0 p-4 flex flex-col gap-3",
+        componentsSurfaceClass("floating"),
         props.contentClass,
       )}
       contentShadows={

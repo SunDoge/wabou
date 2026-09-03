@@ -42,15 +42,7 @@ import "./glue/intl";
 
 export {
   type AppDirectories,
-  appCacheDir,
-  appConfigDir,
-  appDataDir,
   appDirs,
-  appLocalDataDir,
-  appLogDir,
-  resolveAppDirectories,
-  resourceDir,
-  tempDir,
 } from "./glue/app-dirs";
 export {
   type AppLifecycleEvent,
@@ -67,6 +59,11 @@ export {
   createKeyedAsyncAction,
   type KeyedAsyncAction,
 } from "./glue/async-action";
+export {
+  type AsyncQuery,
+  type AsyncQueryOptions,
+  createAsyncQuery,
+} from "./glue/async-query";
 export { type Clipboard, clipboard, useClipboard } from "./glue/clipboard";
 export {
   type ColorPalette,
@@ -91,6 +88,12 @@ export {
   type SaveDialogOptions,
   useDialog,
 } from "./glue/dialog";
+export {
+  type EntityKey,
+  ForEntity,
+  type ForEntityProps,
+  validateEntityKeys,
+} from "./glue/entity-list";
 export {
   createEventEffect,
   type EventEffectOptions,
@@ -139,10 +142,7 @@ export {
 export {
   bindJsonCapability,
   type JsonCapabilityClient,
-  type JsonCapabilityClientOptions,
-  JsonCapabilityError,
   type JsonCapabilityMethodName,
-  type NativeJsonCapability,
 } from "./glue/json-capability";
 export {
   type KeyboardModifiers,
@@ -151,11 +151,33 @@ export {
   useKeyboardModifiers,
 } from "./glue/keyboard-modifiers";
 export {
+  createKvSignal,
+  type Kv,
+  KvAtomicOperation,
+  type KvCheck,
+  type KvCommitResult,
+  type KvEntry,
+  type KvKey,
+  type KvKeyPart,
+  type KvListOptions,
+  type KvSetOptions,
+  type KvSignal,
+  type KvValue,
+  type KvVersionstamp,
+  openKv,
+} from "./glue/kv";
+export {
   createLatestAsyncResource,
   type LatestAsyncResource,
   type LatestAsyncResourceOptions,
   type LatestAsyncResourceStatus,
 } from "./glue/latest-async-resource";
+export {
+  bindCapability,
+  type CapabilityClientOptions,
+  CapabilityError,
+  type NativeCapability,
+} from "./glue/native-capability";
 export {
   type NativeMenuItem,
   type NativeMenuOptions,
@@ -190,9 +212,64 @@ export {
 } from "./glue/window-metrics";
 export * from "./keyed-list";
 export * from "./registry";
-// The renderer and typed style surface are re-exported here so application
-// code has one stable runtime entry point. Separate source workspaces remain
-// an implementation detail and are bundled into this package for release.
-export * from "./renderer";
+// Keep application-facing renderer types at the stable root. Reconciler hooks,
+// protocol writers, dispatch functions, and generated opcodes remain available
+// only from `@wabou/core/renderer` to JSX tooling and host infrastructure.
+export {
+  type BuiltinHost,
+  type DebugOverlayOptions,
+  type DebugOverlayPaintStats,
+  defaultHost,
+  Dynamic,
+  type DynamicProps,
+  type FrameStats,
+  type Handle,
+  type Host,
+  HostProvider,
+  type HostProviderProps,
+  isDirectEvent,
+  type LayoutNodeMetrics,
+  type LayoutRect,
+  type LayoutScrollMetrics,
+  type LayoutSnapshot,
+  type LayoutTarget,
+  mount,
+  observeGlobalPointerEvent,
+  Portal,
+  type PortalProps,
+  setTransform2D,
+  useHost,
+  type WabouBuiltinIntrinsicElements,
+  type WabouControlProps,
+  type WabouElementProps,
+  type WabouEventTarget,
+  type WabouExposedSemanticRole,
+  type WabouGlobalPointerEventType,
+  type WabouGlobalPointerListener,
+  type WabouImageProps,
+  type WabouImeDeleteSurroundingEvent,
+  type WabouImePreeditEvent,
+  type WabouInputEvent,
+  type WabouInputProps,
+  type WabouKeyEvent,
+  type WabouNativeElements,
+  type WabouNativeTag,
+  type WabouNativeTransition,
+  type WabouNodeEvent,
+  type WabouPointerEvent,
+  type WabouPositionedEvent,
+  type WabouScrollEvent,
+  type WabouSemanticRole,
+  type WabouSubmitEvent,
+  type WabouSvgProps,
+  type WabouSvgShapeProps,
+  type WabouTextCommitEvent,
+  type WabouTextSelectionChangeEvent,
+  type WabouTransitionEvent,
+  type WabouValueChangeEvent,
+  type WabouVectorPathProps,
+  type WabouWheelEvent,
+} from "./renderer";
+export { createFps, VirtualList, type VirtualListProps } from "./renderer";
 export * from "./style";
 export * from "./vector-path";

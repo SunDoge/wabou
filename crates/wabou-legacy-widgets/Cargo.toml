@@ -1,0 +1,21 @@
+[package]
+name = "wabou-legacy-widgets"
+version.workspace = true
+edition = "2024"
+
+license.workspace = true
+publish = false
+
+[dependencies]
+anyrender.workspace = true
+image = {
+  workspace = true,
+  features = ["bmp", "gif", "jpeg", "png", "webp"]
+}
+parley = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+tracing = { workspace = true }
+unicode-width = { workspace = true }
+vello = { workspace = true }
+wabou-legacy-shell = { workspace = true }
+zeroize = { workspace = true }

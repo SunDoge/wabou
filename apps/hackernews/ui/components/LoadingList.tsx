@@ -1,13 +1,13 @@
 // Loading-state list component.
 import { Text, View } from "@wabou/ui";
-import { For, type JSX } from "solid-js";
+import { For as ForValue, type JSX } from "solid-js";
 import { useTheme } from "../contexts/ThemeContext";
 
 export function LoadingList(): JSX.Element {
   const { palette } = useTheme();
   return (
     <View class="w-full">
-      <For each={[1, 2, 3, 4, 5, 6]}>
+      <ForValue each={[1, 2, 3, 4, 5, 6]}>
         {(item) => (
           <View
             class="h-18 px-3 flex items-center gap-4 border-b"
@@ -31,7 +31,7 @@ export function LoadingList(): JSX.Element {
             </View>
           </View>
         )}
-      </For>
+      </ForValue>
     </View>
   );
 }

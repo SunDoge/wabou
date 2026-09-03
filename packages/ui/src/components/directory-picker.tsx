@@ -1,11 +1,19 @@
-import { type PickDirectoryOptions, useDialog } from "@wabou/core";
+import {
+  createAsyncAction,
+  type PickDirectoryOptions,
+  useDialog,
+} from "@wabou/core";
 import folder from "lucide-static/icons/folder.svg?raw";
-import { createSignal, type JSX, omit } from "solid-js";
-import { Icon, View } from "../primitives";
-import { Button } from "./button";
 import { mergeClasses } from "@wabou/core/style";
+import { type JSX, omit } from "solid-js";
+import { Icon } from "../primitives";
 import { directoryPickerOptions } from "./directory-picker-state";
-import { Input, type InputProps } from "./input";
+import {
+  InputGroup,
+  InputGroupButton,
+  InputGroupInput,
+} from "./forms";
+import type { InputProps } from "./input";
 
 export interface DirectoryPickerProps
   extends Omit<InputProps, "class" | "onInput" | "value"> {
@@ -20,13 +28,19 @@ export interface DirectoryPickerProps
   inputClass?: string;
   buttonClass?: string;
   onBrowseError?: (error: unknown) => void;
+  /** Called only after the native picker commits a directory selection. */
+  onBrowseSelect?: (value: string) => void;
 }
 
 /** A controlled path input paired with the operating system directory picker. */
 export function DirectoryPicker(props: DirectoryPickerProps): JSX.Element {
   const nativeDialog = useDialog();
-  const [pending, setPending] = createSignal(false);
   const local = props;
+  const selection = createAsyncAction(() =>
+    nativeDialog.pickDirectory(
+      directoryPickerOptions(local.value, local.dialogOptions),
+    ),
+  );
   const inputProps = omit(
     props,
     "value",
@@ -39,51 +53,47 @@ export function DirectoryPicker(props: DirectoryPickerProps): JSX.Element {
     "inputClass",
     "buttonClass",
     "onBrowseError",
+    "onBrowseSelect",
   );
 
   async function browse(): Promise<void> {
-    if (pending() || inputProps.disabled) return;
-    setPending(true);
-    try {
-      const selected = await nativeDialog.pickDirectory(
-        directoryPickerOptions(local.value, local.dialogOptions),
-      );
-      if (selected !== null) local.onValueChange(selected);
-    } catch (error) {
-      if (local.onBrowseError) local.onBrowseError(error);
-      else throw error;
-    } finally {
-      setPending(false);
+    if (inputProps.disabled) return;
+    const result = await selection.run();
+    if (!result.ok) {
+      if (local.onBrowseError) local.onBrowseError(result.error);
+      else throw result.error;
+      return;
+    }
+    if (result.value !== null) {
+      local.onValueChange(result.value);
+      local.onBrowseSelect?.(result.value);
     }
   }
 
   return (
-    <View
-      class={mergeClasses(
-        "w-full min-w-0 flex items-center gap-2",
-        local.class,
-      )}
+    <InputGroup
+      disabled={Boolean(inputProps.disabled) || selection.pending()}
+      class={local.class}
     >
-      <Input
+      <InputGroupInput
         {...inputProps}
-        class={mergeClasses("min-w-0 flex-1", local.inputClass)}
+        class={local.inputClass}
         value={local.value}
         onInput={(event) => local.onValueChange(event.currentTarget.value)}
       />
-      <Button
+      <InputGroupButton
         class={mergeClasses("flex-none", local.buttonClass)}
-        variant="outline"
-        disabled={Boolean(inputProps.disabled) || pending()}
+        disabled={Boolean(inputProps.disabled) || selection.pending()}
         aria-label={
           local.browseAriaLabel ?? local.browseLabel ?? "Browse directory"
         }
         onClick={() => void browse()}
       >
         <Icon source={folder} size={14} />
-        {pending()
+        {selection.pending()
           ? (local.pendingLabel ?? "Opening…")
           : (local.browseLabel ?? "Browse…")}
-      </Button>
-    </View>
+      </InputGroupButton>
+    </InputGroup>
   );
 }

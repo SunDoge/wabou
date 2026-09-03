@@ -1,6 +1,8 @@
-export interface NativeJsonCapability {
-  readonly __wabouCapabilityVersion: number;
-}
+import {
+  CapabilityError,
+  type CapabilityClientOptions,
+  type NativeCapability,
+} from "./native-capability";
 
 export type JsonCapabilityMethodName<Capability> = Extract<
   {
@@ -13,34 +15,19 @@ export type JsonCapabilityMethodName<Capability> = Extract<
   string
 >;
 
-export interface JsonCapabilityClientOptions {
-  name: string;
-  version: number;
-}
-
-export class JsonCapabilityError extends Error {
-  readonly code?: string;
-
-  constructor(message: string, code?: string) {
-    super(message);
-    this.name = "JsonCapabilityError";
-    this.code = code;
-  }
-}
-
 export type JsonCapabilityClient = <Response>(
   method: string,
   request?: unknown,
 ) => Promise<Response>;
 
 /** Bind Wabou's versioned JSON capability transport to a typed app wrapper. */
-export function bindJsonCapability<Capability extends NativeJsonCapability>(
+export function bindJsonCapability<Capability extends NativeCapability>(
   capability: Capability | undefined,
-  options: JsonCapabilityClientOptions,
+  options: CapabilityClientOptions,
 ): JsonCapabilityClient {
   return async <Response>(method: string, request?: unknown) => {
     if (capability?.__wabouCapabilityVersion !== options.version)
-      throw new JsonCapabilityError(
+      throw new CapabilityError(
         `The native ${options.name} capability version ${options.version} is unavailable`,
         "capability_unavailable",
       );
@@ -48,7 +35,7 @@ export function bindJsonCapability<Capability extends NativeJsonCapability>(
       method
     ];
     if (typeof functionValue !== "function")
-      throw new JsonCapabilityError(
+      throw new CapabilityError(
         `The native ${options.name}.${method} method is unavailable`,
         "method_unavailable",
       );
@@ -59,7 +46,7 @@ export function bindJsonCapability<Capability extends NativeJsonCapability>(
           JSON.stringify(request),
         ));
     if (typeof raw !== "string")
-      throw new JsonCapabilityError(
+      throw new CapabilityError(
         `The native ${options.name}.${method} method returned a non-string response`,
         "invalid_response",
       );
@@ -67,7 +54,7 @@ export function bindJsonCapability<Capability extends NativeJsonCapability>(
     try {
       envelope = JSON.parse(raw);
     } catch {
-      throw new JsonCapabilityError(
+      throw new CapabilityError(
         `The native ${options.name}.${method} method returned invalid JSON`,
         "invalid_response",
       );
@@ -77,13 +64,13 @@ export function bindJsonCapability<Capability extends NativeJsonCapability>(
       envelope === null ||
       !("ok" in envelope)
     )
-      throw new JsonCapabilityError(
+      throw new CapabilityError(
         `The native ${options.name}.${method} method returned an invalid response envelope`,
         "invalid_response",
       );
     if ((envelope as { ok?: unknown }).ok === true) {
       if (!("value" in envelope))
-        throw new JsonCapabilityError(
+        throw new CapabilityError(
           `The native ${options.name}.${method} method returned a success envelope without a value`,
           "invalid_response",
         );
@@ -99,6 +86,6 @@ export function bindJsonCapability<Capability extends NativeJsonCapability>(
       typeof error?.message === "string"
         ? error.message
         : `${options.name}.${method} failed`;
-    throw new JsonCapabilityError(message, code);
+    throw new CapabilityError(message, code ?? "handlerFailure");
   };
 }

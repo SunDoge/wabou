@@ -1,4 +1,15 @@
-import { Combobox, Select, View } from "@wabou/ui";
+import {
+  Button,
+  Combobox,
+  createKeyedAsyncAction,
+  Icon,
+  Popover,
+  Select,
+  Text,
+  View,
+} from "@wabou/ui";
+import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
+import { Show } from "solid-js";
 import type { AgentModel, AgentThinkingLevel } from "./agent-state";
 import { i18n, m } from "./i18n";
 
@@ -18,9 +29,21 @@ export function ModelControls(props: {
   thinking?: AgentThinkingLevel;
   thinkingLevels: readonly AgentThinkingLevel[];
   disabled?: boolean;
-  chooseModel(provider: string, modelId: string): void;
-  chooseThinking(level: AgentThinkingLevel): void;
+  chooseModel(provider: string, modelId: string): void | Promise<void>;
+  chooseThinking(level: AgentThinkingLevel): void | Promise<void>;
+  onActionError?: (action: ModelControlAction, error: unknown) => void;
 }) {
+  const action = createKeyedAsyncAction(
+    (id: ModelControlAction, _perform: () => void | Promise<void>) => id,
+    (_id: ModelControlAction, perform: () => void | Promise<void>) => perform(),
+  );
+  const run = async (
+    id: ModelControlAction,
+    perform: () => void | Promise<void>,
+  ) => {
+    const result = await action.run(id, perform);
+    if (!result.ok) props.onActionError?.(id, result.error);
+  };
   const selectedModel = () =>
     props.modelProvider && props.modelId
       ? modelValue({ provider: props.modelProvider, id: props.modelId })
@@ -39,38 +62,93 @@ export function ModelControls(props: {
     props.thinkingLevels.map((level) => ({ value: level, label: level }));
 
   return (
-    <View class="min-w-0 flex flex-row items-center gap-2">
+    <View class="min-w-0 flex-none flex flex-row items-center gap-1 overflow-hidden">
       <Combobox
         aria-label={i18n.message(m.choose_model, {})}
-        class="w-56 border-transparent shadow-none"
+        triggerVariant="ghost"
+        class="w-44 h-8 px-2"
         contentClass="w-80"
         options={modelOptions()}
         value={selectedModel()}
         placeholder={i18n.message(m.choose_model, {})}
         searchPlaceholder={i18n.message(m.search_models, {})}
         emptyText={i18n.message(m.no_models, {})}
-        disabled={props.disabled || props.models.length === 0}
+        disabled={
+          props.disabled || props.models.length === 0 || action.pending("model")
+        }
         onValueChange={(value) => {
           const separator = value.indexOf("\0");
           if (separator < 1) return;
-          props.chooseModel(
-            value.slice(0, separator),
-            value.slice(separator + 1),
-          );
+          const provider = value.slice(0, separator);
+          const modelId = value.slice(separator + 1);
+          void run("model", () => props.chooseModel(provider, modelId));
         }}
       />
       <Select
         aria-label={i18n.message(m.choose_thinking, {})}
-        class="w-32 border-transparent shadow-none"
+        triggerVariant="ghost"
+        class="w-28 h-8 px-2"
         contentClass="w-40"
         options={thinkingOptions()}
         value={props.thinking}
         placeholder={i18n.message(m.choose_thinking, {})}
-        disabled={props.disabled || props.thinkingLevels.length === 0}
-        onValueChange={(value) =>
-          props.chooseThinking(value as AgentThinkingLevel)
+        disabled={
+          props.disabled ||
+          props.thinkingLevels.length === 0 ||
+          action.pending("thinking")
         }
+        onValueChange={(value) => {
+          const level = value as AgentThinkingLevel;
+          void run("thinking", () => props.chooseThinking(level));
+        }}
       />
     </View>
+  );
+}
+
+export type ModelControlAction = "model" | "thinking";
+
+/**
+ * Keeps low-frequency runtime configuration out of the primary composer row.
+ * The current choice remains visible while the searchable controls expand in
+ * a stable, unconstrained surface.
+ */
+export function ComposerModelControl(
+  props: Parameters<typeof ModelControls>[0],
+) {
+  const selected = () =>
+    props.models.find(
+      (model) =>
+        model.provider === props.modelProvider && model.id === props.modelId,
+    );
+
+  return (
+    <Popover
+      aria-label={i18n.message(m.choose_model, {})}
+      placement="top-start"
+      contentClass="w-80 p-3"
+      trigger={(trigger) => (
+        <Button
+          {...trigger}
+          variant="ghost"
+          size="sm"
+          aria-label={i18n.message(m.choose_model, {})}
+          disabled={props.disabled || props.models.length === 0}
+          class="min-w-0 max-w-56 h-8 px-2 gap-1.5"
+        >
+          <Text class="min-w-0 truncate text-xs font-medium">
+            {selected()?.name ?? i18n.message(m.no_model, {})}
+          </Text>
+          <Show when={props.thinking}>
+            {(level) => (
+              <Text class="flex-none text-xs text-muted">· {level()}</Text>
+            )}
+          </Show>
+          <Icon source={chevronDown} size={12} class="flex-none text-muted" />
+        </Button>
+      )}
+    >
+      <ModelControls {...props} />
+    </Popover>
   );
 }
