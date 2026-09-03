@@ -4,7 +4,10 @@ use std::process::Command;
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
 use std::env;
 
-use super::{Result, ensure_workspace_package_exports, find_workspace, load_app};
+use super::{
+    Result, ensure_javascript_dependencies, ensure_workspace_package_exports, find_workspace,
+    load_app,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Status {
@@ -174,20 +177,18 @@ pub(super) fn run(cwd: &Path, app_path: Option<&Path>) -> Result<()> {
                     "Wabou application",
                     app.root.display().to_string(),
                 ));
-                let modules = workspace.join("node_modules");
-                checks.push(Check::new(
-                    if modules.is_dir() {
-                        Status::Pass
-                    } else {
-                        Status::Fail
-                    },
-                    "JavaScript dependencies",
-                    if modules.is_dir() {
-                        modules.display().to_string()
-                    } else {
-                        format!("{} is missing; run `bun install`", modules.display())
-                    },
-                ));
+                match ensure_javascript_dependencies(&workspace, &app) {
+                    Ok(()) => checks.push(Check::new(
+                        Status::Pass,
+                        "JavaScript dependencies",
+                        "application dependencies are installed",
+                    )),
+                    Err(error) => checks.push(Check::new(
+                        Status::Fail,
+                        "JavaScript dependencies",
+                        error.to_string().replace('\n', "; "),
+                    )),
+                }
 
                 let submodule = workspace.join("vendor/wabou");
                 if workspace.join(".gitmodules").is_file() {

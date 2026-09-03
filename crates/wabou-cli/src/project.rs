@@ -68,6 +68,54 @@ pub(super) fn find_app_root(start: &Path) -> Option<PathBuf> {
         .map(Path::to_path_buf)
 }
 
+fn dependency_names(manifest: &Value) -> Vec<&str> {
+    ["dependencies", "devDependencies"]
+        .into_iter()
+        .filter_map(|section| manifest.get(section)?.as_object())
+        .flat_map(|dependencies| dependencies.keys().map(String::as_str))
+        .collect()
+}
+
+fn installed_package_manifest(workspace: &Path, app: &App, package: &str) -> bool {
+    [
+        app.frontend.join("node_modules"),
+        workspace.join("node_modules"),
+    ]
+    .into_iter()
+    .any(|modules| modules.join(package).join("package.json").is_file())
+}
+
+/// Fail before starting Vite when Bun's workspace links have not been installed.
+/// Vite otherwise reports each import independently, hiding the single setup issue.
+pub(super) fn ensure_javascript_dependencies(workspace: &Path, app: &App) -> Result<()> {
+    let manifest_path = app.frontend.join("package.json");
+    let manifest: Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path)?).map_err(|error| {
+            format!(
+                "invalid package manifest {}: {error}",
+                manifest_path.display()
+            )
+        })?;
+    let mut missing = dependency_names(&manifest)
+        .into_iter()
+        .filter(|package| !installed_package_manifest(workspace, app, package))
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    missing.sort();
+    missing.dedup();
+    if missing.is_empty() {
+        return Ok(());
+    }
+
+    Err(format!(
+        "JavaScript dependencies are not installed for {}:\n  - {}\nrun `bun install --frozen-lockfile` from {} and retry",
+        app.root.display(),
+        missing.join("\n  - "),
+        workspace.display(),
+    )
+    .into())
+}
+
 fn collect_dist_exports(value: &Value, output: &mut Vec<String>) {
     match value {
         Value::String(path) if path.starts_with("./dist/") => output.push(path[2..].to_owned()),
@@ -151,4 +199,63 @@ pub(super) fn ensure_workspace_package_exports(workspace: &Path) -> Result<()> {
         .into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_app(root: &Path) -> App {
+        App {
+            name: "gallery".into(),
+            root: root.join("apps/gallery"),
+            frontend: root.join("apps/gallery"),
+            entry: "ui/index.tsx".into(),
+        }
+    }
+
+    #[test]
+    fn javascript_dependency_preflight_reports_missing_workspace_links() {
+        let root = tempfile::tempdir().unwrap();
+        let app = test_app(root.path());
+        fs::create_dir_all(&app.frontend).unwrap();
+        fs::write(
+            app.frontend.join("package.json"),
+            r#"{
+                "dependencies": {"@wabou/vite": "workspace:*"},
+                "devDependencies": {"@inlang/paraglide-js": "2.24.1"}
+            }"#,
+        )
+        .unwrap();
+
+        let error = ensure_javascript_dependencies(root.path(), &app).unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("@wabou/vite"));
+        assert!(message.contains("@inlang/paraglide-js"));
+        assert!(message.contains("bun install --frozen-lockfile"));
+    }
+
+    #[test]
+    fn javascript_dependency_preflight_accepts_root_and_app_installations() {
+        let root = tempfile::tempdir().unwrap();
+        let app = test_app(root.path());
+        fs::create_dir_all(&app.frontend).unwrap();
+        fs::write(
+            app.frontend.join("package.json"),
+            r#"{
+                "dependencies": {"@wabou/vite": "workspace:*"},
+                "devDependencies": {"local-tool": "1.0.0"}
+            }"#,
+        )
+        .unwrap();
+        for manifest in [
+            root.path().join("node_modules/@wabou/vite/package.json"),
+            app.frontend.join("node_modules/local-tool/package.json"),
+        ] {
+            fs::create_dir_all(manifest.parent().unwrap()).unwrap();
+            fs::write(manifest, "{}").unwrap();
+        }
+
+        ensure_javascript_dependencies(root.path(), &app).unwrap();
+    }
 }

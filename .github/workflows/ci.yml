@@ -15,6 +15,39 @@ permissions:
   contents: read
 
 jobs:
+  windows-smoke:
+    name: Windows smoke
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          rustflags: ""
+          cache: true
+          cache-shared-key: windows-smoke
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Install JavaScript dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build JavaScript packages
+        run: bun run packages:build
+
+      - name: Verify Windows CLI path and package discovery
+        run: cargo test -p wabou-cli
+
+      - name: Build Gallery frontend
+        run: bun run --cwd apps/gallery build
+
   rust:
     name: Rust
     runs-on: ubuntu-latest

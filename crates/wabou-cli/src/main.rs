@@ -51,7 +51,10 @@ use process::{
     ManagedChild, configure_test_backend, ensure_host_exit, supervise, wait_for_behavior_host,
     wait_for_vite,
 };
-use project::{App, ensure_workspace_package_exports, find_app_root, find_workspace, load_app};
+use project::{
+    App, ensure_javascript_dependencies, ensure_workspace_package_exports, find_app_root,
+    find_workspace, load_app,
+};
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -645,6 +648,7 @@ fn check(
     skip_behavior: bool,
     cargo_features: &[String],
 ) -> Result<()> {
+    ensure_javascript_dependencies(workspace, app)?;
     ensure_workspace_package_exports(workspace)?;
 
     let tsconfig = app
@@ -1141,6 +1145,7 @@ struct DevOptions<'a> {
 }
 
 fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
+    ensure_javascript_dependencies(workspace, &app)?;
     ensure_workspace_package_exports(workspace)?;
     let port_text = options.port.to_string();
     let mut vite_command = Command::new("bun");

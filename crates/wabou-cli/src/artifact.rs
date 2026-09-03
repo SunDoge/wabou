@@ -19,6 +19,13 @@ pub(super) fn built_executable(workspace: &Path, app: &App, release: bool) -> Re
 pub(super) fn app_binary(workspace: &Path, app: &App) -> Result<String> {
     let metadata = cargo_metadata(workspace, app)?;
     let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
+    if package_metadata(&metadata, &manifest_path).is_none() {
+        return Err(format!(
+            "application Cargo package {} is absent from cargo metadata",
+            manifest_path.display()
+        )
+        .into());
+    }
     binary_target(&metadata, &manifest_path)
         .and_then(|target| target["name"].as_str())
         .map(str::to_owned)
@@ -158,8 +165,21 @@ pub(super) fn package_metadata<'a>(metadata: &'a Value, manifest_path: &Path) ->
     metadata["packages"].as_array()?.iter().find(|package| {
         package["manifest_path"]
             .as_str()
-            .is_some_and(|path| Path::new(path) == manifest_path)
+            .is_some_and(|path| paths_refer_to_same_manifest(Path::new(path), manifest_path))
     })
+}
+
+fn paths_refer_to_same_manifest(left: &Path, right: &Path) -> bool {
+    if left == right {
+        return true;
+    }
+    let Ok(left) = left.canonicalize() else {
+        return false;
+    };
+    let Ok(right) = right.canonicalize() else {
+        return false;
+    };
+    left == right
 }
 
 pub(super) fn artifact_from_metadata(
@@ -205,4 +225,34 @@ fn cargo_target_directory_name(target: &str) -> &str {
                 .map(|offset| &target[..offset + marker.len() - 1])
         })
         .unwrap_or(target)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+
+    #[test]
+    fn package_lookup_accepts_canonical_equivalent_manifest_paths() {
+        let root = tempfile::tempdir().unwrap();
+        let app = root.path().join("app");
+        fs::create_dir_all(&app).unwrap();
+        fs::write(app.join("Cargo.toml"), "[package]\nname = \"app\"\n").unwrap();
+        let canonical = app.join("Cargo.toml").canonicalize().unwrap();
+        let equivalent = app.join("..").join("app").join("Cargo.toml");
+        let metadata = serde_json::json!({
+            "packages": [{
+                "name": "app",
+                "manifest_path": equivalent,
+                "targets": [{"name": "app", "kind": ["bin"]}]
+            }]
+        });
+
+        assert_eq!(
+            package_metadata(&metadata, &canonical).unwrap()["name"],
+            "app"
+        );
+        assert_eq!(binary_target(&metadata, &canonical).unwrap()["name"], "app");
+    }
 }
