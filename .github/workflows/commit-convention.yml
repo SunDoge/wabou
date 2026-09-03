@@ -31,18 +31,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 1
-      - name: Validate pushed commit title
-        run: |
-          if [ "$(git show -s --format=%P HEAD | wc -w)" -gt 1 ]; then
-            echo "Skipping Git merge commit $(git rev-parse --short HEAD)"
-            exit 0
-          fi
-
-          subject=$(git log -1 --pretty=%s)
-          pattern='^(feat|fix|refactor|perf|test|docs|build|ci|chore|revert)(\([a-z0-9][a-z0-9._/-]*\))?!?: .+'
-          if ! printf '%s\n' "$subject" | grep -Eq "$pattern"; then
-            echo "Invalid commit title: $subject"
-            echo "Expected: <type>(<optional-scope>): <description>"
-            exit 1
-          fi
+          # Cocogitto needs tags and commit ancestry to classify merge commits
+          # and honor the repository's history policy.
+          fetch-depth: 0
+      - name: Validate commit history with Cocogitto
+        uses: cocogitto/cocogitto-action@v4
+        with:
+          command: check
+          args: --from-latest-tag
