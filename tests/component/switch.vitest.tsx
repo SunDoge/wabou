@@ -10,7 +10,7 @@ const thumbX = (screen: ReturnType<typeof renderComponent>): number => {
   return thumb.transform?.[4] ?? 0;
 };
 
-test("delegates switch thumb interpolation to a finite GPUI transition", () => {
+test("delegates switch thumb movement to a persistent GPUI spring", () => {
   const screen = renderComponent(() => (
     <Switch aria-label="Sync" defaultChecked={false} />
   ));
@@ -22,12 +22,53 @@ test("delegates switch thumb interpolation to a finite GPUI transition", () => {
   expect(thumbX(screen)).toBe(16);
   const thumb = control.children[0]?.children[0];
   expect(
-    JSON.parse(thumb?.attribute("__wabou_native_transition") ?? "null"),
+    JSON.parse(thumb?.attribute("__wabou_native_spring") ?? "null"),
   ).toMatchObject({
-    duration: 0.15,
-    easing: "easeInOut",
-    fromTransform: [1, 0, 0, 1, 0, 0],
-    toTransform: [1, 0, 0, 1, 16, 0],
+    response: 0.16,
+    damping: 1,
+    epsilon: 0.02,
+    targetTransform: [1, 0, 0, 1, 16, 0],
+  });
+});
+
+test("retargets the same spring instead of replacing the motion primitive", () => {
+  const screen = renderComponent(() => <Switch aria-label="Sync" />);
+  const control = screen.getByRole("switch", { name: "Sync" });
+
+  control.click();
+  const enabledThumb = screen.getByRole("switch", { name: "Sync" }).children[0]
+    ?.children[0];
+  const enabled = JSON.parse(
+    enabledThumb?.attribute("__wabou_native_spring") ?? "null",
+  );
+  control.click();
+  const disabledThumb = screen.getByRole("switch", { name: "Sync" })
+    .children[0]?.children[0];
+  const disabled = JSON.parse(
+    disabledThumb?.attribute("__wabou_native_spring") ?? "null",
+  );
+
+  expect(disabledThumb?.id).toEqual(enabledThumb?.id);
+  expect(enabled.targetTransform[4]).toBe(16);
+  expect(disabled.targetTransform[4]).toBe(0);
+  expect(enabled.response).toBe(disabled.response);
+});
+
+test("disables spring travel under reduced motion", () => {
+  const screen = renderComponent(() => (
+    <MotionConfigProvider reducedMotion>
+      <Switch aria-label="Sync" />
+    </MotionConfigProvider>
+  ));
+
+  screen.getByRole("switch", { name: "Sync" }).click();
+  const thumb = screen.getByRole("switch", { name: "Sync" }).children[0]
+    ?.children[0];
+  expect(
+    JSON.parse(thumb?.attribute("__wabou_native_spring") ?? "null"),
+  ).toMatchObject({
+    response: 0,
+    targetTransform: [1, 0, 0, 1, 16, 0],
   });
 });
 
@@ -55,6 +96,7 @@ test("uses compact GPUI-native track geometry without focus reflow", () => {
   expect(control.className).toContain("border border-transparent");
   expect(track?.className).toContain("w-9 h-5");
   expect(track?.className).toContain("overflow-hidden");
+  expect(track?.className).not.toContain("border");
   expect(thumb?.className).toContain("w-4 h-4");
   expect(thumb?.className).toContain("bg-surface");
 });

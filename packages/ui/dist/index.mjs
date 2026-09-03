@@ -11827,7 +11827,7 @@ function switchGeometry(size) {
 	};
 }
 function switchTrackClass(checked, state, size = "default") {
-	return mergeClasses("flex-none overflow-hidden rounded-full border border-transparent", switchGeometry(size).trackClass, switchColors(checked, state));
+	return mergeClasses("flex-none overflow-hidden rounded-full", switchGeometry(size).trackClass, switchColors(checked, state));
 }
 function switchControlClass(state) {
 	return mergeClasses("w-10 h-6 p-0 flex-none items-center justify-center rounded-full border border-transparent bg-transparent", state.focusVisible && "border-focus");
@@ -11838,31 +11838,6 @@ function Switch(props) {
 	const reducedMotion = useReducedMotion();
 	const size = () => props.size ?? "default";
 	const geometry = () => switchGeometry(size());
-	const [thumbTransition, setThumbTransition] = createSignal();
-	let previousChecked = untrack(checked);
-	let previousTravel = untrack(() => geometry().travel);
-	let transitionGeneration = 0;
-	createEffect(() => [
-		checked(),
-		geometry().travel,
-		reducedMotion()
-	], ([nextChecked, nextTravel, prefersReducedMotion]) => {
-		const fromX = previousChecked ? previousTravel : 0;
-		const toX = nextChecked ? nextTravel : 0;
-		previousChecked = nextChecked;
-		previousTravel = nextTravel;
-		if (Object.is(fromX, toX) || prefersReducedMotion) {
-			setThumbTransition(void 0);
-			return;
-		}
-		setThumbTransition({
-			generation: ++transitionGeneration,
-			duration: .15,
-			easing: "easeInOut",
-			fromTransform: translate2d$1(fromX, 0),
-			toTransform: translate2d$1(toX, 0)
-		});
-	});
 	let control;
 	const toggle = () => {
 		if (props.disabled) return;
@@ -11906,8 +11881,13 @@ function Switch(props) {
 							get transform() {
 								return translate2d$1(checked() ? geometry().travel : 0, 0);
 							},
-							get nativeTransition() {
-								return thumbTransition();
+							get nativeSpring() {
+								return {
+									response: reducedMotion() ? 0 : .16,
+									damping: 1,
+									epsilon: .02,
+									targetTransform: translate2d$1(checked() ? geometry().travel : 0, 0)
+								};
 							}
 						});
 					}

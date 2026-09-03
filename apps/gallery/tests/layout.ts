@@ -421,6 +421,20 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   const compactSwitchLabel = getLayoutNode(snapshot, {
     text: "Fixture compact switch",
   });
+  const switchTrack = queryLayoutNodes(snapshot, { tag: "view" }).find(
+    (node) =>
+      node.parentId?.lo === switchControl.id.lo &&
+      node.parentId.hi === switchControl.id.hi &&
+      node.classes.includes("w-9"),
+  );
+  if (!switchTrack) throw new Error("default switch track was not projected");
+  const switchThumb = queryLayoutNodes(snapshot, { tag: "view" }).find(
+    (node) =>
+      node.parentId?.lo === switchTrack.id.lo &&
+      node.parentId.hi === switchTrack.id.hi &&
+      node.classes.includes("w-4"),
+  );
+  if (!switchThumb) throw new Error("default switch thumb was not projected");
   const buttonGroup = getLayoutNode(snapshot, {
     role: "group",
     name: "Fixture destructive button group",
@@ -519,6 +533,18 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
     throw new Error("loading button lost its busy semantics");
   assertClose(switchControl.rect.width, 40, "switch target width");
   assertClose(switchControl.rect.height, 24, "switch target height");
+  assertClose(switchTrack.rect.width, 36, "switch track width");
+  assertClose(switchTrack.rect.height, 20, "switch track height");
+  assertClose(
+    switchThumb.rect.x - switchTrack.rect.x,
+    2,
+    "switch thumb leading inset",
+  );
+  assertClose(
+    switchThumb.rect.y - switchTrack.rect.y,
+    2,
+    "switch thumb vertical inset",
+  );
   assertClose(compactSwitch.rect.width, 40, "compact switch target width");
   assertClose(compactSwitch.rect.height, 24, "compact switch target height");
   if (layoutRectRight(compactSwitchLabel.rect) > compactSwitch.rect.x)

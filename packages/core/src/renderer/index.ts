@@ -156,6 +156,8 @@ export interface WabouElementProps {
   projectionBoundary?: boolean;
   /** A finite transition sampled by the native renderer without per-frame JS traffic. */
   nativeTransition?: WabouNativeTransition;
+  /** Persistent GPUI spring targeting the authored transform. */
+  nativeSpring?: WabouNativeSpring;
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
   "aria-modal"?: boolean | "true" | "false";
@@ -221,6 +223,14 @@ export interface WabouNativeTransition {
   toTransform?: Affine2D;
   fromOpacity?: number;
   toOpacity?: number;
+}
+
+export interface WabouNativeSpring {
+  /** Approximate response period in seconds. */
+  response: number;
+  damping?: number;
+  epsilon?: number;
+  targetTransform: Affine2D;
 }
 
 export interface WabouControlProps extends WabouElementProps {
@@ -663,6 +673,21 @@ function applyProperty(
     writer.setAttribute(
       node.id,
       "__wabou_native_transition",
+      stringifyWidgetConfig(value),
+    );
+    return;
+  }
+  if (name === "nativeSpring") {
+    if (value == null || value === false) {
+      writer.removeAttribute(node.id, "__wabou_native_spring");
+      return;
+    }
+    if (!isStructuredConfigValue(value)) {
+      throw new TypeError("nativeSpring must be a plain object");
+    }
+    writer.setAttribute(
+      node.id,
+      "__wabou_native_spring",
       stringifyWidgetConfig(value),
     );
     return;
