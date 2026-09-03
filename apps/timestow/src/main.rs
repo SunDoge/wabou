@@ -7,12 +7,12 @@ use wabou::{HostBuilder, WindowOptions};
 fn main() -> Result<(), Whatever> {
     let service = service::RusticService::default();
     HostBuilder::new()
-        .app_directories("dev", "Wabou", "Rustic GUI")
+        .app_directories("dev", "Wabou", "Timestow")
         .kv()
         .persist_window_size("main")
         .window(
             WindowOptions::new()
-                .title("Rustic GUI · Wabou")
+                .title("Timestow · Wabou")
                 .initial_inner_size(1240, 780)
                 .min_inner_size(900, 620),
         )
@@ -20,5 +20,5 @@ fn main() -> Result<(), Whatever> {
             service::mount(host, service.clone())
         })
         .run()
-        .whatever_context("failed to run Rustic GUI")
+        .whatever_context("failed to run Timestow")
 }

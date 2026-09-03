@@ -1,10 +1,4 @@
-import {
-  Icon,
-  Text,
-  type TreeNode,
-  TreeView,
-  View,
-} from "@wabou/ui";
+import { Icon, Text, type TreeNode, TreeView, View } from "@wabou/ui";
 import folder from "lucide-static/icons/folder.svg?raw";
 import file from "lucide-static/icons/file.svg?raw";
 import {
@@ -124,28 +118,31 @@ export function SnapshotFileTree(props: {
         )}
       </Show>
       <TreeView
-          items={nodes()}
-          aria-label="Snapshot files"
-          expandedIds={expandedIds()}
-          selectedId={props.selectedPath ? idForPath(props.selectedPath) : null}
-          onExpandedChange={updateExpanded}
-          onSelectedChange={(id) => {
-            props.onSelect(id && id !== ROOT_ID ? entriesByPath().get(id) : undefined);
-          }}
-          renderItem={(node) => (
-            <View class="min-w-0 flex-1 flex flex-row items-center gap-2">
-              <Icon
-                source={
-                  node.id === ROOT_ID || entriesByPath().get(node.id)?.kind === "directory"
-                    ? folder
-                    : file
-                }
-                size={14}
-                class="flex-none text-muted"
-              />
-              <Text class="min-w-0 flex-1 truncate">{node.label}</Text>
-            </View>
-          )}
+        items={nodes()}
+        aria-label="Snapshot files"
+        expandedIds={expandedIds()}
+        selectedId={props.selectedPath ? idForPath(props.selectedPath) : null}
+        onExpandedChange={updateExpanded}
+        onSelectedChange={(id) => {
+          props.onSelect(
+            id && id !== ROOT_ID ? entriesByPath().get(id) : undefined,
+          );
+        }}
+        renderItem={(node) => (
+          <View class="min-w-0 flex-1 flex flex-row items-center gap-2">
+            <Icon
+              source={
+                node.id === ROOT_ID ||
+                entriesByPath().get(node.id)?.kind === "directory"
+                  ? folder
+                  : file
+              }
+              size={14}
+              class="flex-none text-muted"
+            />
+            <Text class="min-w-0 flex-1 truncate">{node.label}</Text>
+          </View>
+        )}
       />
     </View>
   );

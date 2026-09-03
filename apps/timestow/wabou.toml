@@ -1,0 +1,7 @@
+[package]
+product-name = "Timestow"
+identifier = "dev.wabou.timestow"
+description = "A native desktop app for encrypted, browsable backups powered by rustic."
+authors = ["SunDoge"]
+license-file = "../../LICENSE"
+formats = ["appimage"]

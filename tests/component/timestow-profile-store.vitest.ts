@@ -1,6 +1,6 @@
 import type { Kv, KvEntry, KvKey, KvValue } from "@wabou/ui";
 import { expect, test } from "vitest";
-import { createProfileStore } from "../../apps/rustic-gui/ui/profile-store";
+import { createProfileStore } from "../../apps/timestow/ui/profile-store";
 
 function memoryKv(): { kv: Kv; values: Map<string, KvValue> } {
   const values = new Map<string, KvValue>();

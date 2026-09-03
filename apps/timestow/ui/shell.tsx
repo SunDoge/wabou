@@ -24,9 +24,9 @@ import database from "lucide-static/icons/database.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
 import { For, type JSX, Show } from "solid-js";
 import type { BackupProfile } from "./api";
-import { useRusticSession } from "./session";
+import { useTimestowSession } from "./session";
 
-export interface RusticSidebarProps {
+export interface TimestowSidebarProps {
   active: "new" | string;
   profiles: readonly BackupProfile[];
   unlockedProfileIds: readonly string[];
@@ -34,7 +34,7 @@ export interface RusticSidebarProps {
   onSelectProfile(profileId: string): void;
 }
 
-export function RusticSidebar(props: RusticSidebarProps) {
+export function TimestowSidebar(props: TimestowSidebarProps) {
   return (
     <Sidebar
       aria-label="Primary navigation"
@@ -43,7 +43,7 @@ export function RusticSidebar(props: RusticSidebarProps) {
       <SidebarHeader class="h-16 px-4 flex items-center gap-3 border-0 bg-surface-muted">
         <IconFrame source={archive} size="sm" iconSize={18} variant="solid" />
         <View class="min-w-0 flex flex-col">
-          <Text class="truncate text-sm font-semibold">Rustic GUI</Text>
+          <Text class="truncate text-sm font-semibold">Timestow</Text>
           <Text class="truncate text-xs text-muted">Backup workspace</Text>
         </View>
       </SidebarHeader>
@@ -106,7 +106,7 @@ export function RusticSidebar(props: RusticSidebarProps) {
 }
 
 export function AppShell(props: { children?: JSX.Element }) {
-  const session = useRusticSession();
+  const session = useTimestowSession();
   const navigate = useNavigate();
   const createActive = useRouteActive("/");
   const snapshotsActive = useRouteActive("/snapshots");
@@ -123,7 +123,7 @@ export function AppShell(props: { children?: JSX.Element }) {
     <ColorThemeProvider theme="light">
       <ComponentsProvider theme="light">
         <View class="w-full h-full min-w-0 min-h-0 flex flex-row bg-canvas text-primary">
-          <RusticSidebar
+          <TimestowSidebar
             active={
               session.pendingUnlock()?.id ??
               (createActive() || !snapshotsActive()

@@ -6,7 +6,7 @@ import {
   RouterProvider,
 } from "@wabou/ui";
 import "virtual:wabou-stylesheet";
-import { RusticSessionProvider } from "./session";
+import { TimestowSessionProvider } from "./session";
 import { SetupPage } from "./setup";
 import { AppShell } from "./shell";
 import { SnapshotsPage } from "./snapshots";
@@ -28,7 +28,7 @@ const router = createDataRouter({
 });
 
 mount(() => (
-  <RusticSessionProvider>
+  <TimestowSessionProvider>
     <RouterProvider router={router} />
-  </RusticSessionProvider>
+  </TimestowSessionProvider>
 ));

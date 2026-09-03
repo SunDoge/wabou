@@ -134,20 +134,6 @@
         "vite": "^6.0.0",
       },
     },
-    "apps/rustic-gui": {
-      "name": "@wabou/rustic-gui",
-      "version": "0.0.0",
-      "dependencies": {
-        "@wabou/ui": "workspace:*",
-        "lucide-static": "1.31.0",
-        "solid-js": "2.0.0-rc.2",
-      },
-      "devDependencies": {
-        "@wabou/test": "workspace:*",
-        "@wabou/vite": "workspace:*",
-        "vite": "^6.0.0",
-      },
-    },
     "apps/stress": {
       "name": "@wabou/stress",
       "version": "0.0.0",
@@ -171,6 +157,20 @@
         "solid-js": "2.0.0-rc.2",
       },
       "devDependencies": {
+        "@wabou/vite": "workspace:*",
+        "vite": "^6.0.0",
+      },
+    },
+    "apps/timestow": {
+      "name": "@wabou/timestow",
+      "version": "0.0.0",
+      "dependencies": {
+        "@wabou/ui": "workspace:*",
+        "lucide-static": "1.31.0",
+        "solid-js": "2.0.0-rc.2",
+      },
+      "devDependencies": {
+        "@wabou/test": "workspace:*",
         "@wabou/vite": "workspace:*",
         "vite": "^6.0.0",
       },
@@ -758,8 +758,6 @@
 
     "@wabou/pi-agent": ["@wabou/pi-agent@workspace:apps/pi-agent"],
 
-    "@wabou/rustic-gui": ["@wabou/rustic-gui@workspace:apps/rustic-gui"],
-
     "@wabou/stress": ["@wabou/stress@workspace:apps/stress"],
 
     "@wabou/terminal": ["@wabou/terminal@workspace:packages/terminal"],
@@ -767,6 +765,8 @@
     "@wabou/terminal-demo": ["@wabou/terminal-demo@workspace:apps/terminal"],
 
     "@wabou/test": ["@wabou/test@workspace:packages/test"],
+
+    "@wabou/timestow": ["@wabou/timestow@workspace:apps/timestow"],
 
     "@wabou/ui": ["@wabou/ui@workspace:packages/ui"],
 

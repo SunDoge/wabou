@@ -35,7 +35,7 @@ import x from "lucide-static/icons/x.svg?raw";
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import { type FileEntry, type SnapshotEntry, useRusticApi } from "./api";
 import { FileDetails } from "./file-details";
-import { useRusticSession } from "./session";
+import { useTimestowSession } from "./session";
 import { createSnapshotBrowserCache } from "./snapshot-browser-cache";
 import { formatSnapshotTime, SnapshotDetails } from "./snapshot-details";
 import { SnapshotDiffPanel } from "./snapshot-diff";
@@ -147,7 +147,7 @@ export function SnapshotFileRow(props: {
 
 export function SnapshotsPage() {
   const api = useRusticApi();
-  const session = useRusticSession();
+  const session = useTimestowSession();
   const navigate = useNavigate();
   const [snapshots, setSnapshots] = createSignal<SnapshotEntry[]>([]);
   const [selected, setSelected] = createSignal<SnapshotEntry>();
