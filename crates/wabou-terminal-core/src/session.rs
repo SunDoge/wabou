@@ -37,6 +37,25 @@ pub struct TerminalFrame {
     pub cell_width: f32,
     pub font_family: Arc<str>,
     pub images: Vec<TerminalImage>,
+    pub cursor: Option<TerminalCursor>,
+}
+
+/// Renderer-neutral terminal caret projected from rio-vt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalCursor {
+    pub row: usize,
+    pub column: usize,
+    pub shape: TerminalCursorShape,
+    pub color: TerminalColor,
+    /// An unfocused terminal keeps a hollow cursor visible without blinking.
+    pub hollow: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalCursorShape {
+    Block,
+    Underline,
+    Beam,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -261,6 +280,13 @@ impl TerminalWidget {
         self.handle_rio_events()
     }
 
+    /// Advance the terminal-owned caret clock and report whether paint changed.
+    pub fn tick_cursor_blink(&mut self) -> bool {
+        let previous = self.cursor_on;
+        self.update_cursor_blink();
+        self.cursor_on != previous
+    }
+
     pub(super) fn handle_native_event(&mut self, event: &UiEvent) -> TerminalInputResult {
         match event {
             UiEvent::Pointer(pointer) => self.handle_pointer_event(pointer),
@@ -283,6 +309,12 @@ impl TerminalWidget {
             }
             UiEvent::Key(key) => self.handle_key_event(key),
             UiEvent::Wheel(wheel) => self.handle_wheel_event(wheel),
+            UiEvent::Focus(focused) => {
+                self.focused = *focused;
+                let terminal_blinking = self.terminal.lock().blinking_cursor;
+                self.schedule_cursor_blink(terminal_blinking);
+                TerminalInputResult::Handled
+            }
             _ => TerminalInputResult::Ignored,
         }
     }
@@ -308,6 +340,7 @@ impl TerminalWidget {
             .as_ref()
             .and_then(|selection| selection.to_range(&*terminal));
         let display_offset = terminal.display_offset();
+        let terminal_cursor = terminal.cursor();
         let colors = terminal.colors;
         let background = color::resolve_ansi_color(
             AnsiColor::Named(NamedColor::Background),
@@ -316,6 +349,29 @@ impl TerminalWidget {
             self.theme_foreground,
             self.theme_background,
         );
+        let cursor = (terminal_cursor.is_visible()
+            && terminal_cursor.pos.row.0 >= 0
+            && terminal_cursor.pos.row.0 < self.size.rows as i32
+            && terminal_cursor.pos.col.0 < self.size.columns
+            && (!self.focused || self.cursor_on))
+            .then(|| TerminalCursor {
+                row: terminal_cursor.pos.row.0 as usize,
+                column: terminal_cursor.pos.col.0,
+                shape: match terminal_cursor.content {
+                    CursorShape::Block => TerminalCursorShape::Block,
+                    CursorShape::Underline => TerminalCursorShape::Underline,
+                    CursorShape::Beam => TerminalCursorShape::Beam,
+                    CursorShape::Hidden => unreachable!("hidden cursors are filtered above"),
+                },
+                color: color::resolve_ansi_color(
+                    AnsiColor::Named(NamedColor::Cursor),
+                    true,
+                    &colors,
+                    self.theme_foreground,
+                    self.theme_background,
+                ),
+                hollow: !self.focused,
+            });
         drop(terminal);
 
         let rows = self
@@ -451,6 +507,7 @@ impl TerminalWidget {
             cell_width: self.cell_width,
             font_family: self.font_family.clone(),
             images: self.graphics.snapshot(),
+            cursor,
         }
     }
 
@@ -622,6 +679,39 @@ impl TerminalWidget {
         // Fractional trackpad input remains terminal-owned until it reaches a
         // complete grid line.
         TerminalInputResult::Handled
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frame_projects_rio_cursor_position_shape_and_focus() {
+        let mut terminal = TerminalWidget::headless(8, 4);
+        terminal.feed(b"\x1b[2;3H\x1b[5 q");
+
+        let unfocused = terminal.snapshot_frame(80.0, 72.0, 1.0);
+        let cursor = unfocused.cursor.expect("unfocused cursor remains visible");
+        assert_eq!((cursor.row, cursor.column), (1, 2));
+        assert_eq!(cursor.shape, TerminalCursorShape::Beam);
+        assert!(cursor.hollow);
+
+        assert!(
+            terminal
+                .dispatch_native_event(&UiEvent::Focus(true))
+                .is_handled()
+        );
+        let focused = terminal.snapshot_frame(80.0, 72.0, 1.0);
+        assert!(!focused.cursor.expect("focused cursor is visible").hollow);
+    }
+
+    #[test]
+    fn frame_omits_a_cursor_hidden_by_the_terminal_application() {
+        let mut terminal = TerminalWidget::headless(8, 4);
+        terminal.feed(b"\x1b[?25l");
+
+        assert!(terminal.snapshot_frame(80.0, 72.0, 1.0).cursor.is_none());
     }
 }
 

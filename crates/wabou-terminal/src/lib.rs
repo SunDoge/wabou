@@ -1,4 +1,4 @@
-use std::{ops::Range, sync::Arc};
+use std::{ops::Range, sync::Arc, time::Duration};
 
 use gpui::{AppContext as _, IntoElement as _, ParentElement as _, Styled as _};
 use wabou_shell::{
@@ -6,7 +6,9 @@ use wabou_shell::{
 };
 use wabou_shell_api::{KeyEvent, KeyLocation, KeyPhase, Modifiers, UiEvent, WakeCallback};
 
-use wabou_terminal_core::{TerminalColor, TerminalInputResult, TerminalWidget};
+use wabou_terminal_core::{
+    TerminalColor, TerminalCursorShape, TerminalInputResult, TerminalWidget,
+};
 
 #[cfg(target_os = "macos")]
 const PLATFORM_MONOSPACE_FONT: &str = "Menlo";
@@ -31,6 +33,8 @@ struct GpuiTerminal {
     terminal: TerminalWidget,
     focus: gpui::FocusHandle,
     _wake_task: gpui::Task<()>,
+    _cursor_task: gpui::Task<()>,
+    _subscriptions: Vec<gpui::Subscription>,
 }
 
 impl NativeWidgetInput for GpuiTerminal {
@@ -299,6 +303,7 @@ impl gpui::Render for GpuiTerminal {
                                     frame.background,
                                     frame.cell_width,
                                     frame.line_height,
+                                    frame.cursor,
                                 )
                             })
                         }
@@ -307,7 +312,7 @@ impl gpui::Render for GpuiTerminal {
                         let entity = entity.clone();
                         let focus = self.focus.clone();
                         move |bounds,
-                              (cells, frame_background, cell_width, line_height),
+                              (cells, frame_background, cell_width, line_height, cursor),
                               window,
                               cx| {
                             window.handle_input(
@@ -342,6 +347,61 @@ impl gpui::Render for GpuiTerminal {
                                     cx,
                                 );
                             }
+                            if let Some(cursor) = cursor {
+                                let origin = gpui::point(
+                                    bounds.left() + cell_width * cursor.column as f32,
+                                    bounds.top() + line_height * cursor.row as f32,
+                                );
+                                let size = match cursor.shape {
+                                    TerminalCursorShape::Block => {
+                                        gpui::size(cell_width, line_height)
+                                    }
+                                    TerminalCursorShape::Underline => {
+                                        gpui::size(cell_width, gpui::px(2.0))
+                                    }
+                                    TerminalCursorShape::Beam => {
+                                        gpui::size(gpui::px(2.0), line_height)
+                                    }
+                                };
+                                let origin = if cursor.shape == TerminalCursorShape::Underline {
+                                    gpui::point(origin.x, origin.y + line_height - size.height)
+                                } else {
+                                    origin
+                                };
+                                let color = gpui_color(cursor.color);
+                                if cursor.hollow {
+                                    let thickness = gpui::px(1.0);
+                                    let right = origin.x + cell_width - thickness;
+                                    let bottom = origin.y + line_height - thickness;
+                                    for outline in [
+                                        gpui::Bounds::new(
+                                            origin,
+                                            gpui::size(cell_width, thickness),
+                                        ),
+                                        gpui::Bounds::new(
+                                            gpui::point(origin.x, bottom),
+                                            gpui::size(cell_width, thickness),
+                                        ),
+                                        gpui::Bounds::new(
+                                            origin,
+                                            gpui::size(thickness, line_height),
+                                        ),
+                                        gpui::Bounds::new(
+                                            gpui::point(right, origin.y),
+                                            gpui::size(thickness, line_height),
+                                        ),
+                                    ] {
+                                        window.paint_quad(gpui::fill(outline, color));
+                                    }
+                                } else {
+                                    let [r, g, b, _] = cursor.color.components();
+                                    let color = gpui_color(TerminalColor::rgba(r, g, b, 110));
+                                    window.paint_quad(gpui::fill(
+                                        gpui::Bounds::new(origin, size),
+                                        color,
+                                    ));
+                                }
+                            }
                         }
                     },
                 )
@@ -356,7 +416,7 @@ pub fn gpui_terminal_factory()
 + Send
 + Sync
 + 'static {
-    move |context, _window, cx| {
+    move |context, window, cx| {
         let entity = context.entity::<GpuiTerminal>().unwrap_or_else(|| {
             let (sender, receiver) = flume::bounded::<()>(1);
             cx.new(|entity_cx: &mut gpui::Context<GpuiTerminal>| {
@@ -379,10 +439,40 @@ pub fn gpui_terminal_factory()
                         }
                     }
                 });
+                let cursor_task = entity_cx.spawn(async move |view, cx| {
+                    loop {
+                        cx.background_executor()
+                            .timer(Duration::from_millis(500))
+                            .await;
+                        if view
+                            .update(cx, |view, cx| {
+                                if view.terminal.tick_cursor_blink() {
+                                    cx.notify();
+                                }
+                            })
+                            .is_err()
+                        {
+                            break;
+                        }
+                    }
+                });
+                let focus = entity_cx.focus_handle();
+                let subscriptions = vec![
+                    entity_cx.on_focus(&focus, window, |state, _, cx| {
+                        let _ = state.terminal.dispatch_native_event(&UiEvent::Focus(true));
+                        cx.notify();
+                    }),
+                    entity_cx.on_blur(&focus, window, |state, _, cx| {
+                        let _ = state.terminal.dispatch_native_event(&UiEvent::Focus(false));
+                        cx.notify();
+                    }),
+                ];
                 GpuiTerminal {
                     terminal,
-                    focus: entity_cx.focus_handle(),
+                    focus,
                     _wake_task: task,
+                    _cursor_task: cursor_task,
+                    _subscriptions: subscriptions,
                 }
             })
         });

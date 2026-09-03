@@ -48,8 +48,8 @@ use process::{
     validate_launch_command,
 };
 pub use session::{
-    TerminalCell, TerminalEventKind, TerminalFrame, TerminalInputResult, TerminalInvalidation,
-    TerminalNodeEvent, TerminalRow,
+    TerminalCell, TerminalCursor, TerminalCursorShape, TerminalEventKind, TerminalFrame,
+    TerminalInputResult, TerminalInvalidation, TerminalNodeEvent, TerminalRow,
 };
 
 const DEFAULT_COLUMNS: usize = 80;
