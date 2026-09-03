@@ -1,7 +1,34 @@
-import { expect, test } from "bun:test";
+import { afterEach, beforeEach, expect, test } from "bun:test";
 import { createEffect, createRoot, flush } from "solid-js";
 import { dispatchHostMessage } from "./host-messages";
 import { createWindowMatch, useWindow } from "./window-metrics";
+
+const TEST_WINDOW_METRICS = {
+  windowId: { lo: 1, hi: 1 },
+  logicalWidth: 800,
+  logicalHeight: 600,
+  physicalWidth: 800,
+  physicalHeight: 600,
+  scaleFactor: 1,
+  maximized: false,
+  focused: false,
+  outerX: null,
+  outerY: null,
+  occluded: false,
+  colorScheme: "light",
+  reducedMotion: false,
+} as const;
+
+function resetWindowMetrics() {
+  dispatchHostMessage(
+    "wabou:window-metrics",
+    JSON.stringify(TEST_WINDOW_METRICS),
+  );
+  flush();
+}
+
+beforeEach(resetWindowMetrics);
+afterEach(resetWindowMetrics);
 
 test("window metrics expose one reactive logical coordinate space", () => {
   const window = useWindow();

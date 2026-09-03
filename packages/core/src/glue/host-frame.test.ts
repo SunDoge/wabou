@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { afterEach, beforeEach, expect, test } from "bun:test";
 import {
   EVENT_CODE,
   EVENT_DATA_LEN,
@@ -7,10 +7,18 @@ import {
   HOST_NODE_PAYLOAD,
   HOST_RECORD_KIND,
 } from "../protocol";
-import { createElement, setProp } from "../renderer";
+import { createElement, setProp, writer } from "../renderer";
 import { createRenderEffect, createRoot, createSignal, flush } from "solid-js";
 import { decodeAndDispatchHostFrame } from "./host-frame";
 import { subscribeAll } from "./host-messages";
+
+beforeEach(() => {
+  writer.flush();
+});
+
+afterEach(() => {
+  writer.flush();
+});
 
 function applicationFrame(topic: string, value: string): Uint8Array {
   const encoder = new TextEncoder();
@@ -124,9 +132,9 @@ test("numeric host frames carry only the event-specific slot prefix", () => {
   const frame = numericScrollFrame({ lo: 1, hi: 1 }, 42);
   const expectedRecordLen = 8 + 16 + (EVENT_DATA_SLOT.scrollY + 1) * 8;
   expect(frame.byteLength).toBe(HOST_FRAME.HeaderLen + expectedRecordLen);
-  expect(new DataView(frame.buffer).getUint32(HOST_FRAME.HeaderLen + 4, true)).toBe(
-    expectedRecordLen,
-  );
+  expect(
+    new DataView(frame.buffer).getUint32(HOST_FRAME.HeaderLen + 4, true),
+  ).toBe(expectedRecordLen);
 });
 
 test("malformed frames are rejected atomically", () => {
