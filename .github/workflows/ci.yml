@@ -45,6 +45,12 @@ jobs:
       - name: Verify Windows CLI path and package discovery
         run: cargo test -p wabou-cli
 
+      - name: Verify Windows DevTools transport
+        run: cargo test -p wabou-devtools --no-default-features local_socket_round_trip_uses_versioned_status
+
+      - name: Verify Windows host stack reserve
+        run: cargo test -p wabou-runtime windows_host_stack_can_hold_the_quickjs_budget
+
       - name: Build Gallery frontend
         run: bun run --cwd apps/gallery build
 

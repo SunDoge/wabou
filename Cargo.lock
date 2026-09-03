@@ -12928,6 +12928,7 @@ dependencies = [
  "specta-typescript",
  "tempfile",
  "tokio",
+ "uds_windows",
  "wabou-host-api",
 ]
 
@@ -13115,6 +13116,7 @@ dependencies = [
  "slotmap",
  "snafu",
  "sourcemap",
+ "stacker",
  "sys-locale",
  "tempfile",
  "tokio",

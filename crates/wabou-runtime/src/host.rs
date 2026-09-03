@@ -60,6 +60,8 @@ const CREATE_FILE_IMAGE: JsonMethod<CreateFileImageRequest, ImageResourceDescrip
 const CREATE_NETWORK_IMAGE: JsonMethod<CreateNetworkImageRequest, ImageResourceDescriptor> =
     JsonMethod::new("createNetwork");
 const RELEASE_IMAGE: JsonMethod<crate::ImageResourceHandle, bool> = JsonMethod::new("release");
+#[cfg(windows)]
+const WINDOWS_HOST_STACK_SIZE: usize = 16 * 1024 * 1024;
 
 /// Application-wide glyph rasterization preference.
 ///
@@ -1016,6 +1018,16 @@ impl HostBuilder {
 
     /// Build the JavaScript runtime and run it in the GPUI application shell.
     pub fn run(self) -> crate::Result<()> {
+        #[cfg(windows)]
+        {
+            // Windows executables normally reserve a much smaller main-thread
+            // stack than Linux and macOS. Solid mounts nested JSX synchronously,
+            // and QuickJS's own 6 MiB guard cannot protect a roughly 1 MiB native
+            // stack. `stacker` switches stacks without changing thread identity,
+            // preserving the main-thread requirement of the GPUI application.
+            return stacker::grow(WINDOWS_HOST_STACK_SIZE, || self.run_once());
+        }
+        #[cfg(not(windows))]
         self.run_once()
     }
 
@@ -1427,6 +1439,15 @@ mod tests {
             behavior_test: false,
             headless: false,
         }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_host_stack_can_hold_the_quickjs_budget() {
+        stacker::grow(super::WINDOWS_HOST_STACK_SIZE, || {
+            let remaining = stacker::remaining_stack().expect("Windows stack size is discoverable");
+            assert!(remaining > crate::jsrt::DEFAULT_QUICKJS_STACK_SIZE);
+        });
     }
 
     #[test]
