@@ -250,32 +250,7 @@ impl GpuiProjectionRenderSnapshot {
         root: NodeKey,
     ) -> Option<crate::gpui::StyleRefinement> {
         let style = &self.tree.node(root)?.style;
-        let mut layout = crate::gpui::StyleRefinement {
-            display: Some(style.display),
-            position: Some(style.position),
-            aspect_ratio: style.aspect_ratio,
-            align_self: style.align_self,
-            flex_basis: Some(style.flex_basis),
-            flex_grow: Some(style.flex_grow),
-            flex_shrink: Some(style.flex_shrink),
-            grid_location: style.grid_location.clone(),
-            ..Default::default()
-        };
-        layout.inset.top = Some(style.inset.top);
-        layout.inset.right = Some(style.inset.right);
-        layout.inset.bottom = Some(style.inset.bottom);
-        layout.inset.left = Some(style.inset.left);
-        layout.size.width = Some(style.size.width);
-        layout.size.height = Some(style.size.height);
-        layout.min_size.width = Some(style.min_size.width);
-        layout.min_size.height = Some(style.min_size.height);
-        layout.max_size.width = Some(style.max_size.width);
-        layout.max_size.height = Some(style.max_size.height);
-        layout.margin.top = Some(style.margin.top);
-        layout.margin.right = Some(style.margin.right);
-        layout.margin.bottom = Some(style.margin.bottom);
-        layout.margin.left = Some(style.margin.left);
-        Some(layout)
+        Some(crate::element::external_layout_refinement(style))
     }
 
     pub fn projection_boundaries(&self) -> Vec<NodeKey> {

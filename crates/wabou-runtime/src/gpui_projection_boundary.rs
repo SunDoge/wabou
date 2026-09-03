@@ -244,7 +244,7 @@ impl Render for GpuiProjectionBoundary {
                 },
             )
             .expect("the projection boundary root remains retained")
-            .into_projection_boundary_content();
+            .into_projection_boundary_element();
         PROJECTION_MATERIALIZE_NS.fetch_add(
             materialize_started
                 .elapsed()

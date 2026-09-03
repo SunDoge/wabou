@@ -10,8 +10,8 @@ use gpui::{
     Anchor, AnyElement, App, Bounds, DispatchPhase, Element, ElementId, FocusHandle,
     GlobalElementId, HighlightStyle, Hitbox, HitboxBehavior, InspectorElementId, IntoElement,
     KeyDownEvent, KeyUpEvent, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    Overflow, Pixels, RenderOnce, ScrollDelta, ScrollWheelEvent, StyledText, TouchPhase,
-    UniformListScrollHandle, Visibility, Window, div, prelude::*, uniform_list,
+    Overflow, Pixels, RenderOnce, ScrollDelta, ScrollWheelEvent, StyleRefinement, StyledText,
+    TouchPhase, UniformListScrollHandle, Visibility, Window, div, prelude::*, uniform_list,
 };
 use serde::Deserialize;
 
@@ -72,6 +72,35 @@ fn record_phase(started: Option<std::time::Instant>, total: &AtomicU64) {
             Ordering::Relaxed,
         );
     }
+}
+
+pub(crate) fn external_layout_refinement(style: &gpui::Style) -> StyleRefinement {
+    let mut layout = StyleRefinement {
+        display: Some(style.display),
+        position: Some(style.position),
+        aspect_ratio: style.aspect_ratio,
+        align_self: style.align_self,
+        flex_basis: Some(style.flex_basis),
+        flex_grow: Some(style.flex_grow),
+        flex_shrink: Some(style.flex_shrink),
+        grid_location: style.grid_location.clone(),
+        ..Default::default()
+    };
+    layout.inset.top = Some(style.inset.top);
+    layout.inset.right = Some(style.inset.right);
+    layout.inset.bottom = Some(style.inset.bottom);
+    layout.inset.left = Some(style.inset.left);
+    layout.size.width = Some(style.size.width);
+    layout.size.height = Some(style.size.height);
+    layout.min_size.width = Some(style.min_size.width);
+    layout.min_size.height = Some(style.min_size.height);
+    layout.max_size.width = Some(style.max_size.width);
+    layout.max_size.height = Some(style.max_size.height);
+    layout.margin.top = Some(style.margin.top);
+    layout.margin.right = Some(style.margin.right);
+    layout.margin.bottom = Some(style.margin.bottom);
+    layout.margin.left = Some(style.margin.left);
+    layout
 }
 
 pub(crate) type ProjectedLayoutBounds = Rc<RefCell<BTreeMap<NodeKey, Bounds<Pixels>>>>;
@@ -882,7 +911,7 @@ impl ProjectedElement {
             }
             .into_any_element()
         } else {
-            self.into_any_element()
+            self.into_opacity_wrapper()
         };
         if let (Some(position), Some(layout_bounds)) = (floating_position, layout_bounds) {
             element = NativeFloatingElement {
@@ -893,6 +922,30 @@ impl ProjectedElement {
             .into_any_element();
         }
         element
+    }
+
+    /// Wrap this projected node in GPUI's native opacity compositing path.
+    ///
+    /// `Style::paint` does not apply [`gpui::Style::opacity`] by itself; GPUI's
+    /// `Div` establishes that state before it paints the element and its
+    /// descendants. Keep the authored external layout contract on that native
+    /// wrapper and make the projected node fill it, so opacity does not add a
+    /// layout box with different flex/grid behavior.
+    fn into_opacity_wrapper(mut self) -> AnyElement {
+        let Some(opacity) = self.style.opacity.take() else {
+            return self.into_any_element();
+        };
+        if opacity >= 1.0 {
+            return self.into_any_element();
+        }
+
+        let mut wrapper_style = external_layout_refinement(&self.style);
+        wrapper_style.opacity = Some(opacity.clamp(0.0, 1.0));
+        self.reset_external_layout();
+
+        let mut wrapper = div().child(self);
+        *wrapper.style() = wrapper_style;
+        wrapper.into_any_element()
     }
 
     fn apply_transition_progress(&mut self, transition: NativeTransition, progress: f32) {
@@ -919,6 +972,20 @@ impl ProjectedElement {
     #[must_use]
     pub fn into_projection_boundary_content(mut self) -> Self {
         self.boundary_root = true;
+        self.reset_external_layout();
+        self
+    }
+
+    /// Render a retained projection boundary with the same GPUI-native
+    /// wrappers used by ordinary projected descendants.
+    #[must_use]
+    pub fn into_projection_boundary_element(mut self) -> AnyElement {
+        self.boundary_root = true;
+        self.reset_external_layout();
+        self.into_native_wrappers()
+    }
+
+    fn reset_external_layout(&mut self) {
         let defaults = gpui::Style::default();
         self.style.position = defaults.position;
         self.style.inset = defaults.inset;
@@ -932,7 +999,6 @@ impl ProjectedElement {
         self.style.flex_grow = defaults.flex_grow;
         self.style.flex_shrink = defaults.flex_shrink;
         self.style.grid_location = defaults.grid_location;
-        self
     }
 
     fn translation(&self) -> gpui::Point<Pixels> {
@@ -1070,7 +1136,7 @@ impl Element for NativeSpringElement {
                 cx,
             );
         }
-        let mut element = element.into_any_element();
+        let mut element = element.into_opacity_wrapper();
         let layout = element.request_layout(window, cx);
         (layout, element)
     }
@@ -1174,7 +1240,7 @@ impl Element for NativeTransitionElement {
                     .take()
                     .expect("native transition is laid out once");
                 element.apply_transition_progress(state.transition, raw_progress);
-                let mut element = element.into_any_element();
+                let mut element = element.into_opacity_wrapper();
                 let layout = element.request_layout(window, cx);
 
                 if raw_progress < 1.0 {
@@ -3148,6 +3214,63 @@ mod tests {
         assert_eq!(bounds.origin, point(px(7.0), px(11.0)));
         assert!(bounds.size.width > px(0.0));
         assert!(bounds.size.height > px(0.0));
+    }
+
+    #[gpui::test]
+    fn opacity_wrapper_preserves_a_background_only_nodes_layout(cx: &mut TestAppContext) {
+        struct LayoutHost;
+        impl gpui::Render for LayoutHost {
+            fn render(
+                &mut self,
+                _window: &mut Window,
+                _cx: &mut Context<Self>,
+            ) -> impl IntoElement {
+                div()
+            }
+        }
+
+        let key = NodeKey::new(30, 1);
+        let mut style = Style {
+            opacity: Some(0.5),
+            background: Some(gpui::red().into()),
+            ..Default::default()
+        };
+        style.size.width = gpui::px(96.0).into();
+        style.size.height = gpui::px(24.0).into();
+        let mut tree = ProjectionTree::default();
+        tree.insert(
+            key,
+            None,
+            0,
+            style,
+            None,
+            crate::ProjectedNodeKind::Element("view".into()),
+        )
+        .unwrap();
+        let bounds = ProjectedLayoutBounds::default();
+        let observed = bounds.clone();
+        let element = ProjectedElement::from_tree(
+            tree.snapshot(),
+            key,
+            ProjectedElementContext {
+                layout_bounds: Some(bounds),
+                ..Default::default()
+            },
+            false,
+        )
+        .unwrap()
+        .into_native_wrappers();
+
+        let (_host, window) = cx.add_window_view(|_, _| LayoutHost);
+        window.draw(
+            point(px(7.0), px(11.0)),
+            gpui::size(px(320.0), px(200.0)),
+            |_, _| element,
+        );
+
+        let bounds = observed.borrow()[&key];
+        assert_eq!(bounds.origin, point(px(7.0), px(11.0)));
+        assert_eq!(bounds.size, gpui::size(px(96.0), px(24.0)));
     }
 
     #[gpui::test]
