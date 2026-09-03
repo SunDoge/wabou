@@ -61,6 +61,53 @@ const CREATE_NETWORK_IMAGE: JsonMethod<CreateNetworkImageRequest, ImageResourceD
     JsonMethod::new("createNetwork");
 const RELEASE_IMAGE: JsonMethod<crate::ImageResourceHandle, bool> = JsonMethod::new("release");
 
+/// Application-wide glyph rasterization preference.
+///
+/// GPUI still protects unsupported combinations. In particular, transparent
+/// and blurred windows use grayscale masks, and a platform without subpixel
+/// support cannot be forced into subpixel rendering.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum TextRenderingMode {
+    /// Follow GPUI's platform recommendation.
+    #[default]
+    PlatformDefault,
+    /// Prefer LCD-style subpixel glyph masks when the window and platform allow it.
+    Subpixel,
+    /// Always use grayscale glyph masks.
+    Grayscale,
+}
+
+impl TextRenderingMode {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::PlatformDefault => "platform-default",
+            Self::Subpixel => "subpixel",
+            Self::Grayscale => "grayscale",
+        }
+    }
+
+    const fn gpui(self) -> wabou_shell::gpui::TextRenderingMode {
+        match self {
+            Self::PlatformDefault => wabou_shell::gpui::TextRenderingMode::PlatformDefault,
+            Self::Subpixel => wabou_shell::gpui::TextRenderingMode::Subpixel,
+            Self::Grayscale => wabou_shell::gpui::TextRenderingMode::Grayscale,
+        }
+    }
+}
+
+fn resolved_text_rendering_policy(
+    mode: TextRenderingMode,
+    background: wabou_shell::WindowBackground,
+) -> &'static str {
+    if background != wabou_shell::WindowBackground::Opaque {
+        return "grayscale-non-opaque-window";
+    }
+    if mode == TextRenderingMode::Grayscale || cfg!(target_os = "macos") {
+        return "grayscale";
+    }
+    "subpixel-if-supported"
+}
+
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CreateFileImageRequest {
@@ -641,6 +688,7 @@ pub struct HostBuilder {
     kv_enabled: bool,
     image_resources: crate::ImageResourceStore,
     js_runtime_options: crate::JsRuntimeOptions,
+    text_rendering_mode: TextRenderingMode,
 }
 
 impl Default for HostBuilder {
@@ -674,6 +722,7 @@ impl HostBuilder {
             kv_enabled: false,
             image_resources: image_resources.clone(),
             js_runtime_options: crate::JsRuntimeOptions::default(),
+            text_rendering_mode: TextRenderingMode::default(),
         };
         let mounted = image_resources.clone();
         builder.capability(IMAGE_RESOURCES, move |capability| {
@@ -861,6 +910,15 @@ impl HostBuilder {
     /// Configure the maximum native stack available to each QuickJS runtime.
     pub fn quickjs_stack_size(mut self, bytes: usize) -> Self {
         self.js_runtime_options = self.js_runtime_options.max_stack_size(bytes);
+        self
+    }
+
+    /// Select the application-wide glyph rasterization preference.
+    ///
+    /// The default delegates to GPUI. Subpixel rendering only takes effect for
+    /// opaque windows on platforms and GPUs that support it.
+    pub fn text_rendering_mode(mut self, mode: TextRenderingMode) -> Self {
+        self.text_rendering_mode = mode;
         self
     }
 
@@ -1130,6 +1188,7 @@ impl HostBuilder {
         #[cfg(feature = "vite")]
         let hmr_clients = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         let controller_sources = runtime_sources.clone();
+        let text_rendering_mode = self.text_rendering_mode;
         #[cfg(feature = "vite")]
         let controller_hmr_clients = hmr_clients.clone();
         let controller_factory = std::rc::Rc::new(
@@ -1140,6 +1199,10 @@ impl HostBuilder {
                 let mut controller = controller_sources
                     .create_gpui(window_key, options)
                     .map_err(|error| error.to_string())?;
+                controller.set_text_rendering_diagnostics(
+                    text_rendering_mode.as_str(),
+                    resolved_text_rendering_policy(text_rendering_mode, options.background),
+                );
                 #[cfg(feature = "vite")]
                 if let Some(client) = controller_sources
                     .start_gpui_hmr(&mut controller)
@@ -1234,7 +1297,12 @@ impl HostBuilder {
                     .into(),
             });
         }
-        run_gpui_windows(gpui_sources, gpui_windows, self.application_extensions)?;
+        run_gpui_windows(
+            gpui_sources,
+            gpui_windows,
+            self.application_extensions,
+            self.text_rendering_mode,
+        )?;
         if recording_effects && let (Some(trace), Some(path)) = (&effect_trace, trace_path) {
             trace
                 .write(&path)
@@ -1261,6 +1329,7 @@ fn run_gpui_windows(
     )>,
     gpui_windows: std::rc::Rc<crate::gpui_windows::GpuiApplicationWindows>,
     mut application_extensions: Vec<Box<dyn wabou_shell::ApplicationExtension>>,
+    text_rendering_mode: TextRenderingMode,
 ) -> crate::Result<()> {
     let startup_error = Arc::new(std::sync::Mutex::new(None));
     let reported_error = startup_error.clone();
@@ -1268,6 +1337,7 @@ fn run_gpui_windows(
     let retained_close_subscription = native_close_subscription.clone();
     let app_gpui_windows = gpui_windows.clone();
     wabou_shell::application().run(move |cx| {
+        cx.set_text_rendering_mode(text_rendering_mode.gpui());
         gpui_base::init(cx);
         gpui_base::Theme::global_mut(cx).scrollbar = gpui_base::ScrollbarTheme::new().with_motion(
             gpui_base::ScrollbarMotion::default()
@@ -1341,8 +1411,8 @@ fn install_gpui_host_message_producers(
 mod tests {
     use super::{
         CapabilityContract, HostBuilder, HostService, HostServiceContext, HostServiceHandle,
-        HostServicesGuard, install_gpui_host_message_producers, managed_host_service,
-        start_host_services,
+        HostServicesGuard, TextRenderingMode, install_gpui_host_message_producers,
+        managed_host_service, resolved_text_rendering_policy, start_host_services,
     };
     use crate::host_message::{HostMessagePayload, HostTaskTracker, host_message_channel};
     use crate::json_capability::{JsonCapability, invoke_json_method};
@@ -1357,6 +1427,32 @@ mod tests {
             behavior_test: false,
             headless: false,
         }
+    }
+
+    #[test]
+    fn text_rendering_defaults_to_gpui_platform_policy() {
+        assert_eq!(
+            HostBuilder::new().text_rendering_mode,
+            TextRenderingMode::PlatformDefault
+        );
+    }
+
+    #[test]
+    fn text_rendering_policy_records_forced_grayscale_conditions() {
+        assert_eq!(
+            resolved_text_rendering_policy(
+                TextRenderingMode::Subpixel,
+                wabou_shell::WindowBackground::Blurred,
+            ),
+            "grayscale-non-opaque-window"
+        );
+        assert_eq!(
+            resolved_text_rendering_policy(
+                TextRenderingMode::Grayscale,
+                wabou_shell::WindowBackground::Opaque,
+            ),
+            "grayscale"
+        );
     }
 
     #[derive(serde::Deserialize)]

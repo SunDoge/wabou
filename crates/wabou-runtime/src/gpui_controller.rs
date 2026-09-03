@@ -37,6 +37,8 @@ pub struct GpuiController {
     focused_target: Option<wabou_host_api::NodeKey>,
     last_window_metrics: Option<wabou_shell::WindowMetrics>,
     published_layout_revision: Option<(u64, u32, u32)>,
+    text_rendering_mode: &'static str,
+    text_rendering_policy: &'static str,
     #[cfg(feature = "devtools")]
     debug_state: Option<wabou_devtools::SharedDebugState>,
     #[cfg(feature = "devtools")]
@@ -120,6 +122,8 @@ impl GpuiController {
             focused_target: None,
             last_window_metrics: None,
             published_layout_revision: None,
+            text_rendering_mode: "platform-default",
+            text_rendering_policy: "platform-default",
             #[cfg(feature = "devtools")]
             debug_state: None,
             #[cfg(feature = "devtools")]
@@ -128,6 +132,15 @@ impl GpuiController {
     }
     pub(crate) fn set_image_resources(&mut self, resources: ImageResourceStore) {
         self.image_resources = resources;
+    }
+
+    pub(crate) fn set_text_rendering_diagnostics(
+        &mut self,
+        mode: &'static str,
+        policy: &'static str,
+    ) {
+        self.text_rendering_mode = mode;
+        self.text_rendering_policy = policy;
     }
 
     pub(crate) fn apply_frame(&mut self, frame: &Frame<'_>) -> Result<(), ProjectionError> {
@@ -1652,6 +1665,8 @@ impl GpuiController {
                 node_count: nodes.len(),
                 text_backend: "gpui".into(),
                 text_outline_fallback: "gpui-text-system".into(),
+                text_rendering_mode: self.text_rendering_mode.into(),
+                text_rendering_policy: self.text_rendering_policy.into(),
                 frame_stats,
                 focused_node: self.focused_target,
                 hovered_node: self.hovered_target,
@@ -2100,6 +2115,7 @@ mod tests {
             js,
             wabou_shell::initial_window_resource_key(0),
         ));
+        controller.set_text_rendering_diagnostics("grayscale", "grayscale");
         let debug_state = wabou_devtools::DebugState::shared();
         controller.set_debug_state(debug_state.clone());
         controller.update_window_metrics(wabou_shell::WindowMetrics {
@@ -2123,6 +2139,8 @@ mod tests {
         assert_eq!(snapshot.status.viewport_width, 900);
         assert_eq!(snapshot.status.viewport_height, 640);
         assert_eq!(snapshot.status.device_scale, 2.0);
+        assert_eq!(snapshot.status.text_rendering_mode, "grayscale");
+        assert_eq!(snapshot.status.text_rendering_policy, "grayscale");
         assert_eq!(snapshot.status.text_backend, "gpui");
         assert_eq!(controller.projection.node_count(), 1);
         // The root is retained, but DevTools geometry is only published after
