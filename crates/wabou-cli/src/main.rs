@@ -432,12 +432,14 @@ fn main() -> Result<()> {
             dev(
                 &workspace,
                 app,
-                port,
-                devtools,
-                hud,
-                rust_hot_reload,
-                mode.as_deref(),
-                &cargo_features.values,
+                DevOptions {
+                    port,
+                    open_devtools: devtools,
+                    hud,
+                    rust_hot_reload,
+                    mode: mode.as_deref(),
+                    cargo_features: &cargo_features.values,
+                },
             )
         }
         Commands::Build {
@@ -1129,18 +1131,18 @@ fn run_bindings_target(
     ensure(cargo.status()?, "Wabou bindings generator")
 }
 
-fn dev(
-    workspace: &Path,
-    app: App,
+struct DevOptions<'a> {
     port: u16,
     open_devtools: bool,
     hud: bool,
     rust_hot_reload: bool,
-    mode: Option<&str>,
-    cargo_features: &[String],
-) -> Result<()> {
+    mode: Option<&'a str>,
+    cargo_features: &'a [String],
+}
+
+fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
     ensure_workspace_package_exports(workspace)?;
-    let port_text = port.to_string();
+    let port_text = options.port.to_string();
     let mut vite_command = Command::new("bun");
     vite_command
         .current_dir(&app.frontend)
@@ -1154,16 +1156,16 @@ fn dev(
             "--strictPort",
         ])
         .stdin(Stdio::null());
-    if let Some(mode) = mode {
+    if let Some(mode) = options.mode {
         vite_command.args(["--mode", mode]);
     }
     let mut vite = ManagedChild::spawn(vite_command)?;
-    let url = format!("http://127.0.0.1:{port}");
+    let url = format!("http://127.0.0.1:{}", options.port);
     wait_for_vite(&url, vite.child.as_mut())?;
 
     let binary = app_binary(workspace, &app)?;
     let mut dev_features = app_dev_features(workspace, &app)?;
-    let mut host_command = if rust_hot_reload {
+    let mut host_command = if options.rust_hot_reload {
         ensure_dx_hot_patch_available()?;
         let package = app_package(workspace, &app)?;
         let hot_reload_feature = app_framework_feature(workspace, &app, "rust-hot-reload")?;
@@ -1203,20 +1205,20 @@ fn dev(
     host_command
         .env("WABOU_VITE_URL", &url)
         .env("WABOU_VITE_ENTRY", &app.entry);
-    if hud {
+    if options.hud {
         host_command.env("WABOU_PERFORMANCE_HUD", "1");
     }
-    apply_cargo_features(&mut host_command, cargo_features);
+    apply_cargo_features(&mut host_command, options.cargo_features);
     let mut host = ManagedChild::spawn(host_command)?;
 
-    let mut inspector = if open_devtools {
+    let mut inspector = if options.open_devtools {
         let command = devtools::command(workspace)?;
         Some(ManagedChild::spawn(command)?)
     } else {
         None
     };
 
-    if rust_hot_reload {
+    if options.rust_hot_reload {
         println!(
             "[wabou] Vite and Rust capability hot reload ready at {url}; press Ctrl-C to stop"
         );

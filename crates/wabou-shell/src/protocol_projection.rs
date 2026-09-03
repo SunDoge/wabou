@@ -225,6 +225,21 @@ pub struct GpuiProjectionRenderSnapshot {
         std::rc::Rc<std::collections::BTreeMap<NodeKey, crate::gpui::UniformListScrollHandle>>,
 }
 
+/// Runtime services used while materializing one retained projection boundary.
+///
+/// Keeping these handles together makes the JS-to-GPUI boundary explicit and
+/// prevents the materialization API from growing one positional argument for
+/// every native service it learns about.
+pub struct GpuiProjectionElementContext {
+    pub input: crate::ProjectedInputSink,
+    pub focus: crate::gpui::FocusHandle,
+    pub text_input: crate::ProjectedTextInputState,
+    pub native: Option<crate::ProjectedNativeElementFactory>,
+    pub subtree: Option<crate::ProjectedSubtreeElementFactory>,
+    pub text_selections:
+        std::rc::Rc<std::collections::BTreeMap<NodeKey, crate::ProjectedTextSelection>>,
+}
+
 impl GpuiProjectionRenderSnapshot {
     /// Layout contract used by a GPUI cached View which replaces this node in
     /// its parent. The cached View still renders the projected node itself;
@@ -235,9 +250,17 @@ impl GpuiProjectionRenderSnapshot {
         root: NodeKey,
     ) -> Option<crate::gpui::StyleRefinement> {
         let style = &self.tree.node(root)?.style;
-        let mut layout = crate::gpui::StyleRefinement::default();
-        layout.display = Some(style.display);
-        layout.position = Some(style.position);
+        let mut layout = crate::gpui::StyleRefinement {
+            display: Some(style.display),
+            position: Some(style.position),
+            aspect_ratio: style.aspect_ratio,
+            align_self: style.align_self,
+            flex_basis: Some(style.flex_basis),
+            flex_grow: Some(style.flex_grow),
+            flex_shrink: Some(style.flex_shrink),
+            grid_location: style.grid_location.clone(),
+            ..Default::default()
+        };
         layout.inset.top = Some(style.inset.top);
         layout.inset.right = Some(style.inset.right);
         layout.inset.bottom = Some(style.inset.bottom);
@@ -248,16 +271,10 @@ impl GpuiProjectionRenderSnapshot {
         layout.min_size.height = Some(style.min_size.height);
         layout.max_size.width = Some(style.max_size.width);
         layout.max_size.height = Some(style.max_size.height);
-        layout.aspect_ratio = style.aspect_ratio;
         layout.margin.top = Some(style.margin.top);
         layout.margin.right = Some(style.margin.right);
         layout.margin.bottom = Some(style.margin.bottom);
         layout.margin.left = Some(style.margin.left);
-        layout.align_self = style.align_self;
-        layout.flex_basis = Some(style.flex_basis);
-        layout.flex_grow = Some(style.flex_grow);
-        layout.flex_shrink = Some(style.flex_shrink);
-        layout.grid_location = style.grid_location.clone();
         Some(layout)
     }
 
@@ -306,15 +323,16 @@ impl GpuiProjectionRenderSnapshot {
     pub fn interactive_element(
         &self,
         root: NodeKey,
-        input: crate::ProjectedInputSink,
-        focus: crate::gpui::FocusHandle,
-        text_input: crate::ProjectedTextInputState,
-        native: Option<crate::ProjectedNativeElementFactory>,
-        subtree: Option<crate::ProjectedSubtreeElementFactory>,
-        text_selections: std::rc::Rc<
-            std::collections::BTreeMap<NodeKey, crate::ProjectedTextSelection>,
-        >,
+        context: GpuiProjectionElementContext,
     ) -> Result<crate::ProjectedElement, ProjectionError> {
+        let GpuiProjectionElementContext {
+            input,
+            focus,
+            text_input,
+            native,
+            subtree,
+            text_selections,
+        } = context;
         crate::ProjectedElement::from_tree(
             self.tree.clone(),
             root,
@@ -1087,12 +1105,14 @@ impl GpuiProjection {
     ) -> Result<crate::ProjectedElement, ProjectionError> {
         self.render_snapshot().interactive_element(
             root,
-            input,
-            focus,
-            text_input,
-            native,
-            None,
-            text_selections,
+            GpuiProjectionElementContext {
+                input,
+                focus,
+                text_input,
+                native,
+                subtree: None,
+                text_selections,
+            },
         )
     }
 
@@ -1899,15 +1919,18 @@ fn gpui_style() -> crate::gpui::Style {
 }
 
 fn gpui_root_style() -> crate::gpui::Style {
-    let mut style = crate::gpui::Style::default();
     // The canonical host root is a bounded column, not an authored block.
     // A block root lets a `flex-1 min-h-0` page viewport take its intrinsic
     // content height, so scroll containers grow beyond the native window.
-    style.display = crate::gpui::Display::Flex;
-    style.flex_direction = crate::gpui::FlexDirection::Column;
-    style.size.width = crate::gpui::relative(1.0).into();
-    style.size.height = crate::gpui::relative(1.0).into();
-    style
+    crate::gpui::Style {
+        display: crate::gpui::Display::Flex,
+        flex_direction: crate::gpui::FlexDirection::Column,
+        size: crate::gpui::size(
+            crate::gpui::relative(1.0).into(),
+            crate::gpui::relative(1.0).into(),
+        ),
+        ..Default::default()
+    }
 }
 
 #[cfg(test)]
@@ -3668,8 +3691,10 @@ mod tests {
             .layout_bounds
             .borrow_mut()
             .extend([(key(2), bounds), (key(3), bounds)]);
-        let mut hidden = crate::gpui::Style::default();
-        hidden.display = crate::gpui::Display::None;
+        let hidden = crate::gpui::Style {
+            display: crate::gpui::Display::None,
+            ..Default::default()
+        };
         projection.update_style(key(2), hidden).unwrap();
 
         let snapshot = projection.layout_snapshot();

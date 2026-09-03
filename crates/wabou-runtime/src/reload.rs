@@ -1,5 +1,6 @@
 //! Backend-neutral Vite reload state shared by runtime hosts.
 
+#[cfg(any(feature = "vite", test))]
 use std::sync::mpsc;
 
 use wabou_shell::WakeCallback;
@@ -8,6 +9,7 @@ use crate::ui_inbox::{UiInbox, UiInboxSender};
 
 /// A Vite HMR signal forwarded from the background HMR client to the applier.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(not(feature = "vite"), allow(dead_code))]
 pub(crate) enum ReloadMsg {
     /// Updated Vite module accepted by an HMR boundary.
     HmrUpdate {
@@ -61,10 +63,12 @@ pub(crate) enum HmrDrainResult {
 
 /// Sendable handle the HMR client holds to push [`ReloadMsg`]s into the applier.
 #[derive(Clone)]
+#[cfg(any(feature = "vite", test))]
 pub(crate) struct ReloadHandle {
     tx: UiInboxSender<ReloadMsg>,
 }
 
+#[cfg(any(feature = "vite", test))]
 impl ReloadHandle {
     /// Enqueue an HMR signal and wake an otherwise idle render loop.
     pub(crate) fn send(&self, message: ReloadMsg) -> Result<(), mpsc::SendError<ReloadMsg>> {

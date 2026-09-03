@@ -234,12 +234,14 @@ impl Render for GpuiProjectionBoundary {
             .snapshot
             .interactive_element(
                 self.root,
-                self.input.clone(),
-                self.focus.clone(),
-                self.text_input.clone(),
-                Some(native),
-                Some(subtree),
-                self.text_selections.clone(),
+                wabou_shell::GpuiProjectionElementContext {
+                    input: self.input.clone(),
+                    focus: self.focus.clone(),
+                    text_input: self.text_input.clone(),
+                    native: Some(native),
+                    subtree: Some(subtree),
+                    text_selections: self.text_selections.clone(),
+                },
             )
             .expect("the projection boundary root remains retained")
             .into_projection_boundary_content();

@@ -2093,7 +2093,7 @@ mod tests {
 
     #[cfg(feature = "devtools")]
     #[test]
-    fn gpui_controller_publishes_retained_state_to_devtools() {
+    fn gpui_controller_publishes_window_state_before_native_layout() {
         let js = JsRuntime::new().expect("runtime");
         install_application_message_probe(&js);
         let mut controller = GpuiController::new(RuntimeSession::new(
@@ -2124,10 +2124,12 @@ mod tests {
         assert_eq!(snapshot.status.viewport_height, 640);
         assert_eq!(snapshot.status.device_scale, 2.0);
         assert_eq!(snapshot.status.text_backend, "gpui");
-        assert_eq!(snapshot.status.node_count, 1);
-        assert_eq!(snapshot.nodes[0].id, NodeKey::ROOT);
-        assert_eq!(snapshot.nodes[0].tag, "root");
-        assert_eq!(snapshot.nodes[0].clip.device_scale, 2.0);
+        assert_eq!(controller.projection.node_count(), 1);
+        // The root is retained, but DevTools geometry is only published after
+        // GPUI has completed prepaint. Before that point it must not expose a
+        // synthetic 0x0 node as if it had participated in native layout.
+        assert_eq!(snapshot.status.node_count, 0);
+        assert!(snapshot.nodes.is_empty());
     }
 
     #[test]

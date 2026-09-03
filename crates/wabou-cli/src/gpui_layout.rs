@@ -41,10 +41,10 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         .as_deref()
         .map(|id| mount_fixture(&mut harness, id))
         .transpose()?;
-    if let Some(fixture) = fixture {
-        if fixture.width.is_some() || fixture.height.is_some() {
-            return run_selected_fixture(workspace, app, options, fixture);
-        }
+    if let Some(fixture) = fixture
+        && (fixture.width.is_some() || fixture.height.is_some())
+    {
+        return run_selected_fixture(workspace, app, options, fixture);
     }
     settle_wait(&mut harness, options.wait_ms)?;
     super::replay_actions(&mut harness, &options.actions)?;

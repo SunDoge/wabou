@@ -2693,8 +2693,10 @@ mod tests {
 
         let hidden = NodeKey::new(30, 3);
         let text = NodeKey::new(31, 3);
-        let mut hidden_style = Style::default();
-        hidden_style.display = gpui::Display::None;
+        let hidden_style = Style {
+            display: gpui::Display::None,
+            ..Default::default()
+        };
         let mut tree = ProjectionTree::default();
         tree.insert(
             hidden,
@@ -2986,14 +2988,17 @@ mod tests {
 
         let viewport = NodeKey::new(50, 1);
         let content = NodeKey::new(51, 1);
-        let mut viewport_style = Style::default();
-        viewport_style.flex_grow = 1.0;
+        let mut viewport_style = Style {
+            flex_grow: 1.0,
+            ..Default::default()
+        };
         viewport_style.min_size.height = px(0.0).into();
         viewport_style.overflow.y = Overflow::Scroll;
-        let mut content_style = Style::default();
-        content_style.size.width = gpui::relative(1.0).into();
-        content_style.size.height = px(240.0).into();
-        content_style.flex_shrink = 0.0;
+        let content_style = Style {
+            size: gpui::size(gpui::relative(1.0).into(), px(240.0).into()),
+            flex_shrink: 0.0,
+            ..Default::default()
+        };
         let mut tree = ProjectionTree::default();
         tree.insert(
             viewport,

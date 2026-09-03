@@ -899,11 +899,12 @@ impl TestController {
                     input_allows_disabled_target(input),
                 )
                 .is_some_and(|node| {
-                    let native_handled = native_input_events(input)
-                        .into_iter()
-                        .fold(false, |handled, event| {
-                            dispatch_native_input(node.key, event) || handled
-                        });
+                    let mut native_handled = false;
+                    for event in native_input_events(input) {
+                        // Deliver every phase even if an earlier one handled
+                        // the input; key-up and composition-end are stateful.
+                        native_handled = dispatch_native_input(node.key, event) || native_handled;
+                    }
                     if native_handled {
                         return true;
                     }
@@ -1393,7 +1394,7 @@ fn gpui_drag_events(
     moved.y += delta_y as f32;
     moved.local_x += delta_x as f32;
     moved.local_y += delta_y as f32;
-    let mut up = moved.clone();
+    let mut up = moved;
     up.phase = wabou_shell::ProjectedPointerPhase::Up;
     [down, moved, up]
 }
@@ -1457,11 +1458,15 @@ fn input_gpui_target(
             // not whether the offset happened to change.
             true
         }
-        TestInput::Drag { delta_x, delta_y } => gpui_drag_events(node, *delta_x, *delta_y)
-            .into_iter()
-            .fold(false, |handled, event| {
-                controller.handle_projected_pointer(event).handled || handled
-            }),
+        TestInput::Drag { delta_x, delta_y } => {
+            let mut handled = false;
+            for event in gpui_drag_events(node, *delta_x, *delta_y) {
+                // A drag is a sequence, so dispatch move/up even when down was
+                // handled instead of using Iterator::any's short circuit.
+                handled = controller.handle_projected_pointer(event).handled || handled;
+            }
+            handled
+        }
     }
 }
 
