@@ -32,7 +32,13 @@ import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import shieldCheck from "lucide-static/icons/shield-check.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  For as ForValue,
+  onCleanup,
+  Show,
+} from "solid-js";
 import { type FileEntry, type SnapshotEntry, useRusticApi } from "./api";
 import { FileDetails } from "./file-details";
 import { useTimestowSession } from "./session";
@@ -420,7 +426,7 @@ export function SnapshotsPage() {
                 />
               }
             >
-              <For each={snapshots()}>
+              <ForValue each={snapshots()}>
                 {(snapshot) => (
                   <Button
                     variant="ghost"
@@ -454,7 +460,7 @@ export function SnapshotsPage() {
                     </View>
                   </Button>
                 )}
-              </For>
+              </ForValue>
             </Show>
           </ScrollArea>
         </ProjectionBoundary>
@@ -686,7 +692,7 @@ export function SnapshotsPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              <For each={fileTable.rows()}>
+                              <ForValue each={fileTable.rows()}>
                                 {(row) => (
                                   <SnapshotFileRow
                                     entry={row.original}
@@ -705,7 +711,7 @@ export function SnapshotsPage() {
                                     }
                                   />
                                 )}
-                              </For>
+                              </ForValue>
                             </TableBody>
                           </Table>
                         </ScrollArea>

@@ -1,7 +1,7 @@
 import { Badge, Button, DirectoryPicker, Icon, Text, View } from "@wabou/ui";
 import folder from "lucide-static/icons/folder.svg?raw";
 import trash2 from "lucide-static/icons/trash-2.svg?raw";
-import { createSignal, For } from "solid-js";
+import { createSignal, For as ForValue } from "solid-js";
 
 export interface BackupSourcesPanelProps {
   sources: readonly string[];
@@ -41,7 +41,7 @@ export function BackupSourcesPanel(props: BackupSourcesPanelProps) {
           add();
         }}
       />
-      <For each={props.sources}>
+      <ForValue each={props.sources}>
         {(source) => (
           <View class="min-w-0 flex flex-row items-center gap-2 rounded-md bg-surface-muted px-2.5 py-2">
             <Icon source={folder} size={14} class="flex-none text-muted" />
@@ -59,7 +59,7 @@ export function BackupSourcesPanel(props: BackupSourcesPanelProps) {
             </Button>
           </View>
         )}
-      </For>
+      </ForValue>
     </View>
   );
 }
