@@ -1011,7 +1011,7 @@ mod tests {
             || tempfile::tempdir().expect("test root"),
             |parent| {
                 tempfile::Builder::new()
-                    .prefix("wabou-rustic-gui-")
+                    .prefix("wabou-timestow-")
                     .tempdir_in(parent)
                     .expect("test root in configured directory")
             },

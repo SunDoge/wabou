@@ -10,10 +10,10 @@ import {
   View,
 } from "@wabou/ui";
 import { createEffect, createSignal, Show } from "solid-js";
-import { useRusticSession } from "./session";
+import { useTimestowSession } from "./session";
 
 export function SetupPage() {
-  const session = useRusticSession();
+  const session = useTimestowSession();
   const navigate = useNavigate();
   const [name, setName] = createSignal("");
   const [path, setPath] = createSignal("");

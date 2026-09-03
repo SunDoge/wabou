@@ -17,11 +17,7 @@ import eye from "lucide-static/icons/eye.svg?raw";
 import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import { createSignal, Show } from "solid-js";
-import {
-  type FileEntry,
-  type RestorePlanSummary,
-  useRusticApi,
-} from "./api";
+import { type FileEntry, type RestorePlanSummary, useRusticApi } from "./api";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -92,7 +88,9 @@ export function FileDetails(props: {
             <Detail label="Path" value={entry().path} />
             <Detail
               label="Size"
-              value={entry().kind === "directory" ? "—" : formatBytes(entry().size)}
+              value={
+                entry().kind === "directory" ? "—" : formatBytes(entry().size)
+              }
             />
             <Detail label="Modified" value={entry().modified ?? "Unknown"} />
             <View class="flex flex-col gap-2 pt-1">
@@ -113,7 +111,9 @@ export function FileDetails(props: {
             <Show when={previewPath()}>
               {(path) => (
                 <Alert title="Preview ready" class="p-3">
-                  <Text class="whitespace-normal text-xs text-muted">{path()}</Text>
+                  <Text class="whitespace-normal text-xs text-muted">
+                    {path()}
+                  </Text>
                 </Alert>
               )}
             </Show>
@@ -240,18 +240,27 @@ function ExtractDialog(props: {
           <Show when={plan()}>
             {(current) => (
               <View class="grid grid-cols-2 gap-3 rounded-lg border border-subtle bg-surface-muted p-3">
-                <PlanMetric label="Data" value={formatBytes(current().restoreSize)} />
+                <PlanMetric
+                  label="Data"
+                  value={formatBytes(current().restoreSize)}
+                />
                 <PlanMetric
                   label="Files"
-                  value={String(current().filesToRestore + current().filesToModify)}
+                  value={String(
+                    current().filesToRestore + current().filesToModify,
+                  )}
                 />
                 <PlanMetric
                   label="Folders"
                   value={String(
-                    current().directoriesToRestore + current().directoriesToModify,
+                    current().directoriesToRestore +
+                      current().directoriesToModify,
                   )}
                 />
-                <PlanMetric label="Unchanged" value={String(current().filesUnchanged)} />
+                <PlanMetric
+                  label="Unchanged"
+                  value={String(current().filesUnchanged)}
+                />
               </View>
             )}
           </Show>
@@ -270,7 +279,11 @@ function ExtractDialog(props: {
             )}
           </Show>
           <DialogFooter>
-            <Button variant="outline" disabled={Boolean(pending())} onClick={dialog.close}>
+            <Button
+              variant="outline"
+              disabled={Boolean(pending())}
+              onClick={dialog.close}
+            >
               {result() ? "Done" : "Cancel"}
             </Button>
             <Show

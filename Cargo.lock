@@ -10227,19 +10227,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustic-gui"
-version = "0.1.0"
-dependencies = [
- "rustic_backend",
- "rustic_core",
- "serde",
- "snafu",
- "tempfile",
- "tokio",
- "wabou",
-]
-
-[[package]]
 name = "rustic_backend"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11929,6 +11916,19 @@ checksum = "7e689342a48d2ea927c87ea50cabf8594854bf940e9310208848d680d668ed85"
 dependencies = [
  "num-conv",
  "time-core",
+]
+
+[[package]]
+name = "timestow"
+version = "0.1.0"
+dependencies = [
+ "rustic_backend",
+ "rustic_core",
+ "serde",
+ "snafu",
+ "tempfile",
+ "tokio",
+ "wabou",
 ]
 
 [[package]]

@@ -2,8 +2,8 @@ import { defineWabouConfig } from "@wabou/vite";
 
 export default defineWabouConfig({
   ignoreClasses: ["lucide", "lucide-*"],
-  outDir: "../../dist/rustic-gui/resources",
-  globalName: "RusticGuiApp",
+  outDir: "../../dist/timestow/resources",
+  globalName: "TimestowApp",
   theme: {
     default: "light",
     themes: {

@@ -3,25 +3,25 @@ import { createTestHost, renderComponent } from "@wabou/test/component";
 import { Button, Text } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test, vi } from "vitest";
-import { FileDetails } from "../../apps/rustic-gui/ui/file-details";
-import type { ProfileStore } from "../../apps/rustic-gui/ui/profile-store";
+import { FileDetails } from "../../apps/timestow/ui/file-details";
+import type { ProfileStore } from "../../apps/timestow/ui/profile-store";
 import {
-  RusticSessionProvider,
-  useRusticSession,
-} from "../../apps/rustic-gui/ui/session";
-import { RusticSidebar } from "../../apps/rustic-gui/ui/shell";
-import { createSnapshotBrowserCache } from "../../apps/rustic-gui/ui/snapshot-browser-cache";
+  TimestowSessionProvider,
+  useTimestowSession,
+} from "../../apps/timestow/ui/session";
+import { TimestowSidebar } from "../../apps/timestow/ui/shell";
+import { createSnapshotBrowserCache } from "../../apps/timestow/ui/snapshot-browser-cache";
 import {
   formatSnapshotTime,
   SnapshotDetails,
-} from "../../apps/rustic-gui/ui/snapshot-details";
-import { SnapshotDiffPanel } from "../../apps/rustic-gui/ui/snapshot-diff";
-import { SnapshotFileTree } from "../../apps/rustic-gui/ui/snapshot-tree";
+} from "../../apps/timestow/ui/snapshot-details";
+import { SnapshotDiffPanel } from "../../apps/timestow/ui/snapshot-diff";
+import { SnapshotFileTree } from "../../apps/timestow/ui/snapshot-tree";
 import {
   formatModified,
   SnapshotFileRow,
-} from "../../apps/rustic-gui/ui/snapshots";
-import { BackupSourcesPanel } from "../../apps/rustic-gui/ui/workspace-components";
+} from "../../apps/timestow/ui/snapshots";
+import { BackupSourcesPanel } from "../../apps/timestow/ui/workspace-components";
 
 const dialog: Dialog = {
   open: async () => null,
@@ -499,14 +499,14 @@ test("rustic session hydrates durable profiles and exposes their locked state", 
     },
   });
   const Status = () => {
-    const session = useRusticSession();
+    const session = useTimestowSession();
     return <Text role="status">{session.pendingUnlock()?.name ?? "none"}</Text>;
   };
   const screen = renderComponent(
     () => (
-      <RusticSessionProvider store={store}>
+      <TimestowSessionProvider store={store}>
         <Status />
-      </RusticSessionProvider>
+      </TimestowSessionProvider>
     ),
     { host: fixture.host },
   );
@@ -535,7 +535,7 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
     },
   });
   const Create = () => {
-    const session = useRusticSession();
+    const session = useTimestowSession();
     return (
       <>
         <Button
@@ -555,9 +555,9 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
   };
   const screen = renderComponent(
     () => (
-      <RusticSessionProvider store={store}>
+      <TimestowSessionProvider store={store}>
         <Create />
-      </RusticSessionProvider>
+      </TimestowSessionProvider>
     ),
     { host: fixture.host },
   );
@@ -584,7 +584,7 @@ test("rustic sidebar exposes stable navigation and repository status", () => {
   const selectProfile = vi.fn<(profileId: string) => void>();
   const create = vi.fn<() => void>();
   const screen = renderComponent(() => (
-    <RusticSidebar
+    <TimestowSidebar
       active="photos"
       profiles={[
         {

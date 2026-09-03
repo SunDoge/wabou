@@ -18,7 +18,7 @@ export interface ConnectProfileInput {
   sources?: string[];
 }
 
-interface RusticSession {
+interface TimestowSession {
   profiles: () => readonly BackupProfile[];
   activeProfile: () => BackupProfile | undefined;
   pendingUnlock: () => BackupProfile | undefined;
@@ -36,7 +36,7 @@ interface RusticSession {
   updateSources(profileId: string, sources: string[]): Promise<void>;
 }
 
-const SessionContext = createContext<RusticSession>();
+const SessionContext = createContext<TimestowSession>();
 
 function upsertProfile(
   profiles: readonly BackupProfile[],
@@ -47,12 +47,12 @@ function upsertProfile(
   return next.sort((left, right) => left.name.localeCompare(right.name));
 }
 
-export function RusticSessionProvider(props: {
+export function TimestowSessionProvider(props: {
   children?: JSX.Element;
   store?: ProfileStore;
 }) {
   const api = useRusticApi();
-  const store = props.store ?? createProfileStore(openKv(["rustic-gui"]));
+  const store = props.store ?? createProfileStore(openKv(["timestow"]));
   const [profiles, setProfiles] = createSignal<BackupProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = createSignal<string>();
   const [pendingUnlockId, setPendingUnlockId] = createSignal<string>();
@@ -181,8 +181,8 @@ export function RusticSessionProvider(props: {
   );
 }
 
-export function useRusticSession(): RusticSession {
+export function useTimestowSession(): TimestowSession {
   const session = useContext(SessionContext);
-  if (!session) throw new Error("RusticSessionProvider is missing");
+  if (!session) throw new Error("TimestowSessionProvider is missing");
   return session;
 }

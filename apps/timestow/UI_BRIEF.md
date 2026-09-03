@@ -1,4 +1,4 @@
-# Rustic GUI product brief
+# Timestow product brief
 
 - User and job: a desktop user who does not want to learn the rustic CLI needs to create named backups, choose their folders and storage locations, find a snapshot, and inspect its files.
 - Primary action: before setup, create a backup profile; inside a profile, back up its selected folders now.
