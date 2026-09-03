@@ -147,4 +147,14 @@ mod tests {
         ));
         assert!(output.contains("captureScreenshot(): NativeResult<string>"));
     }
+
+    #[test]
+    fn generated_host_bindings_are_current() {
+        manifest()
+            .check(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/ui/generated/host-bindings.ts"
+            ))
+            .expect("run `bun run gen` to refresh DevTools host bindings");
+    }
 }

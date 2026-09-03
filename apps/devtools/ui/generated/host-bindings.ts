@@ -342,16 +342,16 @@ type DebugValidationReport = {
 export /**  Timing and scene-size metrics for the most recently presented frame. */
 type FrameStats = {
 	/**  Total Rust frame construction time in milliseconds. */
-	build_frame_ms: number | null,
+	build_frame_ms: number,
 	/**  QuickJS animation-frame callback time in milliseconds. */
-	js_tick_ms: number | null,
+	js_tick_ms: number,
 	/**  Native retained-projection assembly time in milliseconds. */
-	scene_ms: number | null,
+	scene_ms: number,
 	/**
 	 *  Surface rendering and presentation time in milliseconds, or zero when
 	 *  the active native toolkit does not expose a reliable completion time.
 	 */
-	present_ms: number | null,
+	present_ms: number,
 	/**  Number of retained nodes in the frame. */
 	node_count: number,
 	/**  Logical viewport width. */

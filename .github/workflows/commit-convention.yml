@@ -31,8 +31,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 1
-      - name: Validate merged commit with Cocogitto
-        run: |
-          git log -1 --pretty=%B |
-            docker run --rm -i ghcr.io/cocogitto/cog:7.0.0 verify --file -
+          # Cocogitto needs tags and commit ancestry to classify merge commits
+          # and honor the repository's history policy.
+          fetch-depth: 0
+      - name: Validate commit history with Cocogitto
+        uses: cocogitto/cocogitto-action@v4
+        with:
+          command: check
+          # Cocogitto excludes prereleases from `--from-latest-tag`; alpha.2
+          # is the explicit conventional-history baseline for this repository.
+          args: v0.1.0-alpha.2..HEAD

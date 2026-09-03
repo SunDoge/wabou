@@ -1211,6 +1211,14 @@ impl Render for GpuiRuntimeView {
             self.observed_projection_revision = committed_projection_revision;
         }
         let changed_boundaries = self.controller.take_projection_boundary_changes();
+        let needs_observed_layout_followup = self.controller.has_resize_observers()
+            && changed_boundaries.values().any(|dirty| {
+                dirty.intersects(
+                    wabou_shell::DirtyKind::STRUCTURE
+                        | wabou_shell::DirtyKind::LAYOUT
+                        | wabou_shell::DirtyKind::TEXT,
+                )
+            });
         if needs_runtime_followup {
             // Solid 2 and asynchronously loaded Vite modules may enqueue their
             // retained mutations after this turn's protocol writer was flushed.
@@ -1370,9 +1378,13 @@ impl Render for GpuiRuntimeView {
             cx.notify();
         }
 
-        if self.controller.has_animation() {
+        if self.controller.has_animation() || needs_observed_layout_followup {
             // GPUI associates this request with the currently rendering view
             // and notifies only that entity on the next platform frame.
+            // A ResizeObserver also needs a root-view follow-up after a
+            // layout-affecting projection change so completed GPUI geometry is
+            // published back to Solid. Without it, measured disclosures wait
+            // for an unrelated mouse or window event before becoming visible.
             window.request_animation_frame();
         }
 
@@ -1693,7 +1705,7 @@ mod tests {
     use super::*;
     use crate::{JsRuntime, runtime_session::RuntimeSession};
     use wabou_host_api::NodeKey;
-    use wabou_protocol::{Frame, Op};
+    use wabou_protocol::{Atom, Frame, Op};
     use wabou_shell::gpui::{HeadlessAppContext, TestAppContext, VisualTestContext, px, size};
     use wabou_shell::{
         EffectId, EffectScope, OpenDialogRequest, WindowCreateRequest, WindowOptions,
@@ -1960,6 +1972,115 @@ mod tests {
         assert!(
             cx.read_entity(&root, |view, _| view.controller.protocol_revision()) > revision_before,
             "the notified render must commit the event's protocol frame without another input"
+        );
+    }
+
+    #[test]
+    fn observed_layout_change_schedules_the_frame_that_publishes_native_geometry() {
+        let platform = gpui_platform::current_platform(true);
+        let mut cx = HeadlessAppContext::new(platform.text_system());
+        let target = NodeKey::new(2, 1);
+        let text = NodeKey::new(3, 1);
+        let handle = cx
+            .open_window(size(px(320.0), px(200.0)), |window, app| {
+                let mut controller = test_controller();
+                controller
+                    .boot(include_str!("gen/test-runtime.js"))
+                    .expect("boot generated Solid runtime fixture");
+                controller
+                    .eval_script_diagnostic(
+                        "globalThis.__observed_view_atom = String(__wabou_intern('view'))",
+                    )
+                    .expect("intern observed view tag");
+                let view_atom = Atom::from_raw(
+                    controller
+                        .eval_string("globalThis.__observed_view_atom")
+                        .expect("read observed view atom")
+                        .parse()
+                        .expect("view atom is a u32"),
+                );
+                controller
+                    .eval_script_diagnostic("__wabou_resize_observe(2, 1)")
+                    .expect("register native size observation");
+                controller
+                    .eval_script_diagnostic(
+                        r#"
+                        globalThis.__resize_delivery_count = 0;
+                        globalThis.__wabou_dispatch_host_frame = () => {
+                          globalThis.__resize_delivery_count += 1;
+                          return {
+                            needsTick: false,
+                            preventedEventIds: new Uint32Array(),
+                            protocolFrame: null,
+                          };
+                        };
+                        "#,
+                    )
+                    .expect("observe resize delivery");
+                controller
+                    .apply_frame(&Frame {
+                        seq: 1,
+                        ops: vec![
+                            Op::CreateElement {
+                                id: target,
+                                tag: view_atom,
+                            },
+                            Op::CreateText {
+                                id: text,
+                                text: "measured content",
+                            },
+                            Op::AppendChild {
+                                parent: NodeKey::ROOT,
+                                child: target,
+                            },
+                            Op::AppendChild {
+                                parent: target,
+                                child: text,
+                            },
+                        ],
+                    })
+                    .expect("project observed content");
+                assert!(controller.advance_frame(), "initial tree must commit");
+
+                app.new(|view_cx| {
+                    GpuiRuntimeView::new(
+                        controller,
+                        GpuiRuntimeViewOptions {
+                            window_size_persistence: None,
+                            native_widget_factories: HashMap::new(),
+                            test_controller: None,
+                            window_key: wabou_shell::initial_window_resource_key(0),
+                            window_host: test_window_host(),
+                        },
+                        window,
+                        view_cx,
+                    )
+                })
+            })
+            .expect("open observed layout fixture");
+        cx.run_until_parked();
+        cx.update_window(handle.into(), |_, window, app| {
+            let _ = window.draw(app);
+        })
+        .expect("draw layout-affecting projection");
+        let root = handle.root(&mut cx).expect("GPUI runtime root entity");
+        assert_ne!(
+            cx.read_entity(&root, |view, _| view
+                .controller
+                .eval_string("String(globalThis.__resize_delivery_count)")
+                .expect("read resize delivery count")),
+            "0",
+            "the completed native layout must reach the registered observer"
+        );
+
+        let callbacks = cx
+            .update_window(handle.into(), |_, window, app| {
+                window.simulate_next_frame(app)
+            })
+            .expect("deliver scheduled native frame");
+        assert!(
+            callbacks >= 2,
+            "an observed layout change must add a root frame callback; found {callbacks}"
         );
     }
 

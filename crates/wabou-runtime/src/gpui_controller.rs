@@ -815,6 +815,10 @@ impl GpuiController {
                 .is_empty()
     }
 
+    pub(crate) fn has_resize_observers(&self) -> bool {
+        !self.runtime.js.resize_targets_handle().borrow().is_empty()
+    }
+
     pub(crate) fn has_window_metrics(&self) -> bool {
         self.last_window_metrics.is_some()
     }
