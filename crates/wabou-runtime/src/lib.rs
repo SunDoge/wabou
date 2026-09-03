@@ -59,7 +59,7 @@ pub use gpui_headless::{
 };
 pub use host::{
     HostBuilder, HostService, HostServiceContext, HostServiceHandle, ManagedHostService,
-    managed_host_service,
+    TextRenderingMode, managed_host_service,
 };
 pub use host_message::{
     HostMessage, HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload,

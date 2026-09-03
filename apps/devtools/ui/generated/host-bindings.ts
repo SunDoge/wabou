@@ -275,6 +275,12 @@ type DebugStatus = {
 	textBackend?: string,
 	/**  Platform policy used when ordinary raster text must fall back to outlines. */
 	textOutlineFallback?: string,
+	/**  Application-requested GPUI glyph rasterization mode. */
+	textRenderingMode?: string,
+	/**  Runtime policy after applying known platform and window constraints. */
+	textRenderingPolicy?: string,
+	/**  Timing metrics from the most recently presented frame, when available. */
+	frameStats?: FrameStats | null,
 	/**  Focused Solid node identifier. */
 	focusedNode: NodeKey | null,
 	/**  Hovered Solid node identifier. */
@@ -331,6 +337,27 @@ type DebugValidationReport = {
 	truncated: boolean,
 	/**  Deterministically ordered findings. */
 	issues: DebugValidationIssue[],
+};
+
+export /**  Timing and scene-size metrics for the most recently presented frame. */
+type FrameStats = {
+	/**  Total Rust frame construction time in milliseconds. */
+	build_frame_ms: number | null,
+	/**  QuickJS animation-frame callback time in milliseconds. */
+	js_tick_ms: number | null,
+	/**  Native retained-projection assembly time in milliseconds. */
+	scene_ms: number | null,
+	/**
+	 *  Surface rendering and presentation time in milliseconds, or zero when
+	 *  the active native toolkit does not expose a reliable completion time.
+	 */
+	present_ms: number | null,
+	/**  Number of retained nodes in the frame. */
+	node_count: number,
+	/**  Logical viewport width. */
+	viewport_w: number,
+	/**  Logical viewport height. */
+	viewport_h: number,
 };
 
 export /**  Request selecting one retained node. */
