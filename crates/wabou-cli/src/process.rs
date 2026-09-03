@@ -65,6 +65,7 @@ pub(super) fn configure_test_backend(command: &mut Command, native: bool) {
     }
 }
 
+#[cfg(test)]
 pub(super) fn wait_for_managed_child(
     command: Command,
     timeout: Duration,

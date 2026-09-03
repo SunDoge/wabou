@@ -504,6 +504,11 @@ fn promise_jobs_are_time_sliced() {
     runtime.set_wake_callback(Arc::new(move || {
         wake_count_for_callback.fetch_add(1, Ordering::Relaxed);
     }));
+    assert_eq!(
+        wake_count.swap(0, Ordering::Relaxed),
+        1,
+        "installing a wake callback schedules the initial runtime pump",
+    );
     runtime
         .with(|ctx| {
             ctx.eval::<(), _>(
