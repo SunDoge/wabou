@@ -37,6 +37,10 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
+          # Keep warnings-as-errors scoped to the explicit Clippy command in
+          # verify:ci:rust. Applying -D warnings through RUSTFLAGS would also
+          # fail bindings, layout, packaging, and ordinary test compilation.
+          rustflags: ""
           cache: ${{ !env.ACT }}
 
       - name: Install Bun
@@ -103,6 +107,7 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
+          rustflags: ""
           cache: ${{ !env.ACT }}
           # Matrix legs compile the same workspace and can restore one shared
           # dependency/build cache on later workflow runs.
@@ -155,6 +160,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
+          rustflags: ""
           cache: ${{ !env.ACT }}
           cache-shared-key: linux-package
 
