@@ -66,10 +66,12 @@ describe("Pi Agent conversation drafts", () => {
     drafts.setDraft("new task");
     drafts.setImages(["page.png"]);
     setSessionId("session-a");
+    flush();
     drafts.setDraft("follow up");
     drafts.setContextFiles(["src/main.rs"]);
     setAgentId("agent-2");
     setSessionId(undefined);
+    flush();
     drafts.setDraft("other project");
     flush();
 
