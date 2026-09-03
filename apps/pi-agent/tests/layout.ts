@@ -12,6 +12,9 @@ import {
   renderLayoutFixtures,
 } from "@wabou/test/layout/node";
 
+const command = process.env.WABOU_LAYOUT_COMMAND
+  ? process.env.WABOU_LAYOUT_COMMAND.split(" ").filter(Boolean)
+  : [resolve("target/release/wabou")];
 const directory = await mkdtemp(join(tmpdir(), "wabou-pi-agent-layout-"));
 const selected = process.argv.slice(2).filter(Boolean);
 const selectCases = (...cases: LayoutFixtureCase[]): LayoutFixtureCase[] =>
@@ -947,7 +950,7 @@ try {
     ),
     mode: "layout-test",
     skipBuild: process.env.WABOU_LAYOUT_SKIP_BUILD === "1",
-    command: [resolve("target/release/wabou")],
+    command,
   });
 } finally {
   await rm(directory, { recursive: true, force: true });

@@ -903,4 +903,15 @@ mod tests {
         assert!(classify_download_uri("file:///tmp/private").is_err());
         assert!(classify_download_uri("not a URI").is_err());
     }
+
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn generated_native_bindings_are_current() {
+        super::native_bindings()
+            .check(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/ui/generated/native-downloads.ts"
+            ))
+            .expect("run `bun run gen` to refresh Motrix native bindings");
+    }
 }

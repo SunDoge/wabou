@@ -10,8 +10,8 @@ Install the repository toolchain with [mise](https://mise.jdx.dev/):
 mise install
 ```
 
-Run the relevant focused tests while iterating. Before opening a pull request,
-run the repository verification contract used by CI:
+Run the relevant focused tests while iterating. Before a release, run the
+complete repository verification contract:
 
 ```bash
 bun run verify
@@ -19,10 +19,13 @@ bun run verify
 
 `bun run verify:js` and `bun run verify:rust` are available when a change only
 needs one side of the boundary; `bun run verify:behavior` discovers every app
-with authored `tests/**/*.behavior.ts` suites. Standalone `.scenario.ts` files
-that require special environment setup remain explicit CI commands. The full command checks formatting,
-types, generated bindings, package tarballs, unit tests, Clippy, every Rust
-target, native application behavior, and every authored host-backed capture.
+with authored `tests/**/*.behavior.ts` suites. Pull-request and development-push
+CI runs the bounded unit/component merge gate; tag and manually dispatched runs
+also execute the expensive native behavior and layout suites. Standalone
+`.scenario.ts` files that require special environment setup remain explicit
+commands. The full local command checks formatting, types, generated bindings,
+package tarballs, unit tests, Clippy, every Rust target, native application
+behavior, and every authored host-backed capture.
 Capture PNGs are retained under `target/wabou-captures` for inspection. The
 verification command reports stale generated output instead of rewriting the
 worktree; run `bun run gen` explicitly when that diagnostic is expected.

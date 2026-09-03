@@ -39,27 +39,40 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
-          # Keep warnings-as-errors scoped to the explicit Clippy command in
-          # verify:ci:rust. Applying -D warnings through RUSTFLAGS would also
+          # Keep warnings-as-errors scoped to the explicit Clippy command
+          # below. Applying -D warnings through RUSTFLAGS would also
           # fail bindings, layout, packaging, and ordinary test compilation.
           rustflags: ""
           cache: ${{ !env.ACT }}
 
       - name: Install Bun
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.0
 
       - name: Install JavaScript dependencies
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
         run: bun install --frozen-lockfile
 
       - name: Build JavaScript packages
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
         run: bun run packages:build
 
       - name: Verify Rust workspace
-        run: bun run verify:ci:rust
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --lib --bins --tests --all-features -- -D warnings
+          # Run the same feature set Clippy just compiled. Binding drift is
+          # asserted by library tests, so CI does not need to link and execute
+          # four separate generator examples afterwards.
+          cargo test --lib --all-features
 
       - name: Check lightweight runtime dependency graph
+        # This graph changes only with Cargo manifests/lockfiles. Keep it in
+        # full tag/manual validation instead of paying for a second feature-set
+        # build on every pull-request revision and development push.
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
         run: |
           # Gallery and DevTools enable the Specta exporter. Check the ordinary
           # runtime/facade dependency path independently of workspace features.
@@ -73,16 +86,22 @@ jobs:
             fi
           done
 
-      # Keep native contracts in this job so GPUI and the Rust workspace are
-      # compiled once per workflow instead of once for every contract suite.
-      - name: Verify generated bindings
-        run: bun run bindings:check
-
       - name: Verify native behavior
+        # Native application scenarios compile the CLI and each application
+        # host, so reserve the exhaustive suite for releases and explicit runs.
+        # `bun run verify` remains the full local pre-release command.
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
         run: bun run verify:behavior
 
       - name: Verify component layout
-        run: bun run verify:layout
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        env:
+          WABOU_LAYOUT_COMMAND: target/debug/wabou
+        run: |
+          # Native behavior already built the debug CLI. This is normally a
+          # no-op, but makes the layout step independently reproducible.
+          cargo build -p wabou-cli
+          bun run test:layout:quick
 
       - name: Upload native-test diagnostics
         if: failure()

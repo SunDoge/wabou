@@ -204,17 +204,17 @@ impl std::fmt::Display for NodeKey {
 /// Timing and scene-size metrics for the most recently presented frame.
 pub struct FrameStats {
     /// Total Rust frame construction time in milliseconds.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(any(feature = "bindings", feature = "specta"), specta(type = specta_typescript::Number))]
     pub build_frame_ms: f64,
     /// QuickJS animation-frame callback time in milliseconds.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(any(feature = "bindings", feature = "specta"), specta(type = specta_typescript::Number))]
     pub js_tick_ms: f64,
     /// Native retained-projection assembly time in milliseconds.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(any(feature = "bindings", feature = "specta"), specta(type = specta_typescript::Number))]
     pub scene_ms: f64,
     /// Surface rendering and presentation time in milliseconds, or zero when
     /// the active native toolkit does not expose a reliable completion time.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(any(feature = "bindings", feature = "specta"), specta(type = specta_typescript::Number))]
     pub present_ms: f64,
     /// Number of retained nodes in the frame.
     #[cfg_attr(
@@ -233,16 +233,16 @@ pub struct FrameStats {
 /// Axis-aligned rectangle in logical window coordinates.
 pub struct LayoutRect {
     /// Left edge.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(any(feature = "bindings", feature = "specta"), specta(type = specta_typescript::Number))]
     pub x: f32,
     /// Top edge.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(any(feature = "bindings", feature = "specta"), specta(type = specta_typescript::Number))]
     pub y: f32,
     /// Non-negative width.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(any(feature = "bindings", feature = "specta"), specta(type = specta_typescript::Number))]
     pub width: f32,
     /// Non-negative height.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(any(feature = "bindings", feature = "specta"), specta(type = specta_typescript::Number))]
     pub height: f32,
 }
 
@@ -252,16 +252,16 @@ pub struct LayoutRect {
 /// Two-dimensional scroll metrics in logical pixels.
 pub struct LayoutScrollMetrics {
     /// Current horizontal scroll offset.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(any(feature = "bindings", feature = "specta"), specta(type = specta_typescript::Number))]
     pub offset_x: f32,
     /// Current vertical scroll offset.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(any(feature = "bindings", feature = "specta"), specta(type = specta_typescript::Number))]
     pub offset_y: f32,
     /// Maximum horizontal scroll offset.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(any(feature = "bindings", feature = "specta"), specta(type = specta_typescript::Number))]
     pub range_x: f32,
     /// Maximum vertical scroll offset.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(any(feature = "bindings", feature = "specta"), specta(type = specta_typescript::Number))]
     pub range_y: f32,
 }
 
@@ -284,7 +284,7 @@ pub struct LayoutNodeMetrics {
 /// Immutable layout projection returned by the synchronous host API.
 pub struct LayoutSnapshot {
     /// Monotonic layout revision used to detect stale snapshots.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(any(feature = "bindings", feature = "specta"), specta(type = specta_typescript::Number))]
     pub revision: u64,
     /// Current logical viewport.
     pub viewport: LayoutRect,
@@ -393,6 +393,16 @@ mod tests {
         assert!(output.contains("systemTimeZone(): string"));
         assert!(output.contains("systemCalendarDate(): CalendarDateInfo"));
         assert!(!output.contains("Promise<"));
+    }
+
+    #[test]
+    fn generated_native_host_bindings_are_current() {
+        bindings()
+            .check(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../packages/core/src/renderer/generated/native-host.ts"
+            ))
+            .expect("run `bun run gen` to refresh native host bindings");
     }
 
     #[test]
