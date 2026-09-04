@@ -2,12 +2,12 @@
 
 - User and job: a desktop user who does not want to learn the rustic CLI needs to create named backups, choose their folders and storage locations, find a snapshot, and inspect its files.
 - Primary action: before setup, create a backup profile; inside a profile, back up its selected folders now.
-- Information order: backup profiles, selected profile status and sources, snapshots, selected snapshot contents or changes since another snapshot.
+- Information order: backup profiles, selected profile status, snapshot timeline, selected snapshot contents or changes. Source folders are configuration disclosed on demand, not a permanent navigation block.
 - Density and viewport: balanced file-workspace density; 1240×780 normal viewport and 900×620 minimum viewport.
-- Visual thesis: a calm native file workspace with a pale canvas, crisp white working surfaces, compact rows, and blue reserved for selection and progress. Avoid dashboard card grids.
+- Visual thesis: a calm native backup workbench with a pale shell, one continuous working surface, compact rows, and blue reserved for selection, progress, and the primary backup action. Avoid dashboard card grids and cards nested inside navigation rails.
 - Shell hierarchy: a persistent 224px application sidebar owns the named backup profiles and the New backup action. Route content owns its page header and is the only top-level scrolling region.
 - Narrow behavior: keep the application sidebar fixed at the minimum viewport; truncate profile names instead of compressing their status indicators. The snapshot/file split remains a secondary workbench inside an unlocked profile.
-- Signature interaction: selecting a snapshot immediately opens a breadcrumb-driven, lazy file browser beside the timeline; Changes compares it with its recorded parent without leaving the workspace.
+- Signature interaction: selecting a point in the snapshot timeline immediately opens its breadcrumb-driven, lazy file browser beside the rail; Changes compares it with its recorded parent without leaving the workspace.
 - Reference delta: use Wabou's retained native controls, PageViewport, DirectoryPicker, Table, and explicit scroll boundaries; do not inherit browser DOM behavior.
 - Shared contracts: ComponentsProvider, ColorThemeProvider, PageHeader, Button, DirectoryPicker, Input, Table, ContentState, ScrollArea, and ProjectionBoundary.
 - Required states: no profiles, locked profile, opening, one snapshot with no comparison target, unchanged snapshots, manual or scheduled backup running, schedule success/failure, long paths, narrow width, and large directories or diffs.

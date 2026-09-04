@@ -1,7 +1,18 @@
-import { Badge, Button, DirectoryPicker, Icon, Text, View } from "@wabou/ui";
+import {
+  Button,
+  Dialog,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DirectoryPicker,
+  Icon,
+  Text,
+  View,
+} from "@wabou/ui";
 import folder from "lucide-static/icons/folder.svg?raw";
+import folderCog from "lucide-static/icons/folder-cog.svg?raw";
 import trash2 from "lucide-static/icons/trash-2.svg?raw";
-import { createSignal, For as ForValue } from "solid-js";
+import { createSignal, For as ForValue, Show } from "solid-js";
 
 export interface BackupSourcesPanelProps {
   sources: readonly string[];
@@ -21,11 +32,7 @@ export function BackupSourcesPanel(props: BackupSourcesPanelProps) {
   }
 
   return (
-    <View class="flex-none p-4 flex flex-col gap-3 border-b border-subtle">
-      <View class="flex flex-row items-center justify-between">
-        <Text class="font-semibold">Backup folders</Text>
-        <Badge variant="secondary">{props.sources.length}</Badge>
-      </View>
+    <View class="min-w-0 flex flex-col gap-3">
       <DirectoryPicker
         value={draft()}
         onValueChange={setDraft}
@@ -41,25 +48,72 @@ export function BackupSourcesPanel(props: BackupSourcesPanelProps) {
           add();
         }}
       />
-      <ForValue each={props.sources}>
-        {(source) => (
-          <View class="min-w-0 flex flex-row items-center gap-2 rounded-md bg-surface-muted px-2.5 py-2">
-            <Icon source={folder} size={14} class="flex-none text-muted" />
-            <Text class="min-w-0 flex-1 truncate text-xs">{source}</Text>
-            <Button
-              size="icon"
-              variant="ghost"
-              disabled={props.disabled}
-              aria-label={`Remove ${source}`}
-              onClick={() =>
-                props.onChange(props.sources.filter((item) => item !== source))
-              }
-            >
-              <Icon source={trash2} size={13} />
-            </Button>
+      <Show
+        when={props.sources.length > 0}
+        fallback={
+          <View class="rounded-lg border border-dashed border-subtle bg-surface-muted px-4 py-5">
+            <Text class="text-center text-sm text-muted">
+              No folders selected. Add one to enable backups.
+            </Text>
           </View>
-        )}
-      </ForValue>
+        }
+      >
+        <View class="min-w-0 flex flex-col overflow-hidden rounded-lg border border-subtle">
+          <ForValue each={props.sources}>
+            {(source) => (
+              <View class="min-w-0 min-h-11 flex flex-row items-center gap-2 border-b border-subtle px-3">
+                <Icon source={folder} size={15} class="flex-none text-muted" />
+                <Text class="min-w-0 flex-1 truncate text-sm">{source}</Text>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  disabled={props.disabled}
+                  aria-label={`Remove ${source}`}
+                  onClick={() =>
+                    props.onChange(
+                      props.sources.filter((item) => item !== source),
+                    )
+                  }
+                >
+                  <Icon source={trash2} size={14} />
+                </Button>
+              </View>
+            )}
+          </ForValue>
+        </View>
+      </Show>
     </View>
+  );
+}
+
+export function BackupSourcesDialog(props: BackupSourcesPanelProps) {
+  return (
+    <Dialog
+      aria-label="Manage backup folders"
+      trigger={(trigger) => (
+        <Button
+          {...trigger}
+          variant="outline"
+          disabled={props.disabled}
+          aria-label="Manage backup folders"
+        >
+          <Icon source={folderCog} size={15} />
+          {props.sources.length === 1
+            ? "1 folder"
+            : `${props.sources.length} folders`}
+        </Button>
+      )}
+    >
+      <View class="min-w-0 flex flex-col gap-5">
+        <DialogHeader>
+          <DialogTitle>Backup folders</DialogTitle>
+          <DialogDescription>
+            Every selected folder is included the next time this profile is
+            backed up.
+          </DialogDescription>
+        </DialogHeader>
+        <BackupSourcesPanel {...props} />
+      </View>
+    </Dialog>
   );
 }

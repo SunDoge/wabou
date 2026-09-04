@@ -23,7 +23,10 @@ import {
   SnapshotFileRow,
 } from "../../apps/timestow/ui/snapshots";
 import { SortableTableHead } from "../../apps/timestow/ui/sortable-table-head";
-import { BackupSourcesPanel } from "../../apps/timestow/ui/workspace-components";
+import {
+  BackupSourcesDialog,
+  BackupSourcesPanel,
+} from "../../apps/timestow/ui/workspace-components";
 
 const dialog: Dialog = {
   open: async () => null,
@@ -449,6 +452,28 @@ test("backup sources disable every mutating action during a backup", () => {
   expect(
     screen.getByRole("button", { name: "Remove /data/photos" }).disabled,
   ).toBe(true);
+});
+
+test("backup source configuration stays behind one explicit workspace action", () => {
+  const screen = renderComponent(
+    () => (
+      <BackupSourcesDialog
+        sources={["/data/photos", "/data/documents"]}
+        onChange={() => {}}
+      />
+    ),
+    { platform: { dialog } },
+  );
+
+  const manage = screen.getByRole("button", { name: "Manage backup folders" });
+  expect(manage.text).toContain("2 folders");
+  expect(screen.queryByRole("textbox", { name: "Backup folder" })).toBeNull();
+
+  manage.click();
+  expect(
+    screen.getByRole("dialog", { name: "Manage backup folders" }),
+  ).toBeDefined();
+  expect(screen.getByRole("textbox", { name: "Backup folder" })).toBeDefined();
 });
 
 test("list rows give directory double click priority over single selection", async () => {

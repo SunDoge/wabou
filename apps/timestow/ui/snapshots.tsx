@@ -49,7 +49,7 @@ import { formatSnapshotTime, SnapshotDetails } from "./snapshot-details";
 import { SnapshotDiffPanel } from "./snapshot-diff";
 import { SnapshotFileTree } from "./snapshot-tree";
 import { SortableTableHead } from "./sortable-table-head";
-import { BackupSourcesPanel } from "./workspace-components";
+import { BackupSourcesDialog } from "./workspace-components";
 
 const fileColumns: TanStackDataTableColumn<FileEntry>[] = [
   { accessorKey: "name", header: "Name" },
@@ -392,6 +392,11 @@ export function SnapshotsPage() {
           description={session.activeProfile()?.repositoryPath ?? ""}
           actions={
             <>
+              <BackupSourcesDialog
+                sources={session.activeProfile()?.sources ?? []}
+                disabled={backingUp()}
+                onChange={(sources) => void saveSources(sources)}
+              />
               <Show when={session.activeProfile()}>
                 {(profile) => (
                   <BackupScheduleDialog
@@ -435,20 +440,20 @@ export function SnapshotsPage() {
           </View>
         )}
       </Show>
-      <View class="min-w-0 min-h-0 flex-1 flex flex-row p-4 gap-4">
+      <View class="min-w-0 min-h-0 flex-1 flex flex-row bg-surface">
         <ProjectionBoundary
           id="rustic-sidebar"
-          class="w-72 min-h-0 flex-none flex flex-col rounded-xl border border-subtle bg-surface shadow-sm overflow-hidden"
+          class="w-64 min-h-0 flex-none flex flex-col border-r border-subtle bg-surface-muted"
         >
-          <BackupSourcesPanel
-            sources={session.activeProfile()?.sources ?? []}
-            disabled={backingUp()}
-            onChange={(sources) => void saveSources(sources)}
-          />
-          <View class="flex-none px-4 py-3 border-b border-subtle">
-            <Text class="font-semibold">Snapshots</Text>
+          <View class="flex-none px-4 py-4 border-b border-subtle">
+            <Text class="text-xs font-semibold uppercase tracking-wide text-muted">
+              Snapshot history
+            </Text>
           </View>
-          <ScrollArea class="min-h-0 flex-1" contentClass="flex flex-col py-2">
+          <ScrollArea
+            class="min-h-0 flex-1"
+            contentClass="flex flex-col gap-1 p-2"
+          >
             <Show
               when={!loading() && snapshots().length > 0}
               fallback={
@@ -469,7 +474,7 @@ export function SnapshotsPage() {
                   <Button
                     variant="ghost"
                     selected={selected()?.id === snapshot.id}
-                    class="mx-2 min-h-14 justify-start px-3"
+                    class="min-h-14 justify-start px-3"
                     onClick={() => {
                       const profile = session.activeProfile();
                       if (profile) selectSnapshot(profile.id, snapshot);
@@ -505,7 +510,7 @@ export function SnapshotsPage() {
 
         <ProjectionBoundary
           id="rustic-file-browser"
-          class="min-w-0 min-h-0 flex-1 flex flex-col rounded-xl border border-subtle bg-surface shadow-sm overflow-hidden"
+          class="min-w-0 min-h-0 flex-1 flex flex-col bg-surface overflow-hidden"
         >
           <Show
             when={selected()}
@@ -520,7 +525,7 @@ export function SnapshotsPage() {
           >
             {(snapshot) => (
               <>
-                <View class="flex-none px-4 py-3 flex flex-col gap-3 border-b border-subtle">
+                <View class="flex-none px-5 py-3 flex flex-col gap-3 border-b border-subtle">
                   <View class="flex flex-row items-center gap-3">
                     <Button
                       size="icon"
@@ -549,12 +554,12 @@ export function SnapshotsPage() {
                     </View>
                     <ButtonGroup
                       size="sm"
-                      variant="outline"
+                      variant="ghost"
                       aria-label="Snapshot workspace"
                     >
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="ghost"
                         selected={workspaceMode() === "browse"}
                         onClick={() => setWorkspaceMode("browse")}
                       >
@@ -562,7 +567,7 @@ export function SnapshotsPage() {
                       </Button>
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="ghost"
                         selected={workspaceMode() === "changes"}
                         onClick={() => setWorkspaceMode("changes")}
                       >
