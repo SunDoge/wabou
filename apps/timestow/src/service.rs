@@ -8,11 +8,15 @@ use std::{
 use rustic_backend::BackendOptions;
 use rustic_core::{
     BackupOptions, ConfigOptions, Credentials, KeyOptions, LocalDestination, LsOptions, PathList,
-    Repository, RepositoryOptions, RestoreOptions, SnapshotOptions,
+    ProgressBars, Repository, RepositoryOptions, RestoreOptions, SnapshotOptions,
     repofile::{DeleteOption, StringList},
 };
 use serde::{Deserialize, Serialize};
-use wabou::{CapabilityContract, HostMethod, NativeCapability, rquickjs};
+use wabou::{CapabilityContract, HostMessageHandle, HostMethod, NativeCapability, rquickjs};
+
+use crate::progress::{
+    BACKUP_PROGRESS_TOPIC, BackupProgressBars, BackupProgressPhase, ProgressEmitter,
+};
 
 pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 5);
 
@@ -40,6 +44,7 @@ const OPEN_PATH: HostMethod<OpenPathRequest, ()> = HostMethod::new("openPath");
 #[derive(Clone, Default)]
 pub struct RusticService {
     state: Arc<RwLock<ServiceState>>,
+    progress: ProgressEmitter,
 }
 
 #[derive(Clone, Default)]
@@ -242,6 +247,12 @@ pub struct RestoreResult {
 }
 
 impl RusticService {
+    pub fn attach_progress_messages(&self, messages: HostMessageHandle) {
+        self.progress.replace(move |event| {
+            let _ = messages.emit_json(BACKUP_PROGRESS_TOPIC, event);
+        });
+    }
+
     fn status(&self) -> Result<RuntimeStatus, String> {
         let state = self.state.read().map_err(|_| "service state is poisoned")?;
         Ok(status_from_state(&state))
@@ -342,25 +353,46 @@ impl RusticService {
     }
 
     fn run_backup(&self, request: ProfileIdRequest) -> Result<BackupResult, String> {
-        let (path, password, sources) = self.profile_config(&request.profile_id)?;
-        if sources.is_empty() {
-            return Err("add at least one backup folder first".to_string());
+        let profile_id = request.profile_id;
+        self.progress.emit_state(
+            &profile_id,
+            BackupProgressPhase::Running,
+            "Preparing backup",
+        );
+        let result = (|| {
+            let (path, password, sources) = self.profile_config(&profile_id)?;
+            if sources.is_empty() {
+                return Err("add at least one backup folder first".to_string());
+            }
+            let progress = BackupProgressBars::new(profile_id.clone(), self.progress.clone());
+            let repo = open_repository_with_progress(&path, &password, progress)?
+                .to_indexed_ids()
+                .map_err(display_error)?;
+            let source = PathList::from_iter(sources.iter().map(PathBuf::from))
+                .sanitize()
+                .map_err(display_error)?;
+            let snapshot = SnapshotOptions::default()
+                .to_snapshot()
+                .map_err(display_error)?;
+            let snapshot = repo
+                .backup(&BackupOptions::default(), &source, snapshot)
+                .map_err(display_error)?;
+            Ok(BackupResult {
+                snapshot: snapshot_entry(&snapshot),
+            })
+        })();
+        match &result {
+            Ok(_) => self.progress.emit_state(
+                &profile_id,
+                BackupProgressPhase::Completed,
+                "Backup complete",
+            ),
+            Err(_) => {
+                self.progress
+                    .emit_state(&profile_id, BackupProgressPhase::Failed, "Backup failed");
+            }
         }
-        let repo = open_repository(&path, &password)?
-            .to_indexed_ids()
-            .map_err(display_error)?;
-        let source = PathList::from_iter(sources.iter().map(PathBuf::from))
-            .sanitize()
-            .map_err(display_error)?;
-        let snapshot = SnapshotOptions::default()
-            .to_snapshot()
-            .map_err(display_error)?;
-        let snapshot = repo
-            .backup(&BackupOptions::default(), &source, snapshot)
-            .map_err(display_error)?;
-        Ok(BackupResult {
-            snapshot: snapshot_entry(&snapshot),
-        })
+        result
     }
 
     fn list_snapshots(&self, request: ProfileIdRequest) -> Result<Vec<SnapshotEntry>, String> {
@@ -789,6 +821,21 @@ fn open_repository(
         .map_err(display_error)
 }
 
+fn open_repository_with_progress(
+    path: &str,
+    password: &str,
+    progress: impl ProgressBars,
+) -> Result<rustic_core::Repository<rustic_core::OpenStatus>, String> {
+    let backends = BackendOptions::default()
+        .repository(path)
+        .to_backends()
+        .map_err(display_error)?;
+    Repository::new_with_progress(&RepositoryOptions::default(), &backends, progress)
+        .map_err(display_error)?
+        .open(&Credentials::password(password))
+        .map_err(display_error)
+}
+
 fn snapshot_entry(snapshot: &rustic_core::repofile::SnapshotFile) -> SnapshotEntry {
     let summary = snapshot.summary.as_ref();
     SnapshotEntry {
@@ -988,6 +1035,7 @@ pub fn mount(capability: NativeCapability<'_>, service: RusticService) -> rquick
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::sync::Mutex;
 
     use super::*;
 
@@ -1029,6 +1077,14 @@ mod tests {
         fs::write(configs.join("app/settings.toml"), "theme = 'light'").expect("config file");
 
         let service = RusticService::default();
+        let progress_events = Arc::new(Mutex::new(Vec::new()));
+        let captured_progress = progress_events.clone();
+        service.progress.replace(move |event| {
+            captured_progress
+                .lock()
+                .expect("backup progress events")
+                .push(event.clone());
+        });
         service
             .create_profile(ProfileRequest {
                 id: "photos".to_string(),
@@ -1052,6 +1108,16 @@ mod tests {
             profile_id: "photos".to_string(),
         };
         let backup = service.run_backup(profile.clone()).expect("backup source");
+        let progress_events = progress_events.lock().expect("backup progress events");
+        assert!(
+            progress_events.iter().any(|event| {
+                event.state == BackupProgressPhase::Completed && event.current == 1
+            })
+        );
+        assert!(progress_events.iter().any(|event| {
+            event.state == BackupProgressPhase::PhaseComplete && event.total.is_some()
+        }));
+        drop(progress_events);
         let snapshots = service.list_snapshots(profile).expect("list snapshots");
         assert_eq!(snapshots.len(), 1);
         assert_eq!(snapshots[0].id, backup.snapshot.id);

@@ -1,4 +1,4 @@
-import { openKv } from "@wabou/ui";
+import { openKv, subscribeJsonHostMessages } from "@wabou/ui";
 import {
   createContext,
   createEffect,
@@ -15,6 +15,11 @@ import {
   type SnapshotEntry,
   useRusticApi,
 } from "./api";
+import {
+  BACKUP_PROGRESS_TOPIC,
+  type BackupProgressEvent,
+  decodeBackupProgressEvent,
+} from "./backup-progress";
 import {
   advanceBackupSchedule,
   type BackupSchedule,
@@ -43,6 +48,7 @@ interface TimestowSession {
     | { profileId: string; snapshot: SnapshotEntry; scheduled: boolean }
     | undefined;
   isBackingUp(profileId: string): boolean;
+  backupProgress(profileId: string): BackupProgressEvent | undefined;
   setError(error: string | undefined): void;
   refresh(): Promise<void>;
   beginCreate(): void;
@@ -93,6 +99,9 @@ export function TimestowSessionProvider(props: {
   const [runningBackupIds, setRunningBackupIds] = createSignal<Set<string>>(
     new Set(),
   );
+  const [backupProgressByProfile, setBackupProgressByProfile] = createSignal<
+    Readonly<Record<string, BackupProgressEvent>>
+  >({});
   const activeProfile = createMemo(() =>
     profiles().find((profile) => profile.id === activeProfileId()),
   );
@@ -216,6 +225,10 @@ export function TimestowSessionProvider(props: {
     return runningBackupIds().has(profileId);
   }
 
+  function backupProgress(profileId: string): BackupProgressEvent | undefined {
+    return backupProgressByProfile()[profileId];
+  }
+
   function setBackingUp(profileId: string, running: boolean): void {
     setRunningBackupIds((current) => {
       const next = new Set(current);
@@ -258,6 +271,16 @@ export function TimestowSessionProvider(props: {
       throw new Error(`${profile.name} is already being backed up`);
     }
     setBackingUp(profileId, true);
+    setBackupProgressByProfile((current) => ({
+      ...current,
+      [profileId]: {
+        profileId,
+        state: "running",
+        kind: "spinner",
+        title: "Preparing backup",
+        current: 0,
+      },
+    }));
     let result: { snapshot: SnapshotEntry };
     try {
       result = await api.runBackup({ profileId });
@@ -284,6 +307,21 @@ export function TimestowSessionProvider(props: {
   }
 
   let scheduleTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const unsubscribeBackupProgress =
+    subscribeJsonHostMessages<BackupProgressEvent>(
+      BACKUP_PROGRESS_TOPIC,
+      (progress) =>
+        setBackupProgressByProfile((current) => ({
+          ...current,
+          [progress.profileId]: progress,
+        })),
+      {
+        decode: decodeBackupProgressEvent,
+        onError: (cause) =>
+          console.error("[timestow] invalid backup progress", cause),
+      },
+    );
 
   function clearScheduleTimer(): void {
     if (scheduleTimer === undefined) return;
@@ -347,7 +385,10 @@ export function TimestowSessionProvider(props: {
     ({ profiles: scheduledProfiles, unlockedProfileIds }) =>
       scheduleNextBackup(scheduledProfiles, unlockedProfileIds),
   );
-  onCleanup(clearScheduleTimer);
+  onCleanup(() => {
+    clearScheduleTimer();
+    unsubscribeBackupProgress();
+  });
 
   return (
     <SessionContext
@@ -360,6 +401,7 @@ export function TimestowSessionProvider(props: {
         error,
         lastBackup,
         isBackingUp,
+        backupProgress,
         setError,
         refresh,
         beginCreate,

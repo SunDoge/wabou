@@ -40,6 +40,7 @@ import {
   Show,
 } from "solid-js";
 import { type FileEntry, type SnapshotEntry, useRusticApi } from "./api";
+import { BackupProgressStatus } from "./backup-progress";
 import { FileDetails } from "./file-details";
 import { BackupScheduleDialog } from "./schedule-dialog";
 import { useTimestowSession } from "./session";
@@ -385,7 +386,7 @@ export function SnapshotsPage() {
 
   return (
     <View class="w-full h-full min-w-0 min-h-0 flex flex-col">
-      <View class="flex-none px-6 py-5 border-b border-subtle bg-surface">
+      <View class="flex-none px-6 py-5 flex flex-col gap-4 border-b border-subtle bg-surface">
         <PageHeader
           title={session.activeProfile()?.name ?? "Backup"}
           description={session.activeProfile()?.repositoryPath ?? ""}
@@ -419,6 +420,13 @@ export function SnapshotsPage() {
             </>
           }
         />
+        <Show when={backingUp() && session.activeProfile()}>
+          {(profile) => (
+            <Show when={session.backupProgress(profile().id)}>
+              {(progress) => <BackupProgressStatus progress={progress()} />}
+            </Show>
+          )}
+        </Show>
       </View>
       <Show when={error()}>
         {(message) => (
