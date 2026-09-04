@@ -174,6 +174,8 @@ test("snapshot changes compare against the recorded parent and can include metad
           metadata: request.includeMetadata ? 1 : 0,
           typeChanged: 0,
         },
+        totalEntries: 10_000,
+        truncated: true,
       }),
     },
   });
@@ -191,12 +193,16 @@ test("snapshot changes compare against the recorded parent and can include metad
   await screen.waitFor(() => {
     expect(screen.getByRole("row", { name: "docs/new.txt" })).toBeDefined();
   });
+  expect(
+    screen.getByRole("label", { name: "Showing 2 of 10000 changes" }),
+  ).toBeDefined();
   expect(fixture.callsTo("rustic.diffSnapshots")[0]?.args[0]).toEqual({
     profileId: "photos",
     snapshotId: "current-snapshot",
     baseSnapshotId: "parent-snapshot",
     includeMetadata: false,
     path: "",
+    limit: 250,
   });
 
   expect(

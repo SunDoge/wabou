@@ -77,6 +77,8 @@ const diffColumns: TanStackDataTableColumn<SnapshotDiffEntry>[] = [
   },
 ];
 
+const DIFF_ENTRY_LIMIT = 250;
+
 export function SnapshotDiffPanel(props: {
   profileId: string;
   snapshot: SnapshotEntry;
@@ -136,6 +138,7 @@ export function SnapshotDiffPanel(props: {
           ...request,
           baseSnapshotId: request.baseSnapshotId,
           path: "",
+          limit: DIFF_ENTRY_LIMIT,
         }),
       )
         .then((next) => {
@@ -154,7 +157,8 @@ export function SnapshotDiffPanel(props: {
 
   const baseSnapshot = () =>
     props.snapshots.find((snapshot) => snapshot.id === baseSnapshotId());
-  const totalChanges = () => result()?.entries.length ?? 0;
+  const totalChanges = () => result()?.totalEntries ?? 0;
+  const renderedChanges = () => result()?.entries.length ?? 0;
   const diffTable = createTanStackDataTable<SnapshotDiffEntry>({
     data: () => result()?.entries ?? [],
     columns: diffColumns,
@@ -250,9 +254,11 @@ export function SnapshotDiffPanel(props: {
                 </Badge>
               </Show>
               <Text class="ml-auto text-xs text-muted">
-                {baseSnapshot()
-                  ? `Since ${formatSnapshotTime(baseSnapshot()?.time ?? "")}`
-                  : `${totalChanges()} changes`}
+                {result()?.truncated
+                  ? `Showing ${renderedChanges()} of ${totalChanges()} changes`
+                  : baseSnapshot()
+                    ? `Since ${formatSnapshotTime(baseSnapshot()?.time ?? "")}`
+                    : `${totalChanges()} changes`}
               </Text>
             </View>
             <Show

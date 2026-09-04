@@ -1,5 +1,6 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    cmp::Ordering,
+    collections::BTreeSet,
     path::PathBuf,
     sync::{Arc, RwLock},
     time::{SystemTime, UNIX_EPOCH},
@@ -118,6 +119,8 @@ pub struct DiffSnapshotsRequest {
     pub path: String,
     #[serde(default)]
     pub include_metadata: bool,
+    #[serde(default = "default_diff_limit")]
+    pub limit: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -219,6 +222,8 @@ pub struct SnapshotDiffSummary {
 pub struct SnapshotDiff {
     pub entries: Vec<SnapshotDiffEntry>,
     pub summary: SnapshotDiffSummary,
+    pub total_entries: u64,
+    pub truncated: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -499,55 +504,82 @@ impl RusticService {
             .node_from_snapshot_and_path(current, &request.path)
             .map_err(display_error)?;
         let options = LsOptions::default().recursive(true);
-        let base_entries = repo
-            .ls(&base_node, &options)
-            .map_err(display_error)?
-            .collect::<Result<BTreeMap<_, _>, _>>()
-            .map_err(display_error)?;
-        let current_entries = repo
-            .ls(&current_node, &options)
-            .map_err(display_error)?
-            .collect::<Result<BTreeMap<_, _>, _>>()
-            .map_err(display_error)?;
-        let paths = base_entries
-            .keys()
-            .chain(current_entries.keys())
-            .cloned()
-            .collect::<BTreeSet<_>>();
+        let mut base_entries = repo.ls(&base_node, &options).map_err(display_error)?;
+        let mut current_entries = repo.ls(&current_node, &options).map_err(display_error)?;
+        let mut previous = base_entries.next().transpose().map_err(display_error)?;
+        let mut current = current_entries.next().transpose().map_err(display_error)?;
+        let limit = request.limit.clamp(1, MAX_DIFF_ENTRIES);
         let mut result = SnapshotDiff::default();
-        for relative_path in paths {
-            let previous = base_entries.get(&relative_path);
-            let current = current_entries.get(&relative_path);
-            let Some(change) = diff_change(previous, current, request.include_metadata) else {
-                continue;
-            };
-            match change {
-                "added" => result.summary.added += 1,
-                "removed" => result.summary.removed += 1,
-                "modified" => result.summary.modified += 1,
-                "metadata" => result.summary.metadata += 1,
-                "typeChanged" => result.summary.type_changed += 1,
-                _ => {}
+        while previous.is_some() || current.is_some() {
+            let (relative_path, previous_node, current_node, advance_previous, advance_current) =
+                match (&previous, &current) {
+                    (Some((previous_path, previous_node)), Some((current_path, current_node))) => {
+                        match previous_path.cmp(current_path) {
+                            Ordering::Less => {
+                                (previous_path, Some(previous_node), None, true, false)
+                            }
+                            Ordering::Greater => {
+                                (current_path, None, Some(current_node), false, true)
+                            }
+                            Ordering::Equal => (
+                                previous_path,
+                                Some(previous_node),
+                                Some(current_node),
+                                true,
+                                true,
+                            ),
+                        }
+                    }
+                    (Some((previous_path, previous_node)), None) => {
+                        (previous_path, Some(previous_node), None, true, false)
+                    }
+                    (None, Some((current_path, current_node))) => {
+                        (current_path, None, Some(current_node), false, true)
+                    }
+                    (None, None) => break,
+                };
+            let change = diff_change(previous_node, current_node, request.include_metadata);
+            if let Some(change) = change {
+                result.total_entries += 1;
+                match change {
+                    "added" => result.summary.added += 1,
+                    "removed" => result.summary.removed += 1,
+                    "modified" => result.summary.modified += 1,
+                    "metadata" => result.summary.metadata += 1,
+                    "typeChanged" => result.summary.type_changed += 1,
+                    _ => {}
+                }
+                if result.entries.len() < limit {
+                    let node = current_node
+                        .or(previous_node)
+                        .expect("a diff entry has one side");
+                    let full_path = if request.path.is_empty() {
+                        relative_path.clone()
+                    } else {
+                        PathBuf::from(&request.path).join(relative_path)
+                    };
+                    result.entries.push(SnapshotDiffEntry {
+                        name: node.name().to_string_lossy().into_owned(),
+                        path: full_path.to_string_lossy().into_owned(),
+                        kind: node_kind(node),
+                        change: change.to_string(),
+                        previous_size: previous_node.map(|node| node.meta.size),
+                        current_size: current_node.map(|node| node.meta.size),
+                        previous_modified: previous_node
+                            .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
+                        current_modified: current_node
+                            .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
+                    });
+                }
             }
-            let node = current.or(previous).expect("a diff entry has one side");
-            let full_path = if request.path.is_empty() {
-                relative_path
-            } else {
-                PathBuf::from(&request.path).join(relative_path)
-            };
-            result.entries.push(SnapshotDiffEntry {
-                name: node.name().to_string_lossy().into_owned(),
-                path: full_path.to_string_lossy().into_owned(),
-                kind: node_kind(node),
-                change: change.to_string(),
-                previous_size: previous.map(|node| node.meta.size),
-                current_size: current.map(|node| node.meta.size),
-                previous_modified: previous
-                    .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
-                current_modified: current
-                    .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
-            });
+            if advance_previous {
+                previous = base_entries.next().transpose().map_err(display_error)?;
+            }
+            if advance_current {
+                current = current_entries.next().transpose().map_err(display_error)?;
+            }
         }
+        result.truncated = result.total_entries > result.entries.len() as u64;
         Ok(result)
     }
 
@@ -703,6 +735,13 @@ impl RusticService {
 
 fn default_search_limit() -> usize {
     200
+}
+
+const DEFAULT_DIFF_ENTRIES: usize = 250;
+const MAX_DIFF_ENTRIES: usize = 1_000;
+
+fn default_diff_limit() -> usize {
+    DEFAULT_DIFF_ENTRIES
 }
 
 fn file_entry(path: PathBuf, node: &rustic_core::repofile::Node) -> FileEntry {
@@ -1201,13 +1240,15 @@ mod tests {
             })
             .expect("backup changed source");
         let updated_snapshot_id = next_backup.snapshot.id.clone();
+        let base_snapshot_id = backup.snapshot.id.clone();
         let diff = service
             .diff_snapshots(DiffSnapshotsRequest {
                 profile_id: "photos".to_string(),
-                base_snapshot_id: backup.snapshot.id,
+                base_snapshot_id: base_snapshot_id.clone(),
                 snapshot_id: updated_snapshot_id.clone(),
                 path: String::new(),
                 include_metadata: false,
+                limit: 10,
             })
             .expect("compare snapshots");
         assert!(
@@ -1228,6 +1269,23 @@ mod tests {
         assert_eq!(diff.summary.modified, 1);
         assert_eq!(diff.summary.removed, 1);
         assert_eq!(diff.summary.added, 1);
+        assert_eq!(diff.total_entries, 3);
+        assert_eq!(diff.entries.len(), 3);
+        assert!(!diff.truncated);
+
+        let bounded_diff = service
+            .diff_snapshots(DiffSnapshotsRequest {
+                profile_id: "photos".to_string(),
+                base_snapshot_id,
+                snapshot_id: updated_snapshot_id.clone(),
+                path: String::new(),
+                include_metadata: false,
+                limit: 2,
+            })
+            .expect("bound snapshot comparison payload");
+        assert_eq!(bounded_diff.total_entries, 3);
+        assert_eq!(bounded_diff.entries.len(), 2);
+        assert!(bounded_diff.truncated);
 
         let updated = service
             .update_snapshot(UpdateSnapshotRequest {
