@@ -27,7 +27,7 @@ export type ButtonVariant =
 export type ButtonSize = "sm" | "default" | "lg" | "icon";
 
 export interface ButtonProps
-  extends Omit<HeadlessButtonProps, "variant" | "tone"> {
+  extends Omit<HeadlessButtonProps, "variant" | "tone" | "unstyled"> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   class?: string;

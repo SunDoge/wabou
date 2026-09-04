@@ -186,7 +186,6 @@ function SidebarAction(props: SidebarItemProps): JSX.Element {
   const { palette } = useTheme();
   return (
     <Button
-      unstyled
       variant="ghost"
       class={`w-full h-10 px-2 flex items-center gap-3 rounded-md text-sm ${props.disabled ? "opacity-50" : ""}`}
       style={(state) => ({

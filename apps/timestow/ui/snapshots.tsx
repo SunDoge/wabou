@@ -3,6 +3,7 @@ import {
   Button,
   ButtonGroup,
   ContentState,
+  ContextMenu,
   createTanStackDataTable,
   Icon,
   InputGroup,
@@ -14,7 +15,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
   type TanStackDataTableColumn,
@@ -101,53 +101,65 @@ export function SnapshotFileRow(props: {
   };
   onCleanup(cancelPendingSingleClick);
   return (
-    <TableRow
-      aria-label={entry().name}
-      selected={props.selected}
-      class="cursor-pointer"
-      onClick={select}
-      onDblClick={() => {
-        if (entry().kind !== "directory") return;
-        cancelPendingSingleClick();
-        props.onOpenDirectory(entry());
+    <ContextMenu
+      aria-label={`${entry().name} actions`}
+      items={
+        entry().kind === "directory"
+          ? [
+              { id: "open", label: "Open folder" },
+              { id: "details", label: "Show details" },
+            ]
+          : [{ id: "details", label: "Show details" }]
+      }
+      onAction={(action) => {
+        if (action === "open") props.onOpenDirectory(entry());
+        if (action === "details") props.onSelect(entry());
       }}
-    >
-      <TableCell class="min-w-64 flex-1 gap-2">
-        <Icon
-          source={entry().kind === "directory" ? folder : file}
-          size={15}
-          class="flex-none text-muted"
-        />
-        <View class="min-w-0 flex-1 flex flex-col gap-0.5">
-          <Text class="w-full truncate">{entry().name}</Text>
-          <Show when={props.searchActive}>
-            <Text class="w-full truncate text-xs text-muted">
-              {entry().path}
-            </Text>
-          </Show>
-        </View>
-      </TableCell>
-      <TableCell class="w-24 flex-none text-muted">
-        {entry().kind === "directory" ? "—" : formatBytes(entry().size)}
-      </TableCell>
-      <TableCell class="w-36 flex-none text-muted">
-        {formatModified(entry().modified)}
-      </TableCell>
-      <TableCell class="w-20 flex-none justify-end">
-        <Show when={entry().kind === "directory"}>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(event) => {
-              event.stopPropagation();
-              props.onOpenDirectory(entry());
-            }}
-          >
-            Open
-          </Button>
-        </Show>
-      </TableCell>
-    </TableRow>
+      trigger={(contextMenu) => (
+        <TableRow
+          ref={contextMenu.ref}
+          aria-label={entry().name}
+          aria-haspopup={contextMenu["aria-haspopup"]}
+          aria-expanded={contextMenu["aria-expanded"]}
+          selected={props.selected}
+          class="cursor-pointer"
+          onClick={select}
+          onContextMenu={(event) => {
+            cancelPendingSingleClick();
+            props.onSelect(entry());
+            contextMenu.onContextMenu(event);
+          }}
+          onKeyDown={contextMenu.onKeyDown}
+          onDblClick={() => {
+            if (entry().kind !== "directory") return;
+            cancelPendingSingleClick();
+            props.onOpenDirectory(entry());
+          }}
+        >
+          <TableCell class="min-w-64 flex-1 gap-2">
+            <Icon
+              source={entry().kind === "directory" ? folder : file}
+              size={15}
+              class="flex-none text-muted"
+            />
+            <View class="min-w-0 flex-1 flex flex-col gap-0.5">
+              <Text class="w-full truncate">{entry().name}</Text>
+              <Show when={props.searchActive}>
+                <Text class="w-full truncate text-xs text-muted">
+                  {entry().path}
+                </Text>
+              </Show>
+            </View>
+          </TableCell>
+          <TableCell class="w-24 flex-none text-muted">
+            {entry().kind === "directory" ? "—" : formatBytes(entry().size)}
+          </TableCell>
+          <TableCell class="w-36 flex-none text-muted">
+            {formatModified(entry().modified)}
+          </TableCell>
+        </TableRow>
+      )}
+    />
   );
 }
 
@@ -688,7 +700,6 @@ export function SnapshotsPage() {
                                       ?.toggleSorting()
                                   }
                                 />
-                                <TableHead class="w-20 flex-none" />
                               </TableRow>
                             </TableHeader>
                             <TableBody>

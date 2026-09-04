@@ -1,13 +1,6 @@
 // Story list page.
 
-import {
-  Button,
-  createHover,
-  Icon,
-  Text,
-  useNavigate,
-  View,
-} from "@wabou/ui";
+import { Button, createHover, Icon, Text, useNavigate, View } from "@wabou/ui";
 import { TextInput } from "@wabou/ui/primitives";
 import bookmark from "lucide-static/icons/bookmark.svg?raw";
 import messageSquare from "lucide-static/icons/message-square.svg?raw";
@@ -201,7 +194,6 @@ function BookmarkAction(props: { story: Story }): JSX.Element {
 
   return (
     <Button
-      unstyled
       variant="ghost"
       class="w-5 h-5 flex-none flex items-center justify-center"
       style={(state) => ({
@@ -235,7 +227,6 @@ function LoadError(): JSX.Element {
         {loadError()}
       </Text>
       <Button
-        unstyled
         variant="ghost"
         class="text-sm"
         style={(state) => ({

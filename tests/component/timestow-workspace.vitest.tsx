@@ -21,6 +21,7 @@ import {
   formatModified,
   SnapshotFileRow,
 } from "../../apps/timestow/ui/snapshots";
+import { SortableTableHead } from "../../apps/timestow/ui/sortable-table-head";
 import { BackupSourcesPanel } from "../../apps/timestow/ui/workspace-components";
 
 const dialog: Dialog = {
@@ -35,6 +36,20 @@ test("snapshot timestamps stay compact in the table", () => {
     "2026-09-02 04:18",
   );
   expect(formatModified(undefined)).toBe("—");
+});
+
+test("sortable table headers use a quiet readable surface", () => {
+  const screen = renderComponent(() => (
+    <SortableTableHead label="Name" onToggle={() => {}} />
+  ));
+  const header = screen.getByRole("columnheader", { name: "Sort by Name" });
+
+  expect(header.className).toContain("bg-transparent");
+  expect(header.className).toContain("text-secondary");
+  expect(header.className).not.toContain("bg-accent");
+  header.hover();
+  expect(header.className).toContain("bg-control-hover");
+  expect(header.className).toContain("text-primary");
 });
 
 test("snapshot summaries stay compact while details preserve full metadata", () => {
@@ -457,6 +472,8 @@ test("list rows give directory double click priority over single selection", asy
   );
   const row = screen.getByRole("row", { name: "docs" });
 
+  expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
+
   row.click();
   expect(select).not.toHaveBeenCalled();
   await screen.advanceTime(410);
@@ -472,6 +489,32 @@ test("list rows give directory double click priority over single selection", asy
   expect(open).toHaveBeenCalledWith(expect.objectContaining({ path: "docs" }));
   await screen.advanceTime(410);
   expect(select).not.toHaveBeenCalled();
+});
+
+test("list rows expose low-frequency directory actions from a context menu", () => {
+  const select = vi.fn();
+  const open = vi.fn();
+  const screen = renderComponent(() => (
+    <SnapshotFileRow
+      entry={{
+        name: "docs",
+        path: "docs",
+        kind: "directory",
+        size: 0,
+      }}
+      selected={false}
+      searchActive={false}
+      onSelect={select}
+      onOpenDirectory={open}
+    />
+  ));
+
+  screen.getByRole("row", { name: "docs" }).contextMenu();
+  expect(select).toHaveBeenCalledWith(
+    expect.objectContaining({ path: "docs" }),
+  );
+  screen.getByRole("menuitem", { name: "Open folder" }).click();
+  expect(open).toHaveBeenCalledWith(expect.objectContaining({ path: "docs" }));
 });
 
 test("rustic session hydrates durable profiles and exposes their locked state", async () => {
