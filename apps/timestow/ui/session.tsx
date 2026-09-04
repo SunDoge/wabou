@@ -5,9 +5,23 @@ import {
   createMemo,
   createSignal,
   type JSX,
+  onCleanup,
+  untrack,
   useContext,
 } from "solid-js";
-import { type BackupProfile, type RuntimeStatus, useRusticApi } from "./api";
+import {
+  type BackupProfile,
+  type RuntimeStatus,
+  type SnapshotEntry,
+  useRusticApi,
+} from "./api";
+import {
+  advanceBackupSchedule,
+  type BackupSchedule,
+  type BackupScheduleInterval,
+  createBackupSchedule,
+  scheduleDueAt,
+} from "./backup-schedule";
 import { createProfileStore, type ProfileStore } from "./profile-store";
 
 export interface ConnectProfileInput {
@@ -25,6 +39,10 @@ interface TimestowSession {
   runtime: () => RuntimeStatus;
   loading: () => boolean;
   error: () => string | undefined;
+  lastBackup: () =>
+    | { profileId: string; snapshot: SnapshotEntry; scheduled: boolean }
+    | undefined;
+  isBackingUp(profileId: string): boolean;
   setError(error: string | undefined): void;
   refresh(): Promise<void>;
   beginCreate(): void;
@@ -34,6 +52,12 @@ interface TimestowSession {
     input: ConnectProfileInput,
   ): Promise<BackupProfile>;
   updateSources(profileId: string, sources: string[]): Promise<void>;
+  updateSchedule(
+    profileId: string,
+    enabled: boolean,
+    intervalMinutes: BackupScheduleInterval,
+  ): Promise<void>;
+  runBackup(profileId: string, scheduled?: boolean): Promise<SnapshotEntry>;
 }
 
 const SessionContext = createContext<TimestowSession>();
@@ -61,6 +85,14 @@ export function TimestowSessionProvider(props: {
   });
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<string>();
+  const [lastBackup, setLastBackup] = createSignal<{
+    profileId: string;
+    snapshot: SnapshotEntry;
+    scheduled: boolean;
+  }>();
+  const [runningBackupIds, setRunningBackupIds] = createSignal<Set<string>>(
+    new Set(),
+  );
   const activeProfile = createMemo(() =>
     profiles().find((profile) => profile.id === activeProfileId()),
   );
@@ -115,11 +147,15 @@ export function TimestowSessionProvider(props: {
     mode: "create" | "open",
     input: ConnectProfileInput,
   ): Promise<BackupProfile> {
+    const existing = input.id
+      ? profiles().find((profile) => profile.id === input.id)
+      : undefined;
     const profile: BackupProfile = {
       id: input.id ?? crypto.randomUUID(),
       name: input.name.trim(),
       repositoryPath: input.repositoryPath.trim(),
       sources: [...(input.sources ?? [])],
+      ...(existing?.schedule ? { schedule: existing.schedule } : {}),
     };
     if (!profile.name) throw new Error("backup name is required");
     const request = {
@@ -149,15 +185,169 @@ export function TimestowSessionProvider(props: {
     if (!profile) throw new Error(`backup profile ${profileId} was not found`);
     const nextProfile = { ...profile, sources: [...sources] };
     const nextRuntime = await api.setSources({ profileId, sources });
-    await store.save(nextProfile);
+    await store.save(nextProfile, { activate: false });
     setProfiles((current) => upsertProfile(current, nextProfile));
     setRuntime(nextRuntime);
+  }
+
+  async function persistProfile(profile: BackupProfile): Promise<void> {
+    await store.save(profile, { activate: false });
+    setProfiles((current) => upsertProfile(current, profile));
+  }
+
+  async function updateSchedule(
+    profileId: string,
+    enabled: boolean,
+    intervalMinutes: BackupScheduleInterval,
+  ): Promise<void> {
+    const profile = profiles().find((item) => item.id === profileId);
+    if (!profile) throw new Error(`backup profile ${profileId} was not found`);
+    await persistProfile({
+      ...profile,
+      schedule: createBackupSchedule(
+        enabled,
+        intervalMinutes,
+        profile.schedule,
+      ),
+    });
+  }
+
+  function isBackingUp(profileId: string): boolean {
+    return runningBackupIds().has(profileId);
+  }
+
+  function setBackingUp(profileId: string, running: boolean): void {
+    setRunningBackupIds((current) => {
+      const next = new Set(current);
+      if (running) next.add(profileId);
+      else next.delete(profileId);
+      return next;
+    });
+  }
+
+  async function recordScheduleResult(
+    profileId: string,
+    schedule: BackupSchedule | undefined,
+    error?: string,
+  ): Promise<void> {
+    if (!schedule) return;
+    const current = profiles().find((profile) => profile.id === profileId);
+    if (!current?.schedule) return;
+    await persistProfile({
+      ...current,
+      schedule: advanceBackupSchedule(current.schedule, {
+        completedAt: Date.now(),
+        error,
+      }),
+    });
+  }
+
+  async function runBackup(
+    profileId: string,
+    scheduled = false,
+  ): Promise<SnapshotEntry> {
+    const profile = profiles().find((item) => item.id === profileId);
+    if (!profile) throw new Error(`backup profile ${profileId} was not found`);
+    if (!runtime().unlockedProfileIds.includes(profileId)) {
+      throw new Error(`unlock ${profile.name} before backing it up`);
+    }
+    if (profile.sources.length === 0) {
+      throw new Error("add at least one backup folder first");
+    }
+    if (isBackingUp(profileId)) {
+      throw new Error(`${profile.name} is already being backed up`);
+    }
+    setBackingUp(profileId, true);
+    let result: { snapshot: SnapshotEntry };
+    try {
+      result = await api.runBackup({ profileId });
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      await recordScheduleResult(profileId, profile.schedule, message).catch(
+        () => undefined,
+      );
+      setBackingUp(profileId, false);
+      throw cause;
+    }
+    try {
+      await recordScheduleResult(profileId, profile.schedule);
+      setError(undefined);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      setError(
+        `Backup completed, but its schedule status was not saved: ${message}`,
+      );
+    }
+    setLastBackup({ profileId, snapshot: result.snapshot, scheduled });
+    setBackingUp(profileId, false);
+    return result.snapshot;
+  }
+
+  let scheduleTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function clearScheduleTimer(): void {
+    if (scheduleTimer === undefined) return;
+    clearTimeout(scheduleTimer);
+    scheduleTimer = undefined;
+  }
+
+  async function runDueBackups(): Promise<void> {
+    scheduleTimer = undefined;
+    const now = Date.now();
+    const snapshot = untrack(() => ({
+      profiles: profiles(),
+      unlocked: runtime().unlockedProfileIds,
+    }));
+    const due = snapshot.profiles.filter((profile) => {
+      const timestamp = profile.schedule
+        ? scheduleDueAt(profile.schedule)
+        : undefined;
+      return (
+        timestamp !== undefined &&
+        timestamp <= now &&
+        snapshot.unlocked.includes(profile.id)
+      );
+    });
+    for (const profile of due) {
+      try {
+        await runBackup(profile.id, true);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    }
+  }
+
+  function scheduleNextBackup(
+    scheduledProfiles: readonly BackupProfile[],
+    unlockedProfileIds: readonly string[],
+  ): void {
+    clearScheduleTimer();
+    const dueTimes = scheduledProfiles.flatMap((profile) => {
+      if (!unlockedProfileIds.includes(profile.id) || !profile.schedule) {
+        return [];
+      }
+      const dueAt = scheduleDueAt(profile.schedule);
+      return dueAt === undefined ? [] : [dueAt];
+    });
+    if (dueTimes.length === 0) return;
+    const delay = Math.max(0, Math.min(...dueTimes) - Date.now());
+    scheduleTimer = setTimeout(() => void runDueBackups(), delay);
   }
 
   createEffect(
     () => true,
     () => void refresh().catch(() => undefined),
   );
+
+  createEffect(
+    () => ({
+      profiles: profiles(),
+      unlockedProfileIds: runtime().unlockedProfileIds,
+    }),
+    ({ profiles: scheduledProfiles, unlockedProfileIds }) =>
+      scheduleNextBackup(scheduledProfiles, unlockedProfileIds),
+  );
+  onCleanup(clearScheduleTimer);
 
   return (
     <SessionContext
@@ -168,12 +358,16 @@ export function TimestowSessionProvider(props: {
         runtime,
         loading,
         error,
+        lastBackup,
+        isBackingUp,
         setError,
         refresh,
         beginCreate,
         activateProfile,
         connectProfile,
         updateSources,
+        updateSchedule,
+        runBackup,
       }}
     >
       {props.children}

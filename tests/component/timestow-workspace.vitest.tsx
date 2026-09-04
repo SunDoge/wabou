@@ -1,10 +1,11 @@
 import type { Dialog } from "@wabou/core";
 import { createTestHost, renderComponent } from "@wabou/test/component";
 import { Button, Text } from "@wabou/ui";
-import { createSignal } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import { expect, test, vi } from "vitest";
 import { FileDetails } from "../../apps/timestow/ui/file-details";
 import type { ProfileStore } from "../../apps/timestow/ui/profile-store";
+import { BackupScheduleDialog } from "../../apps/timestow/ui/schedule-dialog";
 import {
   TimestowSessionProvider,
   useTimestowSession,
@@ -621,6 +622,160 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
     }),
   );
   expect(JSON.stringify(save.mock.calls)).not.toContain("wabou-rustic-test");
+});
+
+test("runs a due profile backup in the background and records completion", async () => {
+  const nextRunAt = new Date(Date.now() + 1_000).toISOString();
+  const save = vi.fn<ProfileStore["save"]>(async () => {});
+  const profile = {
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/data/backups/photos",
+    sources: ["/data/photos"],
+    schedule: {
+      enabled: true,
+      intervalMinutes: 60 as const,
+      nextRunAt,
+    },
+  };
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
+    save,
+    setActive: async () => {},
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 5,
+      status: async () => ({
+        unlockedProfileIds: [profile.id],
+        activeProfileId: profile.id,
+      }),
+      runBackup: async () => ({
+        snapshot: {
+          id: "scheduled-snapshot",
+          time: "2026-09-04T09:00:00.000Z",
+          hostname: "workstation",
+          paths: profile.sources,
+          filesNew: 1,
+          filesChanged: 0,
+          label: "",
+          tags: [],
+          deleteProtected: false,
+        },
+      }),
+    },
+  });
+  const Status = () => {
+    const session = useTimestowSession();
+    return (
+      <Text role="status">
+        {session.lastBackup()?.snapshot.id ?? "waiting"}
+      </Text>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Status />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host, clock: "fake" },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("waiting");
+  });
+  await screen.advanceTime(1_000);
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("scheduled-snapshot");
+  });
+  expect(fixture.callsTo("rustic.runBackup")).toHaveLength(1);
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      id: "photos",
+      schedule: expect.objectContaining({
+        enabled: true,
+        lastRunAt: expect.any(String),
+        nextRunAt: expect.any(String),
+      }),
+    }),
+    { activate: false },
+  );
+});
+
+test("schedule dialog explains the runtime boundary and exposes its controls", async () => {
+  const profile = {
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/data/backups/photos",
+    sources: ["/data/photos"],
+  };
+  const save = vi.fn<ProfileStore["save"]>(async () => {});
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
+    save,
+    setActive: async () => {},
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 5,
+      status: async () => ({
+        unlockedProfileIds: [profile.id],
+        activeProfileId: profile.id,
+      }),
+    },
+  });
+  const Schedule = () => {
+    const session = useTimestowSession();
+    return (
+      <Show when={session.activeProfile()}>
+        {(profile) => <BackupScheduleDialog profile={profile()} />}
+      </Show>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Schedule />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("button", { name: "Schedule" })).toBeDefined();
+  });
+  screen.getByRole("button", { name: "Schedule" }).click();
+  expect(
+    screen.getByRole("dialog", { name: "Backup schedule" }).text,
+  ).toContain("while Timestow is running");
+  const automatic = screen.getByRole("switch", {
+    name: "Run backups automatically",
+  });
+  const frequency = screen.getByRole("combobox", {
+    name: "Backup frequency",
+  });
+  expect(automatic.checked).toBe(false);
+  expect(frequency.disabled).toBe(true);
+
+  automatic.click();
+  expect(frequency.disabled).toBe(false);
+  frequency.click();
+  screen.getByRole("option", { name: "Every 6 hours" }).click();
+  screen.getByRole("button", { name: "Save schedule" }).click();
+  await screen.waitFor(() => {
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "photos",
+        schedule: expect.objectContaining({
+          enabled: true,
+          intervalMinutes: 360,
+          nextRunAt: expect.any(String),
+        }),
+      }),
+      { activate: false },
+    );
+  });
 });
 
 test("rustic sidebar exposes stable navigation and repository status", () => {

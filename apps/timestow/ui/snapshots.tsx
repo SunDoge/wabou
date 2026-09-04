@@ -41,6 +41,7 @@ import {
 } from "solid-js";
 import { type FileEntry, type SnapshotEntry, useRusticApi } from "./api";
 import { FileDetails } from "./file-details";
+import { BackupScheduleDialog } from "./schedule-dialog";
 import { useTimestowSession } from "./session";
 import { createSnapshotBrowserCache } from "./snapshot-browser-cache";
 import { formatSnapshotTime, SnapshotDetails } from "./snapshot-details";
@@ -182,7 +183,6 @@ export function SnapshotsPage() {
   const [currentPath, setCurrentPath] = createSignal("");
   const [loading, setLoading] = createSignal(true);
   const [loadingFiles, setLoadingFiles] = createSignal(false);
-  const [backingUp, setBackingUp] = createSignal(false);
   const [error, setError] = createSignal<string>();
   const browserCache = createSnapshotBrowserCache();
   let fileRequestGeneration = 0;
@@ -302,17 +302,18 @@ export function SnapshotsPage() {
   async function runBackup() {
     const profile = session.activeProfile();
     if (!profile || backingUp() || profile.sources.length === 0) return;
-    setBackingUp(true);
     setError(undefined);
     try {
-      await api.runBackup({ profileId: profile.id });
-      await loadSnapshots(profile.id, true);
+      await session.runBackup(profile.id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBackingUp(false);
     }
   }
+
+  const backingUp = () => {
+    const profile = session.activeProfile();
+    return profile ? session.isBackingUp(profile.id) : false;
+  };
 
   async function updateSnapshot(
     snapshot: SnapshotEntry,
@@ -360,6 +361,15 @@ export function SnapshotsPage() {
     },
   );
 
+  createEffect(
+    () => session.lastBackup(),
+    (completed) => {
+      const profile = session.activeProfile();
+      if (!completed || completed.profileId !== profile?.id) return;
+      void loadSnapshots(completed.profileId, true);
+    },
+  );
+
   const visibleFiles = () => (searchActive() ? searchResults() : files());
   const fileTable = createTanStackDataTable<FileEntry>({
     data: visibleFiles,
@@ -381,6 +391,14 @@ export function SnapshotsPage() {
           description={session.activeProfile()?.repositoryPath ?? ""}
           actions={
             <>
+              <Show when={session.activeProfile()}>
+                {(profile) => (
+                  <BackupScheduleDialog
+                    profile={profile()}
+                    disabled={backingUp()}
+                  />
+                )}
+              </Show>
               <Button
                 variant="outline"
                 onClick={() => {

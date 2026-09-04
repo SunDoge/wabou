@@ -86,3 +86,51 @@ test("backup profiles persist their source-to-repository aggregate without crede
   });
   expect(JSON.stringify([...values.values()])).not.toContain("password");
 });
+
+test("backup profiles persist automatic schedule state", async () => {
+  const { kv, values } = memoryKv();
+  const store = createProfileStore(kv);
+  await store.save({
+    id: "documents",
+    name: "Documents",
+    repositoryPath: "/backups/documents",
+    sources: ["/home/me/Documents"],
+    schedule: {
+      enabled: true,
+      intervalMinutes: 1440,
+      nextRunAt: "2026-09-05T08:00:00.000Z",
+      lastRunAt: "2026-09-04T08:00:00.000Z",
+    },
+  });
+
+  expect((await store.load()).profiles[0]?.schedule).toEqual({
+    enabled: true,
+    intervalMinutes: 1440,
+    nextRunAt: "2026-09-05T08:00:00.000Z",
+    lastRunAt: "2026-09-04T08:00:00.000Z",
+    lastError: undefined,
+  });
+  expect(JSON.stringify([...values.values()])).not.toContain("password");
+});
+
+test("schedule updates do not steal the active profile", async () => {
+  const { kv } = memoryKv();
+  const store = createProfileStore(kv);
+  await store.save({
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/backups/photos",
+    sources: ["/photos"],
+  });
+  await store.save(
+    {
+      id: "documents",
+      name: "Documents",
+      repositoryPath: "/backups/documents",
+      sources: ["/documents"],
+    },
+    { activate: false },
+  );
+
+  expect((await store.load()).activeProfileId).toBe("photos");
+});

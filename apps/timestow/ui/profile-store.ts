@@ -1,7 +1,11 @@
 import type { Kv, KvValue } from "@wabou/ui";
 import type { BackupProfile } from "./api";
+import {
+  backupScheduleFromValue,
+  backupScheduleValue,
+} from "./backup-schedule";
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 export interface StoredProfiles {
   profiles: BackupProfile[];
@@ -10,7 +14,7 @@ export interface StoredProfiles {
 
 export interface ProfileStore {
   load(): Promise<StoredProfiles>;
-  save(profile: BackupProfile): Promise<void>;
+  save(profile: BackupProfile, options?: { activate?: boolean }): Promise<void>;
   setActive(profileId: string | undefined): Promise<void>;
 }
 
@@ -32,11 +36,13 @@ function profileFromValue(value: KvValue): BackupProfile {
   ) {
     throw new TypeError("invalid persisted backup profile");
   }
+  const schedule = backupScheduleFromValue(value.schedule);
   return {
     id: value.id,
     name: value.name,
     repositoryPath: value.repositoryPath,
     sources: sources as string[],
+    ...(schedule ? { schedule } : {}),
   };
 }
 
@@ -46,6 +52,9 @@ function profileValue(profile: BackupProfile): KvValue {
     name: profile.name,
     repositoryPath: profile.repositoryPath,
     sources: [...profile.sources],
+    ...(profile.schedule
+      ? { schedule: backupScheduleValue(profile.schedule) }
+      : {}),
   };
 }
 
@@ -56,7 +65,7 @@ export function createProfileStore(kv: Kv): ProfileStore {
       const schema = await kv.get(["meta", "schemaVersion"]);
       if (schema === null) {
         await kv.set(["meta", "schemaVersion"], SCHEMA_VERSION);
-      } else if (schema.value !== SCHEMA_VERSION) {
+      } else if (schema.value !== 1 && schema.value !== SCHEMA_VERSION) {
         throw new Error(
           `unsupported backup profile schema ${String(schema.value)}`,
         );
@@ -74,15 +83,20 @@ export function createProfileStore(kv: Kv): ProfileStore {
         profiles.some((profile) => profile.id === active.value)
           ? active.value
           : undefined;
+      if (schema?.value === 1) {
+        await kv.set(["meta", "schemaVersion"], SCHEMA_VERSION);
+      }
       return { profiles, activeProfileId };
     },
 
-    async save(profile) {
-      const result = await kv
+    async save(profile, options) {
+      const operation = kv
         .atomic()
-        .set(["profiles", profile.id], profileValue(profile))
-        .set(["state", "activeProfileId"], profile.id)
-        .commit();
+        .set(["profiles", profile.id], profileValue(profile));
+      if (options?.activate !== false) {
+        operation.set(["state", "activeProfileId"], profile.id);
+      }
+      const result = await operation.commit();
       if (!result.committed) throw new Error("could not save backup profile");
     },
 

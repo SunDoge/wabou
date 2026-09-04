@@ -4,12 +4,14 @@ import {
   type NativeCapability,
   useHost,
 } from "@wabou/ui";
+import type { BackupSchedule } from "./backup-schedule";
 
 export interface BackupProfile {
   id: string;
   name: string;
   repositoryPath: string;
   sources: string[];
+  schedule?: BackupSchedule;
 }
 
 export interface RuntimeStatus {
