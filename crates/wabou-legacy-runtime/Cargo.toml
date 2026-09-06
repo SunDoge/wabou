@@ -17,6 +17,7 @@ flume.workspace = true
 futures-lite = "2"
 getrandom.workspace = true
 gpui-shell = { package = "wabou-shell", path = "../wabou-shell" }
+runtime-api = { package = "wabou-runtime", path = "../wabou-runtime" }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
 jiff.workspace = true
 legacy-shell = { package = "wabou-legacy-shell", path = "../wabou-legacy-shell" }

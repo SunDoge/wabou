@@ -51,6 +51,15 @@ pub struct NativeCapability<'js> {
 }
 
 impl<'js> NativeCapability<'js> {
+    /// Construct a capability adapter over a runtime-owned namespace object.
+    ///
+    /// This is intended for alternate Wabou runtime hosts. Applications should
+    /// receive the adapter from `HostBuilder::capability` instead of calling it.
+    #[doc(hidden)]
+    pub fn from_runtime_parts(ctx: Ctx<'js>, object: Object<'js>) -> Self {
+        Self { ctx, object }
+    }
+
     /// Install a typed synchronous native method.
     ///
     /// Use this for bounded in-memory/bootstrap reads that must be available

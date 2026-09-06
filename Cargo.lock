@@ -13348,6 +13348,7 @@ dependencies = [
  "wabou-legacy-shell",
  "wabou-legacy-widgets",
  "wabou-protocol",
+ "wabou-runtime",
  "wabou-shell",
  "wabou-style",
 ]
