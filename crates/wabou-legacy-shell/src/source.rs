@@ -21,6 +21,12 @@ use anyrender::Scene;
 /// Platform-facing IME snapshot produced by a focused text widget.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImeState {
+    /// Stable identity of the focused text client for the lifetime of its host node.
+    ///
+    /// The platform adapter uses this to restart an active IME session when
+    /// focus moves directly between two editors. Keeping the same OS session
+    /// can otherwise carry an unfinished preedit into the new editor.
+    pub client_id: u64,
     /// Candidate exclusion area in window-logical coordinates.
     pub cursor_area: [f64; 4],
     /// Committed text around the caret, excluding active preedit text.

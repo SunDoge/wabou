@@ -364,6 +364,12 @@ impl Applier {
                             .fold(f64::NEG_INFINITY, f64::max),
                     ];
                     self.interaction.ime_state = Some(legacy_shell::ImeState {
+                        client_id: u64::from(
+                            self.document
+                                .node_store
+                                .solid_id_for_node(n.node_id)
+                                .expect("focused widget must have a Solid identity"),
+                        ),
                         cursor_area,
                         surrounding_text: state.surrounding_text,
                         surrounding_cursor: state.surrounding_cursor,

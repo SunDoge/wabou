@@ -382,6 +382,7 @@ fn ime_cursor_rect_is_logical_and_never_empty() {
 #[test]
 fn ime_snapshot_maps_backend_neutral_purpose_and_hints_to_winit() {
     let state = crate::ImeState {
+        client_id: 7,
         cursor_area: [0.0, 0.0, 1.0, 16.0],
         surrounding_text: "hello".into(),
         surrounding_cursor: 5,
@@ -400,6 +401,32 @@ fn ime_snapshot_maps_backend_neutral_purpose_and_hints_to_winit() {
     assert!(hint.contains(ImeHint::COMPLETION));
     assert!(!hint.contains(ImeHint::SPELLCHECK));
     assert_eq!(purpose, WinitImePurpose::Terminal);
+}
+
+#[test]
+fn ime_session_restarts_only_when_focus_moves_between_distinct_text_clients() {
+    let state = |client_id| crate::ImeState {
+        client_id,
+        cursor_area: [0.0, 0.0, 1.0, 16.0],
+        surrounding_text: String::new(),
+        surrounding_cursor: 0,
+        surrounding_anchor: 0,
+        selection_utf16: 0..0,
+        selection_reversed: false,
+        marked_range_utf16: None,
+        purpose: crate::WidgetImePurpose::Normal,
+        multiline: false,
+        completion: true,
+        spellcheck: true,
+    };
+    let first = state(7);
+    let same = state(7);
+    let second = state(8);
+
+    assert!(!App::ime_client_changed(None, Some(&first)));
+    assert!(!App::ime_client_changed(Some(&first), None));
+    assert!(!App::ime_client_changed(Some(&first), Some(&same)));
+    assert!(App::ime_client_changed(Some(&first), Some(&second)));
 }
 
 #[test]

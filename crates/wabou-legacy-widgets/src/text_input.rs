@@ -1035,6 +1035,12 @@ impl Widget for TextInput {
     }
 
     fn focus_changed(&mut self, focused: bool) -> WidgetChanges {
+        if !focused && self.editor.is_composing() {
+            // A platform IME session is scoped to one text client. Cancel the
+            // uncommitted preedit before focus can enter another editor; the
+            // platform adapter independently restarts its native session.
+            self.queue(PendingEdit::ClearCompose);
+        }
         self.focused = focused;
         self.blink_on = true;
         self.next_blink = focused.then(|| Instant::now() + Duration::from_millis(500));
@@ -1724,6 +1730,25 @@ mod tests {
         input.paint(200.0, 32.0, &mut tcx);
         input.handle_event(&UiEvent::Ime(ImeEvent::Disabled));
         input.paint(200.0, 32.0, &mut tcx);
+        assert_eq!(input.current_value(), Some(""));
+    }
+
+    #[test]
+    fn moving_focus_to_another_client_cancels_uncommitted_preedit() {
+        let mut input = TextInput::new();
+        let mut tcx = TextContext::new();
+        input.focus_changed(true);
+        input.handle_event(&UiEvent::Ime(ImeEvent::Preedit {
+            text: "未確定".into(),
+            cursor: Some((9, 9)),
+        }));
+        input.paint(200.0, 32.0, &mut tcx);
+        assert!(input.editor.is_composing());
+
+        input.focus_changed(false);
+        input.paint(200.0, 32.0, &mut tcx);
+
+        assert!(!input.editor.is_composing());
         assert_eq!(input.current_value(), Some(""));
     }
 }

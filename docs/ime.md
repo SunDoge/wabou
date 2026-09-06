@@ -17,6 +17,11 @@ range, visual bounds for an arbitrary range, and point-to-character hit
 testing. Purpose and completion/spellcheck/multiline hints are mapped to
 Winit without exposing Winit types to widgets.
 
+Each focused client also publishes a stable host-node identity. Moving focus
+directly between two editors cancels the outgoing widget's uncommitted preedit
+and restarts Winit's native IME session, matching Xilem/Masonry's protection
+against composition text travelling between controls.
+
 Parley's editor computes the candidate exclusion area from the active preedit
 run or focused-line selection, including nearby visual context to avoid popup
 jitter. The runtime transforms that geometry into window coordinates and Winit forwards

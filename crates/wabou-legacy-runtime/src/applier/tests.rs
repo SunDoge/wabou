@@ -1931,6 +1931,7 @@ fn gpui_text_input_snapshot_uses_the_focused_widgets_utf16_contract() {
         .insert(node, Box::new(TextInputStateWidget));
     applier.interaction.input.focused_target = Some(NodeKey::new(2, 1));
     applier.interaction.ime_state = Some(legacy_shell::ImeState {
+        client_id: u64::from(NodeKey::new(2, 1)),
         cursor_area: [12.0, 18.0, 14.0, 36.0],
         surrounding_text: "a😀b".into(),
         surrounding_cursor: 1,

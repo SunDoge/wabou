@@ -682,6 +682,13 @@ impl App {
         (hint, purpose)
     }
 
+    fn ime_client_changed(
+        previous: Option<&crate::ImeState>,
+        next: Option<&crate::ImeState>,
+    ) -> bool {
+        matches!((previous, next), (Some(previous), Some(next)) if previous.client_id != next.client_id)
+    }
+
     fn enable_ime_if_ready(&mut self) {
         if !self.ime_requested || self.ime_enabled {
             return;
@@ -728,7 +735,28 @@ impl App {
     fn update_ime_state(&mut self) {
         let state = self.source.ime_state();
         let changed = state != self.ime_state;
+        let restart = self.ime_enabled
+            && self.ime_requested
+            && Self::ime_client_changed(self.ime_state.as_ref(), state.as_ref());
         self.ime_state = state;
+        if restart && let Some(shell) = self.state.as_ref() {
+            match shell.window().request_ime_update(ImeRequest::Disable) {
+                Ok(()) => {
+                    self.ime_enabled = false;
+                    tracing::debug!(
+                        target: "wabou::ime",
+                        "restarting IME after focused text client changed"
+                    );
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        target: "wabou::ime",
+                        %error,
+                        "failed to reset IME after focused text client changed"
+                    );
+                }
+            }
+        }
         if self.ime_requested && !self.ime_enabled {
             self.enable_ime_if_ready();
         }
