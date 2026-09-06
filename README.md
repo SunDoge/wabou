@@ -45,12 +45,14 @@ project compare Rust rendering stacks without rewriting application UI:
 
 ```bash
 wabou run apps/7guis --features vello-hybrid
+wabou run apps/gallery --features vello-hybrid
 ```
 
 The Hybrid backend is an active compatibility target, not yet a replacement
 for GPUI. Vite HMR, typed application capabilities, services, application KV,
-window persistence, DevTools, and the Winit native-widget set work. Headless
-tooling and a few backend-specific widgets are still being brought to parity.
+window persistence, DevTools, the Winit native-widget set, and native behavior
+tests work. Pixel-exact offscreen fixtures remain backend-specific, and
+application-defined GPUI widgets need an explicit Winit implementation.
 
 ## Create an application
 

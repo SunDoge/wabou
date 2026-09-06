@@ -50,6 +50,9 @@ Run it against the shared 7GUIs application with:
 
 ```bash
 wabou run apps/7guis --features vello-hybrid
+wabou run apps/gallery --features vello-hybrid
+wabou test apps/7guis/tests/app.behavior.ts \
+  --app apps/7guis --native --features vello-hybrid
 ```
 
 Vite HMR and typed application capabilities now share the same transport and
@@ -60,9 +63,16 @@ either backend, and the Winit builder additionally exposes effect tape
 record/replay plus native event-loop extensions. Initial and JavaScript-created
 windows now share one runtime source factory, so dynamic windows inherit the
 same capabilities, message producers, resources, source maps, and HMR setup.
-The remaining promotion work is backend-labelled headless fixtures, full
-native-widget parity, and removal of the transitional GPUI session dependency
-from the Winit runtime.
+The standard Winit controls support native text, paste, IME, pointer, wheel,
+selection, and value synchronization, and the shared semantic behavior driver
+runs against the real Winit event loop. The remaining promotion work is
+backend-labelled pixel fixtures, application-defined widget parity, and
+removal of the transitional GPUI session wrapper from the Winit runtime.
+
+The Hybrid style projection preserves independent corner radii through
+background, border, outline, overflow, and native-widget clipping. AnyRender's
+current box-shadow command accepts one radius, so asymmetric shadows use the
+largest corner radius while the box itself remains exact.
 
 `wabou-vello-hybrid-svg` now isolates the first reusable renderer-side piece:
 it converts a normalized `usvg` tree into Vello Hybrid scene commands. It
