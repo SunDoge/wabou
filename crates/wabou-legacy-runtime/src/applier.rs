@@ -446,7 +446,7 @@ impl DocumentState {
 
 struct InteractionState {
     input: InputRouter,
-    ime_cursor_area: Option<[f64; 4]>,
+    ime_state: Option<legacy_shell::ImeState>,
     text_selection: TextSelectionState,
     scroll: ScrollState,
 }
@@ -455,7 +455,7 @@ impl InteractionState {
     fn new() -> Self {
         Self {
             input: InputRouter::new(),
-            ime_cursor_area: None,
+            ime_state: None,
             text_selection: TextSelectionState::default(),
             scroll: ScrollState::default(),
         }
@@ -561,7 +561,8 @@ impl LegacyRuntimeController {
             selection_reversed: selection
                 .as_ref()
                 .is_some_and(|selection| selection.head < selection.anchor),
-            cursor_bounds: self.interaction.ime_cursor_area.map(|bounds| {
+            cursor_bounds: self.interaction.ime_state.as_ref().map(|state| {
+                let bounds = state.cursor_area;
                 [
                     bounds[0] as f32,
                     bounds[1] as f32,

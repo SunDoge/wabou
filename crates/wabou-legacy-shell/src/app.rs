@@ -25,8 +25,8 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, KeyLocation as WinitKeyLocation, ModifiersState};
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{
-    ImeCapabilities, ImeEnableRequest, ImeRequest, ImeRequestData, ResizeDirection,
-    UserAttentionType, WindowId,
+    ImeCapabilities, ImeEnableRequest, ImeRequest, ImeRequestData, ImeSurroundingText,
+    ResizeDirection, UserAttentionType, WindowId,
 };
 
 use crate::WindowResourceKey;
@@ -170,7 +170,7 @@ pub struct App {
     pointer_states: HashMap<PointerId, (Point, u32, PointerProperties)>,
     ime_requested: bool,
     ime_enabled: bool,
-    ime_cursor_area: Option<[f64; 4]>,
+    ime_state: Option<crate::ImeState>,
     startup_error: Arc<Mutex<Option<crate::Error>>>,
     /// EMA per-frame stage timings, reported to the source for a perf overlay.
     frame_stats: FrameStats,
@@ -295,7 +295,7 @@ impl App {
             pointer_states: HashMap::new(),
             ime_requested: false,
             ime_enabled: false,
-            ime_cursor_area: None,
+            ime_state: None,
             startup_error: Arc::new(Mutex::new(None)),
             frame_stats: FrameStats::default(),
             present_retry_pending: false,
@@ -659,12 +659,29 @@ impl App {
         let Some(shell) = self.state.as_ref() else {
             return;
         };
-        // Match Blitz's macOS lifecycle: enable composition immediately when
-        // focus enters an editor, then publish a stable content-box area once
-        // layout is available. Waiting for a painted caret makes AppKit start
-        // composition against stale geometry on the first preedit event.
-        let capabilities = ImeCapabilities::new();
-        let data = ImeRequestData::default();
+        // Enable composition immediately when focus enters an editor. Waiting
+        // for a painted caret makes AppKit begin the first preedit against
+        // stale geometry; the complete snapshot is published after layout.
+        let capabilities = ImeCapabilities::new()
+            .with_cursor_area()
+            .with_surrounding_text();
+        let (position, size) =
+            Self::ime_cursor_rect(self.ime_state.as_ref().map(|state| state.cursor_area));
+        let surrounding = self
+            .ime_state
+            .as_ref()
+            .and_then(|state| {
+                ImeSurroundingText::new(
+                    state.surrounding_text.clone(),
+                    state.surrounding_cursor,
+                    state.surrounding_anchor,
+                )
+                .ok()
+            })
+            .unwrap_or_else(|| ImeSurroundingText::new(String::new(), 0, 0).unwrap());
+        let data = ImeRequestData::default()
+            .with_cursor_area(position.into(), size.into())
+            .with_surrounding_text(surrounding);
         let request = ImeRequest::Enable(
             ImeEnableRequest::new(capabilities, data)
                 .expect("IME capabilities and initial data must match"),
@@ -675,10 +692,10 @@ impl App {
         }
     }
 
-    fn update_ime_cursor_area(&mut self) {
-        let area = self.source.ime_cursor_area();
-        let changed = area != self.ime_cursor_area;
-        self.ime_cursor_area = area;
+    fn update_ime_state(&mut self) {
+        let state = self.source.ime_state();
+        let changed = state != self.ime_state;
+        self.ime_state = state;
         if self.ime_requested && !self.ime_enabled {
             self.enable_ime_if_ready();
         }
@@ -689,8 +706,18 @@ impl App {
             return;
         }
         if let Some(shell) = self.state.as_ref() {
-            let (position, size) = Self::ime_cursor_rect(self.ime_cursor_area);
-            let data = ImeRequestData::default().with_cursor_area(position.into(), size.into());
+            let (position, size) =
+                Self::ime_cursor_rect(self.ime_state.as_ref().map(|state| state.cursor_area));
+            let mut data = ImeRequestData::default().with_cursor_area(position.into(), size.into());
+            if let Some(state) = self.ime_state.as_ref()
+                && let Ok(surrounding) = ImeSurroundingText::new(
+                    state.surrounding_text.clone(),
+                    state.surrounding_cursor,
+                    state.surrounding_anchor,
+                )
+            {
+                data = data.with_surrounding_text(surrounding);
+            }
             if shell
                 .window()
                 .request_ime_update(ImeRequest::Update(data))
@@ -999,7 +1026,7 @@ impl App {
         let base_color = self.source.base_color();
         let (node_count, build_frame_ms, scene_ms) =
             Self::build(shell, self.source.as_mut(), base_color);
-        self.update_ime_cursor_area();
+        self.update_ime_state();
         self.sync_pointer_cursor();
         let Some(shell) = self.state.as_mut() else {
             return;

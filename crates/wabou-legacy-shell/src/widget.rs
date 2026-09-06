@@ -326,6 +326,29 @@ pub struct WidgetTextSelection {
     pub kind: WidgetTextSelectionKind,
 }
 
+/// Snapshot exposed by a focused native text widget to the platform IME.
+///
+/// This is deliberately backend-neutral. JavaScript-facing ranges use UTF-16
+/// code units, while `surrounding_*` offsets use UTF-8 bytes as required by
+/// Winit's platform IME adapters.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WidgetImeState {
+    /// Local area which the candidate window should avoid.
+    pub cursor_area: [f32; 4],
+    /// Committed text around the caret, excluding an active preedit range.
+    pub surrounding_text: String,
+    /// Caret byte offset within `surrounding_text`.
+    pub surrounding_cursor: usize,
+    /// Selection anchor byte offset within `surrounding_text`.
+    pub surrounding_anchor: usize,
+    /// Current selection in UTF-16 code units.
+    pub selection_utf16: std::ops::Range<usize>,
+    /// Whether the moving end precedes the fixed end.
+    pub selection_reversed: bool,
+    /// Active preedit range in UTF-16 code units.
+    pub marked_range_utf16: Option<std::ops::Range<usize>>,
+}
+
 /// Granularity used to create a native widget selection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WidgetTextSelectionKind {
@@ -679,6 +702,21 @@ pub trait Widget {
     /// avoid. Text editors should include the caret or active preedit run.
     fn ime_cursor_area(&self) -> Option<[f32; 4]> {
         None
+    }
+
+    /// Complete platform IME snapshot when the widget supports surrounding
+    /// text and UTF-16 range queries. Legacy widgets may initially expose only
+    /// candidate geometry through [`Widget::ime_cursor_area`].
+    fn ime_state(&self) -> Option<WidgetImeState> {
+        self.ime_cursor_area().map(|cursor_area| WidgetImeState {
+            cursor_area,
+            surrounding_text: String::new(),
+            surrounding_cursor: 0,
+            surrounding_anchor: 0,
+            selection_utf16: 0..0,
+            selection_reversed: false,
+            marked_range_utf16: None,
+        })
     }
 
     /// Install the event-loop wake callback for a background producer.

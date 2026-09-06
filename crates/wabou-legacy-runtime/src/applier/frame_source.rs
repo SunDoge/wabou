@@ -631,8 +631,8 @@ impl FrameSource for Applier {
         }
     }
 
-    fn ime_cursor_area(&self) -> Option<[f64; 4]> {
-        self.interaction.ime_cursor_area
+    fn ime_state(&self) -> Option<legacy_shell::ImeState> {
+        self.interaction.ime_state.clone()
     }
 
     #[cfg(any(feature = "devtools", test))]

@@ -1918,7 +1918,15 @@ fn gpui_text_input_snapshot_uses_the_focused_widgets_utf16_contract() {
         .widgets
         .insert(node, Box::new(TextInputStateWidget));
     applier.interaction.input.focused_target = Some(NodeKey::new(2, 1));
-    applier.interaction.ime_cursor_area = Some([12.0, 18.0, 14.0, 36.0]);
+    applier.interaction.ime_state = Some(legacy_shell::ImeState {
+        cursor_area: [12.0, 18.0, 14.0, 36.0],
+        surrounding_text: "a😀b".into(),
+        surrounding_cursor: 1,
+        surrounding_anchor: 1,
+        selection_utf16: 1..3,
+        selection_reversed: true,
+        marked_range_utf16: None,
+    });
 
     let state = applier.gpui_text_input_state();
     assert!(state.accepts_text);

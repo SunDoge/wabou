@@ -475,6 +475,8 @@ impl Applier {
                 node_count: nodes.len(),
                 text_backend: text_context.raster_backend_name().to_owned(),
                 text_outline_fallback: text_context.outline_fallback_name().to_owned(),
+                text_rendering_mode: "legacy-vello".to_owned(),
+                text_rendering_policy: "legacy-vello".to_owned(),
                 frame_stats: self.runtime.frame_stats.as_ref().and_then(|cell| {
                     cell.borrow().map(|stats| wabou_host_api::FrameStats {
                         build_frame_ms: stats.build_frame_ms,

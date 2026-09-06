@@ -267,7 +267,7 @@ impl Applier {
     /// resulting Scene fragment in the matching PlacedNode's `paint.widget`.
     /// `build_scene` composites it at the node's content-box origin.
     pub(super) fn paint_widgets(&mut self, placed: &mut [PlacedNode], tcx: &mut TextContext) {
-        self.interaction.ime_cursor_area = None;
+        self.interaction.ime_state = None;
         let visible = placed
             .iter()
             .filter(|node| node.content_size[0] > 0.0 && node.content_size[1] > 0.0)
@@ -335,8 +335,9 @@ impl Applier {
                 }
                 if self.interaction.input.focused_target
                     == self.document.node_store.solid_id_for_node(n.node_id)
-                    && let Some([x0, y0, x1, y1]) = w.ime_cursor_area()
+                    && let Some(state) = w.ime_state()
                 {
+                    let [x0, y0, x1, y1] = state.cursor_area;
                     let local_to_window = window_to_local.inverse();
                     let points = [
                         local_to_window * Point::new(f64::from(x0), f64::from(y0)),
@@ -344,7 +345,7 @@ impl Applier {
                         local_to_window * Point::new(f64::from(x0), f64::from(y1)),
                         local_to_window * Point::new(f64::from(x1), f64::from(y1)),
                     ];
-                    self.interaction.ime_cursor_area = Some([
+                    let cursor_area = [
                         points
                             .iter()
                             .map(|point| point.x)
@@ -361,7 +362,16 @@ impl Applier {
                             .iter()
                             .map(|point| point.y)
                             .fold(f64::NEG_INFINITY, f64::max),
-                    ]);
+                    ];
+                    self.interaction.ime_state = Some(legacy_shell::ImeState {
+                        cursor_area,
+                        surrounding_text: state.surrounding_text,
+                        surrounding_cursor: state.surrounding_cursor,
+                        surrounding_anchor: state.surrounding_anchor,
+                        selection_utf16: state.selection_utf16,
+                        selection_reversed: state.selection_reversed,
+                        marked_range_utf16: state.marked_range_utf16,
+                    });
                 }
             }
         }

@@ -18,6 +18,25 @@ use crate::style::CursorStyle;
 use crate::text::TextContext;
 use anyrender::Scene;
 
+/// Platform-facing IME snapshot produced by a focused text widget.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImeState {
+    /// Candidate exclusion area in window-logical coordinates.
+    pub cursor_area: [f64; 4],
+    /// Committed text around the caret, excluding active preedit text.
+    pub surrounding_text: String,
+    /// Caret byte offset within `surrounding_text`.
+    pub surrounding_cursor: usize,
+    /// Selection anchor byte offset within `surrounding_text`.
+    pub surrounding_anchor: usize,
+    /// Selection range in UTF-16 code units.
+    pub selection_utf16: std::ops::Range<usize>,
+    /// Whether the moving end precedes the fixed end.
+    pub selection_reversed: bool,
+    /// Active preedit range in UTF-16 code units.
+    pub marked_range_utf16: Option<std::ops::Range<usize>>,
+}
+
 pub use wabou_shell_api::event::*;
 pub use wabou_shell_api::{WindowCommand, WindowInputMode, WindowLevel, WindowOptions};
 
@@ -59,7 +78,7 @@ pub trait FrameSource {
 
     /// Focused editor exclusion area for the platform IME candidate window,
     /// expressed in window-logical coordinates.
-    fn ime_cursor_area(&self) -> Option<[f64; 4]> {
+    fn ime_state(&self) -> Option<ImeState> {
         None
     }
 

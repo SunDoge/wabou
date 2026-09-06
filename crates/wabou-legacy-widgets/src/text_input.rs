@@ -23,8 +23,8 @@ use wabou_shell::text::{
 use wabou_shell::{ImeEvent, KeyEvent, KeyPhase, PointerEvent, PointerPhase, UiEvent};
 
 use wabou_shell::{
-    PaintContext, Widget, WidgetChanges, WidgetEventResult, WidgetStyle, WidgetTextSelection,
-    WidgetTextSelectionKind,
+    PaintContext, Widget, WidgetChanges, WidgetEventResult, WidgetImeState, WidgetStyle,
+    WidgetTextSelection, WidgetTextSelectionKind,
 };
 
 const SELECTION_COLOR: Color = Color::from_rgba8(99, 102, 241, 80);
@@ -92,6 +92,36 @@ fn utf16_offset_to_byte(text: &str, offset: usize) -> Option<usize> {
         }
     }
     (utf16 == offset).then_some(text.len())
+}
+
+fn surrounding_excerpt(text: &str, cursor: usize, anchor: usize) -> (String, usize, usize) {
+    const LIMIT: usize = 3_999;
+    if text.len() <= LIMIT {
+        return (text.to_owned(), cursor, anchor);
+    }
+
+    let mut start = cursor.saturating_sub(LIMIT / 2);
+    while !text.is_char_boundary(start) {
+        start -= 1;
+    }
+    let mut end = (start + LIMIT).min(text.len());
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    if end - start < LIMIT && end == text.len() {
+        start = end.saturating_sub(LIMIT);
+        while !text.is_char_boundary(start) {
+            start += 1;
+        }
+    }
+
+    let local_cursor = cursor.clamp(start, end) - start;
+    let local_anchor = if (start..=end).contains(&anchor) {
+        anchor - start
+    } else {
+        local_cursor
+    };
+    (text[start..end].to_owned(), local_cursor, local_anchor)
 }
 
 /// Native single- or multiline plain-text editor backed by Parley.
@@ -1000,15 +1030,60 @@ impl Widget for TextInput {
         self.next_blink
     }
 
-    fn ime_cursor_area(&self) -> Option<[f32; 4]> {
+    fn ime_state(&self) -> Option<WidgetImeState> {
         if !self.focused || self.disabled {
             return None;
         }
-        // AppKit is much more stable when the IME client keeps one candidate
-        // area for the lifetime of a composition. This mirrors Blitz: use the
-        // native editor's content box rather than chasing a reshaped preedit
-        // caret across multiline layout and scroll updates.
-        Some([0.0, 0.0, self.viewport_width, self.viewport_height])
+        let raw = self.editor.raw_text();
+        let selection = self.editor.raw_selection();
+        let anchor = selection.anchor().index().min(raw.len());
+        let head = selection.focus().index().min(raw.len());
+        let compose = self.editor.raw_compose().clone();
+
+        let (committed, committed_cursor, committed_anchor) = if let Some(range) = compose.clone() {
+            let start = range.start.min(raw.len());
+            let end = range.end.min(raw.len());
+            let mut committed = String::with_capacity(raw.len() - (end - start));
+            committed.push_str(&raw[..start]);
+            committed.push_str(&raw[end..]);
+            (committed, start, start)
+        } else {
+            (raw.to_owned(), head, anchor)
+        };
+        let (surrounding_text, surrounding_cursor, surrounding_anchor) =
+            surrounding_excerpt(&committed, committed_cursor, committed_anchor);
+
+        // Parley already computes a stable exclusion region from the full
+        // preedit run (or the selection on the focused visual line) and adds
+        // enough neighboring context to keep candidate windows from jumping.
+        let candidate = self.editor.ime_cursor_area();
+        let x_offset = if self.multiline { 0.0 } else { -self.scroll_x };
+        let y_offset = if self.multiline {
+            -self.scroll_y
+        } else {
+            self.single_line_y_offset
+        };
+        let cursor_area = [
+            (candidate.x0 as f32 + x_offset).clamp(0.0, self.viewport_width),
+            (candidate.y0 as f32 + y_offset).clamp(0.0, self.viewport_height),
+            (candidate.x1 as f32 + x_offset).clamp(0.0, self.viewport_width),
+            (candidate.y1 as f32 + y_offset).clamp(0.0, self.viewport_height),
+        ];
+
+        let selection_start = anchor.min(head);
+        let selection_end = anchor.max(head);
+        Some(WidgetImeState {
+            cursor_area,
+            surrounding_text,
+            surrounding_cursor,
+            surrounding_anchor,
+            selection_utf16: raw[..selection_start].encode_utf16().count()
+                ..raw[..selection_end].encode_utf16().count(),
+            selection_reversed: head < anchor,
+            marked_range_utf16: compose.map(|range| {
+                raw[..range.start].encode_utf16().count()..raw[..range.end].encode_utf16().count()
+            }),
+        })
     }
 }
 
@@ -1149,7 +1224,7 @@ mod tests {
     }
 
     #[test]
-    fn single_line_input_scrolls_caret_and_keeps_a_stable_ime_content_box() {
+    fn single_line_input_scrolls_caret_and_reports_visible_ime_geometry() {
         let mut input = TextInput::new();
         input.attribute_changed("value", "the quick brown fox jumps over the lazy dog");
         input.focus_changed(true);
@@ -1163,8 +1238,9 @@ mod tests {
         assert_eq!(text_x, 4.0 + input.scroll_x);
         assert_eq!(text_y, 12.0 - input.single_line_y_offset);
 
-        let ime = input.ime_cursor_area().expect("IME cursor area");
-        assert_eq!(ime, [0.0, 0.0, 48.0, 30.0]);
+        let ime = input.ime_state().expect("IME state");
+        assert!(ime.cursor_area[0] > 0.0);
+        assert!(ime.cursor_area[2] <= 48.0);
 
         input.queue(PendingEdit::MoveToStart);
         input.paint(48.0, 30.0, &mut tcx);
@@ -1520,8 +1596,10 @@ mod tests {
                 .is_handled()
         );
         input.paint(200.0, 32.0, &mut tcx);
-        let area = input.ime_cursor_area().expect("IME cursor area");
-        assert_eq!(area, [0.0, 0.0, 200.0, 32.0]);
+        let state = input.ime_state().expect("IME state");
+        assert!(state.cursor_area[2] <= 200.0);
+        assert_eq!(state.surrounding_text, "");
+        assert_eq!(state.marked_range_utf16, Some(0..1));
 
         let mut paint = PaintContext::new_clipped(200.0, 32.0, 6.0, 2.0, &mut tcx);
         <TextInput as Widget>::paint(&mut input, &mut paint);
@@ -1545,6 +1623,23 @@ mod tests {
         );
         input.paint(200.0, 32.0, &mut tcx);
         assert_eq!(input.current_value(), Some("日本"));
+        let state = input.ime_state().expect("committed IME state");
+        assert_eq!(state.surrounding_text, "日本");
+        assert_eq!(state.surrounding_cursor, "日本".len());
+        assert_eq!(state.surrounding_anchor, "日本".len());
+        assert_eq!(state.selection_utf16, 2..2);
+        assert_eq!(state.marked_range_utf16, None);
+    }
+
+    #[test]
+    fn surrounding_text_excerpt_is_bounded_and_keeps_utf8_boundaries() {
+        let text = "前".repeat(2_000) + "middle" + &"後".repeat(2_000);
+        let cursor = "前".len() * 2_000 + 3;
+        let (excerpt, local_cursor, local_anchor) = surrounding_excerpt(&text, cursor, cursor);
+        assert!(excerpt.len() < 4_000);
+        assert!(excerpt.is_char_boundary(local_cursor));
+        assert_eq!(local_cursor, local_anchor);
+        assert_eq!(&excerpt[local_cursor - 3..local_cursor + 3], "middle");
     }
 
     #[test]
