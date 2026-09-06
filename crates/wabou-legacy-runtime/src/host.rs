@@ -1,8 +1,11 @@
 //! Application host for the Winit + Taffy + Vello Hybrid backend.
 
+#[cfg(feature = "vite")]
+use std::cell::RefCell;
 use std::{
     collections::HashMap,
     path::PathBuf,
+    rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -111,6 +114,7 @@ fn start_services(
     Ok(started_services)
 }
 
+#[derive(Clone)]
 enum ApplicationSource {
     Bundle {
         code: String,
@@ -118,6 +122,134 @@ enum ApplicationSource {
     },
     #[cfg(feature = "vite")]
     Vite { url: String, entry: String },
+}
+
+#[derive(Clone)]
+struct RuntimeSourceConfig {
+    source: ApplicationSource,
+    js_runtime_options: JsRuntimeOptions,
+    capabilities: Vec<CapabilityInstaller>,
+    host_message_producers: Vec<HostMessageProducer>,
+    widget_factories: HashMap<String, WidgetFactory>,
+    base_color: Color,
+    image_resources: ImageResourceStore,
+    effect_trace: Option<crate::effect_trace::EffectTrace>,
+    app_directories: Option<legacy_shell::AppDirectories>,
+    #[cfg(feature = "devtools")]
+    debug_state: Option<wabou_devtools::SharedDebugState>,
+    #[cfg(feature = "vite")]
+    hmr_clients: Rc<RefCell<Vec<runtime_api::HmrClient>>>,
+}
+
+impl RuntimeSourceConfig {
+    fn create(
+        &self,
+        window_key: legacy_shell::WindowResourceKey,
+        options: &WindowOptions,
+    ) -> crate::Result<Applier> {
+        #[cfg(feature = "vite")]
+        let js = match &self.source {
+            ApplicationSource::Bundle { .. } => {
+                JsRuntime::new_with_options(self.js_runtime_options)
+            }
+            ApplicationSource::Vite { url, .. } => {
+                JsRuntime::new_vite_with_options(url, self.js_runtime_options)
+            }
+        }
+        .context(crate::error::JavaScriptSnafu {
+            operation: "create JavaScript runtime",
+        })?;
+        #[cfg(not(feature = "vite"))]
+        let js = JsRuntime::new_with_options(self.js_runtime_options).context(
+            crate::error::JavaScriptSnafu {
+                operation: "create JavaScript runtime",
+            },
+        )?;
+        for capability in &self.capabilities {
+            capability(&js).context(crate::error::JavaScriptSnafu {
+                operation: "mount JavaScript capability",
+            })?;
+        }
+        let serialized_window_options =
+            serde_json::to_string(options).expect("WindowOptions must remain serializable");
+        js.with(|ctx| {
+            ctx.globals()
+                .set("__wabou_window_options_json", serialized_window_options)
+        })
+        .context(crate::error::JavaScriptSnafu {
+            operation: "install native window creation options",
+        })?;
+        let mut controller = Applier::from_runtime_with_factories_and_window(
+            js,
+            self.widget_factories.clone(),
+            self.base_color,
+            window_key,
+        );
+        controller.set_image_resource_store(self.image_resources.clone());
+        if let Some(trace) = &self.effect_trace {
+            controller.set_effect_trace(trace.clone());
+        }
+        #[cfg(feature = "devtools")]
+        if let Some(state) = &self.debug_state {
+            controller.set_debug_state(state.clone());
+        }
+        if let Some(directories) = &self.app_directories {
+            controller.set_app_directories(directories.clone());
+        }
+        let message_context = controller.host_message_context(window_key);
+        for producer in &self.host_message_producers {
+            producer(message_context.clone());
+        }
+        match &self.source {
+            ApplicationSource::Bundle { code, source_map } => {
+                controller
+                    .boot_with_source_map(code, source_map.as_deref())
+                    .context(crate::error::JavaScriptSnafu {
+                        operation: "boot JavaScript bundle",
+                    })?;
+            }
+            #[cfg(feature = "vite")]
+            ApplicationSource::Vite { url, entry } => {
+                controller.set_vite_entry(entry);
+                controller
+                    .boot_vite(entry)
+                    .context(crate::error::JavaScriptSnafu {
+                        operation: "boot Vite entry module",
+                    })?;
+                let reload = controller.reload_handle();
+                self.hmr_clients.borrow_mut().push(
+                    runtime_api::start_hmr_bridge(url, move |event| {
+                        reload
+                            .send(match event {
+                                runtime_api::ViteHmrEvent::Update {
+                                    path,
+                                    accepted_path,
+                                    timestamp,
+                                    source,
+                                } => crate::reload::ReloadMsg::HmrUpdate {
+                                    path,
+                                    accepted_path,
+                                    timestamp,
+                                    source,
+                                },
+                                runtime_api::ViteHmrEvent::CssUpdate { path } => {
+                                    crate::reload::ReloadMsg::CssUpdate { path }
+                                }
+                                runtime_api::ViteHmrEvent::FullReload => {
+                                    crate::reload::ReloadMsg::FullReload
+                                }
+                                runtime_api::ViteHmrEvent::Error { diagnostic } => {
+                                    crate::reload::ReloadMsg::Error { diagnostic }
+                                }
+                            })
+                            .is_ok()
+                    })
+                    .context(crate::error::ViteSnafu)?,
+                );
+            }
+        }
+        Ok(controller)
+    }
 }
 
 enum EffectTraceConfig {
@@ -559,115 +691,35 @@ impl WinitHostBuilder {
         } else if let Some(key) = &self.persisted_window_size {
             tracing::warn!(key, "window size persistence requires app_directories");
         }
-        let mut sources = Vec::with_capacity(windows.len());
-        #[cfg(feature = "vite")]
-        let mut hmr_clients = Vec::new();
-        for (index, options) in windows.into_iter().enumerate() {
-            #[cfg(feature = "vite")]
-            let js = match &source {
-                ApplicationSource::Bundle { .. } => {
-                    JsRuntime::new_with_options(self.js_runtime_options)
-                }
-                ApplicationSource::Vite { url, .. } => {
-                    JsRuntime::new_vite_with_options(url, self.js_runtime_options)
-                }
-            }
-            .context(crate::error::JavaScriptSnafu {
-                operation: "create JavaScript runtime",
-            })?;
-            #[cfg(not(feature = "vite"))]
-            let js = JsRuntime::new_with_options(self.js_runtime_options).context(
-                crate::error::JavaScriptSnafu {
-                    operation: "create JavaScript runtime",
-                },
-            )?;
-            for capability in &capabilities {
-                capability(&js).context(crate::error::JavaScriptSnafu {
-                    operation: "mount JavaScript capability",
-                })?;
-            }
-            let serialized_window_options =
-                serde_json::to_string(&options).expect("WindowOptions must remain serializable");
-            js.with(|ctx| {
-                ctx.globals()
-                    .set("__wabou_window_options_json", serialized_window_options)
-            })
-            .context(crate::error::JavaScriptSnafu {
-                operation: "install native window creation options",
-            })?;
-            let mut controller = Applier::from_runtime_with_factories_and_window(
-                js,
-                self.widget_factories.clone(),
-                self.base_color,
-                legacy_shell::initial_window_resource_key(index),
-            );
-            controller.set_image_resource_store(self.image_resources.clone());
-            if let Some(trace) = &effect_trace {
-                controller.set_effect_trace(trace.clone());
-            }
+        let runtime_sources = RuntimeSourceConfig {
+            source,
+            js_runtime_options: self.js_runtime_options,
+            capabilities,
+            host_message_producers: self.host_message_producers,
+            widget_factories: self.widget_factories,
+            base_color: self.base_color,
+            image_resources: self.image_resources,
+            effect_trace: effect_trace.clone(),
+            app_directories,
             #[cfg(feature = "devtools")]
-            if let Some(state) = &debug_state {
-                controller.set_debug_state(state.clone());
-            }
-            if let Some(directories) = &app_directories {
-                controller.set_app_directories(directories.clone());
-            }
-            let message_context =
-                controller.host_message_context(legacy_shell::initial_window_resource_key(index));
-            for producer in &self.host_message_producers {
-                producer(message_context.clone());
-            }
-            match &source {
-                ApplicationSource::Bundle { code, source_map } => {
-                    controller
-                        .boot_with_source_map(code, source_map.as_deref())
-                        .context(crate::error::JavaScriptSnafu {
-                            operation: "boot JavaScript bundle",
-                        })?;
-                }
-                #[cfg(feature = "vite")]
-                ApplicationSource::Vite { url, entry } => {
-                    controller.set_vite_entry(entry);
-                    controller
-                        .boot_vite(entry)
-                        .context(crate::error::JavaScriptSnafu {
-                            operation: "boot Vite entry module",
-                        })?;
-                    let reload = controller.reload_handle();
-                    hmr_clients.push(
-                        runtime_api::start_hmr_bridge(url, move |event| {
-                            reload
-                                .send(match event {
-                                    runtime_api::ViteHmrEvent::Update {
-                                        path,
-                                        accepted_path,
-                                        timestamp,
-                                        source,
-                                    } => crate::reload::ReloadMsg::HmrUpdate {
-                                        path,
-                                        accepted_path,
-                                        timestamp,
-                                        source,
-                                    },
-                                    runtime_api::ViteHmrEvent::CssUpdate { path } => {
-                                        crate::reload::ReloadMsg::CssUpdate { path }
-                                    }
-                                    runtime_api::ViteHmrEvent::FullReload => {
-                                        crate::reload::ReloadMsg::FullReload
-                                    }
-                                    runtime_api::ViteHmrEvent::Error { diagnostic } => {
-                                        crate::reload::ReloadMsg::Error { diagnostic }
-                                    }
-                                })
-                                .is_ok()
-                        })
-                        .context(crate::error::ViteSnafu)?,
-                    );
-                }
-            }
+            debug_state,
+            #[cfg(feature = "vite")]
+            hmr_clients: Rc::new(RefCell::new(Vec::new())),
+        };
+        let mut sources = Vec::with_capacity(windows.len());
+        for (index, options) in windows.into_iter().enumerate() {
+            let controller = runtime_sources
+                .create(legacy_shell::initial_window_resource_key(index), &options)?;
             sources.push((Box::new(controller) as Box<dyn FrameSource>, options));
         }
-        legacy_shell::run_windows_with_factory_and_extensions(sources, None, extensions)
+        let dynamic_sources = runtime_sources.clone();
+        let factory: legacy_shell::FrameSourceFactory = Rc::new(move |window_key, options| {
+            dynamic_sources
+                .create(window_key, options)
+                .map(|controller| Box::new(controller) as Box<dyn FrameSource>)
+                .map_err(|error| error.to_string())
+        });
+        legacy_shell::run_windows_with_factory_and_extensions(sources, Some(factory), extensions)
             .context(crate::error::WinitShellSnafu)?;
         if recording_effects && let (Some(trace), Some(path)) = (&effect_trace, trace_path) {
             trace
@@ -717,6 +769,56 @@ mod tests {
             })
             .expect("invoke capability");
         assert_eq!(result, "[3,42]");
+    }
+
+    #[test]
+    fn runtime_source_factory_boots_dynamic_windows_with_shared_contracts() {
+        const CONTRACT: CapabilityContract = CapabilityContract::new("winitTest", 3);
+        const DOUBLE: HostMethod<DoubleRequest, DoubleResponse> = HostMethod::new("double");
+        let builder = WinitHostBuilder::new().capability(CONTRACT, |capability| {
+            capability.sync_method(DOUBLE, |request: DoubleRequest| {
+                Ok::<_, String>(DoubleResponse {
+                    value: request.value * 2,
+                })
+            })
+        });
+        let source = RuntimeSourceConfig {
+            source: ApplicationSource::Bundle {
+                code: r#"
+                    globalThis.bootResult = [
+                      JSON.parse(__wabou_window_options_json).title,
+                      __wabou_capabilities.winitTest.double({ value: 21 }).value,
+                    ];
+                "#
+                .to_owned(),
+                source_map: None,
+            },
+            js_runtime_options: builder.js_runtime_options,
+            capabilities: builder.capabilities,
+            host_message_producers: builder.host_message_producers,
+            widget_factories: builder.widget_factories,
+            base_color: builder.base_color,
+            image_resources: builder.image_resources,
+            effect_trace: None,
+            app_directories: None,
+            #[cfg(feature = "devtools")]
+            debug_state: None,
+            #[cfg(feature = "vite")]
+            hmr_clients: Rc::new(RefCell::new(Vec::new())),
+        };
+        let child = source
+            .create(
+                legacy_shell::WindowResourceKey::from_parts(9, 1).unwrap(),
+                &WindowOptions::new().title("Dynamic child"),
+            )
+            .expect("create dynamic window runtime");
+
+        assert_eq!(
+            child
+                .eval_string("JSON.stringify(globalThis.bootResult)")
+                .unwrap(),
+            r#"["Dynamic child",42]"#
+        );
     }
 
     #[test]

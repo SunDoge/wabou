@@ -57,9 +57,12 @@ contract APIs as the GPUI host. Host services, Rust-to-JavaScript producers,
 application directories, SQLite KV, window persistence, and DevTools are also
 mounted by `WinitHostBuilder`. A single public `HostMessageRouter` can address
 either backend, and the Winit builder additionally exposes effect tape
-record/replay plus native event-loop extensions. The remaining promotion work
-is backend-labelled headless fixtures, full native-widget parity, and removal
-of the transitional GPUI session dependency from the Winit runtime.
+record/replay plus native event-loop extensions. Initial and JavaScript-created
+windows now share one runtime source factory, so dynamic windows inherit the
+same capabilities, message producers, resources, source maps, and HMR setup.
+The remaining promotion work is backend-labelled headless fixtures, full
+native-widget parity, and removal of the transitional GPUI session dependency
+from the Winit runtime.
 
 `wabou-vello-hybrid-svg` now isolates the first reusable renderer-side piece:
 it converts a normalized `usvg` tree into Vello Hybrid scene commands. It

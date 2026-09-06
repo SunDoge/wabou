@@ -8,6 +8,7 @@ use snafu::ResultExt;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -2104,7 +2105,7 @@ pub trait ShellExtension {
 
 /// Factory used to create a frame source for dynamically requested windows.
 pub type FrameSourceFactory =
-    Arc<dyn Fn(WindowResourceKey, &WindowOptions) -> Result<Box<dyn FrameSource>, String>>;
+    Rc<dyn Fn(WindowResourceKey, &WindowOptions) -> Result<Box<dyn FrameSource>, String>>;
 
 fn find_window_by_key<'a>(
     windows: impl Iterator<Item = &'a mut App>,
