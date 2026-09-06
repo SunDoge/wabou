@@ -116,10 +116,10 @@ payload. Register the store on the host and atomically take the secret in the
 native capability:
 
 ```rust
-let secrets = SecretStore::default();
+let secrets = WinitSecretStore::default();
 let login_secrets = secrets.clone();
 const UNLOCK: JsonMethod<UnlockRequest, UnlockResult> = JsonMethod::new("unlock");
-HostBuilder::new()
+WinitHostBuilder::new()
     .password_inputs(secrets)
     .capability(VAULT, move |capability| {
         let login_secrets = login_secrets.clone();

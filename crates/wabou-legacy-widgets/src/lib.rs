@@ -28,10 +28,7 @@ pub use text_input::TextInput;
 pub fn builtin_factories() -> HashMap<String, WidgetFactory> {
     let mut factories: HashMap<String, WidgetFactory> = HashMap::new();
     factories.insert("canvas".into(), Arc::new(|| Box::new(Canvas)));
-    factories.insert(
-        "code-editor".into(),
-        Arc::new(|| Box::new(CodeEditor::new())),
-    );
+    factories.insert("editor".into(), Arc::new(|| Box::new(CodeEditor::new())));
     factories.insert("img".into(), Arc::new(|| Box::new(ImageWidget::new())));
     factories.insert("input".into(), Arc::new(|| Box::new(TextInput::new())));
     factories.insert("spinner".into(), Arc::new(|| Box::new(Spinner::new())));
@@ -65,5 +62,7 @@ mod tests {
         assert!(factories.contains_key("spinner"));
         assert!(factories.contains_key("slider"));
         assert!(factories.contains_key("progress-indeterminate"));
+        assert!(factories.contains_key("editor"));
+        assert!(!factories.contains_key("code-editor"));
     }
 }

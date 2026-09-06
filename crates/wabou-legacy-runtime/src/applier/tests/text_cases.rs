@@ -335,7 +335,7 @@ fn code_editor_drag_selection_survives_native_pointer_routing() {
     let (tag, value, width, height) = {
         let mut atoms = applier.document.atoms.borrow_mut();
         (
-            atoms.intern("code-editor"),
+            atoms.intern("editor"),
             atoms.intern("value"),
             atoms.intern("width"),
             atoms.intern("height"),

@@ -407,6 +407,19 @@ impl WinitHostBuilder {
         self
     }
 
+    /// Register secure native password inputs backed by one Rust-only store.
+    ///
+    /// Values entered into `<PasswordInput>` never cross into QuickJS. Native
+    /// capability code can atomically take a value from the matching `secret`
+    /// slot through the returned store clone.
+    pub fn password_inputs(mut self, secrets: crate::WinitSecretStore) -> Self {
+        self.widget_factories.insert(
+            "password-input".into(),
+            wabou_legacy_widgets::password_input_factory(secrets),
+        );
+        self
+    }
+
     /// Mount one versioned application capability into every window runtime.
     ///
     /// This is API-compatible with the default GPUI host: direct structured
@@ -769,6 +782,20 @@ mod tests {
             })
             .expect("invoke capability");
         assert_eq!(result, "[3,42]");
+    }
+
+    #[test]
+    fn password_inputs_register_the_public_secure_editor_tag() {
+        let secrets = crate::WinitSecretStore::default();
+        let builder = WinitHostBuilder::new().password_inputs(secrets.clone());
+        let mut widget = builder.widget_factories["password-input"]();
+
+        assert!(
+            widget
+                .handle_event(&legacy_shell::UiEvent::TextInput("secret".into()))
+                .is_handled()
+        );
+        assert_eq!(secrets.take("default").as_str(), "secret");
     }
 
     #[test]

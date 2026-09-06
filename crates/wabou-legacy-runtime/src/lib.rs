@@ -58,6 +58,7 @@ pub use legacy_shell::{
     ShellExtension as WinitShellExtension, WakeCallback as WinitWakeCallback, Widget,
     WidgetFactory, WindowOptions,
 };
+pub use wabou_legacy_widgets::SecretStore as WinitSecretStore;
 
 mod applier;
 
