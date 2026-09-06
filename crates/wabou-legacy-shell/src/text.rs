@@ -150,7 +150,10 @@ fn use_swash_raster_for(backend: Option<&str>) -> bool {
     match backend {
         Some(value) if value.eq_ignore_ascii_case("swash") => true,
         Some(value) if value.eq_ignore_ascii_case("vello") => false,
-        _ => true,
+        // Match Xilem/Masonry's text path: Parley shapes in logical space and
+        // Vello consumes hinted glyph runs directly. The custom Swash raster
+        // path remains available as an explicit compatibility experiment.
+        _ => false,
     }
 }
 
@@ -285,12 +288,12 @@ impl TextContext {
         scene
     }
 
-    /// Draw a synthesis-free glyph layout directly into the destination scene.
+    /// Draw a synthesis-free hinted glyph layout directly into the destination scene.
     ///
-    /// Direct encoding avoids the retained glyph-fragment issue observed with
-    /// Vello/Metal. Apple platforms render unhinted outlines at the font's
-    /// native weight and do not geometrically synthesize missing weights;
-    /// Linux and Windows retain the Swash raster path selected by the painter.
+    /// This follows Xilem/Masonry's Parley-to-Vello path. Direct encoding
+    /// avoids retained bitmap resampling while hinting keeps small UI text
+    /// aligned to the device rasterizer. Geometric weight synthesis remains
+    /// disabled so fallback CJK faces do not become artificially heavy.
     pub(crate) fn draw_native_weight_layout_into(
         &self,
         scene: &mut Scene,
@@ -298,7 +301,7 @@ impl TextContext {
         transform: Affine,
         device_scale: f64,
     ) {
-        Self::draw_layout_into(scene, layout, device_scale, transform, false, false);
+        Self::draw_layout_into(scene, layout, device_scale, transform, true, false);
     }
 
     fn draw_layout_into(
@@ -900,15 +903,15 @@ mod tests {
     }
 
     #[test]
-    fn text_backend_defaults_to_swash_and_keeps_vello_override() {
-        assert!(use_swash_raster_for(None));
+    fn text_backend_defaults_to_xilem_style_vello_and_keeps_swash_override() {
+        assert!(!use_swash_raster_for(None));
         assert!(use_swash_raster_for(Some("swash")));
         assert!(use_swash_raster_for(Some("SWASH")));
         assert!(!use_swash_raster_for(Some("vello")));
         assert!(!use_swash_raster_for(Some("VELLO")));
 
         let context = TextContext::new();
-        assert_eq!(context.raster_backend_name(), "swash");
+        assert_eq!(context.raster_backend_name(), "vello-outline");
         assert_eq!(context.outline_fallback_name(), "direct-native-weight");
     }
 
