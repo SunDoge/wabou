@@ -1343,6 +1343,14 @@ impl App {
             | self.drain_host_actions()
             | self.drain_effects()
     }
+
+    fn drain_proxy_wake_up(&mut self) -> bool {
+        let changed = self.poll_background_work();
+        if changed && let Some(shell) = self.state.as_ref() {
+            shell.window().request_redraw();
+        }
+        changed
+    }
 }
 
 impl ApplicationHandler for App {
@@ -1387,10 +1395,7 @@ impl ApplicationHandler for App {
     }
 
     fn proxy_wake_up(&mut self, _event_loop: &dyn ActiveEventLoop) {
-        let changed = self.poll_background_work();
-        if changed && let Some(shell) = self.state.as_ref() {
-            shell.window().request_redraw();
-        }
+        let _ = self.drain_proxy_wake_up();
     }
 
     fn window_event(
@@ -1805,6 +1810,21 @@ impl ExtensionContext<'_> {
         };
         app.source
             .handle_semantic_action(SemanticAction::Focus { target: node_id })
+    }
+
+    /// Dispatch an explicit semantic action to a visible logical window.
+    ///
+    /// Native automation adapters use this to share the same focus and
+    /// scroll-into-view behavior as platform accessibility clients.
+    pub fn dispatch_semantic_action(
+        &mut self,
+        window_key: WindowResourceKey,
+        action: SemanticAction,
+    ) -> bool {
+        let Some(app) = find_window_by_key(self.windows.values_mut(), window_key) else {
+            return false;
+        };
+        app.source.handle_semantic_action(action)
     }
 
     /// Find one uniquely matching enabled semantic node and activate it through
@@ -2501,20 +2521,32 @@ impl ApplicationHandler for MultiWindowApp {
     }
 
     fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
-        // Native extensions are producers for window-owned background work.
-        // Drain them first so a tray callback can enqueue a host message and
-        // have a hidden/surface-released runtime consume it in this same wake
-        // cycle. Waking the proxy again from inside this callback may be
-        // coalesced by the platform event loop.
-        self.poll_extensions(event_loop);
-        for app in self.windows.values_mut() {
-            app.proxy_wake_up(event_loop);
+        // Complete bounded extension -> runtime -> extension handshakes in one
+        // native wake. A JavaScript promise resumed by an extension can enqueue
+        // its next request while this callback is still active; asking the
+        // event-loop proxy to wake again there may be coalesced by winit.
+        const MAX_WAKE_ROUNDS: usize = 32;
+        for round in 0..MAX_WAKE_ROUNDS {
+            self.poll_extensions(event_loop);
+            let mut progressed = false;
+            for app in self.windows.values_mut() {
+                progressed |= app.drain_proxy_wake_up();
+            }
+            for app in self.hidden_windows.values_mut() {
+                progressed |= app.drain_proxy_wake_up();
+            }
+            self.apply_extension_effects(event_loop);
+            self.apply_window_requests(event_loop);
+            if !progressed {
+                break;
+            }
+            if round + 1 == MAX_WAKE_ROUNDS {
+                tracing::warn!(
+                    rounds = MAX_WAKE_ROUNDS,
+                    "native wake handshake reached its bounded drain limit"
+                );
+            }
         }
-        for app in self.hidden_windows.values_mut() {
-            app.proxy_wake_up(event_loop);
-        }
-        self.apply_extension_effects(event_loop);
-        self.apply_window_requests(event_loop);
     }
 
     fn window_event(

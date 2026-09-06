@@ -7,10 +7,9 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 
-use rquickjs::{Function, prelude::Async};
+use rquickjs::{Ctx, Function, Object, prelude::Async};
 use serde::Deserialize;
 use tokio::sync::oneshot;
-#[cfg(test)]
 use wabou_shell::{
     FileDropEvent, Point, PointerButton, PointerEvent, PointerPhase, SemanticRole,
     SemanticSnapshot, WheelEvent,
@@ -25,8 +24,8 @@ const MAX_FIXTURE_BYTES: usize = 16 * 1024 * 1024;
 static NEXT_FIXTURE_DIRECTORY: AtomicU64 = AtomicU64::new(1);
 type WindowKey = wabou_shell::WindowResourceKey;
 
-#[cfg(test)]
 trait SemanticTestSource {
+    #[cfg(test)]
     fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>>;
     fn handle_event(&mut self, event: UiEvent);
     fn handle_semantic_action(&mut self, action: wabou_shell::SemanticAction) -> bool;
@@ -207,7 +206,6 @@ struct TestState {
     report: Option<String>,
     gpui_snapshots: HashMap<WindowKey, Arc<[wabou_shell::GpuiLayoutNode]>>,
     gpui_select_all: HashSet<(WindowKey, wabou_host_api::NodeKey)>,
-    #[cfg(test)]
     semantic_snapshots: HashMap<WindowKey, Arc<SemanticSnapshot>>,
     #[cfg(test)]
     headless_viewports: HashMap<WindowKey, (u32, u32)>,
@@ -216,10 +214,52 @@ struct TestState {
 }
 
 #[derive(Clone)]
-pub(crate) struct TestController {
+#[doc(hidden)]
+/// Shared controller for renderer-independent native behavior tests.
+pub struct TestController {
     state: Arc<Mutex<TestState>>,
     effects: crate::effect_trace::EffectTrace,
     fixtures: Arc<TestFixtureDirectory>,
+}
+
+/// Backend adapter used by native behavior tests.
+///
+/// This is intentionally a narrow semantic/input contract rather than a
+/// renderer API. Alternate window hosts can therefore execute the same
+/// `@wabou/test` scenarios without projecting a GPUI tree.
+#[doc(hidden)]
+pub trait NativeTestHost {
+    fn semantic_snapshot(&mut self, window_key: WindowKey) -> Option<Arc<SemanticSnapshot>>;
+    fn dispatch_event(&mut self, window_key: WindowKey, event: UiEvent) -> bool;
+    fn dispatch_semantic_action(
+        &mut self,
+        window_key: WindowKey,
+        action: wabou_shell::SemanticAction,
+    ) -> bool;
+    fn hide_window(&mut self, window_key: WindowKey, mutable_visibility: bool) -> bool;
+    fn show_window(&mut self, window_key: WindowKey) -> bool;
+    fn resize_window(&mut self, window_key: WindowKey, width: u32, height: u32) -> bool;
+    fn window_viewport(&self, window_key: WindowKey) -> Option<(u32, u32)>;
+}
+
+struct NativeSemanticSource<'a> {
+    host: &'a mut dyn NativeTestHost,
+    window_key: WindowKey,
+}
+
+impl SemanticTestSource for NativeSemanticSource<'_> {
+    #[cfg(test)]
+    fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>> {
+        None
+    }
+
+    fn handle_event(&mut self, event: UiEvent) {
+        let _ = self.host.dispatch_event(self.window_key, event);
+    }
+
+    fn handle_semantic_action(&mut self, action: wabou_shell::SemanticAction) -> bool {
+        self.host.dispatch_semantic_action(self.window_key, action)
+    }
 }
 
 impl Default for TestController {
@@ -248,6 +288,113 @@ impl TestController {
                 },
             );
         }
+    }
+
+    /// Attach native windows and their event-loop wake callback to the shared
+    /// behavior-test queue.
+    #[doc(hidden)]
+    pub fn connect_native_windows(
+        &self,
+        window_keys: impl IntoIterator<Item = WindowKey>,
+        wake: WakeCallback,
+    ) {
+        if let Ok(mut state) = self.state.lock() {
+            state.wake = Some(wake);
+            for window_key in window_keys {
+                state.windows.insert(
+                    window_key,
+                    WindowSnapshot {
+                        lifecycle: WindowLifecycle::visible(),
+                        viewport: None,
+                    },
+                );
+            }
+        }
+    }
+
+    /// Drain one native host checkpoint through the same semantic locator and
+    /// input machinery used by GPUI behavior tests.
+    #[doc(hidden)]
+    pub fn poll_native_host(&self, window_key: WindowKey, host: &mut dyn NativeTestHost) -> bool {
+        if let Some(viewport) = host.window_viewport(window_key)
+            && let Ok(mut state) = self.state.lock()
+            && let Some(window) = state.windows.get_mut(&window_key)
+        {
+            window.viewport = Some(viewport);
+        }
+        let mut handled = self.poll_native_window_action(window_key, host);
+        let snapshot = host.semantic_snapshot(window_key);
+        if let Some(snapshot) = snapshot.as_ref()
+            && let Ok(mut state) = self.state.lock()
+        {
+            state
+                .semantic_snapshots
+                .insert(window_key, snapshot.clone());
+        }
+        let mut source = NativeSemanticSource { host, window_key };
+        handled |= self.poll_semantic_source(window_key, snapshot, &mut source);
+        handled
+    }
+
+    fn poll_native_window_action(
+        &self,
+        window_key: WindowKey,
+        host: &mut dyn NativeTestHost,
+    ) -> bool {
+        let action = self.state.lock().ok().and_then(|mut state| {
+            let index = state.actions.iter().position(|action| {
+                matches!(
+                    &action.kind,
+                    TestActionKind::NativeClose { window_key: target, .. }
+                        | TestActionKind::ShowWindow(target)
+                        | TestActionKind::ResizeWindow { window_key: target, .. }
+                        if *target == window_key
+                )
+            })?;
+            state.actions.remove(index)
+        });
+        let Some(action) = action else {
+            return false;
+        };
+        let handled = match &action.kind {
+            TestActionKind::NativeClose {
+                mutable_visibility, ..
+            } => host.hide_window(window_key, *mutable_visibility),
+            TestActionKind::ShowWindow(_) => host.show_window(window_key),
+            TestActionKind::ResizeWindow { width, height, .. } => {
+                host.resize_window(window_key, *width, *height)
+            }
+            _ => unreachable!("native window action filter and mapping stay aligned"),
+        };
+        if handled && let Ok(mut state) = self.state.lock() {
+            let snapshot = state.windows.entry(window_key).or_insert(WindowSnapshot {
+                lifecycle: WindowLifecycle::visible(),
+                viewport: None,
+            });
+            match &action.kind {
+                TestActionKind::NativeClose {
+                    mutable_visibility, ..
+                } => {
+                    let _ = snapshot.lifecycle.transition(
+                        WindowIntent::Hide,
+                        WindowCapabilities {
+                            mutable_visibility: *mutable_visibility,
+                        },
+                    );
+                }
+                TestActionKind::ShowWindow(_) => {
+                    let _ = snapshot
+                        .lifecycle
+                        .transition(WindowIntent::Show, WindowCapabilities::default());
+                }
+                TestActionKind::ResizeWindow { width, height, .. } => {
+                    snapshot.viewport = Some((*width, *height));
+                }
+                _ => unreachable!("native window action filter and state update stay aligned"),
+            }
+        }
+        let _ = action.completion.send(TestActionResult::Handled(handled));
+        true
     }
 
     pub(crate) fn record_gpui_viewport(&self, window_key: WindowKey, width: u32, height: u32) {
@@ -314,327 +461,334 @@ impl TestController {
         true
     }
 
-    pub(crate) fn mount(&self, js: &crate::JsRuntime) -> rquickjs::Result<()> {
+    /// Mount the private behavior-test capability into one JavaScript runtime.
+    #[doc(hidden)]
+    pub fn mount(&self, js: &crate::JsRuntime) -> rquickjs::Result<()> {
         let controller = self.clone();
         js.mount_capability(CAPABILITY, move |ctx, capability| {
-            let fixtures = controller.fixtures.clone();
-            capability.set(
-                "writeTextFile",
-                Function::new(
-                    ctx.clone(),
-                    move |relative: String, contents: String| match fixtures
-                        .write_text(&relative, &contents)
-                    {
-                        Ok(path) => serde_json::json!({
-                            "path": path.to_string_lossy(),
-                        })
-                        .to_string(),
-                        Err(error) => serde_json::json!({ "error": error }).to_string(),
-                    },
-                )?,
-            )?;
-
-            let native_close = controller.clone();
-            capability.set(
-                "nativeClose",
-                Function::new(
-                    ctx.clone(),
-                    Async(move |lo: u32, hi: u32, mutable_visibility: bool| {
-                        let receiver = window_key(lo, hi).map(|window_key| {
-                            native_close.request(TestActionKind::NativeClose {
-                                window_key,
-                                mutable_visibility,
-                            })
-                        });
-                        async move {
-                            match receiver {
-                                Some(receiver) => {
-                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
-                                }
-                                None => false,
-                            }
-                        }
-                    }),
-                )?,
-            )?;
-
-            let show = controller.clone();
-            capability.set(
-                "showWindow",
-                Function::new(
-                    ctx.clone(),
-                    Async(move |lo: u32, hi: u32| {
-                        let receiver = window_key(lo, hi)
-                            .map(|window_key| show.request(TestActionKind::ShowWindow(window_key)));
-                        async move {
-                            match receiver {
-                                Some(receiver) => {
-                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
-                                }
-                                None => false,
-                            }
-                        }
-                    }),
-                )?,
-            )?;
-
-            let idle = controller.clone();
-            capability.set(
-                "waitForIdle",
-                Function::new(
-                    ctx.clone(),
-                    Async(move |lo: u32, hi: u32| {
-                        let receiver = window_key(lo, hi).map(|window_key| {
-                            idle.request(TestActionKind::WaitForIdle(window_key))
-                        });
-                        async move {
-                            match receiver {
-                                Some(receiver) => {
-                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
-                                }
-                                None => false,
-                            }
-                        }
-                    }),
-                )?,
-            )?;
-
-            let query = controller.clone();
-            capability.set(
-                "resizeWindow",
-                Function::new(
-                    ctx.clone(),
-                    Async(move |lo: u32, hi: u32, width: u32, height: u32| {
-                        let receiver = window_key(lo, hi).map(|window_key| {
-                            query.request(TestActionKind::ResizeWindow {
-                                window_key,
-                                width,
-                                height,
-                            })
-                        });
-                        async move {
-                            match receiver {
-                                Some(receiver) => {
-                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
-                                }
-                                None => false,
-                            }
-                        }
-                    }),
-                )?,
-            )?;
-
-            let query = controller.clone();
-            capability.set(
-                "windowState",
-                Function::new(ctx.clone(), move |lo: u32, hi: u32| {
-                    window_key(lo, hi)
-                        .map(|window_key| query.window_state_json(window_key))
-                        .unwrap_or_else(|| "null".into())
-                })?,
-            )?;
-
-            let file_drop = controller.clone();
-            capability.set(
-                "fileDrop",
-                Function::new(
-                    ctx.clone(),
-                    Async(move |lo: u32, hi: u32, phase: String, paths_json: String| {
-                        let phase = match phase.as_str() {
-                            "entered" => Some(FileDropPhase::Entered),
-                            "moved" => Some(FileDropPhase::Moved),
-                            "left" => Some(FileDropPhase::Left),
-                            "dropped" => Some(FileDropPhase::Dropped),
-                            _ => None,
-                        };
-                        let paths = serde_json::from_str::<Vec<PathBuf>>(&paths_json).ok();
-                        let receiver = window_key(lo, hi).zip(phase).zip(paths).map(
-                            |((window_key, phase), paths)| {
-                                file_drop.request(TestActionKind::FileDrop {
-                                    window_key,
-                                    phase,
-                                    paths,
-                                })
-                            },
-                        );
-                        async move {
-                            match receiver {
-                                Some(receiver) => {
-                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
-                                }
-                                None => false,
-                            }
-                        }
-                    }),
-                )?,
-            )?;
-
-            let query = controller.clone();
-            capability.set(
-                "windowViewport",
-                Function::new(ctx.clone(), move |lo: u32, hi: u32| {
-                    window_key(lo, hi)
-                        .map(|window_key| query.window_viewport_json(window_key))
-                        .unwrap_or_else(|| "null".into())
-                })?,
-            )?;
-
-            let click = controller.clone();
-            capability.set(
-                "clickByRole",
-                Function::new(
-                    ctx.clone(),
-                    Async(
-                        move |lo: u32,
-                              hi: u32,
-                              role: String,
-                              label: String,
-                              index: Option<usize>,
-                              scope_json: String| {
-                            let receiver = window_key(lo, hi).and_then(|window_key| {
-                                let scope = serde_json::from_str(&scope_json).ok()?;
-                                Some(click.request(TestActionKind::ClickByRole {
-                                    window_key,
-                                    role,
-                                    label,
-                                    index,
-                                    scope,
-                                }))
-                            });
-                            async move {
-                                match receiver {
-                                    Some(receiver) => {
-                                        matches!(
-                                            receiver.await,
-                                            Ok(TestActionResult::Handled(true))
-                                        )
-                                    }
-                                    None => false,
-                                }
-                            }
-                        },
-                    ),
-                )?,
-            )?;
-
-            let input = controller.clone();
-            capability.set(
-                "inputByRole",
-                Function::new(
-                    ctx.clone(),
-                    Async(
-                        move |lo: u32,
-                              hi: u32,
-                              role: String,
-                              label: String,
-                              raw: String,
-                              index: Option<usize>,
-                              scope_json: String| {
-                            let receiver = window_key(lo, hi).and_then(|window_key| {
-                                let scope = serde_json::from_str(&scope_json).ok()?;
-                                serde_json::from_str::<TestInput>(&raw).ok().map(|action| {
-                                    input.request(TestActionKind::InputByRole {
-                                        window_key,
-                                        role,
-                                        label,
-                                        input: action,
-                                        index,
-                                        scope,
-                                    })
-                                })
-                            });
-                            async move {
-                                match receiver {
-                                    Some(receiver) => matches!(
-                                        receiver.await,
-                                        Ok(TestActionResult::Handled(true))
-                                    ),
-                                    None => false,
-                                }
-                            }
-                        },
-                    ),
-                )?,
-            )?;
-
-            let finish = controller.clone();
-            capability.set(
-                "finish",
-                Function::new(ctx.clone(), move |report: String| finish.finish(report))?,
-            )?;
-
-            let effects = controller.clone();
-            capability.set(
-                "queueEffect",
-                Function::new(
-                    ctx.clone(),
-                    move |capability: u32, method: u16, result_json: String| {
-                        let result =
-                            serde_json::from_str::<wabou_shell::EffectResult>(&result_json)
-                                .map_err(|error| format!("invalid effect fixture result: {error}"));
-                        result
-                            .and_then(|result| {
-                                effects.effects.enqueue_fixture(
-                                    wabou_shell::EffectOp::new(capability, method),
-                                    result,
-                                )
-                            })
-                            .err()
-                    },
-                )?,
-            )?;
-
-            let effects = controller.clone();
-            capability.set(
-                "takePendingEffectFixtures",
-                Function::new(ctx.clone(), move || {
-                    effects
-                        .effects
-                        .take_pending_fixtures()
-                        .into_iter()
-                        .map(|op| format!("{}:{}", op.capability.0, op.method.0))
-                        .collect::<Vec<_>>()
-                        .join(",")
-                })?,
-            )?;
-
-            let query = controller.clone();
-            capability.set(
-                "queryByRole",
-                Function::new(
-                    ctx.clone(),
-                    Async(
-                        move |lo: u32,
-                              hi: u32,
-                              role: String,
-                              label: String,
-                              index: Option<usize>,
-                              scope_json: String| {
-                            let receiver = window_key(lo, hi).and_then(|window_key| {
-                                let scope = serde_json::from_str(&scope_json).ok()?;
-                                Some(query.request(TestActionKind::QueryByRole {
-                                    window_key,
-                                    role,
-                                    label,
-                                    index,
-                                    scope,
-                                }))
-                            });
-                            async move {
-                                match receiver {
-                                    Some(receiver) => match receiver.await {
-                                        Ok(TestActionResult::Query(result)) => result,
-                                        _ => None,
-                                    },
-                                    _ => None,
-                                }
-                            }
-                        },
-                    ),
-                )?,
-            )?;
-            Ok(())
+            controller.mount_object(ctx, capability)
         })
+    }
+
+    /// Populate a test capability object owned by another QuickJS host.
+    #[doc(hidden)]
+    pub fn mount_object<'js>(
+        &self,
+        ctx: Ctx<'js>,
+        capability: Object<'js>,
+    ) -> rquickjs::Result<()> {
+        let controller = self.clone();
+        let fixtures = controller.fixtures.clone();
+        capability.set(
+            "writeTextFile",
+            Function::new(
+                ctx.clone(),
+                move |relative: String, contents: String| match fixtures
+                    .write_text(&relative, &contents)
+                {
+                    Ok(path) => serde_json::json!({
+                        "path": path.to_string_lossy(),
+                    })
+                    .to_string(),
+                    Err(error) => serde_json::json!({ "error": error }).to_string(),
+                },
+            )?,
+        )?;
+
+        let native_close = controller.clone();
+        capability.set(
+            "nativeClose",
+            Function::new(
+                ctx.clone(),
+                Async(move |lo: u32, hi: u32, mutable_visibility: bool| {
+                    let receiver = window_key(lo, hi).map(|window_key| {
+                        native_close.request(TestActionKind::NativeClose {
+                            window_key,
+                            mutable_visibility,
+                        })
+                    });
+                    async move {
+                        match receiver {
+                            Some(receiver) => {
+                                matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                            }
+                            None => false,
+                        }
+                    }
+                }),
+            )?,
+        )?;
+
+        let show = controller.clone();
+        capability.set(
+            "showWindow",
+            Function::new(
+                ctx.clone(),
+                Async(move |lo: u32, hi: u32| {
+                    let receiver = window_key(lo, hi)
+                        .map(|window_key| show.request(TestActionKind::ShowWindow(window_key)));
+                    async move {
+                        match receiver {
+                            Some(receiver) => {
+                                matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                            }
+                            None => false,
+                        }
+                    }
+                }),
+            )?,
+        )?;
+
+        let idle = controller.clone();
+        capability.set(
+            "waitForIdle",
+            Function::new(
+                ctx.clone(),
+                Async(move |lo: u32, hi: u32| {
+                    let receiver = window_key(lo, hi)
+                        .map(|window_key| idle.request(TestActionKind::WaitForIdle(window_key)));
+                    async move {
+                        match receiver {
+                            Some(receiver) => {
+                                matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                            }
+                            None => false,
+                        }
+                    }
+                }),
+            )?,
+        )?;
+
+        let query = controller.clone();
+        capability.set(
+            "resizeWindow",
+            Function::new(
+                ctx.clone(),
+                Async(move |lo: u32, hi: u32, width: u32, height: u32| {
+                    let receiver = window_key(lo, hi).map(|window_key| {
+                        query.request(TestActionKind::ResizeWindow {
+                            window_key,
+                            width,
+                            height,
+                        })
+                    });
+                    async move {
+                        match receiver {
+                            Some(receiver) => {
+                                matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                            }
+                            None => false,
+                        }
+                    }
+                }),
+            )?,
+        )?;
+
+        let query = controller.clone();
+        capability.set(
+            "windowState",
+            Function::new(ctx.clone(), move |lo: u32, hi: u32| {
+                window_key(lo, hi)
+                    .map(|window_key| query.window_state_json(window_key))
+                    .unwrap_or_else(|| "null".into())
+            })?,
+        )?;
+
+        let file_drop = controller.clone();
+        capability.set(
+            "fileDrop",
+            Function::new(
+                ctx.clone(),
+                Async(move |lo: u32, hi: u32, phase: String, paths_json: String| {
+                    let phase = match phase.as_str() {
+                        "entered" => Some(FileDropPhase::Entered),
+                        "moved" => Some(FileDropPhase::Moved),
+                        "left" => Some(FileDropPhase::Left),
+                        "dropped" => Some(FileDropPhase::Dropped),
+                        _ => None,
+                    };
+                    let paths = serde_json::from_str::<Vec<PathBuf>>(&paths_json).ok();
+                    let receiver = window_key(lo, hi).zip(phase).zip(paths).map(
+                        |((window_key, phase), paths)| {
+                            file_drop.request(TestActionKind::FileDrop {
+                                window_key,
+                                phase,
+                                paths,
+                            })
+                        },
+                    );
+                    async move {
+                        match receiver {
+                            Some(receiver) => {
+                                matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                            }
+                            None => false,
+                        }
+                    }
+                }),
+            )?,
+        )?;
+
+        let query = controller.clone();
+        capability.set(
+            "windowViewport",
+            Function::new(ctx.clone(), move |lo: u32, hi: u32| {
+                window_key(lo, hi)
+                    .map(|window_key| query.window_viewport_json(window_key))
+                    .unwrap_or_else(|| "null".into())
+            })?,
+        )?;
+
+        let click = controller.clone();
+        capability.set(
+            "clickByRole",
+            Function::new(
+                ctx.clone(),
+                Async(
+                    move |lo: u32,
+                          hi: u32,
+                          role: String,
+                          label: String,
+                          index: Option<usize>,
+                          scope_json: String| {
+                        let receiver = window_key(lo, hi).and_then(|window_key| {
+                            let scope = serde_json::from_str(&scope_json).ok()?;
+                            Some(click.request(TestActionKind::ClickByRole {
+                                window_key,
+                                role,
+                                label,
+                                index,
+                                scope,
+                            }))
+                        });
+                        async move {
+                            match receiver {
+                                Some(receiver) => {
+                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                                }
+                                None => false,
+                            }
+                        }
+                    },
+                ),
+            )?,
+        )?;
+
+        let input = controller.clone();
+        capability.set(
+            "inputByRole",
+            Function::new(
+                ctx.clone(),
+                Async(
+                    move |lo: u32,
+                          hi: u32,
+                          role: String,
+                          label: String,
+                          raw: String,
+                          index: Option<usize>,
+                          scope_json: String| {
+                        let receiver = window_key(lo, hi).and_then(|window_key| {
+                            let scope = serde_json::from_str(&scope_json).ok()?;
+                            serde_json::from_str::<TestInput>(&raw).ok().map(|action| {
+                                input.request(TestActionKind::InputByRole {
+                                    window_key,
+                                    role,
+                                    label,
+                                    input: action,
+                                    index,
+                                    scope,
+                                })
+                            })
+                        });
+                        async move {
+                            match receiver {
+                                Some(receiver) => {
+                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                                }
+                                None => false,
+                            }
+                        }
+                    },
+                ),
+            )?,
+        )?;
+
+        let finish = controller.clone();
+        capability.set(
+            "finish",
+            Function::new(ctx.clone(), move |report: String| finish.finish(report))?,
+        )?;
+
+        let effects = controller.clone();
+        capability.set(
+            "queueEffect",
+            Function::new(
+                ctx.clone(),
+                move |capability: u32, method: u16, result_json: String| {
+                    let result = serde_json::from_str::<wabou_shell::EffectResult>(&result_json)
+                        .map_err(|error| format!("invalid effect fixture result: {error}"));
+                    result
+                        .and_then(|result| {
+                            effects.effects.enqueue_fixture(
+                                wabou_shell::EffectOp::new(capability, method),
+                                result,
+                            )
+                        })
+                        .err()
+                },
+            )?,
+        )?;
+
+        let effects = controller.clone();
+        capability.set(
+            "takePendingEffectFixtures",
+            Function::new(ctx.clone(), move || {
+                effects
+                    .effects
+                    .take_pending_fixtures()
+                    .into_iter()
+                    .map(|op| format!("{}:{}", op.capability.0, op.method.0))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            })?,
+        )?;
+
+        let query = controller.clone();
+        capability.set(
+            "queryByRole",
+            Function::new(
+                ctx.clone(),
+                Async(
+                    move |lo: u32,
+                          hi: u32,
+                          role: String,
+                          label: String,
+                          index: Option<usize>,
+                          scope_json: String| {
+                        let receiver = window_key(lo, hi).and_then(|window_key| {
+                            let scope = serde_json::from_str(&scope_json).ok()?;
+                            Some(query.request(TestActionKind::QueryByRole {
+                                window_key,
+                                role,
+                                label,
+                                index,
+                                scope,
+                            }))
+                        });
+                        async move {
+                            match receiver {
+                                Some(receiver) => match receiver.await {
+                                    Ok(TestActionResult::Query(result)) => result,
+                                    _ => None,
+                                },
+                                _ => None,
+                            }
+                        }
+                    },
+                ),
+            )?,
+        )?;
+        Ok(())
     }
 
     fn window_state_json(&self, window_key: WindowKey) -> String {
@@ -672,12 +826,15 @@ impl TestController {
         )
     }
 
-    pub(crate) fn take_report(&self) -> Option<String> {
+    /// Take the scenario's final structured report once.
+    #[doc(hidden)]
+    pub fn take_report(&self) -> Option<String> {
         self.state.lock().ok()?.report.take()
     }
 
-    #[cfg(feature = "headless")]
-    pub(crate) fn has_report(&self) -> bool {
+    /// Return whether the scenario published its final report.
+    #[doc(hidden)]
+    pub fn has_report(&self) -> bool {
         self.state.lock().is_ok_and(|state| state.report.is_some())
     }
 
@@ -716,6 +873,15 @@ impl TestController {
     #[cfg(test)]
     fn poll_headless_source(&self, window_key: WindowKey, source: &mut dyn SemanticTestSource) {
         let snapshot = source.semantic_snapshot();
+        let _ = self.poll_semantic_source(window_key, snapshot, source);
+    }
+
+    fn poll_semantic_source(
+        &self,
+        window_key: WindowKey,
+        snapshot: Option<Arc<SemanticSnapshot>>,
+        source: &mut dyn SemanticTestSource,
+    ) -> bool {
         if let Some(snapshot) = snapshot.as_ref() {
             self.record_semantic_snapshot(window_key, snapshot.clone());
         }
@@ -738,7 +904,7 @@ impl TestController {
                 target: action.id,
             })
         {
-            return;
+            return true;
         }
         let action = self.state.lock().ok().and_then(|mut state| {
             let index = state.actions.iter().position(|action| {
@@ -752,7 +918,7 @@ impl TestController {
             ready.then(|| state.actions.remove(index)).flatten()
         });
         let Some(action) = action else {
-            return;
+            return false;
         };
         let handled = match (&action.kind, snapshot.as_deref()) {
             (TestActionKind::WaitForIdle(_), _) => true,
@@ -801,17 +967,18 @@ impl TestController {
             _ => TestActionResult::Handled(handled),
         };
         let _ = action.completion.send(result);
+        true
     }
 
-    #[cfg(test)]
     fn record_semantic_snapshot(&self, window_key: WindowKey, snapshot: Arc<SemanticSnapshot>) {
         if let Ok(mut state) = self.state.lock() {
             state.semantic_snapshots.insert(window_key, snapshot);
         }
     }
 
-    pub(crate) fn semantic_artifact(&self) -> serde_json::Value {
-        #[cfg(test)]
+    /// Build a redacted semantic artifact for a failed native scenario.
+    #[doc(hidden)]
+    pub fn semantic_artifact(&self) -> serde_json::Value {
         if let Ok(state) = self.state.lock()
             && state.gpui_snapshots.is_empty()
             && !state.semantic_snapshots.is_empty()
@@ -1516,7 +1683,6 @@ fn cancelled_result(kind: &TestActionKind) -> TestActionResult {
     }
 }
 
-#[cfg(test)]
 fn semantic_toggle_json(state: Option<wabou_shell::SemanticToggleState>) -> serde_json::Value {
     match state.map(wabou_shell::SemanticToggleState::as_str) {
         Some("false") => serde_json::Value::Bool(false),
@@ -1527,7 +1693,6 @@ fn semantic_toggle_json(state: Option<wabou_shell::SemanticToggleState>) -> serd
     }
 }
 
-#[cfg(test)]
 fn locator_snapshot_json(node: &wabou_shell::SemanticNode, focused: bool) -> String {
     let current = node
         .states
@@ -1556,7 +1721,6 @@ fn locator_snapshot_json(node: &wabou_shell::SemanticNode, focused: bool) -> Str
     .to_string()
 }
 
-#[cfg(test)]
 fn locator_query_json(
     snapshot: &SemanticSnapshot,
     role: &str,
@@ -1593,7 +1757,6 @@ fn locator_query_json(
     )
 }
 
-#[cfg(test)]
 fn scoped_candidates<'a>(
     snapshot: &'a SemanticSnapshot,
     scope: &[TestLocatorSelector],
@@ -1615,7 +1778,6 @@ fn scoped_candidates<'a>(
     Some(candidates)
 }
 
-#[cfg(test)]
 fn semantic_descendants(
     snapshot: &SemanticSnapshot,
     owner: u64,
@@ -1646,7 +1808,6 @@ fn semantic_descendants(
         .collect()
 }
 
-#[cfg(test)]
 fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) -> serde_json::Value {
     serde_json::json!({
         "windowId": window_key,
@@ -1754,7 +1915,6 @@ fn action_window_key(kind: &TestActionKind) -> Option<WindowKey> {
     }
 }
 
-#[cfg(test)]
 fn action_ready(kind: &TestActionKind, snapshot: Option<&SemanticSnapshot>) -> bool {
     match (kind, snapshot) {
         (TestActionKind::WaitForIdle(_), _) => true,
@@ -1764,7 +1924,6 @@ fn action_ready(kind: &TestActionKind, snapshot: Option<&SemanticSnapshot>) -> b
     }
 }
 
-#[cfg(test)]
 fn click_semantic_target(
     source: &mut dyn SemanticTestSource,
     snapshot: &SemanticSnapshot,
@@ -1799,7 +1958,6 @@ fn click_semantic_target(
     true
 }
 
-#[cfg(test)]
 fn input_semantic_target(
     source: &mut dyn SemanticTestSource,
     snapshot: &SemanticSnapshot,
@@ -1824,7 +1982,6 @@ fn input_allows_disabled_target(input: &TestInput) -> bool {
     matches!(input, TestInput::Probe | TestInput::Wheel { .. })
 }
 
-#[cfg(test)]
 fn dispatch_test_input(
     source: &mut dyn SemanticTestSource,
     node: &wabou_shell::SemanticNode,
@@ -1847,7 +2004,6 @@ fn dispatch_test_input(
     true
 }
 
-#[cfg(test)]
 fn semantic_target<'a>(
     snapshot: &'a SemanticSnapshot,
     role: &str,
@@ -1859,7 +2015,6 @@ fn semantic_target<'a>(
     (!node.disabled).then_some(node)
 }
 
-#[cfg(test)]
 fn semantic_query_target<'a>(
     snapshot: &'a SemanticSnapshot,
     role: &str,
@@ -1880,7 +2035,6 @@ fn semantic_query_target<'a>(
     }
 }
 
-#[cfg(test)]
 fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec<UiEvent> {
     let center = Point {
         x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),

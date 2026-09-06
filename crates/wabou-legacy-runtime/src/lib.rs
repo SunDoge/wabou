@@ -9,6 +9,7 @@
 extern crate legacy_shell as wabou_shell;
 
 mod atom;
+mod behavior_test;
 mod bundle;
 mod clock;
 mod config;

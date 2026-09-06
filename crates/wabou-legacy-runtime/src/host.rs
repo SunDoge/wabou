@@ -587,6 +587,19 @@ impl WinitHostBuilder {
             .try_init()
             .ok();
 
+        let test_script = std::env::var_os("WABOU_TEST_SCRIPT")
+            .map(PathBuf::from)
+            .map(|path| {
+                std::fs::read_to_string(&path).context(crate::error::ReadFileSnafu {
+                    kind: "test scenario bundle",
+                    path,
+                })
+            })
+            .transpose()?;
+        let test_controller = test_script
+            .as_ref()
+            .map(|_| runtime_api::test_driver::TestController::default());
+
         let trace_path = self.effect_trace.as_ref().map(|config| match config {
             EffectTraceConfig::Record { path, .. } | EffectTraceConfig::Replay { path } => {
                 path.clone()
@@ -656,6 +669,15 @@ impl WinitHostBuilder {
             })
             .transpose()?;
         let mut capabilities = self.capabilities;
+        if let Some(controller) = &test_controller {
+            let controller = controller.clone();
+            capabilities.push(Arc::new(move |js| {
+                let controller = controller.clone();
+                js.mount_capability("test", move |ctx, object| {
+                    controller.mount_object(ctx, object)
+                })
+            }));
+        }
         if self.kv_enabled {
             let directories = app_directories
                 .as_ref()
@@ -679,7 +701,7 @@ impl WinitHostBuilder {
         }
         let service_context = runtime_api::HostServiceContext::for_alternate_host(
             app_directories.clone(),
-            std::env::var_os("WABOU_TEST_SCRIPT").is_some(),
+            test_controller.is_some(),
             false,
         );
         let services = start_services(&self.services, &service_context)?;
@@ -688,6 +710,15 @@ impl WinitHostBuilder {
             .chain(self.additional_windows)
             .collect::<Vec<_>>();
         let mut extensions = self.shell_extensions;
+        if let Some(controller) = &test_controller {
+            let window_keys = (0..windows.len())
+                .map(legacy_shell::initial_window_resource_key)
+                .collect();
+            extensions.push(Box::new(crate::behavior_test::WinitBehaviorTest::new(
+                controller.clone(),
+                window_keys,
+            )));
+        }
         if let (Some(key), Some(directories)) = (
             self.persisted_window_size.as_ref(),
             app_directories.as_ref(),
@@ -723,6 +754,15 @@ impl WinitHostBuilder {
         for (index, options) in windows.into_iter().enumerate() {
             let controller = runtime_sources
                 .create(legacy_shell::initial_window_resource_key(index), &options)?;
+            if index == 0
+                && let Some(script) = &test_script
+            {
+                controller
+                    .eval_script_diagnostic(script)
+                    .map_err(|message| crate::Error::TestScenario {
+                        message: format!("failed to evaluate Winit test scenario: {message}"),
+                    })?;
+            }
             sources.push((Box::new(controller) as Box<dyn FrameSource>, options));
         }
         let dynamic_sources = runtime_sources.clone();
@@ -738,6 +778,13 @@ impl WinitHostBuilder {
             trace
                 .write(&path)
                 .map_err(|message| crate::Error::EffectTrace { message })?;
+        }
+        if let Some(controller) = test_controller {
+            runtime_api::test_report::finish_test_report(controller).map_err(|error| {
+                crate::Error::TestScenario {
+                    message: error.to_string(),
+                }
+            })?;
         }
         services.finish()
     }

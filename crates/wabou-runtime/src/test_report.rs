@@ -2,7 +2,9 @@ use std::path::{Path, PathBuf};
 
 use crate::test_driver::TestController;
 
-pub(super) fn finish_test_report(controller: TestController) -> crate::Result<()> {
+/// Validate, persist, and print a behavior-test controller's final report.
+#[doc(hidden)]
+pub fn finish_test_report(controller: TestController) -> crate::Result<()> {
     let report = controller
         .take_report()
         .ok_or_else(|| crate::Error::TestScenario {
