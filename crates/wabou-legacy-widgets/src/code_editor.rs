@@ -336,6 +336,82 @@ impl CodeEditor {
             .then(|| self.value[self.utf16_to_byte(from)..self.utf16_to_byte(to)].to_owned())
     }
 
+    fn set_caret(&mut self, offset: usize, extend: bool) {
+        let offset = offset.min(self.document_len());
+        if extend {
+            self.selection.head = offset;
+        } else {
+            self.selection = SelectionConfig {
+                anchor: offset,
+                head: offset,
+            };
+        }
+        self.selection_kind = WidgetTextSelectionKind::Simple;
+    }
+
+    fn replace_selection(&mut self, text: &str) {
+        let from = self.selection.anchor.min(self.selection.head);
+        let to = self.selection.anchor.max(self.selection.head);
+        let from_byte = self.utf16_to_byte(from);
+        let to_byte = self.utf16_to_byte(to);
+        self.value.replace_range(from_byte..to_byte, text);
+        self.set_caret(from + text.encode_utf16().count(), false);
+        self.composition = None;
+        self.clamp_scroll_row();
+    }
+
+    fn previous_offset(&self, offset: usize) -> usize {
+        let byte = self.utf16_to_byte(offset);
+        self.value[..byte]
+            .chars()
+            .next_back()
+            .map_or(0, |ch| offset.saturating_sub(ch.len_utf16()))
+    }
+
+    fn next_offset(&self, offset: usize) -> usize {
+        let byte = self.utf16_to_byte(offset);
+        self.value[byte..]
+            .chars()
+            .next()
+            .map_or(offset, |ch| offset + ch.len_utf16())
+    }
+
+    fn line_boundary(&self, offset: usize, end: bool) -> usize {
+        let byte = self.utf16_to_byte(offset);
+        let boundary = if end {
+            self.value[byte..]
+                .find('\n')
+                .map_or(self.value.len(), |index| byte + index)
+        } else {
+            self.value[..byte].rfind('\n').map_or(0, |index| index + 1)
+        };
+        self.value[..boundary].encode_utf16().count()
+    }
+
+    fn delete_backward(&mut self) -> bool {
+        if self.selection.anchor == self.selection.head {
+            let previous = self.previous_offset(self.selection.head);
+            if previous == self.selection.head {
+                return false;
+            }
+            self.selection.anchor = previous;
+        }
+        self.replace_selection("");
+        true
+    }
+
+    fn delete_forward(&mut self) -> bool {
+        if self.selection.anchor == self.selection.head {
+            let next = self.next_offset(self.selection.head);
+            if next == self.selection.head {
+                return false;
+            }
+            self.selection.head = next;
+        }
+        self.replace_selection("");
+        true
+    }
+
     fn select_word_at(&mut self, offset: usize) {
         let chars: Vec<_> = self
             .value
@@ -726,6 +802,88 @@ impl Widget for CodeEditor {
             {
                 WidgetEventResult::paste()
             }
+            UiEvent::Key(event)
+                if event.phase == KeyPhase::Down
+                    && event.modifiers.primary_shortcut()
+                    && event.key.eq_ignore_ascii_case("a") =>
+            {
+                self.selection = SelectionConfig {
+                    anchor: 0,
+                    head: self.document_len(),
+                };
+                WidgetEventResult::selection_changed_result()
+            }
+            UiEvent::Key(event) if event.phase == KeyPhase::Down => {
+                let extend = event.modifiers.shift();
+                match event.key.as_str() {
+                    "ArrowLeft" => {
+                        let offset = if !extend && self.selection.anchor != self.selection.head {
+                            self.selection.anchor.min(self.selection.head)
+                        } else {
+                            self.previous_offset(self.selection.head)
+                        };
+                        self.set_caret(offset, extend);
+                        WidgetEventResult::selection_changed_result()
+                    }
+                    "ArrowRight" => {
+                        let offset = if !extend && self.selection.anchor != self.selection.head {
+                            self.selection.anchor.max(self.selection.head)
+                        } else {
+                            self.next_offset(self.selection.head)
+                        };
+                        self.set_caret(offset, extend);
+                        WidgetEventResult::selection_changed_result()
+                    }
+                    "Home" => {
+                        self.set_caret(self.line_boundary(self.selection.head, false), extend);
+                        WidgetEventResult::selection_changed_result()
+                    }
+                    "End" => {
+                        self.set_caret(self.line_boundary(self.selection.head, true), extend);
+                        WidgetEventResult::selection_changed_result()
+                    }
+                    "Backspace" if !self.read_only && self.delete_backward() => {
+                        WidgetEventResult::value_changed_consuming_key_text()
+                            .with_selection_changed()
+                    }
+                    "Delete" if !self.read_only && self.delete_forward() => {
+                        WidgetEventResult::value_changed_consuming_key_text()
+                            .with_selection_changed()
+                    }
+                    "Enter" if !self.read_only => {
+                        self.replace_selection("\n");
+                        WidgetEventResult::value_changed_consuming_key_text()
+                            .with_selection_changed()
+                    }
+                    "Tab" if !self.read_only => {
+                        self.replace_selection("\t");
+                        WidgetEventResult::value_changed_consuming_key_text()
+                            .with_selection_changed()
+                    }
+                    _ => WidgetEventResult::IGNORED,
+                }
+            }
+            UiEvent::TextInput(text) | UiEvent::Paste(text) if !self.read_only => {
+                self.replace_selection(text);
+                WidgetEventResult::VALUE_CHANGED.with_selection_changed()
+            }
+            UiEvent::Ime(wabou_shell::ImeEvent::Commit(text)) if !self.read_only => {
+                self.replace_selection(text);
+                WidgetEventResult::VALUE_CHANGED.with_selection_changed()
+            }
+            UiEvent::Ime(wabou_shell::ImeEvent::Preedit { text, cursor }) => {
+                self.composition = Some(CompositionConfig {
+                    text: text.clone(),
+                    cursor_start: cursor.map(|range| range.0),
+                    cursor_end: cursor.map(|range| range.1),
+                });
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::Ime(wabou_shell::ImeEvent::Disabled) => {
+                self.composition = None;
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::Ime(wabou_shell::ImeEvent::Enabled) => WidgetEventResult::HANDLED,
             UiEvent::Focus(focused) => {
                 self.focused = *focused;
                 WidgetEventResult::HANDLED
@@ -854,6 +1012,9 @@ impl Widget for CodeEditor {
             ..Default::default()
         }
     }
+    fn current_value(&self) -> Option<&str> {
+        Some(&self.value)
+    }
     fn accepts_focus(&self) -> bool {
         !self.disabled
     }
@@ -876,7 +1037,10 @@ impl Widget for CodeEditor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wabou_shell::{GesturePhase, Modifiers, Point, PointerButton, PointerEvent, WheelEvent};
+    use wabou_shell::{
+        GesturePhase, KeyEvent, KeyLocation, Modifiers, Point, PointerButton, PointerEvent,
+        WheelEvent,
+    };
 
     fn pointer(phase: PointerPhase, x: f64, y: f64, buttons: u32) -> UiEvent {
         UiEvent::Pointer(PointerEvent {
@@ -895,6 +1059,45 @@ mod tests {
                 r#"{{"selection":{{"anchor":{anchor},"head":{head}}},"composition":null,"syntax":null}}"#
             ))
             .unwrap();
+    }
+
+    fn key(name: &str) -> UiEvent {
+        UiEvent::Key(KeyEvent {
+            phase: KeyPhase::Down,
+            key: name.into(),
+            key_without_modifiers: name.into(),
+            code: name.into(),
+            text: None,
+            text_with_all_modifiers: None,
+            location: KeyLocation::Standard,
+            modifiers: Modifiers::default(),
+            repeat: false,
+            synthetic: false,
+        })
+    }
+
+    #[test]
+    fn native_text_events_edit_and_report_the_complete_value() {
+        let mut editor = CodeEditor::new();
+        editor.attribute_changed("value", "{\n  \"enabled\": true\n}");
+        configure(&mut editor, 0, 0);
+
+        assert!(editor.handle_event(&key("End")).selection_changed());
+        assert!(
+            editor
+                .handle_event(&UiEvent::TextInput(" ".into()))
+                .value_changed()
+        );
+        assert!(
+            editor
+                .handle_event(&UiEvent::Paste("// edited".into()))
+                .value_changed()
+        );
+
+        assert_eq!(
+            editor.current_value(),
+            Some("{ // edited\n  \"enabled\": true\n}")
+        );
     }
 
     #[test]
