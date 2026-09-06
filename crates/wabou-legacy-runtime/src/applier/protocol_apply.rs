@@ -570,6 +570,10 @@ impl Applier {
 
     /// Decode + apply one frame's ops in order.
     pub(super) fn apply_frame(&mut self, frame: &Frame) {
+        // Keep the old GPUI projection only as a cross-backend oracle in this
+        // crate's unit tests. Production Winit frames have one authoritative
+        // retained tree and must not pay to build a second renderer tree.
+        #[cfg(test)]
         if let Err(error) = self.gpui.apply_frame(frame) {
             tracing::error!(?error, "failed to project Solid frame into GPUI");
         }

@@ -364,6 +364,7 @@ impl FrameSource for Applier {
         }
         // Publish only after structural operations, class resolution, HMR
         // stylesheets, and inheritance have all settled for this Solid flush.
+        #[cfg(test)]
         let _ = self.gpui.projection_mut().finish_frame();
         {
             #[cfg(feature = "profiling")]
