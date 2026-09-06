@@ -98,7 +98,7 @@ use crate::protocol::{event, event_data};
 #[cfg(test)]
 use crate::reload::ReloadMsg;
 #[cfg(test)]
-use crate::reload::{HmrBatch, HmrDrainResult, plan_hmr_batch};
+use crate::reload::{HmrDrainResult, plan_hmr_batch};
 use crate::runtime_session::RuntimeSession;
 use crate::style_ir::{self, StyleSheet, StylesheetUpdate};
 #[cfg(test)]

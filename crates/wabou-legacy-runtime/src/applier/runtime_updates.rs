@@ -1,5 +1,5 @@
 use super::*;
-use crate::reload::{HmrDrainResult, ReloadHandle};
+use crate::reload::{HmrBatch, HmrDrainResult, ReloadHandle};
 
 impl Applier {
     pub(super) fn handle_modifiers_changed(
@@ -178,6 +178,8 @@ impl Applier {
 
     /// Record the Vite entry path so declined HMR can re-import it in-process.
     pub fn set_vite_entry(&mut self, entry: impl Into<String>) {
+        let entry = entry.into();
+        tracing::debug!(target: "hmr", %entry, "configured Winit Vite entry");
         self.runtime.reload.set_vite_entry(entry);
     }
 
@@ -186,13 +188,25 @@ impl Applier {
         self.runtime.reload.last_result()
     }
 
+    /// Apply every queued Vite update to the runtime that owns this retained
+    /// Winit tree. HMR must not be delegated to another renderer projection:
+    /// accepted Solid updates emit protocol mutations into this session and
+    /// the following JavaScript tick applies them to this document.
+    pub(super) fn drain_hmr(&mut self) -> HmrDrainResult {
+        let Some(batch) = self.runtime.reload.drain() else {
+            return HmrDrainResult::Idle;
+        };
+        let result = self.apply_hmr_batch(batch);
+        self.runtime.reload.record_result(result.clone());
+        result
+    }
+
     /// Drain every pending [`ReloadMsg`] into one batch and apply it.
     ///
     /// **Order:** native CSS updates are logged only (Style IR arrives via
     /// `pending_css` / virtual stylesheet in the same frame). JS updates run
     /// next. Transform errors retain the last-good scene; declined updates or
     /// an explicit full-reload payload re-import the Vite entry when configured.
-    #[cfg(test)]
     pub(super) fn apply_hmr_batch(&mut self, batch: HmrBatch) -> HmrDrainResult {
         if let Some(diagnostic) = batch.error {
             tracing::error!(target: "hmr", diagnostic = %diagnostic, "Vite update failed; keeping last-good UI");
@@ -285,7 +299,6 @@ impl Applier {
     }
 
     /// Re-import the Vite entry while retaining the last-good native scene.
-    #[cfg(test)]
     pub(super) fn perform_full_reload(&mut self, reason: &str) {
         tracing::warn!(target: "hmr", %reason, "performing in-process full reload");
 
@@ -324,7 +337,6 @@ impl Applier {
         );
     }
 
-    #[cfg(test)]
     fn dispatch_dev_server_ready(&mut self) {
         let event = HostEvent::Application(crate::host_message::HostMessage::str(
             "wabou:dev-server-ready",

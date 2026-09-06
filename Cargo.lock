@@ -482,8 +482,6 @@ dependencies = [
 [[package]]
 name = "anyrender_vello_hybrid"
 version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acface501bfa9d5b2abf9413ee5728ded41bd7f9c63b24162b9ea54f431d7e4f"
 dependencies = [
  "anyrender",
  "debug_timer",

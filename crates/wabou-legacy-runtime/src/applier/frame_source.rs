@@ -145,7 +145,7 @@ impl Applier {
     }
 
     fn run_javascript_tick(&mut self, width: u32, height: u32) -> bool {
-        let _ = self.gpui.drain_hmr();
+        let _ = self.drain_hmr();
         self.drain_host_messages();
         self.dispatch_scroll_changes();
 
@@ -1030,6 +1030,9 @@ impl FrameSource for Applier {
         // surface is hidden or has been released.
         let host_messages_pending = self.runtime.host_message_inbox.has_pending();
         let hmr_pending = self.runtime.reload.is_pending();
+        if hmr_pending {
+            tracing::debug!(target: "hmr", "Winit event loop observed pending Vite reload work");
+        }
         if host_messages_pending {
             self.drain_host_messages();
         }

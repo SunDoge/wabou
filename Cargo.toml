@@ -3,6 +3,7 @@ resolver = "3"
 members = ["apps/*", "crates/*"]
 exclude = [
   "templates/basic",
+  "vendor/anyrender_vello_hybrid",
   "vendor/bitwarden-sdk",
 ]
 default-members = [
@@ -132,3 +133,9 @@ opt-level = 2
 
 [profile.release]
 lto = "thin"
+
+[patch.crates-io]
+# anyrender 0.10 waits indefinitely for the GPU after every Hybrid frame.
+# On Intel Vulkan + Wayland that blocks the Winit event loop after the first
+# present. Keep the small backend vendored until the upstream wait is removed.
+anyrender_vello_hybrid = { path = "vendor/anyrender_vello_hybrid" }

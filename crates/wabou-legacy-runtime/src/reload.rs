@@ -68,8 +68,18 @@ pub struct ReloadHandle {
 impl ReloadHandle {
     /// Enqueue an HMR signal and wake an otherwise idle render loop.
     pub fn send(&self, message: ReloadMsg) -> Result<(), mpsc::SendError<ReloadMsg>> {
+        let kind = match &message {
+            ReloadMsg::HmrUpdate { .. } => "update",
+            ReloadMsg::CssUpdate { .. } => "css-update",
+            ReloadMsg::Error { .. } => "error",
+            ReloadMsg::FullReload => "full-reload",
+        };
+        tracing::debug!(target: "hmr", kind, "queueing Vite reload message");
         match self.tx.try_send(message) {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                tracing::debug!(target: "hmr", kind, "queued Vite reload message and notified event loop");
+                Ok(())
+            }
             Err(flume::TrySendError::Full(message))
             | Err(flume::TrySendError::Disconnected(message)) => Err(mpsc::SendError(message)),
         }
@@ -129,6 +139,7 @@ impl ReloadState {
     }
 
     pub(crate) fn set_wake(&self, wake: WakeCallback) {
+        tracing::debug!(target: "hmr", "installing Vite reload wake callback");
         self.inbox.set_wake(wake);
     }
 

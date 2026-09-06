@@ -1,0 +1,242 @@
+//! WebGL-compatible [`PaintScene`] implementation for [`vello_hybrid::Scene`].
+
+use anyrender::{Filter, Glyph, NormalizedCoord, Paint, PaintRef, PaintScene, RenderContext};
+use glifo::FontEmbolden;
+use kurbo::{Affine, Diagonal2, Rect, Shape, Stroke};
+use peniko::{BlendMode, Color, Fill, FontData, StyleRef};
+use vello_common::paint::PaintType;
+
+use peniko::ImageBrush;
+use rustc_hash::FxHashMap;
+use vello_common::paint::{ImageId, ImageSource};
+
+use std::sync::Arc;
+
+const DEFAULT_TOLERANCE: f64 = 0.1;
+
+pub struct WebGlImageManager<'a> {
+    pub(crate) renderer: &'a mut vello_hybrid::WebGlRenderer,
+    pub(crate) resources: &'a mut vello_hybrid::Resources,
+    pub(crate) cache: &'a mut FxHashMap<u64, ImageId>,
+}
+
+impl<'a> WebGlImageManager<'a> {
+    pub fn new(
+        renderer: &'a mut vello_hybrid::WebGlRenderer,
+        resources: &'a mut vello_hybrid::Resources,
+        cache: &'a mut FxHashMap<u64, ImageId>,
+    ) -> Self {
+        Self {
+            renderer,
+            resources,
+            cache,
+        }
+    }
+
+    pub(crate) fn upload_image(&mut self, image: &peniko::ImageData) -> ImageId {
+        let peniko_id = image.data.id();
+
+        if let Some(atlas_id) = self.cache.get(&peniko_id) {
+            return *atlas_id;
+        }
+
+        let ImageSource::Pixmap(pixmap) = ImageSource::from_peniko_image_data(image) else {
+            unreachable!();
+        };
+
+        let atlas_id = self.renderer.upload_image(self.resources, &pixmap);
+        self.cache.insert(peniko_id, atlas_id);
+        atlas_id
+    }
+}
+
+enum LayerKind {
+    Layer,
+    Clip,
+}
+
+pub struct WebGlScenePainter<'s> {
+    scene: &'s mut vello_hybrid::Scene,
+    layer_stack: Vec<LayerKind>,
+    image_manager: WebGlImageManager<'s>,
+}
+
+impl<'s> WebGlScenePainter<'s> {
+    pub fn new(scene: &'s mut vello_hybrid::Scene, image_manager: WebGlImageManager<'s>) -> Self {
+        Self {
+            scene,
+            layer_stack: Vec::with_capacity(16),
+            image_manager,
+        }
+    }
+}
+
+impl WebGlScenePainter<'_> {
+    fn convert_paint(&mut self, paint: PaintRef<'_>) -> PaintType {
+        match paint {
+            Paint::Solid(alpha_color) => PaintType::Solid(alpha_color),
+            Paint::Gradient(gradient) => PaintType::Gradient(gradient.clone()),
+            Paint::Image(image_brush) => self.convert_image_paint(image_brush),
+
+            // TODO: custom paint
+            Paint::Resource(_) => PaintType::Solid(peniko::color::palette::css::TRANSPARENT),
+            Paint::Custom(_) => PaintType::Solid(peniko::color::palette::css::TRANSPARENT),
+        }
+    }
+
+    fn convert_image_paint(&mut self, image_brush: peniko::ImageBrushRef<'_>) -> PaintType {
+        let image_id = self.image_manager.upload_image(image_brush.image);
+        PaintType::Image(ImageBrush {
+            image: ImageSource::OpaqueId {
+                id: image_id,
+                // TODO: optimize opaque case
+                may_have_transparency: true,
+            },
+            sampler: image_brush.sampler,
+        })
+    }
+}
+
+impl RenderContext for WebGlScenePainter<'_> {}
+impl PaintScene for WebGlScenePainter<'_> {
+    fn reset(&mut self) {
+        self.scene.reset();
+    }
+
+    fn push_layer(
+        &mut self,
+        blend: impl Into<BlendMode>,
+        alpha: f32,
+        transform: Affine,
+        clip: &impl Shape,
+        filter: Option<Arc<Filter>>,
+        _backdrop_filter: Option<Arc<Filter>>,
+    ) {
+        let filter = filter.and_then(crate::filters::convert_filter);
+        self.scene.set_transform(transform);
+        self.layer_stack.push(LayerKind::Layer);
+        self.scene
+            .push_clip_path(&clip.into_path(DEFAULT_TOLERANCE));
+        self.scene
+            .push_layer(None, Some(blend.into()), Some(alpha), None, filter);
+    }
+
+    fn push_clip_layer(&mut self, transform: Affine, clip: &impl Shape) {
+        self.scene.set_transform(transform);
+        self.layer_stack.push(LayerKind::Clip);
+        self.scene
+            .push_clip_path(&clip.into_path(DEFAULT_TOLERANCE));
+    }
+
+    fn pop_layer(&mut self) {
+        if let Some(kind) = self.layer_stack.pop() {
+            match kind {
+                LayerKind::Layer => {
+                    self.scene.pop_layer();
+                    self.scene.pop_clip_path();
+                }
+                LayerKind::Clip => self.scene.pop_clip_path(),
+            }
+        }
+    }
+
+    fn stroke<'a>(
+        &mut self,
+        style: &Stroke,
+        transform: Affine,
+        paint: impl Into<PaintRef<'a>>,
+        brush_transform: Option<Affine>,
+        shape: &impl Shape,
+    ) {
+        self.scene.set_transform(transform);
+        self.scene.set_stroke(style.clone());
+        let paint = self.convert_paint(paint.into());
+        self.scene.set_paint(paint);
+        self.scene
+            .set_paint_transform(brush_transform.unwrap_or(Affine::IDENTITY));
+        self.scene.stroke_path(&shape.into_path(DEFAULT_TOLERANCE));
+    }
+
+    fn fill<'a>(
+        &mut self,
+        style: Fill,
+        transform: Affine,
+        paint: impl Into<PaintRef<'a>>,
+        brush_transform: Option<Affine>,
+        shape: &impl Shape,
+    ) {
+        self.scene.set_transform(transform);
+        self.scene.set_fill_rule(style);
+        let paint = self.convert_paint(paint.into());
+        self.scene.set_paint(paint);
+        self.scene
+            .set_paint_transform(brush_transform.unwrap_or(Affine::IDENTITY));
+        self.scene.fill_path(&shape.into_path(DEFAULT_TOLERANCE));
+    }
+
+    fn draw_glyphs<'a, 's2: 'a>(
+        &'a mut self,
+        font: &'a FontData,
+        font_size: f32,
+        hint: bool,
+        normalized_coords: &'a [NormalizedCoord],
+        embolden: kurbo::Vec2,
+        style: impl Into<StyleRef<'a>>,
+        paint: impl Into<PaintRef<'a>>,
+        _brush_alpha: f32,
+        transform: Affine,
+        glyph_transform: Option<Affine>,
+        glyphs: impl Iterator<Item = Glyph> + Clone,
+    ) {
+        let paint = self.convert_paint(paint.into());
+        self.scene.set_paint(paint);
+        self.scene.set_transform(transform);
+
+        let style: StyleRef<'a> = style.into();
+        match style {
+            StyleRef::Fill(fill) => {
+                self.scene.set_fill_rule(fill);
+                self.scene
+                    .glyph_run(self.image_manager.resources, font)
+                    .font_size(font_size)
+                    .hint(hint)
+                    .normalized_coords(normalized_coords)
+                    .font_embolden(FontEmbolden::new(Diagonal2::new(embolden.x, embolden.y)))
+                    .glyph_transform(glyph_transform.unwrap_or_default())
+                    .fill_glyphs(glyphs.map(|g| glifo::Glyph {
+                        id: g.id,
+                        x: g.x,
+                        y: g.y,
+                    }));
+            }
+            StyleRef::Stroke(stroke) => {
+                self.scene.set_stroke(stroke.clone());
+                self.scene
+                    .glyph_run(self.image_manager.resources, font)
+                    .font_size(font_size)
+                    .hint(hint)
+                    .normalized_coords(normalized_coords)
+                    .glyph_transform(glyph_transform.unwrap_or_default())
+                    .stroke_glyphs(glyphs.map(|g| glifo::Glyph {
+                        id: g.id,
+                        x: g.x,
+                        y: g.y,
+                    }));
+            }
+        }
+    }
+
+    fn draw_box_shadow(
+        &mut self,
+        transform: Affine,
+        rect: Rect,
+        color: Color,
+        radius: f64,
+        std_dev: f64,
+    ) {
+        self.scene.set_transform(transform);
+        self.scene.set_paint(PaintType::Solid(color));
+        self.scene
+            .fill_blurred_rounded_rect(&rect, radius as f32, std_dev as f32, false);
+    }
+}
