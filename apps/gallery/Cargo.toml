@@ -11,6 +11,9 @@ path = "src/main.rs"
 name = "gallery-bindgen"
 path = "examples/wabou-bindgen.rs"
 
+[features]
+vello-hybrid = ["wabou/winit-vello-hybrid"]
+
 [dependencies]
 image = { workspace = true, features = ["png"] }
 serde = { workspace = true, features = ["derive"] }
