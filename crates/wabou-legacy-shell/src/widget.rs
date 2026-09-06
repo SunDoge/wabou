@@ -347,6 +347,42 @@ pub struct WidgetImeState {
     pub selection_reversed: bool,
     /// Active preedit range in UTF-16 code units.
     pub marked_range_utf16: Option<std::ops::Range<usize>>,
+    /// Semantic input purpose used by the platform keyboard/IME.
+    pub purpose: WidgetImePurpose,
+    /// Whether the editor accepts line breaks.
+    pub multiline: bool,
+    /// Whether completion suggestions are desirable.
+    pub completion: bool,
+    /// Whether spelling corrections are desirable.
+    pub spellcheck: bool,
+}
+
+/// Backend-neutral text-input purpose.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum WidgetImePurpose {
+    /// General text entry.
+    #[default]
+    Normal,
+    /// Sensitive password entry.
+    Password,
+    /// Terminal command entry.
+    Terminal,
+    /// Signed or decimal number entry.
+    Number,
+    /// Telephone number entry.
+    Phone,
+    /// URL entry.
+    Url,
+    /// Email-address entry.
+    Email,
+    /// Sensitive numeric PIN entry.
+    Pin,
+    /// Calendar date entry.
+    Date,
+    /// Time-of-day entry.
+    Time,
+    /// Combined date and time entry.
+    DateTime,
 }
 
 /// Granularity used to create a native widget selection.
@@ -716,7 +752,26 @@ pub trait Widget {
             selection_utf16: 0..0,
             selection_reversed: false,
             marked_range_utf16: None,
+            purpose: WidgetImePurpose::Normal,
+            multiline: false,
+            completion: false,
+            spellcheck: false,
         })
+    }
+
+    /// Return text in a JavaScript-compatible UTF-16 range.
+    fn ime_text_for_range(&self, _range_utf16: std::ops::Range<usize>) -> Option<String> {
+        None
+    }
+
+    /// Return the local visual bounds of a UTF-16 text range.
+    fn ime_bounds_for_range(&self, _range_utf16: std::ops::Range<usize>) -> Option<[f32; 4]> {
+        None
+    }
+
+    /// Resolve a widget-local point to a UTF-16 text offset.
+    fn ime_character_index_for_point(&self, _point: crate::Point) -> Option<usize> {
+        None
     }
 
     /// Install the event-loop wake callback for a background producer.

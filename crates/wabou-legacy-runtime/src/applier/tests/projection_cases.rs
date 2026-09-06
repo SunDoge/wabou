@@ -855,7 +855,7 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
     let state = state.read().unwrap();
     let snapshot = state.snapshot();
     assert_eq!(snapshot.status.viewport_width, 800);
-    assert_eq!(snapshot.status.text_backend, "swash");
+    assert_eq!(snapshot.status.text_backend, "vello-outline");
     let frame_stats = snapshot.status.frame_stats.expect("frame stats");
     assert_eq!(frame_stats.build_frame_ms, 4.0);
     assert_eq!(frame_stats.scene_ms, 2.0);
@@ -865,7 +865,7 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
         "direct-native-weight" | "retained-synthetic-weight"
     ));
     let json = serde_json::to_value(snapshot).unwrap();
-    assert_eq!(json["status"]["textBackend"], "swash");
+    assert_eq!(json["status"]["textBackend"], "vello-outline");
     assert!(json["nodes"].as_array().unwrap().iter().any(|node| {
         node["id"]["lo"] == 2
             && node["computed"]["syntheticBold"] == false

@@ -13,7 +13,9 @@ use wabou_shell::text::{
 use wabou_shell::{ImeEvent, KeyPhase, StandardShortcut, UiEvent};
 use zeroize::{Zeroize, Zeroizing};
 
-use wabou_shell::{PaintContext, Widget, WidgetEventResult, WidgetStyle};
+use wabou_shell::{
+    PaintContext, Widget, WidgetEventResult, WidgetImePurpose, WidgetImeState, WidgetStyle,
+};
 
 const PLACEHOLDER: Color = Color::from_rgb8(0x64, 0x74, 0x8b);
 const DEFAULT_SLOT: &str = "default";
@@ -253,6 +255,33 @@ impl Widget for PasswordInput {
     fn focus_changed(&mut self, focused: bool) -> wabou_shell::WidgetChanges {
         self.focused = focused;
         wabou_shell::WidgetChanges::REDRAW
+    }
+
+    fn ime_state(&self) -> Option<WidgetImeState> {
+        if !self.focused || self.disabled {
+            return None;
+        }
+        let metrics = self.text_metrics?;
+        let x = metrics.line_box[2];
+        Some(WidgetImeState {
+            cursor_area: [
+                x,
+                metrics.line_box[1],
+                x + 1.5,
+                metrics.line_box[1] + metrics.line_box[3],
+            ],
+            // Never expose secrets as platform surrounding text.
+            surrounding_text: String::new(),
+            surrounding_cursor: 0,
+            surrounding_anchor: 0,
+            selection_utf16: 0..0,
+            selection_reversed: false,
+            marked_range_utf16: None,
+            purpose: WidgetImePurpose::Password,
+            multiline: false,
+            completion: false,
+            spellcheck: false,
+        })
     }
 
     fn unmount(&mut self) {

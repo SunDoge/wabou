@@ -635,6 +635,80 @@ impl FrameSource for Applier {
         self.interaction.ime_state.clone()
     }
 
+    fn ime_text_for_range(&self, range_utf16: std::ops::Range<usize>) -> Option<String> {
+        let target = self.interaction.input.focused_target?;
+        let node = self.document.node_store.solid_to_node.get(&target)?;
+        self.document
+            .widget_manager
+            .widgets
+            .get(node)?
+            .ime_text_for_range(range_utf16)
+    }
+
+    fn ime_bounds_for_range(&self, range_utf16: std::ops::Range<usize>) -> Option<[f64; 4]> {
+        let target = self.interaction.input.focused_target?;
+        let node = self.document.node_store.solid_to_node.get(&target)?;
+        let bounds = self
+            .document
+            .widget_manager
+            .widgets
+            .get(node)?
+            .ime_bounds_for_range(range_utf16)?;
+        let transform = Affine::new(
+            self.document
+                .widget_manager
+                .geometries
+                .get(node)?
+                .local_to_window,
+        );
+        let [x0, y0, x1, y1] = bounds;
+        let points = [
+            transform * Point::new(f64::from(x0), f64::from(y0)),
+            transform * Point::new(f64::from(x1), f64::from(y0)),
+            transform * Point::new(f64::from(x0), f64::from(y1)),
+            transform * Point::new(f64::from(x1), f64::from(y1)),
+        ];
+        Some([
+            points
+                .iter()
+                .map(|point| point.x)
+                .fold(f64::INFINITY, f64::min),
+            points
+                .iter()
+                .map(|point| point.y)
+                .fold(f64::INFINITY, f64::min),
+            points
+                .iter()
+                .map(|point| point.x)
+                .fold(f64::NEG_INFINITY, f64::max),
+            points
+                .iter()
+                .map(|point| point.y)
+                .fold(f64::NEG_INFINITY, f64::max),
+        ])
+    }
+
+    fn ime_character_index_for_point(&self, point: legacy_shell::Point) -> Option<usize> {
+        let target = self.interaction.input.focused_target?;
+        let node = self.document.node_store.solid_to_node.get(&target)?;
+        let transform = Affine::new(
+            self.document
+                .widget_manager
+                .geometries
+                .get(node)?
+                .window_to_local,
+        );
+        let local = transform * Point::new(point.x, point.y);
+        self.document
+            .widget_manager
+            .widgets
+            .get(node)?
+            .ime_character_index_for_point(legacy_shell::Point {
+                x: local.x,
+                y: local.y,
+            })
+    }
+
     #[cfg(any(feature = "devtools", test))]
     fn paint_debug_overlay(
         &mut self,

@@ -12,6 +12,11 @@ widget publishes one immutable IME snapshot containing:
 - JavaScript-compatible UTF-16 selection and marked ranges;
 - candidate-window geometry in widget-local coordinates.
 
+The same client contract supports GPUI-style read queries for text in a UTF-16
+range, visual bounds for an arbitrary range, and point-to-character hit
+testing. Purpose and completion/spellcheck/multiline hints are mapped to
+Winit without exposing Winit types to widgets.
+
 Parley's editor computes the candidate exclusion area from the active preedit
 run or focused-line selection, including nearby visual context to avoid popup
 jitter. The runtime transforms that geometry into window coordinates and Winit forwards
@@ -20,8 +25,8 @@ adapters. Preedit text is deliberately excluded from surrounding text. Long
 documents are reduced to a UTF-8-safe excerpt below Winit's 4,000-byte limit.
 
 This proves the shared contract and composition data path, but it is not yet
-full GPUI parity. Arbitrary range bounds, point-to-character queries, rich-text
-replacement, and platform-specific recovery behavior remain follow-up work.
+full GPUI parity. Arbitrary platform-driven replacement, rich-text attributes,
+and platform-specific recovery behavior remain follow-up work.
 If direct platform integration becomes necessary, it should live in separate
 platform crates behind this same contract rather than leaking AppKit, TSF/IMM,
 Wayland text-input, or XIM details into widgets or renderers.

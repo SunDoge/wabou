@@ -25,8 +25,8 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, KeyLocation as WinitKeyLocation, ModifiersState};
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{
-    ImeCapabilities, ImeEnableRequest, ImeRequest, ImeRequestData, ImeSurroundingText,
-    ResizeDirection, UserAttentionType, WindowId,
+    ImeCapabilities, ImeEnableRequest, ImeHint, ImePurpose as WinitImePurpose, ImeRequest,
+    ImeRequestData, ImeSurroundingText, ResizeDirection, UserAttentionType, WindowId,
 };
 
 use crate::WindowResourceKey;
@@ -652,6 +652,36 @@ impl App {
         )
     }
 
+    fn ime_hint_and_purpose(state: Option<&crate::ImeState>) -> (ImeHint, WinitImePurpose) {
+        let Some(state) = state else {
+            return (ImeHint::NONE, WinitImePurpose::Normal);
+        };
+        let mut hint = ImeHint::NONE;
+        if state.multiline {
+            hint |= ImeHint::MULTILINE;
+        }
+        if state.completion {
+            hint |= ImeHint::COMPLETION;
+        }
+        if state.spellcheck {
+            hint |= ImeHint::SPELLCHECK;
+        }
+        let purpose = match state.purpose {
+            crate::WidgetImePurpose::Normal => WinitImePurpose::Normal,
+            crate::WidgetImePurpose::Password => WinitImePurpose::Password,
+            crate::WidgetImePurpose::Terminal => WinitImePurpose::Terminal,
+            crate::WidgetImePurpose::Number => WinitImePurpose::Number,
+            crate::WidgetImePurpose::Phone => WinitImePurpose::Phone,
+            crate::WidgetImePurpose::Url => WinitImePurpose::Url,
+            crate::WidgetImePurpose::Email => WinitImePurpose::Email,
+            crate::WidgetImePurpose::Pin => WinitImePurpose::Pin,
+            crate::WidgetImePurpose::Date => WinitImePurpose::Date,
+            crate::WidgetImePurpose::Time => WinitImePurpose::Time,
+            crate::WidgetImePurpose::DateTime => WinitImePurpose::DateTime,
+        };
+        (hint, purpose)
+    }
+
     fn enable_ime_if_ready(&mut self) {
         if !self.ime_requested || self.ime_enabled {
             return;
@@ -664,6 +694,7 @@ impl App {
         // stale geometry; the complete snapshot is published after layout.
         let capabilities = ImeCapabilities::new()
             .with_cursor_area()
+            .with_hint_and_purpose()
             .with_surrounding_text();
         let (position, size) =
             Self::ime_cursor_rect(self.ime_state.as_ref().map(|state| state.cursor_area));
@@ -679,8 +710,10 @@ impl App {
                 .ok()
             })
             .unwrap_or_else(|| ImeSurroundingText::new(String::new(), 0, 0).unwrap());
+        let (hint, purpose) = Self::ime_hint_and_purpose(self.ime_state.as_ref());
         let data = ImeRequestData::default()
             .with_cursor_area(position.into(), size.into())
+            .with_hint_and_purpose(hint, purpose)
             .with_surrounding_text(surrounding);
         let request = ImeRequest::Enable(
             ImeEnableRequest::new(capabilities, data)
@@ -709,6 +742,8 @@ impl App {
             let (position, size) =
                 Self::ime_cursor_rect(self.ime_state.as_ref().map(|state| state.cursor_area));
             let mut data = ImeRequestData::default().with_cursor_area(position.into(), size.into());
+            let (hint, purpose) = Self::ime_hint_and_purpose(self.ime_state.as_ref());
+            data = data.with_hint_and_purpose(hint, purpose);
             if let Some(state) = self.ime_state.as_ref()
                 && let Ok(surrounding) = ImeSurroundingText::new(
                     state.surrounding_text.clone(),

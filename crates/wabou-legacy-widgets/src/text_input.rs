@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyrender::{PaintScene, Scene};
-use parley::{PlainEditor, PositionedLayoutItem};
+use parley::{Affinity, Cursor, PlainEditor, PositionedLayoutItem, Selection};
 use serde::Deserialize;
 use vello::kurbo::{Affine, Rect};
 use vello::peniko::{Color, Fill};
@@ -23,8 +23,8 @@ use wabou_shell::text::{
 use wabou_shell::{ImeEvent, KeyEvent, KeyPhase, PointerEvent, PointerPhase, UiEvent};
 
 use wabou_shell::{
-    PaintContext, Widget, WidgetChanges, WidgetEventResult, WidgetImeState, WidgetStyle,
-    WidgetTextSelection, WidgetTextSelectionKind,
+    PaintContext, Widget, WidgetChanges, WidgetEventResult, WidgetImePurpose, WidgetImeState,
+    WidgetStyle, WidgetTextSelection, WidgetTextSelectionKind,
 };
 
 const SELECTION_COLOR: Color = Color::from_rgba8(99, 102, 241, 80);
@@ -266,6 +266,21 @@ impl TextInput {
             local_y -= self.single_line_y_offset;
         }
         (local_x, local_y)
+    }
+
+    fn editor_bounds_to_view(&self, bounds: parley::BoundingBox) -> [f32; 4] {
+        let x_offset = if self.multiline { 0.0 } else { -self.scroll_x };
+        let y_offset = if self.multiline {
+            -self.scroll_y
+        } else {
+            self.single_line_y_offset
+        };
+        [
+            (bounds.x0 as f32 + x_offset).clamp(0.0, self.viewport_width),
+            (bounds.y0 as f32 + y_offset).clamp(0.0, self.viewport_height),
+            (bounds.x1 as f32 + x_offset).clamp(0.0, self.viewport_width),
+            (bounds.y1 as f32 + y_offset).clamp(0.0, self.viewport_height),
+        ]
     }
 
     fn clamp_scroll(&mut self) {
@@ -1056,19 +1071,7 @@ impl Widget for TextInput {
         // Parley already computes a stable exclusion region from the full
         // preedit run (or the selection on the focused visual line) and adds
         // enough neighboring context to keep candidate windows from jumping.
-        let candidate = self.editor.ime_cursor_area();
-        let x_offset = if self.multiline { 0.0 } else { -self.scroll_x };
-        let y_offset = if self.multiline {
-            -self.scroll_y
-        } else {
-            self.single_line_y_offset
-        };
-        let cursor_area = [
-            (candidate.x0 as f32 + x_offset).clamp(0.0, self.viewport_width),
-            (candidate.y0 as f32 + y_offset).clamp(0.0, self.viewport_height),
-            (candidate.x1 as f32 + x_offset).clamp(0.0, self.viewport_width),
-            (candidate.y1 as f32 + y_offset).clamp(0.0, self.viewport_height),
-        ];
+        let cursor_area = self.editor_bounds_to_view(self.editor.ime_cursor_area());
 
         let selection_start = anchor.min(head);
         let selection_end = anchor.max(head);
@@ -1083,7 +1086,50 @@ impl Widget for TextInput {
             marked_range_utf16: compose.map(|range| {
                 raw[..range.start].encode_utf16().count()..raw[..range.end].encode_utf16().count()
             }),
+            purpose: WidgetImePurpose::Normal,
+            multiline: self.multiline,
+            completion: true,
+            spellcheck: true,
         })
+    }
+
+    fn ime_text_for_range(&self, range_utf16: std::ops::Range<usize>) -> Option<String> {
+        let raw = self.editor.raw_text();
+        let start = utf16_offset_to_byte(raw, range_utf16.start)?;
+        let end = utf16_offset_to_byte(raw, range_utf16.end)?;
+        (start <= end).then(|| raw[start..end].to_owned())
+    }
+
+    fn ime_bounds_for_range(&self, range_utf16: std::ops::Range<usize>) -> Option<[f32; 4]> {
+        let raw = self.editor.raw_text();
+        let start = utf16_offset_to_byte(raw, range_utf16.start)?;
+        let end = utf16_offset_to_byte(raw, range_utf16.end)?;
+        if start > end {
+            return None;
+        }
+        let layout = self.editor.try_layout()?;
+        let bounds = if start == end {
+            Cursor::from_byte_index(layout, start, Affinity::Downstream).geometry(layout, 1.5)
+        } else {
+            let selection = Selection::new(
+                Cursor::from_byte_index(layout, start, Affinity::Downstream),
+                Cursor::from_byte_index(layout, end, Affinity::Upstream),
+            );
+            let mut bounds = None;
+            selection.geometry_with(layout, |rect, _| {
+                let current = bounds.get_or_insert(rect);
+                *current = current.union(rect);
+            });
+            bounds?
+        };
+        Some(self.editor_bounds_to_view(bounds))
+    }
+
+    fn ime_character_index_for_point(&self, point: wabou_shell::Point) -> Option<usize> {
+        let layout = self.editor.try_layout()?;
+        let (x, y) = self.local_point(point.x, point.y);
+        let byte = Cursor::from_point(layout, x, y).index();
+        Some(self.editor.raw_text()[..byte].encode_utf16().count())
     }
 }
 
@@ -1640,6 +1686,31 @@ mod tests {
         assert!(excerpt.is_char_boundary(local_cursor));
         assert_eq!(local_cursor, local_anchor);
         assert_eq!(&excerpt[local_cursor - 3..local_cursor + 3], "middle");
+    }
+
+    #[test]
+    fn ime_range_and_point_queries_use_utf16_offsets() {
+        let mut input = TextInput::new();
+        input.attribute_changed("value", "a😀bc");
+        input.focus_changed(true);
+        let mut tcx = TextContext::new();
+        input.paint(200.0, 32.0, &mut tcx);
+
+        assert_eq!(input.ime_text_for_range(1..3).as_deref(), Some("😀"));
+        assert_eq!(input.ime_text_for_range(2..3), None);
+        let bounds = input
+            .ime_bounds_for_range(1..3)
+            .expect("emoji range bounds");
+        assert!(bounds[2] > bounds[0]);
+        assert!(bounds[3] > bounds[1]);
+
+        let offset = input
+            .ime_character_index_for_point(wabou_shell::Point {
+                x: f64::from((bounds[0] + bounds[2]) * 0.5),
+                y: f64::from((bounds[1] + bounds[3]) * 0.5),
+            })
+            .expect("point offset");
+        assert!((1..=3).contains(&offset));
     }
 
     #[test]

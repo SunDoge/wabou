@@ -617,6 +617,18 @@ impl crate::widget::Widget for TextInputStateWidget {
     fn accepts_text_input(&self) -> bool {
         true
     }
+
+    fn ime_text_for_range(&self, range_utf16: std::ops::Range<usize>) -> Option<String> {
+        (range_utf16 == (1..3)).then(|| "😀".into())
+    }
+
+    fn ime_bounds_for_range(&self, range_utf16: std::ops::Range<usize>) -> Option<[f32; 4]> {
+        (range_utf16 == (1..3)).then_some([1.0, 2.0, 4.0, 6.0])
+    }
+
+    fn ime_character_index_for_point(&self, point: legacy_shell::Point) -> Option<usize> {
+        Some((point.x + point.y) as usize)
+    }
 }
 
 impl crate::widget::Widget for MeasuringWidget {
@@ -1926,6 +1938,10 @@ fn gpui_text_input_snapshot_uses_the_focused_widgets_utf16_contract() {
         selection_utf16: 1..3,
         selection_reversed: true,
         marked_range_utf16: None,
+        purpose: legacy_shell::WidgetImePurpose::Normal,
+        multiline: false,
+        completion: true,
+        spellcheck: true,
     });
 
     let state = applier.gpui_text_input_state();
@@ -1934,6 +1950,44 @@ fn gpui_text_input_snapshot_uses_the_focused_widgets_utf16_contract() {
     assert_eq!(state.selection, Some(1..3));
     assert!(state.selection_reversed);
     assert_eq!(state.cursor_bounds, Some([12.0, 18.0, 14.0, 36.0]));
+}
+
+#[test]
+fn ime_queries_transform_between_widget_and_window_coordinates() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let div = applier.document.atoms.borrow_mut().intern("div");
+    let target = NodeKey::new(2, 1);
+    applier.apply_op(&Op::CreateElement {
+        id: target,
+        tag: div,
+    });
+    let node = applier.document.node_store.solid_to_node[&target];
+    applier
+        .document
+        .widget_manager
+        .widgets
+        .insert(node, Box::new(TextInputStateWidget));
+    applier.document.widget_manager.geometries.insert(
+        node,
+        legacy_shell::WidgetGeometry {
+            content_size: [100.0, 40.0],
+            device_scale: 2.0,
+            local_to_window: Affine::translate((10.0, 20.0)).as_coeffs(),
+            window_to_local: Affine::translate((-10.0, -20.0)).as_coeffs(),
+        },
+    );
+    applier.interaction.input.focused_target = Some(target);
+
+    assert_eq!(applier.ime_text_for_range(1..3).as_deref(), Some("😀"));
+    assert_eq!(
+        applier.ime_bounds_for_range(1..3),
+        Some([11.0, 22.0, 14.0, 26.0])
+    );
+    assert_eq!(
+        applier.ime_character_index_for_point(legacy_shell::Point { x: 15.0, y: 26.0 }),
+        Some(11)
+    );
 }
 
 #[path = "tests/overlay_cases.rs"]

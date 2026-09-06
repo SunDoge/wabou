@@ -35,6 +35,14 @@ pub struct ImeState {
     pub selection_reversed: bool,
     /// Active preedit range in UTF-16 code units.
     pub marked_range_utf16: Option<std::ops::Range<usize>>,
+    /// Semantic input purpose used by the platform keyboard/IME.
+    pub purpose: crate::WidgetImePurpose,
+    /// Whether the editor accepts line breaks.
+    pub multiline: bool,
+    /// Whether completion suggestions are desirable.
+    pub completion: bool,
+    /// Whether spelling corrections are desirable.
+    pub spellcheck: bool,
 }
 
 pub use wabou_shell_api::event::*;
@@ -79,6 +87,21 @@ pub trait FrameSource {
     /// Focused editor exclusion area for the platform IME candidate window,
     /// expressed in window-logical coordinates.
     fn ime_state(&self) -> Option<ImeState> {
+        None
+    }
+
+    /// Return focused-editor text for a UTF-16 range.
+    fn ime_text_for_range(&self, _range_utf16: std::ops::Range<usize>) -> Option<String> {
+        None
+    }
+
+    /// Return focused-editor range bounds in window-logical coordinates.
+    fn ime_bounds_for_range(&self, _range_utf16: std::ops::Range<usize>) -> Option<[f64; 4]> {
+        None
+    }
+
+    /// Resolve a window-logical point to a focused-editor UTF-16 offset.
+    fn ime_character_index_for_point(&self, _point: Point) -> Option<usize> {
         None
     }
 

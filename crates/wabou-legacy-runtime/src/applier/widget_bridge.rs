@@ -371,6 +371,10 @@ impl Applier {
                         selection_utf16: state.selection_utf16,
                         selection_reversed: state.selection_reversed,
                         marked_range_utf16: state.marked_range_utf16,
+                        purpose: state.purpose,
+                        multiline: state.multiline,
+                        completion: state.completion,
+                        spellcheck: state.spellcheck,
                     });
                 }
             }

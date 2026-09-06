@@ -380,6 +380,29 @@ fn ime_cursor_rect_is_logical_and_never_empty() {
 }
 
 #[test]
+fn ime_snapshot_maps_backend_neutral_purpose_and_hints_to_winit() {
+    let state = crate::ImeState {
+        cursor_area: [0.0, 0.0, 1.0, 16.0],
+        surrounding_text: "hello".into(),
+        surrounding_cursor: 5,
+        surrounding_anchor: 5,
+        selection_utf16: 5..5,
+        selection_reversed: false,
+        marked_range_utf16: None,
+        purpose: crate::WidgetImePurpose::Terminal,
+        multiline: true,
+        completion: true,
+        spellcheck: false,
+    };
+
+    let (hint, purpose) = App::ime_hint_and_purpose(Some(&state));
+    assert!(hint.contains(ImeHint::MULTILINE));
+    assert!(hint.contains(ImeHint::COMPLETION));
+    assert!(!hint.contains(ImeHint::SPELLCHECK));
+    assert_eq!(purpose, WinitImePurpose::Terminal);
+}
+
+#[test]
 fn dispatch_event_drains_synchronous_host_actions() {
     let drained = Arc::new(AtomicUsize::new(0));
     let mut app = App::new(Box::new(EventActionSource {

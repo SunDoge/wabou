@@ -1,7 +1,10 @@
 use super::*;
 use crate::session::{TerminalInputResult, TerminalInvalidation};
 use wabou_shell::text::{TextContext, layout_text_styled};
-use wabou_shell::{Widget, WidgetChanges, WidgetEventResult, WidgetNodeEvent, WidgetStyle};
+use wabou_shell::{
+    Widget, WidgetChanges, WidgetEventResult, WidgetImePurpose, WidgetImeState, WidgetNodeEvent,
+    WidgetStyle,
+};
 
 pub(crate) fn legacy_color(color: TerminalColor) -> Color {
     let [r, g, b, a] = color.components();
@@ -614,6 +617,23 @@ impl Widget for TerminalWidget {
             x + self.cell_width.max(1.0),
             y + self.line_height.max(1.0),
         ])
+    }
+
+    fn ime_state(&self) -> Option<WidgetImeState> {
+        let cursor_area = self.ime_cursor_area()?;
+        Some(WidgetImeState {
+            cursor_area,
+            surrounding_text: String::new(),
+            surrounding_cursor: 0,
+            surrounding_anchor: 0,
+            selection_utf16: 0..0,
+            selection_reversed: false,
+            marked_range_utf16: None,
+            purpose: WidgetImePurpose::Terminal,
+            multiline: false,
+            completion: false,
+            spellcheck: false,
+        })
     }
 
     fn style_changed(&mut self, style: &WidgetStyle) -> WidgetChanges {

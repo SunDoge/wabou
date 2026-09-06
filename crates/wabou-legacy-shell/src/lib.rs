@@ -64,8 +64,8 @@ pub use source::{
 pub use text::TextContext;
 pub use widget::{
     MeasureContext, PaintContext, Widget, WidgetAccessibility, WidgetAvailableSpace, WidgetChanges,
-    WidgetEventResult, WidgetFactory, WidgetGeometry, WidgetHarness, WidgetImeState,
-    WidgetNodeEvent, WidgetStyle, WidgetTextSelection, WidgetTextSelectionKind,
+    WidgetEventResult, WidgetFactory, WidgetGeometry, WidgetHarness, WidgetImePurpose,
+    WidgetImeState, WidgetNodeEvent, WidgetStyle, WidgetTextSelection, WidgetTextSelectionKind,
     decode_widget_config,
 };
 pub use window_state::WindowSizePersistence;
