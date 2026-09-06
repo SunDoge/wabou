@@ -18,4 +18,5 @@ tracing = { workspace = true }
 unicode-width = { workspace = true }
 vello = { workspace = true }
 wabou-legacy-shell = { workspace = true }
+wabou-protocol = { workspace = true }
 zeroize = { workspace = true }

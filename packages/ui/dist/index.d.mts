@@ -60,7 +60,7 @@ declare function AlertActions(props: ViewProps): JSX.Element;
 //#region src/components/button.d.ts
 type ButtonVariant = "default" | "secondary" | "outline" | "ghost" | "destructive";
 type ButtonSize = "sm" | "default" | "lg" | "icon";
-interface ButtonProps extends Omit<ButtonProps$1, "variant" | "tone"> {
+interface ButtonProps extends Omit<ButtonProps$1, "variant" | "tone" | "unstyled"> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   class?: string;

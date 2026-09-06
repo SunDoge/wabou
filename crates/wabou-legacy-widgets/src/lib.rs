@@ -12,12 +12,14 @@ use wabou_shell::WidgetFactory;
 
 mod canvas;
 mod code_editor;
+mod controls;
 mod image;
 mod password_input;
 mod text_input;
 
 pub use canvas::Canvas;
 pub use code_editor::CodeEditor;
+pub use controls::{IndeterminateProgress, Slider, Spinner};
 pub use image::ImageWidget;
 pub use password_input::{PasswordInput, SecretStore};
 pub use text_input::TextInput;
@@ -32,6 +34,12 @@ pub fn builtin_factories() -> HashMap<String, WidgetFactory> {
     );
     factories.insert("img".into(), Arc::new(|| Box::new(ImageWidget::new())));
     factories.insert("input".into(), Arc::new(|| Box::new(TextInput::new())));
+    factories.insert("spinner".into(), Arc::new(|| Box::new(Spinner::new())));
+    factories.insert("slider".into(), Arc::new(|| Box::new(Slider::new())));
+    factories.insert(
+        "progress-indeterminate".into(),
+        Arc::new(|| Box::new(IndeterminateProgress::new())),
+    );
     factories.insert(
         "textarea".into(),
         Arc::new(|| Box::new(TextInput::multiline())),
@@ -49,10 +57,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builtin_factories_include_multiline_textarea() {
+    fn builtin_factories_cover_framework_native_components() {
         let factories = builtin_factories();
         let textarea = factories["textarea"]();
         assert_eq!(textarea.intrinsic_size(), Some([240.0, 96.0]));
         assert!(textarea.accepts_focus());
+        assert!(factories.contains_key("spinner"));
+        assert!(factories.contains_key("slider"));
+        assert!(factories.contains_key("progress-indeterminate"));
     }
 }

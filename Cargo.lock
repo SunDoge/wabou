@@ -13423,6 +13423,7 @@ dependencies = [
  "unicode-width",
  "vello",
  "wabou-legacy-shell",
+ "wabou-protocol",
  "zeroize",
 ]
 

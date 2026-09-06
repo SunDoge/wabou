@@ -166,7 +166,7 @@ function IndeterminateProgressFill(props: ViewProps): JSX.Element {
       {...props}
       tag="progress-indeterminate"
       aria-hidden="true"
-      class={mergeClasses("w-full h-full flex-none", props.class)}
+      class={mergeClasses("w-full h-full flex-none text-accent", props.class)}
       config={{ animation: animation() }}
     />
   );
