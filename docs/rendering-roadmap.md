@@ -52,9 +52,11 @@ Run it against the shared 7GUIs application with:
 wabou run apps/7guis --features vello-hybrid
 ```
 
-The remaining promotion work is Vite HMR, typed application capabilities,
-backend-labelled headless fixtures, native-widget parity, and removal of the
-transitional GPUI session dependency from the Winit runtime.
+Vite HMR and typed application capabilities now share the same transport and
+contract APIs as the GPUI host. The remaining promotion work is services and
+persistence, DevTools, backend-labelled headless fixtures, full native-widget
+parity, and removal of the transitional GPUI session dependency from the Winit
+runtime.
 
 `wabou-vello-hybrid-svg` now isolates the first reusable renderer-side piece:
 it converts a normalized `usvg` tree into Vello Hybrid scene commands. It

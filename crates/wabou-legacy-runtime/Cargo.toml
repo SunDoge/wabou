@@ -51,7 +51,7 @@ wabou-style.workspace = true
 default = []
 devtools = []
 profiling = []
-vite = []
+vite = ["runtime-api/vite"]
 
 [dev-dependencies]
 proptest = "1"

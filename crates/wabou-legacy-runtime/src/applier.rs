@@ -634,6 +634,15 @@ impl LegacyRuntimeController {
         self.document.resources.set_image_store(store);
     }
 
+    pub(crate) fn boot(&mut self, source: &str) -> rquickjs::Result<()> {
+        self.gpui.boot(source)
+    }
+
+    #[cfg(feature = "vite")]
+    pub(crate) fn boot_vite(&mut self, entry: &str) -> rquickjs::Result<()> {
+        self.gpui.boot_vite(entry)
+    }
+
     /// Attach the immutable snapshot store published through DevTools.
     #[cfg(any(feature = "devtools", test))]
     pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {

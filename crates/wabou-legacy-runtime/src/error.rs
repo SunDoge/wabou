@@ -107,7 +107,7 @@ pub enum Error {
     #[snafu(display("Vite integration failed: {source}"))]
     Vite {
         /// Underlying Vite client error.
-        source: crate::vite::ViteError,
+        source: runtime_api::ViteError,
     },
 }
 

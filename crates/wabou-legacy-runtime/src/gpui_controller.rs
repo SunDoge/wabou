@@ -1160,7 +1160,7 @@ impl GpuiController {
     }
 
     #[cfg(feature = "vite")]
-    pub fn reload_handle(&mut self) -> crate::ReloadHandle {
+    pub fn reload_handle(&mut self) -> crate::reload::ReloadHandle {
         self.runtime.reload.handle()
     }
 

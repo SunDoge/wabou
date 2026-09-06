@@ -1,11 +1,8 @@
-//! Retired Winit/Vello runtime retained only as a deterministic migration oracle.
+//! Winit + Taffy runtime used by Wabou's experimental Vello Hybrid backend.
 //!
-//! Applications must use `wabou-runtime`. This crate is not a renderer backend
-//! and is intentionally excluded from Wabou's public facade.
-//!
-//! Its runtime support and generated JavaScript are deliberately frozen inside
-//! this crate. Do not source-include files from the formal GPUI runtime: the
-//! oracle must keep compiling when GPUI ownership and APIs evolve.
+//! The crate retains its transitional name while backend parity is completed.
+//! Application code reaches it through `wabou::WinitHostBuilder` rather than
+//! depending on this implementation crate directly.
 
 #![allow(missing_docs)]
 

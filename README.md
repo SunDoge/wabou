@@ -48,8 +48,9 @@ wabou run apps/7guis --features vello-hybrid
 ```
 
 The Hybrid backend is an active compatibility target, not yet a replacement
-for GPUI: HMR, native widgets, capabilities, and headless tooling are still
-being brought to parity.
+for GPUI. Vite HMR, typed application capabilities, and the Winit native-widget
+set work; services, persistence, DevTools, and headless tooling are still being
+brought to parity.
 
 ## Create an application
 

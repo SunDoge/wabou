@@ -221,7 +221,7 @@ pub struct JsRuntime {
     _tokio: tokio::runtime::Runtime,
     _local: tokio::task::LocalSet,
     #[cfg(feature = "vite")]
-    vite: Option<crate::vite::ViteState>,
+    vite: Option<runtime_api::ViteState>,
 }
 
 impl JsRuntime {
@@ -1217,7 +1217,7 @@ impl JsRuntime {
             // evaluation. Keep both runtime creation paths on the same limit.
             rt.set_max_stack_size(options.stack_size()).await;
         });
-        let vite = crate::vite::ViteState::new(origin);
+        let vite = runtime_api::ViteState::new(origin);
         vite.install_loader(&rt)?;
 
         let mut this = Self::build_inner(

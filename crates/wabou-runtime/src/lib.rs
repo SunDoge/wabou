@@ -71,6 +71,9 @@ pub use native_capability::NativeCapability;
 pub use persistent_cache::PersistentJsonCache;
 pub use rquickjs;
 pub use serial_worker::SerialWorker;
+#[cfg(feature = "vite")]
+#[doc(hidden)]
+pub use vite::{HmrClient, ViteError, ViteHmrEvent, ViteState, start_hmr_bridge};
 pub use wabou_shell::{
     AppDirectories, AppDirectoryConfig, NativeWidgetContext, NativeWidgetFactory,
     NativeWidgetMount, RgbaColor, WindowBackground, WindowInputMode, WindowLevel, WindowOptions,
