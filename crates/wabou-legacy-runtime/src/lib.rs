@@ -13,7 +13,7 @@ mod bundle;
 mod clock;
 mod config;
 mod effect_bridge;
-#[allow(dead_code)] // Capability parity is restored incrementally on the Winit host.
+#[allow(dead_code)] // Fixture-only trace mode is retained for the Winit behavior harness.
 mod effect_trace;
 mod error;
 #[allow(dead_code)] // Transitional protocol-session adapter; Winit uses its shared subset.
@@ -23,7 +23,8 @@ mod host;
 mod host_abi;
 mod host_ffi;
 mod host_frame;
-#[allow(dead_code)] // Public message producers are not mounted by WinitHostBuilder yet.
+#[allow(dead_code)]
+// Message queue is active; duplicated public helpers await shared-core extraction.
 mod host_message;
 mod image_resource;
 mod inline_context;
@@ -51,7 +52,12 @@ pub use host_message::{
 };
 pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use jsrt::{JsRuntime, JsRuntimeOptions};
-pub use legacy_shell::{Widget, WidgetFactory, WindowOptions};
+pub use legacy_shell::{
+    EffectRequest as WinitEffectRequest, ExtensionContext as WinitExtensionContext,
+    Point as WinitPoint, PointerButton as WinitPointerButton, PointerPhase as WinitPointerPhase,
+    ShellExtension as WinitShellExtension, WakeCallback as WinitWakeCallback, Widget,
+    WidgetFactory, WindowOptions,
+};
 
 mod applier;
 

@@ -36,7 +36,10 @@ pub use wabou_runtime::{
 };
 
 #[cfg(feature = "winit-vello-hybrid")]
-pub use wabou_legacy_runtime::WinitHostBuilder;
+pub use wabou_legacy_runtime::{
+    WinitEffectRequest, WinitExtensionContext, WinitHostBuilder, WinitPoint, WinitPointerButton,
+    WinitPointerPhase, WinitShellExtension, WinitWakeCallback,
+};
 #[cfg(feature = "tray")]
 pub use wabou_tray::{SystemTray, TrayContext, TrayImage};
 

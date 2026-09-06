@@ -255,6 +255,7 @@ where
     }
 
     /// Forget the last successfully published value, forcing a full snapshot.
+    #[allow(dead_code)]
     pub fn reset(&mut self) {
         self.previous = None;
     }

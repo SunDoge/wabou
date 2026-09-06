@@ -2,6 +2,7 @@
 
 use std::{
     collections::HashMap,
+    path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -16,6 +17,39 @@ use legacy_shell::{FrameSource, Widget, WidgetFactory, WindowOptions};
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(crate::HostMessageContext) + Send + Sync>;
+
+fn convert_host_message(message: runtime_api::HostMessage) -> crate::HostMessage {
+    let payload = match message.payload {
+        runtime_api::HostMessagePayload::Null => crate::HostMessagePayload::Null,
+        runtime_api::HostMessagePayload::Bool(value) => crate::HostMessagePayload::Bool(value),
+        runtime_api::HostMessagePayload::I32(value) => crate::HostMessagePayload::I32(value),
+        runtime_api::HostMessagePayload::F64(value) => crate::HostMessagePayload::F64(value),
+        runtime_api::HostMessagePayload::Str(value) => crate::HostMessagePayload::Str(value),
+        runtime_api::HostMessagePayload::Bytes(value) => crate::HostMessagePayload::Bytes(value),
+    };
+    crate::HostMessage {
+        topic: message.topic,
+        payload,
+    }
+}
+
+fn convert_host_message_error(
+    error: crate::host_message::HostMessageError,
+) -> runtime_api::HostMessageError {
+    match error {
+        crate::host_message::HostMessageError::Full => runtime_api::HostMessageError::Full,
+        crate::host_message::HostMessageError::Disconnected => {
+            runtime_api::HostMessageError::Disconnected
+        }
+        crate::host_message::HostMessageError::TooLarge => runtime_api::HostMessageError::TooLarge,
+        crate::host_message::HostMessageError::Serialization => {
+            runtime_api::HostMessageError::Serialization
+        }
+        crate::host_message::HostMessageError::WindowUnavailable => {
+            runtime_api::HostMessageError::WindowUnavailable
+        }
+    }
+}
 
 struct HostServicesGuard(Vec<Arc<dyn runtime_api::HostService>>);
 
@@ -83,10 +117,12 @@ enum ApplicationSource {
         source_map: Option<Vec<u8>>,
     },
     #[cfg(feature = "vite")]
-    Vite {
-        url: String,
-        entry: String,
-    },
+    Vite { url: String, entry: String },
+}
+
+enum EffectTraceConfig {
+    Record { path: PathBuf, record_all: bool },
+    Replay { path: PathBuf },
 }
 
 const IMAGE_RESOURCES: CapabilityContract = CapabilityContract::new("imageResources", 1);
@@ -131,6 +167,8 @@ pub struct WinitHostBuilder {
     persisted_window_size: Option<String>,
     kv_enabled: bool,
     devtools: bool,
+    shell_extensions: Vec<Box<dyn legacy_shell::ShellExtension>>,
+    effect_trace: Option<EffectTraceConfig>,
     image_resources: ImageResourceStore,
     js_runtime_options: JsRuntimeOptions,
 }
@@ -161,6 +199,8 @@ impl WinitHostBuilder {
             persisted_window_size: None,
             kv_enabled: false,
             devtools: cfg!(all(debug_assertions, feature = "devtools")),
+            shell_extensions: Vec::new(),
+            effect_trace: None,
             image_resources: image_resources.clone(),
             js_runtime_options: JsRuntimeOptions::default(),
         };
@@ -271,6 +311,24 @@ impl WinitHostBuilder {
         self
     }
 
+    /// Connect the same window-addressable router used by the default GPUI host.
+    pub fn host_message_router(mut self, router: runtime_api::HostMessageRouter) -> Self {
+        self.host_message_producers.push(Arc::new(move |context| {
+            let messages = context.messages().clone();
+            let lease = router.attach_sender(context.window_key(), move |message| {
+                messages
+                    .send(convert_host_message(message))
+                    .map_err(convert_host_message_error)
+            });
+            let cancellation = context.clone();
+            context.spawn(async move {
+                cancellation.cancelled().await;
+                drop(lease);
+            });
+        }));
+        self
+    }
+
     /// Own a required background service for the complete Winit host lifetime.
     pub fn service(mut self, service: impl runtime_api::HostService + 'static) -> Self {
         self.services.push((Arc::new(service), true));
@@ -329,6 +387,39 @@ impl WinitHostBuilder {
         self
     }
 
+    /// Install a Winit event-loop extension for tray icons or platform integration.
+    pub fn shell_extension(
+        mut self,
+        extension: impl legacy_shell::ShellExtension + 'static,
+    ) -> Self {
+        self.shell_extensions.push(Box::new(extension));
+        self
+    }
+
+    /// Record replay-safe native effects when the application exits.
+    pub fn record_effects(mut self, path: impl Into<PathBuf>) -> Self {
+        self.effect_trace = Some(EffectTraceConfig::Record {
+            path: path.into(),
+            record_all: false,
+        });
+        self
+    }
+
+    /// Record every native effect, including potentially sensitive payloads.
+    pub fn record_all_effects(mut self, path: impl Into<PathBuf>) -> Self {
+        self.effect_trace = Some(EffectTraceConfig::Record {
+            path: path.into(),
+            record_all: true,
+        });
+        self
+    }
+
+    /// Replay effects found in a previously recorded tape.
+    pub fn replay_effects(mut self, path: impl Into<PathBuf>) -> Self {
+        self.effect_trace = Some(EffectTraceConfig::Replay { path: path.into() });
+        self
+    }
+
     /// Set the physical surface clear color.
     pub fn base_color(mut self, rgba: [u8; 4]) -> Self {
         self.base_color = Color::from_rgba8(rgba[0], rgba[1], rgba[2], rgba[3]);
@@ -350,6 +441,23 @@ impl WinitHostBuilder {
             )
             .try_init()
             .ok();
+
+        let trace_path = self.effect_trace.as_ref().map(|config| match config {
+            EffectTraceConfig::Record { path, .. } | EffectTraceConfig::Replay { path } => {
+                path.clone()
+            }
+        });
+        let effect_trace = match &self.effect_trace {
+            Some(EffectTraceConfig::Record { record_all, .. }) => {
+                Some(crate::effect_trace::EffectTrace::record(*record_all))
+            }
+            Some(EffectTraceConfig::Replay { path }) => Some(
+                crate::effect_trace::EffectTrace::replay(path)
+                    .map_err(|message| crate::Error::EffectTrace { message })?,
+            ),
+            None => None,
+        };
+        let recording_effects = matches!(self.effect_trace, Some(EffectTraceConfig::Record { .. }));
 
         #[cfg(feature = "devtools")]
         let (_devtools_server, debug_state) = {
@@ -434,7 +542,7 @@ impl WinitHostBuilder {
         let mut windows = std::iter::once(self.window)
             .chain(self.additional_windows)
             .collect::<Vec<_>>();
-        let mut extensions: Vec<Box<dyn legacy_shell::ShellExtension>> = Vec::new();
+        let mut extensions = self.shell_extensions;
         if let (Some(key), Some(directories)) = (
             self.persisted_window_size.as_ref(),
             app_directories.as_ref(),
@@ -494,6 +602,9 @@ impl WinitHostBuilder {
                 legacy_shell::initial_window_resource_key(index),
             );
             controller.set_image_resource_store(self.image_resources.clone());
+            if let Some(trace) = &effect_trace {
+                controller.set_effect_trace(trace.clone());
+            }
             #[cfg(feature = "devtools")]
             if let Some(state) = &debug_state {
                 controller.set_debug_state(state.clone());
@@ -558,6 +669,11 @@ impl WinitHostBuilder {
         }
         legacy_shell::run_windows_with_factory_and_extensions(sources, None, extensions)
             .context(crate::error::WinitShellSnafu)?;
+        if recording_effects && let (Some(trace), Some(path)) = (&effect_trace, trace_path) {
+            trace
+                .write(&path)
+                .map_err(|message| crate::Error::EffectTrace { message })?;
+        }
         services.finish()
     }
 }
@@ -601,6 +717,22 @@ mod tests {
             })
             .expect("invoke capability");
         assert_eq!(result, "[3,42]");
+    }
+
+    #[test]
+    fn public_host_message_router_attaches_to_winit_runtime() {
+        let router = runtime_api::HostMessageRouter::new();
+        let builder = WinitHostBuilder::new().host_message_router(router.clone());
+        let controller = Applier::from_runtime(JsRuntime::new().expect("runtime"), Color::BLACK);
+        let window_key = legacy_shell::initial_window_resource_key(0);
+        let context = controller.host_message_context(window_key);
+        for producer in &builder.host_message_producers {
+            producer(context.clone());
+        }
+
+        router
+            .send_to(window_key, runtime_api::HostMessage::str("ready", "winit"))
+            .expect("public router sends through Winit queue");
     }
 
     struct TestService {

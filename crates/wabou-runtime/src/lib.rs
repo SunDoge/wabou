@@ -61,6 +61,8 @@ pub use host::{
     HostBuilder, HostService, HostServiceContext, HostServiceHandle, ManagedHostService,
     TextRenderingMode, managed_host_service,
 };
+#[doc(hidden)]
+pub use host_message::HostMessageRouteLease;
 pub use host_message::{
     HostMessage, HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload,
     HostMessageRouter, RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot,

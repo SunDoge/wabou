@@ -263,7 +263,27 @@ where
 #[derive(Default)]
 struct HostMessageRouterInner {
     next_generation: AtomicU64,
-    routes: Mutex<HashMap<wabou_shell::WindowResourceKey, (u64, HostMessageHandle)>>,
+    routes: Mutex<HashMap<wabou_shell::WindowResourceKey, (u64, HostMessageSender)>>,
+}
+
+type HostMessageSender =
+    Arc<dyn Fn(HostMessage) -> Result<(), HostMessageError> + Send + Sync + 'static>;
+
+/// A backend-owned route registration removed automatically when dropped.
+///
+/// Applications do not need to construct this value. Alternate native hosts
+/// retain it for exactly the lifetime of their JavaScript runtime.
+#[doc(hidden)]
+pub struct HostMessageRouteLease {
+    router: HostMessageRouter,
+    window_key: wabou_shell::WindowResourceKey,
+    generation: u64,
+}
+
+impl Drop for HostMessageRouteLease {
+    fn drop(&mut self) {
+        self.router.detach(self.window_key, self.generation);
+    }
 }
 
 impl HostMessageRouter {
@@ -278,33 +298,47 @@ impl HostMessageRouter {
         window_key: wabou_shell::WindowResourceKey,
         message: HostMessage,
     ) -> Result<(), HostMessageError> {
-        let handle = self
+        let sender = self
             .inner
             .routes
             .lock()
             .map_err(|_| HostMessageError::Disconnected)?
             .get(&window_key)
-            .map(|(_, handle)| handle.clone())
+            .map(|(_, sender)| sender.clone())
             .ok_or(HostMessageError::WindowUnavailable)?;
-        handle.send(message)
+        sender(message)
     }
 
     pub(crate) fn attach(&self, context: HostMessageContext) {
+        let messages = context.messages().clone();
+        let lease = self.attach_sender(context.window_key(), move |message| messages.send(message));
+        let cancellation = context.clone();
+        context.spawn(async move {
+            cancellation.cancelled().await;
+            drop(lease);
+        });
+    }
+
+    /// Attach a backend-specific bounded sender to this public router.
+    #[doc(hidden)]
+    pub fn attach_sender(
+        &self,
+        window_key: wabou_shell::WindowResourceKey,
+        sender: impl Fn(HostMessage) -> Result<(), HostMessageError> + Send + Sync + 'static,
+    ) -> HostMessageRouteLease {
         let generation = self
             .inner
             .next_generation
             .fetch_add(1, Ordering::Relaxed)
             .wrapping_add(1);
-        let window_key = context.window_key();
         if let Ok(mut routes) = self.inner.routes.lock() {
-            routes.insert(window_key, (generation, context.messages().clone()));
+            routes.insert(window_key, (generation, Arc::new(sender)));
         }
-        let router = self.clone();
-        let cancellation = context.clone();
-        context.spawn(async move {
-            cancellation.cancelled().await;
-            router.detach(window_key, generation);
-        });
+        HostMessageRouteLease {
+            router: self.clone(),
+            window_key,
+            generation,
+        }
     }
 
     fn detach(&self, window_key: wabou_shell::WindowResourceKey, generation: u64) {
@@ -674,6 +708,32 @@ mod tests {
         })
         .await
         .unwrap();
+    }
+
+    #[test]
+    fn alternate_backend_route_is_scoped_by_lease() {
+        let router = HostMessageRouter::new();
+        let window_key = wabou_shell::WindowResourceKey::from_parts(10, 1).unwrap();
+        let received = Arc::new(Mutex::new(Vec::new()));
+        let output = received.clone();
+        let lease = router.attach_sender(window_key, move |message| {
+            output.lock().unwrap().push(message);
+            Ok(())
+        });
+
+        router
+            .send_to(window_key, HostMessage::i32("progress", 42))
+            .unwrap();
+        assert_eq!(
+            *received.lock().unwrap(),
+            vec![HostMessage::i32("progress", 42)]
+        );
+
+        drop(lease);
+        assert_eq!(
+            router.send_to(window_key, HostMessage::null("late")),
+            Err(HostMessageError::WindowUnavailable)
+        );
     }
 
     #[tokio::test]
