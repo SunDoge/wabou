@@ -34,6 +34,9 @@ pub use wabou_runtime::{
     WindowBackground, WindowInputMode, WindowLevel, WindowOptions, WindowResourceKey,
     initial_window_resource_key, managed_host_service,
 };
+
+#[cfg(feature = "winit-vello-hybrid")]
+pub use wabou_legacy_runtime::WinitHostBuilder;
 #[cfg(feature = "tray")]
 pub use wabou_tray::{SystemTray, TrayContext, TrayImage};
 

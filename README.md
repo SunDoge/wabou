@@ -39,6 +39,18 @@ Wabou explores a narrower combination:
 - Rust for windows, input, text, native widgets, and platform integration;
 - Vite HMR and an inspector for a short development loop.
 
+The default backend is GPUI-CE. A second experimental Winit + Taffy + Vello
+Hybrid path consumes the same Solid bundle and binary protocol, which lets the
+project compare Rust rendering stacks without rewriting application UI:
+
+```bash
+wabou run apps/7guis --features vello-hybrid
+```
+
+The Hybrid backend is an active compatibility target, not yet a replacement
+for GPUI: HMR, native widgets, capabilities, and headless tooling are still
+being brought to parity.
+
 ## Create an application
 
 During the Git-preview phase, install the CLI from the release tag:

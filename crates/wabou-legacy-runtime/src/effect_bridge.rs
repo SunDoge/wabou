@@ -105,6 +105,7 @@ impl EffectBridge {
         *self.action_wake.borrow_mut() = Some(wake);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn set_trace(&self, trace: EffectTrace) {
         *self.trace.borrow_mut() = Some(trace);
     }

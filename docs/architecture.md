@@ -14,16 +14,18 @@ Application (Solid state and explicit UI intent)
        generated, versioned Wabou operations
                        |
      Rust runtime (protocol and native services)
-                       |
-          retained GPUI-CE element projection
+                  /             \
+     retained GPUI tree     retained Taffy tree
+            |                     |
+          GPUI-CE         Winit + Vello Hybrid
 ```
 
-Wabou applies each completed Solid flush to a retained GPUI-CE tree. GPUI owns
-layout, text, painting, native input, and platform windows; Wabou owns the
-versioned operation protocol, explicit application semantics, resource handles,
-and the projection into GPUI elements. There is no renderer feature switch and
-no lowest-common-denominator backend interface. The retired Winit/Vello system
-is isolated in unpublished `wabou-legacy-*` crates as a migration oracle.
+Wabou applies each completed Solid flush to one retained native projection.
+GPUI owns the default layout, text, painting, input, and platform path. The
+experimental Winit backend owns an independent Taffy/Parley/Vello Hybrid path.
+Wabou shares the versioned operation protocol, Style IR, application semantics,
+resource keys, and QuickJS contract; it does not force both native backends
+through a lowest-common-denominator widget trait.
 
 ## Sources of truth
 

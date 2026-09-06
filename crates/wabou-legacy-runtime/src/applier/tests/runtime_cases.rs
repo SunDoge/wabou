@@ -177,6 +177,7 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
     assert_eq!(payload["outerX"], 120);
     assert_eq!(payload["outerY"], 80);
     assert_eq!(payload["occluded"], false);
+    assert_eq!(payload["reducedMotion"], false);
     assert_eq!(payload["colorScheme"], "dark");
 }
 

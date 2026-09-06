@@ -886,6 +886,7 @@ impl JsRuntime {
         self.atoms.clone()
     }
 
+    #[allow(dead_code)]
     pub(crate) fn tokio_handle(&self) -> tokio::runtime::Handle {
         self._tokio.handle().clone()
     }

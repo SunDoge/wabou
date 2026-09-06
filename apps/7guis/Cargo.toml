@@ -7,6 +7,9 @@ edition = "2024"
 name = "seven-guis"
 path = "src/main.rs"
 
+[features]
+vello-hybrid = ["wabou/winit-vello-hybrid"]
+
 [dependencies]
 snafu = { workspace = true }
 wabou = { workspace = true }

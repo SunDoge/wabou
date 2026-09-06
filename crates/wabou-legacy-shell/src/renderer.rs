@@ -123,6 +123,12 @@ fn render_to_image(
     }
 
     let buf = match backend {
+        RendererBackend::VelloHybrid => {
+            return Err(crate::Error::RendererBackendUnavailable {
+                backend: "vello-hybrid offscreen",
+                feature: "a future Vello Hybrid image renderer",
+            });
+        }
         RendererBackend::Vello => {
             let mut renderer = VELLO_IMAGE_RENDERER
                 .get_or_init(|| Mutex::new(anyrender_vello::VelloImageRenderer::new(width, height)))

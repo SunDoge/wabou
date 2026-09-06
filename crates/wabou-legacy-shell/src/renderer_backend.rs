@@ -27,6 +27,7 @@ impl HasDisplayHandle for SharedWindow {
 }
 
 pub(crate) enum AnyWindowRenderer {
+    VelloHybrid(Box<anyrender_vello_hybrid::VelloHybridWindowRenderer>),
     Vello(Box<anyrender_vello::VelloWindowRenderer>),
     #[cfg(feature = "renderer-skia")]
     Skia(Box<anyrender_skia::SkiaWindowRenderer>),
@@ -49,6 +50,9 @@ impl AnyWindowRenderer {
             .base_color(Color::TRANSPARENT)
             .composite_alpha_mode(alpha);
         match backend {
+            RendererBackend::VelloHybrid => Ok(Self::VelloHybrid(Box::new(
+                anyrender_vello_hybrid::VelloHybridWindowRenderer::with_options(config.clone()),
+            ))),
             RendererBackend::Vello => Ok(Self::Vello(Box::new(
                 anyrender_vello::VelloWindowRenderer::with_options(config.clone()),
             ))),
@@ -73,11 +77,13 @@ impl AnyWindowRenderer {
     pub(crate) fn resume(&mut self, window: Arc<dyn Window>, width: u32, height: u32) {
         let window: Arc<dyn anyrender::WindowHandle> = Arc::new(SharedWindow(window));
         match self {
+            Self::VelloHybrid(renderer) => renderer.resume(window, width, height, || {}),
             Self::Vello(renderer) => renderer.resume(window, width, height, || {}),
             #[cfg(feature = "renderer-skia")]
             Self::Skia(renderer) => renderer.resume(window, width, height, || {}),
         }
         let ready = match self {
+            Self::VelloHybrid(renderer) => renderer.complete_resume(),
             Self::Vello(renderer) => renderer.complete_resume(),
             #[cfg(feature = "renderer-skia")]
             Self::Skia(renderer) => renderer.complete_resume(),
@@ -87,6 +93,7 @@ impl AnyWindowRenderer {
 
     pub(crate) fn resize(&mut self, width: u32, height: u32) {
         match self {
+            Self::VelloHybrid(renderer) => renderer.set_size(width, height),
             Self::Vello(renderer) => renderer.set_size(width, height),
             #[cfg(feature = "renderer-skia")]
             Self::Skia(renderer) => renderer.set_size(width, height),
@@ -105,6 +112,9 @@ impl AnyWindowRenderer {
         // and text fragment at the window boundary.
         let scene = std::mem::take(scene);
         match self {
+            Self::VelloHybrid(renderer) => renderer.render(|painter| {
+                paint_frame(painter, scene, width, height, base_color);
+            }),
             Self::Vello(renderer) => renderer.render(|painter| {
                 paint_frame(painter, scene, width, height, base_color);
             }),

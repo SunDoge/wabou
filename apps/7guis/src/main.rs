@@ -1,14 +1,23 @@
 //! Native host for the Wabou 7GUIs benchmark application.
 
 use snafu::{ResultExt, Whatever};
-use wabou::{HostBuilder, WindowOptions};
+use wabou::WindowOptions;
+
+#[cfg(not(feature = "vello-hybrid"))]
+use wabou::HostBuilder as SelectedHostBuilder;
+#[cfg(feature = "vello-hybrid")]
+use wabou::WinitHostBuilder as SelectedHostBuilder;
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
-    HostBuilder::new()
+    SelectedHostBuilder::new()
         .window(
             WindowOptions::new()
-                .title("7GUIs — Wabou")
+                .title(if cfg!(feature = "vello-hybrid") {
+                    "7GUIs — Wabou · Vello Hybrid"
+                } else {
+                    "7GUIs — Wabou"
+                })
                 .initial_inner_size(1180, 780)
                 .min_inner_size(820, 600),
         )

@@ -1,16 +1,18 @@
 # Rendering roadmap
 
-GPUI-CE is Wabou's sole public application runtime and owns the production
-window, text, layout, input, and rendering lifecycle. Applications do not
-select a renderer through a Cargo feature or `WindowOptions`: such a switch
-would imply compatible implementations where none exist.
+GPUI-CE remains Wabou's default application runtime and owns the production
+window, text, layout, input, and rendering lifecycle. An experimental second
+application path now runs the same Solid bundle and mutation protocol through
+Winit, Taffy, Parley, and Vello Hybrid. It is selected at compile time rather
+than through `WindowOptions`, so backend-specific widget types remain explicit.
 
 Backend behavior was first evaluated with the isolated
 [`experiments/anyrender-backends`](../experiments/anyrender-backends/README.md)
-harness. That AnyRender implementation now lives under explicitly named
-`wabou-legacy-*` crates and remains useful only as a migration oracle and
-focused backend comparison. Formal layout fixtures run through GPUI itself;
-the CLI never falls back to the retired renderer.
+harness. Its implementation currently still lives under transitional
+`wabou-legacy-*` crate names, but `WinitHostBuilder` makes the Hybrid path a
+real, independently runnable application backend. Formal GPUI layout fixtures
+remain authoritative for the default backend; Winit fixtures must report their
+own backend and never masquerade as GPUI results.
 
 ## Highest priority: preserve Solid invalidation in GPUI
 
@@ -41,9 +43,18 @@ verify animation and scrolling without weakening this typical-UI requirement.
 
 ### Vello Hybrid backend
 
-Evaluate Vello Hybrid inside GPUI when GPUI exposes a suitable integration
-boundary. The migration must preserve Wabou's text, image, SVG icon, clipping,
-rounded corner, transparency, and HiDPI fixtures.
+The first vertical slice is operational: QuickJS/Solid emits the shared binary
+protocol, the retained Winit projection resolves Style IR and Taffy layout,
+and AnyRender replays the resulting scene into a Vello Hybrid window surface.
+Run it against the shared 7GUIs application with:
+
+```bash
+wabou run apps/7guis --features vello-hybrid
+```
+
+The remaining promotion work is Vite HMR, typed application capabilities,
+backend-labelled headless fixtures, native-widget parity, and removal of the
+transitional GPUI session dependency from the Winit runtime.
 
 `wabou-vello-hybrid-svg` now isolates the first reusable renderer-side piece:
 it converts a normalized `usvg` tree into Vello Hybrid scene commands. It
@@ -51,7 +62,8 @@ supports solid and gradient path fills, strokes, transforms, simple clips,
 group opacity/blending, nested SVG images, and embedded raster images. Masks,
 filter graphs, pattern paints, and complex clip paths produce structured
 diagnostics instead of entering unsupported Hybrid code paths. This adapter is
-not a public application backend and does not change GPUI's production role.
+renderer-side infrastructure; the application backend is exposed separately
+as `WinitHostBuilder` and does not change GPUI's default role.
 
 Do not switch the default backend until the required imaging features and APIs
 are sufficiently stable upstream.

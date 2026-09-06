@@ -15,6 +15,7 @@ anyrender.workspace = true
 anyrender-skia = { workspace = true, optional = true }
 anyrender-svg.workspace = true
 anyrender-vello.workspace = true
+anyrender-vello-hybrid.workspace = true
 arboard = { workspace = true }
 bitflags = { workspace = true }
 futures-util = "0.3"

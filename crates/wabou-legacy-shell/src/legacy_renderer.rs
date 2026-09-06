@@ -1,10 +1,12 @@
-//! Renderer selection used only by legacy AnyRender experiments.
+//! Renderer selection for the Winit/Taffy application backend.
 
-/// Renderer used by the isolated legacy AnyRender implementation.
+/// Renderer used by the Winit/Taffy application backend.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum RendererBackend {
-    /// Vello Classic through AnyRender.
+    /// Vello Hybrid through AnyRender.
     #[default]
+    VelloHybrid,
+    /// Vello Classic through AnyRender.
     Vello,
     /// Skia through AnyRender.
     Skia,

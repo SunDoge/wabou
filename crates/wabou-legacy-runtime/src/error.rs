@@ -28,6 +28,13 @@ pub enum Error {
         source: rquickjs::Error,
     },
 
+    /// The Winit window loop or Vello Hybrid surface failed.
+    #[snafu(display("Winit/Vello Hybrid host failed: {source}"))]
+    WinitShell {
+        /// Underlying window or renderer failure.
+        source: legacy_shell::Error,
+    },
+
     /// A required CLI or host argument was absent.
     #[snafu(display("missing required argument: {argument}"))]
     MissingArgument {

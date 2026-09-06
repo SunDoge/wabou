@@ -36,6 +36,7 @@ taffy = { workspace = true, features = ["content_size", "parse"] }
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 url.workspace = true
 vello.workspace = true
 wabou-devtools.workspace = true

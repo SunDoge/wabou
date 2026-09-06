@@ -12,6 +12,7 @@ license.workspace = true
 wabou-bindgen = { workspace = true }
 wabou-database = { workspace = true }
 wabou-runtime = { workspace = true }
+wabou-legacy-runtime = { workspace = true, optional = true }
 wabou-tray = { workspace = true, optional = true }
 
 [features]
@@ -22,6 +23,7 @@ profiling = ["wabou-runtime/profiling"]
 rust-hot-reload = ["wabou-runtime/rust-hot-reload"]
 tray = ["dep:wabou-tray"]
 vite = ["wabou-runtime/vite"]
+winit-vello-hybrid = ["dep:wabou-legacy-runtime"]
 
 [dev-dependencies]
 serde = { workspace = true, features = ["derive"] }

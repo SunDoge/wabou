@@ -140,6 +140,7 @@ impl Applier {
             "outerX": metrics.outer_x,
             "outerY": metrics.outer_y,
             "occluded": metrics.occluded,
+            "reducedMotion": metrics.reduced_motion,
             "colorScheme": metrics.color_scheme.map(|scheme| match scheme {
                 gpui_shell::ColorScheme::Light => "light",
                 gpui_shell::ColorScheme::Dark => "dark",
