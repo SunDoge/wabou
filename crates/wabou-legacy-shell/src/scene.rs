@@ -9,7 +9,7 @@ use vello::peniko::{BlendMode, Color, Fill};
 
 use crate::layout::{PlacedNode, SubtreeEvent, subtree_events};
 use crate::scrollbar::{ScrollAxis, thumb as scrollbar_thumb, track as scrollbar_track};
-use crate::style::{IrLength, PaintTransform, Shadow};
+use crate::style::{CornerRadii, IrLength, PaintTransform, Shadow};
 use crate::text::TextContext;
 
 /// Resolve the node-local static CSS and runtime affine transforms separately.
@@ -62,19 +62,18 @@ pub fn resolve_node_transform(node: &PlacedNode, parent_transform: Affine) -> Af
         * Affine::translate(-origin)
 }
 
-fn widget_clip(node: &PlacedNode) -> Option<([f32; 4], f64)> {
+fn widget_clip(node: &PlacedNode) -> Option<([f32; 4], CornerRadii)> {
     let [x0, y0, x1, y1] = node.rect;
     let [top, right, bottom, left] = node.border_widths;
-    let radius = node.paint.border_radius as f64;
-    if radius > 0.0 {
+    let radii = node.paint.border_radii;
+    if radii.max() > 0.0 {
         let border_inset = top.max(right).max(bottom).max(left);
         return Some((
             [x0 + left, y0 + top, x1 - right, y1 - bottom],
-            (radius - border_inset as f64).max(0.0),
+            radii.inset(border_inset),
         ));
     }
-    node.own_clip
-        .map(|clip| (clip, node.own_clip_radius as f64))
+    node.own_clip.map(|clip| (clip, node.own_clip_radii))
 }
 
 fn append_widget(scene: &mut Scene, widget: &Scene, transform: Affine) {
@@ -112,7 +111,7 @@ fn visual_bounds(node: &PlacedNode) -> Rect {
     let mut bounds = border_box.inflate(outline, outline);
     for shadow in &node.paint.shadows {
         let (shadow_rect, _, std_dev) =
-            shadow_geometry(border_box, node.paint.border_radius as f64, shadow);
+            shadow_geometry(border_box, f64::from(node.paint.border_radii.max()), shadow);
         let blur_extent = std_dev * 3.0;
         bounds = bounds.union(shadow_rect.inflate(blur_extent, blur_extent));
     }
@@ -179,9 +178,9 @@ fn draw_scrollbars(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
 fn draw_node_box(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
     let [x0, y0, x1, y1] = node.rect;
     let rect = Rect::new(f64::from(x0), f64::from(y0), f64::from(x1), f64::from(y1));
-    let radius = f64::from(node.paint.border_radius);
+    let radii = node.paint.border_radii;
     for shadow in &node.paint.shadows {
-        let (shadow_rect, radius, std_dev) = shadow_geometry(rect, radius, shadow);
+        let (shadow_rect, radius, std_dev) = shadow_geometry(rect, f64::from(radii.max()), shadow);
         scene.draw_box_shadow(transform, shadow_rect, shadow.color, radius, std_dev);
     }
     if let Some(background) = node.paint.background {
@@ -190,7 +189,7 @@ fn draw_node_box(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
             transform,
             background,
             None,
-            &rect.to_rounded_rect(radius),
+            &rect.to_rounded_rect(radii.as_f64_tuple()),
         );
     }
     if node.paint.outline_width > 0.0
@@ -209,7 +208,7 @@ fn draw_node_box(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
             transform,
             color,
             None,
-            &outline.to_rounded_rect((radius + expansion).max(0.0)),
+            &outline.to_rounded_rect(radii.expand(expansion as f32).as_f64_tuple()),
         );
     }
     let Some((_, border_color)) = node.paint.border else {
@@ -230,7 +229,7 @@ fn draw_node_box(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
             transform,
             border_color,
             None,
-            &inset.to_rounded_rect((radius - half).max(0.0)),
+            &inset.to_rounded_rect(radii.inset(half as f32).as_f64_tuple()),
         );
         return;
     }
@@ -547,7 +546,7 @@ pub fn build_scene_scaled(
             }
             continue;
         };
-        let r = n.paint.border_radius as f64;
+        let has_rounded_corners = n.paint.border_radii.max() > 0.0;
         let parent_transform = n
             .parent_node_id
             .and_then(|parent| transforms.get(&parent).copied())
@@ -590,7 +589,7 @@ pub fn build_scene_scaled(
             let clip_rect = Rect::new(finite(cx0), finite(cy0), finite(cx1), finite(cy1));
             scene.push_clip_layer(
                 node_transform,
-                &clip_rect.to_rounded_rect(n.own_clip_radius as f64),
+                &clip_rect.to_rounded_rect(n.own_clip_radii.as_f64_tuple()),
             );
             layers.push(Layer::Clip { depth: n.depth });
         }
@@ -606,15 +605,18 @@ pub fn build_scene_scaled(
             // GPU backends do not reliably carry a parent clip across an
             // appended scene at HiDPI; local encoding also avoids mixing
             // absolute logical and fragment coordinates.
-            let outer_widget_clip = (r <= 0.0).then(|| widget_clip(n)).flatten();
-            if let Some(([cx0, cy0, cx1, cy1], radius)) = outer_widget_clip {
+            let outer_widget_clip = (!has_rounded_corners).then(|| widget_clip(n)).flatten();
+            if let Some(([cx0, cy0, cx1, cy1], radii)) = outer_widget_clip {
                 let widget_clip = Rect::new(
                     cx0.max(0.0) as f64,
                     cy0.max(0.0) as f64,
                     cx1.min(width as f32) as f64,
                     cy1.min(height as f32) as f64,
                 );
-                scene.push_clip_layer(node_transform, &widget_clip.to_rounded_rect(radius));
+                scene.push_clip_layer(
+                    node_transform,
+                    &widget_clip.to_rounded_rect(radii.as_f64_tuple()),
+                );
             }
             append_widget(
                 scene,
@@ -650,9 +652,11 @@ mod tests {
             content_size: [100.0, 100.0],
             clip: None,
             clip_radius: 0.0,
+            clip_radii: CornerRadii::default(),
             clip_depth: None,
             own_clip: None,
             own_clip_radius: 0.0,
+            own_clip_radii: CornerRadii::default(),
             border_widths: [0.0; 4],
             scroll: crate::layout::ScrollMetrics::default(),
             paint,
@@ -725,7 +729,7 @@ mod tests {
         );
         widget.pop_layer();
         let mut node = placed_node(Paint {
-            border_radius: 12.0,
+            border_radii: CornerRadii::uniform(12.0),
             widget: Some(std::sync::Arc::new(widget)),
             ..Paint::default()
         });
@@ -733,10 +737,34 @@ mod tests {
         node.content_origin = [10.0, 10.0];
         node.content_size = [80.0, 80.0];
 
-        assert_eq!(widget_clip(&node), Some(([10.0, 10.0, 90.0, 90.0], 12.0)));
+        assert_eq!(
+            widget_clip(&node),
+            Some(([10.0, 10.0, 90.0, 90.0], CornerRadii::uniform(12.0)))
+        );
         let image = render_nodes(&[node], "rounded-native-widget");
         assert_eq!(image.get_pixel(10, 10).0, [0, 0, 0, 255]);
         assert_eq!(image.get_pixel(20, 20).0, [255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn node_background_preserves_individual_corner_radii() {
+        let mut node = placed_node(Paint {
+            background: Some(Color::from_rgba8(255, 0, 0, 255)),
+            border_radii: CornerRadii {
+                top_left: 0.0,
+                top_right: 20.0,
+                bottom_right: 0.0,
+                bottom_left: 20.0,
+            },
+            ..Paint::default()
+        });
+        node.rect = [10.0, 10.0, 90.0, 90.0];
+
+        let image = render_nodes(&[node], "individual-corner-radii");
+        assert_eq!(image.get_pixel(11, 11).0, [255, 0, 0, 255]);
+        assert_eq!(image.get_pixel(88, 11).0, [0, 0, 0, 255]);
+        assert_eq!(image.get_pixel(88, 88).0, [255, 0, 0, 255]);
+        assert_eq!(image.get_pixel(11, 88).0, [0, 0, 0, 255]);
     }
 
     #[test]

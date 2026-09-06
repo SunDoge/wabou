@@ -606,7 +606,18 @@ impl Applier {
                 | "transform-rotate"
                 | "transform-component"
         );
-        if transform_changed || matches!(prop, "pointer-events" | "border-radius" | "z-index") {
+        if transform_changed
+            || matches!(
+                prop,
+                "pointer-events"
+                    | "border-radius"
+                    | "border-top-left-radius"
+                    | "border-top-right-radius"
+                    | "border-bottom-right-radius"
+                    | "border-bottom-left-radius"
+                    | "z-index"
+            )
+        {
             self.document
                 .invalidation
                 .insert(InvalidationFlags::GEOMETRY);
@@ -625,7 +636,7 @@ impl Applier {
             paint.opacity = declared.opacity;
             paint.transform = declared.transform;
             paint.shadows = declared.shadows;
-            paint.border_radius = declared.border_radius;
+            paint.border_radii = declared.border_radii;
             paint.border = declared.border;
             paint.outline_width = declared.outline_width;
             paint.outline_offset = declared.outline_offset;
@@ -762,7 +773,7 @@ impl Applier {
         let geometry_changed = previous.as_ref().is_none_or(|previous| {
             previous.transform != paint.transform
                 || previous.pointer_events != paint.pointer_events
-                || previous.border_radius != paint.border_radius
+                || previous.border_radii != paint.border_radii
                 || previous.z_index != paint.z_index
         });
         let transform_changed = previous

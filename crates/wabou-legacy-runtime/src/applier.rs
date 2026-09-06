@@ -418,7 +418,7 @@ impl DocumentState {
             opacity: paint.opacity,
             transforms: paint.transform.clone(),
             shadows: paint.shadows.clone(),
-            border_radius: paint.border_radius,
+            border_radius: paint.border_radii.max(),
             border: paint.border,
             outline_width: paint.outline_width,
             outline_offset: paint.outline_offset,

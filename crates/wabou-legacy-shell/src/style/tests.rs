@@ -275,6 +275,35 @@ fn maps_vello_paint_properties() {
 }
 
 #[test]
+fn maps_uniform_and_individual_corner_radii() {
+    let mut layout = taffy::Style::default();
+    let mut paint = DeclaredPaint::default();
+    assert!(apply_ir(&mut layout, &mut paint, "border-radius", &px(8.0)));
+    assert!(apply_ir(
+        &mut layout,
+        &mut paint,
+        "border-top-right-radius",
+        &px(2.0)
+    ));
+    assert!(apply_ir(
+        &mut layout,
+        &mut paint,
+        "border-bottom-left-radius",
+        &px(4.0)
+    ));
+
+    assert_eq!(
+        paint.border_radii,
+        CornerRadii {
+            top_left: 8.0,
+            top_right: 2.0,
+            bottom_right: 8.0,
+            bottom_left: 4.0,
+        }
+    );
+}
+
+#[test]
 fn cursor_inherits_while_outline_remains_paint_only() {
     let mut layout = taffy::Style::default();
     let original_layout = layout.clone();

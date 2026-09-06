@@ -941,7 +941,7 @@ fn devtools_snapshot_exposes_widget_local_and_ancestor_clip_coordinates() {
         .unwrap();
     widget.clip = Some([0.0, 0.0, 80.0, 40.0]);
     widget.clip_radius = 6.0;
-    widget.paint.border_radius = 12.0;
+    widget.paint.border_radii = legacy_shell::style::CornerRadii::uniform(12.0);
 
     applier.publish_debug_snapshot(&placed, &mut TextContext::new());
 

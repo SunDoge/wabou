@@ -1,5 +1,73 @@
 use super::*;
 
+/// Logical corner radii in clockwise order, starting at the top left.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct CornerRadii {
+    /// Top-left radius.
+    pub top_left: f32,
+    /// Top-right radius.
+    pub top_right: f32,
+    /// Bottom-right radius.
+    pub bottom_right: f32,
+    /// Bottom-left radius.
+    pub bottom_left: f32,
+}
+
+impl CornerRadii {
+    /// Create four equal corner radii.
+    #[must_use]
+    pub const fn uniform(radius: f32) -> Self {
+        Self {
+            top_left: radius,
+            top_right: radius,
+            bottom_right: radius,
+            bottom_left: radius,
+        }
+    }
+
+    /// Return the largest corner radius.
+    #[must_use]
+    pub fn max(self) -> f32 {
+        self.top_left
+            .max(self.top_right)
+            .max(self.bottom_right)
+            .max(self.bottom_left)
+    }
+
+    /// Inset every corner, clamping at zero.
+    #[must_use]
+    pub fn inset(self, amount: f32) -> Self {
+        Self {
+            top_left: (self.top_left - amount).max(0.0),
+            top_right: (self.top_right - amount).max(0.0),
+            bottom_right: (self.bottom_right - amount).max(0.0),
+            bottom_left: (self.bottom_left - amount).max(0.0),
+        }
+    }
+
+    /// Expand every corner, clamping at zero.
+    #[must_use]
+    pub fn expand(self, amount: f32) -> Self {
+        Self {
+            top_left: (self.top_left + amount).max(0.0),
+            top_right: (self.top_right + amount).max(0.0),
+            bottom_right: (self.bottom_right + amount).max(0.0),
+            bottom_left: (self.bottom_left + amount).max(0.0),
+        }
+    }
+
+    /// Convert to the tuple order expected by Kurbo.
+    #[must_use]
+    pub fn as_f64_tuple(self) -> (f64, f64, f64, f64) {
+        (
+            f64::from(self.top_left),
+            f64::from(self.top_right),
+            f64::from(self.bottom_right),
+            f64::from(self.bottom_left),
+        )
+    }
+}
+
 #[derive(Clone)]
 /// Host-owned vector geometry and its renderer-independent paint contract.
 pub struct VectorPath {
@@ -201,8 +269,8 @@ pub struct DeclaredPaint {
     pub transform_origin: [IrLength; 2],
     /// Outer shadows rendered behind the border box.
     pub shadows: Vec<Shadow>,
-    /// Uniform corner radius in px.
-    pub border_radius: f32,
+    /// Per-corner radii in logical pixels.
+    pub border_radii: CornerRadii,
     /// Uniform border (width px, color).
     pub border: Option<(f32, Color)>,
     /// Outline width in logical pixels. Unlike borders, this does not affect layout.
@@ -254,7 +322,7 @@ impl Default for DeclaredPaint {
                 IrLength::Percent { value: 0.5 },
             ],
             shadows: Vec::new(),
-            border_radius: 0.0,
+            border_radii: CornerRadii::default(),
             border: None,
             outline_width: 0.0,
             outline_offset: 0.0,
@@ -316,7 +384,7 @@ impl DeclaredPaint {
             overlay_plane: host.overlay_plane,
             scrollbar: host.scrollbar,
             shadows: self.shadows.clone(),
-            border_radius: self.border_radius,
+            border_radii: self.border_radii,
             border: self.border,
             outline_width: self.outline_width,
             outline_offset: self.outline_offset,
@@ -475,8 +543,8 @@ pub struct Paint {
     pub scrollbar: ScrollbarStyle,
     /// Resolved outer shadows.
     pub shadows: Vec<Shadow>,
-    /// Uniform corner radius in px.
-    pub border_radius: f32,
+    /// Per-corner radii in logical pixels.
+    pub border_radii: CornerRadii,
     /// Uniform border (width px, color).
     pub border: Option<(f32, Color)>,
     /// Non-layout outline width in logical pixels.

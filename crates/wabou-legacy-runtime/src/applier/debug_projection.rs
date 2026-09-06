@@ -177,7 +177,7 @@ impl Applier {
                         width: cw,
                         height: ch,
                     },
-                    radius: (placed_node.paint.border_radius - border_inset).max(0.0),
+                    radius: (placed_node.paint.border_radii.max() - border_inset).max(0.0),
                     transform: content_transform.as_coeffs(),
                 }
             });

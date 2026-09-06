@@ -185,9 +185,11 @@ mod tests {
             content_size: [100.0, 100.0],
             clip: None,
             clip_radius: 0.0,
+            clip_radii: crate::style::CornerRadii::default(),
             clip_depth: None,
             own_clip: Some([0.0, 0.0, 100.0, 100.0]),
             own_clip_radius: 0.0,
+            own_clip_radii: crate::style::CornerRadii::default(),
             border_widths: [0.0; 4],
             scroll: crate::layout::ScrollMetrics {
                 port: [0.0, 0.0, 100.0, 100.0],

@@ -321,7 +321,7 @@ impl Applier {
                 if width > 0.0 && height > 0.0 {
                     let border_inset = n.border_widths.into_iter().fold(0.0_f32, f32::max);
                     let inner_radius =
-                        (f64::from(n.paint.border_radius) - f64::from(border_inset)).max(0.0);
+                        (f64::from(n.paint.border_radii.max()) - f64::from(border_inset)).max(0.0);
                     let mut paint = legacy_shell::PaintContext::new_clipped_at(
                         width,
                         height,

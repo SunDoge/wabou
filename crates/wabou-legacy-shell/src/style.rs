@@ -401,7 +401,21 @@ fn apply_paint_ir(paint: &mut DeclaredPaint, property: &str, value: &IrValue) ->
     match property {
         "border-radius" => {
             if let Some(IrLength::Px { value }) = value.length() {
-                paint.border_radius = *value;
+                paint.border_radii = CornerRadii::uniform(*value);
+            }
+        }
+        "border-top-left-radius"
+        | "border-top-right-radius"
+        | "border-bottom-right-radius"
+        | "border-bottom-left-radius" => {
+            if let Some(IrLength::Px { value }) = value.length() {
+                match property {
+                    "border-top-left-radius" => paint.border_radii.top_left = *value,
+                    "border-top-right-radius" => paint.border_radii.top_right = *value,
+                    "border-bottom-right-radius" => paint.border_radii.bottom_right = *value,
+                    "border-bottom-left-radius" => paint.border_radii.bottom_left = *value,
+                    _ => unreachable!(),
+                }
             }
         }
         "transform-origin-x" | "transform-origin-y" => {

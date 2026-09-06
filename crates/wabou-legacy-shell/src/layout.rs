@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use taffy::geometry::Size;
 use taffy::{AvailableSpace, NodeId, TaffyTree, TraversePartialTree};
 
-use crate::style::Paint;
+use crate::style::{CornerRadii, Paint};
 use crate::text::TextContext;
 
 fn text_measurement_width(
@@ -52,6 +52,8 @@ pub struct PlacedNode {
     pub clip: Option<[f32; 4]>,
     /// Radius of the accumulated clip when its nearest edge is rounded.
     pub clip_radius: f32,
+    /// Per-corner radii of the accumulated clip.
+    pub clip_radii: CornerRadii,
     /// Depth of the nearest ancestor that established `clip`.
     pub clip_depth: Option<usize>,
     /// This node's own overflow clip, used for replaced/native widget content.
@@ -59,6 +61,8 @@ pub struct PlacedNode {
     pub own_clip: Option<[f32; 4]>,
     /// Corner radius applied to [`Self::own_clip`].
     pub own_clip_radius: f32,
+    /// Per-corner radii applied to [`Self::own_clip`].
+    pub own_clip_radii: CornerRadii,
     /// Resolved physical border widths: top, right, bottom, left.
     pub border_widths: [f32; 4],
     /// Scroll geometry and overlay-scrollbar state for this node.
@@ -88,7 +92,7 @@ pub struct ScrollMetrics {
 #[derive(Clone, Copy, Default)]
 struct ClipState {
     rect: Option<[f32; 4]>,
-    radius: f32,
+    radii: CornerRadii,
     depth: Option<usize>,
 }
 
@@ -337,25 +341,26 @@ fn node_clip(
         own[3] = y0 + height - layout.border.bottom;
     }
     let rect = inherited.rect.map_or(own, |clip| intersect(clip, own));
-    let radius = if clips_x && clips_y && rect == own {
-        tree.get_node_context(node).map_or(0.0, |paint| {
-            (paint.border_radius
-                - layout
-                    .border
-                    .top
-                    .max(layout.border.right)
-                    .max(layout.border.bottom)
-                    .max(layout.border.left))
-            .max(0.0)
-        })
+    let radii = if clips_x && clips_y && rect == own {
+        tree.get_node_context(node)
+            .map_or_else(CornerRadii::default, |paint| {
+                paint.border_radii.inset(
+                    layout
+                        .border
+                        .top
+                        .max(layout.border.right)
+                        .max(layout.border.bottom)
+                        .max(layout.border.left),
+                )
+            })
     } else if inherited.rect != Some(rect) {
-        0.0
+        CornerRadii::default()
     } else {
-        inherited.radius
+        inherited.radii
     };
     Some(ClipState {
         rect: Some(rect),
-        radius,
+        radii,
         depth: Some(depth),
     })
 }
@@ -429,10 +434,12 @@ fn walk(
             content_origin: [cx, cy],
             content_size: [content_width, content_height],
             clip: inherited_clip.rect,
-            clip_radius: inherited_clip.radius,
+            clip_radius: inherited_clip.radii.max(),
+            clip_radii: inherited_clip.radii,
             clip_depth: inherited_clip.depth,
             own_clip: None,
             own_clip_radius: 0.0,
+            own_clip_radii: CornerRadii::default(),
             border_widths: [
                 layout.border.top,
                 layout.border.right,
@@ -463,7 +470,8 @@ fn walk(
         && placed.node_id == node
     {
         placed.own_clip = clip.rect;
-        placed.own_clip_radius = clip.radius;
+        placed.own_clip_radius = clip.radii.max();
+        placed.own_clip_radii = clip.radii;
     }
     // A clipped subtree with an empty effective clip is fully invisible. The
     // zero-sized clipping node itself may have been omitted from `out`; walking
@@ -738,7 +746,7 @@ mod tests {
         tree.set_node_context(
             container,
             Some(Paint {
-                border_radius: 12.0,
+                border_radii: CornerRadii::uniform(12.0),
                 ..Paint::default()
             }),
         )
