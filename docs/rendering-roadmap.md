@@ -45,6 +45,14 @@ Evaluate Vello Hybrid inside GPUI when GPUI exposes a suitable integration
 boundary. The migration must preserve Wabou's text, image, SVG icon, clipping,
 rounded corner, transparency, and HiDPI fixtures.
 
+`wabou-vello-hybrid-svg` now isolates the first reusable renderer-side piece:
+it converts a normalized `usvg` tree into Vello Hybrid scene commands. It
+supports solid and gradient path fills, strokes, transforms, simple clips,
+group opacity/blending, nested SVG images, and embedded raster images. Masks,
+filter graphs, pattern paints, and complex clip paths produce structured
+diagnostics instead of entering unsupported Hybrid code paths. This adapter is
+not a public application backend and does not change GPUI's production role.
+
 Do not switch the default backend until the required imaging features and APIs
 are sufficiently stable upstream.
 

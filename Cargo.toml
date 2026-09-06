@@ -32,6 +32,7 @@ default-members = [
   "crates/wabou-terminal",
   "crates/wabou-terminal-core",
   "crates/wabou-tray",
+  "crates/wabou-vello-hybrid-svg",
 ]
 
 [workspace.package]
@@ -113,8 +114,11 @@ tracing-subscriber = "0.3"
 trash = "5.2.6"
 unicode-width = "0.2.2"
 url = "2.5.8"
+usvg = { version = "0.48.1", default-features = false, features = ["text"] }
 uuid = "1"
 vello = "0.10.0"
+vello-common = { package = "vello_common", version = "0.2.0" }
+vello-hybrid = { package = "vello_hybrid", version = "0.2.0", default-features = false }
 which = "6.0.3"
 winit = "=0.31.0-beta.2"
 zeroize = "1.9.0"

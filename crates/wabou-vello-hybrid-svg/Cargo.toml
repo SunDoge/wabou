@@ -1,0 +1,14 @@
+[package]
+name = "wabou-vello-hybrid-svg"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+description = "SVG to Vello Hybrid scene adapter for Wabou"
+publish = false
+
+[dependencies]
+image = { workspace = true, features = ["gif", "jpeg", "png", "webp"] }
+snafu.workspace = true
+usvg.workspace = true
+vello-common.workspace = true
+vello-hybrid.workspace = true
