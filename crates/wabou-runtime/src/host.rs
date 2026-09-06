@@ -149,6 +149,20 @@ pub struct HostServiceContext {
 }
 
 impl HostServiceContext {
+    /// Construct service context for an alternate Wabou application host.
+    #[doc(hidden)]
+    pub fn for_alternate_host(
+        app_directories: Option<wabou_shell::AppDirectories>,
+        behavior_test: bool,
+        headless: bool,
+    ) -> Self {
+        Self {
+            app_directories,
+            behavior_test,
+            headless,
+        }
+    }
+
     /// Return the application directories resolved by the host, when configured.
     pub fn app_directories(&self) -> Option<&wabou_shell::AppDirectories> {
         self.app_directories.as_ref()

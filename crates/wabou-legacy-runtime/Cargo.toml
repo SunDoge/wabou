@@ -49,9 +49,10 @@ wabou-style.workspace = true
 
 [features]
 default = []
-devtools = []
+devtools = ["runtime-api/devtools"]
 profiling = []
 vite = ["runtime-api/vite"]
 
 [dev-dependencies]
 proptest = "1"
+tempfile = "3"

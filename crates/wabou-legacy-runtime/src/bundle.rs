@@ -12,6 +12,19 @@ pub(crate) fn load() -> crate::Result<String> {
     })
 }
 
+pub(crate) fn load_source_map() -> crate::Result<Option<Vec<u8>>> {
+    let path = path()?.with_extension("js.map");
+    if !path.is_file() {
+        return Ok(None);
+    }
+    std::fs::read(&path)
+        .map(Some)
+        .context(crate::error::ReadFileSnafu {
+            kind: "JavaScript source map",
+            path,
+        })
+}
+
 fn path() -> crate::Result<PathBuf> {
     if let Some(path) = std::env::var_os("WABOU_BUNDLE_PATH") {
         return Ok(PathBuf::from(path));
@@ -24,6 +37,11 @@ fn path() -> crate::Result<PathBuf> {
         .into_iter()
         .find(|path| path.is_file())
         .unwrap_or_else(|| adjacent_bundle(&executable)))
+}
+
+pub(crate) fn resource_directory() -> crate::Result<PathBuf> {
+    let bundle = path()?;
+    Ok(bundle.parent().unwrap_or_else(|| Path::new(".")).to_owned())
 }
 
 fn adjacent_bundle(executable: &Path) -> PathBuf {

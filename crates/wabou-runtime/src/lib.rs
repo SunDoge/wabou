@@ -67,6 +67,8 @@ pub use host_message::{
 };
 pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use jsrt::{DEFAULT_QUICKJS_STACK_SIZE, JsRuntime, JsRuntimeOptions};
+#[doc(hidden)]
+pub use kv::mount_kv_methods;
 pub use native_capability::NativeCapability;
 pub use persistent_cache::PersistentJsonCache;
 pub use rquickjs;

@@ -1,6 +1,10 @@
 //! Application host for the Winit + Taffy + Vello Hybrid backend.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
@@ -11,9 +15,73 @@ use crate::{Applier, ImageResourceStore, JsRuntime, JsRuntimeOptions};
 use legacy_shell::{FrameSource, Widget, WidgetFactory, WindowOptions};
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
+type HostMessageProducer = Arc<dyn Fn(crate::HostMessageContext) + Send + Sync>;
+
+struct HostServicesGuard(Vec<Arc<dyn runtime_api::HostService>>);
+
+impl HostServicesGuard {
+    fn finish(mut self) -> crate::Result<()> {
+        let mut failures = Vec::new();
+        while let Some(service) = self.0.pop() {
+            if let Err(error) = service.shutdown() {
+                failures.push(format!("`{}`: {error}", service.name()));
+            }
+        }
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(crate::Error::HostServiceShutdown {
+                message: failures.join("; "),
+            })
+        }
+    }
+}
+
+impl Drop for HostServicesGuard {
+    fn drop(&mut self) {
+        while let Some(service) = self.0.pop() {
+            if let Err(error) = service.shutdown() {
+                tracing::warn!(service = service.name(), %error, "failed to shut down host service");
+            }
+        }
+    }
+}
+
+fn start_services(
+    services: &[(Arc<dyn runtime_api::HostService>, bool)],
+    context: &runtime_api::HostServiceContext,
+) -> crate::Result<HostServicesGuard> {
+    let mut started_services = HostServicesGuard(Vec::with_capacity(services.len()));
+    for (service, required) in services {
+        let started = Instant::now();
+        match service.start(context) {
+            Ok(()) => started_services.0.push(service.clone()),
+            Err(message) if *required => {
+                return Err(crate::Error::HostService {
+                    name: service.name(),
+                    message,
+                });
+            }
+            Err(message) => {
+                tracing::warn!(service = service.name(), %message, "recoverable host service failed to start");
+            }
+        }
+        if started.elapsed() >= Duration::from_secs(1) {
+            tracing::warn!(
+                service = service.name(),
+                elapsed_ms = started.elapsed().as_millis(),
+                "host service startup was slow"
+            );
+        }
+    }
+    Ok(started_services)
+}
 
 enum ApplicationSource {
-    Bundle(String),
+    Bundle {
+        code: String,
+        source_map: Option<Vec<u8>>,
+    },
     #[cfg(feature = "vite")]
     Vite {
         url: String,
@@ -57,6 +125,12 @@ pub struct WinitHostBuilder {
     base_color: Color,
     widget_factories: HashMap<String, WidgetFactory>,
     capabilities: Vec<CapabilityInstaller>,
+    host_message_producers: Vec<HostMessageProducer>,
+    services: Vec<(Arc<dyn runtime_api::HostService>, bool)>,
+    app_directory_config: Option<legacy_shell::AppDirectoryConfig>,
+    persisted_window_size: Option<String>,
+    kv_enabled: bool,
+    devtools: bool,
     image_resources: ImageResourceStore,
     js_runtime_options: JsRuntimeOptions,
 }
@@ -81,6 +155,12 @@ impl WinitHostBuilder {
             base_color: Color::from_rgb8(0x0f, 0x17, 0x2a),
             widget_factories: wabou_legacy_widgets::builtin_factories(),
             capabilities: Vec::new(),
+            host_message_producers: Vec::new(),
+            services: Vec::new(),
+            app_directory_config: None,
+            persisted_window_size: None,
+            kv_enabled: false,
+            devtools: cfg!(all(debug_assertions, feature = "devtools")),
             image_resources: image_resources.clone(),
             js_runtime_options: JsRuntimeOptions::default(),
         };
@@ -182,6 +262,73 @@ impl WinitHostBuilder {
         self
     }
 
+    /// Register a Rust-to-JavaScript producer for every native window.
+    pub fn host_message_producer<F>(mut self, producer: F) -> Self
+    where
+        F: Fn(crate::HostMessageContext) + Send + Sync + 'static,
+    {
+        self.host_message_producers.push(Arc::new(producer));
+        self
+    }
+
+    /// Own a required background service for the complete Winit host lifetime.
+    pub fn service(mut self, service: impl runtime_api::HostService + 'static) -> Self {
+        self.services.push((Arc::new(service), true));
+        self
+    }
+
+    /// Own a background service whose startup failure leaves the UI available.
+    pub fn recoverable_service(mut self, service: impl runtime_api::HostService + 'static) -> Self {
+        self.services.push((Arc::new(service), false));
+        self
+    }
+
+    /// Configure stable application-private platform directories.
+    pub fn app_directories(
+        self,
+        qualifier: impl Into<String>,
+        organization: impl Into<String>,
+        application: impl Into<String>,
+    ) -> Self {
+        self.app_directory_config(legacy_shell::AppDirectoryConfig::new(
+            qualifier,
+            organization,
+            application,
+        ))
+    }
+
+    /// Set an already constructed application directory identity.
+    pub fn app_directory_config(mut self, config: legacy_shell::AppDirectoryConfig) -> Self {
+        self.app_directory_config = Some(config);
+        self
+    }
+
+    /// Restore and persist the primary window's normal logical size.
+    pub fn persist_window_size(mut self, key: impl Into<String>) -> Self {
+        let key = key.into();
+        assert!(
+            !key.is_empty()
+                && key
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')),
+            "window persistence key must contain only ASCII letters, numbers, '-' or '_'"
+        );
+        self.persisted_window_size = Some(key);
+        self
+    }
+
+    /// Enable the built-in SQLite-backed hierarchical KV capability.
+    pub fn kv(mut self) -> Self {
+        self.kv_enabled = true;
+        self
+    }
+
+    /// Enable or disable the local read-only DevTools transport.
+    pub fn devtools(mut self, enabled: bool) -> Self {
+        self.devtools = enabled;
+        self
+    }
+
     /// Set the physical surface clear color.
     pub fn base_color(mut self, rgba: [u8; 4]) -> Self {
         self.base_color = Color::from_rgba8(rgba[0], rgba[1], rgba[2], rgba[3]);
@@ -204,6 +351,27 @@ impl WinitHostBuilder {
             .try_init()
             .ok();
 
+        #[cfg(feature = "devtools")]
+        let (_devtools_server, debug_state) = {
+            let state = self.devtools.then(wabou_devtools::DebugState::shared);
+            let server = if let Some(state) = &state {
+                let path = wabou_devtools::socket_path();
+                let server = wabou_devtools::serve(state.clone(), path.clone())
+                    .context(crate::error::DevtoolsSnafu)?;
+                tracing::info!(target: "devtools", socket = %path.display(), "Wabou DevTools listening");
+                Some(server)
+            } else {
+                None
+            };
+            (server, state)
+        };
+        #[cfg(not(feature = "devtools"))]
+        if self.devtools {
+            tracing::warn!(
+                "WinitHostBuilder::devtools(true) requires the `wabou/devtools` feature"
+            );
+        }
+
         #[cfg(feature = "vite")]
         let source = if let Ok(url) = std::env::var("WABOU_VITE_URL") {
             ApplicationSource::Vite {
@@ -212,20 +380,84 @@ impl WinitHostBuilder {
                     .unwrap_or_else(|_| "src/index.tsx".to_owned()),
             }
         } else {
-            ApplicationSource::Bundle(crate::bundle::load()?)
+            ApplicationSource::Bundle {
+                code: crate::bundle::load()?,
+                source_map: crate::bundle::load_source_map()?,
+            }
         };
         #[cfg(not(feature = "vite"))]
-        let source = ApplicationSource::Bundle(crate::bundle::load()?);
-        let windows = std::iter::once(self.window)
+        let source = ApplicationSource::Bundle {
+            code: crate::bundle::load()?,
+            source_map: crate::bundle::load_source_map()?,
+        };
+        let app_directories = self
+            .app_directory_config
+            .as_ref()
+            .map(|config| {
+                let resource = crate::bundle::resource_directory()?;
+                legacy_shell::AppDirectories::resolve(config, resource).ok_or_else(|| {
+                    crate::Error::AppDirectories {
+                        application: "configured application".to_owned(),
+                    }
+                })
+            })
+            .transpose()?;
+        let mut capabilities = self.capabilities;
+        if self.kv_enabled {
+            let directories = app_directories
+                .as_ref()
+                .ok_or(crate::Error::MissingArgument {
+                    argument: "WinitHostBuilder::app_directories before WinitHostBuilder::kv",
+                })?;
+            let path = directories
+                .storage_namespace("kv")
+                .expect("framework KV namespace is valid")
+                .join("default.sqlite3");
+            capabilities.push(Arc::new(move |js| {
+                let path = path.clone();
+                js.mount_capability("kv", move |ctx, object| {
+                    object.set("__wabouCapabilityVersion", 2_u16)?;
+                    runtime_api::mount_kv_methods(
+                        runtime_api::NativeCapability::from_runtime_parts(ctx, object),
+                        path.clone(),
+                    )
+                })
+            }));
+        }
+        let service_context = runtime_api::HostServiceContext::for_alternate_host(
+            app_directories.clone(),
+            std::env::var_os("WABOU_TEST_SCRIPT").is_some(),
+            false,
+        );
+        let services = start_services(&self.services, &service_context)?;
+
+        let mut windows = std::iter::once(self.window)
             .chain(self.additional_windows)
             .collect::<Vec<_>>();
+        let mut extensions: Vec<Box<dyn legacy_shell::ShellExtension>> = Vec::new();
+        if let (Some(key), Some(directories)) = (
+            self.persisted_window_size.as_ref(),
+            app_directories.as_ref(),
+        ) {
+            let path = directories
+                .local_data_dir
+                .join("window-state")
+                .join(format!("{key}.json"));
+            extensions.push(Box::new(legacy_shell::WindowSizePersistence::restore(
+                path,
+                legacy_shell::initial_window_resource_key(0),
+                &mut windows[0],
+            )));
+        } else if let Some(key) = &self.persisted_window_size {
+            tracing::warn!(key, "window size persistence requires app_directories");
+        }
         let mut sources = Vec::with_capacity(windows.len());
         #[cfg(feature = "vite")]
         let mut hmr_clients = Vec::new();
         for (index, options) in windows.into_iter().enumerate() {
             #[cfg(feature = "vite")]
             let js = match &source {
-                ApplicationSource::Bundle(_) => {
+                ApplicationSource::Bundle { .. } => {
                     JsRuntime::new_with_options(self.js_runtime_options)
                 }
                 ApplicationSource::Vite { url, .. } => {
@@ -241,11 +473,20 @@ impl WinitHostBuilder {
                     operation: "create JavaScript runtime",
                 },
             )?;
-            for capability in &self.capabilities {
+            for capability in &capabilities {
                 capability(&js).context(crate::error::JavaScriptSnafu {
                     operation: "mount JavaScript capability",
                 })?;
             }
+            let serialized_window_options =
+                serde_json::to_string(&options).expect("WindowOptions must remain serializable");
+            js.with(|ctx| {
+                ctx.globals()
+                    .set("__wabou_window_options_json", serialized_window_options)
+            })
+            .context(crate::error::JavaScriptSnafu {
+                operation: "install native window creation options",
+            })?;
             let mut controller = Applier::from_runtime_with_factories_and_window(
                 js,
                 self.widget_factories.clone(),
@@ -253,10 +494,22 @@ impl WinitHostBuilder {
                 legacy_shell::initial_window_resource_key(index),
             );
             controller.set_image_resource_store(self.image_resources.clone());
+            #[cfg(feature = "devtools")]
+            if let Some(state) = &debug_state {
+                controller.set_debug_state(state.clone());
+            }
+            if let Some(directories) = &app_directories {
+                controller.set_app_directories(directories.clone());
+            }
+            let message_context =
+                controller.host_message_context(legacy_shell::initial_window_resource_key(index));
+            for producer in &self.host_message_producers {
+                producer(message_context.clone());
+            }
             match &source {
-                ApplicationSource::Bundle(bundle) => {
+                ApplicationSource::Bundle { code, source_map } => {
                     controller
-                        .boot(bundle)
+                        .boot_with_source_map(code, source_map.as_deref())
                         .context(crate::error::JavaScriptSnafu {
                             operation: "boot JavaScript bundle",
                         })?;
@@ -303,14 +556,16 @@ impl WinitHostBuilder {
             }
             sources.push((Box::new(controller) as Box<dyn FrameSource>, options));
         }
-        legacy_shell::run_windows(sources).context(crate::error::WinitShellSnafu)?;
-        Ok(())
+        legacy_shell::run_windows_with_factory_and_extensions(sources, None, extensions)
+            .context(crate::error::WinitShellSnafu)?;
+        services.finish()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use wabou_bindgen::HostMethod;
 
     #[derive(Deserialize)]
@@ -346,5 +601,117 @@ mod tests {
             })
             .expect("invoke capability");
         assert_eq!(result, "[3,42]");
+    }
+
+    struct TestService {
+        starts: Arc<AtomicUsize>,
+        stops: Arc<AtomicUsize>,
+        fail: bool,
+    }
+
+    impl runtime_api::HostService for TestService {
+        fn name(&self) -> &'static str {
+            "winit-test"
+        }
+
+        fn start(&self, _context: &runtime_api::HostServiceContext) -> Result<(), String> {
+            self.starts.fetch_add(1, Ordering::Relaxed);
+            if self.fail {
+                Err("expected failure".to_owned())
+            } else {
+                Ok(())
+            }
+        }
+
+        fn shutdown(&self) -> Result<(), String> {
+            self.stops.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn services_surround_the_event_loop_and_recoverable_failures_do_not_stop_startup() {
+        let starts = Arc::new(AtomicUsize::new(0));
+        let stops = Arc::new(AtomicUsize::new(0));
+        let services: Vec<(Arc<dyn runtime_api::HostService>, bool)> = vec![
+            (
+                Arc::new(TestService {
+                    starts: starts.clone(),
+                    stops: stops.clone(),
+                    fail: true,
+                }),
+                false,
+            ),
+            (
+                Arc::new(TestService {
+                    starts: starts.clone(),
+                    stops: stops.clone(),
+                    fail: false,
+                }),
+                true,
+            ),
+        ];
+        let context = runtime_api::HostServiceContext::for_alternate_host(None, false, false);
+        let guard = start_services(&services, &context).expect("start services");
+        assert_eq!(starts.load(Ordering::Relaxed), 2);
+        guard.finish().expect("stop services");
+        assert_eq!(stops.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn required_service_failure_stops_services_that_started_before_it() {
+        let starts = Arc::new(AtomicUsize::new(0));
+        let stops = Arc::new(AtomicUsize::new(0));
+        let services: Vec<(Arc<dyn runtime_api::HostService>, bool)> = vec![
+            (
+                Arc::new(TestService {
+                    starts: starts.clone(),
+                    stops: stops.clone(),
+                    fail: false,
+                }),
+                true,
+            ),
+            (
+                Arc::new(TestService {
+                    starts: starts.clone(),
+                    stops: stops.clone(),
+                    fail: true,
+                }),
+                true,
+            ),
+        ];
+        let context = runtime_api::HostServiceContext::for_alternate_host(None, false, false);
+        assert!(start_services(&services, &context).is_err());
+        assert_eq!(starts.load(Ordering::Relaxed), 2);
+        assert_eq!(stops.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn shared_kv_contract_runs_inside_the_winit_quickjs_runtime() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let runtime = JsRuntime::new().expect("runtime");
+        let path = directory.path().join("winit-kv.sqlite3");
+        runtime
+            .mount_capability("kv", move |ctx, object| {
+                object.set("__wabouCapabilityVersion", 2_u16)?;
+                runtime_api::mount_kv_methods(
+                    runtime_api::NativeCapability::from_runtime_parts(ctx, object),
+                    path.clone(),
+                )
+            })
+            .expect("mount KV capability");
+        let result = runtime
+            .eval_promise_json(
+                r#"(() => {
+                  const key = [{ type: "string", value: "backend" }];
+                  return __wabou_capabilities.kv
+                    .set({ key, value: { name: "vello-hybrid" } })
+                    .then(() => __wabou_capabilities.kv.get({ key }));
+                })()"#,
+                Duration::from_secs(2),
+            )
+            .expect("KV promise settled");
+        let result: serde_json::Value = serde_json::from_str(&result).expect("KV response");
+        assert_eq!(result["value"]["name"], "vello-hybrid");
     }
 }

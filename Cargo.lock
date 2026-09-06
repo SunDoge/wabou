@@ -13336,6 +13336,7 @@ dependencies = [
  "sourcemap",
  "sys-locale",
  "taffy 0.14.0",
+ "tempfile",
  "tokio",
  "tokio-util",
  "tracing",

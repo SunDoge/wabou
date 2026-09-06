@@ -119,115 +119,128 @@ pub(crate) fn mount_kv_capability(
     js.mount_capability(CONTRACT.name(), move |ctx, object| {
         object.set("__wabouCapabilityVersion", CONTRACT.version())?;
         let capability = NativeCapability { ctx, object };
+        mount_kv_methods_with_state(capability, state.clone(), path.clone())
+    })
+}
 
-        let get_state = state.clone();
-        let get_path = path.clone();
-        capability.method(GET, move |request: KeyRequest| {
-            let state = get_state.clone();
-            let path = get_path.clone();
-            async move {
-                let store = open_store(&state, &path).await?;
-                store
-                    .get(&decode_key(request.key)?)
-                    .await
-                    .map_err(|error| error.to_string())?
-                    .map(EntryResponse::try_from)
-                    .transpose()
-            }
-        })?;
+/// Mount the standard KV methods into an alternate Wabou host capability.
+#[doc(hidden)]
+pub fn mount_kv_methods(capability: NativeCapability<'_>, path: PathBuf) -> rquickjs::Result<()> {
+    mount_kv_methods_with_state(capability, Arc::new(tokio::sync::OnceCell::new()), path)
+}
 
-        let set_state = state.clone();
-        let set_path = path.clone();
-        capability.method(SET, move |request: SetRequest| {
-            let state = set_state.clone();
-            let path = set_path.clone();
-            async move {
-                let store = open_store(&state, &path).await?;
-                let versionstamp = store
-                    .set(
-                        decode_key(request.key)?,
-                        request.value,
-                        expiry_from_duration(request.expire_in)?,
-                    )
-                    .await
-                    .map_err(|error| error.to_string())?;
-                Ok::<_, String>(CommitResponse {
-                    versionstamp: versionstamp.0.to_string(),
+fn mount_kv_methods_with_state(
+    capability: NativeCapability<'_>,
+    state: LazyStore,
+    path: PathBuf,
+) -> rquickjs::Result<()> {
+    let get_state = state.clone();
+    let get_path = path.clone();
+    capability.method(GET, move |request: KeyRequest| {
+        let state = get_state.clone();
+        let path = get_path.clone();
+        async move {
+            let store = open_store(&state, &path).await?;
+            store
+                .get(&decode_key(request.key)?)
+                .await
+                .map_err(|error| error.to_string())?
+                .map(EntryResponse::try_from)
+                .transpose()
+        }
+    })?;
+
+    let set_state = state.clone();
+    let set_path = path.clone();
+    capability.method(SET, move |request: SetRequest| {
+        let state = set_state.clone();
+        let path = set_path.clone();
+        async move {
+            let store = open_store(&state, &path).await?;
+            let versionstamp = store
+                .set(
+                    decode_key(request.key)?,
+                    request.value,
+                    expiry_from_duration(request.expire_in)?,
+                )
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok::<_, String>(CommitResponse {
+                versionstamp: versionstamp.0.to_string(),
+            })
+        }
+    })?;
+
+    let delete_state = state.clone();
+    let delete_path = path.clone();
+    capability.method(DELETE, move |request: KeyRequest| {
+        let state = delete_state.clone();
+        let path = delete_path.clone();
+        async move {
+            let store = open_store(&state, &path).await?;
+            let versionstamp = store
+                .delete(decode_key(request.key)?)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok::<_, String>(CommitResponse {
+                versionstamp: versionstamp.0.to_string(),
+            })
+        }
+    })?;
+
+    let list_state = state.clone();
+    let list_path = path.clone();
+    capability.method(LIST, move |request: ListRequest| {
+        let state = list_state.clone();
+        let path = list_path.clone();
+        async move {
+            let store = open_store(&state, &path).await?;
+            store
+                .list(&KvListOptions {
+                    prefix: decode_prefix(request.prefix)?,
+                    limit: request.limit,
+                    reverse: request.reverse,
                 })
-            }
-        })?;
+                .await
+                .map_err(|error| error.to_string())?
+                .into_iter()
+                .map(EntryResponse::try_from)
+                .collect()
+        }
+    })?;
 
-        let delete_state = state.clone();
-        let delete_path = path.clone();
-        capability.method(DELETE, move |request: KeyRequest| {
-            let state = delete_state.clone();
-            let path = delete_path.clone();
-            async move {
-                let store = open_store(&state, &path).await?;
-                let versionstamp = store
-                    .delete(decode_key(request.key)?)
-                    .await
-                    .map_err(|error| error.to_string())?;
-                Ok::<_, String>(CommitResponse {
-                    versionstamp: versionstamp.0.to_string(),
-                })
-            }
-        })?;
-
-        let list_state = state.clone();
-        let list_path = path.clone();
-        capability.method(LIST, move |request: ListRequest| {
-            let state = list_state.clone();
-            let path = list_path.clone();
-            async move {
-                let store = open_store(&state, &path).await?;
-                store
-                    .list(&KvListOptions {
-                        prefix: decode_prefix(request.prefix)?,
-                        limit: request.limit,
-                        reverse: request.reverse,
+    capability.method(ATOMIC, move |request: AtomicRequest| {
+        let state = state.clone();
+        let path = path.clone();
+        async move {
+            let store = open_store(&state, &path).await?;
+            let checks = request
+                .checks
+                .into_iter()
+                .map(|check| {
+                    Ok(KvCheck {
+                        key: decode_key(check.key)?,
+                        versionstamp: check
+                            .versionstamp
+                            .map(|value| parse_versionstamp(&value))
+                            .transpose()?,
                     })
-                    .await
-                    .map_err(|error| error.to_string())?
-                    .into_iter()
-                    .map(EntryResponse::try_from)
-                    .collect()
-            }
-        })?;
-
-        capability.method(ATOMIC, move |request: AtomicRequest| {
-            let state = state.clone();
-            let path = path.clone();
-            async move {
-                let store = open_store(&state, &path).await?;
-                let checks = request
-                    .checks
-                    .into_iter()
-                    .map(|check| {
-                        Ok(KvCheck {
-                            key: decode_key(check.key)?,
-                            versionstamp: check
-                                .versionstamp
-                                .map(|value| parse_versionstamp(&value))
-                                .transpose()?,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, String>>()?;
-                let mutations = request
-                    .mutations
-                    .into_iter()
-                    .map(decode_mutation)
-                    .collect::<Result<Vec<_>, String>>()?;
-                let result = store
-                    .atomic(&checks, &mutations)
-                    .await
-                    .map_err(|error| error.to_string())?;
-                Ok::<_, String>(AtomicResponse {
-                    committed: result.committed,
-                    versionstamp: result.versionstamp.map(|value| value.0.to_string()),
                 })
-            }
-        })
+                .collect::<Result<Vec<_>, String>>()?;
+            let mutations = request
+                .mutations
+                .into_iter()
+                .map(decode_mutation)
+                .collect::<Result<Vec<_>, String>>()?;
+            let result = store
+                .atomic(&checks, &mutations)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok::<_, String>(AtomicResponse {
+                committed: result.committed,
+                versionstamp: result.versionstamp.map(|value| value.0.to_string()),
+            })
+        }
     })
 }
 

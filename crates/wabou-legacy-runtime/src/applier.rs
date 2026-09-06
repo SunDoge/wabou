@@ -634,8 +634,23 @@ impl LegacyRuntimeController {
         self.document.resources.set_image_store(store);
     }
 
-    pub(crate) fn boot(&mut self, source: &str) -> rquickjs::Result<()> {
-        self.gpui.boot(source)
+    pub(crate) fn boot_with_source_map(
+        &mut self,
+        source: &str,
+        source_map: Option<&[u8]>,
+    ) -> rquickjs::Result<()> {
+        self.gpui.boot_with_source_map(source, source_map)
+    }
+
+    pub(crate) fn set_app_directories(&mut self, directories: gpui_shell::AppDirectories) {
+        self.gpui.set_app_directories(directories);
+    }
+
+    pub(crate) fn host_message_context(
+        &self,
+        window_key: gpui_shell::WindowResourceKey,
+    ) -> crate::HostMessageContext {
+        self.gpui.host_message_context(window_key)
     }
 
     #[cfg(feature = "vite")]
