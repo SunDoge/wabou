@@ -15,45 +15,26 @@ fixtures. Expensive all-target checks, replay variants, standalone scaffold
 builds, captures, HiDPI renders, and performance sampling belong to local
 pre-release verification rather than every pushed commit.
 
-## Solid-to-GPUI architecture contracts
+## Solid-to-native architecture contracts
 
-The GPUI backend has two non-negotiable retained-runtime contracts. Test them
-below component and pixel layers so visual success cannot hide duplicated trees
-or excessive native rebuilding.
+The retained runtime has two non-negotiable contracts. Test them below component
+and pixel layers so visual success cannot hide duplicated trees or excessive
+native rebuilding.
 
 ### Fine-grained projection
 
-A Solid write must produce one completed protocol frame, merge repeated writes
-to the same node, and advance only the nearest explicit GPUI projection
-boundary. The contract is split into deterministic layers:
+A Solid write must produce one completed protocol frame and merge repeated writes
+to the same node. The contract is split into deterministic layers:
 
 1. renderer tests execute real Solid and assert the exact mutation frame
    emitted by a signal;
-2. `wabou-shell` tests feed that operation into the retained projection and
-   assert dirty-kind coalescing plus independent boundary revision clocks;
-3. headless GPUI tests assert that an unrelated root notification or an
-   animation-only frame does not rematerialize cached projection boundaries.
+2. backend tests feed that operation into the retained document and assert
+   deterministic style, layout, interaction, and paint state;
+3. Vello Hybrid layout fixtures assert final geometry and native-widget metrics
+   without opening a platform window.
 
 Do not replace these assertions with FPS thresholds. Timing is machine-specific;
-mutation count, changed boundary identity, and materialization count are the
-stable architecture contracts.
-
-For an application-level regression, use the incremental projection probe. It
-boots the real QuickJS bundle in GPUI headless, records a checkpoint, evaluates
-one JavaScript write, then draws without `Window::refresh` so GPUI's view cache
-remains observable:
-
-```bash
-wabou layout apps/gallery --fixture runtime/projection-boundary \
-  --probe 'globalThis.__wabou_projection_probe_set_left?.("left-after")' \
-  --out /tmp/projection.json
-```
-
-TypeScript tests can call `probeAppProjection` and locate a named boundary with
-`projectionBoundaryProbe`. Give boundaries under test an `aria-label`; assert
-that the changed boundary advances while an unrelated sibling has zero
-revision and materialization deltas. Ordinary layout fixtures continue to use
-the forced-refresh settle path because they test final geometry, not caching.
+mutation count and retained-state revisions are the stable architecture contracts.
 
 ### HMR lifecycle
 
@@ -99,8 +80,6 @@ bun run wabou render apps/gallery \
   --out /tmp/gallery-hybrid.png \
   --snapshot /tmp/gallery-hybrid.json
 ```
-
-Pass `--renderer gpui` only for an explicitly labelled comparison capture.
 
 Application capture suites can set the same contract in
 `captures/config.json`. The default is `light`; use per-scenario overrides when
@@ -668,10 +647,10 @@ bun run wabou test /path/to/app/tests/window-lifecycle.behavior.ts \
   --app /path/to/app
 ```
 
-The deterministic backend boots the same retained GPUI projection as a normal
-application in GPUI's headless application context. It exercises QuickJS,
-Solid flushes, the protocol, GPUI layout, and projected input without requiring
-a compositor. It also uses an isolated temporary XDG data directory so
+The deterministic backend boots the same retained Vello Hybrid document as a
+normal application. It exercises QuickJS, Solid flushes, the protocol, Taffy
+layout, native widgets, and projected input without requiring a compositor. It
+also uses an isolated temporary XDG data directory so
 persisted application state cannot make scenarios order-dependent. Pass
 `--native` for a real platform-window smoke test.
 
@@ -687,11 +666,8 @@ equivalent to the native integration it is meant to verify.
 
 Every run writes versioned `report.json` and `trace.json` artifacts beneath
 `target/wabou-test/<app>/artifacts` by default. Use `--artifacts <dir>` to
-select another destination. The GPUI headless context can run without a display
-server. Pixel screenshots are platform-dependent: GPUI-CE currently exposes
-its headless pixel renderer on macOS Metal, while Linux wgpu runs still provide
-semantic and layout artifacts but report screenshot capture as unsupported.
-Pass `--failure-screenshot` to request `failure.png` where that renderer exists.
+select another destination. The offscreen Vello Hybrid renderer can run without
+a display server. Pass `--failure-screenshot` to request `failure.png`.
 At the start of a run, Wabou removes only its known report, trace, temporary
 JSON, and failure-screenshot outputs from that directory. This prevents a
 build or replay-validation failure from leaving a previous green report behind

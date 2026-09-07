@@ -387,7 +387,8 @@ function visualQualityDiagnostics(snapshot, options = {}) {
 			const line = metrics.lineBox;
 			const content = node.contentRect;
 			const tolerance = options.tolerance ?? 1;
-			const overflow = Math.max(content.x - line.x, content.y - line.y, layoutRectRight(line) - layoutRectRight(content), layoutRectBottom(line) - layoutRectBottom(content), 0);
+			const horizontallyScrollableText = node.tag === "input" || node.tag === "textarea";
+			const overflow = Math.max(horizontallyScrollableText ? 0 : content.x - line.x, content.y - line.y, horizontallyScrollableText ? 0 : layoutRectRight(line) - layoutRectRight(content), layoutRectBottom(line) - layoutRectBottom(content), 0);
 			if (overflow > tolerance) diagnostics.push({
 				code: "native-text-clipped",
 				node,

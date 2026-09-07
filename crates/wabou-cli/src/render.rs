@@ -1,21 +1,13 @@
-//! GPUI-native implementation of deterministic layout and pixel capture.
+//! Backend-neutral command-line render options and frontend preparation.
 
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::path::{Path, PathBuf};
 
 use clap::ArgMatches;
 use serde::{Deserialize, Serialize};
-use wabou_runtime::GpuiHeadlessScreenshot;
 
 use super::config::{BuildProfile, bundle_path};
 use super::project::App;
 use super::{Result, ensure, frontend};
-
-#[path = "gpui_layout.rs"]
-mod gpui_layout;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, clap::ValueEnum)]
 pub(super) enum HeadlessColorScheme {
@@ -42,7 +34,6 @@ pub(super) struct RenderOptions {
     pub(super) samples: usize,
     pub(super) actions: Vec<RenderAction>,
     pub(super) layout_only: bool,
-    pub(super) projection_probe: Option<String>,
     pub(super) cargo_features: Vec<String>,
 }
 
@@ -192,103 +183,6 @@ pub(super) fn actions_from_matches(matches: &ArgMatches) -> Option<Vec<RenderAct
     Some(indexed.into_iter().map(|(_, action)| action).collect())
 }
 
-pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
-    if options.layout_only {
-        return gpui_layout::run(workspace, app, options);
-    }
-    validate_capture_options(options)?;
-    prepare_frontend(
-        workspace,
-        app,
-        frontend_mode(options.mode.as_deref(), options.fixture.as_deref()),
-        options.skip_build,
-    )?;
-    let bundle = bundle_path(workspace, app, BuildProfile::Debug)?;
-    let source: Arc<str> = fs::read_to_string(&bundle)?.into();
-    let source_map = fs::read(bundle.with_extension("js.map"))
-        .ok()
-        .map(Arc::<[u8]>::from);
-    let mut harness = gpui_layout::boot(
-        source.clone(),
-        source_map.clone(),
-        options.width,
-        options.height,
-    )?;
-    if let Some(id) = options.fixture.as_deref() {
-        let fixture = gpui_layout::mount_fixture(&mut harness, id)?;
-        if fixture.width.is_some() || fixture.height.is_some() {
-            harness = gpui_layout::boot(source, source_map, fixture.width(), fixture.height())?;
-            gpui_layout::mount_fixture(&mut harness, id)?;
-        }
-    }
-    gpui_layout::settle_wait(&mut harness, options.wait_ms)?;
-    replay_actions(&mut harness, &options.actions)?;
-    if let Some(snapshot) = &options.snapshot {
-        gpui_layout::write_snapshot(snapshot, &harness.snapshot()?, options.color_scheme)?;
-    }
-    match harness.screenshot()? {
-        GpuiHeadlessScreenshot::Image(image) => {
-            if let Some(parent) = options.out.parent().filter(|path| !path.as_os_str().is_empty()) {
-                fs::create_dir_all(parent)?;
-            }
-            image.save(&options.out)?;
-            println!("[wabou] wrote GPUI capture {}", options.out.display());
-            Ok(())
-        }
-        GpuiHeadlessScreenshot::Unsupported => Err(
-            "this GPUI platform does not expose a headless pixel renderer; `wabou layout` remains available and no legacy renderer fallback is used"
-                .into(),
-        ),
-    }
-}
-
-fn frontend_mode<'a>(mode: Option<&'a str>, fixture: Option<&str>) -> Option<&'a str> {
-    fixture.map(|_| "layout-test").or(mode)
-}
-
-fn validate_capture_options(options: &RenderOptions) -> Result<()> {
-    if !options.scale_factor.is_finite() || options.scale_factor <= 0.0 {
-        return Err("--scale-factor must be a finite number greater than zero".into());
-    }
-    if options.window_id != 1 {
-        return Err("GPUI capture currently supports only the initial logical window".into());
-    }
-    if options.with_host || options.scenario.is_some() || !options.cargo_features.is_empty() {
-        return Err("host-backed GPUI capture has not been migrated yet".into());
-    }
-    if options.metrics.is_some() || options.samples != 20 {
-        return Err("GPUI capture metrics have not been migrated yet".into());
-    }
-    for action in &options.actions {
-        let values: &[f64] = match action {
-            RenderAction::Click(values) => values,
-            RenderAction::Wheel(values) => values,
-            RenderAction::Text(_) | RenderAction::Key(_) => continue,
-        };
-        if values.iter().any(|value| !value.is_finite()) {
-            return Err("GPUI capture coordinates and deltas must be finite".into());
-        }
-    }
-    Ok(())
-}
-
-pub(super) fn replay_actions(
-    harness: &mut wabou_runtime::GpuiHeadlessHarness,
-    actions: &[RenderAction],
-) -> Result<()> {
-    for action in actions {
-        match action {
-            RenderAction::Click([x, y]) => harness.click(*x as f32, *y as f32)?,
-            RenderAction::Wheel([x, y, delta_x, delta_y]) => {
-                harness.wheel(*x as f32, *y as f32, *delta_x as f32, *delta_y as f32)?;
-            }
-            RenderAction::Text(text) => harness.type_text(text)?,
-            RenderAction::Key(key) => harness.key(key)?,
-        }
-    }
-    Ok(())
-}
-
 pub(super) fn prepare_frontend(
     workspace: &Path,
     app: &App,
@@ -320,25 +214,4 @@ pub(super) fn prepare_frontend(
     )?;
     drop(frontend_lock);
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::frontend_mode;
-
-    #[test]
-    fn render_fixtures_build_the_fixture_registry() {
-        assert_eq!(
-            frontend_mode(None, Some("shell/full-workbench")),
-            Some("layout-test")
-        );
-        assert_eq!(
-            frontend_mode(Some("development"), Some("fixture")),
-            Some("layout-test")
-        );
-        assert_eq!(
-            frontend_mode(Some("development"), None),
-            Some("development")
-        );
-    }
 }

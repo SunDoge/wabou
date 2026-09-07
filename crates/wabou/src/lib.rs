@@ -14,6 +14,17 @@
 //! # }
 //! ```
 
+#[cfg(feature = "vello-hybrid")]
+pub use wabou_backend_vello_hybrid::VelloHybridHostBuilder as HostBuilder;
+#[cfg(feature = "vello-hybrid")]
+pub use wabou_backend_vello_hybrid::{
+    Error, ImageResource, ImageResourceHandle, ImageResourceStore, Result,
+    VelloHybridEffectRequest, VelloHybridExtensionContext, VelloHybridHostBuilder,
+    VelloHybridPaintContext, VelloHybridPoint, VelloHybridPointerButton, VelloHybridPointerPhase,
+    VelloHybridRasterImage, VelloHybridSecretStore, VelloHybridShellExtension,
+    VelloHybridTextContext, VelloHybridWakeCallback, VelloHybridWidgetChanges,
+    Widget as VelloHybridWidget,
+};
 #[cfg(feature = "bindings")]
 pub use wabou_bindgen::{Bindings, Capability, FunctionModule, NativeMethod, Type, specta};
 pub use wabou_bindgen::{CapabilityContract, HostMethod, JsonMethod};
@@ -26,36 +37,10 @@ pub use wabou_runtime::rquickjs;
 pub use wabou_runtime::{
     AppDirectories, AppDirectoryConfig, HostMessage, HostMessageContext, HostMessageError,
     HostMessageHandle, HostMessagePayload, HostMessageRouter, HostService, HostServiceContext,
-    NativeCapability, PersistentJsonCache, RevisionedHostPublication, RevisionedHostPublisher,
-    RevisionedHostSnapshot, SerialWorker, WindowBackground, WindowInputMode, WindowLevel,
-    WindowOptions, WindowResourceKey, initial_window_resource_key,
-};
-#[cfg(feature = "gpui")]
-pub use wabou_runtime::{
-    Error as GpuiError, ImageResource as GpuiImageResource,
-    ImageResourceHandle as GpuiImageResourceHandle, ImageResourceStore as GpuiImageResourceStore,
-    Result as GpuiResult,
-};
-#[cfg(feature = "gpui")]
-pub use wabou_runtime::{
-    HostBuilder as GpuiHostBuilder, HostServiceHandle, ManagedHostService, NativeWidgetContext,
-    NativeWidgetFactory, NativeWidgetMount, TextRenderingMode, gpui, managed_host_service,
-};
-
-#[cfg(feature = "vello-hybrid")]
-pub use wabou_backend_vello_hybrid::VelloHybridHostBuilder as HostBuilder;
-#[cfg(feature = "vello-hybrid")]
-pub use wabou_backend_vello_hybrid::{
-    Error, ImageResource, ImageResourceHandle, ImageResourceStore, Result,
-    VelloHybridEffectRequest, VelloHybridExtensionContext, VelloHybridHostBuilder,
-    VelloHybridPaintContext, VelloHybridPoint, VelloHybridPointerButton, VelloHybridPointerPhase,
-    VelloHybridRasterImage, VelloHybridSecretStore, VelloHybridShellExtension,
-    VelloHybridTextContext, VelloHybridWakeCallback, VelloHybridWidgetChanges,
-    Widget as VelloHybridWidget,
-};
-#[cfg(all(feature = "gpui", not(feature = "vello-hybrid")))]
-pub use wabou_runtime::{
-    Error, HostBuilder, ImageResource, ImageResourceHandle, ImageResourceStore, Result,
+    HostServiceHandle, ManagedHostService, NativeCapability, PersistentJsonCache,
+    RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker,
+    WindowBackground, WindowInputMode, WindowLevel, WindowOptions, WindowResourceKey,
+    initial_window_resource_key, managed_host_service,
 };
 #[cfg(feature = "tray")]
 pub use wabou_tray::{SystemTray, TrayContext, TrayImage};
@@ -69,8 +54,6 @@ mod tests {
         let _builder = HostBuilder::new();
         #[cfg(feature = "vello-hybrid")]
         let _hybrid_backend = VelloHybridHostBuilder::new();
-        #[cfg(feature = "gpui")]
-        let _gpui_comparison = GpuiHostBuilder::new();
         let _window = WindowOptions::new().title("Facade test");
         let _transparent = Color::TRANSPARENT;
         let _: JsonMethod<(), bool> = JsonMethod::no_request("ready");

@@ -74,11 +74,9 @@ themed, shadcn-inspired recipes. Those are development boundaries, while
 On the Rust side, applications use the `wabou` facade from a pinned Git tag.
 The facade is deliberately not on crates.io for the first preview, allowing
 internal crates to be merged or renamed without reserving permanent public
-crate names. `wabou-runtime`, `wabou-shell`, and the remaining workspace crates
-are implementation details; the preview tag and the facade are the supported
-Rust boundary. `wabou-runtime` currently contains the GPUI-CE host plus shared
-machinery. Transitionally named `wabou-legacy-*` crates contain the actively
-developed Winit/Taffy/Vello Hybrid backend; they are being converged onto one
-shared runtime contract rather than preserved as a retired oracle. Optional
-widget and code-generation crates may be added alongside `wabou`, but must not
-replace it as the application runtime.
+crate names. `wabou-runtime` and the remaining workspace crates are
+implementation details; the preview tag and the facade are the supported Rust
+boundary. `wabou-runtime` contains backend-neutral QuickJS and host machinery;
+the Vello Hybrid backend owns windows, layout projection, painting, and native
+widgets. Optional widget and code-generation crates may be added alongside
+`wabou`, but must not replace it as the application runtime.

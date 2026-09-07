@@ -334,12 +334,14 @@ impl Applier {
             let text_metrics = text_layout
                 .as_deref()
                 .and_then(|layout| {
-                    (layout.lines().len() == 1)
-                        .then(|| {
-                            wabou_shell::text::single_line_text_metrics(layout, layout.height())
-                        })
-                        .flatten()
-                        .map(|metrics| ("node", metrics))
+                    wabou_shell::text::single_line_text_metrics(layout, layout.height()).map(
+                        |mut metrics| {
+                            if layout.lines().len() > 1 {
+                                metrics.line_box[2] = cw;
+                            }
+                            ("node", metrics)
+                        },
+                    )
                 })
                 .or_else(|| {
                     self.document

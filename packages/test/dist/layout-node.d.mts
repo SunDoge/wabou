@@ -5,7 +5,7 @@ interface RenderAppLayoutOptions {
   readonly app: string;
   readonly out: string;
   readonly batch?: string;
-  /** Mount one named application layout fixture before evaluating a probe. */
+  /** Mount one named application layout fixture. */
   readonly fixture?: string;
   readonly width?: number;
   readonly height?: number;
@@ -15,34 +15,12 @@ interface RenderAppLayoutOptions {
   readonly mode?: string;
   readonly skipBuild?: boolean;
   readonly waitMs?: number;
-  /** JavaScript evaluated after the initial GPUI projection checkpoint. */
-  readonly probe?: string;
   /** Boot the application's Rust host so custom capabilities are available. */
   readonly withHost?: boolean;
   /** Executable and any fixed prefix arguments. Defaults to `["wabou"]`. */
   readonly command?: readonly string[];
 }
 declare function layoutCommandArgs(options: RenderAppLayoutOptions): readonly string[];
-interface ProjectionBoundaryProbeDelta {
-  readonly root: {
-    readonly lo: number;
-    readonly hi: number;
-  };
-  readonly label?: string;
-  readonly structureDelta: number;
-  readonly layoutDelta: number;
-  readonly paintDelta: number;
-  readonly materializationDelta: number;
-  readonly ownedNodes: number;
-}
-declare function projectionBoundaryProbe(report: ProjectionProbeReport, label: string): ProjectionBoundaryProbeDelta;
-interface ProjectionProbeReport {
-  readonly protocolRevisionDelta: number;
-  readonly boundaries: readonly ProjectionBoundaryProbeDelta[];
-}
-declare function probeAppProjection(options: RenderAppLayoutOptions & {
-  readonly probe: string;
-}): Promise<ProjectionProbeReport>;
 /** Return the first Solid runtime diagnostic that makes a layout run invalid. */
 declare function reactiveRuntimeDiagnostic(output: string): string | undefined;
 interface LayoutFixtureCase {
@@ -91,5 +69,5 @@ declare function validateLayoutFixtureReport(report: LayoutFixtureReport, fixtur
 declare function renderLayoutFixtures(options: RenderLayoutFixturesOptions): Promise<LayoutFixtureReport>;
 declare function renderAppLayout(options: RenderAppLayoutOptions): Promise<LayoutSnapshot>;
 //#endregion
-export { LayoutFixtureCase, LayoutFixtureCheck, LayoutFixtureReport, LayoutFixtureResult, ProjectionBoundaryProbeDelta, ProjectionProbeReport, RenderAppLayoutOptions, RenderLayoutFixturesOptions, layoutCommandArgs, parseLayoutFixtureReport, probeAppProjection, projectionBoundaryProbe, reactiveRuntimeDiagnostic, renderAppLayout, renderLayoutFixtures, validateLayoutFixtureReport };
+export { LayoutFixtureCase, LayoutFixtureCheck, LayoutFixtureReport, LayoutFixtureResult, RenderAppLayoutOptions, RenderLayoutFixturesOptions, layoutCommandArgs, parseLayoutFixtureReport, reactiveRuntimeDiagnostic, renderAppLayout, renderLayoutFixtures, validateLayoutFixtureReport };
 //# sourceMappingURL=layout-node.d.mts.map

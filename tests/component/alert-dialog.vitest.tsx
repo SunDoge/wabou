@@ -46,7 +46,7 @@ test("requires an explicit choice and closes after confirmation", async () => {
   expect(dialog.transform).toEqual([0.98, 0, 0, 0.98, 0, 0]);
   expect(dialog.attribute("__wabou_native_transition")).toBeNull();
   expect(dialog.className).toContain("rounded-lg");
-  expect(dialog.parent?.className).toContain("backdrop-blur-sm");
+  expect(dialog.parent?.className).not.toContain("backdrop-blur-sm");
   await screen.advanceTime(160);
   expect(dialog.transform).toEqual([1, 0, 0, 1, 0, 0]);
 

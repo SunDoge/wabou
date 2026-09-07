@@ -1,6 +1,6 @@
 {
   "defaults": {
-    "renderer": "gpui",
+    "renderer": "vello-hybrid",
     "width": 1280,
     "height": 820,
     "scaleFactor": 1,

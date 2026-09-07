@@ -1,8 +1,8 @@
 use motrix_wabou::downloads;
 use snafu::{ResultExt, Whatever};
 use wabou::{
-    AppDirectoryConfig, GpuiHostBuilder as HostBuilder, HostMessage, HostMessageRouter,
-    WindowBackground, WindowOptions, initial_window_resource_key,
+    AppDirectoryConfig, HostBuilder, HostMessage, HostMessageRouter, WindowBackground,
+    WindowOptions, initial_window_resource_key,
 };
 use wabou::{SystemTray, TrayImage};
 
@@ -81,7 +81,7 @@ fn main() -> Result<(), Whatever> {
             downloads::mount(capability, capability_service.clone())
         })
         .capability(downloads::NATIVE_CAPABILITY, downloads::mount_native)
-        .application_extension(tray)
+        .shell_extension(tray)
         .host_message_router(application_messages)
         .host_message_producer(move |context| {
             downloads::stream_snapshots(context, stream_service.clone())

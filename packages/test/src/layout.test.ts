@@ -11,11 +11,7 @@ import {
   visibleOverflowDiagnostics,
   visualQualityDiagnostics,
 } from "./layout";
-import {
-  layoutCommandArgs,
-  projectionBoundaryProbe,
-  reactiveRuntimeDiagnostic,
-} from "./layout-node";
+import { layoutCommandArgs, reactiveRuntimeDiagnostic } from "./layout-node";
 
 describe("layout rect assertions", () => {
   test("reports stable right and bottom edges", () => {
@@ -102,39 +98,6 @@ describe("layout rect assertions", () => {
     expect(args.slice(-2)).toEqual(["--color-scheme", "dark"]);
   });
 
-  test("forwards one incremental projection probe to the GPUI harness", () => {
-    const args = layoutCommandArgs({
-      app: "apps/gallery",
-      out: "/tmp/layout.json",
-      probe: "globalThis.__fixture_set_count(2)",
-    });
-    expect(args.slice(-2)).toEqual([
-      "--probe",
-      "globalThis.__fixture_set_count(2)",
-    ]);
-  });
-
-  test("locates projection deltas by a stable semantic label", () => {
-    const boundary = projectionBoundaryProbe(
-      {
-        protocolRevisionDelta: 1,
-        boundaries: [
-          {
-            root: { lo: 3, hi: 1 },
-            label: "Stable projection boundary",
-            structureDelta: 0,
-            layoutDelta: 0,
-            paintDelta: 0,
-            materializationDelta: 0,
-            ownedNodes: 3,
-          },
-        ],
-      },
-      "Stable projection boundary",
-    );
-    expect(boundary.materializationDelta).toBe(0);
-  });
-
   test("reports actionable context for visible overflow", () => {
     const snapshot: LayoutSnapshot = {
       status: {
@@ -181,7 +144,7 @@ describe("layout rect assertions", () => {
     );
   });
 
-  test("ignores protocol text leaves aggregated into a GPUI glyph run", () => {
+  test("ignores protocol text leaves aggregated into a native glyph run", () => {
     const snapshot: LayoutSnapshot = {
       status: {
         viewportWidth: 200,
@@ -331,5 +294,34 @@ describe("layout rect assertions", () => {
         amount: 3,
       }),
     ]);
+  });
+
+  test("allows native text inputs to scroll long lines horizontally", () => {
+    const node: LayoutSnapshotNode = {
+      id: { lo: 8, hi: 1 },
+      tag: "input",
+      classes: ["h-8", "px-2"],
+      attrs: [["aria-label", "Workspace"]],
+      rect: { x: 8, y: 64, width: 207, height: 32 },
+      contentRect: { x: 18, y: 70, width: 187, height: 20 },
+      textMetrics: {
+        source: "widget",
+        lineBox: { x: -40, y: 70, width: 280, height: 20 },
+        baseline: 85,
+      },
+      styleDiagnostics: [],
+      computed: {},
+    };
+    const snapshot: LayoutSnapshot = {
+      status: {
+        viewportWidth: 320,
+        viewportHeight: 200,
+        deviceScale: 1,
+        nodeCount: 1,
+      },
+      nodes: [node],
+    };
+
+    expect(visualQualityDiagnostics(snapshot)).toEqual([]);
   });
 });

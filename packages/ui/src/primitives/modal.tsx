@@ -253,7 +253,6 @@ export function Modal(props: ModalProps): JSX.Element {
           get class() {
             const visual = visualState();
             return mergeClasses(
-              visual.active && "backdrop-blur-sm",
               visual.retainBackdropVisuals && props.backdropClass,
             );
           },

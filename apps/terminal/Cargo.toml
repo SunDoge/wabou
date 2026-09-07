@@ -9,5 +9,5 @@ path = "src/main.rs"
 
 [dependencies]
 snafu = { workspace = true }
-wabou = { workspace = true, default-features = false, features = ["gpui"] }
-wabou-terminal = { workspace = true }
+wabou = { workspace = true, features = ["vello-hybrid"] }
+wabou-terminal-vello.workspace = true

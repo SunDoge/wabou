@@ -518,10 +518,10 @@ fn replay_artifacts_use_a_separate_default_directory() {
 
 #[test]
 fn replay_validation_tracks_every_exposed_semantic_role() {
-    let actions = wabou_shell::SemanticRole::ALL
+    let actions = wabou_shell_api::SemanticRole::ALL
         .iter()
         .copied()
-        .filter(|role| *role != wabou_shell::SemanticRole::Generic)
+        .filter(|role| *role != wabou_shell_api::SemanticRole::Generic)
         .map(|role| {
             json!({
                 "action": "waitForByRole",

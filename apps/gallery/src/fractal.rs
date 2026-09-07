@@ -1,67 +1,16 @@
-//! Gallery-only Julia set rendered as an application-defined GPUI widget.
-
-#[cfg(feature = "gpui")]
-use std::{
-    io::Cursor,
-    sync::{Arc, Mutex},
-};
-
-#[cfg(feature = "gpui")]
-use wabou::{NativeWidgetContext, gpui};
+//! Gallery-only Julia set rendered as an application-defined native widget.
 
 const RENDER_SIZE: u32 = 480;
 const MAX_ITER: u32 = 160;
 const VIEW: f64 = 1.5;
 
-/// Creates the GPUI-native Julia widget factory used by the default shell.
-///
-/// The cache is owned by the application registration rather than a transient
-/// GPUI element. Attribute changes select a deterministic image while ordinary
-/// frame rebuilds reuse the already encoded source.
-#[cfg(feature = "gpui")]
-pub fn gpui_factory()
--> impl for<'a> Fn(NativeWidgetContext<'a>, &mut gpui::Window, &mut gpui::App) -> gpui::AnyElement
-+ Send
-+ Sync
-+ 'static {
-    use gpui::{IntoElement as _, Styled as _};
-
-    let image = Arc::new(Mutex::new(None::<((u64, u64), Arc<gpui::Image>)>));
-    move |context, _window, _cx| {
-        let cx = context
-            .attribute("cx")
-            .and_then(|value| value.parse::<f64>().ok())
-            .unwrap_or(0.7885);
-        let cy = context
-            .attribute("cy")
-            .and_then(|value| value.parse::<f64>().ok())
-            .unwrap_or(0.0);
-        let cache_key = (cx.to_bits(), cy.to_bits());
-        let current = {
-            let mut image = image.lock().expect("Julia image cache lock");
-            if image.as_ref().is_none_or(|(key, _)| *key != cache_key) {
-                *image = Some((cache_key, Arc::new(encode_gpui_image(cx, cy))));
-            }
-            image
-                .as_ref()
-                .expect("Julia cache initialized above")
-                .1
-                .clone()
-        };
-
-        gpui::img(current).size_full().into_any_element()
-    }
-}
-
-/// Application-defined Julia widget for the Winit + Vello Hybrid backend.
-#[cfg(not(feature = "gpui"))]
+/// Application-defined Julia widget for the Vello Hybrid backend.
 pub struct WinitFractal {
     cx: f64,
     cy: f64,
     image: Option<((u64, u64), wabou::VelloHybridRasterImage)>,
 }
 
-#[cfg(not(feature = "gpui"))]
 impl Default for WinitFractal {
     fn default() -> Self {
         Self {
@@ -72,7 +21,6 @@ impl Default for WinitFractal {
     }
 }
 
-#[cfg(not(feature = "gpui"))]
 impl wabou::VelloHybridWidget for WinitFractal {
     fn paint(&mut self, paint: &mut wabou::VelloHybridPaintContext<'_>) {
         let key = (self.cx.to_bits(), self.cy.to_bits());
@@ -133,18 +81,6 @@ fn render_rgba(cx: f64, cy: f64) -> Vec<u8> {
     rgba
 }
 
-#[cfg(feature = "gpui")]
-fn encode_gpui_image(cx: f64, cy: f64) -> gpui::Image {
-    let mut png = Vec::new();
-    image::DynamicImage::ImageRgba8(
-        image::RgbaImage::from_raw(RENDER_SIZE, RENDER_SIZE, render_rgba(cx, cy))
-            .expect("Julia renderer emits a complete RGBA image"),
-    )
-    .write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
-    .expect("encoding an in-memory Julia image cannot fail");
-    gpui::Image::from_bytes(gpui::ImageFormat::Png, png)
-}
-
 fn julia_iter(zx: f64, zy: f64, cx: f64, cy: f64) -> (f64, u32) {
     let (mut x, mut y) = (zx, zy);
     for iteration in 0..MAX_ITER {
@@ -203,7 +139,7 @@ fn hue_to_rgb(p: f64, q: f64, mut t: f64) -> f64 {
     }
 }
 
-#[cfg(all(test, not(feature = "gpui")))]
+#[cfg(test)]
 mod hybrid_tests {
     use super::*;
     use wabou::VelloHybridWidget as _;
