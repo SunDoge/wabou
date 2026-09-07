@@ -35,7 +35,6 @@ import {
   type ComposerAutocompleteRow,
   composerAutocompleteRows,
   detectComposerTrigger,
-  normalizeComposerCursor,
   replaceComposerTrigger,
 } from "./composer-autocomplete";
 import { ComposerAutocompleteList } from "./composer-autocomplete-list";
@@ -117,8 +116,14 @@ export function ConversationComposer(props: ConversationComposerProps) {
     flush(() => {
       authoredDraft = value;
       props.changeDraft(value);
+      // This is application state for autocomplete only. The native editor
+      // remains the source of truth for its live caret and IME composition.
       setSelection({ anchor: nextCursor, head: nextCursor });
     });
+  };
+  const replaceDraft = (value: string, nextCursor: number) => {
+    changeDraft(value, nextCursor);
+    editor?.setTextSelection(nextCursor, nextCursor);
   };
   createEffect(
     () => props.draft,
@@ -136,10 +141,6 @@ export function ConversationComposer(props: ConversationComposerProps) {
       ? detectComposerTrigger(props.draft, selection().head)
       : null,
   );
-  const controlledSelection = createMemo(() => ({
-    anchor: normalizeComposerCursor(props.draft, selection().anchor),
-    head: normalizeComposerCursor(props.draft, selection().head),
-  }));
   const triggerKey = createMemo(() => {
     const value = trigger();
     return value
@@ -176,7 +177,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
     const value = trigger();
     if (!value) return;
     const replacement = replaceComposerTrigger(props.draft, value, row);
-    changeDraft(replacement.text, replacement.cursor);
+    replaceDraft(replacement.text, replacement.cursor);
     if (row.kind === "file" && props.contextFiles.length < 8) {
       props.changeContextFiles([...props.contextFiles, row.label]);
     }
@@ -240,9 +241,6 @@ export function ConversationComposer(props: ConversationComposerProps) {
               aria-activedescendant={highlighted()}
               value={props.draft}
               submitOnEnter
-              widgetConfig={{
-                selection: controlledSelection(),
-              }}
               aria-label={i18n.message(m.prompt_placeholder, {})}
               placeholder={
                 running()

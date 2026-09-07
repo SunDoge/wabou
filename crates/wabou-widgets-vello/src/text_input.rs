@@ -6,6 +6,7 @@
 //! `paint` applies them via the driver, refreshes layout, then paints
 //! selection rects + caret + glyph runs.
 
+use std::collections::VecDeque;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -14,6 +15,7 @@ use parley::{Affinity, Cursor, PlainEditor, PositionedLayoutItem, Selection};
 use serde::Deserialize;
 use vello_common::kurbo::{Affine, Rect};
 use vello_common::peniko::{Color, Fill};
+use wabou_protocol::event;
 use wabou_shell::style::TextAlign;
 use wabou_shell::text::{
     SingleLineTextMetrics, TextContext, brush_for_color, layout_text_styled,
@@ -24,7 +26,7 @@ use wabou_shell_vello::{PaintScene, Scene};
 
 use wabou_shell::{
     PaintContext, Widget, WidgetChanges, WidgetEventResult, WidgetImePurpose, WidgetImeState,
-    WidgetStyle, WidgetTextSelection, WidgetTextSelectionKind,
+    WidgetNodeEvent, WidgetStyle, WidgetTextSelection, WidgetTextSelectionKind,
 };
 
 const SELECTION_COLOR: Color = Color::from_rgba8(99, 102, 241, 80);
@@ -157,6 +159,8 @@ pub struct TextInput {
     text_metrics: Option<SingleLineTextMetrics>,
     single_line_y_offset: f32,
     selection_kind: WidgetTextSelectionKind,
+    submit_on_enter: bool,
+    events: VecDeque<WidgetNodeEvent>,
 }
 
 impl Default for TextInput {
@@ -225,6 +229,8 @@ impl TextInput {
             text_metrics: None,
             single_line_y_offset: 0.0,
             selection_kind: WidgetTextSelectionKind::Simple,
+            submit_on_enter: false,
+            events: VecDeque::new(),
         }
     }
 
@@ -477,6 +483,25 @@ impl TextInput {
                     PendingEdit::MoveDown
                 });
                 WidgetEventResult::selection_changed_result()
+            }
+            "Enter" if self.multiline && self.editable() && self.editor.is_composing() => {
+                // The platform IME owns Enter while a preedit is active. It
+                // will follow with Commit or another Preedit; treating this
+                // key as submit/newline races that composition lifecycle.
+                WidgetEventResult::handled_consuming_key_text()
+            }
+            "Enter"
+                if self.multiline
+                    && self.editable()
+                    && self.submit_on_enter
+                    && !event.modifiers.shift()
+                    && !self.editor.is_composing() =>
+            {
+                self.events.push_back(WidgetNodeEvent::json(
+                    event::SUBMIT,
+                    r#"{"secondary":false,"shift":false}"#,
+                ));
+                WidgetEventResult::handled_consuming_key_text()
             }
             "Enter" if self.multiline && self.editable() => {
                 self.queue(PendingEdit::Insert("\n".into()));
@@ -906,6 +931,7 @@ impl Widget for TextInput {
             }
             "disabled" => self.disabled = value != "false",
             "readOnly" => self.read_only = value != "false",
+            "submitOnEnter" => self.submit_on_enter = value != "false",
             _ => return WidgetChanges::empty(),
         }
         CONTENT_CHANGED
@@ -915,6 +941,7 @@ impl Widget for TextInput {
         match name {
             "disabled" => self.disabled = false,
             "readOnly" => self.read_only = false,
+            "submitOnEnter" => self.submit_on_enter = false,
             "placeholder" => self.placeholder.clear(),
             _ => return WidgetChanges::empty(),
         }
@@ -955,6 +982,10 @@ impl Widget for TextInput {
                 .flatten(),
             kind: self.selection_kind,
         })
+    }
+
+    fn take_node_event(&mut self) -> Option<WidgetNodeEvent> {
+        self.events.pop_front()
     }
 
     fn accessibility(&self) -> wabou_shell::WidgetAccessibility {
@@ -1208,6 +1239,10 @@ mod tests {
     }
 
     fn key(key: &str) -> UiEvent {
+        key_with_modifiers(key, Modifiers::default())
+    }
+
+    fn key_with_modifiers(key: &str, modifiers: Modifiers) -> UiEvent {
         UiEvent::Key(KeyEvent {
             phase: KeyPhase::Down,
             key: key.into(),
@@ -1216,7 +1251,7 @@ mod tests {
             text: None,
             text_with_all_modifiers: None,
             location: Default::default(),
-            modifiers: Modifiers::default(),
+            modifiers,
             repeat: false,
             synthetic: false,
         })
@@ -1585,6 +1620,54 @@ mod tests {
                 .try_layout()
                 .is_some_and(|layout| layout.height() > 48.0)
         );
+    }
+
+    #[test]
+    fn submit_on_enter_emits_submit_while_shift_enter_inserts_a_newline() {
+        let mut area = TextInput::multiline();
+        area.attribute_changed("value", "draft");
+        area.attribute_changed("submitOnEnter", "true");
+        let mut tcx = TextContext::new();
+        area.paint(160.0, 64.0, &mut tcx);
+
+        let submitted = area.handle_event(&key("Enter"));
+        assert!(submitted.is_handled());
+        assert!(submitted.consumes_key_text());
+        assert!(!submitted.value_changed());
+        assert_eq!(area.current_value(), Some("draft"));
+        assert_eq!(
+            area.take_node_event(),
+            Some(WidgetNodeEvent::json(
+                event::SUBMIT,
+                r#"{"secondary":false,"shift":false}"#,
+            ))
+        );
+
+        area.handle_event(&key("End"));
+        area.paint(160.0, 64.0, &mut tcx);
+        let newline = area.handle_event(&key_with_modifiers("Enter", Modifiers::SHIFT));
+        area.paint(160.0, 64.0, &mut tcx);
+        assert!(newline.value_changed());
+        assert_eq!(area.current_value(), Some("draft\n"));
+        assert!(area.take_node_event().is_none());
+    }
+
+    #[test]
+    fn submit_on_enter_defers_to_an_active_ime_composition() {
+        let mut area = TextInput::multiline();
+        area.attribute_changed("submitOnEnter", "true");
+        let mut tcx = TextContext::new();
+        area.paint(160.0, 64.0, &mut tcx);
+        area.handle_event(&UiEvent::Ime(ImeEvent::Preedit {
+            text: "nihon".into(),
+            cursor: Some((5, 5)),
+        }));
+        area.paint(160.0, 64.0, &mut tcx);
+
+        let enter = area.handle_event(&key("Enter"));
+        assert!(enter.is_handled());
+        assert!(!enter.value_changed());
+        assert!(area.take_node_event().is_none());
     }
 
     #[test]

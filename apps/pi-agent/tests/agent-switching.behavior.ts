@@ -8,7 +8,7 @@ test("starts a deterministic Pi agent and renders its streamed response", async 
   });
   await composer.waitFor({ timeout: 5_000 });
   await composer.type("Explain the fixture");
-  await page.getByRole("button", { name: "Send" }).click();
+  await composer.press("Enter");
 
   await expect(
     page.getByRole("label", {
@@ -30,6 +30,22 @@ test("starts a deterministic Pi agent and renders its streamed response", async 
   await expect(subagents).toBeInViewport();
   await subagents.click();
   await expect(composer).toHaveValue("/subagents ");
+  await composer.press("a", { control: true });
+  await composer.press("Backspace");
+  await expect(composer).toHaveValue("");
+});
+
+test("keeps the native caret authoritative across IME commits", async ({
+  page,
+}) => {
+  const composer = page.getByRole("textbox", {
+    name: "Ask this agent to work in its repository…",
+  });
+  await composer.type("suffix");
+  await composer.press("Home");
+  await composer.ime("你");
+  await composer.type("x");
+  await expect(composer).toHaveValue("你xsuffix");
   await composer.press("a", { control: true });
   await composer.press("Backspace");
   await expect(composer).toHaveValue("");
