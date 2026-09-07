@@ -150,6 +150,20 @@ await renderLayoutFixtures({
       assert: (fixture) => assertSetupWorkspace(fixture, 900, 620),
     },
     {
+      id: "timestow/unlock-minimum",
+      width: 900,
+      height: 620,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, { role: "group", name: "Unlock backup" });
+        getLayoutNode(fixture, {
+          role: "textbox",
+          name: "Repository password",
+        });
+        getLayoutNode(fixture, { role: "button", name: "Unlock backup" });
+      },
+    },
+    {
       id: "timestow/workspace-header-minimum",
       width: 676,
       height: 176,

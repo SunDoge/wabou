@@ -46,11 +46,10 @@ test("repository setup chooses a mode before exposing one primary action", () =>
         mode={mode()}
         name="Photos"
         path="/data/backups/photos"
-        password="secret"
+        passwordSecret="timestow:test"
         onModeChange={setMode}
         onNameChange={() => {}}
         onPathChange={() => {}}
-        onPasswordChange={() => {}}
         onSubmit={submit}
       />
     );
@@ -61,6 +60,12 @@ test("repository setup chooses a mode before exposing one primary action", () =>
     1,
   );
   expect(screen.queryByRole("button", { name: "Open repository" })).toBeNull();
+  const password = screen.getByRole("textbox", {
+    name: "Repository password",
+  });
+  expect(password.tag).toBe("password-input");
+  expect(password.attribute("secret")).toBe("timestow:test");
+  expect(password.value).toBeNull();
 
   screen.getByRole("button", { name: "Open an existing repository" }).click();
   screen.flush();
@@ -210,7 +215,7 @@ test("snapshot changes compare against the recorded parent and can include metad
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 5,
+      __wabouCapabilityVersion: 6,
       diffSnapshots: async (request: { includeMetadata?: boolean }) => ({
         entries: [
           {
@@ -313,7 +318,7 @@ test("snapshot file tree loads child directories only when expanded", async () =
   const selected = vi.fn();
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 5,
+      __wabouCapabilityVersion: 6,
       listFiles: async (request: { path: string }) =>
         request.path === "docs"
           ? [
@@ -375,7 +380,7 @@ test("snapshot file tree loads child directories only when expanded", async () =
 test("file details preview and extract through the native rustic capability", async () => {
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 5,
+      __wabouCapabilityVersion: 6,
       previewPath: async () => ({
         destination: "/tmp/wabou-rustic-preview/42",
         plan: {
@@ -630,7 +635,7 @@ test("rustic session hydrates durable profiles and exposes their locked state", 
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 5,
+      __wabouCapabilityVersion: 6,
       status: async () => ({
         unlockedProfileIds: [],
       }),
@@ -664,7 +669,7 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 5,
+      __wabouCapabilityVersion: 6,
       status: async () => ({ unlockedProfileIds: [] }),
       createProfile: async (request: { id: string }) => ({
         unlockedProfileIds: [request.id],
@@ -682,7 +687,7 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
             void session.connectProfile("create", {
               name: "Photos",
               repositoryPath: "/data/backups/photos",
-              password: "wabou-rustic-test",
+              passwordSlot: "timestow:test",
               sources: ["/data/photos"],
             })
           }
@@ -708,6 +713,14 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
     expect(screen.getByRole("status").text).toBe("Photos");
   });
   expect(fixture.callsTo("rustic.createProfile")).toHaveLength(1);
+  expect(fixture.callsTo("rustic.createProfile")[0]?.args[0]).toEqual(
+    expect.objectContaining({
+      passwordSlot: "timestow:test",
+    }),
+  );
+  expect(
+    fixture.callsTo("rustic.createProfile")[0]?.args[0],
+  ).not.toHaveProperty("password");
   expect(save).toHaveBeenCalledWith(
     expect.objectContaining({
       name: "Photos",
@@ -739,7 +752,7 @@ test("runs a due profile backup in the background and records completion", async
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 5,
+      __wabouCapabilityVersion: 6,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -812,7 +825,7 @@ test("schedule dialog explains the runtime boundary and exposes its controls", a
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 5,
+      __wabouCapabilityVersion: 6,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,

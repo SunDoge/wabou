@@ -94,14 +94,14 @@ export interface RusticCapability extends NativeCapability {
     id: string;
     name: string;
     path: string;
-    password: string;
+    passwordSlot: string;
     sources: string[];
   }): RuntimeStatus | PromiseLike<RuntimeStatus>;
   openProfile(request: {
     id: string;
     name: string;
     path: string;
-    password: string;
+    passwordSlot: string;
     sources: string[];
   }): RuntimeStatus | PromiseLike<RuntimeStatus>;
   selectProfile(request: {
@@ -171,6 +171,6 @@ interface RusticHost extends Host {
 export function useRusticApi(): RusticCapability {
   return bindCapability(useHost<RusticHost>().rustic, {
     name: "rustic",
-    version: 5,
+    version: 6,
   });
 }

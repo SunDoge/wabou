@@ -13,13 +13,16 @@ use rustic_core::{
     repofile::{DeleteOption, StringList},
 };
 use serde::{Deserialize, Serialize};
-use wabou::{CapabilityContract, HostMessageHandle, HostMethod, NativeCapability, rquickjs};
+use wabou::{
+    CapabilityContract, HostMessageHandle, HostMethod, NativeCapability, VelloHybridSecretStore,
+    rquickjs,
+};
 
 use crate::progress::{
     BACKUP_PROGRESS_TOPIC, BackupProgressBars, BackupProgressPhase, ProgressEmitter,
 };
 
-pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 5);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 6);
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
@@ -46,6 +49,7 @@ const OPEN_PATH: HostMethod<OpenPathRequest, ()> = HostMethod::new("openPath");
 pub struct RusticService {
     state: Arc<RwLock<ServiceState>>,
     progress: ProgressEmitter,
+    secrets: VelloHybridSecretStore,
 }
 
 #[derive(Clone, Default)]
@@ -69,8 +73,7 @@ pub struct ProfileRequest {
     pub id: String,
     pub name: String,
     pub path: String,
-    #[serde(default)]
-    pub password: String,
+    pub password_slot: String,
     #[serde(default)]
     pub sources: Vec<String>,
 }
@@ -252,6 +255,13 @@ pub struct RestoreResult {
 }
 
 impl RusticService {
+    pub fn new(secrets: VelloHybridSecretStore) -> Self {
+        Self {
+            secrets,
+            ..Self::default()
+        }
+    }
+
     pub fn attach_progress_messages(&self, messages: HostMessageHandle) {
         self.progress.replace(move |event| {
             let _ = messages.emit_json(BACKUP_PROGRESS_TOPIC, event);
@@ -263,7 +273,11 @@ impl RusticService {
         Ok(status_from_state(&state))
     }
 
-    fn remember_profile(&self, request: ProfileRequest) -> Result<RuntimeStatus, String> {
+    fn remember_profile(
+        &self,
+        request: ProfileRequest,
+        password: String,
+    ) -> Result<RuntimeStatus, String> {
         let name = request.name.trim();
         if name.is_empty() {
             return Err("backup name is required".to_string());
@@ -282,14 +296,14 @@ impl RusticService {
         {
             profile.name = name.to_string();
             profile.repository_path = request.path;
-            profile.password = request.password;
+            profile.password = password;
             profile.sources = normalize_sources(request.sources);
         } else {
             state.profiles.push(ProfileState {
                 id: request.id.clone(),
                 name: name.to_string(),
                 repository_path: request.path,
-                password: request.password,
+                password,
                 sources: normalize_sources(request.sources),
             });
         }
@@ -313,14 +327,46 @@ impl RusticService {
 
     fn create_profile(&self, request: ProfileRequest) -> Result<RuntimeStatus, String> {
         validate_profile_request(&request)?;
-        create_repository(&request.path, &request.password)?;
-        self.remember_profile(request)
+        let password = self.secrets.take(&request.password_slot);
+        if password.is_empty() {
+            return Err("repository password is required".to_string());
+        }
+        self.create_profile_with_password(request, password.as_str())
     }
 
     fn open_profile(&self, request: ProfileRequest) -> Result<RuntimeStatus, String> {
         validate_profile_request(&request)?;
-        open_repository(&request.path, &request.password).map(|_| ())?;
-        self.remember_profile(request)
+        let password = self.secrets.take(&request.password_slot);
+        if password.is_empty() {
+            return Err("repository password is required".to_string());
+        }
+        self.open_profile_with_password(request, password.as_str())
+    }
+
+    fn create_profile_with_password(
+        &self,
+        request: ProfileRequest,
+        password: &str,
+    ) -> Result<RuntimeStatus, String> {
+        validate_profile_request(&request)?;
+        if password.is_empty() {
+            return Err("repository password is required".to_string());
+        }
+        create_repository(&request.path, password)?;
+        self.remember_profile(request, password.to_string())
+    }
+
+    fn open_profile_with_password(
+        &self,
+        request: ProfileRequest,
+        password: &str,
+    ) -> Result<RuntimeStatus, String> {
+        validate_profile_request(&request)?;
+        if password.is_empty() {
+            return Err("repository password is required".to_string());
+        }
+        open_repository(&request.path, password).map(|_| ())?;
+        self.remember_profile(request, password.to_string())
     }
 
     fn select_profile(&self, request: SelectProfileRequest) -> Result<RuntimeStatus, String> {
@@ -922,8 +968,8 @@ fn validate_profile_request(request: &ProfileRequest) -> Result<(), String> {
     if request.path.trim().is_empty() {
         return Err("repository path is required".to_string());
     }
-    if request.password.is_empty() {
-        return Err("repository password is required".to_string());
+    if request.password_slot.trim().is_empty() {
+        return Err("repository password slot is required".to_string());
     }
     Ok(())
 }
@@ -1086,15 +1132,32 @@ mod tests {
     #[test]
     fn profile_rejects_an_empty_repository_password() {
         let error = RusticService::default()
+            .create_profile_with_password(
+                ProfileRequest {
+                    id: "test".to_string(),
+                    name: "Test".to_string(),
+                    path: "/unused".to_string(),
+                    password_slot: "test".to_string(),
+                    sources: Vec::new(),
+                },
+                "",
+            )
+            .expect_err("empty passwords must not create repositories");
+        assert_eq!(error, "repository password is required");
+    }
+
+    #[test]
+    fn native_profile_request_requires_a_secret_slot() {
+        let error = RusticService::default()
             .create_profile(ProfileRequest {
                 id: "test".to_string(),
                 name: "Test".to_string(),
                 path: "/unused".to_string(),
-                password: String::new(),
+                password_slot: String::new(),
                 sources: Vec::new(),
             })
-            .expect_err("empty passwords must not create repositories");
-        assert_eq!(error, "repository password is required");
+            .expect_err("native requests must identify a Rust secret slot");
+        assert_eq!(error, "repository password slot is required");
     }
 
     #[test]
@@ -1130,13 +1193,16 @@ mod tests {
                 .push(event.clone());
         });
         service
-            .create_profile(ProfileRequest {
-                id: "photos".to_string(),
-                name: "Photos".to_string(),
-                path: repository.to_string_lossy().into_owned(),
-                password: "wabou-rustic-test".to_string(),
-                sources: Vec::new(),
-            })
+            .create_profile_with_password(
+                ProfileRequest {
+                    id: "photos".to_string(),
+                    name: "Photos".to_string(),
+                    path: repository.to_string_lossy().into_owned(),
+                    password_slot: "test".to_string(),
+                    sources: Vec::new(),
+                },
+                "wabou-rustic-test",
+            )
             .expect("create repository");
         service
             .set_sources(SetSourcesRequest {

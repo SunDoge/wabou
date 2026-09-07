@@ -7,6 +7,7 @@ import {
   Input,
   PageHeader,
   PageViewport,
+  PasswordInput,
   Text,
   useNavigate,
   View,
@@ -22,21 +23,19 @@ export interface BackupConnectionFormProps {
   mode: RepositoryMode;
   name: string;
   path: string;
-  password: string;
+  passwordSecret: string;
   pending?: RepositoryMode;
   locked?: boolean;
   error?: string;
   onModeChange(mode: RepositoryMode): void;
   onNameChange(value: string): void;
   onPathChange(value: string): void;
-  onPasswordChange(value: string): void;
   onSubmit(): void;
 }
 
 export function BackupConnectionForm(props: BackupConnectionFormProps) {
   const ready = () =>
-    Boolean(props.name.trim() && props.path.trim() && props.password) &&
-    !props.pending;
+    Boolean(props.name.trim() && props.path.trim()) && !props.pending;
   const creating = () => props.mode === "create";
   const storageDescription = () => {
     if (props.locked)
@@ -122,12 +121,20 @@ export function BackupConnectionForm(props: BackupConnectionFormProps) {
       />
       <View class="flex flex-col gap-1.5">
         <Text class="font-medium">Repository password</Text>
-        <Input
-          aria-label="Repository password"
-          value={props.password}
-          onInput={(event) => props.onPasswordChange(event.currentTarget.value)}
-          placeholder="Required to encrypt or unlock the repository"
-        />
+        <Show when={props.passwordSecret} keyed>
+          {(secret) => (
+            <PasswordInput
+              aria-label="Repository password"
+              secret={secret}
+              placeholder="Required to encrypt or unlock the repository"
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" || !ready()) return;
+                event.preventDefault();
+                props.onSubmit();
+              }}
+            />
+          )}
+        </Show>
         <Text class="text-xs text-muted">
           Passwords stay in this app process and are never written to the
           profile database.
@@ -163,10 +170,11 @@ export function SetupPage() {
   const navigate = useNavigate();
   const [name, setName] = createSignal("");
   const [path, setPath] = createSignal("");
-  const [password, setPassword] = createSignal("");
   const [mode, setMode] = createSignal<RepositoryMode>("create");
   const [pending, setPending] = createSignal<"create" | "open">();
   const [error, setError] = createSignal<string>();
+  const passwordSecret = () =>
+    `timestow:repository:${session.pendingUnlock()?.id ?? "new"}`;
 
   async function connect(mode: "create" | "open") {
     if (!name().trim() || !path().trim() || pending()) return;
@@ -178,7 +186,7 @@ export function SetupPage() {
         id: locked?.id,
         name: name(),
         repositoryPath: path(),
-        password: password(),
+        passwordSlot: passwordSecret(),
         sources: locked?.sources,
       });
       await navigate({ to: "/snapshots" });
@@ -194,7 +202,6 @@ export function SetupPage() {
     (profile) => {
       setName(profile?.name ?? "");
       setPath(profile?.repositoryPath ?? "");
-      setPassword("");
       setMode(profile ? "open" : "create");
     },
   );
@@ -210,27 +217,30 @@ export function SetupPage() {
               : "Choose what this backup is called and where its encrypted snapshots are stored."
           }
         />
-        <Show when={session.loading()}>
-          <ContentState
-            state="loading"
-            title="Checking repository state"
-            description="Reading the current process configuration."
+        <Show
+          when={!session.loading()}
+          fallback={
+            <ContentState
+              state="loading"
+              title="Checking repository state"
+              description="Reading the current process configuration."
+            />
+          }
+        >
+          <BackupConnectionForm
+            mode={mode()}
+            name={name()}
+            path={path()}
+            passwordSecret={passwordSecret()}
+            pending={pending()}
+            locked={Boolean(session.pendingUnlock())}
+            error={error()}
+            onModeChange={setMode}
+            onNameChange={setName}
+            onPathChange={setPath}
+            onSubmit={() => void connect(mode())}
           />
         </Show>
-        <BackupConnectionForm
-          mode={mode()}
-          name={name()}
-          path={path()}
-          password={password()}
-          pending={pending()}
-          locked={Boolean(session.pendingUnlock())}
-          error={error()}
-          onModeChange={setMode}
-          onNameChange={setName}
-          onPathChange={setPath}
-          onPasswordChange={setPassword}
-          onSubmit={() => void connect(mode())}
-        />
       </View>
     </PageViewport>
   );

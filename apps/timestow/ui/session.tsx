@@ -33,7 +33,7 @@ export interface ConnectProfileInput {
   id?: string;
   name: string;
   repositoryPath: string;
-  password: string;
+  passwordSlot: string;
   sources?: string[];
 }
 
@@ -171,7 +171,7 @@ export function TimestowSessionProvider(props: {
       id: profile.id,
       name: profile.name,
       path: profile.repositoryPath,
-      password: input.password,
+      passwordSlot: input.passwordSlot,
       sources: profile.sources,
     };
     const nextRuntime = await (mode === "create"

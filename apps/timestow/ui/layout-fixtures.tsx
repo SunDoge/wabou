@@ -106,7 +106,7 @@ const fixtureStatus = {
 };
 
 const fixtureRustic: RusticCapability = {
-  __wabouCapabilityVersion: 5,
+  __wabouCapabilityVersion: 6,
   status: () => fixtureStatus,
   createProfile: () => fixtureStatus,
   openProfile: () => fixtureStatus,
@@ -191,11 +191,47 @@ function NewBackupFixture() {
                 mode="create"
                 name="Photos and documents"
                 path="/data/backups/a-deliberately-long-repository-name"
-                password="fixture-secret"
+                passwordSecret="timestow:fixture"
                 onModeChange={() => {}}
                 onNameChange={() => {}}
                 onPathChange={() => {}}
-                onPasswordChange={() => {}}
+                onSubmit={() => {}}
+              />
+            </View>
+          </View>
+        </View>
+      </ComponentsProvider>
+    </ColorThemeProvider>
+  );
+}
+
+function UnlockBackupFixture() {
+  return (
+    <ColorThemeProvider theme="light">
+      <ComponentsProvider theme="light">
+        <View class="w-full h-full min-w-0 min-h-0 flex flex-row bg-canvas text-primary">
+          <TimestowSidebar
+            active={profile.id}
+            profiles={[profile]}
+            unlockedProfileIds={[]}
+            onCreate={() => {}}
+            onSelectProfile={() => {}}
+          />
+          <View class="min-w-0 min-h-0 flex-1 px-6 py-5">
+            <View class="w-full max-w-3xl mx-auto flex flex-col gap-5">
+              <PageHeader
+                title="Unlock backup"
+                description="Enter the repository password to continue. Passwords are never stored in the profile database."
+              />
+              <BackupConnectionForm
+                mode="open"
+                name={profile.name}
+                path={profile.repositoryPath}
+                passwordSecret={`timestow:repository:${profile.id}`}
+                locked
+                onModeChange={() => {}}
+                onNameChange={() => {}}
+                onPathChange={() => {}}
                 onSubmit={() => {}}
               />
             </View>
@@ -336,6 +372,11 @@ defineLayoutFixtures(
       width: 900,
       height: 620,
       render: NewBackupFixture,
+    },
+    "timestow/unlock-minimum": {
+      width: 900,
+      height: 620,
+      render: UnlockBackupFixture,
     },
     "timestow/workspace-header-minimum": {
       width: 676,
