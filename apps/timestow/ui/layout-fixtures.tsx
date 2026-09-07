@@ -136,7 +136,7 @@ const fixtureStatus = {
 };
 
 const fixtureRustic: RusticCapability = {
-  __wabouCapabilityVersion: 11,
+  __wabouCapabilityVersion: 12,
   status: () => fixtureStatus,
   createProfile: () => fixtureStatus,
   openProfile: () => fixtureStatus,
@@ -246,6 +246,7 @@ function NewBackupFixture() {
                 name="Photos and documents"
                 path="/data/backups/a-deliberately-long-repository-name"
                 passwordSecret="timestow:fixture"
+                confirmationSecret="timestow:fixture:confirmation"
                 onModeChange={() => {}}
                 onNameChange={() => {}}
                 onPathChange={() => {}}
@@ -284,6 +285,7 @@ function UnlockBackupFixture() {
                 name={profile.name}
                 path={profile.repositoryPath}
                 passwordSecret={`timestow:repository:${profile.id}`}
+                confirmationSecret={`timestow:repository:${profile.id}:confirmation`}
                 locked
                 onModeChange={() => {}}
                 onNameChange={() => {}}

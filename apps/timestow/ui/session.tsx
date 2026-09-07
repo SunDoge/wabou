@@ -34,6 +34,7 @@ export interface ConnectProfileInput {
   name: string;
   repositoryPath: string;
   passwordSlot: string;
+  confirmationSlot?: string;
   sources?: string[];
 }
 
@@ -230,9 +231,19 @@ export function TimestowSessionProvider(props: {
       passwordSlot: input.passwordSlot,
       sources: profile.sources,
     };
-    const nextRuntime = await (mode === "create"
-      ? api.createProfile(request)
-      : api.openProfile(request));
+    let nextRuntime: RuntimeStatus;
+    if (mode === "create") {
+      const confirmationSlot = input.confirmationSlot?.trim();
+      if (!confirmationSlot) {
+        throw new Error("repository password confirmation is required");
+      }
+      nextRuntime = await api.createProfile({
+        ...request,
+        confirmationSlot,
+      });
+    } else {
+      nextRuntime = await api.openProfile(request);
+    }
     await store.save(profile);
     setProfiles((current) => upsertProfile(current, profile));
     setRuntime(nextRuntime);

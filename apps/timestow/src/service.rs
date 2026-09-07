@@ -24,7 +24,7 @@ use crate::progress::{
     BACKUP_PROGRESS_TOPIC, BackupProgressBars, BackupProgressPhase, ProgressEmitter,
 };
 
-pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 11);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 12);
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
@@ -81,6 +81,8 @@ pub struct ProfileRequest {
     pub name: String,
     pub path: String,
     pub password_slot: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirmation_slot: Option<String>,
     #[serde(default)]
     pub sources: Vec<String>,
 }
@@ -375,10 +377,14 @@ impl RusticService {
 
     fn create_profile(&self, request: ProfileRequest) -> Result<RuntimeStatus, String> {
         validate_profile_request(&request)?;
+        let confirmation_slot = request
+            .confirmation_slot
+            .as_deref()
+            .filter(|slot| !slot.trim().is_empty())
+            .ok_or_else(|| "repository password confirmation is required".to_string())?;
         let password = self.secrets.take(&request.password_slot);
-        if password.is_empty() {
-            return Err("repository password is required".to_string());
-        }
+        let confirmation = self.secrets.take(confirmation_slot);
+        validate_new_repository_password(password.as_str(), confirmation.as_str())?;
         create_repository(&request.path, password.as_str())?;
         self.remember_profile(request, password)
     }
@@ -400,9 +406,7 @@ impl RusticService {
         password: &str,
     ) -> Result<RuntimeStatus, String> {
         validate_profile_request(&request)?;
-        if password.is_empty() {
-            return Err("repository password is required".to_string());
-        }
+        validate_new_repository_password(password, password)?;
         create_repository(&request.path, password)?;
         self.remember_profile(request, Zeroizing::new(password.to_string()))
     }
@@ -1112,6 +1116,19 @@ fn validate_profile_request(request: &ProfileRequest) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_new_repository_password(password: &str, confirmation: &str) -> Result<(), String> {
+    if password.is_empty() {
+        return Err("repository password is required".to_string());
+    }
+    if confirmation.is_empty() {
+        return Err("repository password confirmation is required".to_string());
+    }
+    if password != confirmation {
+        return Err("repository passwords do not match".to_string());
+    }
+    Ok(())
+}
+
 fn status_from_state(state: &ServiceState) -> RuntimeStatus {
     RuntimeStatus {
         unlocked_profile_ids: state
@@ -1326,12 +1343,21 @@ mod tests {
                     name: "Test".to_string(),
                     path: "/unused".to_string(),
                     password_slot: "test".to_string(),
+                    confirmation_slot: None,
                     sources: Vec::new(),
                 },
                 "",
             )
             .expect_err("empty passwords must not create repositories");
         assert_eq!(error, "repository password is required");
+    }
+
+    #[test]
+    fn profile_rejects_a_mismatched_repository_password_confirmation() {
+        assert_eq!(
+            validate_new_repository_password("correct horse", "correct house"),
+            Err("repository passwords do not match".to_string())
+        );
     }
 
     #[test]
@@ -1342,6 +1368,7 @@ mod tests {
                 name: "Test".to_string(),
                 path: "/unused".to_string(),
                 password_slot: String::new(),
+                confirmation_slot: None,
                 sources: Vec::new(),
             })
             .expect_err("native requests must identify a Rust secret slot");
@@ -1358,6 +1385,7 @@ mod tests {
                     name: "Photos".to_string(),
                     path: "/backups/photos".to_string(),
                     password_slot: "test".to_string(),
+                    confirmation_slot: None,
                     sources: vec!["/photos".to_string()],
                 },
                 Zeroizing::new("repository-secret".to_string()),
@@ -1419,6 +1447,7 @@ mod tests {
                     name: "Photos".to_string(),
                     path: repository.to_string_lossy().into_owned(),
                     password_slot: "test".to_string(),
+                    confirmation_slot: None,
                     sources: Vec::new(),
                 },
                 "wabou-rustic-test",

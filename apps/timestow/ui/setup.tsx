@@ -24,6 +24,7 @@ export interface BackupConnectionFormProps {
   name: string;
   path: string;
   passwordSecret: string;
+  confirmationSecret: string;
   pending?: RepositoryMode;
   locked?: boolean;
   error?: string;
@@ -119,27 +120,57 @@ export function BackupConnectionForm(props: BackupConnectionFormProps) {
         placeholder="/data/backups/my-repository"
         browseLabel="Choose folder"
       />
-      <View class="flex flex-col gap-1.5">
-        <Text class="font-medium">Repository password</Text>
-        <Show when={props.passwordSecret} keyed>
-          {(secret) => (
+      <View
+        role="group"
+        aria-label="Repository credentials"
+        class={
+          creating() && !props.locked
+            ? "grid grid-cols-2 gap-4"
+            : "flex flex-col gap-1.5"
+        }
+      >
+        <View class="flex flex-col gap-1.5">
+          <Text class="font-medium">Repository password</Text>
+          <Show when={props.passwordSecret} keyed>
+            {(secret) => (
+              <PasswordInput
+                aria-label="Repository password"
+                secret={secret}
+                placeholder="Required to encrypt or unlock"
+                onKeyDown={(event) => {
+                  if (
+                    event.key !== "Enter" ||
+                    !ready() ||
+                    (creating() && !props.locked)
+                  )
+                    return;
+                  event.preventDefault();
+                  props.onSubmit();
+                }}
+              />
+            )}
+          </Show>
+        </View>
+        <Show when={creating() && !props.locked}>
+          <View class="min-w-0 flex flex-col gap-1.5">
+            <Text class="font-medium">Confirm password</Text>
             <PasswordInput
-              aria-label="Repository password"
-              secret={secret}
-              placeholder="Required to encrypt or unlock the repository"
+              aria-label="Confirm repository password"
+              secret={props.confirmationSecret}
+              placeholder="Enter the same password again"
               onKeyDown={(event) => {
                 if (event.key !== "Enter" || !ready()) return;
                 event.preventDefault();
                 props.onSubmit();
               }}
             />
-          )}
+          </View>
         </Show>
-        <Text class="text-xs text-muted">
-          Passwords stay in this app process and are never written to the
-          profile database.
-        </Text>
       </View>
+      <Text class="text-xs text-muted">
+        Passwords stay in this app process and are never written to the profile
+        database. New repositories require confirmation to prevent typos.
+      </Text>
       <Show when={props.error}>
         {(message) => (
           <View
@@ -175,6 +206,7 @@ export function SetupPage() {
   const [error, setError] = createSignal<string>();
   const passwordSecret = () =>
     `timestow:repository:${session.pendingUnlock()?.id ?? "new"}`;
+  const confirmationSecret = () => `${passwordSecret()}:confirmation`;
 
   async function connect(mode: "create" | "open") {
     if (!name().trim() || !path().trim() || pending()) return;
@@ -187,6 +219,7 @@ export function SetupPage() {
         name: name(),
         repositoryPath: path(),
         passwordSlot: passwordSecret(),
+        confirmationSlot: mode === "create" ? confirmationSecret() : undefined,
         sources: locked?.sources,
       });
       await navigate({ to: "/snapshots" });
@@ -232,10 +265,14 @@ export function SetupPage() {
             name={name()}
             path={path()}
             passwordSecret={passwordSecret()}
+            confirmationSecret={confirmationSecret()}
             pending={pending()}
             locked={Boolean(session.pendingUnlock())}
             error={error()}
-            onModeChange={setMode}
+            onModeChange={(nextMode) => {
+              setMode(nextMode);
+              setError(undefined);
+            }}
             onNameChange={setName}
             onPathChange={setPath}
             onSubmit={() => void connect(mode())}
