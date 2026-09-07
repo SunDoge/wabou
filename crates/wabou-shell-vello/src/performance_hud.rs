@@ -9,9 +9,11 @@ use vello_common::{
 
 use crate::{FrameStats, PaintScene, Scene, TextContext};
 
-const PANEL_WIDTH: f64 = 276.0;
-const PANEL_HEIGHT: f64 = 112.0;
+const PANEL_WIDTH: f64 = 320.0;
+const PANEL_HEIGHT: f64 = 116.0;
 const PANEL_MARGIN: f64 = 12.0;
+const PRIMARY_TEXT: [u8; 4] = [15, 23, 42, 255];
+const SECONDARY_TEXT: [u8; 4] = [71, 85, 105, 255];
 
 pub(crate) struct PerformanceHud {
     enabled: bool,
@@ -72,18 +74,18 @@ impl PerformanceHud {
         let top = PANEL_MARGIN;
         let panel = Rect::new(left, top, left + PANEL_WIDTH, top + PANEL_HEIGHT);
         let device = Affine::scale(scale);
-        scene.draw_box_shadow(device, panel, Color::from_rgba8(15, 23, 42, 70), 10.0, 10.0);
+        scene.draw_box_shadow(device, panel, Color::from_rgba8(15, 23, 42, 42), 8.0, 8.0);
         scene.fill(
             Fill::NonZero,
             device,
-            Color::from_rgba8(15, 23, 42, 238),
+            Color::from_rgba8(248, 250, 252, 247),
             None,
             &panel.to_rounded_rect(9.0),
         );
         scene.stroke(
             &vello_common::kurbo::Stroke::new(1.0),
             device,
-            Color::from_rgba8(71, 85, 105, 210),
+            Color::from_rgba8(203, 213, 225, 230),
             None,
             &panel.to_rounded_rect(9.0),
         );
@@ -95,17 +97,17 @@ impl PerformanceHud {
             device,
             health,
             None,
-            &Rect::new(left + 14.0, top + 15.0, left + 18.0, top + 31.0).to_rounded_rect(2.0),
+            &Rect::new(left + 14.0, top + 16.0, left + 18.0, top + 35.0).to_rounded_rect(2.0),
         );
 
         self.text(
             scene,
             text,
             "Wabou HUD",
-            [left + 26.0, top + 13.0],
-            12.0,
+            [left + 26.0, top + 12.0],
+            13.5,
             600.0,
-            [248, 250, 252, 255],
+            PRIMARY_TEXT,
             scale,
         );
         let cadence = if self.fps == 0.0 {
@@ -117,49 +119,124 @@ impl PerformanceHud {
             scene,
             text,
             &cadence,
-            [left + 224.0, top + 13.0],
-            12.0,
+            [left + 268.0, top + 12.0],
+            12.5,
             600.0,
-            [248, 250, 252, 255],
+            PRIMARY_TEXT,
+            scale,
+        );
+
+        self.text(
+            scene,
+            text,
+            "Frame",
+            [left + 14.0, top + 40.0],
+            12.5,
+            400.0,
+            SECONDARY_TEXT,
             scale,
         );
         self.text(
             scene,
             text,
-            &format!(
-                "frame {:>6.2} ms        nodes {:>6}",
-                total, stats.node_count
-            ),
-            [left + 14.0, top + 40.0],
-            11.0,
-            500.0,
+            &format!("{total:.2} ms"),
+            [left + 60.0, top + 40.0],
+            12.5,
+            600.0,
             health.to_rgba8().to_u8_array(),
             scale,
         );
         self.text(
             scene,
             text,
-            &format!(
-                "JS {:>6.2}   build {:>6.2}   scene {:>6.2}",
-                stats.js_tick_ms, stats.build_frame_ms, stats.scene_ms
-            ),
-            [left + 14.0, top + 62.0],
-            11.0,
+            "Nodes",
+            [left + 188.0, top + 40.0],
+            12.5,
             400.0,
-            [203, 213, 225, 255],
+            SECONDARY_TEXT,
             scale,
         );
         self.text(
             scene,
             text,
-            &format!(
-                "present {:>6.2} ms       viewport {}×{}",
-                stats.present_ms, stats.viewport_w, stats.viewport_h
-            ),
-            [left + 14.0, top + 82.0],
-            11.0,
+            &stats.node_count.to_string(),
+            [left + 234.0, top + 40.0],
+            12.5,
+            600.0,
+            PRIMARY_TEXT,
+            scale,
+        );
+
+        for (label, value, x) in [
+            ("JS", stats.js_tick_ms, 14.0),
+            ("Build", stats.build_frame_ms, 95.0),
+            ("Scene", stats.scene_ms, 200.0),
+        ] {
+            self.text(
+                scene,
+                text,
+                label,
+                [left + x, top + 64.0],
+                12.5,
+                400.0,
+                SECONDARY_TEXT,
+                scale,
+            );
+            let value_x = x + match label {
+                "JS" => 23.0,
+                "Build" => 39.0,
+                _ => 40.0,
+            };
+            self.text(
+                scene,
+                text,
+                &format!("{value:.2}"),
+                [left + value_x, top + 64.0],
+                12.5,
+                600.0,
+                PRIMARY_TEXT,
+                scale,
+            );
+        }
+
+        self.text(
+            scene,
+            text,
+            "Present",
+            [left + 14.0, top + 88.0],
+            12.5,
             400.0,
-            [148, 163, 184, 255],
+            SECONDARY_TEXT,
+            scale,
+        );
+        self.text(
+            scene,
+            text,
+            &format!("{:.2} ms", stats.present_ms),
+            [left + 66.0, top + 88.0],
+            12.5,
+            600.0,
+            PRIMARY_TEXT,
+            scale,
+        );
+        self.text(
+            scene,
+            text,
+            "Viewport",
+            [left + 188.0, top + 88.0],
+            12.5,
+            400.0,
+            SECONDARY_TEXT,
+            scale,
+        );
+        self.text(
+            scene,
+            text,
+            &format!("{}×{}", stats.viewport_w, stats.viewport_h),
+            [left + 244.0, top + 88.0],
+            12.5,
+            600.0,
+            PRIMARY_TEXT,
             scale,
         );
     }
@@ -205,11 +282,11 @@ fn health_color(milliseconds: f64) -> Color {
     if milliseconds <= 0.0 || !milliseconds.is_finite() {
         Color::from_rgb8(148, 163, 184)
     } else if milliseconds < 8.0 {
-        Color::from_rgb8(74, 222, 128)
+        Color::from_rgb8(21, 128, 61)
     } else if milliseconds < 16.7 {
-        Color::from_rgb8(251, 191, 36)
+        Color::from_rgb8(180, 83, 9)
     } else {
-        Color::from_rgb8(248, 113, 113)
+        Color::from_rgb8(185, 28, 28)
     }
 }
 
@@ -223,6 +300,7 @@ fn parse_enabled(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use image::GenericImageView;
 
     #[test]
     fn hud_flag_and_health_thresholds_are_explicit() {
@@ -232,9 +310,9 @@ mod tests {
         for value in ["", "0", "false", "enabled"] {
             assert!(!parse_enabled(value));
         }
-        assert_eq!(health_color(4.0), Color::from_rgb8(74, 222, 128));
-        assert_eq!(health_color(12.0), Color::from_rgb8(251, 191, 36));
-        assert_eq!(health_color(20.0), Color::from_rgb8(248, 113, 113));
+        assert_eq!(health_color(4.0), Color::from_rgb8(21, 128, 61));
+        assert_eq!(health_color(12.0), Color::from_rgb8(180, 83, 9));
+        assert_eq!(health_color(20.0), Color::from_rgb8(185, 28, 28));
 
         let start = Instant::now();
         let mut hud = PerformanceHud::new(true);
@@ -253,7 +331,7 @@ mod tests {
             &mut scene,
             &mut text,
             FrameStats::default(),
-            [640, 160],
+            [700, 180],
             1.0,
         );
         assert!(scene.commands.is_empty());
@@ -270,14 +348,26 @@ mod tests {
                 viewport_h: 480,
                 ..FrameStats::default()
             },
-            [640, 160],
+            [700, 180],
             1.0,
         );
-        assert!(scene.commands.len() >= 8);
-        let image = crate::renderer::render_to_image(&scene, 640, 160, Color::BLACK).unwrap();
+        assert!(scene.commands.len() >= 20);
+        let image = crate::renderer::render_to_image(&scene, 700, 180, Color::BLACK).unwrap();
         let panel = image.get_pixel(500, 52).0;
         assert_ne!(panel, [0, 0, 0, 255]);
-        assert!(panel[2] > panel[0], "expected slate HUD surface: {panel:?}");
+        assert!(panel[0] > 220, "expected light HUD surface: {panel:?}");
+        let darkest_body_pixel = image
+            .view(380, 48, 300, 60)
+            .pixels()
+            .map(|(_, _, pixel)| {
+                u16::from(pixel.0[0]) + u16::from(pixel.0[1]) + u16::from(pixel.0[2])
+            })
+            .min()
+            .unwrap();
+        assert!(
+            darkest_body_pixel < 350,
+            "expected high-contrast rasterized HUD text, got {darkest_body_pixel}"
+        );
 
         let mut tiny_scene = Scene::new();
         PerformanceHud::new(true).paint(
