@@ -56,7 +56,7 @@ import {
   type SnapshotEntry,
   useRusticApi,
 } from "./api";
-import { BackupProgressStatus } from "./backup-progress";
+import { OperationProgressStatus } from "./operation-progress";
 import { FileDetails } from "./file-details";
 import {
   formatBytes,
@@ -950,7 +950,7 @@ export function SnapshotsPage() {
         <Show when={backingUp() && session.activeProfile()}>
           {(profile) => (
             <Show when={session.backupProgress(profile().id)}>
-              {(progress) => <BackupProgressStatus progress={progress()} />}
+              {(progress) => <OperationProgressStatus progress={progress()} />}
             </Show>
           )}
         </Show>

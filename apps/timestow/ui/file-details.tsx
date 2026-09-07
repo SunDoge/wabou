@@ -9,6 +9,7 @@ import {
   DialogTitle,
   DirectoryPicker,
   Icon,
+  subscribeJsonHostMessages,
   Text,
   View,
 } from "@wabou/ui";
@@ -16,13 +17,27 @@ import download from "lucide-static/icons/download.svg?raw";
 import eye from "lucide-static/icons/eye.svg?raw";
 import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
-import { createEffect, createSignal, Show } from "solid-js";
+import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { type FileEntry, type RestorePlanSummary, useRusticApi } from "./api";
 import {
   formatBytes,
   formatFileKind,
   formatOptionalDetailedTimestamp,
 } from "./format";
+import {
+  decodeOperationProgressEvent,
+  OPERATION_PROGRESS_TOPIC,
+  type OperationProgressEvent,
+  OperationProgressStatus,
+} from "./operation-progress";
+
+let nextRestoreOperation = 1;
+
+function createRestoreOperationId(): string {
+  const id = nextRestoreOperation;
+  nextRestoreOperation += 1;
+  return `restore:${Date.now()}:${id}`;
+}
 
 export function FileDetails(props: {
   profileId: string;
@@ -180,6 +195,26 @@ function ExtractDialog(props: {
   const [pending, setPending] = createSignal<"plan" | "extract">();
   const [error, setError] = createSignal<string>();
   const [result, setResult] = createSignal<string>();
+  const [progress, setProgress] = createSignal<OperationProgressEvent>();
+  let activeOperationId: string | undefined;
+
+  const unsubscribeProgress = subscribeJsonHostMessages<OperationProgressEvent>(
+    OPERATION_PROGRESS_TOPIC,
+    (event) => {
+      if (
+        event.operation === "restore" &&
+        event.operationId === activeOperationId
+      ) {
+        setProgress(event);
+      }
+    },
+    {
+      decode: decodeOperationProgressEvent,
+      onError: (cause) =>
+        console.error("[timestow] invalid operation progress", cause),
+    },
+  );
+  onCleanup(unsubscribeProgress);
 
   function reset() {
     setDestination("");
@@ -187,6 +222,8 @@ function ExtractDialog(props: {
     setPending(undefined);
     setError(undefined);
     setResult(undefined);
+    setProgress(undefined);
+    activeOperationId = undefined;
   }
 
   async function review() {
@@ -213,17 +250,22 @@ function ExtractDialog(props: {
     if (!plan() || pending()) return;
     setPending("extract");
     setError(undefined);
+    const operationId = createRestoreOperationId();
+    activeOperationId = operationId;
+    setProgress(undefined);
     try {
       const restored = await api.restorePath({
         profileId: props.profileId,
         snapshotId: props.snapshotId,
         path: props.entry.path,
         destination: destination(),
+        operationId,
       });
       setResult(restored.destination);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
+      activeOperationId = undefined;
       setPending(undefined);
     }
   }
@@ -277,6 +319,9 @@ function ExtractDialog(props: {
           />
           <Show when={plan()}>
             {(current) => <RestorePlanReview plan={current()} />}
+          </Show>
+          <Show when={pending() === "extract" && progress()}>
+            <OperationProgressStatus progress={progress()!} />
           </Show>
           <Show when={result()}>
             {(path) => (

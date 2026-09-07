@@ -1,4 +1,5 @@
 import type { Dialog } from "@wabou/core";
+import { dispatchHostMessageForTest } from "@wabou/core/testing";
 import { createTestHost, renderComponent } from "@wabou/test/component";
 import { Button, Text } from "@wabou/ui";
 import { createSignal, Show } from "solid-js";
@@ -15,6 +16,7 @@ import {
   formatFileKind,
 } from "../../apps/timestow/ui/format";
 import type { ProfileStore } from "../../apps/timestow/ui/profile-store";
+import { OPERATION_PROGRESS_TOPIC } from "../../apps/timestow/ui/operation-progress";
 import { RepositoryCheckDialog } from "../../apps/timestow/ui/repository-check";
 import { BackupScheduleDialog } from "../../apps/timestow/ui/schedule-dialog";
 import {
@@ -207,7 +209,7 @@ test("backup workspace keeps configuration and primary actions distinct", () => 
 test("repository verification reports its scope and native result", async () => {
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       checkRepository: async () => ({
         healthy: true,
         findings: [],
@@ -248,7 +250,7 @@ test("repository verification exposes integrity findings and request failures", 
   let attempt = 0;
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       checkRepository: async () => {
         attempt += 1;
         if (attempt > 1) throw new Error("repository key is unavailable");
@@ -292,7 +294,7 @@ test("repository verification discards results from a previous profile", async (
   >();
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       checkRepository: ({ profileId }: { profileId: string }) =>
         new Promise<{ healthy: boolean; findings: string[] }>((resolve) => {
           completions.set(profileId, resolve);
@@ -796,7 +798,7 @@ test("snapshot changes compare against the recorded parent and can include metad
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       diffSnapshots: async (request: { includeMetadata?: boolean }) => ({
         entries: [
           {
@@ -912,7 +914,7 @@ test("snapshot comparison failures can be retried in place", async () => {
   let attempts = 0;
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       diffSnapshots: async () => {
         attempts += 1;
         if (attempts === 1) throw new Error("repository index is busy");
@@ -982,7 +984,7 @@ test("obsolete snapshot comparisons cannot populate a new selection", async () =
   const resolvers: Array<(result: SnapshotDiff) => void> = [];
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       diffSnapshots: () =>
         new Promise<SnapshotDiff>((resolve) => resolvers.push(resolve)),
     },
@@ -1094,7 +1096,7 @@ test("snapshot browser cache preserves navigation while invalidating listings", 
 test("timestow session preserves snapshot navigation across workspace remounts", async () => {
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({ unlockedProfileIds: [] }),
     },
   });
@@ -1158,7 +1160,7 @@ test("snapshot file tree loads child directories only when expanded", async () =
   const selected = vi.fn();
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       listFiles: async (request: { path: string; offset?: number }) => {
         let entries: FileEntry[];
         if (request.path === "docs") {
@@ -1255,7 +1257,7 @@ test("snapshot file tree retries a failed directory without clearing loaded file
   let docsAttempts = 0;
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       listFiles: async (request: { path: string }) => {
         if (request.path === "docs") {
           docsAttempts += 1;
@@ -1333,7 +1335,7 @@ test("snapshot file tree retries a failed directory without clearing loaded file
 test("file details preview and extract through the native rustic capability", async () => {
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       previewPath: async () => ({
         destination: "/tmp/wabou-rustic-preview/42",
         plan: {
@@ -1428,7 +1430,117 @@ test("file details preview and extract through the native rustic capability", as
     snapshotId: "snapshot",
     path: "home/me/settings.toml",
     destination: "/tmp/export",
+    operationId: expect.stringMatching(/^restore:\d+:\d+$/),
   });
+});
+
+test("extract reports only the active restore operation progress", async () => {
+  let completeRestore:
+    | ((result: { destination: string; plan: RestorePlanSummary }) => void)
+    | undefined;
+  const restore = new Promise<{
+    destination: string;
+    plan: RestorePlanSummary;
+  }>((resolve) => {
+    completeRestore = resolve;
+  });
+  const plan: RestorePlanSummary = {
+    restoreSize: 4_096,
+    matchedSize: 0,
+    filesToRestore: 1,
+    filesToModify: 0,
+    filesUnchanged: 0,
+    directoriesToRestore: 0,
+    directoriesToModify: 0,
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 13,
+      previewRestore: async () => plan,
+      restorePath: () => restore,
+    },
+  });
+  const screen = renderComponent(
+    () => (
+      <FileDetails
+        profileId="photos"
+        snapshotId="snapshot"
+        entry={{
+          name: "cover.jpg",
+          path: "chapter/cover.jpg",
+          kind: "file",
+          size: 4_096,
+        }}
+      />
+    ),
+    { host: fixture.host, platform: { dialog } },
+  );
+
+  screen.getByRole("button", { name: "Extract…" }).click();
+  screen
+    .getByRole("textbox", { name: "Extraction destination" })
+    .input("/tmp/export");
+  screen.getByRole("button", { name: "Review extraction" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("button", { name: "Extract" })).toBeDefined();
+  });
+  screen.getByRole("button", { name: "Extract" }).click();
+  await screen.waitFor(() => {
+    expect(fixture.callsTo("rustic.restorePath")).toHaveLength(1);
+  });
+  const request = fixture.callsTo("rustic.restorePath")[0]?.args[0] as {
+    operationId: string;
+  };
+
+  dispatchHostMessageForTest(
+    OPERATION_PROGRESS_TOPIC,
+    JSON.stringify({
+      profileId: "photos",
+      operation: "restore",
+      operationId: "another-restore",
+      state: "running",
+      unit: "bytes",
+      title: "Wrong extraction",
+      current: 2_048,
+      total: 4_096,
+    }),
+  );
+  expect(
+    screen.queryByRole("progressbar", { name: "Extraction progress" }),
+  ).toBeNull();
+
+  dispatchHostMessageForTest(
+    OPERATION_PROGRESS_TOPIC,
+    JSON.stringify({
+      profileId: "photos",
+      operation: "restore",
+      operationId: request.operationId,
+      state: "running",
+      unit: "bytes",
+      title: "Restoring file contents",
+      current: 2_048,
+      total: 4_096,
+    }),
+  );
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("progressbar", { name: "Extraction progress" })
+        .numericValue,
+    ).toBe(2_048);
+  });
+  expect(
+    screen
+      .getAllByRole("status")
+      .some((status) => status.text.includes("2.0 KB of 4.0 KB")),
+  ).toBe(true);
+
+  completeRestore?.({ destination: "/tmp/export/cover.jpg", plan });
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("button", { name: "Open extracted item" }),
+    ).toBeDefined();
+  });
+  screen.dispose();
 });
 
 test("a preview result cannot leak into another selected file", async () => {
@@ -1454,7 +1566,7 @@ test("a preview result cannot leak into another selected file", async () => {
   >();
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       previewPath: ({ path }: { path: string }) =>
         new Promise<{ destination: string; plan: RestorePlanSummary }>(
           (resolve) => completions.set(path, resolve),
@@ -1707,7 +1819,7 @@ test("rustic session hydrates durable profiles and exposes their locked state", 
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({
         unlockedProfileIds: [],
       }),
@@ -1748,7 +1860,7 @@ test("renaming a backup persists presentation metadata without touching Rust", a
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -1799,7 +1911,7 @@ test("forgetting a backup clears native credentials before durable profile metad
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -1868,7 +1980,7 @@ test("a backup stays available for retry when durable forgetting fails", async (
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -1946,7 +2058,7 @@ test("a failed native profile switch leaves the current profile selected", async
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({
         unlockedProfileIds: profiles.map((profile) => profile.id),
         activeProfileId: "photos",
@@ -2010,7 +2122,7 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({ unlockedProfileIds: [] }),
       createProfile: async (request: { id: string }) => ({
         unlockedProfileIds: [request.id],
@@ -2085,7 +2197,7 @@ test("a profile remains usable when durable metadata cannot be saved", async () 
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({ unlockedProfileIds: [] }),
       createProfile: async (request: { id: string }) => ({
         unlockedProfileIds: [request.id],
@@ -2154,7 +2266,7 @@ test("backup names remain unambiguous while reconnecting keeps its identity", as
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({ unlockedProfileIds: [] }),
       createProfile: async () => ({ unlockedProfileIds: [] }),
       openProfile: async () => ({
@@ -2247,7 +2359,7 @@ test("the UI reflects native backup folders when persistence fails", async () =>
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -2321,7 +2433,7 @@ test("runs a due profile backup in the background and records completion", async
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -2400,7 +2512,7 @@ test("identifies the backup that failed on schedule and offers recovery", async 
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -2469,7 +2581,7 @@ test("a later scheduled success cannot hide an earlier backup failure", async ()
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({
         unlockedProfileIds: profiles.map(({ id }) => id),
         activeProfileId: profiles[0]?.id,
@@ -2557,7 +2669,7 @@ test("schedule persistence cannot reenter a running backup batch", async () => {
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({
         unlockedProfileIds: profiles.map(({ id }) => id),
         activeProfileId: profiles[0]?.id,
@@ -2642,7 +2754,7 @@ test("schedule dialog explains the runtime boundary and exposes its controls", a
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 12,
+      __wabouCapabilityVersion: 13,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,

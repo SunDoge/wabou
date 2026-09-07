@@ -16,10 +16,10 @@ import {
   useRusticApi,
 } from "./api";
 import {
-  BACKUP_PROGRESS_TOPIC,
-  type BackupProgressEvent,
-  decodeBackupProgressEvent,
-} from "./backup-progress";
+  OPERATION_PROGRESS_TOPIC,
+  type OperationProgressEvent,
+  decodeOperationProgressEvent,
+} from "./operation-progress";
 import {
   advanceBackupSchedule,
   type BackupSchedule,
@@ -53,7 +53,7 @@ interface TimestowSession {
     | { profileId: string; snapshot: SnapshotEntry; scheduled: boolean }
     | undefined;
   isBackingUp(profileId: string): boolean;
-  backupProgress(profileId: string): BackupProgressEvent | undefined;
+  backupProgress(profileId: string): OperationProgressEvent | undefined;
   snapshotBrowser: SnapshotBrowserCache;
   setError(error: string | undefined): void;
   refresh(): Promise<void>;
@@ -125,7 +125,7 @@ export function TimestowSessionProvider(props: {
     new Set(),
   );
   const [backupProgressByProfile, setBackupProgressByProfile] = createSignal<
-    Readonly<Record<string, BackupProgressEvent>>
+    Readonly<Record<string, OperationProgressEvent>>
   >({});
   const activeProfile = createMemo(() =>
     profiles().find((profile) => profile.id === activeProfileId()),
@@ -328,7 +328,9 @@ export function TimestowSessionProvider(props: {
     return runningBackupIds().has(profileId);
   }
 
-  function backupProgress(profileId: string): BackupProgressEvent | undefined {
+  function backupProgress(
+    profileId: string,
+  ): OperationProgressEvent | undefined {
     return backupProgressByProfile()[profileId];
   }
 
@@ -378,8 +380,10 @@ export function TimestowSessionProvider(props: {
       ...current,
       [profileId]: {
         profileId,
+        operation: "backup",
+        operationId: `backup:${profileId}`,
         state: "running",
-        kind: "spinner",
+        unit: "spinner",
         title: "Preparing backup",
         current: 0,
       },
@@ -413,17 +417,19 @@ export function TimestowSessionProvider(props: {
   let scheduleBatchRunning = false;
 
   const unsubscribeBackupProgress =
-    subscribeJsonHostMessages<BackupProgressEvent>(
-      BACKUP_PROGRESS_TOPIC,
-      (progress) =>
+    subscribeJsonHostMessages<OperationProgressEvent>(
+      OPERATION_PROGRESS_TOPIC,
+      (progress) => {
+        if (progress.operation !== "backup") return;
         setBackupProgressByProfile((current) => ({
           ...current,
           [progress.profileId]: progress,
-        })),
+        }));
+      },
       {
-        decode: decodeBackupProgressEvent,
+        decode: decodeOperationProgressEvent,
         onError: (cause) =>
-          console.error("[timestow] invalid backup progress", cause),
+          console.error("[timestow] invalid operation progress", cause),
       },
     );
 

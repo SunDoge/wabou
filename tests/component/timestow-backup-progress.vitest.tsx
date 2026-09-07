@@ -1,22 +1,24 @@
 import { renderComponent } from "@wabou/test/component";
 import { expect, test } from "vitest";
 import {
-  type BackupProgressEvent,
-  BackupProgressStatus,
-  decodeBackupProgressEvent,
-} from "../../apps/timestow/ui/backup-progress";
+  type OperationProgressEvent,
+  OperationProgressStatus,
+  decodeOperationProgressEvent,
+} from "../../apps/timestow/ui/operation-progress";
 
 test("backup progress exposes determinate byte counts", () => {
-  const progress: BackupProgressEvent = {
+  const progress: OperationProgressEvent = {
     profileId: "photos",
+    operation: "backup",
+    operationId: "backup:photos",
     state: "running",
-    kind: "bytes",
+    unit: "bytes",
     title: "Writing pack",
     current: 1_024,
     total: 4_096,
   };
   const screen = renderComponent(() => (
-    <BackupProgressStatus progress={progress} />
+    <OperationProgressStatus progress={progress} />
   ));
 
   const bar = screen.getByRole("progressbar", { name: "Backup progress" });
@@ -28,11 +30,13 @@ test("backup progress exposes determinate byte counts", () => {
 
 test("backup progress keeps unknown-length rustic phases indeterminate", () => {
   const screen = renderComponent(() => (
-    <BackupProgressStatus
+    <OperationProgressStatus
       progress={{
         profileId: "photos",
+        operation: "backup",
+        operationId: "backup:photos",
         state: "running",
-        kind: "spinner",
+        unit: "spinner",
         title: "Reading repository",
         current: 0,
       }}
@@ -47,12 +51,14 @@ test("backup progress keeps unknown-length rustic phases indeterminate", () => {
 
 test("backup progress messages reject malformed transport payloads", () => {
   expect(() =>
-    decodeBackupProgressEvent({
+    decodeOperationProgressEvent({
       profileId: "photos",
+      operation: "backup",
+      operationId: "backup:photos",
       state: "running",
-      kind: "bytes",
+      unit: "bytes",
       title: "Writing pack",
       current: "1024",
     }),
-  ).toThrow("backup progress has invalid fields");
+  ).toThrow("operation progress has invalid fields");
 });

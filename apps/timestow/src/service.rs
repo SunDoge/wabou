@@ -20,10 +20,11 @@ use wabou::{
 use zeroize::Zeroizing;
 
 use crate::progress::{
-    BACKUP_PROGRESS_TOPIC, BackupProgressBars, BackupProgressPhase, ProgressEmitter,
+    OPERATION_PROGRESS_TOPIC, OperationKind, OperationProgressBars, OperationProgressPhase,
+    ProgressEmitter,
 };
 
-pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 12);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 13);
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
@@ -168,6 +169,8 @@ pub struct RestorePathRequest {
     pub snapshot_id: String,
     pub path: String,
     pub destination: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -311,7 +314,7 @@ impl RusticService {
 
     pub fn attach_progress_messages(&self, messages: HostMessageHandle) {
         self.progress.replace(move |event| {
-            let _ = messages.emit_json(BACKUP_PROGRESS_TOPIC, event);
+            let _ = messages.emit_json(OPERATION_PROGRESS_TOPIC, event);
         });
     }
 
@@ -470,9 +473,12 @@ impl RusticService {
 
     fn run_backup(&self, request: ProfileIdRequest) -> Result<BackupResult, String> {
         let profile_id = request.profile_id;
+        let operation_id = format!("backup:{profile_id}");
         self.progress.emit_state(
             &profile_id,
-            BackupProgressPhase::Running,
+            OperationKind::Backup,
+            &operation_id,
+            OperationProgressPhase::Running,
             "Preparing backup",
         );
         let result = (|| {
@@ -480,7 +486,12 @@ impl RusticService {
             if sources.is_empty() {
                 return Err("add at least one backup folder first".to_string());
             }
-            let progress = BackupProgressBars::new(profile_id.clone(), self.progress.clone());
+            let progress = OperationProgressBars::new(
+                profile_id.clone(),
+                OperationKind::Backup,
+                operation_id.clone(),
+                self.progress.clone(),
+            );
             let repo = open_repository_with_progress(&path, &password, progress)?
                 .to_indexed_ids()
                 .map_err(display_error)?;
@@ -500,12 +511,19 @@ impl RusticService {
         match &result {
             Ok(_) => self.progress.emit_state(
                 &profile_id,
-                BackupProgressPhase::Completed,
+                OperationKind::Backup,
+                &operation_id,
+                OperationProgressPhase::Completed,
                 "Backup complete",
             ),
             Err(_) => {
-                self.progress
-                    .emit_state(&profile_id, BackupProgressPhase::Failed, "Backup failed");
+                self.progress.emit_state(
+                    &profile_id,
+                    OperationKind::Backup,
+                    &operation_id,
+                    OperationProgressPhase::Failed,
+                    "Backup failed",
+                );
             }
         }
         result
@@ -807,12 +825,41 @@ impl RusticService {
 
     fn restore_path(&self, request: RestorePathRequest) -> Result<RestoreResult, String> {
         validate_restore_request(&request)?;
-        self.restore_to(
+        let operation_id = request
+            .operation_id
+            .as_deref()
+            .filter(|id| !id.trim().is_empty())
+            .ok_or_else(|| "restore operation id is required".to_string())?;
+        self.progress.emit_state(
+            &request.profile_id,
+            OperationKind::Restore,
+            operation_id,
+            OperationProgressPhase::Running,
+            "Preparing extraction",
+        );
+        let result = self.restore_to(
             &request.profile_id,
             &request.snapshot_id,
             &request.path,
             PathBuf::from(request.destination.trim()),
-        )
+            Some(operation_id),
+        );
+        self.progress.emit_state(
+            &request.profile_id,
+            OperationKind::Restore,
+            operation_id,
+            if result.is_ok() {
+                OperationProgressPhase::Completed
+            } else {
+                OperationProgressPhase::Failed
+            },
+            if result.is_ok() {
+                "Extraction complete"
+            } else {
+                "Extraction failed"
+            },
+        );
+        result
     }
 
     fn preview_path(&self, request: PreviewPathRequest) -> Result<RestoreResult, String> {
@@ -830,6 +877,7 @@ impl RusticService {
             &request.snapshot_id,
             &request.path,
             preview_root.path().to_path_buf(),
+            None,
         )?;
         self.preview_roots
             .lock()
@@ -844,11 +892,26 @@ impl RusticService {
         snapshot_id: &str,
         path_in_snapshot: &str,
         destination_root: PathBuf,
+        operation_id: Option<&str>,
     ) -> Result<RestoreResult, String> {
         let (path, password, _) = self.profile_config(profile_id)?;
-        let repo = open_repository(&path, &password)?
+        let repo = match operation_id {
+            Some(operation_id) => open_repository_with_progress(
+                &path,
+                &password,
+                OperationProgressBars::new(
+                    profile_id.to_string(),
+                    OperationKind::Restore,
+                    operation_id.to_string(),
+                    self.progress.clone(),
+                ),
+            )?
             .to_indexed()
-            .map_err(display_error)?;
+            .map_err(display_error)?,
+            None => open_repository(&path, &password)?
+                .to_indexed()
+                .map_err(display_error)?,
+        };
         let snapshots = repo.get_all_snapshots().map_err(display_error)?;
         let snapshot = snapshots
             .iter()
@@ -1507,16 +1570,18 @@ mod tests {
             profile_id: "photos".to_string(),
         };
         let backup = service.run_backup(profile.clone()).expect("backup source");
-        let progress_events = progress_events.lock().expect("backup progress events");
-        assert!(
-            progress_events.iter().any(|event| {
-                event.state == BackupProgressPhase::Completed && event.current == 1
-            })
-        );
-        assert!(progress_events.iter().any(|event| {
-            event.state == BackupProgressPhase::PhaseComplete && event.total.is_some()
+        let backup_progress_events = progress_events.lock().expect("backup progress events");
+        assert!(backup_progress_events.iter().any(|event| {
+            event.operation == OperationKind::Backup
+                && event.state == OperationProgressPhase::Completed
+                && event.current == 1
         }));
-        drop(progress_events);
+        assert!(backup_progress_events.iter().any(|event| {
+            event.operation == OperationKind::Backup
+                && event.state == OperationProgressPhase::PhaseComplete
+                && event.total.is_some()
+        }));
+        drop(backup_progress_events);
         let snapshots = service
             .list_snapshots(profile.clone())
             .expect("list snapshots");
@@ -1577,6 +1642,7 @@ mod tests {
             snapshot_id: backup.snapshot.id.clone(),
             path: settings.path.clone(),
             destination: restore_root.to_string_lossy().into_owned(),
+            operation_id: Some("restore-settings".to_string()),
         };
         let plan = service
             .preview_restore(restore_request.clone())
@@ -1591,6 +1657,19 @@ mod tests {
             fs::read_to_string(restore_root.join("settings.toml")).expect("restored settings"),
             "theme = 'light'"
         );
+        let progress_events = progress_events.lock().expect("restore progress events");
+        assert!(progress_events.iter().any(|event| {
+            event.operation == OperationKind::Restore
+                && event.operation_id == "restore-settings"
+                && event.state == OperationProgressPhase::PhaseComplete
+                && event.total.is_some()
+        }));
+        assert!(progress_events.iter().any(|event| {
+            event.operation == OperationKind::Restore
+                && event.operation_id == "restore-settings"
+                && event.state == OperationProgressPhase::Completed
+        }));
+        drop(progress_events);
 
         let preview = service
             .preview_path(PreviewPathRequest {
@@ -1750,6 +1829,7 @@ mod tests {
                 snapshot_id: "missing".to_string(),
                 path: "file.txt".to_string(),
                 destination: "relative".to_string(),
+                operation_id: Some("restore-invalid".to_string()),
             })
             .expect_err("relative restore path");
         assert_eq!(error, "restore destination must be an absolute path");

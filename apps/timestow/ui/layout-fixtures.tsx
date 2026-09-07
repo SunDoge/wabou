@@ -28,7 +28,7 @@ import {
   type RusticCapability,
   type SnapshotEntry,
 } from "./api";
-import { BackupProgressStatus } from "./backup-progress";
+import { OperationProgressStatus } from "./operation-progress";
 import { FileDetails, RestorePlanReview } from "./file-details";
 import type { ProfileStore } from "./profile-store";
 import {
@@ -143,7 +143,7 @@ const fixtureStatus = {
 };
 
 const fixtureRustic: RusticCapability = {
-  __wabouCapabilityVersion: 12,
+  __wabouCapabilityVersion: 13,
   status: () => fixtureStatus,
   createProfile: () => fixtureStatus,
   openProfile: () => fixtureStatus,
@@ -499,11 +499,13 @@ function BackupProgressFixture() {
     <ColorThemeProvider theme="light">
       <ComponentsProvider theme="light">
         <View class="w-full h-full min-w-0 bg-surface px-4 py-3 text-primary">
-          <BackupProgressStatus
+          <OperationProgressStatus
             progress={{
               profileId: profile.id,
+              operation: "backup",
+              operationId: `backup:${profile.id}`,
               state: "running",
-              kind: "bytes",
+              unit: "bytes",
               title:
                 "Packing documents from a deliberately long source directory",
               current: 128 * 1024 * 1024,

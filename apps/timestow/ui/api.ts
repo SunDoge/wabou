@@ -190,6 +190,7 @@ export interface RusticCapability extends NativeCapability {
     snapshotId: string;
     path: string;
     destination: string;
+    operationId: string;
   }): RestoreResult | PromiseLike<RestoreResult>;
   previewPath(request: {
     profileId: string;
@@ -206,6 +207,6 @@ interface RusticHost extends Host {
 export function useRusticApi(): RusticCapability {
   return bindCapability(useHost<RusticHost>().rustic, {
     name: "rustic",
-    version: 12,
+    version: 13,
   });
 }
