@@ -26,6 +26,7 @@ import {
   formatModified,
   SnapshotFileRow,
   SnapshotWorkspaceHeader,
+  snapshotAfterRefresh,
 } from "../../apps/timestow/ui/snapshots";
 import { SortableTableHead } from "../../apps/timestow/ui/sortable-table-head";
 import {
@@ -127,6 +128,25 @@ test("snapshot timestamps stay compact in the table", () => {
     "2026-09-02 04:18",
   );
   expect(formatModified(undefined)).toBe("—");
+});
+
+test("snapshot refresh never carries a selection into an empty profile", () => {
+  const current = {
+    id: "current",
+    time: "2026-09-08T00:42:00Z",
+    hostname: "workstation",
+    paths: ["/data/photos"],
+    filesNew: 1,
+    filesChanged: 0,
+    label: "Current",
+    tags: [],
+    deleteProtected: false,
+  };
+
+  expect(snapshotAfterRefresh([], current.id, true)).toBeUndefined();
+  expect(snapshotAfterRefresh([], current.id, false)).toBeUndefined();
+  expect(snapshotAfterRefresh([current], undefined, true)).toBe(current);
+  expect(snapshotAfterRefresh([current], current.id, false)).toBe(current);
 });
 
 test("sortable table headers use a quiet readable surface", () => {

@@ -79,6 +79,17 @@ export function formatModified(value?: string): string {
     : value;
 }
 
+export function snapshotAfterRefresh(
+  snapshots: readonly SnapshotEntry[],
+  currentId: string | undefined,
+  selectNewest: boolean,
+): SnapshotEntry | undefined {
+  if (selectNewest) return snapshots[0];
+  return currentId
+    ? snapshots.find((snapshot) => snapshot.id === currentId)
+    : undefined;
+}
+
 export function SnapshotFileRow(props: {
   entry: FileEntry;
   selected: boolean;
@@ -243,22 +254,54 @@ export function SnapshotsPage() {
   const [error, setError] = createSignal<string>();
   const browserCache = createSnapshotBrowserCache();
   let fileRequestGeneration = 0;
+  let searchRequestGeneration = 0;
+  let snapshotRequestGeneration = 0;
+
+  function clearSnapshotWorkspace(): void {
+    fileRequestGeneration += 1;
+    searchRequestGeneration += 1;
+    setSelected(undefined);
+    setFiles([]);
+    setSelectedEntry(undefined);
+    setSearchQuery("");
+    setSearchResults([]);
+    setSearchActive(false);
+    setSearching(false);
+    setCurrentPath("");
+    setLoadingFiles(false);
+  }
 
   async function loadSnapshots(profileId: string, selectNewest = false) {
+    const generation = ++snapshotRequestGeneration;
+    if (selectNewest) {
+      browserCache.clear();
+      clearSnapshotWorkspace();
+      setSnapshots([]);
+    }
     setLoading(true);
     setError(undefined);
     try {
       const next = await api.listSnapshots({ profileId });
+      if (generation !== snapshotRequestGeneration) return false;
       setSnapshots(next);
-      if (selectNewest && next[0]) selectSnapshot(profileId, next[0]);
+      const refreshed = snapshotAfterRefresh(
+        next,
+        selected()?.id,
+        selectNewest,
+      );
+      if (refreshed && selectNewest) selectSnapshot(profileId, refreshed);
+      else if (refreshed) setSelected(refreshed);
       else if (selected()) {
-        const refreshed = next.find((item) => item.id === selected()?.id);
-        if (refreshed) setSelected(refreshed);
+        clearSnapshotWorkspace();
       }
+      return true;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (generation === snapshotRequestGeneration) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+      return false;
     } finally {
-      setLoading(false);
+      if (generation === snapshotRequestGeneration) setLoading(false);
     }
   }
 
@@ -303,27 +346,31 @@ export function SnapshotsPage() {
     const snapshot = selected();
     const query = searchQuery().trim();
     if (!profile || !snapshot || !query || searching()) return;
+    const generation = ++searchRequestGeneration;
     setSearching(true);
     setError(undefined);
     try {
-      setSearchResults(
-        await api.searchFiles({
-          profileId: profile.id,
-          snapshotId: snapshot.id,
-          query,
-          limit: 200,
-        }),
-      );
+      const results = await api.searchFiles({
+        profileId: profile.id,
+        snapshotId: snapshot.id,
+        query,
+        limit: 200,
+      });
+      if (generation !== searchRequestGeneration) return;
+      setSearchResults(results);
       setSearchActive(true);
       setSelectedEntry(undefined);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (generation === searchRequestGeneration) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
     } finally {
-      setSearching(false);
+      if (generation === searchRequestGeneration) setSearching(false);
     }
   }
 
   function clearSearch() {
+    searchRequestGeneration += 1;
     setSearchQuery("");
     setSearchResults([]);
     setSearchActive(false);
@@ -339,7 +386,7 @@ export function SnapshotsPage() {
     const selectedId = selected()?.id;
     const path = currentPath();
     browserCache.clear();
-    await loadSnapshots(profileId);
+    if (!(await loadSnapshots(profileId))) return;
     const refreshed = snapshots().find(
       (snapshot) => snapshot.id === selectedId,
     );
