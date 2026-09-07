@@ -149,6 +149,26 @@ export function TimestowSessionProvider(props: {
     return write;
   }
   const profileRemovalOperations = new Map<string, Promise<void>>();
+  const profileMutationTails = new Map<string, Promise<void>>();
+
+  function enqueueProfileMutation<T>(
+    profileId: string,
+    mutation: () => Promise<T>,
+  ): Promise<T> {
+    const previous = profileMutationTails.get(profileId) ?? Promise.resolve();
+    const result = previous.then(mutation);
+    const tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    profileMutationTails.set(profileId, tail);
+    void tail.then(() => {
+      if (profileMutationTails.get(profileId) === tail) {
+        profileMutationTails.delete(profileId);
+      }
+    });
+    return result;
+  }
 
   async function refresh(): Promise<void> {
     setLoading(true);
@@ -228,6 +248,8 @@ export function TimestowSessionProvider(props: {
     if (isBackingUp(profileId)) {
       throw new Error(`wait for ${profile.name} to finish backing up`);
     }
+    const pendingMutation = profileMutationTails.get(profileId);
+    if (pendingMutation) await pendingMutation;
     const nextRuntime = await api.forgetProfile({ profileId });
     setRuntime(nextRuntime);
     if (activeProfileId() === profileId) setActiveProfileId(undefined);
@@ -252,13 +274,17 @@ export function TimestowSessionProvider(props: {
   }
 
   async function renameProfile(profileId: string, name: string): Promise<void> {
-    const profile = profiles().find((item) => item.id === profileId);
-    if (!profile) throw new Error(`backup profile ${profileId} was not found`);
     const normalized = name.trim();
     if (!normalized) throw new Error("backup name is required");
     assertUniqueProfileName(profiles(), normalized, profileId);
-    await persistProfile({ ...profile, name: normalized });
-    setError(undefined);
+    await enqueueProfileMutation(profileId, async () => {
+      const profile = profiles().find((item) => item.id === profileId);
+      if (!profile)
+        throw new Error(`backup profile ${profileId} was not found`);
+      assertUniqueProfileName(profiles(), normalized, profileId);
+      await persistProfile({ ...profile, name: normalized });
+      setError(undefined);
+    });
   }
 
   async function connectProfile(
@@ -316,20 +342,27 @@ export function TimestowSessionProvider(props: {
     profileId: string,
     sources: string[],
   ): Promise<void> {
-    const profile = profiles().find((item) => item.id === profileId);
-    if (!profile) throw new Error(`backup profile ${profileId} was not found`);
-    const nextProfile = { ...profile, sources: [...sources] };
-    const nextRuntime = await api.setSources({ profileId, sources });
-    let persistenceWarning: string | undefined;
-    try {
-      await store.save(nextProfile, { activate: false });
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause);
-      persistenceWarning = `${profile.name} now uses the updated folders, but Timestow could not save them: ${message}. They remain active until the app closes; change the folders again to retry saving.`;
-    }
-    setProfiles((current) => upsertProfile(current, nextProfile));
-    setRuntime(nextRuntime);
-    setError(persistenceWarning);
+    const nextSources = [...sources];
+    await enqueueProfileMutation(profileId, async () => {
+      const profile = profiles().find((item) => item.id === profileId);
+      if (!profile)
+        throw new Error(`backup profile ${profileId} was not found`);
+      const nextProfile = { ...profile, sources: nextSources };
+      const nextRuntime = await api.setSources({
+        profileId,
+        sources: nextSources,
+      });
+      let persistenceWarning: string | undefined;
+      try {
+        await store.save(nextProfile, { activate: false });
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        persistenceWarning = `${profile.name} now uses the updated folders, but Timestow could not save them: ${message}. They remain active until the app closes; change the folders again to retry saving.`;
+      }
+      setProfiles((current) => upsertProfile(current, nextProfile));
+      setRuntime(nextRuntime);
+      setError(persistenceWarning);
+    });
   }
 
   async function persistProfile(profile: BackupProfile): Promise<void> {
@@ -342,15 +375,18 @@ export function TimestowSessionProvider(props: {
     enabled: boolean,
     intervalMinutes: BackupScheduleInterval,
   ): Promise<void> {
-    const profile = profiles().find((item) => item.id === profileId);
-    if (!profile) throw new Error(`backup profile ${profileId} was not found`);
-    await persistProfile({
-      ...profile,
-      schedule: createBackupSchedule(
-        enabled,
-        intervalMinutes,
-        profile.schedule,
-      ),
+    await enqueueProfileMutation(profileId, async () => {
+      const profile = profiles().find((item) => item.id === profileId);
+      if (!profile)
+        throw new Error(`backup profile ${profileId} was not found`);
+      await persistProfile({
+        ...profile,
+        schedule: createBackupSchedule(
+          enabled,
+          intervalMinutes,
+          profile.schedule,
+        ),
+      });
     });
   }
 
@@ -403,14 +439,16 @@ export function TimestowSessionProvider(props: {
     error?: string,
   ): Promise<void> {
     if (!schedule) return;
-    const current = profiles().find((profile) => profile.id === profileId);
-    if (!current?.schedule) return;
-    await persistProfile({
-      ...current,
-      schedule: advanceBackupSchedule(current.schedule, {
-        completedAt: Date.now(),
-        error,
-      }),
+    await enqueueProfileMutation(profileId, async () => {
+      const current = profiles().find((profile) => profile.id === profileId);
+      if (!current?.schedule) return;
+      await persistProfile({
+        ...current,
+        schedule: advanceBackupSchedule(current.schedule, {
+          completedAt: Date.now(),
+          error,
+        }),
+      });
     });
   }
 

@@ -2599,6 +2599,89 @@ test("the UI reflects native backup folders when persistence fails", async () =>
   expect(fixture.callsTo("rustic.setSources")).toHaveLength(1);
 });
 
+test("profile metadata mutations preserve concurrent folder and schedule changes", async () => {
+  const profile = {
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/data/backups/photos",
+    sources: ["/data/photos"],
+  };
+  const save = vi.fn<ProfileStore["save"]>(async () => {});
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
+    save,
+    setActive: async () => {},
+    remove: async () => {},
+  };
+  let finishSources!: () => void;
+  const sourcesUpdated = new Promise<{ unlockedProfileIds: string[] }>(
+    (resolve) => {
+      finishSources = () => resolve({ unlockedProfileIds: [profile.id] });
+    },
+  );
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 14,
+      status: async () => ({ unlockedProfileIds: [profile.id] }),
+      setSources: async () => sourcesUpdated,
+    },
+  });
+  const Controls = () => {
+    const session = useTimestowSession();
+    return (
+      <>
+        <Button
+          aria-label="Update folders"
+          onClick={() =>
+            void session.updateSources(profile.id, [
+              "/data/photos",
+              "/data/documents",
+            ])
+          }
+        />
+        <Button
+          aria-label="Update schedule"
+          onClick={() => void session.updateSchedule(profile.id, true, 30)}
+        />
+        <Text role="status">{JSON.stringify(session.activeProfile())}</Text>
+      </>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Controls />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toContain("/data/photos");
+  });
+  screen.getByRole("button", { name: "Update folders" }).click();
+  await screen.waitFor(() => {
+    expect(fixture.callsTo("rustic.setSources")).toHaveLength(1);
+  });
+  screen.getByRole("button", { name: "Update schedule" }).click();
+  expect(save).not.toHaveBeenCalled();
+
+  finishSources();
+  await screen.waitFor(() => {
+    const active = screen.getByRole("status").text;
+    expect(active).toContain("/data/documents");
+    expect(active).toContain('"intervalMinutes":30');
+  });
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(save.mock.calls.at(-1)?.[0]).toEqual(
+    expect.objectContaining({
+      sources: ["/data/photos", "/data/documents"],
+      schedule: expect.objectContaining({ intervalMinutes: 30 }),
+    }),
+  );
+  screen.dispose();
+});
+
 test("runs a due profile backup in the background and records completion", async () => {
   const nextRunAt = new Date(Date.now() + 1_000).toISOString();
   const save = vi.fn<ProfileStore["save"]>(async () => {});
