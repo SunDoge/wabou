@@ -5,6 +5,7 @@ import { createSignal, Show } from "solid-js";
 import { expect, test, vi } from "vitest";
 import type {
   FileEntry,
+  RestorePlanSummary,
   SnapshotDiff,
   SnapshotEntry,
 } from "../../apps/timestow/ui/api";
@@ -1372,6 +1373,106 @@ test("file details preview and extract through the native rustic capability", as
   });
 });
 
+test("a preview result cannot leak into another selected file", async () => {
+  const entries: FileEntry[] = [
+    {
+      name: "first.txt",
+      path: "docs/first.txt",
+      kind: "file",
+      size: 10,
+      modified: "2026-09-04T08:00:00Z",
+    },
+    {
+      name: "second.txt",
+      path: "docs/second.txt",
+      kind: "file",
+      size: 20,
+      modified: "2026-09-04T08:01:00Z",
+    },
+  ];
+  const completions = new Map<
+    string,
+    (result: { destination: string; plan: RestorePlanSummary }) => void
+  >();
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 12,
+      previewPath: ({ path }: { path: string }) =>
+        new Promise<{ destination: string; plan: RestorePlanSummary }>(
+          (resolve) => completions.set(path, resolve),
+        ),
+      openPath: async () => {},
+    },
+  });
+  const App = () => {
+    const [entry, setEntry] = createSignal(entries[0]);
+    return (
+      <>
+        <Button
+          aria-label="Select second file"
+          onClick={() => setEntry(entries[1])}
+        />
+        <FileDetails
+          profileId="profile"
+          snapshotId="snapshot"
+          entry={entry()}
+        />
+      </>
+    );
+  };
+  const screen = renderComponent(App, { host: fixture.host });
+
+  screen.getByRole("button", { name: "Open preview" }).click();
+  await screen.waitFor(() => {
+    expect(completions.has("docs/first.txt")).toBe(true);
+  });
+  screen.getByRole("button", { name: "Select second file" }).click();
+  completions.get("docs/first.txt")?.({
+    destination: "/tmp/first.txt",
+    plan: {
+      restoreSize: 10,
+      matchedSize: 0,
+      filesToRestore: 1,
+      filesToModify: 0,
+      filesUnchanged: 0,
+      directoriesToRestore: 0,
+      directoriesToModify: 0,
+    },
+  });
+  await screen.waitFor(() => {
+    expect(screen.getByRole("region", { name: "File details" }).text).toContain(
+      "second.txt",
+    );
+  });
+  expect(
+    screen.getByRole("region", { name: "File details" }).text,
+  ).not.toContain("/tmp/first.txt");
+  expect(fixture.callsTo("rustic.openPath")).toHaveLength(0);
+
+  screen.getByRole("button", { name: "Open preview" }).click();
+  await screen.waitFor(() => {
+    expect(completions.has("docs/second.txt")).toBe(true);
+  });
+  completions.get("docs/second.txt")?.({
+    destination: "/tmp/second.txt",
+    plan: {
+      restoreSize: 20,
+      matchedSize: 0,
+      filesToRestore: 1,
+      filesToModify: 0,
+      filesUnchanged: 0,
+      directoriesToRestore: 0,
+      directoriesToModify: 0,
+    },
+  });
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("region", { name: "File details" }).text,
+    ).toContain("/tmp/second.txt");
+  });
+  expect(fixture.callsTo("rustic.openPath")).toHaveLength(1);
+});
+
 test("backup sources add manual paths with Enter and remove existing paths", () => {
   const changes = vi.fn<(sources: string[]) => void>();
   const App = () => {
@@ -1726,7 +1827,8 @@ test("a backup stays available for retry when durable forgetting fails", async (
           onClick={() => void session.forgetProfile(profile.id)}
         />
         <Text role="status">
-          {session.activeProfile()?.name ?? "none"} · {session.profiles().length}
+          {session.activeProfile()?.name ?? "none"} ·{" "}
+          {session.profiles().length}
           {" · "}
           {session.runtime().unlockedProfileIds.join(",") || "locked"}
           {" · "}
@@ -1745,7 +1847,9 @@ test("a backup stays available for retry when durable forgetting fails", async (
   );
 
   await screen.waitFor(() => {
-    expect(screen.getByRole("status").text).toContain("Photos · 1 · photos · ok");
+    expect(screen.getByRole("status").text).toContain(
+      "Photos · 1 · photos · ok",
+    );
   });
   screen.getByRole("button", { name: "Forget Photos" }).click();
   await screen.waitFor(() => {

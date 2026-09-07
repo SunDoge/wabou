@@ -16,7 +16,7 @@ import download from "lucide-static/icons/download.svg?raw";
 import eye from "lucide-static/icons/eye.svg?raw";
 import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
-import { createSignal, Show } from "solid-js";
+import { createEffect, createSignal, Show } from "solid-js";
 import { type FileEntry, type RestorePlanSummary, useRusticApi } from "./api";
 import {
   formatBytes,
@@ -33,24 +33,42 @@ export function FileDetails(props: {
   const [previewing, setPreviewing] = createSignal(false);
   const [previewPath, setPreviewPath] = createSignal<string>();
   const [previewError, setPreviewError] = createSignal<string>();
+  let previewGeneration = 0;
+
+  createEffect(
+    () =>
+      `${props.profileId}\u0000${props.snapshotId}\u0000${props.entry?.path ?? ""}`,
+    () => {
+      previewGeneration += 1;
+      setPreviewing(false);
+      setPreviewPath(undefined);
+      setPreviewError(undefined);
+    },
+  );
 
   async function preview() {
     const entry = props.entry;
     if (!entry || previewing()) return;
+    const generation = ++previewGeneration;
+    const profileId = props.profileId;
+    const snapshotId = props.snapshotId;
     setPreviewing(true);
     setPreviewError(undefined);
     try {
       const result = await api.previewPath({
-        profileId: props.profileId,
-        snapshotId: props.snapshotId,
+        profileId,
+        snapshotId,
         path: entry.path,
       });
+      if (generation !== previewGeneration) return;
       setPreviewPath(result.destination);
       await api.openPath({ path: result.destination });
     } catch (cause) {
-      setPreviewError(cause instanceof Error ? cause.message : String(cause));
+      if (generation === previewGeneration) {
+        setPreviewError(cause instanceof Error ? cause.message : String(cause));
+      }
     } finally {
-      setPreviewing(false);
+      if (generation === previewGeneration) setPreviewing(false);
     }
   }
 
