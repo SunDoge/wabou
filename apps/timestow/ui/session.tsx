@@ -410,6 +410,7 @@ export function TimestowSessionProvider(props: {
   }
 
   let scheduleTimer: ReturnType<typeof setTimeout> | undefined;
+  let scheduleBatchRunning = false;
 
   const unsubscribeBackupProgress =
     subscribeJsonHostMessages<BackupProgressEvent>(
@@ -433,42 +434,54 @@ export function TimestowSessionProvider(props: {
   }
 
   async function runDueBackups(): Promise<void> {
+    if (scheduleBatchRunning) return;
+    scheduleBatchRunning = true;
     scheduleTimer = undefined;
-    const now = Date.now();
-    const snapshot = untrack(() => ({
-      profiles: profiles(),
-      unlocked: runtime().unlockedProfileIds,
-    }));
-    const due = snapshot.profiles.filter((profile) => {
-      const timestamp = profile.schedule
-        ? scheduleDueAt(profile.schedule)
-        : undefined;
-      return (
-        timestamp !== undefined &&
-        timestamp <= now &&
-        snapshot.unlocked.includes(profile.id)
-      );
-    });
-    const failures: Array<{ profile: BackupProfile; message: string }> = [];
-    for (const profile of due) {
-      try {
-        await runBackup(profile.id, true);
-      } catch (cause) {
-        const message = cause instanceof Error ? cause.message : String(cause);
-        failures.push({ profile, message });
+    try {
+      const now = Date.now();
+      const snapshot = untrack(() => ({
+        profiles: profiles(),
+        unlocked: runtime().unlockedProfileIds,
+      }));
+      const due = snapshot.profiles.filter((profile) => {
+        const timestamp = profile.schedule
+          ? scheduleDueAt(profile.schedule)
+          : undefined;
+        return (
+          timestamp !== undefined &&
+          timestamp <= now &&
+          snapshot.unlocked.includes(profile.id)
+        );
+      });
+      const failures: Array<{ profile: BackupProfile; message: string }> = [];
+      for (const profile of due) {
+        try {
+          await runBackup(profile.id, true);
+        } catch (cause) {
+          const message =
+            cause instanceof Error ? cause.message : String(cause);
+          failures.push({ profile, message });
+        }
       }
-    }
-    if (failures.length === 1) {
-      const [failure] = failures;
-      setError(
-        `Automatic backup for ${failure.profile.name} failed: ${failure.message}. Open this backup and try again.`,
-      );
-    } else if (failures.length > 1) {
-      setError(
-        `Automatic backups failed: ${failures
-          .map(({ profile, message }) => `${profile.name} — ${message}`)
-          .join("; ")}. Open each backup and try again.`,
-      );
+      if (failures.length === 1) {
+        const [failure] = failures;
+        setError(
+          `Automatic backup for ${failure.profile.name} failed: ${failure.message}. Open this backup and try again.`,
+        );
+      } else if (failures.length > 1) {
+        setError(
+          `Automatic backups failed: ${failures
+            .map(({ profile, message }) => `${profile.name} — ${message}`)
+            .join("; ")}. Open each backup and try again.`,
+        );
+      }
+    } finally {
+      scheduleBatchRunning = false;
+      const latest = untrack(() => ({
+        profiles: profiles(),
+        unlockedProfileIds: runtime().unlockedProfileIds,
+      }));
+      scheduleNextBackup(latest.profiles, latest.unlockedProfileIds);
     }
   }
 
@@ -477,6 +490,7 @@ export function TimestowSessionProvider(props: {
     unlockedProfileIds: readonly string[],
   ): void {
     clearScheduleTimer();
+    if (scheduleBatchRunning) return;
     const dueTimes = scheduledProfiles.flatMap((profile) => {
       if (!unlockedProfileIds.includes(profile.id) || !profile.schedule) {
         return [];

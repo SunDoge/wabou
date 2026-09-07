@@ -2357,6 +2357,113 @@ test("a later scheduled success cannot hide an earlier backup failure", async ()
   expect(fixture.callsTo("rustic.runBackup")).toHaveLength(2);
 });
 
+test("schedule persistence cannot reenter a running backup batch", async () => {
+  const nextRunAt = new Date(Date.now() + 1_000).toISOString();
+  const profiles = [
+    {
+      id: "documents",
+      name: "Documents",
+      repositoryPath: "/data/backups/documents",
+      sources: ["/data/documents"],
+      schedule: {
+        enabled: true,
+        intervalMinutes: 60 as const,
+        nextRunAt,
+      },
+    },
+    {
+      id: "photos",
+      name: "Photos",
+      repositoryPath: "/data/backups/photos",
+      sources: ["/data/photos"],
+      schedule: {
+        enabled: true,
+        intervalMinutes: 60 as const,
+        nextRunAt,
+      },
+    },
+  ];
+  const completions = new Map<
+    string,
+    (result: { snapshot: SnapshotEntry }) => void
+  >();
+  const store: ProfileStore = {
+    load: async () => ({ profiles, activeProfileId: profiles[0]?.id }),
+    save: async () => {},
+    setActive: async () => {},
+    remove: async () => {},
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 12,
+      status: async () => ({
+        unlockedProfileIds: profiles.map(({ id }) => id),
+        activeProfileId: profiles[0]?.id,
+      }),
+      runBackup: ({ profileId }: { profileId: string }) =>
+        new Promise<{ snapshot: SnapshotEntry }>((resolve) => {
+          completions.set(profileId, resolve);
+        }),
+    },
+  });
+  const Status = () => {
+    const session = useTimestowSession();
+    return (
+      <Text role="status">
+        {session.error() ?? "ok"} · {session.lastBackup()?.profileId ?? "none"}
+      </Text>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Status />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host, clock: "fake" },
+  );
+  const complete = (profileId: string) => {
+    const resolve = completions.get(profileId);
+    expect(resolve).toBeDefined();
+    resolve?.({
+      snapshot: {
+        id: `${profileId}-snapshot`,
+        time: "2026-09-04T09:00:00.000Z",
+        hostname: "workstation",
+        paths: [`/data/${profileId}`],
+        filesNew: 1,
+        filesChanged: 0,
+        label: "",
+        tags: [],
+        deleteProtected: false,
+      },
+    });
+  };
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("ok · none");
+  });
+  await screen.advanceTime(1_000);
+  await screen.waitFor(() => {
+    expect(fixture.callsTo("rustic.runBackup")).toHaveLength(1);
+  });
+  complete("documents");
+  await screen.waitFor(() => {
+    expect(fixture.callsTo("rustic.runBackup")).toHaveLength(2);
+  });
+
+  await screen.advanceTime(0);
+  expect(fixture.callsTo("rustic.runBackup")).toHaveLength(2);
+  expect(screen.getByRole("status").text).toBe("ok · documents");
+
+  complete("photos");
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("ok · photos");
+  });
+  await screen.advanceTime(0);
+  expect(fixture.callsTo("rustic.runBackup")).toHaveLength(2);
+});
+
 test("schedule dialog explains the runtime boundary and exposes its controls", async () => {
   const profile = {
     id: "photos",
