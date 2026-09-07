@@ -660,14 +660,18 @@ fn behavior_headless_feature(
     cargo_features: &[String],
     dependency_enables_gpui: bool,
 ) -> &'static str {
-    let explicitly_enables_gpui = cargo_features
-        .iter()
-        .any(|feature| feature == "gpui" || feature.strip_suffix("/gpui").is_some());
-    if explicitly_enables_gpui || dependency_enables_gpui {
+    if behavior_uses_gpui(cargo_features, dependency_enables_gpui) {
         "gpui-headless"
     } else {
         "headless"
     }
+}
+
+fn behavior_uses_gpui(cargo_features: &[String], dependency_enables_gpui: bool) -> bool {
+    cargo_features
+        .iter()
+        .any(|feature| feature == "gpui" || feature.strip_suffix("/gpui").is_some())
+        || dependency_enables_gpui
 }
 
 fn check(
@@ -939,11 +943,11 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     // instead of silently replacing it with the no-op ABI fallback.
     let mut cargo_features = options.cargo_features.clone();
     cargo_features.push(app_framework_feature(workspace, app, "devtools")?);
+    let dependency_enables_gpui = app_framework_dependency_has_feature(workspace, app, "gpui")?;
+    let uses_gpui = behavior_uses_gpui(&options.cargo_features, dependency_enables_gpui);
     if !options.native {
-        let headless_feature = behavior_headless_feature(
-            &options.cargo_features,
-            app_framework_dependency_has_feature(workspace, app, "gpui")?,
-        );
+        let headless_feature =
+            behavior_headless_feature(&options.cargo_features, dependency_enables_gpui);
         cargo_features.push(app_framework_feature(workspace, app, headless_feature)?);
     }
     let executable = build_behavior_host(workspace, &manifest, &binary, &cargo_features)?;
@@ -955,6 +959,10 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
         )
         .env("WABOU_TEST_SCRIPT", scenario_bundle)
         .env("WABOU_TEST_ARTIFACT_DIR", artifact_dir)
+        .env(
+            "WABOU_TEST_RENDERER",
+            if uses_gpui { "gpui" } else { "vello-hybrid" },
+        )
         .env("WABOU_TEST_APP_DATA_ROOT", test_data.path())
         // Also isolate libraries that use the XDG convention directly rather
         // than resolving paths through Wabou's AppDirectories API.
@@ -2277,6 +2285,9 @@ out-dir = "dist/resources"
             behavior_headless_feature(&["gallery/gpui".into()], false),
             "gpui-headless"
         );
+        assert!(!behavior_uses_gpui(&[], false));
+        assert!(behavior_uses_gpui(&[], true));
+        assert!(behavior_uses_gpui(&["gallery/gpui".into()], false));
     }
 
     #[test]
