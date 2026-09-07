@@ -853,6 +853,7 @@ export function SnapshotsPage() {
       profileId: profile.id,
       snapshotId: snapshot.id,
     });
+    browserCache.removeSnapshot(profile.id, snapshot.id);
     await loadSnapshots(profile.id, "newest");
   }
 
