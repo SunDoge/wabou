@@ -1304,11 +1304,15 @@ pub fn mount(capability: NativeCapability<'_>, service: RusticService) -> rquick
     })?;
 
     capability.method(OPEN_PATH, move |request: OpenPathRequest| async move {
-        let path = PathBuf::from(request.path);
-        if !path.exists() {
-            return Err("path does not exist".to_string());
-        }
-        open::that_detached(path).map_err(display_error)
+        tokio::task::spawn_blocking(move || {
+            let path = PathBuf::from(request.path);
+            if !path.exists() {
+                return Err("path does not exist".to_string());
+            }
+            open::that_detached(path).map_err(display_error)
+        })
+        .await
+        .map_err(|error| format!("open path task failed: {error}"))?
     })
 }
 
