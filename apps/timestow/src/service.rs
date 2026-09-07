@@ -23,7 +23,7 @@ use crate::progress::{
     BACKUP_PROGRESS_TOPIC, BackupProgressBars, BackupProgressPhase, ProgressEmitter,
 };
 
-pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 6);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 7);
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
@@ -34,7 +34,7 @@ const SET_SOURCES: HostMethod<SetSourcesRequest, RuntimeStatus> = HostMethod::ne
 const RUN_BACKUP: HostMethod<ProfileIdRequest, BackupResult> = HostMethod::new("runBackup");
 const LIST_SNAPSHOTS: HostMethod<ProfileIdRequest, Vec<SnapshotEntry>> =
     HostMethod::new("listSnapshots");
-const LIST_FILES: HostMethod<ListFilesRequest, Vec<FileEntry>> = HostMethod::new("listFiles");
+const LIST_FILES: HostMethod<ListFilesRequest, FileListing> = HostMethod::new("listFiles");
 const SEARCH_FILES: HostMethod<SearchFilesRequest, Vec<FileEntry>> = HostMethod::new("searchFiles");
 const DIFF_SNAPSHOTS: HostMethod<DiffSnapshotsRequest, SnapshotDiff> =
     HostMethod::new("diffSnapshots");
@@ -101,6 +101,10 @@ pub struct ListFilesRequest {
     pub snapshot_id: String,
     #[serde(default)]
     pub path: String,
+    #[serde(default)]
+    pub offset: usize,
+    #[serde(default = "default_file_page_size")]
+    pub limit: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -196,6 +200,15 @@ pub struct FileEntry {
     pub kind: String,
     pub size: u64,
     pub modified: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileListing {
+    pub entries: Vec<FileEntry>,
+    pub total: usize,
+    pub offset: usize,
+    pub has_more: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -448,7 +461,7 @@ impl RusticService {
         Ok(snapshots.iter().map(snapshot_entry).collect())
     }
 
-    fn list_files(&self, request: ListFilesRequest) -> Result<Vec<FileEntry>, String> {
+    fn list_files(&self, request: ListFilesRequest) -> Result<FileListing, String> {
         let (path, password, _) = self.profile_config(&request.profile_id)?;
         let repo = open_repository(&path, &password)?
             .to_indexed_ids()
@@ -479,7 +492,7 @@ impl RusticService {
             (left.kind != "directory", left.name.to_lowercase())
                 .cmp(&(right.kind != "directory", right.name.to_lowercase()))
         });
-        Ok(files)
+        Ok(file_listing_page(files, request.offset, request.limit))
     }
 
     fn search_files(&self, request: SearchFilesRequest) -> Result<Vec<FileEntry>, String> {
@@ -780,6 +793,32 @@ impl RusticService {
 
 fn default_search_limit() -> usize {
     200
+}
+
+fn default_file_page_size() -> usize {
+    250
+}
+
+fn file_listing_page(
+    entries: Vec<FileEntry>,
+    requested_offset: usize,
+    requested_limit: usize,
+) -> FileListing {
+    let total = entries.len();
+    let offset = requested_offset.min(total);
+    let limit = requested_limit.clamp(1, 1_000);
+    let page = entries
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .collect::<Vec<_>>();
+    let end = offset.saturating_add(page.len());
+    FileListing {
+        entries: page,
+        total,
+        offset,
+        has_more: end < total,
+    }
 }
 
 const DEFAULT_DIFF_ENTRIES: usize = 250;
@@ -1124,6 +1163,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn file_listing_pages_are_bounded_without_hiding_the_total() {
+        let entries = (0..5)
+            .map(|index| FileEntry {
+                name: format!("file-{index}"),
+                path: format!("file-{index}"),
+                kind: "file".to_string(),
+                size: index,
+                modified: None,
+            })
+            .collect();
+        let page = file_listing_page(entries, 2, 2);
+        assert_eq!(page.total, 5);
+        assert_eq!(page.offset, 2);
+        assert!(page.has_more);
+        assert_eq!(
+            page.entries
+                .iter()
+                .map(|entry| entry.name.as_str())
+                .collect::<Vec<_>>(),
+            ["file-2", "file-3"]
+        );
+    }
+
+    #[test]
     fn profile_rejects_an_empty_repository_password() {
         let error = RusticService::default()
             .create_profile_with_password(
@@ -1234,8 +1297,11 @@ mod tests {
                     profile_id: "photos".to_string(),
                     snapshot_id: backup.snapshot.id.clone(),
                     path,
+                    offset: 0,
+                    limit: default_file_page_size(),
                 })
                 .expect("list files")
+                .entries
             {
                 names.push(entry.name.clone());
                 if entry.kind == "directory" {

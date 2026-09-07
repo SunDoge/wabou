@@ -1,12 +1,14 @@
-import type { FileEntry } from "./api";
+import type { FileListing } from "./api";
+
+export type CachedDirectoryListing = Pick<FileListing, "entries" | "total">;
 
 export interface SnapshotBrowserCache {
-  entries(snapshotId: string, path: string): readonly FileEntry[] | undefined;
+  listing(snapshotId: string, path: string): CachedDirectoryListing | undefined;
   lastPath(snapshotId: string): string;
   remember(
     snapshotId: string,
     path: string,
-    entries: readonly FileEntry[],
+    listing: CachedDirectoryListing,
   ): void;
   clear(): void;
 }
@@ -16,22 +18,25 @@ function cacheKey(snapshotId: string, path: string): string {
 }
 
 export function createSnapshotBrowserCache(): SnapshotBrowserCache {
-  const entriesByPath = new Map<string, readonly FileEntry[]>();
+  const listingsByPath = new Map<string, CachedDirectoryListing>();
   const lastPathBySnapshot = new Map<string, string>();
 
   return {
-    entries(snapshotId, path) {
-      return entriesByPath.get(cacheKey(snapshotId, path));
+    listing(snapshotId, path) {
+      return listingsByPath.get(cacheKey(snapshotId, path));
     },
     lastPath(snapshotId) {
       return lastPathBySnapshot.get(snapshotId) ?? "";
     },
-    remember(snapshotId, path, entries) {
-      entriesByPath.set(cacheKey(snapshotId, path), [...entries]);
+    remember(snapshotId, path, listing) {
+      listingsByPath.set(cacheKey(snapshotId, path), {
+        entries: [...listing.entries],
+        total: listing.total,
+      });
       lastPathBySnapshot.set(snapshotId, path);
     },
     clear() {
-      entriesByPath.clear();
+      listingsByPath.clear();
       lastPathBySnapshot.clear();
     },
   };

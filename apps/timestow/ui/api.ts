@@ -6,6 +6,8 @@ import {
 } from "@wabou/ui";
 import type { BackupSchedule } from "./backup-schedule";
 
+export const FILE_PAGE_SIZE = 250;
+
 export interface BackupProfile {
   id: string;
   name: string;
@@ -39,6 +41,13 @@ export interface FileEntry {
   kind: "directory" | "file" | "symlink" | "special";
   size: number;
   modified?: string;
+}
+
+export interface FileListing {
+  entries: FileEntry[];
+  total: number;
+  offset: number;
+  hasMore: boolean;
 }
 
 export type SnapshotDiffChange =
@@ -121,7 +130,9 @@ export interface RusticCapability extends NativeCapability {
     profileId: string;
     snapshotId: string;
     path: string;
-  }): FileEntry[] | PromiseLike<FileEntry[]>;
+    offset?: number;
+    limit?: number;
+  }): FileListing | PromiseLike<FileListing>;
   searchFiles(request: {
     profileId: string;
     snapshotId: string;
@@ -171,6 +182,6 @@ interface RusticHost extends Host {
 export function useRusticApi(): RusticCapability {
   return bindCapability(useHost<RusticHost>().rustic, {
     name: "rustic",
-    version: 6,
+    version: 7,
   });
 }

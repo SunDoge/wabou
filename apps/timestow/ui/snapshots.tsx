@@ -42,7 +42,12 @@ import {
   onCleanup,
   Show,
 } from "solid-js";
-import { type FileEntry, type SnapshotEntry, useRusticApi } from "./api";
+import {
+  FILE_PAGE_SIZE,
+  type FileEntry,
+  type SnapshotEntry,
+  useRusticApi,
+} from "./api";
 import { BackupProgressStatus } from "./backup-progress";
 import { FileDetails } from "./file-details";
 import { BackupScheduleDialog } from "./schedule-dialog";
@@ -239,6 +244,7 @@ export function SnapshotsPage() {
   const [snapshots, setSnapshots] = createSignal<SnapshotEntry[]>([]);
   const [selected, setSelected] = createSignal<SnapshotEntry>();
   const [files, setFiles] = createSignal<FileEntry[]>([]);
+  const [fileTotal, setFileTotal] = createSignal(0);
   const [selectedEntry, setSelectedEntry] = createSignal<FileEntry>();
   const [searchQuery, setSearchQuery] = createSignal("");
   const [searchResults, setSearchResults] = createSignal<FileEntry[]>([]);
@@ -251,6 +257,7 @@ export function SnapshotsPage() {
   const [currentPath, setCurrentPath] = createSignal("");
   const [loading, setLoading] = createSignal(true);
   const [loadingFiles, setLoadingFiles] = createSignal(false);
+  const [loadingMoreFiles, setLoadingMoreFiles] = createSignal(false);
   const [error, setError] = createSignal<string>();
   const browserCache = createSnapshotBrowserCache();
   let fileRequestGeneration = 0;
@@ -262,6 +269,7 @@ export function SnapshotsPage() {
     searchRequestGeneration += 1;
     setSelected(undefined);
     setFiles([]);
+    setFileTotal(0);
     setSelectedEntry(undefined);
     setSearchQuery("");
     setSearchResults([]);
@@ -269,6 +277,7 @@ export function SnapshotsPage() {
     setSearching(false);
     setCurrentPath("");
     setLoadingFiles(false);
+    setLoadingMoreFiles(false);
   }
 
   async function loadSnapshots(profileId: string, selectNewest = false) {
@@ -311,15 +320,20 @@ export function SnapshotsPage() {
     path: string,
   ) {
     const generation = ++fileRequestGeneration;
+    searchRequestGeneration += 1;
     setCurrentPath(path);
     setFiles([]);
+    setFileTotal(0);
     setSelectedEntry(undefined);
     setSearchActive(false);
     setSearchResults([]);
+    setSearching(false);
+    setLoadingMoreFiles(false);
     setError(undefined);
-    const cached = browserCache.entries(snapshot.id, path);
+    const cached = browserCache.listing(snapshot.id, path);
     if (cached) {
-      setFiles([...cached]);
+      setFiles([...cached.entries]);
+      setFileTotal(cached.total);
       setLoadingFiles(false);
       return;
     }
@@ -329,15 +343,53 @@ export function SnapshotsPage() {
         profileId,
         snapshotId: snapshot.id,
         path,
+        offset: 0,
+        limit: FILE_PAGE_SIZE,
       });
-      browserCache.remember(snapshot.id, path, next);
       if (generation !== fileRequestGeneration) return;
-      setFiles(next);
+      browserCache.remember(snapshot.id, path, next);
+      setFiles(next.entries);
+      setFileTotal(next.total);
     } catch (cause) {
       if (generation !== fileRequestGeneration) return;
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       if (generation === fileRequestGeneration) setLoadingFiles(false);
+    }
+  }
+
+  async function loadMoreFiles() {
+    const profile = session.activeProfile();
+    const snapshot = selected();
+    const path = currentPath();
+    const offset = files().length;
+    if (!profile || !snapshot || loadingMoreFiles() || offset >= fileTotal())
+      return;
+    const generation = fileRequestGeneration;
+    setLoadingMoreFiles(true);
+    setError(undefined);
+    try {
+      const next = await api.listFiles({
+        profileId: profile.id,
+        snapshotId: snapshot.id,
+        path,
+        offset,
+        limit: FILE_PAGE_SIZE,
+      });
+      if (generation !== fileRequestGeneration) return;
+      const combined = [...files(), ...next.entries];
+      setFiles(combined);
+      setFileTotal(next.total);
+      browserCache.remember(snapshot.id, path, {
+        entries: combined,
+        total: next.total,
+      });
+    } catch (cause) {
+      if (generation === fileRequestGeneration) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    } finally {
+      if (generation === fileRequestGeneration) setLoadingMoreFiles(false);
     }
   }
 
@@ -475,6 +527,14 @@ export function SnapshotsPage() {
   );
 
   const visibleFiles = () => (searchActive() ? searchResults() : files());
+  const fileCountLabel = () => {
+    if (loadingFiles()) return "Loading…";
+    if (searchActive()) return `${visibleFiles().length} matches`;
+    if (fileTotal() > files().length) {
+      return `${files().length} of ${fileTotal()} items`;
+    }
+    return `${files().length} items`;
+  };
   const fileTable = createTanStackDataTable<FileEntry>({
     data: visibleFiles,
     columns: fileColumns,
@@ -648,10 +708,7 @@ export function SnapshotsPage() {
                         {searchActive()
                           ? `Search results for “${searchQuery()}”`
                           : `/${currentPath() || ""}`}{" "}
-                        ·{" "}
-                        {loadingFiles()
-                          ? "Loading…"
-                          : `${visibleFiles().length} items`}
+                        · {fileCountLabel()}
                       </Text>
                     </View>
                   </View>
@@ -862,6 +919,23 @@ export function SnapshotsPage() {
                                 </ForValue>
                               </TableBody>
                             </Table>
+                            <Show
+                              when={
+                                !searchActive() && files().length < fileTotal()
+                              }
+                            >
+                              <View class="w-full flex justify-center px-4 py-3">
+                                <Button
+                                  aria-label="Load more files"
+                                  variant="outline"
+                                  loading={loadingMoreFiles()}
+                                  loadingLabel="Loading more…"
+                                  onClick={() => void loadMoreFiles()}
+                                >
+                                  Load more files
+                                </Button>
+                              </View>
+                            </Show>
                           </ScrollArea>
                         </Show>
                       </AdaptiveSplitPaneMain>

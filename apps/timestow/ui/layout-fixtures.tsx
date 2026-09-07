@@ -20,11 +20,12 @@ import {
   View,
 } from "@wabou/ui";
 import { Show } from "solid-js";
-import type {
-  FileEntry,
-  RestorePlanSummary,
-  RusticCapability,
-  SnapshotEntry,
+import {
+  FILE_PAGE_SIZE,
+  type FileEntry,
+  type RestorePlanSummary,
+  type RusticCapability,
+  type SnapshotEntry,
 } from "./api";
 import { BackupProgressStatus } from "./backup-progress";
 import { FileDetails } from "./file-details";
@@ -107,7 +108,7 @@ const fixtureStatus = {
 };
 
 const fixtureRustic: RusticCapability = {
-  __wabouCapabilityVersion: 6,
+  __wabouCapabilityVersion: 7,
   status: () => fixtureStatus,
   createProfile: () => fixtureStatus,
   openProfile: () => fixtureStatus,
@@ -115,7 +116,16 @@ const fixtureRustic: RusticCapability = {
   setSources: () => fixtureStatus,
   runBackup: () => ({ snapshot: newestSnapshot }),
   listSnapshots: () => [newestSnapshot, previousSnapshot],
-  listFiles: ({ path }) => (path ? [] : [...rootFiles]),
+  listFiles: ({ path, offset = 0, limit = FILE_PAGE_SIZE }) => {
+    const all = path ? [] : [...rootFiles];
+    const entries = all.slice(offset, offset + limit);
+    return {
+      entries,
+      total: all.length,
+      offset,
+      hasMore: offset + entries.length < all.length,
+    };
+  },
   searchFiles: () => [],
   diffSnapshots: () => ({
     entries: [
@@ -317,6 +327,22 @@ function FullWorkspaceFixture() {
   return <WorkspaceFixture />;
 }
 
+function PagedWorkspaceFixture() {
+  return (
+    <WorkspaceFixture
+      rustic={{
+        ...fixtureRustic,
+        listFiles: ({ offset = 0 }) => ({
+          entries: offset === 0 ? [...rootFiles] : [],
+          total: 300,
+          offset,
+          hasMore: offset === 0,
+        }),
+      }}
+    />
+  );
+}
+
 function EmptyWorkspaceFixture() {
   return (
     <WorkspaceFixture
@@ -462,6 +488,12 @@ defineLayoutFixtures(
       height: 620,
       waitMs: 100,
       render: FullWorkspaceFixture,
+    },
+    "timestow/workspace-paged-directory": {
+      width: 900,
+      height: 620,
+      waitMs: 100,
+      render: PagedWorkspaceFixture,
     },
     "timestow/workspace-empty": {
       width: 900,

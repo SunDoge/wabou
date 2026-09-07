@@ -185,6 +185,23 @@ await renderLayoutFixtures({
       assert: (fixture) => assertFullWorkspace(fixture, 900),
     },
     {
+      id: "timestow/workspace-paged-directory",
+      width: 900,
+      height: 620,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        assertFullWorkspace(fixture, 900);
+        getLayoutNode(fixture, { role: "button", name: "Load more files" });
+        if (
+          !fixture.nodes.some((node) => node.text?.includes("3 of 300 items"))
+        ) {
+          throw new Error(
+            "paged file count does not expose the full directory size",
+          );
+        }
+      },
+    },
+    {
       id: "timestow/workspace-empty",
       width: 900,
       height: 620,

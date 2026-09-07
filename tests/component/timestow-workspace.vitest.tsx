@@ -3,6 +3,7 @@ import { createTestHost, renderComponent } from "@wabou/test/component";
 import { Button, Text } from "@wabou/ui";
 import { createSignal, Show } from "solid-js";
 import { expect, test, vi } from "vitest";
+import type { FileEntry } from "../../apps/timestow/ui/api";
 import { FileDetails } from "../../apps/timestow/ui/file-details";
 import type { ProfileStore } from "../../apps/timestow/ui/profile-store";
 import { BackupScheduleDialog } from "../../apps/timestow/ui/schedule-dialog";
@@ -254,7 +255,7 @@ test("snapshot changes compare against the recorded parent and can include metad
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 6,
+      __wabouCapabilityVersion: 7,
       diffSnapshots: async (request: { includeMetadata?: boolean }) => ({
         entries: [
           {
@@ -340,16 +341,19 @@ test("snapshot browser cache restores each snapshot path independently", () => {
     { name: "guide.md", path: "docs/guide.md", kind: "file" as const, size: 8 },
   ];
 
-  cache.remember("snapshot-a", "docs", docs);
-  cache.remember("snapshot-b", "photos", []);
+  cache.remember("snapshot-a", "docs", { entries: docs, total: 1 });
+  cache.remember("snapshot-b", "photos", { entries: [], total: 0 });
 
   expect(cache.lastPath("snapshot-a")).toBe("docs");
-  expect(cache.entries("snapshot-a", "docs")).toEqual(docs);
+  expect(cache.listing("snapshot-a", "docs")).toEqual({
+    entries: docs,
+    total: 1,
+  });
   expect(cache.lastPath("snapshot-b")).toBe("photos");
   expect(cache.lastPath("snapshot-c")).toBe("");
 
   cache.clear();
-  expect(cache.entries("snapshot-a", "docs")).toBeUndefined();
+  expect(cache.listing("snapshot-a", "docs")).toBeUndefined();
   expect(cache.lastPath("snapshot-a")).toBe("");
 });
 
@@ -357,31 +361,51 @@ test("snapshot file tree loads child directories only when expanded", async () =
   const selected = vi.fn();
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 6,
-      listFiles: async (request: { path: string }) =>
-        request.path === "docs"
-          ? [
-              {
-                name: "guide.md",
-                path: "docs/guide.md",
-                kind: "file" as const,
-                size: 8,
-              },
-            ]
-          : [
-              {
-                name: "docs",
-                path: "docs",
-                kind: "directory" as const,
-                size: 0,
-              },
-              {
-                name: "README.md",
-                path: "README.md",
-                kind: "file" as const,
-                size: 12,
-              },
-            ],
+      __wabouCapabilityVersion: 7,
+      listFiles: async (request: { path: string; offset?: number }) => {
+        let entries: FileEntry[];
+        if (request.path === "docs") {
+          entries = [
+            {
+              name: "guide.md",
+              path: "docs/guide.md",
+              kind: "file" as const,
+              size: 8,
+            },
+          ];
+        } else if (request.offset) {
+          entries = [
+            {
+              name: "LICENSE",
+              path: "LICENSE",
+              kind: "file" as const,
+              size: 14,
+            },
+          ];
+        } else {
+          entries = [
+            {
+              name: "docs",
+              path: "docs",
+              kind: "directory" as const,
+              size: 0,
+            },
+            {
+              name: "README.md",
+              path: "README.md",
+              kind: "file" as const,
+              size: 12,
+            },
+          ];
+        }
+        const total = request.path === "docs" ? 1 : 3;
+        return {
+          entries,
+          total,
+          offset: request.offset ?? 0,
+          hasMore: (request.offset ?? 0) + entries.length < total,
+        };
+      },
     },
   });
   const screen = renderComponent(
@@ -410,16 +434,30 @@ test("snapshot file tree loads child directories only when expanded", async () =
     profileId: "profile",
     snapshotId: "snapshot",
     path: "docs",
+    offset: 0,
+    limit: 250,
   });
   expect(selected).toHaveBeenCalledWith(
     expect.objectContaining({ path: "docs" }),
   );
+
+  screen.getByRole("treeitem", { name: "Load more (1 remaining)" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("treeitem", { name: "LICENSE" })).toBeDefined();
+  });
+  expect(fixture.callsTo("rustic.listFiles")[2]?.args[0]).toEqual({
+    profileId: "profile",
+    snapshotId: "snapshot",
+    path: "",
+    offset: 2,
+    limit: 250,
+  });
 });
 
 test("file details preview and extract through the native rustic capability", async () => {
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 6,
+      __wabouCapabilityVersion: 7,
       previewPath: async () => ({
         destination: "/tmp/wabou-rustic-preview/42",
         plan: {
@@ -674,7 +712,7 @@ test("rustic session hydrates durable profiles and exposes their locked state", 
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 6,
+      __wabouCapabilityVersion: 7,
       status: async () => ({
         unlockedProfileIds: [],
       }),
@@ -722,7 +760,7 @@ test("a failed native profile switch leaves the current profile selected", async
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 6,
+      __wabouCapabilityVersion: 7,
       status: async () => ({
         unlockedProfileIds: profiles.map((profile) => profile.id),
         activeProfileId: "photos",
@@ -785,7 +823,7 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 6,
+      __wabouCapabilityVersion: 7,
       status: async () => ({ unlockedProfileIds: [] }),
       createProfile: async (request: { id: string }) => ({
         unlockedProfileIds: [request.id],
@@ -868,7 +906,7 @@ test("runs a due profile backup in the background and records completion", async
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 6,
+      __wabouCapabilityVersion: 7,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -941,7 +979,7 @@ test("schedule dialog explains the runtime boundary and exposes its controls", a
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 6,
+      __wabouCapabilityVersion: 7,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
