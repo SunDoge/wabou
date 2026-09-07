@@ -26,6 +26,7 @@ import type {
   RusticCapability,
   SnapshotEntry,
 } from "./api";
+import { BackupProgressStatus } from "./backup-progress";
 import { FileDetails } from "./file-details";
 import type { ProfileStore } from "./profile-store";
 import { TimestowSessionProvider, useTimestowSession } from "./session";
@@ -294,18 +295,70 @@ function LoadedWorkspaceRouter() {
   );
 }
 
-function FullWorkspaceFixture() {
+function WorkspaceFixture(props: { rustic?: RusticCapability }) {
   const inheritedHost = useHost();
   return (
     <HostProvider
       value={
-        { ...inheritedHost, rustic: fixtureRustic } as typeof inheritedHost
+        {
+          ...inheritedHost,
+          rustic: props.rustic ?? fixtureRustic,
+        } as typeof inheritedHost
       }
     >
       <TimestowSessionProvider store={fixtureStore}>
         <LoadedWorkspaceRouter />
       </TimestowSessionProvider>
     </HostProvider>
+  );
+}
+
+function FullWorkspaceFixture() {
+  return <WorkspaceFixture />;
+}
+
+function EmptyWorkspaceFixture() {
+  return (
+    <WorkspaceFixture
+      rustic={{
+        ...fixtureRustic,
+        listSnapshots: () => [],
+      }}
+    />
+  );
+}
+
+function WorkspaceErrorFixture() {
+  return (
+    <WorkspaceFixture
+      rustic={{
+        ...fixtureRustic,
+        listSnapshots: () =>
+          Promise.reject(new Error("Repository index could not be read.")),
+      }}
+    />
+  );
+}
+
+function BackupProgressFixture() {
+  return (
+    <ColorThemeProvider theme="light">
+      <ComponentsProvider theme="light">
+        <View class="w-full h-full min-w-0 bg-surface px-4 py-3 text-primary">
+          <BackupProgressStatus
+            progress={{
+              profileId: profile.id,
+              state: "running",
+              kind: "bytes",
+              title:
+                "Packing documents from a deliberately long source directory",
+              current: 128 * 1024 * 1024,
+              total: 512 * 1024 * 1024,
+            }}
+          />
+        </View>
+      </ComponentsProvider>
+    </ColorThemeProvider>
   );
 }
 
@@ -394,6 +447,23 @@ defineLayoutFixtures(
       height: 620,
       waitMs: 100,
       render: FullWorkspaceFixture,
+    },
+    "timestow/workspace-empty": {
+      width: 900,
+      height: 620,
+      waitMs: 100,
+      render: EmptyWorkspaceFixture,
+    },
+    "timestow/workspace-error": {
+      width: 900,
+      height: 620,
+      waitMs: 100,
+      render: WorkspaceErrorFixture,
+    },
+    "timestow/backup-progress-narrow": {
+      width: 420,
+      height: 88,
+      render: BackupProgressFixture,
     },
     "timestow/changes-wide": {
       width: 960,

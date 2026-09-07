@@ -185,6 +185,49 @@ await renderLayoutFixtures({
       assert: (fixture) => assertFullWorkspace(fixture, 900),
     },
     {
+      id: "timestow/workspace-empty",
+      width: 900,
+      height: 620,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, { role: "region", name: "Snapshot history" });
+        getLayoutNode(fixture, { text: "No snapshots yet" });
+        getLayoutNode(fixture, {
+          text: "Run your first backup to create a snapshot.",
+        });
+        getLayoutNode(fixture, { text: "Select a snapshot" });
+        if (queryLayoutNodes(fixture, { role: "table" }).length > 0) {
+          throw new Error("empty repository renders a stale file table");
+        }
+      },
+    },
+    {
+      id: "timestow/workspace-error",
+      width: 900,
+      height: 620,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, {
+          text: "Repository index could not be read.",
+        });
+        getLayoutNode(fixture, { text: "No snapshots yet" });
+      },
+    },
+    {
+      id: "timestow/backup-progress-narrow",
+      width: 420,
+      height: 88,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, { role: "status" });
+        getLayoutNode(fixture, {
+          role: "progressbar",
+          name: "Backup progress",
+        });
+        getLayoutNode(fixture, { text: "128.0 MB of 512.0 MB" });
+      },
+    },
+    {
       id: "timestow/changes-wide",
       width: 960,
       height: 620,

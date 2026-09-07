@@ -505,7 +505,7 @@ export function SnapshotsPage() {
                   description={
                     loading()
                       ? undefined
-                      : "Add a folder and run your first backup."
+                      : "Run your first backup to create a snapshot."
                   }
                   class="border-0 shadow-none"
                 />
