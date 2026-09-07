@@ -2956,7 +2956,13 @@ test("schedule dialog explains the runtime boundary and exposes its controls", a
 
 test("rustic sidebar exposes stable navigation and repository actions", async () => {
   const selectProfile = vi.fn<(profileId: string) => void>();
-  const forgetProfile = vi.fn<(profileId: string) => void>();
+  let finishForget!: () => void;
+  const forgetProfile = vi.fn(
+    async (_profileId: string) =>
+      new Promise<void>((resolve) => {
+        finishForget = resolve;
+      }),
+  );
   const renameProfile = vi.fn(async (_profileId: string, _name: string) => {});
   const create = vi.fn<() => void>();
   const screen = renderComponent(() => (
@@ -3002,6 +3008,57 @@ test("rustic sidebar exposes stable navigation and repository actions", async ()
     name: "Forget backup",
   });
   expect(confirmation.text).toContain("will remain untouched");
-  screen.getByRole("button", { name: "Forget Photos" }).click();
+  const forget = screen.getByRole("button", { name: "Forget Photos" });
+  forget.click();
   expect(forgetProfile).toHaveBeenCalledWith("photos");
+  expect(forget.text).toContain("Forgetting…");
+  expect(forget.disabled).toBe(true);
+  expect(forgetProfile).toHaveBeenCalledTimes(1);
+  expect(
+    screen.queryByRole("alertdialog", { name: "Forget backup" }),
+  ).not.toBeNull();
+  finishForget();
+  await screen.waitFor(() => {
+    expect(
+      screen.queryByRole("alertdialog", { name: "Forget backup" }),
+    ).toBeNull();
+  });
+});
+
+test("forgetting a backup keeps its confirmation recoverable after failure", async () => {
+  const screen = renderComponent(() => (
+    <TimestowSidebar
+      active="photos"
+      profiles={[
+        {
+          id: "photos",
+          name: "Photos",
+          repositoryPath: "/data/backups/rustic",
+          sources: ["/data/photos"],
+        },
+      ]}
+      unlockedProfileIds={["photos"]}
+      onCreate={() => {}}
+      onSelectProfile={() => {}}
+      onRenameProfile={() => {}}
+      onForgetProfile={async () => {
+        throw new Error("profile database is read-only");
+      }}
+    />
+  ));
+
+  screen.getByRole("button", { name: "Photos" }).contextMenu();
+  screen.getByRole("menuitem", { name: "Forget backup…" }).click();
+  screen.getByRole("button", { name: "Forget Photos" }).click();
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("alert", { name: "Could not forget backup" }).text,
+    ).toContain("profile database is read-only");
+  });
+  expect(
+    screen.queryByRole("alertdialog", { name: "Forget backup" }),
+  ).not.toBeNull();
+  expect(screen.getByRole("button", { name: "Forget Photos" }).disabled).toBe(
+    false,
+  );
 });

@@ -55,7 +55,7 @@ export interface TimestowSidebarProps {
   unlockedProfileIds: readonly string[];
   onCreate(): void;
   onSelectProfile(profileId: string): void;
-  onForgetProfile(profileId: string): void;
+  onForgetProfile(profileId: string): Promise<void>;
   onRenameProfile(profileId: string, name: string): void | Promise<void>;
 }
 
@@ -83,6 +83,8 @@ export function TimestowSidebar(props: TimestowSidebarProps) {
   const [renameName, setRenameName] = createSignal("");
   const [renaming, setRenaming] = createSignal(false);
   const [renameError, setRenameError] = createSignal<string>();
+  const [forgetting, setForgetting] = createSignal(false);
+  const [forgetError, setForgetError] = createSignal<string>();
 
   async function saveRename(close: () => void): Promise<void> {
     const profile = renameCandidate();
@@ -97,6 +99,21 @@ export function TimestowSidebar(props: TimestowSidebarProps) {
       setRenameError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setRenaming(false);
+    }
+  }
+
+  async function confirmForget(): Promise<void> {
+    const profile = forgetCandidate();
+    if (!profile || forgetting()) return;
+    setForgetting(true);
+    setForgetError(undefined);
+    try {
+      await props.onForgetProfile(profile.id);
+      setForgetCandidate(undefined);
+    } catch (cause) {
+      setForgetError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setForgetting(false);
     }
   }
 
@@ -148,7 +165,10 @@ export function TimestowSidebar(props: TimestowSidebarProps) {
                           setRenameName(profile.name);
                           setRenameError(undefined);
                         }
-                        if (action === "forget") setForgetCandidate(profile);
+                        if (action === "forget") {
+                          setForgetCandidate(profile);
+                          setForgetError(undefined);
+                        }
                       }}
                       trigger={(menu) => (
                         <SidebarMenuButton
@@ -260,8 +280,12 @@ export function TimestowSidebar(props: TimestowSidebarProps) {
       <AlertDialog
         aria-label="Forget backup"
         open={forgetCandidate() !== undefined}
+        closeOnEscape={!forgetting()}
         onOpenChange={(open) => {
-          if (!open) setForgetCandidate(undefined);
+          if (!open && !forgetting()) {
+            setForgetCandidate(undefined);
+            setForgetError(undefined);
+          }
         }}
       >
         <AlertDialogHeader>
@@ -274,14 +298,23 @@ export function TimestowSidebar(props: TimestowSidebarProps) {
             untouched.
           </AlertDialogDescription>
         </AlertDialogHeader>
+        <Show when={forgetError()}>
+          {(message) => (
+            <Alert variant="destructive" title="Could not forget backup">
+              {message()}
+            </Alert>
+          )}
+        </Show>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={forgetting()}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
             aria-label={`Forget ${forgetCandidate()?.name ?? "backup"}`}
-            onClick={() => {
-              const profile = forgetCandidate();
-              if (profile) props.onForgetProfile(profile.id);
+            loading={forgetting()}
+            loadingLabel="Forgetting…"
+            onClick={(event) => {
+              event.preventDefault();
+              void confirmForget();
             }}
           >
             Forget backup
@@ -371,6 +404,7 @@ export function AppShell(props: { children?: JSX.Element }) {
       if (wasActive) await navigate({ to: "/" });
     } catch (cause) {
       session.setError(cause instanceof Error ? cause.message : String(cause));
+      throw cause;
     }
   }
   return (
@@ -394,7 +428,7 @@ export function AppShell(props: { children?: JSX.Element }) {
             onRenameProfile={(profileId, name) =>
               session.renameProfile(profileId, name)
             }
-            onForgetProfile={(profileId) => void forgetProfile(profileId)}
+            onForgetProfile={forgetProfile}
           />
           <View class="min-w-0 min-h-0 flex-1 flex flex-col">
             <Show when={session.error()}>
