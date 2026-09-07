@@ -172,15 +172,15 @@ export function SnapshotDiffPanel(props: {
 
   const columnClass = (columnId: string) =>
     columnId === "path"
-      ? "min-w-64 flex-1"
+      ? "min-w-0 flex-1"
       : columnId === "modified"
-        ? "w-36 flex-none"
-        : "w-28 flex-none";
+        ? "min-w-0 w-36 flex-none"
+        : "min-w-0 w-28 flex-none";
 
   return (
     <View class="min-w-0 min-h-0 flex-1 flex flex-col">
-      <View class="flex-none px-4 py-3 flex flex-row items-center gap-3 border-b border-subtle bg-surface-muted">
-        <View class="min-w-0 flex-1 flex flex-col gap-0.5">
+      <View class="flex-none px-4 py-3 flex flex-row flex-wrap items-center gap-3 border-b border-subtle bg-surface-muted">
+        <View class="min-w-40 flex-1 flex flex-col gap-0.5">
           <Text class="text-sm font-medium">Compare with</Text>
           <Text class="truncate text-xs text-muted">
             Current: {formatSnapshotTime(props.snapshot.time)}
@@ -188,7 +188,7 @@ export function SnapshotDiffPanel(props: {
         </View>
         <Select
           aria-label="Comparison snapshot"
-          class="w-56"
+          class="min-w-48 w-64 flex-none"
           contentClass="w-72"
           value={baseSnapshotId()}
           placeholder="Choose a snapshot"
@@ -238,7 +238,7 @@ export function SnapshotDiffPanel(props: {
               />
             }
           >
-            <View class="flex-none px-4 py-2.5 flex flex-row items-center gap-2 border-b border-subtle">
+            <View class="flex-none px-4 py-2.5 flex flex-row flex-wrap items-center gap-2 border-b border-subtle">
               <Badge variant="success" weight="normal">
                 +{result()?.summary.added ?? 0}
               </Badge>
@@ -253,7 +253,7 @@ export function SnapshotDiffPanel(props: {
                   {result()?.summary.metadata ?? 0} metadata
                 </Badge>
               </Show>
-              <Text class="ml-auto text-xs text-muted">
+              <Text class="min-w-48 flex-1 text-right text-xs text-muted">
                 {result()?.truncated
                   ? `Showing ${renderedChanges()} of ${totalChanges()} changes`
                   : baseSnapshot()
@@ -276,7 +276,10 @@ export function SnapshotDiffPanel(props: {
                 class="min-w-0 min-h-0 flex-1"
                 contentClass="min-w-full"
               >
-                <Table aria-label="Snapshot changes">
+                <Table
+                  aria-label="Snapshot changes"
+                  contentClass="min-w-[46rem]"
+                >
                   <TableHeader>
                     <TableRow class="bg-surface-muted">
                       <ForValue each={diffColumns}>
@@ -303,7 +306,7 @@ export function SnapshotDiffPanel(props: {
                         const presentation = changePresentation[entry.change];
                         return (
                           <TableRow aria-label={entry.path}>
-                            <TableCell class="min-w-64 flex-1 gap-2">
+                            <TableCell class="min-w-0 flex-1 gap-2">
                               <Icon
                                 source={
                                   entry.kind === "directory" ? folder : file
@@ -320,7 +323,7 @@ export function SnapshotDiffPanel(props: {
                                 </Text>
                               </View>
                             </TableCell>
-                            <TableCell class="w-28 flex-none">
+                            <TableCell class="min-w-0 w-28 flex-none">
                               <Badge
                                 variant={presentation.variant}
                                 weight="normal"
@@ -328,13 +331,13 @@ export function SnapshotDiffPanel(props: {
                                 {presentation.label}
                               </Badge>
                             </TableCell>
-                            <TableCell class="w-28 flex-none text-muted">
+                            <TableCell class="min-w-0 w-28 flex-none text-muted">
                               {formatBytes(entry.previousSize)}
                             </TableCell>
-                            <TableCell class="w-28 flex-none text-muted">
+                            <TableCell class="min-w-0 w-28 flex-none text-muted">
                               {formatBytes(entry.currentSize)}
                             </TableCell>
-                            <TableCell class="w-36 flex-none text-muted">
+                            <TableCell class="min-w-0 w-36 flex-none text-muted">
                               {formatModified(
                                 entry.currentModified ?? entry.previousModified,
                               )}

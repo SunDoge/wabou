@@ -30,6 +30,7 @@ import type { ProfileStore } from "./profile-store";
 import { TimestowSessionProvider, useTimestowSession } from "./session";
 import { BackupConnectionForm } from "./setup";
 import { AppShell, TimestowSidebar } from "./shell";
+import { SnapshotDiffPanel } from "./snapshot-diff";
 import { SnapshotsPage, SnapshotWorkspaceHeader } from "./snapshots";
 
 const profile = {
@@ -115,15 +116,33 @@ const fixtureRustic: RusticCapability = {
   listFiles: ({ path }) => (path ? [] : [...rootFiles]),
   searchFiles: () => [],
   diffSnapshots: () => ({
-    entries: [],
+    entries: [
+      {
+        name: "family-photo.jpg",
+        path: "Photos/2026/family-photo.jpg",
+        kind: "file",
+        change: "added",
+        currentSize: 4_238_112,
+        currentModified: "2026-09-08T00:40:00Z",
+      },
+      {
+        name: "taxes.pdf",
+        path: "Documents/Finance/taxes.pdf",
+        kind: "file",
+        change: "modified",
+        previousSize: 842_121,
+        currentSize: 846_008,
+        currentModified: "2026-09-08T00:41:00Z",
+      },
+    ],
     summary: {
-      added: 0,
+      added: 1,
       removed: 0,
-      modified: 0,
+      modified: 1,
       metadata: 0,
       typeChanged: 0,
     },
-    totalEntries: 0,
+    totalEntries: 2,
     truncated: false,
   }),
   updateSnapshot: (request) => ({
@@ -253,6 +272,29 @@ function FullWorkspaceFixture() {
   );
 }
 
+function SnapshotDiffFixture() {
+  const inheritedHost = useHost();
+  return (
+    <HostProvider
+      value={
+        { ...inheritedHost, rustic: fixtureRustic } as typeof inheritedHost
+      }
+    >
+      <ColorThemeProvider theme="light">
+        <ComponentsProvider theme="light">
+          <View class="w-full h-full min-w-0 min-h-0 bg-surface text-primary">
+            <SnapshotDiffPanel
+              profileId={profile.id}
+              snapshot={newestSnapshot}
+              snapshots={[newestSnapshot, previousSnapshot]}
+            />
+          </View>
+        </ComponentsProvider>
+      </ColorThemeProvider>
+    </HostProvider>
+  );
+}
+
 defineLayoutFixtures(
   defineComponentFixtures({
     "timestow/setup-wide": {
@@ -281,6 +323,18 @@ defineLayoutFixtures(
       height: 620,
       waitMs: 100,
       render: FullWorkspaceFixture,
+    },
+    "timestow/changes-wide": {
+      width: 960,
+      height: 620,
+      waitMs: 100,
+      render: SnapshotDiffFixture,
+    },
+    "timestow/changes-minimum": {
+      width: 420,
+      height: 480,
+      waitMs: 100,
+      render: SnapshotDiffFixture,
     },
   }),
   { colorTheme: false },

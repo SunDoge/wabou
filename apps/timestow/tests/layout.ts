@@ -170,5 +170,33 @@ await renderLayoutFixtures({
       checks: ["visible-overflow", "text-collision", "visual-quality"],
       assert: (fixture) => assertFullWorkspace(fixture, 900),
     },
+    {
+      id: "timestow/changes-wide",
+      width: 960,
+      height: 620,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, {
+          role: "combobox",
+          name: "Comparison snapshot",
+        });
+        getLayoutNode(fixture, { role: "table", name: "Snapshot changes" });
+      },
+    },
+    {
+      id: "timestow/changes-minimum",
+      width: 420,
+      height: 480,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        const table = getLayoutNode(fixture, {
+          role: "table",
+          name: "Snapshot changes",
+        });
+        if (table.rect.x + table.rect.width > 420.5) {
+          throw new Error("changes table escapes its compact viewport");
+        }
+      },
+    },
   ),
 });
