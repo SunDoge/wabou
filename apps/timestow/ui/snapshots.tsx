@@ -893,6 +893,11 @@ export function SnapshotsPage() {
                         · {fileCountLabel()}
                       </Text>
                     </View>
+                    <SnapshotDetails
+                      snapshot={snapshot()}
+                      onSave={(changes) => updateSnapshot(snapshot(), changes)}
+                      onDelete={() => deleteSnapshot(snapshot())}
+                    />
                   </View>
                   <View class="min-w-0 flex flex-row items-center justify-between gap-3">
                     <ButtonGroup
@@ -918,11 +923,6 @@ export function SnapshotsPage() {
                         <Icon source={gitCompare} size={14} /> Changes
                       </Button>
                     </ButtonGroup>
-                    <SnapshotDetails
-                      snapshot={snapshot()}
-                      onSave={(changes) => updateSnapshot(snapshot(), changes)}
-                      onDelete={() => deleteSnapshot(snapshot())}
-                    />
                     <Show when={workspaceMode() === "browse"}>
                       <ButtonGroup
                         size="sm"
