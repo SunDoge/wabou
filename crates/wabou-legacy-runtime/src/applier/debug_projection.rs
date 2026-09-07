@@ -306,6 +306,12 @@ impl Applier {
                     "#text"
                 })
                 .to_owned();
+            let widget = self
+                .document
+                .widget_manager
+                .widgets
+                .contains_key(&placed_node.node_id)
+                .then(|| tag.clone());
             let attrs = debug_attrs(declared, &atoms);
             let listeners = self.debug_listeners(id);
             let classes = debug_classes(declared, &atoms);
@@ -432,12 +438,7 @@ impl Applier {
                         },
                     }
                 }),
-                widget: self
-                    .document
-                    .widget_manager
-                    .widgets
-                    .contains_key(&placed_node.node_id)
-                    .then(|| "native".into()),
+                widget,
                 clip,
                 computed: wabou_devtools::DebugComputedStyle {
                     display: layout.map(|style| format!("{:?}", style.display)),

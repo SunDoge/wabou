@@ -6,6 +6,9 @@
     "waitMs": 250
   },
   "overrides": {
+    "platform-custom-widget.ts": {
+      "requiredWidgets": ["fractal"]
+    },
     "alert-hidpi.ts": {
       "scaleFactor": 2
     },

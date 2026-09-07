@@ -89,7 +89,11 @@ shared `RuntimeSession` directly: it no longer retains or mirrors protocol
 frames into a GPUI projection. Capture snapshots carry a renderer label that
 the authored-capture verifier checks against the requested backend, so copied
 or stale GPUI artifacts cannot stand in for Hybrid pixel evidence. The
-remaining promotion work is application-defined widget parity.
+Gallery's application-defined Julia widget is registered independently by both
+backends; its Hybrid host-backed capture now requires the concrete `fractal`
+native widget tag, preventing an empty generic placeholder from satisfying the
+parity check. Platform IME and text-quality smoke coverage remains an explicit
+release gate.
 
 The Hybrid style projection preserves independent corner radii through
 background, border, outline, overflow, and native-widget clipping. AnyRender's

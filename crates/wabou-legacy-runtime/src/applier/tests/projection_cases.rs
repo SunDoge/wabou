@@ -956,6 +956,7 @@ fn devtools_snapshot_exposes_widget_local_and_ancestor_clip_coordinates() {
         .iter()
         .find(|node| node.id == nk(2))
         .unwrap();
+    assert_eq!(widget.widget.as_deref(), Some("button"));
     assert_eq!(widget.clip.widget_local.as_ref().unwrap().radius, 12.0);
     assert_eq!(
         widget.clip.widget_local.as_ref().unwrap().coordinate_space,

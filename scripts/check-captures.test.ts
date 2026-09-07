@@ -137,6 +137,7 @@ describe("authored capture discovery", () => {
         checkSemanticStates: true,
         checkSemanticRelationships: true,
         checkInteractionContracts: true,
+        requiredWidgets: [],
       },
       {
         application: "apps/demo",
@@ -156,6 +157,7 @@ describe("authored capture discovery", () => {
         checkSemanticStates: true,
         checkSemanticRelationships: true,
         checkInteractionContracts: true,
+        requiredWidgets: [],
       },
     ]);
   });
@@ -858,6 +860,11 @@ describe("authored capture discovery", () => {
     await expect(
       validateCaptureArtifacts(capture, root),
     ).resolves.toBeUndefined();
+    capture.requiredWidgets = ["fractal"];
+    await expect(validateCaptureArtifacts(capture, root)).rejects.toThrow(
+      'did not mount required native widget "fractal"',
+    );
+    capture.requiredWidgets = [];
 
     const snapshotPath = join(root, capture.snapshot);
     const snapshot = JSON.parse(await Bun.file(snapshotPath).text());

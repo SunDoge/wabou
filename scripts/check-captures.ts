@@ -18,6 +18,8 @@ interface CaptureViewport {
   checkSemanticStates: boolean;
   checkSemanticRelationships: boolean;
   checkInteractionContracts: boolean;
+  /** Native widget kinds which must be mounted in the captured frame. */
+  requiredWidgets?: string[];
 }
 
 interface CaptureConfig {
@@ -154,6 +156,7 @@ const fallbackViewport: CaptureViewport = {
   checkSemanticStates: true,
   checkSemanticRelationships: true,
   checkInteractionContracts: true,
+  requiredWidgets: [],
 };
 const viewportKeys = new Set([
   "renderer",
@@ -169,6 +172,7 @@ const viewportKeys = new Set([
   "checkSemanticStates",
   "checkSemanticRelationships",
   "checkInteractionContracts",
+  "requiredWidgets",
 ]);
 
 function finiteNumber(
@@ -296,6 +300,20 @@ function parseViewport(
       throw new Error(`${name}.checkInteractionContracts must be a boolean`);
     }
     viewport.checkInteractionContracts = record.checkInteractionContracts;
+  }
+  if (record.requiredWidgets !== undefined) {
+    if (
+      !Array.isArray(record.requiredWidgets) ||
+      record.requiredWidgets.some(
+        (widget) => typeof widget !== "string" || widget.length === 0,
+      ) ||
+      new Set(record.requiredWidgets).size !== record.requiredWidgets.length
+    ) {
+      throw new Error(
+        `${name}.requiredWidgets must be unique non-empty strings`,
+      );
+    }
+    viewport.requiredWidgets = [...record.requiredWidgets];
   }
   if (!partial) {
     return { ...fallbackViewport, ...viewport };
@@ -1328,6 +1346,13 @@ export async function validateCaptureArtifacts(
     );
   }
   const parsed = validateCaptureSnapshot(rawSnapshot, capture);
+  for (const widget of capture.requiredWidgets ?? []) {
+    if (!parsed.nodes.some((node) => node.widget === widget)) {
+      throw new Error(
+        `${relative(workspaceRoot, snapshot)} did not mount required native widget ${JSON.stringify(widget)}`,
+      );
+    }
+  }
   if (capture.checkTextContainment) {
     const diagnostics = textContainmentDiagnostics(parsed);
     if (diagnostics.length > 0) {
