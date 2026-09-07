@@ -99,6 +99,7 @@ export function FileDetails(props: {
             <Detail label="Modified" value={entry().modified ?? "Unknown"} />
             <View class="flex flex-col gap-2 pt-1">
               <Button
+                aria-label="Preview temporary copy"
                 variant="outline"
                 loading={previewing()}
                 loadingLabel="Preparing preview…"
@@ -214,7 +215,7 @@ function ExtractDialog(props: {
         if (open) reset();
       }}
       trigger={(trigger) => (
-        <Button {...trigger}>
+        <Button {...trigger} aria-label="Extract…">
           <Icon source={download} size={14} /> Extract…
         </Button>
       )}

@@ -198,5 +198,19 @@ await renderLayoutFixtures({
         }
       },
     },
+    {
+      id: "timestow/file-details-rail",
+      width: 288,
+      height: 620,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, { role: "region", name: "File details" });
+        getLayoutNode(fixture, {
+          role: "button",
+          name: "Preview temporary copy",
+        });
+        getLayoutNode(fixture, { role: "button", name: "Extract…" });
+      },
+    },
   ),
 });

@@ -26,6 +26,7 @@ import type {
   RusticCapability,
   SnapshotEntry,
 } from "./api";
+import { FileDetails } from "./file-details";
 import type { ProfileStore } from "./profile-store";
 import { TimestowSessionProvider, useTimestowSession } from "./session";
 import { BackupConnectionForm } from "./setup";
@@ -295,6 +296,35 @@ function SnapshotDiffFixture() {
   );
 }
 
+function FileDetailsFixture() {
+  const inheritedHost = useHost();
+  return (
+    <HostProvider
+      value={
+        { ...inheritedHost, rustic: fixtureRustic } as typeof inheritedHost
+      }
+    >
+      <ColorThemeProvider theme="light">
+        <ComponentsProvider theme="light">
+          <View class="w-full h-full min-w-0 min-h-0 border border-subtle bg-surface text-primary">
+            <FileDetails
+              profileId={profile.id}
+              snapshotId={newestSnapshot.id}
+              entry={{
+                name: "backup-notes.md",
+                path: "Documents/Archive/backup-notes.md",
+                kind: "file",
+                size: 18_240,
+                modified: "2026-09-08T00:41:00Z",
+              }}
+            />
+          </View>
+        </ComponentsProvider>
+      </ColorThemeProvider>
+    </HostProvider>
+  );
+}
+
 defineLayoutFixtures(
   defineComponentFixtures({
     "timestow/setup-wide": {
@@ -335,6 +365,12 @@ defineLayoutFixtures(
       height: 480,
       waitMs: 100,
       render: SnapshotDiffFixture,
+    },
+    "timestow/file-details-rail": {
+      width: 288,
+      height: 620,
+      waitMs: 100,
+      render: FileDetailsFixture,
     },
   }),
   { colorTheme: false },
