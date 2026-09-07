@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Dialog,
   DialogDescription,
@@ -17,7 +18,7 @@ import { createSignal, For as ForValue, Show } from "solid-js";
 export interface BackupSourcesPanelProps {
   sources: readonly string[];
   disabled?: boolean;
-  onChange(sources: string[]): void;
+  onChange(sources: string[]): void | Promise<void>;
 }
 
 /** Source editor isolated from repository I/O so its behavior is cheap to test. */
@@ -91,9 +92,27 @@ export function BackupSourcesPanel(props: BackupSourcesPanelProps) {
 }
 
 export function BackupSourcesDialog(props: BackupSourcesPanelProps) {
+  const [updating, setUpdating] = createSignal(false);
+  const [error, setError] = createSignal<string>();
+
+  async function updateSources(sources: string[]): Promise<void> {
+    if (updating()) return;
+    setUpdating(true);
+    setError(undefined);
+    try {
+      await props.onChange(sources);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setUpdating(false);
+    }
+  }
+
   return (
     <Dialog
       aria-label="Manage backup folders"
+      closeOnBackdrop={!updating()}
+      closeOnEscape={!updating()}
       trigger={(trigger) => (
         <Button
           {...trigger}
@@ -116,7 +135,18 @@ export function BackupSourcesDialog(props: BackupSourcesPanelProps) {
             backed up.
           </DialogDescription>
         </DialogHeader>
-        <BackupSourcesPanel {...props} />
+        <BackupSourcesPanel
+          {...props}
+          disabled={props.disabled || updating()}
+          onChange={(sources) => void updateSources(sources)}
+        />
+        <Show when={error()}>
+          {(message) => (
+            <Alert variant="destructive" title="Could not update folders">
+              {message()}
+            </Alert>
+          )}
+        </Show>
       </View>
     </Dialog>
   );

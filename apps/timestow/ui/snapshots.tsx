@@ -798,10 +798,12 @@ export function SnapshotsPage() {
   async function saveSources(sources: string[]) {
     const profile = session.activeProfile();
     if (!profile) return;
+    setError(undefined);
     try {
       await session.updateSources(profile.id, sources);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
+      throw cause;
     }
   }
 
@@ -941,7 +943,7 @@ export function SnapshotsPage() {
               )}
             </Show>
           }
-          onSourcesChange={(sources) => void saveSources(sources)}
+          onSourcesChange={saveSources}
           onRefresh={() => {
             const profile = session.activeProfile();
             if (profile) void refreshSnapshots(profile.id);

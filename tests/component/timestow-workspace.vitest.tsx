@@ -1878,6 +1878,40 @@ test("backup source configuration stays behind one explicit workspace action", (
   expect(screen.getByRole("textbox", { name: "Backup folder" })).toBeDefined();
 });
 
+test("backup source dialog locks updates and keeps failures recoverable", async () => {
+  let rejectUpdate!: (cause: Error) => void;
+  const update = vi.fn(
+    () =>
+      new Promise<void>((_resolve, reject) => {
+        rejectUpdate = reject;
+      }),
+  );
+  const screen = renderComponent(
+    () => <BackupSourcesDialog sources={["/data/photos"]} onChange={update} />,
+    { platform: { dialog } },
+  );
+
+  screen.getByRole("button", { name: "Manage backup folders" }).click();
+  screen.getByRole("button", { name: "Remove /data/photos" }).click();
+  expect(update).toHaveBeenCalledWith([]);
+  expect(
+    screen.getByRole("button", { name: "Choose backup folder" }).disabled,
+  ).toBe(true);
+  expect(
+    screen.getByRole("button", { name: "Remove /data/photos" }).disabled,
+  ).toBe(true);
+
+  rejectUpdate(new Error("repository state is read-only"));
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("alert", { name: "Could not update folders" }).text,
+    ).toContain("repository state is read-only");
+  });
+  expect(
+    screen.getByRole("button", { name: "Remove /data/photos" }).disabled,
+  ).toBe(false);
+});
+
 test("list rows give directory double click priority over single selection", async () => {
   const select = vi.fn();
   const open = vi.fn();
