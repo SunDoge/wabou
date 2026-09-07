@@ -166,6 +166,14 @@ export interface ToasterProps {
   motion?: false | NotificationMotionOptions;
 }
 
+const defaultToastMotion = (
+  placement: NotificationPlacement,
+): NotificationMotionOptions => ({
+  duration: 0.18,
+  ease: "easeOut",
+  fromY: placement.startsWith("top") ? -12 : 12,
+});
+
 /** Render a non-blocking stack of styled toasts on the floating plane. */
 export function Toaster(props: ToasterProps): JSX.Element {
   return (
@@ -175,7 +183,11 @@ export function Toaster(props: ToasterProps): JSX.Element {
       class={props.class}
       stackClass="w-96 max-w-full"
       itemClass={mergeClasses("w-full max-w-full", props.itemClass)}
-      motion={props.motion ?? false}
+      motion={
+        props.motion === undefined
+          ? defaultToastMotion(props.placement ?? "bottom-end")
+          : props.motion
+      }
     />
   );
 }

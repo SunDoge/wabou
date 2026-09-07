@@ -2,31 +2,27 @@ import { renderComponent } from "@wabou/test/component";
 import { Button, Drawer, DrawerClose, DrawerTitle } from "@wabou/ui";
 import { expect, test } from "vitest";
 
-test("removes the scrim immediately while retaining the drawer for native exit", () => {
-  const screen = renderComponent(() => (
-    <Drawer
-      aria-label="Create task"
-      direction="bottom"
-      trigger={(trigger) => <Button {...trigger}>Open drawer</Button>}
-    >
-      <DrawerTitle>Create task</DrawerTitle>
-      <DrawerClose>Cancel</DrawerClose>
-    </Drawer>
-  ));
+test("removes the scrim immediately while retaining the drawer for JS exit", async () => {
+  const screen = renderComponent(
+    () => (
+      <Drawer
+        aria-label="Create task"
+        direction="bottom"
+        trigger={(trigger) => <Button {...trigger}>Open drawer</Button>}
+      >
+        <DrawerTitle>Create task</DrawerTitle>
+        <DrawerClose>Cancel</DrawerClose>
+      </Drawer>
+    ),
+    { clock: "fake" },
+  );
 
   screen.getByRole("button", { name: "Open drawer" }).click();
   const drawer = screen.getByRole("dialog", { name: "Create task" });
-  const entering = JSON.parse(
-    drawer.attribute("__wabou_native_transition") ?? "null",
-  );
-  expect(entering).toMatchObject({
-    duration: 0.22,
-    fromTransform: [1, 0, 0, 1, 0, 48],
-    toTransform: [1, 0, 0, 1, 0, 0],
-    fromOpacity: 1,
-    toOpacity: 1,
-  });
-  drawer.emit("transitionend", { generation: entering.generation });
+  expect(drawer.transform).toEqual([1, 0, 0, 1, 0, 48]);
+  expect(drawer.attribute("__wabou_native_transition")).toBeNull();
+  await screen.advanceTime(220);
+  expect(drawer.transform).toEqual([1, 0, 0, 1, 0, 0]);
 
   screen.getByRole("button", { name: "Cancel" }).click();
   expect(drawer.attribute("aria-hidden")).toBe("true");
@@ -38,15 +34,9 @@ test("removes the scrim immediately while retaining the drawer for native exit",
   });
   expect(drawer.parent?.attribute("__wabou_native_transition")).toBeNull();
 
-  const exiting = JSON.parse(
-    drawer.attribute("__wabou_native_transition") ?? "null",
-  );
-  expect(exiting).toMatchObject({
-    fromTransform: [1, 0, 0, 1, 0, 0],
-    toTransform: [1, 0, 0, 1, 0, 48],
-  });
-  drawer.emit("transitionend", { generation: entering.generation });
+  await screen.advanceTime(100);
   expect(screen.queryByRole("dialog", { name: "Create task" })).not.toBeNull();
-  drawer.emit("transitionend", { generation: exiting.generation });
+  expect((drawer.transform?.[5] ?? 0) > 0).toBe(true);
+  await screen.advanceTime(120);
   expect(screen.queryByRole("dialog", { name: "Create task" })).toBeNull();
 });

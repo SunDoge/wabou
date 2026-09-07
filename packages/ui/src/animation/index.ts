@@ -1,8 +1,8 @@
 import "@wabou/core";
 import { type Affine2D, rotate2d, translate2d } from "@wabou/core/style";
 import type {
-  AnimationPlaybackControlsWithThen as MotionControls,
   InterpolateOptions,
+  AnimationPlaybackControlsWithThen as MotionControls,
   ValueAnimationOptions,
 } from "motion-dom";
 import { animateValue, interpolate } from "motion-dom";
@@ -322,8 +322,10 @@ export function createInterpolation<V extends AnimationValue>(
 export interface TransitionOptions
   extends Omit<
     AnimationOptions<number>,
-    "autoplay" | "onUpdate" | "onComplete"
+    "autoplay" | "duration" | "onUpdate" | "onComplete"
   > {
+  /** Duration in seconds. May react to the current transition direction. */
+  duration?: MaybeAccessor<number>;
   /** Skip interpolation while the user's/application's reduced-motion policy is active. */
   reducedMotion?: MaybeAccessor<boolean>;
   /** One-time starting value. Defaults to the current target. */
@@ -376,10 +378,15 @@ export function createTransition(
 
   createEffect(
     () =>
-      [target(), read(options.reducedMotion, false), untrack(value)] as const,
-    ([next, reduced, current]) => {
+      [
+        target(),
+        read(options.reducedMotion, false),
+        read(options.duration, 0.3),
+        untrack(value),
+      ] as const,
+    ([next, reduced, duration, current]) => {
       if (Object.is(next, current)) return;
-      if (reduced || options.type === false || options.duration === 0) {
+      if (reduced || options.type === false || duration === 0) {
         jump(next);
         return;
       }
@@ -389,6 +396,7 @@ export function createTransition(
       setState("running");
       const {
         initial: _initial,
+        duration: _duration,
         reducedMotion: _reducedMotion,
         onUpdate,
         onComplete,
@@ -396,6 +404,7 @@ export function createTransition(
       } = options;
       controls = animate(current, next, {
         ...animationOptions,
+        duration,
         onUpdate(current) {
           if (run !== generation) return;
           setValue(current);

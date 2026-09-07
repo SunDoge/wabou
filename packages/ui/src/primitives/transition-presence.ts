@@ -15,7 +15,7 @@ export interface TransitionPresenceOptions {
   ready?: Accessor<boolean>;
   /** Start visual progress independently from logical presence. */
   initialProgress?: number;
-  duration?: number;
+  duration?: number | Accessor<number>;
   ease?: Easing;
   reducedMotion?: boolean | Accessor<boolean>;
 }
