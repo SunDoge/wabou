@@ -75,8 +75,7 @@ pub use gpui_headless::{
     GpuiProjectionBoundaryCheckpoint, GpuiProjectionCheckpoint,
 };
 pub use host::{
-    HostBuilder, HostService, HostServiceContext, HostServiceHandle, ManagedHostService,
-    TextRenderingMode, managed_host_service,
+    HostBuilder, HostServiceHandle, ManagedHostService, TextRenderingMode, managed_host_service,
 };
 #[doc(hidden)]
 pub use host_frame::{
@@ -125,6 +124,7 @@ pub use wabou_shell::{
 };
 #[cfg(feature = "headless")]
 pub use wabou_shell::{GpuiLayoutNode, ProjectedNodeKind};
+pub use wabou_shell_api::{HostService, HostServiceContext};
 
 #[doc(hidden)]
 #[allow(missing_docs)]
