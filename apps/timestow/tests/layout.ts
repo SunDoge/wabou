@@ -109,6 +109,13 @@ function assertFullWorkspace(
   });
   getLayoutNode(fixture, { role: "table", name: "Snapshot files" });
 
+  const selectedTitleCount = queryLayoutNodes(fixture, {
+    text: "Before photo cleanup",
+  }).length;
+  if (selectedTitleCount < 2) {
+    throw new Error("the selected snapshot label is not the workspace title");
+  }
+
   if (Math.abs(navigation.rect.width - 224) > 0.5) {
     throw new Error(`profile sidebar width drifted: ${navigation.rect.width}`);
   }

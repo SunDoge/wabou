@@ -35,6 +35,7 @@ import {
   SnapshotHistory,
   SnapshotWorkspaceHeader,
   snapshotAfterRefresh,
+  snapshotDisplayTitle,
   snapshotMatchesQuery,
 } from "../../apps/timestow/ui/snapshots";
 import { SortableTableHead } from "../../apps/timestow/ui/sortable-table-head";
@@ -328,6 +329,25 @@ test("snapshot refresh never carries a selection into an empty profile", () => {
   expect(snapshotAfterRefresh([], current.id, false)).toBeUndefined();
   expect(snapshotAfterRefresh([current], undefined, true)).toBe(current);
   expect(snapshotAfterRefresh([current], current.id, false)).toBe(current);
+});
+
+test("snapshot titles prefer user labels and fall back to a short stable id", () => {
+  const snapshot = {
+    id: "f21dc6d86a8b42b4aaf81ff39aa15c8f",
+    time: "2026-09-02T04:18:35Z",
+    hostname: "workstation",
+    paths: ["/data/photos"],
+    filesNew: 1,
+    filesChanged: 0,
+    label: "  Before cleanup  ",
+    tags: [],
+    deleteProtected: false,
+  };
+
+  expect(snapshotDisplayTitle(snapshot)).toBe("Before cleanup");
+  expect(snapshotDisplayTitle({ ...snapshot, label: "   " })).toBe(
+    "Snapshot f21dc6d8",
+  );
 });
 
 test("long snapshot histories filter by user-facing metadata", () => {

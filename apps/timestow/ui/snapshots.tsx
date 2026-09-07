@@ -318,6 +318,10 @@ export function snapshotMatchesQuery(
     .some((value) => value.toLocaleLowerCase().includes(normalized));
 }
 
+export function snapshotDisplayTitle(snapshot: SnapshotEntry): string {
+  return snapshot.label.trim() || `Snapshot ${shortId(snapshot.id)}`;
+}
+
 export function SnapshotHistory(props: {
   loading: boolean;
   snapshots: readonly SnapshotEntry[];
@@ -351,7 +355,9 @@ export function SnapshotHistory(props: {
               aria-label="Filter snapshots"
               placeholder="Filter snapshots…"
               value={props.query}
-              onInput={(event) => props.onQueryChange(event.currentTarget.value)}
+              onInput={(event) =>
+                props.onQueryChange(event.currentTarget.value)
+              }
             />
             <Show when={props.query.trim()}>
               <InputGroupAddon align="inline-end" class="px-1.5">
@@ -369,10 +375,7 @@ export function SnapshotHistory(props: {
           </InputGroup>
         </Show>
       </View>
-      <ScrollArea
-        class="min-h-0 flex-1"
-        contentClass="flex flex-col gap-1 p-2"
-      >
+      <ScrollArea class="min-h-0 flex-1" contentClass="flex flex-col gap-1 p-2">
         <Show
           when={!props.loading && props.snapshots.length > 0}
           fallback={
@@ -406,7 +409,7 @@ export function SnapshotHistory(props: {
             <ForValue each={filtered()}>
               {(snapshot) => (
                 <Button
-                  aria-label={`Open snapshot ${snapshot.label || formatTimestamp(snapshot.time)}`}
+                  aria-label={`Open snapshot ${snapshotDisplayTitle(snapshot)}`}
                   variant="ghost"
                   selected={props.selectedId === snapshot.id}
                   class="min-h-14 justify-start px-3"
@@ -414,7 +417,7 @@ export function SnapshotHistory(props: {
                 >
                   <View class="min-w-0 flex-1 flex flex-col items-start gap-0.5">
                     <Text class="w-full truncate font-medium">
-                      {snapshot.label || formatTimestamp(snapshot.time)}
+                      {snapshotDisplayTitle(snapshot)}
                     </Text>
                     <View class="w-full min-w-0 flex flex-row items-center gap-1.5">
                       <Show when={snapshot.deleteProtected}>
@@ -431,10 +434,11 @@ export function SnapshotHistory(props: {
                             : "min-w-0 flex-1 truncate text-xs text-muted"
                         }
                       >
-                        {snapshot.label
+                        {snapshot.label.trim()
                           ? `${formatTimestamp(snapshot.time)} · `
                           : ""}
-                        {shortId(snapshot.id)} · {snapshot.hostname || "Unknown host"}
+                        {shortId(snapshot.id)} ·{" "}
+                        {snapshot.hostname || "Unknown host"}
                       </Text>
                     </View>
                   </View>
@@ -886,10 +890,13 @@ export function SnapshotsPage() {
                       <Icon source={chevronLeft} size={15} />
                     </Button>
                     <View class="min-w-0 flex-1 flex flex-col">
-                      <Text class="font-semibold">
-                        Snapshot {shortId(snapshot().id)}
+                      <Text class="truncate font-semibold">
+                        {snapshotDisplayTitle(snapshot())}
                       </Text>
                       <Text class="truncate text-xs text-muted">
+                        {snapshot().label.trim()
+                          ? `${shortId(snapshot().id)} · `
+                          : ""}
                         {searchActive()
                           ? `Search results for “${searchQuery()}”`
                           : `/${currentPath() || ""}`}{" "}
