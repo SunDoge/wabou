@@ -1,10 +1,46 @@
 import { expect, test } from "bun:test";
 import {
+  backendFeatureIsolationViolations,
   crossBackendViolations,
   formalVerificationViolations,
   sharedBoundaryViolations,
   transitionalPackagingViolations,
 } from "./check-backend-boundaries";
+
+test("Hybrid entry points cannot reactivate the GPUI runtime by default", () => {
+  expect(
+    backendFeatureIsolationViolations({
+      packages: [
+        {
+          id: "facade-id",
+          name: "wabou",
+          dependencies: [
+            {
+              kind: null,
+              name: "wabou-runtime",
+              rename: null,
+              uses_default_features: true,
+            },
+          ],
+        },
+        {
+          id: "hybrid-id",
+          name: "wabou-legacy-runtime",
+          dependencies: [
+            {
+              kind: null,
+              name: "wabou-runtime",
+              rename: "runtime-api",
+              uses_default_features: false,
+            },
+          ],
+        },
+      ],
+    }),
+  ).toEqual([
+    "wabou -> wabou-runtime (wabou-runtime, normal) enables default GPUI features",
+  ]);
+});
 
 test("backend-neutral packages cannot import either backend", () => {
   expect(
@@ -38,8 +74,8 @@ test("backend packages cannot acquire new cross-backend dependencies", () => {
     crossBackendViolations({
       packages: [
         {
-          id: "runtime-id",
-          name: "wabou-runtime",
+          id: "shell-id",
+          name: "wabou-shell",
           dependencies: [
             { kind: null, name: "wabou-legacy-widgets", rename: null },
           ],
@@ -62,7 +98,49 @@ test("backend packages cannot acquire new cross-backend dependencies", () => {
   ).toEqual([
     "wabou-legacy-runtime -> gpui-shell (wabou-shell, normal)",
     "wabou-legacy-widgets -> wabou-terminal (wabou-terminal, normal)",
-    "wabou-runtime -> wabou-legacy-widgets (wabou-legacy-widgets, normal)",
+    "wabou-shell -> wabou-legacy-widgets (wabou-legacy-widgets, normal)",
+  ]);
+});
+
+test("shared runtime permits only feature-gated GPUI host dependencies", () => {
+  expect(
+    sharedBoundaryViolations({
+      packages: [
+        {
+          id: "runtime-id",
+          name: "wabou-runtime",
+          dependencies: [
+            {
+              kind: null,
+              name: "wabou-shell",
+              optional: true,
+              rename: null,
+            },
+            {
+              kind: "dev",
+              name: "gpui-ce",
+              optional: false,
+              rename: "gpui",
+            },
+            {
+              kind: null,
+              name: "gpui_ce_platform",
+              optional: false,
+              rename: "gpui-platform",
+            },
+            {
+              kind: null,
+              name: "winit",
+              optional: true,
+              rename: null,
+            },
+          ],
+        },
+      ],
+    }),
+  ).toEqual([
+    "wabou-runtime -> gpui-platform (gpui_ce_platform, normal)",
+    "wabou-runtime -> winit (winit, normal)",
   ]);
 });
 

@@ -25,5 +25,5 @@ wabou-devtools = { workspace = true }
 wabou-legacy-runtime = { workspace = true, features = ["devtools"] }
 wabou-legacy-shell.workspace = true
 wabou-legacy-widgets.workspace = true
-wabou-runtime = { workspace = true, features = ["devtools", "headless"] }
+wabou-runtime = { workspace = true, features = ["devtools", "gpui-headless"] }
 wabou-shell.workspace = true

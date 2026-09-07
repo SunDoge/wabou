@@ -50,7 +50,7 @@ anyrender-vello-hybrid = { package = "anyrender_vello_hybrid", version = "0.10.0
 gpui = { package = "gpui-ce", version = "0.2.2" }
 gpui-base = { package = "gpui_ce_components_base", version = "0.2.0" }
 gpui-platform = { package = "gpui_ce_platform", version = "0.1.0", features = ["wayland", "x11"] }
-wabou = { path = "crates/wabou" }
+wabou = { path = "crates/wabou", default-features = false }
 wabou-accessibility = { path = "crates/wabou-accessibility" }
 wabou-bindgen = { path = "crates/wabou-bindgen", default-features = false }
 wabou-database = { path = "crates/wabou-database" }
@@ -64,7 +64,7 @@ wabou-legacy-runtime = { path = "crates/wabou-legacy-runtime" }
 wabou-legacy-shell = { path = "crates/wabou-legacy-shell" }
 wabou-legacy-widgets = { path = "crates/wabou-legacy-widgets" }
 wabou-protocol = { path = "crates/wabou-protocol" }
-wabou-runtime = { path = "crates/wabou-runtime" }
+wabou-runtime = { path = "crates/wabou-runtime", default-features = false }
 wabou-shell = { path = "crates/wabou-shell" }
 wabou-shell-api = { path = "crates/wabou-shell-api" }
 wabou-style = { path = "crates/wabou-style" }

@@ -17,4 +17,4 @@ snafu = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 wabou-devtools = { workspace = true, features = ["bindings"] }
-wabou = { workspace = true, features = ["bindings"] }
+wabou = { workspace = true, features = ["bindings", "vello-hybrid"] }

@@ -5,11 +5,16 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-use wabou_bindgen::{CapabilityContract, HostMethod};
+#[cfg(feature = "gpui")]
+use wabou_bindgen::CapabilityContract;
+use wabou_bindgen::HostMethod;
 use wabou_database::{KvCheck, KvKey, KvKeyPart, KvListOptions, KvMutation, KvStore, Versionstamp};
 
-use crate::{JsRuntime, NativeCapability};
+#[cfg(feature = "gpui")]
+use crate::JsRuntime;
+use crate::NativeCapability;
 
+#[cfg(feature = "gpui")]
 pub(crate) const CONTRACT: CapabilityContract = CapabilityContract::new("kv", 2);
 
 type LazyStore = Arc<tokio::sync::OnceCell<Arc<KvStore>>>;
@@ -111,6 +116,7 @@ struct AtomicResponse {
     versionstamp: Option<String>,
 }
 
+#[cfg(feature = "gpui")]
 pub(crate) fn mount_kv_capability(
     js: &JsRuntime,
     state: LazyStore,
@@ -363,6 +369,7 @@ impl TryFrom<wabou_database::KvEntry> for EntryResponse {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "gpui")]
     use std::sync::Arc;
 
     use super::*;
@@ -380,6 +387,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn sqlite_capability_round_trips_through_quickjs() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("kv.sqlite3");

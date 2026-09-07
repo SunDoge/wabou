@@ -147,6 +147,11 @@ Vello Hybrid should not be hidden behind one lowest-common-denominator render
 trait. They consume the same retained UI intent and host contracts, then own
 their backend-specific state and optimized paths.
 
+The public facade and Hybrid runtime now disable the GPUI host feature in their
+normal dependency closure. `wabou-runtime` temporarily contains that host behind
+an optional `gpui` feature until step 2 moves the implementation physically; a
+Hybrid application therefore no longer compiles or ships the GPUI platform stack.
+
 Apply the reorganization in this order:
 
 1. Continue extracting duplicated backend-neutral files into `wabou-runtime`.

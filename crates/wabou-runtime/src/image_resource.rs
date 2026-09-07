@@ -82,7 +82,9 @@ impl ImageResource {
         self.source.to_rgb8()
     }
 
-    pub(crate) fn encoded(&self) -> (&[u8], image::ImageFormat) {
+    /// Borrow the original encoded source for a renderer-specific image cache.
+    #[doc(hidden)]
+    pub fn encoded_source(&self) -> (&[u8], image::ImageFormat) {
         (&self.encoded, self.format)
     }
 
@@ -280,7 +282,7 @@ mod tests {
             .unwrap();
         let handle = store.create(&png).unwrap();
         let resource = store.get(handle).unwrap();
-        let (encoded, format) = resource.encoded();
+        let (encoded, format) = resource.encoded_source();
         assert_eq!(encoded, png);
         assert_eq!(format, image::ImageFormat::Png);
     }

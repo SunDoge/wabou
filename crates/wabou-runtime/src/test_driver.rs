@@ -1,6 +1,8 @@
 //! Test-only bridge between QuickJS scenarios and the native event loop.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+#[cfg(feature = "gpui")]
+use std::collections::HashSet;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{
     Arc, Mutex,
@@ -10,12 +12,13 @@ use std::sync::{
 use rquickjs::{Ctx, Function, Object, prelude::Async};
 use serde::Deserialize;
 use tokio::sync::oneshot;
-use wabou_shell::{
-    FileDropEvent, Point, PointerButton, PointerEvent, PointerPhase, SemanticRole,
-    SemanticSnapshot, WheelEvent,
-};
-use wabou_shell::{
-    ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, NodeKey, UiEvent, WakeCallback,
+#[cfg(feature = "gpui")]
+use wabou_host_api::NodeKey;
+#[cfg(not(feature = "gpui"))]
+use wabou_shell_api as wabou_shell;
+use wabou_shell_api::{
+    FileDropEvent, ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton,
+    PointerEvent, PointerPhase, SemanticRole, SemanticSnapshot, UiEvent, WakeCallback, WheelEvent,
     WindowCapabilities, WindowIntent, WindowLifecycle, WindowPresence,
 };
 
@@ -133,6 +136,7 @@ enum TestActionResult {
 }
 
 #[derive(Clone, Copy, Debug)]
+#[cfg(feature = "gpui")]
 pub(crate) enum GpuiWindowTestCommand {
     Hide { mutable_visibility: bool },
     Show,
@@ -204,7 +208,9 @@ struct TestState {
     windows: HashMap<WindowKey, WindowSnapshot>,
     wake: Option<WakeCallback>,
     report: Option<String>,
+    #[cfg(feature = "gpui")]
     gpui_snapshots: HashMap<WindowKey, Arc<[wabou_shell::GpuiLayoutNode]>>,
+    #[cfg(feature = "gpui")]
     gpui_select_all: HashSet<(WindowKey, wabou_host_api::NodeKey)>,
     semantic_snapshots: HashMap<WindowKey, Arc<SemanticSnapshot>>,
     #[cfg(test)]
@@ -283,6 +289,7 @@ impl TestController {
         }
     }
 
+    #[cfg(feature = "gpui")]
     pub(crate) fn connect_gpui_window(&self, window_key: WindowKey, wake: WakeCallback) {
         if let Ok(mut state) = self.state.lock() {
             state.wake = Some(wake);
@@ -403,6 +410,7 @@ impl TestController {
         true
     }
 
+    #[cfg(feature = "gpui")]
     pub(crate) fn record_gpui_viewport(&self, window_key: WindowKey, width: u32, height: u32) {
         if let Ok(mut state) = self.state.lock() {
             state
@@ -996,36 +1004,57 @@ impl TestController {
     /// Build a redacted semantic artifact for a failed native scenario.
     #[doc(hidden)]
     pub fn semantic_artifact(&self) -> serde_json::Value {
-        if let Ok(state) = self.state.lock()
-            && state.gpui_snapshots.is_empty()
-            && !state.semantic_snapshots.is_empty()
+        #[cfg(not(feature = "gpui"))]
         {
-            let mut windows = state.semantic_snapshots.iter().collect::<Vec<_>>();
+            let snapshots = self
+                .state
+                .lock()
+                .map(|state| state.semantic_snapshots.clone())
+                .unwrap_or_default();
+            let mut windows = snapshots.into_iter().collect::<Vec<_>>();
             windows.sort_unstable_by_key(|(window_key, _)| window_key.as_ffi());
-            return serde_json::json!({
+            serde_json::json!({
                 "version": 1,
                 "windows": windows
                     .into_iter()
-                    .map(|(window_key, snapshot)| semantic_snapshot_json(*window_key, snapshot))
+                    .map(|(window_key, snapshot)| semantic_snapshot_json(window_key, &snapshot))
                     .collect::<Vec<_>>(),
-            });
+            })
         }
-        let snapshots = self
-            .state
-            .lock()
-            .map(|state| state.gpui_snapshots.clone())
-            .unwrap_or_default();
-        let mut windows = snapshots.into_iter().collect::<Vec<_>>();
-        windows.sort_unstable_by_key(|(window_key, _)| window_key.as_ffi());
-        serde_json::json!({
-            "version": 1,
-            "windows": windows
-                .into_iter()
-                .map(|(window_key, nodes)| gpui_snapshot_json(window_key, &nodes))
-                .collect::<Vec<_>>(),
-        })
+        #[cfg(feature = "gpui")]
+        {
+            if let Ok(state) = self.state.lock()
+                && state.gpui_snapshots.is_empty()
+                && !state.semantic_snapshots.is_empty()
+            {
+                let mut windows = state.semantic_snapshots.iter().collect::<Vec<_>>();
+                windows.sort_unstable_by_key(|(window_key, _)| window_key.as_ffi());
+                return serde_json::json!({
+                    "version": 1,
+                    "windows": windows
+                        .into_iter()
+                        .map(|(window_key, snapshot)| semantic_snapshot_json(*window_key, snapshot))
+                        .collect::<Vec<_>>(),
+                });
+            }
+            let snapshots = self
+                .state
+                .lock()
+                .map(|state| state.gpui_snapshots.clone())
+                .unwrap_or_default();
+            let mut windows = snapshots.into_iter().collect::<Vec<_>>();
+            windows.sort_unstable_by_key(|(window_key, _)| window_key.as_ffi());
+            serde_json::json!({
+                "version": 1,
+                "windows": windows
+                    .into_iter()
+                    .map(|(window_key, nodes)| gpui_snapshot_json(window_key, &nodes))
+                    .collect::<Vec<_>>(),
+            })
+        }
     }
 
+    #[cfg(feature = "gpui")]
     pub(crate) fn poll_gpui_source(
         &self,
         window_key: WindowKey,
@@ -1162,6 +1191,7 @@ impl TestController {
         true
     }
 
+    #[cfg(feature = "gpui")]
     pub(crate) fn poll_gpui_window_action(
         &self,
         window_key: WindowKey,
@@ -1220,6 +1250,7 @@ impl TestController {
     }
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_node_role(node: &wabou_shell::GpuiLayoutNode) -> Option<&str> {
     node.attributes.get("role").map(AsRef::as_ref).or_else(|| {
         let wabou_shell::ProjectedNodeKind::Element(tag) = &node.kind else {
@@ -1239,6 +1270,7 @@ fn gpui_node_role(node: &wabou_shell::GpuiLayoutNode) -> Option<&str> {
     })
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_node_label<'a>(
     nodes: &'a [wabou_shell::GpuiLayoutNode],
     node: &'a wabou_shell::GpuiLayoutNode,
@@ -1249,11 +1281,13 @@ fn gpui_node_label<'a>(
     gpui_node_text_content(nodes, node)
 }
 
+#[cfg(feature = "gpui")]
 fn normalize_accessible_name(value: &str) -> Option<String> {
     let normalized = value.split_whitespace().collect::<Vec<_>>().join(" ");
     (!normalized.is_empty()).then_some(normalized)
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_node_text_content(
     nodes: &[wabou_shell::GpuiLayoutNode],
     node: &wabou_shell::GpuiLayoutNode,
@@ -1279,6 +1313,7 @@ fn gpui_node_text_content(
     normalize_accessible_name(&text)
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_descends_from(
     nodes: &[wabou_shell::GpuiLayoutNode],
     mut key: wabou_host_api::NodeKey,
@@ -1296,6 +1331,7 @@ fn gpui_descends_from(
     false
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_is_effectively_attached(
     nodes: &[wabou_shell::GpuiLayoutNode],
     node: &wabou_shell::GpuiLayoutNode,
@@ -1316,6 +1352,7 @@ fn gpui_is_effectively_attached(
     true
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_is_aria_hidden(
     nodes: &[wabou_shell::GpuiLayoutNode],
     node: &wabou_shell::GpuiLayoutNode,
@@ -1336,6 +1373,7 @@ fn gpui_is_aria_hidden(
     false
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_modal_root(nodes: &[wabou_shell::GpuiLayoutNode]) -> Option<wabou_host_api::NodeKey> {
     nodes
         .iter()
@@ -1352,6 +1390,7 @@ fn gpui_modal_root(nodes: &[wabou_shell::GpuiLayoutNode]) -> Option<wabou_host_a
         .map(|node| node.key)
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_node_is_exposed(
     nodes: &[wabou_shell::GpuiLayoutNode],
     node: &wabou_shell::GpuiLayoutNode,
@@ -1363,6 +1402,7 @@ fn gpui_node_is_exposed(
         .is_none_or(|modal| node.key == modal || gpui_descends_from(nodes, node.key, modal))
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_bool_attribute(node: &wabou_shell::GpuiLayoutNode, name: &str) -> Option<bool> {
     node.attributes
         .get(name)
@@ -1373,11 +1413,13 @@ fn gpui_bool_attribute(node: &wabou_shell::GpuiLayoutNode, name: &str) -> Option
         })
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_node_is_disabled(node: &wabou_shell::GpuiLayoutNode) -> bool {
     node.attributes.contains_key("disabled")
         || gpui_bool_attribute(node, "aria-disabled") == Some(true)
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_scope_owner(
     nodes: &[wabou_shell::GpuiLayoutNode],
     scope: &[TestLocatorSelector],
@@ -1401,6 +1443,7 @@ fn gpui_scope_owner(
     Some(owner)
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_locator<'a>(
     nodes: &'a [wabou_shell::GpuiLayoutNode],
     role: &str,
@@ -1426,6 +1469,7 @@ fn gpui_locator<'a>(
     }
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_locator_query_json(
     nodes: &[wabou_shell::GpuiLayoutNode],
     role: &str,
@@ -1495,6 +1539,7 @@ fn gpui_locator_query_json(
     )
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_snapshot_json(
     window_key: WindowKey,
     nodes: &[wabou_shell::GpuiLayoutNode],
@@ -1520,6 +1565,7 @@ fn gpui_snapshot_json(
     })
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_pointer_event(
     node: &wabou_shell::GpuiLayoutNode,
     phase: wabou_shell::ProjectedPointerPhase,
@@ -1541,6 +1587,7 @@ fn gpui_pointer_event(
     }
 }
 
+#[cfg(feature = "gpui")]
 fn click_gpui_target(
     controller: &mut crate::gpui_controller::GpuiController,
     node: &wabou_shell::GpuiLayoutNode,
@@ -1567,6 +1614,7 @@ fn click_gpui_target(
     false
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_drag_events(
     node: &wabou_shell::GpuiLayoutNode,
     delta_x: f64,
@@ -1583,6 +1631,7 @@ fn gpui_drag_events(
     [down, moved, up]
 }
 
+#[cfg(feature = "gpui")]
 fn input_gpui_target(
     controller: &mut crate::gpui_controller::GpuiController,
     node: &wabou_shell::GpuiLayoutNode,
@@ -1658,6 +1707,7 @@ fn input_gpui_target(
 /// backend-neutral native widget event contract. Pointer and wheel input stay
 /// on the projected hit-testing path because their coordinates come from the
 /// laid-out GPUI node.
+#[cfg(feature = "gpui")]
 fn native_input_events(input: &TestInput) -> Vec<UiEvent> {
     match input {
         TestInput::Key { key, modifiers } => [KeyPhase::Down, KeyPhase::Up]
@@ -2134,6 +2184,7 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
 mod tests {
     use super::*;
 
+    #[cfg(feature = "gpui")]
     fn gpui_node(
         key: wabou_host_api::NodeKey,
         parent: Option<wabou_host_api::NodeKey>,
@@ -2289,6 +2340,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_locator_uses_explicit_roles_labels_scopes_and_real_bounds() {
         let group = gpui_node(wabou_host_api::NodeKey::new(10, 1), None, "view", "Toolbar");
         let mut group = group;
@@ -2320,6 +2372,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_locator_snapshot_exposes_descendant_text_after_reactive_updates() {
         let mut status = gpui_node(
             wabou_host_api::NodeKey::new(20, 1),
@@ -2345,6 +2398,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_locator_query_counts_repeated_semantics_without_requiring_uniqueness() {
         let nodes = [
             gpui_node(
@@ -2377,6 +2431,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_accessible_names_ignore_detached_aggregate_text_sources() {
         let option_key = wabou_host_api::NodeKey::new(22, 1);
         let text_key = wabou_host_api::NodeKey::new(23, 1);
@@ -2403,6 +2458,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_accessible_names_collapse_authored_whitespace() {
         let key = wabou_host_api::NodeKey::new(25, 1);
         let mut button = gpui_node(key, None, "button", "");
@@ -2416,6 +2472,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_locator_snapshot_exposes_authored_semantic_state() {
         let key = wabou_host_api::NodeKey::new(24, 1);
         let mut control = gpui_node(key, None, "button", "Disclosure");
@@ -2449,6 +2506,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_locators_exclude_detached_subtrees_and_background_behind_a_modal() {
         let detached_root_key = wabou_host_api::NodeKey::new(30, 1);
         let detached_root = gpui_node(detached_root_key, None, "view", "Detached root");
@@ -2492,6 +2550,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_test_driver_clicks_the_projected_protocol_target() {
         use crate::runtime_session::RuntimeSession;
         use wabou_protocol::Op;
@@ -2557,6 +2616,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_test_driver_focuses_native_textbox_without_projected_pointer_listener() {
         use crate::runtime_session::RuntimeSession;
         use wabou_protocol::Op;
@@ -2619,6 +2679,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_test_driver_routes_text_through_native_widget_input_before_fallback() {
         use crate::runtime_session::RuntimeSession;
 
@@ -2662,6 +2723,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_test_driver_dispatches_file_drop_to_the_formal_runtime() {
         use crate::runtime_session::RuntimeSession;
 
@@ -2734,6 +2796,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_drag_uses_the_requested_delta_in_native_logical_coordinates() {
         let events = gpui_drag_events(
             &gpui_node(wabou_host_api::NodeKey::new(3, 1), None, "view", "Drag"),
@@ -3061,6 +3124,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_window_actions_update_the_shared_test_snapshot() {
         let controller = TestController::default();
         let window_key = key(1);

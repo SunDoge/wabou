@@ -1226,7 +1226,7 @@ impl HostBuilder {
                     .flatten(),
             ));
         }
-        #[cfg(feature = "headless")]
+        #[cfg(feature = "gpui-headless")]
         if headless_test {
             if !self.application_extensions.is_empty() {
                 tracing::debug!(
@@ -1268,11 +1268,12 @@ impl HostBuilder {
             services.finish()?;
             return Ok(());
         }
-        #[cfg(not(feature = "headless"))]
+        #[cfg(not(feature = "gpui-headless"))]
         if headless_test {
             return Err(crate::Error::GpuiShell {
-                message: "headless behavior tests require the `wabou-runtime/headless` feature"
-                    .into(),
+                message:
+                    "GPUI headless behavior tests require the `wabou-runtime/gpui-headless` feature"
+                        .into(),
             });
         }
         run_gpui_windows(

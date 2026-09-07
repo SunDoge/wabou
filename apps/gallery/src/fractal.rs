@@ -1,10 +1,12 @@
 //! Gallery-only Julia set rendered as an application-defined GPUI widget.
 
+#[cfg(feature = "gpui")]
 use std::{
     io::Cursor,
     sync::{Arc, Mutex},
 };
 
+#[cfg(feature = "gpui")]
 use wabou::{NativeWidgetContext, gpui};
 
 const RENDER_SIZE: u32 = 480;
@@ -16,6 +18,7 @@ const VIEW: f64 = 1.5;
 /// The cache is owned by the application registration rather than a transient
 /// GPUI element. Attribute changes select a deterministic image while ordinary
 /// frame rebuilds reuse the already encoded source.
+#[cfg(feature = "gpui")]
 pub fn gpui_factory()
 -> impl for<'a> Fn(NativeWidgetContext<'a>, &mut gpui::Window, &mut gpui::App) -> gpui::AnyElement
 + Send
@@ -130,6 +133,7 @@ fn render_rgba(cx: f64, cy: f64) -> Vec<u8> {
     rgba
 }
 
+#[cfg(feature = "gpui")]
 fn encode_gpui_image(cx: f64, cy: f64) -> gpui::Image {
     let mut png = Vec::new();
     image::DynamicImage::ImageRgba8(

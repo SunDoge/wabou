@@ -158,7 +158,7 @@ impl GpuiController {
                 return Some(image);
             }
             let resource = image_resources.get(handle)?;
-            let (bytes, format) = resource.encoded();
+            let (bytes, format) = resource.encoded_source();
             let image = std::sync::Arc::new(wabou_shell::gpui::Image::from_bytes(
                 gpui_image_format(format),
                 bytes.to_vec(),
@@ -773,7 +773,7 @@ impl GpuiController {
         self.projection.render_snapshot()
     }
 
-    #[cfg(feature = "headless")]
+    #[cfg(feature = "gpui-headless")]
     pub(crate) fn projection_boundary_revisions(
         &self,
     ) -> std::collections::BTreeMap<wabou_shell::NodeKey, wabou_shell::ProjectionBoundaryRevision>
@@ -1569,7 +1569,7 @@ impl GpuiController {
     }
 
     /// Monotonically increasing count of non-empty JS-to-host frames.
-    #[cfg(any(feature = "headless", test))]
+    #[cfg(any(feature = "gpui-headless", test))]
     pub fn protocol_revision(&self) -> u64 {
         self.runtime.protocol_revision
     }
@@ -1594,7 +1594,7 @@ impl GpuiController {
     }
 
     /// Evaluate an expression and return its string value.
-    #[cfg(any(feature = "headless", test))]
+    #[cfg(any(feature = "gpui-headless", test))]
     pub fn eval_string(&self, source: &str) -> rquickjs::Result<String> {
         self.runtime.js.eval_string(source)
     }

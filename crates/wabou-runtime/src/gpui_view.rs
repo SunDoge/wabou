@@ -719,12 +719,12 @@ impl GpuiRuntimeView {
             .collect()
     }
 
-    #[cfg(feature = "headless")]
+    #[cfg(feature = "gpui-headless")]
     pub(crate) fn protocol_revision(&self) -> u64 {
         self.controller.protocol_revision()
     }
 
-    #[cfg(feature = "headless")]
+    #[cfg(feature = "gpui-headless")]
     pub(crate) fn projection_checkpoint(
         &self,
         cx: &wabou_shell::gpui::App,
@@ -753,7 +753,7 @@ impl GpuiRuntimeView {
         }
     }
 
-    #[cfg(feature = "headless")]
+    #[cfg(feature = "gpui-headless")]
     pub(crate) fn eval_script_diagnostic(&mut self, source: &str) -> Result<(), String> {
         self.controller.eval_script_diagnostic(source)?;
         // Headless fixture setup runs outside a GPUI render turn. Mark the
@@ -763,7 +763,7 @@ impl GpuiRuntimeView {
         Ok(())
     }
 
-    #[cfg(feature = "headless")]
+    #[cfg(feature = "gpui-headless")]
     pub(crate) fn eval_string(&self, source: &str) -> rquickjs::Result<String> {
         self.controller.eval_string(source)
     }

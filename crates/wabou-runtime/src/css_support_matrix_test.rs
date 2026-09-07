@@ -3,7 +3,7 @@
 //! compiler's allowlist — if Rust returns `false`, the compiler would emit IR
 //! the host ignores (layout "looks fine" but wrong).
 
-#[cfg(test)]
+#[cfg(all(test, feature = "gpui"))]
 mod tests {
     use std::collections::{HashMap, HashSet};
 

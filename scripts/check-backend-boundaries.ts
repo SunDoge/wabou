@@ -17,6 +17,13 @@ const BACKEND_LIBRARY_DEPENDENCIES = new Set([
   "winit",
 ]);
 
+const GPUI_LIBRARY_DEPENDENCIES = new Set([
+  "gpui-ce",
+  "gpui-pre",
+  "gpui_ce_components_base",
+  "gpui_ce_platform",
+]);
+
 const SHARED_PACKAGES = new Set([
   "wabou-accessibility",
   "wabou-bindgen",
@@ -24,13 +31,13 @@ const SHARED_PACKAGES = new Set([
   "wabou-devtools",
   "wabou-host-api",
   "wabou-protocol",
+  "wabou-runtime",
   "wabou-shell-api",
   "wabou-style",
   "wabou-terminal-core",
 ]);
 
 const GPUI_BACKEND_PACKAGES = new Set([
-  "wabou-runtime",
   "wabou-shell",
   "wabou-terminal",
   "wabou-tray",
@@ -45,17 +52,12 @@ const HYBRID_BACKEND_PACKAGES = new Set([
   "wabou-vello-hybrid-svg",
 ]);
 
-// This is the remaining extraction seam described in rendering-roadmap.md.
-// Freeze it so the Hybrid backend cannot acquire more GPUI dependencies while
-// RuntimeSession and the remaining backend-neutral runtime move out.
-const TRANSITIONAL_CROSS_BACKEND_EDGES = new Set([
-  "wabou-legacy-runtime -> wabou-runtime",
-]);
-
 interface CargoDependency {
   kind: "build" | "dev" | null;
   name: string;
+  optional?: boolean;
   rename: string | null;
+  uses_default_features?: boolean;
 }
 
 interface CargoPackage {
@@ -97,13 +99,30 @@ function isBackendDependency(name: string): boolean {
   );
 }
 
+function isOptionalGpuiRuntimeAdapter(
+  pkg: CargoPackage,
+  dependency: CargoDependency,
+): boolean {
+  if (pkg.name !== "wabou-runtime") return false;
+  const gpuiDependency =
+    GPUI_LIBRARY_DEPENDENCIES.has(dependency.name) ||
+    GPUI_BACKEND_PACKAGES.has(dependency.name);
+  return (
+    gpuiDependency &&
+    (dependency.optional === true || dependency.kind === "dev")
+  );
+}
+
 /** Backend-neutral crates must remain usable without either platform stack. */
 export function sharedBoundaryViolations(metadata: CargoMetadata): string[] {
   const violations: string[] = [];
   for (const pkg of metadata.packages) {
     if (!SHARED_PACKAGES.has(pkg.name)) continue;
     for (const dependency of pkg.dependencies) {
-      if (isBackendDependency(dependency.name)) {
+      if (
+        isBackendDependency(dependency.name) &&
+        !isOptionalGpuiRuntimeAdapter(pkg, dependency)
+      ) {
         violations.push(dependencyLabel(pkg, dependency));
       }
     }
@@ -123,9 +142,29 @@ export function crossBackendViolations(metadata: CargoMetadata): string[] {
         (gpui && HYBRID_BACKEND_PACKAGES.has(dependency.name)) ||
         (hybrid && GPUI_BACKEND_PACKAGES.has(dependency.name));
       if (!crosses) continue;
-      const edge = `${pkg.name} -> ${dependency.name}`;
-      if (TRANSITIONAL_CROSS_BACKEND_EDGES.has(edge)) continue;
       violations.push(dependencyLabel(pkg, dependency));
+    }
+  }
+  return violations.sort();
+}
+
+/** Hybrid entry points must not reactivate the shared runtime's default GPUI host. */
+export function backendFeatureIsolationViolations(
+  metadata: CargoMetadata,
+): string[] {
+  const violations: string[] = [];
+  for (const pkg of metadata.packages) {
+    if (pkg.name !== "wabou" && !HYBRID_BACKEND_PACKAGES.has(pkg.name))
+      continue;
+    for (const dependency of pkg.dependencies) {
+      if (
+        dependency.name === "wabou-runtime" &&
+        dependency.uses_default_features !== false
+      ) {
+        violations.push(
+          `${dependencyLabel(pkg, dependency)} enables default GPUI features`,
+        );
+      }
     }
   }
   return violations.sort();
@@ -179,6 +218,7 @@ async function main(): Promise<void> {
   const violations = [
     ...sharedBoundaryViolations(cargo),
     ...crossBackendViolations(cargo),
+    ...backendFeatureIsolationViolations(cargo),
     ...transitionalPackagingViolations(cargo),
     ...formalVerificationViolations(cargo),
   ];

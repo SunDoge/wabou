@@ -27,13 +27,14 @@ mod project;
 mod scaffold;
 
 use artifact::{
-    app_binary, app_bindings_target, app_dev_features, app_framework_feature, app_package,
-    app_profiling_feature, artifact_from_metadata_for_target, cargo_metadata,
-    optional_app_bindings_target,
+    app_binary, app_bindings_target, app_dev_features, app_framework_dependency_has_feature,
+    app_framework_feature, app_package, app_profiling_feature, artifact_from_metadata_for_target,
+    cargo_metadata, optional_app_bindings_target,
 };
 #[cfg(test)]
 use artifact::{
-    artifact_from_metadata, binary_target, bindings_target, dev_features, framework_feature,
+    artifact_from_metadata, binary_target, bindings_target, dev_features,
+    framework_dependency_has_feature, framework_feature,
 };
 use behavior_test::{default_artifact_dir, prepare_artifact_dir, replay_actions};
 use config::{
@@ -655,6 +656,20 @@ fn apply_cargo_features(command: &mut Command, features: &[String]) {
     }
 }
 
+fn behavior_headless_feature(
+    cargo_features: &[String],
+    dependency_enables_gpui: bool,
+) -> &'static str {
+    let explicitly_enables_gpui = cargo_features
+        .iter()
+        .any(|feature| feature == "gpui" || feature.strip_suffix("/gpui").is_some());
+    if explicitly_enables_gpui || dependency_enables_gpui {
+        "gpui-headless"
+    } else {
+        "headless"
+    }
+}
+
 fn check(
     workspace: &Path,
     app: &App,
@@ -925,7 +940,11 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     let mut cargo_features = options.cargo_features.clone();
     cargo_features.push(app_framework_feature(workspace, app, "devtools")?);
     if !options.native {
-        cargo_features.push(app_framework_feature(workspace, app, "headless")?);
+        let headless_feature = behavior_headless_feature(
+            &options.cargo_features,
+            app_framework_dependency_has_feature(workspace, app, "gpui")?,
+        );
+        cargo_features.push(app_framework_feature(workspace, app, headless_feature)?);
     }
     let executable = build_behavior_host(workspace, &manifest, &binary, &cargo_features)?;
     let mut host = Command::new(executable);
@@ -2221,6 +2240,42 @@ out-dir = "dist/resources"
                 "profiling"
             ),
             Some("wabou/profiling".into())
+        );
+    }
+
+    #[test]
+    fn detects_backend_features_enabled_directly_on_the_framework_dependency() {
+        let metadata = serde_json::json!({
+            "packages": [{
+                "manifest_path": "/workspace/apps/terminal/Cargo.toml",
+                "dependencies": [{
+                    "name": "wabou",
+                    "features": ["gpui", "tray"]
+                }]
+            }]
+        });
+        let manifest = Path::new("/workspace/apps/terminal/Cargo.toml");
+        assert!(framework_dependency_has_feature(
+            &metadata, manifest, "gpui"
+        ));
+        assert!(!framework_dependency_has_feature(
+            &metadata,
+            manifest,
+            "vello-hybrid"
+        ));
+    }
+
+    #[test]
+    fn behavior_tests_select_the_backend_owned_headless_harness() {
+        assert_eq!(behavior_headless_feature(&[], false), "headless");
+        assert_eq!(behavior_headless_feature(&[], true), "gpui-headless");
+        assert_eq!(
+            behavior_headless_feature(&["gpui".into()], false),
+            "gpui-headless"
+        );
+        assert_eq!(
+            behavior_headless_feature(&["gallery/gpui".into()], false),
+            "gpui-headless"
         );
     }
 

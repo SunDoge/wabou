@@ -8,9 +8,10 @@ name = "seven-guis"
 path = "src/main.rs"
 
 [features]
-gpui = []
+default = ["vello-hybrid"]
+gpui = ["wabou/gpui"]
 vello-hybrid = ["wabou/vello-hybrid"]
 
 [dependencies]
 snafu = { workspace = true }
-wabou = { workspace = true }
+wabou = { workspace = true, default-features = false }

@@ -21,23 +21,25 @@ pub use wabou_database::{
     AtomicCommit as KvAtomicCommit, KvCheck, KvEntry, KvKey, KvKeyPart, KvListOptions, KvMutation,
     KvStore, Versionstamp as KvVersionstamp,
 };
-pub use wabou_runtime::HostBuilder as GpuiHostBuilder;
 pub use wabou_runtime::RgbaColor as Color;
-pub use wabou_runtime::gpui;
 pub use wabou_runtime::rquickjs;
 pub use wabou_runtime::{
     AppDirectories, AppDirectoryConfig, HostMessage, HostMessageContext, HostMessageError,
     HostMessageHandle, HostMessagePayload, HostMessageRouter, HostService, HostServiceContext,
-    HostServiceHandle, ManagedHostService, NativeCapability, NativeWidgetContext,
-    NativeWidgetFactory, NativeWidgetMount, PersistentJsonCache, RevisionedHostPublication,
-    RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker, TextRenderingMode,
-    WindowBackground, WindowInputMode, WindowLevel, WindowOptions, WindowResourceKey,
-    initial_window_resource_key, managed_host_service,
+    NativeCapability, PersistentJsonCache, RevisionedHostPublication, RevisionedHostPublisher,
+    RevisionedHostSnapshot, SerialWorker, WindowBackground, WindowInputMode, WindowLevel,
+    WindowOptions, WindowResourceKey, initial_window_resource_key,
 };
+#[cfg(feature = "gpui")]
 pub use wabou_runtime::{
     Error as GpuiError, ImageResource as GpuiImageResource,
     ImageResourceHandle as GpuiImageResourceHandle, ImageResourceStore as GpuiImageResourceStore,
     Result as GpuiResult,
+};
+#[cfg(feature = "gpui")]
+pub use wabou_runtime::{
+    HostBuilder as GpuiHostBuilder, HostServiceHandle, ManagedHostService, NativeWidgetContext,
+    NativeWidgetFactory, NativeWidgetMount, TextRenderingMode, gpui, managed_host_service,
 };
 
 #[cfg(feature = "vello-hybrid")]
@@ -49,7 +51,7 @@ pub use wabou_legacy_runtime::{
     WinitPointerButton, WinitPointerPhase, WinitRasterImage, WinitSecretStore, WinitShellExtension,
     WinitTextContext, WinitWakeCallback, WinitWidgetChanges,
 };
-#[cfg(not(feature = "vello-hybrid"))]
+#[cfg(all(feature = "gpui", not(feature = "vello-hybrid")))]
 pub use wabou_runtime::{
     Error, HostBuilder, ImageResource, ImageResourceHandle, ImageResourceStore, Result,
 };
@@ -63,6 +65,7 @@ mod tests {
     #[test]
     fn facade_exposes_default_application_entry_points() {
         let _builder = HostBuilder::new();
+        #[cfg(feature = "gpui")]
         let _gpui_comparison = GpuiHostBuilder::new();
         let _window = WindowOptions::new().title("Facade test");
         let _transparent = Color::TRANSPARENT;
