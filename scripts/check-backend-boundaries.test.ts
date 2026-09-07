@@ -51,7 +51,7 @@ test("backend-neutral packages cannot import either backend", () => {
           name: "wabou-protocol",
           dependencies: [
             { kind: null, name: "wabou-shell", rename: null },
-            { kind: "dev", name: "wabou-legacy-shell", rename: "legacy-shell" },
+            { kind: "dev", name: "wabou-vello-shell", rename: "vello-shell" },
             { kind: null, name: "vello", rename: null },
           ],
         },
@@ -63,8 +63,8 @@ test("backend-neutral packages cannot import either backend", () => {
       ],
     }),
   ).toEqual([
-    "wabou-protocol -> legacy-shell (wabou-legacy-shell, dev)",
     "wabou-protocol -> vello (vello, normal)",
+    "wabou-protocol -> vello-shell (wabou-vello-shell, dev)",
     "wabou-protocol -> wabou-shell (wabou-shell, normal)",
   ]);
 });
@@ -159,13 +159,13 @@ test("every formal workspace crate participates in ordinary verification", () =>
           dependencies: [],
         },
         {
-          id: "legacy-id",
-          name: "wabou-legacy-shell",
+          id: "vello-id",
+          name: "wabou-vello-shell",
           dependencies: [],
         },
       ],
-      workspace_members: ["shell-id", "future-id", "legacy-id"],
-      workspace_default_members: ["shell-id"],
+      workspace_members: ["shell-id", "future-id", "vello-id"],
+      workspace_default_members: ["shell-id", "vello-id"],
     }),
   ).toEqual([
     "wabou-future-widget is missing from formal default workspace members",
@@ -178,8 +178,8 @@ test("transitional backend crates stay unpublished and outside default workspace
       packages: [
         {
           dependencies: [],
-          id: "legacy-shell-id",
-          name: "wabou-legacy-shell",
+          id: "legacy-widgets-id",
+          name: "wabou-legacy-widgets",
           publish: null,
         },
         {
@@ -189,10 +189,10 @@ test("transitional backend crates stay unpublished and outside default workspace
           publish: [],
         },
       ],
-      workspace_default_members: ["legacy-shell-id"],
+      workspace_default_members: ["legacy-widgets-id"],
     }),
   ).toEqual([
-    "wabou-legacy-shell is a default workspace member",
-    "wabou-legacy-shell is publishable",
+    "wabou-legacy-widgets is a default workspace member",
+    "wabou-legacy-widgets is publishable",
   ]);
 });

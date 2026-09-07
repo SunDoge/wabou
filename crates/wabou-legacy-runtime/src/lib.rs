@@ -6,7 +6,7 @@
 
 #![allow(missing_docs)]
 
-extern crate legacy_shell as wabou_shell;
+extern crate vello_shell as wabou_shell;
 
 mod atom;
 mod behavior_test;
@@ -77,7 +77,8 @@ pub use host_message::{
     HostMessage, HostMessageContext, HostMessageHandle, HostMessagePayload, HostMessageRouter,
 };
 pub use jsrt::{JsRuntime, JsRuntimeOptions};
-pub use legacy_shell::{
+pub use runtime_api::{ImageResource, ImageResourceHandle, ImageResourceStore};
+pub use vello_shell::{
     EffectRequest as VelloHybridEffectRequest, ExtensionContext as VelloHybridExtensionContext,
     PaintContext as VelloHybridPaintContext, Point as VelloHybridPoint,
     PointerButton as VelloHybridPointerButton, PointerPhase as VelloHybridPointerPhase,
@@ -85,7 +86,6 @@ pub use legacy_shell::{
     WakeCallback as VelloHybridWakeCallback, Widget, WidgetChanges as VelloHybridWidgetChanges,
     WidgetFactory, WidgetRasterImage as VelloHybridRasterImage, WindowOptions,
 };
-pub use runtime_api::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use wabou_legacy_widgets::SecretStore as VelloHybridSecretStore;
 
 mod applier;

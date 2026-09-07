@@ -46,7 +46,7 @@ const GPUI_BACKEND_PACKAGES = new Set([
 const HYBRID_BACKEND_PACKAGES = new Set([
   "wabou-backend-vello-hybrid",
   "wabou-legacy-accessibility",
-  "wabou-legacy-shell",
+  "wabou-vello-shell",
   "wabou-legacy-terminal",
   "wabou-legacy-widgets",
   "wabou-vello-hybrid-svg",

@@ -1,4 +1,4 @@
-//! wabou-shell: render a UI tree with winit + Taffy + Parley + AnyRender.
+//! wabou-vello-shell: render a UI tree with Winit, Taffy, Parley, and AnyRender.
 //!
 //! The shell is a reusable host: a [`source::FrameSource`] produces a flattened
 //! layout list each frame; [`shell::Shell`] owns the window and selected
@@ -17,9 +17,9 @@ pub mod error;
 pub mod headless;
 pub mod image;
 pub mod layout;
-mod legacy_renderer;
 pub mod renderer;
 mod renderer_backend;
+mod renderer_selection;
 pub mod scene;
 pub mod scrollbar;
 pub mod shell;
@@ -49,7 +49,7 @@ pub use effect::{
     SaveDialogRequest, WindowResourceKey, initial_window_resource_key,
 };
 pub use error::{Error, Result};
-pub use legacy_renderer::RendererBackend;
+pub use renderer_selection::RendererBackend;
 pub use shell::Shell;
 pub use shortcut::StandardShortcut;
 pub use source::{

@@ -945,7 +945,7 @@ fn devtools_snapshot_exposes_widget_local_and_ancestor_clip_coordinates() {
         .unwrap();
     widget.clip = Some([0.0, 0.0, 80.0, 40.0]);
     widget.clip_radius = 6.0;
-    widget.paint.border_radii = legacy_shell::style::CornerRadii::uniform(12.0);
+    widget.paint.border_radii = vello_shell::style::CornerRadii::uniform(12.0);
 
     applier.publish_debug_snapshot(&placed, &mut TextContext::new());
 
@@ -1139,7 +1139,7 @@ fn protocol_shadows_apply_vello_parameters_without_string_parsing() {
         .unwrap();
     assert_eq!(
         paint.shadows,
-        vec![legacy_shell::style::Shadow {
+        vec![vello_shell::style::Shadow {
             offset_x: 3.0,
             offset_y: 7.0,
             spread: -2.0,

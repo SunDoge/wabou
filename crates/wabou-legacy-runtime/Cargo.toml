@@ -19,7 +19,7 @@ getrandom.workspace = true
 runtime-api = { package = "wabou-runtime", path = "../wabou-runtime", default-features = false }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
 jiff.workspace = true
-legacy-shell = { package = "wabou-legacy-shell", path = "../wabou-legacy-shell" }
+vello-shell = { package = "wabou-vello-shell", path = "../wabou-vello-shell" }
 parley.workspace = true
 open.workspace = true
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }

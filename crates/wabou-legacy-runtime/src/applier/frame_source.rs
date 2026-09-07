@@ -644,7 +644,7 @@ impl FrameSource for Applier {
         }
     }
 
-    fn ime_state(&self) -> Option<legacy_shell::ImeState> {
+    fn ime_state(&self) -> Option<vello_shell::ImeState> {
         self.interaction.ime_state.clone()
     }
 
@@ -701,7 +701,7 @@ impl FrameSource for Applier {
         ])
     }
 
-    fn ime_character_index_for_point(&self, point: legacy_shell::Point) -> Option<usize> {
+    fn ime_character_index_for_point(&self, point: vello_shell::Point) -> Option<usize> {
         let target = self.interaction.input.focused_target?;
         let node = self.document.node_store.solid_to_node.get(&target)?;
         let transform = Affine::new(
@@ -716,7 +716,7 @@ impl FrameSource for Applier {
             .widget_manager
             .widgets
             .get(node)?
-            .ime_character_index_for_point(legacy_shell::Point {
+            .ime_character_index_for_point(vello_shell::Point {
                 x: local.x,
                 y: local.y,
             })
@@ -943,13 +943,13 @@ impl FrameSource for Applier {
         }
     }
 
-    fn pointer_cursor(&self) -> legacy_shell::style::CursorStyle {
+    fn pointer_cursor(&self) -> vello_shell::style::CursorStyle {
         self.interaction
             .input
             .hovered_target
             .and_then(|solid| self.document.node_store.solid_to_node.get(&solid))
             .and_then(|node| self.document.node_store.tree.get_node_context(*node))
-            .map_or(legacy_shell::style::CursorStyle::Default, |paint| {
+            .map_or(vello_shell::style::CursorStyle::Default, |paint| {
                 paint.cursor
             })
     }

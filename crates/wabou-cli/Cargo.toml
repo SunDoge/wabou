@@ -23,7 +23,7 @@ tempfile = "3"
 toml = "0.9"
 wabou-devtools = { workspace = true }
 wabou-backend-vello-hybrid = { workspace = true, features = ["devtools"] }
-wabou-legacy-shell.workspace = true
+wabou-vello-shell.workspace = true
 wabou-legacy-widgets.workspace = true
 wabou-runtime = { workspace = true, features = ["devtools", "gpui-headless"] }
 wabou-shell.workspace = true

@@ -129,11 +129,11 @@ mod tests {
             content_size: [rect[2] - rect[0], rect[3] - rect[1]],
             clip: None,
             clip_radius: 0.0,
-            clip_radii: legacy_shell::style::CornerRadii::default(),
+            clip_radii: vello_shell::style::CornerRadii::default(),
             clip_depth: None,
             own_clip: None,
             own_clip_radius: 0.0,
-            own_clip_radii: legacy_shell::style::CornerRadii::default(),
+            own_clip_radii: vello_shell::style::CornerRadii::default(),
             border_widths: [0.0; 4],
             scroll: layout::ScrollMetrics {
                 port: rect,

@@ -1,5 +1,5 @@
 [package]
-name = "wabou-legacy-shell"
+name = "wabou-vello-shell"
 version.workspace = true
 edition = "2024"
 
@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [lib]
-name = "wabou_legacy_shell"
+name = "wabou_vello_shell"
 path = "src/lib.rs"
 
 [dependencies]

@@ -34,6 +34,7 @@ default-members = [
   "crates/wabou-terminal",
   "crates/wabou-terminal-core",
   "crates/wabou-tray",
+  "crates/wabou-vello-shell",
   "crates/wabou-vello-hybrid-svg",
 ]
 
@@ -59,10 +60,9 @@ wabou-devtools = { path = "crates/wabou-devtools", default-features = false }
 wabou-host-api = { path = "crates/wabou-host-api" }
 wabou-legacy-accessibility = { path = "crates/wabou-legacy-accessibility" }
 wabou-backend-vello-hybrid = { path = "crates/wabou-legacy-runtime" }
-# Transitional names for the actively developed Winit/Taffy/Vello Hybrid
-# backend. Keep them split while shared runtime code is extracted; they are no
-# longer a retired compatibility implementation.
-wabou-legacy-shell = { path = "crates/wabou-legacy-shell" }
+# The actively developed Winit/Taffy/Vello Hybrid backend remains split while
+# shared runtime code is extracted from the former GPUI-first implementation.
+wabou-vello-shell = { path = "crates/wabou-vello-shell" }
 wabou-legacy-widgets = { path = "crates/wabou-legacy-widgets" }
 wabou-protocol = { path = "crates/wabou-protocol" }
 wabou-runtime = { path = "crates/wabou-runtime", default-features = false }

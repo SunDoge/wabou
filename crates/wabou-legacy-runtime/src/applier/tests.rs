@@ -96,11 +96,11 @@ fn debug_layout_overlay_encodes_visible_scene_geometry() {
         content_size: [80.0, 40.0],
         clip: None,
         clip_radius: 0.0,
-        clip_radii: legacy_shell::style::CornerRadii::default(),
+        clip_radii: vello_shell::style::CornerRadii::default(),
         clip_depth: None,
         own_clip: None,
         own_clip_radius: 0.0,
-        own_clip_radii: legacy_shell::style::CornerRadii::default(),
+        own_clip_radii: vello_shell::style::CornerRadii::default(),
         border_widths: [0.0; 4],
         scroll: layout::ScrollMetrics::default(),
         paint: Paint::default(),
@@ -152,7 +152,7 @@ fn debug_layout_overlay_encodes_visible_scene_geometry() {
         .take_screenshot_request()
         .expect("take secure screenshot request");
     assert_eq!(requested_path, output);
-    legacy_shell::renderer::render_to_png_file(
+    vello_shell::renderer::render_to_png_file(
         &enabled_scene,
         120,
         80,
@@ -209,11 +209,11 @@ fn selected_debug_overlay_distinguishes_border_and_content_boxes() {
         content_size: [60.0, 30.0],
         clip: None,
         clip_radius: 0.0,
-        clip_radii: legacy_shell::style::CornerRadii::default(),
+        clip_radii: vello_shell::style::CornerRadii::default(),
         clip_depth: None,
         own_clip: None,
         own_clip_radius: 0.0,
-        own_clip_radii: legacy_shell::style::CornerRadii::default(),
+        own_clip_radii: vello_shell::style::CornerRadii::default(),
         border_widths: [2.0, 3.0, 4.0, 5.0],
         scroll: layout::ScrollMetrics::default(),
         paint: Paint::default(),
@@ -237,14 +237,8 @@ fn selected_debug_overlay_distinguishes_border_and_content_boxes() {
         "wabou-debug-overlay-box-model-{}.png",
         std::process::id()
     ));
-    legacy_shell::renderer::render_to_png(
-        &scene,
-        130,
-        100,
-        Color::WHITE,
-        &output.to_string_lossy(),
-    )
-    .expect("render selected debug overlay");
+    vello_shell::renderer::render_to_png(&scene, 130, 100, Color::WHITE, &output.to_string_lossy())
+        .expect("render selected debug overlay");
     let pixels = image::open(&output)
         .expect("open selected debug overlay png")
         .into_rgba8();
@@ -603,18 +597,18 @@ struct MeasuringWidget([f32; 2]);
 struct StyleAwareMeasuringWidget(Arc<std::sync::Mutex<Vec<&'static str>>>);
 
 impl crate::widget::Widget for TextInputStateWidget {
-    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut vello_shell::PaintContext<'_>) {}
 
     fn current_value(&self) -> Option<&str> {
         Some("a😀b")
     }
 
-    fn text_selection(&self) -> Option<legacy_shell::WidgetTextSelection> {
-        Some(legacy_shell::WidgetTextSelection {
+    fn text_selection(&self) -> Option<vello_shell::WidgetTextSelection> {
+        Some(vello_shell::WidgetTextSelection {
             anchor: 3,
             head: 1,
             text: Some("😀".into()),
-            kind: legacy_shell::WidgetTextSelectionKind::Simple,
+            kind: vello_shell::WidgetTextSelectionKind::Simple,
         })
     }
 
@@ -630,7 +624,7 @@ impl crate::widget::Widget for TextInputStateWidget {
         (range_utf16 == (1..3)).then_some([1.0, 2.0, 4.0, 6.0])
     }
 
-    fn ime_character_index_for_point(&self, point: legacy_shell::Point) -> Option<usize> {
+    fn ime_character_index_for_point(&self, point: vello_shell::Point) -> Option<usize> {
         Some((point.x + point.y) as usize)
     }
 }
@@ -640,7 +634,7 @@ impl crate::widget::Widget for MeasuringWidget {
         Some(cx.resolve_size(self.0))
     }
 
-    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut vello_shell::PaintContext<'_>) {}
 }
 
 impl crate::widget::Widget for StyleAwareMeasuringWidget {
@@ -657,11 +651,11 @@ impl crate::widget::Widget for StyleAwareMeasuringWidget {
         Some(cx.resolve_size([100.0, 40.0]))
     }
 
-    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut vello_shell::PaintContext<'_>) {}
 }
 
 impl crate::widget::Widget for HostActionWidget {
-    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut vello_shell::PaintContext<'_>) {}
 
     fn poll_async(&mut self) -> bool {
         self.0.is_some()
@@ -673,7 +667,7 @@ impl crate::widget::Widget for HostActionWidget {
 }
 
 impl crate::widget::Widget for EventHostActionWidget {
-    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut vello_shell::PaintContext<'_>) {}
 
     fn handle_event(&mut self, _event: &UiEvent) -> crate::widget::WidgetEventResult {
         crate::widget::WidgetEventResult::HANDLED
@@ -685,7 +679,7 @@ impl crate::widget::Widget for EventHostActionWidget {
 }
 
 impl crate::widget::Widget for UnmountActionWidget {
-    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut vello_shell::PaintContext<'_>) {}
 
     fn unmount(&mut self) {
         self.0 = Some(gpui_shell::HostAction::SetWindowTitle(None));
@@ -697,7 +691,7 @@ impl crate::widget::Widget for UnmountActionWidget {
 }
 
 impl crate::widget::Widget for LifecycleWidget {
-    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut vello_shell::PaintContext<'_>) {}
 
     fn focus_changed(&mut self, focused: bool) -> crate::widget::WidgetChanges {
         self.0
@@ -726,7 +720,7 @@ impl crate::widget::Widget for LifecycleWidget {
 }
 
 impl crate::widget::Widget for VisibilityLifecycleWidget {
-    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {
+    fn paint(&mut self, _cx: &mut vello_shell::PaintContext<'_>) {
         self.0.lock().unwrap().push("paint");
     }
 
@@ -749,7 +743,7 @@ impl crate::widget::Widget for VisibilityLifecycleWidget {
 }
 
 impl crate::widget::Widget for NodeEventWidget {
-    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut vello_shell::PaintContext<'_>) {}
 
     fn poll_async(&mut self) -> bool {
         self.0.is_some()
@@ -761,7 +755,7 @@ impl crate::widget::Widget for NodeEventWidget {
 }
 
 impl crate::widget::Widget for ClipboardReadWidget {
-    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut vello_shell::PaintContext<'_>) {}
 
     fn poll_async(&mut self) -> bool {
         self.action.is_some()
@@ -777,7 +771,7 @@ impl crate::widget::Widget for ClipboardReadWidget {
 }
 
 impl crate::widget::Widget for WheelCaptureWidget {
-    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut vello_shell::PaintContext<'_>) {}
 
     fn handle_event(&mut self, event: &UiEvent) -> crate::widget::WidgetEventResult {
         if let UiEvent::Wheel(wheel) = event {
@@ -790,7 +784,7 @@ impl crate::widget::Widget for WheelCaptureWidget {
 }
 
 impl crate::widget::Widget for KeyCaptureWidget {
-    fn paint(&mut self, _cx: &mut legacy_shell::PaintContext<'_>) {}
+    fn paint(&mut self, _cx: &mut vello_shell::PaintContext<'_>) {}
 
     fn handle_event(&mut self, event: &UiEvent) -> crate::widget::WidgetEventResult {
         if matches!(event, UiEvent::Key(_)) {
@@ -1421,7 +1415,7 @@ fn clipboard_read_completions_route_to_the_requesting_widget() {
         }]
     );
 }
-use legacy_shell::{Point, PointerEvent};
+use vello_shell::{Point, PointerEvent};
 
 fn pointer(phase: PointerPhase, x: f64, y: f64, buttons: u32) -> UiEvent {
     pointer_with_button(phase, x, y, buttons, PointerButton::Primary)
@@ -1934,7 +1928,7 @@ fn text_input_snapshot_uses_the_focused_widgets_utf16_contract() {
         .widgets
         .insert(node, Box::new(TextInputStateWidget));
     applier.interaction.input.focused_target = Some(NodeKey::new(2, 1));
-    applier.interaction.ime_state = Some(legacy_shell::ImeState {
+    applier.interaction.ime_state = Some(vello_shell::ImeState {
         client_id: u64::from(NodeKey::new(2, 1)),
         cursor_area: [12.0, 18.0, 14.0, 36.0],
         surrounding_text: "a😀b".into(),
@@ -1943,7 +1937,7 @@ fn text_input_snapshot_uses_the_focused_widgets_utf16_contract() {
         selection_utf16: 1..3,
         selection_reversed: true,
         marked_range_utf16: None,
-        purpose: legacy_shell::WidgetImePurpose::Normal,
+        purpose: vello_shell::WidgetImePurpose::Normal,
         multiline: false,
         completion: true,
         spellcheck: true,
@@ -1975,7 +1969,7 @@ fn ime_queries_transform_between_widget_and_window_coordinates() {
         .insert(node, Box::new(TextInputStateWidget));
     applier.document.widget_manager.geometries.insert(
         node,
-        legacy_shell::WidgetGeometry {
+        vello_shell::WidgetGeometry {
             content_size: [100.0, 40.0],
             device_scale: 2.0,
             local_to_window: Affine::translate((10.0, 20.0)).as_coeffs(),
@@ -1990,7 +1984,7 @@ fn ime_queries_transform_between_widget_and_window_coordinates() {
         Some([11.0, 22.0, 14.0, 26.0])
     );
     assert_eq!(
-        applier.ime_character_index_for_point(legacy_shell::Point { x: 15.0, y: 26.0 }),
+        applier.ime_character_index_for_point(vello_shell::Point { x: 15.0, y: 26.0 }),
         Some(11)
     );
 }

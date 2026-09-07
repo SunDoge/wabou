@@ -13225,12 +13225,12 @@ dependencies = [
  "wabou-bindgen",
  "wabou-devtools",
  "wabou-host-api",
- "wabou-legacy-shell",
  "wabou-legacy-widgets",
  "wabou-protocol",
  "wabou-runtime",
  "wabou-shell-api",
  "wabou-style",
+ "wabou-vello-shell",
 ]
 
 [[package]]
@@ -13259,10 +13259,10 @@ dependencies = [
  "toml 0.9.12+spec-1.1.0",
  "wabou-backend-vello-hybrid",
  "wabou-devtools",
- "wabou-legacy-shell",
  "wabou-legacy-widgets",
  "wabou-runtime",
  "wabou-shell",
+ "wabou-vello-shell",
 ]
 
 [[package]]
@@ -13328,43 +13328,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wabou-legacy-shell"
-version = "0.1.0-alpha.3"
-dependencies = [
- "anyrender",
- "anyrender_skia",
- "anyrender_svg",
- "anyrender_vello",
- "anyrender_vello_hybrid",
- "arboard",
- "bitflags 2.13.1",
- "futures-util",
- "image",
- "lru 0.18.1",
- "notify-rust",
- "open",
- "parley",
- "raw-window-handle",
- "rfd",
- "serde",
- "serde_json",
- "slotmap",
- "snafu",
- "swash",
- "taffy 0.14.0",
- "tempfile",
- "tracing",
- "unicode-segmentation",
- "url",
- "vello",
- "wabou-host-api",
- "wabou-legacy-accessibility",
- "wabou-shell-api",
- "wabou-style",
- "winit",
-]
-
-[[package]]
 name = "wabou-legacy-terminal"
 version = "0.1.0-alpha.3"
 dependencies = [
@@ -13378,9 +13341,9 @@ dependencies = [
  "teletypewriter",
  "tracing",
  "vello",
- "wabou-legacy-shell",
  "wabou-protocol",
  "wabou-shell-api",
+ "wabou-vello-shell",
 ]
 
 [[package]]
@@ -13394,8 +13357,8 @@ dependencies = [
  "tracing",
  "unicode-width",
  "vello",
- "wabou-legacy-shell",
  "wabou-protocol",
+ "wabou-vello-shell",
  "zeroize",
 ]
 
@@ -13548,6 +13511,43 @@ dependencies = [
  "usvg",
  "vello_common",
  "vello_hybrid",
+]
+
+[[package]]
+name = "wabou-vello-shell"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "anyrender",
+ "anyrender_skia",
+ "anyrender_svg",
+ "anyrender_vello",
+ "anyrender_vello_hybrid",
+ "arboard",
+ "bitflags 2.13.1",
+ "futures-util",
+ "image",
+ "lru 0.18.1",
+ "notify-rust",
+ "open",
+ "parley",
+ "raw-window-handle",
+ "rfd",
+ "serde",
+ "serde_json",
+ "slotmap",
+ "snafu",
+ "swash",
+ "taffy 0.14.0",
+ "tempfile",
+ "tracing",
+ "unicode-segmentation",
+ "url",
+ "vello",
+ "wabou-host-api",
+ "wabou-legacy-accessibility",
+ "wabou-shell-api",
+ "wabou-style",
+ "winit",
 ]
 
 [[package]]

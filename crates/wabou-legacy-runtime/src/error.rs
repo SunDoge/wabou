@@ -39,7 +39,7 @@ pub enum Error {
     #[snafu(display("Winit/Vello Hybrid host failed: {source}"))]
     WinitShell {
         /// Underlying window or renderer failure.
-        source: legacy_shell::Error,
+        source: vello_shell::Error,
     },
 
     /// A required CLI or host argument was absent.

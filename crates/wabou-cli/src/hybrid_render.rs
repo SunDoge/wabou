@@ -13,11 +13,11 @@ use std::{
 use anyrender::Scene;
 use serde::Deserialize;
 use wabou_backend_vello_hybrid::{AppConfig, Applier, JsRuntime};
-use wabou_legacy_shell::{
+use wabou_legacy_widgets::{PasswordInput, SecretStore};
+use wabou_vello_shell::{
     FrameSource, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent,
     PointerPhase, RendererBackend, TextContext, UiEvent, WheelEvent, layout::PlacedNode,
 };
-use wabou_legacy_widgets::{PasswordInput, SecretStore};
 
 use super::{
     Result,
@@ -66,7 +66,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     })?;
     let window_key = u32::try_from(options.window_id)
         .ok()
-        .and_then(|lo| wabou_legacy_shell::WindowResourceKey::from_parts(lo, 1))
+        .and_then(|lo| wabou_vello_shell::WindowResourceKey::from_parts(lo, 1))
         .ok_or("--window-id must be a non-zero 32-bit logical window id")?;
     let base_color = AppConfig::new("").base_color;
     let runtime =
@@ -113,7 +113,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     let physical_width = physical_size(width, scale_factor);
     let physical_height = physical_size(height, scale_factor);
     applier.set_device_scale(scale_factor);
-    applier.handle_event(UiEvent::WindowMetrics(wabou_legacy_shell::WindowMetrics {
+    applier.handle_event(UiEvent::WindowMetrics(wabou_vello_shell::WindowMetrics {
         window_key,
         logical_width: width,
         logical_height: height,
@@ -127,8 +127,8 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         occluded: false,
         reduced_motion: false,
         color_scheme: Some(match options.color_scheme {
-            HeadlessColorScheme::Light => wabou_legacy_shell::ColorScheme::Light,
-            HeadlessColorScheme::Dark => wabou_legacy_shell::ColorScheme::Dark,
+            HeadlessColorScheme::Light => wabou_vello_shell::ColorScheme::Light,
+            HeadlessColorScheme::Dark => wabou_vello_shell::ColorScheme::Dark,
         }),
     }));
 
@@ -158,7 +158,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     }
 
     let mut scene = Scene::new();
-    wabou_legacy_shell::scene::build_scene_scaled(
+    wabou_vello_shell::scene::build_scene_scaled(
         &mut scene,
         &nodes,
         &mut text,
@@ -173,7 +173,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         .out
         .to_str()
         .ok_or_else(|| format!("output path is not valid UTF-8: {}", options.out.display()))?;
-    wabou_legacy_shell::renderer::render_to_png_with_backend(
+    wabou_vello_shell::renderer::render_to_png_with_backend(
         &scene,
         physical_width,
         physical_height,
@@ -465,8 +465,8 @@ fn replay_actions(
                     position: Point { x: *x, y: *y },
                     delta_x: *delta_x,
                     delta_y: *delta_y,
-                    delta_mode: wabou_legacy_shell::WheelDeltaMode::Pixel,
-                    phase: wabou_legacy_shell::GesturePhase::Changed,
+                    delta_mode: wabou_vello_shell::WheelDeltaMode::Pixel,
+                    phase: wabou_vello_shell::GesturePhase::Changed,
                     modifiers: Modifiers::default(),
                 }));
             }

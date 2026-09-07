@@ -9,7 +9,7 @@ use std::{
 use runtime_api::test_driver::{NativeTestHost, TestController};
 use vello::peniko::Color;
 
-use legacy_shell::{FrameSource, WindowOptions};
+use vello_shell::{FrameSource, WindowOptions};
 
 #[derive(Clone, Copy)]
 struct HeadlessViewport {
@@ -17,7 +17,7 @@ struct HeadlessViewport {
     height: u32,
     scale_factor: f64,
     window_index: usize,
-    color_scheme: legacy_shell::ColorScheme,
+    color_scheme: vello_shell::ColorScheme,
 }
 
 impl HeadlessViewport {
@@ -46,8 +46,8 @@ impl HeadlessViewport {
             .as_deref()
             .unwrap_or("light")
         {
-            "light" => legacy_shell::ColorScheme::Light,
-            "dark" => legacy_shell::ColorScheme::Dark,
+            "light" => vello_shell::ColorScheme::Light,
+            "dark" => vello_shell::ColorScheme::Dark,
             value => {
                 return Err(crate::Error::TestScenario {
                     message: format!(
@@ -96,44 +96,44 @@ struct HeadlessNativeHost<'a> {
 impl NativeTestHost for HeadlessNativeHost<'_> {
     fn semantic_snapshot(
         &mut self,
-        _window_key: legacy_shell::WindowResourceKey,
-    ) -> Option<Arc<legacy_shell::SemanticSnapshot>> {
+        _window_key: vello_shell::WindowResourceKey,
+    ) -> Option<Arc<vello_shell::SemanticSnapshot>> {
         self.source.semantic_snapshot()
     }
 
     fn dispatch_event(
         &mut self,
-        _window_key: legacy_shell::WindowResourceKey,
-        event: legacy_shell::UiEvent,
+        _window_key: vello_shell::WindowResourceKey,
+        event: vello_shell::UiEvent,
     ) -> bool {
         self.source.handle_event(event).handled
     }
 
     fn dispatch_semantic_action(
         &mut self,
-        _window_key: legacy_shell::WindowResourceKey,
-        action: legacy_shell::SemanticAction,
+        _window_key: vello_shell::WindowResourceKey,
+        action: vello_shell::SemanticAction,
     ) -> bool {
         self.source.handle_semantic_action(action)
     }
 
     fn hide_window(
         &mut self,
-        _window_key: legacy_shell::WindowResourceKey,
+        _window_key: vello_shell::WindowResourceKey,
         _mutable_visibility: bool,
     ) -> bool {
         *self.visible = false;
         true
     }
 
-    fn show_window(&mut self, _window_key: legacy_shell::WindowResourceKey) -> bool {
+    fn show_window(&mut self, _window_key: vello_shell::WindowResourceKey) -> bool {
         *self.visible = true;
         true
     }
 
     fn resize_window(
         &mut self,
-        _window_key: legacy_shell::WindowResourceKey,
+        _window_key: vello_shell::WindowResourceKey,
         width: u32,
         height: u32,
     ) -> bool {
@@ -141,7 +141,7 @@ impl NativeTestHost for HeadlessNativeHost<'_> {
         true
     }
 
-    fn window_viewport(&self, _window_key: legacy_shell::WindowResourceKey) -> Option<(u32, u32)> {
+    fn window_viewport(&self, _window_key: vello_shell::WindowResourceKey) -> Option<(u32, u32)> {
         Some(*self.viewport)
     }
 }
@@ -154,16 +154,16 @@ pub(super) fn run(
 ) -> crate::Result<()> {
     let viewport = HeadlessViewport::from_environment()?;
     let window_keys = (0..sources.len())
-        .map(legacy_shell::initial_window_resource_key)
+        .map(vello_shell::initial_window_resource_key)
         .collect::<Vec<_>>();
     controller.connect_native_windows(window_keys.iter().copied(), Arc::new(|| {}));
 
     let mut viewports = vec![(viewport.width, viewport.height); sources.len()];
     let mut visible = vec![true; sources.len()];
-    let mut text = legacy_shell::TextContext::new();
+    let mut text = vello_shell::TextContext::new();
     let mut last_nodes = vec![Vec::new(); sources.len()];
     let mut frame_profilers = (0..sources.len())
-        .map(|_| legacy_shell::headless::HeadlessFrameProfiler::default())
+        .map(|_| vello_shell::headless::HeadlessFrameProfiler::default())
         .collect::<Vec<_>>();
     // Match the behavior runner's maximum suite budget. Authored scenarios can
     // register several tests, so a short capture-specific watchdog would turn
@@ -176,8 +176,8 @@ pub(super) fn run(
             let (width, height) = viewports[index];
             source.set_semantics_enabled(true);
             source.set_device_scale(viewport.scale_factor);
-            source.handle_event(legacy_shell::UiEvent::WindowMetrics(
-                legacy_shell::WindowMetrics {
+            source.handle_event(vello_shell::UiEvent::WindowMetrics(
+                vello_shell::WindowMetrics {
                     window_key,
                     logical_width: width,
                     logical_height: height,
@@ -265,11 +265,11 @@ pub(super) fn run(
 
 fn drain_effects(source: &mut dyn FrameSource) {
     while let Some(request) = source.take_effect() {
-        source.complete_effect(legacy_shell::EffectCompletion {
+        source.complete_effect(vello_shell::EffectCompletion {
             id: request.id,
             op: request.payload.op(),
-            result: legacy_shell::EffectResult::Error {
-                code: legacy_shell::EffectErrorCode::Unsupported,
+            result: vello_shell::EffectResult::Error {
+                code: vello_shell::EffectErrorCode::Unsupported,
                 message: format!(
                     "native effect {:?} has no deterministic test fixture",
                     request.payload.op()
@@ -281,8 +281,8 @@ fn drain_effects(source: &mut dyn FrameSource) {
 
 fn render_failure(
     source: &mut dyn FrameSource,
-    nodes: &[legacy_shell::layout::PlacedNode],
-    text: &mut legacy_shell::TextContext,
+    nodes: &[vello_shell::layout::PlacedNode],
+    text: &mut vello_shell::TextContext,
     base_color: Color,
     viewport: HeadlessViewport,
     width: u32,
@@ -309,8 +309,8 @@ fn render_failure(
 #[allow(clippy::too_many_arguments)]
 fn render_capture(
     source: &mut dyn FrameSource,
-    nodes: &[legacy_shell::layout::PlacedNode],
-    text: &mut legacy_shell::TextContext,
+    nodes: &[vello_shell::layout::PlacedNode],
+    text: &mut vello_shell::TextContext,
     base_color: Color,
     viewport: HeadlessViewport,
     width: u32,
@@ -326,7 +326,7 @@ fn render_capture(
         })?;
     }
     let mut scene = anyrender::Scene::new();
-    legacy_shell::scene::build_scene_scaled(
+    vello_shell::scene::build_scene_scaled(
         &mut scene,
         nodes,
         text,
@@ -336,12 +336,12 @@ fn render_capture(
         viewport.scale_factor,
     );
     source.paint_debug_overlay(&mut scene, nodes, text, viewport.scale_factor);
-    legacy_shell::renderer::render_to_png_with_backend(
+    vello_shell::renderer::render_to_png_with_backend(
         &scene,
         viewport.physical(width),
         viewport.physical(height),
         base_color,
-        legacy_shell::RendererBackend::VelloHybrid,
+        vello_shell::RendererBackend::VelloHybrid,
         output.to_string_lossy().as_ref(),
     )
     .map_err(|error| crate::Error::TestScenario {
@@ -378,7 +378,7 @@ mod tests {
             height: 600,
             scale_factor: 1.5,
             window_index: 0,
-            color_scheme: legacy_shell::ColorScheme::Light,
+            color_scheme: vello_shell::ColorScheme::Light,
         };
 
         assert_eq!(viewport.physical(viewport.width), 1_200);

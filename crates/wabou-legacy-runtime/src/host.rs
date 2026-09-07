@@ -16,7 +16,7 @@ use vello::peniko::Color;
 use wabou_bindgen::{CapabilityContract, JsonMethod};
 
 use crate::{Applier, ImageResourceStore, JsRuntime, JsRuntimeOptions};
-use legacy_shell::{FrameSource, Widget, WidgetFactory, WindowOptions};
+use vello_shell::{FrameSource, Widget, WidgetFactory, WindowOptions};
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(crate::HostMessageContext) + Send + Sync>;
@@ -101,7 +101,7 @@ struct RuntimeSourceConfig {
     base_color: Color,
     image_resources: ImageResourceStore,
     effect_trace: Option<crate::effect_trace::EffectTrace>,
-    app_directories: Option<legacy_shell::AppDirectories>,
+    app_directories: Option<vello_shell::AppDirectories>,
     #[cfg(feature = "devtools")]
     debug_state: Option<wabou_devtools::SharedDebugState>,
     #[cfg(feature = "vite")]
@@ -111,7 +111,7 @@ struct RuntimeSourceConfig {
 impl RuntimeSourceConfig {
     fn create(
         &self,
-        window_key: legacy_shell::WindowResourceKey,
+        window_key: vello_shell::WindowResourceKey,
         options: &WindowOptions,
     ) -> crate::Result<Applier> {
         #[cfg(feature = "vite")]
@@ -262,11 +262,11 @@ pub struct VelloHybridHostBuilder {
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
     services: Vec<(Arc<dyn runtime_api::HostService>, bool)>,
-    app_directory_config: Option<legacy_shell::AppDirectoryConfig>,
+    app_directory_config: Option<vello_shell::AppDirectoryConfig>,
     persisted_window_size: Option<String>,
     kv_enabled: bool,
     devtools: bool,
-    shell_extensions: Vec<Box<dyn legacy_shell::ShellExtension>>,
+    shell_extensions: Vec<Box<dyn vello_shell::ShellExtension>>,
     effect_trace: Option<EffectTraceConfig>,
     image_resources: ImageResourceStore,
     js_runtime_options: JsRuntimeOptions,
@@ -449,7 +449,7 @@ impl VelloHybridHostBuilder {
         organization: impl Into<String>,
         application: impl Into<String>,
     ) -> Self {
-        self.app_directory_config(legacy_shell::AppDirectoryConfig::new(
+        self.app_directory_config(vello_shell::AppDirectoryConfig::new(
             qualifier,
             organization,
             application,
@@ -457,7 +457,7 @@ impl VelloHybridHostBuilder {
     }
 
     /// Set an already constructed application directory identity.
-    pub fn app_directory_config(mut self, config: legacy_shell::AppDirectoryConfig) -> Self {
+    pub fn app_directory_config(mut self, config: vello_shell::AppDirectoryConfig) -> Self {
         self.app_directory_config = Some(config);
         self
     }
@@ -491,7 +491,7 @@ impl VelloHybridHostBuilder {
     /// Install a Winit event-loop extension for tray icons or platform integration.
     pub fn shell_extension(
         mut self,
-        extension: impl legacy_shell::ShellExtension + 'static,
+        extension: impl vello_shell::ShellExtension + 'static,
     ) -> Self {
         self.shell_extensions.push(Box::new(extension));
         self
@@ -623,7 +623,7 @@ impl VelloHybridHostBuilder {
             .as_ref()
             .map(|config| {
                 let resource = crate::bundle::resource_directory()?;
-                legacy_shell::AppDirectories::resolve(config, resource).ok_or_else(|| {
+                vello_shell::AppDirectories::resolve(config, resource).ok_or_else(|| {
                     crate::Error::AppDirectories {
                         application: "configured application".to_owned(),
                     }
@@ -676,7 +676,7 @@ impl VelloHybridHostBuilder {
         let mut extensions = self.shell_extensions;
         if let Some(controller) = &test_controller {
             let window_keys = (0..windows.len())
-                .map(legacy_shell::initial_window_resource_key)
+                .map(vello_shell::initial_window_resource_key)
                 .collect();
             extensions.push(Box::new(crate::behavior_test::WinitBehaviorTest::new(
                 controller.clone(),
@@ -691,9 +691,9 @@ impl VelloHybridHostBuilder {
                 .local_data_dir
                 .join("window-state")
                 .join(format!("{key}.json"));
-            extensions.push(Box::new(legacy_shell::WindowSizePersistence::restore(
+            extensions.push(Box::new(vello_shell::WindowSizePersistence::restore(
                 path,
-                legacy_shell::initial_window_resource_key(0),
+                vello_shell::initial_window_resource_key(0),
                 &mut windows[0],
             )));
         } else if let Some(key) = &self.persisted_window_size {
@@ -717,7 +717,7 @@ impl VelloHybridHostBuilder {
         let mut sources = Vec::with_capacity(windows.len());
         for (index, options) in windows.into_iter().enumerate() {
             let controller = runtime_sources
-                .create(legacy_shell::initial_window_resource_key(index), &options)?;
+                .create(vello_shell::initial_window_resource_key(index), &options)?;
             if index == 0
                 && let Some(script) = &test_script
             {
@@ -730,7 +730,7 @@ impl VelloHybridHostBuilder {
             sources.push((Box::new(controller) as Box<dyn FrameSource>, options));
         }
         let dynamic_sources = runtime_sources.clone();
-        let factory: legacy_shell::FrameSourceFactory = Rc::new(move |window_key, options| {
+        let factory: vello_shell::FrameSourceFactory = Rc::new(move |window_key, options| {
             dynamic_sources
                 .create(window_key, options)
                 .map(|controller| Box::new(controller) as Box<dyn FrameSource>)
@@ -747,7 +747,7 @@ impl VelloHybridHostBuilder {
                 debug_state.as_ref(),
             )?;
         } else {
-            legacy_shell::run_windows_with_factory_and_extensions(
+            vello_shell::run_windows_with_factory_and_extensions(
                 sources,
                 Some(factory),
                 extensions,
@@ -819,7 +819,7 @@ mod tests {
 
         assert!(
             widget
-                .handle_event(&legacy_shell::UiEvent::TextInput("secret".into()))
+                .handle_event(&vello_shell::UiEvent::TextInput("secret".into()))
                 .is_handled()
         );
         assert_eq!(secrets.take("default").as_str(), "secret");
@@ -862,7 +862,7 @@ mod tests {
         };
         let child = source
             .create(
-                legacy_shell::WindowResourceKey::from_parts(9, 1).unwrap(),
+                vello_shell::WindowResourceKey::from_parts(9, 1).unwrap(),
                 &WindowOptions::new().title("Dynamic child"),
             )
             .expect("create dynamic window runtime");
@@ -880,7 +880,7 @@ mod tests {
         let router = runtime_api::HostMessageRouter::new();
         let builder = VelloHybridHostBuilder::new().host_message_router(router.clone());
         let controller = Applier::from_runtime(JsRuntime::new().expect("runtime"), Color::BLACK);
-        let window_key = legacy_shell::initial_window_resource_key(0);
+        let window_key = vello_shell::initial_window_resource_key(0);
         let context = controller.host_message_context(window_key);
         for producer in &builder.host_message_producers {
             producer(context.clone());

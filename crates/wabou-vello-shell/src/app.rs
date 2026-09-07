@@ -346,7 +346,7 @@ impl App {
                 winit::window::Theme::Light => crate::ColorScheme::Light,
                 winit::window::Theme::Dark => crate::ColorScheme::Dark,
             }),
-            // The legacy Winit shell has no shared motion-preference source.
+            // The Vello shell has no shared motion-preference source.
             // The formal GPUI runtime publishes its application preference.
             reduced_motion: false,
         };
