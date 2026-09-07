@@ -1,6 +1,7 @@
 import { defineWabouConfig } from "@wabou/vite";
 
-export default defineWabouConfig({
+export default defineWabouConfig(({ mode }) => ({
+  entry: mode === "layout-test" ? "ui/layout-fixtures.tsx" : "ui/index.tsx",
   ignoreClasses: ["lucide", "lucide-*"],
   outDir: "../../dist/timestow/resources",
   globalName: "TimestowApp",
@@ -69,4 +70,4 @@ export default defineWabouConfig({
       },
     },
   },
-});
+}));

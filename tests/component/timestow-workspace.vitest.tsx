@@ -10,6 +10,7 @@ import {
   TimestowSessionProvider,
   useTimestowSession,
 } from "../../apps/timestow/ui/session";
+import { BackupConnectionForm } from "../../apps/timestow/ui/setup";
 import { TimestowSidebar } from "../../apps/timestow/ui/shell";
 import { createSnapshotBrowserCache } from "../../apps/timestow/ui/snapshot-browser-cache";
 import {
@@ -34,6 +35,39 @@ const dialog: Dialog = {
   pickDirectory: async () => null,
   message: async () => "ok",
 };
+
+test("repository setup chooses a mode before exposing one primary action", () => {
+  const submit = vi.fn();
+  const App = () => {
+    const [mode, setMode] = createSignal<"create" | "open">("create");
+    return (
+      <BackupConnectionForm
+        mode={mode()}
+        name="Photos"
+        path="/data/backups/photos"
+        password="secret"
+        onModeChange={setMode}
+        onNameChange={() => {}}
+        onPathChange={() => {}}
+        onPasswordChange={() => {}}
+        onSubmit={submit}
+      />
+    );
+  };
+  const screen = renderComponent(App, { platform: { dialog } });
+
+  expect(screen.getAllByRole("button", { name: "Create backup" })).toHaveLength(
+    1,
+  );
+  expect(screen.queryByRole("button", { name: "Open repository" })).toBeNull();
+
+  screen.getByRole("button", { name: "Open an existing repository" }).click();
+  screen.flush();
+
+  expect(screen.queryByRole("button", { name: "Create backup" })).toBeNull();
+  screen.getByRole("button", { name: "Open repository" }).click();
+  expect(submit).toHaveBeenCalledTimes(1);
+});
 
 test("snapshot timestamps stay compact in the table", () => {
   expect(formatModified("2026-09-02T04:18:35.321355Z")).toBe(

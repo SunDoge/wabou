@@ -1,7 +1,9 @@
 import {
   Button,
+  ButtonGroup,
   ContentState,
   DirectoryPicker,
+  Icon,
   Input,
   PageHeader,
   PageViewport,
@@ -9,8 +11,152 @@ import {
   useNavigate,
   View,
 } from "@wabou/ui";
+import archiveRestore from "lucide-static/icons/archive-restore.svg?raw";
+import databaseZap from "lucide-static/icons/database-zap.svg?raw";
 import { createEffect, createSignal, Show } from "solid-js";
 import { useTimestowSession } from "./session";
+
+export type RepositoryMode = "create" | "open";
+
+export interface BackupConnectionFormProps {
+  mode: RepositoryMode;
+  name: string;
+  path: string;
+  password: string;
+  pending?: RepositoryMode;
+  locked?: boolean;
+  error?: string;
+  onModeChange(mode: RepositoryMode): void;
+  onNameChange(value: string): void;
+  onPathChange(value: string): void;
+  onPasswordChange(value: string): void;
+  onSubmit(): void;
+}
+
+export function BackupConnectionForm(props: BackupConnectionFormProps) {
+  const ready = () =>
+    Boolean(props.name.trim() && props.path.trim() && props.password) &&
+    !props.pending;
+  const creating = () => props.mode === "create";
+  const storageDescription = () => {
+    if (props.locked)
+      return "This profile reconnects to its existing encrypted repository.";
+    return creating()
+      ? "Choose an empty folder for the new repository."
+      : "Choose an existing rustic or restic repository.";
+  };
+  const submitLabel = () => {
+    if (props.pending) return creating() ? "Creating…" : "Opening…";
+    if (props.locked) return "Unlock backup";
+    return creating() ? "Create backup" : "Open repository";
+  };
+  const footerDescription = () => {
+    if (props.locked)
+      return "Your saved folders and snapshot history will be restored.";
+    return creating()
+      ? "You can choose folders to back up after creating the profile."
+      : "Timestow will read the repository without changing it.";
+  };
+
+  return (
+    <View
+      role="group"
+      aria-label={props.locked ? "Unlock backup" : "Backup repository setup"}
+      class="w-full flex flex-col gap-4 rounded-xl border border-subtle bg-surface p-5 shadow-sm"
+    >
+      <Show when={!props.locked}>
+        <View class="flex flex-col gap-1.5">
+          <Text class="text-xs font-semibold tracking-wide text-muted">
+            Repository
+          </Text>
+          <ButtonGroup class="self-start" aria-label="Repository setup mode">
+            <Button
+              variant="ghost"
+              selected={creating()}
+              aria-label="Create a new repository"
+              onClick={() => props.onModeChange("create")}
+            >
+              <Icon source={databaseZap} size={15} /> Create new
+            </Button>
+            <Button
+              variant="ghost"
+              selected={!creating()}
+              aria-label="Open an existing repository"
+              onClick={() => props.onModeChange("open")}
+            >
+              <Icon source={archiveRestore} size={15} /> Open existing
+            </Button>
+          </ButtonGroup>
+          <Text class="text-sm text-muted">
+            {creating()
+              ? "Start a new encrypted backup repository in an empty folder."
+              : "Connect a repository previously created by rustic or restic."}
+          </Text>
+        </View>
+      </Show>
+
+      <View class="flex flex-col gap-1.5">
+        <Text class="font-medium">Backup name</Text>
+        <Input
+          aria-label="Backup name"
+          value={props.name}
+          disabled={props.locked}
+          onInput={(event) => props.onNameChange(event.currentTarget.value)}
+          placeholder="Photos"
+        />
+        <Text class="text-xs text-muted">
+          This is the name shown in the sidebar.
+        </Text>
+      </View>
+      <View class="flex flex-col gap-1.5">
+        <Text class="font-medium">Storage location</Text>
+        <Text class="text-sm text-muted">{storageDescription()}</Text>
+      </View>
+      <DirectoryPicker
+        aria-label="Repository location"
+        value={props.path}
+        onValueChange={props.onPathChange}
+        disabled={props.locked}
+        placeholder="/data/backups/my-repository"
+        browseLabel="Choose folder"
+      />
+      <View class="flex flex-col gap-1.5">
+        <Text class="font-medium">Repository password</Text>
+        <Input
+          aria-label="Repository password"
+          value={props.password}
+          onInput={(event) => props.onPasswordChange(event.currentTarget.value)}
+          placeholder="Required to encrypt or unlock the repository"
+        />
+        <Text class="text-xs text-muted">
+          Passwords stay in this app process and are never written to the
+          profile database.
+        </Text>
+      </View>
+      <Show when={props.error}>
+        {(message) => (
+          <View
+            role="alert"
+            class="rounded-md border border-danger bg-danger-surface px-3 py-2"
+          >
+            <Text class="text-sm text-danger-primary">{message()}</Text>
+          </View>
+        )}
+      </Show>
+      <View class="flex flex-row items-center justify-between gap-4">
+        <Text class="min-w-0 text-xs text-muted">{footerDescription()}</Text>
+        <Button
+          aria-label={submitLabel()}
+          class="flex-none"
+          disabled={!ready()}
+          onClick={props.onSubmit}
+        >
+          {submitLabel()}
+        </Button>
+      </View>
+    </View>
+  );
+}
 
 export function SetupPage() {
   const session = useTimestowSession();
@@ -18,6 +164,7 @@ export function SetupPage() {
   const [name, setName] = createSignal("");
   const [path, setPath] = createSignal("");
   const [password, setPassword] = createSignal("");
+  const [mode, setMode] = createSignal<RepositoryMode>("create");
   const [pending, setPending] = createSignal<"create" | "open">();
   const [error, setError] = createSignal<string>();
 
@@ -48,12 +195,13 @@ export function SetupPage() {
       setName(profile?.name ?? "");
       setPath(profile?.repositoryPath ?? "");
       setPassword("");
+      setMode(profile ? "open" : "create");
     },
   );
 
   return (
-    <PageViewport contentClass="min-h-full px-8 py-7">
-      <View class="w-full max-w-3xl mx-auto flex flex-col gap-7">
+    <PageViewport contentClass="min-h-full px-6 py-5">
+      <View class="w-full max-w-3xl mx-auto flex flex-col gap-5">
         <PageHeader
           title={session.pendingUnlock() ? "Unlock backup" : "Create a backup"}
           description={
@@ -69,90 +217,20 @@ export function SetupPage() {
             description="Reading the current process configuration."
           />
         </Show>
-        <View class="w-full flex flex-col gap-5 rounded-xl border border-subtle bg-surface p-6 shadow-sm">
-          <View class="flex flex-col gap-1.5">
-            <Text class="font-medium">Backup name</Text>
-            <Input
-              value={name()}
-              disabled={Boolean(session.pendingUnlock())}
-              onInput={(event) => setName(event.currentTarget.value)}
-              placeholder="Photos"
-            />
-            <Text class="text-xs text-muted">
-              This is the name shown in the sidebar.
-            </Text>
-          </View>
-          <View class="flex flex-col gap-1.5">
-            <Text class="font-medium">Storage location</Text>
-            <Text class="text-sm text-muted">
-              Choose an empty folder to create a repository, or an existing
-              rustic/restic repository to open it.
-            </Text>
-          </View>
-          <DirectoryPicker
-            value={path()}
-            onValueChange={setPath}
-            disabled={Boolean(session.pendingUnlock())}
-            placeholder="/data/backups/my-repository"
-            browseLabel="Choose folder"
-          />
-          <View class="flex flex-col gap-1.5">
-            <Text class="font-medium">Repository password</Text>
-            <Input
-              value={password()}
-              onInput={(event) => setPassword(event.currentTarget.value)}
-              placeholder="Required to encrypt or unlock the repository"
-            />
-            <Text class="text-xs text-muted">
-              Passwords stay in this app process and are never written to the
-              profile database.
-            </Text>
-          </View>
-          <Show when={error()}>
-            {(message) => (
-              <View class="rounded-md border border-danger bg-danger-surface px-3 py-2">
-                <Text class="text-sm text-danger-primary">{message()}</Text>
-              </View>
-            )}
-          </Show>
-          <View class="flex flex-row justify-end gap-2">
-            <Show
-              when={!session.pendingUnlock()}
-              fallback={
-                <Button
-                  disabled={!password() || Boolean(pending())}
-                  onClick={() => void connect("open")}
-                >
-                  {pending() === "open" ? "Unlocking…" : "Unlock backup"}
-                </Button>
-              }
-            >
-              <Button
-                variant="outline"
-                disabled={
-                  !name().trim() ||
-                  !path().trim() ||
-                  !password() ||
-                  Boolean(pending())
-                }
-                onClick={() => void connect("open")}
-              >
-                {pending() === "open" ? "Opening…" : "Use existing storage"}
-              </Button>
-              <Button
-                disabled={
-                  !name().trim() ||
-                  !path().trim() ||
-                  !password() ||
-                  Boolean(pending())
-                }
-                onClick={() => void connect("create")}
-              >
-                {pending() === "create" ? "Creating…" : "Create backup"}
-              </Button>
-            </Show>
-          </View>
-        </View>
+        <BackupConnectionForm
+          mode={mode()}
+          name={name()}
+          path={path()}
+          password={password()}
+          pending={pending()}
+          locked={Boolean(session.pendingUnlock())}
+          error={error()}
+          onModeChange={setMode}
+          onNameChange={setName}
+          onPathChange={setPath}
+          onPasswordChange={setPassword}
+          onSubmit={() => void connect(mode())}
+        />
       </View>
     </PageViewport>
   );
