@@ -75,6 +75,10 @@ coalesced HMR inbox. Those pieces now live in one shared per-window
 former Winit copies and their duplicate tests have been removed, so scheduler,
 wake, stack-limit, source-map, event, effect, reload queue, and session-lifetime
 fixes cannot drift between backends.
+
+Packaged bundle and source-map discovery is shared as well. Vello Hybrid now
+uses the same development override, adjacent-resource, Debian `/usr/lib`, and
+macOS `.app/Contents/Resources` candidates as GPUI instead of its older subset.
 The standard Winit controls support native text, paste, IME, pointer, wheel,
 selection, and value synchronization, and the shared semantic behavior driver
 runs against the real Winit event loop. The remaining promotion work is
@@ -132,8 +136,8 @@ Apply the reorganization in this order:
 1. Continue extracting duplicated backend-neutral files into `wabou-runtime`.
    `jsrt`, Host Frame encoding, host ABI/FFI, host messages, capabilities, and
    resources (including the generational registry), effect dispatch/recording,
-   HMR queueing, and the per-window runtime session are shared already;
-   bundle/source-map, persistence, and HMR application policy must follow before
+   HMR queueing, the per-window runtime session, and bundle/source-map discovery
+   are shared already; persistence and HMR application policy must follow before
    any crate rename.
 2. Move GPUI-specific `gpui_*` modules and the current `wabou-shell` projection
    into `wabou-backend-gpui`.

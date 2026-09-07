@@ -8,6 +8,13 @@ use snafu::Snafu;
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub))]
 pub enum Error {
+    /// Packaged JavaScript resources could not be resolved or read.
+    #[snafu(display("{source}"))]
+    Bundle {
+        /// Shared bundle loader failure.
+        source: crate::bundle::BundleError,
+    },
+
     /// A required bundle, source map, or configuration file could not be read.
     #[snafu(display("failed to read {kind} {}: {source}", path.display()))]
     ReadFile {
@@ -102,6 +109,12 @@ pub enum Error {
         /// Underlying Vite client error.
         source: crate::vite::ViteError,
     },
+}
+
+impl From<crate::bundle::BundleError> for Error {
+    fn from(source: crate::bundle::BundleError) -> Self {
+        Self::Bundle { source }
+    }
 }
 
 /// Result type returned by QuickJS host operations.

@@ -8,6 +8,13 @@ use snafu::Snafu;
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub))]
 pub enum Error {
+    /// Packaged JavaScript resources could not be resolved or read.
+    #[snafu(display("{source}"))]
+    Bundle {
+        /// Shared bundle loader failure.
+        source: runtime_api::BundleError,
+    },
+
     /// A required bundle, source map, or configuration file could not be read.
     #[snafu(display("failed to read {kind} {}: {source}", path.display()))]
     ReadFile {
@@ -109,6 +116,12 @@ pub enum Error {
         /// Underlying Vite client error.
         source: runtime_api::ViteError,
     },
+}
+
+impl From<runtime_api::BundleError> for Error {
+    fn from(source: runtime_api::BundleError) -> Self {
+        Self::Bundle { source }
+    }
 }
 
 /// Result type returned by QuickJS host operations.

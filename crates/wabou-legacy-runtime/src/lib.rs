@@ -10,7 +10,9 @@ extern crate legacy_shell as wabou_shell;
 
 mod atom;
 mod behavior_test;
-mod bundle;
+mod bundle {
+    pub use runtime_api::{load_bundle as load, load_source_map, resource_directory};
+}
 mod config;
 mod effect_bridge {
     #[cfg(test)]

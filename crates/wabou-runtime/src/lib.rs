@@ -63,6 +63,8 @@ mod css_support_matrix_test;
 mod vite;
 
 #[doc(hidden)]
+pub use bundle::{BundleError, load as load_bundle, load_source_map, resource_directory};
+#[doc(hidden)]
 pub use effect_bridge::{EffectBridge, decode_effect_payload};
 #[doc(hidden)]
 pub use effect_trace::EffectTrace;
