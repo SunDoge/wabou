@@ -13,7 +13,6 @@ mod behavior_test;
 mod bundle;
 mod config;
 mod effect_bridge {
-    pub use runtime_api::EffectBridge;
     #[cfg(test)]
     pub use runtime_api::decode_effect_payload;
 }
@@ -35,9 +34,7 @@ mod host_frame {
 }
 mod host_message {
     pub use runtime_api::{
-        DEFAULT_HOST_MESSAGE_CAPACITY, HostMessage, HostMessageContext, HostMessageHandle,
-        HostMessageInbox, HostMessagePayload, HostMessageRouter, HostTaskTracker,
-        host_message_channel,
+        HostMessage, HostMessageContext, HostMessageHandle, HostMessagePayload, HostMessageRouter,
     };
 }
 mod inline_context;
@@ -49,14 +46,16 @@ mod jsrt {
 }
 mod protocol;
 mod reload {
-    pub use runtime_api::{HmrBatch, HmrDrainResult, ReloadHandle, ReloadState};
     #[cfg(any(feature = "vite", test))]
     pub use runtime_api::ReloadMsg;
     #[cfg(test)]
     pub use runtime_api::plan_hmr_batch;
+    pub use runtime_api::{HmrBatch, HmrDrainResult, ReloadHandle};
 }
 pub mod resource;
-mod runtime_session;
+mod runtime_session {
+    pub use runtime_api::RuntimeSession;
+}
 #[cfg(test)]
 mod widget;
 

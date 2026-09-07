@@ -106,6 +106,8 @@ pub use reload::{
     HmrBatch, HmrDrainResult, HmrJsUpdate, ReloadHandle, ReloadMsg, ReloadState, plan_hmr_batch,
 };
 pub use rquickjs;
+#[doc(hidden)]
+pub use runtime_session::RuntimeSession;
 pub use serial_worker::SerialWorker;
 #[cfg(feature = "vite")]
 #[doc(hidden)]
