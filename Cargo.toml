@@ -28,12 +28,10 @@ default-members = [
   "crates/wabou-host-api",
   "crates/wabou-protocol",
   "crates/wabou-runtime",
-  "crates/wabou-shell",
   "crates/wabou-shell-api",
   "crates/wabou-shell-vello",
   "crates/wabou-style",
   "crates/wabou-svg-vello-hybrid",
-  "crates/wabou-terminal",
   "crates/wabou-terminal-core",
   "crates/wabou-terminal-vello",
   "crates/wabou-tray",
@@ -46,9 +44,6 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 anyhow = "1"
-gpui = { package = "gpui-ce", version = "0.2.2" }
-gpui-base = { package = "gpui_ce_components_base", version = "0.2.0" }
-gpui-platform = { package = "gpui_ce_platform", version = "0.1.0", features = ["wayland", "x11"] }
 wabou = { path = "crates/wabou", default-features = false }
 wabou-accessibility = { path = "crates/wabou-accessibility" }
 wabou-accessibility-vello = { path = "crates/wabou-accessibility-vello" }
@@ -59,12 +54,10 @@ wabou-devtools = { path = "crates/wabou-devtools", default-features = false }
 wabou-host-api = { path = "crates/wabou-host-api" }
 wabou-protocol = { path = "crates/wabou-protocol" }
 wabou-runtime = { path = "crates/wabou-runtime", default-features = false }
-wabou-shell = { path = "crates/wabou-shell" }
 wabou-shell-api = { path = "crates/wabou-shell-api" }
 wabou-shell-vello = { path = "crates/wabou-shell-vello" }
 wabou-style = { path = "crates/wabou-style" }
 wabou-svg-vello-hybrid = { path = "crates/wabou-svg-vello-hybrid" }
-wabou-terminal = { path = "crates/wabou-terminal" }
 wabou-terminal-core = { path = "crates/wabou-terminal-core" }
 wabou-terminal-vello = { path = "crates/wabou-terminal-vello" }
 wabou-tray = { path = "crates/wabou-tray" }

@@ -16,24 +16,6 @@ pub mod clock;
 mod effect_bridge;
 mod effect_trace;
 mod error;
-#[cfg(feature = "gpui")]
-mod gpui_controller;
-#[cfg(feature = "gpui-headless")]
-mod gpui_headless;
-#[cfg(feature = "gpui")]
-mod gpui_motion;
-#[cfg(feature = "gpui")]
-mod gpui_performance_hud;
-#[cfg(feature = "gpui")]
-mod gpui_projection_boundary;
-#[cfg(feature = "gpui")]
-mod gpui_view;
-#[cfg(feature = "gpui")]
-mod gpui_widgets;
-#[cfg(feature = "gpui")]
-mod gpui_windows;
-#[cfg(feature = "gpui")]
-mod host;
 #[doc(hidden)]
 #[allow(missing_docs)]
 pub mod host_abi;
@@ -65,8 +47,6 @@ pub mod test_report;
 #[allow(missing_docs)]
 pub mod ui_inbox;
 
-#[cfg(test)]
-mod css_support_matrix_test;
 #[cfg(feature = "vite")]
 mod vite;
 
@@ -77,13 +57,6 @@ pub use effect_bridge::{EffectBridge, decode_effect_payload};
 #[doc(hidden)]
 pub use effect_trace::EffectTrace;
 pub use error::{Error, Result};
-#[cfg(feature = "gpui-headless")]
-pub use gpui_headless::{
-    GpuiHeadlessHarness, GpuiHeadlessOptions, GpuiHeadlessOutput, GpuiHeadlessScreenshot,
-    GpuiProjectionBoundaryCheckpoint, GpuiProjectionCheckpoint,
-};
-#[cfg(feature = "gpui")]
-pub use host::{HostBuilder, TextRenderingMode};
 #[doc(hidden)]
 pub use host_frame::{
     HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, NumericEventData,
@@ -125,10 +98,6 @@ pub use serial_worker::SerialWorker;
 #[cfg(feature = "vite")]
 #[doc(hidden)]
 pub use vite::{HmrClient, ViteError, ViteHmrEvent, ViteState, start_hmr_bridge};
-#[cfg(feature = "gpui-headless")]
-pub use wabou_shell::{GpuiLayoutNode, ProjectedNodeKind};
-#[cfg(feature = "gpui")]
-pub use wabou_shell::{NativeWidgetContext, NativeWidgetFactory, NativeWidgetMount, gpui};
 pub use wabou_shell_api::{
     AppDirectories, AppDirectoryConfig, RgbaColor, WindowBackground, WindowInputMode, WindowLevel,
     WindowOptions, WindowResourceKey, initial_window_resource_key,

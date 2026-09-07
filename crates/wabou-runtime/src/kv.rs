@@ -5,17 +5,10 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "gpui")]
-use wabou_bindgen::CapabilityContract;
 use wabou_bindgen::HostMethod;
 use wabou_database::{KvCheck, KvKey, KvKeyPart, KvListOptions, KvMutation, KvStore, Versionstamp};
 
-#[cfg(feature = "gpui")]
-use crate::JsRuntime;
 use crate::NativeCapability;
-
-#[cfg(feature = "gpui")]
-pub(crate) const CONTRACT: CapabilityContract = CapabilityContract::new("kv", 2);
 
 type LazyStore = Arc<tokio::sync::OnceCell<Arc<KvStore>>>;
 
@@ -114,19 +107,6 @@ struct CommitResponse {
 struct AtomicResponse {
     committed: bool,
     versionstamp: Option<String>,
-}
-
-#[cfg(feature = "gpui")]
-pub(crate) fn mount_kv_capability(
-    js: &JsRuntime,
-    state: LazyStore,
-    path: PathBuf,
-) -> rquickjs::Result<()> {
-    js.mount_capability(CONTRACT.name(), move |ctx, object| {
-        object.set("__wabouCapabilityVersion", CONTRACT.version())?;
-        let capability = NativeCapability { ctx, object };
-        mount_kv_methods_with_state(capability, state.clone(), path.clone())
-    })
 }
 
 /// Mount the standard KV methods into an alternate Wabou host capability.
@@ -369,9 +349,6 @@ impl TryFrom<wabou_database::KvEntry> for EntryResponse {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "gpui")]
-    use std::sync::Arc;
-
     use super::*;
 
     #[test]
@@ -384,53 +361,5 @@ mod tests {
         assert_eq!(decoded[0], KvKeyPart::I64(i64::MIN));
         assert_eq!(decoded[1], KvKeyPart::U64(u64::MAX));
         assert_eq!(encode_key(decoded).len(), 2);
-    }
-
-    #[test]
-    #[cfg(feature = "gpui")]
-    fn sqlite_capability_round_trips_through_quickjs() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("kv.sqlite3");
-        let runtime = JsRuntime::new().expect("runtime");
-        mount_kv_capability(&runtime, Arc::new(tokio::sync::OnceCell::new()), path)
-            .expect("mount KV capability");
-        let result = runtime
-            .eval_promise_json(
-                r#"
-                    (() => {
-                    const key = [
-                      { type: "string", value: "projects" },
-                      { type: "string", value: "one" },
-                    ];
-                    return __wabou_capabilities.kv
-                      .set({ key, value: { title: "First" } })
-                      .then(first => __wabou_capabilities.kv.get({ key })
-                        .then(entry => ({ first, entry })))
-                      .then(({ first, entry }) => __wabou_capabilities.kv.atomic({
-                        checks: [{ key, versionstamp: first.versionstamp }],
-                        mutations: [{ type: "set", key, value: { title: "Second" } }],
-                      }).then(commit => ({ entry, commit })))
-                      .then(({ entry, commit }) => __wabou_capabilities.kv.atomic({
-                        checks: [{ key, versionstamp: commit.versionstamp }],
-                        mutations: [{
-                          type: "mergePatch",
-                          key,
-                          patch: { title: "Patched", ready: true },
-                        }],
-                      }).then(patchCommit => __wabou_capabilities.kv.get({ key })
-                        .then(patched => ({ entry, commit, patchCommit, patched }))));
-                    })()
-                    "#,
-                std::time::Duration::from_secs(2),
-            )
-            .expect("KV promise settled");
-        let result: serde_json::Value = serde_json::from_str(&result).unwrap();
-        assert_eq!(result["entry"]["value"]["title"], "First");
-        assert_eq!(result["entry"]["versionstamp"], "1");
-        assert_eq!(result["commit"]["committed"], true);
-        assert_eq!(result["commit"]["versionstamp"], "2");
-        assert_eq!(result["patchCommit"]["versionstamp"], "3");
-        assert_eq!(result["patched"]["value"]["title"], "Patched");
-        assert_eq!(result["patched"]["value"]["ready"], true);
     }
 }

@@ -18,7 +18,6 @@
     "verify:behavior": "bun run scripts/check-behavior.ts",
     "verify:layout": "bun run test:layout",
     "verify:captures": "bun run scripts/check-captures.ts --renderer vello-hybrid",
-    "verify:captures:gpui": "bun run scripts/check-captures.ts --renderer gpui",
     "verify:agent": "bun run scripts/test-pi-agent.ts",
     "test:app:pi-agent": "bun run scripts/test-pi-agent.ts deterministic",
     "test:app:pi-agent:capture": "bun run scripts/test-pi-agent.ts capture",

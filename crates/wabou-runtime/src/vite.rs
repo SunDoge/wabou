@@ -354,9 +354,6 @@ use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use tungstenite::client::IntoClientRequest;
 
-#[cfg(feature = "gpui")]
-use crate::reload::ReloadMsg;
-
 #[derive(Debug, Snafu)]
 /// Failure while connecting to or loading updates from a Vite development server.
 pub enum ViteError {
@@ -491,37 +488,6 @@ impl Drop for HmrClient {
             let _ = thread.join();
         }
     }
-}
-
-/// Connects to a Vite server and forwards HMR updates to `reload`.
-///
-/// The returned handle owns the background client; dropping it requests
-/// shutdown and joins the client thread.
-#[cfg(feature = "gpui")]
-pub(crate) fn start_hmr_client(
-    server_url: &str,
-    reload: crate::reload::ReloadHandle,
-) -> std::result::Result<HmrClient, ViteError> {
-    start_hmr_bridge(server_url, move |event| {
-        reload
-            .send(match event {
-                ViteHmrEvent::Update {
-                    path,
-                    accepted_path,
-                    timestamp,
-                    source,
-                } => ReloadMsg::HmrUpdate {
-                    path,
-                    accepted_path,
-                    timestamp,
-                    source,
-                },
-                ViteHmrEvent::CssUpdate { path } => ReloadMsg::CssUpdate { path },
-                ViteHmrEvent::FullReload => ReloadMsg::FullReload,
-                ViteHmrEvent::Error { diagnostic } => ReloadMsg::Error { diagnostic },
-            })
-            .is_ok()
-    })
 }
 
 /// Backend-neutral HMR update delivered by the shared Vite transport.
