@@ -611,6 +611,38 @@ function SnapshotDiffFixture() {
   );
 }
 
+function SnapshotDiffErrorFixture() {
+  const inheritedHost = useHost();
+  return (
+    <HostProvider
+      value={
+        {
+          ...inheritedHost,
+          rustic: {
+            ...fixtureRustic,
+            diffSnapshots: () =>
+              Promise.reject(
+                new Error("The repository index is temporarily unavailable."),
+              ),
+          },
+        } as typeof inheritedHost
+      }
+    >
+      <ColorThemeProvider theme="light">
+        <ComponentsProvider theme="light">
+          <View class="w-full h-full min-w-0 min-h-0 bg-surface text-primary">
+            <SnapshotDiffPanel
+              profileId={profile.id}
+              snapshot={newestSnapshot}
+              snapshots={[newestSnapshot, previousSnapshot]}
+            />
+          </View>
+        </ComponentsProvider>
+      </ColorThemeProvider>
+    </HostProvider>
+  );
+}
+
 function FileDetailsFixture() {
   const inheritedHost = useHost();
   return (
@@ -837,6 +869,12 @@ defineLayoutFixtures(
       height: 480,
       waitMs: 100,
       render: SnapshotDiffFixture,
+    },
+    "timestow/changes-error": {
+      width: 420,
+      height: 480,
+      waitMs: 100,
+      render: SnapshotDiffErrorFixture,
     },
     "timestow/file-details-rail": {
       width: 288,

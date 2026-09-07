@@ -457,6 +457,22 @@ await renderLayoutFixtures({
       },
     },
     {
+      id: "timestow/changes-error",
+      width: 420,
+      height: 480,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, {
+          role: "alert",
+          name: "Could not compare snapshots",
+        });
+        getLayoutNode(fixture, {
+          role: "button",
+          name: "Retry comparison",
+        });
+      },
+    },
+    {
       id: "timestow/file-details-rail",
       width: 288,
       height: 620,

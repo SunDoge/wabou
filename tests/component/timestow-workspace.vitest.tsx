@@ -3,7 +3,11 @@ import { createTestHost, renderComponent } from "@wabou/test/component";
 import { Button, Text } from "@wabou/ui";
 import { createSignal, Show } from "solid-js";
 import { expect, test, vi } from "vitest";
-import type { FileEntry } from "../../apps/timestow/ui/api";
+import type {
+  FileEntry,
+  SnapshotDiff,
+  SnapshotEntry,
+} from "../../apps/timestow/ui/api";
 import { FileDetails } from "../../apps/timestow/ui/file-details";
 import {
   formatDetailedTimestamp,
@@ -811,6 +815,160 @@ test("snapshot changes compare against the recorded parent and can include metad
     expect(screen.getByRole("row", { name: "docs/mode.txt" })).toBeDefined();
   });
   expect(fixture.callsTo("rustic.diffSnapshots")).toHaveLength(2);
+});
+
+test("snapshot comparison failures can be retried in place", async () => {
+  const current: SnapshotEntry = {
+    id: "current",
+    parentId: "parent",
+    time: "2026-09-02T04:18:35Z",
+    hostname: "workstation",
+    paths: ["/data/photos"],
+    filesNew: 1,
+    filesChanged: 0,
+    label: "Current",
+    tags: [],
+    deleteProtected: false,
+  };
+  const parent: SnapshotEntry = {
+    ...current,
+    id: "parent",
+    parentId: undefined,
+    time: "2026-09-01T04:18:35Z",
+    label: "Parent",
+  };
+  let attempts = 0;
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 12,
+      diffSnapshots: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error("repository index is busy");
+        return {
+          entries: [],
+          summary: {
+            added: 0,
+            removed: 0,
+            modified: 0,
+            metadata: 0,
+            typeChanged: 0,
+          },
+          totalEntries: 0,
+          truncated: false,
+        };
+      },
+    },
+  });
+  const screen = renderComponent(
+    () => (
+      <SnapshotDiffPanel
+        profileId="photos"
+        snapshot={current}
+        snapshots={[current, parent]}
+      />
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("alert", { name: "Could not compare snapshots" }).text,
+    ).toContain("repository index is busy");
+  });
+  screen.getByRole("button", { name: "Retry comparison" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status", { name: "No changes" })).toBeDefined();
+  });
+  expect(attempts).toBe(2);
+});
+
+test("obsolete snapshot comparisons cannot populate a new selection", async () => {
+  const parent: SnapshotEntry = {
+    id: "parent",
+    time: "2026-09-01T04:18:35Z",
+    hostname: "workstation",
+    paths: ["/data/photos"],
+    filesNew: 0,
+    filesChanged: 0,
+    label: "Parent",
+    tags: [],
+    deleteProtected: false,
+  };
+  const current: SnapshotEntry = {
+    ...parent,
+    id: "current",
+    parentId: parent.id,
+    time: "2026-09-02T04:18:35Z",
+    label: "Current",
+  };
+  const solo: SnapshotEntry = {
+    ...current,
+    id: "solo",
+    parentId: undefined,
+    label: "Only snapshot",
+  };
+  const resolvers: Array<(result: SnapshotDiff) => void> = [];
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 12,
+      diffSnapshots: () =>
+        new Promise<SnapshotDiff>((resolve) => resolvers.push(resolve)),
+    },
+  });
+  const [selection, setSelection] = createSignal<{
+    snapshot: SnapshotEntry;
+    snapshots: readonly SnapshotEntry[];
+  }>({ snapshot: current, snapshots: [current, parent] });
+  const screen = renderComponent(
+    () => (
+      <SnapshotDiffPanel
+        profileId="photos"
+        snapshot={selection().snapshot}
+        snapshots={selection().snapshots}
+      />
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(fixture.callsTo("rustic.diffSnapshots").length).toBeGreaterThan(0);
+  });
+  setSelection({ snapshot: solo, snapshots: [solo] });
+  screen.flush();
+  expect(
+    screen.getByRole("status", { name: "Create another snapshot to compare" }),
+  ).toBeDefined();
+
+  for (const resolve of resolvers) {
+    resolve({
+      entries: [
+        {
+          name: "stale.txt",
+          path: "stale.txt",
+          kind: "file",
+          change: "added",
+          currentSize: 12,
+        },
+      ],
+      summary: {
+        added: 1,
+        removed: 0,
+        modified: 0,
+        metadata: 0,
+        typeChanged: 0,
+      },
+      totalEntries: 1,
+      truncated: false,
+    });
+  }
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("status", {
+        name: "Create another snapshot to compare",
+      }),
+    ).toBeDefined();
+  });
+  expect(screen.queryByRole("row", { name: "stale.txt" })).toBeNull();
 });
 
 test("snapshot browser cache preserves navigation while invalidating listings", () => {

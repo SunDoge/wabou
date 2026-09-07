@@ -112,6 +112,7 @@ export function SnapshotDiffPanel(props: {
   const [result, setResult] = createSignal<SnapshotDiff>();
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string>();
+  const [retryRevision, setRetryRevision] = createSignal(0);
   let requestGeneration = 0;
 
   createEffect(
@@ -130,20 +131,24 @@ export function SnapshotDiffPanel(props: {
       snapshotId: props.snapshot.id,
       baseSnapshotId: baseSnapshotId(),
       includeMetadata: includeMetadata(),
+      retryRevision: retryRevision(),
     }),
     (request) => {
+      const generation = ++requestGeneration;
       if (!request.baseSnapshotId) {
         setResult(undefined);
         setLoading(false);
+        setError(undefined);
         return;
       }
-      const generation = ++requestGeneration;
       setLoading(true);
       setError(undefined);
       void Promise.resolve(
         api.diffSnapshots({
-          ...request,
+          profileId: request.profileId,
+          snapshotId: request.snapshotId,
           baseSnapshotId: request.baseSnapshotId,
+          includeMetadata: request.includeMetadata,
           path: "",
           limit: DIFF_ENTRY_LIMIT,
         }),
@@ -243,6 +248,10 @@ export function SnapshotDiffPanel(props: {
                 state="error"
                 title="Could not compare snapshots"
                 description={error()}
+                action={{
+                  label: "Retry comparison",
+                  onAction: () => setRetryRevision((current) => current + 1),
+                }}
                 class="min-h-0 flex-1 border-0 shadow-none"
               />
             }
