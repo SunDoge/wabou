@@ -52,7 +52,10 @@ mod reload {
     pub use runtime_api::plan_hmr_batch;
     pub use runtime_api::{HmrBatch, HmrDrainResult, ReloadHandle};
 }
-pub mod resource;
+/// Generational resources shared by every Wabou backend.
+pub mod resource {
+    pub use runtime_api::{ResourceKey, ResourceRegistry};
+}
 mod runtime_session {
     pub use runtime_api::RuntimeSession;
 }

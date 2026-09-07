@@ -131,9 +131,10 @@ Apply the reorganization in this order:
 
 1. Continue extracting duplicated backend-neutral files into `wabou-runtime`.
    `jsrt`, Host Frame encoding, host ABI/FFI, host messages, capabilities, and
-   resources, effect dispatch/recording, HMR queueing, and the per-window runtime
-   session are shared already; bundle/source-map, persistence, and HMR application
-   policy must follow before any crate rename.
+   resources (including the generational registry), effect dispatch/recording,
+   HMR queueing, and the per-window runtime session are shared already;
+   bundle/source-map, persistence, and HMR application policy must follow before
+   any crate rename.
 2. Move GPUI-specific `gpui_*` modules and the current `wabou-shell` projection
    into `wabou-backend-gpui`.
 3. Rename the Winit implementation to `wabou-backend-vello-hybrid`. Keep large
