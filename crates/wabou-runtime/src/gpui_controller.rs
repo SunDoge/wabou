@@ -1219,7 +1219,9 @@ impl GpuiController {
         let Some(batch) = self.runtime.reload.drain() else {
             return HmrDrainResult::Idle;
         };
-        self.apply_hmr_batch(batch)
+        let result = self.apply_hmr_batch(batch);
+        self.runtime.reload.record_result(result.clone());
+        result
     }
 
     fn apply_hmr_batch(&mut self, batch: HmrBatch) -> HmrDrainResult {
@@ -1254,7 +1256,7 @@ impl GpuiController {
         let applied = batch.js_updates.len();
         for update in batch.js_updates {
             #[cfg(feature = "vite")]
-            let side_effect_update = is_wabou_side_effect_update(
+            let side_effect_update = crate::reload::is_vite_side_effect_update(
                 &update.path,
                 &update.accepted_path,
                 vite_entry.as_deref(),
@@ -1705,26 +1707,6 @@ impl GpuiController {
     }
 }
 
-#[cfg(feature = "vite")]
-fn is_wabou_side_effect_update(path: &str, accepted_path: &str, vite_entry: Option<&str>) -> bool {
-    if [path, accepted_path]
-        .into_iter()
-        .any(|path| path.contains("virtual:wabou-stylesheet"))
-    {
-        return true;
-    }
-    let Some(vite_entry) = vite_entry else {
-        return false;
-    };
-    let vite_entry = vite_entry.trim_start_matches('/');
-    [path, accepted_path].into_iter().any(|path| {
-        path.split_once('?')
-            .map_or(path, |(path, _)| path)
-            .trim_start_matches('/')
-            == vite_entry
-    })
-}
-
 #[cfg(feature = "devtools")]
 fn gpui_debug_node(
     node: wabou_shell::GpuiLayoutNode,
@@ -1816,25 +1798,6 @@ fn gpui_debug_node(
 mod tests {
     use super::*;
 
-    #[cfg(feature = "vite")]
-    #[test]
-    fn entry_and_generated_style_ir_modules_use_side_effect_hmr() {
-        assert!(is_wabou_side_effect_update(
-            "/@id/__x00__virtual:wabou-stylesheet",
-            "/@id/__x00__virtual:wabou-stylesheet",
-            Some("ui/index.tsx"),
-        ));
-        assert!(is_wabou_side_effect_update(
-            "/ui/index.tsx",
-            "/ui/index.tsx?t=42",
-            Some("ui/index.tsx"),
-        ));
-        assert!(!is_wabou_side_effect_update(
-            "/ui/pages/colors.tsx",
-            "/ui/pages/colors.tsx",
-            Some("ui/index.tsx"),
-        ));
-    }
     use crate::JsRuntime;
     use std::sync::{
         Arc,

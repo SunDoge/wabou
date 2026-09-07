@@ -214,11 +214,58 @@ pub fn plan_hmr_batch(msgs: impl IntoIterator<Item = ReloadMsg>) -> HmrBatch {
     batch
 }
 
+/// Whether a Vite module must be re-executed for side effects instead of
+/// requiring a normal hot-accept boundary.
+#[cfg(feature = "vite")]
+#[doc(hidden)]
+pub fn is_vite_side_effect_update(
+    path: &str,
+    accepted_path: &str,
+    vite_entry: Option<&str>,
+) -> bool {
+    if [path, accepted_path]
+        .into_iter()
+        .any(|path| path.contains("virtual:wabou-stylesheet"))
+    {
+        return true;
+    }
+    let Some(vite_entry) = vite_entry else {
+        return false;
+    };
+    let vite_entry = vite_entry.trim_start_matches('/');
+    [path, accepted_path].into_iter().any(|path| {
+        path.split_once('?')
+            .map_or(path, |(path, _)| path)
+            .trim_start_matches('/')
+            == vite_entry
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::{ReloadMsg, ReloadState};
+
+    #[cfg(feature = "vite")]
+    #[test]
+    fn entry_and_generated_style_ir_modules_use_side_effect_hmr() {
+        assert!(super::is_vite_side_effect_update(
+            "/@id/__x00__virtual:wabou-stylesheet",
+            "/@id/__x00__virtual:wabou-stylesheet",
+            Some("ui/index.tsx"),
+        ));
+        assert!(super::is_vite_side_effect_update(
+            "/ui/index.tsx",
+            "/ui/index.tsx?t=42",
+            Some("ui/index.tsx"),
+        ));
+        assert!(!super::is_vite_side_effect_update(
+            "/ui/pages/colors.tsx",
+            "/ui/pages/colors.tsx",
+            Some("ui/index.tsx"),
+        ));
+    }
 
     #[test]
     fn sending_wakes_an_idle_event_loop() {

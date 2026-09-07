@@ -241,40 +241,73 @@ impl Applier {
 
         #[cfg(feature = "vite")]
         let mut applied = 0usize;
+        #[cfg(feature = "vite")]
+        let vite_entry = self.runtime.reload.vite_entry().map(str::to_owned);
         // Without the vite feature, count queued updates so diagnostics stay
         // useful even though the updates cannot be evaluated.
         #[cfg(not(feature = "vite"))]
         let applied = batch.js_updates.len();
         for update in batch.js_updates {
             #[cfg(feature = "vite")]
-            {
-                match self.runtime.js.apply_hmr_update(
-                    &update.path,
+            let side_effect_update = crate::reload::is_vite_side_effect_update(
+                &update.path,
+                &update.accepted_path,
+                vite_entry.as_deref(),
+            );
+            #[cfg(feature = "vite")]
+            tracing::debug!(
+                target: "hmr",
+                path = %update.path,
+                accepted_path = %update.accepted_path,
+                ?vite_entry,
+                side_effect_update,
+                "classified Vite update"
+            );
+            #[cfg(feature = "vite")]
+            if side_effect_update {
+                match self.runtime.js.apply_vite_side_effect_update(
                     &update.accepted_path,
                     update.timestamp,
                     update.source,
                 ) {
-                    Ok(true) => {
+                    Ok(()) => {
                         applied += 1;
-                        tracing::debug!(
-                            target: "hmr",
-                            path = %update.path,
-                            "HMR update accepted"
-                        );
+                        continue;
                     }
-                    Ok(false) => {
+                    Err(error) => {
                         let reason =
-                            format!("module declined or missing hot context: {}", update.path);
-                        tracing::warn!(target: "hmr", %reason);
+                            format!("side-effect HMR failed for {}: {error:?}", update.path);
                         self.perform_full_reload(&reason);
                         return HmrDrainResult::FullReload { reason };
                     }
-                    Err(e) => {
-                        let reason = format!("apply_hmr failed for {}: {e:?}", update.path);
-                        tracing::error!(target: "hmr", %reason);
-                        self.perform_full_reload(&reason);
-                        return HmrDrainResult::FullReload { reason };
-                    }
+                }
+            }
+            #[cfg(feature = "vite")]
+            match self.runtime.js.apply_hmr_update(
+                &update.path,
+                &update.accepted_path,
+                update.timestamp,
+                update.source,
+            ) {
+                Ok(true) => {
+                    applied += 1;
+                    tracing::debug!(
+                        target: "hmr",
+                        path = %update.path,
+                        "HMR update accepted"
+                    );
+                }
+                Ok(false) => {
+                    let reason = format!("module declined or missing hot context: {}", update.path);
+                    tracing::warn!(target: "hmr", %reason);
+                    self.perform_full_reload(&reason);
+                    return HmrDrainResult::FullReload { reason };
+                }
+                Err(error) => {
+                    let reason = format!("apply_hmr failed for {}: {error:?}", update.path);
+                    tracing::error!(target: "hmr", %reason);
+                    self.perform_full_reload(&reason);
+                    return HmrDrainResult::FullReload { reason };
                 }
             }
             #[cfg(not(feature = "vite"))]

@@ -50,6 +50,8 @@ mod protocol;
 mod reload {
     #[cfg(any(feature = "vite", test))]
     pub use runtime_api::ReloadMsg;
+    #[cfg(feature = "vite")]
+    pub use runtime_api::is_vite_side_effect_update;
     #[cfg(test)]
     pub use runtime_api::plan_hmr_batch;
     pub use runtime_api::{HmrBatch, HmrDrainResult, ReloadHandle};

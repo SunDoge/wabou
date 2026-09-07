@@ -103,6 +103,9 @@ pub use jsrt::{
 pub use kv::mount_kv_methods;
 pub use native_capability::NativeCapability;
 pub use persistent_cache::PersistentJsonCache;
+#[cfg(feature = "vite")]
+#[doc(hidden)]
+pub use reload::is_vite_side_effect_update;
 #[doc(hidden)]
 pub use reload::{
     HmrBatch, HmrDrainResult, HmrJsUpdate, ReloadHandle, ReloadMsg, ReloadState, plan_hmr_batch,

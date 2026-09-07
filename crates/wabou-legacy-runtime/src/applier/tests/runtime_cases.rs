@@ -715,6 +715,28 @@ fn hmr_batch_preserves_js_update_order() {
     );
 }
 
+#[cfg(feature = "vite")]
+#[test]
+fn hybrid_hmr_reexecutes_generated_style_module_without_an_accept_boundary() {
+    let js = JsRuntime::new_vite("http://127.0.0.1:5173/").expect("Vite runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+
+    let result = applier.apply_hmr_batch(plan_hmr_batch([ReloadMsg::HmrUpdate {
+        path: "/@id/__x00__virtual:wabou-stylesheet".into(),
+        accepted_path: "/@id/__x00__virtual:wabou-stylesheet".into(),
+        timestamp: 42,
+        source: "globalThis.__hybridStyleRevision = 42; export default 42;".into(),
+    }]));
+
+    assert_eq!(result, HmrDrainResult::Applied { js_updates: 1 });
+    let revision = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<i32, _>("globalThis.__hybridStyleRevision"))
+        .expect("side-effect update should execute in the Hybrid runtime");
+    assert_eq!(revision, 42);
+}
+
 #[test]
 fn vite_transform_error_does_not_reload_or_duplicate_the_last_good_scene() {
     let js = JsRuntime::new().expect("runtime");

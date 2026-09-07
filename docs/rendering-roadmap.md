@@ -70,7 +70,10 @@ same capabilities, message producers, resources, source maps, and HMR setup.
 Both backends now also execute the same `JsRuntime`, encode unsolicited native
 events through the same binary Host Frame implementation, submit native effects
 through the same queue and record/replay implementation, and consume the same
-coalesced HMR inbox. Those pieces now live in one shared per-window
+coalesced HMR inbox. They also share the Vite update classifier: application
+entry modules and generated Style IR modules are re-executed for side effects,
+while component modules continue through their normal hot-accept boundaries.
+Those pieces now live in one shared per-window
 `RuntimeSession`, including cancellation and graceful producer shutdown. The
 former Winit copies and their duplicate tests have been removed, so scheduler,
 wake, stack-limit, source-map, event, effect, reload queue, and session-lifetime
@@ -137,8 +140,9 @@ Apply the reorganization in this order:
    `jsrt`, Host Frame encoding, host ABI/FFI, host messages, capabilities, and
    resources (including the generational registry), effect dispatch/recording,
    HMR queueing, the per-window runtime session, and bundle/source-map discovery
-   are shared already; persistence and HMR application policy must follow before
-   any crate rename.
+   are shared already. The Vite side-effect classification policy is shared as
+   well; persistence and the remaining backend HMR orchestration cleanup must
+   follow before any crate rename.
 2. Move GPUI-specific `gpui_*` modules and the current `wabou-shell` projection
    into `wabou-backend-gpui`.
 3. Rename the Winit implementation to `wabou-backend-vello-hybrid`. Keep large
