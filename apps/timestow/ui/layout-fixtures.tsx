@@ -23,6 +23,7 @@ import { Show } from "solid-js";
 import {
   FILE_PAGE_SIZE,
   type FileEntry,
+  type RepositoryCheckResult,
   type RestorePlanSummary,
   type RusticCapability,
   type SnapshotEntry,
@@ -30,6 +31,7 @@ import {
 import { BackupProgressStatus } from "./backup-progress";
 import { FileDetails, RestorePlanReview } from "./file-details";
 import type { ProfileStore } from "./profile-store";
+import { RepositoryCheckDialog } from "./repository-check";
 import { TimestowSessionProvider, useTimestowSession } from "./session";
 import { BackupConnectionForm } from "./setup";
 import { AppShell, SessionErrorBanner, TimestowSidebar } from "./shell";
@@ -131,7 +133,7 @@ const fixtureStatus = {
 };
 
 const fixtureRustic: RusticCapability = {
-  __wabouCapabilityVersion: 9,
+  __wabouCapabilityVersion: 10,
   status: () => fixtureStatus,
   createProfile: () => fixtureStatus,
   openProfile: () => fixtureStatus,
@@ -139,6 +141,7 @@ const fixtureRustic: RusticCapability = {
   forgetProfile: () => fixtureStatus,
   setSources: () => fixtureStatus,
   runBackup: () => ({ snapshot: newestSnapshot }),
+  checkRepository: () => ({ healthy: true, findings: [] }),
   listSnapshots: () => [newestSnapshot, previousSnapshot],
   listFiles: ({ path, offset = 0, limit = FILE_PAGE_SIZE }) => {
     const all = path ? [] : [...rootFiles];
@@ -295,6 +298,7 @@ function WorkspaceHeaderFixture() {
               sources={["/data/photos", "/data/documents"]}
               backingUp={false}
               scheduleControl={<Button variant="outline">Schedule</Button>}
+              repositoryControl={<Button variant="outline">Verify</Button>}
               onSourcesChange={() => {}}
               onRefresh={() => {}}
               onBackup={() => {}}
@@ -444,6 +448,32 @@ function SessionErrorFixture() {
   );
 }
 
+function RepositoryCheckFixture() {
+  const inheritedHost = useHost();
+  const result: RepositoryCheckResult = {
+    healthy: true,
+    findings: [],
+  };
+  return (
+    <HostProvider
+      value={
+        {
+          ...inheritedHost,
+          rustic: { ...fixtureRustic, checkRepository: () => result },
+        } as typeof inheritedHost
+      }
+    >
+      <ColorThemeProvider theme="light">
+        <ComponentsProvider theme="light">
+          <View class="w-full h-full min-w-0 min-h-0 bg-canvas p-4 text-primary">
+            <RepositoryCheckDialog profileId={profile.id} defaultOpen />
+          </View>
+        </ComponentsProvider>
+      </ColorThemeProvider>
+    </HostProvider>
+  );
+}
+
 function SnapshotDiffFixture() {
   const inheritedHost = useHost();
   return (
@@ -585,6 +615,11 @@ defineLayoutFixtures(
       width: 420,
       height: 96,
       render: SessionErrorFixture,
+    },
+    "timestow/repository-check": {
+      width: 520,
+      height: 340,
+      render: RepositoryCheckFixture,
     },
     "timestow/changes-wide": {
       width: 960,

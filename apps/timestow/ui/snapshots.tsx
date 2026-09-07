@@ -52,6 +52,7 @@ import {
 } from "./api";
 import { BackupProgressStatus } from "./backup-progress";
 import { FileDetails } from "./file-details";
+import { RepositoryCheckDialog } from "./repository-check";
 import { BackupScheduleDialog } from "./schedule-dialog";
 import { useTimestowSession } from "./session";
 import { createSnapshotBrowserCache } from "./snapshot-browser-cache";
@@ -193,6 +194,7 @@ export interface SnapshotWorkspaceHeaderProps {
   backingUp: boolean;
   showBackupAction?: boolean;
   scheduleControl?: JSX.Element;
+  repositoryControl?: JSX.Element;
   onSourcesChange(sources: string[]): void;
   onRefresh(): void;
   onBackup(): void;
@@ -217,6 +219,7 @@ export function SnapshotWorkspaceHeader(props: SnapshotWorkspaceHeaderProps) {
               onChange={props.onSourcesChange}
             />
             {props.scheduleControl}
+            {props.repositoryControl}
           </View>
           <View class="flex-none flex flex-row items-center gap-2">
             <Button
@@ -791,6 +794,16 @@ export function SnapshotsPage() {
               {(profile) => (
                 <BackupScheduleDialog
                   profile={profile()}
+                  disabled={backingUp()}
+                />
+              )}
+            </Show>
+          }
+          repositoryControl={
+            <Show when={session.activeProfile()}>
+              {(profile) => (
+                <RepositoryCheckDialog
+                  profileId={profile().id}
                   disabled={backingUp()}
                 />
               )}

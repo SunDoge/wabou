@@ -283,6 +283,27 @@ await renderLayoutFixtures({
       },
     },
     {
+      id: "timestow/repository-check",
+      width: 520,
+      height: 340,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, {
+          role: "dialog",
+          name: "Check repository",
+        });
+        getLayoutNode(fixture, { text: "Check repository" });
+        getLayoutNode(fixture, { role: "button", name: "Check now" });
+        if (
+          !fixture.nodes.some((node) =>
+            node.text?.includes("does not read every stored data byte"),
+          )
+        ) {
+          throw new Error("repository check overstates its verification scope");
+        }
+      },
+    },
+    {
       id: "timestow/changes-wide",
       width: 960,
       height: 620,

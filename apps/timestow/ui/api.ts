@@ -21,6 +21,11 @@ export interface RuntimeStatus {
   activeProfileId?: string;
 }
 
+export interface RepositoryCheckResult {
+  healthy: boolean;
+  findings: string[];
+}
+
 export interface SnapshotEntry {
   id: string;
   time: string;
@@ -126,6 +131,9 @@ export interface RusticCapability extends NativeCapability {
   runBackup(request: {
     profileId: string;
   }): { snapshot: SnapshotEntry } | PromiseLike<{ snapshot: SnapshotEntry }>;
+  checkRepository(request: {
+    profileId: string;
+  }): RepositoryCheckResult | PromiseLike<RepositoryCheckResult>;
   listSnapshots(request: {
     profileId: string;
   }): SnapshotEntry[] | PromiseLike<SnapshotEntry[]>;
@@ -189,6 +197,6 @@ interface RusticHost extends Host {
 export function useRusticApi(): RusticCapability {
   return bindCapability(useHost<RusticHost>().rustic, {
     name: "rustic",
-    version: 9,
+    version: 10,
   });
 }

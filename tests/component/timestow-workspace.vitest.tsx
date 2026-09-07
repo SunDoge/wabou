@@ -6,6 +6,7 @@ import { expect, test, vi } from "vitest";
 import type { FileEntry } from "../../apps/timestow/ui/api";
 import { FileDetails } from "../../apps/timestow/ui/file-details";
 import type { ProfileStore } from "../../apps/timestow/ui/profile-store";
+import { RepositoryCheckDialog } from "../../apps/timestow/ui/repository-check";
 import { BackupScheduleDialog } from "../../apps/timestow/ui/schedule-dialog";
 import {
   TimestowSessionProvider,
@@ -134,6 +135,78 @@ test("backup workspace keeps configuration and primary actions distinct", () => 
   expect(
     screen.getByRole("button", { name: "Refresh snapshots" }),
   ).toBeDefined();
+});
+
+test("repository verification reports its scope and native result", async () => {
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 10,
+      checkRepository: async () => ({
+        healthy: true,
+        findings: [],
+      }),
+    },
+  });
+  const screen = renderComponent(
+    () => <RepositoryCheckDialog profileId="photos" />,
+    { host: fixture.host },
+  );
+
+  screen.getByRole("button", { name: "Check repository" }).click();
+  expect(
+    screen.getByRole("dialog", { name: "Check repository" }).text,
+  ).toContain("does not read every stored data byte");
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("alert", {
+        name: "Repository structure is healthy",
+      }),
+    ).toBeDefined();
+  });
+  expect(fixture.callsTo("rustic.checkRepository")[0]?.args[0]).toEqual({
+    profileId: "photos",
+  });
+});
+
+test("repository verification exposes integrity findings and request failures", async () => {
+  let attempt = 0;
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 10,
+      checkRepository: async () => {
+        attempt += 1;
+        if (attempt > 1) throw new Error("repository key is unavailable");
+        return {
+          healthy: false,
+          findings: ["pack 42 is missing"],
+        };
+      },
+    },
+  });
+  const screen = renderComponent(
+    () => <RepositoryCheckDialog profileId="photos" />,
+    { host: fixture.host },
+  );
+
+  screen.getByRole("button", { name: "Check repository" }).click();
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("alert", { name: "Repository problems found" }).text,
+    ).toContain("1 finding");
+    expect(
+      screen.getByRole("dialog", { name: "Check repository" }).text,
+    ).toContain("pack 42 is missing");
+  });
+
+  screen.getByRole("button", { name: "Check again" }).click();
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("alert", { name: "Repository check failed" }).text,
+    ).toContain("repository key is unavailable");
+  });
+  expect(
+    screen.getByRole("dialog", { name: "Check repository" }).text,
+  ).not.toContain("pack 42 is missing");
 });
 
 test("empty snapshot workspace only offers actions the user can take", () => {
@@ -473,7 +546,7 @@ test("snapshot changes compare against the recorded parent and can include metad
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 9,
+      __wabouCapabilityVersion: 10,
       diffSnapshots: async (request: { includeMetadata?: boolean }) => ({
         entries: [
           {
@@ -582,7 +655,7 @@ test("snapshot file tree loads child directories only when expanded", async () =
   const selected = vi.fn();
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 9,
+      __wabouCapabilityVersion: 10,
       listFiles: async (request: { path: string; offset?: number }) => {
         let entries: FileEntry[];
         if (request.path === "docs") {
@@ -678,7 +751,7 @@ test("snapshot file tree loads child directories only when expanded", async () =
 test("file details preview and extract through the native rustic capability", async () => {
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 9,
+      __wabouCapabilityVersion: 10,
       previewPath: async () => ({
         destination: "/tmp/wabou-rustic-preview/42",
         plan: {
@@ -941,7 +1014,7 @@ test("rustic session hydrates durable profiles and exposes their locked state", 
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 9,
+      __wabouCapabilityVersion: 10,
       status: async () => ({
         unlockedProfileIds: [],
       }),
@@ -982,7 +1055,7 @@ test("renaming a backup persists presentation metadata without touching Rust", a
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 9,
+      __wabouCapabilityVersion: 10,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -1033,7 +1106,7 @@ test("forgetting a backup clears native credentials before durable profile metad
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 9,
+      __wabouCapabilityVersion: 10,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -1108,7 +1181,7 @@ test("a failed native profile switch leaves the current profile selected", async
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 9,
+      __wabouCapabilityVersion: 10,
       status: async () => ({
         unlockedProfileIds: profiles.map((profile) => profile.id),
         activeProfileId: "photos",
@@ -1172,7 +1245,7 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 9,
+      __wabouCapabilityVersion: 10,
       status: async () => ({ unlockedProfileIds: [] }),
       createProfile: async (request: { id: string }) => ({
         unlockedProfileIds: [request.id],
@@ -1256,7 +1329,7 @@ test("runs a due profile backup in the background and records completion", async
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 9,
+      __wabouCapabilityVersion: 10,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -1330,7 +1403,7 @@ test("schedule dialog explains the runtime boundary and exposes its controls", a
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 9,
+      __wabouCapabilityVersion: 10,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,

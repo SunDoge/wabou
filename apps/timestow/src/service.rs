@@ -8,8 +8,9 @@ use std::{
 
 use rustic_backend::BackendOptions;
 use rustic_core::{
-    BackupOptions, ConfigOptions, Credentials, KeyOptions, LocalDestination, LsOptions, PathList,
-    ProgressBars, Repository, RepositoryOptions, RestoreOptions, SnapshotOptions,
+    BackupOptions, CheckOptions, ConfigOptions, Credentials, KeyOptions, LocalDestination,
+    LsOptions, PathList, ProgressBars, Repository, RepositoryOptions, RestoreOptions,
+    SnapshotOptions,
     repofile::{DeleteOption, StringList},
 };
 use serde::{Deserialize, Serialize};
@@ -23,7 +24,7 @@ use crate::progress::{
     BACKUP_PROGRESS_TOPIC, BackupProgressBars, BackupProgressPhase, ProgressEmitter,
 };
 
-pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 9);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 10);
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
@@ -34,6 +35,8 @@ const FORGET_PROFILE: HostMethod<ProfileIdRequest, RuntimeStatus> =
     HostMethod::new("forgetProfile");
 const SET_SOURCES: HostMethod<SetSourcesRequest, RuntimeStatus> = HostMethod::new("setSources");
 const RUN_BACKUP: HostMethod<ProfileIdRequest, BackupResult> = HostMethod::new("runBackup");
+const CHECK_REPOSITORY: HostMethod<ProfileIdRequest, RepositoryCheckResult> =
+    HostMethod::new("checkRepository");
 const LIST_SNAPSHOTS: HostMethod<ProfileIdRequest, Vec<SnapshotEntry>> =
     HostMethod::new("listSnapshots");
 const LIST_FILES: HostMethod<ListFilesRequest, FileListing> = HostMethod::new("listFiles");
@@ -184,6 +187,13 @@ pub struct OpenPathRequest {
 pub struct RuntimeStatus {
     pub unlocked_profile_ids: Vec<String>,
     pub active_profile_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositoryCheckResult {
+    pub healthy: bool,
+    pub findings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -475,6 +485,22 @@ impl RusticService {
             }
         }
         result
+    }
+
+    fn check_repository(&self, request: ProfileIdRequest) -> Result<RepositoryCheckResult, String> {
+        let (path, password, _) = self.profile_config(&request.profile_id)?;
+        let findings = open_repository(&path, &password)?
+            .check(CheckOptions::default())
+            .map_err(display_error)?;
+        let healthy = findings.is_ok().is_ok();
+        Ok(RepositoryCheckResult {
+            healthy,
+            findings: findings
+                .0
+                .into_iter()
+                .map(|(_, finding)| finding.to_string())
+                .collect(),
+        })
     }
 
     fn list_snapshots(&self, request: ProfileIdRequest) -> Result<Vec<SnapshotEntry>, String> {
@@ -1112,6 +1138,16 @@ pub fn mount(capability: NativeCapability<'_>, service: RusticService) -> rquick
         }
     })?;
 
+    let check_repository = service.clone();
+    capability.method(CHECK_REPOSITORY, move |request| {
+        let service = check_repository.clone();
+        async move {
+            tokio::task::spawn_blocking(move || service.check_repository(request))
+                .await
+                .map_err(|error| format!("repository check task failed: {error}"))?
+        }
+    })?;
+
     let snapshots = service.clone();
     capability.method(LIST_SNAPSHOTS, move |request| {
         let service = snapshots.clone();
@@ -1372,9 +1408,16 @@ mod tests {
             event.state == BackupProgressPhase::PhaseComplete && event.total.is_some()
         }));
         drop(progress_events);
-        let snapshots = service.list_snapshots(profile).expect("list snapshots");
+        let snapshots = service
+            .list_snapshots(profile.clone())
+            .expect("list snapshots");
         assert_eq!(snapshots.len(), 1);
         assert_eq!(snapshots[0].id, backup.snapshot.id);
+        let check = service
+            .check_repository(profile)
+            .expect("check repository structure");
+        assert!(check.healthy, "repository check: {check:?}");
+        assert!(check.findings.is_empty());
 
         let mut pending = vec![String::new()];
         let mut names = Vec::new();
