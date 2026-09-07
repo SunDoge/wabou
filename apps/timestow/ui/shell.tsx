@@ -7,6 +7,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  application,
   Button,
   ColorThemeProvider,
   ComponentsProvider,
@@ -38,7 +39,13 @@ import {
 import archive from "lucide-static/icons/archive.svg?raw";
 import database from "lucide-static/icons/database.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
-import { createSignal, For as ForValue, type JSX, Show } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  For as ForValue,
+  type JSX,
+  Show,
+} from "solid-js";
 import type { BackupProfile } from "./api";
 import { useTimestowSession } from "./session";
 
@@ -285,6 +292,61 @@ export function TimestowSidebar(props: TimestowSidebarProps) {
   );
 }
 
+export function TimestowCloseGuard(props: {
+  active: boolean;
+  children?: JSX.Element;
+  onQuit?: () => void;
+}) {
+  const [confirming, setConfirming] = createSignal(false);
+
+  createEffect(
+    () => props.active,
+    (active) => {
+      if (!active) setConfirming(false);
+    },
+  );
+
+  return (
+    <>
+      <View
+        role="group"
+        aria-label="Timestow window"
+        class="w-full h-full min-w-0 min-h-0 flex flex-row bg-canvas text-primary"
+        onWindowCloseRequested={(event) => {
+          if (!props.active) return;
+          event.preventDefault();
+          setConfirming(true);
+        }}
+      >
+        {props.children}
+      </View>
+      <AlertDialog
+        aria-label="Quit while an operation is running"
+        open={confirming()}
+        onOpenChange={setConfirming}
+      >
+        <AlertDialogHeader>
+          <AlertDialogTitle>Quit during an active operation?</AlertDialogTitle>
+          <AlertDialogDescription>
+            A backup or extraction is still running. Quitting now may leave the
+            operation incomplete. Existing repository snapshots will not be
+            deleted.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep working</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={() => (props.onQuit ?? application.exit)()}
+          >
+            Quit anyway
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialog>
+    </>
+  );
+}
+
 export function AppShell(props: { children?: JSX.Element }) {
   const session = useTimestowSession();
   const navigate = useNavigate();
@@ -314,7 +376,7 @@ export function AppShell(props: { children?: JSX.Element }) {
   return (
     <ColorThemeProvider theme="light">
       <ComponentsProvider theme="light">
-        <View class="w-full h-full min-w-0 min-h-0 flex flex-row bg-canvas text-primary">
+        <TimestowCloseGuard active={session.hasActiveOperations()}>
           <TimestowSidebar
             active={
               session.pendingUnlock()?.id ??
@@ -347,7 +409,7 @@ export function AppShell(props: { children?: JSX.Element }) {
               {props.children}
             </View>
           </View>
-        </View>
+        </TimestowCloseGuard>
       </ComponentsProvider>
     </ColorThemeProvider>
   );

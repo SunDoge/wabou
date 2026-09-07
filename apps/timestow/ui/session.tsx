@@ -53,6 +53,7 @@ interface TimestowSession {
     | { profileId: string; snapshot: SnapshotEntry; scheduled: boolean }
     | undefined;
   isBackingUp(profileId: string): boolean;
+  hasActiveOperations(): boolean;
   backupProgress(profileId: string): OperationProgressEvent | undefined;
   snapshotBrowser: SnapshotBrowserCache;
   setError(error: string | undefined): void;
@@ -127,6 +128,9 @@ export function TimestowSessionProvider(props: {
   const [backupProgressByProfile, setBackupProgressByProfile] = createSignal<
     Readonly<Record<string, OperationProgressEvent>>
   >({});
+  const [activeOperationKeys, setActiveOperationKeys] = createSignal<
+    ReadonlySet<string>
+  >(new Set());
   const activeProfile = createMemo(() =>
     profiles().find((profile) => profile.id === activeProfileId()),
   );
@@ -328,6 +332,10 @@ export function TimestowSessionProvider(props: {
     return runningBackupIds().has(profileId);
   }
 
+  function hasActiveOperations(): boolean {
+    return runningBackupIds().size > 0 || activeOperationKeys().size > 0;
+  }
+
   function backupProgress(
     profileId: string,
   ): OperationProgressEvent | undefined {
@@ -420,6 +428,16 @@ export function TimestowSessionProvider(props: {
     subscribeJsonHostMessages<OperationProgressEvent>(
       OPERATION_PROGRESS_TOPIC,
       (progress) => {
+        const operationKey = `${progress.operation}\u0000${progress.operationId}`;
+        setActiveOperationKeys((current) => {
+          const next = new Set(current);
+          if (progress.state === "completed" || progress.state === "failed") {
+            next.delete(operationKey);
+          } else {
+            next.add(operationKey);
+          }
+          return next;
+        });
         if (progress.operation !== "backup") return;
         setBackupProgressByProfile((current) => ({
           ...current,
@@ -538,6 +556,7 @@ export function TimestowSessionProvider(props: {
         error,
         lastBackup,
         isBackingUp,
+        hasActiveOperations,
         backupProgress,
         snapshotBrowser,
         setError,

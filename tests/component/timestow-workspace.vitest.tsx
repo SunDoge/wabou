@@ -26,6 +26,7 @@ import {
 import { BackupConnectionForm } from "../../apps/timestow/ui/setup";
 import {
   SessionErrorBanner,
+  TimestowCloseGuard,
   TimestowSidebar,
 } from "../../apps/timestow/ui/shell";
 import { createSnapshotBrowserCache } from "../../apps/timestow/ui/snapshot-browser-cache";
@@ -81,6 +82,43 @@ test("session errors remain visible and dismissible outside a page", () => {
   expect(dismiss).toHaveBeenCalledTimes(1);
 });
 
+test("window close asks before interrupting an active backup or extraction", () => {
+  const quit = vi.fn();
+  const [active, setActive] = createSignal(true);
+  const screen = renderComponent(() => (
+    <TimestowCloseGuard active={active()} onQuit={quit}>
+      <Text>Backup workspace</Text>
+    </TimestowCloseGuard>
+  ));
+  const app = screen.getByRole("group", { name: "Timestow window" });
+
+  app.emit("windowcloserequested");
+  expect(
+    screen.getByRole("alertdialog", {
+      name: "Quit while an operation is running",
+    }).text,
+  ).toContain("may leave the operation incomplete");
+  screen.getByRole("button", { name: "Keep working" }).click();
+  expect(
+    screen.queryByRole("alertdialog", {
+      name: "Quit while an operation is running",
+    }),
+  ).toBeNull();
+
+  app.emit("windowcloserequested");
+  screen.getByRole("button", { name: "Quit anyway" }).click();
+  expect(quit).toHaveBeenCalledTimes(1);
+
+  setActive(false);
+  app.emit("windowcloserequested");
+  expect(
+    screen.queryByRole("alertdialog", {
+      name: "Quit while an operation is running",
+    }),
+  ).toBeNull();
+  screen.dispose();
+});
+
 test("session surfaces profile metadata recovery without blocking startup", async () => {
   const store: ProfileStore = {
     load: async () => ({
@@ -119,6 +157,65 @@ test("session surfaces profile metadata recovery without blocking startup", asyn
     expect(screen.getByRole("alert").text).toContain("old-photos");
   });
   expect(fixture.callsTo("rustic.status")).toHaveLength(1);
+  screen.dispose();
+});
+
+test("session keeps an operation active through rustic phase boundaries", async () => {
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [] }),
+    save: async () => {},
+    setActive: async () => {},
+    remove: async () => {},
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 13,
+      status: async () => ({ unlockedProfileIds: [] }),
+    },
+  });
+  const OperationStatus = () => {
+    const session = useTimestowSession();
+    return (
+      <Text role="status">
+        {session.hasActiveOperations() ? "Operation running" : "Idle"}
+      </Text>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <OperationStatus />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+  const emitProgress = (state: "running" | "phaseComplete" | "completed") =>
+    dispatchHostMessageForTest(
+      OPERATION_PROGRESS_TOPIC,
+      JSON.stringify({
+        profileId: "photos",
+        operation: "restore",
+        operationId: "restore:one",
+        state,
+        unit: "spinner",
+        title: "Extracting",
+        current: 0,
+      }),
+    );
+
+  expect(screen.getByRole("status").text).toBe("Idle");
+  emitProgress("running");
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("Operation running");
+  });
+  emitProgress("phaseComplete");
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("Operation running");
+  });
+  emitProgress("completed");
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("Idle");
+  });
   screen.dispose();
 });
 
