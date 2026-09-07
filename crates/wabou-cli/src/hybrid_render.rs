@@ -12,7 +12,7 @@ use std::{
 
 use anyrender::Scene;
 use serde::Deserialize;
-use wabou_legacy_runtime::{AppConfig, Applier, JsRuntime};
+use wabou_backend_vello_hybrid::{AppConfig, Applier, JsRuntime};
 use wabou_legacy_shell::{
     FrameSource, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent,
     PointerPhase, RendererBackend, TextContext, UiEvent, WheelEvent, layout::PlacedNode,

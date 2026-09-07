@@ -43,13 +43,15 @@ pub use wabou_runtime::{
 };
 
 #[cfg(feature = "vello-hybrid")]
-pub use wabou_legacy_runtime::WinitHostBuilder as HostBuilder;
+pub use wabou_backend_vello_hybrid::VelloHybridHostBuilder as HostBuilder;
 #[cfg(feature = "vello-hybrid")]
-pub use wabou_legacy_runtime::{
-    Error, ImageResource, ImageResourceHandle, ImageResourceStore, Result, Widget as WinitWidget,
-    WinitEffectRequest, WinitExtensionContext, WinitHostBuilder, WinitPaintContext, WinitPoint,
-    WinitPointerButton, WinitPointerPhase, WinitRasterImage, WinitSecretStore, WinitShellExtension,
-    WinitTextContext, WinitWakeCallback, WinitWidgetChanges,
+pub use wabou_backend_vello_hybrid::{
+    Error, ImageResource, ImageResourceHandle, ImageResourceStore, Result,
+    VelloHybridEffectRequest, VelloHybridExtensionContext, VelloHybridHostBuilder,
+    VelloHybridPaintContext, VelloHybridPoint, VelloHybridPointerButton, VelloHybridPointerPhase,
+    VelloHybridRasterImage, VelloHybridSecretStore, VelloHybridShellExtension,
+    VelloHybridTextContext, VelloHybridWakeCallback, VelloHybridWidgetChanges,
+    Widget as VelloHybridWidget,
 };
 #[cfg(all(feature = "gpui", not(feature = "vello-hybrid")))]
 pub use wabou_runtime::{
@@ -65,6 +67,8 @@ mod tests {
     #[test]
     fn facade_exposes_default_application_entry_points() {
         let _builder = HostBuilder::new();
+        #[cfg(feature = "vello-hybrid")]
+        let _hybrid_backend = VelloHybridHostBuilder::new();
         #[cfg(feature = "gpui")]
         let _gpui_comparison = GpuiHostBuilder::new();
         let _window = WindowOptions::new().title("Facade test");

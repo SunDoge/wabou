@@ -254,7 +254,7 @@ struct ImageResourceDescriptor {
 /// It consumes the same JavaScript bundle and binary mutation protocol as the
 /// GPUI host. The distinct type keeps backend-specific native widgets explicit
 /// while the second backend is brought to feature parity.
-pub struct WinitHostBuilder {
+pub struct VelloHybridHostBuilder {
     window: WindowOptions,
     additional_windows: Vec<WindowOptions>,
     base_color: Color,
@@ -272,14 +272,14 @@ pub struct WinitHostBuilder {
     js_runtime_options: JsRuntimeOptions,
 }
 
-impl Default for WinitHostBuilder {
+impl Default for VelloHybridHostBuilder {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl WinitHostBuilder {
-    /// Construct a host with the standard Winit native-widget registry.
+impl VelloHybridHostBuilder {
+    /// Construct a host with the standard Vello Hybrid native-widget registry.
     pub fn new() -> Self {
         Self::with_image_resources(ImageResourceStore::default())
     }
@@ -379,7 +379,7 @@ impl WinitHostBuilder {
     /// Values entered into `<PasswordInput>` never cross into QuickJS. Native
     /// capability code can atomically take a value from the matching `secret`
     /// slot through the returned store clone.
-    pub fn password_inputs(mut self, secrets: crate::WinitSecretStore) -> Self {
+    pub fn password_inputs(mut self, secrets: crate::VelloHybridSecretStore) -> Self {
         self.widget_factories.insert(
             "password-input".into(),
             wabou_legacy_widgets::password_input_factory(secrets),
@@ -596,7 +596,7 @@ impl WinitHostBuilder {
         #[cfg(not(feature = "devtools"))]
         if self.devtools {
             tracing::warn!(
-                "WinitHostBuilder::devtools(true) requires the `wabou/devtools` feature"
+                "VelloHybridHostBuilder::devtools(true) requires the `wabou/devtools` feature"
             );
         }
 
@@ -644,7 +644,7 @@ impl WinitHostBuilder {
             let directories = app_directories
                 .as_ref()
                 .ok_or(crate::Error::MissingArgument {
-                    argument: "WinitHostBuilder::app_directories before WinitHostBuilder::kv",
+                    argument: "VelloHybridHostBuilder::app_directories before VelloHybridHostBuilder::kv",
                 })?;
             let path = directories
                 .storage_namespace("kv")
@@ -790,7 +790,7 @@ mod tests {
     fn typed_capabilities_mount_before_the_winit_bundle_boots() {
         const CONTRACT: CapabilityContract = CapabilityContract::new("winitTest", 3);
         const DOUBLE: HostMethod<DoubleRequest, DoubleResponse> = HostMethod::new("double");
-        let builder = WinitHostBuilder::new().capability(CONTRACT, |capability| {
+        let builder = VelloHybridHostBuilder::new().capability(CONTRACT, |capability| {
             capability.sync_method(DOUBLE, |request: DoubleRequest| {
                 Ok::<_, String>(DoubleResponse {
                     value: request.value * 2,
@@ -813,8 +813,8 @@ mod tests {
 
     #[test]
     fn password_inputs_register_the_public_secure_editor_tag() {
-        let secrets = crate::WinitSecretStore::default();
-        let builder = WinitHostBuilder::new().password_inputs(secrets.clone());
+        let secrets = crate::VelloHybridSecretStore::default();
+        let builder = VelloHybridHostBuilder::new().password_inputs(secrets.clone());
         let mut widget = builder.widget_factories["password-input"]();
 
         assert!(
@@ -829,7 +829,7 @@ mod tests {
     fn runtime_source_factory_boots_dynamic_windows_with_shared_contracts() {
         const CONTRACT: CapabilityContract = CapabilityContract::new("winitTest", 3);
         const DOUBLE: HostMethod<DoubleRequest, DoubleResponse> = HostMethod::new("double");
-        let builder = WinitHostBuilder::new().capability(CONTRACT, |capability| {
+        let builder = VelloHybridHostBuilder::new().capability(CONTRACT, |capability| {
             capability.sync_method(DOUBLE, |request: DoubleRequest| {
                 Ok::<_, String>(DoubleResponse {
                     value: request.value * 2,
@@ -878,7 +878,7 @@ mod tests {
     #[test]
     fn public_host_message_router_attaches_to_winit_runtime() {
         let router = runtime_api::HostMessageRouter::new();
-        let builder = WinitHostBuilder::new().host_message_router(router.clone());
+        let builder = VelloHybridHostBuilder::new().host_message_router(router.clone());
         let controller = Applier::from_runtime(JsRuntime::new().expect("runtime"), Color::BLACK);
         let window_key = legacy_shell::initial_window_resource_key(0);
         let context = controller.host_message_context(window_key);

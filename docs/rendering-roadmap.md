@@ -8,11 +8,11 @@ types remain explicit and neither backend silently emulates the other.
 
 Backend behavior was first evaluated with the isolated
 [`experiments/anyrender-backends`](../experiments/anyrender-backends/README.md)
-harness. Its implementation currently still lives under transitional
-`wabou-legacy-*` crate names, but `HostBuilder` now selects the Hybrid path and
-`GpuiHostBuilder` selects the comparison path. Fixtures and captures must
-always report their actual backend; results from one backend never prove the
-other.
+harness. Its application backend is now named `wabou-backend-vello-hybrid`;
+renderer-side helper crates retain transitional `wabou-legacy-*` names until
+their boundaries are consolidated. `HostBuilder` selects the Hybrid path and
+`GpuiHostBuilder` selects the comparison path. Fixtures and captures must always
+report their actual backend; results from one backend never prove the other.
 
 ## Highest priority: preserve Solid invalidation in GPUI
 
@@ -81,9 +81,9 @@ fixes cannot drift between backends.
 
 Hybrid no longer imports the GPUI `wabou-shell` crate for input, effect, window,
 or IME state. Those contracts now come directly from `wabou-shell-api`; the
-architecture check rejects any new cross-backend shell dependency. The remaining
-GPUI dependency is the transitional `wabou-legacy-runtime -> wabou-runtime` edge
-used for the already-shared JavaScript runtime and host services.
+architecture check rejects any new cross-backend shell dependency. The Hybrid
+backend consumes `wabou-runtime` with default features disabled, so its shared
+JavaScript runtime and host-service edge does not activate GPUI.
 
 Packaged bundle and source-map discovery is shared as well. Vello Hybrid now
 uses the same development override, adjacent-resource, Debian `/usr/lib`, and
@@ -113,8 +113,8 @@ group opacity/blending, nested SVG images, and embedded raster images. Masks,
 filter graphs, pattern paints, and complex clip paths produce structured
 diagnostics instead of entering unsupported Hybrid code paths. This adapter is
 renderer-side infrastructure; the application backend is exposed separately
-through the default `HostBuilder`; `WinitHostBuilder` remains a transitional
-explicit name while backend crates are reorganized.
+through the default `HostBuilder` and the explicit `VelloHybridHostBuilder`
+name.
 
 New shared runtime features must remain backend-neutral. Renderer-specific
 features require an explicit implementation and test instead of fallback
@@ -159,14 +159,14 @@ Apply the reorganization in this order:
    resources (including the generational registry), effect dispatch/recording,
    HMR queueing, the per-window runtime session, and bundle/source-map discovery
    are shared already. The Vite side-effect classification policy is shared as
-   well; persistence and the remaining backend HMR orchestration cleanup must
-   follow before any crate rename.
+   well; persistence and the remaining backend HMR orchestration cleanup still
+   belong here rather than in either projection.
 2. Move GPUI-specific `gpui_*` modules and the current `wabou-shell` projection
    into `wabou-backend-gpui`.
-3. Rename the Winit implementation to `wabou-backend-vello-hybrid`. Keep large
-   renderer helpers such as SVG conversion in a private supporting crate when
-   that preserves incremental compilation; package count is an implementation
-   detail and must not expand the public API.
+3. The Winit implementation is now `wabou-backend-vello-hybrid` and exports
+   `VelloHybridHostBuilder`. Continue consolidating private renderer helpers
+   when that improves ownership without harming incremental compilation;
+   package count is an implementation detail and must not expand the public API.
 4. Keep `HostBuilder` as the Vello Hybrid default and export
    `GpuiHostBuilder` for comparison. Backend choice remains compile-time,
    so applications do not ship both platform stacks accidentally.

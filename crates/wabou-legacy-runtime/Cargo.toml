@@ -1,12 +1,12 @@
 [package]
-name = "wabou-legacy-runtime"
+name = "wabou-backend-vello-hybrid"
 version.workspace = true
 edition = "2024"
 license.workspace = true
 publish = false
 
 [lib]
-name = "wabou_legacy_runtime"
+name = "wabou_backend_vello_hybrid"
 path = "src/lib.rs"
 
 [dependencies]

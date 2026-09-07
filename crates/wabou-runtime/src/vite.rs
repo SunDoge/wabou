@@ -354,6 +354,7 @@ use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use tungstenite::client::IntoClientRequest;
 
+#[cfg(feature = "gpui")]
 use crate::reload::ReloadMsg;
 
 #[derive(Debug, Snafu)]
@@ -496,6 +497,7 @@ impl Drop for HmrClient {
 ///
 /// The returned handle owns the background client; dropping it requests
 /// shutdown and joins the client thread.
+#[cfg(feature = "gpui")]
 pub(crate) fn start_hmr_client(
     server_url: &str,
     reload: crate::reload::ReloadHandle,

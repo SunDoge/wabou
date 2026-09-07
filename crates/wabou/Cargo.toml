@@ -12,23 +12,21 @@ license.workspace = true
 wabou-bindgen = { workspace = true }
 wabou-database = { workspace = true }
 wabou-runtime = { workspace = true, default-features = false }
-wabou-legacy-runtime = { workspace = true, optional = true }
+wabou-backend-vello-hybrid = { workspace = true, optional = true }
 wabou-tray = { workspace = true, optional = true }
 
 [features]
 default = ["vello-hybrid"]
 bindings = ["wabou-bindgen/generate"]
-devtools = ["wabou-runtime/devtools", "wabou-legacy-runtime?/devtools"]
+devtools = ["wabou-runtime/devtools", "wabou-backend-vello-hybrid?/devtools"]
 gpui = ["wabou-runtime/gpui"]
 headless = ["wabou-runtime/headless"]
 gpui-headless = ["gpui", "headless", "wabou-runtime/gpui-headless"]
 profiling = ["wabou-runtime/profiling"]
 rust-hot-reload = ["wabou-runtime/rust-hot-reload"]
 tray = ["dep:wabou-tray"]
-vite = ["wabou-runtime/vite", "wabou-legacy-runtime?/vite"]
-vello-hybrid = ["dep:wabou-legacy-runtime"]
-# Compatibility alias for applications created before Vello Hybrid became the default.
-winit-vello-hybrid = ["vello-hybrid"]
+vite = ["wabou-runtime/vite", "wabou-backend-vello-hybrid?/vite"]
+vello-hybrid = ["dep:wabou-backend-vello-hybrid"]
 
 [dev-dependencies]
 serde = { workspace = true, features = ["derive"] }

@@ -1,8 +1,8 @@
-//! Winit + Taffy runtime used by Wabou's experimental Vello Hybrid backend.
+//! Winit + Taffy application backend rendered by Vello Hybrid.
 //!
-//! The crate retains its transitional name while backend parity is completed.
-//! Application code reaches it through `wabou::WinitHostBuilder` rather than
-//! depending on this implementation crate directly.
+//! Application code normally reaches this backend through `wabou::HostBuilder`;
+//! `wabou::VelloHybridHostBuilder` is available when the backend identity should
+//! be explicit.
 
 #![allow(missing_docs)]
 
@@ -69,7 +69,7 @@ use wabou_style::stylesheet as style_ir;
 
 pub use config::AppConfig;
 pub use error::{Error, Result};
-pub use host::WinitHostBuilder;
+pub use host::VelloHybridHostBuilder;
 pub use host_frame::{
     HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, NumericEventData, ResizeObservation,
 };
@@ -78,15 +78,15 @@ pub use host_message::{
 };
 pub use jsrt::{JsRuntime, JsRuntimeOptions};
 pub use legacy_shell::{
-    EffectRequest as WinitEffectRequest, ExtensionContext as WinitExtensionContext,
-    PaintContext as WinitPaintContext, Point as WinitPoint, PointerButton as WinitPointerButton,
-    PointerPhase as WinitPointerPhase, ShellExtension as WinitShellExtension,
-    TextContext as WinitTextContext, WakeCallback as WinitWakeCallback, Widget,
-    WidgetChanges as WinitWidgetChanges, WidgetFactory, WidgetRasterImage as WinitRasterImage,
-    WindowOptions,
+    EffectRequest as VelloHybridEffectRequest, ExtensionContext as VelloHybridExtensionContext,
+    PaintContext as VelloHybridPaintContext, Point as VelloHybridPoint,
+    PointerButton as VelloHybridPointerButton, PointerPhase as VelloHybridPointerPhase,
+    ShellExtension as VelloHybridShellExtension, TextContext as VelloHybridTextContext,
+    WakeCallback as VelloHybridWakeCallback, Widget, WidgetChanges as VelloHybridWidgetChanges,
+    WidgetFactory, WidgetRasterImage as VelloHybridRasterImage, WindowOptions,
 };
 pub use runtime_api::{ImageResource, ImageResourceHandle, ImageResourceStore};
-pub use wabou_legacy_widgets::SecretStore as WinitSecretStore;
+pub use wabou_legacy_widgets::SecretStore as VelloHybridSecretStore;
 
 mod applier;
 

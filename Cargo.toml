@@ -21,6 +21,7 @@ default-members = [
   "crates/wabou",
   "crates/wabou-accessibility",
   "crates/wabou-bindgen",
+  "crates/wabou-legacy-runtime",
   "crates/wabou-cli",
   "crates/wabou-database",
   "crates/wabou-devtools",
@@ -57,7 +58,7 @@ wabou-database = { path = "crates/wabou-database" }
 wabou-devtools = { path = "crates/wabou-devtools", default-features = false }
 wabou-host-api = { path = "crates/wabou-host-api" }
 wabou-legacy-accessibility = { path = "crates/wabou-legacy-accessibility" }
-wabou-legacy-runtime = { path = "crates/wabou-legacy-runtime" }
+wabou-backend-vello-hybrid = { path = "crates/wabou-legacy-runtime" }
 # Transitional names for the actively developed Winit/Taffy/Vello Hybrid
 # backend. Keep them split while shared runtime code is extracted; they are no
 # longer a retired compatibility implementation.

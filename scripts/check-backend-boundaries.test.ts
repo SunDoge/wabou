@@ -25,7 +25,7 @@ test("Hybrid entry points cannot reactivate the GPUI runtime by default", () => 
         },
         {
           id: "hybrid-id",
-          name: "wabou-legacy-runtime",
+          name: "wabou-backend-vello-hybrid",
           dependencies: [
             {
               kind: null,
@@ -82,7 +82,7 @@ test("backend packages cannot acquire new cross-backend dependencies", () => {
         },
         {
           id: "legacy-runtime-id",
-          name: "wabou-legacy-runtime",
+          name: "wabou-backend-vello-hybrid",
           dependencies: [
             { kind: null, name: "wabou-shell", rename: "gpui-shell" },
             { kind: null, name: "wabou-runtime", rename: "runtime-api" },
@@ -96,7 +96,7 @@ test("backend packages cannot acquire new cross-backend dependencies", () => {
       ],
     }),
   ).toEqual([
-    "wabou-legacy-runtime -> gpui-shell (wabou-shell, normal)",
+    "wabou-backend-vello-hybrid -> gpui-shell (wabou-shell, normal)",
     "wabou-legacy-widgets -> wabou-terminal (wabou-terminal, normal)",
     "wabou-shell -> wabou-legacy-widgets (wabou-legacy-widgets, normal)",
   ]);

@@ -13178,9 +13178,9 @@ name = "wabou"
 version = "0.1.0-alpha.3"
 dependencies = [
  "serde",
+ "wabou-backend-vello-hybrid",
  "wabou-bindgen",
  "wabou-database",
- "wabou-legacy-runtime",
  "wabou-runtime",
  "wabou-tray",
 ]
@@ -13188,6 +13188,50 @@ dependencies = [
 [[package]]
 name = "wabou-accessibility"
 version = "0.1.0-alpha.3"
+
+[[package]]
+name = "wabou-backend-vello-hybrid"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "anyrender",
+ "arc-swap",
+ "bitflags 2.13.1",
+ "flume 0.12.0",
+ "futures-lite",
+ "getrandom 0.4.3",
+ "image",
+ "jiff",
+ "open",
+ "parley",
+ "proptest",
+ "reqwest",
+ "rquickjs",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2 0.10.9",
+ "slotmap",
+ "snafu",
+ "sourcemap",
+ "sys-locale",
+ "taffy 0.14.0",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "vello",
+ "wabou-bindgen",
+ "wabou-devtools",
+ "wabou-host-api",
+ "wabou-legacy-shell",
+ "wabou-legacy-widgets",
+ "wabou-protocol",
+ "wabou-runtime",
+ "wabou-shell-api",
+ "wabou-style",
+]
 
 [[package]]
 name = "wabou-bindgen"
@@ -13213,8 +13257,8 @@ dependencies = [
  "serde_json",
  "tempfile",
  "toml 0.9.12+spec-1.1.0",
+ "wabou-backend-vello-hybrid",
  "wabou-devtools",
- "wabou-legacy-runtime",
  "wabou-legacy-shell",
  "wabou-legacy-widgets",
  "wabou-runtime",
@@ -13281,50 +13325,6 @@ dependencies = [
  "raw-window-handle",
  "wabou-accessibility",
  "winit",
-]
-
-[[package]]
-name = "wabou-legacy-runtime"
-version = "0.1.0-alpha.3"
-dependencies = [
- "anyrender",
- "arc-swap",
- "bitflags 2.13.1",
- "flume 0.12.0",
- "futures-lite",
- "getrandom 0.4.3",
- "image",
- "jiff",
- "open",
- "parley",
- "proptest",
- "reqwest",
- "rquickjs",
- "serde",
- "serde_json",
- "sha1",
- "sha2 0.10.9",
- "slotmap",
- "snafu",
- "sourcemap",
- "sys-locale",
- "taffy 0.14.0",
- "tempfile",
- "tokio",
- "tokio-util",
- "tracing",
- "tracing-subscriber",
- "url",
- "vello",
- "wabou-bindgen",
- "wabou-devtools",
- "wabou-host-api",
- "wabou-legacy-shell",
- "wabou-legacy-widgets",
- "wabou-protocol",
- "wabou-runtime",
- "wabou-shell-api",
- "wabou-style",
 ]
 
 [[package]]

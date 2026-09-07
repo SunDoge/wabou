@@ -58,7 +58,7 @@ pub fn gpui_factory()
 pub struct WinitFractal {
     cx: f64,
     cy: f64,
-    image: Option<((u64, u64), wabou::WinitRasterImage)>,
+    image: Option<((u64, u64), wabou::VelloHybridRasterImage)>,
 }
 
 #[cfg(not(feature = "gpui"))]
@@ -73,11 +73,11 @@ impl Default for WinitFractal {
 }
 
 #[cfg(not(feature = "gpui"))]
-impl wabou::WinitWidget for WinitFractal {
-    fn paint(&mut self, paint: &mut wabou::WinitPaintContext<'_>) {
+impl wabou::VelloHybridWidget for WinitFractal {
+    fn paint(&mut self, paint: &mut wabou::VelloHybridPaintContext<'_>) {
         let key = (self.cx.to_bits(), self.cy.to_bits());
         if self.image.as_ref().is_none_or(|(cached, _)| *cached != key) {
-            let image = wabou::WinitRasterImage::from_rgba8(
+            let image = wabou::VelloHybridRasterImage::from_rgba8(
                 RENDER_SIZE,
                 RENDER_SIZE,
                 render_rgba(self.cx, self.cy),
@@ -94,21 +94,21 @@ impl wabou::WinitWidget for WinitFractal {
         );
     }
 
-    fn attribute_changed(&mut self, name: &str, value: &str) -> wabou::WinitWidgetChanges {
+    fn attribute_changed(&mut self, name: &str, value: &str) -> wabou::VelloHybridWidgetChanges {
         let target = match name {
             "cx" => &mut self.cx,
             "cy" => &mut self.cy,
-            _ => return wabou::WinitWidgetChanges::empty(),
+            _ => return wabou::VelloHybridWidgetChanges::empty(),
         };
         let Ok(next) = value.parse::<f64>() else {
-            return wabou::WinitWidgetChanges::empty();
+            return wabou::VelloHybridWidgetChanges::empty();
         };
         if next.is_finite() && target.to_bits() != next.to_bits() {
             *target = next;
             self.image = None;
-            wabou::WinitWidgetChanges::REDRAW
+            wabou::VelloHybridWidgetChanges::REDRAW
         } else {
-            wabou::WinitWidgetChanges::empty()
+            wabou::VelloHybridWidgetChanges::empty()
         }
     }
 
@@ -206,7 +206,7 @@ fn hue_to_rgb(p: f64, q: f64, mut t: f64) -> f64 {
 #[cfg(all(test, not(feature = "gpui")))]
 mod hybrid_tests {
     use super::*;
-    use wabou::WinitWidget as _;
+    use wabou::VelloHybridWidget as _;
 
     #[test]
     fn hybrid_fractal_reuses_pixels_until_parameters_change() {
@@ -214,8 +214,8 @@ mod hybrid_tests {
         assert_eq!(widget.intrinsic_size(), Some([480.0, 480.0]));
         assert!(widget.image.is_none());
 
-        let mut text = wabou::WinitTextContext::new();
-        let mut paint = wabou::WinitPaintContext::new(64.0, 64.0, 1.0, &mut text);
+        let mut text = wabou::VelloHybridTextContext::new();
+        let mut paint = wabou::VelloHybridPaintContext::new(64.0, 64.0, 1.0, &mut text);
         widget.paint(&mut paint);
         assert!(widget.image.is_some());
         let original = widget.image.as_ref().unwrap().0;
@@ -223,10 +223,10 @@ mod hybrid_tests {
         assert!(
             widget
                 .attribute_changed("cx", "-0.4")
-                .contains(wabou::WinitWidgetChanges::REDRAW)
+                .contains(wabou::VelloHybridWidgetChanges::REDRAW)
         );
         assert!(widget.image.is_none());
-        let mut paint = wabou::WinitPaintContext::new(64.0, 64.0, 1.0, &mut text);
+        let mut paint = wabou::VelloHybridPaintContext::new(64.0, 64.0, 1.0, &mut text);
         widget.paint(&mut paint);
         assert_ne!(widget.image.as_ref().unwrap().0, original);
     }
