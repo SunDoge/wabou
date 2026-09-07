@@ -269,6 +269,39 @@ await renderLayoutFixtures({
       },
     },
     {
+      id: "timestow/workspace-file-error",
+      width: 900,
+      height: 620,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, {
+          role: "alert",
+          name: "Snapshot files unavailable",
+        });
+        getLayoutNode(fixture, { role: "button", name: "Retry" });
+        getLayoutNode(fixture, {
+          role: "button",
+          name: "Open snapshot Before photo cleanup",
+        });
+        if (
+          queryLayoutNodes(fixture, { text: "Before photo cleanup" }).length < 2
+        ) {
+          throw new Error("file failure clears the selected snapshot");
+        }
+        if (
+          queryLayoutNodes(fixture, {
+            role: "alert",
+            name: "History unavailable",
+          }).length
+        ) {
+          throw new Error("file failure invalidates the snapshot history");
+        }
+        if (queryLayoutNodes(fixture, { role: "table" }).length) {
+          throw new Error("file failure renders an empty file table");
+        }
+      },
+    },
+    {
       id: "timestow/backup-progress-narrow",
       width: 420,
       height: 88,

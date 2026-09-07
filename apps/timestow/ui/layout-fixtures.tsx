@@ -425,6 +425,18 @@ function WorkspaceErrorFixture() {
   );
 }
 
+function WorkspaceFileErrorFixture() {
+  return (
+    <WorkspaceFixture
+      rustic={{
+        ...fixtureRustic,
+        listFiles: () =>
+          Promise.reject(new Error("Snapshot files could not be read.")),
+      }}
+    />
+  );
+}
+
 function BackupProgressFixture() {
   return (
     <ColorThemeProvider theme="light">
@@ -650,6 +662,12 @@ defineLayoutFixtures(
       height: 620,
       waitMs: 100,
       render: WorkspaceErrorFixture,
+    },
+    "timestow/workspace-file-error": {
+      width: 900,
+      height: 620,
+      waitMs: 100,
+      render: WorkspaceFileErrorFixture,
     },
     "timestow/backup-progress-narrow": {
       width: 420,

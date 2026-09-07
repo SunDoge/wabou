@@ -483,6 +483,8 @@ export function SnapshotsPage() {
   const [loading, setLoading] = createSignal(true);
   const [loadingFiles, setLoadingFiles] = createSignal(false);
   const [loadingMoreFiles, setLoadingMoreFiles] = createSignal(false);
+  const [historyError, setHistoryError] = createSignal<string>();
+  const [fileError, setFileError] = createSignal<string>();
   const [error, setError] = createSignal<string>();
   const browserCache = session.snapshotBrowser;
   let fileRequestGeneration = 0;
@@ -504,6 +506,7 @@ export function SnapshotsPage() {
     setCurrentPath("");
     setLoadingFiles(false);
     setLoadingMoreFiles(false);
+    setFileError(undefined);
   }
 
   async function loadSnapshots(
@@ -521,6 +524,7 @@ export function SnapshotsPage() {
       setSnapshots([]);
     }
     setLoading(true);
+    setHistoryError(undefined);
     setError(undefined);
     try {
       const next = await api.listSnapshots({ profileId });
@@ -544,7 +548,7 @@ export function SnapshotsPage() {
       return true;
     } catch (cause) {
       if (generation === snapshotRequestGeneration) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setHistoryError(cause instanceof Error ? cause.message : String(cause));
       }
       return false;
     } finally {
@@ -567,7 +571,7 @@ export function SnapshotsPage() {
     setSearchResults([]);
     setSearching(false);
     setLoadingMoreFiles(false);
-    setError(undefined);
+    setFileError(undefined);
     const cached = browserCache.listing(snapshot.id, path);
     if (cached) {
       setFiles([...cached.entries]);
@@ -590,7 +594,7 @@ export function SnapshotsPage() {
       setFileTotal(next.total);
     } catch (cause) {
       if (generation !== fileRequestGeneration) return;
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setFileError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       if (generation === fileRequestGeneration) setLoadingFiles(false);
     }
@@ -673,6 +677,13 @@ export function SnapshotsPage() {
     void loadFiles(profileId, snapshot, browserCache.lastPath(snapshot.id));
   }
 
+  function retryCurrentDirectory(): void {
+    const profile = session.activeProfile();
+    const snapshot = selected();
+    if (!profile || !snapshot) return;
+    void loadFiles(profile.id, snapshot, currentPath());
+  }
+
   async function refreshSnapshots(profileId: string) {
     const selectedId = selected()?.id;
     const path = currentPath();
@@ -709,6 +720,8 @@ export function SnapshotsPage() {
     const profile = session.activeProfile();
     return profile ? session.isBackingUp(profile.id) : false;
   };
+
+  const pageError = () => historyError() ?? error();
 
   async function updateSnapshot(
     snapshot: SnapshotEntry,
@@ -778,6 +791,7 @@ export function SnapshotsPage() {
   const visibleFiles = () => (searchActive() ? searchResults() : files());
   const fileCountLabel = () => {
     if (loadingFiles()) return "Loading…";
+    if (fileError()) return "Unavailable";
     if (searchActive()) return `${visibleFiles().length} matches`;
     if (fileTotal() > files().length) {
       return `${files().length} of ${fileTotal()} items`;
@@ -840,7 +854,7 @@ export function SnapshotsPage() {
           )}
         </Show>
       </View>
-      <Show when={error()}>
+      <Show when={pageError()}>
         {(message) => (
           <View class="flex-none mx-6 mt-4 rounded-md border border-danger bg-danger-surface px-3 py-2">
             <Text class="text-sm text-danger-primary">{message()}</Text>
@@ -850,7 +864,7 @@ export function SnapshotsPage() {
       <View class="min-w-0 min-h-0 flex-1 flex flex-row bg-surface">
         <SnapshotHistory
           loading={loading()}
-          loadFailed={error() !== undefined}
+          loadFailed={historyError() !== undefined}
           snapshots={snapshots()}
           selectedId={selected()?.id}
           query={snapshotQuery()}
@@ -872,7 +886,7 @@ export function SnapshotsPage() {
             fallback={
               <SnapshotBrowserEmptyState
                 loading={loading()}
-                loadFailed={error() !== undefined}
+                loadFailed={historyError() !== undefined}
                 hasSnapshots={snapshots().length > 0}
                 sourceCount={session.activeProfile()?.sources.length ?? 0}
                 backingUp={backingUp()}
@@ -1028,14 +1042,32 @@ export function SnapshotsPage() {
                   }
                 >
                   <Show
-                    when={!loadingFiles()}
+                    when={!loadingFiles() && !fileError()}
                     fallback={
-                      <ContentState
-                        state="loading"
-                        title="Loading snapshot files"
-                        description="Reading this snapshot’s directory…"
-                        class="min-h-0 flex-1 border-0 shadow-none"
-                      />
+                      <Show
+                        when={fileError()}
+                        fallback={
+                          <ContentState
+                            state="loading"
+                            title="Loading snapshot files"
+                            description="Reading this snapshot’s directory…"
+                            class="min-h-0 flex-1 border-0 shadow-none"
+                          />
+                        }
+                      >
+                        {(message) => (
+                          <ContentState
+                            state="error"
+                            title="Snapshot files unavailable"
+                            description={message()}
+                            action={{
+                              label: "Retry",
+                              onAction: retryCurrentDirectory,
+                            }}
+                            class="min-h-0 flex-1 border-0 shadow-none"
+                          />
+                        )}
+                      </Show>
                     }
                   >
                     <AdaptiveSplitPane
