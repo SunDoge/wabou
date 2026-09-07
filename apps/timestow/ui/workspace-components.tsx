@@ -32,7 +32,11 @@ export function BackupSourcesPanel(props: BackupSourcesPanelProps) {
   }
 
   return (
-    <View class="min-w-0 flex flex-col gap-3">
+    <View
+      role="group"
+      aria-label="Backup folder selection"
+      class="min-w-0 flex flex-col gap-3"
+    >
       <DirectoryPicker
         value={draft()}
         onValueChange={setDraft}

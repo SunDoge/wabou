@@ -455,5 +455,31 @@ await renderLayoutFixtures({
         });
       },
     },
+    {
+      id: "timestow/backup-sources-narrow",
+      width: 360,
+      height: 320,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        const panel = getLayoutNode(fixture, {
+          role: "group",
+          name: "Backup folder selection",
+        });
+        getLayoutNode(fixture, {
+          role: "textbox",
+          name: "Backup folder",
+        });
+        const remove = getLayoutNode(fixture, {
+          role: "button",
+          name: "Remove /data/users/me/Documents/Long project name/Reference material",
+        });
+        if (
+          remove.rect.x + remove.rect.width >
+          panel.rect.x + panel.rect.width
+        ) {
+          throw new Error("long backup path pushes its remove action out");
+        }
+      },
+    },
   ),
 });

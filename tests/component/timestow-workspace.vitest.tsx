@@ -1013,6 +1013,9 @@ test("backup sources add manual paths with Enter and remove existing paths", () 
     );
   };
   const screen = renderComponent(App, { platform: { dialog } });
+  expect(
+    screen.getByRole("group", { name: "Backup folder selection" }),
+  ).toBeDefined();
   const input = screen.getByRole("textbox", { name: "Backup folder" });
 
   input.input("  /data/documents  ");

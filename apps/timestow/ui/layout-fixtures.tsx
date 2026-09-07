@@ -40,6 +40,7 @@ import { BackupConnectionForm } from "./setup";
 import { AppShell, SessionErrorBanner, TimestowSidebar } from "./shell";
 import { SnapshotDiffPanel } from "./snapshot-diff";
 import { SnapshotsPage, SnapshotWorkspaceHeader } from "./snapshots";
+import { BackupSourcesPanel } from "./workspace-components";
 
 const profile = {
   id: "home",
@@ -605,6 +606,25 @@ function RestorePlanFixture() {
   );
 }
 
+function BackupSourcesFixture() {
+  return (
+    <ColorThemeProvider theme="light">
+      <ComponentsProvider theme="light">
+        <View class="w-full h-full min-w-0 bg-canvas p-4 text-primary">
+          <BackupSourcesPanel
+            sources={[
+              "/data/users/me/Documents/Long project name/Reference material",
+              "/data/users/me/Pictures/Family archive/Original scans",
+              "/data/users/me/Projects/wabou",
+            ]}
+            onChange={() => {}}
+          />
+        </View>
+      </ComponentsProvider>
+    </ColorThemeProvider>
+  );
+}
+
 defineLayoutFixtures(
   defineComponentFixtures({
     "timestow/setup-wide": {
@@ -711,6 +731,11 @@ defineLayoutFixtures(
       width: 480,
       height: 300,
       render: RestorePlanFixture,
+    },
+    "timestow/backup-sources-narrow": {
+      width: 360,
+      height: 320,
+      render: BackupSourcesFixture,
     },
   }),
   { colorTheme: false },
