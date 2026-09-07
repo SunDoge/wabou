@@ -57,7 +57,11 @@ export function FileDetails(props: {
   }
 
   return (
-    <View class="w-72 min-h-0 flex-none flex flex-col gap-4 border-l border-subtle bg-surface-muted p-4">
+    <View
+      role="region"
+      aria-label="File details"
+      class="w-full h-full min-h-0 flex flex-col gap-4 bg-surface-muted p-4"
+    >
       <Show
         when={props.entry}
         fallback={

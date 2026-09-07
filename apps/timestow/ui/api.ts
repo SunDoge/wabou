@@ -87,7 +87,7 @@ export interface RestoreResult {
   plan: RestorePlanSummary;
 }
 
-interface RusticCapability extends NativeCapability {
+export interface RusticCapability extends NativeCapability {
   status(): RuntimeStatus | PromiseLike<RuntimeStatus>;
   createProfile(request: {
     id: string;

@@ -1,5 +1,7 @@
 import {
-  Badge,
+  AdaptiveSplitPane,
+  AdaptiveSplitPaneDetail,
+  AdaptiveSplitPaneMain,
   Button,
   ButtonGroup,
   ContentState,
@@ -139,7 +141,7 @@ export function SnapshotFileRow(props: {
             props.onOpenDirectory(entry());
           }}
         >
-          <TableCell class="min-w-64 flex-1 gap-2">
+          <TableCell class="min-w-0 flex-1 gap-2">
             <Icon
               source={entry().kind === "directory" ? folder : file}
               size={15}
@@ -154,10 +156,10 @@ export function SnapshotFileRow(props: {
               </Show>
             </View>
           </TableCell>
-          <TableCell class="w-24 flex-none text-muted">
+          <TableCell class="min-w-0 w-24 flex-none text-muted">
             {entry().kind === "directory" ? "—" : formatBytes(entry().size)}
           </TableCell>
-          <TableCell class="w-36 flex-none text-muted">
+          <TableCell class="min-w-0 w-36 flex-none text-muted">
             {formatModified(entry().modified)}
           </TableCell>
         </TableRow>
@@ -481,10 +483,12 @@ export function SnapshotsPage() {
       <View class="min-w-0 min-h-0 flex-1 flex flex-row bg-surface">
         <ProjectionBoundary
           id="rustic-sidebar"
+          role="region"
+          aria-label="Snapshot history"
           class="w-64 min-h-0 flex-none flex flex-col border-r border-subtle bg-surface-muted"
         >
           <View class="flex-none px-4 py-4 border-b border-subtle">
-            <Text class="text-xs font-semibold uppercase tracking-wide text-muted">
+            <Text class="text-xs font-semibold tracking-wide text-muted">
               Snapshot history
             </Text>
           </View>
@@ -510,6 +514,7 @@ export function SnapshotsPage() {
               <ForValue each={snapshots()}>
                 {(snapshot) => (
                   <Button
+                    aria-label={`Open snapshot ${snapshot.label || formatSnapshotTime(snapshot.time)}`}
                     variant="ghost"
                     selected={selected()?.id === snapshot.id}
                     class="min-h-14 justify-start px-3"
@@ -530,7 +535,13 @@ export function SnapshotsPage() {
                             class="flex-none text-success-primary"
                           />
                         </Show>
-                        <Text class="min-w-0 flex-1 truncate text-xs text-muted">
+                        <Text
+                          class={
+                            selected()?.id === snapshot.id
+                              ? "min-w-0 flex-1 truncate text-xs text-secondary"
+                              : "min-w-0 flex-1 truncate text-xs text-muted"
+                          }
+                        >
                           {snapshot.label
                             ? `${formatSnapshotTime(snapshot.time)} · `
                             : ""}
@@ -548,6 +559,8 @@ export function SnapshotsPage() {
 
         <ProjectionBoundary
           id="rustic-file-browser"
+          role="region"
+          aria-label="Snapshot browser"
           class="min-w-0 min-h-0 flex-1 flex flex-col bg-surface overflow-hidden"
         >
           <Show
@@ -587,13 +600,20 @@ export function SnapshotsPage() {
                       <Text class="truncate text-xs text-muted">
                         {searchActive()
                           ? `Search results for “${searchQuery()}”`
-                          : `/${currentPath() || ""}`}
+                          : `/${currentPath() || ""}`}{" "}
+                        ·{" "}
+                        {loadingFiles()
+                          ? "Loading…"
+                          : `${visibleFiles().length} items`}
                       </Text>
                     </View>
+                  </View>
+                  <View class="min-w-0 flex flex-row items-center justify-between gap-3">
                     <ButtonGroup
                       size="sm"
                       variant="ghost"
                       aria-label="Snapshot workspace"
+                      class="flex-none"
                     >
                       <Button
                         size="sm"
@@ -621,6 +641,7 @@ export function SnapshotsPage() {
                         size="sm"
                         variant="ghost"
                         aria-label="File view"
+                        class="flex-none"
                       >
                         <Button
                           size="icon"
@@ -644,11 +665,6 @@ export function SnapshotsPage() {
                           <Icon source={folderTree} size={14} />
                         </Button>
                       </ButtonGroup>
-                      <Badge variant="secondary">
-                        {loadingFiles()
-                          ? "Loading…"
-                          : `${visibleFiles().length} items`}
-                      </Badge>
                     </Show>
                   </View>
                   <Show when={workspaceMode() === "browse"}>
@@ -715,93 +731,111 @@ export function SnapshotsPage() {
                       />
                     }
                   >
-                    <View class="min-w-0 min-h-0 flex-1 flex flex-row">
-                      <Show
-                        when={browserMode() === "list" || searchActive()}
-                        fallback={
+                    <AdaptiveSplitPane
+                      compactAt={720}
+                      aria-label="Snapshot file workspace"
+                      class="min-w-0 min-h-0 flex-1"
+                    >
+                      <AdaptiveSplitPaneMain class="h-full">
+                        <Show
+                          when={browserMode() === "list" || searchActive()}
+                          fallback={
+                            <ScrollArea
+                              class="min-w-0 min-h-0 flex-1"
+                              contentClass="min-w-full px-2 py-2"
+                            >
+                              <SnapshotFileTree
+                                profileId={session.activeProfile()?.id ?? ""}
+                                snapshotId={snapshot().id}
+                                selectedPath={selectedEntry()?.path}
+                                onSelect={setSelectedEntry}
+                              />
+                            </ScrollArea>
+                          }
+                        >
                           <ScrollArea
                             class="min-w-0 min-h-0 flex-1"
-                            contentClass="min-w-full px-2 py-2"
+                            contentClass="min-w-full"
                           >
-                            <SnapshotFileTree
-                              profileId={session.activeProfile()?.id ?? ""}
-                              snapshotId={snapshot().id}
-                              selectedPath={selectedEntry()?.path}
-                              onSelect={setSelectedEntry}
-                            />
-                          </ScrollArea>
-                        }
-                      >
-                        <ScrollArea
-                          class="min-w-0 min-h-0 flex-1"
-                          contentClass="min-w-full"
-                        >
-                          <Table>
-                            <TableHeader>
-                              <TableRow class="bg-surface-muted">
-                                <SortableTableHead
-                                  label="Name"
-                                  class="min-w-64 flex-1"
-                                  direction={() => sortDirection("name")}
-                                  onToggle={() =>
-                                    fileTable.table
-                                      .getColumn("name")
-                                      ?.toggleSorting()
-                                  }
-                                />
-                                <SortableTableHead
-                                  label="Size"
-                                  class="w-24 flex-none"
-                                  direction={() => sortDirection("size")}
-                                  onToggle={() =>
-                                    fileTable.table
-                                      .getColumn("size")
-                                      ?.toggleSorting()
-                                  }
-                                />
-                                <SortableTableHead
-                                  label="Modified"
-                                  class="w-36 flex-none"
-                                  direction={() => sortDirection("modified")}
-                                  onToggle={() =>
-                                    fileTable.table
-                                      .getColumn("modified")
-                                      ?.toggleSorting()
-                                  }
-                                />
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              <ForValue each={fileTable.rows()}>
-                                {(row) => (
-                                  <SnapshotFileRow
-                                    entry={row.original}
-                                    selected={
-                                      selectedEntry()?.path ===
-                                      row.original.path
-                                    }
-                                    searchActive={searchActive()}
-                                    onSelect={setSelectedEntry}
-                                    onOpenDirectory={(directory) =>
-                                      void loadFiles(
-                                        session.activeProfile()?.id ?? "",
-                                        snapshot(),
-                                        directory.path,
-                                      )
+                            <Table aria-label="Snapshot files">
+                              <TableHeader>
+                                <TableRow class="bg-surface-muted">
+                                  <SortableTableHead
+                                    label="Name"
+                                    class="min-w-0 flex-1"
+                                    direction={() => sortDirection("name")}
+                                    onToggle={() =>
+                                      fileTable.table
+                                        .getColumn("name")
+                                        ?.toggleSorting()
                                     }
                                   />
-                                )}
-                              </ForValue>
-                            </TableBody>
-                          </Table>
-                        </ScrollArea>
+                                  <SortableTableHead
+                                    label="Size"
+                                    class="min-w-0 w-24 flex-none"
+                                    direction={() => sortDirection("size")}
+                                    onToggle={() =>
+                                      fileTable.table
+                                        .getColumn("size")
+                                        ?.toggleSorting()
+                                    }
+                                  />
+                                  <SortableTableHead
+                                    label="Modified"
+                                    class="min-w-0 w-36 flex-none"
+                                    direction={() => sortDirection("modified")}
+                                    onToggle={() =>
+                                      fileTable.table
+                                        .getColumn("modified")
+                                        ?.toggleSorting()
+                                    }
+                                  />
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                <ForValue each={fileTable.rows()}>
+                                  {(row) => (
+                                    <SnapshotFileRow
+                                      entry={row.original}
+                                      selected={
+                                        selectedEntry()?.path ===
+                                        row.original.path
+                                      }
+                                      searchActive={searchActive()}
+                                      onSelect={setSelectedEntry}
+                                      onOpenDirectory={(directory) =>
+                                        void loadFiles(
+                                          session.activeProfile()?.id ?? "",
+                                          snapshot(),
+                                          directory.path,
+                                        )
+                                      }
+                                    />
+                                  )}
+                                </ForValue>
+                              </TableBody>
+                            </Table>
+                          </ScrollArea>
+                        </Show>
+                      </AdaptiveSplitPaneMain>
+                      <Show when={selectedEntry()}>
+                        <AdaptiveSplitPaneDetail
+                          open={true}
+                          aria-label="Selected file details"
+                          class="w-72 h-full flex-none border-l border-subtle"
+                          modalClass="w-96"
+                          onOpenChange={(open) => {
+                            if (!open) setSelectedEntry(undefined);
+                          }}
+                        >
+                          <FileDetails
+                            profileId={session.activeProfile()?.id ?? ""}
+                            snapshotId={snapshot().id}
+                            entry={selectedEntry()}
+                          />
+                        </AdaptiveSplitPaneDetail>
                       </Show>
-                      <FileDetails
-                        profileId={session.activeProfile()?.id ?? ""}
-                        snapshotId={snapshot().id}
-                        entry={selectedEntry()}
-                      />
-                    </View>
+                    </AdaptiveSplitPane>
                   </Show>
                 </Show>
               </>

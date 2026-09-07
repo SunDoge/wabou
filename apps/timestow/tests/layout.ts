@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { getLayoutNode } from "@wabou/test/layout";
+import { getLayoutNode, queryLayoutNodes } from "@wabou/test/layout";
 import {
   type LayoutFixtureCase,
   renderLayoutFixtures,
@@ -87,6 +87,50 @@ function assertWorkspaceHeader(
   }
 }
 
+function assertFullWorkspace(
+  fixture: Parameters<typeof getLayoutNode>[0],
+  viewportWidth: number,
+): void {
+  const navigation = getLayoutNode(fixture, {
+    role: "group",
+    name: "Primary navigation",
+  });
+  const history = getLayoutNode(fixture, {
+    role: "region",
+    name: "Snapshot history",
+  });
+  const browser = getLayoutNode(fixture, {
+    role: "region",
+    name: "Snapshot browser",
+  });
+  const files = getLayoutNode(fixture, {
+    role: "group",
+    name: "Snapshot file workspace",
+  });
+  getLayoutNode(fixture, { role: "table", name: "Snapshot files" });
+
+  if (Math.abs(navigation.rect.width - 224) > 0.5) {
+    throw new Error(`profile sidebar width drifted: ${navigation.rect.width}`);
+  }
+  if (Math.abs(history.rect.width - 256) > 0.5) {
+    throw new Error(`snapshot rail width drifted: ${history.rect.width}`);
+  }
+  if (browser.rect.x + browser.rect.width > viewportWidth + 0.5) {
+    throw new Error("snapshot browser escapes the application viewport");
+  }
+  if (Math.abs(files.rect.width - browser.rect.width) > 0.5) {
+    throw new Error(
+      `file workspace lost available width: files=${files.rect.width}, browser=${browser.rect.width}`,
+    );
+  }
+  if (
+    queryLayoutNodes(fixture, { role: "region", name: "File details" }).length >
+    0
+  ) {
+    throw new Error("empty file selection still reserves a details rail");
+  }
+}
+
 await renderLayoutFixtures({
   app: "apps/timestow",
   command,
@@ -111,6 +155,20 @@ await renderLayoutFixtures({
       height: 176,
       checks: ["visible-overflow", "text-collision", "visual-quality"],
       assert: assertWorkspaceHeader,
+    },
+    {
+      id: "timestow/workspace-wide",
+      width: 1_440,
+      height: 900,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => assertFullWorkspace(fixture, 1_440),
+    },
+    {
+      id: "timestow/workspace-minimum",
+      width: 900,
+      height: 620,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => assertFullWorkspace(fixture, 900),
     },
   ),
 });
