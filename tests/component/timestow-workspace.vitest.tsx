@@ -1691,6 +1691,75 @@ test("forgetting a backup clears native credentials before durable profile metad
   expect(remove).toHaveBeenCalledWith(profile.id);
 });
 
+test("a backup stays available for retry when durable forgetting fails", async () => {
+  const profile = {
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/data/repository",
+    sources: ["/data/photos"],
+  };
+  const remove = vi.fn<ProfileStore["remove"]>(async () => {
+    throw new Error("database is read-only");
+  });
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
+    save: async () => {},
+    setActive: async () => {},
+    remove,
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 12,
+      status: async () => ({
+        unlockedProfileIds: [profile.id],
+        activeProfileId: profile.id,
+      }),
+      forgetProfile: async () => ({ unlockedProfileIds: [] }),
+    },
+  });
+  const Controls = () => {
+    const session = useTimestowSession();
+    return (
+      <>
+        <Button
+          aria-label="Forget Photos"
+          onClick={() => void session.forgetProfile(profile.id)}
+        />
+        <Text role="status">
+          {session.activeProfile()?.name ?? "none"} · {session.profiles().length}
+          {" · "}
+          {session.runtime().unlockedProfileIds.join(",") || "locked"}
+          {" · "}
+          {session.error() ?? "ok"}
+        </Text>
+      </>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Controls />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toContain("Photos · 1 · photos · ok");
+  });
+  screen.getByRole("button", { name: "Forget Photos" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toContain(
+      "none · 1 · locked · Photos is locked and disconnected",
+    );
+  });
+  expect(screen.getByRole("status").text).toContain(
+    "It may reappear after restart",
+  );
+  expect(remove).toHaveBeenCalledWith(profile.id);
+  expect(fixture.callsTo("rustic.forgetProfile")).toHaveLength(1);
+});
+
 test("a failed native profile switch leaves the current profile selected", async () => {
   const setActive = vi.fn<ProfileStore["setActive"]>(async () => {});
   const profiles = [

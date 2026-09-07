@@ -201,8 +201,6 @@ export function TimestowSessionProvider(props: {
     }
     const nextRuntime = await api.forgetProfile({ profileId });
     setRuntime(nextRuntime);
-    await store.remove(profileId);
-    setProfiles((current) => current.filter((item) => item.id !== profileId));
     if (activeProfileId() === profileId) setActiveProfileId(undefined);
     if (pendingUnlockId() === profileId) setPendingUnlockId(undefined);
     setBackupProgressByProfile((current) => {
@@ -210,6 +208,16 @@ export function TimestowSessionProvider(props: {
       delete remaining[profileId];
       return remaining;
     });
+    try {
+      await store.remove(profileId);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      setError(
+        `${profile.name} is locked and disconnected, but Timestow could not remove its saved profile: ${message}. It may reappear after restart; choose Forget backup again to retry.`,
+      );
+      return;
+    }
+    setProfiles((current) => current.filter((item) => item.id !== profileId));
     setError(undefined);
   }
 
