@@ -1,6 +1,5 @@
 {
   "defaults": {
-    "renderer": "vello-hybrid",
     "width": 1200,
     "height": 760,
     "scaleFactor": 1,
