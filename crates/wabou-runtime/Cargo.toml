@@ -52,6 +52,7 @@ wabou-devtools = { workspace = true, optional = true }
 wabou-host-api = { workspace = true }
 wabou-protocol = { workspace = true }
 wabou-shell.workspace = true
+wabou-shell-api.workspace = true
 gpui-base = { workspace = true }
 gpui-platform = { workspace = true, optional = true, features = ["test-support"] }
 wabou-style = { workspace = true }

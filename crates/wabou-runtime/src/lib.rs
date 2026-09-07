@@ -11,7 +11,9 @@
 
 mod actor;
 mod bundle;
-mod clock;
+#[doc(hidden)]
+#[allow(missing_docs)]
+pub mod clock;
 mod effect_bridge;
 mod effect_trace;
 mod error;
@@ -51,7 +53,9 @@ use wabou_style::stylesheet as style_ir;
 pub mod test_driver;
 #[doc(hidden)]
 pub mod test_report;
-mod ui_inbox;
+#[doc(hidden)]
+#[allow(missing_docs)]
+pub mod ui_inbox;
 
 #[cfg(test)]
 mod css_support_matrix_test;

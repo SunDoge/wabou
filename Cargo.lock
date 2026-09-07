@@ -13451,6 +13451,7 @@ dependencies = [
  "wabou-host-api",
  "wabou-protocol",
  "wabou-shell",
+ "wabou-shell-api",
  "wabou-style",
 ]
 

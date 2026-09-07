@@ -11,7 +11,7 @@ extern crate legacy_shell as wabou_shell;
 mod atom;
 mod behavior_test;
 mod bundle;
-mod clock;
+use runtime_api::clock;
 mod config;
 mod effect_bridge;
 #[allow(dead_code)] // Fixture-only trace mode is retained for the Winit behavior harness.
@@ -36,7 +36,7 @@ mod reload;
 pub mod resource;
 mod runtime_session;
 use runtime_api::source_map;
-mod ui_inbox;
+use runtime_api::ui_inbox;
 #[cfg(test)]
 mod widget;
 
