@@ -31,7 +31,10 @@ import {
 import { BackupProgressStatus } from "./backup-progress";
 import { FileDetails, RestorePlanReview } from "./file-details";
 import type { ProfileStore } from "./profile-store";
-import { RepositoryCheckDialog } from "./repository-check";
+import {
+  RepositoryCheckDialog,
+  RepositoryCheckResultView,
+} from "./repository-check";
 import { TimestowSessionProvider, useTimestowSession } from "./session";
 import { BackupConnectionForm } from "./setup";
 import { AppShell, SessionErrorBanner, TimestowSidebar } from "./shell";
@@ -133,7 +136,7 @@ const fixtureStatus = {
 };
 
 const fixtureRustic: RusticCapability = {
-  __wabouCapabilityVersion: 10,
+  __wabouCapabilityVersion: 11,
   status: () => fixtureStatus,
   createProfile: () => fixtureStatus,
   openProfile: () => fixtureStatus,
@@ -141,7 +144,16 @@ const fixtureRustic: RusticCapability = {
   forgetProfile: () => fixtureStatus,
   setSources: () => fixtureStatus,
   runBackup: () => ({ snapshot: newestSnapshot }),
-  checkRepository: () => ({ healthy: true, findings: [] }),
+  checkRepository: () => ({
+    healthy: true,
+    findings: [],
+    stats: {
+      repositorySize: 734_003_200,
+      uniqueDataSize: 1_932_735_488,
+      snapshotCount: 24,
+      packCount: 83,
+    },
+  }),
   listSnapshots: () => [newestSnapshot, previousSnapshot],
   listFiles: ({ path, offset = 0, limit = FILE_PAGE_SIZE }) => {
     const all = path ? [] : [...rootFiles];
@@ -453,6 +465,12 @@ function RepositoryCheckFixture() {
   const result: RepositoryCheckResult = {
     healthy: true,
     findings: [],
+    stats: {
+      repositorySize: 734_003_200,
+      uniqueDataSize: 1_932_735_488,
+      snapshotCount: 24,
+      packCount: 83,
+    },
   };
   return (
     <HostProvider
@@ -471,6 +489,31 @@ function RepositoryCheckFixture() {
         </ComponentsProvider>
       </ColorThemeProvider>
     </HostProvider>
+  );
+}
+
+function RepositoryCheckResultFixture() {
+  return (
+    <ColorThemeProvider theme="light">
+      <ComponentsProvider theme="light">
+        <View class="w-full h-full min-w-0 min-h-0 bg-canvas p-4 text-primary">
+          <View class="w-full min-w-0 rounded-xl border border-subtle bg-surface p-5">
+            <RepositoryCheckResultView
+              result={{
+                healthy: true,
+                findings: [],
+                stats: {
+                  repositorySize: 734_003_200,
+                  uniqueDataSize: 1_932_735_488,
+                  snapshotCount: 24,
+                  packCount: 83,
+                },
+              }}
+            />
+          </View>
+        </View>
+      </ComponentsProvider>
+    </ColorThemeProvider>
   );
 }
 
@@ -620,6 +663,11 @@ defineLayoutFixtures(
       width: 520,
       height: 340,
       render: RepositoryCheckFixture,
+    },
+    "timestow/repository-check-result": {
+      width: 480,
+      height: 300,
+      render: RepositoryCheckResultFixture,
     },
     "timestow/changes-wide": {
       width: 960,

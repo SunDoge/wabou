@@ -304,6 +304,30 @@ await renderLayoutFixtures({
       },
     },
     {
+      id: "timestow/repository-check-result",
+      width: 480,
+      height: 300,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, {
+          role: "alert",
+          name: "Repository structure is healthy",
+        });
+        getLayoutNode(fixture, {
+          role: "group",
+          name: "Repository statistics",
+        });
+        for (const label of [
+          "Repository size",
+          "Unique data",
+          "Snapshots",
+          "Active packs",
+        ]) {
+          getLayoutNode(fixture, { text: label });
+        }
+      },
+    },
+    {
       id: "timestow/changes-wide",
       width: 960,
       height: 620,

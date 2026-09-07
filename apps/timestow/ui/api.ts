@@ -24,6 +24,14 @@ export interface RuntimeStatus {
 export interface RepositoryCheckResult {
   healthy: boolean;
   findings: string[];
+  stats?: RepositoryStats;
+}
+
+export interface RepositoryStats {
+  repositorySize: number;
+  uniqueDataSize: number;
+  snapshotCount: number;
+  packCount: number;
 }
 
 export interface SnapshotEntry {
@@ -197,6 +205,6 @@ interface RusticHost extends Host {
 export function useRusticApi(): RusticCapability {
   return bindCapability(useHost<RusticHost>().rustic, {
     name: "rustic",
-    version: 10,
+    version: 11,
   });
 }

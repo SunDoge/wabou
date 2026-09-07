@@ -13,7 +13,12 @@ import {
 } from "@wabou/ui";
 import shieldCheck from "lucide-static/icons/shield-check.svg?raw";
 import { createSignal, For as ForValue, Show } from "solid-js";
-import { type RepositoryCheckResult, useRusticApi } from "./api";
+import {
+  type RepositoryCheckResult,
+  type RepositoryStats,
+  useRusticApi,
+} from "./api";
+import { formatBytes } from "./format";
 
 export interface RepositoryCheckDialogProps {
   profileId: string;
@@ -45,6 +50,73 @@ function checkSummary(result: RepositoryCheckResult): {
 
 function countLabel(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+function RepositoryMetric(props: { label: string; value: string }) {
+  return (
+    <View class="min-w-0 flex flex-col gap-1">
+      <Text class="text-xs font-medium text-muted">{props.label}</Text>
+      <Text class="truncate text-base font-semibold">{props.value}</Text>
+    </View>
+  );
+}
+
+function RepositoryStatistics(props: { stats: RepositoryStats }) {
+  return (
+    <View
+      role="group"
+      aria-label="Repository statistics"
+      class="grid grid-cols-2 gap-x-5 gap-y-4 rounded-lg border border-subtle bg-surface-muted p-4"
+    >
+      <RepositoryMetric
+        label="Repository size"
+        value={formatBytes(props.stats.repositorySize)}
+      />
+      <RepositoryMetric
+        label="Unique data"
+        value={formatBytes(props.stats.uniqueDataSize)}
+      />
+      <RepositoryMetric
+        label="Snapshots"
+        value={props.stats.snapshotCount.toLocaleString()}
+      />
+      <RepositoryMetric
+        label="Active packs"
+        value={props.stats.packCount.toLocaleString()}
+      />
+    </View>
+  );
+}
+
+export function RepositoryCheckResultView(props: {
+  result: RepositoryCheckResult;
+}) {
+  const summary = () => checkSummary(props.result);
+  return (
+    <View class="min-w-0 flex flex-col gap-3">
+      <Alert variant={summary().variant} title={summary().title}>
+        {countLabel(props.result.findings.length, "finding")}
+      </Alert>
+      <Show when={props.result.stats}>
+        {(stats) => <RepositoryStatistics stats={stats()} />}
+      </Show>
+      <Show when={props.result.findings.length > 0}>
+        <ScrollArea
+          aria-label="Repository check findings"
+          class="max-h-48 rounded-lg border border-subtle bg-surface-muted"
+          contentClass="p-3 flex flex-col gap-2"
+        >
+          <ForValue each={props.result.findings}>
+            {(finding) => (
+              <Text class="whitespace-normal text-xs text-secondary">
+                {finding}
+              </Text>
+            )}
+          </ForValue>
+        </ScrollArea>
+      </Show>
+    </View>
+  );
 }
 
 export function RepositoryCheckDialog(props: RepositoryCheckDialogProps) {
@@ -97,31 +169,7 @@ export function RepositoryCheckDialog(props: RepositoryCheckDialogProps) {
           </DialogHeader>
 
           <Show when={result()}>
-            {(current) => {
-              const summary = () => checkSummary(current());
-              return (
-                <View class="min-w-0 flex flex-col gap-3">
-                  <Alert variant={summary().variant} title={summary().title}>
-                    {countLabel(current().findings.length, "finding")}
-                  </Alert>
-                  <Show when={current().findings.length > 0}>
-                    <ScrollArea
-                      aria-label="Repository check findings"
-                      class="max-h-48 rounded-lg border border-subtle bg-surface-muted"
-                      contentClass="p-3 flex flex-col gap-2"
-                    >
-                      <ForValue each={current().findings}>
-                        {(finding) => (
-                          <Text class="whitespace-normal text-xs text-secondary">
-                            {finding}
-                          </Text>
-                        )}
-                      </ForValue>
-                    </ScrollArea>
-                  </Show>
-                </View>
-              );
-            }}
+            {(current) => <RepositoryCheckResultView result={current()} />}
           </Show>
           <Show when={error()}>
             {(message) => (

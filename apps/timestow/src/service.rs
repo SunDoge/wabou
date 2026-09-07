@@ -24,7 +24,7 @@ use crate::progress::{
     BACKUP_PROGRESS_TOPIC, BackupProgressBars, BackupProgressPhase, ProgressEmitter,
 };
 
-pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 10);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 11);
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
@@ -194,6 +194,17 @@ pub struct RuntimeStatus {
 pub struct RepositoryCheckResult {
     pub healthy: bool,
     pub findings: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stats: Option<RepositoryStats>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositoryStats {
+    pub repository_size: u64,
+    pub unique_data_size: u64,
+    pub snapshot_count: u64,
+    pub pack_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -489,10 +500,16 @@ impl RusticService {
 
     fn check_repository(&self, request: ProfileIdRequest) -> Result<RepositoryCheckResult, String> {
         let (path, password, _) = self.profile_config(&request.profile_id)?;
-        let findings = open_repository(&path, &password)?
+        let repository = open_repository(&path, &password)?;
+        let findings = repository
             .check(CheckOptions::default())
             .map_err(display_error)?;
         let healthy = findings.is_ok().is_ok();
+        let stats = if healthy {
+            repository_stats(&repository).ok()
+        } else {
+            None
+        };
         Ok(RepositoryCheckResult {
             healthy,
             findings: findings
@@ -500,6 +517,7 @@ impl RusticService {
                 .into_iter()
                 .map(|(_, finding)| finding.to_string())
                 .collect(),
+            stats,
         })
     }
 
@@ -1024,6 +1042,28 @@ fn open_repository_with_progress(
         .map_err(display_error)
 }
 
+fn repository_stats(
+    repository: &rustic_core::Repository<rustic_core::OpenStatus>,
+) -> Result<RepositoryStats, String> {
+    let files = repository.infos_files().map_err(display_error)?;
+    let index = repository.infos_index().map_err(display_error)?;
+    let snapshots = repository.get_all_snapshots().map_err(display_error)?;
+    let repository_size = files.repo.iter().map(|file| file.size).sum::<u64>()
+        + files
+            .repo_hot
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .map(|file| file.size)
+            .sum::<u64>();
+    Ok(RepositoryStats {
+        repository_size,
+        unique_data_size: index.blobs.iter().map(|blob| blob.data_size).sum(),
+        snapshot_count: snapshots.len() as u64,
+        pack_count: index.packs.iter().map(|pack| pack.count).sum(),
+    })
+}
+
 fn snapshot_entry(snapshot: &rustic_core::repofile::SnapshotFile) -> SnapshotEntry {
     let summary = snapshot.summary.as_ref();
     SnapshotEntry {
@@ -1418,6 +1458,11 @@ mod tests {
             .expect("check repository structure");
         assert!(check.healthy, "repository check: {check:?}");
         assert!(check.findings.is_empty());
+        let stats = check.stats.expect("repository statistics");
+        assert!(stats.repository_size > 0);
+        assert!(stats.unique_data_size > 0);
+        assert_eq!(stats.snapshot_count, 1);
+        assert!(stats.pack_count > 0);
 
         let mut pending = vec![String::new()];
         let mut names = Vec::new();
