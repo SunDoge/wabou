@@ -384,6 +384,10 @@ export function snapshotDisplayTitle(snapshot: SnapshotEntry): string {
   return snapshot.label.trim() || `Snapshot ${shortId(snapshot.id)}`;
 }
 
+export function snapshotHistoryMetadata(snapshot: SnapshotEntry): string {
+  return `${formatTimestamp(snapshot.time)} · ${snapshot.hostname || "Unknown host"}`;
+}
+
 export function SnapshotHistory(props: {
   loading: boolean;
   loadFailed: boolean;
@@ -505,11 +509,7 @@ export function SnapshotHistory(props: {
                             : "min-w-0 flex-1 truncate text-xs text-muted"
                         }
                       >
-                        {snapshot.label.trim()
-                          ? `${formatTimestamp(snapshot.time)} · `
-                          : ""}
-                        {shortId(snapshot.id)} ·{" "}
-                        {snapshot.hostname || "Unknown host"}
+                        {snapshotHistoryMetadata(snapshot)}
                       </Text>
                     </View>
                   </View>

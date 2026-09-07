@@ -37,6 +37,7 @@ import {
   SnapshotWorkspaceHeader,
   snapshotAfterRefresh,
   snapshotDisplayTitle,
+  snapshotHistoryMetadata,
   snapshotMatchesQuery,
   snapshotPathSegments,
 } from "../../apps/timestow/ui/snapshots";
@@ -392,6 +393,12 @@ test("snapshot titles prefer user labels and fall back to a short stable id", ()
   expect(snapshotDisplayTitle({ ...snapshot, label: "   " })).toBe(
     "Snapshot f21dc6d8",
   );
+  expect(snapshotHistoryMetadata(snapshot)).toBe(
+    "2026-09-02 04:18 · workstation",
+  );
+  expect(snapshotHistoryMetadata({ ...snapshot, hostname: "" })).toBe(
+    "2026-09-02 04:18 · Unknown host",
+  );
 });
 
 test("snapshot breadcrumbs expose every ancestor as a direct navigation target", () => {
@@ -443,9 +450,13 @@ test("long snapshot histories filter by user-facing metadata", () => {
   screen
     .getByRole("textbox", { name: "Filter snapshots" })
     .input("workstation-7");
-  expect(
-    screen.getByRole("button", { name: "Open snapshot Backup 7" }),
-  ).toBeDefined();
+  const matchingSnapshot = screen.getByRole("button", {
+    name: "Open snapshot Backup 7",
+  });
+  expect(matchingSnapshot.text).toContain(
+    "2026-09-08 04:18 · workstation-7",
+  );
+  expect(matchingSnapshot.text).not.toContain("snapshot-7");
   expect(
     screen.queryByRole("button", { name: "Open snapshot Backup 0" }),
   ).toBeNull();
