@@ -31,6 +31,7 @@ function formatScheduleTime(value?: string): string {
 export function BackupScheduleDialog(props: {
   profile: BackupProfile;
   disabled?: boolean;
+  defaultOpen?: boolean;
 }) {
   const session = useTimestowSession();
   const [enabled, setEnabled] = createSignal(false);
@@ -69,6 +70,7 @@ export function BackupScheduleDialog(props: {
   return (
     <Dialog
       aria-label="Backup schedule"
+      defaultOpen={props.defaultOpen}
       trigger={(trigger) => (
         <Button
           {...trigger}

@@ -481,5 +481,32 @@ await renderLayoutFixtures({
         }
       },
     },
+    {
+      id: "timestow/backup-schedule",
+      width: 520,
+      height: 600,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, {
+          role: "dialog",
+          name: "Backup schedule",
+        });
+        getLayoutNode(fixture, {
+          role: "switch",
+          name: "Run backups automatically",
+        });
+        getLayoutNode(fixture, {
+          role: "combobox",
+          name: "Backup frequency",
+        });
+        if (
+          !fixture.nodes.some((node) =>
+            node.text?.includes("temporarily unavailable"),
+          )
+        ) {
+          throw new Error("schedule hides its last failure");
+        }
+      },
+    },
   ),
 });

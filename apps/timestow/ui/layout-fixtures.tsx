@@ -35,6 +35,7 @@ import {
   RepositoryCheckDialog,
   RepositoryCheckResultView,
 } from "./repository-check";
+import { BackupScheduleDialog } from "./schedule-dialog";
 import { TimestowSessionProvider, useTimestowSession } from "./session";
 import { BackupConnectionForm } from "./setup";
 import { AppShell, SessionErrorBanner, TimestowSidebar } from "./shell";
@@ -625,6 +626,40 @@ function BackupSourcesFixture() {
   );
 }
 
+function BackupScheduleFixture() {
+  const inheritedHost = useHost();
+  return (
+    <HostProvider
+      value={
+        { ...inheritedHost, rustic: fixtureRustic } as typeof inheritedHost
+      }
+    >
+      <TimestowSessionProvider store={fixtureStore}>
+        <ColorThemeProvider theme="light">
+          <ComponentsProvider theme="light">
+            <View class="w-full h-full min-w-0 bg-canvas p-4 text-primary">
+              <BackupScheduleDialog
+                defaultOpen
+                profile={{
+                  ...profile,
+                  schedule: {
+                    enabled: true,
+                    intervalMinutes: 360,
+                    nextRunAt: "2027-09-08T06:00:00Z",
+                    lastRunAt: "2027-09-08T00:00:00Z",
+                    lastError:
+                      "The repository was temporarily unavailable while another process held its lock.",
+                  },
+                }}
+              />
+            </View>
+          </ComponentsProvider>
+        </ColorThemeProvider>
+      </TimestowSessionProvider>
+    </HostProvider>
+  );
+}
+
 defineLayoutFixtures(
   defineComponentFixtures({
     "timestow/setup-wide": {
@@ -736,6 +771,12 @@ defineLayoutFixtures(
       width: 360,
       height: 320,
       render: BackupSourcesFixture,
+    },
+    "timestow/backup-schedule": {
+      width: 520,
+      height: 600,
+      waitMs: 100,
+      render: BackupScheduleFixture,
     },
   }),
   { colorTheme: false },
