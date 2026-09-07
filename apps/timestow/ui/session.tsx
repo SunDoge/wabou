@@ -445,7 +445,10 @@ export function TimestowSessionProvider(props: {
       try {
         await runBackup(profile.id, true);
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        const message = cause instanceof Error ? cause.message : String(cause);
+        setError(
+          `Automatic backup for ${profile.name} failed: ${message}. Open this backup and try again.`,
+        );
       }
     }
   }

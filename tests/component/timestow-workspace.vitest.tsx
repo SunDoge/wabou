@@ -2148,6 +2148,62 @@ test("runs a due profile backup in the background and records completion", async
   );
 });
 
+test("identifies the backup that failed on schedule and offers recovery", async () => {
+  const nextRunAt = new Date(Date.now() + 1_000).toISOString();
+  const profile = {
+    id: "photos",
+    name: "Family photos",
+    repositoryPath: "/data/backups/photos",
+    sources: ["/data/photos"],
+    schedule: {
+      enabled: true,
+      intervalMinutes: 60 as const,
+      nextRunAt,
+    },
+  };
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
+    save: async () => {},
+    setActive: async () => {},
+    remove: async () => {},
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 12,
+      status: async () => ({
+        unlockedProfileIds: [profile.id],
+        activeProfileId: profile.id,
+      }),
+      runBackup: async () => {
+        throw new Error("repository is unavailable");
+      },
+    },
+  });
+  const Status = () => {
+    const session = useTimestowSession();
+    return <Text role="status">{session.error() ?? "ok"}</Text>;
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Status />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host, clock: "fake" },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("ok");
+  });
+  await screen.advanceTime(1_000);
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe(
+      "Automatic backup for Family photos failed: repository is unavailable. Open this backup and try again.",
+    );
+  });
+  expect(fixture.callsTo("rustic.runBackup")).toHaveLength(1);
+});
+
 test("schedule dialog explains the runtime boundary and exposes its controls", async () => {
   const profile = {
     id: "photos",
