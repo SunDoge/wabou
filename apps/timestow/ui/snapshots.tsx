@@ -60,7 +60,6 @@ import {
 import { RepositoryCheckDialog } from "./repository-check";
 import { BackupScheduleDialog } from "./schedule-dialog";
 import { useTimestowSession } from "./session";
-import { createSnapshotBrowserCache } from "./snapshot-browser-cache";
 import { SnapshotDetails } from "./snapshot-details";
 import { SnapshotDiffPanel } from "./snapshot-diff";
 import { SnapshotFileTree } from "./snapshot-tree";
@@ -472,7 +471,7 @@ export function SnapshotsPage() {
   const [loadingFiles, setLoadingFiles] = createSignal(false);
   const [loadingMoreFiles, setLoadingMoreFiles] = createSignal(false);
   const [error, setError] = createSignal<string>();
-  const browserCache = createSnapshotBrowserCache();
+  const browserCache = session.snapshotBrowser;
   let fileRequestGeneration = 0;
   let searchRequestGeneration = 0;
   let snapshotRequestGeneration = 0;
@@ -494,10 +493,17 @@ export function SnapshotsPage() {
     setLoadingMoreFiles(false);
   }
 
-  async function loadSnapshots(profileId: string, selectNewest = false) {
+  async function loadSnapshots(
+    profileId: string,
+    selection: "preserve" | "restore" | "newest" = "preserve",
+  ) {
     const generation = ++snapshotRequestGeneration;
-    if (selectNewest) {
-      browserCache.clear();
+    const preferredSnapshotId =
+      selection === "restore"
+        ? browserCache.selectedSnapshot(profileId)
+        : selected()?.id;
+    if (selection !== "preserve") {
+      if (selection === "newest") browserCache.clearListings();
       clearSnapshotWorkspace();
       setSnapshots([]);
     }
@@ -509,12 +515,17 @@ export function SnapshotsPage() {
       setSnapshots(next);
       const refreshed = snapshotAfterRefresh(
         next,
-        selected()?.id,
-        selectNewest,
+        preferredSnapshotId,
+        selection === "newest",
       );
-      if (refreshed && selectNewest) selectSnapshot(profileId, refreshed);
-      else if (refreshed) setSelected(refreshed);
-      else if (selected()) {
+      const nextSelection =
+        selection === "restore" ? (refreshed ?? next[0]) : refreshed;
+      if (nextSelection && selection !== "preserve") {
+        selectSnapshot(profileId, nextSelection);
+      } else if (nextSelection) {
+        setSelected(nextSelection);
+        browserCache.rememberSelection(profileId, nextSelection.id);
+      } else if (selected()) {
         clearSnapshotWorkspace();
       }
       return true;
@@ -645,13 +656,14 @@ export function SnapshotsPage() {
 
   function selectSnapshot(profileId: string, snapshot: SnapshotEntry) {
     setSelected(snapshot);
+    browserCache.rememberSelection(profileId, snapshot.id);
     void loadFiles(profileId, snapshot, browserCache.lastPath(snapshot.id));
   }
 
   async function refreshSnapshots(profileId: string) {
     const selectedId = selected()?.id;
     const path = currentPath();
-    browserCache.clear();
+    browserCache.clearListings();
     if (!(await loadSnapshots(profileId))) return;
     const refreshed = snapshots().find(
       (snapshot) => snapshot.id === selectedId,
@@ -715,8 +727,7 @@ export function SnapshotsPage() {
       profileId: profile.id,
       snapshotId: snapshot.id,
     });
-    browserCache.clear();
-    await loadSnapshots(profile.id, true);
+    await loadSnapshots(profile.id, "newest");
   }
 
   function parentPath(path: string): string {
@@ -738,7 +749,7 @@ export function SnapshotsPage() {
         queueMicrotask(() => void navigate({ to: "/" }));
         return;
       }
-      void loadSnapshots(profileId, true);
+      void loadSnapshots(profileId, "restore");
     },
   );
 
@@ -747,7 +758,7 @@ export function SnapshotsPage() {
     (completed) => {
       const profile = session.activeProfile();
       if (!completed || completed.profileId !== profile?.id) return;
-      void loadSnapshots(completed.profileId, true);
+      void loadSnapshots(completed.profileId, "newest");
     },
   );
 

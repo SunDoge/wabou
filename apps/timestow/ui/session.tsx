@@ -28,6 +28,10 @@ import {
   scheduleDueAt,
 } from "./backup-schedule";
 import { createProfileStore, type ProfileStore } from "./profile-store";
+import {
+  createSnapshotBrowserCache,
+  type SnapshotBrowserCache,
+} from "./snapshot-browser-cache";
 
 export interface ConnectProfileInput {
   id?: string;
@@ -50,6 +54,7 @@ interface TimestowSession {
     | undefined;
   isBackingUp(profileId: string): boolean;
   backupProgress(profileId: string): BackupProgressEvent | undefined;
+  snapshotBrowser: SnapshotBrowserCache;
   setError(error: string | undefined): void;
   refresh(): Promise<void>;
   beginCreate(): void;
@@ -86,6 +91,7 @@ export function TimestowSessionProvider(props: {
 }) {
   const api = useRusticApi();
   const store = props.store ?? createProfileStore(openKv(["timestow"]));
+  const snapshotBrowser = createSnapshotBrowserCache();
   const [profiles, setProfiles] = createSignal<BackupProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = createSignal<string>();
   const [pendingUnlockId, setPendingUnlockId] = createSignal<string>();
@@ -469,6 +475,7 @@ export function TimestowSessionProvider(props: {
         lastBackup,
         isBackingUp,
         backupProgress,
+        snapshotBrowser,
         setError,
         refresh,
         beginCreate,

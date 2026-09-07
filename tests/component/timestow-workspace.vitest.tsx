@@ -648,7 +648,7 @@ test("snapshot changes compare against the recorded parent and can include metad
   expect(fixture.callsTo("rustic.diffSnapshots")).toHaveLength(2);
 });
 
-test("snapshot browser cache restores each snapshot path independently", () => {
+test("snapshot browser cache preserves navigation while invalidating listings", () => {
   const cache = createSnapshotBrowserCache();
   const docs = [
     { name: "guide.md", path: "docs/guide.md", kind: "file" as const, size: 8 },
@@ -656,6 +656,8 @@ test("snapshot browser cache restores each snapshot path independently", () => {
 
   cache.remember("snapshot-a", "docs", { entries: docs, total: 1 });
   cache.remember("snapshot-b", "photos", { entries: [], total: 0 });
+  cache.rememberSelection("profile-a", "snapshot-a");
+  cache.rememberSelection("profile-b", "snapshot-b");
 
   expect(cache.lastPath("snapshot-a")).toBe("docs");
   expect(cache.listing("snapshot-a", "docs")).toEqual({
@@ -664,10 +666,80 @@ test("snapshot browser cache restores each snapshot path independently", () => {
   });
   expect(cache.lastPath("snapshot-b")).toBe("photos");
   expect(cache.lastPath("snapshot-c")).toBe("");
+  expect(cache.selectedSnapshot("profile-a")).toBe("snapshot-a");
+
+  cache.clearListings();
+  expect(cache.listing("snapshot-a", "docs")).toBeUndefined();
+  expect(cache.lastPath("snapshot-a")).toBe("docs");
+  expect(cache.selectedSnapshot("profile-a")).toBe("snapshot-a");
 
   cache.clear();
   expect(cache.listing("snapshot-a", "docs")).toBeUndefined();
   expect(cache.lastPath("snapshot-a")).toBe("");
+  expect(cache.selectedSnapshot("profile-a")).toBeUndefined();
+});
+
+test("timestow session preserves snapshot navigation across workspace remounts", async () => {
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 12,
+      status: async () => ({ unlockedProfileIds: [] }),
+    },
+  });
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [] }),
+    save: async () => {},
+    setActive: async () => {},
+    remove: async () => {},
+  };
+  const [mounted, setMounted] = createSignal(true);
+  const Workspace = () => {
+    const session = useTimestowSession();
+    return (
+      <>
+        <Button
+          aria-label="Remember snapshot location"
+          onClick={() => {
+            session.snapshotBrowser.rememberSelection(
+              "profile-a",
+              "snapshot-a",
+            );
+            session.snapshotBrowser.remember("snapshot-a", "docs", {
+              entries: [],
+              total: 0,
+            });
+          }}
+        />
+        <Text role="status">
+          {session.snapshotBrowser.selectedSnapshot("profile-a") ?? "none"}:
+          {session.snapshotBrowser.lastPath("snapshot-a")}
+        </Text>
+      </>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Button
+          aria-label="Toggle workspace"
+          onClick={() => setMounted((current) => !current)}
+        />
+        <Show when={mounted()}>
+          <Workspace />
+        </Show>
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("none:");
+  });
+  screen.getByRole("button", { name: "Remember snapshot location" }).click();
+  screen.getByRole("button", { name: "Toggle workspace" }).click();
+  screen.getByRole("button", { name: "Toggle workspace" }).click();
+  screen.flush();
+  expect(screen.getByRole("status").text).toBe("snapshot-a:docs");
 });
 
 test("snapshot file tree loads child directories only when expanded", async () => {
