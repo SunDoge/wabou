@@ -1,6 +1,6 @@
 import type { Handle } from "@wabou/core/renderer";
 import { mergeClasses } from "@wabou/core/style";
-import { createSignal, type JSX } from "solid-js";
+import type { JSX } from "solid-js";
 import { match } from "ts-pattern";
 import { useReducedMotion } from "../animation";
 import {
@@ -9,6 +9,7 @@ import {
   translate2d,
   View,
 } from "../primitives";
+import { createControllableState } from "../primitives/interactions";
 import { Label } from "./label";
 import { componentsDisabledInteractiveClass } from "./theme";
 
@@ -71,17 +72,19 @@ export function switchControlClass(state: ButtonState): string {
 }
 
 export function Switch(props: SwitchProps): JSX.Element {
-  const [local, setLocal] = createSignal(props.defaultChecked ?? false);
-  const checked = () => props.checked ?? local();
+  const state = createControllableState({
+    value: () => props.checked,
+    defaultValue: props.defaultChecked ?? false,
+    disabled: () => props.disabled ?? false,
+    onChange: props.onCheckedChange,
+  });
+  const checked = state.value;
   const reducedMotion = useReducedMotion();
   const size = () => props.size ?? "default";
   const geometry = () => switchGeometry(size());
   let control: Handle | undefined;
   const toggle = () => {
-    if (props.disabled) return;
-    const next = !checked();
-    if (props.checked === undefined) setLocal(next);
-    props.onCheckedChange?.(next);
+    state.set(!checked());
   };
   return (
     <View
@@ -110,7 +113,7 @@ export function Switch(props: SwitchProps): JSX.Element {
         renderContent={(buttonState) => (
           <View
             aria-hidden="true"
-            class={switchTrackClass(checked(), buttonState, size())}
+            class={switchTrackClass(checked(), buttonState(), size())}
           >
             <View
               class={mergeClasses(

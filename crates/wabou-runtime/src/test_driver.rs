@@ -269,7 +269,13 @@ impl Default for TestController {
 }
 
 impl TestController {
-    pub(crate) fn new(effects: crate::effect_trace::EffectTrace) -> Self {
+    /// Create a controller backed by the same effect trace installed in the
+    /// application runtime.
+    ///
+    /// Alternate native hosts must share this trace with their QuickJS effect
+    /// bridge so deterministic fixtures are visible on both sides.
+    #[doc(hidden)]
+    pub fn new(effects: crate::effect_trace::EffectTrace) -> Self {
         Self {
             state: Arc::new(Mutex::new(TestState::default())),
             effects,

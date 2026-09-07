@@ -552,16 +552,12 @@ impl WinitHostBuilder {
                 })
             })
             .transpose()?;
-        let test_controller = test_script
-            .as_ref()
-            .map(|_| runtime_api::test_driver::TestController::default());
-
         let trace_path = self.effect_trace.as_ref().map(|config| match config {
             EffectTraceConfig::Record { path, .. } | EffectTraceConfig::Replay { path } => {
                 path.clone()
             }
         });
-        let effect_trace = match &self.effect_trace {
+        let mut effect_trace = match &self.effect_trace {
             Some(EffectTraceConfig::Record { record_all, .. }) => {
                 Some(crate::effect_trace::EffectTrace::record(*record_all))
             }
@@ -572,6 +568,16 @@ impl WinitHostBuilder {
             None => None,
         };
         let recording_effects = matches!(self.effect_trace, Some(EffectTraceConfig::Record { .. }));
+        if test_script.is_some() && effect_trace.is_none() {
+            effect_trace = Some(crate::effect_trace::EffectTrace::fixtures());
+        }
+        let test_controller = test_script.as_ref().map(|_| {
+            runtime_api::test_driver::TestController::new(
+                effect_trace
+                    .clone()
+                    .expect("behavior tests always install an effect fixture bridge"),
+            )
+        });
 
         #[cfg(feature = "devtools")]
         let (_devtools_server, debug_state) = {

@@ -1841,15 +1841,15 @@ fn interaction_blocking_isolates_an_entire_subtree() {
         Some(NodeKey::new(1, 1))
     );
     assert!(applier.interaction.input.focus_order.is_empty());
-    assert!(
-        applier
-            .frame
-            .projections
-            .semantic_snapshot
-            .nodes
-            .iter()
-            .all(|node| node.id != 2 && node.id != 3)
-    );
+    let blocked = applier
+        .frame
+        .projections
+        .semantic_snapshot
+        .nodes
+        .iter()
+        .find(|node| node.id == sk(3))
+        .expect("interaction blocking keeps disabled/inert content inspectable");
+    assert!(blocked.disabled);
     assert!(!applier.handle_semantic_action(SemanticAction::Click { target: sk(3) }));
     assert!(!applier.handle_semantic_action(SemanticAction::Focus { target: sk(3) }));
 

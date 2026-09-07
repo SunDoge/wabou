@@ -575,9 +575,10 @@ impl FrameSource for Applier {
                 key.is_valid().then_some(key)
             }
         };
-        let Some(target) =
-            target.filter(|target| self.document.node_store.solid_to_node.contains_key(target))
-        else {
+        let Some(target) = target else {
+            return false;
+        };
+        let Some(&target_node) = self.document.node_store.solid_to_node.get(&target) else {
             return false;
         };
         if !self
@@ -588,6 +589,9 @@ impl FrameSource for Applier {
             .iter()
             .any(|node| node.id == u64::from(target))
         {
+            return false;
+        }
+        if subtree_blocks_interaction(&self.document.node_store, target_node) {
             return false;
         }
         if let Some(modal) = self.frame.projections.semantic_snapshot.modal_root {

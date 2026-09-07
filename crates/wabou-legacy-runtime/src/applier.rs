@@ -245,7 +245,8 @@ struct Declared {
     text_max_lines: u32,
     /// Explicit native focus order; `None` means this node cannot receive focus.
     focus_order: Option<i32>,
-    /// Excludes this node and its logical subtree from input and semantics.
+    /// Blocks input for this node and its logical subtree while keeping the
+    /// content inspectable as disabled semantics.
     interaction_blocked: bool,
     /// Contains sequential focus within this logical subtree while present.
     focus_contained: bool,

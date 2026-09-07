@@ -162,6 +162,9 @@ pub(super) fn run(
     let mut visible = vec![true; sources.len()];
     let mut text = legacy_shell::TextContext::new();
     let mut last_nodes = vec![Vec::new(); sources.len()];
+    let mut frame_profilers = (0..sources.len())
+        .map(|_| legacy_shell::headless::HeadlessFrameProfiler::default())
+        .collect::<Vec<_>>();
     // Match the behavior runner's maximum suite budget. Authored scenarios can
     // register several tests, so a short capture-specific watchdog would turn
     // a healthy application host into a platform-dependent timeout.
@@ -190,7 +193,14 @@ pub(super) fn run(
                     color_scheme: Some(viewport.color_scheme),
                 },
             ));
-            last_nodes[index] = source.build_frame(&mut text, width, height);
+            last_nodes[index] = frame_profilers[index].build(
+                source.as_mut(),
+                &mut text,
+                width,
+                height,
+                viewport.scale_factor,
+                base_color,
+            );
             let mut host = HeadlessNativeHost {
                 source: source.as_mut(),
                 viewport: &mut viewports[index],

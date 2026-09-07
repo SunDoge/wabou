@@ -64,6 +64,45 @@ fn transformed_bounds(rect: [f32; 4], transform: Option<&Affine>) -> [f32; 4] {
     ]
 }
 
+fn declared_descendant_label(store: &NodeStore, atoms: &AtomPool, node: NodeId) -> Option<String> {
+    fn collect(store: &NodeStore, atoms: &AtomPool, parent: NodeId, output: &mut Vec<String>) {
+        for child in store.children.get(&parent).into_iter().flatten() {
+            let Some(declared) = store.declared.get(child) else {
+                continue;
+            };
+            if declared.attribute(atoms, "aria-hidden").as_deref() == Some("true") {
+                continue;
+            }
+            let role = declared.attribute(atoms, "role");
+            if role
+                .as_deref()
+                .is_some_and(|role| !matches!(role, "label" | "presentation" | "none" | "generic"))
+            {
+                // A nested control owns its accessible name; it must not be
+                // folded into the name of an enclosing button, row, or alert.
+                continue;
+            }
+            if let Some(label) = declared.attribute(atoms, "aria-label") {
+                if !label.trim().is_empty() {
+                    output.push(label.trim().to_owned());
+                }
+                continue;
+            }
+            if let Some(text) = declared.text.as_deref() {
+                if !text.trim().is_empty() {
+                    output.push(text.trim().to_owned());
+                }
+                continue;
+            }
+            collect(store, atoms, *child, output);
+        }
+    }
+
+    let mut parts = Vec::new();
+    collect(store, atoms, node, &mut parts);
+    (!parts.is_empty()).then(|| parts.join(" "))
+}
+
 fn infer_descendant_labels(nodes: &mut [SemanticNode]) {
     let indices = nodes
         .iter()
@@ -85,6 +124,12 @@ fn infer_descendant_labels(nodes: &mut [SemanticNode]) {
             && !label.trim().is_empty()
         {
             output.push(label.trim().to_owned());
+            return;
+        }
+        // Accessible names are composed from textual containers. Do not pull
+        // labels from nested controls into an enclosing description (for
+        // example, an alert description followed by Retry/Open buttons).
+        if !matches!(node.role, SemanticRole::Label | SemanticRole::Generic) {
             return;
         }
         for child in &node.children {
@@ -112,6 +157,7 @@ fn infer_descendant_labels(nodes: &mut [SemanticNode]) {
                         | SemanticRole::RowHeader
                         | SemanticRole::Separator
                         | SemanticRole::Generic
+                        | SemanticRole::Label
                         | SemanticRole::Tab
                 )
             {
@@ -240,6 +286,35 @@ fn semantic_source_order(
     ordered
 }
 
+fn subtree_overlay_plane(
+    applier: &Applier,
+    placed: &HashMap<NodeId, &PlacedNode>,
+    mut node: NodeId,
+) -> OverlayPlane {
+    loop {
+        if let Some(plane) = placed.get(&node).map(|node| node.paint.overlay_plane)
+            && plane != OverlayPlane::Content
+        {
+            return plane;
+        }
+        if let Some(plane) = applier.document.overlay_planes.get(&node).copied()
+            && plane != OverlayPlane::Content
+        {
+            return plane;
+        }
+        let Some(parent) = applier
+            .document
+            .node_store
+            .logical_parent
+            .get(&node)
+            .copied()
+        else {
+            return OverlayPlane::Content;
+        };
+        node = parent;
+    }
+}
+
 pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
     let present: HashSet<_> = placed.iter().map(|node| node.node_id).collect();
     let placed_by_node = placed
@@ -260,14 +335,13 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
     let hidden: HashSet<_> = placed
         .iter()
         .filter(|node| {
-            subtree_blocks_interaction(&applier.document.node_store, node.node_id)
-                || subtree_has_attribute(
-                    &applier.document.node_store,
-                    &atoms,
-                    node.node_id,
-                    "aria-hidden",
-                    Some("true"),
-                )
+            subtree_has_attribute(
+                &applier.document.node_store,
+                &atoms,
+                node.node_id,
+                "aria-hidden",
+                Some("true"),
+            )
         })
         .map(|node| node.node_id)
         .collect();
@@ -289,7 +363,8 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         .rev()
         .find(|node| {
             !hidden.contains(&node.node_id)
-                && node.paint.overlay_plane == OverlayPlane::Modal
+                && subtree_overlay_plane(applier, &placed_by_node, node.node_id)
+                    == OverlayPlane::Modal
                 && applier
                     .document
                     .node_store
@@ -378,6 +453,19 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         let label = declared
             .attribute(&atoms, "aria-label")
             .map(|value| value.to_string())
+            // Source text is authoritative even before the text layout cache
+            // has produced a paint run. Relying only on `paint.text` leaves a
+            // newly mounted wrapped label absent from the first semantic
+            // frame and, without another mutation, stale indefinitely.
+            .or_else(|| declared.text.as_deref().map(str::to_owned))
+            // Accessible names belong to the retained logical tree, not only
+            // the currently visible paint projection. A scroll clip may
+            // prune a text leaf while its offscreen button remains a valid
+            // semantic target that test drivers or accessibility tooling can
+            // bring into view and activate.
+            .or_else(|| {
+                declared_descendant_label(&applier.document.node_store, &atoms, placed_node.node_id)
+            })
             .or_else(|| placed_node.paint.text.as_deref().map(str::to_owned));
         let explicit_role = declared.attribute(&atoms, "role");
         let role = if explicit_role.is_some() {
@@ -437,7 +525,8 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             children,
             controls,
             active_descendant,
-            disabled: declared.attribute(&atoms, "aria-disabled").as_deref() == Some("true")
+            disabled: subtree_blocks_interaction(&applier.document.node_store, placed_node.node_id)
+                || declared.attribute(&atoms, "aria-disabled").as_deref() == Some("true")
                 || widget_semantics.disabled.unwrap_or(false),
             states: SemanticStates {
                 checked: semantic_toggle(declared.attribute(&atoms, "aria-checked")),
@@ -515,5 +604,50 @@ mod tests {
         );
         assert_eq!(semantic_popup(Some(Arc::from("true"))), None);
         assert_eq!(semantic_popup(Some(Arc::from(""))), None);
+    }
+
+    #[test]
+    fn logical_labels_survive_paint_pruning_and_stop_at_nested_controls() {
+        let mut atoms = AtomPool::default();
+        let role = atoms.intern("role");
+        let mut store = NodeStore::new();
+        let parent = store
+            .create_leaf(
+                NodeKey::new(2, 1),
+                Declared {
+                    attrs: HashMap::from([(role, Arc::from("button"))]),
+                    ..Default::default()
+                },
+            )
+            .expect("parent button");
+        let label = store
+            .create_leaf(
+                NodeKey::new(3, 1),
+                Declared {
+                    text: Some(Arc::from("FrameTimeline")),
+                    ..Default::default()
+                },
+            )
+            .expect("offscreen label");
+        let nested = store
+            .create_leaf(
+                NodeKey::new(4, 1),
+                Declared {
+                    attrs: HashMap::from([(role, Arc::from("button"))]),
+                    text: Some(Arc::from("Nested action")),
+                    ..Default::default()
+                },
+            )
+            .expect("nested button");
+        store.append(NodeKey::ROOT, NodeKey::new(2, 1));
+        store.append(NodeKey::new(2, 1), NodeKey::new(3, 1));
+        store.append(NodeKey::new(2, 1), NodeKey::new(4, 1));
+
+        assert_eq!(
+            declared_descendant_label(&store, &atoms, parent).as_deref(),
+            Some("FrameTimeline")
+        );
+        assert_eq!(store.logical_parent.get(&label), Some(&parent));
+        assert_eq!(store.logical_parent.get(&nested), Some(&parent));
     }
 }
