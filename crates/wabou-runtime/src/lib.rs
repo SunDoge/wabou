@@ -1,10 +1,10 @@
-//! Backend-neutral QuickJS + SolidJS runtime with an optional GPUI host.
+//! Backend-neutral QuickJS + SolidJS runtime.
 //!
 //! SolidJS (via `solid-js/universal`) emits binary DOM-mutation ops into a
 //! `Writer`; one `requestAnimationFrame` tick per frame flushes them to Rust;
 //! A backend consumes the flushed mutations and projects them into its native
-//! scene. The `gpui` feature provides the GPUI host; the Vello Hybrid backend
-//! consumes the same runtime without activating GPUI.
+//! scene. Native backends consume this runtime without coupling JavaScript to
+//! a particular renderer.
 
 #![warn(missing_docs)]
 

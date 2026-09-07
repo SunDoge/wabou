@@ -70,7 +70,7 @@ ureq = { version = "3.3", optional = true }
 stacker = { workspace = true }
 
 [features]
-default = ["gpui"]
+default = []
 devtools = ["dep:wabou-devtools"]
 gpui = ["dep:gpui-base", "dep:wabou-shell"]
 profiling = ["dep:tracing-chrome"]
