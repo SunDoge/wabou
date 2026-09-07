@@ -1,10 +1,10 @@
 # Rendering roadmap
 
-GPUI-CE remains Wabou's default application runtime and owns the production
-window, text, layout, input, and rendering lifecycle. An experimental second
-application path now runs the same Solid bundle and mutation protocol through
-Winit, Taffy, Parley, and Vello Hybrid. It is selected at compile time rather
-than through `WindowOptions`, so backend-specific widget types remain explicit.
+GPUI-CE remains Wabou's default application runtime and production baseline.
+Winit, Taffy, Parley, and Vello Hybrid form a parallel first-class backend
+track. Both run the same Solid bundle and mutation protocol, but are selected
+at compile time rather than through `WindowOptions`, so backend-specific
+widget types remain explicit and neither backend silently emulates the other.
 
 Backend behavior was first evaluated with the isolated
 [`experiments/anyrender-backends`](../experiments/anyrender-backends/README.md)
@@ -39,13 +39,14 @@ HUD may update the HUD entity, but a static color-grid boundary must not be
 materialized on every sampled frame. Stress and virtual-list workloads then
 verify animation and scrolling without weakening this typical-UI requirement.
 
-## Deferred work
-
-### Vello Hybrid backend
+## Vello Hybrid backend
 
 The first vertical slice is operational: QuickJS/Solid emits the shared binary
 protocol, the retained Winit projection resolves Style IR and Taffy layout,
 and AnyRender replays the resulting scene into a Vello Hybrid window surface.
+The window and SVG paths use `vello_hybrid` 0.2 and share one `vello_common`
+release line; the repository-local AnyRender adapter carries the small API and
+non-blocking presentation patches needed until upstream catches up.
 Run it against the shared 7GUIs application with:
 
 ```bash
@@ -83,8 +84,10 @@ diagnostics instead of entering unsupported Hybrid code paths. This adapter is
 renderer-side infrastructure; the application backend is exposed separately
 as `WinitHostBuilder` and does not change GPUI's default role.
 
-Do not switch the default backend until the required imaging features and APIs
-are sufficiently stable upstream.
+Keep GPUI as the default backend until the required imaging, native-widget,
+pixel-fixture, and platform input contracts pass on Hybrid. New shared runtime
+features must remain backend-neutral; renderer-specific features require an
+explicit backend implementation and test instead of fallback behavior.
 
 ### GPU effects
 

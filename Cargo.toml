@@ -135,7 +135,8 @@ opt-level = 2
 lto = "thin"
 
 [patch.crates-io]
-# anyrender 0.10 waits indefinitely for the GPU after every Hybrid frame.
-# On Intel Vulkan + Wayland that blocks the Winit event loop after the first
-# present. Keep the small backend vendored until the upstream wait is removed.
+# Keep the small AnyRender adapter vendored so the Hybrid window path can track
+# vello_hybrid 0.2 independently and avoid waiting indefinitely after every
+# frame. The upstream 0.10 adapter still targets vello_hybrid 0.1 and blocks the
+# Winit event loop on Intel Vulkan + Wayland after the first present.
 anyrender_vello_hybrid = { path = "vendor/anyrender_vello_hybrid" }

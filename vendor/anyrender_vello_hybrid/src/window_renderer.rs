@@ -150,14 +150,14 @@ impl VelloHybridWindowRenderer {
 
     pub fn with_options(config: impl Into<VelloHybridRendererOptions>) -> Self {
         let config = config.into();
-        let render_settings = config.render_settings;
+        let render_level = config.render_settings.level;
         let wgpu_context = build_wgpu_context(&config);
         Self {
             render_state: RenderState::Suspended,
             config,
             wgpu_context,
             window_handle: None,
-            scene: VelloHybridScene::new_with(0, 0, render_settings),
+            scene: VelloHybridScene::new_with(0, 0, render_level),
             cached_images: FxHashMap::default(),
         }
     }
@@ -270,7 +270,8 @@ impl WindowRenderer for VelloHybridWindowRenderer {
         // Reset the scene to the new dimensions before init kicks off, so callers that
         // query scene size (e.g. `set_size`) see consistent state.
         let render_settings = self.config.render_settings;
-        self.scene = VelloHybridScene::new_with(width as u16, height as u16, render_settings);
+        let render_level = render_settings.level;
+        self.scene = VelloHybridScene::new_with(width as u16, height as u16, render_level);
 
         let surface = self
             .wgpu_context
@@ -387,14 +388,14 @@ impl WindowRenderer for VelloHybridWindowRenderer {
             )
             .expect("Error creating SurfaceRenderer");
 
-            let resources = Resources::new();
-            let renderer = VelloHybridRenderer::new(
+            let (renderer, resources) = VelloHybridRenderer::new_with(
                 render_surface.device(),
                 &RenderTargetConfig {
                     format: DEFAULT_TEXTURE_FORMAT,
                     width,
                     height,
                 },
+                render_settings,
             );
 
             let _ = sender.send(InitOutput {
@@ -434,7 +435,7 @@ impl WindowRenderer for VelloHybridWindowRenderer {
             self.scene = VelloHybridScene::new_with(
                 width as u16,
                 height as u16,
-                self.config.render_settings,
+                self.config.render_settings.level,
             );
             if let RenderState::Active(active) = &mut self.render_state {
                 active.render_surface.resize(width, height);
