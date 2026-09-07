@@ -18,7 +18,6 @@ export interface BackupProfile {
 
 export interface RuntimeStatus {
   unlockedProfileIds: string[];
-  activeProfileId?: string;
 }
 
 export interface RepositoryCheckResult {
@@ -127,9 +126,6 @@ export interface RusticCapability extends NativeCapability {
     passwordSlot: string;
     sources: string[];
   }): RuntimeStatus | PromiseLike<RuntimeStatus>;
-  selectProfile(request: {
-    profileId: string;
-  }): RuntimeStatus | PromiseLike<RuntimeStatus>;
   forgetProfile(request: {
     profileId: string;
   }): RuntimeStatus | PromiseLike<RuntimeStatus>;
@@ -207,6 +203,6 @@ interface RusticHost extends Host {
 export function useRusticApi(): RusticCapability {
   return bindCapability(useHost<RusticHost>().rustic, {
     name: "rustic",
-    version: 13,
+    version: 14,
   });
 }

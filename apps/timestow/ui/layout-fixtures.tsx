@@ -139,15 +139,13 @@ const emptyPlan: RestorePlanSummary = {
 
 const fixtureStatus = {
   unlockedProfileIds: [profile.id],
-  activeProfileId: profile.id,
 };
 
 const fixtureRustic: RusticCapability = {
-  __wabouCapabilityVersion: 13,
+  __wabouCapabilityVersion: 14,
   status: () => fixtureStatus,
   createProfile: () => fixtureStatus,
   openProfile: () => fixtureStatus,
-  selectProfile: () => fixtureStatus,
   forgetProfile: () => fixtureStatus,
   setSources: () => fixtureStatus,
   runBackup: () => ({ snapshot: newestSnapshot }),

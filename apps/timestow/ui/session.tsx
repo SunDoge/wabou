@@ -141,6 +141,13 @@ export function TimestowSessionProvider(props: {
   const pendingUnlock = createMemo(() =>
     profiles().find((profile) => profile.id === pendingUnlockId()),
   );
+  let activeSelectionWrites = Promise.resolve();
+
+  function writeActiveSelection(profileId: string): Promise<void> {
+    const write = activeSelectionWrites.then(() => store.setActive(profileId));
+    activeSelectionWrites = write.catch(() => undefined);
+    return write;
+  }
 
   async function refresh(): Promise<void> {
     setLoading(true);
@@ -151,7 +158,7 @@ export function TimestowSessionProvider(props: {
       ]);
       setProfiles(stored.profiles);
       setRuntime(nextRuntime);
-      const selected = nextRuntime.activeProfileId ?? stored.activeProfileId;
+      const selected = stored.activeProfileId;
       setActiveProfileId(selected);
       if (selected && !nextRuntime.unlockedProfileIds.includes(selected)) {
         setPendingUnlockId(selected);
@@ -177,8 +184,9 @@ export function TimestowSessionProvider(props: {
 
     async function rememberSelection(): Promise<void> {
       try {
-        await store.setActive(profileId);
+        await writeActiveSelection(profileId);
       } catch (cause) {
+        if (activeProfileId() !== profileId) return;
         const message = cause instanceof Error ? cause.message : String(cause);
         setError(
           `${profileName} is active, but Timestow could not remember the selection: ${message}`,
@@ -189,15 +197,13 @@ export function TimestowSessionProvider(props: {
     if (!runtime().unlockedProfileIds.includes(profileId)) {
       setActiveProfileId(profileId);
       setPendingUnlockId(profileId);
-      await rememberSelection();
+      void rememberSelection();
       return false;
     }
-    const next = await api.selectProfile({ profileId });
-    setRuntime(next);
     setActiveProfileId(profileId);
     setPendingUnlockId(undefined);
     setError(undefined);
-    await rememberSelection();
+    void rememberSelection();
     return true;
   }
 
@@ -217,6 +223,7 @@ export function TimestowSessionProvider(props: {
       return remaining;
     });
     try {
+      await activeSelectionWrites;
       await store.remove(profileId);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);

@@ -24,13 +24,11 @@ use crate::progress::{
     ProgressEmitter,
 };
 
-pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 13);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 14);
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
 const OPEN_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("openProfile");
-const SELECT_PROFILE: HostMethod<SelectProfileRequest, RuntimeStatus> =
-    HostMethod::new("selectProfile");
 const FORGET_PROFILE: HostMethod<ProfileIdRequest, RuntimeStatus> =
     HostMethod::new("forgetProfile");
 const SET_SOURCES: HostMethod<SetSourcesRequest, RuntimeStatus> = HostMethod::new("setSources");
@@ -63,7 +61,6 @@ pub struct RusticService {
 #[derive(Clone, Default)]
 struct ServiceState {
     profiles: Vec<ProfileState>,
-    active_profile_id: Option<String>,
 }
 
 #[derive(Clone)]
@@ -100,8 +97,6 @@ pub struct SetSourcesRequest {
 pub struct ProfileIdRequest {
     pub profile_id: String,
 }
-
-pub type SelectProfileRequest = ProfileIdRequest;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -191,7 +186,6 @@ pub struct OpenPathRequest {
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeStatus {
     pub unlocked_profile_ids: Vec<String>,
-    pub active_profile_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -357,7 +351,6 @@ impl RusticService {
                 sources: normalize_sources(request.sources),
             });
         }
-        state.active_profile_id = Some(request.id);
         Ok(status_from_state(&state))
     }
 
@@ -423,25 +416,6 @@ impl RusticService {
         self.remember_profile(request, Zeroizing::new(password.to_string()))
     }
 
-    fn select_profile(&self, request: SelectProfileRequest) -> Result<RuntimeStatus, String> {
-        let mut state = self
-            .state
-            .write()
-            .map_err(|_| "service state is poisoned")?;
-        if !state
-            .profiles
-            .iter()
-            .any(|profile| profile.id == request.profile_id)
-        {
-            return Err(format!(
-                "backup profile {} was not found",
-                request.profile_id
-            ));
-        }
-        state.active_profile_id = Some(request.profile_id);
-        Ok(status_from_state(&state))
-    }
-
     fn forget_profile(&self, request: ProfileIdRequest) -> Result<RuntimeStatus, String> {
         let mut state = self
             .state
@@ -450,9 +424,6 @@ impl RusticService {
         state
             .profiles
             .retain(|profile| profile.id != request.profile_id);
-        if state.active_profile_id.as_deref() == Some(request.profile_id.as_str()) {
-            state.active_profile_id = None;
-        }
         Ok(status_from_state(&state))
     }
 
@@ -1212,7 +1183,6 @@ fn status_from_state(state: &ServiceState) -> RuntimeStatus {
             .iter()
             .map(|profile| profile.id.clone())
             .collect(),
-        active_profile_id: state.active_profile_id.clone(),
     }
 }
 
@@ -1241,12 +1211,6 @@ pub fn mount(capability: NativeCapability<'_>, service: RusticService) -> rquick
                 .await
                 .map_err(|error| format!("repository task failed: {error}"))?
         }
-    })?;
-
-    let select = service.clone();
-    capability.method(SELECT_PROFILE, move |request| {
-        let service = select.clone();
-        async move { service.select_profile(request) }
     })?;
 
     let forget = service.clone();
@@ -1502,13 +1466,11 @@ mod tests {
             .forget_profile(request.clone())
             .expect("forget profile");
         assert!(status.unlocked_profile_ids.is_empty());
-        assert_eq!(status.active_profile_id, None);
 
         let repeated = service
             .forget_profile(request)
             .expect("forgetting missing runtime state stays safe");
         assert!(repeated.unlocked_profile_ids.is_empty());
-        assert_eq!(repeated.active_profile_id, None);
     }
 
     #[test]
