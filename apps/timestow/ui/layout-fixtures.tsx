@@ -41,6 +41,11 @@ const profile = {
   name: "Home archive",
   repositoryPath: "/data/backups/home-archive",
   sources: ["/data/photos", "/data/documents"],
+  schedule: {
+    enabled: true,
+    intervalMinutes: 360 as const,
+    nextRunAt: "2027-09-08T06:00:00Z",
+  },
 };
 
 const newestSnapshot: SnapshotEntry = {

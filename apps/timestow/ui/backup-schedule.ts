@@ -20,6 +20,16 @@ export const BACKUP_SCHEDULE_OPTIONS = [
   { value: "10080", label: "Every week" },
 ] as const;
 
+export function backupScheduleIntervalLabel(
+  intervalMinutes: BackupScheduleInterval,
+): string {
+  return (
+    BACKUP_SCHEDULE_OPTIONS.find(
+      (option) => Number(option.value) === intervalMinutes,
+    )?.label ?? `${intervalMinutes} minutes`
+  );
+}
+
 export function isBackupScheduleInterval(
   value: number,
 ): value is BackupScheduleInterval {

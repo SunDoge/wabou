@@ -1288,6 +1288,10 @@ test("schedule dialog explains the runtime boundary and exposes its controls", a
       { activate: false },
     );
   });
+  expect(
+    screen.getByRole("button", { name: "Backup schedule: Every 6 hours" })
+      .text,
+  ).toContain("Every 6 hours");
 });
 
 test("rustic sidebar exposes stable navigation and repository status", () => {
