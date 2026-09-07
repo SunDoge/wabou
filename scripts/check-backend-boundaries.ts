@@ -45,12 +45,11 @@ const HYBRID_BACKEND_PACKAGES = new Set([
   "wabou-vello-hybrid-svg",
 ]);
 
-// These are the two known extraction seams described in rendering-roadmap.md.
-// Freeze them so the Hybrid backend cannot acquire more GPUI dependencies while
-// RuntimeSession and the remaining backend-neutral contracts move out.
+// This is the remaining extraction seam described in rendering-roadmap.md.
+// Freeze it so the Hybrid backend cannot acquire more GPUI dependencies while
+// RuntimeSession and the remaining backend-neutral runtime move out.
 const TRANSITIONAL_CROSS_BACKEND_EDGES = new Set([
   "wabou-legacy-runtime -> wabou-runtime",
-  "wabou-legacy-runtime -> wabou-shell",
 ]);
 
 interface CargoDependency {

@@ -51,6 +51,7 @@ use vello::kurbo::{Rect, Stroke};
 use vello::peniko::Color;
 #[cfg(any(feature = "devtools", test))]
 use vello::peniko::Fill;
+use wabou_shell_api as gpui_shell;
 use wabou_style::IrValue;
 
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};

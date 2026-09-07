@@ -60,6 +60,7 @@ test("backend packages cannot acquire new cross-backend dependencies", () => {
       ],
     }),
   ).toEqual([
+    "wabou-legacy-runtime -> gpui-shell (wabou-shell, normal)",
     "wabou-legacy-widgets -> wabou-terminal (wabou-terminal, normal)",
     "wabou-runtime -> wabou-legacy-widgets (wabou-legacy-widgets, normal)",
   ]);

@@ -1,4 +1,4 @@
-//! Platform contracts shared by Wabou's GPUI shell, runtime, and extensions.
+//! Platform contracts shared by Wabou runtimes, backend shells, and extensions.
 
 #![warn(missing_docs)]
 

@@ -3,6 +3,7 @@
 use std::{borrow::Cow, ops::Range, rc::Rc};
 
 use gpui::{App, Bounds, InputHandler, Pixels, Point, UTF16Selection, Window, point, px, size};
+pub use wabou_shell_api::ProjectedTextInputState;
 
 use crate::NodeKey;
 
@@ -193,21 +194,6 @@ pub enum ProjectedImeEvent {
         /// Cursor/selection inside `text`, expressed as UTF-8 byte offsets.
         cursor: Option<(usize, usize)>,
     },
-}
-
-/// Focused text state captured from the authoritative Wabou widget each frame.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct ProjectedTextInputState {
-    /// Whether the focused Wabou node currently accepts text input.
-    pub accepts_text: bool,
-    /// Controlled text value, when exposed by the focused widget.
-    pub text: Option<String>,
-    /// UTF-16 selection range in document order.
-    pub selection: Option<Range<usize>>,
-    /// Whether the selection's moving head precedes its anchor.
-    pub selection_reversed: bool,
-    /// Candidate-window anchor in window-logical coordinates.
-    pub cursor_bounds: Option<[f32; 4]>,
 }
 
 /// GPUI input handler forwarding platform composition to the Wabou runtime.

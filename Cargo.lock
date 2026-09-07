@@ -13323,7 +13323,6 @@ dependencies = [
  "wabou-legacy-widgets",
  "wabou-protocol",
  "wabou-runtime",
- "wabou-shell",
  "wabou-shell-api",
  "wabou-style",
 ]

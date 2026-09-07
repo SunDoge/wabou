@@ -79,6 +79,12 @@ former Winit copies and their duplicate tests have been removed, so scheduler,
 wake, stack-limit, source-map, event, effect, reload queue, and session-lifetime
 fixes cannot drift between backends.
 
+Hybrid no longer imports the GPUI `wabou-shell` crate for input, effect, window,
+or IME state. Those contracts now come directly from `wabou-shell-api`; the
+architecture check rejects any new cross-backend shell dependency. The remaining
+GPUI dependency is the transitional `wabou-legacy-runtime -> wabou-runtime` edge
+used for the already-shared JavaScript runtime and host services.
+
 Packaged bundle and source-map discovery is shared as well. Vello Hybrid now
 uses the same development override, adjacent-resource, Debian `/usr/lib`, and
 macOS `.app/Contents/Resources` candidates as GPUI instead of its older subset.
