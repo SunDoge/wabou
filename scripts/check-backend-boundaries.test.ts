@@ -1,18 +1,18 @@
 import { expect, test } from "bun:test";
 import {
-  canonicalDependencyViolations,
+  crossBackendViolations,
   formalVerificationViolations,
-  gpuiBoundaryViolations,
-  legacyIsolationViolations,
-} from "./check-gpui-boundary";
+  sharedBoundaryViolations,
+  transitionalPackagingViolations,
+} from "./check-backend-boundaries";
 
-test("formal packages cannot regain a retired rendering backend", () => {
+test("backend-neutral packages cannot import either backend", () => {
   expect(
-    gpuiBoundaryViolations({
+    sharedBoundaryViolations({
       packages: [
         {
-          id: "runtime-id",
-          name: "wabou-runtime",
+          id: "protocol-id",
+          name: "wabou-protocol",
           dependencies: [
             { kind: null, name: "wabou-shell", rename: null },
             { kind: "dev", name: "wabou-legacy-shell", rename: "legacy-shell" },
@@ -20,28 +20,28 @@ test("formal packages cannot regain a retired rendering backend", () => {
           ],
         },
         {
-          id: "legacy-runtime-id",
-          name: "wabou-legacy-runtime",
+          id: "app-id",
+          name: "example-app",
           dependencies: [{ kind: null, name: "winit", rename: null }],
         },
       ],
-      workspace_members: ["runtime-id", "legacy-runtime-id"],
     }),
   ).toEqual([
-    "wabou-runtime -> legacy-shell (wabou-legacy-shell, dev)",
-    "wabou-runtime -> vello (vello, normal)",
+    "wabou-protocol -> legacy-shell (wabou-legacy-shell, dev)",
+    "wabou-protocol -> vello (vello, normal)",
+    "wabou-protocol -> wabou-shell (wabou-shell, normal)",
   ]);
 });
 
-test("formal packages use the canonical shell dependency name", () => {
+test("backend packages cannot acquire new cross-backend dependencies", () => {
   expect(
-    canonicalDependencyViolations({
+    crossBackendViolations({
       packages: [
         {
           id: "runtime-id",
           name: "wabou-runtime",
           dependencies: [
-            { kind: null, name: "wabou-shell", rename: "gpui-shell" },
+            { kind: null, name: "wabou-legacy-widgets", rename: null },
           ],
         },
         {
@@ -49,27 +49,20 @@ test("formal packages use the canonical shell dependency name", () => {
           name: "wabou-legacy-runtime",
           dependencies: [
             { kind: null, name: "wabou-shell", rename: "gpui-shell" },
+            { kind: null, name: "wabou-runtime", rename: "runtime-api" },
           ],
         },
-      ],
-      workspace_members: ["runtime-id", "legacy-runtime-id"],
-    }),
-  ).toEqual(["wabou-runtime renames wabou-shell to gpui-shell"]);
-});
-
-test("every new non-legacy workspace crate inherits the GPUI-only boundary", () => {
-  expect(
-    gpuiBoundaryViolations({
-      packages: [
         {
-          id: "future-id",
-          name: "wabou-future-widget",
-          dependencies: [{ kind: null, name: "winit", rename: null }],
+          id: "legacy-widgets-id",
+          name: "wabou-legacy-widgets",
+          dependencies: [{ kind: null, name: "wabou-terminal", rename: null }],
         },
       ],
-      workspace_members: ["future-id"],
     }),
-  ).toEqual(["wabou-future-widget -> winit (winit, normal)"]);
+  ).toEqual([
+    "wabou-legacy-widgets -> wabou-terminal (wabou-terminal, normal)",
+    "wabou-runtime -> wabou-legacy-widgets (wabou-legacy-widgets, normal)",
+  ]);
 });
 
 test("every formal workspace crate participates in ordinary verification", () => {
@@ -100,9 +93,9 @@ test("every formal workspace crate participates in ordinary verification", () =>
   ]);
 });
 
-test("retired crates stay unpublished and outside default workspace commands", () => {
+test("transitional backend crates stay unpublished and outside default workspace commands", () => {
   expect(
-    legacyIsolationViolations({
+    transitionalPackagingViolations({
       packages: [
         {
           dependencies: [],

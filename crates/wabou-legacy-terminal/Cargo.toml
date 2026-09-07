@@ -4,7 +4,7 @@ version.workspace = true
 edition = "2024"
 license.workspace = true
 publish = false
-description = "Legacy winit/AnyRender terminal widget retained during the GPUI migration."
+description = "Winit/AnyRender terminal widget for Wabou's Vello Hybrid backend."
 
 [dependencies]
 anyrender.workspace = true
@@ -16,7 +16,6 @@ serde_json = { workspace = true }
 teletypewriter = "0.5.5"
 tracing = { workspace = true }
 vello = { workspace = true }
-wabou-runtime = { workspace = true }
 wabou-legacy-shell = { workspace = true }
 wabou-protocol = { workspace = true }
 wabou-shell-api = { workspace = true }

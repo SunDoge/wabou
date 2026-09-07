@@ -13381,7 +13381,6 @@ dependencies = [
  "vello",
  "wabou-legacy-shell",
  "wabou-protocol",
- "wabou-runtime",
  "wabou-shell-api",
 ]
 
