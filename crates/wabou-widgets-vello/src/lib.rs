@@ -15,6 +15,7 @@ mod code_editor;
 mod controls;
 mod image;
 mod password_input;
+mod shader_layer;
 mod text_input;
 
 pub use canvas::Canvas;
@@ -22,6 +23,7 @@ pub use code_editor::CodeEditor;
 pub use controls::{IndeterminateProgress, Slider, Spinner};
 pub use image::ImageWidget;
 pub use password_input::{PasswordInput, SecretStore};
+pub use shader_layer::ShaderLayer;
 pub use text_input::TextInput;
 
 /// Factories installed by the standard QuickJS host.
@@ -33,6 +35,10 @@ pub fn builtin_factories() -> HashMap<String, WidgetFactory> {
     factories.insert("input".into(), Arc::new(|| Box::new(TextInput::new())));
     factories.insert("spinner".into(), Arc::new(|| Box::new(Spinner::new())));
     factories.insert("slider".into(), Arc::new(|| Box::new(Slider::new())));
+    factories.insert(
+        "shader-layer".into(),
+        Arc::new(|| Box::new(ShaderLayer::new())),
+    );
     factories.insert(
         "progress-indeterminate".into(),
         Arc::new(|| Box::new(IndeterminateProgress::new())),
@@ -62,6 +68,7 @@ mod tests {
         assert!(factories.contains_key("spinner"));
         assert!(factories.contains_key("slider"));
         assert!(factories.contains_key("progress-indeterminate"));
+        assert!(factories.contains_key("shader-layer"));
         assert!(factories.contains_key("editor"));
         assert!(!factories.contains_key("code-editor"));
     }

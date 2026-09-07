@@ -132,6 +132,32 @@ fn frame_wake(has_animation: bool, deadline: Option<Instant>, now: Instant) -> F
     }
 }
 
+fn scheduled_frame_wake(
+    has_animation: bool,
+    reported_deadline: Option<Instant>,
+    scheduled_deadline: &mut Option<Instant>,
+    now: Instant,
+) -> FrameWake {
+    if has_animation {
+        *scheduled_deadline = None;
+        return FrameWake::Redraw;
+    }
+    let Some(reported_deadline) = reported_deadline else {
+        *scheduled_deadline = None;
+        return FrameWake::Idle;
+    };
+    let deadline = scheduled_deadline
+        .map(|scheduled| scheduled.min(reported_deadline))
+        .unwrap_or(reported_deadline);
+    let wake = frame_wake(false, Some(deadline), now);
+    if wake == FrameWake::Redraw {
+        *scheduled_deadline = None;
+    } else {
+        *scheduled_deadline = Some(deadline);
+    }
+    wake
+}
+
 type ModalEffectFuture = Pin<Box<dyn Future<Output = crate::EffectCompletion>>>;
 
 slotmap::new_key_type! {
@@ -193,6 +219,7 @@ pub struct App {
     application_relaunch_requested: bool,
     lifecycle: WindowLifecycle,
     force_semantics: bool,
+    scheduled_frame_deadline: Option<Instant>,
 }
 
 impl App {
@@ -315,6 +342,7 @@ impl App {
             application_relaunch_requested: false,
             lifecycle: WindowLifecycle::visible(),
             force_semantics: false,
+            scheduled_frame_deadline: None,
         }
     }
 
@@ -1697,7 +1725,12 @@ impl ApplicationHandler for App {
         let deadline = (!has_animation)
             .then(|| self.source.animation_deadline())
             .flatten();
-        match frame_wake(has_animation, deadline, Instant::now()) {
+        match scheduled_frame_wake(
+            has_animation,
+            deadline,
+            &mut self.scheduled_frame_deadline,
+            Instant::now(),
+        ) {
             FrameWake::Redraw => {
                 event_loop.set_control_flow(ControlFlow::Wait);
                 if let Some(shell) = self.state.as_ref() {
@@ -2682,7 +2715,12 @@ impl ApplicationHandler for MultiWindowApp {
             let deadline = (!has_animation)
                 .then(|| app.source.animation_deadline())
                 .flatten();
-            match frame_wake(has_animation, deadline, now) {
+            match scheduled_frame_wake(
+                has_animation,
+                deadline,
+                &mut app.scheduled_frame_deadline,
+                now,
+            ) {
                 FrameWake::Redraw => {
                     if let Some(shell) = app.state.as_ref() {
                         shell.window().request_redraw();

@@ -329,6 +329,44 @@ impl<'a> PaintContext<'a> {
         self.scene.draw_image((&image.brush).into(), transform);
     }
 
+    /// Draw a validated custom WGSL effect into the complete widget content box.
+    ///
+    /// `values` exposes up to sixteen scalar parameters through `wabou.values`.
+    /// Animation time is supplied by the native widget, so a running effect does
+    /// not require JavaScript mutations every frame.
+    pub fn draw_shader_effect(
+        &mut self,
+        id: crate::ShaderEffectId,
+        source: crate::ShaderEffectSource,
+        time: f32,
+        values: &[f32],
+    ) {
+        if self.width <= 0.0 || self.height <= 0.0 {
+            return;
+        }
+        let mut parameters = [0.0; 16];
+        for (destination, value) in parameters.iter_mut().zip(values.iter().copied()) {
+            *destination = if value.is_finite() { value } else { 0.0 };
+        }
+        let physical = |logical: f32| {
+            (f64::from(logical) * self.device_scale)
+                .ceil()
+                .clamp(1.0, f64::from(u16::MAX)) as u16
+        };
+        self.scene.draw_shader_effect(
+            crate::ShaderEffect {
+                id,
+                source,
+                time: if time.is_finite() { time } else { 0.0 },
+                values: parameters,
+                physical_size: [physical(self.width), physical(self.height)],
+                logical_size: [self.width, self.height],
+                device_scale: self.device_scale as f32,
+            },
+            Affine::IDENTITY,
+        );
+    }
+
     /// Paint shaped text at a content-local origin with final pixel alignment.
     pub fn draw_text_layout(
         &mut self,

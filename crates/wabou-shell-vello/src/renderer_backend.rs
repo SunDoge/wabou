@@ -7,12 +7,13 @@ use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
 };
 use rustc_hash::FxHashMap;
+use vello_common::geometry::RectU16;
 use vello_common::kurbo::{Affine, Diagonal2, Shape};
 use vello_common::paint::{ImageId, ImageSource, PaintType};
-use vello_common::peniko::{Brush, BrushRef, Color, Fill, StyleRef};
+use vello_common::peniko::{Brush, BrushRef, Color, Fill, ImageQuality, StyleRef};
 use vello_hybrid::{
-    RenderSettings, RenderSize, RenderTargetConfig, Renderer, Resources, Scene as HybridScene,
-    TextureBindings,
+    RenderSettings, RenderSize, RenderTargetConfig, Renderer, Resources, SampleRect,
+    Scene as HybridScene, TextureBindings,
 };
 use wgpu::{CommandEncoderDescriptor, CompositeAlphaMode, Features, PresentMode, TextureFormat};
 use wgpu_context::{
@@ -21,7 +22,7 @@ use wgpu_context::{
 };
 use winit::window::Window;
 
-use crate::{Glyph, NormalizedCoord, PaintScene, Scene};
+use crate::{Glyph, NormalizedCoord, PaintScene, Scene, ShaderEffect, shader::ShaderRenderer};
 
 #[cfg(target_os = "android")]
 const DEFAULT_TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
@@ -47,6 +48,7 @@ struct ActiveRenderer {
     renderer: Renderer,
     resources: Resources,
     surface: SurfaceRenderer<'static>,
+    shaders: ShaderRenderer,
 }
 
 /// Renderer owned by a Wabou window. There is deliberately no backend switch:
@@ -145,10 +147,12 @@ impl HybridWindowRenderer {
             self.context.device_pool.push(device);
         }
         self.scene = HybridScene::new(width as u16, height as u16);
+        let shaders = ShaderRenderer::new(surface_renderer.device());
         self.active = Some(ActiveRenderer {
             renderer,
             resources,
             surface: surface_renderer,
+            shaders,
         });
     }
 
@@ -177,6 +181,8 @@ impl HybridWindowRenderer {
                     label: Some("Wabou Vello Hybrid frame"),
                 });
         self.scene.reset_and_resize(width as u16, height as u16);
+        let mut texture_bindings = TextureBindings::new();
+        active.shaders.begin_frame();
         let mut painter = HybridPainter {
             scene: &mut self.scene,
             renderer: &mut active.renderer,
@@ -185,6 +191,8 @@ impl HybridWindowRenderer {
             queue: active.surface.queue(),
             encoder: &mut encoder,
             image_cache: &mut self.image_cache,
+            shaders: &mut active.shaders,
+            texture_bindings: &mut texture_bindings,
             layers: Vec::new(),
         };
         if base_color != Color::TRANSPARENT {
@@ -212,10 +220,11 @@ impl HybridWindowRenderer {
                 &mut encoder,
                 &RenderSize { width, height },
                 &view,
-                &TextureBindings::new(),
+                &texture_bindings,
             )
             .expect("failed to render Vello Hybrid frame");
         active.surface.queue().submit([encoder.finish()]);
+        active.shaders.finish_frame();
         drop(view);
         if active.surface.maybe_blit_and_present().is_ok() {
             let _ = active.surface.device().poll(wgpu::PollType::Poll);
@@ -256,6 +265,8 @@ pub(crate) struct HybridPainter<'a> {
     queue: &'a wgpu::Queue,
     encoder: &'a mut wgpu::CommandEncoder,
     image_cache: &'a mut FxHashMap<u64, ImageId>,
+    shaders: &'a mut ShaderRenderer,
+    texture_bindings: &'a mut TextureBindings,
     layers: Vec<LayerKind>,
 }
 
@@ -447,6 +458,32 @@ impl PaintScene for HybridPainter<'_> {
             tracing::warn!(?error, "failed to project retained SVG into Vello Hybrid");
         }
     }
+
+    fn draw_shader_effect(&mut self, effect: ShaderEffect, transform: Affine) {
+        let texture_id = self.shaders.render(
+            &effect,
+            self.device,
+            self.queue,
+            self.encoder,
+            self.texture_bindings,
+        );
+        let [physical_width, physical_height] = effect.physical_size;
+        self.scene.set_transform(
+            transform
+                * Affine::scale_non_uniform(
+                    f64::from(effect.logical_size[0]) / f64::from(physical_width),
+                    f64::from(effect.logical_size[1]) / f64::from(physical_height),
+                ),
+        );
+        self.scene.draw_texture_rects(
+            texture_id,
+            ImageQuality::High,
+            [SampleRect {
+                source_region: RectU16::new(0, 0, physical_width, physical_height),
+                transform: Affine::IDENTITY,
+            }],
+        );
+    }
 }
 
 /// Reusable offscreen renderer backed by the same replay path as windows.
@@ -456,6 +493,7 @@ pub(crate) struct HybridImageRenderer {
     resources: Resources,
     scene: HybridScene,
     image_cache: FxHashMap<u64, ImageId>,
+    shaders: ShaderRenderer,
 }
 
 impl HybridImageRenderer {
@@ -478,12 +516,14 @@ impl HybridImageRenderer {
                 height,
             },
         );
+        let shaders = ShaderRenderer::new(buffer.device());
         Self {
             buffer,
             renderer,
             resources,
             scene: HybridScene::new(width as u16, height as u16),
             image_cache: FxHashMap::default(),
+            shaders,
         }
     }
 
@@ -513,6 +553,8 @@ impl HybridImageRenderer {
             .create_command_encoder(&CommandEncoderDescriptor {
                 label: Some("Wabou Vello Hybrid offscreen frame"),
             });
+        let mut texture_bindings = TextureBindings::new();
+        self.shaders.begin_frame();
         let mut painter = HybridPainter {
             scene: &mut self.scene,
             renderer: &mut self.renderer,
@@ -521,6 +563,8 @@ impl HybridImageRenderer {
             queue: self.buffer.queue(),
             encoder: &mut encoder,
             image_cache: &mut self.image_cache,
+            shaders: &mut self.shaders,
+            texture_bindings: &mut texture_bindings,
             layers: Vec::new(),
         };
         if base_color != Color::TRANSPARENT {
@@ -542,10 +586,11 @@ impl HybridImageRenderer {
                 &mut encoder,
                 &RenderSize { width, height },
                 &self.buffer.target_texture_view(),
-                &TextureBindings::new(),
+                &texture_bindings,
             )
             .expect("failed to render Vello Hybrid scene offscreen");
         self.buffer.queue().submit([encoder.finish()]);
+        self.shaders.finish_frame();
         let mut rgba = vec![0; (width * height * 4) as usize];
         self.buffer.copy_texture_to_buffer(&mut rgba);
         rgba

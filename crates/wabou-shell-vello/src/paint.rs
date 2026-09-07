@@ -12,6 +12,8 @@ use vello_common::peniko::{
     BlendMode, Brush, BrushRef, Color, Fill, FontData, ImageBrushRef, Style, StyleRef,
 };
 
+use crate::ShaderEffect;
+
 /// Font variation coordinate in normalized OpenType representation.
 pub type NormalizedCoord = i16;
 
@@ -108,6 +110,11 @@ pub enum PaintCommand {
         document: SvgDocument,
         transform: Affine,
     },
+    /// Draw a renderer-owned custom WGSL effect surface.
+    Shader {
+        effect: ShaderEffect,
+        transform: Affine,
+    },
 }
 
 impl PaintCommand {
@@ -119,7 +126,8 @@ impl PaintCommand {
             | Self::Fill { transform, .. }
             | Self::GlyphRun { transform, .. }
             | Self::BoxShadow { transform, .. }
-            | Self::Svg { transform, .. } => transform,
+            | Self::Svg { transform, .. }
+            | Self::Shader { transform, .. } => transform,
             Self::PopLayer => return self,
         };
         *transform = parent * *transform;
@@ -222,6 +230,8 @@ pub trait PaintScene {
     );
     /// Draw a retained SVG document.
     fn draw_svg(&mut self, document: SvgDocument, transform: Affine);
+    /// Draw a retained custom WGSL effect.
+    fn draw_shader_effect(&mut self, effect: ShaderEffect, transform: Affine);
 
     /// Append a retained fragment under `transform`.
     fn append_scene(&mut self, scene: Scene, transform: Affine) {
@@ -289,6 +299,10 @@ pub trait PaintScene {
                     document,
                     transform: local,
                 } => self.draw_svg(document, transform * local),
+                PaintCommand::Shader {
+                    effect,
+                    transform: local,
+                } => self.draw_shader_effect(effect, transform * local),
             }
         }
     }
@@ -441,5 +455,10 @@ impl PaintScene for Scene {
                 .into_iter()
                 .map(|command| command.transformed(transform)),
         );
+    }
+
+    fn draw_shader_effect(&mut self, effect: ShaderEffect, transform: Affine) {
+        self.commands
+            .push(PaintCommand::Shader { effect, transform });
     }
 }

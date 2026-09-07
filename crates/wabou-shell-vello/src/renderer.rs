@@ -114,6 +114,27 @@ mod tests {
     }
 
     #[test]
+    fn direct_hybrid_renderer_composites_and_resizes_custom_wgsl() {
+        let source = crate::ShaderEffectSource::new(
+            "fn wabou_effect(_uv: vec2<f32>) -> vec4<f32> { return vec4<f32>(0.0, 1.0, 0.0, 1.0); }",
+        )
+        .unwrap();
+        let id = crate::ShaderEffectId::new();
+
+        let mut text = crate::TextContext::new();
+        let mut first = crate::PaintContext::new_clipped(18.0, 10.0, 4.0, 1.0, &mut text);
+        first.draw_shader_effect(id, source.clone(), 0.0, &[]);
+        let first = render_to_image(&first.finish(), 18, 10, Color::BLACK).unwrap();
+        assert_eq!(first.get_pixel(9, 5).0, [0, 255, 0, 255]);
+        assert_eq!(first.get_pixel(0, 0).0, [0, 0, 0, 255]);
+
+        let mut second = crate::PaintContext::new(9.0, 17.0, 1.0, &mut text);
+        second.draw_shader_effect(id, source, 0.0, &[]);
+        let second = render_to_image(&second.finish(), 9, 17, Color::BLACK).unwrap();
+        assert_eq!(second.get_pixel(4, 8).0, [0, 255, 0, 255]);
+    }
+
+    #[test]
     fn direct_hybrid_renderer_applies_retained_svg_transform() {
         let svg = crate::svg::SvgImage::parse(
             r##"<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="#14b8a6"/></svg>"##,

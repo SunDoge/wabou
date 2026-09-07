@@ -13,6 +13,25 @@ fn frame_wake_unifies_animation_and_deadline_scheduling() {
     );
     assert_eq!(frame_wake(false, None, now), FrameWake::Idle);
 }
+
+#[test]
+fn frame_scheduler_preserves_a_deadline_when_the_source_reports_now_relative_time() {
+    let now = Instant::now();
+    let first = now + std::time::Duration::from_millis(16);
+    let mut scheduled = None;
+    assert_eq!(
+        scheduled_frame_wake(false, Some(first), &mut scheduled, now),
+        FrameWake::Deadline(first)
+    );
+
+    let wake_time = first + std::time::Duration::from_millis(1);
+    let moving_deadline = wake_time + std::time::Duration::from_millis(16);
+    assert_eq!(
+        scheduled_frame_wake(false, Some(moving_deadline), &mut scheduled, wake_time),
+        FrameWake::Redraw
+    );
+    assert_eq!(scheduled, None);
+}
 use crate::layout::PlacedNode;
 use crate::text::TextContext;
 use std::ptr::NonNull;

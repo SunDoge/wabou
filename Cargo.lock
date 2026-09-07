@@ -13150,10 +13150,12 @@ version = "0.1.0-alpha.3"
 dependencies = [
  "arboard",
  "bitflags 2.13.1",
+ "bytemuck",
  "futures-util",
  "glifo",
  "image",
  "lru 0.18.1",
+ "naga",
  "notify-rust",
  "open",
  "parley",

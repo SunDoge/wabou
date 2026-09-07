@@ -20,6 +20,7 @@ pub mod renderer;
 mod renderer_backend;
 pub mod scene;
 pub mod scrollbar;
+mod shader;
 pub mod shell;
 pub mod shortcut;
 pub mod source;
@@ -48,6 +49,7 @@ pub use effect::{
 };
 pub use error::{Error, Result};
 pub use paint::{Glyph, NormalizedCoord, PaintCommand, PaintScene, Scene, SvgDocument};
+pub use shader::{ShaderEffect, ShaderEffectId, ShaderEffectSource};
 pub use shell::Shell;
 pub use shortcut::StandardShortcut;
 pub use source::{
