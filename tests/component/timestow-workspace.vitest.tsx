@@ -81,6 +81,47 @@ test("session errors remain visible and dismissible outside a page", () => {
   expect(dismiss).toHaveBeenCalledTimes(1);
 });
 
+test("session surfaces profile metadata recovery without blocking startup", async () => {
+  const store: ProfileStore = {
+    load: async () => ({
+      profiles: [],
+      recoveryNotice:
+        "Timestow isolated damaged metadata for old-photos and kept the original data in recovery storage.",
+    }),
+    save: async () => {},
+    setActive: async () => {},
+    remove: async () => {},
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 13,
+      status: async () => ({ unlockedProfileIds: [] }),
+    },
+  });
+  const RecoveryStatus = () => {
+    const session = useTimestowSession();
+    return (
+      <Show when={!session.loading() && session.error()}>
+        {(message) => <Text role="alert">{message()}</Text>}
+      </Show>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <RecoveryStatus />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("alert").text).toContain("old-photos");
+  });
+  expect(fixture.callsTo("rustic.status")).toHaveLength(1);
+  screen.dispose();
+});
+
 test("repository setup chooses a mode before exposing one primary action", () => {
   const submit = vi.fn();
   const App = () => {

@@ -148,7 +148,7 @@ export function TimestowSessionProvider(props: {
       if (selected && !nextRuntime.unlockedProfileIds.includes(selected)) {
         setPendingUnlockId(selected);
       }
-      setError(undefined);
+      setError(stored.recoveryNotice);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
       setError(message);

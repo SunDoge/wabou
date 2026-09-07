@@ -1,4 +1,4 @@
-import type { Kv, KvValue } from "@wabou/ui";
+import type { Kv, KvEntry, KvValue } from "@wabou/ui";
 import type { BackupProfile } from "./api";
 import {
   backupScheduleFromValue,
@@ -10,6 +10,7 @@ const SCHEMA_VERSION = 2;
 export interface StoredProfiles {
   profiles: BackupProfile[];
   activeProfileId?: string;
+  recoveryNotice?: string;
 }
 
 export interface ProfileStore {
@@ -25,11 +26,12 @@ function isRecord(
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function profileFromValue(value: KvValue): BackupProfile {
+function profileFromValue(value: KvValue, expectedId: string): BackupProfile {
   if (!isRecord(value)) throw new TypeError("invalid persisted backup profile");
   const sources = value.sources;
   if (
     typeof value.id !== "string" ||
+    value.id !== expectedId ||
     typeof value.name !== "string" ||
     typeof value.repositoryPath !== "string" ||
     !Array.isArray(sources) ||
@@ -45,6 +47,33 @@ function profileFromValue(value: KvValue): BackupProfile {
     sources: sources as string[],
     ...(schedule ? { schedule } : {}),
   };
+}
+
+async function quarantineProfile(
+  kv: Kv,
+  entry: KvEntry<KvValue>,
+  profileId: string,
+): Promise<void> {
+  const recoveryKey = [
+    "recovery",
+    "profiles",
+    profileId,
+    entry.versionstamp ?? "unversioned",
+  ] as const;
+  const result = await kv
+    .atomic()
+    .check(entry)
+    .set(recoveryKey, {
+      value: entry.value,
+      quarantinedAt: new Date().toISOString(),
+    })
+    .delete(entry.key)
+    .commit();
+  if (!result.committed) {
+    throw new Error(
+      `damaged backup profile ${profileId} changed while Timestow was recovering it`,
+    );
+  }
 }
 
 function profileValue(profile: BackupProfile): KvValue {
@@ -73,8 +102,19 @@ export function createProfileStore(kv: Kv): ProfileStore {
       }
 
       const profiles: BackupProfile[] = [];
+      const quarantinedProfileIds: string[] = [];
       for await (const entry of kv.list({ prefix: ["profiles"] })) {
-        profiles.push(profileFromValue(entry.value));
+        const keyId = entry.key.length === 2 ? entry.key[1] : undefined;
+        const profileId =
+          typeof keyId === "string"
+            ? keyId
+            : `invalid-profile-${quarantinedProfileIds.length + 1}`;
+        try {
+          profiles.push(profileFromValue(entry.value, profileId));
+        } catch {
+          await quarantineProfile(kv, entry, profileId);
+          quarantinedProfileIds.push(profileId);
+        }
       }
       profiles.sort((left, right) => left.name.localeCompare(right.name));
 
@@ -84,10 +124,21 @@ export function createProfileStore(kv: Kv): ProfileStore {
         profiles.some((profile) => profile.id === active.value)
           ? active.value
           : undefined;
+      if (active !== null && activeProfileId === undefined) {
+        await kv.delete(["state", "activeProfileId"]);
+      }
       if (schema?.value === 1) {
         await kv.set(["meta", "schemaVersion"], SCHEMA_VERSION);
       }
-      return { profiles, activeProfileId };
+      return {
+        profiles,
+        activeProfileId,
+        ...(quarantinedProfileIds.length > 0
+          ? {
+              recoveryNotice: `Timestow isolated damaged metadata for ${quarantinedProfileIds.join(", ")} and kept the original data in recovery storage. Other backups are still available.`,
+            }
+          : {}),
+      };
     },
 
     async save(profile, options) {

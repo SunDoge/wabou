@@ -169,3 +169,38 @@ test("forgetting a profile clears its active selection without touching other pr
   });
   await expect(store.remove("missing")).resolves.toBeUndefined();
 });
+
+test("damaged profile metadata is quarantined without hiding healthy backups", async () => {
+  const { kv, values } = memoryKv();
+  const store = createProfileStore(kv);
+  await store.save({
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/backups/photos",
+    sources: ["/photos"],
+  });
+  values.set(JSON.stringify(["profiles", "damaged"]), {
+    id: "another-id",
+    name: "Damaged",
+    repositoryPath: "/backups/damaged",
+    sources: ["/damaged"],
+  });
+  values.set(JSON.stringify(["state", "activeProfileId"]), "damaged");
+
+  const loaded = await store.load();
+
+  expect(loaded.profiles.map(({ id }) => id)).toEqual(["photos"]);
+  expect(loaded.activeProfileId).toBeUndefined();
+  expect(loaded.recoveryNotice).toContain("damaged");
+  expect(values.has(JSON.stringify(["profiles", "damaged"]))).toBe(false);
+  expect(values.has(JSON.stringify(["state", "activeProfileId"]))).toBe(false);
+  const recovery = [...values.entries()].find(([key]) =>
+    key.startsWith('["recovery","profiles","damaged",'),
+  );
+  expect(recovery?.[1]).toMatchObject({
+    value: {
+      id: "another-id",
+      name: "Damaged",
+    },
+  });
+});
