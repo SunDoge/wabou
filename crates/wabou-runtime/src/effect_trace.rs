@@ -4,7 +4,8 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
-use wabou_shell::{
+use wabou_shell_api as wabou_shell;
+use wabou_shell_api::{
     EFFECT_ABI_VERSION, EffectCompletion, EffectErrorCode, EffectOp, EffectRequest, EffectResult,
     EffectTapeEntry,
 };
@@ -254,7 +255,7 @@ fn same_request_ignoring_id(expected: &EffectRequest, actual: &EffectRequest) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wabou_shell::{EffectId, EffectPayload, EffectScope, WindowCommand};
+    use wabou_shell_api::{EffectId, EffectPayload, EffectScope, WindowCommand};
 
     fn title(id: u32, title: &str) -> EffectRequest {
         let window_key = wabou_shell::initial_window_resource_key(0);

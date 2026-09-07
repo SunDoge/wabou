@@ -8,8 +8,9 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use crate::effect_trace::{EffectTrace, TraceSubmission};
 use crate::jsrt::JsRuntime;
 
-use wabou_shell::WakeCallback;
-use wabou_shell::{
+use wabou_shell_api as wabou_shell;
+use wabou_shell_api::WakeCallback;
+use wabou_shell_api::{
     AppDirectories, EffectCompletion, EffectId, EffectOp, EffectPayload, EffectRequest,
     EffectResult, EffectScope,
 };

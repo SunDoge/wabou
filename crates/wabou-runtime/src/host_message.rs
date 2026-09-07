@@ -11,7 +11,9 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
-use wabou_shell::WakeCallback;
+#[cfg(test)]
+use wabou_shell_api as wabou_shell;
+use wabou_shell_api::{WakeCallback, WindowResourceKey};
 
 use crate::ui_inbox::{UiInbox, UiInboxSender};
 
@@ -267,7 +269,7 @@ where
 #[derive(Default)]
 struct HostMessageRouterInner {
     next_generation: AtomicU64,
-    routes: Mutex<HashMap<wabou_shell::WindowResourceKey, (u64, HostMessageSender)>>,
+    routes: Mutex<HashMap<WindowResourceKey, (u64, HostMessageSender)>>,
 }
 
 type HostMessageSender =
@@ -280,7 +282,7 @@ type HostMessageSender =
 #[doc(hidden)]
 pub struct HostMessageRouteLease {
     router: HostMessageRouter,
-    window_key: wabou_shell::WindowResourceKey,
+    window_key: WindowResourceKey,
     generation: u64,
 }
 
@@ -299,7 +301,7 @@ impl HostMessageRouter {
     /// Send a message to the current JavaScript runtime for `window_key`.
     pub fn send_to(
         &self,
-        window_key: wabou_shell::WindowResourceKey,
+        window_key: WindowResourceKey,
         message: HostMessage,
     ) -> Result<(), HostMessageError> {
         let sender = self
@@ -328,7 +330,7 @@ impl HostMessageRouter {
     #[doc(hidden)]
     pub fn attach_sender(
         &self,
-        window_key: wabou_shell::WindowResourceKey,
+        window_key: WindowResourceKey,
         sender: impl Fn(HostMessage) -> Result<(), HostMessageError> + Send + Sync + 'static,
     ) -> HostMessageRouteLease {
         let generation = self
@@ -346,7 +348,7 @@ impl HostMessageRouter {
         }
     }
 
-    fn detach(&self, window_key: wabou_shell::WindowResourceKey, generation: u64) {
+    fn detach(&self, window_key: WindowResourceKey, generation: u64) {
         if let Ok(mut routes) = self.inner.routes.lock()
             && routes
                 .get(&window_key)
@@ -364,7 +366,7 @@ impl HostMessageRouter {
 /// stop even when they have no message ready to send.
 #[derive(Clone)]
 pub struct HostMessageContext {
-    window_key: wabou_shell::WindowResourceKey,
+    window_key: WindowResourceKey,
     messages: HostMessageHandle,
     cancellation: CancellationToken,
     runtime: tokio::runtime::Handle,
@@ -374,7 +376,7 @@ pub struct HostMessageContext {
 impl HostMessageContext {
     #[doc(hidden)]
     pub fn new(
-        window_key: wabou_shell::WindowResourceKey,
+        window_key: WindowResourceKey,
         messages: HostMessageHandle,
         cancellation: CancellationToken,
         runtime: tokio::runtime::Handle,
@@ -390,7 +392,7 @@ impl HostMessageContext {
     }
 
     /// Typed generational identity of the owning native window.
-    pub fn window_key(&self) -> wabou_shell::WindowResourceKey {
+    pub fn window_key(&self) -> WindowResourceKey {
         self.window_key
     }
 

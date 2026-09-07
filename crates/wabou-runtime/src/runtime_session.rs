@@ -14,7 +14,7 @@ use crate::{
     style_ir::StylesheetUpdate,
 };
 use wabou_protocol::AtomPool;
-use wabou_shell::{FrameStats, HostAction, WakeCallback, WindowResourceKey};
+use wabou_shell_api::{FrameStats, HostAction, WakeCallback, WindowResourceKey};
 
 /// QuickJS and host-bridge state with one shared cancellation lifetime.
 ///
