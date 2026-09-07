@@ -28,6 +28,8 @@ pub struct GpuiController {
     pub(crate) runtime: RuntimeSession,
     projection: GpuiProjection,
     image_resources: ImageResourceStore,
+    gpui_images:
+        std::collections::HashMap<ImageResourceHandle, std::sync::Weak<wabou_shell::gpui::Image>>,
     next_host_event_id: u32,
     next_native_text_revision: u32,
     hovered_target: Option<wabou_host_api::NodeKey>,
@@ -113,6 +115,7 @@ impl GpuiController {
             runtime,
             projection: GpuiProjection::new(),
             image_resources: ImageResourceStore::default(),
+            gpui_images: std::collections::HashMap::new(),
             next_host_event_id: 0,
             next_native_text_revision: 0,
             hovered_target: None,
@@ -132,6 +135,7 @@ impl GpuiController {
     }
     pub(crate) fn set_image_resources(&mut self, resources: ImageResourceStore) {
         self.image_resources = resources;
+        self.gpui_images.clear();
     }
 
     pub(crate) fn set_text_rendering_diagnostics(
@@ -145,12 +149,22 @@ impl GpuiController {
 
     pub(crate) fn apply_frame(&mut self, frame: &Frame<'_>) -> Result<(), ProjectionError> {
         let atoms = self.runtime.atoms.borrow();
+        let image_resources = &self.image_resources;
+        let gpui_images = &mut self.gpui_images;
         self.projection.apply_ops(frame, &atoms, |source| {
             let (lo, hi) = source.split_once(':')?;
             let handle = ImageResourceHandle::from_parts(lo.parse().ok()?, hi.parse().ok()?)?;
-            self.image_resources
-                .get(handle)
-                .map(|resource| resource.gpui_image())
+            if let Some(image) = gpui_images.get(&handle).and_then(std::sync::Weak::upgrade) {
+                return Some(image);
+            }
+            let resource = image_resources.get(handle)?;
+            let (bytes, format) = resource.encoded();
+            let image = std::sync::Arc::new(wabou_shell::gpui::Image::from_bytes(
+                gpui_image_format(format),
+                bytes.to_vec(),
+            ));
+            gpui_images.insert(handle, std::sync::Arc::downgrade(&image));
+            Some(image)
         })?;
         drop(atoms);
         self.retain_live_interaction_targets();
@@ -1704,6 +1718,21 @@ impl GpuiController {
             self.runtime.js.tokio_handle(),
             self.runtime.host_tasks.clone(),
         )
+    }
+}
+
+fn gpui_image_format(format: image::ImageFormat) -> wabou_shell::gpui::ImageFormat {
+    use wabou_shell::gpui::ImageFormat as Gpui;
+    match format {
+        image::ImageFormat::Png => Gpui::Png,
+        image::ImageFormat::Jpeg => Gpui::Jpeg,
+        image::ImageFormat::WebP => Gpui::Webp,
+        image::ImageFormat::Gif => Gpui::Gif,
+        image::ImageFormat::Bmp => Gpui::Bmp,
+        image::ImageFormat::Tiff => Gpui::Tiff,
+        image::ImageFormat::Ico => Gpui::Ico,
+        image::ImageFormat::Pnm => Gpui::Pnm,
+        _ => unreachable!("image resource format is validated at creation"),
     }
 }
 
