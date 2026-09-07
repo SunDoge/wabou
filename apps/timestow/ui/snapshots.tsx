@@ -362,6 +362,43 @@ export function SnapshotBrowserEmptyState(props: {
   );
 }
 
+export function SnapshotFileListEmptyState(props: {
+  searchActive: boolean;
+  query: string;
+  path: string;
+  onClearSearch(): void;
+}) {
+  return (
+    <Switch>
+      <Match when={props.searchActive}>
+        <ContentState
+          state="empty"
+          title="No matching files"
+          description={`No files in this snapshot match “${props.query.trim()}”.`}
+          action={{ label: "Clear search", onAction: props.onClearSearch }}
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+      <Match when={Boolean(props.path)}>
+        <ContentState
+          state="empty"
+          title="This folder is empty"
+          description="No files or folders are stored at this path."
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+      <Match when>
+        <ContentState
+          state="empty"
+          title="This snapshot is empty"
+          description="No files or folders were recorded in this snapshot."
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+    </Switch>
+  );
+}
+
 export function snapshotMatchesQuery(
   snapshot: SnapshotEntry,
   query: string,
@@ -1174,86 +1211,101 @@ export function SnapshotsPage() {
                             </ScrollArea>
                           }
                         >
-                          <ScrollArea
-                            class="min-w-0 min-h-0 flex-1"
-                            contentClass="min-w-full"
+                          <Show
+                            when={visibleFiles().length > 0}
+                            fallback={
+                              <SnapshotFileListEmptyState
+                                searchActive={searchActive()}
+                                query={searchQuery()}
+                                path={currentPath()}
+                                onClearSearch={clearSearch}
+                              />
+                            }
                           >
-                            <Table aria-label="Snapshot files">
-                              <TableHeader>
-                                <TableRow class="bg-surface-muted">
-                                  <SortableTableHead
-                                    label="Name"
-                                    class="min-w-0 flex-1"
-                                    direction={() => sortDirection("name")}
-                                    onToggle={() =>
-                                      fileTable.table
-                                        .getColumn("name")
-                                        ?.toggleSorting()
-                                    }
-                                  />
-                                  <SortableTableHead
-                                    label="Size"
-                                    class="min-w-0 w-24 flex-none"
-                                    direction={() => sortDirection("size")}
-                                    onToggle={() =>
-                                      fileTable.table
-                                        .getColumn("size")
-                                        ?.toggleSorting()
-                                    }
-                                  />
-                                  <SortableTableHead
-                                    label="Modified"
-                                    class="min-w-0 w-36 flex-none"
-                                    direction={() => sortDirection("modified")}
-                                    onToggle={() =>
-                                      fileTable.table
-                                        .getColumn("modified")
-                                        ?.toggleSorting()
-                                    }
-                                  />
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                <ForValue each={fileTable.rows()}>
-                                  {(row) => (
-                                    <SnapshotFileRow
-                                      entry={row.original}
-                                      selected={
-                                        selectedEntry()?.path ===
-                                        row.original.path
-                                      }
-                                      searchActive={searchActive()}
-                                      onSelect={setSelectedEntry}
-                                      onOpenDirectory={(directory) =>
-                                        void loadFiles(
-                                          session.activeProfile()?.id ?? "",
-                                          snapshot(),
-                                          directory.path,
-                                        )
+                            <ScrollArea
+                              class="min-w-0 min-h-0 flex-1"
+                              contentClass="min-w-full"
+                            >
+                              <Table aria-label="Snapshot files">
+                                <TableHeader>
+                                  <TableRow class="bg-surface-muted">
+                                    <SortableTableHead
+                                      label="Name"
+                                      class="min-w-0 flex-1"
+                                      direction={() => sortDirection("name")}
+                                      onToggle={() =>
+                                        fileTable.table
+                                          .getColumn("name")
+                                          ?.toggleSorting()
                                       }
                                     />
-                                  )}
-                                </ForValue>
-                              </TableBody>
-                            </Table>
-                            <Show
-                              when={
-                                !searchActive() && files().length < fileTotal()
-                              }
-                            >
-                              <View class="w-full flex justify-center px-4 py-3">
-                                <Button
-                                  aria-label="Load more files"
-                                  variant="outline"
-                                  loading={loadingMoreFiles()}
-                                  loadingLabel="Loading more…"
-                                  onClick={() => void loadMoreFiles()}
-                                >
-                                  Load more files
-                                </Button>
-                              </View>
-                            </Show>
-                          </ScrollArea>
+                                    <SortableTableHead
+                                      label="Size"
+                                      class="min-w-0 w-24 flex-none"
+                                      direction={() => sortDirection("size")}
+                                      onToggle={() =>
+                                        fileTable.table
+                                          .getColumn("size")
+                                          ?.toggleSorting()
+                                      }
+                                    />
+                                    <SortableTableHead
+                                      label="Modified"
+                                      class="min-w-0 w-36 flex-none"
+                                      direction={() =>
+                                        sortDirection("modified")
+                                      }
+                                      onToggle={() =>
+                                        fileTable.table
+                                          .getColumn("modified")
+                                          ?.toggleSorting()
+                                      }
+                                    />
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  <ForValue each={fileTable.rows()}>
+                                    {(row) => (
+                                      <SnapshotFileRow
+                                        entry={row.original}
+                                        selected={
+                                          selectedEntry()?.path ===
+                                          row.original.path
+                                        }
+                                        searchActive={searchActive()}
+                                        onSelect={setSelectedEntry}
+                                        onOpenDirectory={(directory) =>
+                                          void loadFiles(
+                                            session.activeProfile()?.id ?? "",
+                                            snapshot(),
+                                            directory.path,
+                                          )
+                                        }
+                                      />
+                                    )}
+                                  </ForValue>
+                                </TableBody>
+                              </Table>
+                              <Show
+                                when={
+                                  !searchActive() &&
+                                  files().length < fileTotal()
+                                }
+                              >
+                                <View class="w-full flex justify-center px-4 py-3">
+                                  <Button
+                                    aria-label="Load more files"
+                                    variant="outline"
+                                    loading={loadingMoreFiles()}
+                                    loadingLabel="Loading more…"
+                                    onClick={() => void loadMoreFiles()}
+                                  >
+                                    Load more files
+                                  </Button>
+                                </View>
+                              </Show>
+                            </ScrollArea>
+                          </Show>
                         </Show>
                       </AdaptiveSplitPaneMain>
                       <Show when={selectedEntry()}>

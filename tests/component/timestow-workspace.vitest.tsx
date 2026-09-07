@@ -33,6 +33,7 @@ import {
   SnapshotBrowserEmptyState,
   SnapshotFileRow,
   SnapshotHistory,
+  SnapshotFileListEmptyState,
   SnapshotPathBreadcrumb,
   SnapshotWorkspaceHeader,
   snapshotAfterRefresh,
@@ -155,9 +156,7 @@ test("repository setup locks secret editors while connecting", () => {
     screen.getByRole("textbox", { name: "Confirm repository password" })
       .disabled,
   ).toBe(true);
-  expect(screen.getByRole("button", { name: "Creating…" }).disabled).toBe(
-    true,
-  );
+  expect(screen.getByRole("button", { name: "Creating…" }).disabled).toBe(true);
 });
 
 test("backup workspace keeps configuration and primary actions distinct", () => {
@@ -335,6 +334,41 @@ test("snapshot workspace distinguishes setup, loading, and load failure", () => 
   ).toBeDefined();
 });
 
+test("empty file lists distinguish search results from empty directories", () => {
+  const clearSearch = vi.fn();
+  const [state, setState] = createSignal({
+    searchActive: true,
+    query: "invoice",
+    path: "Documents",
+  });
+  const screen = renderComponent(() => (
+    <SnapshotFileListEmptyState
+      searchActive={state().searchActive}
+      query={state().query}
+      path={state().path}
+      onClearSearch={clearSearch}
+    />
+  ));
+
+  expect(
+    screen.getByRole("status", { name: "No matching files" }).text,
+  ).toContain("invoice");
+  screen.getByRole("button", { name: "Clear search" }).click();
+  expect(clearSearch).toHaveBeenCalledTimes(1);
+
+  setState({ searchActive: false, query: "", path: "Documents" });
+  screen.flush();
+  expect(
+    screen.getByRole("status", { name: "This folder is empty" }),
+  ).toBeDefined();
+
+  setState({ searchActive: false, query: "", path: "" });
+  screen.flush();
+  expect(
+    screen.getByRole("status", { name: "This snapshot is empty" }),
+  ).toBeDefined();
+});
+
 test("snapshot timestamps stay compact in the table", () => {
   expect(formatModified("2026-09-02T04:18:35.321355Z")).toBe(
     "2026-09-02 04:18",
@@ -453,9 +487,7 @@ test("long snapshot histories filter by user-facing metadata", () => {
   const matchingSnapshot = screen.getByRole("button", {
     name: "Open snapshot Backup 7",
   });
-  expect(matchingSnapshot.text).toContain(
-    "2026-09-08 04:18 · workstation-7",
-  );
+  expect(matchingSnapshot.text).toContain("2026-09-08 04:18 · workstation-7");
   expect(matchingSnapshot.text).not.toContain("snapshot-7");
   expect(
     screen.queryByRole("button", { name: "Open snapshot Backup 0" }),

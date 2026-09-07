@@ -420,6 +420,22 @@ function EmptyWorkspaceFixture() {
   );
 }
 
+function EmptySnapshotFixture() {
+  return (
+    <WorkspaceFixture
+      rustic={{
+        ...fixtureRustic,
+        listFiles: ({ offset = 0 }) => ({
+          entries: [],
+          total: 0,
+          offset,
+          hasMore: false,
+        }),
+      }}
+    />
+  );
+}
+
 function WorkspaceErrorFixture() {
   return (
     <WorkspaceFixture
@@ -765,6 +781,12 @@ defineLayoutFixtures(
       height: 620,
       waitMs: 100,
       render: EmptyWorkspaceFixture,
+    },
+    "timestow/workspace-empty-snapshot": {
+      width: 900,
+      height: 620,
+      waitMs: 100,
+      render: EmptySnapshotFixture,
     },
     "timestow/workspace-error": {
       width: 900,

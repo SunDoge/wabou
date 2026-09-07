@@ -248,6 +248,21 @@ await renderLayoutFixtures({
       },
     },
     {
+      id: "timestow/workspace-empty-snapshot",
+      width: 900,
+      height: 620,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, {
+          role: "status",
+          name: "This snapshot is empty",
+        });
+        if (queryLayoutNodes(fixture, { role: "table" }).length) {
+          throw new Error("an empty snapshot renders a misleading file table");
+        }
+      },
+    },
+    {
       id: "timestow/workspace-error",
       width: 900,
       height: 620,
