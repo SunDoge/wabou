@@ -285,6 +285,64 @@ test("repository verification exposes integrity findings and request failures", 
   ).not.toContain("pack 42 is missing");
 });
 
+test("repository verification discards results from a previous profile", async () => {
+  const completions = new Map<
+    string,
+    (result: { healthy: boolean; findings: string[] }) => void
+  >();
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 12,
+      checkRepository: ({ profileId }: { profileId: string }) =>
+        new Promise<{ healthy: boolean; findings: string[] }>((resolve) => {
+          completions.set(profileId, resolve);
+        }),
+    },
+  });
+  const App = () => {
+    const [profileId, setProfileId] = createSignal("photos");
+    return (
+      <>
+        <Button
+          aria-label="Select documents backup"
+          onClick={() => setProfileId("documents")}
+        />
+        <RepositoryCheckDialog profileId={profileId()} defaultOpen />
+      </>
+    );
+  };
+  const screen = renderComponent(App, { host: fixture.host });
+
+  screen.getByRole("button", { name: "Check now" }).click();
+  await screen.waitFor(() => {
+    expect(completions.has("photos")).toBe(true);
+  });
+  screen.getByRole("button", { name: "Select documents backup" }).click();
+  completions.get("photos")?.({
+    healthy: false,
+    findings: ["old repository finding"],
+  });
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("dialog", { name: "Check repository" }).text,
+    ).not.toContain("old repository finding");
+  });
+
+  screen.getByRole("button", { name: "Check now" }).click();
+  await screen.waitFor(() => {
+    expect(completions.has("documents")).toBe(true);
+  });
+  completions.get("documents")?.({ healthy: true, findings: [] });
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("alert", { name: "Repository structure is healthy" }),
+    ).toBeDefined();
+  });
+  expect(
+    fixture.callsTo("rustic.checkRepository").map((call) => call.args[0]),
+  ).toEqual([{ profileId: "photos" }, { profileId: "documents" }]);
+});
+
 test("empty snapshot workspace only offers actions the user can take", () => {
   const backup = vi.fn();
   const screen = renderComponent(() => (
@@ -1466,9 +1524,9 @@ test("a preview result cannot leak into another selected file", async () => {
     },
   });
   await screen.waitFor(() => {
-    expect(
-      screen.getByRole("region", { name: "File details" }).text,
-    ).toContain("/tmp/second.txt");
+    expect(screen.getByRole("region", { name: "File details" }).text).toContain(
+      "/tmp/second.txt",
+    );
   });
   expect(fixture.callsTo("rustic.openPath")).toHaveLength(1);
 });

@@ -12,7 +12,7 @@ import {
   View,
 } from "@wabou/ui";
 import shieldCheck from "lucide-static/icons/shield-check.svg?raw";
-import { createSignal, For as ForValue, Show } from "solid-js";
+import { createEffect, createSignal, For as ForValue, Show } from "solid-js";
 import {
   type RepositoryCheckResult,
   type RepositoryStats,
@@ -124,18 +124,34 @@ export function RepositoryCheckDialog(props: RepositoryCheckDialogProps) {
   const [checking, setChecking] = createSignal(false);
   const [result, setResult] = createSignal<RepositoryCheckResult>();
   const [error, setError] = createSignal<string>();
+  let requestGeneration = 0;
+
+  createEffect(
+    () => props.profileId,
+    () => {
+      requestGeneration += 1;
+      setChecking(false);
+      setResult(undefined);
+      setError(undefined);
+    },
+  );
 
   async function check(): Promise<void> {
     if (checking()) return;
+    const generation = ++requestGeneration;
+    const profileId = props.profileId;
     setChecking(true);
     setError(undefined);
     try {
-      setResult(await api.checkRepository({ profileId: props.profileId }));
+      const next = await api.checkRepository({ profileId });
+      if (generation === requestGeneration) setResult(next);
     } catch (cause) {
-      setResult(undefined);
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (generation === requestGeneration) {
+        setResult(undefined);
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
     } finally {
-      setChecking(false);
+      if (generation === requestGeneration) setChecking(false);
     }
   }
 
