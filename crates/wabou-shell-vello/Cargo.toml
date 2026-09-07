@@ -40,7 +40,6 @@ wgpu.workspace = true
 wgpu-context.workspace = true
 winit = { workspace = true }
 wabou-accessibility-vello = { workspace = true }
-wabou-host-api = { workspace = true }
 wabou-shell-api = { workspace = true }
 wabou-style = { workspace = true }
 wabou-svg-vello-hybrid.workspace = true

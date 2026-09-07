@@ -35,7 +35,7 @@ fn host_messages_dispatch_without_waiting_for_a_render_frame() {
 fn solid_resources_settle_native_promises_and_return_runtime_to_idle() {
     const RESOURCE_FIXTURE: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gen/resource-test-runtime.js"
+        "/../wabou-runtime/src/gen/resource-test-runtime.js"
     ));
     let js = JsRuntime::new().expect("runtime");
     js.mount_capability("promiseTest", |ctx, capability| {
@@ -284,7 +284,7 @@ fn modifier_changes_reach_js_as_typed_host_state() {
 fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
     const CORE_FIXTURE: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gen/test-runtime.js"
+        "/../wabou-runtime/src/gen/test-runtime.js"
     ));
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime_with_factories_and_window(
@@ -378,7 +378,7 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
 fn clipboard_bridge_routes_native_completions_back_to_javascript() {
     const CORE_FIXTURE: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gen/test-runtime.js"
+        "/../wabou-runtime/src/gen/test-runtime.js"
     ));
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
@@ -452,7 +452,7 @@ fn clipboard_bridge_routes_native_completions_back_to_javascript() {
 fn dialog_and_notification_bridges_route_typed_effects_and_completions() {
     const CORE_FIXTURE: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gen/test-runtime.js"
+        "/../wabou-runtime/src/gen/test-runtime.js"
     ));
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
@@ -529,7 +529,7 @@ fn dialog_and_notification_bridges_route_typed_effects_and_completions() {
 fn replayed_effect_completion_wakes_javascript_jobs() {
     const CORE_FIXTURE: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gen/test-runtime.js"
+        "/../wabou-runtime/src/gen/test-runtime.js"
     ));
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
