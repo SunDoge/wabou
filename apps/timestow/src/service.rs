@@ -384,8 +384,14 @@ impl RusticService {
             .ok_or_else(|| "repository password confirmation is required".to_string())?;
         let password = self.secrets.take(&request.password_slot);
         let confirmation = self.secrets.take(confirmation_slot);
-        validate_new_repository_password(password.as_str(), confirmation.as_str())?;
-        create_repository(&request.path, password.as_str())?;
+        if let Err(error) =
+            validate_new_repository_password(password.as_str(), confirmation.as_str())
+                .and_then(|()| create_repository(&request.path, password.as_str()))
+        {
+            let _ = self.secrets.restore(&request.password_slot, password);
+            let _ = self.secrets.restore(confirmation_slot, confirmation);
+            return Err(error);
+        }
         self.remember_profile(request, password)
     }
 
@@ -395,7 +401,10 @@ impl RusticService {
         if password.is_empty() {
             return Err("repository password is required".to_string());
         }
-        open_repository(&request.path, password.as_str()).map(|_| ())?;
+        if let Err(error) = open_repository(&request.path, password.as_str()).map(|_| ()) {
+            let _ = self.secrets.restore(&request.password_slot, password);
+            return Err(error);
+        }
         self.remember_profile(request, password)
     }
 
@@ -1358,6 +1367,29 @@ mod tests {
             validate_new_repository_password("correct horse", "correct house"),
             Err("repository passwords do not match".to_string())
         );
+    }
+
+    #[test]
+    fn failed_native_profile_creation_restores_secret_slots_for_retry() {
+        let secrets = VelloHybridSecretStore::default();
+        assert!(secrets.restore("password", Zeroizing::new("correct horse".to_string()),));
+        assert!(secrets.restore("confirmation", Zeroizing::new("correct house".to_string()),));
+        let service = RusticService::new(secrets.clone());
+
+        let error = service
+            .create_profile(ProfileRequest {
+                id: "test".to_string(),
+                name: "Test".to_string(),
+                path: "/unused".to_string(),
+                password_slot: "password".to_string(),
+                confirmation_slot: Some("confirmation".to_string()),
+                sources: Vec::new(),
+            })
+            .expect_err("mismatched confirmation must fail");
+
+        assert_eq!(error, "repository passwords do not match");
+        assert_eq!(secrets.take("password").as_str(), "correct horse");
+        assert_eq!(secrets.take("confirmation").as_str(), "correct house");
     }
 
     #[test]

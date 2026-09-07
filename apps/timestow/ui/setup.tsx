@@ -163,6 +163,7 @@ export function BackupConnectionForm(props: BackupConnectionFormProps) {
                 aria-label="Repository password"
                 secret={secret}
                 placeholder="Required to encrypt or unlock"
+                disabled={Boolean(props.pending)}
                 onSecretStateChange={(event) =>
                   setPasswordPresent(event.hasValue)
                 }
@@ -187,6 +188,7 @@ export function BackupConnectionForm(props: BackupConnectionFormProps) {
               aria-label="Confirm repository password"
               secret={props.confirmationSecret}
               placeholder="Enter the same password again"
+              disabled={Boolean(props.pending)}
               onSecretStateChange={(event) =>
                 setConfirmationPresent(event.hasValue)
               }

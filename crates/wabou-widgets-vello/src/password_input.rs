@@ -5,11 +5,11 @@ use std::sync::{Arc, Mutex};
 
 use vello_common::kurbo::{Affine, Rect};
 use vello_common::peniko::{Color, Fill};
+use wabou_protocol::event;
 use wabou_shell::style::TextAlign;
 use wabou_shell::text::{
     SingleLineTextMetrics, brush_for_color, layout_text_styled, single_line_text_metrics,
 };
-use wabou_protocol::event;
 use wabou_shell::{ImeEvent, KeyPhase, StandardShortcut, UiEvent};
 use wabou_shell_vello::{PaintScene, Scene};
 use zeroize::{Zeroize, Zeroizing};
@@ -39,6 +39,18 @@ impl SecretStore {
             .ok()
             .and_then(|mut secrets| secrets.remove(slot))
             .unwrap_or_default()
+    }
+
+    /// Put a previously taken secret back into an isolated slot after an
+    /// operation failed. The value is moved without creating another copy and
+    /// any displaced value remains protected by `Zeroizing`.
+    #[must_use]
+    pub fn restore(&self, slot: &str, secret: Zeroizing<String>) -> bool {
+        let Ok(mut secrets) = self.0.lock() else {
+            return false;
+        };
+        secrets.insert(slot.to_owned(), secret);
+        true
     }
 
     /// Remove and explicitly zeroize a slot if it exists.
@@ -223,7 +235,12 @@ impl Widget for PasswordInput {
     fn attribute_changed(&mut self, name: &str, value: &str) -> wabou_shell::WidgetChanges {
         match name {
             "placeholder" => self.placeholder = value.to_owned(),
-            "secret" => self.slot = value.to_owned(),
+            "secret" => {
+                if self.slot != value {
+                    self.secrets.clear(&self.slot);
+                    self.slot = value.to_owned();
+                }
+            }
             "disabled" => self.disabled = value != "false",
             _ => return wabou_shell::WidgetChanges::empty(),
         }
@@ -389,6 +406,17 @@ mod tests {
         assert_eq!(input.slot, DEFAULT_SLOT);
         assert!(!input.attribute_changed("secret", "current").is_empty());
         assert_eq!(input.slot, "current");
+    }
+
+    #[test]
+    fn changing_slots_clears_the_previous_secret() {
+        let secrets = SecretStore::default();
+        let mut input = PasswordInput::new(secrets.clone());
+        input.handle_event(&UiEvent::TextInput("temporary".into()));
+
+        input.attribute_changed("secret", "next");
+
+        assert!(secrets.take(DEFAULT_SLOT).is_empty());
     }
 
     #[test]

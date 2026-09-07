@@ -131,6 +131,34 @@ test("repository setup chooses a mode before exposing one primary action", () =>
   expect(submit).toHaveBeenCalledTimes(1);
 });
 
+test("repository setup locks secret editors while connecting", () => {
+  const screen = renderComponent(() => (
+    <BackupConnectionForm
+      mode="create"
+      name="Photos"
+      path="/data/backups/photos"
+      passwordSecret="timestow:test"
+      confirmationSecret="timestow:test:confirmation"
+      pending="create"
+      onModeChange={() => {}}
+      onNameChange={() => {}}
+      onPathChange={() => {}}
+      onSubmit={() => {}}
+    />
+  ));
+
+  expect(
+    screen.getByRole("textbox", { name: "Repository password" }).disabled,
+  ).toBe(true);
+  expect(
+    screen.getByRole("textbox", { name: "Confirm repository password" })
+      .disabled,
+  ).toBe(true);
+  expect(screen.getByRole("button", { name: "Creating…" }).disabled).toBe(
+    true,
+  );
+});
+
 test("backup workspace keeps configuration and primary actions distinct", () => {
   const refresh = vi.fn();
   const backup = vi.fn();
