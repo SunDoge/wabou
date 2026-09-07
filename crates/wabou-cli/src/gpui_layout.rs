@@ -275,6 +275,7 @@ fn snapshot_value_with_probe(
     let nodes = output.layout.iter().map(node_value).collect::<Vec<_>>();
     let mut value = json!({
         "status": {
+            "renderer": "gpui",
             "viewportWidth": output.viewport_width,
             "viewportHeight": output.viewport_height,
             "deviceScale": output.scale_factor,

@@ -1313,10 +1313,21 @@ export async function validateCaptureArtifacts(
       `capture did not produce ${relative(workspaceRoot, snapshot)}`,
     );
   }
-  const parsed = validateCaptureSnapshot(
-    JSON.parse(await readFile(snapshot, "utf8")),
-    capture,
-  );
+  const rawSnapshot = JSON.parse(await readFile(snapshot, "utf8"));
+  if (
+    rawSnapshot === null ||
+    typeof rawSnapshot !== "object" ||
+    Array.isArray(rawSnapshot) ||
+    rawSnapshot.status === null ||
+    typeof rawSnapshot.status !== "object" ||
+    Array.isArray(rawSnapshot.status) ||
+    rawSnapshot.status.renderer !== capture.renderer
+  ) {
+    throw new Error(
+      `${relative(workspaceRoot, snapshot)} renderer label ${JSON.stringify(rawSnapshot?.status?.renderer)} does not match requested ${capture.renderer}`,
+    );
+  }
+  const parsed = validateCaptureSnapshot(rawSnapshot, capture);
   if (capture.checkTextContainment) {
     const diagnostics = textContainmentDiagnostics(parsed);
     if (diagnostics.length > 0) {

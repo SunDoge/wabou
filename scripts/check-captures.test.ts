@@ -823,6 +823,7 @@ describe("authored capture discovery", () => {
       join(root, capture.snapshot),
       JSON.stringify({
         status: {
+          renderer: capture.renderer,
           viewportWidth: capture.width,
           viewportHeight: capture.height,
           deviceScale: capture.scaleFactor,
@@ -860,6 +861,12 @@ describe("authored capture discovery", () => {
 
     const snapshotPath = join(root, capture.snapshot);
     const snapshot = JSON.parse(await Bun.file(snapshotPath).text());
+    snapshot.status.renderer = "gpui";
+    await writeFile(snapshotPath, JSON.stringify(snapshot));
+    await expect(validateCaptureArtifacts(capture, root)).rejects.toThrow(
+      'renderer label "gpui" does not match requested vello-hybrid',
+    );
+    snapshot.status.renderer = capture.renderer;
     snapshot.nodes[0].styleDiagnostics = ["unsupported utility `bad-class`"];
     await writeFile(snapshotPath, JSON.stringify(snapshot));
     await expect(validateCaptureArtifacts(capture, root)).rejects.toThrow(

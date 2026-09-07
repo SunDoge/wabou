@@ -152,7 +152,9 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         let state = state
             .read()
             .map_err(|_| "headless debug snapshot lock was poisoned")?;
-        fs::write(path, serde_json::to_vec_pretty(state.snapshot())?)?;
+        let mut snapshot = serde_json::to_value(state.snapshot())?;
+        label_snapshot_renderer(&mut snapshot, "vello-hybrid")?;
+        fs::write(path, serde_json::to_vec_pretty(&snapshot)?)?;
     }
 
     let mut scene = Scene::new();
@@ -310,15 +312,27 @@ fn run_with_host(workspace: &Path, app: &App, options: &RenderOptions) -> Result
     if !output.is_file() {
         return Err(format!("host-backed render did not create {}", output.display()).into());
     }
-    if let Some(snapshot) = snapshot
-        && !snapshot.is_file()
-    {
-        return Err(format!("host-backed render did not create {}", snapshot.display()).into());
+    if let Some(snapshot) = snapshot {
+        if !snapshot.is_file() {
+            return Err(format!("host-backed render did not create {}", snapshot.display()).into());
+        }
+        let mut value: serde_json::Value = serde_json::from_slice(&fs::read(&snapshot)?)?;
+        label_snapshot_renderer(&mut value, "vello-hybrid")?;
+        fs::write(&snapshot, serde_json::to_vec_pretty(&value)?)?;
     }
     println!(
         "[wabou] wrote Vello Hybrid capture {} with application host",
         options.out.display()
     );
+    Ok(())
+}
+
+fn label_snapshot_renderer(snapshot: &mut serde_json::Value, renderer: &str) -> Result<()> {
+    let status = snapshot
+        .get_mut("status")
+        .and_then(serde_json::Value::as_object_mut)
+        .ok_or("capture snapshot is missing its status object")?;
+    status.insert("renderer".into(), renderer.into());
     Ok(())
 }
 

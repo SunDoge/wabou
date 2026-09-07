@@ -86,8 +86,10 @@ The standard Winit controls support native text, paste, IME, pointer, wheel,
 selection, and value synchronization, and the shared semantic behavior driver
 runs against the real Winit event loop. The Winit controller now owns the
 shared `RuntimeSession` directly: it no longer retains or mirrors protocol
-frames into a GPUI projection. The remaining promotion work is backend-labelled
-pixel fixtures and application-defined widget parity.
+frames into a GPUI projection. Capture snapshots carry a renderer label that
+the authored-capture verifier checks against the requested backend, so copied
+or stale GPUI artifacts cannot stand in for Hybrid pixel evidence. The
+remaining promotion work is application-defined widget parity.
 
 The Hybrid style projection preserves independent corner radii through
 background, border, outline, overflow, and native-widget clipping. AnyRender's
