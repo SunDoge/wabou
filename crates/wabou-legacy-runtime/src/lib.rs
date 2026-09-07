@@ -48,10 +48,15 @@ mod jsrt {
     };
 }
 mod protocol;
-mod reload;
+mod reload {
+    pub use runtime_api::{HmrBatch, HmrDrainResult, ReloadHandle, ReloadState};
+    #[cfg(any(feature = "vite", test))]
+    pub use runtime_api::ReloadMsg;
+    #[cfg(test)]
+    pub use runtime_api::plan_hmr_batch;
+}
 pub mod resource;
 mod runtime_session;
-use runtime_api::ui_inbox;
 #[cfg(test)]
 mod widget;
 
