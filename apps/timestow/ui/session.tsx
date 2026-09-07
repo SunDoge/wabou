@@ -54,8 +54,8 @@ interface TimestowSession {
     | undefined;
   isBackingUp(profileId: string): boolean;
   hasActiveOperations(): boolean;
-  beginOperation(operationId: string): void;
-  endOperation(operationId: string): void;
+  beginOperation(profileId: string, operationId: string): void;
+  endOperation(profileId: string, operationId: string): void;
   backupProgress(profileId: string): OperationProgressEvent | undefined;
   snapshotBrowser: SnapshotBrowserCache;
   setError(error: string | undefined): void;
@@ -102,6 +102,23 @@ function assertUniqueProfileName(
   ) {
     throw new Error(`a backup named ${name} already exists`);
   }
+}
+
+function operationBelongsToProfile(
+  operationKey: string,
+  profileId: string,
+): boolean {
+  return operationKey.startsWith(`${profileId}\u0000`);
+}
+
+function hasProfileOperation(
+  operationKeys: ReadonlySet<string>,
+  profileId: string,
+): boolean {
+  for (const key of operationKeys) {
+    if (operationBelongsToProfile(key, profileId)) return true;
+  }
+  return false;
 }
 
 export function TimestowSessionProvider(props: {
@@ -247,6 +264,14 @@ export function TimestowSessionProvider(props: {
     if (!profile) throw new Error(`backup profile ${profileId} was not found`);
     if (isBackingUp(profileId)) {
       throw new Error(`wait for ${profile.name} to finish backing up`);
+    }
+    if (
+      hasProfileOperation(activeOperationKeys(), profileId) ||
+      hasProfileOperation(locallyPendingOperationIds(), profileId)
+    ) {
+      throw new Error(
+        `wait for ${profile.name} to finish its active operation before forgetting it`,
+      );
     }
     const pendingMutation = profileMutationTails.get(profileId);
     if (pendingMutation) await pendingMutation;
@@ -402,18 +427,18 @@ export function TimestowSessionProvider(props: {
     );
   }
 
-  function beginOperation(operationId: string): void {
+  function beginOperation(profileId: string, operationId: string): void {
     setLocallyPendingOperationIds((current) => {
       const next = new Set(current);
-      next.add(operationId);
+      next.add(`${profileId}\u0000${operationId}`);
       return next;
     });
   }
 
-  function endOperation(operationId: string): void {
+  function endOperation(profileId: string, operationId: string): void {
     setLocallyPendingOperationIds((current) => {
       const next = new Set(current);
-      next.delete(operationId);
+      next.delete(`${profileId}\u0000${operationId}`);
       return next;
     });
   }
@@ -512,7 +537,7 @@ export function TimestowSessionProvider(props: {
     subscribeJsonHostMessages<OperationProgressEvent>(
       OPERATION_PROGRESS_TOPIC,
       (progress) => {
-        const operationKey = `${progress.operation}\u0000${progress.operationId}`;
+        const operationKey = `${progress.profileId}\u0000${progress.operation}\u0000${progress.operationId}`;
         setActiveOperationKeys((current) => {
           const next = new Set(current);
           if (progress.state === "completed" || progress.state === "failed") {

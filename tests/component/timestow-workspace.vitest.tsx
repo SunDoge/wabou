@@ -1633,7 +1633,7 @@ test("extract reports only the active restore operation progress", async () => {
   const request = fixture.callsTo("rustic.restorePath")[0]?.args[0] as {
     operationId: string;
   };
-  expect(operationStarted).toHaveBeenCalledWith(request.operationId);
+  expect(operationStarted).toHaveBeenCalledWith("photos", request.operationId);
   expect(operationEnded).not.toHaveBeenCalled();
 
   dispatchHostMessageForTest(
@@ -1684,7 +1684,7 @@ test("extract reports only the active restore operation progress", async () => {
       screen.getByRole("button", { name: "Open extracted item" }),
     ).toBeDefined();
   });
-  expect(operationEnded).toHaveBeenCalledWith(request.operationId);
+  expect(operationEnded).toHaveBeenCalledWith("photos", request.operationId);
   screen.dispose();
 });
 
@@ -2149,6 +2149,92 @@ test("forgetting a backup clears native credentials before durable profile metad
   });
   expect(remove).toHaveBeenCalledWith(profile.id);
   expect(remove).toHaveBeenCalledTimes(1);
+});
+
+test("a backup cannot be forgotten while its extraction is active", async () => {
+  const profile = {
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/data/repository",
+    sources: ["/data/photos"],
+  };
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
+    save: async () => {},
+    setActive: async () => {},
+    remove: async () => {},
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 14,
+      status: async () => ({ unlockedProfileIds: [profile.id] }),
+      forgetProfile: async () => ({ unlockedProfileIds: [] }),
+    },
+  });
+  const Controls = () => {
+    const session = useTimestowSession();
+    const [result, setResult] = createSignal("ready");
+    return (
+      <>
+        <Button
+          aria-label="Begin extraction"
+          onClick={() => {
+            session.beginOperation(profile.id, "restore:one");
+            setResult("extracting");
+          }}
+        />
+        <Button
+          aria-label="Finish extraction"
+          onClick={() => {
+            session.endOperation(profile.id, "restore:one");
+            setResult("ready");
+          }}
+        />
+        <Button
+          aria-label="Forget Photos"
+          onClick={() =>
+            void session
+              .forgetProfile(profile.id)
+              .then(() => setResult("forgotten"))
+              .catch((cause) =>
+                setResult(
+                  cause instanceof Error ? cause.message : String(cause),
+                ),
+              )
+          }
+        />
+        <Text role="status">{result()}</Text>
+      </>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Controls />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("ready");
+  });
+  screen.getByRole("button", { name: "Begin extraction" }).click();
+  screen.getByRole("button", { name: "Forget Photos" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toContain(
+      "finish its active operation",
+    );
+  });
+  expect(fixture.callsTo("rustic.forgetProfile")).toHaveLength(0);
+
+  screen.getByRole("button", { name: "Finish extraction" }).click();
+  screen.getByRole("button", { name: "Forget Photos" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("forgotten");
+  });
+  expect(fixture.callsTo("rustic.forgetProfile")).toHaveLength(1);
+  screen.dispose();
 });
 
 test("a backup stays available for retry when durable forgetting fails", async () => {

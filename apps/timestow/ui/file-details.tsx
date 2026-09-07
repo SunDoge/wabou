@@ -44,8 +44,8 @@ export function FileDetails(props: {
   profileId: string;
   snapshotId: string;
   entry?: FileEntry;
-  onOperationStart?: (operationId: string) => void;
-  onOperationEnd?: (operationId: string) => void;
+  onOperationStart?: (profileId: string, operationId: string) => void;
+  onOperationEnd?: (profileId: string, operationId: string) => void;
 }) {
   const api = useRusticApi();
   const [previewing, setPreviewing] = createSignal(false);
@@ -193,8 +193,8 @@ function ExtractDialog(props: {
   profileId: string;
   snapshotId: string;
   entry: FileEntry;
-  onOperationStart?: (operationId: string) => void;
-  onOperationEnd?: (operationId: string) => void;
+  onOperationStart?: (profileId: string, operationId: string) => void;
+  onOperationEnd?: (profileId: string, operationId: string) => void;
 }) {
   const api = useRusticApi();
   const [destination, setDestination] = createSignal("");
@@ -261,7 +261,7 @@ function ExtractDialog(props: {
     activeOperationId = operationId;
     setProgress(undefined);
     try {
-      props.onOperationStart?.(operationId);
+      props.onOperationStart?.(props.profileId, operationId);
       const restored = await api.restorePath({
         profileId: props.profileId,
         snapshotId: props.snapshotId,
@@ -274,7 +274,7 @@ function ExtractDialog(props: {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       activeOperationId = undefined;
-      props.onOperationEnd?.(operationId);
+      props.onOperationEnd?.(props.profileId, operationId);
       setPending(undefined);
     }
   }
