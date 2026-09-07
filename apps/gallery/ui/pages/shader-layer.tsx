@@ -1,9 +1,11 @@
 import { Badge, Button, ShaderLayer, Text, View } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import LIQUID_ORB_SHADER from "../shaders/liquid-orb.wgsl?raw";
-import { createBlueDropUniforms } from "../shaders/liquid-orb";
+import { createLiquidOrbUniforms } from "../shaders/liquid-orb";
 
-const BLUE_DROP_UNIFORMS = createBlueDropUniforms();
+const SIRI_UNIFORMS = createLiquidOrbUniforms("siri");
+const BLUE_DROP_UNIFORMS = createLiquidOrbUniforms("blueDrop");
+const REFRACTIVE_BLOB_UNIFORMS = createLiquidOrbUniforms("refractiveBlob");
 
 const AURORA_SHADER = /* wgsl */ `
 fn palette(t: f32) -> vec3<f32> {
@@ -58,9 +60,9 @@ export function ShaderLayerPage() {
         <View class="relative h-80 min-w-0 overflow-hidden rounded-xl border border-subtle bg-slate-950 shadow-lg">
           <ShaderLayer
             module
-            aria-label="Animated liquid blue orb"
+            aria-label="Animated Siri thinking orb"
             source={LIQUID_ORB_SHADER}
-            values={BLUE_DROP_UNIFORMS}
+            values={SIRI_UNIFORMS}
             speed={speed()}
             paused={paused()}
             class="absolute inset-0 w-full h-full"
@@ -69,10 +71,56 @@ export function ShaderLayerPage() {
             <View class="min-w-0 flex flex-col items-start gap-1">
               <Badge variant="secondary">Complete module</Badge>
               <Text class="text-xl font-semibold text-white">
+                Siri thinking
+              </Text>
+              <Text class="text-sm text-slate-200">
+                A colorful voice-state preset driven by native animation time.
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View class="relative h-80 min-w-0 overflow-hidden rounded-xl border border-subtle bg-slate-950 shadow-lg">
+          <ShaderLayer
+            module
+            aria-label="Animated liquid blue orb"
+            source={LIQUID_ORB_SHADER}
+            values={BLUE_DROP_UNIFORMS}
+            speed={speed()}
+            paused={paused()}
+            class="absolute inset-0 w-full h-full"
+          />
+          <View class="absolute left-0 right-0 bottom-0 p-5">
+            <View class="min-w-0 flex flex-col items-start gap-1">
+              <Badge variant="secondary">Style preset</Badge>
+              <Text class="text-xl font-semibold text-white">
                 Liquid blue drop
               </Text>
               <Text class="text-sm text-slate-200">
-                A sophisticated single-pass shader ported without per-frame JS.
+                Dense cyan flow inside a polished glass shell.
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View class="relative h-80 min-w-0 overflow-hidden rounded-xl border border-subtle bg-slate-950 shadow-lg">
+          <ShaderLayer
+            module
+            aria-label="Animated refractive violet orb"
+            source={LIQUID_ORB_SHADER}
+            values={REFRACTIVE_BLOB_UNIFORMS}
+            speed={speed()}
+            paused={paused()}
+            class="absolute inset-0 w-full h-full"
+          />
+          <View class="absolute left-0 right-0 bottom-0 p-5">
+            <View class="min-w-0 flex flex-col items-start gap-1">
+              <Badge variant="secondary">Style preset</Badge>
+              <Text class="text-xl font-semibold text-white">
+                Refractive blob
+              </Text>
+              <Text class="text-sm text-slate-200">
+                Softer violet refraction with a deforming contour.
               </Text>
             </View>
           </View>
@@ -82,11 +130,11 @@ export function ShaderLayerPage() {
       <View class="p-4 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-subtle bg-surface shadow-sm">
         <View class="min-w-0 flex flex-col gap-1">
           <Text class="text-sm font-medium text-primary">
-            Complete shader modules
+            One module, multiple visual programs
           </Text>
           <Text class="text-xs text-secondary">
-            Wabou validates WGSL once and retains the pipeline, target texture,
-            and native frame clock.
+            The orb cards share one validated pipeline and vary only their
+            uniform snapshots.
           </Text>
         </View>
         <View class="flex items-center gap-2">
