@@ -339,12 +339,22 @@ fn named_editing_keys_use_dom_compatible_names() {
     assert_eq!(App::printable_key_text("\u{8}"), None);
     assert_eq!(App::printable_key_text("\u{7f}"), None);
     assert_eq!(
-        App::committed_key_text(Some("q"), Some("@"), Modifiers::CONTROL | Modifiers::ALT,),
+        App::committed_key_text(
+            Some("q"),
+            Some("@"),
+            Modifiers::CONTROL | Modifiers::ALT,
+            false,
+        ),
         Some("@".into())
     );
     assert_eq!(
-        App::committed_key_text(Some("a"), Some("\u{1}"), Modifiers::CONTROL),
+        App::committed_key_text(Some("a"), Some("\u{1}"), Modifiers::CONTROL, false),
         None
+    );
+    assert_eq!(
+        App::committed_key_text(Some("a"), Some("a"), Modifiers::default(), true),
+        None,
+        "physical key text must not race the active IME composition"
     );
     assert_eq!(KeyLocation::Standard.dom_code(), 0);
     assert_eq!(KeyLocation::Numpad.dom_code(), 3);
@@ -427,6 +437,75 @@ fn ime_session_restarts_only_when_focus_moves_between_distinct_text_clients() {
     assert!(!App::ime_client_changed(Some(&first), None));
     assert!(!App::ime_client_changed(Some(&first), Some(&same)));
     assert!(App::ime_client_changed(Some(&first), Some(&second)));
+}
+
+#[test]
+fn ime_composition_state_follows_windows_and_wayland_event_sequences() {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let mut app = App::new(Box::new(EventRecordingSource(events)));
+
+    app.dispatch_event(UiEvent::Ime(ImeEvent::Enabled));
+    assert!(!app.ime_composing);
+
+    // Both Win32 IMM and Wayland text-input-v3 may replace an active preedit
+    // without an intervening Disabled event.
+    app.dispatch_event(UiEvent::Ime(ImeEvent::Preedit {
+        text: "かな".into(),
+        cursor: Some((3, 6)),
+    }));
+    assert!(app.ime_composing);
+    app.dispatch_event(UiEvent::Ime(ImeEvent::Preedit {
+        text: "仮名".into(),
+        cursor: Some((6, 6)),
+    }));
+    assert!(app.ime_composing);
+
+    // Windows Japanese IMEs commonly clear preedit before delivering the
+    // result string. Treat either half of that sequence as ending preedit.
+    app.dispatch_event(UiEvent::Ime(ImeEvent::Preedit {
+        text: String::new(),
+        cursor: None,
+    }));
+    assert!(!app.ime_composing);
+    app.dispatch_event(UiEvent::Ime(ImeEvent::Commit("仮名".into())));
+    assert!(!app.ime_composing);
+
+    app.dispatch_event(UiEvent::Ime(ImeEvent::Preedit {
+        text: "한".into(),
+        cursor: Some((3, 3)),
+    }));
+    assert!(app.ime_composing);
+    app.dispatch_event(UiEvent::Ime(ImeEvent::Disabled));
+    assert!(!app.ime_composing);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn pointer_selection_clears_linux_preedit_before_the_pointer_event() {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let mut app = App::new(Box::new(EventRecordingSource(events.clone())));
+    app.ime_composing = true;
+
+    app.handle_pointer_button(
+        PhysicalPosition::new(12.0, 8.0),
+        ButtonSource::Mouse(MouseButton::Left),
+        ElementState::Pressed,
+        PointerProperties::default(),
+    );
+
+    let events = events.lock().unwrap();
+    assert!(matches!(
+        events.first(),
+        Some(UiEvent::Ime(ImeEvent::Preedit { text, cursor: None })) if text.is_empty()
+    ));
+    assert!(matches!(
+        events.get(1),
+        Some(UiEvent::Pointer(PointerEvent {
+            phase: PointerPhase::Down,
+            ..
+        }))
+    ));
+    assert!(!app.ime_composing);
 }
 
 #[test]

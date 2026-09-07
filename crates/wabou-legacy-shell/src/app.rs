@@ -171,6 +171,7 @@ pub struct App {
     pointer_states: HashMap<PointerId, (Point, u32, PointerProperties)>,
     ime_requested: bool,
     ime_enabled: bool,
+    ime_composing: bool,
     ime_state: Option<crate::ImeState>,
     startup_error: Arc<Mutex<Option<crate::Error>>>,
     /// EMA per-frame stage timings, reported to the source for a perf overlay.
@@ -296,6 +297,7 @@ impl App {
             pointer_states: HashMap::new(),
             ime_requested: false,
             ime_enabled: false,
+            ime_composing: false,
             ime_state: None,
             startup_error: Arc::new(Mutex::new(None)),
             frame_stats: FrameStats::default(),
@@ -579,7 +581,14 @@ impl App {
         text: Option<&str>,
         text_with_all_modifiers: Option<&str>,
         modifiers: Modifiers,
+        ime_composing: bool,
     ) -> Option<String> {
+        // Windows and Linux can continue reporting physical keyboard events
+        // while an IME owns the text stream. Only Ime::Commit may insert text
+        // until preedit ends, otherwise phonetic input can be inserted twice.
+        if ime_composing {
+            return None;
+        }
         if modifiers.control() && modifiers.alt() && !modifiers.meta() {
             text_with_all_modifiers.and_then(Self::printable_key_text)
         } else if !modifiers.control() && !modifiers.meta() {
@@ -590,6 +599,7 @@ impl App {
     }
 
     fn dispatch_event(&mut self, event: UiEvent) -> EventResponse {
+        self.observe_ime_event(&event);
         if let Some(shell) = self.state.as_mut() {
             self.source.prepare_for_event(&mut shell.tcx);
         }
@@ -643,6 +653,55 @@ impl App {
             shell.window().request_redraw();
         }
         response
+    }
+
+    fn observe_ime_event(&mut self, event: &UiEvent) {
+        match event {
+            UiEvent::Ime(ImeEvent::Preedit { text, .. }) => {
+                self.ime_composing = !text.is_empty();
+            }
+            UiEvent::Ime(ImeEvent::Commit(_)) | UiEvent::Ime(ImeEvent::Disabled) => {
+                self.ime_composing = false;
+            }
+            _ => {}
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn reset_ime_before_pointer_selection(&mut self) {
+        if !self.ime_composing {
+            return;
+        }
+
+        // Wayland text-input-v3 has no reset request. GPUI solves the same
+        // problem by cycling the native text-input session before delivering
+        // the pointer press. Clear the widget preedit first so the old
+        // composition cannot move with the new caret or leak into a newly
+        // focused editor.
+        self.dispatch_event(UiEvent::Ime(ImeEvent::Preedit {
+            text: String::new(),
+            cursor: None,
+        }));
+
+        if !self.ime_enabled {
+            return;
+        }
+        let Some(shell) = self.state.as_ref() else {
+            return;
+        };
+        match shell.window().request_ime_update(ImeRequest::Disable) {
+            Ok(()) => {
+                self.ime_enabled = false;
+                self.enable_ime_if_ready();
+            }
+            Err(error) => {
+                tracing::warn!(
+                    target: "wabou::ime",
+                    %error,
+                    "failed to reset IME before pointer selection"
+                );
+            }
+        }
     }
 
     fn ime_cursor_rect(area: Option<[f64; 4]>) -> (LogicalPosition<f64>, LogicalSize<f64>) {
@@ -1280,6 +1339,10 @@ impl App {
                 }
             }
         }
+        #[cfg(target_os = "linux")]
+        if state == ElementState::Pressed && properties.pointer_type == crate::PointerType::Mouse {
+            self.reset_ime_before_pointer_selection();
+        }
         let phase = match state {
             ElementState::Pressed => {
                 buttons |= Self::button_mask(button);
@@ -1544,6 +1607,7 @@ impl ApplicationHandler for App {
                             event.text.as_deref(),
                             event.text_with_all_modifiers.as_deref(),
                             self.modifiers,
+                            self.ime_composing,
                         )
                     })
                     .flatten();
