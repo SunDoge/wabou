@@ -1688,6 +1688,75 @@ test("a profile remains usable when durable metadata cannot be saved", async () 
   expect(fixture.callsTo("rustic.createProfile")).toHaveLength(1);
 });
 
+test("the UI reflects native backup folders when persistence fails", async () => {
+  const profile = {
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/data/backups/photos",
+    sources: ["/data/photos"],
+  };
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
+    save: async () => {
+      throw new Error("database is read-only");
+    },
+    setActive: async () => {},
+    remove: async () => {},
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 12,
+      status: async () => ({
+        unlockedProfileIds: [profile.id],
+        activeProfileId: profile.id,
+      }),
+      setSources: async () => ({
+        unlockedProfileIds: [profile.id],
+        activeProfileId: profile.id,
+      }),
+    },
+  });
+  const Controls = () => {
+    const session = useTimestowSession();
+    return (
+      <>
+        <Button
+          aria-label="Use document folder"
+          onClick={() =>
+            void session.updateSources(profile.id, ["/data/documents"])
+          }
+        />
+        <Text role="status">
+          {session.activeProfile()?.sources.join(",") ?? "none"} ·{" "}
+          {session.error() ?? "ok"}
+        </Text>
+      </>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Controls />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("/data/photos · ok");
+  });
+  screen.getByRole("button", { name: "Use document folder" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toContain(
+      "/data/documents · Photos now uses the updated folders",
+    );
+  });
+  expect(screen.getByRole("status").text).toContain(
+    "They remain active until the app closes",
+  );
+  expect(fixture.callsTo("rustic.setSources")).toHaveLength(1);
+});
+
 test("runs a due profile backup in the background and records completion", async () => {
   const nextRunAt = new Date(Date.now() + 1_000).toISOString();
   const save = vi.fn<ProfileStore["save"]>(async () => {});

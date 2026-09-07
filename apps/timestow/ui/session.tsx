@@ -273,9 +273,16 @@ export function TimestowSessionProvider(props: {
     if (!profile) throw new Error(`backup profile ${profileId} was not found`);
     const nextProfile = { ...profile, sources: [...sources] };
     const nextRuntime = await api.setSources({ profileId, sources });
-    await store.save(nextProfile, { activate: false });
+    let persistenceWarning: string | undefined;
+    try {
+      await store.save(nextProfile, { activate: false });
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      persistenceWarning = `${profile.name} now uses the updated folders, but Timestow could not save them: ${message}. They remain active until the app closes; change the folders again to retry saving.`;
+    }
     setProfiles((current) => upsertProfile(current, nextProfile));
     setRuntime(nextRuntime);
+    setError(persistenceWarning);
   }
 
   async function persistProfile(profile: BackupProfile): Promise<void> {
