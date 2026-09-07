@@ -2,8 +2,7 @@ use std::{
     cmp::Ordering,
     collections::BTreeSet,
     path::PathBuf,
-    sync::{Arc, RwLock},
-    time::{SystemTime, UNIX_EPOCH},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use rustic_backend::BackendOptions;
@@ -57,6 +56,7 @@ pub struct RusticService {
     state: Arc<RwLock<ServiceState>>,
     progress: ProgressEmitter,
     secrets: VelloHybridSecretStore,
+    preview_roots: Arc<Mutex<Vec<tempfile::TempDir>>>,
 }
 
 #[derive(Clone, Default)]
@@ -819,19 +819,23 @@ impl RusticService {
         if request.path.trim().is_empty() {
             return Err("select a file or folder to preview".to_string());
         }
-        let sequence = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(display_error)?
-            .as_nanos();
-        let destination = std::env::temp_dir()
-            .join("wabou-rustic-preview")
-            .join(format!("{}-{sequence}", std::process::id()));
-        self.restore_to(
+        let preview_parent = std::env::temp_dir().join("wabou-rustic-preview");
+        std::fs::create_dir_all(&preview_parent).map_err(display_error)?;
+        let preview_root = tempfile::Builder::new()
+            .prefix(&format!("{}-", std::process::id()))
+            .tempdir_in(preview_parent)
+            .map_err(display_error)?;
+        let result = self.restore_to(
             &request.profile_id,
             &request.snapshot_id,
             &request.path,
-            destination,
-        )
+            preview_root.path().to_path_buf(),
+        )?;
+        self.preview_roots
+            .lock()
+            .map_err(|_| "preview state is poisoned".to_string())?
+            .push(preview_root);
+        Ok(result)
     }
 
     fn restore_to(
@@ -1596,6 +1600,7 @@ mod tests {
             })
             .expect("restore temporary preview");
         let preview_path = PathBuf::from(&preview.destination);
+        let preview_root = preview_path.parent().expect("preview root").to_path_buf();
         assert!(preview_path.starts_with(std::env::temp_dir().join("wabou-rustic-preview")));
         assert_eq!(
             fs::read_to_string(&preview_path).expect("preview settings"),
@@ -1729,6 +1734,11 @@ mod tests {
             !remaining
                 .iter()
                 .any(|snapshot| snapshot.id == updated_again.id)
+        );
+        drop(service);
+        assert!(
+            !preview_root.exists(),
+            "preview root must be session-scoped"
         );
     }
 
