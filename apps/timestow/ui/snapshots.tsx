@@ -839,6 +839,7 @@ export function SnapshotsPage() {
       tags: changes.tags,
       deleteProtected: changes.deleteProtected,
     });
+    browserCache.replaceSnapshot(profile.id, snapshot.id, updated.id);
     setSnapshots((items) =>
       items.map((item) => (item.id === snapshot.id ? updated : item)),
     );

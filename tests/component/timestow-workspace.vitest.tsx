@@ -991,14 +991,25 @@ test("snapshot browser cache preserves navigation while invalidating listings", 
   expect(cache.lastPath("snapshot-c")).toBe("");
   expect(cache.selectedSnapshot("profile-a")).toBe("snapshot-a");
 
-  cache.clearListings();
+  cache.replaceSnapshot("profile-a", "snapshot-a", "snapshot-a-updated");
+  expect(cache.selectedSnapshot("profile-a")).toBe("snapshot-a-updated");
+  expect(cache.lastPath("snapshot-a-updated")).toBe("docs");
+  expect(cache.listing("snapshot-a-updated", "docs")).toEqual({
+    entries: docs,
+    total: 1,
+  });
+  expect(cache.lastPath("snapshot-a")).toBe("");
   expect(cache.listing("snapshot-a", "docs")).toBeUndefined();
-  expect(cache.lastPath("snapshot-a")).toBe("docs");
-  expect(cache.selectedSnapshot("profile-a")).toBe("snapshot-a");
+  expect(cache.selectedSnapshot("profile-b")).toBe("snapshot-b");
+
+  cache.clearListings();
+  expect(cache.listing("snapshot-a-updated", "docs")).toBeUndefined();
+  expect(cache.lastPath("snapshot-a-updated")).toBe("docs");
+  expect(cache.selectedSnapshot("profile-a")).toBe("snapshot-a-updated");
 
   cache.clear();
-  expect(cache.listing("snapshot-a", "docs")).toBeUndefined();
-  expect(cache.lastPath("snapshot-a")).toBe("");
+  expect(cache.listing("snapshot-a-updated", "docs")).toBeUndefined();
+  expect(cache.lastPath("snapshot-a-updated")).toBe("");
   expect(cache.selectedSnapshot("profile-a")).toBeUndefined();
 });
 

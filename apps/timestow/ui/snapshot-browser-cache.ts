@@ -12,6 +12,11 @@ export interface SnapshotBrowserCache {
     path: string,
     listing: CachedDirectoryListing,
   ): void;
+  replaceSnapshot(
+    profileId: string,
+    previousSnapshotId: string,
+    nextSnapshotId: string,
+  ): void;
   clearListings(): void;
   clear(): void;
 }
@@ -44,6 +49,26 @@ export function createSnapshotBrowserCache(): SnapshotBrowserCache {
         total: listing.total,
       });
       lastPathBySnapshot.set(snapshotId, path);
+    },
+    replaceSnapshot(profileId, previousSnapshotId, nextSnapshotId) {
+      if (previousSnapshotId === nextSnapshotId) return;
+      if (selectedSnapshotByProfile.get(profileId) === previousSnapshotId) {
+        selectedSnapshotByProfile.set(profileId, nextSnapshotId);
+      }
+      const lastPath = lastPathBySnapshot.get(previousSnapshotId);
+      if (lastPath !== undefined) {
+        lastPathBySnapshot.set(nextSnapshotId, lastPath);
+        lastPathBySnapshot.delete(previousSnapshotId);
+      }
+      const prefix = `${previousSnapshotId}\u0000`;
+      for (const [key, listing] of listingsByPath) {
+        if (!key.startsWith(prefix)) continue;
+        listingsByPath.set(
+          cacheKey(nextSnapshotId, key.slice(prefix.length)),
+          listing,
+        );
+        listingsByPath.delete(key);
+      }
     },
     clearListings() {
       listingsByPath.clear();
