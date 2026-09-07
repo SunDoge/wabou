@@ -51,8 +51,6 @@ test("keeps the card open while the pointer travels into its content", async () 
 
   card.unhover();
   await screen.advanceTime(200);
-  expect(screen.getByRole("dialog").interactionBlocked).toBe(true);
-  card.finishNativeTransition();
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 

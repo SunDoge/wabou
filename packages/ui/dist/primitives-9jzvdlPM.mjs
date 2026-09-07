@@ -185,19 +185,21 @@ function createTransition(target, options = {}) {
 	createEffect(() => [
 		target(),
 		read(options.reducedMotion, false),
+		read(options.duration, .3),
 		untrack(value)
-	], ([next, reduced, current]) => {
+	], ([next, reduced, duration, current]) => {
 		if (Object.is(next, current)) return;
-		if (reduced || options.type === false || options.duration === 0) {
+		if (reduced || options.type === false || duration === 0) {
 			jump(next);
 			return;
 		}
 		const run = ++generation;
 		controls?.stop();
 		setState("running");
-		const { initial: _initial, reducedMotion: _reducedMotion, onUpdate, onComplete, ...animationOptions } = options;
+		const { initial: _initial, duration: _duration, reducedMotion: _reducedMotion, onUpdate, onComplete, ...animationOptions } = options;
 		controls = animate(current, next, {
 			...animationOptions,
+			duration,
 			onUpdate(current) {
 				if (run !== generation) return;
 				setValue(current);
@@ -683,6 +685,7 @@ function createButton(options = {}) {
 */
 function Button(props) {
 	const forwardedRef = untrack(() => props.ref);
+	const renderContent = untrack(() => props.renderContent);
 	const refProps = forwardedRef ? { ref: forwardedRef } : {};
 	const disabled = () => props.disabled ?? false;
 	const primitive = createButton({
@@ -845,7 +848,7 @@ function Button(props) {
 			return props.onWheel;
 		},
 		get children() {
-			return props.renderContent?.(state()) ?? props.children;
+			return renderContent?.(state) ?? props.children;
 		}
 	}));
 }
@@ -1365,6 +1368,44 @@ function createOverlayLayer(options) {
 	};
 }
 //#endregion
+//#region src/primitives/transition-presence.ts
+/**
+* Couples logical presence to an interruptible visual transition.
+*
+* Closing disables the logical surface immediately while keeping its visual
+* subtree mounted until progress reaches zero. Reopening during exit simply
+* retargets the current transition instead of remounting the subtree.
+*/
+function createTransitionPresence(open, options = {}) {
+	const presence = createPresence(open);
+	const visuallyPresent = () => open() && (options.ready?.() ?? true);
+	const transition = createTransition(() => visuallyPresent() ? 1 : 0, {
+		initial: options.initialProgress,
+		duration: options.duration ?? .16,
+		ease: options.ease ?? "easeOut",
+		reducedMotion: options.reducedMotion,
+		onComplete(value) {
+			if (value === 1 && untrack(open)) presence.finishEnter();
+			else if (value === 0 && !untrack(open)) presence.finishExit();
+		}
+	});
+	createEffect(() => [
+		open(),
+		visuallyPresent(),
+		transition.value(),
+		presence.phase()
+	], ([isOpen, isVisible, progress, phase]) => {
+		if (isOpen && isVisible && progress === 1 && phase === "entering") presence.finishEnter();
+		else if (!isOpen && progress === 0 && phase === "exiting") presence.finishExit();
+	});
+	return {
+		phase: presence.phase,
+		mounted: presence.mounted,
+		progress: transition.value,
+		transition
+	};
+}
+//#endregion
 //#region src/primitives/modal.tsx
 /**
 * Derive every modal-plane policy from the committed controlled state.
@@ -1408,9 +1449,12 @@ function Modal(props) {
 	const motionOptions = motion === false ? void 0 : motion;
 	const motionEnabled = motionOptions !== void 0;
 	const transitionDuration = (entering) => (entering ? motionOptions?.enterDuration : motionOptions?.exitDuration) ?? motionOptions?.duration ?? (motionEnabled ? .16 : 0);
-	const presence = createPresence(open);
+	const presence = createTransitionPresence(open, {
+		duration: () => transitionDuration(open()),
+		ease: motionOptions?.ease ?? motionOptions?.enterEase ?? motionOptions?.exitEase ?? "easeOut",
+		reducedMotion
+	});
 	const visualState = () => modalVisualState(open(), props.backdropFade);
-	const [transitionGeneration, setTransitionGeneration] = createSignal(0);
 	let trigger;
 	let focusFrame = 0;
 	let wasOpenForInitialFocus = false;
@@ -1430,12 +1474,7 @@ function Modal(props) {
 		returnFocus: () => trigger
 	});
 	const handleEscape = (event) => layer.onEscape(event);
-	createEffect(() => [open(), reducedMotion()], ([isOpen, prefersReducedMotion]) => {
-		setTransitionGeneration((value) => value + 1);
-		if (!motionEnabled || prefersReducedMotion || transitionDuration(isOpen) <= 0) {
-			if (isOpen) presence.finishEnter();
-			else presence.finishExit();
-		}
+	createEffect(() => open(), (isOpen) => {
 		if (isOpen && !wasOpenForInitialFocus && props.initialFocus) {
 			cancelAnimationFrame(focusFrame);
 			focusFrame = requestAnimationFrame(() => {
@@ -1451,20 +1490,6 @@ function Modal(props) {
 	onCleanup(() => {
 		if (focusFrame) cancelAnimationFrame(focusFrame);
 	});
-	const nativeTransition = (entering, fromTransform, toTransform, fromOpacity, toOpacity) => {
-		if (!motionEnabled || reducedMotion()) return void 0;
-		const authoredEase = (entering ? motionOptions?.enterEase : motionOptions?.exitEase) ?? motionOptions?.ease;
-		const easing = authoredEase === "linear" || authoredEase === "easeInOut" || authoredEase === "easeOut" ? authoredEase : "easeInOut";
-		return {
-			generation: transitionGeneration(),
-			duration: transitionDuration(entering),
-			easing,
-			fromTransform,
-			toTransform,
-			fromOpacity,
-			toOpacity
-		};
-	};
 	const triggerProps = {
 		ref: (node) => {
 			trigger = node;
@@ -1487,7 +1512,6 @@ function Modal(props) {
 			return createComponent(Portal, {
 				plane: "modal",
 				role: "presentation",
-				"aria-modal": "true",
 				get focusContained() {
 					return visualState().active;
 				},
@@ -1512,27 +1536,9 @@ function Modal(props) {
 						...props.backdropStyle,
 						...visual.transparentBackdrop ? { "background-color": rgba$1(0) } : void 0,
 						"pointer-events": visual.active ? "auto" : "none",
+						opacity: props.backdropFade === false ? 1 : presence.progress(),
 						"z-index": layer.zIndex()
 					};
-				},
-				get nativeTransition() {
-					if (props.backdropFade === false) return void 0;
-					const entering = open();
-					return nativeTransition(entering, [
-						1,
-						0,
-						0,
-						1,
-						0,
-						0
-					], [
-						1,
-						0,
-						0,
-						1,
-						0,
-						0
-					], entering ? 0 : 1, entering ? 1 : 0);
 				},
 				onClick: layer.onOutside,
 				onKeyDown: handleEscape,
@@ -1552,27 +1558,17 @@ function Modal(props) {
 							return props.contentClass;
 						},
 						get style() {
-							return props.contentStyle;
+							return {
+								...props.contentStyle,
+								opacity: props.contentFade === false || props.backdropFade !== false ? 1 : presence.progress()
+							};
 						},
 						get shadows() {
 							return props.contentShadows;
 						},
 						get transform() {
-							const base = modalMotionTransform(motionOptions, open() ? 1 : 0);
-							return props.contentTransform?.(base, open() ? 1 : 0) ?? base;
-						},
-						get nativeTransition() {
-							const entering = open();
-							const fromProgress = entering ? 0 : 1;
-							const toProgress = entering ? 1 : 0;
-							const from = modalMotionTransform(motionOptions, fromProgress);
-							const to = modalMotionTransform(motionOptions, toProgress);
-							return nativeTransition(entering, props.contentTransform?.(from, fromProgress) ?? from, props.contentTransform?.(to, toProgress) ?? to, props.contentFade === false ? 1 : fromProgress, props.contentFade === false ? 1 : toProgress);
-						},
-						onTransitionEnd: (event) => {
-							if (event.generation !== transitionGeneration()) return;
-							if (open()) presence.finishEnter();
-							else presence.finishExit();
+							const base = modalMotionTransform(motionOptions, presence.progress());
+							return props.contentTransform?.(base, presence.progress()) ?? base;
 						},
 						get interactionBlocked() {
 							return !visualState().active;
@@ -1824,20 +1820,6 @@ function createNotifications(options = {}) {
 	});
 	return notifications;
 }
-function notificationNativeTransition(options) {
-	const offset = translate2d(options.fromX ?? 0, options.fromY ?? 0);
-	const resting = translate2d(0, 0);
-	const easing = options.ease === "linear" || options.ease === "easeInOut" || options.ease === "easeOut" ? options.ease : "easeOut";
-	return {
-		generation: options.generation,
-		duration: options.duration,
-		easing,
-		fromTransform: options.entering ? offset : resting,
-		toTransform: options.entering ? resting : offset,
-		fromOpacity: options.entering ? 0 : 1,
-		toOpacity: options.entering ? 1 : 0
-	};
-}
 const alignment = (placement) => ({
 	"align-items": placement.endsWith("start") ? "flex-start" : placement.endsWith("end") ? "flex-end" : "center",
 	"justify-content": placement.startsWith("bottom") ? "flex-end" : "flex-start"
@@ -1909,18 +1891,14 @@ function NotificationRegion(props) {
 	const retained = createRetainedItems(props.notifications.items, (item) => item.id);
 	const renderAnimatedItem = (retainedItem) => {
 		const logicallyPresent = retainedItem.present;
-		const presence = createPresence(logicallyPresent);
-		const duration = motion.duration ?? .18;
-		const [transitionGeneration, setTransitionGeneration] = createSignal(0);
-		createEffect(() => [logicallyPresent(), reducedMotion()], ([isPresent, prefersReducedMotion]) => {
-			setTransitionGeneration((generation) => generation + 1);
-			if (prefersReducedMotion || duration <= 0) {
-				if (isPresent) presence.finishEnter();
-				else {
-					presence.finishExit();
-					retained.release(retainedItem.key);
-				}
-			}
+		const presence = createTransitionPresence(logicallyPresent, {
+			initialProgress: 0,
+			duration: motion.duration ?? .18,
+			ease: motion.ease ?? "easeOut",
+			reducedMotion
+		});
+		createEffect(() => presence.phase(), (phase) => {
+			if (phase === "unmounted") retained.release(retainedItem.key);
 		});
 		return createComponent(View, {
 			get role() {
@@ -1936,18 +1914,8 @@ function NotificationRegion(props) {
 				return !logicallyPresent();
 			},
 			get transform() {
-				return translate2d(logicallyPresent() ? 0 : motion.fromX ?? 0, logicallyPresent() ? 0 : motion.fromY ?? 0);
-			},
-			get nativeTransition() {
-				if (reducedMotion() || duration <= 0) return void 0;
-				return notificationNativeTransition({
-					generation: transitionGeneration(),
-					duration,
-					ease: motion.ease,
-					fromX: motion.fromX,
-					fromY: motion.fromY,
-					entering: logicallyPresent()
-				});
+				const remaining = 1 - presence.progress();
+				return translate2d((motion.fromX ?? 0) * remaining, (motion.fromY ?? 0) * remaining);
 			},
 			get class() {
 				return `pointer-events-auto ${props.itemClass ?? ""}`;
@@ -1955,16 +1923,8 @@ function NotificationRegion(props) {
 			get style() {
 				return {
 					...props.itemStyle,
-					opacity: logicallyPresent() ? 1 : 0
+					opacity: presence.progress()
 				};
-			},
-			onTransitionEnd: (event) => {
-				if (event.generation !== transitionGeneration()) return;
-				if (logicallyPresent()) presence.finishEnter();
-				else {
-					presence.finishExit();
-					retained.release(retainedItem.key);
-				}
 			},
 			onPointerEnter: () => props.notifications.pause(retainedItem.key),
 			onPointerLeave: () => props.notifications.resume(retainedItem.key),
@@ -2014,18 +1974,6 @@ function floatingFromPoint(point, options = {}) {
 }
 //#endregion
 //#region src/primitives/popover.tsx
-function popoverNativeTransition(options) {
-	const easing = options.ease === "linear" || options.ease === "easeInOut" || options.ease === "easeOut" ? options.ease : "easeOut";
-	return {
-		generation: options.generation,
-		duration: options.duration,
-		easing,
-		fromTransform: scale2d(options.entering ? options.fromScale : 1),
-		toTransform: scale2d(options.entering ? 1 : options.fromScale),
-		fromOpacity: options.entering ? 0 : 1,
-		toOpacity: options.entering ? 1 : 0
-	};
-}
 /** A root-layer floating panel positioned from native layout snapshots. */
 function Popover(props) {
 	const inheritedPlane = useOverlayPlane();
@@ -2034,23 +1982,17 @@ function Popover(props) {
 	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(untrack(() => props.defaultOpen ?? false));
 	const open = () => props.open ?? uncontrolledOpen();
 	const motion = untrack(() => props.motion);
-	const duration = motion === false ? 0 : motion?.duration ?? .14;
-	const presence = createPresence(open);
-	const [transitionGeneration, setTransitionGeneration] = createSignal(0);
+	const motionEnabled = motion !== void 0 && motion !== false;
+	const presence = createTransitionPresence(open, {
+		initialProgress: untrack(open) ? 1 : 0,
+		duration: motionEnabled ? motion.duration ?? .14 : 0,
+		ease: motionEnabled ? motion.ease ?? "easeOut" : "linear",
+		reducedMotion
+	});
 	let anchor;
 	let content;
 	let suppressPointerClick = false;
-	const motionFromScale = () => motion === false ? 1 : motion?.fromScale ?? .98;
-	const nativeTransition = () => {
-		if (motion === false || reducedMotion()) return void 0;
-		return popoverNativeTransition({
-			generation: transitionGeneration(),
-			duration,
-			ease: motion?.ease,
-			fromScale: motionFromScale(),
-			entering: open()
-		});
-	};
+	const motionFromScale = () => motionEnabled ? motion.fromScale ?? .98 : 1;
 	const contains = (root, target) => {
 		if (!root || !target) return false;
 		let current = target;
@@ -2089,13 +2031,6 @@ function Popover(props) {
 		if (point) return floatingFromPoint(point, options);
 		return anchor ? floatingFromNode(anchor, options) : void 0;
 	};
-	createEffect(() => [open(), reducedMotion()], ([isOpen, prefersReducedMotion]) => {
-		setTransitionGeneration((value) => value + 1);
-		if (motion === false || prefersReducedMotion || duration <= 0) {
-			if (isOpen) presence.finishEnter();
-			else presence.finishExit();
-		}
-	});
 	onCleanup(() => {
 		stopObservingPointer();
 	});
@@ -2178,10 +2113,7 @@ function Popover(props) {
 							return props.contentShadows;
 						},
 						get transform() {
-							return scale2d(open() ? 1 : motionFromScale());
-						},
-						get nativeTransition() {
-							return nativeTransition();
+							return scale2d(motionFromScale() + (1 - motionFromScale()) * presence.progress());
 						},
 						get floatingPosition() {
 							return floatingPosition();
@@ -2196,7 +2128,7 @@ function Popover(props) {
 							return {
 								position: "absolute",
 								...props.contentStyle,
-								opacity: open() ? 1 : 0
+								opacity: presence.progress()
 							};
 						},
 						onClick: (event) => event.stopPropagation(),
@@ -2213,11 +2145,6 @@ function Popover(props) {
 							return props.onContentFocusOut;
 						},
 						onKeyDown: handleEscape,
-						onTransitionEnd: (event) => {
-							if (event.generation !== transitionGeneration()) return;
-							if (open()) presence.finishEnter();
-							else presence.finishExit();
-						},
 						get children() {
 							return props.children;
 						}
@@ -2485,44 +2412,6 @@ function assertUniqueKeys(tabs, key) {
 	}
 }
 //#endregion
-//#region src/primitives/transition-presence.ts
-/**
-* Couples logical presence to an interruptible visual transition.
-*
-* Closing disables the logical surface immediately while keeping its visual
-* subtree mounted until progress reaches zero. Reopening during exit simply
-* retargets the current transition instead of remounting the subtree.
-*/
-function createTransitionPresence(open, options = {}) {
-	const presence = createPresence(open);
-	const visuallyPresent = () => open() && (options.ready?.() ?? true);
-	const transition = createTransition(() => visuallyPresent() ? 1 : 0, {
-		initial: options.initialProgress,
-		duration: options.duration ?? .16,
-		ease: options.ease ?? "easeOut",
-		reducedMotion: options.reducedMotion,
-		onComplete(value) {
-			if (value === 1 && untrack(open)) presence.finishEnter();
-			else if (value === 0 && !untrack(open)) presence.finishExit();
-		}
-	});
-	createEffect(() => [
-		open(),
-		visuallyPresent(),
-		transition.value(),
-		presence.phase()
-	], ([isOpen, isVisible, progress, phase]) => {
-		if (isOpen && isVisible && progress === 1 && phase === "entering") presence.finishEnter();
-		else if (!isOpen && progress === 0 && phase === "exiting") presence.finishExit();
-	});
-	return {
-		phase: presence.phase,
-		mounted: presence.mounted,
-		progress: transition.value,
-		transition
-	};
-}
-//#endregion
 //#region src/primitives/index.ts
 var primitives_exports = /* @__PURE__ */ __exportAll({
 	Button: () => Button,
@@ -2585,6 +2474,6 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	useOverlayPlane: () => useOverlayPlane
 });
 //#endregion
-export { View as $, createOwnedImageResource as A, Icon as B, createKeyedSelection as C, createFormDraft as D, FORM_ERROR as E, createMeasuredSize as F, PathBuilder as G, NativeWidget as H, Button as I, RichTextSpan as J, ProjectionBoundary as K, Link as L, CollapsiblePresence as M, createPresence as N, createFileImageResource as O, createContainerMatch as P, TextInput as Q, createButton as R, Row as S, toggleSelection as T, PasswordInput as U, Image as V, Path as W, Text as X, Svg as Y, TextArea as Z, OverlayPlaneProvider as _, createTransition as _t, createScrollReset as a, createFocus as at, Center as b, useMotionConfig as bt, floatingFromNode as c, animate as ct, createNotifications as d, createKeyframeAnimation as dt, rotate2d$1 as et, createRetainedItems as f, createLoop as ft, Modal as g, createSweep as gt, Spin as h, createRotation as ht, createShortcuts as i, createHover as it, releaseImageResource as j, createNetworkImageResource as k, floatingFromPoint as l, animateKeyframes as lt, Ripple as m, createPulse as mt, createTransitionPresence as n, createActive as nt, ScrollArea as o, createFocusWithin as ot, Pulse as p, createNativeLoopAnimation as pt, RichText as q, createTabs as r, createPress as rt, Popover as s, createAnimationFrame as st, primitives_exports as t, translate2d$1 as tt, NotificationRegion as u, createInterpolation as ut, createOverlayLayer as v, normalizeSweepGeometry as vt, isSelected as w, Column as x, useReducedMotion as xt, useOverlayPlane as y, MotionConfigProvider as yt, Editor as z };
+export { View as $, createOwnedImageResource as A, Icon as B, createKeyedSelection as C, createFormDraft as D, FORM_ERROR as E, createMeasuredSize as F, PathBuilder as G, NativeWidget as H, Button as I, RichTextSpan as J, ProjectionBoundary as K, Link as L, CollapsiblePresence as M, createPresence as N, createFileImageResource as O, createContainerMatch as P, TextInput as Q, createButton as R, Row as S, toggleSelection as T, PasswordInput as U, Image as V, Path as W, Text as X, Svg as Y, TextArea as Z, OverlayPlaneProvider as _, createTransition as _t, ScrollArea as a, createFocus as at, Center as b, useMotionConfig as bt, floatingFromPoint as c, animate as ct, createRetainedItems as d, createKeyframeAnimation as dt, rotate2d$1 as et, Pulse as f, createLoop as ft, createTransitionPresence as g, createSweep as gt, Modal as h, createRotation as ht, createScrollReset as i, createHover as it, releaseImageResource as j, createNetworkImageResource as k, NotificationRegion as l, animateKeyframes as lt, Spin as m, createPulse as mt, createTabs as n, createActive as nt, Popover as o, createFocusWithin as ot, Ripple as p, createNativeLoopAnimation as pt, RichText as q, createShortcuts as r, createPress as rt, floatingFromNode as s, createAnimationFrame as st, primitives_exports as t, translate2d$1 as tt, createNotifications as u, createInterpolation as ut, createOverlayLayer as v, normalizeSweepGeometry as vt, isSelected as w, Column as x, useReducedMotion as xt, useOverlayPlane as y, MotionConfigProvider as yt, Editor as z };
 
-//# sourceMappingURL=primitives-BG5zyPXK.mjs.map
+//# sourceMappingURL=primitives-9jzvdlPM.mjs.map

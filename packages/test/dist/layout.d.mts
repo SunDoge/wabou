@@ -73,7 +73,7 @@ interface LayoutQuery {
   readonly className?: string;
 }
 interface LayoutDiagnostic {
-  readonly code: "flow-sibling-overlap" | "interactive-target-too-small" | "low-text-contrast" | "style-diagnostic" | "text-overlap" | "visible-overflow";
+  readonly code: "flow-sibling-overlap" | "interactive-target-too-small" | "low-text-contrast" | "native-text-clipped" | "style-diagnostic" | "text-overlap" | "visible-overflow";
   readonly message: string;
   readonly node: LayoutSnapshotNode;
   readonly related?: LayoutSnapshotNode;
