@@ -1,4 +1,5 @@
 import { Progress, Text, View } from "@wabou/ui";
+import { formatBytes } from "./format";
 
 export const BACKUP_PROGRESS_TOPIC = "timestow:backup-progress";
 
@@ -38,13 +39,6 @@ export function decodeBackupProgressEvent(value: unknown): BackupProgressEvent {
     current: event.current,
     total: typeof event.total === "number" ? event.total : undefined,
   };
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
 }
 
 export function BackupProgressStatus(props: { progress: BackupProgressEvent }) {

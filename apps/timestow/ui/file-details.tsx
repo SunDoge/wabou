@@ -18,13 +18,7 @@ import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import { createSignal, Show } from "solid-js";
 import { type FileEntry, type RestorePlanSummary, useRusticApi } from "./api";
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-}
+import { formatBytes } from "./format";
 
 export function FileDetails(props: {
   profileId: string;

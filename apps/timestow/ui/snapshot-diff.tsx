@@ -31,24 +31,12 @@ import type {
   SnapshotEntry,
 } from "./api";
 import { useRusticApi } from "./api";
-import { formatSnapshotTime } from "./snapshot-details";
+import {
+  formatBytes,
+  formatOptionalTimestamp,
+  formatTimestamp,
+} from "./format";
 import { SortableTableHead } from "./sortable-table-head";
-
-function formatBytes(bytes?: number): string {
-  if (bytes === undefined) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-}
-
-function formatModified(value?: string): string {
-  if (!value) return "—";
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-  return match
-    ? `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}`
-    : value;
-}
 
 const changePresentation: Record<
   SnapshotDiffChange,
@@ -183,7 +171,7 @@ export function SnapshotDiffPanel(props: {
         <View class="min-w-40 flex-1 flex flex-col gap-0.5">
           <Text class="text-sm font-medium">Compare with</Text>
           <Text class="truncate text-xs text-muted">
-            Current: {formatSnapshotTime(props.snapshot.time)}
+            Current: {formatTimestamp(props.snapshot.time)}
           </Text>
         </View>
         <Select
@@ -194,7 +182,7 @@ export function SnapshotDiffPanel(props: {
           placeholder="Choose a snapshot"
           options={candidates().map((snapshot) => ({
             value: snapshot.id,
-            label: `${formatSnapshotTime(snapshot.time)} · ${snapshot.id.slice(0, 8)}`,
+            label: `${formatTimestamp(snapshot.time)} · ${snapshot.id.slice(0, 8)}`,
           }))}
           onValueChange={setBaseSnapshotId}
         />
@@ -257,7 +245,7 @@ export function SnapshotDiffPanel(props: {
                 {result()?.truncated
                   ? `Showing first ${renderedChanges()} changes`
                   : baseSnapshot()
-                    ? `Since ${formatSnapshotTime(baseSnapshot()?.time ?? "")}`
+                    ? `Since ${formatTimestamp(baseSnapshot()?.time ?? "")}`
                     : `${totalChanges()} changes`}
               </Text>
             </View>
@@ -338,7 +326,7 @@ export function SnapshotDiffPanel(props: {
                               {formatBytes(entry.currentSize)}
                             </TableCell>
                             <TableCell class="min-w-0 w-36 flex-none text-muted">
-                              {formatModified(
+                              {formatOptionalTimestamp(
                                 entry.currentModified ?? entry.previousModified,
                               )}
                             </TableCell>

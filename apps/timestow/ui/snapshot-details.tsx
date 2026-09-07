@@ -25,13 +25,7 @@ import info from "lucide-static/icons/info.svg?raw";
 import trash2 from "lucide-static/icons/trash-2.svg?raw";
 import { createEffect, createSignal, For as ForValue, Show } from "solid-js";
 import type { SnapshotEntry } from "./api";
-
-export function formatSnapshotTime(value: string): string {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-  return match
-    ? `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}`
-    : value;
-}
+export { formatTimestamp as formatSnapshotTime } from "./format";
 
 export function SnapshotDetails(props: {
   snapshot: SnapshotEntry;

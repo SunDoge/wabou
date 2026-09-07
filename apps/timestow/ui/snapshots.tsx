@@ -52,11 +52,16 @@ import {
 } from "./api";
 import { BackupProgressStatus } from "./backup-progress";
 import { FileDetails } from "./file-details";
+import {
+  formatBytes,
+  formatOptionalTimestamp,
+  formatTimestamp,
+} from "./format";
 import { RepositoryCheckDialog } from "./repository-check";
 import { BackupScheduleDialog } from "./schedule-dialog";
 import { useTimestowSession } from "./session";
 import { createSnapshotBrowserCache } from "./snapshot-browser-cache";
-import { formatSnapshotTime, SnapshotDetails } from "./snapshot-details";
+import { SnapshotDetails } from "./snapshot-details";
 import { SnapshotDiffPanel } from "./snapshot-diff";
 import { SnapshotFileTree } from "./snapshot-tree";
 import { SortableTableHead } from "./sortable-table-head";
@@ -68,24 +73,11 @@ const fileColumns: TanStackDataTableColumn<FileEntry>[] = [
   { accessorKey: "modified", header: "Modified" },
 ];
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-}
-
 function shortId(id: string): string {
   return id.slice(0, 8);
 }
 
-export function formatModified(value?: string): string {
-  if (!value) return "—";
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-  return match
-    ? `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}`
-    : value;
-}
+export { formatOptionalTimestamp as formatModified } from "./format";
 
 export function snapshotAfterRefresh(
   snapshots: readonly SnapshotEntry[],
@@ -179,7 +171,7 @@ export function SnapshotFileRow(props: {
             {entry().kind === "directory" ? "—" : formatBytes(entry().size)}
           </TableCell>
           <TableCell class="min-w-0 w-36 flex-none text-muted">
-            {formatModified(entry().modified)}
+            {formatOptionalTimestamp(entry().modified)}
           </TableCell>
         </TableRow>
       )}
@@ -320,7 +312,7 @@ export function snapshotMatchesQuery(
     snapshot.id,
     snapshot.hostname,
     snapshot.time,
-    formatSnapshotTime(snapshot.time),
+    formatTimestamp(snapshot.time),
     ...snapshot.tags,
   ]
     .filter((value): value is string => Boolean(value))
@@ -415,7 +407,7 @@ export function SnapshotHistory(props: {
             <ForValue each={filtered()}>
               {(snapshot) => (
                 <Button
-                  aria-label={`Open snapshot ${snapshot.label || formatSnapshotTime(snapshot.time)}`}
+                  aria-label={`Open snapshot ${snapshot.label || formatTimestamp(snapshot.time)}`}
                   variant="ghost"
                   selected={props.selectedId === snapshot.id}
                   class="min-h-14 justify-start px-3"
@@ -423,7 +415,7 @@ export function SnapshotHistory(props: {
                 >
                   <View class="min-w-0 flex-1 flex flex-col items-start gap-0.5">
                     <Text class="w-full truncate font-medium">
-                      {snapshot.label || formatSnapshotTime(snapshot.time)}
+                      {snapshot.label || formatTimestamp(snapshot.time)}
                     </Text>
                     <View class="w-full min-w-0 flex flex-row items-center gap-1.5">
                       <Show when={snapshot.deleteProtected}>
@@ -441,7 +433,7 @@ export function SnapshotHistory(props: {
                         }
                       >
                         {snapshot.label
-                          ? `${formatSnapshotTime(snapshot.time)} · `
+                          ? `${formatTimestamp(snapshot.time)} · `
                           : ""}
                         {shortId(snapshot.id)} · {snapshot.hostname || "Unknown host"}
                       </Text>
