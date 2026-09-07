@@ -324,6 +324,7 @@ export function snapshotDisplayTitle(snapshot: SnapshotEntry): string {
 
 export function SnapshotHistory(props: {
   loading: boolean;
+  loadFailed: boolean;
   snapshots: readonly SnapshotEntry[];
   selectedId?: string;
   query: string;
@@ -376,36 +377,44 @@ export function SnapshotHistory(props: {
         </Show>
       </View>
       <ScrollArea class="min-h-0 flex-1" contentClass="flex flex-col gap-1 p-2">
-        <Show
-          when={!props.loading && props.snapshots.length > 0}
-          fallback={
+        <Switch>
+          <Match when={props.loading}>
             <ContentState
-              state={props.loading ? "loading" : "empty"}
-              title={props.loading ? "Loading snapshots" : "No snapshots yet"}
-              description={
-                props.loading
-                  ? undefined
-                  : "Run your first backup to create a snapshot."
-              }
+              state="loading"
+              title="Loading snapshots"
+              description="Reading this backup’s history…"
               class="border-0 shadow-none"
             />
-          }
-        >
-          <Show
-            when={filtered().length > 0}
-            fallback={
-              <ContentState
-                state="empty"
-                title="No matching snapshots"
-                description="Try a label, date, host, tag, or snapshot ID."
-                action={{
-                  label: "Clear filter",
-                  onAction: () => props.onQueryChange(""),
-                }}
-                class="border-0 shadow-none"
-              />
-            }
-          >
+          </Match>
+          <Match when={props.loadFailed}>
+            <ContentState
+              state="error"
+              title="History unavailable"
+              description="Refresh after resolving the repository error."
+              class="border-0 shadow-none"
+            />
+          </Match>
+          <Match when={props.snapshots.length === 0}>
+            <ContentState
+              state="empty"
+              title="No snapshots yet"
+              description="Run your first backup to create a snapshot."
+              class="border-0 shadow-none"
+            />
+          </Match>
+          <Match when={filtered().length === 0}>
+            <ContentState
+              state="empty"
+              title="No matching snapshots"
+              description="Try a label, date, host, tag, or snapshot ID."
+              action={{
+                label: "Clear filter",
+                onAction: () => props.onQueryChange(""),
+              }}
+              class="border-0 shadow-none"
+            />
+          </Match>
+          <Match when>
             <ForValue each={filtered()}>
               {(snapshot) => (
                 <Button
@@ -445,8 +454,8 @@ export function SnapshotHistory(props: {
                 </Button>
               )}
             </ForValue>
-          </Show>
-        </Show>
+          </Match>
+        </Switch>
       </ScrollArea>
     </ProjectionBoundary>
   );
@@ -841,6 +850,7 @@ export function SnapshotsPage() {
       <View class="min-w-0 min-h-0 flex-1 flex flex-row bg-surface">
         <SnapshotHistory
           loading={loading()}
+          loadFailed={error() !== undefined}
           snapshots={snapshots()}
           selectedId={selected()?.id}
           query={snapshotQuery()}

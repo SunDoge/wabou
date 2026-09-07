@@ -367,6 +367,7 @@ test("long snapshot histories filter by user-facing metadata", () => {
   const screen = renderComponent(() => (
     <SnapshotHistory
       loading={false}
+      loadFailed={false}
       snapshots={snapshots}
       query={query()}
       onQueryChange={setQuery}
@@ -388,6 +389,24 @@ test("long snapshot histories filter by user-facing metadata", () => {
   screen.getByRole("button", { name: "Clear snapshot filter" }).click();
   screen.getByRole("button", { name: "Open snapshot Backup 0" }).click();
   expect(select).toHaveBeenCalledWith(snapshots[0]);
+});
+
+test("snapshot history distinguishes repository failure from empty data", () => {
+  const screen = renderComponent(() => (
+    <SnapshotHistory
+      loading={false}
+      loadFailed
+      snapshots={[]}
+      query=""
+      onQueryChange={() => {}}
+      onSelect={() => {}}
+    />
+  ));
+
+  expect(
+    screen.getByRole("alert", { name: "History unavailable" }),
+  ).toBeDefined();
+  expect(screen.roots[0]?.text).not.toContain("No snapshots yet");
 });
 
 test("sortable table headers use a quiet readable surface", () => {

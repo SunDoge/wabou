@@ -255,7 +255,13 @@ await renderLayoutFixtures({
         getLayoutNode(fixture, {
           text: "Repository index could not be read.",
         });
-        getLayoutNode(fixture, { text: "No snapshots yet" });
+        getLayoutNode(fixture, {
+          role: "alert",
+          name: "History unavailable",
+        });
+        if (queryLayoutNodes(fixture, { text: "No snapshots yet" }).length) {
+          throw new Error("repository failure is presented as empty history");
+        }
         getLayoutNode(fixture, {
           role: "alert",
           name: "Snapshot history unavailable",
