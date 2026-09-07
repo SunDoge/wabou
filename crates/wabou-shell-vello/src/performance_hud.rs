@@ -271,7 +271,7 @@ impl PerformanceHud {
             scene,
             text,
             &layout,
-            device,
+            Affine::IDENTITY,
             device * Affine::translate((origin[0], origin[1])),
             scale,
         );
@@ -378,5 +378,34 @@ mod tests {
             1.0,
         );
         assert!(tiny_scene.commands.is_empty());
+    }
+
+    #[test]
+    fn hud_text_uses_the_same_logical_position_at_one_and_two_x() {
+        for scale in [1_u32, 2] {
+            let mut scene = Scene::new();
+            let mut text = TextContext::new();
+            PerformanceHud::new(true).paint(
+                &mut scene,
+                &mut text,
+                FrameStats::default(),
+                [700, 180],
+                f64::from(scale),
+            );
+            let image =
+                crate::renderer::render_to_image(&scene, 700 * scale, 180 * scale, Color::BLACK)
+                    .unwrap();
+            let header = image.view(390 * scale, 18 * scale, 110 * scale, 24 * scale);
+            let dark_pixels = header
+                .pixels()
+                .filter(|(_, _, pixel)| {
+                    u16::from(pixel.0[0]) + u16::from(pixel.0[1]) + u16::from(pixel.0[2]) < 350
+                })
+                .count();
+            assert!(
+                dark_pixels > 10 * scale as usize,
+                "HUD heading must remain inside its card at {scale}x; found {dark_pixels} dark pixels",
+            );
+        }
     }
 }
