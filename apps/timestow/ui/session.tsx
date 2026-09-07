@@ -140,15 +140,31 @@ export function TimestowSessionProvider(props: {
   async function activateProfile(profileId: string): Promise<boolean> {
     const profile = profiles().find((item) => item.id === profileId);
     if (!profile) throw new Error(`backup profile ${profileId} was not found`);
-    setActiveProfileId(profileId);
-    await store.setActive(profileId);
+    const profileName = profile.name;
+
+    async function rememberSelection(): Promise<void> {
+      try {
+        await store.setActive(profileId);
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        setError(
+          `${profileName} is active, but Timestow could not remember the selection: ${message}`,
+        );
+      }
+    }
+
     if (!runtime().unlockedProfileIds.includes(profileId)) {
+      setActiveProfileId(profileId);
       setPendingUnlockId(profileId);
+      await rememberSelection();
       return false;
     }
     const next = await api.selectProfile({ profileId });
     setRuntime(next);
+    setActiveProfileId(profileId);
     setPendingUnlockId(undefined);
+    setError(undefined);
+    await rememberSelection();
     return true;
   }
 

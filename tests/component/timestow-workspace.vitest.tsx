@@ -679,6 +679,83 @@ test("rustic session hydrates durable profiles and exposes their locked state", 
   expect(fixture.callsTo("rustic.status")).toHaveLength(1);
 });
 
+test("a failed native profile switch leaves the current profile selected", async () => {
+  const setActive = vi.fn<ProfileStore["setActive"]>(async () => {});
+  const profiles = [
+    {
+      id: "photos",
+      name: "Photos",
+      repositoryPath: "/data/photos-repository",
+      sources: ["/data/photos"],
+    },
+    {
+      id: "documents",
+      name: "Documents",
+      repositoryPath: "/data/documents-repository",
+      sources: ["/data/documents"],
+    },
+  ];
+  const store: ProfileStore = {
+    load: async () => ({ profiles, activeProfileId: "photos" }),
+    save: async () => {},
+    setActive,
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 6,
+      status: async () => ({
+        unlockedProfileIds: profiles.map((profile) => profile.id),
+        activeProfileId: "photos",
+      }),
+      selectProfile: async () => {
+        throw new Error("native repository switch failed");
+      },
+    },
+  });
+  const Status = () => {
+    const session = useTimestowSession();
+    const [failure, setFailure] = createSignal("none");
+    return (
+      <>
+        <Button
+          aria-label="Select Documents"
+          onClick={() =>
+            void session
+              .activateProfile("documents")
+              .catch((cause) =>
+                setFailure(
+                  cause instanceof Error ? cause.message : String(cause),
+                ),
+              )
+          }
+        />
+        <Text role="status">
+          {session.activeProfile()?.name ?? "none"} · {failure()}
+        </Text>
+      </>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Status />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("Photos · none");
+  });
+  screen.getByRole("button", { name: "Select Documents" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe(
+      "Photos · native repository switch failed",
+    );
+  });
+  expect(setActive).not.toHaveBeenCalled();
+});
+
 test("creating a profile unlocks Rust before persisting credential-free metadata", async () => {
   const save = vi.fn<ProfileStore["save"]>(async () => {});
   const store: ProfileStore = {
