@@ -250,12 +250,18 @@ export function TimestowSessionProvider(props: {
     } else {
       nextRuntime = await api.openProfile(request);
     }
-    await store.save(profile);
+    let persistenceWarning: string | undefined;
+    try {
+      await store.save(profile);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      persistenceWarning = `${profile.name} is connected, but Timestow could not save this backup profile: ${message}. It remains available until the app closes; update its name or folders to retry saving.`;
+    }
     setProfiles((current) => upsertProfile(current, profile));
     setRuntime(nextRuntime);
     setActiveProfileId(profile.id);
     setPendingUnlockId(undefined);
-    setError(undefined);
+    setError(persistenceWarning);
     return profile;
   }
 

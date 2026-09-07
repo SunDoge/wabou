@@ -1623,6 +1623,71 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
   expect(JSON.stringify(save.mock.calls)).not.toContain("wabou-rustic-test");
 });
 
+test("a profile remains usable when durable metadata cannot be saved", async () => {
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [] }),
+    save: async () => {
+      throw new Error("database is read-only");
+    },
+    setActive: async () => {},
+    remove: async () => {},
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 12,
+      status: async () => ({ unlockedProfileIds: [] }),
+      createProfile: async (request: { id: string }) => ({
+        unlockedProfileIds: [request.id],
+        activeProfileId: request.id,
+      }),
+    },
+  });
+  const Create = () => {
+    const session = useTimestowSession();
+    return (
+      <>
+        <Button
+          aria-label="Create temporary backup"
+          onClick={() =>
+            void session.connectProfile("create", {
+              name: "Photos",
+              repositoryPath: "/data/backups/photos",
+              passwordSlot: "timestow:test",
+              confirmationSlot: "timestow:test:confirmation",
+              sources: ["/data/photos"],
+            })
+          }
+        />
+        <Text role="status">
+          {session.activeProfile()?.name ?? "none"} · {session.error() ?? "ok"}
+        </Text>
+      </>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Create />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("none · ok");
+  });
+  screen.getByRole("button", { name: "Create temporary backup" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toContain(
+      "Photos · Photos is connected, but Timestow could not save this backup profile: database is read-only.",
+    );
+  });
+  expect(screen.getByRole("status").text).toContain(
+    "It remains available until the app closes",
+  );
+  expect(fixture.callsTo("rustic.createProfile")).toHaveLength(1);
+});
+
 test("runs a due profile backup in the background and records completion", async () => {
   const nextRunAt = new Date(Date.now() + 1_000).toISOString();
   const save = vi.fn<ProfileStore["save"]>(async () => {});
