@@ -449,15 +449,26 @@ export function TimestowSessionProvider(props: {
         snapshot.unlocked.includes(profile.id)
       );
     });
+    const failures: Array<{ profile: BackupProfile; message: string }> = [];
     for (const profile of due) {
       try {
         await runBackup(profile.id, true);
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : String(cause);
-        setError(
-          `Automatic backup for ${profile.name} failed: ${message}. Open this backup and try again.`,
-        );
+        failures.push({ profile, message });
       }
+    }
+    if (failures.length === 1) {
+      const [failure] = failures;
+      setError(
+        `Automatic backup for ${failure.profile.name} failed: ${failure.message}. Open this backup and try again.`,
+      );
+    } else if (failures.length > 1) {
+      setError(
+        `Automatic backups failed: ${failures
+          .map(({ profile, message }) => `${profile.name} — ${message}`)
+          .join("; ")}. Open each backup and try again.`,
+      );
     }
   }
 
