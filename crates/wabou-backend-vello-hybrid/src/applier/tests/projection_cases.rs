@@ -572,19 +572,19 @@ fn focused_js_node_receives_complete_ime_lifecycle_and_commit_sources() {
     }
 
     for input in [
-        UiEvent::Ime(gpui_shell::ImeEvent::Enabled),
-        UiEvent::Ime(gpui_shell::ImeEvent::Preedit {
+        UiEvent::Ime(shell_api::ImeEvent::Enabled),
+        UiEvent::Ime(shell_api::ImeEvent::Preedit {
             text: "かな".into(),
             cursor: Some((0, 3)),
         }),
-        UiEvent::Ime(gpui_shell::ImeEvent::DeleteSurrounding {
+        UiEvent::Ime(shell_api::ImeEvent::DeleteSurrounding {
             before_bytes: 3,
             after_bytes: 0,
         }),
-        UiEvent::Ime(gpui_shell::ImeEvent::Commit("仮名".into())),
+        UiEvent::Ime(shell_api::ImeEvent::Commit("仮名".into())),
         UiEvent::TextInput("x".into()),
         UiEvent::Paste("pasted".into()),
-        UiEvent::Ime(gpui_shell::ImeEvent::Disabled),
+        UiEvent::Ime(shell_api::ImeEvent::Disabled),
     ] {
         applier.handle_event(input);
     }
@@ -704,8 +704,8 @@ fn dragging_outside_pressed_target_keeps_the_js_pointer_capture() {
 #[test]
 fn simultaneous_pointers_keep_independent_capture_state() {
     let mut applier = interactive_applier();
-    let first_id = gpui_shell::PointerId { lo: 7, hi: 1 };
-    let second_id = gpui_shell::PointerId { lo: 8, hi: 1 };
+    let first_id = shell_api::PointerId { lo: 7, hi: 1 };
+    let second_id = shell_api::PointerId { lo: 8, hi: 1 };
     let event = |phase, id, primary, x, buttons| {
         UiEvent::Pointer(PointerEvent {
             phase,
@@ -713,9 +713,9 @@ fn simultaneous_pointers_keep_independent_capture_state() {
             button: Some(PointerButton::Primary),
             buttons,
             modifiers: Modifiers::default(),
-            properties: gpui_shell::PointerProperties {
+            properties: shell_api::PointerProperties {
                 id,
-                pointer_type: gpui_shell::PointerType::Touch,
+                pointer_type: shell_api::PointerType::Touch,
                 primary,
                 ..Default::default()
             },
