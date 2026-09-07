@@ -200,7 +200,15 @@ property. Then use `scripts/capture-png.sh` for a deterministic offscreen render
 WABOU_CAPTURE_SCALE_FACTOR=2 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/gallery@2x.png 1440 900
 WABOU_CAPTURE_WINDOW_ID=2 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/child.png 800 600
 mise exec -- bun run wabou render apps/gallery --out /tmp/gallery.png --snapshot /tmp/gallery-tree.json
+mise exec -- bun run wabou render apps/gallery --renderer vello-hybrid --out /tmp/gallery-hybrid.png --snapshot /tmp/gallery-hybrid-tree.json
 ```
+
+Use `--renderer vello-hybrid` to exercise the real QuickJS → Style IR → Taffy →
+AnyRender → Vello Hybrid pipeline without opening a desktop window. This path
+supports named fixtures and ordered `--click`, `--wheel`, `--key`, and `--text`
+replay. It does not use `DISPLAY`, `WAYLAND_DISPLAY`, or an OS input injector.
+Keep the default GPUI renderer for GPUI-specific projection and native-widget
+behavior.
 
 The script uses the real application host by default, so registered services,
 capabilities, message producers, and widget factories participate in the

@@ -20,6 +20,7 @@ mod devtools;
 mod doctor;
 mod frontend;
 mod gpui_render;
+mod hybrid_render;
 mod packaging;
 mod process;
 mod project;
@@ -43,7 +44,7 @@ use devtools::InspectCommand;
 use frontend::{build as build_frontend, build_test_script};
 use gpui_render::{
     HeadlessColorScheme, RenderOptions, actions as fallback_render_actions,
-    actions_from_matches as render_actions_from_matches, run as render,
+    actions_from_matches as render_actions_from_matches,
 };
 #[cfg(test)]
 use process::wait_for_managed_child;
@@ -77,6 +78,12 @@ struct CargoFeatures {
         action = clap::ArgAction::Append
     )]
     values: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, clap::ValueEnum)]
+enum RenderBackend {
+    Gpui,
+    VelloHybrid,
 }
 
 #[derive(Subcommand)]
@@ -222,6 +229,9 @@ enum Commands {
         app: Option<PathBuf>,
         #[arg(long, value_name = "PNG")]
         out: PathBuf,
+        /// Rendering backend used for this isolated capture.
+        #[arg(long, value_enum, default_value = "gpui")]
+        renderer: RenderBackend,
         #[arg(long, default_value_t = 1440)]
         width: u32,
         #[arg(long, default_value_t = 900)]
@@ -537,6 +547,7 @@ fn main() -> Result<()> {
         Commands::Render {
             app,
             out,
+            renderer,
             width,
             height,
             window_id,
@@ -558,33 +569,33 @@ fn main() -> Result<()> {
             cargo_features,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
-            render(
-                &workspace,
-                &app,
-                &RenderOptions {
-                    out,
-                    batch: None,
-                    width,
-                    height,
-                    window_id,
-                    scale_factor,
-                    color_scheme,
-                    mode,
-                    fixture,
-                    skip_build,
-                    with_host,
-                    scenario,
-                    wait_ms,
-                    metrics,
-                    snapshot,
-                    samples,
-                    actions: render_actions
-                        .unwrap_or_else(|| fallback_render_actions(click, wheel, text, key)),
-                    layout_only: false,
-                    projection_probe: None,
-                    cargo_features: cargo_features.values,
-                },
-            )
+            let options = RenderOptions {
+                out,
+                batch: None,
+                width,
+                height,
+                window_id,
+                scale_factor,
+                color_scheme,
+                mode,
+                fixture,
+                skip_build,
+                with_host,
+                scenario,
+                wait_ms,
+                metrics,
+                snapshot,
+                samples,
+                actions: render_actions
+                    .unwrap_or_else(|| fallback_render_actions(click, wheel, text, key)),
+                layout_only: false,
+                projection_probe: None,
+                cargo_features: cargo_features.values,
+            };
+            match renderer {
+                RenderBackend::Gpui => gpui_render::run(&workspace, &app, &options),
+                RenderBackend::VelloHybrid => hybrid_render::run(&workspace, &app, &options),
+            }
         }
         Commands::Layout {
             app,
@@ -602,7 +613,7 @@ fn main() -> Result<()> {
             probe,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
-            render(
+            gpui_render::run(
                 &workspace,
                 &app,
                 &RenderOptions {
@@ -1475,6 +1486,7 @@ mod tests {
         let Cli {
             command:
                 Commands::Render {
+                    renderer,
                     window_id,
                     scale_factor,
                     color_scheme,
@@ -1493,6 +1505,7 @@ mod tests {
         else {
             panic!("expected render command");
         };
+        assert_eq!(renderer, RenderBackend::Gpui);
         assert_eq!(window_id, 1);
         assert_eq!(scale_factor, 1.0);
         assert_eq!(color_scheme, HeadlessColorScheme::Light);
@@ -1509,6 +1522,7 @@ mod tests {
         let Cli {
             command:
                 Commands::Render {
+                    renderer,
                     window_id,
                     scale_factor,
                     color_scheme,
@@ -1528,6 +1542,8 @@ mod tests {
             "render",
             "--out",
             "capture.png",
+            "--renderer",
+            "vello-hybrid",
             "--window-id",
             "7",
             "--scale-factor",
@@ -1562,6 +1578,7 @@ mod tests {
         else {
             panic!("expected render command");
         };
+        assert_eq!(renderer, RenderBackend::VelloHybrid);
         assert_eq!(window_id, 7);
         assert_eq!(scale_factor, 2.0);
         assert_eq!(color_scheme, HeadlessColorScheme::Dark);

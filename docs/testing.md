@@ -88,6 +88,19 @@ bun run wabou render apps/gallery \
   --snapshot /tmp/gallery-dark.json
 ```
 
+To capture the parallel Vello Hybrid backend in a completely offscreen process,
+select it explicitly. The command still boots the real application bundle and
+can mount named layout fixtures or replay ordered input actions, but it does not
+connect to the user's desktop session:
+
+```bash
+bun run wabou render apps/gallery \
+  --renderer vello-hybrid \
+  --fixture widgets/Select \
+  --out /tmp/gallery-hybrid.png \
+  --snapshot /tmp/gallery-hybrid.json
+```
+
 Application capture suites can set the same contract in
 `captures/config.json`. The default is `light`; use per-scenario overrides when
 the same suite deliberately covers both schemes:
