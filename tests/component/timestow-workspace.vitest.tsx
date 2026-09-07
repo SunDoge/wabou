@@ -30,7 +30,10 @@ import {
   formatSnapshotTime,
   SnapshotDetails,
 } from "../../apps/timestow/ui/snapshot-details";
-import { SnapshotDiffPanel } from "../../apps/timestow/ui/snapshot-diff";
+import {
+  snapshotComparisonLabel,
+  SnapshotDiffPanel,
+} from "../../apps/timestow/ui/snapshot-diff";
 import { SnapshotFileTree } from "../../apps/timestow/ui/snapshot-tree";
 import {
   formatModified,
@@ -776,6 +779,16 @@ test("snapshot changes compare against the recorded parent and can include metad
     ),
     { host: fixture.host },
   );
+
+  expect(snapshotComparisonLabel(parent)).toBe(
+    "Snapshot parent-s · 2026-09-01 04:18",
+  );
+  expect(snapshotComparisonLabel({ ...parent, label: "Before cleanup" })).toBe(
+    "Before cleanup · 2026-09-01 04:18",
+  );
+  expect(
+    screen.getByRole("combobox", { name: "Comparison snapshot" }).text,
+  ).toContain("Snapshot parent-s · 2026-09-01 04:18");
 
   await screen.waitFor(() => {
     expect(screen.getByRole("row", { name: "docs/new.txt" })).toBeDefined();

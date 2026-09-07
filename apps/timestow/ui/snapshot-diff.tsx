@@ -68,6 +68,11 @@ const diffColumns: TanStackDataTableColumn<SnapshotDiffEntry>[] = [
 
 const DIFF_ENTRY_LIMIT = 250;
 
+export function snapshotComparisonLabel(snapshot: SnapshotEntry): string {
+  const title = snapshot.label.trim() || `Snapshot ${snapshot.id.slice(0, 8)}`;
+  return `${title} · ${formatTimestamp(snapshot.time)}`;
+}
+
 function compactEntryDetails(entry: SnapshotDiffEntry): string {
   let sizes: string | undefined;
   if (entry.previousSize !== undefined && entry.currentSize !== undefined) {
@@ -208,7 +213,7 @@ export function SnapshotDiffPanel(props: {
           placeholder="Choose a snapshot"
           options={candidates().map((snapshot) => ({
             value: snapshot.id,
-            label: `${formatTimestamp(snapshot.time)} · ${snapshot.id.slice(0, 8)}`,
+            label: snapshotComparisonLabel(snapshot),
           }))}
           onValueChange={setBaseSnapshotId}
         />
