@@ -35,3 +35,18 @@ and platform-specific recovery behavior remain follow-up work.
 If direct platform integration becomes necessary, it should live in separate
 platform crates behind this same contract rather than leaking AppKit, TSF/IMM,
 Wayland text-input, or XIM details into widgets or renderers.
+
+## Complex-script regression contract
+
+IME correctness and glyph shaping are related but tested separately. The
+renderer fixture `component/ComplexShaping` covers a Latin/Tibetan line and a
+Latin/Arabic editable line. Its backend-labelled pixel capture checks font
+fallback, combining glyph placement, bidirectional shaping, clipping, and
+baseline stability. The matching native behavior scenario selects and replaces
+the complete Arabic mixed-direction value, checking the editor's UTF-16/UTF-8
+selection bridge. Unit tests continue to cover preedit, commit, surrounding
+text, range geometry, and candidate-window placement.
+
+Passing only one layer is insufficient: preserved string contents do not prove
+correct shaping, and a visually plausible capture does not prove that an IME
+can edit or select the text.

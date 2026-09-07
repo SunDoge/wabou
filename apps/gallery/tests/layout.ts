@@ -1253,6 +1253,32 @@ const assertInputGroupLayout = (snapshot: LayoutSnapshot) => {
   );
 };
 
+const assertComplexShapingLayout = (snapshot: LayoutSnapshot) => {
+  const tibetan = getLayoutNode(snapshot, {
+    name: "Fixture Tibetan shaping",
+  });
+  const arabic = getLayoutNode(snapshot, {
+    role: "textbox",
+    name: "Fixture Arabic shaping",
+  });
+  if (!tibetan.textMetrics || !arabic.textMetrics)
+    throw new Error("complex shaping text metrics were not published");
+  if (tibetan.textMetrics.source !== "node")
+    throw new Error("Tibetan sample did not use the native text shaper");
+  if (arabic.textMetrics.source !== "widget")
+    throw new Error("Arabic sample did not use the native editor shaper");
+  assertLayoutRectContains(tibetan.rect, tibetan.textMetrics.lineBox, {
+    label: "Tibetan shaped line",
+  });
+  assertLayoutRectContains(arabic.rect, arabic.textMetrics.lineBox, {
+    label: "Arabic editor shaped line",
+  });
+  if (tibetan.textMetrics.lineBox.width <= 0)
+    throw new Error("Tibetan sample produced no shaped width");
+  if (arabic.textMetrics.lineBox.width <= 0)
+    throw new Error("Arabic sample produced no shaped width");
+};
+
 const assertDirectoryPickerLayout = (snapshot: LayoutSnapshot) => {
   const input = getLayoutNode(snapshot, {
     role: "textbox",
@@ -1508,6 +1534,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/QRCode": { assert: assertQrCodeLayout },
   "component/IconFrame": { assert: assertIconFrameLayout },
   "component/InputGroup": { assert: assertInputGroupLayout },
+  "component/ComplexShaping": { assert: assertComplexShapingLayout },
   "component/DirectoryPicker": { assert: assertDirectoryPickerLayout },
   "component/MarkdownInline": { assert: assertMarkdownInlineLayout },
   "component/LabeledSeparator": { assert: assertLabeledSeparatorLayout },

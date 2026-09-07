@@ -1,4 +1,3 @@
-import { ColorThemeProvider } from "@wabou/ui";
 import {
   ActivityStatus,
   AdaptiveSplitPane,
@@ -25,6 +24,7 @@ import {
   CardTitle,
   Checkbox,
   Combobox,
+  ColorThemeProvider,
   ComponentsProvider,
   ContentState,
   createToasts,
@@ -471,6 +471,24 @@ export function EditorLayoutFixture() {
         language="json"
         value={'{\n  "enabled": true,\n  "emoji": "😀"\n}'}
         class="w-full h-full min-w-0 min-h-0 rounded-md border border-strong bg-input text-primary"
+      />
+    </View>
+  );
+}
+
+export function ComplexShapingLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-5 flex flex-col gap-4 bg-canvas">
+      <Text
+        role="status"
+        aria-label="Fixture Tibetan shaping"
+        class="text-lg text-primary"
+      >
+        Complex Shaping · བོད་ཀྱི་སྐད་ཡིག་གི་རྒྱན་འཁྱོངས་འབྲི་ཚུལ།
+      </Text>
+      <Input
+        aria-label="Fixture Arabic shaping"
+        value="Shaping Test · اللغة العربية الفصحى تحتاج إلى تشكيل معقد"
       />
     </View>
   );
