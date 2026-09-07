@@ -338,6 +338,12 @@ await renderLayoutFixtures({
           name: "Comparison snapshot",
         });
         getLayoutNode(fixture, { role: "table", name: "Snapshot changes" });
+        const headers = queryLayoutNodes(fixture, { role: "columnheader" });
+        if (headers.length !== 5) {
+          throw new Error(
+            `wide changes table exposes ${headers.length} columns`,
+          );
+        }
       },
     },
     {
@@ -352,6 +358,19 @@ await renderLayoutFixtures({
         });
         if (table.rect.x + table.rect.width > 420.5) {
           throw new Error("changes table escapes its compact viewport");
+        }
+        const headers = queryLayoutNodes(fixture, { role: "columnheader" });
+        if (headers.length !== 2) {
+          throw new Error(
+            `compact changes table exposes ${headers.length} columns`,
+          );
+        }
+        if (
+          !fixture.nodes.some((node) =>
+            node.text?.includes("822.4 KB → 826.2 KB"),
+          )
+        ) {
+          throw new Error("compact changes table lost its size transition");
         }
       },
     },

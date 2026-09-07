@@ -2,6 +2,7 @@ import {
   Badge,
   Checkbox,
   ContentState,
+  createContainerMatch,
   createTanStackDataTable,
   Icon,
   ScrollArea,
@@ -67,12 +68,30 @@ const diffColumns: TanStackDataTableColumn<SnapshotDiffEntry>[] = [
 
 const DIFF_ENTRY_LIMIT = 250;
 
+function compactEntryDetails(entry: SnapshotDiffEntry): string {
+  let sizes: string | undefined;
+  if (entry.previousSize !== undefined && entry.currentSize !== undefined) {
+    sizes = `${formatBytes(entry.previousSize)} → ${formatBytes(entry.currentSize)}`;
+  } else if (entry.currentSize !== undefined) {
+    sizes = formatBytes(entry.currentSize);
+  } else if (entry.previousSize !== undefined) {
+    sizes = formatBytes(entry.previousSize);
+  }
+  const modified = formatOptionalTimestamp(
+    entry.currentModified ?? entry.previousModified,
+  );
+  return [sizes, modified === "—" ? undefined : modified]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export function SnapshotDiffPanel(props: {
   profileId: string;
   snapshot: SnapshotEntry;
   snapshots: readonly SnapshotEntry[];
 }) {
   const api = useRusticApi();
+  const compactTable = createContainerMatch({ maxWidth: 600 });
   const candidates = createMemo(() =>
     props.snapshots.filter((snapshot) => snapshot.id !== props.snapshot.id),
   );
@@ -164,9 +183,11 @@ export function SnapshotDiffPanel(props: {
       : columnId === "modified"
         ? "min-w-0 w-36 flex-none"
         : "min-w-0 w-28 flex-none";
+  const visibleColumns = () =>
+    compactTable.matches() ? diffColumns.slice(0, 2) : diffColumns;
 
   return (
-    <View class="min-w-0 min-h-0 flex-1 flex flex-col">
+    <View ref={compactTable.ref} class="min-w-0 min-h-0 flex-1 flex flex-col">
       <View class="flex-none px-4 py-3 flex flex-row flex-wrap items-center gap-3 border-b border-subtle bg-surface-muted">
         <View class="min-w-40 flex-1 flex flex-col gap-0.5">
           <Text class="text-sm font-medium">Compare with</Text>
@@ -266,11 +287,13 @@ export function SnapshotDiffPanel(props: {
               >
                 <Table
                   aria-label="Snapshot changes"
-                  contentClass="min-w-[46rem]"
+                  contentClass={
+                    compactTable.matches() ? undefined : "min-w-[46rem]"
+                  }
                 >
                   <TableHeader>
                     <TableRow class="bg-surface-muted">
-                      <ForValue each={diffColumns}>
+                      <ForValue each={visibleColumns()}>
                         {(column) => {
                           const id = String(column.id);
                           return (
@@ -309,6 +332,11 @@ export function SnapshotDiffPanel(props: {
                                 <Text class="w-full truncate text-xs text-muted">
                                   {entry.path}
                                 </Text>
+                                <Show when={compactTable.matches()}>
+                                  <Text class="w-full truncate text-xs text-muted">
+                                    {compactEntryDetails(entry)}
+                                  </Text>
+                                </Show>
                               </View>
                             </TableCell>
                             <TableCell class="min-w-0 w-28 flex-none">
@@ -319,17 +347,20 @@ export function SnapshotDiffPanel(props: {
                                 {presentation.label}
                               </Badge>
                             </TableCell>
-                            <TableCell class="min-w-0 w-28 flex-none text-muted">
-                              {formatBytes(entry.previousSize)}
-                            </TableCell>
-                            <TableCell class="min-w-0 w-28 flex-none text-muted">
-                              {formatBytes(entry.currentSize)}
-                            </TableCell>
-                            <TableCell class="min-w-0 w-36 flex-none text-muted">
-                              {formatOptionalTimestamp(
-                                entry.currentModified ?? entry.previousModified,
-                              )}
-                            </TableCell>
+                            <Show when={!compactTable.matches()}>
+                              <TableCell class="min-w-0 w-28 flex-none text-muted">
+                                {formatBytes(entry.previousSize)}
+                              </TableCell>
+                              <TableCell class="min-w-0 w-28 flex-none text-muted">
+                                {formatBytes(entry.currentSize)}
+                              </TableCell>
+                              <TableCell class="min-w-0 w-36 flex-none text-muted">
+                                {formatOptionalTimestamp(
+                                  entry.currentModified ??
+                                    entry.previousModified,
+                                )}
+                              </TableCell>
+                            </Show>
                           </TableRow>
                         );
                       }}
