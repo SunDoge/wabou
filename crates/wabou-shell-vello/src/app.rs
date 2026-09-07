@@ -220,6 +220,7 @@ pub struct App {
     lifecycle: WindowLifecycle,
     force_semantics: bool,
     scheduled_frame_deadline: Option<Instant>,
+    performance_hud: crate::performance_hud::PerformanceHud,
 }
 
 impl App {
@@ -343,6 +344,7 @@ impl App {
             lifecycle: WindowLifecycle::visible(),
             force_semantics: false,
             scheduled_frame_deadline: None,
+            performance_hud: crate::performance_hud::PerformanceHud::from_environment(),
         }
     }
 
@@ -1154,6 +1156,7 @@ impl App {
     }
 
     fn redraw(&mut self) {
+        self.performance_hud.begin_frame(Instant::now());
         #[cfg(feature = "profiling")]
         let frame_span = tracing::trace_span!(
             target: "wabou::perf",
@@ -1185,6 +1188,17 @@ impl App {
         shell
             .accessibility
             .set_snapshot(self.source.semantic_snapshot());
+        let (logical_width, logical_height) = shell.logical_size();
+        let scale = shell.scale_factor();
+        let mut hud_stats = self.frame_stats;
+        self.source.augment_frame_stats(&mut hud_stats);
+        self.performance_hud.paint(
+            &mut shell.scene,
+            &mut shell.tcx,
+            hud_stats,
+            [logical_width, logical_height],
+            scale,
+        );
         if let Some(mut request) = self.source.take_screenshot_request() {
             let (width, height) = shell.size();
             let result = crate::renderer::render_to_png_file(
@@ -1230,6 +1244,7 @@ impl App {
         );
         self.frame_stats
             .update(build_frame_ms, scene_ms, present_ms, node_count);
+        self.source.augment_frame_stats(&mut self.frame_stats);
         self.source.push_frame_stats(&self.frame_stats);
         if update_present_retry(presented, &mut self.present_retry_pending) {
             shell.window().request_redraw();

@@ -131,7 +131,7 @@ enum Commands {
         port: u16,
         #[arg(long)]
         devtools: bool,
-        /// Show the native GPUI performance HUD.
+        /// Show the renderer-native performance HUD.
         #[arg(long)]
         hud: bool,
         /// Hot-patch explicitly registered Rust capability functions without restarting the host.
@@ -180,7 +180,7 @@ enum Commands {
         /// Write an opt-in performance trace for Perfetto/Chrome tracing.
         #[arg(long, value_name = "JSON")]
         profile_trace: Option<PathBuf>,
-        /// Show the native GPUI performance HUD.
+        /// Show the renderer-native performance HUD.
         #[arg(long)]
         hud: bool,
         #[command(flatten)]

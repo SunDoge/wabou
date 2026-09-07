@@ -16,6 +16,7 @@ pub mod headless;
 pub mod image;
 pub mod layout;
 pub mod paint;
+mod performance_hud;
 pub mod renderer;
 mod renderer_backend;
 pub mod scene;

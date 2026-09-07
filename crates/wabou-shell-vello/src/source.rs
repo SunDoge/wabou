@@ -186,6 +186,11 @@ pub trait FrameSource {
     /// tooling (e.g. a Host diagnostics overlay). Default: ignore.
     fn push_frame_stats(&mut self, _stats: &FrameStats) {}
 
+    /// Add source-owned timing fields before native diagnostics consume them.
+    /// Render backends fill build/scene/present; sources can add guest-runtime
+    /// timing and the logical viewport without coupling the shell to QuickJS.
+    fn augment_frame_stats(&self, _stats: &mut FrameStats) {}
+
     /// DevTools screenshot handshake. The shell renders its current scene to
     /// this path only when requested; normal frames pay no readback cost.
     fn take_screenshot_request(&mut self) -> Option<ScreenshotRequest> {

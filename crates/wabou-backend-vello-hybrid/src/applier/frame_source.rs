@@ -933,14 +933,16 @@ impl FrameSource for Applier {
 
     fn push_frame_stats(&mut self, stats: &FrameStats) {
         if let Some(cell) = &self.runtime.frame_stats {
-            // The app fills build_frame/scene/present/node_count; fold in the
-            // QuickJS tick EMA + last viewport the applier measured.
-            let mut s = *stats;
-            s.js_tick_ms = self.frame.js_tick_ema;
-            s.viewport_w = self.frame.last_viewport.0;
-            s.viewport_h = self.frame.last_viewport.1;
-            *cell.borrow_mut() = Some(s);
+            let mut stats = *stats;
+            self.augment_frame_stats(&mut stats);
+            *cell.borrow_mut() = Some(stats);
         }
+    }
+
+    fn augment_frame_stats(&self, stats: &mut FrameStats) {
+        stats.js_tick_ms = self.frame.js_tick_ema;
+        stats.viewport_w = self.frame.last_viewport.0;
+        stats.viewport_h = self.frame.last_viewport.1;
     }
 
     fn pointer_cursor(&self) -> vello_shell::style::CursorStyle {
