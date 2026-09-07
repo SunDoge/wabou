@@ -1,12 +1,12 @@
 //! Native host executable for the terminal example.
 
 use snafu::{ResultExt, Whatever};
-use wabou::{GpuiHostBuilder as HostBuilder, WindowOptions};
+use wabou::{HostBuilder, WindowOptions};
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
     HostBuilder::new()
-        .native_entity_widget("terminal", wabou_terminal::gpui_terminal_factory())
+        .widget("terminal", wabou_terminal_vello::terminal_widget)
         .window(
             WindowOptions::new()
                 .title("Wabou Terminal")

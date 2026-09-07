@@ -11,13 +11,7 @@ path = "src/main.rs"
 name = "gallery-bindgen"
 path = "examples/wabou-bindgen.rs"
 
-[features]
-default = ["vello-hybrid"]
-gpui = ["wabou/gpui"]
-vello-hybrid = ["wabou/vello-hybrid"]
-
 [dependencies]
-image = { workspace = true, features = ["png"] }
 serde = { workspace = true, features = ["derive"] }
 snafu = { workspace = true }
-wabou = { workspace = true, default-features = false, features = ["bindings"] }
+wabou = { workspace = true, features = ["bindings", "vello-hybrid"] }

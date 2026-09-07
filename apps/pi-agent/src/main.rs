@@ -2,7 +2,7 @@ mod checkpoint;
 mod service;
 
 use snafu::{ResultExt, Whatever};
-use wabou::{GpuiHostBuilder as HostBuilder, WindowOptions};
+use wabou::{HostBuilder, WindowOptions};
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
@@ -30,7 +30,7 @@ fn main() -> Result<(), Whatever> {
                 // flex children to be compressed into one another.
                 .min_inner_size(1180, 680),
         )
-        .native_entity_widget("terminal", wabou_terminal::gpui_terminal_factory())
+        .widget("terminal", wabou_terminal_vello::terminal_widget)
         .capability(service::CAPABILITY, move |host| {
             service::mount(host, capability.clone())
         })
