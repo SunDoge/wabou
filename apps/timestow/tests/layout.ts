@@ -58,6 +58,35 @@ function assertSetupWorkspace(
   }
 }
 
+function assertWorkspaceHeader(
+  fixture: Parameters<typeof getLayoutNode>[0],
+): void {
+  const toolbar = getLayoutNode(fixture, {
+    role: "toolbar",
+    name: "Backup workspace actions",
+  });
+  const backup = getLayoutNode(fixture, {
+    role: "button",
+    name: "Back up now",
+  });
+  const folders = getLayoutNode(fixture, {
+    role: "button",
+    name: "Manage backup folders",
+  });
+  const toolbarRight = toolbar.rect.x + toolbar.rect.width;
+  for (const [name, control] of [
+    ["folder control", folders],
+    ["backup action", backup],
+  ] as const) {
+    if (
+      control.rect.x < toolbar.rect.x - 0.5 ||
+      control.rect.x + control.rect.width > toolbarRight + 0.5
+    ) {
+      throw new Error(`${name} escapes the minimum workspace toolbar`);
+    }
+  }
+}
+
 await renderLayoutFixtures({
   app: "apps/timestow",
   command,
@@ -75,6 +104,13 @@ await renderLayoutFixtures({
       height: 620,
       checks: ["visible-overflow", "text-collision", "visual-quality"],
       assert: (fixture) => assertSetupWorkspace(fixture, 900, 620),
+    },
+    {
+      id: "timestow/workspace-header-minimum",
+      width: 676,
+      height: 176,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: assertWorkspaceHeader,
     },
   ),
 });

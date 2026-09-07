@@ -22,6 +22,7 @@ import { SnapshotFileTree } from "../../apps/timestow/ui/snapshot-tree";
 import {
   formatModified,
   SnapshotFileRow,
+  SnapshotWorkspaceHeader,
 } from "../../apps/timestow/ui/snapshots";
 import { SortableTableHead } from "../../apps/timestow/ui/sortable-table-head";
 import {
@@ -67,6 +68,34 @@ test("repository setup chooses a mode before exposing one primary action", () =>
   expect(screen.queryByRole("button", { name: "Create backup" })).toBeNull();
   screen.getByRole("button", { name: "Open repository" }).click();
   expect(submit).toHaveBeenCalledTimes(1);
+});
+
+test("backup workspace keeps configuration and primary actions distinct", () => {
+  const refresh = vi.fn();
+  const backup = vi.fn();
+  const screen = renderComponent(
+    () => (
+      <SnapshotWorkspaceHeader
+        name="Home archive"
+        repositoryPath="/data/backups/home"
+        sources={["/data/photos"]}
+        backingUp={false}
+        scheduleControl={<Button aria-label="Schedule backup" />}
+        onSourcesChange={() => {}}
+        onRefresh={refresh}
+        onBackup={backup}
+      />
+    ),
+    { platform: { dialog } },
+  );
+
+  expect(
+    screen.getByRole("toolbar", { name: "Backup workspace actions" }),
+  ).toBeDefined();
+  screen.getByRole("button", { name: "Refresh snapshots" }).click();
+  screen.getByRole("button", { name: "Back up now" }).click();
+  expect(refresh).toHaveBeenCalledTimes(1);
+  expect(backup).toHaveBeenCalledTimes(1);
 });
 
 test("snapshot timestamps stay compact in the table", () => {

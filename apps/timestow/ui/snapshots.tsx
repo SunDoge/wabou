@@ -36,6 +36,7 @@ import {
   createEffect,
   createSignal,
   For as ForValue,
+  type JSX,
   onCleanup,
   Show,
 } from "solid-js";
@@ -161,6 +162,59 @@ export function SnapshotFileRow(props: {
           </TableCell>
         </TableRow>
       )}
+    />
+  );
+}
+
+export interface SnapshotWorkspaceHeaderProps {
+  name: string;
+  repositoryPath: string;
+  sources: readonly string[];
+  backingUp: boolean;
+  scheduleControl?: JSX.Element;
+  onSourcesChange(sources: string[]): void;
+  onRefresh(): void;
+  onBackup(): void;
+}
+
+export function SnapshotWorkspaceHeader(props: SnapshotWorkspaceHeaderProps) {
+  return (
+    <PageHeader
+      stacked
+      title={props.name}
+      description={props.repositoryPath}
+      actions={
+        <View
+          role="toolbar"
+          aria-label="Backup workspace actions"
+          class="w-full min-w-0 flex flex-row items-center justify-between gap-3"
+        >
+          <View class="min-w-0 flex flex-row items-center gap-2">
+            <BackupSourcesDialog
+              sources={props.sources}
+              disabled={props.backingUp}
+              onChange={props.onSourcesChange}
+            />
+            {props.scheduleControl}
+          </View>
+          <View class="flex-none flex flex-row items-center gap-2">
+            <Button
+              aria-label="Refresh snapshots"
+              variant="outline"
+              onClick={props.onRefresh}
+            >
+              <Icon source={refreshCw} size={14} /> Refresh
+            </Button>
+            <Button
+              aria-label={props.backingUp ? "Backing up" : "Back up now"}
+              disabled={props.sources.length === 0 || props.backingUp}
+              onClick={props.onBackup}
+            >
+              {props.backingUp ? "Backing up…" : "Back up now"}
+            </Button>
+          </View>
+        </View>
+      }
     />
   );
 }
@@ -386,44 +440,28 @@ export function SnapshotsPage() {
 
   return (
     <View class="w-full h-full min-w-0 min-h-0 flex flex-col">
-      <View class="flex-none px-6 py-5 flex flex-col gap-4 border-b border-subtle bg-surface">
-        <PageHeader
-          title={session.activeProfile()?.name ?? "Backup"}
-          description={session.activeProfile()?.repositoryPath ?? ""}
-          actions={
-            <>
-              <BackupSourcesDialog
-                sources={session.activeProfile()?.sources ?? []}
-                disabled={backingUp()}
-                onChange={(sources) => void saveSources(sources)}
-              />
-              <Show when={session.activeProfile()}>
-                {(profile) => (
-                  <BackupScheduleDialog
-                    profile={profile()}
-                    disabled={backingUp()}
-                  />
-                )}
-              </Show>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const profile = session.activeProfile();
-                  if (profile) void refreshSnapshots(profile.id);
-                }}
-              >
-                <Icon source={refreshCw} size={14} /> Refresh
-              </Button>
-              <Button
-                disabled={
-                  !session.activeProfile()?.sources.length || backingUp()
-                }
-                onClick={() => void runBackup()}
-              >
-                {backingUp() ? "Backing up…" : "Back up now"}
-              </Button>
-            </>
+      <View class="flex-none px-6 py-4 flex flex-col gap-3 border-b border-subtle bg-surface">
+        <SnapshotWorkspaceHeader
+          name={session.activeProfile()?.name ?? "Backup"}
+          repositoryPath={session.activeProfile()?.repositoryPath ?? ""}
+          sources={session.activeProfile()?.sources ?? []}
+          backingUp={backingUp()}
+          scheduleControl={
+            <Show when={session.activeProfile()}>
+              {(profile) => (
+                <BackupScheduleDialog
+                  profile={profile()}
+                  disabled={backingUp()}
+                />
+              )}
+            </Show>
           }
+          onSourcesChange={(sources) => void saveSources(sources)}
+          onRefresh={() => {
+            const profile = session.activeProfile();
+            if (profile) void refreshSnapshots(profile.id);
+          }}
+          onBackup={() => void runBackup()}
         />
         <Show when={backingUp() && session.activeProfile()}>
           {(profile) => (
