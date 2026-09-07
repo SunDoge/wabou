@@ -151,10 +151,25 @@ test("snapshot refresh never carries a selection into an empty profile", () => {
 });
 
 test("sortable table headers use a quiet readable surface", () => {
+  const [direction, setDirection] = createSignal<"asc" | "desc">("asc");
   const screen = renderComponent(() => (
-    <SortableTableHead label="Name" onToggle={() => {}} />
+    <SortableTableHead
+      label="Name"
+      direction={direction}
+      onToggle={() => setDirection("desc")}
+    />
   ));
-  const header = screen.getByRole("columnheader", { name: "Sort by Name" });
+  const sorted = screen.getByRole("columnheader", {
+    name: "Name, sorted ascending",
+  });
+  expect(sorted.text).toBe("Name");
+  sorted.click();
+  expect(
+    screen.getByRole("columnheader", { name: "Name, sorted descending" }).text,
+  ).toBe("Name");
+  const header = screen.getByRole("columnheader", {
+    name: "Name, sorted descending",
+  });
 
   expect(header.className).toContain("bg-transparent");
   expect(header.className).toContain("text-secondary");
@@ -413,8 +428,11 @@ test("snapshot changes compare against the recorded parent and can include metad
       .map((row) => row.name)
       .filter((name) => name.startsWith("docs/")),
   ).toEqual(["docs/new.txt", "docs/z-last.txt"]);
-  screen.getByRole("columnheader", { name: "Sort by Path" }).click();
+  screen.getByRole("columnheader", { name: "Path, sorted ascending" }).click();
   screen.flush();
+  expect(
+    screen.getByRole("columnheader", { name: "Path, sorted descending" }),
+  ).toBeDefined();
   expect(
     screen
       .getAllByRole("row")
