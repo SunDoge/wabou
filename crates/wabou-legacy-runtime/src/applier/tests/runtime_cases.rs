@@ -587,12 +587,9 @@ fn replayed_effect_completion_wakes_javascript_jobs() {
 
 #[test]
 fn applier_host_ffi_surface_matches_the_generated_schema() {
-    let mut expected = crate::host_abi::HOST_ABI
-        .iter()
-        .filter(|entry| {
-            entry.direction == crate::host_abi::Direction::Host && entry.feature.is_none()
-        })
-        .map(|entry| entry.name.to_owned())
+    let mut expected = crate::host_abi::host_function_names(None)
+        .into_iter()
+        .map(str::to_owned)
         .collect::<Vec<_>>();
     expected.sort();
 

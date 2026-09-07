@@ -25,9 +25,12 @@ mod gpui_view;
 mod gpui_widgets;
 mod gpui_windows;
 mod host;
-#[cfg(test)]
-pub(crate) mod host_abi;
-mod host_ffi;
+#[doc(hidden)]
+#[allow(missing_docs)]
+pub mod host_abi;
+#[doc(hidden)]
+#[allow(missing_docs)]
+pub mod host_ffi;
 mod host_frame;
 mod host_message;
 mod image_resource;
@@ -40,7 +43,9 @@ mod reload;
 pub mod resource;
 mod runtime_session;
 mod serial_worker;
-mod source_map;
+#[doc(hidden)]
+#[allow(missing_docs)]
+pub mod source_map;
 use wabou_style::stylesheet as style_ir;
 #[doc(hidden)]
 pub mod test_driver;
@@ -88,4 +93,6 @@ pub use wabou_shell::{
 #[cfg(feature = "headless")]
 pub use wabou_shell::{GpuiLayoutNode, ProjectedNodeKind};
 
-mod intl;
+#[doc(hidden)]
+#[allow(missing_docs)]
+pub mod intl;

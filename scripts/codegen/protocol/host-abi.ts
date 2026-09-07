@@ -70,6 +70,21 @@ pub(crate) struct HostAbiEntry {
 pub(crate) const HOST_ABI: &[HostAbiEntry] = &[
 ${rustEntries}
 ];
+
+/// Return the feature-independent host globals declared by the ABI schema.
+///
+/// Supplying an owner restricts the result to that registration layer.
+pub fn host_function_names(owner: Option<&str>) -> Vec<&'static str> {
+    HOST_ABI
+        .iter()
+        .filter(|entry| {
+            entry.direction == Direction::Host
+                && entry.feature.is_none()
+                && owner.is_none_or(|owner| entry.owner == owner)
+        })
+        .map(|entry| entry.name)
+        .collect()
+}
 `;
 
 const rows = schema.entries

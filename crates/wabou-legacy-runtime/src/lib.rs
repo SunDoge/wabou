@@ -21,21 +21,21 @@ mod error;
 mod gpui_controller;
 mod host;
 #[cfg(test)]
-mod host_abi;
-mod host_ffi;
+use runtime_api::host_abi;
+use runtime_api::host_ffi;
 mod host_frame;
 #[allow(dead_code)]
 // Message queue is active; duplicated public helpers await shared-core extraction.
 mod host_message;
 mod image_resource;
 mod inline_context;
-mod intl;
+use runtime_api::intl;
 mod jsrt;
 mod protocol;
 mod reload;
 pub mod resource;
 mod runtime_session;
-mod source_map;
+use runtime_api::source_map;
 mod ui_inbox;
 #[cfg(test)]
 mod widget;

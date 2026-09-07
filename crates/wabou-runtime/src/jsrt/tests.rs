@@ -660,14 +660,9 @@ fn host_ffi_surface_matches_contract() {
         })
         .expect("enumerate __wabou_* globals");
     bridge.sort();
-    let mut expected = crate::host_abi::HOST_ABI
-        .iter()
-        .filter(|entry| {
-            entry.direction == crate::host_abi::Direction::Host
-                && entry.owner == "runtime"
-                && entry.feature.is_none()
-        })
-        .map(|entry| entry.name.to_owned())
+    let mut expected = crate::host_abi::host_function_names(Some("runtime"))
+        .into_iter()
+        .map(str::to_owned)
         .collect::<Vec<_>>();
     expected.sort();
     assert_eq!(bridge, expected, "Rust-registered __wabou_* set drifted");

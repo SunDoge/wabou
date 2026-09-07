@@ -1,15 +1,15 @@
 use sourcemap::DecodedMap;
 
-pub(crate) struct StackSourceMap {
+pub struct StackSourceMap {
     map: DecodedMap,
 }
 
 impl StackSourceMap {
-    pub(crate) fn parse(bytes: &[u8]) -> Option<Self> {
+    pub fn parse(bytes: &[u8]) -> Option<Self> {
         sourcemap::decode_slice(bytes).ok().map(|map| Self { map })
     }
 
-    pub(crate) fn map_stack(&self, stack: &str) -> String {
+    pub fn map_stack(&self, stack: &str) -> String {
         stack
             .lines()
             .map(|line| self.map_line(line))
