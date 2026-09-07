@@ -494,6 +494,17 @@ export function SnapshotsPage() {
     if (selected()?.id === snapshot.id) setSelected(updated);
   }
 
+  async function deleteSnapshot(snapshot: SnapshotEntry) {
+    const profile = session.activeProfile();
+    if (!profile) return;
+    await api.deleteSnapshot({
+      profileId: profile.id,
+      snapshotId: snapshot.id,
+    });
+    browserCache.clear();
+    await loadSnapshots(profile.id, true);
+  }
+
   function parentPath(path: string): string {
     const parts = path.split(/[\\/]/).filter(Boolean);
     parts.pop();
@@ -739,6 +750,7 @@ export function SnapshotsPage() {
                     <SnapshotDetails
                       snapshot={snapshot()}
                       onSave={(changes) => updateSnapshot(snapshot(), changes)}
+                      onDelete={() => deleteSnapshot(snapshot())}
                     />
                     <Show when={workspaceMode() === "browse"}>
                       <ButtonGroup

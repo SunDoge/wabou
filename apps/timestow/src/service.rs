@@ -23,7 +23,7 @@ use crate::progress::{
     BACKUP_PROGRESS_TOPIC, BackupProgressBars, BackupProgressPhase, ProgressEmitter,
 };
 
-pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 8);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 9);
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
@@ -42,6 +42,7 @@ const DIFF_SNAPSHOTS: HostMethod<DiffSnapshotsRequest, SnapshotDiff> =
     HostMethod::new("diffSnapshots");
 const UPDATE_SNAPSHOT: HostMethod<UpdateSnapshotRequest, SnapshotEntry> =
     HostMethod::new("updateSnapshot");
+const DELETE_SNAPSHOT: HostMethod<DeleteSnapshotRequest, ()> = HostMethod::new("deleteSnapshot");
 const PREVIEW_RESTORE: HostMethod<RestorePathRequest, RestorePlanSummary> =
     HostMethod::new("previewRestore");
 const RESTORE_PATH: HostMethod<RestorePathRequest, RestoreResult> = HostMethod::new("restorePath");
@@ -95,6 +96,13 @@ pub struct ProfileIdRequest {
 }
 
 pub type SelectProfileRequest = ProfileIdRequest;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteSnapshotRequest {
+    pub profile_id: String,
+    pub snapshot_id: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -695,6 +703,21 @@ impl RusticService {
             .ok_or_else(|| "updated snapshot could not be reloaded".to_string())
     }
 
+    fn delete_snapshot(&self, request: DeleteSnapshotRequest) -> Result<(), String> {
+        let (path, password, _) = self.profile_config(&request.profile_id)?;
+        let repo = open_repository(&path, &password)?;
+        let snapshot = repo
+            .get_all_snapshots()
+            .map_err(display_error)?
+            .into_iter()
+            .find(|snapshot| snapshot.id.to_string() == request.snapshot_id)
+            .ok_or_else(|| format!("snapshot {} was not found", request.snapshot_id))?;
+        if !matches!(&snapshot.delete, DeleteOption::NotSet) {
+            return Err("protected snapshots cannot be deleted".to_string());
+        }
+        repo.delete_snapshots(&[snapshot.id]).map_err(display_error)
+    }
+
     fn preview_restore(&self, request: RestorePathRequest) -> Result<RestorePlanSummary, String> {
         let (path, password, _) = self.profile_config(&request.profile_id)?;
         validate_restore_request(&request)?;
@@ -1139,6 +1162,16 @@ pub fn mount(capability: NativeCapability<'_>, service: RusticService) -> rquick
         }
     })?;
 
+    let delete_snapshot = service.clone();
+    capability.method(DELETE_SNAPSHOT, move |request| {
+        let service = delete_snapshot.clone();
+        async move {
+            tokio::task::spawn_blocking(move || service.delete_snapshot(request))
+                .await
+                .map_err(|error| format!("snapshot deletion task failed: {error}"))?
+        }
+    })?;
+
     let preview_restore = service.clone();
     capability.method(PREVIEW_RESTORE, move |request| {
         let service = preview_restore.clone();
@@ -1487,6 +1520,13 @@ mod tests {
         assert_eq!(updated.description.as_deref(), Some("Removed stale notes"));
         assert_eq!(updated.tags, ["docs", "release"]);
         assert!(updated.delete_protected);
+        let protected_error = service
+            .delete_snapshot(DeleteSnapshotRequest {
+                profile_id: "photos".to_string(),
+                snapshot_id: updated.id.to_string(),
+            })
+            .expect_err("protected snapshots must not be deleted");
+        assert_eq!(protected_error, "protected snapshots cannot be deleted");
         let updated_again = service
             .update_snapshot(UpdateSnapshotRequest {
                 profile_id: "photos".to_string(),
@@ -1518,6 +1558,24 @@ mod tests {
             !snapshots
                 .iter()
                 .any(|snapshot| snapshot.id == updated_snapshot_id)
+        );
+
+        service
+            .delete_snapshot(DeleteSnapshotRequest {
+                profile_id: "photos".to_string(),
+                snapshot_id: updated_again.id.clone(),
+            })
+            .expect("delete unprotected snapshot");
+        let remaining = service
+            .list_snapshots(ProfileIdRequest {
+                profile_id: "photos".to_string(),
+            })
+            .expect("reload snapshots after deletion");
+        assert_eq!(remaining.len(), 1);
+        assert!(
+            !remaining
+                .iter()
+                .any(|snapshot| snapshot.id == updated_again.id)
         );
     }
 

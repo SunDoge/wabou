@@ -233,6 +233,100 @@ test("snapshot details edit label, tags, description, and deletion protection", 
   });
 });
 
+test("snapshot deletion requires confirmation and explains pruning separately", async () => {
+  const remove = vi.fn(async () => {});
+  const snapshot = {
+    id: "snapshot-removable",
+    time: "2026-09-02T04:18:35Z",
+    hostname: "workstation",
+    paths: ["/data/photos"],
+    filesNew: 12,
+    filesChanged: 3,
+    label: "Before cleanup",
+    description: undefined,
+    tags: [],
+    deleteProtected: false,
+  };
+  const screen = renderComponent(() => (
+    <SnapshotDetails snapshot={snapshot} onDelete={remove} />
+  ));
+
+  screen.getByRole("button", { name: "Details" }).click();
+  screen.getByRole("button", { name: "Delete snapshot" }).click();
+  const confirmation = screen.getByRole("alertdialog", {
+    name: "Delete snapshot",
+  });
+  expect(confirmation.text).toContain("reclaimed separately");
+  expect(confirmation.text).toContain("cannot be undone");
+  screen.getByRole("button", { name: "Delete snapshot" }).click();
+
+  await screen.waitFor(() => expect(remove).toHaveBeenCalledOnce());
+  expect(
+    screen.queryByRole("alertdialog", { name: "Delete snapshot" }),
+  ).toBeNull();
+});
+
+test("protected snapshots expose deletion as unavailable", () => {
+  const screen = renderComponent(() => (
+    <SnapshotDetails
+      snapshot={{
+        id: "snapshot-protected",
+        time: "2026-09-02T04:18:35Z",
+        hostname: "workstation",
+        paths: ["/data/photos"],
+        filesNew: 0,
+        filesChanged: 0,
+        label: "Protected",
+        tags: [],
+        deleteProtected: true,
+      }}
+      onSave={() => {}}
+      onDelete={() => {}}
+    />
+  ));
+
+  screen.getByRole("button", { name: "Details" }).click();
+  expect(
+    screen.getByRole("button", {
+      name: "Protected snapshot cannot be deleted",
+    }).disabled,
+  ).toBe(true);
+  expect(
+    screen.getByRole("dialog", { name: "Snapshot details" }).text,
+  ).toContain("Turn off protection and save");
+});
+
+test("snapshot deletion failures remain actionable in the confirmation", async () => {
+  const screen = renderComponent(() => (
+    <SnapshotDetails
+      snapshot={{
+        id: "snapshot-failing",
+        time: "2026-09-02T04:18:35Z",
+        hostname: "workstation",
+        paths: ["/data/photos"],
+        filesNew: 0,
+        filesChanged: 0,
+        label: "Before cleanup",
+        tags: [],
+        deleteProtected: false,
+      }}
+      onDelete={async () => {
+        throw new Error("repository is append-only");
+      }}
+    />
+  ));
+
+  screen.getByRole("button", { name: "Details" }).click();
+  screen.getByRole("button", { name: "Delete snapshot" }).click();
+  screen.getByRole("button", { name: "Delete snapshot" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("alert").text).toBe("repository is append-only");
+  });
+  expect(
+    screen.getByRole("alertdialog", { name: "Delete snapshot" }),
+  ).toBeDefined();
+});
+
 test("snapshot changes compare against the recorded parent and can include metadata", async () => {
   const current = {
     id: "current-snapshot",
@@ -255,7 +349,7 @@ test("snapshot changes compare against the recorded parent and can include metad
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 8,
+      __wabouCapabilityVersion: 9,
       diffSnapshots: async (request: { includeMetadata?: boolean }) => ({
         entries: [
           {
@@ -361,7 +455,7 @@ test("snapshot file tree loads child directories only when expanded", async () =
   const selected = vi.fn();
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 8,
+      __wabouCapabilityVersion: 9,
       listFiles: async (request: { path: string; offset?: number }) => {
         let entries: FileEntry[];
         if (request.path === "docs") {
@@ -457,7 +551,7 @@ test("snapshot file tree loads child directories only when expanded", async () =
 test("file details preview and extract through the native rustic capability", async () => {
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 8,
+      __wabouCapabilityVersion: 9,
       previewPath: async () => ({
         destination: "/tmp/wabou-rustic-preview/42",
         plan: {
@@ -713,7 +807,7 @@ test("rustic session hydrates durable profiles and exposes their locked state", 
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 8,
+      __wabouCapabilityVersion: 9,
       status: async () => ({
         unlockedProfileIds: [],
       }),
@@ -747,7 +841,7 @@ test("forgetting a backup clears native credentials before durable profile metad
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 8,
+      __wabouCapabilityVersion: 9,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -822,7 +916,7 @@ test("a failed native profile switch leaves the current profile selected", async
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 8,
+      __wabouCapabilityVersion: 9,
       status: async () => ({
         unlockedProfileIds: profiles.map((profile) => profile.id),
         activeProfileId: "photos",
@@ -886,7 +980,7 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 8,
+      __wabouCapabilityVersion: 9,
       status: async () => ({ unlockedProfileIds: [] }),
       createProfile: async (request: { id: string }) => ({
         unlockedProfileIds: [request.id],
@@ -970,7 +1064,7 @@ test("runs a due profile backup in the background and records completion", async
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 8,
+      __wabouCapabilityVersion: 9,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -1044,7 +1138,7 @@ test("schedule dialog explains the runtime boundary and exposes its controls", a
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 8,
+      __wabouCapabilityVersion: 9,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,

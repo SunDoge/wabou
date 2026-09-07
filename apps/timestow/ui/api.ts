@@ -158,6 +158,10 @@ export interface RusticCapability extends NativeCapability {
     tags: string[];
     deleteProtected: boolean;
   }): SnapshotEntry | PromiseLike<SnapshotEntry>;
+  deleteSnapshot(request: {
+    profileId: string;
+    snapshotId: string;
+  }): void | PromiseLike<void>;
   previewRestore(request: {
     profileId: string;
     snapshotId: string;
@@ -185,6 +189,6 @@ interface RusticHost extends Host {
 export function useRusticApi(): RusticCapability {
   return bindCapability(useHost<RusticHost>().rustic, {
     name: "rustic",
-    version: 8,
+    version: 9,
   });
 }

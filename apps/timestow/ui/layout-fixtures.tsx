@@ -108,7 +108,7 @@ const fixtureStatus = {
 };
 
 const fixtureRustic: RusticCapability = {
-  __wabouCapabilityVersion: 8,
+  __wabouCapabilityVersion: 9,
   status: () => fixtureStatus,
   createProfile: () => fixtureStatus,
   openProfile: () => fixtureStatus,
@@ -165,6 +165,7 @@ const fixtureRustic: RusticCapability = {
     tags: request.tags,
     deleteProtected: request.deleteProtected,
   }),
+  deleteSnapshot: () => {},
   previewRestore: () => emptyPlan,
   restorePath: ({ destination }) => ({ destination, plan: emptyPlan }),
   previewPath: ({ path }) => ({ destination: path, plan: emptyPlan }),
