@@ -2,13 +2,14 @@
 name = "wabou-tray"
 version.workspace = true
 edition = "2024"
-description = "GPUI application tray integration for Wabou."
+description = "Native system tray integration for Wabou's Vello shell."
 license.workspace = true
 
 [dependencies]
 flume.workspace = true
 tray-icon = { version = "0.24.2", default-features = false, features = ["gtk"] }
-wabou-shell.workspace = true
+wabou-shell-api.workspace = true
+wabou-shell-vello.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18.2"

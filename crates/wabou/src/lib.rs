@@ -26,9 +26,10 @@ pub use wabou_runtime::rquickjs;
 pub use wabou_runtime::{
     AppDirectories, AppDirectoryConfig, HostMessage, HostMessageContext, HostMessageError,
     HostMessageHandle, HostMessagePayload, HostMessageRouter, HostService, HostServiceContext,
-    NativeCapability, PersistentJsonCache, RevisionedHostPublication, RevisionedHostPublisher,
-    RevisionedHostSnapshot, SerialWorker, WindowBackground, WindowInputMode, WindowLevel,
-    WindowOptions, WindowResourceKey, initial_window_resource_key,
+    HostServiceHandle, ManagedHostService, NativeCapability, PersistentJsonCache,
+    RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker,
+    WindowBackground, WindowInputMode, WindowLevel, WindowOptions, WindowResourceKey,
+    initial_window_resource_key, managed_host_service,
 };
 #[cfg(feature = "gpui")]
 pub use wabou_runtime::{
@@ -38,8 +39,8 @@ pub use wabou_runtime::{
 };
 #[cfg(feature = "gpui")]
 pub use wabou_runtime::{
-    HostBuilder as GpuiHostBuilder, HostServiceHandle, ManagedHostService, NativeWidgetContext,
-    NativeWidgetFactory, NativeWidgetMount, TextRenderingMode, gpui, managed_host_service,
+    HostBuilder as GpuiHostBuilder, NativeWidgetContext, NativeWidgetFactory, NativeWidgetMount,
+    TextRenderingMode, gpui,
 };
 
 #[cfg(feature = "vello-hybrid")]

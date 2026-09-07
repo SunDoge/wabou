@@ -46,6 +46,7 @@ mod image_resource;
 mod json_capability;
 mod jsrt;
 mod kv;
+mod managed_service;
 mod native_capability;
 mod persistent_cache;
 mod reload;
@@ -82,9 +83,7 @@ pub use gpui_headless::{
     GpuiProjectionBoundaryCheckpoint, GpuiProjectionCheckpoint,
 };
 #[cfg(feature = "gpui")]
-pub use host::{
-    HostBuilder, HostServiceHandle, ManagedHostService, TextRenderingMode, managed_host_service,
-};
+pub use host::{HostBuilder, TextRenderingMode};
 #[doc(hidden)]
 pub use host_frame::{
     HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, NumericEventData,
@@ -108,6 +107,7 @@ pub use jsrt::{
 };
 #[doc(hidden)]
 pub use kv::mount_kv_methods;
+pub use managed_service::{HostServiceHandle, ManagedHostService, managed_host_service};
 pub use native_capability::NativeCapability;
 pub use persistent_cache::PersistentJsonCache;
 #[cfg(feature = "vite")]

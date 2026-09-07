@@ -1,4 +1,4 @@
-//! GPUI-native system tray integration for Wabou applications.
+//! Native system tray integration for Wabou applications.
 
 #![warn(missing_docs)]
 
@@ -10,8 +10,8 @@ use std::rc::Rc;
 use tray_icon::TrayIcon;
 use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIconBuilder};
-use wabou_shell::gpui::{AnyWindowHandle, App, AsyncApp, Task};
-use wabou_shell::{ApplicationExtension, ApplicationExtensionContext};
+use wabou_shell_api::{WindowResourceKey, initial_window_resource_key};
+use wabou_shell_vello::{ExtensionContext, ShellExtension, WakeCallback};
 
 type Action = Box<dyn FnMut(&mut TrayContext<'_>)>;
 
@@ -57,32 +57,50 @@ impl TrayImage {
     }
 }
 
+trait TrayOperations {
+    fn show_primary_window(&mut self);
+    fn hide_application(&mut self);
+    fn quit(&mut self);
+}
+
+struct VelloTrayOperations<'context, 'event> {
+    context: &'context mut ExtensionContext<'event>,
+    primary_window: WindowResourceKey,
+}
+
+impl TrayOperations for VelloTrayOperations<'_, '_> {
+    fn show_primary_window(&mut self) {
+        self.context.show_window(self.primary_window);
+    }
+
+    fn hide_application(&mut self) {
+        self.context.hide_window(self.primary_window);
+    }
+
+    fn quit(&mut self) {
+        self.context.exit();
+    }
+}
+
 /// Operations exposed to one tray menu callback.
 pub struct TrayContext<'a> {
-    app: &'a mut AsyncApp,
-    primary_window: Option<AnyWindowHandle>,
+    operations: &'a mut dyn TrayOperations,
 }
 
 impl TrayContext<'_> {
     /// Activate the application and raise its primary window.
     pub fn show_primary_window(&mut self) {
-        let primary_window = self.primary_window;
-        self.app.update(move |app| {
-            app.activate(true);
-            if let Some(window) = primary_window {
-                let _ = window.update(app, |_, window, _| window.activate_window());
-            }
-        });
+        self.operations.show_primary_window();
     }
 
     /// Hide the application without destroying its windows.
     pub fn hide_application(&mut self) {
-        self.app.update(|app| app.hide());
+        self.operations.hide_application();
     }
 
-    /// Quit through GPUI's platform lifecycle.
+    /// Quit through Wabou's platform lifecycle.
     pub fn quit(&mut self) {
-        self.app.update(|app| app.quit());
+        self.operations.quit();
     }
 }
 
@@ -95,7 +113,7 @@ pub struct SystemTray {
     hide_on_close: bool,
     #[cfg(not(target_os = "linux"))]
     native: Option<TrayIcon>,
-    task: Option<Task<()>>,
+    receiver: Option<flume::Receiver<String>>,
 }
 
 impl SystemTray {
@@ -109,7 +127,7 @@ impl SystemTray {
             hide_on_close: false,
             #[cfg(not(target_os = "linux"))]
             native: None,
-            task: None,
+            receiver: None,
         }
     }
 
@@ -179,10 +197,15 @@ impl SystemTray {
     }
 
     #[cfg(not(target_os = "linux"))]
-    fn build_native(&self, sender: flume::Sender<String>) -> Result<TrayIcon, String> {
+    fn build_native(
+        &self,
+        sender: flume::Sender<String>,
+        wake: WakeCallback,
+    ) -> Result<TrayIcon, String> {
         let menu = self.build_menu()?;
         MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
             let _ = sender.send(event.id().0.clone());
+            wake();
         }));
         let mut builder = TrayIconBuilder::new()
             .with_icon(self.icon.to_icon()?)
@@ -196,25 +219,11 @@ impl SystemTray {
     }
 }
 
-impl ApplicationExtension for SystemTray {
-    fn install(
-        &mut self,
-        context: ApplicationExtensionContext<'_>,
-        app: &mut App,
-    ) -> Result<(), String> {
+impl ShellExtension for SystemTray {
+    fn initialize(&mut self, wake: WakeCallback) -> Result<(), String> {
         self.validate_item_ids()?;
-        let primary_window = context.primary_window();
-        if self.hide_on_close
-            && let Some(primary) = primary_window
-        {
-            primary
-                .update(app, |_, window, app| {
-                    window.on_window_should_close(app, |_window, app| {
-                        app.hide();
-                        false
-                    });
-                })
-                .map_err(|error| error.to_string())?;
+        if self.receiver.is_some() {
+            return Err("system tray is already initialized".to_owned());
         }
 
         let (sender, receiver) = flume::unbounded();
@@ -229,6 +238,7 @@ impl ApplicationExtension for SystemTray {
                 .map(|item| (item.id.clone(), item.label.clone()))
                 .collect::<Vec<_>>();
             let separators = self.separators.clone();
+            let wake = wake.clone();
             let (ready_sender, ready_receiver) = std::sync::mpsc::sync_channel(1);
             std::thread::Builder::new()
                 .name("wabou-tray-gtk".into())
@@ -254,6 +264,7 @@ impl ApplicationExtension for SystemTray {
                             }
                             MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
                                 let _ = sender.send(event.id().0.clone());
+                                wake();
                             }));
                             let mut builder = TrayIconBuilder::new()
                                 .with_icon(icon.to_icon()?)
@@ -280,22 +291,53 @@ impl ApplicationExtension for SystemTray {
         }
         #[cfg(not(target_os = "linux"))]
         {
-            self.native = Some(self.build_native(sender)?);
+            self.native = Some(self.build_native(sender, wake)?);
         }
-
-        let items = self.items.clone();
-        self.task = Some(app.spawn(async move |app| {
-            while let Ok(id) = receiver.recv_async().await {
-                let mut context = TrayContext {
-                    app,
-                    primary_window,
-                };
-                if let Some(item) = items.borrow_mut().iter_mut().find(|item| item.id == id) {
-                    (item.action)(&mut context);
-                }
-            }
-        }));
+        self.receiver = Some(receiver);
         Ok(())
+    }
+
+    fn poll(&mut self, context: &mut ExtensionContext<'_>) {
+        let Some(receiver) = &self.receiver else {
+            return;
+        };
+        while let Ok(id) = receiver.try_recv() {
+            let mut operations = VelloTrayOperations {
+                context,
+                primary_window: initial_window_resource_key(0),
+            };
+            let mut tray_context = TrayContext {
+                operations: &mut operations,
+            };
+            if let Some(item) = self
+                .items
+                .borrow_mut()
+                .iter_mut()
+                .find(|item| item.id == id)
+            {
+                (item.action)(&mut tray_context);
+            }
+        }
+    }
+
+    fn close_requested(
+        &mut self,
+        window_key: WindowResourceKey,
+        context: &mut ExtensionContext<'_>,
+    ) -> bool {
+        if !self.hide_on_close || window_key != initial_window_resource_key(0) {
+            return false;
+        }
+        context.hide_window(window_key)
+    }
+
+    fn shutdown(&mut self, _context: &mut ExtensionContext<'_>) {
+        MenuEvent::set_event_handler(None::<fn(MenuEvent)>);
+        self.receiver = None;
+        #[cfg(not(target_os = "linux"))]
+        {
+            self.native = None;
+        }
     }
 }
 
