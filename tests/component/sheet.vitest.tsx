@@ -106,7 +106,7 @@ test("waits for a controlled owner before starting the exit transition", async (
   screen.getByRole("button", { name: "Close" }).click();
   expect(closeRequested).toBe(true);
   expect(sheet.attribute("aria-hidden")).toBeNull();
-  expect(sheet.parent?.className).toContain("backdrop-blur-sm");
+  expect(sheet.parent?.className).not.toContain("backdrop-blur-sm");
   expect(sheet.transform).toEqual([1, 0, 0, 1, 0, 0]);
 
   commitOpen?.(false);
