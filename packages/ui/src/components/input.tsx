@@ -41,10 +41,10 @@ export function Input(props: InputProps): JSX.Element {
           : "native-editor"
       }
       class={mergeClasses(
-        // Match GPUI Components' single-line editor frame: a 20px line box
-        // inside the 32px control with explicit vertical inset. The native
-        // widget owns editing; this component owns its visual geometry.
-        "w-full flex items-center py-2 text-primary",
+        // Keep the 20px line box inside the 32px control after its border is
+        // removed. `py-2` leaves only 14px of content and makes the native
+        // editor clip its own glyphs; 4px insets leave a 22px content box.
+        "w-full flex items-center py-1 text-primary",
         (props.chrome ?? "default") === "default"
           ? componentsControlSize("default")
           : componentsControlContentSize("default"),
@@ -72,7 +72,7 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
     <PrimitivePasswordInput
       {...props}
       class={mergeClasses(
-        "w-full flex items-center py-2 border shadow-xs",
+        "w-full flex items-center py-1 border shadow-xs",
         componentsControlSize("default"),
         "border-subtle bg-input text-primary",
         props.class,

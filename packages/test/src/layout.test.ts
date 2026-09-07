@@ -3,6 +3,7 @@ import {
   assertLayoutRectContains,
   assertLayoutTextStyle,
   type LayoutSnapshot,
+  type LayoutSnapshotNode,
   layoutColorContrast,
   layoutRectBottom,
   layoutRectRight,
@@ -295,5 +296,40 @@ describe("layout rect assertions", () => {
     ]);
     expect(diagnostics[0]?.message).toContain("2.32:1 text contrast");
     expect(diagnostics[1]?.message).toContain("20.0x20.0");
+  });
+
+  test("reports native widget text clipped by its content box", () => {
+    const node: LayoutSnapshotNode = {
+      id: { lo: 7, hi: 1 },
+      tag: "input",
+      classes: ["h-8", "py-2"],
+      attrs: [["aria-label", "Search"]],
+      rect: { x: 8, y: 64, width: 207, height: 32 },
+      contentRect: { x: 18, y: 73, width: 187, height: 14 },
+      textMetrics: {
+        source: "widget",
+        lineBox: { x: 18, y: 70, width: 120, height: 20 },
+        baseline: 85,
+      },
+      styleDiagnostics: [],
+      computed: {},
+    };
+    const snapshot: LayoutSnapshot = {
+      status: {
+        viewportWidth: 320,
+        viewportHeight: 200,
+        deviceScale: 1,
+        nodeCount: 1,
+      },
+      nodes: [node],
+    };
+
+    expect(visualQualityDiagnostics(snapshot)).toEqual([
+      expect.objectContaining({
+        code: "native-text-clipped",
+        node,
+        amount: 3,
+      }),
+    ]);
   });
 });
