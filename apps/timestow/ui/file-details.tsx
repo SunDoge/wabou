@@ -19,6 +19,7 @@ import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { type FileEntry, type RestorePlanSummary, useRusticApi } from "./api";
+import { createAsyncRequestGate } from "./async-request";
 import {
   formatBytes,
   formatFileKind,
@@ -50,13 +51,13 @@ export function FileDetails(props: {
   const [previewing, setPreviewing] = createSignal(false);
   const [previewPath, setPreviewPath] = createSignal<string>();
   const [previewError, setPreviewError] = createSignal<string>();
-  let previewGeneration = 0;
+  const previewRequests = createAsyncRequestGate();
 
   createEffect(
     () =>
       `${props.profileId}\u0000${props.snapshotId}\u0000${props.entry?.path ?? ""}`,
     () => {
-      previewGeneration += 1;
+      previewRequests.invalidate();
       setPreviewing(false);
       setPreviewPath(undefined);
       setPreviewError(undefined);
@@ -66,7 +67,7 @@ export function FileDetails(props: {
   async function preview() {
     const entry = props.entry;
     if (!entry || previewing()) return;
-    const generation = ++previewGeneration;
+    const request = previewRequests.begin();
     const profileId = props.profileId;
     const snapshotId = props.snapshotId;
     setPreviewing(true);
@@ -77,15 +78,15 @@ export function FileDetails(props: {
         snapshotId,
         path: entry.path,
       });
-      if (generation !== previewGeneration) return;
+      if (!previewRequests.isCurrent(request)) return;
       setPreviewPath(result.destination);
       await api.openPath({ path: result.destination });
     } catch (cause) {
-      if (generation === previewGeneration) {
+      if (previewRequests.isCurrent(request)) {
         setPreviewError(cause instanceof Error ? cause.message : String(cause));
       }
     } finally {
-      if (generation === previewGeneration) setPreviewing(false);
+      if (previewRequests.isCurrent(request)) setPreviewing(false);
     }
   }
 

@@ -18,6 +18,7 @@ import {
   type RepositoryStats,
   useRusticApi,
 } from "./api";
+import { createAsyncRequestGate } from "./async-request";
 import { formatBytes } from "./format";
 
 export interface RepositoryCheckDialogProps {
@@ -124,12 +125,12 @@ export function RepositoryCheckDialog(props: RepositoryCheckDialogProps) {
   const [checking, setChecking] = createSignal(false);
   const [result, setResult] = createSignal<RepositoryCheckResult>();
   const [error, setError] = createSignal<string>();
-  let requestGeneration = 0;
+  const requests = createAsyncRequestGate();
 
   createEffect(
     () => props.profileId,
     () => {
-      requestGeneration += 1;
+      requests.invalidate();
       setChecking(false);
       setResult(undefined);
       setError(undefined);
@@ -138,20 +139,20 @@ export function RepositoryCheckDialog(props: RepositoryCheckDialogProps) {
 
   async function check(): Promise<void> {
     if (checking()) return;
-    const generation = ++requestGeneration;
+    const request = requests.begin();
     const profileId = props.profileId;
     setChecking(true);
     setError(undefined);
     try {
       const next = await api.checkRepository({ profileId });
-      if (generation === requestGeneration) setResult(next);
+      if (requests.isCurrent(request)) setResult(next);
     } catch (cause) {
-      if (generation === requestGeneration) {
+      if (requests.isCurrent(request)) {
         setResult(undefined);
         setError(cause instanceof Error ? cause.message : String(cause));
       }
     } finally {
-      if (generation === requestGeneration) setChecking(false);
+      if (requests.isCurrent(request)) setChecking(false);
     }
   }
 

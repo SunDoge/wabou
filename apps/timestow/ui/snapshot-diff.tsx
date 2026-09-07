@@ -31,6 +31,7 @@ import type {
   SnapshotDiffEntry,
   SnapshotEntry,
 } from "./api";
+import { createAsyncRequestGate } from "./async-request";
 import { useRusticApi } from "./api";
 import {
   formatBytes,
@@ -118,7 +119,7 @@ export function SnapshotDiffPanel(props: {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string>();
   const [retryRevision, setRetryRevision] = createSignal(0);
-  let requestGeneration = 0;
+  const requests = createAsyncRequestGate();
 
   createEffect(
     () => ({
@@ -139,7 +140,7 @@ export function SnapshotDiffPanel(props: {
       retryRevision: retryRevision(),
     }),
     (request) => {
-      const generation = ++requestGeneration;
+      const requestToken = requests.begin();
       if (!request.baseSnapshotId) {
         setResult(undefined);
         setLoading(false);
@@ -159,15 +160,15 @@ export function SnapshotDiffPanel(props: {
         }),
       )
         .then((next) => {
-          if (generation === requestGeneration) setResult(next);
+          if (requests.isCurrent(requestToken)) setResult(next);
         })
         .catch((cause: unknown) => {
-          if (generation === requestGeneration) {
+          if (requests.isCurrent(requestToken)) {
             setError(cause instanceof Error ? cause.message : String(cause));
           }
         })
         .finally(() => {
-          if (generation === requestGeneration) setLoading(false);
+          if (requests.isCurrent(requestToken)) setLoading(false);
         });
     },
   );

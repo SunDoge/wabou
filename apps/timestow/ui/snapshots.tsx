@@ -56,6 +56,7 @@ import {
   type SnapshotEntry,
   useRusticApi,
 } from "./api";
+import { createAsyncRequestGate } from "./async-request";
 import { OperationProgressStatus } from "./operation-progress";
 import { FileDetails } from "./file-details";
 import {
@@ -586,13 +587,13 @@ export function SnapshotsPage() {
   const [fileError, setFileError] = createSignal<string>();
   const [error, setError] = createSignal<string>();
   const browserCache = session.snapshotBrowser;
-  let fileRequestGeneration = 0;
-  let searchRequestGeneration = 0;
-  let snapshotRequestGeneration = 0;
+  const fileRequests = createAsyncRequestGate();
+  const searchRequests = createAsyncRequestGate();
+  const snapshotRequests = createAsyncRequestGate();
 
   function clearSnapshotWorkspace(): void {
-    fileRequestGeneration += 1;
-    searchRequestGeneration += 1;
+    fileRequests.invalidate();
+    searchRequests.invalidate();
     setSelected(undefined);
     setFiles([]);
     setFileTotal(0);
@@ -612,7 +613,7 @@ export function SnapshotsPage() {
     profileId: string,
     selection: "preserve" | "restore" | "newest" = "preserve",
   ) {
-    const generation = ++snapshotRequestGeneration;
+    const request = snapshotRequests.begin();
     const preferredSnapshotId =
       selection === "restore"
         ? browserCache.selectedSnapshot(profileId)
@@ -627,7 +628,7 @@ export function SnapshotsPage() {
     setError(undefined);
     try {
       const next = await api.listSnapshots({ profileId });
-      if (generation !== snapshotRequestGeneration) return false;
+      if (!snapshotRequests.isCurrent(request)) return false;
       setSnapshots(next);
       const refreshed = snapshotAfterRefresh(
         next,
@@ -646,12 +647,12 @@ export function SnapshotsPage() {
       }
       return true;
     } catch (cause) {
-      if (generation === snapshotRequestGeneration) {
+      if (snapshotRequests.isCurrent(request)) {
         setHistoryError(cause instanceof Error ? cause.message : String(cause));
       }
       return false;
     } finally {
-      if (generation === snapshotRequestGeneration) setLoading(false);
+      if (snapshotRequests.isCurrent(request)) setLoading(false);
     }
   }
 
@@ -660,8 +661,8 @@ export function SnapshotsPage() {
     snapshot: SnapshotEntry,
     path: string,
   ) {
-    const generation = ++fileRequestGeneration;
-    searchRequestGeneration += 1;
+    const request = fileRequests.begin();
+    searchRequests.invalidate();
     setCurrentPath(path);
     setFiles([]);
     setFileTotal(0);
@@ -687,15 +688,15 @@ export function SnapshotsPage() {
         offset: 0,
         limit: FILE_PAGE_SIZE,
       });
-      if (generation !== fileRequestGeneration) return;
+      if (!fileRequests.isCurrent(request)) return;
       browserCache.remember(snapshot.id, path, next);
       setFiles(next.entries);
       setFileTotal(next.total);
     } catch (cause) {
-      if (generation !== fileRequestGeneration) return;
+      if (!fileRequests.isCurrent(request)) return;
       setFileError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      if (generation === fileRequestGeneration) setLoadingFiles(false);
+      if (fileRequests.isCurrent(request)) setLoadingFiles(false);
     }
   }
 
@@ -706,7 +707,7 @@ export function SnapshotsPage() {
     const offset = files().length;
     if (!profile || !snapshot || loadingMoreFiles() || offset >= fileTotal())
       return;
-    const generation = fileRequestGeneration;
+    const request = fileRequests.capture();
     setLoadingMoreFiles(true);
     setError(undefined);
     try {
@@ -717,7 +718,7 @@ export function SnapshotsPage() {
         offset,
         limit: FILE_PAGE_SIZE,
       });
-      if (generation !== fileRequestGeneration) return;
+      if (!fileRequests.isCurrent(request)) return;
       const combined = [...files(), ...next.entries];
       setFiles(combined);
       setFileTotal(next.total);
@@ -726,11 +727,11 @@ export function SnapshotsPage() {
         total: next.total,
       });
     } catch (cause) {
-      if (generation === fileRequestGeneration) {
+      if (fileRequests.isCurrent(request)) {
         setError(cause instanceof Error ? cause.message : String(cause));
       }
     } finally {
-      if (generation === fileRequestGeneration) setLoadingMoreFiles(false);
+      if (fileRequests.isCurrent(request)) setLoadingMoreFiles(false);
     }
   }
 
@@ -739,7 +740,7 @@ export function SnapshotsPage() {
     const snapshot = selected();
     const query = searchQuery().trim();
     if (!profile || !snapshot || !query || searching()) return;
-    const generation = ++searchRequestGeneration;
+    const request = searchRequests.begin();
     setSearching(true);
     setError(undefined);
     try {
@@ -749,21 +750,21 @@ export function SnapshotsPage() {
         query,
         limit: 200,
       });
-      if (generation !== searchRequestGeneration) return;
+      if (!searchRequests.isCurrent(request)) return;
       setSearchResults(results);
       setSearchActive(true);
       setSelectedEntry(undefined);
     } catch (cause) {
-      if (generation === searchRequestGeneration) {
+      if (searchRequests.isCurrent(request)) {
         setError(cause instanceof Error ? cause.message : String(cause));
       }
     } finally {
-      if (generation === searchRequestGeneration) setSearching(false);
+      if (searchRequests.isCurrent(request)) setSearching(false);
     }
   }
 
   function clearSearch() {
-    searchRequestGeneration += 1;
+    searchRequests.invalidate();
     setSearchQuery("");
     setSearchResults([]);
     setSearchActive(false);

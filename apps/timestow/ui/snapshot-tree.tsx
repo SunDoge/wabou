@@ -21,6 +21,7 @@ import {
   untrack,
 } from "solid-js";
 import { FILE_PAGE_SIZE, type FileEntry, useRusticApi } from "./api";
+import { createAsyncRequestGate } from "./async-request";
 
 const ROOT_ID = "snapshot-root";
 const LOAD_MORE_PREFIX = "timestow-load-more:";
@@ -64,7 +65,7 @@ export function SnapshotFileTree(props: {
   ]);
   const [loadingPaths, setLoadingPaths] = createSignal<readonly string[]>([]);
   const [failure, setFailure] = createSignal<DirectoryLoadFailure>();
-  let generation = 0;
+  const requests = createAsyncRequestGate();
 
   const pathForId = (id: string) => (id === ROOT_ID ? "" : id);
   const idForPath = (path: string) => (path ? path : ROOT_ID);
@@ -72,7 +73,7 @@ export function SnapshotFileTree(props: {
 
   async function load(path: string, append = false) {
     if ((!append && loaded(path)) || loadingPaths().includes(path)) return;
-    const requestGeneration = generation;
+    const request = requests.capture();
     const offset = append ? (directories()[path]?.entries.length ?? 0) : 0;
     setLoadingPaths((current) => [...current, path]);
     setFailure((current) => (current?.path === path ? undefined : current));
@@ -84,7 +85,7 @@ export function SnapshotFileTree(props: {
         offset,
         limit: FILE_PAGE_SIZE,
       });
-      if (requestGeneration !== generation) return;
+      if (!requests.isCurrent(request)) return;
       setDirectories((current) => ({
         ...current,
         [path]: {
@@ -96,7 +97,7 @@ export function SnapshotFileTree(props: {
       }));
       setFailure((current) => (current?.path === path ? undefined : current));
     } catch (cause) {
-      if (requestGeneration === generation) {
+      if (requests.isCurrent(request)) {
         setFailure({
           path,
           append,
@@ -104,7 +105,7 @@ export function SnapshotFileTree(props: {
         });
       }
     } finally {
-      if (requestGeneration === generation) {
+      if (requests.isCurrent(request)) {
         setLoadingPaths((current) => current.filter((item) => item !== path));
       }
     }
@@ -150,7 +151,7 @@ export function SnapshotFileTree(props: {
   createEffect(
     () => `${props.profileId}\u0000${props.snapshotId}`,
     () => {
-      generation += 1;
+      requests.invalidate();
       setDirectories({});
       setExpandedIds([ROOT_ID]);
       setLoadingPaths([]);
