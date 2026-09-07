@@ -1573,6 +1573,8 @@ test("file details preview and extract through the native rustic capability", as
 });
 
 test("extract reports only the active restore operation progress", async () => {
+  const operationStarted = vi.fn();
+  const operationEnded = vi.fn();
   let completeRestore:
     | ((result: { destination: string; plan: RestorePlanSummary }) => void)
     | undefined;
@@ -1609,6 +1611,8 @@ test("extract reports only the active restore operation progress", async () => {
           kind: "file",
           size: 4_096,
         }}
+        onOperationStart={operationStarted}
+        onOperationEnd={operationEnded}
       />
     ),
     { host: fixture.host, platform: { dialog } },
@@ -1629,6 +1633,8 @@ test("extract reports only the active restore operation progress", async () => {
   const request = fixture.callsTo("rustic.restorePath")[0]?.args[0] as {
     operationId: string;
   };
+  expect(operationStarted).toHaveBeenCalledWith(request.operationId);
+  expect(operationEnded).not.toHaveBeenCalled();
 
   dispatchHostMessageForTest(
     OPERATION_PROGRESS_TOPIC,
@@ -1678,6 +1684,7 @@ test("extract reports only the active restore operation progress", async () => {
       screen.getByRole("button", { name: "Open extracted item" }),
     ).toBeDefined();
   });
+  expect(operationEnded).toHaveBeenCalledWith(request.operationId);
   screen.dispose();
 });
 

@@ -1324,6 +1324,8 @@ export function SnapshotsPage() {
                             profileId={session.activeProfile()?.id ?? ""}
                             snapshotId={snapshot().id}
                             entry={selectedEntry()}
+                            onOperationStart={session.beginOperation}
+                            onOperationEnd={session.endOperation}
                           />
                         </AdaptiveSplitPaneDetail>
                       </Show>

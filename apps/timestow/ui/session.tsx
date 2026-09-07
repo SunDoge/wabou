@@ -54,6 +54,8 @@ interface TimestowSession {
     | undefined;
   isBackingUp(profileId: string): boolean;
   hasActiveOperations(): boolean;
+  beginOperation(operationId: string): void;
+  endOperation(operationId: string): void;
   backupProgress(profileId: string): OperationProgressEvent | undefined;
   snapshotBrowser: SnapshotBrowserCache;
   setError(error: string | undefined): void;
@@ -131,6 +133,8 @@ export function TimestowSessionProvider(props: {
   const [activeOperationKeys, setActiveOperationKeys] = createSignal<
     ReadonlySet<string>
   >(new Set());
+  const [locallyPendingOperationIds, setLocallyPendingOperationIds] =
+    createSignal<ReadonlySet<string>>(new Set());
   const activeProfile = createMemo(() =>
     profiles().find((profile) => profile.id === activeProfileId()),
   );
@@ -333,7 +337,27 @@ export function TimestowSessionProvider(props: {
   }
 
   function hasActiveOperations(): boolean {
-    return runningBackupIds().size > 0 || activeOperationKeys().size > 0;
+    return (
+      runningBackupIds().size > 0 ||
+      activeOperationKeys().size > 0 ||
+      locallyPendingOperationIds().size > 0
+    );
+  }
+
+  function beginOperation(operationId: string): void {
+    setLocallyPendingOperationIds((current) => {
+      const next = new Set(current);
+      next.add(operationId);
+      return next;
+    });
+  }
+
+  function endOperation(operationId: string): void {
+    setLocallyPendingOperationIds((current) => {
+      const next = new Set(current);
+      next.delete(operationId);
+      return next;
+    });
   }
 
   function backupProgress(
@@ -557,6 +581,8 @@ export function TimestowSessionProvider(props: {
         lastBackup,
         isBackingUp,
         hasActiveOperations,
+        beginOperation,
+        endOperation,
         backupProgress,
         snapshotBrowser,
         setError,

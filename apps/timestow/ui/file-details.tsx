@@ -43,6 +43,8 @@ export function FileDetails(props: {
   profileId: string;
   snapshotId: string;
   entry?: FileEntry;
+  onOperationStart?: (operationId: string) => void;
+  onOperationEnd?: (operationId: string) => void;
 }) {
   const api = useRusticApi();
   const [previewing, setPreviewing] = createSignal(false);
@@ -148,6 +150,8 @@ export function FileDetails(props: {
                 profileId={props.profileId}
                 snapshotId={props.snapshotId}
                 entry={entry()}
+                onOperationStart={props.onOperationStart}
+                onOperationEnd={props.onOperationEnd}
               />
             </View>
             <Show when={previewPath()}>
@@ -188,6 +192,8 @@ function ExtractDialog(props: {
   profileId: string;
   snapshotId: string;
   entry: FileEntry;
+  onOperationStart?: (operationId: string) => void;
+  onOperationEnd?: (operationId: string) => void;
 }) {
   const api = useRusticApi();
   const [destination, setDestination] = createSignal("");
@@ -254,6 +260,7 @@ function ExtractDialog(props: {
     activeOperationId = operationId;
     setProgress(undefined);
     try {
+      props.onOperationStart?.(operationId);
       const restored = await api.restorePath({
         profileId: props.profileId,
         snapshotId: props.snapshotId,
@@ -266,6 +273,7 @@ function ExtractDialog(props: {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       activeOperationId = undefined;
+      props.onOperationEnd?.(operationId);
       setPending(undefined);
     }
   }
