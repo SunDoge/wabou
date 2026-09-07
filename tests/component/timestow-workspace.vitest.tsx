@@ -33,10 +33,12 @@ import {
   SnapshotBrowserEmptyState,
   SnapshotFileRow,
   SnapshotHistory,
+  SnapshotPathBreadcrumb,
   SnapshotWorkspaceHeader,
   snapshotAfterRefresh,
   snapshotDisplayTitle,
   snapshotMatchesQuery,
+  snapshotPathSegments,
 } from "../../apps/timestow/ui/snapshots";
 import { SortableTableHead } from "../../apps/timestow/ui/sortable-table-head";
 import {
@@ -348,6 +350,26 @@ test("snapshot titles prefer user labels and fall back to a short stable id", ()
   expect(snapshotDisplayTitle({ ...snapshot, label: "   " })).toBe(
     "Snapshot f21dc6d8",
   );
+});
+
+test("snapshot breadcrumbs expose every ancestor as a direct navigation target", () => {
+  expect(snapshotPathSegments("Documents/Finance/2026")).toEqual([
+    { label: "Root", path: "" },
+    { label: "Documents", path: "Documents" },
+    { label: "Finance", path: "Documents/Finance" },
+    { label: "2026", path: "Documents/Finance/2026" },
+  ]);
+
+  const navigate = vi.fn<(path: string) => void>();
+  const screen = renderComponent(() => (
+    <SnapshotPathBreadcrumb
+      path="Documents/Finance/2026"
+      onNavigate={navigate}
+    />
+  ));
+  screen.getByRole("link", { name: "Open Finance" }).click();
+  expect(navigate).toHaveBeenCalledWith("Documents/Finance");
+  expect(screen.getByRole("link", { name: "2026" }).disabled).toBe(true);
 });
 
 test("long snapshot histories filter by user-facing metadata", () => {

@@ -2,6 +2,12 @@ import {
   AdaptiveSplitPane,
   AdaptiveSplitPaneDetail,
   AdaptiveSplitPaneMain,
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
   Button,
   ButtonGroup,
   ContentState,
@@ -74,6 +80,62 @@ const fileColumns: TanStackDataTableColumn<FileEntry>[] = [
 
 function shortId(id: string): string {
   return id.slice(0, 8);
+}
+
+export interface SnapshotPathSegment {
+  label: string;
+  path: string;
+}
+
+export function snapshotPathSegments(path: string): SnapshotPathSegment[] {
+  const names = path.split(/[\\/]/).filter(Boolean);
+  return [
+    { label: "Root", path: "" },
+    ...names.map((label, index) => ({
+      label,
+      path: names.slice(0, index + 1).join("/"),
+    })),
+  ];
+}
+
+export function SnapshotPathBreadcrumb(props: {
+  path: string;
+  onNavigate(path: string): void;
+}) {
+  const segments = () => snapshotPathSegments(props.path);
+  return (
+    <Breadcrumb aria-label="Snapshot path" class="min-w-0">
+      <BreadcrumbList class="min-w-0 flex-nowrap gap-1 text-xs">
+        <ForValue each={segments()}>
+          {(segment, index) => (
+            <>
+              <Show when={index() > 0}>
+                <BreadcrumbSeparator class="w-3 h-3" />
+              </Show>
+              <BreadcrumbItem class="min-w-0 gap-1">
+                <Show
+                  when={index() < segments().length - 1}
+                  fallback={
+                    <BreadcrumbPage class="truncate text-xs">
+                      {segment.label}
+                    </BreadcrumbPage>
+                  }
+                >
+                  <BreadcrumbLink
+                    class="truncate text-xs"
+                    aria-label={`Open ${segment.label}`}
+                    onClick={() => props.onNavigate(segment.path)}
+                  >
+                    {segment.label}
+                  </BreadcrumbLink>
+                </Show>
+              </BreadcrumbItem>
+            </>
+          )}
+        </ForValue>
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
 }
 
 export { formatOptionalTimestamp as formatModified } from "./format";
@@ -917,15 +979,35 @@ export function SnapshotsPage() {
                       <Text class="truncate font-semibold">
                         {snapshotDisplayTitle(snapshot())}
                       </Text>
-                      <Text class="truncate text-xs text-muted">
-                        {snapshot().label.trim()
-                          ? `${shortId(snapshot().id)} · `
-                          : ""}
-                        {searchActive()
-                          ? `Search results for “${searchQuery()}”`
-                          : `/${currentPath() || ""}`}{" "}
-                        · {fileCountLabel()}
-                      </Text>
+                      <View class="min-w-0 flex flex-row items-center gap-1 text-muted">
+                        <Show when={snapshot().label.trim()}>
+                          <Text class="flex-none text-xs text-muted">
+                            {shortId(snapshot().id)} ·
+                          </Text>
+                        </Show>
+                        <Show
+                          when={!searchActive()}
+                          fallback={
+                            <Text class="min-w-0 truncate text-xs text-muted">
+                              Search results for “{searchQuery()}”
+                            </Text>
+                          }
+                        >
+                          <SnapshotPathBreadcrumb
+                            path={currentPath()}
+                            onNavigate={(path) =>
+                              void loadFiles(
+                                session.activeProfile()?.id ?? "",
+                                snapshot(),
+                                path,
+                              )
+                            }
+                          />
+                        </Show>
+                        <Text class="flex-none text-xs text-muted">
+                          · {fileCountLabel()}
+                        </Text>
+                      </View>
                     </View>
                     <SnapshotDetails
                       snapshot={snapshot()}

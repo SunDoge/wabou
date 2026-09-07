@@ -107,6 +107,7 @@ function assertFullWorkspace(
     role: "group",
     name: "Snapshot file workspace",
   });
+  getLayoutNode(fixture, { role: "group", name: "Snapshot path" });
   getLayoutNode(fixture, { role: "table", name: "Snapshot files" });
 
   const selectedTitleCount = queryLayoutNodes(fixture, {
@@ -505,6 +506,24 @@ await renderLayoutFixtures({
           )
         ) {
           throw new Error("schedule hides its last failure");
+        }
+      },
+    },
+    {
+      id: "timestow/snapshot-path-narrow",
+      width: 420,
+      height: 80,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        const breadcrumb = getLayoutNode(fixture, {
+          role: "group",
+          name: "Snapshot path",
+        });
+        getLayoutNode(fixture, { role: "link", name: "Open Root" });
+        getLayoutNode(fixture, { role: "link", name: "Open Finance" });
+        getLayoutNode(fixture, { text: "2026" });
+        if (breadcrumb.rect.width > 388.5) {
+          throw new Error("snapshot breadcrumb escapes its narrow host");
         }
       },
     },

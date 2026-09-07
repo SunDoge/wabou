@@ -40,7 +40,11 @@ import { TimestowSessionProvider, useTimestowSession } from "./session";
 import { BackupConnectionForm } from "./setup";
 import { AppShell, SessionErrorBanner, TimestowSidebar } from "./shell";
 import { SnapshotDiffPanel } from "./snapshot-diff";
-import { SnapshotsPage, SnapshotWorkspaceHeader } from "./snapshots";
+import {
+  SnapshotPathBreadcrumb,
+  SnapshotsPage,
+  SnapshotWorkspaceHeader,
+} from "./snapshots";
 import { BackupSourcesPanel } from "./workspace-components";
 
 const profile = {
@@ -660,6 +664,21 @@ function BackupScheduleFixture() {
   );
 }
 
+function SnapshotPathFixture() {
+  return (
+    <ColorThemeProvider theme="light">
+      <ComponentsProvider theme="light">
+        <View class="w-full h-full min-w-0 bg-surface p-4 text-primary">
+          <SnapshotPathBreadcrumb
+            path="Documents/Finance/Annual reports/2026"
+            onNavigate={() => {}}
+          />
+        </View>
+      </ComponentsProvider>
+    </ColorThemeProvider>
+  );
+}
+
 defineLayoutFixtures(
   defineComponentFixtures({
     "timestow/setup-wide": {
@@ -777,6 +796,11 @@ defineLayoutFixtures(
       height: 600,
       waitMs: 100,
       render: BackupScheduleFixture,
+    },
+    "timestow/snapshot-path-narrow": {
+      width: 420,
+      height: 80,
+      render: SnapshotPathFixture,
     },
   }),
   { colorTheme: false },
