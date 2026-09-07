@@ -53,7 +53,6 @@ use vello::peniko::Color;
 use vello::peniko::Fill;
 use wabou_style::IrValue;
 
-use crate::gpui_controller::GpuiController;
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
 use crate::protocol::NodeKey;
 
@@ -515,24 +514,7 @@ pub struct LegacyRuntimeController {
     document: DocumentState,
     interaction: InteractionState,
     frame: FrameState,
-    gpui: GpuiController,
-}
-
-// Transitional field forwarding while legacy tests are moved to their own
-// crate. Production ownership already lives in `GpuiController`; removing
-// these impls is part of deleting the legacy controller, not a public API.
-impl std::ops::Deref for LegacyRuntimeController {
-    type Target = GpuiController;
-
-    fn deref(&self) -> &Self::Target {
-        &self.gpui
-    }
-}
-
-impl std::ops::DerefMut for LegacyRuntimeController {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.gpui
-    }
+    runtime: RuntimeSession,
 }
 
 /// Compatibility name used only by the legacy Winit projection modules.
@@ -541,10 +523,7 @@ pub type Applier = LegacyRuntimeController;
 
 impl LegacyRuntimeController {
     #[cfg(test)]
-    pub(crate) fn gpui_text_input_state(&self) -> gpui_shell::ProjectedTextInputState {
-        if self.gpui.focused_target().is_some() {
-            return self.gpui.text_input_state();
-        }
+    pub(crate) fn text_input_state(&self) -> gpui_shell::ProjectedTextInputState {
         let Some(target) = self.interaction.input.focused_target else {
             return gpui_shell::ProjectedTextInputState::default();
         };
@@ -574,16 +553,6 @@ impl LegacyRuntimeController {
                 ]
             }),
         }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn gpui_style(&self, key: NodeKey) -> Option<&gpui_shell::gpui::Style> {
-        self.gpui.projection().style(key)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn gpui_revision(&self) -> u64 {
-        self.gpui.projection().revision()
     }
 
     /// Build an applier over an already-booted [`JsRuntime`] (the host owns
@@ -628,12 +597,11 @@ impl LegacyRuntimeController {
             document: DocumentState::new(atoms, widget_factories, base_color),
             interaction: InteractionState::new(),
             frame: FrameState::new(FrameProjections::new(layout_metrics), resize_targets),
-            gpui: GpuiController::new(RuntimeSession::new(js, window_key)),
+            runtime: RuntimeSession::new(js, window_key),
         }
     }
 
     pub(crate) fn set_image_resource_store(&mut self, store: crate::ImageResourceStore) {
-        self.gpui.set_image_resources(store.clone());
         self.document.resources.set_image_store(store);
     }
 
@@ -642,23 +610,57 @@ impl LegacyRuntimeController {
         source: &str,
         source_map: Option<&[u8]>,
     ) -> rquickjs::Result<()> {
-        self.gpui.boot_with_source_map(source, source_map)
+        self.runtime.js.boot_with_source_map(source, source_map)
     }
 
     pub(crate) fn set_app_directories(&mut self, directories: gpui_shell::AppDirectories) {
-        self.gpui.set_app_directories(directories);
+        self.runtime.effect_bridge.set_app_directories(directories);
     }
 
     pub(crate) fn host_message_context(
         &self,
         window_key: gpui_shell::WindowResourceKey,
     ) -> crate::HostMessageContext {
-        self.gpui.host_message_context(window_key)
+        crate::HostMessageContext::new(
+            window_key,
+            self.host_message_handle(),
+            self.runtime.host_message_cancellation.clone(),
+            self.runtime.js.tokio_handle(),
+            self.runtime.host_tasks.clone(),
+        )
     }
 
     #[cfg(feature = "vite")]
     pub(crate) fn boot_vite(&mut self, entry: &str) -> rquickjs::Result<()> {
-        self.gpui.boot_vite(entry)
+        self.runtime.js.boot_vite(entry)
+    }
+
+    pub fn boot(&mut self, source: &str) -> rquickjs::Result<()> {
+        self.runtime.js.boot(source)
+    }
+
+    pub fn eval_script(&self, source: &str) -> rquickjs::Result<()> {
+        self.runtime.js.eval_script(source)
+    }
+
+    pub fn eval_script_diagnostic(&self, source: &str) -> Result<(), String> {
+        self.runtime.js.eval_script_diagnostic(source)
+    }
+
+    pub fn eval_string(&self, source: &str) -> rquickjs::Result<String> {
+        self.runtime.js.eval_string(source)
+    }
+
+    pub fn protocol_revision(&self) -> u64 {
+        self.runtime.protocol_revision
+    }
+
+    pub(crate) fn set_effect_trace(&mut self, trace: crate::effect_trace::EffectTrace) {
+        self.runtime.effect_bridge.set_trace(trace);
+    }
+
+    pub fn host_message_handle(&self) -> crate::HostMessageHandle {
+        self.runtime.host_message_handle.clone()
     }
 
     /// Attach the immutable snapshot store published through DevTools.

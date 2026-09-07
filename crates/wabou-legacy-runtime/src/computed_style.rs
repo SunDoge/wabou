@@ -75,7 +75,6 @@ fn stylesheet_pushed_during_javascript_tick_applies_in_the_same_frame() {
     .unwrap();
 
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let initial_gpui_revision = applier.gpui_revision();
     let (tag, class) = {
         let mut atoms = applier.document.atoms.borrow_mut();
         (atoms.intern("text"), atoms.intern("hmr-color"))
@@ -96,30 +95,17 @@ fn stylesheet_pushed_during_javascript_tick_applies_in_the_same_frame() {
         ],
     });
     assert_eq!(
-        applier.gpui_revision(),
-        initial_gpui_revision,
-        "an incomplete runtime frame must not be visible to GPUI",
+        applier.computed_node_snapshot(id).unwrap().text_color,
+        Color::BLACK,
+        "the stylesheet published by JavaScript must not apply before its tick",
     );
 
     applier.build_frame(&mut legacy_shell::TextContext::new(), 800, 600);
 
     assert_eq!(
-        applier.gpui_revision(),
-        initial_gpui_revision + 1,
-        "one Solid flush must produce one complete GPUI publication",
-    );
-
-    assert_eq!(
         applier.computed_node_snapshot(id).unwrap().text_color,
         Color::from_rgba8(0x33, 0x66, 0xcc, 0xff),
         "HMR stylesheet and refreshed component must commit atomically",
-    );
-    assert_eq!(
-        applier.gpui_style(id).unwrap().text.color,
-        Some(gpui_shell::gpui::rgb_to_hsla(gpui_shell::gpui::rgba(
-            0x3366ccff
-        ),)),
-        "the same resolved cascade must feed the GPUI projection",
     );
 }
 

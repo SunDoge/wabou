@@ -11,16 +11,18 @@ impl Applier {
     }
 
     fn drain_pending_stylesheet(&mut self) {
-        let Some(update) = self.gpui.take_stylesheet_update() else {
+        let Some(update) = self
+            .runtime
+            .pending_css
+            .as_ref()
+            .and_then(|pending| pending.borrow_mut().take())
+        else {
             return;
         };
         match update {
             StylesheetUpdate::Ir(sheet) if sheet.validate().is_ok() => {
                 for diagnostic in &sheet.diagnostics {
                     tracing::warn!(target: "stylesheet", %diagnostic);
-                }
-                if let Err(error) = self.gpui.install_stylesheet(sheet.clone()) {
-                    tracing::error!(target: "stylesheet", %error, "failed to install GPUI stylesheet");
                 }
                 let (rule_index, universal_rules) = {
                     let mut atoms = self.document.atoms.borrow_mut();
@@ -83,7 +85,12 @@ impl Applier {
     }
 
     fn drain_pending_color_theme(&mut self) {
-        let Some(name) = self.gpui.take_color_theme() else {
+        let Some(name) = self
+            .runtime
+            .pending_color_theme
+            .as_ref()
+            .and_then(|pending| pending.borrow_mut().take())
+        else {
             return;
         };
         let selected = self
@@ -94,9 +101,6 @@ impl Applier {
             .and_then(|sheet| sheet.color_themes.as_ref())
             .and_then(|themes| themes.themes.get(&name));
         if let Some(theme) = selected {
-            if let Err(error) = self.gpui.select_color_theme(&name) {
-                tracing::error!(target: "stylesheet", %error, "failed to select GPUI color theme");
-            }
             if self.document.style.active_color_theme.as_deref() != Some(name.as_str()) {
                 self.document.style.active_theme_colors = Arc::new(theme.colors.clone());
                 self.document.style.active_color_theme = Some(name);
@@ -109,7 +113,12 @@ impl Applier {
     }
 
     fn drain_pending_color_palette(&mut self) {
-        let Some(colors) = self.gpui.take_color_palette() else {
+        let Some(colors) = self
+            .runtime
+            .pending_color_palette
+            .as_ref()
+            .and_then(|pending| pending.borrow_mut().take())
+        else {
             return;
         };
         let tokens = self
@@ -129,9 +138,6 @@ impl Applier {
         };
         if tokens.len() == colors.len() {
             let palette = tokens.into_iter().zip(colors).collect::<HashMap<_, _>>();
-            if let Err(error) = self.gpui.install_color_palette(palette.clone()) {
-                tracing::error!(target: "stylesheet", %error, "failed to install GPUI color palette");
-            }
             self.document.style.active_theme_colors = Arc::new(palette);
             self.document.style.class_resolution_cache.clear();
             self.recompute_color_palette();
@@ -155,13 +161,16 @@ impl Applier {
             let span = tracing::trace_span!(target: "wabou::perf", "quick.js_tick");
             #[cfg(feature = "profiling")]
             let _guard = span.enter();
-            self.gpui.tick_js()
+            self.runtime.js.tick().map(|(bytes, has_raf)| {
+                self.runtime.has_raf = has_raf;
+                bytes
+            })
         };
         let bytes = match result {
             Ok(result) => result,
             Err(error) => {
                 tracing::error!(target: "bridge", "JS tick failed: {error:?}");
-                self.gpui.fail_js_tick();
+                self.runtime.has_raf = false;
                 return false;
             }
         };
@@ -182,7 +191,7 @@ impl Applier {
             };
             match decoded {
                 Ok(frame) => {
-                    self.gpui.record_protocol_frame();
+                    self.runtime.protocol_revision = self.runtime.protocol_revision.wrapping_add(1);
                     #[cfg(any(feature = "devtools", test))]
                     if let Some(state) = &self.frame.projections.debug_state
                         && let Ok(mut state) = state.write()
@@ -225,7 +234,7 @@ impl Applier {
                 Err(error) => tracing::error!(target: "bridge", "decode frame failed: {error}"),
             }
         }
-        self.gpui.finish_js_tick();
+        self.runtime.js.poll_async_runtime();
         true
     }
 
@@ -236,7 +245,8 @@ impl Applier {
     /// consume the same completed Solid flush and resolved cascade.
     fn advance_runtime_frame(&mut self, width: u32, height: u32) -> bool {
         self.document.invalidation.remove(InvalidationFlags::TICK);
-        self.gpui.prepare_js_tick();
+        self.runtime.js.take_async_wake();
+        self.runtime.js.poll_async_runtime();
         self.drain_pending_stylesheet();
         self.drain_pending_color_theme();
         self.drain_pending_color_palette();
@@ -254,10 +264,7 @@ impl Applier {
     }
 
     #[cfg(test)]
-    pub(crate) fn gpui_commit_text_value(&mut self, target: NodeKey, value: &str) -> bool {
-        if self.gpui.contains(target) {
-            return self.gpui.commit_text_value(target, value);
-        }
+    pub(crate) fn commit_text_value(&mut self, target: NodeKey, value: &str) -> bool {
         let Some(&node) = self.document.node_store.solid_to_node.get(&target) else {
             return false;
         };
@@ -364,8 +371,6 @@ impl FrameSource for Applier {
         }
         // Publish only after structural operations, class resolution, HMR
         // stylesheets, and inheritance have all settled for this Solid flush.
-        #[cfg(test)]
-        let _ = self.gpui.projection_mut().finish_frame();
         {
             #[cfg(feature = "profiling")]
             let span = tracing::trace_span!(target: "wabou::perf", "quick.widgets.measure");
@@ -1031,7 +1036,12 @@ impl FrameSource for Applier {
     }
 
     fn poll_async(&mut self) -> bool {
-        let session_progressed = self.gpui.poll_runtime_session();
+        let was_woken = self.runtime.js.take_async_wake();
+        let js_progressed = self.runtime.js.poll_async_runtime();
+        let session_progressed = was_woken
+            || js_progressed
+            || self.runtime.host_message_inbox.has_pending()
+            || self.runtime.reload.is_pending();
         // Host messages are application events, not render events. Drain them
         // on the event-loop wake path as well as at the next frame boundary so
         // tray/background applications keep responding while their native

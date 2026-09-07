@@ -84,9 +84,10 @@ uses the same development override, adjacent-resource, Debian `/usr/lib`, and
 macOS `.app/Contents/Resources` candidates as GPUI instead of its older subset.
 The standard Winit controls support native text, paste, IME, pointer, wheel,
 selection, and value synchronization, and the shared semantic behavior driver
-runs against the real Winit event loop. The remaining promotion work is
-backend-labelled pixel fixtures, application-defined widget parity, and
-removal of the transitional GPUI session wrapper from the Winit runtime.
+runs against the real Winit event loop. The Winit controller now owns the
+shared `RuntimeSession` directly: it no longer retains or mirrors protocol
+frames into a GPUI projection. The remaining promotion work is backend-labelled
+pixel fixtures and application-defined widget parity.
 
 The Hybrid style projection preserves independent corner radii through
 background, border, outline, overflow, and native-widget clipping. AnyRender's

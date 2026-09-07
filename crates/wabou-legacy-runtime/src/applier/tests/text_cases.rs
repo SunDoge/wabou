@@ -265,7 +265,7 @@ fn text_input_updates_value_paints_and_dispatches_input() {
 }
 
 #[test]
-fn gpui_text_change_updates_the_exact_control_and_dispatches_once() {
+fn text_change_updates_the_exact_control_and_dispatches_once() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
@@ -288,7 +288,7 @@ fn gpui_text_change_updates_the_exact_control_and_dispatches_once() {
         event_type: event::INPUT,
     });
 
-    assert!(applier.gpui_commit_text_value(target, "after"));
+    assert!(applier.commit_text_value(target, "after"));
     let node = applier.document.node_store.solid_to_node[&target];
     assert_eq!(
         applier.document.node_store.declared[&node].attrs[&value].as_ref(),
@@ -313,7 +313,7 @@ fn gpui_text_change_updates_the_exact_control_and_dispatches_once() {
         serde_json::json!([target.lo, target.hi, event::INPUT, r#"{"value":"after"}"#])
     );
 
-    assert!(!applier.gpui_commit_text_value(NodeKey::new(7, 2), "stale"));
+    assert!(!applier.commit_text_value(NodeKey::new(7, 2), "stale"));
     assert_eq!(
         applier.document.node_store.declared[&node].attrs[&value].as_ref(),
         "after",

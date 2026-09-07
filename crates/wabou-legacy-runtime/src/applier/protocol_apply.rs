@@ -133,7 +133,7 @@ impl Applier {
         &mut self,
         events: &[HostEvent],
     ) -> rquickjs::Result<crate::jsrt::HostFrameDisposition> {
-        let disposition = self.gpui.dispatch_host_frame_raw(events)?;
+        let disposition = self.runtime.js.dispatch_host_frame(events)?;
         if !disposition.protocol_frame.is_empty() {
             tracing::trace!(
                 target: "bridge",
@@ -567,13 +567,6 @@ impl Applier {
 
     /// Decode + apply one frame's ops in order.
     pub(super) fn apply_frame(&mut self, frame: &Frame) {
-        // Keep the old GPUI projection only as a cross-backend oracle in this
-        // crate's unit tests. Production Winit frames have one authoritative
-        // retained tree and must not pay to build a second renderer tree.
-        #[cfg(test)]
-        if let Err(error) = self.gpui.apply_frame(frame) {
-            tracing::error!(?error, "failed to project Solid frame into GPUI");
-        }
         self.document.applying_frame = true;
         for op in &frame.ops {
             self.apply_op(op);

@@ -23,8 +23,6 @@ mod effect_trace {
     pub use runtime_api::EffectTrace;
 }
 mod error;
-#[allow(dead_code)] // Transitional protocol-session adapter; Winit uses its shared subset.
-mod gpui_controller;
 mod headless_test;
 mod host;
 #[cfg(test)]

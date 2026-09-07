@@ -1919,7 +1919,7 @@ fn focused_widget_can_consume_tab_before_default_focus_traversal() {
 }
 
 #[test]
-fn gpui_text_input_snapshot_uses_the_focused_widgets_utf16_contract() {
+fn text_input_snapshot_uses_the_focused_widgets_utf16_contract() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.document.atoms.borrow_mut().intern("div");
@@ -1949,7 +1949,7 @@ fn gpui_text_input_snapshot_uses_the_focused_widgets_utf16_contract() {
         spellcheck: true,
     });
 
-    let state = applier.gpui_text_input_state();
+    let state = applier.text_input_state();
     assert!(state.accepts_text);
     assert_eq!(state.text.as_deref(), Some("a😀b"));
     assert_eq!(state.selection, Some(1..3));
