@@ -303,6 +303,26 @@ await renderLayoutFixtures({
       },
     },
     {
+      id: "timestow/snapshot-tree-error",
+      width: 360,
+      height: 280,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, {
+          role: "alert",
+          name: "Snapshot tree load failed",
+        });
+        getLayoutNode(fixture, {
+          role: "button",
+          name: "Retry loading snapshot root",
+        });
+        getLayoutNode(fixture, {
+          role: "treeitem",
+          name: "Snapshot root",
+        });
+      },
+    },
+    {
       id: "timestow/backup-progress-narrow",
       width: 420,
       height: 88,

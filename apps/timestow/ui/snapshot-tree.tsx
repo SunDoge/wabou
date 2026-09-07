@@ -1,4 +1,15 @@
-import { Icon, Text, type TreeNode, TreeView, View } from "@wabou/ui";
+import {
+  Alert,
+  AlertActions,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Icon,
+  Text,
+  type TreeNode,
+  TreeView,
+  View,
+} from "@wabou/ui";
 import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
@@ -19,6 +30,25 @@ interface DirectoryListing {
   total: number;
 }
 
+interface DirectoryLoadFailure {
+  path: string;
+  append: boolean;
+  message: string;
+}
+
+function directoryLabel(path: string): string {
+  if (!path) return "snapshot root";
+  return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+}
+
+function loadFailureTitle(failure: DirectoryLoadFailure): string {
+  if (failure.append) {
+    return `Couldn’t load more files from ${directoryLabel(failure.path)}`;
+  }
+  if (!failure.path) return "Couldn’t load snapshot files";
+  return `Couldn’t load ${directoryLabel(failure.path)}`;
+}
+
 export function SnapshotFileTree(props: {
   profileId: string;
   snapshotId: string;
@@ -33,7 +63,7 @@ export function SnapshotFileTree(props: {
     ROOT_ID,
   ]);
   const [loadingPaths, setLoadingPaths] = createSignal<readonly string[]>([]);
-  const [error, setError] = createSignal<string>();
+  const [failure, setFailure] = createSignal<DirectoryLoadFailure>();
   let generation = 0;
 
   const pathForId = (id: string) => (id === ROOT_ID ? "" : id);
@@ -45,7 +75,7 @@ export function SnapshotFileTree(props: {
     const requestGeneration = generation;
     const offset = append ? (directories()[path]?.entries.length ?? 0) : 0;
     setLoadingPaths((current) => [...current, path]);
-    setError(undefined);
+    setFailure((current) => (current?.path === path ? undefined : current));
     try {
       const listing = await api.listFiles({
         profileId: props.profileId,
@@ -64,9 +94,14 @@ export function SnapshotFileTree(props: {
           total: listing.total,
         },
       }));
+      setFailure((current) => (current?.path === path ? undefined : current));
     } catch (cause) {
       if (requestGeneration === generation) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setFailure({
+          path,
+          append,
+          message: cause instanceof Error ? cause.message : String(cause),
+        });
       }
     } finally {
       if (requestGeneration === generation) {
@@ -119,7 +154,7 @@ export function SnapshotFileTree(props: {
       setDirectories({});
       setExpandedIds([ROOT_ID]);
       setLoadingPaths([]);
-      setError(undefined);
+      setFailure(undefined);
       untrack(() => void load(""));
     },
   );
@@ -148,11 +183,28 @@ export function SnapshotFileTree(props: {
           <Text class="text-xs text-muted">Loading…</Text>
         </Show>
       </View>
-      <Show when={error()}>
-        {(message) => (
-          <Text class="px-4 pb-2 whitespace-normal text-xs text-danger-primary">
-            {message()}
-          </Text>
+      <Show when={failure()}>
+        {(current) => (
+          <Alert
+            variant="error"
+            size="sm"
+            aria-label="Snapshot tree load failed"
+            class="mx-2 w-auto"
+          >
+            <AlertTitle>{loadFailureTitle(current())}</AlertTitle>
+            <AlertDescription>{current().message}</AlertDescription>
+            <AlertActions>
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label={`Retry loading ${directoryLabel(current().path)}`}
+                disabled={loadingPaths().includes(current().path)}
+                onClick={() => void load(current().path, current().append)}
+              >
+                Retry
+              </Button>
+            </AlertActions>
+          </Alert>
         )}
       </Show>
       <TreeView

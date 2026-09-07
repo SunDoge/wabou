@@ -40,6 +40,7 @@ import { TimestowSessionProvider, useTimestowSession } from "./session";
 import { BackupConnectionForm } from "./setup";
 import { AppShell, SessionErrorBanner, TimestowSidebar } from "./shell";
 import { SnapshotDiffPanel } from "./snapshot-diff";
+import { SnapshotFileTree } from "./snapshot-tree";
 import {
   SnapshotPathBreadcrumb,
   SnapshotsPage,
@@ -443,6 +444,40 @@ function WorkspaceFileErrorFixture() {
   );
 }
 
+function SnapshotTreeErrorFixture() {
+  const inheritedHost = useHost();
+  return (
+    <HostProvider
+      value={
+        {
+          ...inheritedHost,
+          rustic: {
+            ...fixtureRustic,
+            listFiles: () =>
+              Promise.reject(
+                new Error(
+                  "The repository connection was interrupted while reading this directory.",
+                ),
+              ),
+          },
+        } as typeof inheritedHost
+      }
+    >
+      <ColorThemeProvider theme="light">
+        <ComponentsProvider theme="light">
+          <View class="w-full h-full min-w-0 min-h-0 bg-surface p-3 text-primary">
+            <SnapshotFileTree
+              profileId={profile.id}
+              snapshotId={newestSnapshot.id}
+              onSelect={() => {}}
+            />
+          </View>
+        </ComponentsProvider>
+      </ColorThemeProvider>
+    </HostProvider>
+  );
+}
+
 function BackupProgressFixture() {
   return (
     <ColorThemeProvider theme="light">
@@ -742,6 +777,12 @@ defineLayoutFixtures(
       height: 620,
       waitMs: 100,
       render: WorkspaceFileErrorFixture,
+    },
+    "timestow/snapshot-tree-error": {
+      width: 360,
+      height: 280,
+      waitMs: 100,
+      render: SnapshotTreeErrorFixture,
     },
     "timestow/backup-progress-narrow": {
       width: 420,

@@ -961,6 +961,85 @@ test("snapshot file tree loads child directories only when expanded", async () =
   });
 });
 
+test("snapshot file tree retries a failed directory without clearing loaded files", async () => {
+  let docsAttempts = 0;
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 12,
+      listFiles: async (request: { path: string }) => {
+        if (request.path === "docs") {
+          docsAttempts += 1;
+          if (docsAttempts === 1) {
+            throw new Error("The repository connection was interrupted.");
+          }
+          return {
+            entries: [
+              {
+                name: "guide.md",
+                path: "docs/guide.md",
+                kind: "file" as const,
+                size: 8,
+              },
+            ],
+            total: 1,
+            offset: 0,
+            hasMore: false,
+          };
+        }
+        return {
+          entries: [
+            {
+              name: "docs",
+              path: "docs",
+              kind: "directory" as const,
+              size: 0,
+            },
+            {
+              name: "README.md",
+              path: "README.md",
+              kind: "file" as const,
+              size: 12,
+            },
+          ],
+          total: 2,
+          offset: 0,
+          hasMore: false,
+        };
+      },
+    },
+  });
+  const screen = renderComponent(
+    () => (
+      <SnapshotFileTree
+        profileId="profile"
+        snapshotId="snapshot"
+        onSelect={() => {}}
+      />
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("treeitem", { name: "docs" })).toBeDefined();
+  });
+  screen.getByRole("treeitem", { name: "docs" }).click();
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("alert", { name: "Snapshot tree load failed" }).text,
+    ).toContain("Couldn’t load docs");
+  });
+  expect(screen.getByRole("treeitem", { name: "README.md" })).toBeDefined();
+
+  screen.getByRole("button", { name: "Retry loading docs" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("treeitem", { name: "guide.md" })).toBeDefined();
+  });
+  expect(
+    screen.queryByRole("alert", { name: "Snapshot tree load failed" }),
+  ).toBeNull();
+  expect(docsAttempts).toBe(2);
+});
+
 test("file details preview and extract through the native rustic capability", async () => {
   const fixture = createTestHost({
     rustic: {
