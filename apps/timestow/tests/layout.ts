@@ -212,7 +212,11 @@ await renderLayoutFixtures({
         getLayoutNode(fixture, {
           text: "Run your first backup to create a snapshot.",
         });
-        getLayoutNode(fixture, { text: "Select a snapshot" });
+        getLayoutNode(fixture, { text: "Create your first snapshot" });
+        getLayoutNode(fixture, { role: "button", name: "Back up now" });
+        if (queryLayoutNodes(fixture, { text: "Select a snapshot" }).length) {
+          throw new Error("empty repository asks the user to select nothing");
+        }
         if (queryLayoutNodes(fixture, { role: "table" }).length > 0) {
           throw new Error("empty repository renders a stale file table");
         }
@@ -228,6 +232,10 @@ await renderLayoutFixtures({
           text: "Repository index could not be read.",
         });
         getLayoutNode(fixture, { text: "No snapshots yet" });
+        getLayoutNode(fixture, {
+          role: "alert",
+          name: "Snapshot history unavailable",
+        });
       },
     },
     {

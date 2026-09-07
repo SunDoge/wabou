@@ -39,8 +39,10 @@ import {
   createSignal,
   For as ForValue,
   type JSX,
+  Match,
   onCleanup,
   Show,
+  Switch,
 } from "solid-js";
 import {
   FILE_PAGE_SIZE,
@@ -189,6 +191,7 @@ export interface SnapshotWorkspaceHeaderProps {
   repositoryPath: string;
   sources: readonly string[];
   backingUp: boolean;
+  showBackupAction?: boolean;
   scheduleControl?: JSX.Element;
   onSourcesChange(sources: string[]): void;
   onRefresh(): void;
@@ -223,17 +226,83 @@ export function SnapshotWorkspaceHeader(props: SnapshotWorkspaceHeaderProps) {
             >
               <Icon source={refreshCw} size={14} /> Refresh
             </Button>
-            <Button
-              aria-label={props.backingUp ? "Backing up" : "Back up now"}
-              disabled={props.sources.length === 0 || props.backingUp}
-              onClick={props.onBackup}
-            >
-              {props.backingUp ? "Backing up…" : "Back up now"}
-            </Button>
+            <Show when={props.showBackupAction !== false}>
+              <Button
+                aria-label={props.backingUp ? "Backing up" : "Back up now"}
+                disabled={props.sources.length === 0 || props.backingUp}
+                onClick={props.onBackup}
+              >
+                {props.backingUp ? "Backing up…" : "Back up now"}
+              </Button>
+            </Show>
           </View>
         </View>
       }
     />
+  );
+}
+
+export function SnapshotBrowserEmptyState(props: {
+  loading: boolean;
+  loadFailed: boolean;
+  hasSnapshots: boolean;
+  sourceCount: number;
+  backingUp: boolean;
+  onBackup(): void;
+}) {
+  return (
+    <Switch
+      fallback={
+        <ContentState
+          state="empty"
+          title="Create your first snapshot"
+          description={`Back up ${props.sourceCount} ${props.sourceCount === 1 ? "folder" : "folders"} to start the history.`}
+          action={{ label: "Back up now", onAction: props.onBackup }}
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      }
+    >
+      <Match when={props.loading}>
+        <ContentState
+          state="loading"
+          title="Loading snapshots"
+          description="Reading this backup’s history…"
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+      <Match when={props.loadFailed}>
+        <ContentState
+          state="error"
+          title="Snapshot history unavailable"
+          description="Resolve the error above or refresh to try again."
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+      <Match when={props.hasSnapshots}>
+        <ContentState
+          state="empty"
+          title="Select a snapshot"
+          description="Choose a point in time from the history to browse its files."
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+      <Match when={props.backingUp}>
+        <ContentState
+          state="loading"
+          title="Creating your first snapshot"
+          description="Timestow will open it here when the backup finishes."
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+      <Match when={props.sourceCount === 0}>
+        <ContentState
+          state="empty"
+          title="Choose folders to back up"
+          description="Add at least one folder using the folder control above."
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+    </Switch>
   );
 }
 
@@ -566,6 +635,7 @@ export function SnapshotsPage() {
           repositoryPath={session.activeProfile()?.repositoryPath ?? ""}
           sources={session.activeProfile()?.sources ?? []}
           backingUp={backingUp()}
+          showBackupAction={snapshots().length > 0}
           scheduleControl={
             <Show when={session.activeProfile()}>
               {(profile) => (
@@ -684,11 +754,13 @@ export function SnapshotsPage() {
           <Show
             when={selected()}
             fallback={
-              <ContentState
-                state="empty"
-                title="Select a snapshot"
-                description="The files stored in that point in time will appear here."
-                class="min-h-0 flex-1 border-0 shadow-none"
+              <SnapshotBrowserEmptyState
+                loading={loading()}
+                loadFailed={error() !== undefined}
+                hasSnapshots={snapshots().length > 0}
+                sourceCount={session.activeProfile()?.sources.length ?? 0}
+                backingUp={backingUp()}
+                onBackup={() => void runBackup()}
               />
             }
           >

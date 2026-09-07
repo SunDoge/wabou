@@ -25,6 +25,7 @@ import { SnapshotDiffPanel } from "../../apps/timestow/ui/snapshot-diff";
 import { SnapshotFileTree } from "../../apps/timestow/ui/snapshot-tree";
 import {
   formatModified,
+  SnapshotBrowserEmptyState,
   SnapshotFileRow,
   SnapshotWorkspaceHeader,
   snapshotAfterRefresh,
@@ -99,6 +100,7 @@ test("repository setup chooses a mode before exposing one primary action", () =>
 test("backup workspace keeps configuration and primary actions distinct", () => {
   const refresh = vi.fn();
   const backup = vi.fn();
+  const [showBackupAction, setShowBackupAction] = createSignal(true);
   const screen = renderComponent(
     () => (
       <SnapshotWorkspaceHeader
@@ -106,6 +108,7 @@ test("backup workspace keeps configuration and primary actions distinct", () => 
         repositoryPath="/data/backups/home"
         sources={["/data/photos"]}
         backingUp={false}
+        showBackupAction={showBackupAction()}
         scheduleControl={<Button aria-label="Schedule backup" />}
         onSourcesChange={() => {}}
         onRefresh={refresh}
@@ -122,6 +125,70 @@ test("backup workspace keeps configuration and primary actions distinct", () => 
   screen.getByRole("button", { name: "Back up now" }).click();
   expect(refresh).toHaveBeenCalledTimes(1);
   expect(backup).toHaveBeenCalledTimes(1);
+
+  setShowBackupAction(false);
+  screen.flush();
+  expect(screen.queryByRole("button", { name: "Back up now" })).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Refresh snapshots" }),
+  ).toBeDefined();
+});
+
+test("empty snapshot workspace only offers actions the user can take", () => {
+  const backup = vi.fn();
+  const screen = renderComponent(() => (
+    <SnapshotBrowserEmptyState
+      loading={false}
+      loadFailed={false}
+      hasSnapshots={false}
+      sourceCount={2}
+      backingUp={false}
+      onBackup={backup}
+    />
+  ));
+
+  expect(
+    screen.queryByRole("heading", { name: "Select a snapshot" }),
+  ).toBeNull();
+  expect(
+    screen.getByRole("heading", { name: "Create your first snapshot" }),
+  ).toBeDefined();
+  screen.getByRole("button", { name: "Back up now" }).click();
+  expect(backup).toHaveBeenCalledTimes(1);
+});
+
+test("snapshot workspace distinguishes setup, loading, and load failure", () => {
+  const [state, setState] = createSignal({ loading: false, loadFailed: false });
+  const screen = renderComponent(() => (
+    <SnapshotBrowserEmptyState
+      loading={state().loading}
+      loadFailed={state().loadFailed}
+      hasSnapshots={false}
+      sourceCount={0}
+      backingUp={false}
+      onBackup={() => {}}
+    />
+  ));
+
+  expect(
+    screen.getByRole("heading", {
+      name: "Choose folders to back up",
+    }),
+  ).toBeDefined();
+  setState({ loading: true, loadFailed: false });
+  screen.flush();
+  expect(
+    screen.getByRole("status", {
+      name: "Loading snapshots",
+    }),
+  ).toBeDefined();
+  setState({ loading: false, loadFailed: true });
+  screen.flush();
+  expect(
+    screen.getByRole("alert", {
+      name: "Snapshot history unavailable",
+    }),
+  ).toBeDefined();
 });
 
 test("snapshot timestamps stay compact in the table", () => {
