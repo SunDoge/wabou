@@ -148,6 +148,7 @@ export function TimestowSessionProvider(props: {
     activeSelectionWrites = write.catch(() => undefined);
     return write;
   }
+  const profileRemovalOperations = new Map<string, Promise<void>>();
 
   async function refresh(): Promise<void> {
     setLoading(true);
@@ -207,7 +208,21 @@ export function TimestowSessionProvider(props: {
     return true;
   }
 
-  async function forgetProfile(profileId: string): Promise<void> {
+  function forgetProfile(profileId: string): Promise<void> {
+    const existing = profileRemovalOperations.get(profileId);
+    if (existing) return existing;
+    const operation = forgetProfileOnce(profileId);
+    profileRemovalOperations.set(profileId, operation);
+    const clear = () => {
+      if (profileRemovalOperations.get(profileId) === operation) {
+        profileRemovalOperations.delete(profileId);
+      }
+    };
+    void operation.then(clear, clear);
+    return operation;
+  }
+
+  async function forgetProfileOnce(profileId: string): Promise<void> {
     const profile = profiles().find((item) => item.id === profileId);
     if (!profile) throw new Error(`backup profile ${profileId} was not found`);
     if (isBackingUp(profileId)) {

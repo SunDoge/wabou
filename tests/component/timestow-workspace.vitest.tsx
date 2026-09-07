@@ -2053,13 +2053,19 @@ test("forgetting a backup clears native credentials before durable profile metad
     repositoryPath: "/data/repository",
     sources: ["/data/photos"],
   };
+  let finishNativeForget!: () => void;
+  const nativeForget = new Promise<{ unlockedProfileIds: string[] }>(
+    (resolve) => {
+      finishNativeForget = () => resolve({ unlockedProfileIds: [] });
+    },
+  );
   const fixture = createTestHost({
     rustic: {
       __wabouCapabilityVersion: 14,
       status: async () => ({
         unlockedProfileIds: [profile.id],
       }),
-      forgetProfile: async () => ({ unlockedProfileIds: [] }),
+      forgetProfile: () => nativeForget,
     },
   });
   const remove = vi.fn<ProfileStore["remove"]>(async () => {
@@ -2077,7 +2083,10 @@ test("forgetting a backup clears native credentials before durable profile metad
       <>
         <Button
           aria-label="Forget Photos"
-          onClick={() => void session.forgetProfile(profile.id)}
+          onClick={() => {
+            void session.forgetProfile(profile.id);
+            void session.forgetProfile(profile.id);
+          }}
         />
         <Text role="status">
           {session.activeProfile()?.name ?? "none"} ·{" "}
@@ -2099,10 +2108,13 @@ test("forgetting a backup clears native credentials before durable profile metad
     expect(screen.getByRole("status").text).toBe("Photos · 1");
   });
   screen.getByRole("button", { name: "Forget Photos" }).click();
+  expect(fixture.callsTo("rustic.forgetProfile")).toHaveLength(1);
+  finishNativeForget();
   await screen.waitFor(() => {
     expect(screen.getByRole("status").text).toBe("none · 0");
   });
   expect(remove).toHaveBeenCalledWith(profile.id);
+  expect(remove).toHaveBeenCalledTimes(1);
 });
 
 test("a backup stays available for retry when durable forgetting fails", async () => {
