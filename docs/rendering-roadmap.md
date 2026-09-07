@@ -89,6 +89,58 @@ pixel-fixture, and platform input contracts pass on Hybrid. New shared runtime
 features must remain backend-neutral; renderer-specific features require an
 explicit backend implementation and test instead of fallback behavior.
 
+## Target crate boundaries
+
+The current `wabou-legacy-*` names describe history, not architecture, and are
+now misleading. Do not perform a big-bang merge or rename while shared host
+code is still duplicated. Move toward these three layers instead:
+
+```text
+                         wabou (public facade)
+                                  |
+                         wabou-runtime (shared)
+                    QuickJS, Solid flush, capabilities,
+                    messages, resources, HMR, persistence
+                         /                    \
+             wabou-backend-gpui     wabou-backend-vello-hybrid
+             GPUI projection,       Winit, Taffy, Parley,
+             native GPUI widgets    Vello Hybrid projection
+                         \                    /
+                    wabou-shell-api + protocol + style
+```
+
+Here, "backend" includes window lifecycle, input, text, accessibility, layout,
+paint, and native widgets; it is deliberately broader than a renderer. GPUI and
+Vello Hybrid should not be hidden behind one lowest-common-denominator render
+trait. They consume the same retained UI intent and host contracts, then own
+their backend-specific state and optimized paths.
+
+Apply the reorganization in this order:
+
+1. Extract the duplicated backend-neutral files (`jsrt`, bundle/source-map,
+   host ABI/FFI, host messages, capabilities, resources, HMR, persistence and
+   runtime session machinery) into `wabou-runtime`. Both backends must use this
+   single implementation before any crate rename.
+2. Move GPUI-specific `gpui_*` modules and the current `wabou-shell` projection
+   into `wabou-backend-gpui`.
+3. Rename the Winit implementation to `wabou-backend-vello-hybrid`. Keep large
+   renderer helpers such as SVG conversion in a private supporting crate when
+   that preserves incremental compilation; package count is an implementation
+   detail and must not expand the public API.
+4. Make the facade features `backend-gpui` (default) and
+   `backend-vello-hybrid`. Export named builders for both; keep `HostBuilder` as
+   the GPUI alias while it is the default. Backend choice remains compile-time,
+   so applications do not ship both platform stacks accidentally.
+5. Run shared protocol/component behavior suites once per backend, followed by
+   backend-labelled layout, pixel, native-input, and platform smoke tests. A
+   screenshot must always use the renderer that presented its window.
+
+The small support crates (`protocol`, `style`, `host-api`, `bindgen`,
+`database`, and `terminal-core`) stay independent because they are genuine
+dependency and incremental-compilation boundaries. Backend-only widget,
+terminal, and accessibility implementations should not leak into the public
+facade as separate concepts.
+
 ### GPU effects
 
 Design GPU effects only after the Hybrid experiment establishes the renderer's

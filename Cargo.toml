@@ -58,8 +58,9 @@ wabou-devtools = { path = "crates/wabou-devtools", default-features = false }
 wabou-host-api = { path = "crates/wabou-host-api" }
 wabou-legacy-accessibility = { path = "crates/wabou-legacy-accessibility" }
 wabou-legacy-runtime = { path = "crates/wabou-legacy-runtime" }
-# Retired Winit/AnyRender implementation, retained only as a migration oracle.
-# Application and platform work belongs in the GPUI-CE `wabou-shell`.
+# Transitional names for the actively developed Winit/Taffy/Vello Hybrid
+# backend. Keep them split while shared runtime code is extracted; they are no
+# longer a retired compatibility implementation.
 wabou-legacy-shell = { path = "crates/wabou-legacy-shell" }
 wabou-legacy-widgets = { path = "crates/wabou-legacy-widgets" }
 wabou-protocol = { path = "crates/wabou-protocol" }

@@ -14,6 +14,9 @@ use vello::peniko::Color;
 use crate::RendererBackend;
 
 static VELLO_IMAGE_RENDERER: OnceLock<Mutex<anyrender_vello::VelloImageRenderer>> = OnceLock::new();
+static VELLO_HYBRID_IMAGE_RENDERER: OnceLock<
+    Mutex<anyrender_vello_hybrid::VelloHybridImageRenderer>,
+> = OnceLock::new();
 
 /// Render `scene` to an RGBA8 buffer and encode it as PNG at `out_path`.
 pub fn render_to_png(
@@ -67,7 +70,15 @@ pub fn render_to_png_file(
     file: &mut std::fs::File,
     path: &Path,
 ) -> crate::Result<()> {
-    let img = render_to_image(scene, width, height, base_color, RendererBackend::Vello)?;
+    // This shell presents with Vello Hybrid, so DevTools captures must use the
+    // same backend rather than silently returning classic Vello pixels.
+    let img = render_to_image(
+        scene,
+        width,
+        height,
+        base_color,
+        RendererBackend::VelloHybrid,
+    )?;
     image::codecs::png::PngEncoder::new(file)
         .write_image(img.as_raw(), width, height, image::ExtendedColorType::Rgba8)
         .context(crate::error::SavePngSnafu {
@@ -124,10 +135,15 @@ fn render_to_image(
 
     let buf = match backend {
         RendererBackend::VelloHybrid => {
-            return Err(crate::Error::RendererBackendUnavailable {
-                backend: "vello-hybrid offscreen",
-                feature: "a future Vello Hybrid image renderer",
-            });
+            let mut renderer = VELLO_HYBRID_IMAGE_RENDERER
+                .get_or_init(|| {
+                    Mutex::new(anyrender_vello_hybrid::VelloHybridImageRenderer::new(
+                        width, height,
+                    ))
+                })
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            render_with(&mut *renderer, scene, width, height, base_color)
         }
         RendererBackend::Vello => {
             let mut renderer = VELLO_IMAGE_RENDERER
@@ -212,6 +228,20 @@ mod tests {
         for worker in workers {
             worker.join().unwrap();
         }
+    }
+
+    #[test]
+    fn vello_hybrid_offscreen_renderer_replays_the_same_anyrender_scene() {
+        let image = render_to_image(
+            &comparison_scene(),
+            32,
+            32,
+            Color::BLACK,
+            RendererBackend::VelloHybrid,
+        )
+        .unwrap();
+        assert_eq!(image.get_pixel(16, 16).0, [20, 180, 240, 255]);
+        assert_eq!(image.get_pixel(2, 2).0, [0, 0, 0, 255]);
     }
 
     #[cfg(feature = "renderer-skia")]
