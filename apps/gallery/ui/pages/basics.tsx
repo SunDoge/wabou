@@ -516,11 +516,8 @@ function SpinnerPage() {
         <Spinner label="Syncing workspace" />
         <Text class="text-sm text-secondary">Syncing workspace…</Text>
       </View>
-      <Button disabled>
-        <View class="flex items-center gap-2">
-          <Spinner label="Saving workspace" class="text-on-accent" />
-          <Text class="text-sm text-on-accent">Saving</Text>
-        </View>
+      <Button loading loadingLabel="Saving">
+        Save
       </Button>
     </Preview>
   );

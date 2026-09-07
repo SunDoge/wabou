@@ -12994,7 +12994,7 @@ dependencies = [
  "wabou-backend-vello-hybrid",
  "wabou-devtools",
  "wabou-runtime",
- "wabou-shell",
+ "wabou-shell-api",
  "wabou-shell-vello",
  "wabou-widgets-vello",
 ]

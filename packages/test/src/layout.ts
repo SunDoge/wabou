@@ -523,7 +523,7 @@ export function visibleOverflowDiagnostics(
   const diagnostics: LayoutDiagnostic[] = [];
   for (const node of scopedNodes(snapshot, options.within)) {
     let parent = node.parentId ? nodes.get(key(node.parentId)) : undefined;
-    // GPUI shapes direct string children as one glyph run owned by the
+    // The native text projection shapes direct string children as one glyph run owned by the
     // aggregate Text element. The protocol leaf remains inspectable for
     // identity/debugging, but intentionally has no independent layout box.
     // Treating its zero rect as painted geometry produces false overflow at
@@ -745,10 +745,17 @@ export function visualQualityDiagnostics(
       const line = metrics.lineBox;
       const content = node.contentRect;
       const tolerance = options.tolerance ?? 1;
+      // Text editors intentionally allow the laid-out line to exceed the
+      // viewport horizontally and reveal it through native scrolling. A
+      // vertical escape still indicates incorrect line-height/alignment.
+      const horizontallyScrollableText =
+        node.tag === "input" || node.tag === "textarea";
       const overflow = Math.max(
-        content.x - line.x,
+        horizontallyScrollableText ? 0 : content.x - line.x,
         content.y - line.y,
-        layoutRectRight(line) - layoutRectRight(content),
+        horizontallyScrollableText
+          ? 0
+          : layoutRectRight(line) - layoutRectRight(content),
         layoutRectBottom(line) - layoutRectBottom(content),
         0,
       );

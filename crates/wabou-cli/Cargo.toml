@@ -24,5 +24,5 @@ wabou-devtools = { workspace = true }
 wabou-backend-vello-hybrid = { workspace = true, features = ["devtools"] }
 wabou-shell-vello.workspace = true
 wabou-widgets-vello.workspace = true
-wabou-runtime = { workspace = true, features = ["devtools", "gpui-headless"] }
-wabou-shell.workspace = true
+wabou-runtime = { workspace = true, default-features = false, features = ["devtools", "headless"] }
+wabou-shell-api.workspace = true

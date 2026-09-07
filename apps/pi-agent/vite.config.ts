@@ -36,7 +36,7 @@ export default defineWabouConfig(({ mode }) => ({
           selected: "#e4e4e5",
           primary: "#242424",
           secondary: "#666666",
-          muted: "#707070",
+          muted: "#666666",
           subtle: "#dededf",
           strong: "#cacacb",
           accent: "#d97745",

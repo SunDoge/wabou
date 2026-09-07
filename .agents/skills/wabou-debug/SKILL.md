@@ -76,13 +76,6 @@ logs. If a warning only appears during application startup, exercise the real en
 with `renderAppLayout` from `@wabou/test/layout/node`; the captured diagnostic stack
 is source-mapped by the runtime.
 
-For fine-grained Solid-to-GPUI invalidation, use `probeAppProjection` from
-`@wabou/test/layout/node` against a named fixture. It uses the real QuickJS and
-GPUI headless path and draws without `Window::refresh`, preserving GPUI cached
-View behavior. Assert boundary revision and materialization deltas with
-`projectionBoundaryProbe`; do not infer boundary isolation from FPS or from an
-ordinary forced-refresh layout fixture.
-
 Use `waitMs` only for an authored timer, promise, or finite animation. Never add a
 sleep merely to make a flaky assertion pass. Use `page.waitForIdle()` in native
 behavior tests to cross completed JS/native frame boundaries; it intentionally does
@@ -200,15 +193,12 @@ property. Then use `scripts/capture-png.sh` for a deterministic offscreen render
 WABOU_CAPTURE_SCALE_FACTOR=2 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/gallery@2x.png 1440 900
 WABOU_CAPTURE_WINDOW_ID=2 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/child.png 800 600
 mise exec -- bun run wabou render apps/gallery --out /tmp/gallery.png --snapshot /tmp/gallery-tree.json
-mise exec -- bun run wabou render apps/gallery --renderer vello-hybrid --out /tmp/gallery-hybrid.png --snapshot /tmp/gallery-hybrid-tree.json
 ```
 
-Use `--renderer vello-hybrid` to exercise the real QuickJS → Style IR → Taffy →
-Wabou paint IR → Vello Hybrid pipeline without opening a desktop window. This path
+`wabou render` exercises the real QuickJS → Style IR → Taffy → Wabou paint IR →
+Vello Hybrid pipeline without opening a desktop window. This path
 supports named fixtures and ordered `--click`, `--wheel`, `--key`, and `--text`
 replay. It does not use `DISPLAY`, `WAYLAND_DISPLAY`, or an OS input injector.
-Keep the default GPUI renderer for GPUI-specific projection and native-widget
-behavior.
 
 The script uses the real application host by default, so registered services,
 capabilities, message producers, and widget factories participate in the

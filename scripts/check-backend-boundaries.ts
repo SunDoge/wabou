@@ -40,7 +40,6 @@ const SHARED_PACKAGES = new Set([
 const GPUI_BACKEND_PACKAGES = new Set([
   "wabou-shell",
   "wabou-terminal",
-  "wabou-tray",
 ]);
 
 const HYBRID_BACKEND_PACKAGES = new Set([
@@ -49,6 +48,7 @@ const HYBRID_BACKEND_PACKAGES = new Set([
   "wabou-shell-vello",
   "wabou-svg-vello-hybrid",
   "wabou-terminal-vello",
+  "wabou-tray",
   "wabou-widgets-vello",
 ]);
 

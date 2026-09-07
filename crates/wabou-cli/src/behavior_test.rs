@@ -162,7 +162,7 @@ struct ReplayRole(String);
 
 impl ReplayRole {
     fn validate(&self) -> std::result::Result<(), String> {
-        wabou_shell::SemanticRole::from_name(&self.0)
+        wabou_shell_api::SemanticRole::from_name(&self.0)
             .map(|_| ())
             .ok_or_else(|| format!("unknown exposed semantic role {:?}", self.0))
     }

@@ -1,6 +1,7 @@
 //! Deterministic QuickJS + Taffy capture through the Vello Hybrid renderer.
 
 use std::{
+    collections::HashSet,
     fs,
     path::Path,
     process::Command,
@@ -23,11 +24,13 @@ use super::{
     artifact::{app_binary, app_framework_feature},
     behavior_test_runtime, build_behavior_host,
     config::{BuildProfile, bundle_path},
-    ensure, frontend,
-    gpui_render::{HeadlessColorScheme, RenderAction, RenderOptions, prepare_frontend},
-    manifest,
+    ensure, frontend, manifest,
     process::{configure_test_backend, wait_for_behavior_host},
     project::App,
+    render::{
+        HeadlessColorScheme, LayoutBatchCase, LayoutBatchManifest, LayoutBatchReport,
+        LayoutBatchResult, RenderAction, RenderOptions, prepare_frontend,
+    },
 };
 
 #[derive(Clone, Debug, Deserialize)]
@@ -42,6 +45,246 @@ struct LayoutFixture {
     scale_factor: Option<f64>,
     #[serde(default)]
     wait_ms: Option<u64>,
+}
+
+pub(super) fn run_layout(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
+    prepare_frontend(
+        workspace,
+        app,
+        options
+            .fixture
+            .as_ref()
+            .map(|_| "layout-test")
+            .or(options.batch.as_ref().map(|_| "layout-test"))
+            .or(options.mode.as_deref()),
+        options.skip_build,
+    )?;
+    let source = fs::read_to_string(bundle_path(workspace, app, BuildProfile::Debug)?)?;
+    if let Some(manifest) = &options.batch {
+        return run_layout_batch(&source, manifest, options);
+    }
+
+    let selected = options
+        .fixture
+        .as_deref()
+        .map(|id| fixture_case(&source, id))
+        .transpose()?;
+    let width = selected
+        .as_ref()
+        .map_or(options.width, LayoutBatchCase::width);
+    let height = selected
+        .as_ref()
+        .map_or(options.height, LayoutBatchCase::height);
+    let scale_factor = selected
+        .as_ref()
+        .and_then(|case| case.scale_factor)
+        .unwrap_or(options.scale_factor);
+    let wait_ms = selected
+        .as_ref()
+        .and_then(|case| case.wait_ms)
+        .unwrap_or(options.wait_ms);
+    let snapshot = layout_snapshot(
+        &source,
+        selected.as_ref().map(|case| case.id.as_str()),
+        width,
+        height,
+        scale_factor,
+        wait_ms,
+        options.color_scheme,
+    )?;
+    create_parent(&options.out)?;
+    fs::write(&options.out, serde_json::to_vec_pretty(&snapshot)?)?;
+    println!(
+        "[wabou] wrote Vello Hybrid layout snapshot {}",
+        options.out.display()
+    );
+    Ok(())
+}
+
+fn run_layout_batch(source: &str, path: &Path, options: &RenderOptions) -> Result<()> {
+    let mut manifest: LayoutBatchManifest = serde_json::from_slice(&fs::read(path)?)?;
+    if manifest.version != 1 {
+        return Err(format!(
+            "unsupported layout batch manifest version {}",
+            manifest.version
+        )
+        .into());
+    }
+    let registered = fixture_cases(source)?;
+    if manifest.all {
+        manifest.cases = registered.clone();
+    } else {
+        for case in &mut manifest.cases {
+            if let Some(fixture) = registered.iter().find(|fixture| fixture.id == case.id) {
+                case.inherit(fixture);
+            }
+        }
+    }
+    if manifest.cases.is_empty() {
+        return Err("layout batch manifest must contain at least one case".into());
+    }
+
+    let started = Instant::now();
+    let mut ids = HashSet::new();
+    let mut cases = Vec::with_capacity(manifest.cases.len());
+    for case in manifest.cases {
+        if !ids.insert(case.id.clone()) {
+            return Err(format!("duplicate layout batch case id `{}`", case.id).into());
+        }
+        let case_started = Instant::now();
+        let snapshot = layout_snapshot(
+            source,
+            Some(&case.id),
+            case.width(),
+            case.height(),
+            case.scale_factor.unwrap_or(options.scale_factor),
+            case.wait_ms.unwrap_or(options.wait_ms),
+            options.color_scheme,
+        )?;
+        cases.push(LayoutBatchResult {
+            id: case.id,
+            duration_ms: case_started.elapsed().as_secs_f64() * 1_000.0,
+            snapshot,
+        });
+    }
+    create_parent(&options.out)?;
+    fs::write(
+        &options.out,
+        serde_json::to_vec_pretty(&LayoutBatchReport {
+            version: 1,
+            total_duration_ms: started.elapsed().as_secs_f64() * 1_000.0,
+            cases,
+        })?,
+    )?;
+    println!(
+        "[wabou] wrote {} Vello Hybrid layout fixtures to {}",
+        ids.len(),
+        options.out.display()
+    );
+    Ok(())
+}
+
+fn fixture_cases(source: &str) -> Result<Vec<LayoutBatchCase>> {
+    let harness = LayoutHarness::boot(source, 1_440, 900, 1.0, HeadlessColorScheme::Light)?;
+    let encoded = harness
+        .applier
+        .eval_string(
+            "typeof globalThis.__wabou_layout_fixture_cases === 'function' \
+             ? globalThis.__wabou_layout_fixture_cases() : '[]'",
+        )
+        .map_err(|error| format!("failed to list layout fixtures: {error:?}"))?;
+    Ok(serde_json::from_str(&encoded)?)
+}
+
+fn fixture_case(source: &str, id: &str) -> Result<LayoutBatchCase> {
+    fixture_cases(source)?
+        .into_iter()
+        .find(|fixture| fixture.id == id)
+        .ok_or_else(|| format!("unknown layout fixture `{id}`").into())
+}
+
+fn layout_snapshot(
+    source: &str,
+    fixture: Option<&str>,
+    width: u32,
+    height: u32,
+    scale_factor: f64,
+    wait_ms: u64,
+    color_scheme: HeadlessColorScheme,
+) -> Result<serde_json::Value> {
+    validate_dimensions(width, height, scale_factor)?;
+    let mut harness = LayoutHarness::boot(source, width, height, scale_factor, color_scheme)?;
+    if let Some(id) = fixture {
+        let id = serde_json::to_string(id)?;
+        harness
+            .applier
+            .eval_script_diagnostic(&format!("globalThis.__wabou_layout_fixture_mount({id});"))
+            .map_err(|error| format!("failed to mount layout fixture: {error}"))?;
+    }
+    settle(
+        &mut harness.applier,
+        &mut harness.text,
+        &mut harness.nodes,
+        width,
+        height,
+    );
+    drive_for(
+        &mut harness.applier,
+        &mut harness.text,
+        &mut harness.nodes,
+        width,
+        height,
+        wait_ms,
+    );
+    harness.applier.set_debug_state(harness.debug_state.clone());
+    harness.nodes = harness
+        .applier
+        .build_frame(&mut harness.text, width, height);
+    let state = harness
+        .debug_state
+        .read()
+        .map_err(|_| "headless debug snapshot lock was poisoned")?;
+    let mut snapshot = serde_json::to_value(state.snapshot())?;
+    label_snapshot_renderer(&mut snapshot, "vello-hybrid")?;
+    Ok(snapshot)
+}
+
+struct LayoutHarness {
+    applier: Applier,
+    text: TextContext,
+    nodes: Vec<PlacedNode>,
+    debug_state: wabou_devtools::SharedDebugState,
+}
+
+impl LayoutHarness {
+    fn boot(
+        source: &str,
+        width: u32,
+        height: u32,
+        scale_factor: f64,
+        color_scheme: HeadlessColorScheme,
+    ) -> Result<Self> {
+        let window_key = wabou_shell_vello::initial_window_resource_key(0);
+        let runtime = JsRuntime::new()
+            .map_err(|error| format!("cannot create JavaScript runtime: {error:?}"))?;
+        let base_color = AppConfig::new("").base_color;
+        let mut applier = Applier::from_runtime_with_factories_and_window(
+            runtime,
+            wabou_widgets_vello::builtin_factories(),
+            base_color,
+            window_key,
+        );
+        let debug_state = wabou_devtools::DebugState::shared();
+        applier.set_debug_state(debug_state.clone());
+        applier
+            .boot(source)
+            .map_err(|error| format!("cannot boot JavaScript bundle: {error:?}"))?;
+        applier.set_device_scale(scale_factor);
+        applier.handle_event(UiEvent::WindowMetrics(wabou_shell_vello::WindowMetrics {
+            window_key,
+            logical_width: width,
+            logical_height: height,
+            physical_width: physical_size(width, scale_factor),
+            physical_height: physical_size(height, scale_factor),
+            scale_factor,
+            maximized: false,
+            focused: true,
+            outer_x: None,
+            outer_y: None,
+            occluded: false,
+            reduced_motion: true,
+            color_scheme: Some(match color_scheme {
+                HeadlessColorScheme::Light => wabou_shell_vello::ColorScheme::Light,
+                HeadlessColorScheme::Dark => wabou_shell_vello::ColorScheme::Dark,
+            }),
+        }));
+        Ok(Self {
+            applier,
+            text: TextContext::new(),
+            nodes: Vec::new(),
+            debug_state,
+        })
+    }
 }
 
 pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
@@ -209,7 +452,7 @@ fn validate_options(options: &RenderOptions) -> Result<()> {
     if options.metrics.is_some() || options.samples != 20 {
         return Err("Vello Hybrid capture metrics have not been migrated yet".into());
     }
-    if options.batch.is_some() || options.layout_only || options.projection_probe.is_some() {
+    if options.batch.is_some() || options.layout_only {
         return Err("use `wabou layout` for layout batches and projection probes".into());
     }
     for action in &options.actions {
