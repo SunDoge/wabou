@@ -12,9 +12,15 @@ mod atom;
 mod behavior_test;
 mod bundle;
 mod config;
-mod effect_bridge;
+mod effect_bridge {
+    pub use runtime_api::EffectBridge;
+    #[cfg(test)]
+    pub use runtime_api::decode_effect_payload;
+}
 #[allow(dead_code)] // Fixture-only trace mode is retained for the Winit behavior harness.
-mod effect_trace;
+mod effect_trace {
+    pub use runtime_api::EffectTrace;
+}
 mod error;
 #[allow(dead_code)] // Transitional protocol-session adapter; Winit uses its shared subset.
 mod gpui_controller;

@@ -62,6 +62,10 @@ mod css_support_matrix_test;
 #[cfg(feature = "vite")]
 mod vite;
 
+#[doc(hidden)]
+pub use effect_bridge::{EffectBridge, decode_effect_payload};
+#[doc(hidden)]
+pub use effect_trace::EffectTrace;
 pub use error::{Error, Result};
 #[cfg(feature = "headless")]
 pub use gpui_headless::{
