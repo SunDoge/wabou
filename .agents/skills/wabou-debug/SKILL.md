@@ -134,6 +134,30 @@ Prefer an assertion at the earliest incorrect layer. If geometry is correct but 
 
 ## Inspect a running app when deterministic tests cannot isolate it
 
+### Keep native interaction isolated
+
+Never use `ydotool`, `kdotool`, `xdotool`, AppleScript, or another desktop-wide
+input injector against the user's active session. These tools can move the user's
+real pointer, steal focus, type into unrelated applications, and make the result
+nondeterministic.
+
+Prefer, in order:
+
+1. component event simulation or a native behavior scenario;
+2. headless layout/projection and offscreen pixel rendering;
+3. DevTools tree queries, validation, overlays, and capture against a dedicated
+   Wabou process without synthesizing system input;
+4. a nested display server with its own `DISPLAY`, runtime directory, process
+   group, and output directory when compositor-level input is indispensable.
+
+Do not point an isolated test process at the ambient `DISPLAY` or
+`WAYLAND_DISPLAY`. Record the isolated display/socket in the command, verify the
+target process belongs to that display before injecting input, and terminate the
+whole isolated process group during cleanup. If GPUI or a platform backend cannot
+run correctly inside the available nested/headless server, stop at DevTools and
+report that platform interaction still requires a human check; do not fall back to
+the user's desktop.
+
 Start with DevTools enabled:
 
 ```bash
