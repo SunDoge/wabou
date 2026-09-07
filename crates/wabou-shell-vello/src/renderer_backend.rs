@@ -51,13 +51,37 @@ struct ActiveRenderer {
     shaders: ShaderRenderer,
 }
 
+#[derive(Clone, Copy)]
+struct CachedImage {
+    id: ImageId,
+    last_used_frame: u64,
+}
+
+fn finish_image_frame(
+    cache: &mut FxHashMap<u64, CachedImage>,
+    frame: u64,
+    renderer: &mut Renderer,
+    resources: &mut Resources,
+    encoder: &mut wgpu::CommandEncoder,
+) {
+    cache.retain(|_, cached| {
+        if cached.last_used_frame == frame {
+            true
+        } else {
+            renderer.destroy_image(resources, encoder, cached.id);
+            false
+        }
+    });
+}
+
 /// Renderer owned by a Wabou window. There is deliberately no backend switch:
 /// Wabou's Vello shell talks to Vello Hybrid directly.
 pub(crate) struct HybridWindowRenderer {
     context: WGPUContext,
     active: Option<ActiveRenderer>,
     scene: HybridScene,
-    image_cache: FxHashMap<u64, ImageId>,
+    image_cache: FxHashMap<u64, CachedImage>,
+    image_frame: u64,
     transparent: bool,
 }
 
@@ -72,6 +96,7 @@ impl HybridWindowRenderer {
             active: None,
             scene: HybridScene::new(1, 1),
             image_cache: FxHashMap::default(),
+            image_frame: 0,
             transparent,
         })
     }
@@ -182,6 +207,7 @@ impl HybridWindowRenderer {
                 });
         self.scene.reset_and_resize(width as u16, height as u16);
         let mut texture_bindings = TextureBindings::new();
+        self.image_frame = self.image_frame.wrapping_add(1);
         active.shaders.begin_frame();
         let mut painter = HybridPainter {
             scene: &mut self.scene,
@@ -191,6 +217,7 @@ impl HybridWindowRenderer {
             queue: active.surface.queue(),
             encoder: &mut encoder,
             image_cache: &mut self.image_cache,
+            image_frame: self.image_frame,
             shaders: &mut active.shaders,
             texture_bindings: &mut texture_bindings,
             layers: Vec::new(),
@@ -223,6 +250,13 @@ impl HybridWindowRenderer {
                 &texture_bindings,
             )
             .expect("failed to render Vello Hybrid frame");
+        finish_image_frame(
+            &mut self.image_cache,
+            self.image_frame,
+            &mut active.renderer,
+            &mut active.resources,
+            &mut encoder,
+        );
         active.surface.queue().submit([encoder.finish()]);
         active.shaders.finish_frame();
         drop(view);
@@ -264,7 +298,8 @@ pub(crate) struct HybridPainter<'a> {
     device: &'a wgpu::Device,
     queue: &'a wgpu::Queue,
     encoder: &'a mut wgpu::CommandEncoder,
-    image_cache: &'a mut FxHashMap<u64, ImageId>,
+    image_cache: &'a mut FxHashMap<u64, CachedImage>,
+    image_frame: u64,
     shaders: &'a mut ShaderRenderer,
     texture_bindings: &'a mut TextureBindings,
     layers: Vec<LayerKind>,
@@ -277,8 +312,9 @@ impl HybridPainter<'_> {
             Brush::Gradient(gradient) => PaintType::Gradient(gradient.clone()),
             Brush::Image(image) => {
                 let key = image.image.data.id();
-                let id = if let Some(id) = self.image_cache.get(&key) {
-                    *id
+                let id = if let Some(cached) = self.image_cache.get_mut(&key) {
+                    cached.last_used_frame = self.image_frame;
+                    cached.id
                 } else {
                     let ImageSource::Pixmap(pixmap) =
                         ImageSource::from_peniko_image_data(image.image)
@@ -292,7 +328,13 @@ impl HybridPainter<'_> {
                         self.encoder,
                         &pixmap,
                     );
-                    self.image_cache.insert(key, id);
+                    self.image_cache.insert(
+                        key,
+                        CachedImage {
+                            id,
+                            last_used_frame: self.image_frame,
+                        },
+                    );
                     id
                 };
                 PaintType::Image(vello_common::peniko::ImageBrush {
@@ -492,7 +534,8 @@ pub(crate) struct HybridImageRenderer {
     renderer: Renderer,
     resources: Resources,
     scene: HybridScene,
-    image_cache: FxHashMap<u64, ImageId>,
+    image_cache: FxHashMap<u64, CachedImage>,
+    image_frame: u64,
     shaders: ShaderRenderer,
 }
 
@@ -523,6 +566,7 @@ impl HybridImageRenderer {
             resources,
             scene: HybridScene::new(width as u16, height as u16),
             image_cache: FxHashMap::default(),
+            image_frame: 0,
             shaders,
         }
     }
@@ -554,6 +598,7 @@ impl HybridImageRenderer {
                 label: Some("Wabou Vello Hybrid offscreen frame"),
             });
         let mut texture_bindings = TextureBindings::new();
+        self.image_frame = self.image_frame.wrapping_add(1);
         self.shaders.begin_frame();
         let mut painter = HybridPainter {
             scene: &mut self.scene,
@@ -563,6 +608,7 @@ impl HybridImageRenderer {
             queue: self.buffer.queue(),
             encoder: &mut encoder,
             image_cache: &mut self.image_cache,
+            image_frame: self.image_frame,
             shaders: &mut self.shaders,
             texture_bindings: &mut texture_bindings,
             layers: Vec::new(),
@@ -589,6 +635,13 @@ impl HybridImageRenderer {
                 &texture_bindings,
             )
             .expect("failed to render Vello Hybrid scene offscreen");
+        finish_image_frame(
+            &mut self.image_cache,
+            self.image_frame,
+            &mut self.renderer,
+            &mut self.resources,
+            &mut encoder,
+        );
         self.buffer.queue().submit([encoder.finish()]);
         self.shaders.finish_frame();
         let mut rgba = vec![0; (width * height * 4) as usize];
@@ -628,5 +681,25 @@ mod tests {
             ),
             CompositeAlphaMode::Opaque,
         );
+    }
+
+    #[test]
+    fn transient_images_release_their_atlas_allocations_after_each_frame() {
+        let mut renderer = HybridImageRenderer::new(64, 64);
+        let mut text = crate::TextContext::new();
+
+        for frame in 0..12_u8 {
+            let pixels = [frame, 80, 160, 255].repeat(64 * 64);
+            let image = crate::WidgetRasterImage::from_rgba8(64, 64, pixels).unwrap();
+            let mut paint = crate::PaintContext::new(64.0, 64.0, 1.0, &mut text);
+            paint.draw_raster_image(&image);
+
+            renderer.render(&paint.finish(), 64, 64, Color::BLACK);
+            assert_eq!(
+                renderer.image_cache.len(),
+                1,
+                "only the image retained by the current frame may occupy the atlas",
+            );
+        }
     }
 }
