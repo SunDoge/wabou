@@ -1,7 +1,6 @@
 import { test } from "@wabou/test";
 
 test("capture message scroller away from the end", async ({ page }) => {
-  await page.getByRole("button", { name: "Theme: Dark", index: 0 }).click();
   await page.getByRole("button", { name: "Message scroller" }).click();
   await page.getByRole("heading", { name: "Message scroller" }).waitFor();
   await page.getByRole("button", { name: "Append message" }).click();

@@ -254,6 +254,7 @@ export function DrawerHandle(props: ViewProps): JSX.Element {
     "onPointerUp",
     "onPointerCancel",
     "onClick",
+    "onKeyDown",
   );
   const hitArea = () =>
     match(drawer.direction())
@@ -271,6 +272,7 @@ export function DrawerHandle(props: ViewProps): JSX.Element {
       {...forwarded}
       role="button"
       aria-label={props["aria-label"] ?? "Drag or click to close drawer"}
+      focusOrder={props.focusOrder ?? 0}
       class={mergeClasses(
         "flex flex-none items-center justify-center",
         hitArea(),
@@ -295,6 +297,13 @@ export function DrawerHandle(props: ViewProps): JSX.Element {
       onClick={(event) => {
         drawer.close();
         props.onClick?.(event);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          drawer.close();
+        }
+        props.onKeyDown?.(event);
       }}
     >
       <View

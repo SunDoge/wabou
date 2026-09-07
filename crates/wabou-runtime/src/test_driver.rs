@@ -838,6 +838,17 @@ impl TestController {
         self.state.lock().is_ok_and(|state| state.report.is_some())
     }
 
+    /// Return the pass flag without consuming the final report.
+    #[doc(hidden)]
+    pub fn report_passed(&self) -> Option<bool> {
+        let state = self.state.lock().ok()?;
+        let report = state.report.as_deref()?;
+        serde_json::from_str::<serde_json::Value>(report)
+            .ok()?
+            .get("passed")?
+            .as_bool()
+    }
+
     #[cfg(test)]
     pub(crate) fn initialize_headless(
         &self,

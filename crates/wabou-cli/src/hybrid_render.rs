@@ -3,7 +3,9 @@
 use std::{
     fs,
     path::Path,
+    process::Command,
     sync::Arc,
+    sync::atomic::AtomicBool,
     thread,
     time::{Duration, Instant},
 };
@@ -19,8 +21,13 @@ use wabou_legacy_widgets::{PasswordInput, SecretStore};
 
 use super::{
     Result,
+    artifact::{app_binary, app_framework_feature},
+    behavior_test_runtime, build_behavior_host,
     config::{BuildProfile, bundle_path},
+    ensure, frontend,
     gpui_render::{HeadlessColorScheme, RenderAction, RenderOptions, prepare_frontend},
+    manifest,
+    process::{configure_test_backend, wait_for_behavior_host},
     project::App,
 };
 
@@ -40,6 +47,9 @@ struct LayoutFixture {
 
 pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
     validate_options(options)?;
+    if options.with_host {
+        return run_with_host(workspace, app, options);
+    }
     let frontend_mode = options
         .fixture
         .as_ref()
@@ -179,8 +189,22 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
 
 fn validate_options(options: &RenderOptions) -> Result<()> {
     validate_dimensions(options.width, options.height, options.scale_factor)?;
-    if options.with_host || options.scenario.is_some() || !options.cargo_features.is_empty() {
-        return Err("host-backed Vello Hybrid capture has not been migrated yet".into());
+    if options.with_host {
+        if options.fixture.is_some() {
+            return Err("--fixture is not supported with --with-host".into());
+        }
+        if !options.actions.is_empty() {
+            return Err(
+                "--with-host does not yet support --click, --wheel, --key, or --text".into(),
+            );
+        }
+    } else {
+        if options.scenario.is_some() {
+            return Err("--scenario requires --with-host".into());
+        }
+        if !options.cargo_features.is_empty() {
+            return Err("--features requires --with-host for `wabou render`".into());
+        }
     }
     if options.metrics.is_some() || options.samples != 20 {
         return Err("Vello Hybrid capture metrics have not been migrated yet".into());
@@ -199,6 +223,128 @@ fn validate_options(options: &RenderOptions) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn run_with_host(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
+    prepare_frontend(workspace, app, options.mode.as_deref(), options.skip_build)?;
+
+    let render_dir = workspace.join("target/wabou-render").join(&app.name);
+    fs::create_dir_all(&render_dir)?;
+    let scenario = render_dir.join("capture.ts");
+    let test_runtime = behavior_test_runtime(workspace)?;
+    let authored_scenario = options
+        .scenario
+        .as_deref()
+        .map(|path| {
+            fs::canonicalize(path).map_err(|error| {
+                format!("cannot resolve render scenario {}: {error}", path.display())
+            })
+        })
+        .transpose()?;
+    if authored_scenario
+        .as_deref()
+        .is_some_and(|path| !path.is_file())
+    {
+        return Err("--scenario must point to a TypeScript file".into());
+    }
+    fs::write(
+        &scenario,
+        host_capture_scenario_source(&test_runtime, authored_scenario.as_deref(), options.wait_ms)?,
+    )?;
+    let scenario_bundle = render_dir.join("scenario.js");
+    ensure(
+        frontend::build_test_script(workspace, app, &scenario, &scenario_bundle)?,
+        "Vite render scenario build",
+    )?;
+
+    let manifest = manifest(app);
+    let binary = app_binary(workspace, app)?;
+    let mut cargo_features = options.cargo_features.clone();
+    if options.snapshot.is_some() {
+        cargo_features.push(app_framework_feature(workspace, app, "devtools")?);
+    }
+    let executable = build_behavior_host(workspace, &manifest, &binary, &cargo_features)?;
+    let test_data = tempfile::tempdir_in(&render_dir)?;
+    let absolute = |path: &Path| {
+        if path.is_absolute() {
+            path.to_owned()
+        } else {
+            std::env::current_dir()
+                .unwrap_or_else(|_| workspace.to_owned())
+                .join(path)
+        }
+    };
+    let output = absolute(&options.out);
+    let snapshot = options.snapshot.as_deref().map(absolute);
+    let color_scheme = match options.color_scheme {
+        HeadlessColorScheme::Light => "light",
+        HeadlessColorScheme::Dark => "dark",
+    };
+
+    let mut host = Command::new(executable);
+    host.current_dir(workspace)
+        .env(
+            "WABOU_BUNDLE_PATH",
+            bundle_path(workspace, app, BuildProfile::Debug)?,
+        )
+        .env("WABOU_TEST_SCRIPT", scenario_bundle)
+        .env("WABOU_TEST_CAPTURE_PATH", &output)
+        .env("WABOU_TEST_VIEWPORT_WIDTH", options.width.to_string())
+        .env("WABOU_TEST_VIEWPORT_HEIGHT", options.height.to_string())
+        .env("WABOU_TEST_SCALE_FACTOR", options.scale_factor.to_string())
+        .env("WABOU_TEST_COLOR_SCHEME", color_scheme)
+        .env(
+            "WABOU_TEST_CAPTURE_WINDOW_ID",
+            options.window_id.to_string(),
+        )
+        .env("WABOU_TEST_APP_DATA_ROOT", test_data.path())
+        .env("XDG_CONFIG_HOME", test_data.path().join("xdg-config"))
+        .env("XDG_DATA_HOME", test_data.path().join("xdg-data"))
+        .env("XDG_CACHE_HOME", test_data.path().join("xdg-cache"));
+    if let Some(snapshot) = &snapshot {
+        host.env("WABOU_TEST_SNAPSHOT_PATH", snapshot);
+    }
+    configure_test_backend(&mut host, false);
+    let status = wait_for_behavior_host(host, Duration::from_secs(310), &AtomicBool::new(false))?;
+    ensure(status, "Wabou host-backed Vello Hybrid render")?;
+    if !output.is_file() {
+        return Err(format!("host-backed render did not create {}", output.display()).into());
+    }
+    if let Some(snapshot) = snapshot
+        && !snapshot.is_file()
+    {
+        return Err(format!("host-backed render did not create {}", snapshot.display()).into());
+    }
+    println!(
+        "[wabou] wrote Vello Hybrid capture {} with application host",
+        options.out.display()
+    );
+    Ok(())
+}
+
+fn host_capture_scenario_source(
+    test_runtime: &Path,
+    authored_scenario: Option<&Path>,
+    wait_ms: u64,
+) -> Result<String> {
+    let mut source = String::new();
+    if let Some(authored_scenario) = authored_scenario {
+        source.push_str(&format!(
+            "import {};\n",
+            serde_json::to_string(&authored_scenario.to_string_lossy())?
+        ));
+    }
+    source.push_str(&format!(
+        "import {{ test }} from {};\n\
+         test(\"settle host-backed capture\", async ({{ page }}) => {{\n\
+         await page.waitForIdle();\n\
+         await new Promise((resolve) => setTimeout(resolve, {wait_ms}));\n\
+         await page.waitForIdle();\n\
+         }}, {{ timeout: {} }});\n",
+        serde_json::to_string(&test_runtime.to_string_lossy())?,
+        wait_ms.saturating_add(5_000),
+    ));
+    Ok(source)
 }
 
 fn validate_dimensions(width: u32, height: u32, scale_factor: f64) -> Result<()> {
@@ -346,5 +492,32 @@ fn drive_for(
     while Instant::now() < deadline {
         thread::sleep(Duration::from_millis(10));
         *nodes = applier.build_frame(text, width, height);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::host_capture_scenario_source;
+
+    #[test]
+    fn host_capture_runs_authored_scenario_before_settling_the_final_frame() {
+        let source = host_capture_scenario_source(
+            Path::new("/workspace/packages/test/runtime.ts"),
+            Some(Path::new("/workspace/apps/gallery/captures/input.ts")),
+            250,
+        )
+        .expect("generate capture scenario");
+
+        let authored = source
+            .find("/workspace/apps/gallery/captures/input.ts")
+            .expect("authored scenario import");
+        let settle = source
+            .find("settle host-backed capture")
+            .expect("settling test");
+        assert!(authored < settle);
+        assert!(source.contains("setTimeout(resolve, 250)"));
+        assert!(source.contains("timeout: 5250"));
     }
 }

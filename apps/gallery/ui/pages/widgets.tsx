@@ -1376,6 +1376,7 @@ export function FieldPage() {
               <FieldLabel>Email address</FieldLabel>
               <FieldContent>
                 <Input
+                  aria-label="Email address"
                   value={email()}
                   placeholder="you@example.com"
                   onInput={(event) => setEmail(event.currentTarget.value)}
@@ -1388,7 +1389,7 @@ export function FieldPage() {
             <Field invalid>
               <FieldLabel>Workspace slug</FieldLabel>
               <FieldContent>
-                <Input value="my workspace" />
+                <Input aria-label="Workspace slug" value="my workspace" />
                 <FieldError
                   errors={[
                     {
@@ -1435,7 +1436,10 @@ export function FieldPage() {
             <InputGroupAddon align="inline-start" class="px-2.5">
               <Icon source={search} aria-hidden="true" size={14} />
             </InputGroupAddon>
-            <InputGroupInput placeholder="Search projects…" />
+            <InputGroupInput
+              aria-label="Search projects"
+              placeholder="Search projects…"
+            />
             <InputGroupAddon align="inline-end">
               <InputGroupText>Ctrl K</InputGroupText>
             </InputGroupAddon>

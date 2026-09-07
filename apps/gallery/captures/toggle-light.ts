@@ -1,7 +1,6 @@
 import { test } from "@wabou/test";
 
 test("capture single and multiple toggle groups", async ({ page }) => {
-  await page.getByRole("button", { name: "Theme: Dark", index: 0 }).click();
   await page.getByRole("button", { name: "Toggle" }).click();
   await page.getByRole("heading", { name: "Toggle" }).waitFor();
 

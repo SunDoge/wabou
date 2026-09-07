@@ -278,7 +278,6 @@ export function Modal(props: ModalProps): JSX.Element {
         return createComponent(Portal, {
           plane: "modal",
           role: "presentation",
-          "aria-modal": "true",
           get focusContained() {
             return visualState().active;
           },

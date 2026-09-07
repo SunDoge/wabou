@@ -655,10 +655,12 @@ impl WinitHostBuilder {
                 })
             }));
         }
+        let headless = test_controller.is_some()
+            && std::env::var("WABOU_TEST_HEADLESS").is_ok_and(|value| value != "0");
         let service_context = runtime_api::HostServiceContext::for_alternate_host(
             app_directories.clone(),
             test_controller.is_some(),
-            false,
+            headless,
         );
         let services = start_services(&self.services, &service_context)?;
 
@@ -702,7 +704,7 @@ impl WinitHostBuilder {
             effect_trace: effect_trace.clone(),
             app_directories,
             #[cfg(feature = "devtools")]
-            debug_state,
+            debug_state: debug_state.clone(),
             #[cfg(feature = "vite")]
             hmr_clients: Rc::new(RefCell::new(Vec::new())),
         };
@@ -728,8 +730,24 @@ impl WinitHostBuilder {
                 .map(|controller| Box::new(controller) as Box<dyn FrameSource>)
                 .map_err(|error| error.to_string())
         });
-        legacy_shell::run_windows_with_factory_and_extensions(sources, Some(factory), extensions)
+        if headless {
+            crate::headless_test::run(
+                test_controller
+                    .as_ref()
+                    .expect("headless test requires a controller"),
+                &mut sources,
+                self.base_color,
+                #[cfg(feature = "devtools")]
+                debug_state.as_ref(),
+            )?;
+        } else {
+            legacy_shell::run_windows_with_factory_and_extensions(
+                sources,
+                Some(factory),
+                extensions,
+            )
             .context(crate::error::WinitShellSnafu)?;
+        }
         if recording_effects && let (Some(trace), Some(path)) = (&effect_trace, trace_path) {
             trace
                 .write(&path)
