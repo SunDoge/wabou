@@ -243,31 +243,7 @@ function ExtractDialog(props: {
             }
           />
           <Show when={plan()}>
-            {(current) => (
-              <View class="grid grid-cols-2 gap-3 rounded-lg border border-subtle bg-surface-muted p-3">
-                <PlanMetric
-                  label="Data"
-                  value={formatBytes(current().restoreSize)}
-                />
-                <PlanMetric
-                  label="Files"
-                  value={String(
-                    current().filesToRestore + current().filesToModify,
-                  )}
-                />
-                <PlanMetric
-                  label="Folders"
-                  value={String(
-                    current().directoriesToRestore +
-                      current().directoriesToModify,
-                  )}
-                />
-                <PlanMetric
-                  label="Unchanged"
-                  value={String(current().filesUnchanged)}
-                />
-              </View>
-            )}
+            {(current) => <RestorePlanReview plan={current()} />}
           </Show>
           <Show when={result()}>
             {(path) => (
@@ -320,11 +296,65 @@ function ExtractDialog(props: {
   );
 }
 
-function PlanMetric(props: { label: string; value: string }) {
+export function RestorePlanReview(props: { plan: RestorePlanSummary }) {
+  const changed = () =>
+    props.plan.filesToModify > 0 || props.plan.directoriesToModify > 0;
+  return (
+    <View
+      role="region"
+      aria-label="Restore plan"
+      class="min-w-0 flex flex-col gap-3"
+    >
+      <View class="grid grid-cols-2 gap-3 rounded-lg border border-subtle bg-surface-muted p-3">
+        <PlanMetric label="Data" value={formatBytes(props.plan.restoreSize)} />
+        <PlanMetric
+          label="New files"
+          value={String(props.plan.filesToRestore)}
+        />
+        <PlanMetric
+          label="Files replaced"
+          value={String(props.plan.filesToModify)}
+          changed={props.plan.filesToModify > 0}
+        />
+        <PlanMetric
+          label="New folders"
+          value={String(props.plan.directoriesToRestore)}
+        />
+        <PlanMetric
+          label="Folders updated"
+          value={String(props.plan.directoriesToModify)}
+          changed={props.plan.directoriesToModify > 0}
+        />
+        <PlanMetric
+          label="Unchanged"
+          value={String(props.plan.filesUnchanged)}
+        />
+      </View>
+      <Show when={changed()}>
+        <Alert variant="warning" title="Existing content will change">
+          Review the destination carefully. Existing files or folders in this
+          restore plan will be replaced.
+        </Alert>
+      </Show>
+    </View>
+  );
+}
+
+function PlanMetric(props: {
+  label: string;
+  value: string;
+  changed?: boolean;
+}) {
   return (
     <View class="flex flex-col gap-0.5">
       <Text class="text-xs text-muted">{props.label}</Text>
-      <Text class="font-semibold">{props.value}</Text>
+      <Text
+        class={
+          props.changed ? "font-semibold text-danger-primary" : "font-semibold"
+        }
+      >
+        {props.value}
+      </Text>
     </View>
   );
 }

@@ -299,5 +299,18 @@ await renderLayoutFixtures({
         getLayoutNode(fixture, { role: "button", name: "Extract…" });
       },
     },
+    {
+      id: "timestow/restore-plan",
+      width: 480,
+      height: 300,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, { role: "region", name: "Restore plan" });
+        getLayoutNode(fixture, {
+          role: "alert",
+          name: "Existing content will change",
+        });
+      },
+    },
   ),
 });

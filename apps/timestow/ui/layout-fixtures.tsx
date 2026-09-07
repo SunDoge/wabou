@@ -28,7 +28,7 @@ import {
   type SnapshotEntry,
 } from "./api";
 import { BackupProgressStatus } from "./backup-progress";
-import { FileDetails } from "./file-details";
+import { FileDetails, RestorePlanReview } from "./file-details";
 import type { ProfileStore } from "./profile-store";
 import { TimestowSessionProvider, useTimestowSession } from "./session";
 import { BackupConnectionForm } from "./setup";
@@ -460,6 +460,28 @@ function FileDetailsFixture() {
   );
 }
 
+function RestorePlanFixture() {
+  return (
+    <ColorThemeProvider theme="light">
+      <ComponentsProvider theme="light">
+        <View class="w-full h-full min-w-0 min-h-0 bg-surface p-4 text-primary">
+          <RestorePlanReview
+            plan={{
+              restoreSize: 18_240,
+              matchedSize: 0,
+              filesToRestore: 12,
+              filesToModify: 3,
+              filesUnchanged: 8,
+              directoriesToRestore: 2,
+              directoriesToModify: 1,
+            }}
+          />
+        </View>
+      </ComponentsProvider>
+    </ColorThemeProvider>
+  );
+}
+
 defineLayoutFixtures(
   defineComponentFixtures({
     "timestow/setup-wide": {
@@ -539,6 +561,11 @@ defineLayoutFixtures(
       height: 620,
       waitMs: 100,
       render: FileDetailsFixture,
+    },
+    "timestow/restore-plan": {
+      width: 480,
+      height: 300,
+      render: RestorePlanFixture,
     },
   }),
   { colorTheme: false },

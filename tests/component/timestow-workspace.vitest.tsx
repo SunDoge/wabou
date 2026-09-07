@@ -586,10 +586,10 @@ test("file details preview and extract through the native rustic capability", as
         restoreSize: 18,
         matchedSize: 0,
         filesToRestore: 1,
-        filesToModify: 0,
+        filesToModify: 2,
         filesUnchanged: 0,
         directoriesToRestore: 0,
-        directoriesToModify: 0,
+        directoriesToModify: 1,
       }),
       restorePath: async () => ({
         destination: "/tmp/export/settings.toml",
@@ -636,6 +636,13 @@ test("file details preview and extract through the native rustic capability", as
   await screen.waitFor(() => {
     expect(screen.getByRole("button", { name: "Extract" })).toBeDefined();
   });
+  const overwriteWarning = screen.getByRole("alert", {
+    name: "Existing content will change",
+  });
+  expect(overwriteWarning.text).toContain("will be replaced");
+  expect(
+    screen.getByRole("dialog", { name: "Extract settings.toml" }).text,
+  ).toContain("Files replaced2");
   screen.getByRole("button", { name: "Extract" }).click();
   await screen.waitFor(() => {
     expect(fixture.callsTo("rustic.restorePath")).toHaveLength(1);
