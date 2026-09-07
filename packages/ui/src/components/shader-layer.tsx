@@ -3,9 +3,11 @@ import { type JSX, omit } from "solid-js";
 import { NativeWidget, type NativeWidgetProps } from "../primitives";
 
 export interface ShaderLayerConfig {
-  /** WGSL defining `fn wabou_effect(uv: vec2<f32>) -> vec4<f32>`. */
+  /** WGSL defining `wabou_effect`, or a complete module when `module` is true. */
   source: string;
-  /** Up to sixteen scalar values exposed through `wabou.values`. */
+  /** Accept a complete single-pass module exposing `vs_main` and `fs_main`. */
+  module?: boolean;
+  /** Up to 256 scalar values exposed through `wabou.values` or binding zero. */
   values?: readonly number[];
   /** Initial animation time in seconds. */
   time?: number;
@@ -18,8 +20,10 @@ export interface ShaderLayerConfig {
 }
 
 export interface ShaderLayerProps
-  extends
-    Omit<NativeWidgetProps<ShaderLayerConfig>, "tag" | "config" | "children">,
+  extends Omit<
+      NativeWidgetProps<ShaderLayerConfig>,
+      "tag" | "config" | "children"
+    >,
     ShaderLayerConfig {
   class?: string;
 }
@@ -29,6 +33,7 @@ export function ShaderLayer(props: ShaderLayerProps): JSX.Element {
   const forwarded = omit(
     props,
     "source",
+    "module",
     "values",
     "time",
     "speed",
@@ -38,6 +43,7 @@ export function ShaderLayer(props: ShaderLayerProps): JSX.Element {
   );
   const config = (): ShaderLayerConfig => ({
     source: props.source,
+    module: props.module ?? false,
     values: props.values ?? [],
     time: props.time ?? 0,
     speed: props.speed ?? 1,

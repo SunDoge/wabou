@@ -1,13 +1,16 @@
 //! Retained custom WGSL surface driven by Wabou's native frame clock.
 
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use serde::Deserialize;
 use wabou_shell::{PaintContext, Widget, WidgetChanges, decode_widget_config};
 use wabou_shell_vello::{ShaderEffectId, ShaderEffectSource};
 
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
-const MAX_VALUES: usize = 16;
+const MAX_VALUES: usize = 256;
 
 fn default_animated() -> bool {
     true
@@ -21,6 +24,8 @@ fn default_speed() -> f32 {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct ShaderLayerConfig {
     source: String,
+    #[serde(default)]
+    module: bool,
     #[serde(default)]
     values: Vec<f32>,
     #[serde(default)]
@@ -36,6 +41,7 @@ struct ShaderLayerConfig {
 struct PreparedConfig {
     authored: ShaderLayerConfig,
     source: ShaderEffectSource,
+    values: Arc<[f32]>,
 }
 
 /// Native widget that renders one validated custom WGSL effect.
@@ -82,7 +88,7 @@ impl Widget for ShaderLayer {
             self.id,
             config.source.clone(),
             config.authored.time + elapsed,
-            &config.authored.values,
+            config.values.clone(),
         );
     }
 
@@ -110,8 +116,17 @@ impl Widget for ShaderLayer {
         {
             return Ok(WidgetChanges::empty());
         }
-        let source = ShaderEffectSource::new(&authored.source)?;
-        self.config = Some(PreparedConfig { authored, source });
+        let source = if authored.module {
+            ShaderEffectSource::new_module(&authored.source)?
+        } else {
+            ShaderEffectSource::new(&authored.source)?
+        };
+        let values = authored.values.clone().into();
+        self.config = Some(PreparedConfig {
+            authored,
+            source,
+            values,
+        });
         self.started = Instant::now();
         Ok(WidgetChanges::REDRAW)
     }
@@ -170,7 +185,7 @@ mod tests {
                 .config_changed(r#"{"source":"fn nope() {}"}"#)
                 .is_err()
         );
-        let values = vec!["1"; 17].join(",");
+        let values = vec!["1"; MAX_VALUES + 1].join(",");
         assert!(
             layer
                 .config_changed(&format!(

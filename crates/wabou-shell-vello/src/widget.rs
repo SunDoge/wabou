@@ -362,7 +362,7 @@ impl<'a> PaintContext<'a> {
 
     /// Draw a validated custom WGSL effect into the complete widget content box.
     ///
-    /// `values` exposes up to sixteen scalar parameters through `wabou.values`.
+    /// `values` exposes up to 256 scalar parameters through `wabou.values`.
     /// Animation time is supplied by the native widget, so a running effect does
     /// not require JavaScript mutations every frame.
     pub fn draw_shader_effect(
@@ -370,15 +370,19 @@ impl<'a> PaintContext<'a> {
         id: crate::ShaderEffectId,
         source: crate::ShaderEffectSource,
         time: f32,
-        values: &[f32],
+        values: Arc<[f32]>,
     ) {
         if self.width <= 0.0 || self.height <= 0.0 {
             return;
         }
-        let mut parameters = [0.0; 16];
-        for (destination, value) in parameters.iter_mut().zip(values.iter().copied()) {
-            *destination = if value.is_finite() { value } else { 0.0 };
-        }
+        let values = if values.iter().all(|value| value.is_finite()) {
+            values
+        } else {
+            values
+                .iter()
+                .map(|value| if value.is_finite() { *value } else { 0.0 })
+                .collect::<Arc<_>>()
+        };
         let physical = |logical: f32| {
             (f64::from(logical) * self.device_scale)
                 .ceil()
@@ -389,7 +393,7 @@ impl<'a> PaintContext<'a> {
                 id,
                 source,
                 time: if time.is_finite() { time } else { 0.0 },
-                values: parameters,
+                values,
                 physical_size: [physical(self.width), physical(self.height)],
                 logical_size: [self.width, self.height],
                 device_scale: self.device_scale as f32,

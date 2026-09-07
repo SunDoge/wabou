@@ -2220,9 +2220,11 @@ declare function SettingsGroup(props: SettingsGroupProps): JSX.Element;
 //#endregion
 //#region src/components/shader-layer.d.ts
 interface ShaderLayerConfig {
-  /** WGSL defining `fn wabou_effect(uv: vec2<f32>) -> vec4<f32>`. */
+  /** WGSL defining `wabou_effect`, or a complete module when `module` is true. */
   source: string;
-  /** Up to sixteen scalar values exposed through `wabou.values`. */
+  /** Accept a complete single-pass module exposing `vs_main` and `fs_main`. */
+  module?: boolean;
+  /** Up to 256 scalar values exposed through `wabou.values` or binding zero. */
   values?: readonly number[];
   /** Initial animation time in seconds. */
   time?: number;

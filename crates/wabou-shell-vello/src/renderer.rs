@@ -82,6 +82,7 @@ pub fn render_to_png_file(
 mod tests {
     use super::*;
     use crate::PaintScene;
+    use std::sync::Arc;
     use vello_common::{
         kurbo::{Affine, Rect},
         peniko::Fill,
@@ -123,15 +124,37 @@ mod tests {
 
         let mut text = crate::TextContext::new();
         let mut first = crate::PaintContext::new_clipped(18.0, 10.0, 4.0, 1.0, &mut text);
-        first.draw_shader_effect(id, source.clone(), 0.0, &[]);
+        first.draw_shader_effect(id, source.clone(), 0.0, Arc::from([]));
         let first = render_to_image(&first.finish(), 18, 10, Color::BLACK).unwrap();
         assert_eq!(first.get_pixel(9, 5).0, [0, 255, 0, 255]);
         assert_eq!(first.get_pixel(0, 0).0, [0, 0, 0, 255]);
 
         let mut second = crate::PaintContext::new(9.0, 17.0, 1.0, &mut text);
-        second.draw_shader_effect(id, source, 0.0, &[]);
+        second.draw_shader_effect(id, source, 0.0, Arc::from([]));
         let second = render_to_image(&second.finish(), 9, 17, Color::BLACK).unwrap();
         assert_eq!(second.get_pixel(4, 8).0, [0, 255, 0, 255]);
+    }
+
+    #[test]
+    fn direct_hybrid_renderer_composites_complete_shader_modules() {
+        let source = crate::ShaderEffectSource::new_module(
+            r#"
+struct Uniforms { size: vec2<f32>, time: f32, speed: f32, color: vec4<f32> };
+@group(0) @binding(0) var<uniform> u: Uniforms;
+@vertex fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+    let points = array<vec2<f32>, 3>(vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
+    return vec4(points[i], 0.0, 1.0);
+}
+@fragment fn fs_main() -> @location(0) vec4<f32> { return u.color; }
+"#,
+        )
+        .unwrap();
+        let values: Arc<[f32]> = [0.0, 0.0, 0.0, 1.0, 0.2, 0.4, 0.8, 1.0].into();
+        let mut text = crate::TextContext::new();
+        let mut paint = crate::PaintContext::new(12.0, 12.0, 1.0, &mut text);
+        paint.draw_shader_effect(crate::ShaderEffectId::new(), source, 0.0, values);
+        let image = render_to_image(&paint.finish(), 12, 12, Color::BLACK).unwrap();
+        assert_eq!(image.get_pixel(6, 6).0, [51, 102, 204, 255]);
     }
 
     #[test]
