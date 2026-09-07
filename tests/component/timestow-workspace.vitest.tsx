@@ -11,7 +11,10 @@ import {
   useTimestowSession,
 } from "../../apps/timestow/ui/session";
 import { BackupConnectionForm } from "../../apps/timestow/ui/setup";
-import { TimestowSidebar } from "../../apps/timestow/ui/shell";
+import {
+  SessionErrorBanner,
+  TimestowSidebar,
+} from "../../apps/timestow/ui/shell";
 import { createSnapshotBrowserCache } from "../../apps/timestow/ui/snapshot-browser-cache";
 import {
   formatSnapshotTime,
@@ -36,6 +39,22 @@ const dialog: Dialog = {
   pickDirectory: async () => null,
   message: async () => "ok",
 };
+
+test("session errors remain visible and dismissible outside a page", () => {
+  const dismiss = vi.fn();
+  const screen = renderComponent(() => (
+    <SessionErrorBanner
+      message="The scheduled backup could not open its repository."
+      onDismiss={dismiss}
+    />
+  ));
+
+  expect(screen.getByRole("alert", { name: "Timestow error" }).text).toContain(
+    "The scheduled backup could not open its repository.",
+  );
+  screen.getByRole("button", { name: "Dismiss Timestow error" }).click();
+  expect(dismiss).toHaveBeenCalledTimes(1);
+});
 
 test("repository setup chooses a mode before exposing one primary action", () => {
   const submit = vi.fn();

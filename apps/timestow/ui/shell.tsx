@@ -1,4 +1,5 @@
 import {
+  Alert,
   ColorThemeProvider,
   ComponentsProvider,
   Icon,
@@ -32,6 +33,24 @@ export interface TimestowSidebarProps {
   unlockedProfileIds: readonly string[];
   onCreate(): void;
   onSelectProfile(profileId: string): void;
+}
+
+export function SessionErrorBanner(props: {
+  message: string;
+  onDismiss(): void;
+}) {
+  return (
+    <Alert
+      banner
+      variant="error"
+      title="Timestow needs attention"
+      aria-label="Timestow error"
+      class="flex-none"
+      onClose={props.onDismiss}
+    >
+      {props.message}
+    </Alert>
+  );
 }
 
 export function TimestowSidebar(props: TimestowSidebarProps) {
@@ -139,7 +158,17 @@ export function AppShell(props: { children?: JSX.Element }) {
             onSelectProfile={(profileId) => void selectProfile(profileId)}
           />
           <View class="min-w-0 min-h-0 flex-1 flex flex-col">
-            {props.children}
+            <Show when={session.error()}>
+              {(message) => (
+                <SessionErrorBanner
+                  message={message()}
+                  onDismiss={() => session.setError(undefined)}
+                />
+              )}
+            </Show>
+            <View class="min-w-0 min-h-0 flex-1 flex flex-col">
+              {props.children}
+            </View>
           </View>
         </View>
       </ComponentsProvider>

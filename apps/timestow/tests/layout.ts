@@ -228,6 +228,19 @@ await renderLayoutFixtures({
       },
     },
     {
+      id: "timestow/session-error-narrow",
+      width: 420,
+      height: 96,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, { role: "alert", name: "Timestow error" });
+        getLayoutNode(fixture, {
+          role: "button",
+          name: "Dismiss Timestow error",
+        });
+      },
+    },
+    {
       id: "timestow/changes-wide",
       width: 960,
       height: 620,

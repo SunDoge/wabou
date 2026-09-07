@@ -31,7 +31,7 @@ import { FileDetails } from "./file-details";
 import type { ProfileStore } from "./profile-store";
 import { TimestowSessionProvider, useTimestowSession } from "./session";
 import { BackupConnectionForm } from "./setup";
-import { AppShell, TimestowSidebar } from "./shell";
+import { AppShell, SessionErrorBanner, TimestowSidebar } from "./shell";
 import { SnapshotDiffPanel } from "./snapshot-diff";
 import { SnapshotsPage, SnapshotWorkspaceHeader } from "./snapshots";
 
@@ -362,6 +362,21 @@ function BackupProgressFixture() {
   );
 }
 
+function SessionErrorFixture() {
+  return (
+    <ColorThemeProvider theme="light">
+      <ComponentsProvider theme="light">
+        <View class="w-full h-full min-w-0 bg-surface text-primary">
+          <SessionErrorBanner
+            message="The scheduled backup could not open its repository. Unlock it and try again."
+            onDismiss={() => {}}
+          />
+        </View>
+      </ComponentsProvider>
+    </ColorThemeProvider>
+  );
+}
+
 function SnapshotDiffFixture() {
   const inheritedHost = useHost();
   return (
@@ -464,6 +479,11 @@ defineLayoutFixtures(
       width: 420,
       height: 88,
       render: BackupProgressFixture,
+    },
+    "timestow/session-error-narrow": {
+      width: 420,
+      height: 96,
+      render: SessionErrorFixture,
     },
     "timestow/changes-wide": {
       width: 960,
