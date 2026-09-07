@@ -1720,6 +1720,97 @@ test("a profile remains usable when durable metadata cannot be saved", async () 
   expect(fixture.callsTo("rustic.createProfile")).toHaveLength(1);
 });
 
+test("backup names remain unambiguous while reconnecting keeps its identity", async () => {
+  const profile = {
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/data/backups/photos",
+    sources: ["/data/photos"],
+  };
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
+    save: async () => {},
+    setActive: async () => {},
+    remove: async () => {},
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 12,
+      status: async () => ({ unlockedProfileIds: [] }),
+      createProfile: async () => ({ unlockedProfileIds: [] }),
+      openProfile: async () => ({
+        unlockedProfileIds: [profile.id],
+        activeProfileId: profile.id,
+      }),
+    },
+  });
+  const Controls = () => {
+    const session = useTimestowSession();
+    const [result, setResult] = createSignal("pending");
+    return (
+      <>
+        <Button
+          aria-label="Create duplicate backup"
+          onClick={() =>
+            void session
+              .connectProfile("create", {
+                name: " photos ",
+                repositoryPath: "/data/backups/duplicate",
+                passwordSlot: "duplicate",
+                confirmationSlot: "duplicate:confirmation",
+              })
+              .catch((cause) =>
+                setResult(
+                  cause instanceof Error ? cause.message : String(cause),
+                ),
+              )
+          }
+        />
+        <Button
+          aria-label="Reconnect Photos"
+          onClick={() =>
+            void session
+              .connectProfile("open", {
+                id: profile.id,
+                name: profile.name,
+                repositoryPath: profile.repositoryPath,
+                passwordSlot: "photos",
+                sources: profile.sources,
+              })
+              .then(() => setResult("reconnected"))
+          }
+        />
+        <Text role="status">{result()}</Text>
+      </>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Controls />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("pending");
+  });
+  screen.getByRole("button", { name: "Create duplicate backup" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe(
+      "a backup named photos already exists",
+    );
+  });
+  expect(fixture.callsTo("rustic.createProfile")).toHaveLength(0);
+
+  screen.getByRole("button", { name: "Reconnect Photos" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("reconnected");
+  });
+  expect(fixture.callsTo("rustic.openProfile")).toHaveLength(1);
+});
+
 test("the UI reflects native backup folders when persistence fails", async () => {
   const profile = {
     id: "photos",

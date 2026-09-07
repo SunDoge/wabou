@@ -85,6 +85,22 @@ function upsertProfile(
   return next.sort((left, right) => left.name.localeCompare(right.name));
 }
 
+function assertUniqueProfileName(
+  profiles: readonly BackupProfile[],
+  name: string,
+  excludedId?: string,
+): void {
+  if (
+    profiles.some(
+      (profile) =>
+        profile.id !== excludedId &&
+        profile.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+    )
+  ) {
+    throw new Error(`a backup named ${name} already exists`);
+  }
+}
+
 export function TimestowSessionProvider(props: {
   children?: JSX.Element;
   store?: ProfileStore;
@@ -202,15 +218,7 @@ export function TimestowSessionProvider(props: {
     if (!profile) throw new Error(`backup profile ${profileId} was not found`);
     const normalized = name.trim();
     if (!normalized) throw new Error("backup name is required");
-    if (
-      profiles().some(
-        (item) =>
-          item.id !== profileId &&
-          item.name.toLocaleLowerCase() === normalized.toLocaleLowerCase(),
-      )
-    ) {
-      throw new Error(`a backup named ${normalized} already exists`);
-    }
+    assertUniqueProfileName(profiles(), normalized, profileId);
     await persistProfile({ ...profile, name: normalized });
     setError(undefined);
   }
@@ -230,6 +238,7 @@ export function TimestowSessionProvider(props: {
       ...(existing?.schedule ? { schedule: existing.schedule } : {}),
     };
     if (!profile.name) throw new Error("backup name is required");
+    assertUniqueProfileName(profiles(), profile.name, profile.id);
     const request = {
       id: profile.id,
       name: profile.name,
