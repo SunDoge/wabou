@@ -415,6 +415,41 @@ impl CodeEditor {
         true
     }
 
+    fn delete_surrounding(&mut self, before_bytes: usize, after_bytes: usize) -> bool {
+        let from = self.selection.anchor.min(self.selection.head);
+        let to = self.selection.anchor.max(self.selection.head);
+        let from_byte = self.utf16_to_byte(from);
+        let to_byte = self.utf16_to_byte(to);
+        let Some(before_start) = from_byte.checked_sub(before_bytes) else {
+            return false;
+        };
+        let Some(after_end) = to_byte.checked_add(after_bytes) else {
+            return false;
+        };
+        if after_end > self.value.len()
+            || !self.value.is_char_boundary(before_start)
+            || !self.value.is_char_boundary(after_end)
+        {
+            return false;
+        }
+        if before_bytes == 0 && after_bytes == 0 {
+            return false;
+        }
+
+        let removed_before_utf16 = self.value[before_start..from_byte].encode_utf16().count();
+        if after_bytes != 0 {
+            self.value.replace_range(to_byte..after_end, "");
+        }
+        if before_bytes != 0 {
+            self.value.replace_range(before_start..from_byte, "");
+        }
+        self.selection.anchor = self.selection.anchor.saturating_sub(removed_before_utf16);
+        self.selection.head = self.selection.head.saturating_sub(removed_before_utf16);
+        self.composition = None;
+        self.clamp_scroll_row();
+        true
+    }
+
     fn select_word_at(&mut self, offset: usize) {
         let chars: Vec<_> = self
             .value
@@ -906,13 +941,19 @@ impl Widget for CodeEditor {
                 self.replace_selection(text);
                 WidgetEventResult::VALUE_CHANGED.with_selection_changed()
             }
-            UiEvent::Ime(wabou_shell::ImeEvent::Preedit { text, cursor }) => {
+            UiEvent::Ime(wabou_shell::ImeEvent::Preedit { text, cursor }) if !self.read_only => {
                 self.composition = (!text.is_empty()).then(|| CompositionConfig {
                     text: text.clone(),
                     cursor_start: cursor.map(|range| range.0),
                     cursor_end: cursor.map(|range| range.1),
                 });
                 WidgetEventResult::HANDLED
+            }
+            UiEvent::Ime(wabou_shell::ImeEvent::DeleteSurrounding {
+                before_bytes,
+                after_bytes,
+            }) if !self.read_only && self.delete_surrounding(*before_bytes, *after_bytes) => {
+                WidgetEventResult::VALUE_CHANGED.with_selection_changed()
             }
             UiEvent::Ime(wabou_shell::ImeEvent::Disabled) => {
                 self.composition = None;
@@ -1351,5 +1392,33 @@ mod tests {
             })
             .expect("point offset");
         assert!((7..=9).contains(&offset));
+    }
+
+    #[test]
+    fn ime_delete_surrounding_uses_utf8_bytes_without_deleting_the_selection() {
+        let mut editor = CodeEditor::new();
+        editor.attribute_changed("value", "前A😀選択B後");
+        configure(&mut editor, 4, 6);
+
+        let result = editor.handle_event(&UiEvent::Ime(wabou_shell::ImeEvent::DeleteSurrounding {
+            before_bytes: "A😀".len(),
+            after_bytes: "B".len(),
+        }));
+        assert!(result.value_changed());
+        assert!(result.selection_changed());
+        assert_eq!(editor.current_value(), Some("前選択後"));
+        assert_eq!(editor.selection.anchor, 1);
+        assert_eq!(editor.selection.head, 3);
+
+        let unchanged = editor.value.clone();
+        let result = editor.handle_event(&UiEvent::Ime(wabou_shell::ImeEvent::DeleteSurrounding {
+            before_bytes: 1,
+            after_bytes: 0,
+        }));
+        assert!(!result.is_handled());
+        assert_eq!(
+            editor.value, unchanged,
+            "split UTF-8 deletion must be rejected"
+        );
     }
 }
