@@ -1,8 +1,7 @@
 # wabou-terminal-vello
 
-This crate contains the winit/Vello Hybrid terminal implementation while
-Wabou moves its public terminal widget to GPUI-CE. New applications should use
-`wabou-terminal`; this crate is a migration reference, not a selectable backend.
+This crate contains the Winit/Vello Hybrid terminal widget used by the public
+`wabou-terminal` facade and `@wabou/terminal` component package.
 
 `wabou-terminal` adapts `rio-vt` to Wabou's Rust-side `Widget` API.
 

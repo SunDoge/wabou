@@ -59,7 +59,7 @@ cargo zigbuild \
 
 The result was a 64-bit PE executable. Linux-only GTK, GLib, Wayland,
 fontconfig, and AT-SPI dependencies were correctly excluded by target `cfg`.
-The Wabou host, QuickJS, GPUI-CE, its platform renderer, rfd, and their required
+The Wabou host, QuickJS, Winit/Vello Hybrid, rfd, and their required
 native C code all compiled and linked.
 
 Wabou's final link currently contains more than 1,000 object files. A shell
@@ -76,7 +76,7 @@ clipboard behavior.
 ## Linux cross-architecture builds
 
 An `x86_64` Linux host building `aarch64-unknown-linux-gnu.2.28` progressed
-through Rust, GPUI-CE's platform stack, and QuickJS, then stopped at
+through Rust, Winit's platform stack, and QuickJS, then stopped at
 fontconfig.
 Because the target is still Linux, Linux desktop backends are expected to
 compile. Install an aarch64 sysroot and configure cross-aware `pkg-config`, for

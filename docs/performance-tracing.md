@@ -1,7 +1,7 @@
 # Performance tracing
 
 Wabou uses the standard Rust `tracing` ecosystem for logs and performance
-timelines. This keeps Wabou in the same trace context as GPUI, network
+timelines. This keeps Wabou in the same trace context as the renderer, network
 clients, application code, and other instrumented dependencies.
 
 The normal `info` filter disables Wabou's frame spans. Enable them when needed:

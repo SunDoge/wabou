@@ -1,47 +1,42 @@
 # Native widgets
 
-Wabou projects ordinary Solid nodes into GPUI elements. Applications can mount
-an application-owned GPUI element behind an explicit tag when a feature needs
-native state or direct GPUI APIs:
+Use a native widget when a feature needs renderer-level painting, intrinsic
+measurement, native text/IME behavior, or high-frequency local interaction.
+Ordinary application structure remains TSX.
 
 ```text
-Solid node and generational NodeKey
-                 |
-        wabou-runtime registry
-                 |
- NativeWidgetContext -> GPUI element/entity
+Solid NativeWidget + generational NodeKey
+                  |
+       complete config/style snapshots
+                  |
+       wabou-shell-vello::Widget
+          /        |         \
+      measure     paint      input
+                  |
+          typed host event frame
+                  |
+             Solid handler
 ```
 
-The GPUI and Vello backends each own a native-widget adapter because their
-layout, paint, input, and resource APIs differ. `wabou-widgets-vello` provides
-the standard widgets for the Winit/Vello backend through
-`wabou-shell-vello::Widget`; GPUI applications use the entity-based registry
-described below. Both preserve the same Solid node identity and event contract.
+## Registration
 
-## Stateless widgets
-
-Register a GPUI comparison element with `GpuiHostBuilder::native_widget`. The factory is
-called while GPUI materializes a frame and receives the exact authored
-attributes plus the stable generational node key:
+Register a factory on the Rust host. One widget instance is created for one
+live Solid node:
 
 ```rust
-use wabou::{GpuiHostBuilder, gpui};
-use wabou::gpui::{IntoElement as _, Styled as _};
+use wabou::{HostBuilder, VelloHybridWidget};
 
-# fn host() -> GpuiHostBuilder {
-GpuiHostBuilder::new().native_widget("meter", |context, _window, _cx| {
-    let config = context.config_json().unwrap_or(r#"{"value":0}"#);
-    gpui::div()
-        .size_full()
-        .child(format!("Config: {config}"))
-        .into_any_element()
-})
-# }
+fn meter_widget() -> Box<dyn VelloHybridWidget> {
+    Box::new(Meter::default())
+}
+
+HostBuilder::new()
+    .widget("meter", meter_widget)
+    .run()?;
 ```
 
-On the Solid side, mount the matching public `NativeWidget` primitive. Prefer
-one typed application component around it so callers never repeat the tag or
-transport shape:
+On the Solid side, wrap the low-level primitive in a typed component so callers
+do not repeat the tag or transport shape:
 
 ```tsx
 import { NativeWidget } from "@wabou/ui";
@@ -59,124 +54,66 @@ export function Meter(props: { value: number; onChange(value: number): void }) {
 }
 ```
 
-`config` is the complete typed authored snapshot. Ordinary attributes remain
-available for lightweight string metadata and semantics. Wabou does not infer
-an HTML element or CSS behavior from the tag name.
+`config` is the complete authored snapshot. Prefer a concrete Rust DTO with
+`#[serde(deny_unknown_fields)]` and decode it with
+`wabou_shell_vello::decode_widget_config`. Lightweight string attributes remain
+available for semantics and simple metadata. The tag does not imply HTML or CSS
+behavior.
 
-## Stateful widgets
+## Widget contract
 
-GPUI elements are ephemeral descriptions. Put stable mutable state in a GPUI
-entity and return it with `GpuiHostBuilder::native_entity_widget`. On later frames,
-recover the entity from `NativeWidgetContext::entity`:
+Implement `wabou_shell_vello::Widget` for the renderer-owned object:
 
-```rust
-use wabou::{GpuiHostBuilder, NativeWidgetMount, gpui};
-use wabou::gpui::{AppContext as _, IntoElement as _};
+- `measure` returns intrinsic content size when the host cannot derive it;
+- `paint` records content-local Vello scene operations;
+- `handle_event` updates transient native state and returns precise
+  `WidgetChanges` invalidation flags;
+- `config_changed`, `attribute_changed`, and `style_changed` consume authored
+  snapshots;
+- `current_value`, selection, and accessibility methods expose native state to
+  the standard event and semantic pipelines;
+- `mounted`, `visibility_changed`, and `unmount` own native side-effect
+  lifetimes.
 
-struct MeterState {
-    value: String,
-}
+The host owns the outer content box, transforms, clipping, focus routing, scene
+composition, and generational routing. A widget paints in local coordinates and
+must not create a parallel layout tree.
 
-# fn host() -> GpuiHostBuilder {
-GpuiHostBuilder::new().native_entity_widget("meter", |context, _window, cx| {
-    let entity = context.entity::<MeterState>().unwrap_or_else(|| {
-        cx.new(|_| MeterState {
-            value: context.attribute("value").unwrap_or("0").to_owned(),
-        })
-    });
-    entity.update(cx, |state, _| {
-        state.value = context.attribute("value").unwrap_or("0").to_owned();
-    });
-    let value = entity.read(cx).value.clone();
-    NativeWidgetMount::entity(
-        entity,
-        gpui::div().child(format!("Value: {value}")).into_any_element(),
-    )
-})
-# }
-```
+## Bidirectional ownership
 
-The entity lifetime follows the Solid node's generational identity. Reusing a
-numeric slot after node removal cannot recover the stale entity because both
-halves of the `NodeKey` participate in identity.
-
-## Ownership
-
-- Solid owns application state, composition, and the authored attributes.
-- Wabou owns the protocol node identity and mounts the factory at that node.
-- GPUI owns element layout, paint, input, focus, text, and entity updates.
-- Shared resources that outlive one node belong in an application store keyed
-  by typed Wabou resource handles or another explicit application identity.
-
-Native callbacks use `context.events()` to send activation, numeric change,
-text input, focus, selection, and submit events through the same typed event
-path as built-in controls. Controlled components send their next complete
-`config` snapshot back on the following Solid flush; widgets do not need a
-second JSON capability or application-specific channel for this loop.
-
-The widget receives `&mut Window` and `&mut App`, so it can use normal GPUI
-facilities directly. It must not retain either reference. Use a retained entity,
-GPUI task, or application-owned service for asynchronous work.
-
-## Bidirectional contract
-
-Native controls use one controlled-component loop. Do not add a second widget
-message bus or call JavaScript from a GPUI render callback:
+Native controls use one controlled-component loop:
 
 ```text
 Solid props/config snapshot
-          │ one mutation frame
-          ▼
-generational NodeKey + retained GPUI Entity
-          │ typed native event
-          ▼
-HostEventFrame ──► Solid handler ──► next complete props/config snapshot
+          | one mutation frame
+          v
+NodeKey + retained widget instance
+          | typed native event
+          v
+HostEventFrame -> Solid handler -> next complete snapshot
 ```
 
 The safety rules are:
 
-1. **Identity is `(lo, hi)`.** Both halves of `NodeKey` cross the boundary.
-   An event from a removed entity cannot target a later node that reused its
-   numeric slot.
-2. **Props are snapshots, not patches.** A widget synchronizes its GPUI entity
-   from the complete current `config`; it never reconstructs application state
-   from an event history.
-3. **Events are facts, not state replication.** Use `activate`, `change_f64`,
-   `input_text`, `focus`, `text_selection`, or `submit`. The guest handles them
-   once from a versioned `HostEventFrame`, then Solid decides the next state.
-4. **No re-entrant JavaScript.** GPUI callbacks enqueue/dispatch through the
-   normal host-event boundary. JavaScript never runs while GPUI is rendering,
-   laying out, or painting.
-5. **One owner per kind of state.** Solid owns durable application state; the
-   GPUI entity owns focus, composition, selection, pointer gestures and other
-   transient native state. Controlled text reconciliation prevents either side
-   from silently winning a same-frame echo.
-6. **Async work retains identities, not contexts.** Retain an entity/weak
-   entity and `NativeWidgetEventSink`; never retain `Window`, `App`, or
-   `NativeWidgetContext`. Delivery validates the generational target again.
-
-This division also applies to framework-owned GPUI-base containers. For
-example, `NotificationRegion` keeps arbitrary toast content in TSX while a
-native `ToastStack` owns measurement, overlap, hover expansion and stack
-motion. JS does not duplicate GPUI's layout state.
-
-Leaf widgets and native containers are intentionally different adapters. A
-leaf factory creates one GPUI element from a node snapshot. A container
-factory receives the already-projected `(NodeKey, element)` children and moves
-them into one GPUI-base primitive exactly once. This preserves Solid ownership
-of content and generational identity without rendering the same descendants as
-both native and projected siblings. New framework integrations that need to
-measure, position, or animate arbitrary TSX children must use the container
-adapter rather than adding another tag-specific branch to tree traversal.
+1. Identity is the complete `(lo, hi)` `NodeKey`. Events from removed widgets
+   cannot target a later node that reused the slot.
+2. Props are snapshots, not patches. Widgets never reconstruct durable state
+   from event history.
+3. Events report facts, not replicated state. Solid decides the next durable
+   value.
+4. JavaScript is not called re-entrantly while layout, paint, or widget state is
+   borrowed. Native callbacks enqueue a host event frame.
+5. Solid owns durable application state. The widget owns transient focus,
+   composition, selection, gestures, and renderer resources.
+6. Async work retains validated identities and event sinks, not temporary
+   paint, layout, or runtime contexts.
+7. `WidgetChanges` must describe the smallest real invalidation: redraw,
+   measure, layout, value, selection, semantics, or animation.
 
 ## Testing
 
-Test widget state as ordinary GPUI entities where possible. Add a Wabou
-component test for authored attributes and semantics, then a focused GPUI
-headless test when the contract depends on native layout, input, focus, or
-paint. A backend-parity test can compare behavior, but passing it does not
-prove either backend's platform integration or pixels.
-
-`@wabou/terminal` is the current end-to-end reference: terminal state lives in
-a retained GPUI entity, while the Solid tag controls placement and authored
-configuration.
+Test pure widget state and configuration with the widget harness. Add component
+tests for authored attributes and events, native behavior tests for focus/input,
+and pixel captures only when paint is the claim. `@wabou/terminal` is the
+largest end-to-end reference: Rio owns the terminal model, the Vello widget owns
+measurement/paint/input, and Solid owns placement and configuration.

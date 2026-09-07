@@ -48,8 +48,8 @@ Use three workloads when evaluating a performance change:
 | Pathological animation | `apps/stress` | dirty propagation, protocol traffic and scene construction at 1,000–25,000 moving nodes |
 
 Record `js`, `build`, `scene`, `present`, node count and viewport for all three.
-Compare identical release builds, viewport sizes, scale factors and GPUI platform
-backends. A change is a regression candidate when the median of at least three
+Compare identical release builds, viewport sizes, scale factors, and platforms.
+A change is a regression candidate when the median of at least three
 runs increases by 10% in any stage without reducing work in another stage.
 Do not add a batch API solely to improve `apps/stress`; first prove the same
 cost appears in a real retained UI or virtualized list.
@@ -57,11 +57,11 @@ cost appears in a real retained UI or virtualized list.
 ### Invalidation evidence
 
 Frame duration alone cannot prove that Solid's fine-grained reactivity reaches
-GPUI. Performance traces and metric reports must separately count:
+native rendering. Performance traces and metric reports must separately count:
 
 - committed protocol mutations;
 - projection boundaries notified;
-- projected nodes materialized into GPUI elements;
+- retained nodes visited or materialized into scene commands;
 - boundaries that required native layout;
 - boundaries that required paint only.
 

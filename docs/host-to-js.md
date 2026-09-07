@@ -75,7 +75,7 @@ slots are reused; until then, IDs are never reused within one runtime.
 ## End-to-end sequence
 
 ```text
-GPUI / native widget / background producer
+shell / native widget / background producer
                  │
                  ▼
        normalize and target in Rust
@@ -102,7 +102,7 @@ GPUI / native widget / background producer
      apply ops -> style -> layout -> paint
 ```
 
-An input event may be delivered immediately from the GPUI callback because the
+An input event may be delivered immediately from the native callback because the
 shell needs a disposition before applying a cancellable default action. It is
 still encoded as a one-or-more-record `HostEventFrame`; it does not call a
 separate JS function. Observation, application and lifecycle records
@@ -396,7 +396,7 @@ Promises with `HostClosedError` and disconnects producer handles.
 
 These invariants are mandatory:
 
-1. no guest call while the GPUI projection, a retained entity, or a widget is
+1. no guest call while the retained projection or a widget is
    mutably borrowed;
 2. no Host frame dispatch from inside `__wabou_flush`;
 3. handlers may enqueue mutation ops, but Rust applies them only after guest
@@ -419,7 +419,7 @@ ordered JS Mutation Frame bytes
 optional computed-layout snapshots
 ```
 
-Replay replaces GPUI/background producers, preserves frame sequences and feeds
+Replay replaces native/background producers, preserves frame sequences and feeds
 the recorded bytes into the same guest entry point. Deterministic tests compare
 mutation frames and selected computed-layout snapshots. Mounted capability calls
 and returns are traced separately at the capability boundary when a test depends on

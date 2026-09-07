@@ -32,7 +32,6 @@ default-members = [
   "crates/wabou-shell-vello",
   "crates/wabou-style",
   "crates/wabou-svg-vello-hybrid",
-  "crates/wabou-terminal-core",
   "crates/wabou-terminal-vello",
   "crates/wabou-tray",
   "crates/wabou-widgets-vello",
@@ -58,7 +57,6 @@ wabou-shell-api = { path = "crates/wabou-shell-api" }
 wabou-shell-vello = { path = "crates/wabou-shell-vello" }
 wabou-style = { path = "crates/wabou-style" }
 wabou-svg-vello-hybrid = { path = "crates/wabou-svg-vello-hybrid" }
-wabou-terminal-core = { path = "crates/wabou-terminal-core" }
 wabou-terminal-vello = { path = "crates/wabou-terminal-vello" }
 wabou-tray = { path = "crates/wabou-tray" }
 wabou-widgets-vello = { path = "crates/wabou-widgets-vello" }
