@@ -3,4 +3,4 @@
 pub use vello_shell::{
     MeasureContext, Widget, WidgetChanges, WidgetEventResult, WidgetNodeEvent, WidgetStyle,
 };
-pub(crate) use wabou_legacy_widgets::{PasswordInput, SecretStore};
+pub(crate) use wabou_widgets_vello::{PasswordInput, SecretStore};

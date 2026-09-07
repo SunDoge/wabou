@@ -14,7 +14,7 @@
     "verify:js": "bun run check && bun run test && bun run packages:check && bun run scripts/publish-packages.ts --dry-run && bun run gen:check",
     "verify:rust": "cargo fmt --all -- --check && cargo check --all-targets && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-targets",
     "verify:ci:rust": "cargo fmt --all -- --check && cargo clippy --lib --bins --tests --all-features -- -D warnings && cargo test --lib --all-features",
-    "verify:hybrid": "cargo check -p wabou-legacy-accessibility -p wabou-backend-vello-hybrid -p wabou-vello-shell -p wabou-legacy-terminal -p wabou-legacy-widgets",
+    "verify:hybrid": "cargo check -p wabou-accessibility-vello -p wabou-backend-vello-hybrid -p wabou-shell-vello -p wabou-svg-vello-hybrid -p wabou-terminal-vello -p wabou-widgets-vello",
     "verify:behavior": "bun run scripts/check-behavior.ts",
     "verify:layout": "bun run test:layout",
     "verify:captures": "bun run scripts/check-captures.ts --renderer vello-hybrid",

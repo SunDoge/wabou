@@ -51,7 +51,7 @@ test("backend-neutral packages cannot import either backend", () => {
           name: "wabou-protocol",
           dependencies: [
             { kind: null, name: "wabou-shell", rename: null },
-            { kind: "dev", name: "wabou-vello-shell", rename: "vello-shell" },
+            { kind: "dev", name: "wabou-shell-vello", rename: "vello-shell" },
             { kind: null, name: "vello", rename: null },
           ],
         },
@@ -64,7 +64,7 @@ test("backend-neutral packages cannot import either backend", () => {
     }),
   ).toEqual([
     "wabou-protocol -> vello (vello, normal)",
-    "wabou-protocol -> vello-shell (wabou-vello-shell, dev)",
+    "wabou-protocol -> vello-shell (wabou-shell-vello, dev)",
     "wabou-protocol -> wabou-shell (wabou-shell, normal)",
   ]);
 });
@@ -77,7 +77,7 @@ test("backend packages cannot acquire new cross-backend dependencies", () => {
           id: "shell-id",
           name: "wabou-shell",
           dependencies: [
-            { kind: null, name: "wabou-legacy-widgets", rename: null },
+            { kind: null, name: "wabou-widgets-vello", rename: null },
           ],
         },
         {
@@ -90,15 +90,15 @@ test("backend packages cannot acquire new cross-backend dependencies", () => {
         },
         {
           id: "legacy-widgets-id",
-          name: "wabou-legacy-widgets",
+          name: "wabou-widgets-vello",
           dependencies: [{ kind: null, name: "wabou-terminal", rename: null }],
         },
       ],
     }),
   ).toEqual([
     "wabou-backend-vello-hybrid -> gpui-shell (wabou-shell, normal)",
-    "wabou-legacy-widgets -> wabou-terminal (wabou-terminal, normal)",
-    "wabou-shell -> wabou-legacy-widgets (wabou-legacy-widgets, normal)",
+    "wabou-shell -> wabou-widgets-vello (wabou-widgets-vello, normal)",
+    "wabou-widgets-vello -> wabou-terminal (wabou-terminal, normal)",
   ]);
 });
 
@@ -160,7 +160,7 @@ test("every formal workspace crate participates in ordinary verification", () =>
         },
         {
           id: "vello-id",
-          name: "wabou-vello-shell",
+          name: "wabou-shell-vello",
           dependencies: [],
         },
       ],
@@ -172,7 +172,7 @@ test("every formal workspace crate participates in ordinary verification", () =>
   ]);
 });
 
-test("transitional backend crates stay unpublished and outside default workspace commands", () => {
+test("legacy crates stay unpublished and outside default workspace commands", () => {
   expect(
     transitionalPackagingViolations({
       packages: [

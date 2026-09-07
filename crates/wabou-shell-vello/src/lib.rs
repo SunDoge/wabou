@@ -1,4 +1,4 @@
-//! wabou-vello-shell: render a UI tree with Winit, Taffy, Parley, and AnyRender.
+//! wabou-shell-vello: render a UI tree with Winit, Taffy, Parley, and AnyRender.
 //!
 //! The shell is a reusable host: a [`source::FrameSource`] produces a flattened
 //! layout list each frame; [`shell::Shell`] owns the window and selected
@@ -9,7 +9,7 @@
 
 pub use anyrender;
 pub use anyrender::PaintScene;
-pub use wabou_legacy_accessibility as accessibility;
+pub use wabou_accessibility_vello as accessibility;
 pub mod app;
 pub mod app_dirs;
 pub mod effect;

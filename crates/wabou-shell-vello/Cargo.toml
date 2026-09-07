@@ -1,5 +1,5 @@
 [package]
-name = "wabou-vello-shell"
+name = "wabou-shell-vello"
 version.workspace = true
 edition = "2024"
 
@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [lib]
-name = "wabou_vello_shell"
+name = "wabou_shell_vello"
 path = "src/lib.rs"
 
 [dependencies]
@@ -37,7 +37,7 @@ unicode-segmentation = "1.12"
 url = { workspace = true }
 vello = { workspace = true }
 winit = { workspace = true }
-wabou-legacy-accessibility = { workspace = true }
+wabou-accessibility-vello = { workspace = true }
 wabou-host-api = { workspace = true }
 wabou-shell-api = { workspace = true }
 wabou-style = { workspace = true }

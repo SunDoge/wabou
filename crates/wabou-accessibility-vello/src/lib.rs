@@ -1,4 +1,4 @@
-//! AccessKit publication adapter for Wabou's legacy Winit backend.
+//! AccessKit publication adapter for Wabou's Winit/Vello backend.
 
 #![warn(missing_docs)]
 

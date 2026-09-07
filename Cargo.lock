@@ -13190,6 +13190,17 @@ name = "wabou-accessibility"
 version = "0.1.0-alpha.3"
 
 [[package]]
+name = "wabou-accessibility-vello"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "accesskit",
+ "accesskit_xplat",
+ "raw-window-handle",
+ "wabou-accessibility",
+ "winit",
+]
+
+[[package]]
 name = "wabou-backend-vello-hybrid"
 version = "0.1.0-alpha.3"
 dependencies = [
@@ -13225,12 +13236,12 @@ dependencies = [
  "wabou-bindgen",
  "wabou-devtools",
  "wabou-host-api",
- "wabou-legacy-widgets",
  "wabou-protocol",
  "wabou-runtime",
  "wabou-shell-api",
+ "wabou-shell-vello",
  "wabou-style",
- "wabou-vello-shell",
+ "wabou-widgets-vello",
 ]
 
 [[package]]
@@ -13259,10 +13270,10 @@ dependencies = [
  "toml 0.9.12+spec-1.1.0",
  "wabou-backend-vello-hybrid",
  "wabou-devtools",
- "wabou-legacy-widgets",
  "wabou-runtime",
  "wabou-shell",
- "wabou-vello-shell",
+ "wabou-shell-vello",
+ "wabou-widgets-vello",
 ]
 
 [[package]]
@@ -13314,52 +13325,6 @@ dependencies = [
  "specta",
  "specta-typescript",
  "wabou-bindgen",
-]
-
-[[package]]
-name = "wabou-legacy-accessibility"
-version = "0.1.0-alpha.3"
-dependencies = [
- "accesskit",
- "accesskit_xplat",
- "raw-window-handle",
- "wabou-accessibility",
- "winit",
-]
-
-[[package]]
-name = "wabou-legacy-terminal"
-version = "0.1.0-alpha.3"
-dependencies = [
- "anyrender",
- "libc",
- "percent-encoding",
- "rio-graphics",
- "rio-vt",
- "rustc-hash 2.1.3",
- "serde_json",
- "teletypewriter",
- "tracing",
- "vello",
- "wabou-protocol",
- "wabou-shell-api",
- "wabou-vello-shell",
-]
-
-[[package]]
-name = "wabou-legacy-widgets"
-version = "0.1.0-alpha.3"
-dependencies = [
- "anyrender",
- "image",
- "parley",
- "serde",
- "tracing",
- "unicode-width",
- "vello",
- "wabou-protocol",
- "wabou-vello-shell",
- "zeroize",
 ]
 
 [[package]]
@@ -13456,6 +13421,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "wabou-shell-vello"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "anyrender",
+ "anyrender_skia",
+ "anyrender_svg",
+ "anyrender_vello",
+ "anyrender_vello_hybrid",
+ "arboard",
+ "bitflags 2.13.1",
+ "futures-util",
+ "image",
+ "lru 0.18.1",
+ "notify-rust",
+ "open",
+ "parley",
+ "raw-window-handle",
+ "rfd",
+ "serde",
+ "serde_json",
+ "slotmap",
+ "snafu",
+ "swash",
+ "taffy 0.14.0",
+ "tempfile",
+ "tracing",
+ "unicode-segmentation",
+ "url",
+ "vello",
+ "wabou-accessibility-vello",
+ "wabou-host-api",
+ "wabou-shell-api",
+ "wabou-style",
+ "winit",
+]
+
+[[package]]
 name = "wabou-style"
 version = "0.1.0-alpha.3"
 dependencies = [
@@ -13463,6 +13465,17 @@ dependencies = [
  "serde",
  "serde_json",
  "winnow 1.0.4",
+]
+
+[[package]]
+name = "wabou-svg-vello-hybrid"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "image",
+ "snafu",
+ "usvg",
+ "vello_common",
+ "vello_hybrid",
 ]
 
 [[package]]
@@ -13493,6 +13506,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "wabou-terminal-vello"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "anyrender",
+ "libc",
+ "percent-encoding",
+ "rio-graphics",
+ "rio-vt",
+ "rustc-hash 2.1.3",
+ "serde_json",
+ "teletypewriter",
+ "tracing",
+ "vello",
+ "wabou-protocol",
+ "wabou-shell-api",
+ "wabou-shell-vello",
+]
+
+[[package]]
 name = "wabou-tray"
 version = "0.1.0-alpha.3"
 dependencies = [
@@ -13503,51 +13535,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "wabou-vello-hybrid-svg"
-version = "0.1.0-alpha.3"
-dependencies = [
- "image",
- "snafu",
- "usvg",
- "vello_common",
- "vello_hybrid",
-]
-
-[[package]]
-name = "wabou-vello-shell"
+name = "wabou-widgets-vello"
 version = "0.1.0-alpha.3"
 dependencies = [
  "anyrender",
- "anyrender_skia",
- "anyrender_svg",
- "anyrender_vello",
- "anyrender_vello_hybrid",
- "arboard",
- "bitflags 2.13.1",
- "futures-util",
  "image",
- "lru 0.18.1",
- "notify-rust",
- "open",
  "parley",
- "raw-window-handle",
- "rfd",
  "serde",
- "serde_json",
- "slotmap",
- "snafu",
- "swash",
- "taffy 0.14.0",
- "tempfile",
  "tracing",
- "unicode-segmentation",
- "url",
+ "unicode-width",
  "vello",
- "wabou-host-api",
- "wabou-legacy-accessibility",
- "wabou-shell-api",
- "wabou-style",
- "winit",
+ "wabou-protocol",
+ "wabou-shell-vello",
+ "zeroize",
 ]
 
 [[package]]

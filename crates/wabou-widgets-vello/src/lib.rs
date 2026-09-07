@@ -1,9 +1,9 @@
-//! Legacy native widgets implemented exclusively through
-//! `wabou-vello-shell`'s public [`wabou_shell::Widget`] contract.
+//! Native widgets implemented exclusively through
+//! `wabou-shell-vello`'s public [`wabou_shell::Widget`] contract.
 
 #![warn(missing_docs)]
 
-extern crate wabou_vello_shell as wabou_shell;
+extern crate wabou_shell_vello as wabou_shell;
 
 use std::collections::HashMap;
 use std::sync::Arc;

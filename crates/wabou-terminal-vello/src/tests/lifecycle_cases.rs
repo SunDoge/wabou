@@ -677,8 +677,8 @@ fn host_theme_defaults_are_opt_in_and_osc_overrides_them() {
             AnsiColor::Named(NamedColor::Foreground),
             true,
             &colors,
-            legacy_color(widget.theme_foreground),
-            legacy_color(widget.theme_background),
+            vello_color(widget.theme_foreground),
+            vello_color(widget.theme_background),
         ),
         Color::from_rgb8(1, 2, 3)
     );

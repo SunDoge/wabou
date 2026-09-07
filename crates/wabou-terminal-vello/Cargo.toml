@@ -1,5 +1,5 @@
 [package]
-name = "wabou-legacy-terminal"
+name = "wabou-terminal-vello"
 version.workspace = true
 edition = "2024"
 license.workspace = true
@@ -16,7 +16,7 @@ serde_json = { workspace = true }
 teletypewriter = "0.5.5"
 tracing = { workspace = true }
 vello = { workspace = true }
-wabou-vello-shell = { workspace = true }
+wabou-shell-vello = { workspace = true }
 wabou-protocol = { workspace = true }
 wabou-shell-api = { workspace = true }
 

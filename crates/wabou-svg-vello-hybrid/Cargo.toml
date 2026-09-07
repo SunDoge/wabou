@@ -1,5 +1,5 @@
 [package]
-name = "wabou-vello-hybrid-svg"
+name = "wabou-svg-vello-hybrid"
 version.workspace = true
 edition = "2024"
 license.workspace = true

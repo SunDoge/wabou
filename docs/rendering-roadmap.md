@@ -106,7 +106,7 @@ background, border, outline, overflow, and native-widget clipping. AnyRender's
 current box-shadow command accepts one radius, so asymmetric shadows use the
 largest corner radius while the box itself remains exact.
 
-`wabou-vello-hybrid-svg` now isolates the first reusable renderer-side piece:
+`wabou-svg-vello-hybrid` now isolates the first reusable renderer-side piece:
 it converts a normalized `usvg` tree into Vello Hybrid scene commands. It
 supports solid and gradient path fills, strokes, transforms, simple clips,
 group opacity/blending, nested SVG images, and embedded raster images. Masks,

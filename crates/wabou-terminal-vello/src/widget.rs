@@ -6,24 +6,24 @@ use wabou_shell::{
     WidgetStyle,
 };
 
-pub(crate) fn legacy_color(color: TerminalColor) -> Color {
+pub(crate) fn vello_color(color: TerminalColor) -> Color {
     let [r, g, b, a] = color.components();
     Color::from_rgba8(r, g, b, a)
 }
 
-fn terminal_color_from_legacy(color: Color) -> TerminalColor {
+fn terminal_color_from_vello(color: Color) -> TerminalColor {
     let [r, g, b, a] = color.to_rgba8().to_u8_array();
     TerminalColor::rgba(r, g, b, a)
 }
 
-fn legacy_terminal_ansi_color(
+fn vello_terminal_ansi_color(
     color: AnsiColor,
     foreground: bool,
     colors: &TermColors,
     theme_foreground: TerminalColor,
     theme_background: TerminalColor,
 ) -> Color {
-    legacy_color(color::resolve_ansi_color(
+    vello_color(color::resolve_ansi_color(
         color,
         foreground,
         colors,
@@ -33,7 +33,7 @@ fn legacy_terminal_ansi_color(
 }
 
 impl TerminalInputResult {
-    fn into_legacy(self) -> WidgetEventResult {
+    fn into_widget(self) -> WidgetEventResult {
         match self {
             Self::Ignored => WidgetEventResult::IGNORED,
             Self::Handled => WidgetEventResult::HANDLED,
@@ -47,7 +47,7 @@ impl TerminalInputResult {
 }
 
 impl TerminalInvalidation {
-    fn into_legacy(self) -> WidgetChanges {
+    fn into_widget(self) -> WidgetChanges {
         match (self.measure, self.redraw) {
             (true, true) => WidgetChanges::MEASURE | WidgetChanges::REDRAW,
             (true, false) => WidgetChanges::MEASURE,
@@ -78,7 +78,7 @@ impl From<TerminalNodeEvent> for WidgetNodeEvent {
     }
 }
 
-/// Legacy AnyRender factory suitable for
+/// Vello/AnyRender factory suitable for
 /// `HostBuilder::widget("terminal", terminal_widget)`.
 pub fn terminal_widget() -> Box<dyn Widget> {
     Box::new(TerminalWidget::lazy_default_shell())
@@ -120,7 +120,7 @@ fn terminal_scene(width: f32, height: f32, background: Color) -> Scene {
 }
 
 impl TerminalWidget {
-    fn update_legacy_font_metrics(&mut self, tcx: &mut TextContext) {
+    fn update_font_metrics(&mut self, tcx: &mut TextContext) {
         if !self.metrics_dirty {
             return;
         }
@@ -241,7 +241,7 @@ impl TerminalWidget {
                 self.cell_width,
                 self.line_height,
                 device_scale,
-                legacy_color(self.selection_background),
+                vello_color(self.selection_background),
             );
         }
     }
@@ -262,14 +262,14 @@ impl TerminalWidget {
         default_background: Color,
         device_scale: f64,
     ) {
-        let mut foreground = legacy_terminal_ansi_color(
+        let mut foreground = vello_terminal_ansi_color(
             style.fg,
             true,
             colors,
             self.theme_foreground,
             self.theme_background,
         );
-        let mut background = legacy_terminal_ansi_color(
+        let mut background = vello_terminal_ansi_color(
             style.bg,
             false,
             colors,
@@ -298,7 +298,7 @@ impl TerminalWidget {
                 self.cell_width,
                 self.line_height,
                 device_scale,
-                legacy_color(self.selection_background),
+                vello_color(self.selection_background),
             );
         }
         if style.flags.contains(StyleFlags::HIDDEN) {
@@ -308,7 +308,7 @@ impl TerminalWidget {
             foreground = dim(foreground);
         }
         if selected && let Some(selection_foreground) = self.selection_foreground {
-            foreground = legacy_color(selection_foreground);
+            foreground = vello_color(selection_foreground);
         }
         draw_cell_decorations(
             scene,
@@ -319,12 +319,12 @@ impl TerminalWidget {
             style,
             foreground,
             colors,
-            legacy_color(self.theme_foreground),
-            legacy_color(self.theme_background),
+            vello_color(self.theme_foreground),
+            vello_color(self.theme_background),
             selected
                 .then_some(self.selection_foreground)
                 .flatten()
-                .map(legacy_color),
+                .map(vello_color),
         );
         if cell_has_no_glyph(square, character) {
             return;
@@ -402,7 +402,7 @@ impl TerminalWidget {
         ) else {
             return;
         };
-        let color = legacy_terminal_ansi_color(
+        let color = vello_terminal_ansi_color(
             AnsiColor::Named(NamedColor::Cursor),
             true,
             colors,
@@ -455,7 +455,7 @@ impl TerminalWidget {
 
 impl Widget for TerminalWidget {
     fn measure(&mut self, cx: &mut wabou_shell::MeasureContext<'_>) -> Option<[f32; 2]> {
-        self.update_legacy_font_metrics(cx.text());
+        self.update_font_metrics(cx.text());
         self.intrinsic_size()
     }
 
@@ -463,7 +463,7 @@ impl Widget for TerminalWidget {
         let [width, height] = cx.size();
         let device_scale = cx.device_scale();
         let tcx = cx.text();
-        self.update_legacy_font_metrics(tcx);
+        self.update_font_metrics(tcx);
         self.resize(width, height, device_scale);
         self.ensure_launched();
         self.tick_selection_autoscroll();
@@ -511,7 +511,7 @@ impl Widget for TerminalWidget {
                 terminal.lines_evicted() as i64 + terminal.history_size() as i64,
             )
         };
-        let default_background = legacy_terminal_ansi_color(
+        let default_background = vello_terminal_ansi_color(
             AnsiColor::Named(NamedColor::Background),
             false,
             &colors,
@@ -575,11 +575,11 @@ impl Widget for TerminalWidget {
     }
 
     fn handle_event(&mut self, event: &UiEvent) -> WidgetEventResult {
-        self.handle_native_event(event).into_legacy()
+        self.handle_native_event(event).into_widget()
     }
 
     fn attribute_changed(&mut self, name: &str, value: &str) -> WidgetChanges {
-        self.apply_native_attribute(name, value).into_legacy()
+        self.apply_native_attribute(name, value).into_widget()
     }
 
     fn accepts_focus(&self) -> bool {
@@ -640,8 +640,8 @@ impl Widget for TerminalWidget {
         if !self.inherit_theme {
             return WidgetChanges::empty();
         }
-        self.theme_foreground = terminal_color_from_legacy(style.color);
-        self.theme_background = terminal_color_from_legacy(
+        self.theme_foreground = terminal_color_from_vello(style.color);
+        self.theme_background = terminal_color_from_vello(
             style
                 .background
                 .unwrap_or_else(|| named_color(NamedColor::Background, false)),

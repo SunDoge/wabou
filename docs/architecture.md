@@ -172,18 +172,18 @@ so this graph cannot grow back accidentally.
 
 Rust crates may remain narrower when they isolate a large dependency family,
 an optional extension, a platform/tooling target, or a dependency direction
-that prevents cycles. For example, `wabou-vello-shell` owns the Winit/Taffy/
-Vello Hybrid window and scene contract, while `wabou-host-api` is shared by
-runtime and binding generation. Remaining `wabou-legacy-*` crates are excluded
-from this production graph. A new crate must demonstrate one of those compile
-or dependency boundaries; ordinary subsystem ownership belongs in a module.
-Applications still see the `wabou` facade.
+that prevents cycles. For example, `wabou-shell-vello` owns the Winit/Taffy/
+Vello Hybrid window and scene contract, while `wabou-widgets-vello`,
+`wabou-terminal-vello`, and `wabou-accessibility-vello` isolate backend-specific
+native integrations. `wabou-host-api` remains shared by runtime and binding
+generation. A new crate must demonstrate one of those compile or dependency
+boundaries; ordinary subsystem ownership belongs in a module. Applications
+still see the `wabou` facade.
 
 Repository verification follows the same boundary. Ordinary `verify:rust` and
-CI commands operate on Cargo's formal `default-members`, including the promoted
-Vello shell. Use `bun run verify:hybrid` for a focused check of the complete
-backend and its still-transitional widget crates. The architecture check rejects
-accidental cross-backend dependencies.
+CI commands operate on Cargo's formal `default-members`, including the complete
+Vello backend family. Use `bun run verify:hybrid` for its focused check. The
+architecture check rejects accidental cross-backend dependencies.
 
 ## Cross-language contract
 

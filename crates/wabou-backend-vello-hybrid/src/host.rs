@@ -290,7 +290,7 @@ impl VelloHybridHostBuilder {
             window: WindowOptions::default(),
             additional_windows: Vec::new(),
             base_color: Color::from_rgb8(0x0f, 0x17, 0x2a),
-            widget_factories: wabou_legacy_widgets::builtin_factories(),
+            widget_factories: wabou_widgets_vello::builtin_factories(),
             capabilities: Vec::new(),
             host_message_producers: Vec::new(),
             services: Vec::new(),
@@ -382,7 +382,7 @@ impl VelloHybridHostBuilder {
     pub fn password_inputs(mut self, secrets: crate::VelloHybridSecretStore) -> Self {
         self.widget_factories.insert(
             "password-input".into(),
-            wabou_legacy_widgets::password_input_factory(secrets),
+            wabou_widgets_vello::password_input_factory(secrets),
         );
         self
     }

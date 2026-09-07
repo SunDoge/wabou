@@ -1,7 +1,8 @@
 [package]
-name = "wabou-legacy-widgets"
+name = "wabou-widgets-vello"
 version.workspace = true
 edition = "2024"
+description = "Native widgets for Wabou's Vello backend."
 
 license.workspace = true
 publish = false
@@ -17,6 +18,6 @@ serde = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
 unicode-width = { workspace = true }
 vello = { workspace = true }
-wabou-vello-shell = { workspace = true }
+wabou-shell-vello = { workspace = true }
 wabou-protocol = { workspace = true }
 zeroize = { workspace = true }

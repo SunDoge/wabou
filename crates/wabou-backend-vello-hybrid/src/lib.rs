@@ -86,7 +86,7 @@ pub use vello_shell::{
     WakeCallback as VelloHybridWakeCallback, Widget, WidgetChanges as VelloHybridWidgetChanges,
     WidgetFactory, WidgetRasterImage as VelloHybridRasterImage, WindowOptions,
 };
-pub use wabou_legacy_widgets::SecretStore as VelloHybridSecretStore;
+pub use wabou_widgets_vello::SecretStore as VelloHybridSecretStore;
 
 mod applier;
 

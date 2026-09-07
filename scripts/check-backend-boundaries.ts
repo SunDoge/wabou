@@ -44,12 +44,12 @@ const GPUI_BACKEND_PACKAGES = new Set([
 ]);
 
 const HYBRID_BACKEND_PACKAGES = new Set([
+  "wabou-accessibility-vello",
   "wabou-backend-vello-hybrid",
-  "wabou-legacy-accessibility",
-  "wabou-vello-shell",
-  "wabou-legacy-terminal",
-  "wabou-legacy-widgets",
-  "wabou-vello-hybrid-svg",
+  "wabou-shell-vello",
+  "wabou-svg-vello-hybrid",
+  "wabou-terminal-vello",
+  "wabou-widgets-vello",
 ]);
 
 interface CargoDependency {

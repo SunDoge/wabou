@@ -1,8 +1,8 @@
 [package]
-name = "wabou-legacy-accessibility"
+name = "wabou-accessibility-vello"
 version.workspace = true
 edition = "2024"
-description = "Legacy Winit AccessKit adapter for Wabou."
+description = "Winit AccessKit adapter for Wabou's Vello backend."
 publish = false
 license.workspace = true
 

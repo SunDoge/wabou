@@ -4,7 +4,7 @@
 //! PTY events). This crate is the frontend adapter: it translates Wabou input
 //! to PTY bytes and pulls Rio's visible grid into a retained AnyRender scene.
 
-extern crate wabou_vello_shell as wabou_shell;
+extern crate wabou_shell_vello as wabou_shell;
 
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
@@ -50,20 +50,16 @@ mod color;
 mod graphics;
 mod input_encoding;
 mod kitty_keyboard;
-mod legacy_graphics;
-mod legacy_widget;
 mod process;
 mod rendering;
 mod selection;
 mod session;
+mod vello_graphics;
+mod widget;
 
 pub use color::TerminalColor;
 use graphics::TerminalGraphics;
 use input_encoding::*;
-use legacy_graphics::KittyLayer;
-#[cfg(test)]
-use legacy_widget::legacy_color;
-pub use legacy_widget::terminal_widget;
 #[cfg(test)]
 use process::quote_windows_command_arg;
 use process::{
@@ -74,6 +70,10 @@ use rendering::*;
 pub use session::{
     TerminalEventKind, TerminalFrame, TerminalInputResult, TerminalInvalidation, TerminalNodeEvent,
 };
+use vello_graphics::KittyLayer;
+pub use widget::terminal_widget;
+#[cfg(test)]
+use widget::vello_color;
 
 const DEFAULT_COLUMNS: usize = 80;
 const DEFAULT_ROWS: usize = 24;

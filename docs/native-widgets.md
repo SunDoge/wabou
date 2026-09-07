@@ -1,4 +1,4 @@
-# Native GPUI widgets
+# Native widgets
 
 Wabou projects ordinary Solid nodes into GPUI elements. Applications can mount
 an application-owned GPUI element behind an explicit tag when a feature needs
@@ -12,10 +12,11 @@ Solid node and generational NodeKey
  NativeWidgetContext -> GPUI element/entity
 ```
 
-This is the only production native-widget model. The retired
-`wabou-legacy-widgets` crate contains Winit/Vello implementations solely for
-migration comparison; it is not a selectable backend or a dependency for new
-widgets.
+The GPUI and Vello backends each own a native-widget adapter because their
+layout, paint, input, and resource APIs differ. `wabou-widgets-vello` provides
+the standard widgets for the Winit/Vello backend through
+`wabou-shell-vello::Widget`; GPUI applications use the entity-based registry
+described below. Both preserve the same Solid node identity and event contract.
 
 ## Stateless widgets
 
@@ -173,8 +174,8 @@ adapter rather than adding another tag-specific branch to tree traversal.
 Test widget state as ordinary GPUI entities where possible. Add a Wabou
 component test for authored attributes and semantics, then a focused GPUI
 headless test when the contract depends on native layout, input, focus, or
-paint. A legacy oracle test can compare migration behavior, but passing it does
-not prove the GPUI implementation.
+paint. A backend-parity test can compare behavior, but passing it does not
+prove either backend's platform integration or pixels.
 
 `@wabou/terminal` is the current end-to-end reference: terminal state lives in
 a retained GPUI entity, while the Solid tag controls placement and authored
