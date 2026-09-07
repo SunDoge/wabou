@@ -16,6 +16,7 @@ export interface ProfileStore {
   load(): Promise<StoredProfiles>;
   save(profile: BackupProfile, options?: { activate?: boolean }): Promise<void>;
   setActive(profileId: string | undefined): Promise<void>;
+  remove(profileId: string): Promise<void>;
 }
 
 function isRecord(
@@ -105,6 +106,25 @@ export function createProfileStore(kv: Kv): ProfileStore {
         await kv.delete(["state", "activeProfileId"]);
       } else {
         await kv.set(["state", "activeProfileId"], profileId);
+      }
+    },
+
+    async remove(profileId) {
+      const profileKey = ["profiles", profileId] as const;
+      const activeKey = ["state", "activeProfileId"] as const;
+      const [profile, active] = await Promise.all([
+        kv.get(profileKey),
+        kv.get(activeKey),
+      ]);
+      const operation = kv
+        .atomic()
+        .check(profile ?? { key: profileKey, versionstamp: null })
+        .check(active ?? { key: activeKey, versionstamp: null })
+        .delete(profileKey);
+      if (active?.value === profileId) operation.delete(activeKey);
+      const result = await operation.commit();
+      if (!result.committed) {
+        throw new Error("backup profile changed while it was being removed");
       }
     },
   };

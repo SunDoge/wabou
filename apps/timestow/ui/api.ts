@@ -116,6 +116,9 @@ export interface RusticCapability extends NativeCapability {
   selectProfile(request: {
     profileId: string;
   }): RuntimeStatus | PromiseLike<RuntimeStatus>;
+  forgetProfile(request: {
+    profileId: string;
+  }): RuntimeStatus | PromiseLike<RuntimeStatus>;
   setSources(request: {
     profileId: string;
     sources: string[];
@@ -182,6 +185,6 @@ interface RusticHost extends Host {
 export function useRusticApi(): RusticCapability {
   return bindCapability(useHost<RusticHost>().rustic, {
     name: "rustic",
-    version: 7,
+    version: 8,
   });
 }

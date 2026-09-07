@@ -23,13 +23,15 @@ use crate::progress::{
     BACKUP_PROGRESS_TOPIC, BackupProgressBars, BackupProgressPhase, ProgressEmitter,
 };
 
-pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 7);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 8);
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
 const OPEN_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("openProfile");
 const SELECT_PROFILE: HostMethod<SelectProfileRequest, RuntimeStatus> =
     HostMethod::new("selectProfile");
+const FORGET_PROFILE: HostMethod<ProfileIdRequest, RuntimeStatus> =
+    HostMethod::new("forgetProfile");
 const SET_SOURCES: HostMethod<SetSourcesRequest, RuntimeStatus> = HostMethod::new("setSources");
 const RUN_BACKUP: HostMethod<ProfileIdRequest, BackupResult> = HostMethod::new("runBackup");
 const LIST_SNAPSHOTS: HostMethod<ProfileIdRequest, Vec<SnapshotEntry>> =
@@ -392,6 +394,20 @@ impl RusticService {
             ));
         }
         state.active_profile_id = Some(request.profile_id);
+        Ok(status_from_state(&state))
+    }
+
+    fn forget_profile(&self, request: ProfileIdRequest) -> Result<RuntimeStatus, String> {
+        let mut state = self
+            .state
+            .write()
+            .map_err(|_| "service state is poisoned")?;
+        state
+            .profiles
+            .retain(|profile| profile.id != request.profile_id);
+        if state.active_profile_id.as_deref() == Some(request.profile_id.as_str()) {
+            state.active_profile_id = None;
+        }
         Ok(status_from_state(&state))
     }
 
@@ -1051,6 +1067,12 @@ pub fn mount(capability: NativeCapability<'_>, service: RusticService) -> rquick
         async move { service.select_profile(request) }
     })?;
 
+    let forget = service.clone();
+    capability.method(FORGET_PROFILE, move |request| {
+        let service = forget.clone();
+        async move { service.forget_profile(request) }
+    })?;
+
     let set_sources = service.clone();
     capability.method(SET_SOURCES, move |request| {
         let service = set_sources.clone();
@@ -1215,6 +1237,38 @@ mod tests {
             })
             .expect_err("native requests must identify a Rust secret slot");
         assert_eq!(error, "repository password slot is required");
+    }
+
+    #[test]
+    fn forgetting_a_profile_drops_its_runtime_credential_and_is_idempotent() {
+        let service = RusticService::default();
+        service
+            .remember_profile(
+                ProfileRequest {
+                    id: "photos".to_string(),
+                    name: "Photos".to_string(),
+                    path: "/backups/photos".to_string(),
+                    password_slot: "test".to_string(),
+                    sources: vec!["/photos".to_string()],
+                },
+                Zeroizing::new("repository-secret".to_string()),
+            )
+            .expect("remember test profile");
+
+        let request = ProfileIdRequest {
+            profile_id: "photos".to_string(),
+        };
+        let status = service
+            .forget_profile(request.clone())
+            .expect("forget profile");
+        assert!(status.unlocked_profile_ids.is_empty());
+        assert_eq!(status.active_profile_id, None);
+
+        let repeated = service
+            .forget_profile(request)
+            .expect("forgetting missing runtime state stays safe");
+        assert!(repeated.unlocked_profile_ids.is_empty());
+        assert_eq!(repeated.active_profile_id, None);
     }
 
     #[test]

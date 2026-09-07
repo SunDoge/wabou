@@ -255,7 +255,7 @@ test("snapshot changes compare against the recorded parent and can include metad
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 7,
+      __wabouCapabilityVersion: 8,
       diffSnapshots: async (request: { includeMetadata?: boolean }) => ({
         entries: [
           {
@@ -361,7 +361,7 @@ test("snapshot file tree loads child directories only when expanded", async () =
   const selected = vi.fn();
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 7,
+      __wabouCapabilityVersion: 8,
       listFiles: async (request: { path: string; offset?: number }) => {
         let entries: FileEntry[];
         if (request.path === "docs") {
@@ -457,7 +457,7 @@ test("snapshot file tree loads child directories only when expanded", async () =
 test("file details preview and extract through the native rustic capability", async () => {
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 7,
+      __wabouCapabilityVersion: 8,
       previewPath: async () => ({
         destination: "/tmp/wabou-rustic-preview/42",
         plan: {
@@ -709,10 +709,11 @@ test("rustic session hydrates durable profiles and exposes their locked state", 
     }),
     save: async () => {},
     setActive: async () => {},
+    remove: async () => {},
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 7,
+      __wabouCapabilityVersion: 8,
       status: async () => ({
         unlockedProfileIds: [],
       }),
@@ -737,6 +738,66 @@ test("rustic session hydrates durable profiles and exposes their locked state", 
   expect(fixture.callsTo("rustic.status")).toHaveLength(1);
 });
 
+test("forgetting a backup clears native credentials before durable profile metadata", async () => {
+  const profile = {
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/data/repository",
+    sources: ["/data/photos"],
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 8,
+      status: async () => ({
+        unlockedProfileIds: [profile.id],
+        activeProfileId: profile.id,
+      }),
+      forgetProfile: async () => ({ unlockedProfileIds: [] }),
+    },
+  });
+  const remove = vi.fn<ProfileStore["remove"]>(async () => {
+    expect(fixture.callsTo("rustic.forgetProfile")).toHaveLength(1);
+  });
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
+    save: async () => {},
+    setActive: async () => {},
+    remove,
+  };
+  const Controls = () => {
+    const session = useTimestowSession();
+    return (
+      <>
+        <Button
+          aria-label="Forget Photos"
+          onClick={() => void session.forgetProfile(profile.id)}
+        />
+        <Text role="status">
+          {session.activeProfile()?.name ?? "none"} ·{" "}
+          {session.profiles().length}
+        </Text>
+      </>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Controls />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("Photos · 1");
+  });
+  screen.getByRole("button", { name: "Forget Photos" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("none · 0");
+  });
+  expect(remove).toHaveBeenCalledWith(profile.id);
+});
+
 test("a failed native profile switch leaves the current profile selected", async () => {
   const setActive = vi.fn<ProfileStore["setActive"]>(async () => {});
   const profiles = [
@@ -757,10 +818,11 @@ test("a failed native profile switch leaves the current profile selected", async
     load: async () => ({ profiles, activeProfileId: "photos" }),
     save: async () => {},
     setActive,
+    remove: async () => {},
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 7,
+      __wabouCapabilityVersion: 8,
       status: async () => ({
         unlockedProfileIds: profiles.map((profile) => profile.id),
         activeProfileId: "photos",
@@ -820,10 +882,11 @@ test("creating a profile unlocks Rust before persisting credential-free metadata
     load: async () => ({ profiles: [] }),
     save,
     setActive: async () => {},
+    remove: async () => {},
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 7,
+      __wabouCapabilityVersion: 8,
       status: async () => ({ unlockedProfileIds: [] }),
       createProfile: async (request: { id: string }) => ({
         unlockedProfileIds: [request.id],
@@ -903,10 +966,11 @@ test("runs a due profile backup in the background and records completion", async
     load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
     save,
     setActive: async () => {},
+    remove: async () => {},
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 7,
+      __wabouCapabilityVersion: 8,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -976,10 +1040,11 @@ test("schedule dialog explains the runtime boundary and exposes its controls", a
     load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
     save,
     setActive: async () => {},
+    remove: async () => {},
   };
   const fixture = createTestHost({
     rustic: {
-      __wabouCapabilityVersion: 7,
+      __wabouCapabilityVersion: 8,
       status: async () => ({
         unlockedProfileIds: [profile.id],
         activeProfileId: profile.id,
@@ -1041,6 +1106,7 @@ test("schedule dialog explains the runtime boundary and exposes its controls", a
 
 test("rustic sidebar exposes stable navigation and repository status", () => {
   const selectProfile = vi.fn<(profileId: string) => void>();
+  const forgetProfile = vi.fn<(profileId: string) => void>();
   const create = vi.fn<() => void>();
   const screen = renderComponent(() => (
     <TimestowSidebar
@@ -1056,6 +1122,7 @@ test("rustic sidebar exposes stable navigation and repository status", () => {
       unlockedProfileIds={["photos"]}
       onCreate={create}
       onSelectProfile={selectProfile}
+      onForgetProfile={forgetProfile}
     />
   ));
 
@@ -1066,4 +1133,13 @@ test("rustic sidebar exposes stable navigation and repository status", () => {
   expect(selectProfile).toHaveBeenCalledWith("photos");
   screen.getByRole("button", { name: "New backup" }).click();
   expect(create).toHaveBeenCalledOnce();
+
+  screen.getByRole("button", { name: "Photos" }).contextMenu();
+  screen.getByRole("menuitem", { name: "Forget backup…" }).click();
+  const confirmation = screen.getByRole("alertdialog", {
+    name: "Forget backup",
+  });
+  expect(confirmation.text).toContain("will remain untouched");
+  screen.getByRole("button", { name: "Forget Photos" }).click();
+  expect(forgetProfile).toHaveBeenCalledWith("photos");
 });

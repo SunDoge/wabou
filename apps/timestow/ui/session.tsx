@@ -53,6 +53,7 @@ interface TimestowSession {
   refresh(): Promise<void>;
   beginCreate(): void;
   activateProfile(profileId: string): Promise<boolean>;
+  forgetProfile(profileId: string): Promise<void>;
   connectProfile(
     mode: "create" | "open",
     input: ConnectProfileInput,
@@ -166,6 +167,26 @@ export function TimestowSessionProvider(props: {
     setError(undefined);
     await rememberSelection();
     return true;
+  }
+
+  async function forgetProfile(profileId: string): Promise<void> {
+    const profile = profiles().find((item) => item.id === profileId);
+    if (!profile) throw new Error(`backup profile ${profileId} was not found`);
+    if (isBackingUp(profileId)) {
+      throw new Error(`wait for ${profile.name} to finish backing up`);
+    }
+    const nextRuntime = await api.forgetProfile({ profileId });
+    setRuntime(nextRuntime);
+    await store.remove(profileId);
+    setProfiles((current) => current.filter((item) => item.id !== profileId));
+    if (activeProfileId() === profileId) setActiveProfileId(undefined);
+    if (pendingUnlockId() === profileId) setPendingUnlockId(undefined);
+    setBackupProgressByProfile((current) => {
+      const remaining = { ...current };
+      delete remaining[profileId];
+      return remaining;
+    });
+    setError(undefined);
   }
 
   async function connectProfile(
@@ -422,6 +443,7 @@ export function TimestowSessionProvider(props: {
         refresh,
         beginCreate,
         activateProfile,
+        forgetProfile,
         connectProfile,
         updateSources,
         updateSchedule,

@@ -1,7 +1,15 @@
 import {
   Alert,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   ColorThemeProvider,
   ComponentsProvider,
+  ContextMenu,
   Icon,
   IconFrame,
   Sidebar,
@@ -23,7 +31,7 @@ import {
 import archive from "lucide-static/icons/archive.svg?raw";
 import database from "lucide-static/icons/database.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
-import { For as ForValue, type JSX, Show } from "solid-js";
+import { createSignal, For as ForValue, type JSX, Show } from "solid-js";
 import type { BackupProfile } from "./api";
 import { useTimestowSession } from "./session";
 
@@ -33,6 +41,7 @@ export interface TimestowSidebarProps {
   unlockedProfileIds: readonly string[];
   onCreate(): void;
   onSelectProfile(profileId: string): void;
+  onForgetProfile(profileId: string): void;
 }
 
 export function SessionErrorBanner(props: {
@@ -54,73 +63,127 @@ export function SessionErrorBanner(props: {
 }
 
 export function TimestowSidebar(props: TimestowSidebarProps) {
+  const [forgetCandidate, setForgetCandidate] = createSignal<BackupProfile>();
   return (
-    <Sidebar
-      aria-label="Primary navigation"
-      class="w-56 border-r border-subtle bg-surface-muted"
-    >
-      <SidebarHeader class="h-16 px-4 flex items-center gap-3 border-0 bg-surface-muted">
-        <IconFrame source={archive} size="sm" iconSize={18} variant="solid" />
-        <View class="min-w-0 flex flex-col">
-          <Text class="truncate text-sm font-semibold">Timestow</Text>
-          <Text class="truncate text-xs text-muted">Backup workspace</Text>
-        </View>
-      </SidebarHeader>
+    <>
+      <Sidebar
+        aria-label="Primary navigation"
+        class="w-56 border-r border-subtle bg-surface-muted"
+      >
+        <SidebarHeader class="h-16 px-4 flex items-center gap-3 border-0 bg-surface-muted">
+          <IconFrame source={archive} size="sm" iconSize={18} variant="solid" />
+          <View class="min-w-0 flex flex-col">
+            <Text class="truncate text-sm font-semibold">Timestow</Text>
+            <Text class="truncate text-xs text-muted">Backup workspace</Text>
+          </View>
+        </SidebarHeader>
 
-      <SidebarContent contentClass="px-3 py-3">
-        <SidebarGroup aria-label="Backups">
-          <SidebarGroupLabel>Backups</SidebarGroupLabel>
-          <SidebarMenu value={props.active}>
-            <Show
-              when={props.profiles.length > 0}
-              fallback={
-                <Text class="px-2 py-3 text-xs text-muted">
-                  Create your first backup to begin.
-                </Text>
-              }
-            >
-              <ForValue each={props.profiles}>
-                {(profile) => (
-                  <SidebarMenuButton
-                    value={profile.id}
-                    aria-label={profile.name}
-                    onClick={() => props.onSelectProfile(profile.id)}
-                  >
-                    <SidebarMenuIcon>
-                      <Icon source={database} size={16} />
-                    </SidebarMenuIcon>
-                    <SidebarMenuLabel>{profile.name}</SidebarMenuLabel>
-                    <SidebarMenuSuffix>
-                      <View
-                        aria-label={
-                          props.unlockedProfileIds.includes(profile.id)
-                            ? `${profile.name} unlocked`
-                            : `${profile.name} locked`
-                        }
-                        class={`w-2 h-2 rounded-full ${props.unlockedProfileIds.includes(profile.id) ? "bg-success-primary" : "bg-muted"}`}
-                      />
-                    </SidebarMenuSuffix>
-                  </SidebarMenuButton>
-                )}
-              </ForValue>
-            </Show>
-          </SidebarMenu>
-        </SidebarGroup>
-      </SidebarContent>
+        <SidebarContent contentClass="px-3 py-3">
+          <SidebarGroup aria-label="Backups">
+            <SidebarGroupLabel>Backups</SidebarGroupLabel>
+            <SidebarMenu value={props.active}>
+              <Show
+                when={props.profiles.length > 0}
+                fallback={
+                  <Text class="px-2 py-3 text-xs text-muted">
+                    Create your first backup to begin.
+                  </Text>
+                }
+              >
+                <ForValue each={props.profiles}>
+                  {(profile) => (
+                    <ContextMenu
+                      aria-label={`${profile.name} actions`}
+                      items={[
+                        {
+                          id: "forget",
+                          label: "Forget backup…",
+                          destructive: true,
+                        },
+                      ]}
+                      onAction={(action) => {
+                        if (action === "forget") setForgetCandidate(profile);
+                      }}
+                      trigger={(menu) => (
+                        <SidebarMenuButton
+                          ref={menu.ref}
+                          value={profile.id}
+                          aria-label={profile.name}
+                          aria-haspopup={menu["aria-haspopup"]}
+                          aria-expanded={menu["aria-expanded"]}
+                          onClick={() => props.onSelectProfile(profile.id)}
+                          onContextMenu={menu.onContextMenu}
+                          onKeyDown={menu.onKeyDown}
+                        >
+                          <SidebarMenuIcon>
+                            <Icon source={database} size={16} />
+                          </SidebarMenuIcon>
+                          <SidebarMenuLabel>{profile.name}</SidebarMenuLabel>
+                          <SidebarMenuSuffix>
+                            <View
+                              aria-label={
+                                props.unlockedProfileIds.includes(profile.id)
+                                  ? `${profile.name} unlocked`
+                                  : `${profile.name} locked`
+                              }
+                              class={`w-2 h-2 rounded-full ${props.unlockedProfileIds.includes(profile.id) ? "bg-success-primary" : "bg-muted"}`}
+                            />
+                          </SidebarMenuSuffix>
+                        </SidebarMenuButton>
+                      )}
+                    />
+                  )}
+                </ForValue>
+              </Show>
+            </SidebarMenu>
+          </SidebarGroup>
+        </SidebarContent>
 
-      <SidebarFooter class="p-3 bg-surface-muted">
-        <SidebarMenuButton
-          selected={props.active === "new"}
-          aria-label="New backup"
-          onClick={props.onCreate}
-        >
-          <SidebarMenuIcon>
-            <Icon source={plus} size={16} />
-          </SidebarMenuIcon>
-          <SidebarMenuLabel>New backup</SidebarMenuLabel>
-        </SidebarMenuButton>
-      </SidebarFooter>
-    </Sidebar>
+        <SidebarFooter class="p-3 bg-surface-muted">
+          <SidebarMenuButton
+            selected={props.active === "new"}
+            aria-label="New backup"
+            onClick={props.onCreate}
+          >
+            <SidebarMenuIcon>
+              <Icon source={plus} size={16} />
+            </SidebarMenuIcon>
+            <SidebarMenuLabel>New backup</SidebarMenuLabel>
+          </SidebarMenuButton>
+        </SidebarFooter>
+      </Sidebar>
+      <AlertDialog
+        aria-label="Forget backup"
+        open={forgetCandidate() !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setForgetCandidate(undefined);
+        }}
+      >
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            Forget {forgetCandidate()?.name ?? "this backup"}?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            This removes the profile and its saved settings from this device.
+            The encrypted repository and every snapshot inside it will remain
+            untouched.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            aria-label={`Forget ${forgetCandidate()?.name ?? "backup"}`}
+            onClick={() => {
+              const profile = forgetCandidate();
+              if (profile) props.onForgetProfile(profile.id);
+            }}
+          >
+            Forget backup
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -134,6 +197,18 @@ export function AppShell(props: { children?: JSX.Element }) {
     try {
       const unlocked = await session.activateProfile(profileId);
       await navigate({ to: unlocked ? "/snapshots" : "/" });
+    } catch (cause) {
+      session.setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  async function forgetProfile(profileId: string): Promise<void> {
+    const wasActive =
+      session.activeProfile()?.id === profileId ||
+      session.pendingUnlock()?.id === profileId;
+    try {
+      await session.forgetProfile(profileId);
+      if (wasActive) await navigate({ to: "/" });
     } catch (cause) {
       session.setError(cause instanceof Error ? cause.message : String(cause));
     }
@@ -156,6 +231,7 @@ export function AppShell(props: { children?: JSX.Element }) {
               void navigate({ to: "/" });
             }}
             onSelectProfile={(profileId) => void selectProfile(profileId)}
+            onForgetProfile={(profileId) => void forgetProfile(profileId)}
           />
           <View class="min-w-0 min-h-0 flex-1 flex flex-col">
             <Show when={session.error()}>

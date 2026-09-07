@@ -134,3 +134,38 @@ test("schedule updates do not steal the active profile", async () => {
 
   expect((await store.load()).activeProfileId).toBe("photos");
 });
+
+test("forgetting a profile clears its active selection without touching other profiles", async () => {
+  const { kv } = memoryKv();
+  const store = createProfileStore(kv);
+  await store.save({
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/backups/photos",
+    sources: ["/photos"],
+  });
+  await store.save(
+    {
+      id: "documents",
+      name: "Documents",
+      repositoryPath: "/backups/documents",
+      sources: ["/documents"],
+    },
+    { activate: false },
+  );
+
+  await store.remove("photos");
+
+  expect(await store.load()).toEqual({
+    profiles: [
+      {
+        id: "documents",
+        name: "Documents",
+        repositoryPath: "/backups/documents",
+        sources: ["/documents"],
+      },
+    ],
+    activeProfileId: undefined,
+  });
+  await expect(store.remove("missing")).resolves.toBeUndefined();
+});

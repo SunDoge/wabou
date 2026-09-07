@@ -108,11 +108,12 @@ const fixtureStatus = {
 };
 
 const fixtureRustic: RusticCapability = {
-  __wabouCapabilityVersion: 7,
+  __wabouCapabilityVersion: 8,
   status: () => fixtureStatus,
   createProfile: () => fixtureStatus,
   openProfile: () => fixtureStatus,
   selectProfile: () => fixtureStatus,
+  forgetProfile: () => fixtureStatus,
   setSources: () => fixtureStatus,
   runBackup: () => ({ snapshot: newestSnapshot }),
   listSnapshots: () => [newestSnapshot, previousSnapshot],
@@ -174,6 +175,7 @@ const fixtureStore: ProfileStore = {
   load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
   save: async () => {},
   setActive: async () => {},
+  remove: async () => {},
 };
 
 function NewBackupFixture() {
@@ -191,6 +193,7 @@ function NewBackupFixture() {
             unlockedProfileIds={[]}
             onCreate={() => {}}
             onSelectProfile={() => {}}
+            onForgetProfile={() => {}}
           />
           <View class="min-w-0 min-h-0 flex-1 px-6 py-5">
             <View class="w-full max-w-3xl mx-auto flex flex-col gap-5">
@@ -227,6 +230,7 @@ function UnlockBackupFixture() {
             unlockedProfileIds={[]}
             onCreate={() => {}}
             onSelectProfile={() => {}}
+            onForgetProfile={() => {}}
           />
           <View class="min-w-0 min-h-0 flex-1 px-6 py-5">
             <View class="w-full max-w-3xl mx-auto flex flex-col gap-5">
