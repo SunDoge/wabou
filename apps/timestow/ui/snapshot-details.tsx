@@ -25,6 +25,7 @@ import info from "lucide-static/icons/info.svg?raw";
 import trash2 from "lucide-static/icons/trash-2.svg?raw";
 import { createEffect, createSignal, For as ForValue, Show } from "solid-js";
 import type { SnapshotEntry } from "./api";
+import { formatDetailedTimestamp } from "./format";
 export { formatTimestamp as formatSnapshotTime } from "./format";
 
 export function SnapshotDetails(props: {
@@ -124,7 +125,10 @@ export function SnapshotDetails(props: {
               </DialogDescription>
             </DialogHeader>
             <View class="grid grid-cols-2 gap-4 rounded-lg border border-subtle bg-surface-muted p-4">
-              <Detail label="Created" value={props.snapshot.time} />
+              <Detail
+                label="Created"
+                value={formatDetailedTimestamp(props.snapshot.time)}
+              />
               <Detail
                 label="Hostname"
                 value={props.snapshot.hostname || "Unknown"}

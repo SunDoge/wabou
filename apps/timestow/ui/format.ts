@@ -13,6 +13,48 @@ export function formatTimestamp(value: string): string {
     : value;
 }
 
+export function formatDetailedTimestamp(value: string): string {
+  const match = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/,
+  );
+  if (!match) return value;
+
+  const [, year, month, day, hour, minute, second = "00", rawZone] = match;
+  const zone = formatTimeZone(rawZone);
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}${zone}`;
+}
+
+function formatTimeZone(rawZone?: string): string {
+  if (!rawZone) return "";
+  if (rawZone === "Z") return " UTC";
+  const offset = rawZone.includes(":")
+    ? rawZone
+    : `${rawZone.slice(0, 3)}:${rawZone.slice(3)}`;
+  return ` UTC${offset}`;
+}
+
 export function formatOptionalTimestamp(value?: string): string {
   return value ? formatTimestamp(value) : "—";
+}
+
+export function formatOptionalDetailedTimestamp(
+  value?: string,
+  fallback = "—",
+): string {
+  return value ? formatDetailedTimestamp(value) : fallback;
+}
+
+export function formatFileKind(
+  kind: "directory" | "file" | "symlink" | "special",
+): string {
+  switch (kind) {
+    case "directory":
+      return "Folder";
+    case "file":
+      return "File";
+    case "symlink":
+      return "Symbolic link";
+    case "special":
+      return "Special file";
+  }
 }

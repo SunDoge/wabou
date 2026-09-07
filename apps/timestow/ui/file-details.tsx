@@ -18,7 +18,11 @@ import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import { createSignal, Show } from "solid-js";
 import { type FileEntry, type RestorePlanSummary, useRusticApi } from "./api";
-import { formatBytes } from "./format";
+import {
+  formatBytes,
+  formatFileKind,
+  formatOptionalDetailedTimestamp,
+} from "./format";
 
 export function FileDetails(props: {
   profileId: string;
@@ -79,7 +83,7 @@ export function FileDetails(props: {
               <View class="min-w-0 flex-1 flex flex-col gap-0.5">
                 <Text class="truncate font-semibold">{entry().name}</Text>
                 <Badge variant="secondary" class="self-start">
-                  {entry().kind}
+                  {formatFileKind(entry().kind)}
                 </Badge>
               </View>
             </View>
@@ -90,16 +94,22 @@ export function FileDetails(props: {
                 entry().kind === "directory" ? "—" : formatBytes(entry().size)
               }
             />
-            <Detail label="Modified" value={entry().modified ?? "Unknown"} />
+            <Detail
+              label="Modified"
+              value={formatOptionalDetailedTimestamp(
+                entry().modified,
+                "Unknown",
+              )}
+            />
             <View class="flex flex-col gap-2 pt-1">
               <Button
-                aria-label="Preview temporary copy"
+                aria-label="Open preview"
                 variant="outline"
                 loading={previewing()}
                 loadingLabel="Preparing preview…"
                 onClick={() => void preview()}
               >
-                <Icon source={eye} size={14} /> Preview temporary copy
+                <Icon source={eye} size={14} /> Open preview
               </Button>
               <ExtractDialog
                 profileId={props.profileId}

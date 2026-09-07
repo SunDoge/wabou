@@ -381,9 +381,17 @@ await renderLayoutFixtures({
       checks: ["visible-overflow", "text-collision", "visual-quality"],
       assert: (fixture) => {
         getLayoutNode(fixture, { role: "region", name: "File details" });
+        if (!fixture.nodes.some((node) => node.text === "File")) {
+          throw new Error("file details expose the internal file kind");
+        }
+        if (
+          !fixture.nodes.some((node) => node.text === "2026-09-08 00:41:00 UTC")
+        ) {
+          throw new Error("file details omit the timestamp time zone");
+        }
         getLayoutNode(fixture, {
           role: "button",
-          name: "Preview temporary copy",
+          name: "Open preview",
         });
         getLayoutNode(fixture, { role: "button", name: "Extract…" });
       },

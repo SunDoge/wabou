@@ -5,6 +5,10 @@ import { createSignal, Show } from "solid-js";
 import { expect, test, vi } from "vitest";
 import type { FileEntry } from "../../apps/timestow/ui/api";
 import { FileDetails } from "../../apps/timestow/ui/file-details";
+import {
+  formatDetailedTimestamp,
+  formatFileKind,
+} from "../../apps/timestow/ui/format";
 import type { ProfileStore } from "../../apps/timestow/ui/profile-store";
 import { RepositoryCheckDialog } from "../../apps/timestow/ui/repository-check";
 import { BackupScheduleDialog } from "../../apps/timestow/ui/schedule-dialog";
@@ -292,6 +296,21 @@ test("snapshot timestamps stay compact in the table", () => {
   expect(formatModified(undefined)).toBe("—");
 });
 
+test("detail metadata uses readable types and explicit time zones", () => {
+  expect(formatDetailedTimestamp("2026-09-02T04:18:35.321355Z")).toBe(
+    "2026-09-02 04:18:35 UTC",
+  );
+  expect(formatDetailedTimestamp("2026-09-02T12:18:35+0800")).toBe(
+    "2026-09-02 12:18:35 UTC+08:00",
+  );
+  expect(formatDetailedTimestamp("recorded by legacy rustic")).toBe(
+    "recorded by legacy rustic",
+  );
+  expect(
+    (["directory", "file", "symlink", "special"] as const).map(formatFileKind),
+  ).toEqual(["Folder", "File", "Symbolic link", "Special file"]);
+});
+
 test("snapshot refresh never carries a selection into an empty profile", () => {
   const current = {
     id: "current",
@@ -400,7 +419,7 @@ test("snapshot summaries stay compact while details preserve full metadata", () 
   screen.flush();
 
   const details = screen.getByRole("dialog", { name: "Snapshot details" });
-  expect(details.text).toContain(snapshot.time);
+  expect(details.text).toContain("2026-09-02 04:18:35 UTC");
   expect(details.text).toContain("workstation");
   expect(details.text).toContain("/data/photos");
   expect(details.text).toContain(snapshot.id);
@@ -896,7 +915,9 @@ test("file details preview and extract through the native rustic capability", as
     { host: fixture.host, platform: { dialog } },
   );
 
-  screen.getByRole("button", { name: "Preview temporary copy" }).click();
+  expect(screen.roots[0]?.text).toContain("File");
+  expect(screen.roots[0]?.text).toContain("2026-09-02 04:18:35 UTC");
+  screen.getByRole("button", { name: "Open preview" }).click();
   await screen.waitFor(() => {
     expect(screen.roots[0]?.text).toContain("/tmp/wabou-rustic-preview/42");
   });
