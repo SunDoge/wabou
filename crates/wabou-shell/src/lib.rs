@@ -52,14 +52,15 @@ pub use wabou_shell_api::{
     AppDirectories, AppDirectoryConfig, CapabilityId, ContextMenuItem, ContextMenuRequest,
     DialogFilter, EFFECT_ABI_VERSION, EffectCompletion, EffectDispatch, EffectErrorCode,
     EffectExecutor, EffectId, EffectOp, EffectPayload, EffectRequest, EffectResult, EffectScope,
-    EffectTapeEntry, MenuPosition, MessageDialogButtons, MessageDialogLevel, MessageDialogRequest,
-    MethodId, NotificationRequest, OpenDialogRequest, PickDirectoryRequest,
-    RecordingEffectExecutor, ReplayEffectExecutor, RgbaColor, SaveDialogRequest, WindowBackground,
-    WindowCapabilities, WindowCommand, WindowCreateRequest, WindowEffect, WindowInputMode,
-    WindowIntent, WindowLevel, WindowLifecycle, WindowOptions, WindowPresence, WindowResourceKey,
-    initial_window_resource_key,
+    EffectTapeEntry, FloatingAlign, FloatingAnchor, FloatingNodeKey, FloatingPlacement,
+    FloatingPosition, FloatingResolvedPosition, FloatingSide, MenuPosition, MessageDialogButtons,
+    MessageDialogLevel, MessageDialogRequest, MethodId, NotificationRequest, OpenDialogRequest,
+    PickDirectoryRequest, RecordingEffectExecutor, ReplayEffectExecutor, RgbaColor,
+    SaveDialogRequest, WindowBackground, WindowCapabilities, WindowCommand, WindowCreateRequest,
+    WindowEffect, WindowInputMode, WindowIntent, WindowLevel, WindowLifecycle, WindowOptions,
+    WindowPresence, WindowResourceKey, initial_window_resource_key, resolve_floating_position,
 };
-pub use wabou_shell_api::{app_dirs, effect, event, window, window_lifecycle};
+pub use wabou_shell_api::{app_dirs, effect, event, floating, window, window_lifecycle};
 pub use window_state::WindowSizePersistence;
 
 /// Run a GPUI application using Wabou's selected platform implementation.

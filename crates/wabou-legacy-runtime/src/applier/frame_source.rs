@@ -468,10 +468,13 @@ impl FrameSource for Applier {
             }
             placed
         };
+        let floating_positioned =
+            self.position_floating_nodes(&mut placed, [width as f32, height as f32]);
         {
             let projection_dirty = self.frame.projections.semantics_dirty
                 || semantic_layout_dirty
-                || selection_scrolled;
+                || selection_scrolled
+                || floating_positioned;
             // Hit geometry, focus order, and selectable-text indices are retained
             // projections of the placed tree. A requestAnimationFrame callback can
             // produce no host operations, so rebuilding all of them on every such

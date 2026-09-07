@@ -60,6 +60,8 @@ use crate::protocol::NodeKey;
 #[cfg(any(feature = "devtools", test))]
 #[path = "applier/debug_projection.rs"]
 mod debug_projection;
+#[path = "applier/floating.rs"]
+mod floating;
 #[path = "applier/focus.rs"]
 mod focus;
 #[path = "applier/frame_source.rs"]

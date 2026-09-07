@@ -45,6 +45,7 @@ wabou-bindgen.workspace = true
 wabou-host-api.workspace = true
 wabou-legacy-widgets.workspace = true
 wabou-protocol.workspace = true
+wabou-shell-api.workspace = true
 wabou-style.workspace = true
 
 [features]

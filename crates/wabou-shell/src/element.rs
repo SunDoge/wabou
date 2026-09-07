@@ -14,6 +14,9 @@ use gpui::{
     TouchPhase, UniformListScrollHandle, Visibility, Window, div, prelude::*, uniform_list,
 };
 use serde::Deserialize;
+use wabou_shell_api::{
+    FloatingAlign, FloatingAnchor, FloatingPlacement, FloatingPosition, FloatingSide,
+};
 
 use crate::ProjectionSnapshot;
 use crate::{
@@ -305,7 +308,7 @@ pub struct ProjectedElement {
     boundary_root: bool,
     native_transition: Option<NativeTransition>,
     native_spring: Option<NativeSpring>,
-    floating_position: Option<NativeFloatingPosition>,
+    floating_position: Option<FloatingPosition>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -390,90 +393,27 @@ fn parse_native_spring(node: &ProjectedNode) -> Option<NativeSpring> {
     .then_some(spring)
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct NativeFloatingPosition {
-    anchor: NativeFloatingAnchor,
-    #[serde(default)]
-    placement: NativeFloatingPlacement,
-    #[serde(default = "default_floating_offset")]
-    offset: f32,
-    #[serde(default = "default_floating_margin")]
-    margin: f32,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
-#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
-enum NativeFloatingAnchor {
-    Node { id: NativeNodeKey },
-    Point { x: f32, y: f32 },
-}
-
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
-#[serde(rename_all = "kebab-case")]
-enum NativeFloatingPlacement {
-    Top,
-    TopStart,
-    TopEnd,
-    Bottom,
-    #[default]
-    BottomStart,
-    BottomEnd,
-    Left,
-    LeftStart,
-    LeftEnd,
-    Right,
-    RightStart,
-    RightEnd,
-}
-
-impl NativeFloatingPlacement {
-    fn gpui(self) -> (gpui_base::Placement, gpui_base::Align) {
-        use gpui_base::{Align, Placement};
-        match self {
-            Self::Top => (Placement::Top, Align::Center),
-            Self::TopStart => (Placement::Top, Align::Start),
-            Self::TopEnd => (Placement::Top, Align::End),
-            Self::Bottom => (Placement::Bottom, Align::Center),
-            Self::BottomStart => (Placement::Bottom, Align::Start),
-            Self::BottomEnd => (Placement::Bottom, Align::End),
-            Self::Left => (Placement::Left, Align::Center),
-            Self::LeftStart => (Placement::Left, Align::Start),
-            Self::LeftEnd => (Placement::Left, Align::End),
-            Self::Right => (Placement::Right, Align::Center),
-            Self::RightStart => (Placement::Right, Align::Start),
-            Self::RightEnd => (Placement::Right, Align::End),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct NativeNodeKey {
-    lo: u32,
-    hi: u32,
-}
-
-const fn default_floating_offset() -> f32 {
-    6.0
-}
-
-const fn default_floating_margin() -> f32 {
-    8.0
-}
-
-fn parse_floating_position(node: &ProjectedNode) -> Option<NativeFloatingPosition> {
-    let value = node.attributes.get("__wabou_floating_position")?;
-    let position: NativeFloatingPosition = serde_json::from_str(value).ok()?;
-    let valid_anchor = match position.anchor {
-        NativeFloatingAnchor::Node { id } => id.lo != 0 && id.hi != 0,
-        NativeFloatingAnchor::Point { x, y } => x.is_finite() && y.is_finite(),
+fn gpui_floating_placement(
+    placement: FloatingPlacement,
+) -> (gpui_base::Placement, gpui_base::Align) {
+    let (side, align) = placement.side_align();
+    let placement = match side {
+        FloatingSide::Top => gpui_base::Placement::Top,
+        FloatingSide::Bottom => gpui_base::Placement::Bottom,
+        FloatingSide::Left => gpui_base::Placement::Left,
+        FloatingSide::Right => gpui_base::Placement::Right,
     };
-    (valid_anchor
-        && position.offset.is_finite()
-        && position.margin.is_finite()
-        && position.margin >= 0.0)
-        .then_some(position)
+    let align = match align {
+        FloatingAlign::Start => gpui_base::Align::Start,
+        FloatingAlign::Center => gpui_base::Align::Center,
+        FloatingAlign::End => gpui_base::Align::End,
+    };
+    (placement, align)
+}
+
+fn parse_floating_position(node: &ProjectedNode) -> Option<FloatingPosition> {
+    let value = node.attributes.get("__wabou_floating_position")?;
+    FloatingPosition::parse(value)
 }
 
 #[derive(Clone)]
@@ -1310,7 +1250,7 @@ fn sample_transition(transition: NativeTransition, progress: f32) -> ([f32; 6], 
 }
 
 struct NativeFloatingElement {
-    position: NativeFloatingPosition,
+    position: FloatingPosition,
     layout_bounds: ProjectedLayoutBounds,
     element: Option<AnyElement>,
 }
@@ -1348,7 +1288,7 @@ impl Element for NativeFloatingElement {
         cx: &mut App,
     ) -> (LayoutId, Self::RequestLayoutState) {
         let (anchor_bounds, visible) = match self.position.anchor {
-            NativeFloatingAnchor::Node { id } => {
+            FloatingAnchor::Node { id } => {
                 let target = NodeKey::new(id.lo, id.hi);
                 match self.layout_bounds.borrow().get(&target).copied() {
                     Some(bounds) => (bounds, true),
@@ -1362,7 +1302,7 @@ impl Element for NativeFloatingElement {
                     }
                 }
             }
-            NativeFloatingAnchor::Point { x, y } => (
+            FloatingAnchor::Point { x, y } => (
                 Bounds::new(
                     gpui::point(gpui::px(x), gpui::px(y)),
                     gpui::size(Pixels::ZERO, Pixels::ZERO),
@@ -1370,7 +1310,7 @@ impl Element for NativeFloatingElement {
                 true,
             ),
         };
-        let (placement, align) = self.position.placement.gpui();
+        let (placement, align) = gpui_floating_placement(self.position.placement);
         let child = self
             .element
             .take()
@@ -2364,12 +2304,12 @@ mod tests {
             .expect("valid native floating position is projected");
         assert_eq!(
             position.anchor,
-            NativeFloatingAnchor::Node {
-                id: NativeNodeKey { lo: 19, hi: 7 }
+            FloatingAnchor::Node {
+                id: wabou_shell_api::FloatingNodeKey { lo: 19, hi: 7 }
             }
         );
         assert_eq!(
-            position.placement.gpui(),
+            gpui_floating_placement(position.placement),
             (gpui_base::Placement::Right, gpui_base::Align::End)
         );
         assert_eq!(position.offset, 9.0);
