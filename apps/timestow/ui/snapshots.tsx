@@ -314,7 +314,11 @@ export function SnapshotBrowserEmptyState(props: {
           state="empty"
           title="Create your first snapshot"
           description={`Back up ${props.sourceCount} ${props.sourceCount === 1 ? "folder" : "folders"} to start the history.`}
-          action={{ label: "Back up now", onAction: props.onBackup }}
+          renderAction={() => (
+            <Button size="sm" aria-label="Back up now" onClick={props.onBackup}>
+              Back up now
+            </Button>
+          )}
           class="min-h-0 flex-1 border-0 shadow-none"
         />
       }
