@@ -348,7 +348,7 @@ bitflags::bitflags! {
 /// CSS properties that inherit to descendants. A SetStyle touching one of
 /// these (or the `font` shorthand) must take the slow path — re-derive + run
 /// the inherit pass — so children see the new value. Other inline properties
-/// take [`LegacyRuntimeController::apply_inline_ir_fast`].
+/// take [`Applier::apply_inline_ir_fast`].
 const INHERITED_PROPERTIES: &[&str] = &[
     "color",
     "font-size",
@@ -510,19 +510,15 @@ impl FrameState {
 }
 
 /// Coordinates one transactional JS protocol consumer and its retained native
-/// document. Subsystems own their state; `LegacyRuntimeController` owns frame ordering.
-pub struct LegacyRuntimeController {
+/// document. Subsystems own their state; `Applier` owns frame ordering.
+pub struct Applier {
     document: DocumentState,
     interaction: InteractionState,
     frame: FrameState,
     runtime: RuntimeSession,
 }
 
-/// Compatibility name used only by the legacy Winit projection modules.
-#[doc(hidden)]
-pub type Applier = LegacyRuntimeController;
-
-impl LegacyRuntimeController {
+impl Applier {
     #[cfg(test)]
     pub(crate) fn text_input_state(&self) -> gpui_shell::ProjectedTextInputState {
         let Some(target) = self.interaction.input.focused_target else {
@@ -681,7 +677,7 @@ impl LegacyRuntimeController {
     }
 }
 
-impl LegacyRuntimeController {
+impl Applier {
     fn cancel_pointer_gesture(&mut self, pointer: gpui_shell::PointerEvent) -> bool {
         self.interaction.input.update_pointer(&pointer);
         self.interaction.text_selection.next_scroll = None;

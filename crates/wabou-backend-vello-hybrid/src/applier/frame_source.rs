@@ -241,7 +241,7 @@ impl Applier {
     /// Advance the backend-neutral JS/runtime half of a frame.
     ///
     /// Layout and painting deliberately happen after this boundary in the
-    /// selected shell backend. Both the legacy renderer and GPUI therefore
+    /// selected shell backend. The renderer therefore
     /// consume the same completed Solid flush and resolved cascade.
     fn advance_runtime_frame(&mut self, width: u32, height: u32) -> bool {
         self.document.invalidation.remove(InvalidationFlags::TICK);

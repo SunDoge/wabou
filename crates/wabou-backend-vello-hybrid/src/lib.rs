@@ -90,4 +90,4 @@ pub use wabou_widgets_vello::SecretStore as VelloHybridSecretStore;
 
 mod applier;
 
-pub use applier::{ComputedNodeSnapshot, LegacyRuntimeController as Applier};
+pub use applier::{Applier, ComputedNodeSnapshot};
