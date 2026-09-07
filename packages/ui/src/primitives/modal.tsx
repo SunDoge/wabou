@@ -1,8 +1,4 @@
-import {
-  type Handle,
-  Portal,
-  type WabouNativeTransition,
-} from "@wabou/core/renderer";
+import { type Handle, Portal } from "@wabou/core/renderer";
 import {
   type Affine2D,
   mergeClasses,
@@ -20,7 +16,7 @@ import {
 } from "solid-js";
 import { type Easing, useReducedMotion } from "../animation";
 import { createOverlayLayer, OverlayPlaneProvider } from "./overlay-layer";
-import { createPresence } from "./presence";
+import { createTransitionPresence } from "./transition-presence";
 import type { WabouStyle } from "./view";
 import { View } from "./view";
 
@@ -166,9 +162,16 @@ export function Modal(props: ModalProps): JSX.Element {
     (entering ? motionOptions?.enterDuration : motionOptions?.exitDuration) ??
     motionOptions?.duration ??
     (motionEnabled ? 0.16 : 0);
-  const presence = createPresence(open);
+  const presence = createTransitionPresence(open, {
+    duration: () => transitionDuration(open()),
+    ease:
+      motionOptions?.ease ??
+      motionOptions?.enterEase ??
+      motionOptions?.exitEase ??
+      "easeOut",
+    reducedMotion,
+  });
   const visualState = () => modalVisualState(open(), props.backdropFade);
-  const [transitionGeneration, setTransitionGeneration] = createSignal(0);
   let trigger: Handle | undefined;
   let focusFrame = 0;
   let wasOpenForInitialFocus = false;
@@ -194,17 +197,8 @@ export function Modal(props: ModalProps): JSX.Element {
   const handleEscape = (event: ModalKeyEvent) => layer.onEscape(event);
 
   createEffect(
-    () => [open(), reducedMotion()] as const,
-    ([isOpen, prefersReducedMotion]) => {
-      setTransitionGeneration((value) => value + 1);
-      if (
-        !motionEnabled ||
-        prefersReducedMotion ||
-        transitionDuration(isOpen) <= 0
-      ) {
-        if (isOpen) presence.finishEnter();
-        else presence.finishExit();
-      }
+    () => open(),
+    (isOpen) => {
       if (isOpen && !wasOpenForInitialFocus && props.initialFocus) {
         cancelAnimationFrame(focusFrame);
         focusFrame = requestAnimationFrame(() => {
@@ -221,34 +215,6 @@ export function Modal(props: ModalProps): JSX.Element {
   onCleanup(() => {
     if (focusFrame) cancelAnimationFrame(focusFrame);
   });
-
-  const nativeTransition = (
-    entering: boolean,
-    fromTransform: Affine2D,
-    toTransform: Affine2D,
-    fromOpacity: number,
-    toOpacity: number,
-  ): WabouNativeTransition | undefined => {
-    if (!motionEnabled || reducedMotion()) return undefined;
-    const authoredEase =
-      (entering ? motionOptions?.enterEase : motionOptions?.exitEase) ??
-      motionOptions?.ease;
-    const easing =
-      authoredEase === "linear" ||
-      authoredEase === "easeInOut" ||
-      authoredEase === "easeOut"
-        ? authoredEase
-        : "easeInOut";
-    return {
-      generation: transitionGeneration(),
-      duration: transitionDuration(entering),
-      easing,
-      fromTransform,
-      toTransform,
-      fromOpacity,
-      toOpacity,
-    };
-  };
 
   const triggerProps: ModalTriggerProps = {
     ref: (node) => {
@@ -278,7 +244,6 @@ export function Modal(props: ModalProps): JSX.Element {
         return createComponent(Portal, {
           plane: "modal",
           role: "presentation",
-          "aria-modal": "true",
           get focusContained() {
             return visualState().active;
           },
@@ -311,21 +276,11 @@ export function Modal(props: ModalProps): JSX.Element {
                 ? { "background-color": rgba(0x00000000) }
                 : undefined),
               "pointer-events": visual.active ? "auto" : "none",
+              opacity: props.backdropFade === false ? 1 : presence.progress(),
               // Portal containers share one native plane. Make open order
               // explicit so nested overlays paint above their owning modal.
               "z-index": layer.zIndex(),
             };
-          },
-          get nativeTransition() {
-            if (props.backdropFade === false) return undefined;
-            const entering = open();
-            return nativeTransition(
-              entering,
-              [1, 0, 0, 1, 0, 0],
-              [1, 0, 0, 1, 0, 0],
-              entering ? 0 : 1,
-              entering ? 1 : 0,
-            );
           },
           onClick: layer.onOutside,
           onKeyDown: handleEscape,
@@ -345,7 +300,16 @@ export function Modal(props: ModalProps): JSX.Element {
                 return props.contentClass;
               },
               get style() {
-                return props.contentStyle;
+                return {
+                  ...props.contentStyle,
+                  // When the backdrop fades, its opacity already applies to
+                  // the content. Only add a local fade for backdrop-less
+                  // compositions so opacity is never multiplied twice.
+                  opacity:
+                    props.contentFade === false || props.backdropFade !== false
+                      ? 1
+                      : presence.progress(),
+                };
               },
               get shadows() {
                 return props.contentShadows;
@@ -353,28 +317,11 @@ export function Modal(props: ModalProps): JSX.Element {
               get transform() {
                 const base = modalMotionTransform(
                   motionOptions,
-                  open() ? 1 : 0,
+                  presence.progress(),
                 );
-                return props.contentTransform?.(base, open() ? 1 : 0) ?? base;
-              },
-              get nativeTransition() {
-                const entering = open();
-                const fromProgress = entering ? 0 : 1;
-                const toProgress = entering ? 1 : 0;
-                const from = modalMotionTransform(motionOptions, fromProgress);
-                const to = modalMotionTransform(motionOptions, toProgress);
-                return nativeTransition(
-                  entering,
-                  props.contentTransform?.(from, fromProgress) ?? from,
-                  props.contentTransform?.(to, toProgress) ?? to,
-                  props.contentFade === false ? 1 : fromProgress,
-                  props.contentFade === false ? 1 : toProgress,
+                return (
+                  props.contentTransform?.(base, presence.progress()) ?? base
                 );
-              },
-              onTransitionEnd: (event) => {
-                if (event.generation !== transitionGeneration()) return;
-                if (open()) presence.finishEnter();
-                else presence.finishExit();
               },
               get interactionBlocked() {
                 return !visualState().active;

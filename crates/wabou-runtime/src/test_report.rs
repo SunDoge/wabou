@@ -2,7 +2,9 @@ use std::path::{Path, PathBuf};
 
 use crate::test_driver::TestController;
 
-pub(super) fn finish_test_report(controller: TestController) -> crate::Result<()> {
+/// Validate, persist, and print a behavior-test controller's final report.
+#[doc(hidden)]
+pub fn finish_test_report(controller: TestController) -> crate::Result<()> {
     let report = controller
         .take_report()
         .ok_or_else(|| crate::Error::TestScenario {
@@ -30,7 +32,13 @@ pub(super) fn finish_test_report(controller: TestController) -> crate::Result<()
         .ok_or_else(|| crate::Error::TestScenario {
             message: "scenario returned a non-object test report".into(),
         })?
-        .insert("environment".into(), test_environment(headless));
+        .insert(
+            "environment".into(),
+            test_environment(
+                headless,
+                std::env::var("WABOU_TEST_RENDERER").ok().as_deref(),
+            ),
+        );
     let passed = value
         .get("passed")
         .and_then(serde_json::Value::as_bool)
@@ -93,9 +101,10 @@ pub(super) fn test_trace_artifact(trace: &serde_json::Value) -> serde_json::Valu
     })
 }
 
-pub(super) fn test_environment(headless: bool) -> serde_json::Value {
+pub(super) fn test_environment(headless: bool, renderer: Option<&str>) -> serde_json::Value {
     serde_json::json!({
         "backend": if headless { "deterministic" } else { "native" },
+        "renderer": renderer.unwrap_or("unknown"),
         "os": std::env::consts::OS,
         "arch": std::env::consts::ARCH,
         "wabouVersion": env!("CARGO_PKG_VERSION"),
@@ -149,6 +158,10 @@ pub(super) fn test_report_summary(
             .get("backend")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("unknown");
+        let renderer = environment
+            .get("renderer")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("unknown");
         let os = environment
             .get("os")
             .and_then(serde_json::Value::as_str)
@@ -162,7 +175,7 @@ pub(super) fn test_report_summary(
             .and_then(serde_json::Value::as_str)
             .unwrap_or("unknown");
         summary.push_str(&format!(
-            "\nenvironment: {backend}; {os}/{arch}; wabou {version}"
+            "\nenvironment: {renderer}/{backend}; {os}/{arch}; wabou {version}"
         ));
     }
     if let Some(directory) = artifact_directory {
@@ -182,6 +195,7 @@ mod tests {
         let report = serde_json::json!({
             "environment": {
                 "backend": "deterministic",
+                "renderer": "vello-hybrid",
                 "os": "linux",
                 "arch": "x86_64",
                 "wabouVersion": "0.1.0-test",
@@ -210,7 +224,11 @@ mod tests {
         assert!(summary.contains("test result: FAILED. 1 passed; 1 failed; 2 actions; 20.0ms"));
         assert!(summary.contains("---- submits form ----"));
         assert!(summary.contains("at form.tsx:42:3"));
-        assert!(summary.contains("environment: deterministic; linux/x86_64; wabou 0.1.0-test"));
+        assert!(
+            summary.contains(
+                "environment: vello-hybrid/deterministic; linux/x86_64; wabou 0.1.0-test"
+            )
+        );
         assert!(summary.contains("artifacts: /tmp/artifacts"));
         assert!(!summary.contains("private action payload"));
         assert!(!summary.contains("secret"));
@@ -241,10 +259,12 @@ mod tests {
 
     #[test]
     fn environment_distinguishes_deterministic_and_native_runs() {
-        let deterministic = test_environment(true);
-        let native = test_environment(false);
+        let deterministic = test_environment(true, Some("vello-hybrid"));
+        let native = test_environment(false, Some("gpui"));
         assert_eq!(deterministic["backend"], "deterministic");
+        assert_eq!(deterministic["renderer"], "vello-hybrid");
         assert_eq!(native["backend"], "native");
+        assert_eq!(native["renderer"], "gpui");
         assert_eq!(deterministic["os"], std::env::consts::OS);
         assert_eq!(deterministic["arch"], std::env::consts::ARCH);
         assert_eq!(deterministic["wabouVersion"], env!("CARGO_PKG_VERSION"));

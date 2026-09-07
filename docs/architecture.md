@@ -14,16 +14,19 @@ Application (Solid state and explicit UI intent)
        generated, versioned Wabou operations
                        |
      Rust runtime (protocol and native services)
-                       |
-          retained GPUI-CE element projection
+                  /             \
+     retained GPUI tree     retained Taffy tree
+            |                     |
+          GPUI-CE         Winit + Vello Hybrid
 ```
 
-Wabou applies each completed Solid flush to a retained GPUI-CE tree. GPUI owns
-layout, text, painting, native input, and platform windows; Wabou owns the
-versioned operation protocol, explicit application semantics, resource handles,
-and the projection into GPUI elements. There is no renderer feature switch and
-no lowest-common-denominator backend interface. The retired Winit/Vello system
-is isolated in unpublished `wabou-legacy-*` crates as a migration oracle.
+Wabou applies each completed Solid flush to one retained native projection.
+Winit, Taffy, Parley, and Vello Hybrid own the default layout, text, painting,
+input, and platform path. GPUI remains an independent comparison backend and a
+reference for native text/input behavior.
+Wabou shares the versioned operation protocol, Style IR, application semantics,
+resource keys, and QuickJS contract; it does not force both native backends
+through a lowest-common-denominator widget trait.
 
 ## Sources of truth
 
@@ -169,19 +172,18 @@ so this graph cannot grow back accidentally.
 
 Rust crates may remain narrower when they isolate a large dependency family,
 an optional extension, a platform/tooling target, or a dependency direction
-that prevents cycles. For example, `wabou-shell` owns the GPUI projection and
-native-widget mounting contract, while `wabou-host-api` is shared by runtime and
-binding generation. `wabou-legacy-*` crates are excluded from this production
-graph. A new crate must demonstrate one of those compile or dependency
+that prevents cycles. For example, `wabou-shell-vello` owns the Winit/Taffy/
+Vello Hybrid window and scene contract, while `wabou-widgets-vello`,
+`wabou-terminal-vello`, and `wabou-accessibility-vello` isolate backend-specific
+native integrations. `wabou-host-api` remains shared by runtime and binding
+generation. A new crate must demonstrate one of those compile or dependency
 boundaries; ordinary subsystem ownership belongs in a module. Applications
 still see the `wabou` facade.
 
 Repository verification follows the same boundary. Ordinary `verify:rust` and
-CI commands operate on Cargo's formal `default-members`, so they do not compile
-Winit, Vello, or AnyRender through the migration oracle. Use
-`bun run verify:legacy` explicitly when changing or comparing the retired
-implementation. The architecture check rejects any dependency from a
-non-legacy workspace member back into that graph.
+CI commands operate on Cargo's formal `default-members`, including the complete
+Vello backend family. Use `bun run verify:hybrid` for its focused check. The
+architecture check rejects accidental cross-backend dependencies.
 
 ## Cross-language contract
 

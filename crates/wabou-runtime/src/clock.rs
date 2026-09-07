@@ -5,13 +5,13 @@ pub trait Clock: Send + Sync {
 }
 
 /// Deterministic monotonic clock shared by headless GPUI and QuickJS.
-#[cfg(feature = "headless")]
+#[cfg(feature = "gpui-headless")]
 #[derive(Default)]
 pub(crate) struct ManualClock {
     now_micros: std::sync::atomic::AtomicU64,
 }
 
-#[cfg(feature = "headless")]
+#[cfg(feature = "gpui-headless")]
 impl ManualClock {
     pub(crate) fn advance(&self, duration: std::time::Duration) {
         let micros = duration.as_micros().min(u128::from(u64::MAX)) as u64;
@@ -20,7 +20,7 @@ impl ManualClock {
     }
 }
 
-#[cfg(feature = "headless")]
+#[cfg(feature = "gpui-headless")]
 impl Clock for ManualClock {
     fn now_ms(&self) -> f64 {
         self.now_micros.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1_000.0

@@ -145,11 +145,12 @@ types rather than hand-maintained JSON.
 
 ## Headless screenshots
 
-`wabou render` defaults to a fast bundle-only renderer with the same
-host-global ordering as the native runtime. It does not run application-owned
-Rust services or capabilities. This is appropriate for isolated component and
-interaction captures. Both render paths drive frames for 1000 ms by default so
-finite entry and layout transitions settle before capture:
+`wabou render` defaults to the offscreen Vello Hybrid renderer with the same
+host-global ordering as the native runtime. In bundle-only mode it does not run
+application-owned Rust services or capabilities. This is appropriate for
+isolated component and interaction captures. Both render backends drive frames
+for 1000 ms by default so finite entry and layout transitions settle before
+capture:
 
 ```sh
 wabou render apps/gallery --out /tmp/gallery.png
@@ -165,7 +166,8 @@ wabou render apps/gallery --out /tmp/gallery.png \
   --snapshot /tmp/gallery-tree.json
 ```
 
-Use `--with-host` when the rendered state depends on registrations in the
+Pass `--renderer gpui` for an explicitly labelled GPUI comparison. Use
+`--with-host` when the rendered state depends on registrations in the
 application's `HostBuilder`. Wabou starts the real application binary on its
 deterministic headless backend, including services, capabilities, host-message
 producers, and custom widget factories, then shuts them down normally:

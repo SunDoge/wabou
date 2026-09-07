@@ -382,6 +382,19 @@ function visualQualityDiagnostics(snapshot, options = {}) {
 				message: `${diagnosticNodeText(node)} has ${contrast.toFixed(2)}:1 text contrast (${foreground} on ${background}); expected at least ${minimumContrast.toFixed(2)}:1`
 			});
 		}
+		const metrics = node.textMetrics;
+		if (metrics?.source === "widget") {
+			const line = metrics.lineBox;
+			const content = node.contentRect;
+			const tolerance = options.tolerance ?? 1;
+			const overflow = Math.max(content.x - line.x, content.y - line.y, layoutRectRight(line) - layoutRectRight(content), layoutRectBottom(line) - layoutRectBottom(content), 0);
+			if (overflow > tolerance) diagnostics.push({
+				code: "native-text-clipped",
+				node,
+				amount: overflow,
+				message: `${diagnosticNodeText(node)} has a native ${line.width.toFixed(1)}x${line.height.toFixed(1)}px line box outside its ${content.width.toFixed(1)}x${content.height.toFixed(1)}px content box by ${overflow.toFixed(1)}px`
+			});
+		}
 		const role = layoutRole(node);
 		const minimumWidth = options.minimumInteractiveTarget === void 0 && role === "switch" ? 40 : minimumTarget;
 		const minimumHeight = options.minimumInteractiveTarget === void 0 && role === "switch" ? 24 : minimumTarget;

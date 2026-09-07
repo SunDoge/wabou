@@ -4,12 +4,14 @@ import {
   type NativeCapability,
   useHost,
 } from "@wabou/ui";
+import type { BackupSchedule } from "./backup-schedule";
 
 export interface BackupProfile {
   id: string;
   name: string;
   repositoryPath: string;
   sources: string[];
+  schedule?: BackupSchedule;
 }
 
 export interface RuntimeStatus {
@@ -66,6 +68,8 @@ export interface SnapshotDiff {
     metadata: number;
     typeChanged: number;
   };
+  totalEntries: number;
+  truncated: boolean;
 }
 
 export interface RestorePlanSummary {
@@ -129,6 +133,7 @@ interface RusticCapability extends NativeCapability {
     snapshotId: string;
     path: string;
     includeMetadata?: boolean;
+    limit?: number;
   }): SnapshotDiff | PromiseLike<SnapshotDiff>;
   updateSnapshot(request: {
     profileId: string;

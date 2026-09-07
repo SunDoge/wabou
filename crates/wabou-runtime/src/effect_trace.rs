@@ -4,7 +4,8 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
-use wabou_shell::{
+use wabou_shell_api as wabou_shell;
+use wabou_shell_api::{
     EFFECT_ABI_VERSION, EffectCompletion, EffectErrorCode, EffectOp, EffectRequest, EffectResult,
     EffectTapeEntry,
 };
@@ -33,7 +34,9 @@ enum TraceMode {
 }
 
 #[derive(Clone)]
-pub(crate) struct EffectTrace(Arc<Mutex<TraceMode>>);
+/// Record, replay, or fixture source for backend-neutral native effects.
+#[doc(hidden)]
+pub struct EffectTrace(Arc<Mutex<TraceMode>>);
 
 pub(crate) enum TraceSubmission {
     Live,
@@ -41,13 +44,15 @@ pub(crate) enum TraceSubmission {
 }
 
 impl EffectTrace {
-    pub(crate) fn fixtures() -> Self {
+    /// Create an in-memory fixture trace for deterministic native tests.
+    pub fn fixtures() -> Self {
         Self(Arc::new(Mutex::new(TraceMode::Fixtures {
             entries: VecDeque::new(),
         })))
     }
 
-    pub(crate) fn enqueue_fixture(&self, op: EffectOp, result: EffectResult) -> Result<(), String> {
+    /// Queue one deterministic result for the next matching effect.
+    pub fn enqueue_fixture(&self, op: EffectOp, result: EffectResult) -> Result<(), String> {
         let mut mode = self.0.lock().map_err(|_| "effect fixture mutex poisoned")?;
         let TraceMode::Fixtures { entries } = &mut *mode else {
             return Err(
@@ -59,7 +64,8 @@ impl EffectTrace {
         Ok(())
     }
 
-    pub(crate) fn take_pending_fixtures(&self) -> Vec<EffectOp> {
+    /// Drain fixture operations that were configured but never requested.
+    pub fn take_pending_fixtures(&self) -> Vec<EffectOp> {
         let Ok(mut mode) = self.0.lock() else {
             return Vec::new();
         };
@@ -69,7 +75,8 @@ impl EffectTrace {
         }
     }
 
-    pub(crate) fn record(record_all: bool) -> Self {
+    /// Create a recorder, optionally including effects with sensitive payloads.
+    pub fn record(record_all: bool) -> Self {
         Self(Arc::new(Mutex::new(TraceMode::Record {
             entries: Vec::new(),
             record_all,
@@ -77,7 +84,8 @@ impl EffectTrace {
         })))
     }
 
-    pub(crate) fn replay(path: &Path) -> Result<Self, String> {
+    /// Load a versioned effect tape from disk for deterministic replay.
+    pub fn replay(path: &Path) -> Result<Self, String> {
         let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
         let tape: EffectTapeFile =
             serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
@@ -206,7 +214,8 @@ impl EffectTrace {
         }
     }
 
-    pub(crate) fn write(&self, path: &Path) -> Result<(), String> {
+    /// Persist a recording as a versioned effect tape.
+    pub fn write(&self, path: &Path) -> Result<(), String> {
         let mode = self.0.lock().expect("effect trace mutex poisoned");
         let TraceMode::Record { entries, .. } = &*mode else {
             return Ok(());
@@ -246,7 +255,7 @@ fn same_request_ignoring_id(expected: &EffectRequest, actual: &EffectRequest) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wabou_shell::{EffectId, EffectPayload, EffectScope, WindowCommand};
+    use wabou_shell_api::{EffectId, EffectPayload, EffectScope, WindowCommand};
 
     fn title(id: u32, title: &str) -> EffectRequest {
         let window_key = wabou_shell::initial_window_resource_key(0);

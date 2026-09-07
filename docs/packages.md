@@ -76,8 +76,9 @@ The facade is deliberately not on crates.io for the first preview, allowing
 internal crates to be merged or renamed without reserving permanent public
 crate names. `wabou-runtime`, `wabou-shell`, and the remaining workspace crates
 are implementation details; the preview tag and the facade are the supported
-Rust boundary. `wabou-runtime` has one GPUI-CE implementation. Unpublished
-`wabou-legacy-*` crates preserve retired Winit/Vello behavior only for migration
-comparison and deterministic oracle tests. Optional widget and code-generation
-crates may be added alongside `wabou`, but must not replace it as the
-application runtime.
+Rust boundary. `wabou-runtime` currently contains the GPUI-CE host plus shared
+machinery. Transitionally named `wabou-legacy-*` crates contain the actively
+developed Winit/Taffy/Vello Hybrid backend; they are being converged onto one
+shared runtime contract rather than preserved as a retired oracle. Optional
+widget and code-generation crates may be added alongside `wabou`, but must not
+replace it as the application runtime.

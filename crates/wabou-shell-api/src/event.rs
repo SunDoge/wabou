@@ -1,6 +1,6 @@
 //! Backend-neutral window, input, host-action, and frame diagnostic contracts.
 
-use std::{path::PathBuf, sync::Arc};
+use std::{ops::Range, path::PathBuf, sync::Arc};
 
 pub use wabou_accessibility::{
     SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
@@ -349,6 +349,25 @@ pub enum ImeEvent {
     },
     /// Platform text input was disabled for the control.
     Disabled,
+}
+
+/// Focused text state exposed by a backend-owned editor to the native IME.
+///
+/// Selection offsets use UTF-16 because that is the common contract expected
+/// by macOS and GPUI input handlers. Backends remain responsible for mapping
+/// those offsets to their authoritative UTF-8 document representation.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ProjectedTextInputState {
+    /// Whether the focused Wabou node currently accepts text input.
+    pub accepts_text: bool,
+    /// Controlled text value, when exposed by the focused widget.
+    pub text: Option<String>,
+    /// UTF-16 selection range in document order.
+    pub selection: Option<Range<usize>>,
+    /// Whether the selection's moving head precedes its anchor.
+    pub selection_reversed: bool,
+    /// Candidate-window anchor in window-logical coordinates.
+    pub cursor_bounds: Option<[f32; 4]>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,5 +1,6 @@
 {
   "defaults": {
+    "renderer": "gpui",
     "width": 1280,
     "height": 820,
     "scaleFactor": 1,

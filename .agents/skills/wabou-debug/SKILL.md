@@ -134,6 +134,30 @@ Prefer an assertion at the earliest incorrect layer. If geometry is correct but 
 
 ## Inspect a running app when deterministic tests cannot isolate it
 
+### Keep native interaction isolated
+
+Never use `ydotool`, `kdotool`, `xdotool`, AppleScript, or another desktop-wide
+input injector against the user's active session. These tools can move the user's
+real pointer, steal focus, type into unrelated applications, and make the result
+nondeterministic.
+
+Prefer, in order:
+
+1. component event simulation or a native behavior scenario;
+2. headless layout/projection and offscreen pixel rendering;
+3. DevTools tree queries, validation, overlays, and capture against a dedicated
+   Wabou process without synthesizing system input;
+4. a nested display server with its own `DISPLAY`, runtime directory, process
+   group, and output directory when compositor-level input is indispensable.
+
+Do not point an isolated test process at the ambient `DISPLAY` or
+`WAYLAND_DISPLAY`. Record the isolated display/socket in the command, verify the
+target process belongs to that display before injecting input, and terminate the
+whole isolated process group during cleanup. If GPUI or a platform backend cannot
+run correctly inside the available nested/headless server, stop at DevTools and
+report that platform interaction still requires a human check; do not fall back to
+the user's desktop.
+
 Start with DevTools enabled:
 
 ```bash
@@ -176,7 +200,15 @@ property. Then use `scripts/capture-png.sh` for a deterministic offscreen render
 WABOU_CAPTURE_SCALE_FACTOR=2 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/gallery@2x.png 1440 900
 WABOU_CAPTURE_WINDOW_ID=2 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/child.png 800 600
 mise exec -- bun run wabou render apps/gallery --out /tmp/gallery.png --snapshot /tmp/gallery-tree.json
+mise exec -- bun run wabou render apps/gallery --renderer vello-hybrid --out /tmp/gallery-hybrid.png --snapshot /tmp/gallery-hybrid-tree.json
 ```
+
+Use `--renderer vello-hybrid` to exercise the real QuickJS → Style IR → Taffy →
+Wabou paint IR → Vello Hybrid pipeline without opening a desktop window. This path
+supports named fixtures and ordered `--click`, `--wheel`, `--key`, and `--text`
+replay. It does not use `DISPLAY`, `WAYLAND_DISPLAY`, or an OS input injector.
+Keep the default GPUI renderer for GPUI-specific projection and native-widget
+behavior.
 
 The script uses the real application host by default, so registered services,
 capabilities, message producers, and widget factories participate in the

@@ -1,4 +1,4 @@
-//! Platform contracts shared by Wabou's GPUI shell, runtime, and extensions.
+//! Platform contracts shared by Wabou runtimes, backend shells, and extensions.
 
 #![warn(missing_docs)]
 
@@ -8,6 +8,8 @@ pub mod effect;
 #[path = "generated/effect_abi.rs"]
 mod effect_abi;
 pub mod event;
+pub mod floating;
+pub mod service;
 pub mod window;
 pub mod window_lifecycle;
 
@@ -22,6 +24,11 @@ pub use effect::{
     SaveDialogRequest, WindowCreateRequest, WindowResourceKey, initial_window_resource_key,
 };
 pub use event::*;
+pub use floating::{
+    FloatingAlign, FloatingAnchor, FloatingNodeKey, FloatingPlacement, FloatingPosition,
+    FloatingResolvedPosition, FloatingSide, resolve_floating_position,
+};
+pub use service::{HostService, HostServiceContext};
 pub use window::{WindowBackground, WindowCommand, WindowInputMode, WindowLevel, WindowOptions};
 pub use window_lifecycle::{
     WindowCapabilities, WindowEffect, WindowIntent, WindowLifecycle, WindowPresence,

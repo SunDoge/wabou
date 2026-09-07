@@ -1,4 +1,4 @@
-# Native GPUI widgets
+# Native widgets
 
 Wabou projects ordinary Solid nodes into GPUI elements. Applications can mount
 an application-owned GPUI element behind an explicit tag when a feature needs
@@ -12,23 +12,24 @@ Solid node and generational NodeKey
  NativeWidgetContext -> GPUI element/entity
 ```
 
-This is the only production native-widget model. The retired
-`wabou-legacy-widgets` crate contains Winit/Vello implementations solely for
-migration comparison; it is not a selectable backend or a dependency for new
-widgets.
+The GPUI and Vello backends each own a native-widget adapter because their
+layout, paint, input, and resource APIs differ. `wabou-widgets-vello` provides
+the standard widgets for the Winit/Vello backend through
+`wabou-shell-vello::Widget`; GPUI applications use the entity-based registry
+described below. Both preserve the same Solid node identity and event contract.
 
 ## Stateless widgets
 
-Register a stateless element with `HostBuilder::native_widget`. The factory is
+Register a GPUI comparison element with `GpuiHostBuilder::native_widget`. The factory is
 called while GPUI materializes a frame and receives the exact authored
 attributes plus the stable generational node key:
 
 ```rust
-use wabou::{HostBuilder, gpui};
+use wabou::{GpuiHostBuilder, gpui};
 use wabou::gpui::{IntoElement as _, Styled as _};
 
-# fn host() -> HostBuilder {
-HostBuilder::new().native_widget("meter", |context, _window, _cx| {
+# fn host() -> GpuiHostBuilder {
+GpuiHostBuilder::new().native_widget("meter", |context, _window, _cx| {
     let config = context.config_json().unwrap_or(r#"{"value":0}"#);
     gpui::div()
         .size_full()
@@ -65,19 +66,19 @@ an HTML element or CSS behavior from the tag name.
 ## Stateful widgets
 
 GPUI elements are ephemeral descriptions. Put stable mutable state in a GPUI
-entity and return it with `HostBuilder::native_entity_widget`. On later frames,
+entity and return it with `GpuiHostBuilder::native_entity_widget`. On later frames,
 recover the entity from `NativeWidgetContext::entity`:
 
 ```rust
-use wabou::{HostBuilder, NativeWidgetMount, gpui};
+use wabou::{GpuiHostBuilder, NativeWidgetMount, gpui};
 use wabou::gpui::{AppContext as _, IntoElement as _};
 
 struct MeterState {
     value: String,
 }
 
-# fn host() -> HostBuilder {
-HostBuilder::new().native_entity_widget("meter", |context, _window, cx| {
+# fn host() -> GpuiHostBuilder {
+GpuiHostBuilder::new().native_entity_widget("meter", |context, _window, cx| {
     let entity = context.entity::<MeterState>().unwrap_or_else(|| {
         cx.new(|_| MeterState {
             value: context.attribute("value").unwrap_or("0").to_owned(),
@@ -173,8 +174,8 @@ adapter rather than adding another tag-specific branch to tree traversal.
 Test widget state as ordinary GPUI entities where possible. Add a Wabou
 component test for authored attributes and semantics, then a focused GPUI
 headless test when the contract depends on native layout, input, focus, or
-paint. A legacy oracle test can compare migration behavior, but passing it does
-not prove the GPUI implementation.
+paint. A backend-parity test can compare behavior, but passing it does not
+prove either backend's platform integration or pixels.
 
 `@wabou/terminal` is the current end-to-end reference: terminal state lives in
 a retained GPUI entity, while the Solid tag controls placement and authored

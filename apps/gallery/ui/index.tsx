@@ -29,6 +29,7 @@ import "virtual:wabou-stylesheet";
 
 import { OverlayPage } from "./pages/overlay";
 import { SystemPage } from "./pages/system";
+import { ShaderLayerPage } from "./pages/shader-layer";
 import { GallerySidebar } from "./sidebar";
 
 function classes(...values: Array<string | false | undefined>): string {
@@ -55,6 +56,7 @@ type ComponentId =
   | "animation"
   | "platform"
   | "system"
+  | "shader-layer"
   | "colors"
   | "shadows"
   | "layout-styles"
@@ -223,6 +225,7 @@ const groups: Array<{
     items: [
       { id: "platform", name: "Native window" },
       { id: "system", name: "System APIs" },
+      { id: "shader-layer", name: "Custom shader" },
     ],
   },
 ];
@@ -253,6 +256,8 @@ const descriptions: Record<ComponentId, string> = {
   animation: "Pure JavaScript value animations rendered by the native host.",
   platform: "Native windows and Rust-powered custom widgets.",
   system: "Native file dialogs, message dialogs and desktop notifications.",
+  "shader-layer":
+    "Runs validated custom WGSL inside a retained, layout-aware Vello Hybrid surface.",
   colors: "Every color token exported by the native Wabou utility theme.",
   shadows: "Backend-neutral box shadows with explicit Gaussian parameters.",
   "layout-styles":
@@ -637,6 +642,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "system"}>
                     <SystemPage />
+                  </Match>
+                  <Match when={selected() === "shader-layer"}>
+                    <ShaderLayerPage />
                   </Match>
                   <Match when={selected() === "separator"}>
                     <SeparatorPage />

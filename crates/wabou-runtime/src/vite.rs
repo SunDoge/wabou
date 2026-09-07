@@ -63,13 +63,14 @@ pub(crate) struct ViteModuleCache {
 /// All Vite-related state for one JsRuntime: the dev-server origin, the
 /// module source cache (shared with the Loader + HMR prefetch), and the
 /// methods that drive boot + hot-module replacement.
-pub(crate) struct ViteState {
+#[doc(hidden)]
+pub struct ViteState {
     origin: Url,
     cache: ViteModuleCache,
 }
 
 impl ViteState {
-    pub(crate) fn new(origin: Url) -> Self {
+    pub fn new(origin: Url) -> Self {
         Self {
             cache: ViteModuleCache::default(),
             origin,
@@ -78,7 +79,7 @@ impl ViteState {
 
     /// Install the Vite module loader + resolver onto the runtime so that
     /// `import` inside JS fetches modules from the dev server.
-    pub(crate) fn install_loader(&self, rt: &rquickjs::AsyncRuntime) -> rquickjs::Result<()> {
+    pub fn install_loader(&self, rt: &rquickjs::AsyncRuntime) -> rquickjs::Result<()> {
         futures_lite::future::block_on(rt.set_loader(
             ViteResolver::new(self.origin.clone()),
             ViteLoader::new(self.cache.clone()),
@@ -88,7 +89,7 @@ impl ViteState {
 
     /// Evaluate the Vite entry module (`import "<entry>"`). Called once after
     /// the context is ready to kick off the app's initial render.
-    pub(crate) fn boot<'js>(&self, ctx: &rquickjs::Ctx<'js>, entry: &str) -> rquickjs::Result<()> {
+    pub fn boot<'js>(&self, ctx: &rquickjs::Ctx<'js>, entry: &str) -> rquickjs::Result<()> {
         use rquickjs::CatchResultExt;
         let entry_url = self
             .origin
@@ -127,7 +128,7 @@ impl ViteState {
     /// Cache a hot-updated module's source (keyed by URL + timestamp) and call
     /// the JS `__wabou_apply_hmr` hook to reload it. Returns whether the JS
     /// side accepted the update (true) or needs a full reload (false).
-    pub(crate) fn apply_hmr<'js>(
+    pub fn apply_hmr<'js>(
         &self,
         ctx: &rquickjs::Ctx<'js>,
         path: &str,
@@ -152,7 +153,7 @@ impl ViteState {
     /// Unlike component HMR, this does not require an accept boundary. Wabou's
     /// generated Style IR module uses this path to install the new stylesheet
     /// without remounting the Solid application.
-    pub(crate) fn apply_side_effect_update<'js>(
+    pub fn apply_side_effect_update<'js>(
         &self,
         ctx: &rquickjs::Ctx<'js>,
         accepted_path: &str,
@@ -180,7 +181,7 @@ impl ViteState {
 
     /// Re-import the app entry after a full reload. Uses a cache-busting query
     /// so the loader does not reuse a stale entry module record.
-    pub(crate) fn boot_full_reload<'js>(
+    pub fn boot_full_reload<'js>(
         &self,
         ctx: &rquickjs::Ctx<'js>,
         entry: &str,
@@ -353,6 +354,7 @@ use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use tungstenite::client::IntoClientRequest;
 
+#[cfg(feature = "gpui")]
 use crate::reload::ReloadMsg;
 
 #[derive(Debug, Snafu)]
@@ -476,7 +478,8 @@ enum ViteMessage {
 /// server's WebSocket, fetches updated module/stylesheet sources via blocking
 /// HTTP, and forwards them to the Applier through `reload`. CSS notifications
 /// carry only their path because Wabou styles are delivered as Style IR.
-pub(crate) struct HmrClient {
+#[doc(hidden)]
+pub struct HmrClient {
     stop: Arc<AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
 }
@@ -494,9 +497,56 @@ impl Drop for HmrClient {
 ///
 /// The returned handle owns the background client; dropping it requests
 /// shutdown and joins the client thread.
+#[cfg(feature = "gpui")]
 pub(crate) fn start_hmr_client(
     server_url: &str,
     reload: crate::reload::ReloadHandle,
+) -> std::result::Result<HmrClient, ViteError> {
+    start_hmr_bridge(server_url, move |event| {
+        reload
+            .send(match event {
+                ViteHmrEvent::Update {
+                    path,
+                    accepted_path,
+                    timestamp,
+                    source,
+                } => ReloadMsg::HmrUpdate {
+                    path,
+                    accepted_path,
+                    timestamp,
+                    source,
+                },
+                ViteHmrEvent::CssUpdate { path } => ReloadMsg::CssUpdate { path },
+                ViteHmrEvent::FullReload => ReloadMsg::FullReload,
+                ViteHmrEvent::Error { diagnostic } => ReloadMsg::Error { diagnostic },
+            })
+            .is_ok()
+    })
+}
+
+/// Backend-neutral HMR update delivered by the shared Vite transport.
+#[doc(hidden)]
+pub enum ViteHmrEvent {
+    Update {
+        path: String,
+        accepted_path: String,
+        timestamp: u64,
+        source: String,
+    },
+    CssUpdate {
+        path: String,
+    },
+    FullReload,
+    Error {
+        diagnostic: String,
+    },
+}
+
+/// Start the shared Vite transport and forward updates into an alternate host.
+#[doc(hidden)]
+pub fn start_hmr_bridge(
+    server_url: &str,
+    deliver: impl Fn(ViteHmrEvent) -> bool + Send + 'static,
 ) -> std::result::Result<HmrClient, ViteError> {
     let mut websocket_url = url::Url::parse(server_url).context(InvalidUrlSnafu)?;
     websocket_url
@@ -560,7 +610,7 @@ pub(crate) fn start_hmr_client(
                     } => {
                         tracing::debug!(%path, %accepted_path, timestamp, "received Vite HMR update");
                         match fetch_module(&client, &server_url, &accepted_path, timestamp) {
-                            Ok(source) => reload.send(ReloadMsg::HmrUpdate {
+                            Ok(source) => deliver(ViteHmrEvent::Update {
                                 path,
                                 accepted_path,
                                 timestamp,
@@ -572,15 +622,15 @@ pub(crate) fn start_hmr_client(
                             }
                         }
                     }
-                    ViteMessage::CssUpdate { accepted_path } => reload.send(ReloadMsg::CssUpdate {
+                    ViteMessage::CssUpdate { accepted_path } => deliver(ViteHmrEvent::CssUpdate {
                         path: accepted_path,
                     }),
-                    ViteMessage::FullReload => reload.send(ReloadMsg::FullReload),
+                    ViteMessage::FullReload => deliver(ViteHmrEvent::FullReload),
                     ViteMessage::Error { diagnostic } => {
-                        reload.send(ReloadMsg::Error { diagnostic })
+                        deliver(ViteHmrEvent::Error { diagnostic })
                     }
                 };
-                if result.is_err() {
+                if !result {
                     tracing::warn!("Vite HMR receiver disconnected");
                     return;
                 }

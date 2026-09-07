@@ -2,25 +2,25 @@ import { renderComponent } from "@wabou/test/component";
 import { Button, createToasts, Toaster, View } from "@wabou/ui";
 import { expect, test } from "vitest";
 
-const transitionOf = (toast: { attribute(name: string): string | null }) =>
-  JSON.parse(toast.attribute("__wabou_native_transition") ?? "null");
-
-test("shows and synchronously dismisses a polite toast by default", () => {
-  const screen = renderComponent(() => {
-    const toasts = createToasts({ defaultDuration: 0 });
-    return (
-      <View>
-        <Button
-          onClick={() =>
-            toasts.success("Saved", { description: "Changes are on disk." })
-          }
-        >
-          Save
-        </Button>
-        <Toaster toasts={toasts} />
-      </View>
-    );
-  });
+test("animates and retains a polite toast by default", async () => {
+  const screen = renderComponent(
+    () => {
+      const toasts = createToasts({ defaultDuration: 0 });
+      return (
+        <View>
+          <Button
+            onClick={() =>
+              toasts.success("Saved", { description: "Changes are on disk." })
+            }
+          >
+            Save
+          </Button>
+          <Toaster toasts={toasts} />
+        </View>
+      );
+    },
+    { clock: "fake" },
+  );
 
   screen.getByRole("button", { name: "Save" }).click();
   const toast = screen.getByRole("status", { name: "Saved" });
@@ -29,7 +29,14 @@ test("shows and synchronously dismisses a polite toast by default", () => {
   expect(toast.children[0]?.className).toContain("border-subtle");
   expect(toast.children[0]?.className).toContain("py-3.5");
   expect(toast.attribute("__wabou_native_transition")).toBeNull();
+  expect(toast.transform).toEqual([1, 0, 0, 1, 0, 12]);
+  expect(toast.style("opacity")).toBe("0");
+  await screen.advanceTime(180);
+  expect(toast.transform).toEqual([1, 0, 0, 1, 0, 0]);
+  expect(toast.style("opacity")).toBe("1");
   screen.getByRole("button", { name: "Dismiss Saved" }).click();
+  expect(screen.queryByRole("status", { name: "Saved" })).not.toBeNull();
+  await screen.advanceTime(180);
   expect(screen.queryByRole("status", { name: "Saved" })).toBeNull();
 });
 
@@ -48,7 +55,7 @@ test("destructive toasts are assertive and actions dismiss by default", () => {
         >
           Fail
         </Button>
-        <Toaster toasts={toasts} />
+        <Toaster toasts={toasts} motion={false} />
       </View>
     );
   });
@@ -77,7 +84,7 @@ test("queue limits still use the primitive overflow policy", () => {
         >
           Queue
         </Button>
-        <Toaster toasts={toasts} />
+        <Toaster toasts={toasts} motion={false} />
       </View>
     );
   });
@@ -90,26 +97,28 @@ test("queue limits still use the primitive overflow policy", () => {
   expect(dismissed).toEqual(["overflow"]);
 });
 
-test("an explicit motion contract retains a toast until GPUI completes exit", () => {
-  const screen = renderComponent(() => {
-    const toasts = createToasts({ defaultDuration: 0 });
-    return (
-      <View>
-        <Button onClick={() => toasts.success("Animated save")}>Save</Button>
-        <Toaster toasts={toasts} motion={{ fromY: 12 }} />
-      </View>
-    );
-  });
+test("an explicit motion contract uses the shared JS timeline", async () => {
+  const screen = renderComponent(
+    () => {
+      const toasts = createToasts({ defaultDuration: 0 });
+      return (
+        <View>
+          <Button onClick={() => toasts.success("Animated save")}>Save</Button>
+          <Toaster toasts={toasts} motion={{ fromY: 12 }} />
+        </View>
+      );
+    },
+    { clock: "fake" },
+  );
 
   screen.getByRole("button", { name: "Save" }).click();
   const toast = screen.getByRole("status", { name: "Animated save" });
-  const entering = transitionOf(toast);
-  toast.emit("transitionend", { generation: entering.generation });
+  expect(toast.transform).toEqual([1, 0, 0, 1, 0, 12]);
+  await screen.advanceTime(180);
   screen.getByRole("button", { name: "Dismiss Animated save" }).click();
   expect(
     screen.queryByRole("status", { name: "Animated save" }),
   ).not.toBeNull();
-  const exiting = transitionOf(toast);
-  toast.emit("transitionend", { generation: exiting.generation });
+  await screen.advanceTime(180);
   expect(screen.queryByRole("status", { name: "Animated save" })).toBeNull();
 });

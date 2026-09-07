@@ -43,6 +43,7 @@ use std::time::{Duration, Instant};
 
 use wabou_bindgen::CapabilityContract;
 use wabou_bindgen::JsonMethod;
+use wabou_shell_api::{HostService, HostServiceContext};
 
 use crate::WindowOptions;
 use crate::bundle;
@@ -128,41 +129,6 @@ struct ImageResourceDescriptor {
     handle: crate::ImageResourceHandle,
     width: u32,
     height: u32,
-}
-
-/// Application-owned resource that must surround every native window and JS runtime.
-pub trait HostService: Send + Sync {
-    /// Stable name used in diagnostics.
-    fn name(&self) -> &'static str;
-    /// Start the service before Wabou creates JavaScript runtimes.
-    fn start(&self, context: &HostServiceContext) -> Result<(), String>;
-    /// Stop the service after the native event loop finishes.
-    fn shutdown(&self) -> Result<(), String>;
-}
-
-/// Read-only environment available while a host-owned service starts.
-#[derive(Clone, Debug)]
-pub struct HostServiceContext {
-    app_directories: Option<wabou_shell::AppDirectories>,
-    behavior_test: bool,
-    headless: bool,
-}
-
-impl HostServiceContext {
-    /// Return the application directories resolved by the host, when configured.
-    pub fn app_directories(&self) -> Option<&wabou_shell::AppDirectories> {
-        self.app_directories.as_ref()
-    }
-
-    /// Return whether `wabou test` controls this host run.
-    pub fn is_behavior_test(&self) -> bool {
-        self.behavior_test
-    }
-
-    /// Return whether the deterministic headless shell is active.
-    pub fn is_headless(&self) -> bool {
-        self.headless
-    }
 }
 
 /// Cloneable application handle for a resource whose lifetime is owned by
@@ -1115,11 +1081,11 @@ impl HostBuilder {
                 mount_kv_capability(js, state.clone(), path.clone())
             }));
         }
-        let service_context = HostServiceContext {
-            app_directories: app_directories.clone(),
-            behavior_test: test_controller.is_some(),
-            headless: headless_test,
-        };
+        let service_context = HostServiceContext::for_alternate_host(
+            app_directories.clone(),
+            test_controller.is_some(),
+            headless_test,
+        );
         let services = start_host_services(&self.services, &service_context)?;
         let mut gpui_window_size_persistence = None;
         if let Some(key) = &self.persisted_window_size {
@@ -1260,7 +1226,7 @@ impl HostBuilder {
                     .flatten(),
             ));
         }
-        #[cfg(feature = "headless")]
+        #[cfg(feature = "gpui-headless")]
         if headless_test {
             if !self.application_extensions.is_empty() {
                 tracing::debug!(
@@ -1302,11 +1268,12 @@ impl HostBuilder {
             services.finish()?;
             return Ok(());
         }
-        #[cfg(not(feature = "headless"))]
+        #[cfg(not(feature = "gpui-headless"))]
         if headless_test {
             return Err(crate::Error::GpuiShell {
-                message: "headless behavior tests require the `wabou-runtime/headless` feature"
-                    .into(),
+                message:
+                    "GPUI headless behavior tests require the `wabou-runtime/gpui-headless` feature"
+                        .into(),
             });
         }
         run_gpui_windows(
@@ -1434,11 +1401,7 @@ mod tests {
     use wabou_bindgen::JsonMethod;
 
     fn service_context() -> HostServiceContext {
-        HostServiceContext {
-            app_directories: None,
-            behavior_test: false,
-            headless: false,
-        }
+        HostServiceContext::for_alternate_host(None, false, false)
     }
 
     #[cfg(windows)]

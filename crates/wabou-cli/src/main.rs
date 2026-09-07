@@ -20,19 +20,21 @@ mod devtools;
 mod doctor;
 mod frontend;
 mod gpui_render;
+mod hybrid_render;
 mod packaging;
 mod process;
 mod project;
 mod scaffold;
 
 use artifact::{
-    app_binary, app_bindings_target, app_dev_features, app_framework_feature, app_package,
-    app_profiling_feature, artifact_from_metadata_for_target, cargo_metadata,
-    optional_app_bindings_target,
+    app_binary, app_bindings_target, app_dev_features, app_framework_dependency_has_feature,
+    app_framework_feature, app_package, app_profiling_feature, artifact_from_metadata_for_target,
+    cargo_metadata, optional_app_bindings_target,
 };
 #[cfg(test)]
 use artifact::{
-    artifact_from_metadata, binary_target, bindings_target, dev_features, framework_feature,
+    artifact_from_metadata, binary_target, bindings_target, dev_features,
+    framework_dependency_has_feature, framework_feature,
 };
 use behavior_test::{default_artifact_dir, prepare_artifact_dir, replay_actions};
 use config::{
@@ -43,7 +45,7 @@ use devtools::InspectCommand;
 use frontend::{build as build_frontend, build_test_script};
 use gpui_render::{
     HeadlessColorScheme, RenderOptions, actions as fallback_render_actions,
-    actions_from_matches as render_actions_from_matches, run as render,
+    actions_from_matches as render_actions_from_matches,
 };
 #[cfg(test)]
 use process::wait_for_managed_child;
@@ -77,6 +79,12 @@ struct CargoFeatures {
         action = clap::ArgAction::Append
     )]
     values: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, clap::ValueEnum)]
+enum RenderBackend {
+    Gpui,
+    VelloHybrid,
 }
 
 #[derive(Subcommand)]
@@ -123,7 +131,7 @@ enum Commands {
         port: u16,
         #[arg(long)]
         devtools: bool,
-        /// Show the native GPUI performance HUD.
+        /// Show the renderer-native performance HUD.
         #[arg(long)]
         hud: bool,
         /// Hot-patch explicitly registered Rust capability functions without restarting the host.
@@ -172,7 +180,7 @@ enum Commands {
         /// Write an opt-in performance trace for Perfetto/Chrome tracing.
         #[arg(long, value_name = "JSON")]
         profile_trace: Option<PathBuf>,
-        /// Show the native GPUI performance HUD.
+        /// Show the renderer-native performance HUD.
         #[arg(long)]
         hud: bool,
         #[command(flatten)]
@@ -222,6 +230,9 @@ enum Commands {
         app: Option<PathBuf>,
         #[arg(long, value_name = "PNG")]
         out: PathBuf,
+        /// Rendering backend used for this isolated capture.
+        #[arg(long, value_enum, default_value = "vello-hybrid")]
+        renderer: RenderBackend,
         #[arg(long, default_value_t = 1440)]
         width: u32,
         #[arg(long, default_value_t = 900)]
@@ -537,6 +548,7 @@ fn main() -> Result<()> {
         Commands::Render {
             app,
             out,
+            renderer,
             width,
             height,
             window_id,
@@ -558,33 +570,33 @@ fn main() -> Result<()> {
             cargo_features,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
-            render(
-                &workspace,
-                &app,
-                &RenderOptions {
-                    out,
-                    batch: None,
-                    width,
-                    height,
-                    window_id,
-                    scale_factor,
-                    color_scheme,
-                    mode,
-                    fixture,
-                    skip_build,
-                    with_host,
-                    scenario,
-                    wait_ms,
-                    metrics,
-                    snapshot,
-                    samples,
-                    actions: render_actions
-                        .unwrap_or_else(|| fallback_render_actions(click, wheel, text, key)),
-                    layout_only: false,
-                    projection_probe: None,
-                    cargo_features: cargo_features.values,
-                },
-            )
+            let options = RenderOptions {
+                out,
+                batch: None,
+                width,
+                height,
+                window_id,
+                scale_factor,
+                color_scheme,
+                mode,
+                fixture,
+                skip_build,
+                with_host,
+                scenario,
+                wait_ms,
+                metrics,
+                snapshot,
+                samples,
+                actions: render_actions
+                    .unwrap_or_else(|| fallback_render_actions(click, wheel, text, key)),
+                layout_only: false,
+                projection_probe: None,
+                cargo_features: cargo_features.values,
+            };
+            match renderer {
+                RenderBackend::Gpui => gpui_render::run(&workspace, &app, &options),
+                RenderBackend::VelloHybrid => hybrid_render::run(&workspace, &app, &options),
+            }
         }
         Commands::Layout {
             app,
@@ -602,7 +614,7 @@ fn main() -> Result<()> {
             probe,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
-            render(
+            gpui_render::run(
                 &workspace,
                 &app,
                 &RenderOptions {
@@ -642,6 +654,24 @@ fn apply_cargo_features(command: &mut Command, features: &[String]) {
     if !features.is_empty() {
         command.arg("--features").arg(features.join(","));
     }
+}
+
+fn behavior_headless_feature(
+    cargo_features: &[String],
+    dependency_enables_gpui: bool,
+) -> &'static str {
+    if behavior_uses_gpui(cargo_features, dependency_enables_gpui) {
+        "gpui-headless"
+    } else {
+        "headless"
+    }
+}
+
+fn behavior_uses_gpui(cargo_features: &[String], dependency_enables_gpui: bool) -> bool {
+    cargo_features
+        .iter()
+        .any(|feature| feature == "gpui" || feature.strip_suffix("/gpui").is_some())
+        || dependency_enables_gpui
 }
 
 fn check(
@@ -913,8 +943,12 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     // instead of silently replacing it with the no-op ABI fallback.
     let mut cargo_features = options.cargo_features.clone();
     cargo_features.push(app_framework_feature(workspace, app, "devtools")?);
+    let dependency_enables_gpui = app_framework_dependency_has_feature(workspace, app, "gpui")?;
+    let uses_gpui = behavior_uses_gpui(&options.cargo_features, dependency_enables_gpui);
     if !options.native {
-        cargo_features.push(app_framework_feature(workspace, app, "headless")?);
+        let headless_feature =
+            behavior_headless_feature(&options.cargo_features, dependency_enables_gpui);
+        cargo_features.push(app_framework_feature(workspace, app, headless_feature)?);
     }
     let executable = build_behavior_host(workspace, &manifest, &binary, &cargo_features)?;
     let mut host = Command::new(executable);
@@ -925,6 +959,10 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
         )
         .env("WABOU_TEST_SCRIPT", scenario_bundle)
         .env("WABOU_TEST_ARTIFACT_DIR", artifact_dir)
+        .env(
+            "WABOU_TEST_RENDERER",
+            if uses_gpui { "gpui" } else { "vello-hybrid" },
+        )
         .env("WABOU_TEST_APP_DATA_ROOT", test_data.path())
         // Also isolate libraries that use the XDG convention directly rather
         // than resolving paths through Wabou's AppDirectories API.
@@ -1368,7 +1406,7 @@ mod tests {
             "run",
             "apps/gallery",
             "--features",
-            "renderer-skia,diagnostics",
+            "diagnostics,telemetry",
             "--features",
             "experimental",
         ])
@@ -1378,7 +1416,7 @@ mod tests {
         };
         assert_eq!(
             cargo_features.values,
-            ["renderer-skia", "diagnostics", "experimental"]
+            ["diagnostics", "telemetry", "experimental"]
         );
 
         let mut command = Command::new("cargo");
@@ -1388,7 +1426,7 @@ mod tests {
                 .get_args()
                 .map(|arg| arg.to_string_lossy().into_owned())
                 .collect::<Vec<_>>(),
-            ["--features", "renderer-skia,diagnostics,experimental"]
+            ["--features", "diagnostics,telemetry,experimental"]
         );
     }
 
@@ -1475,6 +1513,7 @@ mod tests {
         let Cli {
             command:
                 Commands::Render {
+                    renderer,
                     window_id,
                     scale_factor,
                     color_scheme,
@@ -1493,6 +1532,7 @@ mod tests {
         else {
             panic!("expected render command");
         };
+        assert_eq!(renderer, RenderBackend::VelloHybrid);
         assert_eq!(window_id, 1);
         assert_eq!(scale_factor, 1.0);
         assert_eq!(color_scheme, HeadlessColorScheme::Light);
@@ -1509,6 +1549,7 @@ mod tests {
         let Cli {
             command:
                 Commands::Render {
+                    renderer,
                     window_id,
                     scale_factor,
                     color_scheme,
@@ -1528,6 +1569,8 @@ mod tests {
             "render",
             "--out",
             "capture.png",
+            "--renderer",
+            "vello-hybrid",
             "--window-id",
             "7",
             "--scale-factor",
@@ -1562,6 +1605,7 @@ mod tests {
         else {
             panic!("expected render command");
         };
+        assert_eq!(renderer, RenderBackend::VelloHybrid);
         assert_eq!(window_id, 7);
         assert_eq!(scale_factor, 2.0);
         assert_eq!(color_scheme, HeadlessColorScheme::Dark);
@@ -2205,6 +2249,45 @@ out-dir = "dist/resources"
             ),
             Some("wabou/profiling".into())
         );
+    }
+
+    #[test]
+    fn detects_backend_features_enabled_directly_on_the_framework_dependency() {
+        let metadata = serde_json::json!({
+            "packages": [{
+                "manifest_path": "/workspace/apps/terminal/Cargo.toml",
+                "dependencies": [{
+                    "name": "wabou",
+                    "features": ["gpui", "tray"]
+                }]
+            }]
+        });
+        let manifest = Path::new("/workspace/apps/terminal/Cargo.toml");
+        assert!(framework_dependency_has_feature(
+            &metadata, manifest, "gpui"
+        ));
+        assert!(!framework_dependency_has_feature(
+            &metadata,
+            manifest,
+            "vello-hybrid"
+        ));
+    }
+
+    #[test]
+    fn behavior_tests_select_the_backend_owned_headless_harness() {
+        assert_eq!(behavior_headless_feature(&[], false), "headless");
+        assert_eq!(behavior_headless_feature(&[], true), "gpui-headless");
+        assert_eq!(
+            behavior_headless_feature(&["gpui".into()], false),
+            "gpui-headless"
+        );
+        assert_eq!(
+            behavior_headless_feature(&["gallery/gpui".into()], false),
+            "gpui-headless"
+        );
+        assert!(!behavior_uses_gpui(&[], false));
+        assert!(behavior_uses_gpui(&[], true));
+        assert!(behavior_uses_gpui(&["gallery/gpui".into()], false));
     }
 
     #[test]

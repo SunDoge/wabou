@@ -1,22 +1,24 @@
 //! Test-only bridge between QuickJS scenarios and the native event loop.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+#[cfg(feature = "gpui")]
+use std::collections::HashSet;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicU64, Ordering},
 };
 
-use rquickjs::{Function, prelude::Async};
+use rquickjs::{Ctx, Function, Object, prelude::Async};
 use serde::Deserialize;
 use tokio::sync::oneshot;
-#[cfg(test)]
-use wabou_shell::{
-    FileDropEvent, Point, PointerButton, PointerEvent, PointerPhase, SemanticRole,
-    SemanticSnapshot, WheelEvent,
-};
-use wabou_shell::{
-    ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, NodeKey, UiEvent, WakeCallback,
+#[cfg(feature = "gpui")]
+use wabou_host_api::NodeKey;
+#[cfg(not(feature = "gpui"))]
+use wabou_shell_api as wabou_shell;
+use wabou_shell_api::{
+    FileDropEvent, ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton,
+    PointerEvent, PointerPhase, SemanticRole, SemanticSnapshot, UiEvent, WakeCallback, WheelEvent,
     WindowCapabilities, WindowIntent, WindowLifecycle, WindowPresence,
 };
 
@@ -25,8 +27,8 @@ const MAX_FIXTURE_BYTES: usize = 16 * 1024 * 1024;
 static NEXT_FIXTURE_DIRECTORY: AtomicU64 = AtomicU64::new(1);
 type WindowKey = wabou_shell::WindowResourceKey;
 
-#[cfg(test)]
 trait SemanticTestSource {
+    #[cfg(test)]
     fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>>;
     fn handle_event(&mut self, event: UiEvent);
     fn handle_semantic_action(&mut self, action: wabou_shell::SemanticAction) -> bool;
@@ -134,6 +136,7 @@ enum TestActionResult {
 }
 
 #[derive(Clone, Copy, Debug)]
+#[cfg(feature = "gpui")]
 pub(crate) enum GpuiWindowTestCommand {
     Hide { mutable_visibility: bool },
     Show,
@@ -205,9 +208,10 @@ struct TestState {
     windows: HashMap<WindowKey, WindowSnapshot>,
     wake: Option<WakeCallback>,
     report: Option<String>,
+    #[cfg(feature = "gpui")]
     gpui_snapshots: HashMap<WindowKey, Arc<[wabou_shell::GpuiLayoutNode]>>,
+    #[cfg(feature = "gpui")]
     gpui_select_all: HashSet<(WindowKey, wabou_host_api::NodeKey)>,
-    #[cfg(test)]
     semantic_snapshots: HashMap<WindowKey, Arc<SemanticSnapshot>>,
     #[cfg(test)]
     headless_viewports: HashMap<WindowKey, (u32, u32)>,
@@ -216,10 +220,52 @@ struct TestState {
 }
 
 #[derive(Clone)]
-pub(crate) struct TestController {
+#[doc(hidden)]
+/// Shared controller for renderer-independent native behavior tests.
+pub struct TestController {
     state: Arc<Mutex<TestState>>,
     effects: crate::effect_trace::EffectTrace,
     fixtures: Arc<TestFixtureDirectory>,
+}
+
+/// Backend adapter used by native behavior tests.
+///
+/// This is intentionally a narrow semantic/input contract rather than a
+/// renderer API. Alternate window hosts can therefore execute the same
+/// `@wabou/test` scenarios without projecting a GPUI tree.
+#[doc(hidden)]
+pub trait NativeTestHost {
+    fn semantic_snapshot(&mut self, window_key: WindowKey) -> Option<Arc<SemanticSnapshot>>;
+    fn dispatch_event(&mut self, window_key: WindowKey, event: UiEvent) -> bool;
+    fn dispatch_semantic_action(
+        &mut self,
+        window_key: WindowKey,
+        action: wabou_shell::SemanticAction,
+    ) -> bool;
+    fn hide_window(&mut self, window_key: WindowKey, mutable_visibility: bool) -> bool;
+    fn show_window(&mut self, window_key: WindowKey) -> bool;
+    fn resize_window(&mut self, window_key: WindowKey, width: u32, height: u32) -> bool;
+    fn window_viewport(&self, window_key: WindowKey) -> Option<(u32, u32)>;
+}
+
+struct NativeSemanticSource<'a> {
+    host: &'a mut dyn NativeTestHost,
+    window_key: WindowKey,
+}
+
+impl SemanticTestSource for NativeSemanticSource<'_> {
+    #[cfg(test)]
+    fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>> {
+        None
+    }
+
+    fn handle_event(&mut self, event: UiEvent) {
+        let _ = self.host.dispatch_event(self.window_key, event);
+    }
+
+    fn handle_semantic_action(&mut self, action: wabou_shell::SemanticAction) -> bool {
+        self.host.dispatch_semantic_action(self.window_key, action)
+    }
 }
 
 impl Default for TestController {
@@ -229,7 +275,13 @@ impl Default for TestController {
 }
 
 impl TestController {
-    pub(crate) fn new(effects: crate::effect_trace::EffectTrace) -> Self {
+    /// Create a controller backed by the same effect trace installed in the
+    /// application runtime.
+    ///
+    /// Alternate native hosts must share this trace with their QuickJS effect
+    /// bridge so deterministic fixtures are visible on both sides.
+    #[doc(hidden)]
+    pub fn new(effects: crate::effect_trace::EffectTrace) -> Self {
         Self {
             state: Arc::new(Mutex::new(TestState::default())),
             effects,
@@ -237,6 +289,7 @@ impl TestController {
         }
     }
 
+    #[cfg(feature = "gpui")]
     pub(crate) fn connect_gpui_window(&self, window_key: WindowKey, wake: WakeCallback) {
         if let Ok(mut state) = self.state.lock() {
             state.wake = Some(wake);
@@ -250,6 +303,114 @@ impl TestController {
         }
     }
 
+    /// Attach native windows and their event-loop wake callback to the shared
+    /// behavior-test queue.
+    #[doc(hidden)]
+    pub fn connect_native_windows(
+        &self,
+        window_keys: impl IntoIterator<Item = WindowKey>,
+        wake: WakeCallback,
+    ) {
+        if let Ok(mut state) = self.state.lock() {
+            state.wake = Some(wake);
+            for window_key in window_keys {
+                state.windows.insert(
+                    window_key,
+                    WindowSnapshot {
+                        lifecycle: WindowLifecycle::visible(),
+                        viewport: None,
+                    },
+                );
+            }
+        }
+    }
+
+    /// Drain one native host checkpoint through the same semantic locator and
+    /// input machinery used by GPUI behavior tests.
+    #[doc(hidden)]
+    pub fn poll_native_host(&self, window_key: WindowKey, host: &mut dyn NativeTestHost) -> bool {
+        if let Some(viewport) = host.window_viewport(window_key)
+            && let Ok(mut state) = self.state.lock()
+            && let Some(window) = state.windows.get_mut(&window_key)
+        {
+            window.viewport = Some(viewport);
+        }
+        let mut handled = self.poll_native_window_action(window_key, host);
+        let snapshot = host.semantic_snapshot(window_key);
+        if let Some(snapshot) = snapshot.as_ref()
+            && let Ok(mut state) = self.state.lock()
+        {
+            state
+                .semantic_snapshots
+                .insert(window_key, snapshot.clone());
+        }
+        let mut source = NativeSemanticSource { host, window_key };
+        handled |= self.poll_semantic_source(window_key, snapshot, &mut source);
+        handled
+    }
+
+    fn poll_native_window_action(
+        &self,
+        window_key: WindowKey,
+        host: &mut dyn NativeTestHost,
+    ) -> bool {
+        let action = self.state.lock().ok().and_then(|mut state| {
+            let index = state.actions.iter().position(|action| {
+                matches!(
+                    &action.kind,
+                    TestActionKind::NativeClose { window_key: target, .. }
+                        | TestActionKind::ShowWindow(target)
+                        | TestActionKind::ResizeWindow { window_key: target, .. }
+                        if *target == window_key
+                )
+            })?;
+            state.actions.remove(index)
+        });
+        let Some(action) = action else {
+            return false;
+        };
+        let handled = match &action.kind {
+            TestActionKind::NativeClose {
+                mutable_visibility, ..
+            } => host.hide_window(window_key, *mutable_visibility),
+            TestActionKind::ShowWindow(_) => host.show_window(window_key),
+            TestActionKind::ResizeWindow { width, height, .. } => {
+                host.resize_window(window_key, *width, *height)
+            }
+            _ => unreachable!("native window action filter and mapping stay aligned"),
+        };
+        if handled && let Ok(mut state) = self.state.lock() {
+            let snapshot = state.windows.entry(window_key).or_insert(WindowSnapshot {
+                lifecycle: WindowLifecycle::visible(),
+                viewport: None,
+            });
+            match &action.kind {
+                TestActionKind::NativeClose {
+                    mutable_visibility, ..
+                } => {
+                    let _ = snapshot.lifecycle.transition(
+                        WindowIntent::Hide,
+                        WindowCapabilities {
+                            mutable_visibility: *mutable_visibility,
+                        },
+                    );
+                }
+                TestActionKind::ShowWindow(_) => {
+                    let _ = snapshot
+                        .lifecycle
+                        .transition(WindowIntent::Show, WindowCapabilities::default());
+                }
+                TestActionKind::ResizeWindow { width, height, .. } => {
+                    snapshot.viewport = Some((*width, *height));
+                }
+                _ => unreachable!("native window action filter and state update stay aligned"),
+            }
+        }
+        let _ = action.completion.send(TestActionResult::Handled(handled));
+        true
+    }
+
+    #[cfg(feature = "gpui")]
     pub(crate) fn record_gpui_viewport(&self, window_key: WindowKey, width: u32, height: u32) {
         if let Ok(mut state) = self.state.lock() {
             state
@@ -314,327 +475,334 @@ impl TestController {
         true
     }
 
-    pub(crate) fn mount(&self, js: &crate::JsRuntime) -> rquickjs::Result<()> {
+    /// Mount the private behavior-test capability into one JavaScript runtime.
+    #[doc(hidden)]
+    pub fn mount(&self, js: &crate::JsRuntime) -> rquickjs::Result<()> {
         let controller = self.clone();
         js.mount_capability(CAPABILITY, move |ctx, capability| {
-            let fixtures = controller.fixtures.clone();
-            capability.set(
-                "writeTextFile",
-                Function::new(
-                    ctx.clone(),
-                    move |relative: String, contents: String| match fixtures
-                        .write_text(&relative, &contents)
-                    {
-                        Ok(path) => serde_json::json!({
-                            "path": path.to_string_lossy(),
-                        })
-                        .to_string(),
-                        Err(error) => serde_json::json!({ "error": error }).to_string(),
-                    },
-                )?,
-            )?;
-
-            let native_close = controller.clone();
-            capability.set(
-                "nativeClose",
-                Function::new(
-                    ctx.clone(),
-                    Async(move |lo: u32, hi: u32, mutable_visibility: bool| {
-                        let receiver = window_key(lo, hi).map(|window_key| {
-                            native_close.request(TestActionKind::NativeClose {
-                                window_key,
-                                mutable_visibility,
-                            })
-                        });
-                        async move {
-                            match receiver {
-                                Some(receiver) => {
-                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
-                                }
-                                None => false,
-                            }
-                        }
-                    }),
-                )?,
-            )?;
-
-            let show = controller.clone();
-            capability.set(
-                "showWindow",
-                Function::new(
-                    ctx.clone(),
-                    Async(move |lo: u32, hi: u32| {
-                        let receiver = window_key(lo, hi)
-                            .map(|window_key| show.request(TestActionKind::ShowWindow(window_key)));
-                        async move {
-                            match receiver {
-                                Some(receiver) => {
-                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
-                                }
-                                None => false,
-                            }
-                        }
-                    }),
-                )?,
-            )?;
-
-            let idle = controller.clone();
-            capability.set(
-                "waitForIdle",
-                Function::new(
-                    ctx.clone(),
-                    Async(move |lo: u32, hi: u32| {
-                        let receiver = window_key(lo, hi).map(|window_key| {
-                            idle.request(TestActionKind::WaitForIdle(window_key))
-                        });
-                        async move {
-                            match receiver {
-                                Some(receiver) => {
-                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
-                                }
-                                None => false,
-                            }
-                        }
-                    }),
-                )?,
-            )?;
-
-            let query = controller.clone();
-            capability.set(
-                "resizeWindow",
-                Function::new(
-                    ctx.clone(),
-                    Async(move |lo: u32, hi: u32, width: u32, height: u32| {
-                        let receiver = window_key(lo, hi).map(|window_key| {
-                            query.request(TestActionKind::ResizeWindow {
-                                window_key,
-                                width,
-                                height,
-                            })
-                        });
-                        async move {
-                            match receiver {
-                                Some(receiver) => {
-                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
-                                }
-                                None => false,
-                            }
-                        }
-                    }),
-                )?,
-            )?;
-
-            let query = controller.clone();
-            capability.set(
-                "windowState",
-                Function::new(ctx.clone(), move |lo: u32, hi: u32| {
-                    window_key(lo, hi)
-                        .map(|window_key| query.window_state_json(window_key))
-                        .unwrap_or_else(|| "null".into())
-                })?,
-            )?;
-
-            let file_drop = controller.clone();
-            capability.set(
-                "fileDrop",
-                Function::new(
-                    ctx.clone(),
-                    Async(move |lo: u32, hi: u32, phase: String, paths_json: String| {
-                        let phase = match phase.as_str() {
-                            "entered" => Some(FileDropPhase::Entered),
-                            "moved" => Some(FileDropPhase::Moved),
-                            "left" => Some(FileDropPhase::Left),
-                            "dropped" => Some(FileDropPhase::Dropped),
-                            _ => None,
-                        };
-                        let paths = serde_json::from_str::<Vec<PathBuf>>(&paths_json).ok();
-                        let receiver = window_key(lo, hi).zip(phase).zip(paths).map(
-                            |((window_key, phase), paths)| {
-                                file_drop.request(TestActionKind::FileDrop {
-                                    window_key,
-                                    phase,
-                                    paths,
-                                })
-                            },
-                        );
-                        async move {
-                            match receiver {
-                                Some(receiver) => {
-                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
-                                }
-                                None => false,
-                            }
-                        }
-                    }),
-                )?,
-            )?;
-
-            let query = controller.clone();
-            capability.set(
-                "windowViewport",
-                Function::new(ctx.clone(), move |lo: u32, hi: u32| {
-                    window_key(lo, hi)
-                        .map(|window_key| query.window_viewport_json(window_key))
-                        .unwrap_or_else(|| "null".into())
-                })?,
-            )?;
-
-            let click = controller.clone();
-            capability.set(
-                "clickByRole",
-                Function::new(
-                    ctx.clone(),
-                    Async(
-                        move |lo: u32,
-                              hi: u32,
-                              role: String,
-                              label: String,
-                              index: Option<usize>,
-                              scope_json: String| {
-                            let receiver = window_key(lo, hi).and_then(|window_key| {
-                                let scope = serde_json::from_str(&scope_json).ok()?;
-                                Some(click.request(TestActionKind::ClickByRole {
-                                    window_key,
-                                    role,
-                                    label,
-                                    index,
-                                    scope,
-                                }))
-                            });
-                            async move {
-                                match receiver {
-                                    Some(receiver) => {
-                                        matches!(
-                                            receiver.await,
-                                            Ok(TestActionResult::Handled(true))
-                                        )
-                                    }
-                                    None => false,
-                                }
-                            }
-                        },
-                    ),
-                )?,
-            )?;
-
-            let input = controller.clone();
-            capability.set(
-                "inputByRole",
-                Function::new(
-                    ctx.clone(),
-                    Async(
-                        move |lo: u32,
-                              hi: u32,
-                              role: String,
-                              label: String,
-                              raw: String,
-                              index: Option<usize>,
-                              scope_json: String| {
-                            let receiver = window_key(lo, hi).and_then(|window_key| {
-                                let scope = serde_json::from_str(&scope_json).ok()?;
-                                serde_json::from_str::<TestInput>(&raw).ok().map(|action| {
-                                    input.request(TestActionKind::InputByRole {
-                                        window_key,
-                                        role,
-                                        label,
-                                        input: action,
-                                        index,
-                                        scope,
-                                    })
-                                })
-                            });
-                            async move {
-                                match receiver {
-                                    Some(receiver) => matches!(
-                                        receiver.await,
-                                        Ok(TestActionResult::Handled(true))
-                                    ),
-                                    None => false,
-                                }
-                            }
-                        },
-                    ),
-                )?,
-            )?;
-
-            let finish = controller.clone();
-            capability.set(
-                "finish",
-                Function::new(ctx.clone(), move |report: String| finish.finish(report))?,
-            )?;
-
-            let effects = controller.clone();
-            capability.set(
-                "queueEffect",
-                Function::new(
-                    ctx.clone(),
-                    move |capability: u32, method: u16, result_json: String| {
-                        let result =
-                            serde_json::from_str::<wabou_shell::EffectResult>(&result_json)
-                                .map_err(|error| format!("invalid effect fixture result: {error}"));
-                        result
-                            .and_then(|result| {
-                                effects.effects.enqueue_fixture(
-                                    wabou_shell::EffectOp::new(capability, method),
-                                    result,
-                                )
-                            })
-                            .err()
-                    },
-                )?,
-            )?;
-
-            let effects = controller.clone();
-            capability.set(
-                "takePendingEffectFixtures",
-                Function::new(ctx.clone(), move || {
-                    effects
-                        .effects
-                        .take_pending_fixtures()
-                        .into_iter()
-                        .map(|op| format!("{}:{}", op.capability.0, op.method.0))
-                        .collect::<Vec<_>>()
-                        .join(",")
-                })?,
-            )?;
-
-            let query = controller.clone();
-            capability.set(
-                "queryByRole",
-                Function::new(
-                    ctx.clone(),
-                    Async(
-                        move |lo: u32,
-                              hi: u32,
-                              role: String,
-                              label: String,
-                              index: Option<usize>,
-                              scope_json: String| {
-                            let receiver = window_key(lo, hi).and_then(|window_key| {
-                                let scope = serde_json::from_str(&scope_json).ok()?;
-                                Some(query.request(TestActionKind::QueryByRole {
-                                    window_key,
-                                    role,
-                                    label,
-                                    index,
-                                    scope,
-                                }))
-                            });
-                            async move {
-                                match receiver {
-                                    Some(receiver) => match receiver.await {
-                                        Ok(TestActionResult::Query(result)) => result,
-                                        _ => None,
-                                    },
-                                    _ => None,
-                                }
-                            }
-                        },
-                    ),
-                )?,
-            )?;
-            Ok(())
+            controller.mount_object(ctx, capability)
         })
+    }
+
+    /// Populate a test capability object owned by another QuickJS host.
+    #[doc(hidden)]
+    pub fn mount_object<'js>(
+        &self,
+        ctx: Ctx<'js>,
+        capability: Object<'js>,
+    ) -> rquickjs::Result<()> {
+        let controller = self.clone();
+        let fixtures = controller.fixtures.clone();
+        capability.set(
+            "writeTextFile",
+            Function::new(
+                ctx.clone(),
+                move |relative: String, contents: String| match fixtures
+                    .write_text(&relative, &contents)
+                {
+                    Ok(path) => serde_json::json!({
+                        "path": path.to_string_lossy(),
+                    })
+                    .to_string(),
+                    Err(error) => serde_json::json!({ "error": error }).to_string(),
+                },
+            )?,
+        )?;
+
+        let native_close = controller.clone();
+        capability.set(
+            "nativeClose",
+            Function::new(
+                ctx.clone(),
+                Async(move |lo: u32, hi: u32, mutable_visibility: bool| {
+                    let receiver = window_key(lo, hi).map(|window_key| {
+                        native_close.request(TestActionKind::NativeClose {
+                            window_key,
+                            mutable_visibility,
+                        })
+                    });
+                    async move {
+                        match receiver {
+                            Some(receiver) => {
+                                matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                            }
+                            None => false,
+                        }
+                    }
+                }),
+            )?,
+        )?;
+
+        let show = controller.clone();
+        capability.set(
+            "showWindow",
+            Function::new(
+                ctx.clone(),
+                Async(move |lo: u32, hi: u32| {
+                    let receiver = window_key(lo, hi)
+                        .map(|window_key| show.request(TestActionKind::ShowWindow(window_key)));
+                    async move {
+                        match receiver {
+                            Some(receiver) => {
+                                matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                            }
+                            None => false,
+                        }
+                    }
+                }),
+            )?,
+        )?;
+
+        let idle = controller.clone();
+        capability.set(
+            "waitForIdle",
+            Function::new(
+                ctx.clone(),
+                Async(move |lo: u32, hi: u32| {
+                    let receiver = window_key(lo, hi)
+                        .map(|window_key| idle.request(TestActionKind::WaitForIdle(window_key)));
+                    async move {
+                        match receiver {
+                            Some(receiver) => {
+                                matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                            }
+                            None => false,
+                        }
+                    }
+                }),
+            )?,
+        )?;
+
+        let query = controller.clone();
+        capability.set(
+            "resizeWindow",
+            Function::new(
+                ctx.clone(),
+                Async(move |lo: u32, hi: u32, width: u32, height: u32| {
+                    let receiver = window_key(lo, hi).map(|window_key| {
+                        query.request(TestActionKind::ResizeWindow {
+                            window_key,
+                            width,
+                            height,
+                        })
+                    });
+                    async move {
+                        match receiver {
+                            Some(receiver) => {
+                                matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                            }
+                            None => false,
+                        }
+                    }
+                }),
+            )?,
+        )?;
+
+        let query = controller.clone();
+        capability.set(
+            "windowState",
+            Function::new(ctx.clone(), move |lo: u32, hi: u32| {
+                window_key(lo, hi)
+                    .map(|window_key| query.window_state_json(window_key))
+                    .unwrap_or_else(|| "null".into())
+            })?,
+        )?;
+
+        let file_drop = controller.clone();
+        capability.set(
+            "fileDrop",
+            Function::new(
+                ctx.clone(),
+                Async(move |lo: u32, hi: u32, phase: String, paths_json: String| {
+                    let phase = match phase.as_str() {
+                        "entered" => Some(FileDropPhase::Entered),
+                        "moved" => Some(FileDropPhase::Moved),
+                        "left" => Some(FileDropPhase::Left),
+                        "dropped" => Some(FileDropPhase::Dropped),
+                        _ => None,
+                    };
+                    let paths = serde_json::from_str::<Vec<PathBuf>>(&paths_json).ok();
+                    let receiver = window_key(lo, hi).zip(phase).zip(paths).map(
+                        |((window_key, phase), paths)| {
+                            file_drop.request(TestActionKind::FileDrop {
+                                window_key,
+                                phase,
+                                paths,
+                            })
+                        },
+                    );
+                    async move {
+                        match receiver {
+                            Some(receiver) => {
+                                matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                            }
+                            None => false,
+                        }
+                    }
+                }),
+            )?,
+        )?;
+
+        let query = controller.clone();
+        capability.set(
+            "windowViewport",
+            Function::new(ctx.clone(), move |lo: u32, hi: u32| {
+                window_key(lo, hi)
+                    .map(|window_key| query.window_viewport_json(window_key))
+                    .unwrap_or_else(|| "null".into())
+            })?,
+        )?;
+
+        let click = controller.clone();
+        capability.set(
+            "clickByRole",
+            Function::new(
+                ctx.clone(),
+                Async(
+                    move |lo: u32,
+                          hi: u32,
+                          role: String,
+                          label: String,
+                          index: Option<usize>,
+                          scope_json: String| {
+                        let receiver = window_key(lo, hi).and_then(|window_key| {
+                            let scope = serde_json::from_str(&scope_json).ok()?;
+                            Some(click.request(TestActionKind::ClickByRole {
+                                window_key,
+                                role,
+                                label,
+                                index,
+                                scope,
+                            }))
+                        });
+                        async move {
+                            match receiver {
+                                Some(receiver) => {
+                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                                }
+                                None => false,
+                            }
+                        }
+                    },
+                ),
+            )?,
+        )?;
+
+        let input = controller.clone();
+        capability.set(
+            "inputByRole",
+            Function::new(
+                ctx.clone(),
+                Async(
+                    move |lo: u32,
+                          hi: u32,
+                          role: String,
+                          label: String,
+                          raw: String,
+                          index: Option<usize>,
+                          scope_json: String| {
+                        let receiver = window_key(lo, hi).and_then(|window_key| {
+                            let scope = serde_json::from_str(&scope_json).ok()?;
+                            serde_json::from_str::<TestInput>(&raw).ok().map(|action| {
+                                input.request(TestActionKind::InputByRole {
+                                    window_key,
+                                    role,
+                                    label,
+                                    input: action,
+                                    index,
+                                    scope,
+                                })
+                            })
+                        });
+                        async move {
+                            match receiver {
+                                Some(receiver) => {
+                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                                }
+                                None => false,
+                            }
+                        }
+                    },
+                ),
+            )?,
+        )?;
+
+        let finish = controller.clone();
+        capability.set(
+            "finish",
+            Function::new(ctx.clone(), move |report: String| finish.finish(report))?,
+        )?;
+
+        let effects = controller.clone();
+        capability.set(
+            "queueEffect",
+            Function::new(
+                ctx.clone(),
+                move |capability: u32, method: u16, result_json: String| {
+                    let result = serde_json::from_str::<wabou_shell::EffectResult>(&result_json)
+                        .map_err(|error| format!("invalid effect fixture result: {error}"));
+                    result
+                        .and_then(|result| {
+                            effects.effects.enqueue_fixture(
+                                wabou_shell::EffectOp::new(capability, method),
+                                result,
+                            )
+                        })
+                        .err()
+                },
+            )?,
+        )?;
+
+        let effects = controller.clone();
+        capability.set(
+            "takePendingEffectFixtures",
+            Function::new(ctx.clone(), move || {
+                effects
+                    .effects
+                    .take_pending_fixtures()
+                    .into_iter()
+                    .map(|op| format!("{}:{}", op.capability.0, op.method.0))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            })?,
+        )?;
+
+        let query = controller.clone();
+        capability.set(
+            "queryByRole",
+            Function::new(
+                ctx.clone(),
+                Async(
+                    move |lo: u32,
+                          hi: u32,
+                          role: String,
+                          label: String,
+                          index: Option<usize>,
+                          scope_json: String| {
+                        let receiver = window_key(lo, hi).and_then(|window_key| {
+                            let scope = serde_json::from_str(&scope_json).ok()?;
+                            Some(query.request(TestActionKind::QueryByRole {
+                                window_key,
+                                role,
+                                label,
+                                index,
+                                scope,
+                            }))
+                        });
+                        async move {
+                            match receiver {
+                                Some(receiver) => match receiver.await {
+                                    Ok(TestActionResult::Query(result)) => result,
+                                    _ => None,
+                                },
+                                _ => None,
+                            }
+                        }
+                    },
+                ),
+            )?,
+        )?;
+        Ok(())
     }
 
     fn window_state_json(&self, window_key: WindowKey) -> String {
@@ -672,13 +840,27 @@ impl TestController {
         )
     }
 
-    pub(crate) fn take_report(&self) -> Option<String> {
+    /// Take the scenario's final structured report once.
+    #[doc(hidden)]
+    pub fn take_report(&self) -> Option<String> {
         self.state.lock().ok()?.report.take()
     }
 
-    #[cfg(feature = "headless")]
-    pub(crate) fn has_report(&self) -> bool {
+    /// Return whether the scenario published its final report.
+    #[doc(hidden)]
+    pub fn has_report(&self) -> bool {
         self.state.lock().is_ok_and(|state| state.report.is_some())
+    }
+
+    /// Return the pass flag without consuming the final report.
+    #[doc(hidden)]
+    pub fn report_passed(&self) -> Option<bool> {
+        let state = self.state.lock().ok()?;
+        let report = state.report.as_deref()?;
+        serde_json::from_str::<serde_json::Value>(report)
+            .ok()?
+            .get("passed")?
+            .as_bool()
     }
 
     #[cfg(test)]
@@ -716,6 +898,15 @@ impl TestController {
     #[cfg(test)]
     fn poll_headless_source(&self, window_key: WindowKey, source: &mut dyn SemanticTestSource) {
         let snapshot = source.semantic_snapshot();
+        let _ = self.poll_semantic_source(window_key, snapshot, source);
+    }
+
+    fn poll_semantic_source(
+        &self,
+        window_key: WindowKey,
+        snapshot: Option<Arc<SemanticSnapshot>>,
+        source: &mut dyn SemanticTestSource,
+    ) -> bool {
         if let Some(snapshot) = snapshot.as_ref() {
             self.record_semantic_snapshot(window_key, snapshot.clone());
         }
@@ -738,7 +929,7 @@ impl TestController {
                 target: action.id,
             })
         {
-            return;
+            return true;
         }
         let action = self.state.lock().ok().and_then(|mut state| {
             let index = state.actions.iter().position(|action| {
@@ -752,7 +943,7 @@ impl TestController {
             ready.then(|| state.actions.remove(index)).flatten()
         });
         let Some(action) = action else {
-            return;
+            return false;
         };
         let handled = match (&action.kind, snapshot.as_deref()) {
             (TestActionKind::WaitForIdle(_), _) => true,
@@ -801,47 +992,69 @@ impl TestController {
             _ => TestActionResult::Handled(handled),
         };
         let _ = action.completion.send(result);
+        true
     }
 
-    #[cfg(test)]
     fn record_semantic_snapshot(&self, window_key: WindowKey, snapshot: Arc<SemanticSnapshot>) {
         if let Ok(mut state) = self.state.lock() {
             state.semantic_snapshots.insert(window_key, snapshot);
         }
     }
 
-    pub(crate) fn semantic_artifact(&self) -> serde_json::Value {
-        #[cfg(test)]
-        if let Ok(state) = self.state.lock()
-            && state.gpui_snapshots.is_empty()
-            && !state.semantic_snapshots.is_empty()
+    /// Build a redacted semantic artifact for a failed native scenario.
+    #[doc(hidden)]
+    pub fn semantic_artifact(&self) -> serde_json::Value {
+        #[cfg(not(feature = "gpui"))]
         {
-            let mut windows = state.semantic_snapshots.iter().collect::<Vec<_>>();
+            let snapshots = self
+                .state
+                .lock()
+                .map(|state| state.semantic_snapshots.clone())
+                .unwrap_or_default();
+            let mut windows = snapshots.into_iter().collect::<Vec<_>>();
             windows.sort_unstable_by_key(|(window_key, _)| window_key.as_ffi());
-            return serde_json::json!({
+            serde_json::json!({
                 "version": 1,
                 "windows": windows
                     .into_iter()
-                    .map(|(window_key, snapshot)| semantic_snapshot_json(*window_key, snapshot))
+                    .map(|(window_key, snapshot)| semantic_snapshot_json(window_key, &snapshot))
                     .collect::<Vec<_>>(),
-            });
+            })
         }
-        let snapshots = self
-            .state
-            .lock()
-            .map(|state| state.gpui_snapshots.clone())
-            .unwrap_or_default();
-        let mut windows = snapshots.into_iter().collect::<Vec<_>>();
-        windows.sort_unstable_by_key(|(window_key, _)| window_key.as_ffi());
-        serde_json::json!({
-            "version": 1,
-            "windows": windows
-                .into_iter()
-                .map(|(window_key, nodes)| gpui_snapshot_json(window_key, &nodes))
-                .collect::<Vec<_>>(),
-        })
+        #[cfg(feature = "gpui")]
+        {
+            if let Ok(state) = self.state.lock()
+                && state.gpui_snapshots.is_empty()
+                && !state.semantic_snapshots.is_empty()
+            {
+                let mut windows = state.semantic_snapshots.iter().collect::<Vec<_>>();
+                windows.sort_unstable_by_key(|(window_key, _)| window_key.as_ffi());
+                return serde_json::json!({
+                    "version": 1,
+                    "windows": windows
+                        .into_iter()
+                        .map(|(window_key, snapshot)| semantic_snapshot_json(*window_key, snapshot))
+                        .collect::<Vec<_>>(),
+                });
+            }
+            let snapshots = self
+                .state
+                .lock()
+                .map(|state| state.gpui_snapshots.clone())
+                .unwrap_or_default();
+            let mut windows = snapshots.into_iter().collect::<Vec<_>>();
+            windows.sort_unstable_by_key(|(window_key, _)| window_key.as_ffi());
+            serde_json::json!({
+                "version": 1,
+                "windows": windows
+                    .into_iter()
+                    .map(|(window_key, nodes)| gpui_snapshot_json(window_key, &nodes))
+                    .collect::<Vec<_>>(),
+            })
+        }
     }
 
+    #[cfg(feature = "gpui")]
     pub(crate) fn poll_gpui_source(
         &self,
         window_key: WindowKey,
@@ -978,6 +1191,7 @@ impl TestController {
         true
     }
 
+    #[cfg(feature = "gpui")]
     pub(crate) fn poll_gpui_window_action(
         &self,
         window_key: WindowKey,
@@ -1036,6 +1250,7 @@ impl TestController {
     }
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_node_role(node: &wabou_shell::GpuiLayoutNode) -> Option<&str> {
     node.attributes.get("role").map(AsRef::as_ref).or_else(|| {
         let wabou_shell::ProjectedNodeKind::Element(tag) = &node.kind else {
@@ -1055,6 +1270,7 @@ fn gpui_node_role(node: &wabou_shell::GpuiLayoutNode) -> Option<&str> {
     })
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_node_label<'a>(
     nodes: &'a [wabou_shell::GpuiLayoutNode],
     node: &'a wabou_shell::GpuiLayoutNode,
@@ -1065,11 +1281,13 @@ fn gpui_node_label<'a>(
     gpui_node_text_content(nodes, node)
 }
 
+#[cfg(feature = "gpui")]
 fn normalize_accessible_name(value: &str) -> Option<String> {
     let normalized = value.split_whitespace().collect::<Vec<_>>().join(" ");
     (!normalized.is_empty()).then_some(normalized)
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_node_text_content(
     nodes: &[wabou_shell::GpuiLayoutNode],
     node: &wabou_shell::GpuiLayoutNode,
@@ -1095,6 +1313,7 @@ fn gpui_node_text_content(
     normalize_accessible_name(&text)
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_descends_from(
     nodes: &[wabou_shell::GpuiLayoutNode],
     mut key: wabou_host_api::NodeKey,
@@ -1112,6 +1331,7 @@ fn gpui_descends_from(
     false
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_is_effectively_attached(
     nodes: &[wabou_shell::GpuiLayoutNode],
     node: &wabou_shell::GpuiLayoutNode,
@@ -1132,6 +1352,7 @@ fn gpui_is_effectively_attached(
     true
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_is_aria_hidden(
     nodes: &[wabou_shell::GpuiLayoutNode],
     node: &wabou_shell::GpuiLayoutNode,
@@ -1152,6 +1373,7 @@ fn gpui_is_aria_hidden(
     false
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_modal_root(nodes: &[wabou_shell::GpuiLayoutNode]) -> Option<wabou_host_api::NodeKey> {
     nodes
         .iter()
@@ -1168,6 +1390,7 @@ fn gpui_modal_root(nodes: &[wabou_shell::GpuiLayoutNode]) -> Option<wabou_host_a
         .map(|node| node.key)
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_node_is_exposed(
     nodes: &[wabou_shell::GpuiLayoutNode],
     node: &wabou_shell::GpuiLayoutNode,
@@ -1179,6 +1402,7 @@ fn gpui_node_is_exposed(
         .is_none_or(|modal| node.key == modal || gpui_descends_from(nodes, node.key, modal))
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_bool_attribute(node: &wabou_shell::GpuiLayoutNode, name: &str) -> Option<bool> {
     node.attributes
         .get(name)
@@ -1189,11 +1413,13 @@ fn gpui_bool_attribute(node: &wabou_shell::GpuiLayoutNode, name: &str) -> Option
         })
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_node_is_disabled(node: &wabou_shell::GpuiLayoutNode) -> bool {
     node.attributes.contains_key("disabled")
         || gpui_bool_attribute(node, "aria-disabled") == Some(true)
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_scope_owner(
     nodes: &[wabou_shell::GpuiLayoutNode],
     scope: &[TestLocatorSelector],
@@ -1217,6 +1443,7 @@ fn gpui_scope_owner(
     Some(owner)
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_locator<'a>(
     nodes: &'a [wabou_shell::GpuiLayoutNode],
     role: &str,
@@ -1242,6 +1469,7 @@ fn gpui_locator<'a>(
     }
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_locator_query_json(
     nodes: &[wabou_shell::GpuiLayoutNode],
     role: &str,
@@ -1311,6 +1539,7 @@ fn gpui_locator_query_json(
     )
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_snapshot_json(
     window_key: WindowKey,
     nodes: &[wabou_shell::GpuiLayoutNode],
@@ -1336,6 +1565,7 @@ fn gpui_snapshot_json(
     })
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_pointer_event(
     node: &wabou_shell::GpuiLayoutNode,
     phase: wabou_shell::ProjectedPointerPhase,
@@ -1357,6 +1587,7 @@ fn gpui_pointer_event(
     }
 }
 
+#[cfg(feature = "gpui")]
 fn click_gpui_target(
     controller: &mut crate::gpui_controller::GpuiController,
     node: &wabou_shell::GpuiLayoutNode,
@@ -1383,6 +1614,7 @@ fn click_gpui_target(
     false
 }
 
+#[cfg(feature = "gpui")]
 fn gpui_drag_events(
     node: &wabou_shell::GpuiLayoutNode,
     delta_x: f64,
@@ -1399,6 +1631,7 @@ fn gpui_drag_events(
     [down, moved, up]
 }
 
+#[cfg(feature = "gpui")]
 fn input_gpui_target(
     controller: &mut crate::gpui_controller::GpuiController,
     node: &wabou_shell::GpuiLayoutNode,
@@ -1474,6 +1707,7 @@ fn input_gpui_target(
 /// backend-neutral native widget event contract. Pointer and wheel input stay
 /// on the projected hit-testing path because their coordinates come from the
 /// laid-out GPUI node.
+#[cfg(feature = "gpui")]
 fn native_input_events(input: &TestInput) -> Vec<UiEvent> {
     match input {
         TestInput::Key { key, modifiers } => [KeyPhase::Down, KeyPhase::Up]
@@ -1516,7 +1750,6 @@ fn cancelled_result(kind: &TestActionKind) -> TestActionResult {
     }
 }
 
-#[cfg(test)]
 fn semantic_toggle_json(state: Option<wabou_shell::SemanticToggleState>) -> serde_json::Value {
     match state.map(wabou_shell::SemanticToggleState::as_str) {
         Some("false") => serde_json::Value::Bool(false),
@@ -1527,7 +1760,6 @@ fn semantic_toggle_json(state: Option<wabou_shell::SemanticToggleState>) -> serd
     }
 }
 
-#[cfg(test)]
 fn locator_snapshot_json(node: &wabou_shell::SemanticNode, focused: bool) -> String {
     let current = node
         .states
@@ -1556,7 +1788,6 @@ fn locator_snapshot_json(node: &wabou_shell::SemanticNode, focused: bool) -> Str
     .to_string()
 }
 
-#[cfg(test)]
 fn locator_query_json(
     snapshot: &SemanticSnapshot,
     role: &str,
@@ -1593,7 +1824,6 @@ fn locator_query_json(
     )
 }
 
-#[cfg(test)]
 fn scoped_candidates<'a>(
     snapshot: &'a SemanticSnapshot,
     scope: &[TestLocatorSelector],
@@ -1615,7 +1845,6 @@ fn scoped_candidates<'a>(
     Some(candidates)
 }
 
-#[cfg(test)]
 fn semantic_descendants(
     snapshot: &SemanticSnapshot,
     owner: u64,
@@ -1646,7 +1875,6 @@ fn semantic_descendants(
         .collect()
 }
 
-#[cfg(test)]
 fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) -> serde_json::Value {
     serde_json::json!({
         "windowId": window_key,
@@ -1754,7 +1982,6 @@ fn action_window_key(kind: &TestActionKind) -> Option<WindowKey> {
     }
 }
 
-#[cfg(test)]
 fn action_ready(kind: &TestActionKind, snapshot: Option<&SemanticSnapshot>) -> bool {
     match (kind, snapshot) {
         (TestActionKind::WaitForIdle(_), _) => true,
@@ -1764,7 +1991,6 @@ fn action_ready(kind: &TestActionKind, snapshot: Option<&SemanticSnapshot>) -> b
     }
 }
 
-#[cfg(test)]
 fn click_semantic_target(
     source: &mut dyn SemanticTestSource,
     snapshot: &SemanticSnapshot,
@@ -1799,7 +2025,6 @@ fn click_semantic_target(
     true
 }
 
-#[cfg(test)]
 fn input_semantic_target(
     source: &mut dyn SemanticTestSource,
     snapshot: &SemanticSnapshot,
@@ -1824,7 +2049,6 @@ fn input_allows_disabled_target(input: &TestInput) -> bool {
     matches!(input, TestInput::Probe | TestInput::Wheel { .. })
 }
 
-#[cfg(test)]
 fn dispatch_test_input(
     source: &mut dyn SemanticTestSource,
     node: &wabou_shell::SemanticNode,
@@ -1847,7 +2071,6 @@ fn dispatch_test_input(
     true
 }
 
-#[cfg(test)]
 fn semantic_target<'a>(
     snapshot: &'a SemanticSnapshot,
     role: &str,
@@ -1859,7 +2082,6 @@ fn semantic_target<'a>(
     (!node.disabled).then_some(node)
 }
 
-#[cfg(test)]
 fn semantic_query_target<'a>(
     snapshot: &'a SemanticSnapshot,
     role: &str,
@@ -1880,7 +2102,6 @@ fn semantic_query_target<'a>(
     }
 }
 
-#[cfg(test)]
 fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec<UiEvent> {
     let center = Point {
         x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),
@@ -1963,6 +2184,7 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
 mod tests {
     use super::*;
 
+    #[cfg(feature = "gpui")]
     fn gpui_node(
         key: wabou_host_api::NodeKey,
         parent: Option<wabou_host_api::NodeKey>,
@@ -2118,6 +2340,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_locator_uses_explicit_roles_labels_scopes_and_real_bounds() {
         let group = gpui_node(wabou_host_api::NodeKey::new(10, 1), None, "view", "Toolbar");
         let mut group = group;
@@ -2149,6 +2372,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_locator_snapshot_exposes_descendant_text_after_reactive_updates() {
         let mut status = gpui_node(
             wabou_host_api::NodeKey::new(20, 1),
@@ -2174,6 +2398,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_locator_query_counts_repeated_semantics_without_requiring_uniqueness() {
         let nodes = [
             gpui_node(
@@ -2206,6 +2431,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_accessible_names_ignore_detached_aggregate_text_sources() {
         let option_key = wabou_host_api::NodeKey::new(22, 1);
         let text_key = wabou_host_api::NodeKey::new(23, 1);
@@ -2232,6 +2458,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_accessible_names_collapse_authored_whitespace() {
         let key = wabou_host_api::NodeKey::new(25, 1);
         let mut button = gpui_node(key, None, "button", "");
@@ -2245,6 +2472,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_locator_snapshot_exposes_authored_semantic_state() {
         let key = wabou_host_api::NodeKey::new(24, 1);
         let mut control = gpui_node(key, None, "button", "Disclosure");
@@ -2278,6 +2506,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_locators_exclude_detached_subtrees_and_background_behind_a_modal() {
         let detached_root_key = wabou_host_api::NodeKey::new(30, 1);
         let detached_root = gpui_node(detached_root_key, None, "view", "Detached root");
@@ -2321,6 +2550,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_test_driver_clicks_the_projected_protocol_target() {
         use crate::runtime_session::RuntimeSession;
         use wabou_protocol::Op;
@@ -2386,6 +2616,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_test_driver_focuses_native_textbox_without_projected_pointer_listener() {
         use crate::runtime_session::RuntimeSession;
         use wabou_protocol::Op;
@@ -2448,6 +2679,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_test_driver_routes_text_through_native_widget_input_before_fallback() {
         use crate::runtime_session::RuntimeSession;
 
@@ -2491,6 +2723,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_test_driver_dispatches_file_drop_to_the_formal_runtime() {
         use crate::runtime_session::RuntimeSession;
 
@@ -2563,6 +2796,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_drag_uses_the_requested_delta_in_native_logical_coordinates() {
         let events = gpui_drag_events(
             &gpui_node(wabou_host_api::NodeKey::new(3, 1), None, "view", "Drag"),
@@ -2890,6 +3124,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpui")]
     fn gpui_window_actions_update_the_shared_test_snapshot() {
         let controller = TestController::default();
         let window_key = key(1);

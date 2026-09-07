@@ -1,13 +1,6 @@
 // Story detail page.
 
-import {
-  Button,
-  Icon,
-  Text,
-  useParams,
-  useRouter,
-  View,
-} from "@wabou/ui";
+import { Button, Icon, Text, useParams, useRouter, View } from "@wabou/ui";
 import { Link } from "@wabou/ui/primitives";
 import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
 import bookmark from "lucide-static/icons/bookmark.svg?raw";
@@ -44,7 +37,6 @@ export function StoryDetail(): JSX.Element {
         style={{ "border-color": palette().border }}
       >
         <Button
-          unstyled
           variant="ghost"
           class="h-8 px-3 flex items-center gap-2 rounded-md text-xs"
           style={(state) => ({
@@ -110,7 +102,6 @@ export function StoryDetail(): JSX.Element {
                   <Text>{current().descendants ?? 0} comments</Text>
                 </View>
                 <Button
-                  unstyled
                   variant="ghost"
                   selected={isSaved(current().id)}
                   class="h-9 px-3 flex flex-none items-center gap-2 rounded-md"

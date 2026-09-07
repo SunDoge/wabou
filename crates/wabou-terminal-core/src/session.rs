@@ -682,6 +682,16 @@ impl TerminalWidget {
     }
 }
 
+fn scrollback_key(key: &str) -> Option<Scroll> {
+    match key {
+        "Home" => Some(Scroll::Top),
+        "End" => Some(Scroll::Bottom),
+        "PageUp" => Some(Scroll::PageUp),
+        "PageDown" => Some(Scroll::PageDown),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -712,15 +722,5 @@ mod tests {
         terminal.feed(b"\x1b[?25l");
 
         assert!(terminal.snapshot_frame(80.0, 72.0, 1.0).cursor.is_none());
-    }
-}
-
-fn scrollback_key(key: &str) -> Option<Scroll> {
-    match key {
-        "Home" => Some(Scroll::Top),
-        "End" => Some(Scroll::Bottom),
-        "PageUp" => Some(Scroll::PageUp),
-        "PageDown" => Some(Scroll::PageDown),
-        _ => None,
     }
 }

@@ -81,6 +81,7 @@ export function Slider(props: SliderProps): JSX.Element {
         orientation() === "vertical"
           ? "w-7 h-[120px] select-none"
           : "w-full h-7 select-none",
+        "text-accent",
         props.disabled ? "" : "cursor-pointer",
         props.class,
         componentsDisabledInteractiveClass(props.disabled ?? false),

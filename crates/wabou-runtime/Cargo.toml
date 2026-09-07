@@ -51,8 +51,9 @@ wabou-database = { workspace = true }
 wabou-devtools = { workspace = true, optional = true }
 wabou-host-api = { workspace = true }
 wabou-protocol = { workspace = true }
-wabou-shell.workspace = true
-gpui-base = { workspace = true }
+wabou-shell = { workspace = true, optional = true }
+wabou-shell-api.workspace = true
+gpui-base = { workspace = true, optional = true }
 gpui-platform = { workspace = true, optional = true, features = ["test-support"] }
 wabou-style = { workspace = true }
 
@@ -69,14 +70,15 @@ ureq = { version = "3.3", optional = true }
 stacker = { workspace = true }
 
 [features]
-default = []
+default = ["gpui"]
 devtools = ["dep:wabou-devtools"]
+gpui = ["dep:gpui-base", "dep:wabou-shell"]
 profiling = ["dep:tracing-chrome"]
 rust-hot-reload = ["dep:dioxus-devtools"]
-# Deterministic GPUI layout and interaction harness used by `wabou layout`
-# and component fixtures. Pixel capture is available only on GPUI platforms
-# that provide a headless renderer.
-headless = ["dep:gpui-platform"]
+# Shared deterministic clock mode used by backend-owned headless harnesses.
+headless = []
+# GPUI platform and screenshot harness; Hybrid tests do not activate this.
+gpui-headless = ["gpui", "headless", "dep:gpui-platform"]
 # Live vite dev-server integration (module fetching + HMR). Step 2.
 vite = ["dep:tungstenite", "dep:ureq"]
 

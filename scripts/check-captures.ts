@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 const root = resolve(import.meta.dir, "..");
 
 interface CaptureViewport {
+  renderer: "vello-hybrid" | "gpui";
   width: number;
   height: number;
   scaleFactor: number;
@@ -12,10 +13,13 @@ interface CaptureViewport {
   waitMs: number;
   checkTextContainment: boolean;
   checkStyleDiagnostics: boolean;
+  allowedStyleDiagnostics: string[];
   checkAccessibleNames: boolean;
   checkSemanticStates: boolean;
   checkSemanticRelationships: boolean;
   checkInteractionContracts: boolean;
+  /** Native widget kinds which must be mounted in the captured frame. */
+  requiredWidgets?: string[];
 }
 
 interface CaptureConfig {
@@ -114,6 +118,8 @@ export function captureCommand(
     "--",
     "render",
     capture.application,
+    "--renderer",
+    capture.renderer,
     "--with-host",
     "--scenario",
     capture.scenario,
@@ -137,6 +143,7 @@ export function captureCommand(
 }
 
 const fallbackViewport: CaptureViewport = {
+  renderer: "vello-hybrid",
   width: 1440,
   height: 900,
   scaleFactor: 1,
@@ -144,12 +151,15 @@ const fallbackViewport: CaptureViewport = {
   waitMs: 250,
   checkTextContainment: true,
   checkStyleDiagnostics: true,
+  allowedStyleDiagnostics: [],
   checkAccessibleNames: true,
   checkSemanticStates: true,
   checkSemanticRelationships: true,
   checkInteractionContracts: true,
+  requiredWidgets: [],
 };
 const viewportKeys = new Set([
+  "renderer",
   "width",
   "height",
   "scaleFactor",
@@ -157,10 +167,12 @@ const viewportKeys = new Set([
   "waitMs",
   "checkTextContainment",
   "checkStyleDiagnostics",
+  "allowedStyleDiagnostics",
   "checkAccessibleNames",
   "checkSemanticStates",
   "checkSemanticRelationships",
   "checkInteractionContracts",
+  "requiredWidgets",
 ]);
 
 function finiteNumber(
@@ -196,6 +208,12 @@ function parseViewport(
       throw new Error(`${name}.${key} is unsupported`);
   }
   const viewport: Partial<CaptureViewport> = {};
+  if (record.renderer !== undefined) {
+    if (record.renderer !== "vello-hybrid" && record.renderer !== "gpui") {
+      throw new Error(`${name}.renderer must be vello-hybrid or gpui`);
+    }
+    viewport.renderer = record.renderer;
+  }
   if (record.width !== undefined)
     viewport.width = finiteNumber(
       record.width,
@@ -245,6 +263,20 @@ function parseViewport(
     }
     viewport.checkStyleDiagnostics = record.checkStyleDiagnostics;
   }
+  if (record.allowedStyleDiagnostics !== undefined) {
+    if (
+      !Array.isArray(record.allowedStyleDiagnostics) ||
+      record.allowedStyleDiagnostics.some(
+        (diagnostic) =>
+          typeof diagnostic !== "string" || diagnostic.length === 0,
+      )
+    ) {
+      throw new Error(
+        `${name}.allowedStyleDiagnostics must be non-empty strings`,
+      );
+    }
+    viewport.allowedStyleDiagnostics = [...record.allowedStyleDiagnostics];
+  }
   if (record.checkAccessibleNames !== undefined) {
     if (typeof record.checkAccessibleNames !== "boolean") {
       throw new Error(`${name}.checkAccessibleNames must be a boolean`);
@@ -268,6 +300,20 @@ function parseViewport(
       throw new Error(`${name}.checkInteractionContracts must be a boolean`);
     }
     viewport.checkInteractionContracts = record.checkInteractionContracts;
+  }
+  if (record.requiredWidgets !== undefined) {
+    if (
+      !Array.isArray(record.requiredWidgets) ||
+      record.requiredWidgets.some(
+        (widget) => typeof widget !== "string" || widget.length === 0,
+      ) ||
+      new Set(record.requiredWidgets).size !== record.requiredWidgets.length
+    ) {
+      throw new Error(
+        `${name}.requiredWidgets must be unique non-empty strings`,
+      );
+    }
+    viewport.requiredWidgets = [...record.requiredWidgets];
   }
   if (!partial) {
     return { ...fallbackViewport, ...viewport };
@@ -316,13 +362,14 @@ async function loadConfig(captureDirectory: string): Promise<CaptureConfig> {
 export async function discoverCaptureCases(
   workspaceRoot = root,
 ): Promise<CaptureCase[]> {
-  const glob = new Bun.Glob("apps/*/captures/**/*.behavior.ts");
+  const glob = new Bun.Glob("apps/*/captures/**/*.ts");
   const sources: string[] = [];
   for await (const source of glob.scan({
     cwd: workspaceRoot,
     onlyFiles: true,
   })) {
-    sources.push(source.replaceAll("\\", "/"));
+    const normalized = source.replaceAll("\\", "/");
+    if (!normalized.endsWith("/captures/setup.ts")) sources.push(normalized);
   }
   sources.sort();
 
@@ -340,13 +387,13 @@ export async function discoverCaptureCases(
     }
     const resolved = await config;
     const override = resolved.overrides[relativeScenario] ?? {};
+    const viewport = { ...resolved.defaults, ...override };
     cases.push({
       application,
       scenario,
-      output: `target/wabou-captures/${basename(application)}/${relativeScenario.replace(/\.ts$/u, ".png")}`,
-      snapshot: `target/wabou-captures/${basename(application)}/${relativeScenario.replace(/\.ts$/u, ".json")}`,
-      ...resolved.defaults,
-      ...override,
+      output: `target/wabou-captures/${basename(application)}/${viewport.renderer}/${relativeScenario.replace(/\.ts$/u, ".png")}`,
+      snapshot: `target/wabou-captures/${basename(application)}/${viewport.renderer}/${relativeScenario.replace(/\.ts$/u, ".json")}`,
+      ...viewport,
     });
   }
 
@@ -800,6 +847,11 @@ export function textContainmentDiagnostics(
   const diagnostics: string[] = [];
   for (const node of snapshot.nodes) {
     if (node.text === null) continue;
+    let escapedAncestor: {
+      node: CaptureSnapshotNode;
+      overflow: number;
+    } | null = null;
+    let clipped = false;
     let ancestor = node.parentId
       ? nodes.get(nodeKey(node.parentId))
       : undefined;
@@ -808,18 +860,22 @@ export function textContainmentDiagnostics(
         ancestor.computed.overflowX !== "Visible" ||
         ancestor.computed.overflowY !== "Visible"
       ) {
+        clipped = true;
         break;
       }
       const overflow = overflowAmount(node.rect, ancestor.rect);
-      if (overflow > tolerance) {
-        diagnostics.push(
-          `text ${JSON.stringify(node.text)} (${node.tag} ${nodeKey(node.id)}) exceeds ancestor ${ancestor.tag} ${nodeKey(ancestor.id)} by ${overflow.toFixed(1)}px; ancestor classes: ${ancestor.classes.join(" ") || "<none>"}`,
-        );
-        break;
+      if (overflow > tolerance && escapedAncestor === null) {
+        escapedAncestor = { node: ancestor, overflow };
       }
       ancestor = ancestor.parentId
         ? nodes.get(nodeKey(ancestor.parentId))
         : undefined;
+    }
+    if (!clipped && escapedAncestor) {
+      const escaped = escapedAncestor.node;
+      diagnostics.push(
+        `text ${JSON.stringify(node.text)} (${node.tag} ${nodeKey(node.id)}) exceeds ancestor ${escaped.tag} ${nodeKey(escaped.id)} by ${escapedAncestor.overflow.toFixed(1)}px; ancestor classes: ${escaped.classes.join(" ") || "<none>"}`,
+      );
     }
   }
   return diagnostics;
@@ -831,6 +887,21 @@ export function rejectedStyleDiagnostics(snapshot: CaptureSnapshot): string[] {
       (diagnostic) =>
         `${node.tag} ${nodeKey(node.id)} (${node.classes.join(" ") || "no classes"}): ${diagnostic}`,
     ),
+  );
+}
+
+export function unexpectedStyleDiagnostics(
+  snapshot: CaptureSnapshot,
+  allowed: readonly string[],
+): string[] {
+  const expected = new Set(allowed);
+  return snapshot.nodes.flatMap((node) =>
+    node.styleDiagnostics
+      .filter((diagnostic) => !expected.has(diagnostic))
+      .map(
+        (diagnostic) =>
+          `${node.tag} ${nodeKey(node.id)} (${node.classes.join(" ") || "no classes"}): ${diagnostic}`,
+      ),
   );
 }
 
@@ -1260,10 +1331,28 @@ export async function validateCaptureArtifacts(
       `capture did not produce ${relative(workspaceRoot, snapshot)}`,
     );
   }
-  const parsed = validateCaptureSnapshot(
-    JSON.parse(await readFile(snapshot, "utf8")),
-    capture,
-  );
+  const rawSnapshot = JSON.parse(await readFile(snapshot, "utf8"));
+  if (
+    rawSnapshot === null ||
+    typeof rawSnapshot !== "object" ||
+    Array.isArray(rawSnapshot) ||
+    rawSnapshot.status === null ||
+    typeof rawSnapshot.status !== "object" ||
+    Array.isArray(rawSnapshot.status) ||
+    rawSnapshot.status.renderer !== capture.renderer
+  ) {
+    throw new Error(
+      `${relative(workspaceRoot, snapshot)} renderer label ${JSON.stringify(rawSnapshot?.status?.renderer)} does not match requested ${capture.renderer}`,
+    );
+  }
+  const parsed = validateCaptureSnapshot(rawSnapshot, capture);
+  for (const widget of capture.requiredWidgets ?? []) {
+    if (!parsed.nodes.some((node) => node.widget === widget)) {
+      throw new Error(
+        `${relative(workspaceRoot, snapshot)} did not mount required native widget ${JSON.stringify(widget)}`,
+      );
+    }
+  }
   if (capture.checkTextContainment) {
     const diagnostics = textContainmentDiagnostics(parsed);
     if (diagnostics.length > 0) {
@@ -1273,7 +1362,10 @@ export async function validateCaptureArtifacts(
     }
   }
   if (capture.checkStyleDiagnostics) {
-    const diagnostics = rejectedStyleDiagnostics(parsed);
+    const diagnostics = unexpectedStyleDiagnostics(
+      parsed,
+      capture.allowedStyleDiagnostics,
+    );
     if (diagnostics.length > 0) {
       throw new Error(
         `${relative(workspaceRoot, snapshot)} has rejected styles:\n${diagnostics.map((item) => `  - ${item}`).join("\n")}`,
@@ -1342,6 +1434,7 @@ function relativeScenarioPath(scenario: string): string {
 export interface CaptureArguments {
   list: boolean;
   checkExisting: boolean;
+  renderer: CaptureViewport["renderer"] | null;
   scenarios: string[];
 }
 
@@ -1349,25 +1442,35 @@ export function parseCaptureArguments(arguments_: string[]): CaptureArguments {
   const parsed: CaptureArguments = {
     list: false,
     checkExisting: false,
+    renderer: null,
     scenarios: [],
   };
   for (let index = 0; index < arguments_.length; index++) {
     const argument = arguments_[index];
     if (argument === "--list") parsed.list = true;
     else if (argument === "--check-existing") parsed.checkExisting = true;
-    else if (argument === "--scenario") {
+    else if (argument === "--renderer") {
+      const renderer = arguments_[++index];
+      if (renderer !== "vello-hybrid" && renderer !== "gpui") {
+        throw new Error("--renderer requires vello-hybrid or gpui");
+      }
+      parsed.renderer = renderer;
+    } else if (argument === "--scenario") {
       const scenario = arguments_[++index];
       if (!scenario || scenario.startsWith("--")) {
-        throw new Error(
-          "--scenario requires an apps/*/captures/**/*.behavior.ts path",
-        );
+        throw new Error("--scenario requires an apps/*/captures/**/*.ts path");
       }
       parsed.scenarios.push(scenario.replaceAll("\\", "/"));
     } else {
       throw new Error(`unsupported argument ${argument}`);
     }
   }
-  if (parsed.list && (parsed.checkExisting || parsed.scenarios.length > 0)) {
+  if (
+    parsed.list &&
+    (parsed.checkExisting ||
+      parsed.renderer !== null ||
+      parsed.scenarios.length > 0)
+  ) {
     throw new Error(
       "--list cannot be combined with capture selection or checking",
     );
@@ -1378,10 +1481,14 @@ export function parseCaptureArguments(arguments_: string[]): CaptureArguments {
 export function selectCaptureCases(
   discovered: CaptureCase[],
   scenarios: string[],
+  renderer: CaptureViewport["renderer"] | null = null,
 ): CaptureCase[] {
-  if (scenarios.length === 0) return discovered;
+  const matchingRenderer = renderer
+    ? discovered.filter((capture) => capture.renderer === renderer)
+    : discovered;
+  if (scenarios.length === 0) return matchingRenderer;
   const selected = new Set(scenarios);
-  const captures = discovered.filter((capture) =>
+  const captures = matchingRenderer.filter((capture) =>
     selected.has(capture.scenario),
   );
   if (captures.length !== selected.size) {
@@ -1405,7 +1512,18 @@ async function main(): Promise<void> {
     console.log(JSON.stringify(discovered, null, 2));
     return;
   }
-  const captures = selectCaptureCases(discovered, arguments_.scenarios);
+  const captures = selectCaptureCases(
+    discovered,
+    arguments_.scenarios,
+    arguments_.renderer,
+  );
+  if (captures.length === 0) {
+    throw new Error(
+      arguments_.renderer
+        ? `no ${arguments_.renderer} capture scenarios were discovered`
+        : "no selected capture scenarios were discovered",
+    );
+  }
 
   const checkExisting = arguments_.checkExisting;
   const builtApplications = new Set<string>();

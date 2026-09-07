@@ -3,6 +3,7 @@ import {
   Button,
   ButtonGroup,
   ContentState,
+  ContextMenu,
   createTanStackDataTable,
   Icon,
   InputGroup,
@@ -14,7 +15,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
   type TanStackDataTableColumn,
@@ -40,14 +40,16 @@ import {
   Show,
 } from "solid-js";
 import { type FileEntry, type SnapshotEntry, useRusticApi } from "./api";
+import { BackupProgressStatus } from "./backup-progress";
 import { FileDetails } from "./file-details";
+import { BackupScheduleDialog } from "./schedule-dialog";
 import { useTimestowSession } from "./session";
 import { createSnapshotBrowserCache } from "./snapshot-browser-cache";
 import { formatSnapshotTime, SnapshotDetails } from "./snapshot-details";
 import { SnapshotDiffPanel } from "./snapshot-diff";
 import { SnapshotFileTree } from "./snapshot-tree";
 import { SortableTableHead } from "./sortable-table-head";
-import { BackupSourcesPanel } from "./workspace-components";
+import { BackupSourcesDialog } from "./workspace-components";
 
 const fileColumns: TanStackDataTableColumn<FileEntry>[] = [
   { accessorKey: "name", header: "Name" },
@@ -101,53 +103,65 @@ export function SnapshotFileRow(props: {
   };
   onCleanup(cancelPendingSingleClick);
   return (
-    <TableRow
-      aria-label={entry().name}
-      selected={props.selected}
-      class="cursor-pointer"
-      onClick={select}
-      onDblClick={() => {
-        if (entry().kind !== "directory") return;
-        cancelPendingSingleClick();
-        props.onOpenDirectory(entry());
+    <ContextMenu
+      aria-label={`${entry().name} actions`}
+      items={
+        entry().kind === "directory"
+          ? [
+              { id: "open", label: "Open folder" },
+              { id: "details", label: "Show details" },
+            ]
+          : [{ id: "details", label: "Show details" }]
+      }
+      onAction={(action) => {
+        if (action === "open") props.onOpenDirectory(entry());
+        if (action === "details") props.onSelect(entry());
       }}
-    >
-      <TableCell class="min-w-64 flex-1 gap-2">
-        <Icon
-          source={entry().kind === "directory" ? folder : file}
-          size={15}
-          class="flex-none text-muted"
-        />
-        <View class="min-w-0 flex-1 flex flex-col gap-0.5">
-          <Text class="w-full truncate">{entry().name}</Text>
-          <Show when={props.searchActive}>
-            <Text class="w-full truncate text-xs text-muted">
-              {entry().path}
-            </Text>
-          </Show>
-        </View>
-      </TableCell>
-      <TableCell class="w-24 flex-none text-muted">
-        {entry().kind === "directory" ? "—" : formatBytes(entry().size)}
-      </TableCell>
-      <TableCell class="w-36 flex-none text-muted">
-        {formatModified(entry().modified)}
-      </TableCell>
-      <TableCell class="w-20 flex-none justify-end">
-        <Show when={entry().kind === "directory"}>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(event) => {
-              event.stopPropagation();
-              props.onOpenDirectory(entry());
-            }}
-          >
-            Open
-          </Button>
-        </Show>
-      </TableCell>
-    </TableRow>
+      trigger={(contextMenu) => (
+        <TableRow
+          ref={contextMenu.ref}
+          aria-label={entry().name}
+          aria-haspopup={contextMenu["aria-haspopup"]}
+          aria-expanded={contextMenu["aria-expanded"]}
+          selected={props.selected}
+          class="cursor-pointer"
+          onClick={select}
+          onContextMenu={(event) => {
+            cancelPendingSingleClick();
+            props.onSelect(entry());
+            contextMenu.onContextMenu(event);
+          }}
+          onKeyDown={contextMenu.onKeyDown}
+          onDblClick={() => {
+            if (entry().kind !== "directory") return;
+            cancelPendingSingleClick();
+            props.onOpenDirectory(entry());
+          }}
+        >
+          <TableCell class="min-w-64 flex-1 gap-2">
+            <Icon
+              source={entry().kind === "directory" ? folder : file}
+              size={15}
+              class="flex-none text-muted"
+            />
+            <View class="min-w-0 flex-1 flex flex-col gap-0.5">
+              <Text class="w-full truncate">{entry().name}</Text>
+              <Show when={props.searchActive}>
+                <Text class="w-full truncate text-xs text-muted">
+                  {entry().path}
+                </Text>
+              </Show>
+            </View>
+          </TableCell>
+          <TableCell class="w-24 flex-none text-muted">
+            {entry().kind === "directory" ? "—" : formatBytes(entry().size)}
+          </TableCell>
+          <TableCell class="w-36 flex-none text-muted">
+            {formatModified(entry().modified)}
+          </TableCell>
+        </TableRow>
+      )}
+    />
   );
 }
 
@@ -170,7 +184,6 @@ export function SnapshotsPage() {
   const [currentPath, setCurrentPath] = createSignal("");
   const [loading, setLoading] = createSignal(true);
   const [loadingFiles, setLoadingFiles] = createSignal(false);
-  const [backingUp, setBackingUp] = createSignal(false);
   const [error, setError] = createSignal<string>();
   const browserCache = createSnapshotBrowserCache();
   let fileRequestGeneration = 0;
@@ -290,17 +303,18 @@ export function SnapshotsPage() {
   async function runBackup() {
     const profile = session.activeProfile();
     if (!profile || backingUp() || profile.sources.length === 0) return;
-    setBackingUp(true);
     setError(undefined);
     try {
-      await api.runBackup({ profileId: profile.id });
-      await loadSnapshots(profile.id, true);
+      await session.runBackup(profile.id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBackingUp(false);
     }
   }
+
+  const backingUp = () => {
+    const profile = session.activeProfile();
+    return profile ? session.isBackingUp(profile.id) : false;
+  };
 
   async function updateSnapshot(
     snapshot: SnapshotEntry,
@@ -348,6 +362,15 @@ export function SnapshotsPage() {
     },
   );
 
+  createEffect(
+    () => session.lastBackup(),
+    (completed) => {
+      const profile = session.activeProfile();
+      if (!completed || completed.profileId !== profile?.id) return;
+      void loadSnapshots(completed.profileId, true);
+    },
+  );
+
   const visibleFiles = () => (searchActive() ? searchResults() : files());
   const fileTable = createTanStackDataTable<FileEntry>({
     data: visibleFiles,
@@ -363,12 +386,25 @@ export function SnapshotsPage() {
 
   return (
     <View class="w-full h-full min-w-0 min-h-0 flex flex-col">
-      <View class="flex-none px-6 py-5 border-b border-subtle bg-surface">
+      <View class="flex-none px-6 py-5 flex flex-col gap-4 border-b border-subtle bg-surface">
         <PageHeader
           title={session.activeProfile()?.name ?? "Backup"}
           description={session.activeProfile()?.repositoryPath ?? ""}
           actions={
             <>
+              <BackupSourcesDialog
+                sources={session.activeProfile()?.sources ?? []}
+                disabled={backingUp()}
+                onChange={(sources) => void saveSources(sources)}
+              />
+              <Show when={session.activeProfile()}>
+                {(profile) => (
+                  <BackupScheduleDialog
+                    profile={profile()}
+                    disabled={backingUp()}
+                  />
+                )}
+              </Show>
               <Button
                 variant="outline"
                 onClick={() => {
@@ -389,6 +425,13 @@ export function SnapshotsPage() {
             </>
           }
         />
+        <Show when={backingUp() && session.activeProfile()}>
+          {(profile) => (
+            <Show when={session.backupProgress(profile().id)}>
+              {(progress) => <BackupProgressStatus progress={progress()} />}
+            </Show>
+          )}
+        </Show>
       </View>
       <Show when={error()}>
         {(message) => (
@@ -397,20 +440,20 @@ export function SnapshotsPage() {
           </View>
         )}
       </Show>
-      <View class="min-w-0 min-h-0 flex-1 flex flex-row p-4 gap-4">
+      <View class="min-w-0 min-h-0 flex-1 flex flex-row bg-surface">
         <ProjectionBoundary
           id="rustic-sidebar"
-          class="w-72 min-h-0 flex-none flex flex-col rounded-xl border border-subtle bg-surface shadow-sm overflow-hidden"
+          class="w-64 min-h-0 flex-none flex flex-col border-r border-subtle bg-surface-muted"
         >
-          <BackupSourcesPanel
-            sources={session.activeProfile()?.sources ?? []}
-            disabled={backingUp()}
-            onChange={(sources) => void saveSources(sources)}
-          />
-          <View class="flex-none px-4 py-3 border-b border-subtle">
-            <Text class="font-semibold">Snapshots</Text>
+          <View class="flex-none px-4 py-4 border-b border-subtle">
+            <Text class="text-xs font-semibold uppercase tracking-wide text-muted">
+              Snapshot history
+            </Text>
           </View>
-          <ScrollArea class="min-h-0 flex-1" contentClass="flex flex-col py-2">
+          <ScrollArea
+            class="min-h-0 flex-1"
+            contentClass="flex flex-col gap-1 p-2"
+          >
             <Show
               when={!loading() && snapshots().length > 0}
               fallback={
@@ -431,7 +474,7 @@ export function SnapshotsPage() {
                   <Button
                     variant="ghost"
                     selected={selected()?.id === snapshot.id}
-                    class="mx-2 min-h-14 justify-start px-3"
+                    class="min-h-14 justify-start px-3"
                     onClick={() => {
                       const profile = session.activeProfile();
                       if (profile) selectSnapshot(profile.id, snapshot);
@@ -467,7 +510,7 @@ export function SnapshotsPage() {
 
         <ProjectionBoundary
           id="rustic-file-browser"
-          class="min-w-0 min-h-0 flex-1 flex flex-col rounded-xl border border-subtle bg-surface shadow-sm overflow-hidden"
+          class="min-w-0 min-h-0 flex-1 flex flex-col bg-surface overflow-hidden"
         >
           <Show
             when={selected()}
@@ -482,7 +525,7 @@ export function SnapshotsPage() {
           >
             {(snapshot) => (
               <>
-                <View class="flex-none px-4 py-3 flex flex-col gap-3 border-b border-subtle">
+                <View class="flex-none px-5 py-3 flex flex-col gap-3 border-b border-subtle">
                   <View class="flex flex-row items-center gap-3">
                     <Button
                       size="icon"
@@ -511,12 +554,12 @@ export function SnapshotsPage() {
                     </View>
                     <ButtonGroup
                       size="sm"
-                      variant="outline"
+                      variant="ghost"
                       aria-label="Snapshot workspace"
                     >
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="ghost"
                         selected={workspaceMode() === "browse"}
                         onClick={() => setWorkspaceMode("browse")}
                       >
@@ -524,7 +567,7 @@ export function SnapshotsPage() {
                       </Button>
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="ghost"
                         selected={workspaceMode() === "changes"}
                         onClick={() => setWorkspaceMode("changes")}
                       >
@@ -688,7 +731,6 @@ export function SnapshotsPage() {
                                       ?.toggleSorting()
                                   }
                                 />
-                                <TableHead class="w-20 flex-none" />
                               </TableRow>
                             </TableHeader>
                             <TableBody>

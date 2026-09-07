@@ -37,10 +37,11 @@ returns the current runtime's reactive metrics plus the same controls.
 
 ## Rendering runtime
 
-GPUI-CE owns the window and renderer lifecycle. `WindowOptions` configures
-window behavior; it does not expose a renderer selector. The former
-winit/AnyRender implementation is retained under `wabou-legacy-*` for
-migration tests and renderer experiments, not as an application backend.
+`HostBuilder` owns the default Winit + Taffy + Vello Hybrid window lifecycle.
+`GpuiHostBuilder` explicitly selects the comparison GPUI lifecycle.
+`WindowOptions` remains backend-neutral and does not contain a renderer
+selector; applications select the host at compile time so native widgets and
+platform extensions cannot silently change implementation.
 
 ## Sizing and responsive layout
 

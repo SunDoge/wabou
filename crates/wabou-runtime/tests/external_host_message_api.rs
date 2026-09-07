@@ -1,3 +1,5 @@
+#![cfg(feature = "gpui")]
+
 use wabou_runtime::{
     HostBuilder, HostMessage, HostMessageContext, HostMessageError, HostMessagePayload,
     HostMessageRouter,

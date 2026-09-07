@@ -1,16 +1,15 @@
 //! Backend-neutral Vite reload state shared by runtime hosts.
 
-#[cfg(any(feature = "vite", test))]
 use std::sync::mpsc;
 
-use wabou_shell::WakeCallback;
+use wabou_shell_api::WakeCallback;
 
 use crate::ui_inbox::{UiInbox, UiInboxSender};
 
 /// A Vite HMR signal forwarded from the background HMR client to the applier.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(not(feature = "vite"), allow(dead_code))]
-pub(crate) enum ReloadMsg {
+#[doc(hidden)]
+pub enum ReloadMsg {
     /// Updated Vite module accepted by an HMR boundary.
     HmrUpdate {
         /// Module path reported by Vite.
@@ -40,7 +39,8 @@ pub(crate) enum ReloadMsg {
 
 /// Result of draining the HMR queue for one frame (for tests / diagnostics).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum HmrDrainResult {
+#[doc(hidden)]
+pub enum HmrDrainResult {
     /// No queued update changed the runtime.
     Idle,
     /// One or more JS modules were accepted; Style IR may also have updated
@@ -63,17 +63,26 @@ pub(crate) enum HmrDrainResult {
 
 /// Sendable handle the HMR client holds to push [`ReloadMsg`]s into the applier.
 #[derive(Clone)]
-#[cfg(any(feature = "vite", test))]
-pub(crate) struct ReloadHandle {
+#[doc(hidden)]
+pub struct ReloadHandle {
     tx: UiInboxSender<ReloadMsg>,
 }
 
-#[cfg(any(feature = "vite", test))]
 impl ReloadHandle {
     /// Enqueue an HMR signal and wake an otherwise idle render loop.
-    pub(crate) fn send(&self, message: ReloadMsg) -> Result<(), mpsc::SendError<ReloadMsg>> {
+    pub fn send(&self, message: ReloadMsg) -> Result<(), mpsc::SendError<ReloadMsg>> {
+        let kind = match &message {
+            ReloadMsg::HmrUpdate { .. } => "update",
+            ReloadMsg::CssUpdate { .. } => "css-update",
+            ReloadMsg::Error { .. } => "error",
+            ReloadMsg::FullReload => "full-reload",
+        };
+        tracing::debug!(target: "hmr", kind, "queueing Vite reload message");
         match self.tx.try_send(message) {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                tracing::debug!(target: "hmr", kind, "queued Vite reload message and notified event loop");
+                Ok(())
+            }
             Err(flume::TrySendError::Full(message))
             | Err(flume::TrySendError::Disconnected(message)) => Err(mpsc::SendError(message)),
         }
@@ -81,76 +90,105 @@ impl ReloadHandle {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub(crate) struct HmrBatch {
-    pub(crate) full_reload: bool,
-    pub(crate) full_reload_reason: Option<String>,
-    pub(crate) js_updates: Vec<HmrJsUpdate>,
-    pub(crate) css_paths: Vec<String>,
-    pub(crate) error: Option<String>,
+/// Coalesced reload work consumed atomically by either native backend.
+#[doc(hidden)]
+pub struct HmrBatch {
+    /// Whether Vite requested an entry-level reload.
+    pub full_reload: bool,
+    /// Reason for the entry-level reload.
+    pub full_reload_reason: Option<String>,
+    /// JavaScript module updates in arrival order.
+    pub js_updates: Vec<HmrJsUpdate>,
+    /// CSS updates acknowledged by the native Style IR bridge.
+    pub css_paths: Vec<String>,
+    /// Latest transform/runtime diagnostic in the batch.
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct HmrJsUpdate {
-    pub(crate) path: String,
-    pub(crate) accepted_path: String,
-    pub(crate) timestamp: u64,
-    pub(crate) source: String,
+/// One Vite JavaScript update retained in an [`HmrBatch`].
+#[doc(hidden)]
+pub struct HmrJsUpdate {
+    /// Updated module path.
+    pub path: String,
+    /// Boundary that accepted the update.
+    pub accepted_path: String,
+    /// Vite update timestamp.
+    pub timestamp: u64,
+    /// Transformed module source.
+    pub source: String,
 }
 
-pub(crate) struct ReloadState {
-    // Retain one sender so the inbox remains connected even in non-Vite builds.
-    _sender: UiInboxSender<ReloadMsg>,
+/// Backend-neutral reload inbox and last applied diagnostic state.
+#[doc(hidden)]
+pub struct ReloadState {
+    sender: UiInboxSender<ReloadMsg>,
     inbox: UiInbox<ReloadMsg>,
-    #[cfg(feature = "vite")]
     vite_entry: Option<String>,
+    last_result: HmrDrainResult,
 }
 
 impl Default for ReloadState {
     fn default() -> Self {
         let (sender, inbox) = crate::ui_inbox::unbounded();
         Self {
-            _sender: sender,
+            sender,
             inbox,
-            #[cfg(feature = "vite")]
             vite_entry: None,
+            last_result: HmrDrainResult::Idle,
         }
     }
 }
 
 impl ReloadState {
-    #[cfg(any(feature = "vite", test))]
-    pub(super) fn handle(&mut self) -> ReloadHandle {
+    /// Create a sendable producer for background Vite work.
+    pub fn handle(&mut self) -> ReloadHandle {
         ReloadHandle {
-            tx: self._sender.clone(),
+            tx: self.sender.clone(),
         }
     }
 
-    pub(crate) fn drain(&self) -> Option<HmrBatch> {
+    /// Drain and coalesce all reload messages currently available.
+    pub fn drain(&self) -> Option<HmrBatch> {
         let messages = self.inbox.drain();
         (!messages.is_empty()).then(|| plan_hmr_batch(messages))
     }
 
-    pub(crate) fn is_pending(&self) -> bool {
+    /// Whether the inbox contains reload work.
+    pub fn is_pending(&self) -> bool {
         self.inbox.has_pending()
     }
 
-    pub(crate) fn set_wake(&self, wake: WakeCallback) {
+    /// Install the native event-loop wake callback.
+    pub fn set_wake(&self, wake: WakeCallback) {
+        tracing::debug!(target: "hmr", "installing Vite reload wake callback");
         self.inbox.set_wake(wake);
     }
 
-    #[cfg(feature = "vite")]
-    pub(super) fn set_vite_entry(&mut self, entry: impl Into<String>) {
+    /// Set the application entry used when a full reload is required.
+    pub fn set_vite_entry(&mut self, entry: impl Into<String>) {
         self.vite_entry = Some(entry.into());
     }
 
-    #[cfg(feature = "vite")]
-    pub(crate) fn vite_entry(&self) -> Option<&str> {
+    /// Return the configured application entry.
+    pub fn vite_entry(&self) -> Option<&str> {
         self.vite_entry.as_deref()
+    }
+
+    /// Return the most recent reload result for diagnostics.
+    pub fn last_result(&self) -> &HmrDrainResult {
+        &self.last_result
+    }
+
+    /// Record the result produced after applying a drained batch.
+    pub fn record_result(&mut self, result: HmrDrainResult) {
+        self.last_result = result;
     }
 }
 
 /// Coalesce a burst of websocket messages into one ordered batch.
-pub(super) fn plan_hmr_batch(msgs: impl IntoIterator<Item = ReloadMsg>) -> HmrBatch {
+#[doc(hidden)]
+pub fn plan_hmr_batch(msgs: impl IntoIterator<Item = ReloadMsg>) -> HmrBatch {
     let mut batch = HmrBatch::default();
     for msg in msgs {
         match msg {
@@ -176,11 +214,58 @@ pub(super) fn plan_hmr_batch(msgs: impl IntoIterator<Item = ReloadMsg>) -> HmrBa
     batch
 }
 
+/// Whether a Vite module must be re-executed for side effects instead of
+/// requiring a normal hot-accept boundary.
+#[cfg(feature = "vite")]
+#[doc(hidden)]
+pub fn is_vite_side_effect_update(
+    path: &str,
+    accepted_path: &str,
+    vite_entry: Option<&str>,
+) -> bool {
+    if [path, accepted_path]
+        .into_iter()
+        .any(|path| path.contains("virtual:wabou-stylesheet"))
+    {
+        return true;
+    }
+    let Some(vite_entry) = vite_entry else {
+        return false;
+    };
+    let vite_entry = vite_entry.trim_start_matches('/');
+    [path, accepted_path].into_iter().any(|path| {
+        path.split_once('?')
+            .map_or(path, |(path, _)| path)
+            .trim_start_matches('/')
+            == vite_entry
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::{ReloadMsg, ReloadState};
+
+    #[cfg(feature = "vite")]
+    #[test]
+    fn entry_and_generated_style_ir_modules_use_side_effect_hmr() {
+        assert!(super::is_vite_side_effect_update(
+            "/@id/__x00__virtual:wabou-stylesheet",
+            "/@id/__x00__virtual:wabou-stylesheet",
+            Some("ui/index.tsx"),
+        ));
+        assert!(super::is_vite_side_effect_update(
+            "/ui/index.tsx",
+            "/ui/index.tsx?t=42",
+            Some("ui/index.tsx"),
+        ));
+        assert!(!super::is_vite_side_effect_update(
+            "/ui/pages/colors.tsx",
+            "/ui/pages/colors.tsx",
+            Some("ui/index.tsx"),
+        ));
+    }
 
     #[test]
     fn sending_wakes_an_idle_event_loop() {

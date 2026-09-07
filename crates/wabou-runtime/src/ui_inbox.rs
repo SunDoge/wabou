@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use arc_swap::ArcSwapOption;
-use wabou_shell::WakeCallback;
+use wabou_shell_api::WakeCallback;
 
 struct StoredWakeCallback(WakeCallback);
 
@@ -15,7 +15,7 @@ struct WakeState {
 }
 
 /// Cloneable producer for work owned and applied by the UI thread.
-pub(crate) struct UiInboxSender<T> {
+pub struct UiInboxSender<T> {
     sender: flume::Sender<T>,
     wake: Arc<WakeState>,
 }
@@ -31,21 +31,21 @@ impl<T> Clone for UiInboxSender<T> {
 
 impl<T> UiInboxSender<T> {
     /// Send without blocking and wake the native event loop after publication.
-    pub(crate) fn try_send(&self, message: T) -> Result<(), flume::TrySendError<T>> {
+    pub fn try_send(&self, message: T) -> Result<(), flume::TrySendError<T>> {
         self.sender.try_send(message)?;
         self.notify();
         Ok(())
     }
 
     /// Wait asynchronously for bounded capacity, then wake the UI thread.
-    pub(crate) async fn send_async(&self, message: T) -> Result<(), flume::SendError<T>> {
+    pub async fn send_async(&self, message: T) -> Result<(), flume::SendError<T>> {
         self.sender.send_async(message).await?;
         self.notify();
         Ok(())
     }
 
     /// Wait synchronously up to `timeout` for bounded capacity.
-    pub(crate) fn send_timeout(
+    pub fn send_timeout(
         &self,
         message: T,
         timeout: Duration,
@@ -65,32 +65,32 @@ impl<T> UiInboxSender<T> {
 }
 
 /// Consumer owned and drained exclusively by the UI thread.
-pub(crate) struct UiInbox<T> {
+pub struct UiInbox<T> {
     receiver: flume::Receiver<T>,
     wake: Arc<WakeState>,
 }
 
 impl<T> UiInbox<T> {
     /// Whether a producer has published work since the previous drain began.
-    pub(crate) fn has_pending(&self) -> bool {
+    pub fn has_pending(&self) -> bool {
         self.wake.pending.load(Ordering::Acquire)
     }
 
     /// Install or replace the event-loop callback used by producers.
-    pub(crate) fn set_wake(&self, callback: WakeCallback) {
+    pub fn set_wake(&self, callback: WakeCallback) {
         self.wake
             .callback
             .store(Some(Arc::new(StoredWakeCallback(callback))));
     }
 
     /// Drain every message that is immediately available.
-    pub(crate) fn drain(&self) -> Vec<T> {
+    pub fn drain(&self) -> Vec<T> {
         self.begin_drain();
         self.receiver.try_iter().collect()
     }
 
     /// Drain at most `limit` messages and retain pending state for the rest.
-    pub(crate) fn drain_up_to(&self, limit: usize) -> Vec<T> {
+    pub fn drain_up_to(&self, limit: usize) -> Vec<T> {
         self.begin_drain();
         let batch: Vec<_> = self.receiver.try_iter().take(limit).collect();
         if !self.receiver.is_empty() {
@@ -124,13 +124,13 @@ fn channel<T>(
 }
 
 /// Create a non-blocking producer with explicit backpressure.
-pub(crate) fn bounded<T>(capacity: usize) -> (UiInboxSender<T>, UiInbox<T>) {
+pub fn bounded<T>(capacity: usize) -> (UiInboxSender<T>, UiInbox<T>) {
     let (sender, receiver) = flume::bounded(capacity.max(1));
     channel(sender, receiver)
 }
 
 /// Create a producer for infrequent control messages that must not be lost.
-pub(crate) fn unbounded<T>() -> (UiInboxSender<T>, UiInbox<T>) {
+pub fn unbounded<T>() -> (UiInboxSender<T>, UiInbox<T>) {
     let (sender, receiver) = flume::unbounded();
     channel(sender, receiver)
 }

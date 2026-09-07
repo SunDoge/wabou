@@ -2,36 +2,69 @@
 
 use std::path::{Path, PathBuf};
 
-use snafu::ResultExt;
+/// Failure while resolving or reading packaged JavaScript resources.
+#[derive(Debug)]
+pub struct BundleError {
+    kind: &'static str,
+    path: PathBuf,
+    source: std::io::Error,
+}
 
-pub(crate) fn load() -> crate::Result<String> {
+impl std::fmt::Display for BundleError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "failed to read {} {}: {}",
+            self.kind,
+            self.path.display(),
+            self.source
+        )
+    }
+}
+
+impl std::error::Error for BundleError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.source)
+    }
+}
+
+/// Load the packaged JavaScript bundle selected for the current executable.
+#[doc(hidden)]
+pub fn load() -> Result<String, BundleError> {
     let path = path()?;
-    std::fs::read_to_string(&path).context(crate::error::ReadFileSnafu {
+    std::fs::read_to_string(&path).map_err(|source| BundleError {
         kind: "JavaScript bundle",
         path,
+        source,
     })
 }
 
-pub(crate) fn load_source_map() -> crate::Result<Option<Vec<u8>>> {
+/// Load the adjacent source map when one was packaged.
+#[doc(hidden)]
+pub fn load_source_map() -> Result<Option<Vec<u8>>, BundleError> {
     let path = path()?.with_extension("js.map");
     if !path.is_file() {
         return Ok(None);
     }
     std::fs::read(&path)
         .map(Some)
-        .context(crate::error::ReadFileSnafu {
+        .map_err(|source| BundleError {
             kind: "JavaScript source map",
             path,
+            source,
         })
 }
 
-pub(crate) fn path() -> crate::Result<PathBuf> {
+/// Resolve the bundle path for development and native package layouts.
+#[doc(hidden)]
+pub fn path() -> Result<PathBuf, BundleError> {
     if let Some(path) = std::env::var_os("WABOU_BUNDLE_PATH") {
         return Ok(PathBuf::from(path));
     }
-    let executable = std::env::current_exe().context(crate::error::ReadFileSnafu {
+    let executable = std::env::current_exe().map_err(|source| BundleError {
         kind: "current executable path",
         path: PathBuf::from("<current executable>"),
+        source,
     })?;
     Ok(candidates(&executable)
         .into_iter()
@@ -39,7 +72,9 @@ pub(crate) fn path() -> crate::Result<PathBuf> {
         .unwrap_or_else(|| adjacent_path(&executable)))
 }
 
-pub(crate) fn resource_directory() -> crate::Result<PathBuf> {
+/// Resolve the directory containing the selected bundle and application assets.
+#[doc(hidden)]
+pub fn resource_directory() -> Result<PathBuf, BundleError> {
     let bundle = path()?;
     Ok(bundle.parent().unwrap_or_else(|| Path::new(".")).to_owned())
 }

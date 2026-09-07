@@ -90,6 +90,7 @@ export {
 } from "./selection";
 export * from "./separator";
 export * from "./settings";
+export * from "./shader-layer";
 export * from "./sheet";
 export * from "./shortcut-recorder";
 export * from "./sidebar";

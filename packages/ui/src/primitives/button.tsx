@@ -54,7 +54,15 @@ export interface ButtonProps
   style?: WabouStyle | ((state: ButtonState) => WabouStyle);
   children?: JSX.Element;
   /** Render an internal visual layer from normalized interaction state. */
-  renderContent?: (state: ButtonState) => JSX.Element;
+  /**
+   * Build the button's persistent visual subtree once. Read the supplied
+   * accessor inside reactive props to style it from interaction state.
+   *
+   * Passing an accessor is intentional: rebuilding this subtree on every
+   * pointer transition can destroy the native gesture target between down
+   * and up.
+   */
+  renderContent?: (state: Accessor<ButtonState>) => JSX.Element;
   tone?: keyof typeof ACCENTS;
   variant?: "solid" | "ghost";
   /** Keep interaction behavior but do not inject the default visual geometry. */
@@ -194,6 +202,7 @@ export function createButton(
  */
 export function Button(props: ButtonProps): JSX.Element {
   const forwardedRef = untrack(() => props.ref);
+  const renderContent = untrack(() => props.renderContent);
   const refProps = forwardedRef ? { ref: forwardedRef } : {};
   const disabled = () => props.disabled ?? false;
   const primitive = createButton({
@@ -315,7 +324,7 @@ export function Button(props: ButtonProps): JSX.Element {
       onKeyUp={props.onKeyUp}
       onWheel={props.onWheel}
     >
-      {props.renderContent?.(state()) ?? props.children}
+      {renderContent?.(state) ?? props.children}
     </InternalButton>
   );
 }

@@ -11,6 +11,7 @@ import {
   BadgeLayoutFixture,
   CardSurfaceLayoutFixture,
   CompactSurfaceLayoutFixture,
+  ComplexShapingLayoutFixture,
   ContentStateLayoutFixture,
   ControlBaselineLayoutFixture,
   DarkSurfaceLayoutFixture,
@@ -375,6 +376,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 520,
         height: 320,
         render: EditorLayoutFixture,
+      },
+      "component/ComplexShaping": {
+        width: 760,
+        height: 180,
+        render: ComplexShapingLayoutFixture,
       },
       "component/Message": {
         width: 360,

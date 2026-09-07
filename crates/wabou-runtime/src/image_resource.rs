@@ -42,10 +42,11 @@ impl ImageResourceHandle {
     }
 }
 
-/// One immutable source image plus its GPUI image representation.
+/// One immutable source image plus its original encoded representation.
 pub struct ImageResource {
     source: Arc<image::DynamicImage>,
-    gpui: Arc<wabou_shell::gpui::Image>,
+    encoded: Arc<[u8]>,
+    format: image::ImageFormat,
 }
 
 impl ImageResource {
@@ -56,6 +57,7 @@ impl ImageResource {
         let format = reader
             .format()
             .ok_or_else(|| "image format could not be determined".to_owned())?;
+        validate_image_format(format)?;
         let (width, height) = reader
             .into_dimensions()
             .map_err(|error| error.to_string())?;
@@ -65,10 +67,8 @@ impl ImageResource {
         let source = Arc::new(image::load_from_memory(bytes).map_err(|error| error.to_string())?);
         Ok(Self {
             source,
-            gpui: Arc::new(wabou_shell::gpui::Image::from_bytes(
-                gpui_image_format(format)?,
-                bytes.to_vec(),
-            )),
+            encoded: Arc::from(bytes),
+            format,
         })
     }
 
@@ -82,30 +82,32 @@ impl ImageResource {
         self.source.to_rgb8()
     }
 
-    /// Lazily decoded and cached by GPUI when an image element first paints.
-    pub(crate) fn gpui_image(&self) -> Arc<wabou_shell::gpui::Image> {
-        self.gpui.clone()
+    /// Borrow the original encoded source for a renderer-specific image cache.
+    #[doc(hidden)]
+    pub fn encoded_source(&self) -> (&[u8], image::ImageFormat) {
+        (&self.encoded, self.format)
     }
 
-    #[cfg(test)]
-    pub(crate) fn to_rgba8(&self) -> image::RgbaImage {
+    /// Copy the original image into RGBA8 for native rendering or processing.
+    pub fn to_rgba8(&self) -> image::RgbaImage {
         self.source.to_rgba8()
     }
 }
 
-fn gpui_image_format(format: image::ImageFormat) -> Result<wabou_shell::gpui::ImageFormat, String> {
-    use wabou_shell::gpui::ImageFormat as Gpui;
-    Ok(match format {
-        image::ImageFormat::Png => Gpui::Png,
-        image::ImageFormat::Jpeg => Gpui::Jpeg,
-        image::ImageFormat::WebP => Gpui::Webp,
-        image::ImageFormat::Gif => Gpui::Gif,
-        image::ImageFormat::Bmp => Gpui::Bmp,
-        image::ImageFormat::Tiff => Gpui::Tiff,
-        image::ImageFormat::Ico => Gpui::Ico,
-        image::ImageFormat::Pnm => Gpui::Pnm,
-        other => return Err(format!("image format {other:?} is not supported by GPUI")),
-    })
+fn validate_image_format(format: image::ImageFormat) -> Result<(), String> {
+    match format {
+        image::ImageFormat::Png
+        | image::ImageFormat::Jpeg
+        | image::ImageFormat::WebP
+        | image::ImageFormat::Gif
+        | image::ImageFormat::Bmp
+        | image::ImageFormat::Tiff
+        | image::ImageFormat::Ico
+        | image::ImageFormat::Pnm => Ok(()),
+        other => Err(format!(
+            "image format {other:?} is not supported by Wabou image resources"
+        )),
+    }
 }
 
 #[derive(Default)]
@@ -269,5 +271,19 @@ mod tests {
         let resource = store.get(handle).unwrap();
         assert_eq!(resource.dimensions(), (4_100, 1));
         assert_eq!(resource.to_rgba8().dimensions(), (4_100, 1));
+    }
+
+    #[test]
+    fn shared_resource_preserves_backend_neutral_encoded_source() {
+        let store = ImageResourceStore::default();
+        let mut png = Vec::new();
+        image::codecs::png::PngEncoder::new(&mut png)
+            .write_image(&[1, 2, 3, 255], 1, 1, image::ExtendedColorType::Rgba8)
+            .unwrap();
+        let handle = store.create(&png).unwrap();
+        let resource = store.get(handle).unwrap();
+        let (encoded, format) = resource.encoded_source();
+        assert_eq!(encoded, png);
+        assert_eq!(format, image::ImageFormat::Png);
     }
 }

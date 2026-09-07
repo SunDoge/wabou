@@ -227,18 +227,23 @@ test("opens without implicit motion by default", () => {
   expect(screen.getByRole("combobox").text).toContain("Rust");
 });
 
-test("supports explicit popup motion", () => {
-  const screen = renderComponent(() => (
-    <Select
-      aria-label="Technology"
-      options={options}
-      defaultValue="solid"
-      motion={{ duration: 0.1, fromScale: 0.98 }}
-    />
-  ));
+test("supports explicit popup motion", async () => {
+  const screen = renderComponent(
+    () => (
+      <Select
+        aria-label="Technology"
+        options={options}
+        defaultValue="solid"
+        motion={{ duration: 0.1, fromScale: 0.98 }}
+      />
+    ),
+    { clock: "fake" },
+  );
 
   screen.getByRole("combobox").click();
   const panel = screen.getByRole("listbox").closestByRole("presentation");
+  expect(panel?.transform).toEqual([0.98, 0, 0, 0.98, 0, 0]);
+  await screen.advanceTime(100);
   expect(panel?.transform).toEqual([1, 0, 0, 1, 0, 0]);
   expect(panel?.attribute("__wabou_native_transition")).toBeNull();
 });

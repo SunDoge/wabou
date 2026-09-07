@@ -35,9 +35,28 @@ Wabou explores a narrower combination:
 - SolidJS signals and JSX for application state and composition;
 - QuickJS as a small, embeddable JavaScript runtime;
 - a compact binary protocol instead of a DOM or JSON bridge;
-- a retained projection into GPUI-CE for layout, text, painting, and input;
+- a retained Winit + Taffy + Parley projection rendered by Vello Hybrid;
 - Rust for windows, input, text, native widgets, and platform integration;
 - Vite HMR and an inspector for a short development loop.
+
+The default backend is Winit + Taffy + Parley + Vello Hybrid. GPUI remains an
+explicit comparison backend, which lets the project compare Rust GUI stacks
+without rewriting application UI:
+
+```bash
+wabou run apps/7guis
+wabou run apps/gallery
+
+# Run the same application through the GPUI comparison backend.
+wabou run apps/7guis --features gpui
+wabou run apps/gallery --features gpui
+```
+
+Vite HMR, typed application capabilities, services, application KV, window
+persistence, DevTools, the Winit native-widget set, native behavior tests, and
+offscreen Vello Hybrid capture all use the default path. GPUI-specific widgets
+remain explicit comparison implementations rather than defining Wabou's public
+renderer semantics.
 
 ## Create an application
 

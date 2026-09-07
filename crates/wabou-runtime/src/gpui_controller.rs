@@ -28,6 +28,8 @@ pub struct GpuiController {
     pub(crate) runtime: RuntimeSession,
     projection: GpuiProjection,
     image_resources: ImageResourceStore,
+    gpui_images:
+        std::collections::HashMap<ImageResourceHandle, std::sync::Weak<wabou_shell::gpui::Image>>,
     next_host_event_id: u32,
     next_native_text_revision: u32,
     hovered_target: Option<wabou_host_api::NodeKey>,
@@ -113,6 +115,7 @@ impl GpuiController {
             runtime,
             projection: GpuiProjection::new(),
             image_resources: ImageResourceStore::default(),
+            gpui_images: std::collections::HashMap::new(),
             next_host_event_id: 0,
             next_native_text_revision: 0,
             hovered_target: None,
@@ -132,6 +135,7 @@ impl GpuiController {
     }
     pub(crate) fn set_image_resources(&mut self, resources: ImageResourceStore) {
         self.image_resources = resources;
+        self.gpui_images.clear();
     }
 
     pub(crate) fn set_text_rendering_diagnostics(
@@ -145,12 +149,22 @@ impl GpuiController {
 
     pub(crate) fn apply_frame(&mut self, frame: &Frame<'_>) -> Result<(), ProjectionError> {
         let atoms = self.runtime.atoms.borrow();
+        let image_resources = &self.image_resources;
+        let gpui_images = &mut self.gpui_images;
         self.projection.apply_ops(frame, &atoms, |source| {
             let (lo, hi) = source.split_once(':')?;
             let handle = ImageResourceHandle::from_parts(lo.parse().ok()?, hi.parse().ok()?)?;
-            self.image_resources
-                .get(handle)
-                .map(|resource| resource.gpui_image())
+            if let Some(image) = gpui_images.get(&handle).and_then(std::sync::Weak::upgrade) {
+                return Some(image);
+            }
+            let resource = image_resources.get(handle)?;
+            let (bytes, format) = resource.encoded_source();
+            let image = std::sync::Arc::new(wabou_shell::gpui::Image::from_bytes(
+                gpui_image_format(format),
+                bytes.to_vec(),
+            ));
+            gpui_images.insert(handle, std::sync::Arc::downgrade(&image));
+            Some(image)
         })?;
         drop(atoms);
         self.retain_live_interaction_targets();
@@ -759,7 +773,7 @@ impl GpuiController {
         self.projection.render_snapshot()
     }
 
-    #[cfg(feature = "headless")]
+    #[cfg(feature = "gpui-headless")]
     pub(crate) fn projection_boundary_revisions(
         &self,
     ) -> std::collections::BTreeMap<wabou_shell::NodeKey, wabou_shell::ProjectionBoundaryRevision>
@@ -1219,7 +1233,9 @@ impl GpuiController {
         let Some(batch) = self.runtime.reload.drain() else {
             return HmrDrainResult::Idle;
         };
-        self.apply_hmr_batch(batch)
+        let result = self.apply_hmr_batch(batch);
+        self.runtime.reload.record_result(result.clone());
+        result
     }
 
     fn apply_hmr_batch(&mut self, batch: HmrBatch) -> HmrDrainResult {
@@ -1254,7 +1270,7 @@ impl GpuiController {
         let applied = batch.js_updates.len();
         for update in batch.js_updates {
             #[cfg(feature = "vite")]
-            let side_effect_update = is_wabou_side_effect_update(
+            let side_effect_update = crate::reload::is_vite_side_effect_update(
                 &update.path,
                 &update.accepted_path,
                 vite_entry.as_deref(),
@@ -1553,7 +1569,7 @@ impl GpuiController {
     }
 
     /// Monotonically increasing count of non-empty JS-to-host frames.
-    #[cfg(any(feature = "headless", test))]
+    #[cfg(any(feature = "gpui-headless", test))]
     pub fn protocol_revision(&self) -> u64 {
         self.runtime.protocol_revision
     }
@@ -1578,7 +1594,7 @@ impl GpuiController {
     }
 
     /// Evaluate an expression and return its string value.
-    #[cfg(any(feature = "headless", test))]
+    #[cfg(any(feature = "gpui-headless", test))]
     pub fn eval_string(&self, source: &str) -> rquickjs::Result<String> {
         self.runtime.js.eval_string(source)
     }
@@ -1705,24 +1721,19 @@ impl GpuiController {
     }
 }
 
-#[cfg(feature = "vite")]
-fn is_wabou_side_effect_update(path: &str, accepted_path: &str, vite_entry: Option<&str>) -> bool {
-    if [path, accepted_path]
-        .into_iter()
-        .any(|path| path.contains("virtual:wabou-stylesheet"))
-    {
-        return true;
+fn gpui_image_format(format: image::ImageFormat) -> wabou_shell::gpui::ImageFormat {
+    use wabou_shell::gpui::ImageFormat as Gpui;
+    match format {
+        image::ImageFormat::Png => Gpui::Png,
+        image::ImageFormat::Jpeg => Gpui::Jpeg,
+        image::ImageFormat::WebP => Gpui::Webp,
+        image::ImageFormat::Gif => Gpui::Gif,
+        image::ImageFormat::Bmp => Gpui::Bmp,
+        image::ImageFormat::Tiff => Gpui::Tiff,
+        image::ImageFormat::Ico => Gpui::Ico,
+        image::ImageFormat::Pnm => Gpui::Pnm,
+        _ => unreachable!("image resource format is validated at creation"),
     }
-    let Some(vite_entry) = vite_entry else {
-        return false;
-    };
-    let vite_entry = vite_entry.trim_start_matches('/');
-    [path, accepted_path].into_iter().any(|path| {
-        path.split_once('?')
-            .map_or(path, |(path, _)| path)
-            .trim_start_matches('/')
-            == vite_entry
-    })
 }
 
 #[cfg(feature = "devtools")]
@@ -1816,25 +1827,6 @@ fn gpui_debug_node(
 mod tests {
     use super::*;
 
-    #[cfg(feature = "vite")]
-    #[test]
-    fn entry_and_generated_style_ir_modules_use_side_effect_hmr() {
-        assert!(is_wabou_side_effect_update(
-            "/@id/__x00__virtual:wabou-stylesheet",
-            "/@id/__x00__virtual:wabou-stylesheet",
-            Some("ui/index.tsx"),
-        ));
-        assert!(is_wabou_side_effect_update(
-            "/ui/index.tsx",
-            "/ui/index.tsx?t=42",
-            Some("ui/index.tsx"),
-        ));
-        assert!(!is_wabou_side_effect_update(
-            "/ui/pages/colors.tsx",
-            "/ui/pages/colors.tsx",
-            Some("ui/index.tsx"),
-        ));
-    }
     use crate::JsRuntime;
     use std::sync::{
         Arc,

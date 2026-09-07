@@ -1,5 +1,6 @@
 import { renderComponent } from "@wabou/test/component";
 import { MotionConfigProvider, Switch } from "@wabou/ui";
+import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 import { switchControlClass } from "../../packages/ui/src/components/switch";
 
@@ -29,6 +30,39 @@ test("delegates switch thumb movement to a persistent GPUI spring", () => {
     epsilon: 0.02,
     targetTransform: [1, 0, 0, 1, 16, 0],
   });
+});
+
+test("publishes a controlled state change through the retained host node", () => {
+  const screen = renderComponent(() => {
+    const [checked, setChecked] = createSignal(true);
+    return (
+      <Switch
+        aria-label="Sync"
+        checked={checked()}
+        onCheckedChange={setChecked}
+      />
+    );
+  });
+  const control = screen.getByRole("switch", { name: "Sync" });
+
+  expect(control.checked).toBe(true);
+  control.click();
+  expect(control.checked).toBe(false);
+});
+
+test("keeps the gesture subtree mounted between pointer down and up", () => {
+  const screen = renderComponent(() => <Switch aria-label="Sync" />);
+  const control = screen.getByRole("switch", { name: "Sync" });
+  const trackId = control.children[0]?.id;
+  const thumbId = control.children[0]?.children[0]?.id;
+
+  control.pointerDown();
+
+  expect(control.children[0]?.id).toEqual(trackId);
+  expect(control.children[0]?.children[0]?.id).toEqual(thumbId);
+  control.pointerUp();
+  expect(control.children[0]?.id).toEqual(trackId);
+  expect(control.children[0]?.children[0]?.id).toEqual(thumbId);
 });
 
 test("retargets the same spring instead of replacing the motion primitive", () => {

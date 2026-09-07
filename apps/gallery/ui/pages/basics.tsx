@@ -178,6 +178,9 @@ function InputPage() {
   const [query, setQuery] = createSignal("native");
   const [config, setConfig] = createSignal('{\n  "enabled": true\n}');
   const [configEdited, setConfigEdited] = createSignal(false);
+  const [shapingValue, setShapingValue] = createSignal(
+    "Shaping Test · اللغة العربية الفصحى تحتاج إلى تشكيل معقد",
+  );
   return (
     <View class="flex flex-col gap-5">
       <Preview title="Default">
@@ -256,6 +259,26 @@ function InputPage() {
             readOnly
             value={"Read-only multiline\ncontent remains selectable."}
           />
+        </View>
+      </Preview>
+      <Preview title="Complex shaping">
+        <View class="w-full max-w-3xl flex flex-col gap-3">
+          <Text
+            role="status"
+            aria-label="Tibetan complex shaping sample"
+            class="text-lg text-primary"
+          >
+            Complex Shaping · བོད་ཀྱི་སྐད་ཡིག་གི་རྒྱན་འཁྱོངས་འབྲི་ཚུལ།
+          </Text>
+          <Input
+            aria-label="Arabic shaping and selection"
+            value={shapingValue()}
+            onInput={(event) => setShapingValue(event.currentTarget.value)}
+          />
+          <Text class="text-xs text-muted">
+            Mixed-script shaping, bidirectional caret movement, and selection
+            replacement must preserve the complete Unicode text.
+          </Text>
         </View>
       </Preview>
     </View>

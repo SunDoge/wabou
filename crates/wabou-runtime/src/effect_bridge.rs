@@ -8,8 +8,9 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use crate::effect_trace::{EffectTrace, TraceSubmission};
 use crate::jsrt::JsRuntime;
 
-use wabou_shell::WakeCallback;
-use wabou_shell::{
+use wabou_shell_api as wabou_shell;
+use wabou_shell_api::WakeCallback;
+use wabou_shell_api::{
     AppDirectories, EffectCompletion, EffectId, EffectOp, EffectPayload, EffectRequest,
     EffectResult, EffectScope,
 };
@@ -17,7 +18,9 @@ use wabou_shell::{
 static NEXT_EFFECT_ID: AtomicU32 = AtomicU32::new(1);
 
 #[derive(Clone)]
-pub(crate) struct EffectBridge {
+/// Per-runtime queue connecting JavaScript effect requests to a native backend.
+#[doc(hidden)]
+pub struct EffectBridge {
     effects: Rc<RefCell<VecDeque<EffectRequest>>>,
     action_wake: Rc<RefCell<Option<WakeCallback>>>,
     pending: Rc<RefCell<HashSet<u32>>>,
@@ -27,7 +30,8 @@ pub(crate) struct EffectBridge {
 }
 
 impl EffectBridge {
-    pub(crate) fn install(js: &JsRuntime, window_key: wabou_shell::WindowResourceKey) -> Self {
+    /// Install the effect ABI into a JavaScript runtime for one window.
+    pub fn install(js: &JsRuntime, window_key: wabou_shell::WindowResourceKey) -> Self {
         let bridge = Self {
             effects: Rc::new(RefCell::new(VecDeque::new())),
             action_wake: Rc::new(RefCell::new(None)),
@@ -101,19 +105,23 @@ impl EffectBridge {
         .expect("install effect host functions");
     }
 
-    pub(crate) fn set_wake_callback(&self, wake: WakeCallback) {
+    /// Set the native event-loop wake callback used when JavaScript submits work.
+    pub fn set_wake_callback(&self, wake: WakeCallback) {
         *self.action_wake.borrow_mut() = Some(wake);
     }
 
-    pub(crate) fn set_trace(&self, trace: EffectTrace) {
+    /// Attach a deterministic record, replay, or fixture trace.
+    pub fn set_trace(&self, trace: EffectTrace) {
         *self.trace.borrow_mut() = Some(trace);
     }
 
-    pub(crate) fn set_app_directories(&self, directories: AppDirectories) {
+    /// Publish application directories used by the directory-resolution effect.
+    pub fn set_app_directories(&self, directories: AppDirectories) {
         *self.app_directories.borrow_mut() = Some(directories);
     }
 
-    pub(crate) fn take(&self, js: &JsRuntime) -> Option<EffectRequest> {
+    /// Take the next live request, settling replayed completions first.
+    pub fn take(&self, js: &JsRuntime) -> Option<EffectRequest> {
         let mut delivered_replay = false;
         while let Some(completion) = self.replay_completions.borrow_mut().pop_front() {
             self.deliver_if_pending(js, &completion);
@@ -133,7 +141,8 @@ impl EffectBridge {
         self.effects.borrow_mut().pop_front()
     }
 
-    pub(crate) fn complete(&self, js: &JsRuntime, completion: EffectCompletion) {
+    /// Deliver a native completion to its pending JavaScript Promise.
+    pub fn complete(&self, js: &JsRuntime, completion: EffectCompletion) {
         if let Some(trace) = self.trace.borrow().as_ref() {
             trace.complete(&completion);
         }
@@ -147,7 +156,9 @@ impl EffectBridge {
     }
 }
 
-pub(super) fn decode_effect_payload(
+/// Decode the stable JSON payload used by the small effect submission ABI.
+#[doc(hidden)]
+pub fn decode_effect_payload(
     op: EffectOp,
     window_key: wabou_shell::WindowResourceKey,
     payload_json: String,

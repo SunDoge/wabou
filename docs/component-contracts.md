@@ -107,8 +107,9 @@ metadata therefore cannot hide visual chrome on native content.
 ## Layout contract tests
 
 `wabou layout` evaluates the application through QuickJS and Style IR, then
-runs GPUI's real layout and prepaint pass in a hidden test window. It does not
-use the retired Winit/Vello implementation:
+runs GPUI's real layout and prepaint pass in a hidden comparison window. Use
+the default `wabou render` path when the contract must be checked against the
+Vello Hybrid backend instead:
 
 ```bash
 wabou layout apps/gallery --out /tmp/gallery-layout.json \

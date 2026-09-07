@@ -1,5 +1,6 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    cmp::Ordering,
+    collections::BTreeSet,
     path::PathBuf,
     sync::{Arc, RwLock},
     time::{SystemTime, UNIX_EPOCH},
@@ -8,11 +9,15 @@ use std::{
 use rustic_backend::BackendOptions;
 use rustic_core::{
     BackupOptions, ConfigOptions, Credentials, KeyOptions, LocalDestination, LsOptions, PathList,
-    Repository, RepositoryOptions, RestoreOptions, SnapshotOptions,
+    ProgressBars, Repository, RepositoryOptions, RestoreOptions, SnapshotOptions,
     repofile::{DeleteOption, StringList},
 };
 use serde::{Deserialize, Serialize};
-use wabou::{CapabilityContract, HostMethod, NativeCapability, rquickjs};
+use wabou::{CapabilityContract, HostMessageHandle, HostMethod, NativeCapability, rquickjs};
+
+use crate::progress::{
+    BACKUP_PROGRESS_TOPIC, BackupProgressBars, BackupProgressPhase, ProgressEmitter,
+};
 
 pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 5);
 
@@ -40,6 +45,7 @@ const OPEN_PATH: HostMethod<OpenPathRequest, ()> = HostMethod::new("openPath");
 #[derive(Clone, Default)]
 pub struct RusticService {
     state: Arc<RwLock<ServiceState>>,
+    progress: ProgressEmitter,
 }
 
 #[derive(Clone, Default)]
@@ -113,6 +119,8 @@ pub struct DiffSnapshotsRequest {
     pub path: String,
     #[serde(default)]
     pub include_metadata: bool,
+    #[serde(default = "default_diff_limit")]
+    pub limit: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -214,6 +222,8 @@ pub struct SnapshotDiffSummary {
 pub struct SnapshotDiff {
     pub entries: Vec<SnapshotDiffEntry>,
     pub summary: SnapshotDiffSummary,
+    pub total_entries: u64,
+    pub truncated: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -242,6 +252,12 @@ pub struct RestoreResult {
 }
 
 impl RusticService {
+    pub fn attach_progress_messages(&self, messages: HostMessageHandle) {
+        self.progress.replace(move |event| {
+            let _ = messages.emit_json(BACKUP_PROGRESS_TOPIC, event);
+        });
+    }
+
     fn status(&self) -> Result<RuntimeStatus, String> {
         let state = self.state.read().map_err(|_| "service state is poisoned")?;
         Ok(status_from_state(&state))
@@ -342,25 +358,46 @@ impl RusticService {
     }
 
     fn run_backup(&self, request: ProfileIdRequest) -> Result<BackupResult, String> {
-        let (path, password, sources) = self.profile_config(&request.profile_id)?;
-        if sources.is_empty() {
-            return Err("add at least one backup folder first".to_string());
+        let profile_id = request.profile_id;
+        self.progress.emit_state(
+            &profile_id,
+            BackupProgressPhase::Running,
+            "Preparing backup",
+        );
+        let result = (|| {
+            let (path, password, sources) = self.profile_config(&profile_id)?;
+            if sources.is_empty() {
+                return Err("add at least one backup folder first".to_string());
+            }
+            let progress = BackupProgressBars::new(profile_id.clone(), self.progress.clone());
+            let repo = open_repository_with_progress(&path, &password, progress)?
+                .to_indexed_ids()
+                .map_err(display_error)?;
+            let source = PathList::from_iter(sources.iter().map(PathBuf::from))
+                .sanitize()
+                .map_err(display_error)?;
+            let snapshot = SnapshotOptions::default()
+                .to_snapshot()
+                .map_err(display_error)?;
+            let snapshot = repo
+                .backup(&BackupOptions::default(), &source, snapshot)
+                .map_err(display_error)?;
+            Ok(BackupResult {
+                snapshot: snapshot_entry(&snapshot),
+            })
+        })();
+        match &result {
+            Ok(_) => self.progress.emit_state(
+                &profile_id,
+                BackupProgressPhase::Completed,
+                "Backup complete",
+            ),
+            Err(_) => {
+                self.progress
+                    .emit_state(&profile_id, BackupProgressPhase::Failed, "Backup failed");
+            }
         }
-        let repo = open_repository(&path, &password)?
-            .to_indexed_ids()
-            .map_err(display_error)?;
-        let source = PathList::from_iter(sources.iter().map(PathBuf::from))
-            .sanitize()
-            .map_err(display_error)?;
-        let snapshot = SnapshotOptions::default()
-            .to_snapshot()
-            .map_err(display_error)?;
-        let snapshot = repo
-            .backup(&BackupOptions::default(), &source, snapshot)
-            .map_err(display_error)?;
-        Ok(BackupResult {
-            snapshot: snapshot_entry(&snapshot),
-        })
+        result
     }
 
     fn list_snapshots(&self, request: ProfileIdRequest) -> Result<Vec<SnapshotEntry>, String> {
@@ -467,55 +504,82 @@ impl RusticService {
             .node_from_snapshot_and_path(current, &request.path)
             .map_err(display_error)?;
         let options = LsOptions::default().recursive(true);
-        let base_entries = repo
-            .ls(&base_node, &options)
-            .map_err(display_error)?
-            .collect::<Result<BTreeMap<_, _>, _>>()
-            .map_err(display_error)?;
-        let current_entries = repo
-            .ls(&current_node, &options)
-            .map_err(display_error)?
-            .collect::<Result<BTreeMap<_, _>, _>>()
-            .map_err(display_error)?;
-        let paths = base_entries
-            .keys()
-            .chain(current_entries.keys())
-            .cloned()
-            .collect::<BTreeSet<_>>();
+        let mut base_entries = repo.ls(&base_node, &options).map_err(display_error)?;
+        let mut current_entries = repo.ls(&current_node, &options).map_err(display_error)?;
+        let mut previous = base_entries.next().transpose().map_err(display_error)?;
+        let mut current = current_entries.next().transpose().map_err(display_error)?;
+        let limit = request.limit.clamp(1, MAX_DIFF_ENTRIES);
         let mut result = SnapshotDiff::default();
-        for relative_path in paths {
-            let previous = base_entries.get(&relative_path);
-            let current = current_entries.get(&relative_path);
-            let Some(change) = diff_change(previous, current, request.include_metadata) else {
-                continue;
-            };
-            match change {
-                "added" => result.summary.added += 1,
-                "removed" => result.summary.removed += 1,
-                "modified" => result.summary.modified += 1,
-                "metadata" => result.summary.metadata += 1,
-                "typeChanged" => result.summary.type_changed += 1,
-                _ => {}
+        while previous.is_some() || current.is_some() {
+            let (relative_path, previous_node, current_node, advance_previous, advance_current) =
+                match (&previous, &current) {
+                    (Some((previous_path, previous_node)), Some((current_path, current_node))) => {
+                        match previous_path.cmp(current_path) {
+                            Ordering::Less => {
+                                (previous_path, Some(previous_node), None, true, false)
+                            }
+                            Ordering::Greater => {
+                                (current_path, None, Some(current_node), false, true)
+                            }
+                            Ordering::Equal => (
+                                previous_path,
+                                Some(previous_node),
+                                Some(current_node),
+                                true,
+                                true,
+                            ),
+                        }
+                    }
+                    (Some((previous_path, previous_node)), None) => {
+                        (previous_path, Some(previous_node), None, true, false)
+                    }
+                    (None, Some((current_path, current_node))) => {
+                        (current_path, None, Some(current_node), false, true)
+                    }
+                    (None, None) => break,
+                };
+            let change = diff_change(previous_node, current_node, request.include_metadata);
+            if let Some(change) = change {
+                result.total_entries += 1;
+                match change {
+                    "added" => result.summary.added += 1,
+                    "removed" => result.summary.removed += 1,
+                    "modified" => result.summary.modified += 1,
+                    "metadata" => result.summary.metadata += 1,
+                    "typeChanged" => result.summary.type_changed += 1,
+                    _ => {}
+                }
+                if result.entries.len() < limit {
+                    let node = current_node
+                        .or(previous_node)
+                        .expect("a diff entry has one side");
+                    let full_path = if request.path.is_empty() {
+                        relative_path.clone()
+                    } else {
+                        PathBuf::from(&request.path).join(relative_path)
+                    };
+                    result.entries.push(SnapshotDiffEntry {
+                        name: node.name().to_string_lossy().into_owned(),
+                        path: full_path.to_string_lossy().into_owned(),
+                        kind: node_kind(node),
+                        change: change.to_string(),
+                        previous_size: previous_node.map(|node| node.meta.size),
+                        current_size: current_node.map(|node| node.meta.size),
+                        previous_modified: previous_node
+                            .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
+                        current_modified: current_node
+                            .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
+                    });
+                }
             }
-            let node = current.or(previous).expect("a diff entry has one side");
-            let full_path = if request.path.is_empty() {
-                relative_path
-            } else {
-                PathBuf::from(&request.path).join(relative_path)
-            };
-            result.entries.push(SnapshotDiffEntry {
-                name: node.name().to_string_lossy().into_owned(),
-                path: full_path.to_string_lossy().into_owned(),
-                kind: node_kind(node),
-                change: change.to_string(),
-                previous_size: previous.map(|node| node.meta.size),
-                current_size: current.map(|node| node.meta.size),
-                previous_modified: previous
-                    .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
-                current_modified: current
-                    .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
-            });
+            if advance_previous {
+                previous = base_entries.next().transpose().map_err(display_error)?;
+            }
+            if advance_current {
+                current = current_entries.next().transpose().map_err(display_error)?;
+            }
         }
+        result.truncated = result.total_entries > result.entries.len() as u64;
         Ok(result)
     }
 
@@ -673,6 +737,13 @@ fn default_search_limit() -> usize {
     200
 }
 
+const DEFAULT_DIFF_ENTRIES: usize = 250;
+const MAX_DIFF_ENTRIES: usize = 1_000;
+
+fn default_diff_limit() -> usize {
+    DEFAULT_DIFF_ENTRIES
+}
+
 fn file_entry(path: PathBuf, node: &rustic_core::repofile::Node) -> FileEntry {
     FileEntry {
         name: node.name().to_string_lossy().into_owned(),
@@ -784,6 +855,21 @@ fn open_repository(
         .to_backends()
         .map_err(display_error)?;
     Repository::new(&RepositoryOptions::default(), &backends)
+        .map_err(display_error)?
+        .open(&Credentials::password(password))
+        .map_err(display_error)
+}
+
+fn open_repository_with_progress(
+    path: &str,
+    password: &str,
+    progress: impl ProgressBars,
+) -> Result<rustic_core::Repository<rustic_core::OpenStatus>, String> {
+    let backends = BackendOptions::default()
+        .repository(path)
+        .to_backends()
+        .map_err(display_error)?;
+    Repository::new_with_progress(&RepositoryOptions::default(), &backends, progress)
         .map_err(display_error)?
         .open(&Credentials::password(password))
         .map_err(display_error)
@@ -988,6 +1074,7 @@ pub fn mount(capability: NativeCapability<'_>, service: RusticService) -> rquick
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::sync::Mutex;
 
     use super::*;
 
@@ -1029,6 +1116,14 @@ mod tests {
         fs::write(configs.join("app/settings.toml"), "theme = 'light'").expect("config file");
 
         let service = RusticService::default();
+        let progress_events = Arc::new(Mutex::new(Vec::new()));
+        let captured_progress = progress_events.clone();
+        service.progress.replace(move |event| {
+            captured_progress
+                .lock()
+                .expect("backup progress events")
+                .push(event.clone());
+        });
         service
             .create_profile(ProfileRequest {
                 id: "photos".to_string(),
@@ -1052,6 +1147,16 @@ mod tests {
             profile_id: "photos".to_string(),
         };
         let backup = service.run_backup(profile.clone()).expect("backup source");
+        let progress_events = progress_events.lock().expect("backup progress events");
+        assert!(
+            progress_events.iter().any(|event| {
+                event.state == BackupProgressPhase::Completed && event.current == 1
+            })
+        );
+        assert!(progress_events.iter().any(|event| {
+            event.state == BackupProgressPhase::PhaseComplete && event.total.is_some()
+        }));
+        drop(progress_events);
         let snapshots = service.list_snapshots(profile).expect("list snapshots");
         assert_eq!(snapshots.len(), 1);
         assert_eq!(snapshots[0].id, backup.snapshot.id);
@@ -1135,13 +1240,15 @@ mod tests {
             })
             .expect("backup changed source");
         let updated_snapshot_id = next_backup.snapshot.id.clone();
+        let base_snapshot_id = backup.snapshot.id.clone();
         let diff = service
             .diff_snapshots(DiffSnapshotsRequest {
                 profile_id: "photos".to_string(),
-                base_snapshot_id: backup.snapshot.id,
+                base_snapshot_id: base_snapshot_id.clone(),
                 snapshot_id: updated_snapshot_id.clone(),
                 path: String::new(),
                 include_metadata: false,
+                limit: 10,
             })
             .expect("compare snapshots");
         assert!(
@@ -1162,6 +1269,23 @@ mod tests {
         assert_eq!(diff.summary.modified, 1);
         assert_eq!(diff.summary.removed, 1);
         assert_eq!(diff.summary.added, 1);
+        assert_eq!(diff.total_entries, 3);
+        assert_eq!(diff.entries.len(), 3);
+        assert!(!diff.truncated);
+
+        let bounded_diff = service
+            .diff_snapshots(DiffSnapshotsRequest {
+                profile_id: "photos".to_string(),
+                base_snapshot_id,
+                snapshot_id: updated_snapshot_id.clone(),
+                path: String::new(),
+                include_metadata: false,
+                limit: 2,
+            })
+            .expect("bound snapshot comparison payload");
+        assert_eq!(bounded_diff.total_entries, 3);
+        assert_eq!(bounded_diff.entries.len(), 2);
+        assert!(bounded_diff.truncated);
 
         let updated = service
             .update_snapshot(UpdateSnapshotRequest {

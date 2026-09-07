@@ -22,10 +22,11 @@ use rquickjs::{
     AsyncContext, AsyncRuntime, CatchResultExt, Ctx, Function, Object, TypedArray,
     context::EvalOptions,
 };
-pub(crate) use wabou_host_api::LayoutRect;
+pub use wabou_host_api::LayoutRect;
 use wabou_host_api::{FrameStats as HostFrameStats, LayoutScrollMetrics, NodeKey};
 type JsResult<T> = rquickjs::Result<T>;
-pub(crate) type ResizeTargets = Rc<RefCell<HashMap<NodeKey, Option<(f32, f32)>>>>;
+/// Shared set of retained nodes observed for content-box resize changes.
+pub type ResizeTargets = Rc<RefCell<HashMap<NodeKey, Option<(f32, f32)>>>>;
 
 fn checked_node_key(lo: u32, hi: u32, boundary: &'static str) -> JsResult<NodeKey> {
     let key = NodeKey::new(lo, hi);
@@ -41,23 +42,31 @@ fn checked_node_key(lo: u32, hi: u32, boundary: &'static str) -> JsResult<NodeKe
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct LayoutMetric {
+/// One node's layout data exposed to JavaScript without JSON serialization.
+pub struct LayoutMetric {
+    /// Border box in logical window coordinates.
     pub rect: LayoutRect,
+    /// Effective clip in logical window coordinates.
     pub clip: LayoutRect,
+    /// Current scroll offset and range.
     pub scroll: LayoutScrollMetrics,
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct LayoutMetricsSnapshot {
+/// Atomically published layout metrics for one completed native frame.
+pub struct LayoutMetricsSnapshot {
+    /// Monotonic publication revision.
     pub revision: u64,
+    /// Logical viewport rectangle.
     pub viewport: LayoutRect,
+    /// Metrics keyed by complete generational node identity.
     pub nodes: HashMap<NodeKey, LayoutMetric>,
 }
 
 use crate::host_frame::{HostEvent, encode_host_frame};
 use crate::style_ir::{ColorThemes, StylesheetUpdate};
 use wabou_protocol::AtomPool;
-use wabou_shell::FrameStats;
+use wabou_shell_api::{FrameStats, WakeCallback};
 
 const CORE_PRELUDE: &str = include_str!("gen/core-prelude.js");
 // Solid 2's universal renderer mounts nested JSX synchronously. A realistic
@@ -100,19 +109,24 @@ impl<'js> rquickjs::IntoJs<'js> for FetchResponse {
 }
 
 struct RuntimeWake {
-    callback: Mutex<Option<wabou_shell::WakeCallback>>,
+    callback: Mutex<Option<WakeCallback>>,
     pending: AtomicBool,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub(crate) struct HostFrameDisposition {
-    pub(crate) prevented_event_ids: Vec<u32>,
-    pub(crate) needs_tick: bool,
-    pub(crate) protocol_frame: Vec<u8>,
+/// Result of synchronously delivering one Host→JavaScript event frame.
+pub struct HostFrameDisposition {
+    /// Cancellable event ids prevented by JavaScript handlers.
+    pub prevented_event_ids: Vec<u32>,
+    /// Whether JavaScript scheduled further runtime work.
+    pub needs_tick: bool,
+    /// Solid protocol mutations produced synchronously by the handlers.
+    pub protocol_frame: Vec<u8>,
 }
 
 impl HostFrameDisposition {
-    pub(crate) fn is_prevented(&self, event_id: u32) -> bool {
+    /// Whether JavaScript prevented the event carrying `event_id`.
+    pub fn is_prevented(&self, event_id: u32) -> bool {
         self.prevented_event_ids.contains(&event_id)
     }
 }
@@ -235,8 +249,8 @@ impl JsRuntime {
         Self::new_with_clock_and_options(Arc::new(crate::clock::SystemClock::new()), options)
     }
 
-    #[cfg(any(test, feature = "headless"))]
-    pub(crate) fn new_with_clock(clock: Arc<dyn crate::clock::Clock>) -> JsResult<Self> {
+    #[doc(hidden)]
+    pub fn new_with_clock(clock: Arc<dyn crate::clock::Clock>) -> JsResult<Self> {
         Self::new_with_clock_and_options(clock, JsRuntimeOptions::default())
     }
 
@@ -792,7 +806,8 @@ impl JsRuntime {
         })
     }
 
-    pub(crate) fn set_wake_callback(&self, callback: wabou_shell::WakeCallback) {
+    #[doc(hidden)]
+    pub fn set_wake_callback(&self, callback: WakeCallback) {
         if let Ok(mut wake) = self.runtime_wake.callback.lock() {
             *wake = Some(callback.clone());
         }
@@ -846,54 +861,70 @@ impl JsRuntime {
         true
     }
 
-    pub(crate) fn take_async_wake(&self) -> bool {
+    #[doc(hidden)]
+    pub fn take_async_wake(&self) -> bool {
         self.runtime_wake.pending.swap(false, Ordering::AcqRel)
+    }
+
+    #[doc(hidden)]
+    pub fn has_async_wake(&self) -> bool {
+        self.runtime_wake.pending.load(Ordering::Acquire)
     }
 
     /// A handle to the pending-stylesheet cell; the Applier drains it in
     /// `build_frame` and, on update, replaces its css dict + re-resolves.
-    pub(crate) fn pending_css_handle(&self) -> Rc<RefCell<Option<StylesheetUpdate>>> {
+    #[doc(hidden)]
+    pub fn pending_css_handle(&self) -> Rc<RefCell<Option<StylesheetUpdate>>> {
         self.pending_css.clone()
     }
 
-    pub(crate) fn pending_color_theme_handle(&self) -> Rc<RefCell<Option<String>>> {
+    #[doc(hidden)]
+    pub fn pending_color_theme_handle(&self) -> Rc<RefCell<Option<String>>> {
         self.pending_color_theme.clone()
     }
 
-    pub(crate) fn pending_color_palette_handle(&self) -> Rc<RefCell<Option<Vec<u32>>>> {
+    #[doc(hidden)]
+    pub fn pending_color_palette_handle(&self) -> Rc<RefCell<Option<Vec<u32>>>> {
         self.pending_color_palette.clone()
     }
 
     /// A handle to the pending-fonts queue; the Applier drains it in
     /// `build_frame` and registers each blob into the text `FontContext`.
-    pub(crate) fn pending_fonts_handle(&self) -> Rc<RefCell<Vec<Vec<u8>>>> {
+    #[doc(hidden)]
+    pub fn pending_fonts_handle(&self) -> Rc<RefCell<Vec<Vec<u8>>>> {
         self.pending_fonts.clone()
     }
 
     /// A handle to the frame-stats cell; the Applier writes the latest EMA
     /// per-stage timings each frame for the typed Host diagnostics API.
-    pub(crate) fn frame_stats_handle(&self) -> Rc<RefCell<Option<FrameStats>>> {
+    #[doc(hidden)]
+    pub fn frame_stats_handle(&self) -> Rc<RefCell<Option<FrameStats>>> {
         self.frame_stats.clone()
     }
 
-    pub(crate) fn layout_metrics_handle(&self) -> Rc<RefCell<LayoutMetricsSnapshot>> {
+    #[doc(hidden)]
+    pub fn layout_metrics_handle(&self) -> Rc<RefCell<LayoutMetricsSnapshot>> {
         self.layout_metrics.clone()
     }
 
-    pub(crate) fn resize_targets_handle(&self) -> ResizeTargets {
+    #[doc(hidden)]
+    pub fn resize_targets_handle(&self) -> ResizeTargets {
         self.resize_targets.clone()
     }
 
-    pub(crate) fn atom_pool_handle(&self) -> Rc<RefCell<AtomPool>> {
+    #[doc(hidden)]
+    pub fn atom_pool_handle(&self) -> Rc<RefCell<AtomPool>> {
         self.atoms.clone()
     }
 
-    pub(crate) fn tokio_handle(&self) -> tokio::runtime::Handle {
+    #[doc(hidden)]
+    pub fn tokio_handle(&self) -> tokio::runtime::Handle {
         self._tokio.handle().clone()
     }
 
     #[cfg(any(feature = "devtools", test))]
-    pub(crate) fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
+    #[doc(hidden)]
+    pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
         *self.debug_state.borrow_mut() = Some(state);
     }
 
@@ -942,7 +973,8 @@ impl JsRuntime {
         self.boot_with_source_map(source, None)
     }
 
-    pub(crate) fn boot_with_source_map(
+    #[doc(hidden)]
+    pub fn boot_with_source_map(
         &mut self,
         source: &str,
         source_map: Option<&[u8]>,
@@ -1134,10 +1166,8 @@ impl JsRuntime {
     /// Deliver unsolicited Host facts through the single versioned binary
     /// entry point. Guest-initiated mounted functions return through their own
     /// value/Promise and never use this path.
-    pub(crate) fn dispatch_host_frame(
-        &mut self,
-        events: &[HostEvent],
-    ) -> JsResult<HostFrameDisposition> {
+    #[doc(hidden)]
+    pub fn dispatch_host_frame(&mut self, events: &[HostEvent]) -> JsResult<HostFrameDisposition> {
         if events.is_empty() {
             return Ok(HostFrameDisposition::default());
         }

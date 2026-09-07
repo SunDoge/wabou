@@ -11,12 +11,15 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
-use wabou_shell::WakeCallback;
+#[cfg(test)]
+use wabou_shell_api as wabou_shell;
+use wabou_shell_api::{WakeCallback, WindowResourceKey};
 
 use crate::ui_inbox::{UiInbox, UiInboxSender};
 
 #[derive(Default)]
-pub(crate) struct HostTaskTracker {
+#[doc(hidden)]
+pub struct HostTaskTracker {
     active: Mutex<usize>,
     idle: Condvar,
 }
@@ -40,7 +43,8 @@ impl HostTaskTracker {
         }
     }
 
-    pub(crate) fn wait_for_idle(&self, timeout: Duration) -> bool {
+    #[doc(hidden)]
+    pub fn wait_for_idle(&self, timeout: Duration) -> bool {
         let active = self
             .active
             .lock()
@@ -63,10 +67,12 @@ impl Drop for HostTaskGuard {
 
 /// Default bound: producers `try_send` and get [`HostMessageError::Full`] when the
 /// UI thread is not draining fast enough.
-pub(crate) const DEFAULT_HOST_MESSAGE_CAPACITY: usize = 1024;
+#[doc(hidden)]
+pub const DEFAULT_HOST_MESSAGE_CAPACITY: usize = 1024;
 
 /// Max messages forwarded to JS in a single frame.
-const MAX_HOST_MESSAGES_PER_FRAME: usize = 128;
+#[doc(hidden)]
+pub const MAX_HOST_MESSAGES_PER_FRAME: usize = 128;
 
 /// Max UTF-8 topic length (u16).
 pub const MAX_TOPIC_BYTES: usize = 0xffff;
@@ -263,7 +269,27 @@ where
 #[derive(Default)]
 struct HostMessageRouterInner {
     next_generation: AtomicU64,
-    routes: Mutex<HashMap<wabou_shell::WindowResourceKey, (u64, HostMessageHandle)>>,
+    routes: Mutex<HashMap<WindowResourceKey, (u64, HostMessageSender)>>,
+}
+
+type HostMessageSender =
+    Arc<dyn Fn(HostMessage) -> Result<(), HostMessageError> + Send + Sync + 'static>;
+
+/// A backend-owned route registration removed automatically when dropped.
+///
+/// Applications do not need to construct this value. Alternate native hosts
+/// retain it for exactly the lifetime of their JavaScript runtime.
+#[doc(hidden)]
+pub struct HostMessageRouteLease {
+    router: HostMessageRouter,
+    window_key: WindowResourceKey,
+    generation: u64,
+}
+
+impl Drop for HostMessageRouteLease {
+    fn drop(&mut self) {
+        self.router.detach(self.window_key, self.generation);
+    }
 }
 
 impl HostMessageRouter {
@@ -275,39 +301,54 @@ impl HostMessageRouter {
     /// Send a message to the current JavaScript runtime for `window_key`.
     pub fn send_to(
         &self,
-        window_key: wabou_shell::WindowResourceKey,
+        window_key: WindowResourceKey,
         message: HostMessage,
     ) -> Result<(), HostMessageError> {
-        let handle = self
+        let sender = self
             .inner
             .routes
             .lock()
             .map_err(|_| HostMessageError::Disconnected)?
             .get(&window_key)
-            .map(|(_, handle)| handle.clone())
+            .map(|(_, sender)| sender.clone())
             .ok_or(HostMessageError::WindowUnavailable)?;
-        handle.send(message)
+        sender(message)
     }
 
-    pub(crate) fn attach(&self, context: HostMessageContext) {
+    #[doc(hidden)]
+    pub fn attach(&self, context: HostMessageContext) {
+        let messages = context.messages().clone();
+        let lease = self.attach_sender(context.window_key(), move |message| messages.send(message));
+        let cancellation = context.clone();
+        context.spawn(async move {
+            cancellation.cancelled().await;
+            drop(lease);
+        });
+    }
+
+    /// Attach a backend-specific bounded sender to this public router.
+    #[doc(hidden)]
+    pub fn attach_sender(
+        &self,
+        window_key: WindowResourceKey,
+        sender: impl Fn(HostMessage) -> Result<(), HostMessageError> + Send + Sync + 'static,
+    ) -> HostMessageRouteLease {
         let generation = self
             .inner
             .next_generation
             .fetch_add(1, Ordering::Relaxed)
             .wrapping_add(1);
-        let window_key = context.window_key();
         if let Ok(mut routes) = self.inner.routes.lock() {
-            routes.insert(window_key, (generation, context.messages().clone()));
+            routes.insert(window_key, (generation, Arc::new(sender)));
         }
-        let router = self.clone();
-        let cancellation = context.clone();
-        context.spawn(async move {
-            cancellation.cancelled().await;
-            router.detach(window_key, generation);
-        });
+        HostMessageRouteLease {
+            router: self.clone(),
+            window_key,
+            generation,
+        }
     }
 
-    fn detach(&self, window_key: wabou_shell::WindowResourceKey, generation: u64) {
+    fn detach(&self, window_key: WindowResourceKey, generation: u64) {
         if let Ok(mut routes) = self.inner.routes.lock()
             && routes
                 .get(&window_key)
@@ -325,7 +366,7 @@ impl HostMessageRouter {
 /// stop even when they have no message ready to send.
 #[derive(Clone)]
 pub struct HostMessageContext {
-    window_key: wabou_shell::WindowResourceKey,
+    window_key: WindowResourceKey,
     messages: HostMessageHandle,
     cancellation: CancellationToken,
     runtime: tokio::runtime::Handle,
@@ -333,8 +374,9 @@ pub struct HostMessageContext {
 }
 
 impl HostMessageContext {
-    pub(crate) fn new(
-        window_key: wabou_shell::WindowResourceKey,
+    #[doc(hidden)]
+    pub fn new(
+        window_key: WindowResourceKey,
         messages: HostMessageHandle,
         cancellation: CancellationToken,
         runtime: tokio::runtime::Handle,
@@ -350,7 +392,7 @@ impl HostMessageContext {
     }
 
     /// Typed generational identity of the owning native window.
-    pub fn window_key(&self) -> wabou_shell::WindowResourceKey {
+    pub fn window_key(&self) -> WindowResourceKey {
         self.window_key
     }
 
@@ -496,25 +538,30 @@ fn validate_message(msg: &HostMessage) -> Result<(), HostMessageError> {
 }
 
 /// Receiver half owned by the applier (UI thread).
-pub(crate) struct HostMessageInbox {
+#[doc(hidden)]
+pub struct HostMessageInbox {
     inbox: UiInbox<HostMessage>,
 }
 
 impl HostMessageInbox {
-    pub(crate) fn set_wake(&self, wake: WakeCallback) {
+    #[doc(hidden)]
+    pub fn set_wake(&self, wake: WakeCallback) {
         self.inbox.set_wake(wake);
     }
 
-    pub(crate) fn has_pending(&self) -> bool {
+    #[doc(hidden)]
+    pub fn has_pending(&self) -> bool {
         self.inbox.has_pending()
     }
 
-    pub(crate) fn drain_batch(&self) -> Vec<HostMessage> {
+    #[doc(hidden)]
+    pub fn drain_batch(&self) -> Vec<HostMessage> {
         self.inbox.drain_up_to(MAX_HOST_MESSAGES_PER_FRAME)
     }
 }
 
-pub(crate) fn host_message_channel(capacity: usize) -> (HostMessageHandle, HostMessageInbox) {
+#[doc(hidden)]
+pub fn host_message_channel(capacity: usize) -> (HostMessageHandle, HostMessageInbox) {
     let capacity = capacity.max(1);
     let (tx, inbox) = crate::ui_inbox::bounded(capacity);
     (HostMessageHandle { tx }, HostMessageInbox { inbox })
@@ -674,6 +721,32 @@ mod tests {
         })
         .await
         .unwrap();
+    }
+
+    #[test]
+    fn alternate_backend_route_is_scoped_by_lease() {
+        let router = HostMessageRouter::new();
+        let window_key = wabou_shell::WindowResourceKey::from_parts(10, 1).unwrap();
+        let received = Arc::new(Mutex::new(Vec::new()));
+        let output = received.clone();
+        let lease = router.attach_sender(window_key, move |message| {
+            output.lock().unwrap().push(message);
+            Ok(())
+        });
+
+        router
+            .send_to(window_key, HostMessage::i32("progress", 42))
+            .unwrap();
+        assert_eq!(
+            *received.lock().unwrap(),
+            vec![HostMessage::i32("progress", 42)]
+        );
+
+        drop(lease);
+        assert_eq!(
+            router.send_to(window_key, HostMessage::null("late")),
+            Err(HostMessageError::WindowUnavailable)
+        );
     }
 
     #[tokio::test]

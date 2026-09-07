@@ -1,0 +1,58 @@
+[package]
+name = "wabou-backend-vello-hybrid"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+publish = false
+
+[lib]
+name = "wabou_backend_vello_hybrid"
+path = "src/lib.rs"
+
+[dependencies]
+arc-swap.workspace = true
+bitflags.workspace = true
+flume.workspace = true
+futures-lite = "2"
+getrandom.workspace = true
+runtime-api = { package = "wabou-runtime", path = "../wabou-runtime", default-features = false }
+image = { workspace = true, features = ["jpeg", "png", "webp"] }
+jiff.workspace = true
+vello-shell = { package = "wabou-shell-vello", path = "../wabou-shell-vello" }
+parley.workspace = true
+open.workspace = true
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+rquickjs = { version = "0.12.1", features = ["full-async", "loader", "rust-alloc"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+slotmap.workspace = true
+snafu.workspace = true
+sourcemap = "9.2.2"
+sys-locale.workspace = true
+taffy = { workspace = true, features = ["content_size", "parse"] }
+tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+url.workspace = true
+vello-common.workspace = true
+wabou-devtools.workspace = true
+wabou-bindgen.workspace = true
+wabou-host-api.workspace = true
+wabou-widgets-vello.workspace = true
+wabou-protocol.workspace = true
+wabou-shell-api.workspace = true
+wabou-style.workspace = true
+
+[features]
+default = []
+devtools = ["runtime-api/devtools"]
+profiling = []
+vite = ["runtime-api/vite"]
+
+[dev-dependencies]
+proptest = "1"
+runtime-api = { package = "wabou-runtime", path = "../wabou-runtime", default-features = false, features = ["devtools"] }
+tempfile = "3"

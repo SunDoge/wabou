@@ -1,0 +1,22 @@
+[package]
+name = "wabou-widgets-vello"
+version.workspace = true
+edition = "2024"
+description = "Native widgets for Wabou's Vello backend."
+
+license.workspace = true
+publish = false
+
+[dependencies]
+image = {
+  workspace = true,
+  features = ["bmp", "gif", "jpeg", "png", "webp"]
+}
+parley = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+tracing = { workspace = true }
+unicode-width = { workspace = true }
+vello-common.workspace = true
+wabou-shell-vello = { workspace = true }
+wabou-protocol = { workspace = true }
+zeroize = { workspace = true }

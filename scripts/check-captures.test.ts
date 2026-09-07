@@ -15,6 +15,7 @@ import {
   semanticRelationshipDiagnostics,
   semanticStateDiagnostics,
   textContainmentDiagnostics,
+  unexpectedStyleDiagnostics,
   validateCaptureArtifacts,
   validateCaptureSnapshot,
 } from "./check-captures";
@@ -67,12 +68,17 @@ describe("authored capture discovery", () => {
     ).toEqual({
       list: false,
       checkExisting: true,
+      renderer: null,
       scenarios: [
         "apps/demo/captures/first.ts",
         "apps/demo/captures/second.ts",
       ],
     });
     expect(() => parseCaptureArguments(["--scenario"])).toThrow("requires");
+    expect(parseCaptureArguments(["--renderer", "gpui"]).renderer).toBe("gpui");
+    expect(() => parseCaptureArguments(["--renderer", "canvas"])).toThrow(
+      "vello-hybrid or gpui",
+    );
     expect(() => parseCaptureArguments(["--unknown"])).toThrow("unsupported");
     expect(() => parseCaptureArguments(["--list", "--check-existing"])).toThrow(
       "cannot be combined",
@@ -86,6 +92,7 @@ describe("authored capture discovery", () => {
     expect(
       selectCaptureCases(captures, ["apps/demo/captures/wide.behavior.ts"]),
     ).toEqual([captures[1]]);
+    expect(selectCaptureCases(captures, [], "gpui")).toEqual([]);
     expect(() =>
       selectCaptureCases(captures, ["apps/demo/captures/missing.ts"]),
     ).toThrow("missing.ts");
@@ -99,6 +106,7 @@ describe("authored capture discovery", () => {
         defaults: { width: 1200, height: 800, waitMs: 100 },
         overrides: {
           "nested/compact.behavior.ts": {
+            renderer: "gpui",
             width: 700,
             height: 500,
             scaleFactor: 2,
@@ -113,8 +121,10 @@ describe("authored capture discovery", () => {
       {
         application: "apps/demo",
         scenario: "apps/demo/captures/nested/compact.behavior.ts",
-        output: "target/wabou-captures/demo/nested/compact.behavior.png",
-        snapshot: "target/wabou-captures/demo/nested/compact.behavior.json",
+        output: "target/wabou-captures/demo/gpui/nested/compact.behavior.png",
+        snapshot:
+          "target/wabou-captures/demo/gpui/nested/compact.behavior.json",
+        renderer: "gpui",
         width: 700,
         height: 500,
         scaleFactor: 2,
@@ -122,16 +132,19 @@ describe("authored capture discovery", () => {
         waitMs: 100,
         checkTextContainment: false,
         checkStyleDiagnostics: true,
+        allowedStyleDiagnostics: [],
         checkAccessibleNames: true,
         checkSemanticStates: true,
         checkSemanticRelationships: true,
         checkInteractionContracts: true,
+        requiredWidgets: [],
       },
       {
         application: "apps/demo",
         scenario: "apps/demo/captures/wide.behavior.ts",
-        output: "target/wabou-captures/demo/wide.behavior.png",
-        snapshot: "target/wabou-captures/demo/wide.behavior.json",
+        output: "target/wabou-captures/demo/vello-hybrid/wide.behavior.png",
+        snapshot: "target/wabou-captures/demo/vello-hybrid/wide.behavior.json",
+        renderer: "vello-hybrid",
         width: 1200,
         height: 800,
         scaleFactor: 1,
@@ -139,10 +152,12 @@ describe("authored capture discovery", () => {
         waitMs: 100,
         checkTextContainment: true,
         checkStyleDiagnostics: true,
+        allowedStyleDiagnostics: [],
         checkAccessibleNames: true,
         checkSemanticStates: true,
         checkSemanticRelationships: true,
         checkInteractionContracts: true,
+        requiredWidgets: [],
       },
     ]);
   });
@@ -169,6 +184,30 @@ describe("authored capture discovery", () => {
     );
   });
 
+  test("rejects unknown render backends", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "apps", "demo", "captures", "config.json"),
+      JSON.stringify({ defaults: { renderer: "browser" } }),
+    );
+
+    await expect(discoverCaptureCases(root)).rejects.toThrow(
+      "defaults.renderer must be vello-hybrid or gpui",
+    );
+  });
+
+  test("requires exact non-empty backend style diagnostic allowances", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "apps", "demo", "captures", "config.json"),
+      JSON.stringify({ defaults: { allowedStyleDiagnostics: [""] } }),
+    );
+
+    await expect(discoverCaptureCases(root)).rejects.toThrow(
+      "allowedStyleDiagnostics must be non-empty strings",
+    );
+  });
+
   test("loads application capture setup without discovering it as a scenario", async () => {
     const root = await fixture();
     await writeFile(
@@ -183,12 +222,25 @@ describe("authored capture discovery", () => {
     ).toBe("ready");
   });
 
+  test("discovers capture scenarios without requiring a behavior suffix", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "apps", "demo", "captures", "legacy-name.ts"),
+      "",
+    );
+
+    expect(
+      (await discoverCaptureCases(root)).map((capture) => capture.scenario),
+    ).toContain("apps/demo/captures/legacy-name.ts");
+  });
+
   test("only later captures reuse the already built application bundle", () => {
     const capture = {
       application: "apps/demo",
       scenario: "apps/demo/captures/main.ts",
       output: "target/wabou-captures/demo/main.png",
       snapshot: "target/wabou-captures/demo/main.json",
+      renderer: "vello-hybrid" as const,
       width: 800,
       height: 600,
       scaleFactor: 1,
@@ -196,6 +248,7 @@ describe("authored capture discovery", () => {
       waitMs: 250,
       checkTextContainment: true,
       checkStyleDiagnostics: true,
+      allowedStyleDiagnostics: [],
       checkAccessibleNames: true,
       checkSemanticStates: true,
       checkSemanticRelationships: true,
@@ -206,6 +259,11 @@ describe("authored capture discovery", () => {
     expect(command).not.toContain("--skip-build");
     expect(captureCommand(capture, true)).toContain("--skip-build");
     expect(command).toContain(capture.snapshot);
+    const rendererIndex = command.indexOf("--renderer");
+    expect(command.slice(rendererIndex, rendererIndex + 2)).toEqual([
+      "--renderer",
+      "vello-hybrid",
+    ]);
     expect(command.slice(command.indexOf("--color-scheme"), -2)).toEqual([
       "--color-scheme",
       "light",
@@ -218,6 +276,7 @@ describe("authored capture discovery", () => {
       scenario: "apps/demo/captures/main.ts",
       output: "target/wabou-captures/demo/main.png",
       snapshot: "target/wabou-captures/demo/main.json",
+      renderer: "vello-hybrid" as const,
       width: 800,
       height: 600,
       scaleFactor: 2,
@@ -225,6 +284,7 @@ describe("authored capture discovery", () => {
       waitMs: 250,
       checkTextContainment: true,
       checkStyleDiagnostics: true,
+      allowedStyleDiagnostics: [],
       checkAccessibleNames: true,
       checkSemanticStates: true,
       checkSemanticRelationships: true,
@@ -298,7 +358,7 @@ describe("authored capture discovery", () => {
   });
 
   test("reports text escaping visible ancestors but stops at clip boundaries", () => {
-    const base = {
+    const base: Parameters<typeof textContainmentDiagnostics>[0] = {
       status: {
         viewportWidth: 100,
         viewportHeight: 100,
@@ -345,10 +405,29 @@ describe("authored capture discovery", () => {
     expect(textContainmentDiagnostics(base)).toHaveLength(1);
     base.nodes[0].computed.overflowX = "Hidden";
     expect(textContainmentDiagnostics(base)).toEqual([]);
+
+    const clippedTrack = {
+      ...base.nodes[1],
+      id: { lo: 3, hi: 1 },
+      parentId: { lo: 1, hi: 1 },
+      tag: "view",
+      text: "",
+      rect: { x: 0, y: 0, width: 40, height: 20 },
+      contentRect: { x: 0, y: 0, width: 40, height: 20 },
+      computed: { overflowX: "Visible", overflowY: "Visible" },
+    };
+    base.nodes[0].computed.overflowX = "Hidden";
+    base.nodes[1].parentId = clippedTrack.id;
+    base.nodes.push(clippedTrack);
+    expect(textContainmentDiagnostics(base)).toEqual([]);
+
     base.nodes[1].styleDiagnostics = ["unsupported utility `bad-class`"];
     expect(rejectedStyleDiagnostics(base)).toEqual([
       "text 2:1 (no classes): unsupported utility `bad-class`",
     ]);
+    expect(
+      unexpectedStyleDiagnostics(base, ["unsupported utility `bad-class`"]),
+    ).toEqual([]);
   });
 
   test("requires accessible names for semantic controls", () => {
@@ -659,6 +738,7 @@ describe("authored capture discovery", () => {
       scenario: "apps/demo/captures/main.ts",
       output: "target/wabou-captures/demo/main.png",
       snapshot: "target/wabou-captures/demo/main.json",
+      renderer: "vello-hybrid" as const,
       width: 100,
       height: 100,
       scaleFactor: 1,
@@ -666,6 +746,7 @@ describe("authored capture discovery", () => {
       waitMs: 0,
       checkTextContainment: true,
       checkStyleDiagnostics: true,
+      allowedStyleDiagnostics: [],
       checkAccessibleNames: true,
       checkSemanticStates: true,
       checkSemanticRelationships: true,
@@ -729,9 +810,10 @@ describe("authored capture discovery", () => {
       capture.output,
     );
 
-    await mkdir(join(root, "target", "wabou-captures", "demo", "nested"), {
-      recursive: true,
-    });
+    await mkdir(
+      join(root, "target", "wabou-captures", "demo", "vello-hybrid", "nested"),
+      { recursive: true },
+    );
     await writeFile(
       join(root, capture.output),
       pngHeader(
@@ -743,6 +825,7 @@ describe("authored capture discovery", () => {
       join(root, capture.snapshot),
       JSON.stringify({
         status: {
+          renderer: capture.renderer,
           viewportWidth: capture.width,
           viewportHeight: capture.height,
           deviceScale: capture.scaleFactor,
@@ -777,9 +860,20 @@ describe("authored capture discovery", () => {
     await expect(
       validateCaptureArtifacts(capture, root),
     ).resolves.toBeUndefined();
+    capture.requiredWidgets = ["fractal"];
+    await expect(validateCaptureArtifacts(capture, root)).rejects.toThrow(
+      'did not mount required native widget "fractal"',
+    );
+    capture.requiredWidgets = [];
 
     const snapshotPath = join(root, capture.snapshot);
     const snapshot = JSON.parse(await Bun.file(snapshotPath).text());
+    snapshot.status.renderer = "gpui";
+    await writeFile(snapshotPath, JSON.stringify(snapshot));
+    await expect(validateCaptureArtifacts(capture, root)).rejects.toThrow(
+      'renderer label "gpui" does not match requested vello-hybrid',
+    );
+    snapshot.status.renderer = capture.renderer;
     snapshot.nodes[0].styleDiagnostics = ["unsupported utility `bad-class`"];
     await writeFile(snapshotPath, JSON.stringify(snapshot));
     await expect(validateCaptureArtifacts(capture, root)).rejects.toThrow(

@@ -1,4 +1,4 @@
-import { Portal, type WabouNativeTransition } from "@wabou/core/renderer";
+import { Portal } from "@wabou/core/renderer";
 import { translate2d } from "@wabou/core/style";
 import {
   type Accessor,
@@ -11,8 +11,8 @@ import {
   untrack,
 } from "solid-js";
 import { type Easing, useReducedMotion } from "../animation";
-import { createPresence } from "./presence";
 import { createRetainedItems, type RetainedItem } from "./retained-items";
+import { createTransitionPresence } from "./transition-presence";
 import { createInternalPrimitive, View, type WabouStyle } from "./view";
 
 export type NotificationPriority = "polite" | "assertive";
@@ -208,33 +208,6 @@ export interface NotificationMotionOptions {
   fromY?: number;
 }
 
-export function notificationNativeTransition(options: {
-  generation: number;
-  duration: number;
-  ease?: Easing;
-  fromX?: number;
-  fromY?: number;
-  entering: boolean;
-}): WabouNativeTransition {
-  const offset = translate2d(options.fromX ?? 0, options.fromY ?? 0);
-  const resting = translate2d(0, 0);
-  const easing =
-    options.ease === "linear" ||
-    options.ease === "easeInOut" ||
-    options.ease === "easeOut"
-      ? options.ease
-      : "easeOut";
-  return {
-    generation: options.generation,
-    duration: options.duration,
-    easing,
-    fromTransform: options.entering ? offset : resting,
-    toTransform: options.entering ? resting : offset,
-    fromOpacity: options.entering ? 0 : 1,
-    toOpacity: options.entering ? 1 : 0,
-  };
-}
-
 const alignment = (placement: NotificationPlacement) => ({
   "align-items": placement.endsWith("start")
     ? "flex-start"
@@ -332,20 +305,17 @@ export function NotificationRegion(
     retainedItem: RetainedItem<NotificationItem, number>,
   ) => {
     const logicallyPresent = retainedItem.present;
-    const presence = createPresence(logicallyPresent);
     const duration = motion.duration ?? 0.18;
-    const [transitionGeneration, setTransitionGeneration] = createSignal(0);
+    const presence = createTransitionPresence(logicallyPresent, {
+      initialProgress: 0,
+      duration,
+      ease: motion.ease ?? "easeOut",
+      reducedMotion,
+    });
     createEffect(
-      () => [logicallyPresent(), reducedMotion()] as const,
-      ([isPresent, prefersReducedMotion]) => {
-        setTransitionGeneration((generation) => generation + 1);
-        if (prefersReducedMotion || duration <= 0) {
-          if (isPresent) presence.finishEnter();
-          else {
-            presence.finishExit();
-            retained.release(retainedItem.key);
-          }
-        }
+      () => presence.phase(),
+      (phase) => {
+        if (phase === "unmounted") retained.release(retainedItem.key);
       },
     );
     return createComponent(View, {
@@ -364,21 +334,11 @@ export function NotificationRegion(
         return !logicallyPresent();
       },
       get transform() {
+        const remaining = 1 - presence.progress();
         return translate2d(
-          logicallyPresent() ? 0 : (motion.fromX ?? 0),
-          logicallyPresent() ? 0 : (motion.fromY ?? 0),
+          (motion.fromX ?? 0) * remaining,
+          (motion.fromY ?? 0) * remaining,
         );
-      },
-      get nativeTransition() {
-        if (reducedMotion() || duration <= 0) return undefined;
-        return notificationNativeTransition({
-          generation: transitionGeneration(),
-          duration,
-          ease: motion.ease,
-          fromX: motion.fromX,
-          fromY: motion.fromY,
-          entering: logicallyPresent(),
-        });
       },
       get class() {
         return `pointer-events-auto ${props.itemClass ?? ""}`;
@@ -386,16 +346,8 @@ export function NotificationRegion(
       get style() {
         return {
           ...props.itemStyle,
-          opacity: logicallyPresent() ? 1 : 0,
+          opacity: presence.progress(),
         };
-      },
-      onTransitionEnd: (event) => {
-        if (event.generation !== transitionGeneration()) return;
-        if (logicallyPresent()) presence.finishEnter();
-        else {
-          presence.finishExit();
-          retained.release(retainedItem.key);
-        }
       },
       onPointerEnter: () => props.notifications.pause(retainedItem.key),
       onPointerLeave: () => props.notifications.resume(retainedItem.key),
