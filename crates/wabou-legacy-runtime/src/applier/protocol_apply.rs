@@ -479,10 +479,7 @@ impl Applier {
             }
             crate::protocol::GRAPHIC_SOURCE_RESOURCE_RASTER => {
                 let handle = source.split_once(':').and_then(|(lo, hi)| {
-                    Some(crate::ImageResourceHandle {
-                        lo: lo.parse().ok()?,
-                        hi: hi.parse().ok()?,
-                    })
+                    crate::ImageResourceHandle::from_parts(lo.parse().ok()?, hi.parse().ok()?)
                 });
                 let resource =
                     handle.and_then(|handle| self.document.resources.image_store.get(handle));

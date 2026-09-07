@@ -322,7 +322,7 @@ fn gpui_text_change_updates_the_exact_control_and_dispatches_once() {
 }
 
 #[test]
-fn code_editor_drag_selection_survives_native_pointer_routing() {
+fn native_editor_drag_selection_survives_pointer_routing_and_replaces_text() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     js.with(|ctx| {
@@ -366,17 +366,8 @@ fn code_editor_drag_selection_survives_native_pointer_routing() {
     applier.handle_event(pointer(PointerPhase::Down, 68.0, 10.0, 1));
     applier.handle_event(pointer(PointerPhase::Move, 300.0, 10.0, 1));
     applier.handle_event(pointer(PointerPhase::Up, 300.0, 10.0, 0));
-    assert!(
-        !applier.handle_event(UiEvent::TextInput("X".into())).handled,
-        "the controlled viewport must not edit outside CodeMirror"
-    );
     applier.build_frame(&mut tcx, 800, 600);
 
-    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
-    assert_eq!(
-        applier.document.widget_manager.widgets[&node].current_value(),
-        None
-    );
     let selection_event = applier
         .runtime
         .js
@@ -392,6 +383,18 @@ fn code_editor_drag_selection_survives_native_pointer_routing() {
     assert_eq!(payload["anchor"], 0);
     assert_eq!(payload["head"], 6);
     assert_eq!(payload["text"], "abcdef");
+
+    assert!(
+        applier.handle_event(UiEvent::TextInput("X".into())).handled,
+        "the native editor owns text mutation after pointer selection"
+    );
+    applier.build_frame(&mut tcx, 800, 600);
+
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
+    assert_eq!(
+        applier.document.widget_manager.widgets[&node].current_value(),
+        Some("X")
+    );
 }
 
 #[test]

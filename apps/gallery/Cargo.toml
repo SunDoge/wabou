@@ -12,7 +12,8 @@ name = "gallery-bindgen"
 path = "examples/wabou-bindgen.rs"
 
 [features]
-vello-hybrid = ["wabou/winit-vello-hybrid"]
+gpui = []
+vello-hybrid = ["wabou/vello-hybrid"]
 
 [dependencies]
 image = { workspace = true, features = ["png"] }

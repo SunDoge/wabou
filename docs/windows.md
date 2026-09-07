@@ -37,8 +37,8 @@ returns the current runtime's reactive metrics plus the same controls.
 
 ## Rendering runtime
 
-GPUI-CE owns the default window and renderer lifecycle. The experimental
-`WinitHostBuilder` owns a second Winit + Taffy + Vello Hybrid lifecycle.
+`HostBuilder` owns the default Winit + Taffy + Vello Hybrid window lifecycle.
+`GpuiHostBuilder` explicitly selects the comparison GPUI lifecycle.
 `WindowOptions` remains backend-neutral and does not contain a renderer
 selector; applications select the host at compile time so native widgets and
 platform extensions cannot silently change implementation.

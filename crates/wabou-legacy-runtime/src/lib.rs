@@ -24,10 +24,13 @@ mod host;
 use runtime_api::host_abi;
 use runtime_api::host_ffi;
 mod host_frame;
-#[allow(dead_code)]
-// Message queue is active; duplicated public helpers await shared-core extraction.
-mod host_message;
-mod image_resource;
+mod host_message {
+    pub use runtime_api::{
+        DEFAULT_HOST_MESSAGE_CAPACITY, HostMessage, HostMessageContext, HostMessageHandle,
+        HostMessageInbox, HostMessagePayload, HostMessageRouter, HostTaskTracker,
+        host_message_channel,
+    };
+}
 mod inline_context;
 use runtime_api::intl;
 mod jsrt;
@@ -51,14 +54,16 @@ pub use host_frame::{
 pub use host_message::{
     HostMessage, HostMessageContext, HostMessageHandle, HostMessagePayload, HostMessageRouter,
 };
-pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use jsrt::{JsRuntime, JsRuntimeOptions};
 pub use legacy_shell::{
     EffectRequest as WinitEffectRequest, ExtensionContext as WinitExtensionContext,
-    Point as WinitPoint, PointerButton as WinitPointerButton, PointerPhase as WinitPointerPhase,
-    ShellExtension as WinitShellExtension, WakeCallback as WinitWakeCallback, Widget,
-    WidgetFactory, WindowOptions,
+    PaintContext as WinitPaintContext, Point as WinitPoint, PointerButton as WinitPointerButton,
+    PointerPhase as WinitPointerPhase, ShellExtension as WinitShellExtension,
+    TextContext as WinitTextContext, WakeCallback as WinitWakeCallback, Widget,
+    WidgetChanges as WinitWidgetChanges, WidgetFactory, WidgetRasterImage as WinitRasterImage,
+    WindowOptions,
 };
+pub use runtime_api::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use wabou_legacy_widgets::SecretStore as WinitSecretStore;
 
 mod applier;

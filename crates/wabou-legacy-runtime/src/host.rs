@@ -21,39 +21,6 @@ use legacy_shell::{FrameSource, Widget, WidgetFactory, WindowOptions};
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(crate::HostMessageContext) + Send + Sync>;
 
-fn convert_host_message(message: runtime_api::HostMessage) -> crate::HostMessage {
-    let payload = match message.payload {
-        runtime_api::HostMessagePayload::Null => crate::HostMessagePayload::Null,
-        runtime_api::HostMessagePayload::Bool(value) => crate::HostMessagePayload::Bool(value),
-        runtime_api::HostMessagePayload::I32(value) => crate::HostMessagePayload::I32(value),
-        runtime_api::HostMessagePayload::F64(value) => crate::HostMessagePayload::F64(value),
-        runtime_api::HostMessagePayload::Str(value) => crate::HostMessagePayload::Str(value),
-        runtime_api::HostMessagePayload::Bytes(value) => crate::HostMessagePayload::Bytes(value),
-    };
-    crate::HostMessage {
-        topic: message.topic,
-        payload,
-    }
-}
-
-fn convert_host_message_error(
-    error: crate::host_message::HostMessageError,
-) -> runtime_api::HostMessageError {
-    match error {
-        crate::host_message::HostMessageError::Full => runtime_api::HostMessageError::Full,
-        crate::host_message::HostMessageError::Disconnected => {
-            runtime_api::HostMessageError::Disconnected
-        }
-        crate::host_message::HostMessageError::TooLarge => runtime_api::HostMessageError::TooLarge,
-        crate::host_message::HostMessageError::Serialization => {
-            runtime_api::HostMessageError::Serialization
-        }
-        crate::host_message::HostMessageError::WindowUnavailable => {
-            runtime_api::HostMessageError::WindowUnavailable
-        }
-    }
-}
-
 struct HostServicesGuard(Vec<Arc<dyn runtime_api::HostService>>);
 
 impl HostServicesGuard {
@@ -458,19 +425,8 @@ impl WinitHostBuilder {
 
     /// Connect the same window-addressable router used by the default GPUI host.
     pub fn host_message_router(mut self, router: runtime_api::HostMessageRouter) -> Self {
-        self.host_message_producers.push(Arc::new(move |context| {
-            let messages = context.messages().clone();
-            let lease = router.attach_sender(context.window_key(), move |message| {
-                messages
-                    .send(convert_host_message(message))
-                    .map_err(convert_host_message_error)
-            });
-            let cancellation = context.clone();
-            context.spawn(async move {
-                cancellation.cancelled().await;
-                drop(lease);
-            });
-        }));
+        self.host_message_producers
+            .push(Arc::new(move |context| router.attach(context)));
         self
     }
 

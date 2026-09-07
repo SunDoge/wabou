@@ -74,6 +74,10 @@ pub use host::{
 };
 #[doc(hidden)]
 pub use host_message::HostMessageRouteLease;
+#[doc(hidden)]
+pub use host_message::{
+    DEFAULT_HOST_MESSAGE_CAPACITY, HostMessageInbox, HostTaskTracker, host_message_channel,
+};
 pub use host_message::{
     HostMessage, HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload,
     HostMessageRouter, RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot,

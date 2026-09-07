@@ -22,7 +22,116 @@ use crate::text::TextContext;
 use crate::{ClipboardRequest, HostAction, HostActionResult, UiEvent, WakeCallback};
 use anyrender::{PaintScene, Scene};
 use vello::kurbo::{Affine, Rect};
-use vello::peniko::Color;
+use vello::peniko::{Blob, Color, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
+
+/// Immutable RGBA8 pixels which an application-defined widget can paint.
+///
+/// This keeps AnyRender and Vello image-resource details behind Wabou's widget
+/// contract. Construct the image when widget data changes and reuse it across
+/// paint calls.
+#[derive(Clone)]
+pub struct WidgetRasterImage {
+    brush: ImageBrush,
+    width: u32,
+    height: u32,
+}
+
+impl WidgetRasterImage {
+    /// Validate and retain one tightly packed, non-premultiplied RGBA8 image.
+    pub fn from_rgba8(
+        width: u32,
+        height: u32,
+        pixels: Vec<u8>,
+    ) -> Result<Self, WidgetRasterImageError> {
+        let expected = usize::try_from(width)
+            .ok()
+            .and_then(|width| {
+                usize::try_from(height)
+                    .ok()
+                    .and_then(|height| width.checked_mul(height))
+            })
+            .and_then(|pixels| pixels.checked_mul(4))
+            .ok_or(WidgetRasterImageError {
+                width,
+                height,
+                expected: None,
+                actual: pixels.len(),
+            })?;
+        if width == 0 || height == 0 || pixels.len() != expected {
+            return Err(WidgetRasterImageError {
+                width,
+                height,
+                expected: Some(expected),
+                actual: pixels.len(),
+            });
+        }
+        let data = ImageData {
+            data: Blob::new(Arc::new(pixels.into_boxed_slice())),
+            format: ImageFormat::Rgba8,
+            alpha_type: ImageAlphaType::Alpha,
+            width,
+            height,
+        };
+        Ok(Self {
+            brush: ImageBrush::new(data),
+            width,
+            height,
+        })
+    }
+
+    /// Pixel dimensions of the retained source image.
+    pub const fn dimensions(&self) -> [u32; 2] {
+        [self.width, self.height]
+    }
+}
+
+/// Invalid pixel storage supplied to [`WidgetRasterImage::from_rgba8`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WidgetRasterImageError {
+    width: u32,
+    height: u32,
+    expected: Option<usize>,
+    actual: usize,
+}
+
+impl std::fmt::Display for WidgetRasterImageError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.expected {
+            Some(expected) => write!(
+                formatter,
+                "RGBA8 image {}x{} requires {expected} bytes; received {}",
+                self.width, self.height, self.actual
+            ),
+            None => write!(
+                formatter,
+                "RGBA8 image dimensions {}x{} exceed addressable storage",
+                self.width, self.height
+            ),
+        }
+    }
+}
+
+impl std::error::Error for WidgetRasterImageError {}
+
+#[cfg(test)]
+mod raster_image_tests {
+    use super::*;
+
+    #[test]
+    fn validates_rgba_storage_at_the_public_boundary() {
+        let image = WidgetRasterImage::from_rgba8(2, 3, vec![0; 24]).unwrap();
+        assert_eq!(image.dimensions(), [2, 3]);
+
+        let error = WidgetRasterImage::from_rgba8(2, 3, vec![0; 23])
+            .err()
+            .expect("short storage must fail");
+        assert_eq!(
+            error.to_string(),
+            "RGBA8 image 2x3 requires 24 bytes; received 23"
+        );
+        assert!(WidgetRasterImage::from_rgba8(0, 3, Vec::new()).is_err());
+    }
+}
 
 /// Authoritative geometry for one native widget after layout.
 ///
@@ -209,6 +318,15 @@ impl<'a> PaintContext<'a> {
     /// Direct access to the backend-neutral scene while the painting API is evolving.
     pub fn scene_mut(&mut self) -> &mut Scene {
         &mut self.scene
+    }
+
+    /// Draw a retained RGBA image scaled to the complete widget content box.
+    pub fn draw_raster_image(&mut self, image: &WidgetRasterImage) {
+        let transform = Affine::scale_non_uniform(
+            f64::from(self.width) / f64::from(image.width),
+            f64::from(self.height) / f64::from(image.height),
+        );
+        self.scene.draw_image((&image.brush).into(), transform);
     }
 
     /// Paint shaped text at a content-local origin with final pixel alignment.

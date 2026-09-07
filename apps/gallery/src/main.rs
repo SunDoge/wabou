@@ -3,10 +3,10 @@
 use snafu::{ResultExt, Whatever};
 use wabou::WindowOptions;
 
-#[cfg(not(feature = "vello-hybrid"))]
+#[cfg(feature = "gpui")]
+use wabou::GpuiHostBuilder as SelectedHostBuilder;
+#[cfg(not(feature = "gpui"))]
 use wabou::HostBuilder as SelectedHostBuilder;
-#[cfg(feature = "vello-hybrid")]
-use wabou::WinitHostBuilder as SelectedHostBuilder;
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
@@ -15,10 +15,10 @@ fn main() -> Result<(), Whatever> {
         .persist_window_size("main")
         .window(
             WindowOptions::new()
-                .title(if cfg!(feature = "vello-hybrid") {
-                    "Wabou Components · Vello Hybrid"
-                } else {
+                .title(if cfg!(feature = "gpui") {
                     "Wabou Components"
+                } else {
+                    "Wabou Components · Vello Hybrid"
                 })
                 .initial_inner_size(1280, 840)
                 .min_inner_size(900, 600),
@@ -30,8 +30,12 @@ fn main() -> Result<(), Whatever> {
             )
         });
 
-    #[cfg(not(feature = "vello-hybrid"))]
+    #[cfg(feature = "gpui")]
     let builder = builder.native_widget("fractal", gallery::fractal::gpui_factory());
+    #[cfg(not(feature = "gpui"))]
+    let builder = builder.widget("fractal", || {
+        Box::new(gallery::fractal::WinitFractal::default())
+    });
 
     builder
         .run()

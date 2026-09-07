@@ -1,7 +1,7 @@
 //! Native host executable for the terminal example.
 
 use snafu::{ResultExt, Whatever};
-use wabou::{HostBuilder, WindowOptions};
+use wabou::{GpuiHostBuilder as HostBuilder, WindowOptions};
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {

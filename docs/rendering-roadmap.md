@@ -1,18 +1,18 @@
 # Rendering roadmap
 
-GPUI-CE remains Wabou's default application runtime and production baseline.
-Winit, Taffy, Parley, and Vello Hybrid form a parallel first-class backend
-track. Both run the same Solid bundle and mutation protocol, but are selected
-at compile time rather than through `WindowOptions`, so backend-specific
-widget types remain explicit and neither backend silently emulates the other.
+Winit, Taffy, Parley, and Vello Hybrid are Wabou's default application runtime.
+GPUI-CE remains an explicit comparison backend and implementation reference.
+Both run the same Solid bundle and mutation protocol, but are selected at
+compile time rather than through `WindowOptions`, so backend-specific widget
+types remain explicit and neither backend silently emulates the other.
 
 Backend behavior was first evaluated with the isolated
 [`experiments/anyrender-backends`](../experiments/anyrender-backends/README.md)
 harness. Its implementation currently still lives under transitional
-`wabou-legacy-*` crate names, but `WinitHostBuilder` makes the Hybrid path a
-real, independently runnable application backend. Formal GPUI layout fixtures
-remain authoritative for the default backend; Winit fixtures must report their
-own backend and never masquerade as GPUI results.
+`wabou-legacy-*` crate names, but `HostBuilder` now selects the Hybrid path and
+`GpuiHostBuilder` selects the comparison path. Fixtures and captures must
+always report their actual backend; results from one backend never prove the
+other.
 
 ## Highest priority: preserve Solid invalidation in GPUI
 
@@ -50,16 +50,19 @@ non-blocking presentation patches needed until upstream catches up.
 Run it against the shared 7GUIs application with:
 
 ```bash
-wabou run apps/7guis --features vello-hybrid
-wabou run apps/gallery --features vello-hybrid
+wabou run apps/7guis
+wabou run apps/gallery
 wabou test apps/7guis/tests/app.behavior.ts \
-  --app apps/7guis --native --features vello-hybrid
+  --app apps/7guis --native
+
+# Comparison backend
+wabou run apps/gallery --features gpui
 ```
 
 Vite HMR and typed application capabilities now share the same transport and
 contract APIs as the GPUI host. Host services, Rust-to-JavaScript producers,
 application directories, SQLite KV, window persistence, and DevTools are also
-mounted by `WinitHostBuilder`. A single public `HostMessageRouter` can address
+mounted by the default `HostBuilder`. A single public `HostMessageRouter` can address
 either backend, and the Winit builder additionally exposes effect tape
 record/replay plus native event-loop extensions. Initial and JavaScript-created
 windows now share one runtime source factory, so dynamic windows inherit the
@@ -82,12 +85,13 @@ group opacity/blending, nested SVG images, and embedded raster images. Masks,
 filter graphs, pattern paints, and complex clip paths produce structured
 diagnostics instead of entering unsupported Hybrid code paths. This adapter is
 renderer-side infrastructure; the application backend is exposed separately
-as `WinitHostBuilder` and does not change GPUI's default role.
+through the default `HostBuilder`; `WinitHostBuilder` remains a transitional
+explicit name while backend crates are reorganized.
 
-Keep GPUI as the default backend until the required imaging, native-widget,
-pixel-fixture, and platform input contracts pass on Hybrid. New shared runtime
-features must remain backend-neutral; renderer-specific features require an
-explicit backend implementation and test instead of fallback behavior.
+New shared runtime features must remain backend-neutral. Renderer-specific
+features require an explicit implementation and test instead of fallback
+behavior. GPUI is retained as a quality comparison and source of implementation
+lessons, not as the semantic owner of new Wabou APIs.
 
 ## Target crate boundaries
 
@@ -127,9 +131,8 @@ Apply the reorganization in this order:
    renderer helpers such as SVG conversion in a private supporting crate when
    that preserves incremental compilation; package count is an implementation
    detail and must not expand the public API.
-4. Make the facade features `backend-gpui` (default) and
-   `backend-vello-hybrid`. Export named builders for both; keep `HostBuilder` as
-   the GPUI alias while it is the default. Backend choice remains compile-time,
+4. Keep `HostBuilder` as the Vello Hybrid default and export
+   `GpuiHostBuilder` for comparison. Backend choice remains compile-time,
    so applications do not ship both platform stacks accidentally.
 5. Run shared protocol/component behavior suites once per backend, followed by
    backend-labelled layout, pixel, native-input, and platform smoke tests. A

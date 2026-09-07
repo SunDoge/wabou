@@ -83,12 +83,13 @@ impl ImageResource {
     }
 
     /// Lazily decoded and cached by GPUI when an image element first paints.
-    pub(crate) fn gpui_image(&self) -> Arc<wabou_shell::gpui::Image> {
+    #[doc(hidden)]
+    pub fn gpui_image(&self) -> Arc<wabou_shell::gpui::Image> {
         self.gpui.clone()
     }
 
-    #[cfg(test)]
-    pub(crate) fn to_rgba8(&self) -> image::RgbaImage {
+    /// Copy the original image into RGBA8 for native rendering or processing.
+    pub fn to_rgba8(&self) -> image::RgbaImage {
         self.source.to_rgba8()
     }
 }

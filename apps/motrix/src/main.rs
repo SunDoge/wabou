@@ -1,8 +1,8 @@
 use motrix_wabou::downloads;
 use snafu::{ResultExt, Whatever};
 use wabou::{
-    AppDirectoryConfig, HostBuilder, HostMessage, HostMessageRouter, WindowBackground,
-    WindowOptions, initial_window_resource_key,
+    AppDirectoryConfig, GpuiHostBuilder as HostBuilder, HostMessage, HostMessageRouter,
+    WindowBackground, WindowOptions, initial_window_resource_key,
 };
 use wabou::{SystemTray, TrayImage};
 

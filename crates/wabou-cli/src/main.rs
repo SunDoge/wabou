@@ -230,7 +230,7 @@ enum Commands {
         #[arg(long, value_name = "PNG")]
         out: PathBuf,
         /// Rendering backend used for this isolated capture.
-        #[arg(long, value_enum, default_value = "gpui")]
+        #[arg(long, value_enum, default_value = "vello-hybrid")]
         renderer: RenderBackend,
         #[arg(long, default_value_t = 1440)]
         width: u32,
@@ -1505,7 +1505,7 @@ mod tests {
         else {
             panic!("expected render command");
         };
-        assert_eq!(renderer, RenderBackend::Gpui);
+        assert_eq!(renderer, RenderBackend::VelloHybrid);
         assert_eq!(window_id, 1);
         assert_eq!(scale_factor, 1.0);
         assert_eq!(color_scheme, HeadlessColorScheme::Light);

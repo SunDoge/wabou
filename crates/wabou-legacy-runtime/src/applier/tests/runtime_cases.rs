@@ -994,7 +994,7 @@ fn image_resource_failure_routes_to_the_current_node_handle() {
     let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     applier.dispatch_image_resource_error(
         node,
-        Some(crate::ImageResourceHandle { lo: 7, hi: 3 }),
+        crate::ImageResourceHandle::from_parts(7, 3),
         "bad image",
     );
 
@@ -1038,7 +1038,7 @@ fn image_resource_ready_reports_intrinsic_dimensions() {
 
     applier.dispatch_image_resource_ready(
         NodeKey::new(2, 1),
-        crate::ImageResourceHandle { lo: 9, hi: 5 },
+        crate::ImageResourceHandle::from_parts(9, 5).unwrap(),
         2.0,
         1.0,
     );

@@ -16,7 +16,8 @@ use wabou_shell::WakeCallback;
 use crate::ui_inbox::{UiInbox, UiInboxSender};
 
 #[derive(Default)]
-pub(crate) struct HostTaskTracker {
+#[doc(hidden)]
+pub struct HostTaskTracker {
     active: Mutex<usize>,
     idle: Condvar,
 }
@@ -40,7 +41,8 @@ impl HostTaskTracker {
         }
     }
 
-    pub(crate) fn wait_for_idle(&self, timeout: Duration) -> bool {
+    #[doc(hidden)]
+    pub fn wait_for_idle(&self, timeout: Duration) -> bool {
         let active = self
             .active
             .lock()
@@ -63,10 +65,12 @@ impl Drop for HostTaskGuard {
 
 /// Default bound: producers `try_send` and get [`HostMessageError::Full`] when the
 /// UI thread is not draining fast enough.
-pub(crate) const DEFAULT_HOST_MESSAGE_CAPACITY: usize = 1024;
+#[doc(hidden)]
+pub const DEFAULT_HOST_MESSAGE_CAPACITY: usize = 1024;
 
 /// Max messages forwarded to JS in a single frame.
-const MAX_HOST_MESSAGES_PER_FRAME: usize = 128;
+#[doc(hidden)]
+pub const MAX_HOST_MESSAGES_PER_FRAME: usize = 128;
 
 /// Max UTF-8 topic length (u16).
 pub const MAX_TOPIC_BYTES: usize = 0xffff;
@@ -309,7 +313,8 @@ impl HostMessageRouter {
         sender(message)
     }
 
-    pub(crate) fn attach(&self, context: HostMessageContext) {
+    #[doc(hidden)]
+    pub fn attach(&self, context: HostMessageContext) {
         let messages = context.messages().clone();
         let lease = self.attach_sender(context.window_key(), move |message| messages.send(message));
         let cancellation = context.clone();
@@ -367,7 +372,8 @@ pub struct HostMessageContext {
 }
 
 impl HostMessageContext {
-    pub(crate) fn new(
+    #[doc(hidden)]
+    pub fn new(
         window_key: wabou_shell::WindowResourceKey,
         messages: HostMessageHandle,
         cancellation: CancellationToken,
@@ -530,25 +536,30 @@ fn validate_message(msg: &HostMessage) -> Result<(), HostMessageError> {
 }
 
 /// Receiver half owned by the applier (UI thread).
-pub(crate) struct HostMessageInbox {
+#[doc(hidden)]
+pub struct HostMessageInbox {
     inbox: UiInbox<HostMessage>,
 }
 
 impl HostMessageInbox {
-    pub(crate) fn set_wake(&self, wake: WakeCallback) {
+    #[doc(hidden)]
+    pub fn set_wake(&self, wake: WakeCallback) {
         self.inbox.set_wake(wake);
     }
 
-    pub(crate) fn has_pending(&self) -> bool {
+    #[doc(hidden)]
+    pub fn has_pending(&self) -> bool {
         self.inbox.has_pending()
     }
 
-    pub(crate) fn drain_batch(&self) -> Vec<HostMessage> {
+    #[doc(hidden)]
+    pub fn drain_batch(&self) -> Vec<HostMessage> {
         self.inbox.drain_up_to(MAX_HOST_MESSAGES_PER_FRAME)
     }
 }
 
-pub(crate) fn host_message_channel(capacity: usize) -> (HostMessageHandle, HostMessageInbox) {
+#[doc(hidden)]
+pub fn host_message_channel(capacity: usize) -> (HostMessageHandle, HostMessageInbox) {
     let capacity = capacity.max(1);
     let (tx, inbox) = crate::ui_inbox::bounded(capacity);
     (HostMessageHandle { tx }, HostMessageInbox { inbox })

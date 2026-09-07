@@ -190,6 +190,32 @@ mod tests {
     }
 
     #[test]
+    fn vello_hybrid_renders_public_widget_raster_images() {
+        let raster = crate::WidgetRasterImage::from_rgba8(
+            2,
+            2,
+            [
+                240, 20, 60, 255, 240, 20, 60, 255, 240, 20, 60, 255, 240, 20, 60, 255,
+            ]
+            .to_vec(),
+        )
+        .unwrap();
+        let mut text = crate::TextContext::new();
+        let mut paint = crate::PaintContext::new(16.0, 16.0, 1.0, &mut text);
+        paint.draw_raster_image(&raster);
+        let image = render_to_image(
+            &paint.finish(),
+            16,
+            16,
+            Color::BLACK,
+            RendererBackend::VelloHybrid,
+        )
+        .unwrap();
+
+        assert_eq!(image.get_pixel(8, 8).0, [240, 20, 60, 255]);
+    }
+
+    #[test]
     fn default_offscreen_renderer_replays_anyrender_scene() {
         let image = render_to_image(
             &comparison_scene(),

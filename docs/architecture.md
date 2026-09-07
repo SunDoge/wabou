@@ -21,8 +21,9 @@ Application (Solid state and explicit UI intent)
 ```
 
 Wabou applies each completed Solid flush to one retained native projection.
-GPUI owns the default layout, text, painting, input, and platform path. The
-experimental Winit backend owns an independent Taffy/Parley/Vello Hybrid path.
+Winit, Taffy, Parley, and Vello Hybrid own the default layout, text, painting,
+input, and platform path. GPUI remains an independent comparison backend and a
+reference for native text/input behavior.
 Wabou shares the versioned operation protocol, Style IR, application semantics,
 resource keys, and QuickJS contract; it does not force both native backends
 through a lowest-common-denominator widget trait.

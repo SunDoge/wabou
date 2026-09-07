@@ -19,16 +19,16 @@ widgets.
 
 ## Stateless widgets
 
-Register a stateless element with `HostBuilder::native_widget`. The factory is
+Register a GPUI comparison element with `GpuiHostBuilder::native_widget`. The factory is
 called while GPUI materializes a frame and receives the exact authored
 attributes plus the stable generational node key:
 
 ```rust
-use wabou::{HostBuilder, gpui};
+use wabou::{GpuiHostBuilder, gpui};
 use wabou::gpui::{IntoElement as _, Styled as _};
 
-# fn host() -> HostBuilder {
-HostBuilder::new().native_widget("meter", |context, _window, _cx| {
+# fn host() -> GpuiHostBuilder {
+GpuiHostBuilder::new().native_widget("meter", |context, _window, _cx| {
     let config = context.config_json().unwrap_or(r#"{"value":0}"#);
     gpui::div()
         .size_full()
@@ -65,19 +65,19 @@ an HTML element or CSS behavior from the tag name.
 ## Stateful widgets
 
 GPUI elements are ephemeral descriptions. Put stable mutable state in a GPUI
-entity and return it with `HostBuilder::native_entity_widget`. On later frames,
+entity and return it with `GpuiHostBuilder::native_entity_widget`. On later frames,
 recover the entity from `NativeWidgetContext::entity`:
 
 ```rust
-use wabou::{HostBuilder, NativeWidgetMount, gpui};
+use wabou::{GpuiHostBuilder, NativeWidgetMount, gpui};
 use wabou::gpui::{AppContext as _, IntoElement as _};
 
 struct MeterState {
     value: String,
 }
 
-# fn host() -> HostBuilder {
-HostBuilder::new().native_entity_widget("meter", |context, _window, cx| {
+# fn host() -> GpuiHostBuilder {
+GpuiHostBuilder::new().native_entity_widget("meter", |context, _window, cx| {
     let entity = context.entity::<MeterState>().unwrap_or_else(|| {
         cx.new(|_| MeterState {
             value: context.attribute("value").unwrap_or("0").to_owned(),
