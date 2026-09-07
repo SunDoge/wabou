@@ -202,6 +202,23 @@ await renderLayoutFixtures({
       },
     },
     {
+      id: "timestow/workspace-many-snapshots",
+      width: 900,
+      height: 620,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, {
+          role: "textbox",
+          name: "Filter snapshots",
+        });
+        getLayoutNode(fixture, {
+          role: "region",
+          name: "Snapshot history",
+        });
+        getLayoutNode(fixture, { role: "table", name: "Snapshot files" });
+      },
+    },
+    {
       id: "timestow/workspace-empty",
       width: 900,
       height: 620,

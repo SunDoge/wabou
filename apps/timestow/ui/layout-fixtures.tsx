@@ -73,6 +73,24 @@ const previousSnapshot: SnapshotEntry = {
   deleteProtected: false,
 };
 
+const manySnapshots: readonly SnapshotEntry[] = Array.from(
+  { length: 12 },
+  (_, index) => ({
+    ...newestSnapshot,
+    id: `snapshot-history-${String(index).padStart(2, "0")}`,
+    time: `2026-09-${String(12 - index).padStart(2, "0")}T00:42:00Z`,
+    parentId:
+      index === 11
+        ? undefined
+        : `snapshot-history-${String(index + 1).padStart(2, "0")}`,
+    label:
+      index === 0
+        ? "Before reorganizing the family photo archive"
+        : `Nightly backup ${12 - index}`,
+    deleteProtected: index === 0,
+  }),
+);
+
 const rootFiles: readonly FileEntry[] = [
   {
     name: "Documents",
@@ -353,6 +371,17 @@ function PagedWorkspaceFixture() {
   );
 }
 
+function ManySnapshotsWorkspaceFixture() {
+  return (
+    <WorkspaceFixture
+      rustic={{
+        ...fixtureRustic,
+        listSnapshots: () => [...manySnapshots],
+      }}
+    />
+  );
+}
+
 function EmptyWorkspaceFixture() {
   return (
     <WorkspaceFixture
@@ -526,6 +555,12 @@ defineLayoutFixtures(
       height: 620,
       waitMs: 100,
       render: PagedWorkspaceFixture,
+    },
+    "timestow/workspace-many-snapshots": {
+      width: 900,
+      height: 620,
+      waitMs: 100,
+      render: ManySnapshotsWorkspaceFixture,
     },
     "timestow/workspace-empty": {
       width: 900,

@@ -27,8 +27,10 @@ import {
   formatModified,
   SnapshotBrowserEmptyState,
   SnapshotFileRow,
+  SnapshotHistory,
   SnapshotWorkspaceHeader,
   snapshotAfterRefresh,
+  snapshotMatchesQuery,
 } from "../../apps/timestow/ui/snapshots";
 import { SortableTableHead } from "../../apps/timestow/ui/sortable-table-head";
 import {
@@ -215,6 +217,46 @@ test("snapshot refresh never carries a selection into an empty profile", () => {
   expect(snapshotAfterRefresh([], current.id, false)).toBeUndefined();
   expect(snapshotAfterRefresh([current], undefined, true)).toBe(current);
   expect(snapshotAfterRefresh([current], current.id, false)).toBe(current);
+});
+
+test("long snapshot histories filter by user-facing metadata", () => {
+  const snapshots = Array.from({ length: 8 }, (_, index) => ({
+    id: `snapshot-${index}`,
+    time: `2026-09-${String(index + 1).padStart(2, "0")}T04:18:00Z`,
+    hostname: `workstation-${index}`,
+    paths: ["/data/photos"],
+    filesNew: index,
+    filesChanged: 0,
+    label: `Backup ${index}`,
+    tags: index === 7 ? ["milestone"] : [],
+    deleteProtected: false,
+  }));
+  const [query, setQuery] = createSignal("");
+  const select = vi.fn();
+  const screen = renderComponent(() => (
+    <SnapshotHistory
+      loading={false}
+      snapshots={snapshots}
+      query={query()}
+      onQueryChange={setQuery}
+      onSelect={select}
+    />
+  ));
+
+  expect(snapshotMatchesQuery(snapshots[7]!, "milestone")).toBe(true);
+  screen
+    .getByRole("textbox", { name: "Filter snapshots" })
+    .input("workstation-7");
+  expect(
+    screen.getByRole("button", { name: "Open snapshot Backup 7" }),
+  ).toBeDefined();
+  expect(
+    screen.queryByRole("button", { name: "Open snapshot Backup 0" }),
+  ).toBeNull();
+
+  screen.getByRole("button", { name: "Clear snapshot filter" }).click();
+  screen.getByRole("button", { name: "Open snapshot Backup 0" }).click();
+  expect(select).toHaveBeenCalledWith(snapshots[0]);
 });
 
 test("sortable table headers use a quiet readable surface", () => {

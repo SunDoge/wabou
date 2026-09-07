@@ -306,6 +306,154 @@ export function SnapshotBrowserEmptyState(props: {
   );
 }
 
+export function snapshotMatchesQuery(
+  snapshot: SnapshotEntry,
+  query: string,
+): boolean {
+  const normalized = query.trim().toLocaleLowerCase();
+  if (!normalized) return true;
+  return [
+    snapshot.label,
+    snapshot.id,
+    snapshot.hostname,
+    snapshot.time,
+    formatSnapshotTime(snapshot.time),
+    ...snapshot.tags,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .some((value) => value.toLocaleLowerCase().includes(normalized));
+}
+
+export function SnapshotHistory(props: {
+  loading: boolean;
+  snapshots: readonly SnapshotEntry[];
+  selectedId?: string;
+  query: string;
+  onQueryChange(query: string): void;
+  onSelect(snapshot: SnapshotEntry): void;
+}) {
+  const filtered = () =>
+    props.snapshots.filter((snapshot) =>
+      snapshotMatchesQuery(snapshot, props.query),
+    );
+  const searchable = () => props.snapshots.length >= 8;
+  return (
+    <ProjectionBoundary
+      id="rustic-sidebar"
+      role="region"
+      aria-label="Snapshot history"
+      class="w-64 min-h-0 flex-none flex flex-col border-r border-subtle bg-surface-muted"
+    >
+      <View class="flex-none px-3 py-3 flex flex-col gap-2 border-b border-subtle">
+        <Text class="px-1 text-xs font-semibold tracking-wide text-muted">
+          Snapshot history
+        </Text>
+        <Show when={searchable()}>
+          <InputGroup>
+            <InputGroupAddon align="inline-start" class="px-2.5">
+              <Icon source={search} size={13} class="text-muted" />
+            </InputGroupAddon>
+            <InputGroupInput
+              aria-label="Filter snapshots"
+              placeholder="Filter snapshots…"
+              value={props.query}
+              onInput={(event) => props.onQueryChange(event.currentTarget.value)}
+            />
+            <Show when={props.query.trim()}>
+              <InputGroupAddon align="inline-end" class="px-1.5">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  class="w-6 h-6"
+                  aria-label="Clear snapshot filter"
+                  onClick={() => props.onQueryChange("")}
+                >
+                  <Icon source={x} size={12} />
+                </Button>
+              </InputGroupAddon>
+            </Show>
+          </InputGroup>
+        </Show>
+      </View>
+      <ScrollArea
+        class="min-h-0 flex-1"
+        contentClass="flex flex-col gap-1 p-2"
+      >
+        <Show
+          when={!props.loading && props.snapshots.length > 0}
+          fallback={
+            <ContentState
+              state={props.loading ? "loading" : "empty"}
+              title={props.loading ? "Loading snapshots" : "No snapshots yet"}
+              description={
+                props.loading
+                  ? undefined
+                  : "Run your first backup to create a snapshot."
+              }
+              class="border-0 shadow-none"
+            />
+          }
+        >
+          <Show
+            when={filtered().length > 0}
+            fallback={
+              <ContentState
+                state="empty"
+                title="No matching snapshots"
+                description="Try a label, date, host, tag, or snapshot ID."
+                action={{
+                  label: "Clear filter",
+                  onAction: () => props.onQueryChange(""),
+                }}
+                class="border-0 shadow-none"
+              />
+            }
+          >
+            <ForValue each={filtered()}>
+              {(snapshot) => (
+                <Button
+                  aria-label={`Open snapshot ${snapshot.label || formatSnapshotTime(snapshot.time)}`}
+                  variant="ghost"
+                  selected={props.selectedId === snapshot.id}
+                  class="min-h-14 justify-start px-3"
+                  onClick={() => props.onSelect(snapshot)}
+                >
+                  <View class="min-w-0 flex-1 flex flex-col items-start gap-0.5">
+                    <Text class="w-full truncate font-medium">
+                      {snapshot.label || formatSnapshotTime(snapshot.time)}
+                    </Text>
+                    <View class="w-full min-w-0 flex flex-row items-center gap-1.5">
+                      <Show when={snapshot.deleteProtected}>
+                        <Icon
+                          source={shieldCheck}
+                          size={12}
+                          class="flex-none text-success-primary"
+                        />
+                      </Show>
+                      <Text
+                        class={
+                          props.selectedId === snapshot.id
+                            ? "min-w-0 flex-1 truncate text-xs text-secondary"
+                            : "min-w-0 flex-1 truncate text-xs text-muted"
+                        }
+                      >
+                        {snapshot.label
+                          ? `${formatSnapshotTime(snapshot.time)} · `
+                          : ""}
+                        {shortId(snapshot.id)} · {snapshot.hostname || "Unknown host"}
+                      </Text>
+                    </View>
+                  </View>
+                </Button>
+              )}
+            </ForValue>
+          </Show>
+        </Show>
+      </ScrollArea>
+    </ProjectionBoundary>
+  );
+}
+
 export function SnapshotsPage() {
   const api = useRusticApi();
   const session = useTimestowSession();
@@ -316,6 +464,7 @@ export function SnapshotsPage() {
   const [fileTotal, setFileTotal] = createSignal(0);
   const [selectedEntry, setSelectedEntry] = createSignal<FileEntry>();
   const [searchQuery, setSearchQuery] = createSignal("");
+  const [snapshotQuery, setSnapshotQuery] = createSignal("");
   const [searchResults, setSearchResults] = createSignal<FileEntry[]>([]);
   const [searchActive, setSearchActive] = createSignal(false);
   const [searching, setSearching] = createSignal(false);
@@ -341,6 +490,7 @@ export function SnapshotsPage() {
     setFileTotal(0);
     setSelectedEntry(undefined);
     setSearchQuery("");
+    setSnapshotQuery("");
     setSearchResults([]);
     setSearchActive(false);
     setSearching(false);
@@ -669,81 +819,17 @@ export function SnapshotsPage() {
         )}
       </Show>
       <View class="min-w-0 min-h-0 flex-1 flex flex-row bg-surface">
-        <ProjectionBoundary
-          id="rustic-sidebar"
-          role="region"
-          aria-label="Snapshot history"
-          class="w-64 min-h-0 flex-none flex flex-col border-r border-subtle bg-surface-muted"
-        >
-          <View class="flex-none px-4 py-4 border-b border-subtle">
-            <Text class="text-xs font-semibold tracking-wide text-muted">
-              Snapshot history
-            </Text>
-          </View>
-          <ScrollArea
-            class="min-h-0 flex-1"
-            contentClass="flex flex-col gap-1 p-2"
-          >
-            <Show
-              when={!loading() && snapshots().length > 0}
-              fallback={
-                <ContentState
-                  state={loading() ? "loading" : "empty"}
-                  title={loading() ? "Loading snapshots" : "No snapshots yet"}
-                  description={
-                    loading()
-                      ? undefined
-                      : "Run your first backup to create a snapshot."
-                  }
-                  class="border-0 shadow-none"
-                />
-              }
-            >
-              <ForValue each={snapshots()}>
-                {(snapshot) => (
-                  <Button
-                    aria-label={`Open snapshot ${snapshot.label || formatSnapshotTime(snapshot.time)}`}
-                    variant="ghost"
-                    selected={selected()?.id === snapshot.id}
-                    class="min-h-14 justify-start px-3"
-                    onClick={() => {
-                      const profile = session.activeProfile();
-                      if (profile) selectSnapshot(profile.id, snapshot);
-                    }}
-                  >
-                    <View class="min-w-0 flex-1 flex flex-col items-start gap-0.5">
-                      <Text class="font-medium">
-                        {snapshot.label || formatSnapshotTime(snapshot.time)}
-                      </Text>
-                      <View class="w-full min-w-0 flex flex-row items-center gap-1.5">
-                        <Show when={snapshot.deleteProtected}>
-                          <Icon
-                            source={shieldCheck}
-                            size={12}
-                            class="flex-none text-success-primary"
-                          />
-                        </Show>
-                        <Text
-                          class={
-                            selected()?.id === snapshot.id
-                              ? "min-w-0 flex-1 truncate text-xs text-secondary"
-                              : "min-w-0 flex-1 truncate text-xs text-muted"
-                          }
-                        >
-                          {snapshot.label
-                            ? `${formatSnapshotTime(snapshot.time)} · `
-                            : ""}
-                          {shortId(snapshot.id)} ·{" "}
-                          {snapshot.hostname || "Unknown host"}
-                        </Text>
-                      </View>
-                    </View>
-                  </Button>
-                )}
-              </ForValue>
-            </Show>
-          </ScrollArea>
-        </ProjectionBoundary>
+        <SnapshotHistory
+          loading={loading()}
+          snapshots={snapshots()}
+          selectedId={selected()?.id}
+          query={snapshotQuery()}
+          onQueryChange={setSnapshotQuery}
+          onSelect={(snapshot) => {
+            const profile = session.activeProfile();
+            if (profile) selectSnapshot(profile.id, snapshot);
+          }}
+        />
 
         <ProjectionBoundary
           id="rustic-file-browser"
