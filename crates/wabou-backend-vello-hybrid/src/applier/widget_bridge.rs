@@ -319,13 +319,11 @@ impl Applier {
                         .insert(n.node_id, geometry);
                 }
                 if width > 0.0 && height > 0.0 {
-                    let border_inset = n.border_widths.into_iter().fold(0.0_f32, f32::max);
-                    let inner_radius =
-                        (f64::from(n.paint.border_radii.max()) - f64::from(border_inset)).max(0.0);
-                    let mut paint = vello_shell::PaintContext::new_clipped_at(
+                    let content_radii = content_box_radii(n);
+                    let mut paint = vello_shell::PaintContext::new_clipped_with_radii_at(
                         width,
                         height,
-                        inner_radius,
+                        content_radii,
                         self.frame.device_scale,
                         geometry.local_to_window,
                         tcx,
@@ -445,6 +443,18 @@ impl Applier {
     }
 }
 
+fn content_box_radii(node: &PlacedNode) -> vello_shell::style::CornerRadii {
+    let [x0, y0, x1, y1] = node.rect;
+    let [content_x, content_y] = node.content_origin;
+    let [width, height] = node.content_size;
+    node.paint.border_radii.inset_sides([
+        (content_y - y0).max(0.0),
+        (x1 - content_x - width).max(0.0),
+        (y1 - content_y - height).max(0.0),
+        (content_x - x0).max(0.0),
+    ])
+}
+
 fn localize_widget_event(input: &UiEvent, geometry: vello_shell::WidgetGeometry) -> UiEvent {
     let transform = Affine::new(geometry.window_to_local);
     let local = |point: gpui_shell::Point| {
@@ -479,6 +489,37 @@ mod tests {
             local_to_window: [2.0, 0.0, 0.0, 2.0, 100.0, 20.0],
             window_to_local: [0.5, 0.0, 0.0, 0.5, -50.0, -10.0],
         }
+    }
+
+    #[test]
+    fn native_widget_clip_is_resolved_against_the_content_box() {
+        let node = PlacedNode {
+            node_id: NodeId::from(0_u64),
+            parent_node_id: None,
+            depth: 0,
+            rect: [0.0, 0.0, 200.0, 32.0],
+            content_origin: [11.0, 5.0],
+            content_size: [178.0, 22.0],
+            clip: None,
+            clip_radius: 0.0,
+            clip_radii: Default::default(),
+            clip_depth: None,
+            own_clip: None,
+            own_clip_radius: 0.0,
+            own_clip_radii: Default::default(),
+            border_widths: [1.0; 4],
+            scroll: Default::default(),
+            paint: Paint {
+                border_radii: vello_shell::style::CornerRadii::uniform(6.0),
+                ..Paint::default()
+            },
+        };
+
+        assert_eq!(
+            content_box_radii(&node),
+            vello_shell::style::CornerRadii::default(),
+            "input padding places its native editor beyond the outer curve"
+        );
     }
 
     #[test]

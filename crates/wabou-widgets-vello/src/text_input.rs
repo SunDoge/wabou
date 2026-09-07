@@ -712,12 +712,16 @@ impl TextInput {
             && self.blink_on
             && let Some(cursor) = self.editor.cursor_geometry(1.5)
         {
+            let caret_width = (cursor.x1 - cursor.x0).max(1.5);
+            let caret_x = cursor
+                .x0
+                .clamp(0.0, (f64::from(self.viewport_width) - caret_width).max(0.0));
             scene.fill(
                 Fill::NonZero,
                 transform,
                 self.caret_color(),
                 None,
-                &Rect::new(cursor.x0, cursor.y0, cursor.x1, cursor.y1),
+                &Rect::new(caret_x, cursor.y0, caret_x + caret_width, cursor.y1),
             );
         }
         metrics
@@ -1168,6 +1172,7 @@ impl TextInput {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use vello_common::kurbo::Shape;
     use wabou_shell::{
         ClipboardRequest, KeyEvent, Modifiers, Point, PointerButton, PointerEvent, WheelEvent,
     };
@@ -1181,6 +1186,25 @@ mod tests {
             modifiers: Modifiers::default(),
             properties: Default::default(),
         })
+    }
+
+    #[test]
+    fn empty_input_keeps_the_complete_caret_inside_its_content_box() {
+        let mut input = TextInput::new();
+        input.focus_changed(true);
+        let mut text = TextContext::new();
+        let scene = input.paint(180.0, 22.0, &mut text);
+        let caret = scene
+            .commands
+            .iter()
+            .find_map(|command| match command {
+                wabou_shell_vello::PaintCommand::Fill { shape, .. } => Some(shape.bounding_box()),
+                _ => None,
+            })
+            .expect("focused empty editor paints a caret");
+
+        assert!(caret.x0 >= 0.0);
+        assert!(caret.width() >= 1.5);
     }
 
     fn key(key: &str) -> UiEvent {

@@ -266,11 +266,28 @@ impl<'a> PaintContext<'a> {
         device_scale: f64,
         text: &'a mut TextContext,
     ) -> Self {
+        Self::new_clipped_with_radii(
+            width,
+            height,
+            crate::style::CornerRadii::uniform(radius as f32),
+            device_scale,
+            text,
+        )
+    }
+
+    /// Create a context clipped by four independently resolved content-box radii.
+    pub fn new_clipped_with_radii(
+        width: f32,
+        height: f32,
+        radii: crate::style::CornerRadii,
+        device_scale: f64,
+        text: &'a mut TextContext,
+    ) -> Self {
         let mut context = Self::new(width, height, device_scale, text);
         context.scene.push_clip_layer(
             Affine::IDENTITY,
             &Rect::new(0.0, 0.0, f64::from(width), f64::from(height))
-                .to_rounded_rect(radius.max(0.0)),
+                .to_rounded_rect(radii.as_f64_tuple()),
         );
         context.owns_clip = true;
         context
@@ -286,6 +303,20 @@ impl<'a> PaintContext<'a> {
         text: &'a mut TextContext,
     ) -> Self {
         let mut context = Self::new_clipped(width, height, radius, device_scale, text);
+        context.local_to_window = Affine::new(local_to_window);
+        context
+    }
+
+    /// Create a four-corner clipped context with its logical window transform.
+    pub fn new_clipped_with_radii_at(
+        width: f32,
+        height: f32,
+        radii: crate::style::CornerRadii,
+        device_scale: f64,
+        local_to_window: [f64; 6],
+        text: &'a mut TextContext,
+    ) -> Self {
+        let mut context = Self::new_clipped_with_radii(width, height, radii, device_scale, text);
         context.local_to_window = Affine::new(local_to_window);
         context
     }

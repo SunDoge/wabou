@@ -45,6 +45,21 @@ impl CornerRadii {
         }
     }
 
+    /// Inset each corner by the larger of its adjacent box-edge insets.
+    ///
+    /// This maps a rounded border box onto an inner content box. A content
+    /// corner that is already past either curved edge becomes square instead
+    /// of incorrectly clipping native widget paint a second time.
+    #[must_use]
+    pub fn inset_sides(self, [top, right, bottom, left]: [f32; 4]) -> Self {
+        Self {
+            top_left: (self.top_left - left.max(top)).max(0.0),
+            top_right: (self.top_right - right.max(top)).max(0.0),
+            bottom_right: (self.bottom_right - right.max(bottom)).max(0.0),
+            bottom_left: (self.bottom_left - left.max(bottom)).max(0.0),
+        }
+    }
+
     /// Expand every corner, clamping at zero.
     #[must_use]
     pub fn expand(self, amount: f32) -> Self {
