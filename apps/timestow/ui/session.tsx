@@ -168,10 +168,23 @@ export function TimestowSessionProvider(props: {
   const profileRemovalOperations = new Map<string, Promise<void>>();
   const profileMutationTails = new Map<string, Promise<void>>();
 
+  function assertProfileAvailable(profileId: string): void {
+    if (!profileRemovalOperations.has(profileId)) return;
+    const profile = profiles().find((item) => item.id === profileId);
+    throw new Error(
+      `${profile?.name ?? "This backup"} is being forgotten; wait for that operation to finish`,
+    );
+  }
+
   function enqueueProfileMutation<T>(
     profileId: string,
     mutation: () => Promise<T>,
   ): Promise<T> {
+    try {
+      assertProfileAvailable(profileId);
+    } catch (cause) {
+      return Promise.reject(cause);
+    }
     const previous = profileMutationTails.get(profileId) ?? Promise.resolve();
     const result = previous.then(mutation);
     const tail = result.then(
@@ -216,6 +229,7 @@ export function TimestowSessionProvider(props: {
   }
 
   async function activateProfile(profileId: string): Promise<boolean> {
+    assertProfileAvailable(profileId);
     const profile = profiles().find((item) => item.id === profileId);
     if (!profile) throw new Error(`backup profile ${profileId} was not found`);
     const profileName = profile.name;
@@ -316,6 +330,7 @@ export function TimestowSessionProvider(props: {
     mode: "create" | "open",
     input: ConnectProfileInput,
   ): Promise<BackupProfile> {
+    if (input.id) assertProfileAvailable(input.id);
     const existing = input.id
       ? profiles().find((profile) => profile.id === input.id)
       : undefined;
@@ -428,6 +443,7 @@ export function TimestowSessionProvider(props: {
   }
 
   function beginOperation(profileId: string, operationId: string): void {
+    assertProfileAvailable(profileId);
     setLocallyPendingOperationIds((current) => {
       const next = new Set(current);
       next.add(`${profileId}\u0000${operationId}`);
@@ -481,6 +497,7 @@ export function TimestowSessionProvider(props: {
     profileId: string,
     scheduled = false,
   ): Promise<SnapshotEntry> {
+    assertProfileAvailable(profileId);
     const profile = profiles().find((item) => item.id === profileId);
     if (!profile) throw new Error(`backup profile ${profileId} was not found`);
     if (!runtime().unlockedProfileIds.includes(profileId)) {

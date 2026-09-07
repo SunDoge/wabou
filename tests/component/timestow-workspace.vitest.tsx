@@ -2237,6 +2237,105 @@ test("a backup cannot be forgotten while its extraction is active", async () => 
   screen.dispose();
 });
 
+test("forgetting a backup locks its lifecycle until native cleanup settles", async () => {
+  const profile = {
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/data/repository",
+    sources: ["/data/photos"],
+  };
+  let finishNativeForget!: () => void;
+  const nativeForget = new Promise<{ unlockedProfileIds: string[] }>(
+    (resolve) => {
+      finishNativeForget = () => resolve({ unlockedProfileIds: [] });
+    },
+  );
+  const save = vi.fn<ProfileStore["save"]>(async () => {});
+  const remove = vi.fn<ProfileStore["remove"]>(async () => {});
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
+    save,
+    setActive: async () => {},
+    remove,
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 14,
+      status: async () => ({ unlockedProfileIds: [profile.id] }),
+      forgetProfile: () => nativeForget,
+      runBackup: async () => ({
+        snapshot: {
+          id: "unexpected",
+          time: "2026-09-08T00:00:00Z",
+          hostname: "workstation",
+          paths: profile.sources,
+          filesNew: 0,
+          filesChanged: 0,
+          label: "",
+          tags: [],
+          deleteProtected: false,
+        },
+      }),
+    },
+  });
+  const Controls = () => {
+    const session = useTimestowSession();
+    const [result, setResult] = createSignal("ready");
+    const report = (operation: Promise<unknown>) =>
+      void operation.catch((cause) =>
+        setResult(cause instanceof Error ? cause.message : String(cause)),
+      );
+    return (
+      <>
+        <Button
+          aria-label="Forget Photos"
+          onClick={() => report(session.forgetProfile(profile.id))}
+        />
+        <Button
+          aria-label="Rename Photos"
+          onClick={() => report(session.renameProfile(profile.id, "Archive"))}
+        />
+        <Button
+          aria-label="Back up Photos"
+          onClick={() => report(session.runBackup(profile.id))}
+        />
+        <Text role="status">{result()}</Text>
+      </>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Controls />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("ready");
+  });
+  screen.getByRole("button", { name: "Forget Photos" }).click();
+  expect(fixture.callsTo("rustic.forgetProfile")).toHaveLength(1);
+
+  screen.getByRole("button", { name: "Rename Photos" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toContain("is being forgotten");
+  });
+  screen.getByRole("button", { name: "Back up Photos" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toContain("is being forgotten");
+  });
+  expect(save).not.toHaveBeenCalled();
+  expect(fixture.callsTo("rustic.runBackup")).toHaveLength(0);
+
+  finishNativeForget();
+  await screen.waitFor(() => {
+    expect(remove).toHaveBeenCalledWith(profile.id);
+  });
+  screen.dispose();
+});
+
 test("a backup stays available for retry when durable forgetting fails", async () => {
   const profile = {
     id: "photos",
