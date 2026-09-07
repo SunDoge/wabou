@@ -35,9 +35,35 @@ export interface BackupConnectionFormProps {
 }
 
 export function BackupConnectionForm(props: BackupConnectionFormProps) {
+  const [passwordPresent, setPasswordPresent] = createSignal(false);
+  const [confirmationPresent, setConfirmationPresent] = createSignal(false);
   const ready = () =>
-    Boolean(props.name.trim() && props.path.trim()) && !props.pending;
+    Boolean(
+      props.name.trim() &&
+        props.path.trim() &&
+        passwordPresent() &&
+        (!creating() || props.locked || confirmationPresent()),
+    ) && !props.pending;
   const creating = () => props.mode === "create";
+
+  createEffect(
+    () => props.passwordSecret,
+    () => {
+      setPasswordPresent(false);
+    },
+  );
+  createEffect(
+    () => props.confirmationSecret,
+    () => {
+      setConfirmationPresent(false);
+    },
+  );
+  createEffect(
+    () => creating() && !props.locked,
+    (requiresConfirmation) => {
+      if (!requiresConfirmation) setConfirmationPresent(false);
+    },
+  );
   const storageDescription = () => {
     if (props.locked)
       return "This profile reconnects to its existing encrypted repository.";
@@ -137,6 +163,9 @@ export function BackupConnectionForm(props: BackupConnectionFormProps) {
                 aria-label="Repository password"
                 secret={secret}
                 placeholder="Required to encrypt or unlock"
+                onSecretStateChange={(event) =>
+                  setPasswordPresent(event.hasValue)
+                }
                 onKeyDown={(event) => {
                   if (
                     event.key !== "Enter" ||
@@ -158,6 +187,9 @@ export function BackupConnectionForm(props: BackupConnectionFormProps) {
               aria-label="Confirm repository password"
               secret={props.confirmationSecret}
               placeholder="Enter the same password again"
+              onSecretStateChange={(event) =>
+                setConfirmationPresent(event.hasValue)
+              }
               onKeyDown={(event) => {
                 if (event.key !== "Enter" || !ready()) return;
                 event.preventDefault();

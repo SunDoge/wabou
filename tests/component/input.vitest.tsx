@@ -5,7 +5,7 @@ import {
 } from "@wabou/test/component";
 import { Editor, Input, PasswordInput, Text, TextArea, View } from "@wabou/ui";
 import { createSignal } from "solid-js";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
 test("updates controlled single-line and multiline editors", () => {
   const App = () => {
@@ -187,11 +187,13 @@ test("removes all visual chrome from nested native editors", () => {
 });
 
 test("keeps password contents behind a Rust secret handle", () => {
+  const onSecretStateChange = vi.fn();
   const screen = renderComponent(() => (
     <PasswordInput
       secret="account-master-password"
       aria-label="Master password"
       placeholder="Enter password"
+      onSecretStateChange={onSecretStateChange}
     />
   ));
   const password = screen.getByRole("textbox", { name: "Master password" });
@@ -201,4 +203,8 @@ test("keeps password contents behind a Rust secret handle", () => {
   expect(password.attribute("placeholder")).toBe("Enter password");
   expect(password.value).toBeNull();
   expect(password.text).toBe("");
+  password.emit("secretstatechange", { hasValue: true });
+  expect(onSecretStateChange).toHaveBeenCalledWith(
+    expect.objectContaining({ hasValue: true }),
+  );
 });

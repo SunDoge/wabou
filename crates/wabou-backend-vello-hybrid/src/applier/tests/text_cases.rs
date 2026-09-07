@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn password_input_keeps_secret_out_of_attrs_and_js_events() {
+fn password_input_exposes_only_redacted_presence_to_js() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     js.with(|ctx| {
@@ -43,7 +43,7 @@ fn password_input_keeps_secret_out_of_attrs_and_js_events() {
     });
     applier.apply_op(&Op::AddEventListener {
         id: NodeKey::new(2, 1),
-        event_type: event::INPUT,
+        event_type: event::SECRETSTATECHANGE,
     });
     let mut tcx = TextContext::new();
     applier.build_frame(&mut tcx, 800, 600);
@@ -66,14 +66,13 @@ fn password_input_keeps_secret_out_of_attrs_and_js_events() {
             .attrs
             .contains_key(&value)
     );
-    assert_eq!(
-        applier
-            .runtime
-            .js
-            .with(|ctx| ctx.eval::<usize, _>("globalThis.dispatched.length"))
-            .unwrap(),
-        0
-    );
+    let payload = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<String, _>("globalThis.dispatched[0][2]"))
+        .unwrap();
+    assert_eq!(payload, r#"{"hasValue":true}"#);
+    assert!(!payload.contains("hunter2"));
     assert_eq!(secrets.take("master-password").as_str(), "hunter2");
     assert_eq!(
         applier

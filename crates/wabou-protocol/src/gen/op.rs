@@ -82,6 +82,7 @@ pub mod event {
     pub const IMEDISABLED: u8 = 37;
     pub const WINDOWCLOSEREQUESTED: u8 = 38;
     pub const TRANSITIONEND: u8 = 39;
+    pub const SECRETSTATECHANGE: u8 = 40;
 }
 
 #[allow(missing_docs)]

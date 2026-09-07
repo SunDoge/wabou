@@ -99,12 +99,23 @@ test("repository setup chooses a mode before exposing one primary action", () =>
   expect(password.tag).toBe("password-input");
   expect(password.attribute("secret")).toBe("timestow:test");
   expect(password.value).toBeNull();
+  expect(screen.getByRole("button", { name: "Create backup" }).disabled).toBe(
+    true,
+  );
+  password.emit("secretstatechange", { hasValue: true });
+  expect(screen.getByRole("button", { name: "Create backup" }).disabled).toBe(
+    true,
+  );
   const confirmation = screen.getByRole("textbox", {
     name: "Confirm repository password",
   });
   expect(confirmation.tag).toBe("password-input");
   expect(confirmation.attribute("secret")).toBe("timestow:test:confirmation");
   expect(confirmation.value).toBeNull();
+  confirmation.emit("secretstatechange", { hasValue: true });
+  expect(screen.getByRole("button", { name: "Create backup" }).disabled).toBe(
+    false,
+  );
 
   screen.getByRole("button", { name: "Open an existing repository" }).click();
   screen.flush();
@@ -113,6 +124,9 @@ test("repository setup chooses a mode before exposing one primary action", () =>
   expect(
     screen.queryByRole("textbox", { name: "Confirm repository password" }),
   ).toBeNull();
+  expect(screen.getByRole("button", { name: "Open repository" }).disabled).toBe(
+    false,
+  );
   screen.getByRole("button", { name: "Open repository" }).click();
   expect(submit).toHaveBeenCalledTimes(1);
 });

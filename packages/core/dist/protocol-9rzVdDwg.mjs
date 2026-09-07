@@ -272,7 +272,8 @@ const EVENT_CODE = {
 	imedeletesurrounding: 36,
 	imedisabled: 37,
 	windowcloserequested: 38,
-	transitionend: 39
+	transitionend: 39,
+	secretstatechange: 40
 };
 const EVENT_DATA_SLOT = {
 	clientX: 0,
@@ -677,4 +678,4 @@ var Writer = class {
 //#endregion
 export { formatResourceKeyParts as C, createResourceKeyFamily as S, validateResourceKeyParts as T, isNodeKey as _, GRAPHIC_SOURCE as a, nodeKeyFromSlotMapFfi as b, HOST_RECORD_KIND as c, TEXT_BEHAVIOR as d, Writer as f, formatNodeKey as g, ROOT_NODE_KEY as h, GRAPHIC_DATA as i, INTERACTION_POLICY as l, NodeKeyTable as m, EVENT_DATA_LEN as n, HOST_FRAME as o, NodeKeyAllocator as p, EVENT_DATA_SLOT as r, HOST_NODE_PAYLOAD as s, EVENT_CODE as t, OP as u, nodeKey as v, isResourceKeyParts as w, ResourceKeyTable as x, nodeKeyEquals as y };
 
-//# sourceMappingURL=protocol-BSt1kJCB.mjs.map
+//# sourceMappingURL=protocol-9rzVdDwg.mjs.map
