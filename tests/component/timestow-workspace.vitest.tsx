@@ -966,6 +966,64 @@ test("rustic session hydrates durable profiles and exposes their locked state", 
   expect(fixture.callsTo("rustic.status")).toHaveLength(1);
 });
 
+test("renaming a backup persists presentation metadata without touching Rust", async () => {
+  const profile = {
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/data/repository",
+    sources: ["/data/photos"],
+  };
+  const save = vi.fn<ProfileStore["save"]>(async () => {});
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
+    save,
+    setActive: async () => {},
+    remove: async () => {},
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 9,
+      status: async () => ({
+        unlockedProfileIds: [profile.id],
+        activeProfileId: profile.id,
+      }),
+    },
+  });
+  const Controls = () => {
+    const session = useTimestowSession();
+    return (
+      <>
+        <Button
+          aria-label="Rename Photos"
+          onClick={() => void session.renameProfile(profile.id, "Home archive")}
+        />
+        <Text role="status">{session.activeProfile()?.name ?? "none"}</Text>
+      </>
+    );
+  };
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <Controls />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("Photos");
+  });
+  screen.getByRole("button", { name: "Rename Photos" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("status").text).toBe("Home archive");
+  });
+  expect(save).toHaveBeenCalledWith(
+    { ...profile, name: "Home archive" },
+    { activate: false },
+  );
+  expect(fixture.callsTo("rustic.status")).toHaveLength(1);
+});
+
 test("forgetting a backup clears native credentials before durable profile metadata", async () => {
   const profile = {
     id: "photos",
@@ -1336,9 +1394,10 @@ test("schedule dialog explains the runtime boundary and exposes its controls", a
   ).toContain("Every 6 hours");
 });
 
-test("rustic sidebar exposes stable navigation and repository status", () => {
+test("rustic sidebar exposes stable navigation and repository actions", async () => {
   const selectProfile = vi.fn<(profileId: string) => void>();
   const forgetProfile = vi.fn<(profileId: string) => void>();
+  const renameProfile = vi.fn(async (_profileId: string, _name: string) => {});
   const create = vi.fn<() => void>();
   const screen = renderComponent(() => (
     <TimestowSidebar
@@ -1354,6 +1413,7 @@ test("rustic sidebar exposes stable navigation and repository status", () => {
       unlockedProfileIds={["photos"]}
       onCreate={create}
       onSelectProfile={selectProfile}
+      onRenameProfile={renameProfile}
       onForgetProfile={forgetProfile}
     />
   ));
@@ -1365,6 +1425,16 @@ test("rustic sidebar exposes stable navigation and repository status", () => {
   expect(selectProfile).toHaveBeenCalledWith("photos");
   screen.getByRole("button", { name: "New backup" }).click();
   expect(create).toHaveBeenCalledOnce();
+
+  screen.getByRole("button", { name: "Photos" }).contextMenu();
+  screen.getByRole("menuitem", { name: "Rename backup…" }).click();
+  const name = screen.getByRole("textbox", { name: "Backup name" });
+  expect(name.value).toBe("Photos");
+  name.input("Family archive");
+  screen.getByRole("button", { name: "Rename" }).click();
+  await screen.waitFor(() => {
+    expect(renameProfile).toHaveBeenCalledWith("photos", "Family archive");
+  });
 
   screen.getByRole("button", { name: "Photos" }).contextMenu();
   screen.getByRole("menuitem", { name: "Forget backup…" }).click();

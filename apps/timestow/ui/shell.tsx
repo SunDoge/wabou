@@ -7,11 +7,18 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  Button,
   ColorThemeProvider,
   ComponentsProvider,
   ContextMenu,
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Icon,
   IconFrame,
+  Input,
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -42,6 +49,7 @@ export interface TimestowSidebarProps {
   onCreate(): void;
   onSelectProfile(profileId: string): void;
   onForgetProfile(profileId: string): void;
+  onRenameProfile(profileId: string, name: string): void | Promise<void>;
 }
 
 export function SessionErrorBanner(props: {
@@ -64,6 +72,27 @@ export function SessionErrorBanner(props: {
 
 export function TimestowSidebar(props: TimestowSidebarProps) {
   const [forgetCandidate, setForgetCandidate] = createSignal<BackupProfile>();
+  const [renameCandidate, setRenameCandidate] = createSignal<BackupProfile>();
+  const [renameName, setRenameName] = createSignal("");
+  const [renaming, setRenaming] = createSignal(false);
+  const [renameError, setRenameError] = createSignal<string>();
+
+  async function saveRename(close: () => void): Promise<void> {
+    const profile = renameCandidate();
+    const name = renameName().trim();
+    if (!profile || !name || renaming()) return;
+    setRenaming(true);
+    setRenameError(undefined);
+    try {
+      await props.onRenameProfile(profile.id, name);
+      close();
+    } catch (cause) {
+      setRenameError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setRenaming(false);
+    }
+  }
+
   return (
     <>
       <Sidebar
@@ -96,12 +125,22 @@ export function TimestowSidebar(props: TimestowSidebarProps) {
                       aria-label={`${profile.name} actions`}
                       items={[
                         {
+                          id: "rename",
+                          label: "Rename backup…",
+                        },
+                        {
                           id: "forget",
                           label: "Forget backup…",
                           destructive: true,
+                          separatorBefore: true,
                         },
                       ]}
                       onAction={(action) => {
+                        if (action === "rename") {
+                          setRenameCandidate(profile);
+                          setRenameName(profile.name);
+                          setRenameError(undefined);
+                        }
                         if (action === "forget") setForgetCandidate(profile);
                       }}
                       trigger={(menu) => (
@@ -152,6 +191,65 @@ export function TimestowSidebar(props: TimestowSidebarProps) {
           </SidebarMenuButton>
         </SidebarFooter>
       </Sidebar>
+      <Dialog
+        aria-label="Rename backup"
+        open={renameCandidate() !== undefined}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameCandidate(undefined);
+            setRenameError(undefined);
+          }
+        }}
+      >
+        {(dialog) => (
+          <View class="min-w-0 flex flex-col gap-4">
+            <DialogHeader>
+              <DialogTitle>Rename backup</DialogTitle>
+              <DialogDescription>
+                Change the name shown in Timestow. The repository and its
+                snapshots stay untouched.
+              </DialogDescription>
+            </DialogHeader>
+            <View class="min-w-0 flex flex-col gap-1.5">
+              <Text class="text-sm font-medium">Backup name</Text>
+              <Input
+                aria-label="Backup name"
+                value={renameName()}
+                onInput={(event) => setRenameName(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void saveRename(dialog.close);
+                  }
+                }}
+              />
+              <Show when={renameError()}>
+                {(message) => (
+                  <Text role="alert" class="text-sm text-danger-primary">
+                    {message()}
+                  </Text>
+                )}
+              </Show>
+            </View>
+            <DialogFooter>
+              <Button variant="outline" onClick={dialog.close}>
+                Cancel
+              </Button>
+              <Button
+                loading={renaming()}
+                loadingLabel="Renaming…"
+                disabled={
+                  !renameName().trim() ||
+                  renameName().trim() === renameCandidate()?.name
+                }
+                onClick={() => void saveRename(dialog.close)}
+              >
+                Rename
+              </Button>
+            </DialogFooter>
+          </View>
+        )}
+      </Dialog>
       <AlertDialog
         aria-label="Forget backup"
         open={forgetCandidate() !== undefined}
@@ -231,6 +329,9 @@ export function AppShell(props: { children?: JSX.Element }) {
               void navigate({ to: "/" });
             }}
             onSelectProfile={(profileId) => void selectProfile(profileId)}
+            onRenameProfile={(profileId, name) =>
+              session.renameProfile(profileId, name)
+            }
             onForgetProfile={(profileId) => void forgetProfile(profileId)}
           />
           <View class="min-w-0 min-h-0 flex-1 flex flex-col">

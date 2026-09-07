@@ -217,6 +217,7 @@ function NewBackupFixture() {
             unlockedProfileIds={[]}
             onCreate={() => {}}
             onSelectProfile={() => {}}
+            onRenameProfile={() => {}}
             onForgetProfile={() => {}}
           />
           <View class="min-w-0 min-h-0 flex-1 px-6 py-5">
@@ -254,6 +255,7 @@ function UnlockBackupFixture() {
             unlockedProfileIds={[]}
             onCreate={() => {}}
             onSelectProfile={() => {}}
+            onRenameProfile={() => {}}
             onForgetProfile={() => {}}
           />
           <View class="min-w-0 min-h-0 flex-1 px-6 py-5">

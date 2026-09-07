@@ -54,6 +54,7 @@ interface TimestowSession {
   beginCreate(): void;
   activateProfile(profileId: string): Promise<boolean>;
   forgetProfile(profileId: string): Promise<void>;
+  renameProfile(profileId: string, name: string): Promise<void>;
   connectProfile(
     mode: "create" | "open",
     input: ConnectProfileInput,
@@ -186,6 +187,24 @@ export function TimestowSessionProvider(props: {
       delete remaining[profileId];
       return remaining;
     });
+    setError(undefined);
+  }
+
+  async function renameProfile(profileId: string, name: string): Promise<void> {
+    const profile = profiles().find((item) => item.id === profileId);
+    if (!profile) throw new Error(`backup profile ${profileId} was not found`);
+    const normalized = name.trim();
+    if (!normalized) throw new Error("backup name is required");
+    if (
+      profiles().some(
+        (item) =>
+          item.id !== profileId &&
+          item.name.toLocaleLowerCase() === normalized.toLocaleLowerCase(),
+      )
+    ) {
+      throw new Error(`a backup named ${normalized} already exists`);
+    }
+    await persistProfile({ ...profile, name: normalized });
     setError(undefined);
   }
 
@@ -444,6 +463,7 @@ export function TimestowSessionProvider(props: {
         beginCreate,
         activateProfile,
         forgetProfile,
+        renameProfile,
         connectProfile,
         updateSources,
         updateSchedule,
