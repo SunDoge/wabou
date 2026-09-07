@@ -18,14 +18,14 @@ const FLAG_CANCELLABLE: u8 = 1;
 
 #[derive(Debug, Clone, PartialEq)]
 /// Stack-backed numeric payload which encodes only the event's used prefix.
-pub(crate) struct NumericEventData {
+pub struct NumericEventData {
     values: [f64; wabou_protocol::event_data::LEN],
     len: u16,
 }
 
 impl NumericEventData {
     /// Retain `values` without allocating and expose only `len` slots on wire.
-    pub(crate) fn prefix(values: [f64; wabou_protocol::event_data::LEN], len: usize) -> Self {
+    pub fn prefix(values: [f64; wabou_protocol::event_data::LEN], len: usize) -> Self {
         assert!(len <= wabou_protocol::event_data::LEN);
         Self {
             values,
@@ -40,7 +40,7 @@ impl NumericEventData {
 
 #[derive(Debug, Clone, PartialEq)]
 /// Payload representation for an unsolicited event targeting one Solid node.
-pub(crate) enum NodeEventPayload {
+pub enum NodeEventPayload {
     /// Event-specific prefix of the generated numeric event-data slots.
     Numeric(NumericEventData),
     /// Event-specific JSON object.
@@ -49,7 +49,7 @@ pub(crate) enum NodeEventPayload {
 
 #[derive(Debug, Clone, PartialEq)]
 /// Unsolicited event addressed to one retained Solid node.
-pub(crate) struct HostNodeEvent {
+pub struct HostNodeEvent {
     /// Solid node identifier.
     pub target: NodeKey,
     /// Generated event discriminator.
@@ -64,7 +64,7 @@ pub(crate) struct HostNodeEvent {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// Content-box size observation for one retained Solid node.
-pub(crate) struct ResizeObservation {
+pub struct ResizeObservation {
     /// Solid node identifier.
     pub target: NodeKey,
     /// Content-box width in logical pixels.
@@ -75,7 +75,7 @@ pub(crate) struct ResizeObservation {
 
 #[derive(Debug, Clone, PartialEq)]
 /// Record that can be batched into one Rust-to-JavaScript host frame.
-pub(crate) enum HostEvent {
+pub enum HostEvent {
     /// Event addressed to one retained node.
     Node(HostNodeEvent),
     /// ResizeObserver-compatible content-box observation.
@@ -86,7 +86,7 @@ pub(crate) enum HostEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Boundary validation failure while encoding an atomic host frame.
-pub(crate) enum HostFrameError {
+pub enum HostFrameError {
     /// Record count exceeds the host-frame record limit.
     TooManyRecords,
     /// Complete frame or a record exceeds the binary ABI limit.
@@ -169,7 +169,7 @@ fn encode_application(out: &mut Vec<u8>, msg: &HostMessage) -> Result<(), HostFr
 
 /// Encode one atomic Host frame. `monotonic_time` is relative to the runtime's
 /// own epoch; callers may pass zero for deterministic tests/replay.
-pub(crate) fn encode_host_frame(
+pub fn encode_host_frame(
     sequence: u64,
     monotonic_time: Duration,
     events: &[HostEvent],

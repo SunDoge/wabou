@@ -11,7 +11,6 @@ extern crate legacy_shell as wabou_shell;
 mod atom;
 mod behavior_test;
 mod bundle;
-use runtime_api::clock;
 mod config;
 mod effect_bridge;
 #[allow(dead_code)] // Fixture-only trace mode is retained for the Winit behavior harness.
@@ -22,8 +21,12 @@ mod gpui_controller;
 mod host;
 #[cfg(test)]
 use runtime_api::host_abi;
-use runtime_api::host_ffi;
-mod host_frame;
+mod host_frame {
+    pub use runtime_api::{
+        HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, NumericEventData,
+        ResizeObservation,
+    };
+}
 mod host_message {
     pub use runtime_api::{
         DEFAULT_HOST_MESSAGE_CAPACITY, HostMessage, HostMessageContext, HostMessageHandle,
@@ -32,13 +35,16 @@ mod host_message {
     };
 }
 mod inline_context;
-use runtime_api::intl;
-mod jsrt;
+mod jsrt {
+    pub use runtime_api::{
+        HostFrameDisposition, JsRuntime, JsRuntimeOptions, LayoutMetric, LayoutMetricsSnapshot,
+        LayoutRect, ResizeTargets,
+    };
+}
 mod protocol;
 mod reload;
 pub mod resource;
 mod runtime_session;
-use runtime_api::source_map;
 use runtime_api::ui_inbox;
 #[cfg(test)]
 mod widget;

@@ -56,4 +56,5 @@ vite = ["runtime-api/vite"]
 
 [dev-dependencies]
 proptest = "1"
+runtime-api = { package = "wabou-runtime", path = "../wabou-runtime", features = ["devtools"] }
 tempfile = "3"

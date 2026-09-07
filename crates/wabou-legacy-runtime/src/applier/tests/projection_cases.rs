@@ -24,6 +24,7 @@ fn overlay_change_wakes_and_invalidates_an_idle_frame_source_once() {
             callback_wakes.fetch_add(1, std::sync::atomic::Ordering::Release);
         }),
     );
+    let initial_wakes = wakes.load(std::sync::atomic::Ordering::Acquire);
 
     assert!(
         state
@@ -34,7 +35,10 @@ fn overlay_change_wakes_and_invalidates_an_idle_frame_source_once() {
                 ..Default::default()
             })
     );
-    assert_eq!(wakes.load(std::sync::atomic::Ordering::Acquire), 1);
+    assert_eq!(
+        wakes.load(std::sync::atomic::Ordering::Acquire),
+        initial_wakes + 1
+    );
     assert!(FrameSource::poll_async(&mut applier));
     assert!(!FrameSource::poll_async(&mut applier));
 }

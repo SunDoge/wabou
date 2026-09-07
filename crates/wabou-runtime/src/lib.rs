@@ -73,6 +73,11 @@ pub use host::{
     TextRenderingMode, managed_host_service,
 };
 #[doc(hidden)]
+pub use host_frame::{
+    HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, NumericEventData,
+    ResizeObservation, encode_host_frame,
+};
+#[doc(hidden)]
 pub use host_message::HostMessageRouteLease;
 #[doc(hidden)]
 pub use host_message::{
@@ -84,6 +89,10 @@ pub use host_message::{
 };
 pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use jsrt::{DEFAULT_QUICKJS_STACK_SIZE, JsRuntime, JsRuntimeOptions};
+#[doc(hidden)]
+pub use jsrt::{
+    HostFrameDisposition, LayoutMetric, LayoutMetricsSnapshot, LayoutRect, ResizeTargets,
+};
 #[doc(hidden)]
 pub use kv::mount_kv_methods;
 pub use native_capability::NativeCapability;

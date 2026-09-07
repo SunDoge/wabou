@@ -889,9 +889,10 @@ fn hmr_queue_full_reload_is_drained_as_full_reload_result() {
             callback_wakes.fetch_add(1, Ordering::Relaxed);
         }),
     );
+    let initial_wakes = wakes.load(Ordering::Relaxed);
     let handle = applier.reload_handle();
     handle.send(ReloadMsg::FullReload).unwrap();
-    assert_eq!(wakes.load(Ordering::Relaxed), 1);
+    assert_eq!(wakes.load(Ordering::Relaxed), initial_wakes + 1);
     assert!(FrameSource::poll_async(&mut applier));
     let mut text = TextContext::new();
     applier.build_frame(&mut text, 100, 100);

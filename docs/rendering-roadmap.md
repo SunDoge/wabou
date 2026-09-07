@@ -67,6 +67,11 @@ either backend, and the Winit builder additionally exposes effect tape
 record/replay plus native event-loop extensions. Initial and JavaScript-created
 windows now share one runtime source factory, so dynamic windows inherit the
 same capabilities, message producers, resources, source maps, and HMR setup.
+Both backends now also execute the same `JsRuntime` and encode unsolicited
+native events through the same binary Host Frame implementation. The former
+Winit copies and their duplicate QuickJS tests have been removed, so scheduler,
+wake, stack-limit, source-map, and Rust-to-JavaScript event fixes cannot drift
+between backends.
 The standard Winit controls support native text, paste, IME, pointer, wheel,
 selection, and value synchronization, and the shared semantic behavior driver
 runs against the real Winit event loop. The remaining promotion work is
@@ -121,10 +126,10 @@ their backend-specific state and optimized paths.
 
 Apply the reorganization in this order:
 
-1. Extract the duplicated backend-neutral files (`jsrt`, bundle/source-map,
-   host ABI/FFI, host messages, capabilities, resources, HMR, persistence and
-   runtime session machinery) into `wabou-runtime`. Both backends must use this
-   single implementation before any crate rename.
+1. Continue extracting duplicated backend-neutral files into `wabou-runtime`.
+   `jsrt`, Host Frame encoding, host ABI/FFI, host messages, capabilities, and
+   resources are shared already; bundle/source-map, HMR, persistence, effect
+   dispatch, and runtime-session machinery must follow before any crate rename.
 2. Move GPUI-specific `gpui_*` modules and the current `wabou-shell` projection
    into `wabou-backend-gpui`.
 3. Rename the Winit implementation to `wabou-backend-vello-hybrid`. Keep large
