@@ -77,7 +77,7 @@ struct TextInputSelection {
     head: usize,
 }
 
-fn utf16_offset_to_byte(text: &str, offset: usize) -> Option<usize> {
+pub(crate) fn utf16_offset_to_byte(text: &str, offset: usize) -> Option<usize> {
     if offset == 0 {
         return Some(0);
     }
@@ -94,7 +94,11 @@ fn utf16_offset_to_byte(text: &str, offset: usize) -> Option<usize> {
     (utf16 == offset).then_some(text.len())
 }
 
-fn surrounding_excerpt(text: &str, cursor: usize, anchor: usize) -> (String, usize, usize) {
+pub(crate) fn surrounding_excerpt(
+    text: &str,
+    cursor: usize,
+    anchor: usize,
+) -> (String, usize, usize) {
     const LIMIT: usize = 3_999;
     if text.len() <= LIMIT {
         return (text.to_owned(), cursor, anchor);

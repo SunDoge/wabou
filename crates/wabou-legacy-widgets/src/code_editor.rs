@@ -12,10 +12,13 @@ use vello::{
 };
 use wabou_shell::{
     KeyPhase, PaintContext, PointerPhase, UiEvent, Widget, WidgetEventResult, WidgetGeometry,
-    WidgetStyle, WidgetTextSelection, WidgetTextSelectionKind, decode_widget_config,
+    WidgetImePurpose, WidgetImeState, WidgetStyle, WidgetTextSelection, WidgetTextSelectionKind,
+    decode_widget_config,
     style::TextAlign,
     text::{TextRun, brush_for_color, layout_text_styled},
 };
+
+use crate::text_input::{surrounding_excerpt, utf16_offset_to_byte};
 
 const FONT_SIZE: f32 = 14.0;
 const LINE_HEIGHT: f32 = 22.0;
@@ -571,6 +574,38 @@ impl CodeEditor {
                 .then(|| (row, line.cell_for_offset(self.selection.head)))
         })
     }
+
+    fn composition_cursor_utf16(&self) -> Option<usize> {
+        let composition = self.composition.as_ref()?;
+        let cursor = composition.cursor_end?;
+        composition
+            .text
+            .get(..cursor)
+            .map(|prefix| prefix.encode_utf16().count())
+    }
+
+    fn ime_caret_area(&self) -> Option<[f32; 4]> {
+        let (row, mut cell) = self.caret_geometry()?;
+        if let Some(composition) = self.composition.as_ref()
+            && let Some(cursor) = composition.cursor_end
+            && let Some(prefix) = composition.text.get(..cursor)
+        {
+            cell += prefix
+                .chars()
+                .map(|character| UnicodeWidthChar::width(character).unwrap_or(1).max(1))
+                .sum::<usize>();
+        }
+        let visible_row = row.saturating_sub(self.scroll_row);
+        let x = self
+            .geometry
+            .x_for_cell(cell)
+            .clamp(0.0, self.viewport[0].max(0.0));
+        let y = self
+            .geometry
+            .y_for_row(visible_row)
+            .clamp(0.0, (self.viewport[1] - self.geometry.line_height).max(0.0));
+        Some([x, y, x + 1.5, y + self.geometry.line_height])
+    }
 }
 
 impl Default for CodeEditor {
@@ -872,7 +907,7 @@ impl Widget for CodeEditor {
                 WidgetEventResult::VALUE_CHANGED.with_selection_changed()
             }
             UiEvent::Ime(wabou_shell::ImeEvent::Preedit { text, cursor }) => {
-                self.composition = Some(CompositionConfig {
+                self.composition = (!text.is_empty()).then(|| CompositionConfig {
                     text: text.clone(),
                     cursor_start: cursor.map(|range| range.0),
                     cursor_end: cursor.map(|range| range.1),
@@ -1026,11 +1061,95 @@ impl Widget for CodeEditor {
     }
     fn focus_changed(&mut self, focused: bool) -> wabou_shell::WidgetChanges {
         self.focused = focused;
+        if !focused {
+            self.composition = None;
+        }
         wabou_shell::WidgetChanges::REDRAW
     }
     fn ime_cursor_area(&self) -> Option<[f32; 4]> {
-        self.focused
-            .then_some([0.0, 0.0, self.viewport[0], self.viewport[1]])
+        self.focused.then(|| self.ime_caret_area()).flatten()
+    }
+    fn ime_state(&self) -> Option<WidgetImeState> {
+        if !self.focused || self.disabled {
+            return None;
+        }
+        let from = self.selection.anchor.min(self.selection.head);
+        let to = self.selection.anchor.max(self.selection.head);
+        let cursor = utf16_offset_to_byte(&self.value, self.selection.head)?;
+        let anchor = utf16_offset_to_byte(&self.value, self.selection.anchor)?;
+        let (surrounding_text, surrounding_cursor, surrounding_anchor) =
+            surrounding_excerpt(&self.value, cursor, anchor);
+
+        let composition_length = self
+            .composition
+            .as_ref()
+            .map_or(0, |composition| composition.text.encode_utf16().count());
+        let composition_cursor = self
+            .composition_cursor_utf16()
+            .unwrap_or(composition_length);
+        let selection = if self.composition.is_some() {
+            from + composition_cursor..from + composition_cursor
+        } else {
+            from..to
+        };
+        Some(WidgetImeState {
+            cursor_area: self.ime_caret_area()?,
+            surrounding_text,
+            surrounding_cursor,
+            surrounding_anchor,
+            selection_utf16: selection,
+            selection_reversed: self.composition.is_none()
+                && self.selection.head < self.selection.anchor,
+            marked_range_utf16: self
+                .composition
+                .as_ref()
+                .map(|_| from..from + composition_length),
+            purpose: WidgetImePurpose::Normal,
+            multiline: true,
+            completion: false,
+            spellcheck: false,
+        })
+    }
+    fn ime_text_for_range(&self, range_utf16: std::ops::Range<usize>) -> Option<String> {
+        let start = utf16_offset_to_byte(&self.value, range_utf16.start)?;
+        let end = utf16_offset_to_byte(&self.value, range_utf16.end)?;
+        (start <= end).then(|| self.value[start..end].to_owned())
+    }
+    fn ime_bounds_for_range(&self, range_utf16: std::ops::Range<usize>) -> Option<[f32; 4]> {
+        if range_utf16.start > range_utf16.end || range_utf16.end > self.document_len() {
+            return None;
+        }
+        let lines = self.visual_lines();
+        let mut bounds: Option<[f32; 4]> = None;
+        for (row, line) in lines.iter().enumerate() {
+            let from = range_utf16.start.max(line.start);
+            let to = range_utf16.end.min(line.end);
+            if from > to || (from == to && range_utf16.start != range_utf16.end) {
+                continue;
+            }
+            let x0 = self.geometry.x_for_cell(line.cell_for_offset(from));
+            let x1 = self
+                .geometry
+                .x_for_cell(line.cell_for_offset(to))
+                .max(x0 + 1.5);
+            let y0 = (row as f32 - self.scroll_row as f32) * self.geometry.line_height;
+            let current = [x0, y0, x1, y0 + self.geometry.line_height];
+            bounds = Some(bounds.map_or(current, |old| {
+                [
+                    old[0].min(current[0]),
+                    old[1].min(current[1]),
+                    old[2].max(current[2]),
+                    old[3].max(current[3]),
+                ]
+            }));
+            if range_utf16.start == range_utf16.end {
+                break;
+            }
+        }
+        bounds
+    }
+    fn ime_character_index_for_point(&self, point: wabou_shell::Point) -> Option<usize> {
+        Some(self.offset_from_pointer(point.x as f32, point.y as f32))
     }
 }
 
@@ -1148,5 +1267,89 @@ mod tests {
         editor.attribute_changed("value", "true");
         let error = editor.config_changed(r#"{"selection":{"anchor":0,"head":0},"composition":null,"syntax":{"language":"json","offsetEncoding":"utf16","documentLength":5,"ranges":[]}}"#).unwrap_err();
         assert!(error.contains("length"));
+    }
+
+    #[test]
+    fn ime_snapshot_preserves_utf8_surrounding_selection_and_tracks_preedit() {
+        let mut editor = CodeEditor::new();
+        editor.attribute_changed("value", "A😀日本B");
+        editor.layout_changed(WidgetGeometry {
+            content_size: [640.0, 420.0],
+            ..Default::default()
+        });
+        configure(&mut editor, 3, 5);
+        editor.focus_changed(true);
+
+        let selected = editor.ime_state().expect("selected IME state");
+        assert_eq!(selected.surrounding_text, "A😀日本B");
+        assert_eq!(selected.surrounding_anchor, "A😀".len());
+        assert_eq!(selected.surrounding_cursor, "A😀日本".len());
+        assert_eq!(selected.selection_utf16, 3..5);
+        assert!(!selected.selection_reversed);
+        assert_eq!(selected.marked_range_utf16, None);
+        assert!(selected.cursor_area[2] - selected.cursor_area[0] <= 2.0);
+
+        editor.handle_event(&UiEvent::Ime(wabou_shell::ImeEvent::Preedit {
+            text: "かな".into(),
+            cursor: Some((6, 6)),
+        }));
+        let composing = editor.ime_state().expect("composing IME state");
+        assert_eq!(composing.surrounding_text, "A😀日本B");
+        assert_eq!(composing.marked_range_utf16, Some(3..5));
+        assert_eq!(composing.selection_utf16, 5..5);
+        assert!(composing.cursor_area[0] > selected.cursor_area[0]);
+    }
+
+    #[test]
+    fn empty_preedit_and_focus_loss_clear_editor_composition() {
+        let mut editor = CodeEditor::new();
+        editor.attribute_changed("value", "text");
+        configure(&mut editor, 4, 4);
+        editor.focus_changed(true);
+        editor.handle_event(&UiEvent::Ime(wabou_shell::ImeEvent::Preedit {
+            text: "draft".into(),
+            cursor: Some((5, 5)),
+        }));
+        assert!(editor.composition.is_some());
+
+        editor.handle_event(&UiEvent::Ime(wabou_shell::ImeEvent::Preedit {
+            text: String::new(),
+            cursor: None,
+        }));
+        assert!(editor.composition.is_none());
+
+        editor.handle_event(&UiEvent::Ime(wabou_shell::ImeEvent::Preedit {
+            text: "again".into(),
+            cursor: Some((5, 5)),
+        }));
+        editor.focus_changed(false);
+        assert!(editor.composition.is_none());
+        assert!(editor.ime_state().is_none());
+    }
+
+    #[test]
+    fn ime_range_queries_use_utf16_and_scroll_relative_geometry() {
+        let mut editor = CodeEditor::new();
+        editor.attribute_changed("value", "first\nA😀B\nlast");
+        editor.layout_changed(WidgetGeometry {
+            content_size: [640.0, LINE_HEIGHT],
+            ..Default::default()
+        });
+        editor.scroll_row = 1;
+
+        assert_eq!(editor.ime_text_for_range(7..9).as_deref(), Some("😀"));
+        assert_eq!(editor.ime_text_for_range(8..9), None);
+        let bounds = editor
+            .ime_bounds_for_range(7..9)
+            .expect("visible emoji bounds");
+        assert_eq!(bounds[1], 0.0);
+        assert_eq!(bounds[3], LINE_HEIGHT);
+        let offset = editor
+            .ime_character_index_for_point(wabou_shell::Point {
+                x: f64::from((bounds[0] + bounds[2]) * 0.5),
+                y: f64::from(LINE_HEIGHT * 0.5),
+            })
+            .expect("point offset");
+        assert!((7..=9).contains(&offset));
     }
 }
