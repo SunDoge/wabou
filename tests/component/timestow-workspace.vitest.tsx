@@ -980,9 +980,15 @@ test("file details preview and extract through the native rustic capability", as
   await screen.waitFor(() => {
     expect(fixture.callsTo("rustic.restorePath")).toHaveLength(1);
   });
+  screen.getByRole("button", { name: "Open extracted item" }).click();
+  await screen.waitFor(() => {
+    expect(fixture.callsTo("rustic.openPath")).toHaveLength(2);
+  });
 
   expect(fixture.callsTo("rustic.previewPath")).toHaveLength(1);
-  expect(fixture.callsTo("rustic.openPath")).toHaveLength(1);
+  expect(fixture.callsTo("rustic.openPath")[1]?.args[0]).toEqual({
+    path: "/tmp/export/settings.toml",
+  });
   expect(fixture.callsTo("rustic.previewRestore")).toHaveLength(1);
   expect(fixture.callsTo("rustic.restorePath")[0]?.args[0]).toEqual({
     profileId: "profile",

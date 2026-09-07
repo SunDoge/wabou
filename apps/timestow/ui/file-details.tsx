@@ -210,6 +210,17 @@ function ExtractDialog(props: {
     }
   }
 
+  async function openExtractedItem(): Promise<void> {
+    const path = result();
+    if (!path) return;
+    setError(undefined);
+    try {
+      await api.openPath({ path });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
   return (
     <Dialog
       aria-label={`Extract ${props.entry.name}`}
@@ -272,26 +283,35 @@ function ExtractDialog(props: {
               {result() ? "Done" : "Cancel"}
             </Button>
             <Show
-              when={plan()}
+              when={!result()}
               fallback={
-                <Button
-                  disabled={!destination().trim() || Boolean(pending())}
-                  loading={pending() === "plan"}
-                  loadingLabel="Reviewing…"
-                  onClick={() => void review()}
-                >
-                  Review extraction
+                <Button onClick={() => void openExtractedItem()}>
+                  Open extracted item
                 </Button>
               }
             >
-              <Button
-                disabled={Boolean(pending()) || Boolean(result())}
-                loading={pending() === "extract"}
-                loadingLabel="Extracting…"
-                onClick={() => void extract()}
+              <Show
+                when={plan()}
+                fallback={
+                  <Button
+                    disabled={!destination().trim() || Boolean(pending())}
+                    loading={pending() === "plan"}
+                    loadingLabel="Reviewing…"
+                    onClick={() => void review()}
+                  >
+                    Review extraction
+                  </Button>
+                }
               >
-                Extract
-              </Button>
+                <Button
+                  disabled={Boolean(pending())}
+                  loading={pending() === "extract"}
+                  loadingLabel="Extracting…"
+                  onClick={() => void extract()}
+                >
+                  Extract
+                </Button>
+              </Show>
             </Show>
           </DialogFooter>
         </View>
