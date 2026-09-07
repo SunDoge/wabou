@@ -68,6 +68,7 @@ export interface SnapshotDiff {
     metadata: number;
     typeChanged: number;
   };
+  /** Exact when complete; a lower bound when `truncated` is true. */
   totalEntries: number;
   truncated: boolean;
 }

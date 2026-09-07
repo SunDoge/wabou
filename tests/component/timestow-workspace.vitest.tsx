@@ -257,7 +257,7 @@ test("snapshot changes compare against the recorded parent and can include metad
     expect(screen.getByRole("row", { name: "docs/new.txt" })).toBeDefined();
   });
   expect(
-    screen.getByRole("label", { name: "Showing 2 of 10000 changes" }),
+    screen.getByRole("label", { name: "Showing first 2 changes" }),
   ).toBeDefined();
   expect(fixture.callsTo("rustic.diffSnapshots")[0]?.args[0]).toEqual({
     profileId: "photos",

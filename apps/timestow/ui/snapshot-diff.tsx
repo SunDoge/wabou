@@ -255,7 +255,7 @@ export function SnapshotDiffPanel(props: {
               </Show>
               <Text class="min-w-48 flex-1 text-right text-xs text-muted">
                 {result()?.truncated
-                  ? `Showing ${renderedChanges()} of ${totalChanges()} changes`
+                  ? `Showing first ${renderedChanges()} changes`
                   : baseSnapshot()
                     ? `Since ${formatSnapshotTime(baseSnapshot()?.time ?? "")}`
                     : `${totalChanges()} changes`}

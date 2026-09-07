@@ -540,6 +540,14 @@ impl RusticService {
                 };
             let change = diff_change(previous_node, current_node, request.include_metadata);
             if let Some(change) = change {
+                if result.entries.len() == limit {
+                    // The UI only needs to know that more changes exist. Avoid
+                    // traversing the rest of two potentially very large trees
+                    // just to compute an exact count that is not displayed.
+                    result.total_entries = limit as u64 + 1;
+                    result.truncated = true;
+                    break;
+                }
                 result.total_entries += 1;
                 match change {
                     "added" => result.summary.added += 1,
@@ -549,28 +557,26 @@ impl RusticService {
                     "typeChanged" => result.summary.type_changed += 1,
                     _ => {}
                 }
-                if result.entries.len() < limit {
-                    let node = current_node
-                        .or(previous_node)
-                        .expect("a diff entry has one side");
-                    let full_path = if request.path.is_empty() {
-                        relative_path.clone()
-                    } else {
-                        PathBuf::from(&request.path).join(relative_path)
-                    };
-                    result.entries.push(SnapshotDiffEntry {
-                        name: node.name().to_string_lossy().into_owned(),
-                        path: full_path.to_string_lossy().into_owned(),
-                        kind: node_kind(node),
-                        change: change.to_string(),
-                        previous_size: previous_node.map(|node| node.meta.size),
-                        current_size: current_node.map(|node| node.meta.size),
-                        previous_modified: previous_node
-                            .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
-                        current_modified: current_node
-                            .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
-                    });
-                }
+                let node = current_node
+                    .or(previous_node)
+                    .expect("a diff entry has one side");
+                let full_path = if request.path.is_empty() {
+                    relative_path.clone()
+                } else {
+                    PathBuf::from(&request.path).join(relative_path)
+                };
+                result.entries.push(SnapshotDiffEntry {
+                    name: node.name().to_string_lossy().into_owned(),
+                    path: full_path.to_string_lossy().into_owned(),
+                    kind: node_kind(node),
+                    change: change.to_string(),
+                    previous_size: previous_node.map(|node| node.meta.size),
+                    current_size: current_node.map(|node| node.meta.size),
+                    previous_modified: previous_node
+                        .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
+                    current_modified: current_node
+                        .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
+                });
             }
             if advance_previous {
                 previous = base_entries.next().transpose().map_err(display_error)?;
@@ -579,7 +585,6 @@ impl RusticService {
                 current = current_entries.next().transpose().map_err(display_error)?;
             }
         }
-        result.truncated = result.total_entries > result.entries.len() as u64;
         Ok(result)
     }
 
