@@ -1,7 +1,7 @@
 use super::*;
 
 fn decode_vector_path(data: &[u8]) -> Option<Arc<vello_shell::style::VectorPath>> {
-    use vello::kurbo::{BezPath, Cap, Join, Stroke};
+    use vello_common::kurbo::{BezPath, Cap, Join, Stroke};
 
     const MAGIC: u32 = 0x3150_4257;
     if data.len() < 36

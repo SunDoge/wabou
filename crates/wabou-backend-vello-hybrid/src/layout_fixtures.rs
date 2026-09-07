@@ -20,7 +20,7 @@
 use std::collections::HashMap;
 
 use taffy::TraversePartialTree;
-use vello::peniko::Color;
+use vello_common::peniko::Color;
 use vello_shell::layout::PlacedNode;
 use vello_shell::{FrameSource, TextContext};
 use wabou_style::IrValue;

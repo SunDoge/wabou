@@ -72,7 +72,7 @@ impl CornerRadii {
 /// Host-owned vector geometry and its renderer-independent paint contract.
 pub struct VectorPath {
     /// Decoded local-coordinate geometry.
-    pub path: Arc<vello::kurbo::BezPath>,
+    pub path: Arc<vello_common::kurbo::BezPath>,
     /// Optional fill color.
     pub fill: Option<Color>,
     /// Optional stroke color.
@@ -80,7 +80,7 @@ pub struct VectorPath {
     /// Even-odd rather than non-zero filling.
     pub even_odd: bool,
     /// Vello stroke configuration, including width, caps and joins.
-    pub stroke_style: vello::kurbo::Stroke,
+    pub stroke_style: vello_common::kurbo::Stroke,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -509,7 +509,7 @@ pub struct HostPaint {
     /// Decoded raster image retained by a replaced image node.
     pub image: Option<Arc<crate::image::RasterImage>>,
     /// Scene fragment painted by a Rust widget.
-    pub widget: Option<Arc<anyrender::Scene>>,
+    pub widget: Option<Arc<crate::Scene>>,
     /// Intrinsic content size used for automatic layout axes.
     pub intrinsic_size: Option<[f32; 2]>,
     /// Host-driven affine coefficients composed after static transforms.
@@ -605,7 +605,7 @@ pub struct Paint {
     /// Composited by `build_scene` at the node's border-box origin, on top of
     /// the standard bg+border. The host runtime calls `Widget::paint` every
     /// frame and stores the result here.
-    pub widget: Option<Arc<anyrender::Scene>>,
+    pub widget: Option<Arc<crate::Scene>>,
     /// Intrinsic content size supplied by a host widget. CSS known dimensions
     /// override either axis during Taffy measurement.
     pub intrinsic_size: Option<[f32; 2]>,

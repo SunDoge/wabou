@@ -1,11 +1,11 @@
-use anyrender::{PaintScene, Scene};
 use rio_graphics::{GraphicOverlay, kitty_image_key};
 use rio_vt::ansi::graphics::{
     AtlasPlacement, KittyPlacement, OverlayViewport, atlas_overlay_geometry, clip_overlay_to_rect,
     kitty_overlay_geometry,
 };
-use vello::kurbo::{Affine, Rect};
-use vello::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
+use vello_common::kurbo::{Affine, Rect};
+use vello_common::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
+use wabou_shell_vello::{PaintScene, Scene};
 
 use crate::graphics::TerminalGraphics;
 

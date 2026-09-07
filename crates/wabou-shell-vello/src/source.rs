@@ -7,16 +7,16 @@
 
 #![warn(missing_docs)]
 
-use vello::peniko::Color;
+use vello_common::peniko::Color;
 
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::Scene;
 use crate::layout::PlacedNode;
 use crate::style::CursorStyle;
 use crate::text::TextContext;
-use anyrender::Scene;
 
 /// Platform-facing IME snapshot produced by a focused text widget.
 #[derive(Clone, Debug, PartialEq)]

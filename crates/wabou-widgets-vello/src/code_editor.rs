@@ -3,10 +3,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyrender::{PaintScene, Scene};
 use serde::Deserialize;
 use unicode_width::UnicodeWidthChar;
-use vello::{
+use vello_common::{
     kurbo::{Affine, Rect},
     peniko::{Color, Fill},
 };
@@ -17,6 +16,7 @@ use wabou_shell::{
     style::TextAlign,
     text::{TextRun, brush_for_color, layout_text_styled},
 };
+use wabou_shell_vello::{PaintScene, Scene};
 
 use crate::text_input::{surrounding_excerpt, utf16_offset_to_byte};
 

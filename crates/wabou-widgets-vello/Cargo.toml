@@ -8,7 +8,6 @@ license.workspace = true
 publish = false
 
 [dependencies]
-anyrender.workspace = true
 image = {
   workspace = true,
   features = ["bmp", "gif", "jpeg", "png", "webp"]
@@ -17,7 +16,7 @@ parley = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
 unicode-width = { workspace = true }
-vello = { workspace = true }
+vello-common.workspace = true
 wabou-shell-vello = { workspace = true }
 wabou-protocol = { workspace = true }
 zeroize = { workspace = true }

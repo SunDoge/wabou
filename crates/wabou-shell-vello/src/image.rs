@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use vello::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
+use vello_common::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
 
 const MAX_DECODED_PIXELS: u64 = 4 * 1024 * 1024;
 const MAX_RETAINED_DIMENSION: u32 = 1024;

@@ -1,24 +1,38 @@
-//! Headless (offscreen) rendering to a PNG file.
+//! Headless Vello Hybrid rendering to PNG and RGBA pixels.
 
 use std::{
     path::{Path, PathBuf},
     sync::{Mutex, OnceLock},
 };
 
-use anyrender::{ImageRenderer, PaintScene, Scene};
 use image::ImageEncoder as _;
 use snafu::{OptionExt, ResultExt};
-use vello::kurbo::Affine;
-use vello::peniko::Color;
+use vello_common::peniko::Color;
 
-use crate::RendererBackend;
+use crate::{Scene, renderer_backend::HybridImageRenderer};
 
-static VELLO_IMAGE_RENDERER: OnceLock<Mutex<anyrender_vello::VelloImageRenderer>> = OnceLock::new();
-static VELLO_HYBRID_IMAGE_RENDERER: OnceLock<
-    Mutex<anyrender_vello_hybrid::VelloHybridImageRenderer>,
-> = OnceLock::new();
+static IMAGE_RENDERER: OnceLock<Mutex<HybridImageRenderer>> = OnceLock::new();
 
-/// Render `scene` to an RGBA8 buffer and encode it as PNG at `out_path`.
+/// Render a retained Wabou scene to an RGBA image using Vello Hybrid.
+pub fn render_to_image(
+    scene: &Scene,
+    width: u32,
+    height: u32,
+    base_color: Color,
+) -> crate::Result<image::RgbaImage> {
+    let mut renderer = IMAGE_RENDERER
+        .get_or_init(|| Mutex::new(HybridImageRenderer::new(width, height)))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    image::RgbaImage::from_raw(
+        width,
+        height,
+        renderer.render(scene, width, height, base_color),
+    )
+    .context(crate::error::InvalidImageBufferSnafu { width, height })
+}
+
+/// Render `scene` and encode it as a PNG at `out_path`.
 pub fn render_to_png(
     scene: &Scene,
     width: u32,
@@ -26,27 +40,8 @@ pub fn render_to_png(
     base_color: Color,
     out_path: &str,
 ) -> crate::Result<()> {
-    render_to_png_with_backend(
-        scene,
-        width,
-        height,
-        base_color,
-        RendererBackend::Vello,
-        out_path,
-    )
-}
-
-/// Render a scene through a selected AnyRender backend and encode it as PNG.
-pub fn render_to_png_with_backend(
-    scene: &Scene,
-    width: u32,
-    height: u32,
-    base_color: Color,
-    backend: RendererBackend,
-    out_path: &str,
-) -> crate::Result<()> {
-    let img = render_to_image(scene, width, height, base_color, backend)?;
-    img.save(out_path).context(crate::error::SavePngSnafu {
+    let image = render_to_image(scene, width, height, base_color)?;
+    image.save(out_path).context(crate::error::SavePngSnafu {
         path: PathBuf::from(out_path),
     })?;
     #[cfg(unix)]
@@ -61,7 +56,7 @@ pub fn render_to_png_with_backend(
     Ok(())
 }
 
-/// Render `scene` into an already-open, atomically reserved PNG artifact.
+/// Render into an already-open, atomically reserved PNG artifact.
 pub fn render_to_png_file(
     scene: &Scene,
     width: u32,
@@ -70,114 +65,30 @@ pub fn render_to_png_file(
     file: &mut std::fs::File,
     path: &Path,
 ) -> crate::Result<()> {
-    // This shell presents with Vello Hybrid, so DevTools captures must use the
-    // same backend rather than silently returning classic Vello pixels.
-    let img = render_to_image(
-        scene,
-        width,
-        height,
-        base_color,
-        RendererBackend::VelloHybrid,
-    )?;
+    let image = render_to_image(scene, width, height, base_color)?;
     image::codecs::png::PngEncoder::new(file)
-        .write_image(img.as_raw(), width, height, image::ExtendedColorType::Rgba8)
+        .write_image(
+            image.as_raw(),
+            width,
+            height,
+            image::ExtendedColorType::Rgba8,
+        )
         .context(crate::error::SavePngSnafu {
             path: path.to_owned(),
-        })?;
-    Ok(())
-}
-
-fn render_to_image(
-    scene: &Scene,
-    width: u32,
-    height: u32,
-    base_color: Color,
-    backend: RendererBackend,
-) -> crate::Result<image::RgbaImage> {
-    fn render_with<R: ImageRenderer>(
-        renderer: &mut R,
-        scene: &Scene,
-        width: u32,
-        height: u32,
-        base_color: Color,
-    ) -> Vec<u8> {
-        renderer.resize(width, height);
-        let mut buf = Vec::new();
-        renderer.render_to_vec(
-            |painter| {
-                // The shared image renderer retains its painter between
-                // captures. Every screenshot is a complete frame, so discard
-                // commands from the previous capture before replaying it.
-                painter.reset();
-                painter.fill(
-                    vello::peniko::Fill::NonZero,
-                    Affine::IDENTITY,
-                    base_color,
-                    None,
-                    &vello::kurbo::Rect::new(0.0, 0.0, f64::from(width), f64::from(height)),
-                );
-                painter.append_scene(scene.clone(), Affine::IDENTITY);
-            },
-            &mut buf,
-        );
-        buf
-    }
-
-    #[cfg(feature = "renderer-skia")]
-    fn render<R: ImageRenderer>(
-        scene: &Scene,
-        width: u32,
-        height: u32,
-        base_color: Color,
-    ) -> Vec<u8> {
-        render_with(&mut R::new(width, height), scene, width, height, base_color)
-    }
-
-    let buf = match backend {
-        RendererBackend::VelloHybrid => {
-            let mut renderer = VELLO_HYBRID_IMAGE_RENDERER
-                .get_or_init(|| {
-                    Mutex::new(anyrender_vello_hybrid::VelloHybridImageRenderer::new(
-                        width, height,
-                    ))
-                })
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            render_with(&mut *renderer, scene, width, height, base_color)
-        }
-        RendererBackend::Vello => {
-            let mut renderer = VELLO_IMAGE_RENDERER
-                .get_or_init(|| Mutex::new(anyrender_vello::VelloImageRenderer::new(width, height)))
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            render_with(&mut *renderer, scene, width, height, base_color)
-        }
-        RendererBackend::Skia => {
-            #[cfg(feature = "renderer-skia")]
-            {
-                render::<anyrender_skia::SkiaImageRenderer>(scene, width, height, base_color)
-            }
-            #[cfg(not(feature = "renderer-skia"))]
-            {
-                return Err(crate::Error::RendererBackendUnavailable {
-                    backend: "skia",
-                    feature: "`wabou-shell/renderer-skia`",
-                });
-            }
-        }
-    };
-
-    image::RgbaImage::from_raw(width, height, buf)
-        .context(crate::error::InvalidImageBufferSnafu { width, height })
+        })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vello::kurbo::Rect;
-    use vello::peniko::Fill;
+    use crate::PaintScene;
+    use vello_common::{
+        kurbo::{Affine, Rect},
+        peniko::Fill,
+    };
 
-    fn comparison_scene() -> Scene {
+    #[test]
+    fn direct_hybrid_renderer_replays_wabou_scene() {
         let mut scene = Scene::new();
         scene.fill(
             Fill::NonZero,
@@ -186,102 +97,50 @@ mod tests {
             None,
             &Rect::new(8.0, 8.0, 24.0, 24.0),
         );
-        scene
+        let image = render_to_image(&scene, 32, 32, Color::BLACK).unwrap();
+        assert_eq!(image.get_pixel(16, 16).0, [20, 180, 240, 255]);
+        assert_eq!(image.get_pixel(2, 2).0, [0, 0, 0, 255]);
     }
 
     #[test]
-    fn vello_hybrid_renders_public_widget_raster_images() {
-        let raster = crate::WidgetRasterImage::from_rgba8(
-            2,
-            2,
-            [
-                240, 20, 60, 255, 240, 20, 60, 255, 240, 20, 60, 255, 240, 20, 60, 255,
-            ]
-            .to_vec(),
-        )
-        .unwrap();
+    fn direct_hybrid_renderer_draws_public_raster_images() {
+        let raster =
+            crate::WidgetRasterImage::from_rgba8(2, 2, [240, 20, 60, 255].repeat(4)).unwrap();
         let mut text = crate::TextContext::new();
         let mut paint = crate::PaintContext::new(16.0, 16.0, 1.0, &mut text);
         paint.draw_raster_image(&raster);
-        let image = render_to_image(
-            &paint.finish(),
-            16,
-            16,
-            Color::BLACK,
-            RendererBackend::VelloHybrid,
-        )
-        .unwrap();
-
+        let image = render_to_image(&paint.finish(), 16, 16, Color::BLACK).unwrap();
         assert_eq!(image.get_pixel(8, 8).0, [240, 20, 60, 255]);
     }
 
     #[test]
-    fn default_offscreen_renderer_replays_anyrender_scene() {
-        let image = render_to_image(
-            &comparison_scene(),
-            32,
-            32,
-            Color::BLACK,
-            RendererBackend::Vello,
-        )
-        .unwrap();
-        assert_eq!(image.get_pixel(16, 16).0, [20, 180, 240, 255]);
+    fn direct_hybrid_renderer_applies_retained_svg_transform() {
+        let svg = crate::svg::SvgImage::parse(
+            r##"<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="#14b8a6"/></svg>"##,
+        ).unwrap();
+        let mut scene = Scene::new();
+        scene.draw_svg(svg.document().clone(), Affine::translate((12.0, 6.0)));
+        let image = render_to_image(&scene, 32, 24, Color::BLACK).unwrap();
+        assert_eq!(image.get_pixel(14, 8).0, [20, 184, 166, 255]);
         assert_eq!(image.get_pixel(2, 2).0, [0, 0, 0, 255]);
     }
 
     #[test]
-    fn concurrent_vello_captures_share_one_renderer() {
-        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
-        let workers = (0..2)
-            .map(|_| {
-                let barrier = barrier.clone();
-                std::thread::spawn(move || {
-                    barrier.wait();
-                    for _ in 0..3 {
-                        let image = render_to_image(
-                            &comparison_scene(),
-                            32,
-                            32,
-                            Color::BLACK,
-                            RendererBackend::Vello,
-                        )
-                        .unwrap();
-                        assert_eq!(image.get_pixel(16, 16).0, [20, 180, 240, 255]);
-                    }
-                })
-            })
-            .collect::<Vec<_>>();
-        for worker in workers {
-            worker.join().unwrap();
-        }
-    }
-
-    #[test]
-    fn vello_hybrid_offscreen_renderer_replays_the_same_anyrender_scene() {
-        let image = render_to_image(
-            &comparison_scene(),
-            32,
-            32,
-            Color::BLACK,
-            RendererBackend::VelloHybrid,
+    fn direct_hybrid_renderer_composes_svg_groups_and_clip_paths() {
+        let svg = crate::svg::SvgImage::parse(
+            r##"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="12">
+                <defs><clipPath id="clip"><path d="M0 0h4v4H0z"/></clipPath></defs>
+                <g transform="translate(3 2)" clip-path="url(#clip)">
+                    <g transform="translate(1 0)"><rect width="8" height="4" fill="#f43f5e"/></g>
+                </g>
+            </svg>"##,
         )
         .unwrap();
-        assert_eq!(image.get_pixel(16, 16).0, [20, 180, 240, 255]);
-        assert_eq!(image.get_pixel(2, 2).0, [0, 0, 0, 255]);
-    }
+        let mut scene = Scene::new();
+        scene.draw_svg(svg.document().clone(), Affine::translate((10.0, 5.0)));
+        let image = render_to_image(&scene, 36, 24, Color::BLACK).unwrap();
 
-    #[cfg(feature = "renderer-skia")]
-    #[test]
-    fn skia_offscreen_renderer_replays_the_same_anyrender_scene() {
-        let image = render_to_image(
-            &comparison_scene(),
-            32,
-            32,
-            Color::BLACK,
-            RendererBackend::Skia,
-        )
-        .unwrap();
-        assert_eq!(image.get_pixel(16, 16).0, [20, 180, 240, 255]);
-        assert_eq!(image.get_pixel(2, 2).0, [0, 0, 0, 255]);
+        assert_eq!(image.get_pixel(15, 8).0, [244, 63, 94, 255]);
+        assert_eq!(image.get_pixel(18, 8).0, [0, 0, 0, 255]);
     }
 }

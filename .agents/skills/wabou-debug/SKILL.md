@@ -204,7 +204,7 @@ mise exec -- bun run wabou render apps/gallery --renderer vello-hybrid --out /tm
 ```
 
 Use `--renderer vello-hybrid` to exercise the real QuickJS → Style IR → Taffy →
-AnyRender → Vello Hybrid pipeline without opening a desktop window. This path
+Wabou paint IR → Vello Hybrid pipeline without opening a desktop window. This path
 supports named fixtures and ordered `--click`, `--wheel`, `--key`, and `--text`
 replay. It does not use `DISPLAY`, `WAYLAND_DISPLAY`, or an OS input injector.
 Keep the default GPUI renderer for GPUI-specific projection and native-widget

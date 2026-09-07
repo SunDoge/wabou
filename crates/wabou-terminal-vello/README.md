@@ -1,6 +1,6 @@
 # wabou-terminal-vello
 
-This crate preserves the former winit/AnyRender terminal implementation while
+This crate contains the winit/Vello Hybrid terminal implementation while
 Wabou moves its public terminal widget to GPUI-CE. New applications should use
 `wabou-terminal`; this crate is a migration reference, not a selectable backend.
 
@@ -9,7 +9,7 @@ Wabou moves its public terminal widget to GPUI-CE. New applications should use
 `rio-vt` is deliberately renderer-free: it parses PTY bytes into a terminal
 grid and emits PTY-facing events. `TerminalWidget` owns that grid, uses Rio's
 `Machine` to drive it from a real PTY, and renders the visible cells with
-Parley and Wabou's AnyRender scene.
+Parley and Wabou's retained paint scene.
 
 ```rust
 HostBuilder::new()

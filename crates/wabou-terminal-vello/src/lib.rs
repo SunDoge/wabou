@@ -2,7 +2,7 @@
 //!
 //! `rio-vt` owns terminal semantics (VT parsing, grid, cursor, scrollback and
 //! PTY events). This crate is the frontend adapter: it translates Wabou input
-//! to PTY bytes and pulls Rio's visible grid into a retained AnyRender scene.
+//! to PTY bytes and pulls Rio's visible grid into Wabou's retained paint scene.
 
 extern crate wabou_shell_vello as wabou_shell;
 
@@ -13,7 +13,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use anyrender::{PaintScene, Scene};
 use rio_vt::ansi::CursorShape;
 use rio_vt::config::colors::term::TermColors;
 use rio_vt::config::colors::{AnsiColor, ColorRgb, NamedColor};
@@ -30,8 +29,8 @@ use rio_vt::performer::handler::Processor;
 use rio_vt::selection::{Selection, SelectionRange, SelectionType};
 use rustc_hash::FxHashMap;
 use teletypewriter::{WinsizeBuilder, create_pty_with_spawn};
-use vello::kurbo::{Affine, Rect, Stroke};
-use vello::peniko::{Color, Fill};
+use vello_common::kurbo::{Affine, Rect, Stroke};
+use vello_common::peniko::{Color, Fill};
 #[cfg(test)]
 use wabou_protocol::event;
 #[cfg(test)]
@@ -44,6 +43,7 @@ use wabou_shell_api::{
     HostAction, HostActionResult, ImeEvent, KeyPhase, Modifiers, PointerButton, PointerPhase,
     UiEvent, WHEEL_LINE_DELTA, WakeCallback,
 };
+use wabou_shell_vello::{PaintScene, Scene};
 
 mod box_drawing;
 mod color;

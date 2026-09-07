@@ -10,14 +10,6 @@ use snafu::Snafu;
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub))]
 pub enum Error {
-    /// The selected renderer was not compiled into this Wabou build.
-    #[snafu(display("renderer backend `{backend}` is unavailable; enable {feature}"))]
-    RendererBackendUnavailable {
-        /// Requested backend name.
-        backend: &'static str,
-        /// Cargo feature which enables it.
-        feature: &'static str,
-    },
     /// Native window creation failed.
     #[snafu(display("failed to create window: {source}"))]
     CreateWindow {

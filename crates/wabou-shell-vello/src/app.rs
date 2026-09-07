@@ -14,7 +14,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Wake, Waker};
 use std::time::Instant;
-use vello::peniko::Color;
+use vello_common::peniko::Color;
 use winit::application::ApplicationHandler;
 use winit::cursor::{Cursor, CursorIcon};
 use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};

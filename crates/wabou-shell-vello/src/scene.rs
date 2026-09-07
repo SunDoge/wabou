@@ -1,11 +1,11 @@
-//! Build a backend-neutral AnyRender scene from the flattened layout list.
+//! Build a retained Wabou paint scene from the flattened layout list.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyrender::{PaintScene, Scene};
-use vello::kurbo::{Affine, Rect, Stroke};
-use vello::peniko::{BlendMode, Color, Fill};
+use crate::{PaintScene, Scene};
+use vello_common::kurbo::{Affine, Rect, Stroke};
+use vello_common::peniko::{BlendMode, Color, Fill};
 
 use crate::layout::{PlacedNode, SubtreeEvent, subtree_events};
 use crate::scrollbar::{ScrollAxis, thumb as scrollbar_thumb, track as scrollbar_track};
@@ -51,7 +51,7 @@ pub fn resolve_node_transform(node: &PlacedNode, parent_transform: Affine) -> Af
         IrLength::Auto => 0.0,
     };
     let (static_transform, runtime_transform) = resolve_local_transforms(node);
-    let origin = vello::kurbo::Vec2::new(
+    let origin = vello_common::kurbo::Vec2::new(
         rect.x0 + resolve(&node.paint.transform_origin[0], x1 - x0),
         rect.y0 + resolve(&node.paint.transform_origin[1], y1 - y0),
     );
@@ -242,7 +242,7 @@ fn draw_node_box(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
     ];
     for (width, from, to) in sides {
         if width > 0.0 {
-            let line = vello::kurbo::Line::new(
+            let line = vello_common::kurbo::Line::new(
                 (f64::from(from.0), f64::from(from.1)),
                 (f64::from(to.0), f64::from(to.1)),
             );
@@ -271,10 +271,9 @@ fn draw_svg(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
     let scale = f64::from((width / svg_width).min(height / svg_height));
     let dx = f64::from(x0) + (f64::from(width) - f64::from(svg_width) * scale) * 0.5;
     let dy = f64::from(y0) + (f64::from(height) - f64::from(svg_height) * scale) * 0.5;
-    append_fragment(
-        scene,
-        svg.scene(),
-        Some(transform * Affine::translate((dx, dy)) * Affine::scale(scale)),
+    scene.draw_svg(
+        svg.document().clone(),
+        transform * Affine::translate((dx, dy)) * Affine::scale(scale),
     );
 }
 
@@ -707,7 +706,7 @@ mod tests {
             ..Paint::default()
         });
         let transform = resolve_node_transform(&node, Affine::IDENTITY);
-        let origin = vello::kurbo::Point::new(10.0, 20.0);
+        let origin = vello_common::kurbo::Point::new(10.0, 20.0);
         let transformed = transform * origin;
         assert!((transformed.x - origin.x).abs() < 1e-9);
         assert!((transformed.y - origin.y).abs() < 1e-9);

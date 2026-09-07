@@ -8,11 +8,11 @@
 
 use std::sync::Arc;
 
-use anyrender::PaintScene;
-use vello::kurbo::Affine;
-use vello::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
+use vello_common::kurbo::Affine;
+use vello_common::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
 use wabou_shell::UiEvent;
 use wabou_shell::{PaintContext, Widget, WidgetEventResult};
+use wabou_shell_vello::PaintScene;
 
 /// Legacy local-file raster image widget used for the intrinsic `img` tag.
 ///

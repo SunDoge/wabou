@@ -1,7 +1,7 @@
 //! Rust-side widget trait — the Qt-Quick / Slint pattern.
 //!
 //! Performance-sensitive widgets (TextInput, Canvas, ListView, ScrollView, …)
-//! are implemented in Rust. They paint an AnyRender `Scene` fragment every frame;
+//! are implemented in Rust. They paint a retained Wabou `Scene` fragment every frame;
 //! `build_scene` composites it at the node's border-box origin. QuickJS +
 //! SolidJS compose these widgets into apps via the binary protocol (tree
 //! structure + property values + event handlers), while the Rust widget does
@@ -20,13 +20,13 @@ use crate::style::{Paint, TextAlign};
 use crate::text::SingleLineTextMetrics;
 use crate::text::TextContext;
 use crate::{ClipboardRequest, HostAction, HostActionResult, UiEvent, WakeCallback};
-use anyrender::{PaintScene, Scene};
-use vello::kurbo::{Affine, Rect};
-use vello::peniko::{Blob, Color, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
+use crate::{PaintScene, Scene};
+use vello_common::kurbo::{Affine, Rect};
+use vello_common::peniko::{Blob, Color, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
 
 /// Immutable RGBA8 pixels which an application-defined widget can paint.
 ///
-/// This keeps AnyRender and Vello image-resource details behind Wabou's widget
+/// This keeps Vello Hybrid image-resource details behind Wabou's widget
 /// contract. Construct the image when widget data changes and reuse it across
 /// paint calls.
 #[derive(Clone)]
@@ -229,7 +229,7 @@ impl Default for WidgetGeometry {
 
 /// Per-frame painting state passed to a native widget.
 ///
-/// This is intentionally a thin boundary around AnyRender rather than a second
+/// This is intentionally a thin boundary around Wabou's paint IR rather than a second
 /// drawing API. Widgets get the geometry and text resources they need while
 /// direct scene access remains available for backend-neutral painting.
 pub struct PaintContext<'a> {

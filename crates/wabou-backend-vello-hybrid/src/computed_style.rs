@@ -15,7 +15,7 @@
 
 use std::collections::HashMap;
 
-use vello::peniko::Color;
+use vello_common::peniko::Color;
 use vello_shell::FrameSource;
 
 use super::{Applier, InvalidationFlags};

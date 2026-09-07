@@ -7,7 +7,7 @@ use std::{
 };
 
 use runtime_api::test_driver::{NativeTestHost, TestController};
-use vello::peniko::Color;
+use vello_common::peniko::Color;
 
 use vello_shell::{FrameSource, WindowOptions};
 
@@ -325,7 +325,7 @@ fn render_capture(
             ),
         })?;
     }
-    let mut scene = anyrender::Scene::new();
+    let mut scene = vello_shell::Scene::new();
     vello_shell::scene::build_scene_scaled(
         &mut scene,
         nodes,
@@ -336,12 +336,11 @@ fn render_capture(
         viewport.scale_factor,
     );
     source.paint_debug_overlay(&mut scene, nodes, text, viewport.scale_factor);
-    vello_shell::renderer::render_to_png_with_backend(
+    vello_shell::renderer::render_to_png(
         &scene,
         viewport.physical(width),
         viewport.physical(height),
         base_color,
-        vello_shell::RendererBackend::VelloHybrid,
         output.to_string_lossy().as_ref(),
     )
     .map_err(|error| crate::Error::TestScenario {

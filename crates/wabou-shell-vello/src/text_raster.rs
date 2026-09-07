@@ -2,11 +2,11 @@
 
 use std::sync::Arc;
 
-use anyrender::{PaintScene, Scene};
+use crate::{PaintScene, Scene};
 use parley::{Layout, PositionedLayoutItem};
 use swash::scale::{Render, ScaleContext, Source, StrikeWith, image::Content};
-use vello::kurbo::Affine;
-use vello::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
+use vello_common::kurbo::Affine;
+use vello_common::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
 
 const SUBPIXEL_VARIANTS: f32 = 4.0;
 const MAX_RASTER_DIMENSION: u32 = 2048;

@@ -78,7 +78,7 @@ impl From<TerminalNodeEvent> for WidgetNodeEvent {
     }
 }
 
-/// Vello/AnyRender factory suitable for
+/// Vello Hybrid factory suitable for
 /// `HostBuilder::widget("terminal", terminal_widget)`.
 pub fn terminal_widget() -> Box<dyn Widget> {
     Box::new(TerminalWidget::lazy_default_shell())

@@ -4,6 +4,10 @@
 //! normalized tree into Vello Hybrid commands. Unsupported SVG features are
 //! reported as structured diagnostics instead of silently disappearing or
 //! reaching Vello Hybrid APIs which currently panic.
+//!
+//! The traversal follows the transform and paint semantics established by
+//! [`vello_svg`](https://github.com/linebender/vello_svg), while targeting the
+//! distinct Vello Hybrid scene API directly.
 
 mod convert;
 mod render;
@@ -103,13 +107,17 @@ pub fn append(
 
 /// Append a normalized SVG tree to an existing Hybrid scene.
 pub fn append_tree(scene: &mut Scene, tree: &usvg::Tree) -> Result<RenderReport, Error> {
+    append_tree_with_transform(scene, tree, vello_common::kurbo::Affine::IDENTITY)
+}
+
+/// Append a normalized SVG tree under a caller-provided root transform.
+pub fn append_tree_with_transform(
+    scene: &mut Scene,
+    tree: &usvg::Tree,
+    transform: vello_common::kurbo::Affine,
+) -> Result<RenderReport, Error> {
     let mut report = RenderReport::default();
-    render::render_group(
-        scene,
-        tree.root(),
-        vello_common::kurbo::Affine::IDENTITY,
-        &mut report,
-    )?;
+    render::render_group(scene, tree.root(), transform, &mut report)?;
     Ok(report)
 }
 

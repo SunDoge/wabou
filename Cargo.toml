@@ -3,7 +3,6 @@ resolver = "3"
 members = ["apps/*", "crates/*"]
 exclude = [
   "templates/basic",
-  "vendor/anyrender_vello_hybrid",
   "vendor/bitwarden-sdk",
 ]
 default-members = [
@@ -47,11 +46,6 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 anyhow = "1"
-anyrender = "0.13.0"
-anyrender-skia = { package = "anyrender_skia", version = "0.11.0" }
-anyrender-svg = { package = "anyrender_svg", version = "0.14.0", default-features = false }
-anyrender-vello = { package = "anyrender_vello", version = "0.14.0" }
-anyrender-vello-hybrid = { package = "anyrender_vello_hybrid", version = "0.10.0" }
 gpui = { package = "gpui-ce", version = "0.2.2" }
 gpui-base = { package = "gpui_ce_components_base", version = "0.2.0" }
 gpui-platform = { package = "gpui_ce_platform", version = "0.1.0", features = ["wayland", "x11"] }
@@ -85,6 +79,7 @@ dioxus-devtools = { version = "0.7.10", default-features = false }
 directories = "6.0.0"
 flume = "0.12.0"
 futures-channel = "0.3"
+glifo = "0.3"
 getrandom = "0.4.3"
 gix = { version = "0.87.1", default-features = false, features = ["sha1", "status"] }
 gosh-dl = { version = "0.5.0", default-features = false, features = ["http", "storage", "torrent"] }
@@ -123,9 +118,10 @@ unicode-width = "0.2.2"
 url = "2.5.8"
 usvg = { version = "0.48.1", default-features = false, features = ["text"] }
 uuid = "1"
-vello = "0.10.0"
 vello-common = { package = "vello_common", version = "0.2.0" }
 vello-hybrid = { package = "vello_hybrid", version = "0.2.0", default-features = false }
+wgpu = "29"
+wgpu-context = { package = "wgpu_context", version = "0.9.0" }
 which = "6.0.3"
 winit = "=0.31.0-beta.2"
 zeroize = "1.9.0"
@@ -138,10 +134,3 @@ opt-level = 2
 
 [profile.release]
 lto = "thin"
-
-[patch.crates-io]
-# Keep the small AnyRender adapter vendored so the Hybrid window path can track
-# vello_hybrid 0.2 independently and avoid waiting indefinitely after every
-# frame. The upstream 0.10 adapter still targets vello_hybrid 0.1 and blocks the
-# Winit event loop on Intel Vulkan + Wayland after the first present.
-anyrender_vello_hybrid = { path = "vendor/anyrender_vello_hybrid" }

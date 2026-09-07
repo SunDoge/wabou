@@ -10,7 +10,6 @@ name = "wabou_backend_vello_hybrid"
 path = "src/lib.rs"
 
 [dependencies]
-anyrender.workspace = true
 arc-swap.workspace = true
 bitflags.workspace = true
 flume.workspace = true
@@ -38,7 +37,7 @@ tokio-util = { version = "0.7", features = ["rt"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 url.workspace = true
-vello.workspace = true
+vello-common.workspace = true
 wabou-devtools.workspace = true
 wabou-bindgen.workspace = true
 wabou-host-api.workspace = true

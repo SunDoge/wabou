@@ -18,9 +18,6 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-#[cfg(any(feature = "devtools", test))]
-use anyrender::PaintScene;
-use anyrender::Scene;
 use parley::{
     Affinity, Layout,
     editing::{Cursor, Selection},
@@ -28,12 +25,15 @@ use parley::{
 #[cfg(test)]
 use taffy::TraversePartialTree;
 use taffy::{NodeId, TaffyTree};
-use vello::kurbo::{Affine, Point};
+use vello_common::kurbo::{Affine, Point};
 #[cfg(any(feature = "devtools", test))]
-use vello::kurbo::{Rect, Stroke};
-use vello::peniko::Color;
+use vello_common::kurbo::{Rect, Stroke};
+use vello_common::peniko::Color;
 #[cfg(any(feature = "devtools", test))]
-use vello::peniko::Fill;
+use vello_common::peniko::Fill;
+#[cfg(any(feature = "devtools", test))]
+use vello_shell::PaintScene;
+use vello_shell::Scene;
 use vello_shell::layout::{self, PlacedNode, SubtreeEvent, subtree_events};
 use vello_shell::scrollbar::{
     ScrollAxis, ScrollbarPart, ScrollbarTarget, drag_ratio as scrollbar_drag_ratio,

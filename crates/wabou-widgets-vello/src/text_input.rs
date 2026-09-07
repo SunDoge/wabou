@@ -10,17 +10,17 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyrender::{PaintScene, Scene};
 use parley::{Affinity, Cursor, PlainEditor, PositionedLayoutItem, Selection};
 use serde::Deserialize;
-use vello::kurbo::{Affine, Rect};
-use vello::peniko::{Color, Fill};
+use vello_common::kurbo::{Affine, Rect};
+use vello_common::peniko::{Color, Fill};
 use wabou_shell::style::TextAlign;
 use wabou_shell::text::{
     SingleLineTextMetrics, TextContext, brush_for_color, layout_text_styled,
     single_line_text_metrics,
 };
 use wabou_shell::{ImeEvent, KeyEvent, KeyPhase, PointerEvent, PointerPhase, UiEvent};
+use wabou_shell_vello::{PaintScene, Scene};
 
 use wabou_shell::{
     PaintContext, Widget, WidgetChanges, WidgetEventResult, WidgetImePurpose, WidgetImeState,
@@ -691,17 +691,19 @@ impl TextInput {
                         glyph_run.run().font_size() * device_scale as f32,
                         true,
                         glyph_run.run().normalized_coords(),
-                        vello::kurbo::Vec2::ZERO,
+                        vello_common::kurbo::Vec2::ZERO,
                         Fill::NonZero,
                         self.text_color,
                         1.0,
                         transform * Affine::scale(device_scale.recip()),
                         None,
-                        glyph_run.positioned_glyphs().map(|glyph| anyrender::Glyph {
-                            id: glyph.id,
-                            x: glyph.x * device_scale as f32,
-                            y: glyph.y * device_scale as f32,
-                        }),
+                        glyph_run
+                            .positioned_glyphs()
+                            .map(|glyph| wabou_shell_vello::Glyph {
+                                id: glyph.id,
+                                x: glyph.x * device_scale as f32,
+                                y: glyph.y * device_scale as f32,
+                            }),
                     );
                 }
             }

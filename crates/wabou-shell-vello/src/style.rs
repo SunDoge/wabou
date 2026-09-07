@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use taffy::prelude::*;
 use taffy::style::{GridTemplateArea, GridTemplateAreas, GridTemplateRepetition};
-use vello::peniko::Color;
+use vello_common::peniko::Color;
 pub use wabou_style::{IrColor, IrLength, IrValue};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]

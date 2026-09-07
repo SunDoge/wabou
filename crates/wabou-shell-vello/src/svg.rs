@@ -5,35 +5,32 @@
 use std::fmt;
 use std::sync::Arc;
 
-use anyrender::Scene;
-use anyrender_svg::usvg;
-use vello::kurbo::Affine;
+use crate::SvgDocument;
+use wabou_svg_vello_hybrid::usvg;
 
 /// A static SVG that has already been normalized by `usvg` and encoded into a
 /// backend-neutral scene. Keeping this in the retained paint state avoids XML parsing on
 /// every frame.
 #[derive(Clone)]
 pub struct SvgImage {
-    scene: Arc<Scene>,
+    document: SvgDocument,
     size: [f32; 2],
 }
 
 impl SvgImage {
-    /// Parse SVG XML and encode its normalized usvg tree into an AnyRender scene.
+    /// Parse SVG XML and retain its normalized tree for direct Hybrid projection.
     pub fn parse(source: &str) -> Result<Self, usvg::Error> {
         let tree = usvg::Tree::from_str(source, &usvg::Options::default())?;
         let size = tree.size();
-        let mut scene = Scene::new();
-        anyrender_svg::render_svg_tree(&mut scene, &tree, Affine::IDENTITY);
         Ok(Self {
-            scene: Arc::new(scene),
+            document: SvgDocument(Arc::new(tree)),
             size: [size.width(), size.height()],
         })
     }
 
     /// Borrow the retained content-local backend-neutral scene.
-    pub fn scene(&self) -> &Scene {
-        &self.scene
+    pub fn document(&self) -> &SvgDocument {
+        &self.document
     }
 
     /// Intrinsic SVG `[width, height]` in logical pixels.

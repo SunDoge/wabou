@@ -12,7 +12,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
-use vello::peniko::Color;
+use vello_common::peniko::Color;
 use wabou_bindgen::{CapabilityContract, JsonMethod};
 
 use crate::{Applier, ImageResourceStore, JsRuntime, JsRuntimeOptions};

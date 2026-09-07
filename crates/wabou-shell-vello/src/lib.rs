@@ -1,14 +1,12 @@
-//! wabou-shell-vello: render a UI tree with Winit, Taffy, Parley, and AnyRender.
+//! wabou-shell-vello: render a UI tree with Winit, Taffy, Parley, and Vello Hybrid.
 //!
 //! The shell is a reusable host: a [`source::FrameSource`] produces a flattened
 //! layout list each frame; [`shell::Shell`] owns the window and selected
-//! AnyRender backend. The `wabou-runtime` crate provides the SolidJS-driven
+//! Vello Hybrid backend. The `wabou-runtime` crate provides the SolidJS-driven
 //! (op-protocol) source.
 
 #![warn(missing_docs)]
 
-pub use anyrender;
-pub use anyrender::PaintScene;
 pub use wabou_accessibility_vello as accessibility;
 pub mod app;
 pub mod app_dirs;
@@ -17,9 +15,9 @@ pub mod error;
 pub mod headless;
 pub mod image;
 pub mod layout;
+pub mod paint;
 pub mod renderer;
 mod renderer_backend;
-mod renderer_selection;
 pub mod scene;
 pub mod scrollbar;
 pub mod shell;
@@ -49,7 +47,7 @@ pub use effect::{
     SaveDialogRequest, WindowResourceKey, initial_window_resource_key,
 };
 pub use error::{Error, Result};
-pub use renderer_selection::RendererBackend;
+pub use paint::{Glyph, NormalizedCoord, PaintCommand, PaintScene, Scene, SvgDocument};
 pub use shell::Shell;
 pub use shortcut::StandardShortcut;
 pub use source::{

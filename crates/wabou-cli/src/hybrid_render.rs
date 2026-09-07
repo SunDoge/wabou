@@ -10,12 +10,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyrender::Scene;
 use serde::Deserialize;
 use wabou_backend_vello_hybrid::{AppConfig, Applier, JsRuntime};
 use wabou_shell_vello::{
     FrameSource, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent,
-    PointerPhase, RendererBackend, TextContext, UiEvent, WheelEvent, layout::PlacedNode,
+    PointerPhase, Scene, TextContext, UiEvent, WheelEvent, layout::PlacedNode,
 };
 use wabou_widgets_vello::{PasswordInput, SecretStore};
 
@@ -173,12 +172,11 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         .out
         .to_str()
         .ok_or_else(|| format!("output path is not valid UTF-8: {}", options.out.display()))?;
-    wabou_shell_vello::renderer::render_to_png_with_backend(
+    wabou_shell_vello::renderer::render_to_png(
         &scene,
         physical_width,
         physical_height,
         base_color,
-        RendererBackend::VelloHybrid,
         out,
     )
     .map_err(|error| format!("failed to render {}: {error:?}", options.out.display()))?;

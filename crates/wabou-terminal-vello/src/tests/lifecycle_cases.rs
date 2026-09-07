@@ -736,7 +736,7 @@ fn cursor_blink_override_can_keep_live_terminals_stable() {
 
 #[test]
 fn cursor_blink_frames_retain_terminal_background_and_text() {
-    use anyrender::recording::RenderCommand;
+    use wabou_shell_vello::PaintCommand as RenderCommand;
 
     let mut widget = TerminalWidget::headless(20, 4);
     widget.feed(b"steady text\x1b[1 q");
@@ -758,7 +758,10 @@ fn cursor_blink_frames_retain_terminal_background_and_text() {
             .commands
             .iter()
             .filter(|command| {
-                matches!(command, RenderCommand::Fill(_) | RenderCommand::GlyphRun(_))
+                matches!(
+                    command,
+                    RenderCommand::Fill { .. } | RenderCommand::GlyphRun { .. }
+                )
             })
             .count()
     };

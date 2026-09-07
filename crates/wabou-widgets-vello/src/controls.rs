@@ -3,15 +3,15 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
-use anyrender::PaintScene;
 use serde::Deserialize;
-use vello::kurbo::{Affine, Circle, Rect};
-use vello::peniko::{Color, Fill};
+use vello_common::kurbo::{Affine, Circle, Rect};
+use vello_common::peniko::{Color, Fill};
 use wabou_protocol::event;
 use wabou_shell::{
     PaintContext, PointerButton, PointerPhase, UiEvent, Widget, WidgetChanges, WidgetEventResult,
     WidgetGeometry, WidgetNodeEvent, WidgetStyle, decode_widget_config,
 };
+use wabou_shell_vello::PaintScene;
 
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
 const SPINNER_DOTS: usize = 8;

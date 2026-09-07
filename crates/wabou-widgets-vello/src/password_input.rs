@@ -3,14 +3,14 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use anyrender::{PaintScene, Scene};
-use vello::kurbo::{Affine, Rect};
-use vello::peniko::{Color, Fill};
+use vello_common::kurbo::{Affine, Rect};
+use vello_common::peniko::{Color, Fill};
 use wabou_shell::style::TextAlign;
 use wabou_shell::text::{
     SingleLineTextMetrics, brush_for_color, layout_text_styled, single_line_text_metrics,
 };
 use wabou_shell::{ImeEvent, KeyPhase, StandardShortcut, UiEvent};
+use wabou_shell_vello::{PaintScene, Scene};
 use zeroize::{Zeroize, Zeroizing};
 
 use wabou_shell::{

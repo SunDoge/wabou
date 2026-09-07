@@ -1,4 +1,4 @@
-//! Reusable window + AnyRender backend + scene + text context.
+//! Reusable window + Vello Hybrid backend + scene + text context.
 //!
 //! Extracted from the app so multiple hosts (the static-JSON `wabou` bin, the
 //! SolidJS-driven `wabou-runtime` crate) share one windowing setup. A host
@@ -10,13 +10,13 @@
 use snafu::ResultExt;
 use std::sync::Arc;
 
-use anyrender::Scene;
-use vello::peniko::Color;
+use crate::Scene;
+use vello_common::peniko::Color;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowAttributes};
 
 use crate::accessibility::AccessibilityState;
-use crate::renderer_backend::AnyWindowRenderer;
+use crate::renderer_backend::HybridWindowRenderer;
 use crate::source::{WindowInputMode, WindowLevel, WindowOptions};
 use crate::text::TextContext;
 use wabou_shell_api::WindowBackground;
@@ -25,8 +25,8 @@ use wabou_shell_api::WindowBackground;
 pub struct Shell {
     /// Platform window handle.
     pub window: Arc<dyn Window>,
-    /// AnyRender renderer selected for this window.
-    renderer: AnyWindowRenderer,
+    /// Direct Vello Hybrid renderer for this window.
+    renderer: HybridWindowRenderer,
     /// Current physical render size.
     surface_size: [u32; 2],
     /// Reused backend-neutral application scene for the current frame.
@@ -38,7 +38,7 @@ pub struct Shell {
 }
 
 impl Shell {
-    /// Create the window + selected AnyRender backend + a fresh
+    /// Create the window + Vello Hybrid backend + a fresh
     /// [`TextContext`]. Returns a typed error when any window/GPU step fails.
     pub fn create(
         event_loop: &dyn ActiveEventLoop,
@@ -79,8 +79,7 @@ impl Shell {
         window.set_visible(true);
         let surface_width = physical_size.width.max(1);
         let surface_height = physical_size.height.max(1);
-        let mut renderer =
-            AnyWindowRenderer::new(crate::RendererBackend::VelloHybrid, transparent)?;
+        let mut renderer = HybridWindowRenderer::new(transparent)?;
         renderer.resume(window.clone(), surface_width, surface_height);
 
         Ok(Shell {
@@ -143,7 +142,7 @@ impl Shell {
     pub fn tcx_mut(&mut self) -> &mut TextContext {
         &mut self.tcx
     }
-    /// Mutably borrow the frame's backend-neutral AnyRender scene.
+    /// Mutably borrow the frame's retained Wabou paint scene.
     pub fn scene_mut(&mut self) -> &mut Scene {
         &mut self.scene
     }

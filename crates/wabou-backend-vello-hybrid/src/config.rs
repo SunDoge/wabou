@@ -1,6 +1,6 @@
 //! App configuration for the wabou-runtime host.
 
-use vello::peniko::Color;
+use vello_common::peniko::Color;
 
 /// JavaScript source and initial viewport configuration for an [`crate::Applier`].
 pub struct AppConfig {

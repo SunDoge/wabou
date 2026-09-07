@@ -11,18 +11,18 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-use anyrender::{Glyph, PaintScene, Scene};
+use crate::{Glyph, PaintScene, Scene};
 use lru::LruCache;
 use parley::{
     Alignment, AlignmentOptions, FontContext, Layout, LayoutContext, PositionedLayoutItem,
     StyleProperty,
 };
 use unicode_segmentation::UnicodeSegmentation;
-use vello::kurbo::{Affine, Vec2};
-use vello::peniko::Fill;
+use vello_common::kurbo::{Affine, Vec2};
+use vello_common::peniko::Fill;
 
 use crate::style::TextAlign;
-use vello::peniko::Color;
+use vello_common::peniko::Color;
 
 /// Geometry shared by ordinary text nodes and text-backed native widgets.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -232,7 +232,7 @@ impl TextContext {
         self.raster_cache.clear();
     }
 
-    /// Encode a positioned Parley layout once and reuse the retained AnyRender
+    /// Encode a positioned Parley layout once and reuse the retained Wabou paint
     /// fragment while only its node transform changes. Animated text commonly
     /// keeps identical shaping for thousands of frames; rebuilding every glyph
     /// run into the scene each frame is pure encoding overhead.

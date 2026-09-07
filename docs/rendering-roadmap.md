@@ -43,9 +43,9 @@ verify animation and scrolling without weakening this typical-UI requirement.
 
 The first vertical slice is operational: QuickJS/Solid emits the shared binary
 protocol, the retained Winit projection resolves Style IR and Taffy layout,
-and AnyRender replays the resulting scene into a Vello Hybrid window surface.
+and Wabou replays its retained paint stream directly into a Vello Hybrid window surface.
 The window and SVG paths use `vello_hybrid` 0.2 and share one `vello_common`
-release line; the repository-local AnyRender adapter carries the small API and
+release line; the repository-local Vello shell owns the small API and
 non-blocking presentation patches needed until upstream catches up.
 Run it against the shared 7GUIs application with:
 
@@ -102,7 +102,7 @@ parity check. Platform IME and text-quality smoke coverage remains an explicit
 release gate.
 
 The Hybrid style projection preserves independent corner radii through
-background, border, outline, overflow, and native-widget clipping. AnyRender's
+background, border, outline, overflow, and native-widget clipping. Wabou's
 current box-shadow command accepts one radius, so asymmetric shadows use the
 largest corner radius while the box itself remains exact.
 

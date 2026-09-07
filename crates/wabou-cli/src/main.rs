@@ -1406,7 +1406,7 @@ mod tests {
             "run",
             "apps/gallery",
             "--features",
-            "renderer-skia,diagnostics",
+            "diagnostics,telemetry",
             "--features",
             "experimental",
         ])
@@ -1416,7 +1416,7 @@ mod tests {
         };
         assert_eq!(
             cargo_features.values,
-            ["renderer-skia", "diagnostics", "experimental"]
+            ["diagnostics", "telemetry", "experimental"]
         );
 
         let mut command = Command::new("cargo");
@@ -1426,7 +1426,7 @@ mod tests {
                 .get_args()
                 .map(|arg| arg.to_string_lossy().into_owned())
                 .collect::<Vec<_>>(),
-            ["--features", "renderer-skia,diagnostics,experimental"]
+            ["--features", "diagnostics,telemetry,experimental"]
         );
     }
 
