@@ -57,7 +57,10 @@ import {
   useRusticApi,
 } from "./api";
 import { createAsyncRequestGate } from "./async-request";
-import { OperationProgressStatus } from "./operation-progress";
+import {
+  createLocalOperationId,
+  OperationProgressStatus,
+} from "./operation-progress";
 import { FileDetails } from "./file-details";
 import {
   formatBytes,
@@ -843,33 +846,45 @@ export function SnapshotsPage() {
     const profile = session.activeProfile();
     if (!profile) return;
     const profileId = profile.id;
-    const updated = await api.updateSnapshot({
-      profileId,
-      snapshotId: snapshot.id,
-      label: changes.label,
-      description: changes.description ?? "",
-      tags: changes.tags,
-      deleteProtected: changes.deleteProtected,
-    });
-    browserCache.replaceSnapshot(profileId, snapshot.id, updated.id);
-    if (session.activeProfile()?.id !== profileId) return;
-    setSnapshots((items) =>
-      items.map((item) => (item.id === snapshot.id ? updated : item)),
-    );
-    if (selected()?.id === snapshot.id) setSelected(updated);
+    const operationId = createLocalOperationId("snapshot-update");
+    session.beginOperation(profileId, operationId);
+    try {
+      const updated = await api.updateSnapshot({
+        profileId,
+        snapshotId: snapshot.id,
+        label: changes.label,
+        description: changes.description ?? "",
+        tags: changes.tags,
+        deleteProtected: changes.deleteProtected,
+      });
+      browserCache.replaceSnapshot(profileId, snapshot.id, updated.id);
+      if (session.activeProfile()?.id !== profileId) return;
+      setSnapshots((items) =>
+        items.map((item) => (item.id === snapshot.id ? updated : item)),
+      );
+      if (selected()?.id === snapshot.id) setSelected(updated);
+    } finally {
+      session.endOperation(profileId, operationId);
+    }
   }
 
   async function deleteSnapshot(snapshot: SnapshotEntry) {
     const profile = session.activeProfile();
     if (!profile) return;
     const profileId = profile.id;
-    await api.deleteSnapshot({
-      profileId,
-      snapshotId: snapshot.id,
-    });
-    browserCache.removeSnapshot(profileId, snapshot.id);
-    if (session.activeProfile()?.id !== profileId) return;
-    await loadSnapshots(profileId, "newest");
+    const operationId = createLocalOperationId("snapshot-delete");
+    session.beginOperation(profileId, operationId);
+    try {
+      await api.deleteSnapshot({
+        profileId,
+        snapshotId: snapshot.id,
+      });
+      browserCache.removeSnapshot(profileId, snapshot.id);
+      if (session.activeProfile()?.id !== profileId) return;
+      await loadSnapshots(profileId, "newest");
+    } finally {
+      session.endOperation(profileId, operationId);
+    }
   }
 
   function parentPath(path: string): string {

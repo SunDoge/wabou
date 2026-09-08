@@ -3,6 +3,16 @@ import { formatBytes } from "./format";
 
 export const OPERATION_PROGRESS_TOPIC = "timestow:operation-progress";
 
+let nextLocalOperationId = 1;
+
+export function createLocalOperationId(
+  operation: "restore" | "snapshot-update" | "snapshot-delete",
+): string {
+  const id = nextLocalOperationId;
+  nextLocalOperationId += 1;
+  return `${operation}:${Date.now()}:${id}`;
+}
+
 export interface OperationProgressEvent {
   profileId: string;
   operation: "backup" | "restore";

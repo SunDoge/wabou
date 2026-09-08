@@ -1396,6 +1396,9 @@ test("a completed snapshot deletion cannot reload a profile that is no longer ac
           aria-label="Switch to Documents"
           onClick={() => void session.activateProfile("documents")}
         />
+        <Text role="status" aria-label="Operation state">
+          {session.hasActiveOperations() ? "busy" : "idle"}
+        </Text>
         {props.children}
       </>
     );
@@ -1436,6 +1439,9 @@ test("a completed snapshot deletion cannot reload a profile that is no longer ac
   screen.getByRole("button", { name: "Delete snapshot" }).click();
   await screen.waitFor(() => {
     expect(fixture.callsTo("rustic.deleteSnapshot")).toHaveLength(1);
+    expect(screen.getByRole("status", { name: "Operation state" }).text).toBe(
+      "busy",
+    );
   });
 
   screen.getByRole("button", { name: "Switch to Documents" }).click();
@@ -1456,6 +1462,9 @@ test("a completed snapshot deletion cannot reload a profile that is no longer ac
     expect(fixture.callsTo("rustic.listSnapshots").at(-1)?.args[0]).toEqual({
       profileId: "documents",
     });
+    expect(screen.getByRole("status", { name: "Operation state" }).text).toBe(
+      "idle",
+    );
   });
   screen.dispose();
 });

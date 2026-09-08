@@ -26,19 +26,12 @@ import {
   formatOptionalDetailedTimestamp,
 } from "./format";
 import {
+  createLocalOperationId,
   decodeOperationProgressEvent,
   OPERATION_PROGRESS_TOPIC,
   type OperationProgressEvent,
   OperationProgressStatus,
 } from "./operation-progress";
-
-let nextRestoreOperation = 1;
-
-function createRestoreOperationId(): string {
-  const id = nextRestoreOperation;
-  nextRestoreOperation += 1;
-  return `restore:${Date.now()}:${id}`;
-}
 
 export function FileDetails(props: {
   profileId: string;
@@ -257,7 +250,7 @@ function ExtractDialog(props: {
     if (!plan() || pending()) return;
     setPending("extract");
     setError(undefined);
-    const operationId = createRestoreOperationId();
+    const operationId = createLocalOperationId("restore");
     activeOperationId = operationId;
     setProgress(undefined);
     try {
