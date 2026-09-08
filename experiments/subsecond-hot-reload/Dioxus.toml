@@ -1,4 +1,0 @@
-[application]
-name = "wabou-subsecond-hot-reload"
-default_platform = "desktop"
-out_dir = "dist"
