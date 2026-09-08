@@ -223,6 +223,10 @@ await renderLayoutFixtures({
           role: "region",
           name: "Snapshot history",
         });
+        getLayoutNode(fixture, {
+          role: "button",
+          name: "Show 25 older snapshots",
+        });
         getLayoutNode(fixture, { role: "table", name: "Snapshot files" });
       },
     },

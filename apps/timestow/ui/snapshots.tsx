@@ -81,6 +81,7 @@ const fileColumns: TanStackDataTableColumn<FileEntry>[] = [
   { accessorKey: "size", header: "Size" },
   { accessorKey: "modified", header: "Modified" },
 ];
+const SNAPSHOT_HISTORY_PAGE_SIZE = 50;
 
 function shortId(id: string): string {
   return id.slice(0, 8);
@@ -446,11 +447,21 @@ export function SnapshotHistory(props: {
   onQueryChange(query: string): void;
   onSelect(snapshot: SnapshotEntry): void;
 }) {
+  const [visibleLimit, setVisibleLimit] = createSignal(
+    SNAPSHOT_HISTORY_PAGE_SIZE,
+  );
   const filtered = () =>
     props.snapshots.filter((snapshot) =>
       snapshotMatchesQuery(snapshot, props.query),
     );
+  const visibleSnapshots = () => filtered().slice(0, visibleLimit());
+  const remainingSnapshots = () =>
+    Math.max(0, filtered().length - visibleSnapshots().length);
   const searchable = () => props.snapshots.length >= 8;
+  const updateQuery = (query: string) => {
+    setVisibleLimit(SNAPSHOT_HISTORY_PAGE_SIZE);
+    props.onQueryChange(query);
+  };
   return (
     <ProjectionBoundary
       id="rustic-sidebar"
@@ -471,9 +482,7 @@ export function SnapshotHistory(props: {
               aria-label="Filter snapshots"
               placeholder="Filter snapshots…"
               value={props.query}
-              onInput={(event) =>
-                props.onQueryChange(event.currentTarget.value)
-              }
+              onInput={(event) => updateQuery(event.currentTarget.value)}
             />
             <Show when={props.query.trim()}>
               <InputGroupAddon align="inline-end" class="px-1.5">
@@ -482,7 +491,7 @@ export function SnapshotHistory(props: {
                   variant="ghost"
                   class="w-6 h-6"
                   aria-label="Clear snapshot filter"
-                  onClick={() => props.onQueryChange("")}
+                  onClick={() => updateQuery("")}
                 >
                   <Icon source={x} size={12} />
                 </Button>
@@ -524,13 +533,13 @@ export function SnapshotHistory(props: {
               description="Try a label, date, host, tag, or snapshot ID."
               action={{
                 label: "Clear filter",
-                onAction: () => props.onQueryChange(""),
+                onAction: () => updateQuery(""),
               }}
               class="border-0 shadow-none"
             />
           </Match>
           <Match when>
-            <ForValue each={filtered()}>
+            <ForValue each={visibleSnapshots()}>
               {(snapshot) => (
                 <Button
                   aria-label={`Open snapshot ${snapshotDisplayTitle(snapshot)}`}
@@ -565,6 +574,23 @@ export function SnapshotHistory(props: {
                 </Button>
               )}
             </ForValue>
+            <Show when={remainingSnapshots() > 0}>
+              <Button
+                variant="ghost"
+                class="min-h-10 justify-center text-sm text-secondary"
+                aria-label={`Show ${Math.min(
+                  remainingSnapshots(),
+                  SNAPSHOT_HISTORY_PAGE_SIZE,
+                )} older snapshots`}
+                onClick={() =>
+                  setVisibleLimit(
+                    (current) => current + SNAPSHOT_HISTORY_PAGE_SIZE,
+                  )
+                }
+              >
+                Show older snapshots
+              </Button>
+            </Show>
           </Match>
         </Switch>
       </ScrollArea>

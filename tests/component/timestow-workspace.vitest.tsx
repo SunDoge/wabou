@@ -732,6 +732,50 @@ test("long snapshot histories filter by user-facing metadata", () => {
   expect(select).toHaveBeenCalledWith(snapshots[0]);
 });
 
+test("snapshot history progressively reveals old entries without limiting search", () => {
+  const snapshots = Array.from({ length: 75 }, (_, index) => ({
+    id: `snapshot-${index}`,
+    time: "2026-09-08T04:18:00Z",
+    hostname: "workstation",
+    paths: ["/data/photos"],
+    filesNew: index,
+    filesChanged: 0,
+    label: `Backup ${index}`,
+    tags: [],
+    deleteProtected: false,
+  }));
+  const [query, setQuery] = createSignal("");
+  const screen = renderComponent(() => (
+    <SnapshotHistory
+      loading={false}
+      loadFailed={false}
+      snapshots={snapshots}
+      query={query()}
+      onQueryChange={setQuery}
+      onSelect={() => {}}
+    />
+  ));
+
+  expect(
+    screen.getByRole("button", { name: "Open snapshot Backup 49" }),
+  ).toBeDefined();
+  expect(
+    screen.queryByRole("button", { name: "Open snapshot Backup 50" }),
+  ).toBeNull();
+  screen.getByRole("button", { name: "Show 25 older snapshots" }).click();
+  expect(
+    screen.getByRole("button", { name: "Open snapshot Backup 74" }),
+  ).toBeDefined();
+
+  screen.getByRole("textbox", { name: "Filter snapshots" }).input("Backup 74");
+  expect(
+    screen.getByRole("button", { name: "Open snapshot Backup 74" }),
+  ).toBeDefined();
+  expect(
+    screen.queryByRole("button", { name: "Open snapshot Backup 0" }),
+  ).toBeNull();
+});
+
 test("snapshot history distinguishes repository failure from empty data", () => {
   const screen = renderComponent(() => (
     <SnapshotHistory

@@ -86,19 +86,21 @@ const previousSnapshot: SnapshotEntry = {
 };
 
 const manySnapshots: readonly SnapshotEntry[] = Array.from(
-  { length: 12 },
+  { length: 75 },
   (_, index) => ({
     ...newestSnapshot,
     id: `snapshot-history-${String(index).padStart(2, "0")}`,
-    time: `2026-09-${String(12 - index).padStart(2, "0")}T00:42:00Z`,
+    time: new Date(
+      Date.parse("2026-09-08T00:42:00Z") - index * 86_400_000,
+    ).toISOString(),
     parentId:
-      index === 11
+      index === 74
         ? undefined
         : `snapshot-history-${String(index + 1).padStart(2, "0")}`,
     label:
       index === 0
         ? "Before reorganizing the family photo archive"
-        : `Nightly backup ${12 - index}`,
+        : `Nightly backup ${75 - index}`,
     deleteProtected: index === 0,
   }),
 );
